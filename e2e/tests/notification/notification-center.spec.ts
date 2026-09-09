@@ -91,6 +91,28 @@ async function mockNotificationList(
   });
 }
 
+/**
+ * Logs in as a mentee with a single unread "reservation accepted"
+ * notification from 'Mentor Wang' already mocked - the setup shared by
+ * every test that just needs one notification to interact with.
+ */
+async function setupMenteeWithNotification(
+  page: Page,
+  notificationId: string
+): Promise<ReturnType<typeof makeNotificationVO>> {
+  const notif = makeNotificationVO(
+    notificationId,
+    'reservation_success',
+    true,
+    'Mentor Wang',
+    'mentee'
+  );
+  await loginAs(page, false);
+  await mockUnreadCount(page, 1);
+  await mockNotificationList(page, [notif]);
+  return notif;
+}
+
 // --- Tests ---
 
 test.describe('Notification Center E2E Tests', () => {
@@ -111,20 +133,15 @@ test.describe('Notification Center E2E Tests', () => {
   test('Unread badge count optimistic updates when marking as read', async ({
     page,
   }) => {
-    const mockNotif = makeNotificationVO(
-      '101',
-      'reservation_success',
-      true,
-      'Mentor Wang',
-      'mentee'
-    );
-    await loginAs(page, false);
-    await mockUnreadCount(page, 1);
-    await mockNotificationList(page, [mockNotif]);
+    const mockNotif = await setupMenteeWithNotification(page, '101');
 
-    // Mock individual read API
-    await page.route(/\/v1\/users\/.*\/notifications\/101/, (route) => {
+    // Mock individual read API with an artificial delay before responding,
+    // so a badge update observed before this resolves can only be
+    // explained by an optimistic update - not by (accidentally) racing a
+    // near-instant mock response.
+    await page.route(/\/v1\/users\/.*\/notifications\/101/, async (route) => {
       if (route.request().method() === 'PUT') {
+        await new Promise((resolve) => setTimeout(resolve, 500));
         return route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -155,23 +172,16 @@ test.describe('Notification Center E2E Tests', () => {
     await page.getByText('Mentor Wang 已接受您的預約').click();
     await markReadRequest;
 
-    // Verify optimistic update clears the badge or decrements it
+    // The mocked response is still delayed at this point - the badge must
+    // already be gone, proving the UI updated optimistically rather than
+    // waiting for the backend response.
     await expect(badge).not.toBeVisible();
   });
 
   test('On API failure (500), verify unread state rolls back cleanly and shows error toast', async ({
     page,
   }) => {
-    const mockNotif = makeNotificationVO(
-      '102',
-      'reservation_success',
-      true,
-      'Mentor Wang',
-      'mentee'
-    );
-    await loginAs(page, false);
-    await mockUnreadCount(page, 1);
-    await mockNotificationList(page, [mockNotif]);
+    await setupMenteeWithNotification(page, '102');
 
     await page.route(/\/v1\/users\/.*\/notifications\/102/, (route) => {
       if (route.request().method() === 'PUT') {
@@ -203,16 +213,7 @@ test.describe('Notification Center E2E Tests', () => {
   test('Clicking a notification redirects to correct reservation endpoint', async ({
     page,
   }) => {
-    const mockNotif = makeNotificationVO(
-      '103',
-      'reservation_success',
-      true,
-      'Mentor Wang',
-      'mentee'
-    );
-    await loginAs(page, false);
-    await mockUnreadCount(page, 1);
-    await mockNotificationList(page, [mockNotif]);
+    await setupMenteeWithNotification(page, '103');
 
     await page.route(/\/v1\/users\/.*\/notifications\/103/, (route) => {
       return route.fulfill({
