@@ -1,11 +1,18 @@
-process.env.TZ = 'UTC';
-
 import { fromPartial } from '@total-typescript/shoehorn';
 import dayjs from 'dayjs';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 
 import { ApiError } from '@/lib/apiClient';
 import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
+import type { RawMentorTimeslot } from '@/lib/profile/scheduleHelpers';
 
 import {
   deleteMentorSchedule,
@@ -55,7 +62,34 @@ function segment(dtstart: number, id: number): ScheduleData['segments'] {
   ];
 }
 
+/**
+ * The single upsert payload shape reused by nearly every syncMonthSchedule
+ * test below - a factory keeps each test focused on what it's actually
+ * asserting instead of restating this boilerplate.
+ */
+function createMockUpsertPayload(dtstart: number = MAY_2026): TimeSlotDTO[] {
+  return [
+    fromPartial<TimeSlotDTO>({
+      dt_type: 'ALLOW',
+      dtstart,
+      dtend: dtstart + 1800,
+    }),
+  ];
+}
+
 describe('mentor-schedule sync', () => {
+  // Fixed via vi.stubEnv (auto-restored by Vitest) rather than a raw
+  // process.env assignment, which would leak into other test files sharing
+  // this worker thread. dayjs('2026-05-01') below depends on the machine's
+  // local timezone otherwise, causing CI/local end-of-month unix mismatches.
+  beforeAll(() => {
+    vi.stubEnv('TZ', 'UTC');
+  });
+
+  afterAll(() => {
+    vi.unstubAllEnvs();
+  });
+
   afterEach(() => {
     scheduleReadModel.clear();
     vi.clearAllMocks();
@@ -135,6 +169,39 @@ describe('mentor-schedule sync', () => {
 
       leave();
     });
+
+    it('is not overwritten by a slower, already in-flight fetch for the same month', async () => {
+      let resolveStaleFetch!: (raws: RawMentorTimeslot[]) => void;
+      const staleFetch = new Promise<RawMentorTimeslot[]>((resolve) => {
+        resolveStaleFetch = resolve;
+      });
+
+      // A component is already subscribed with a slow fetch in flight for
+      // this month (e.g. the calendar's own background load) when the sync
+      // below force-writes fresher rows.
+      const leave = scheduleReadModel.subscribe(
+        ref,
+        () => staleFetch,
+        () => {}
+      );
+
+      vi.mocked(fetchMentorSchedule).mockResolvedValue({
+        segments: segment(MAY_2026, 99),
+      });
+      await loadMonthScheduleFresh(ref);
+
+      expect(scheduleReadModel.get(ref)?.map((r) => r.id)).toEqual([99]);
+
+      // The stale fetch finally resolves with older rows - it must not
+      // clobber what the sync already published.
+      resolveStaleFetch([fromPartial<RawMentorTimeslot>({ id: 1 })]);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(scheduleReadModel.get(ref)?.map((r) => r.id)).toEqual([99]);
+
+      leave();
+    });
   });
 
   describe('prefetchMonthSchedule', () => {
@@ -180,13 +247,7 @@ describe('mentor-schedule sync', () => {
         segments: segment(MAY_2026, 10),
       });
 
-      const upsertPayload = [
-        fromPartial<TimeSlotDTO>({
-          dt_type: 'ALLOW',
-          dtstart: MAY_2026,
-          dtend: MAY_2026 + 1800,
-        }),
-      ];
+      const upsertPayload = createMockUpsertPayload();
       const deleteIds = [1, 2];
 
       const outcome = await syncMonthSchedule({
@@ -246,13 +307,7 @@ describe('mentor-schedule sync', () => {
       const apiError = new ApiError(400, 'Conflict in schedule', 'CONFLICT');
       vi.mocked(saveMentorSchedule).mockRejectedValueOnce(apiError);
 
-      const upsertPayload = [
-        fromPartial<TimeSlotDTO>({
-          dt_type: 'ALLOW',
-          dtstart: MAY_2026,
-          dtend: MAY_2026 + 1800,
-        }),
-      ];
+      const upsertPayload = createMockUpsertPayload();
       const deleteIds = [1];
 
       const outcome = await syncMonthSchedule({
@@ -276,13 +331,7 @@ describe('mentor-schedule sync', () => {
       const apiError = new ApiError(400, 'Conflict in schedule', 'CONFLICT');
       vi.mocked(deleteMentorSchedule).mockRejectedValueOnce(apiError);
 
-      const upsertPayload = [
-        fromPartial<TimeSlotDTO>({
-          dt_type: 'ALLOW',
-          dtstart: MAY_2026,
-          dtend: MAY_2026 + 1800,
-        }),
-      ];
+      const upsertPayload = createMockUpsertPayload();
       const deleteIds = [1];
 
       const outcome = await syncMonthSchedule({
@@ -308,13 +357,7 @@ describe('mentor-schedule sync', () => {
 
       const outcome = await syncMonthSchedule({
         ref,
-        upsertPayload: [
-          fromPartial<TimeSlotDTO>({
-            dt_type: 'ALLOW',
-            dtstart: MAY_2026,
-            dtend: MAY_2026 + 1800,
-          }),
-        ],
+        upsertPayload: createMockUpsertPayload(),
         deleteIds: [],
       });
 
@@ -332,13 +375,7 @@ describe('mentor-schedule sync', () => {
 
       const outcome = await syncMonthSchedule({
         ref,
-        upsertPayload: [
-          fromPartial<TimeSlotDTO>({
-            dt_type: 'ALLOW',
-            dtstart: MAY_2026,
-            dtend: MAY_2026 + 1800,
-          }),
-        ],
+        upsertPayload: createMockUpsertPayload(),
         deleteIds: [],
       });
 
@@ -356,13 +393,7 @@ describe('mentor-schedule sync', () => {
 
       const outcome = await syncMonthSchedule({
         ref,
-        upsertPayload: [
-          fromPartial<TimeSlotDTO>({
-            dt_type: 'ALLOW',
-            dtstart: MAY_2026,
-            dtend: MAY_2026 + 1800,
-          }),
-        ],
+        upsertPayload: createMockUpsertPayload(),
         deleteIds: [],
       });
 
@@ -384,24 +415,12 @@ describe('mentor-schedule sync', () => {
       const requests = [
         {
           ref: { userId: 'mentor_1', year: 2026, month: 5 },
-          upsertPayload: [
-            fromPartial<TimeSlotDTO>({
-              dt_type: 'ALLOW',
-              dtstart: MAY_2026,
-              dtend: MAY_2026 + 1800,
-            }),
-          ],
+          upsertPayload: createMockUpsertPayload(MAY_2026),
           deleteIds: [],
         },
         {
           ref: { userId: 'mentor_1', year: 2026, month: 6 },
-          upsertPayload: [
-            fromPartial<TimeSlotDTO>({
-              dt_type: 'ALLOW',
-              dtstart: JUNE_2026,
-              dtend: JUNE_2026 + 1800,
-            }),
-          ],
+          upsertPayload: createMockUpsertPayload(JUNE_2026),
           deleteIds: [],
         },
       ];
@@ -434,24 +453,12 @@ describe('mentor-schedule sync', () => {
       const requests = [
         {
           ref: { userId: 'mentor_1', year: 2026, month: 5 },
-          upsertPayload: [
-            fromPartial<TimeSlotDTO>({
-              dt_type: 'ALLOW',
-              dtstart: MAY_2026,
-              dtend: MAY_2026 + 1800,
-            }),
-          ],
+          upsertPayload: createMockUpsertPayload(MAY_2026),
           deleteIds: [],
         },
         {
           ref: { userId: 'mentor_1', year: 2026, month: 6 },
-          upsertPayload: [
-            fromPartial<TimeSlotDTO>({
-              dt_type: 'ALLOW',
-              dtstart: JUNE_2026,
-              dtend: JUNE_2026 + 1800,
-            }),
-          ],
+          upsertPayload: createMockUpsertPayload(JUNE_2026),
           deleteIds: [],
         },
       ];

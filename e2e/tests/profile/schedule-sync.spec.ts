@@ -6,8 +6,11 @@ import { setSignedSessionCookie } from '../../helpers/session';
 // Specify timezone locally to guarantee identical time behaviours across local & CI
 test.use({ timezoneId: 'Asia/Taipei' });
 
-// Static, valid user IDs from the dev/staging BFF database
-const REAL_MENTOR_ID = '7468899508961767'; // Jonas Lo (Mentor)
+// Static, valid user IDs from the dev/staging BFF database so that Next.js
+// server-side fetches succeed - this is a dedicated seeded test/fixture
+// account (see .env.e2e.local's E2E_MENTOR_EMAIL), not a real production
+// user.
+const REAL_MENTOR_ID = '7482008160728084'; // display name "Mentee", Mentor role (E2E_MENTOR_EMAIL)
 
 // Helper to construct a flat NextAuth JWT Payload
 function makeJWTPayload(userId: string, isMentor: boolean) {
@@ -61,7 +64,7 @@ function makeProfile(isMentor: boolean) {
     msg: 'ok',
     data: {
       user_id: Number(REAL_MENTOR_ID),
-      name: 'Jonas Lo',
+      name: 'Test Mentor',
       avatar: '',
       onboarding: true,
       is_mentor: isMentor,
@@ -161,6 +164,27 @@ async function selectCalendarDate(
 }
 
 /**
+ * Navigate to a mentor's profile and open the "設定可預約時段" schedule
+ * dialog via the "預約設定" button. Shared by every test that needs the
+ * dialog open, so the navigation/button-click steps aren't duplicated.
+ */
+async function openScheduleDialog(
+  page: Page,
+  mentorId: string
+): Promise<Locator> {
+  await page.goto(`/profile/${mentorId}`);
+
+  const openButton = page.getByRole('button', { name: '預約設定' });
+  await expect(openButton).toBeVisible({ timeout: 20_000 });
+  await openButton.click();
+
+  const scheduleDialog = page.getByRole('dialog', { name: '設定可預約時段' });
+  await expect(scheduleDialog).toBeVisible({ timeout: 10_000 });
+
+  return scheduleDialog;
+}
+
+/**
  * Open the "新增可預約時段" dialog from the schedule dialog, pick an
  * hour/minute, and confirm creation. Shared by every test that needs to add
  * a slot so the UI interaction steps aren't duplicated per test.
@@ -228,21 +252,14 @@ test.describe('導師時段儲存與衝突攔截 E2E 測試', () => {
             body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
           });
         }
-        return route.continue();
+        // Hand off to the mockApiRoute GET handler registered above for this
+        // same path prefix - route.continue() would instead send it to the
+        // real network, since Playwright checks routes newest-first.
+        return route.fallback();
       }
     );
 
-    // Navigate to profile page
-    await page.goto(`/profile/${REAL_MENTOR_ID}`);
-
-    // Click "預約設定"
-    const openButton = page.getByRole('button', { name: '預約設定' });
-    await expect(openButton).toBeVisible({ timeout: 20_000 });
-    await openButton.click();
-
-    // Verify schedule dialog is open
-    const scheduleDialog = page.getByRole('dialog', { name: '設定可預約時段' });
-    await expect(scheduleDialog).toBeVisible({ timeout: 10_000 });
+    const scheduleDialog = await openScheduleDialog(page, REAL_MENTOR_ID);
 
     // Select date 2026-07-17
     await selectCalendarDate(scheduleDialog, '2026-07-17');
@@ -286,18 +303,11 @@ test.describe('導師時段儲存與衝突攔截 E2E 測試', () => {
             }),
           });
         }
-        return route.continue();
+        return route.fallback();
       }
     );
 
-    await page.goto(`/profile/${REAL_MENTOR_ID}`);
-
-    const openButton = page.getByRole('button', { name: '預約設定' });
-    await expect(openButton).toBeVisible({ timeout: 20_000 });
-    await openButton.click();
-
-    const scheduleDialog = page.getByRole('dialog', { name: '設定可預約時段' });
-    await expect(scheduleDialog).toBeVisible({ timeout: 10_000 });
+    const scheduleDialog = await openScheduleDialog(page, REAL_MENTOR_ID);
 
     await selectCalendarDate(scheduleDialog, '2026-07-17');
 
@@ -373,18 +383,11 @@ test.describe('導師時段儲存與衝突攔截 E2E 測試', () => {
             body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
           });
         }
-        return route.continue();
+        return route.fallback();
       }
     );
 
-    await page.goto(`/profile/${REAL_MENTOR_ID}`);
-
-    const openButton = page.getByRole('button', { name: '預約設定' });
-    await expect(openButton).toBeVisible({ timeout: 20_000 });
-    await openButton.click();
-
-    const scheduleDialog = page.getByRole('dialog', { name: '設定可預約時段' });
-    await expect(scheduleDialog).toBeVisible({ timeout: 10_000 });
+    const scheduleDialog = await openScheduleDialog(page, REAL_MENTOR_ID);
 
     await selectCalendarDate(scheduleDialog, '2026-07-17');
 
