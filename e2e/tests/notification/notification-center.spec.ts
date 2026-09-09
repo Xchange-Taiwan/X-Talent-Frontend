@@ -188,23 +188,27 @@ test.describe('Notification Center E2E Tests', () => {
     const badge = bell.locator('[aria-label*="則未讀通知"]');
     await expect(badge).toHaveText('1');
 
-    await bell.click();
-
-    const markReadRequest = page.waitForRequest(
-      (req) =>
-        req.url().includes('/notifications/101') && req.method() === 'PUT'
-    );
-    await page.getByText('Mentor Wang 已接受您的預約').click();
-    await markReadRequest;
-
+    // Everything from here on can fail (a missing element, a request that
+    // never fires) while the PUT route is already held pending - wrap the
+    // whole sequence so releasePut() always runs, not just on assertion
+    // failure specifically.
     try {
+      await bell.click();
+
+      const markReadRequest = page.waitForRequest(
+        (req) =>
+          req.url().includes('/notifications/101') && req.method() === 'PUT'
+      );
+      await page.getByText('Mentor Wang 已接受您的預約').click();
+      await markReadRequest;
+
       // The PUT response is still genuinely pending here - if the badge is
       // already gone, that can only be an optimistic update, since the real
       // response can never arrive until releasePut() is called.
       await expect(badge).not.toBeVisible();
     } finally {
-      // Always release, even on assertion failure - otherwise the held
-      // route never resolves and leaves a dangling pending request.
+      // Always release, even on failure - otherwise the held route never
+      // resolves and leaves a dangling pending request.
       releasePut();
     }
   });
