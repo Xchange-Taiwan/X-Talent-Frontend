@@ -1,6 +1,16 @@
 import { expect, Page, test } from '@playwright/test';
+import type { Session } from 'next-auth';
+
+import type { components } from '@/types/api';
 
 import { setSignedSessionCookie as setSharedSessionCookie } from '../../helpers/session';
+
+type NotificationVO = components['schemas']['NotificationVO'];
+
+// read_at is a unix timestamp (seconds) per NotificationVO, not an ISO string.
+const READ_AT_UNIX = Math.floor(
+  new Date('2024-01-01T00:00:00.000Z').getTime() / 1000
+);
 
 const USER_ID = '123'; // Matches standard mentee test login ID
 const PAGE_URL = '/'; // Notification bell lives in the header of the main/home layout
@@ -9,7 +19,7 @@ const PAGE_URL = '/'; // Notification bell lives in the header of the main/home 
 
 const MENTOR_USER_ID = '999000111'; // Fully mocked session identity - no real account needed
 
-function makeSession(isMentor: boolean) {
+function makeSession(isMentor: boolean): Session {
   return {
     user: {
       id: isMentor ? MENTOR_USER_ID : USER_ID,
@@ -31,11 +41,11 @@ function makeNotificationVO(
   unread: boolean,
   counterparty: string,
   role: 'mentor' | 'mentee'
-) {
+): NotificationVO {
   return {
-    id,
+    id: Number(id),
     type,
-    read_at: unread ? null : '2024-01-01T00:00:00.000Z',
+    read_at: unread ? null : READ_AT_UNIX,
     created_at: Math.floor(Date.now() / 1000),
     metadata: {
       role,
@@ -50,6 +60,12 @@ async function loginAs(page: Page, isMentor: boolean) {
   const session = makeSession(isMentor);
   await setSharedSessionCookie(page, {
     ...session.user,
+    // makeSession always sets these concretely; they're only optional on
+    // Session['user'] because next-auth's own type allows it in general.
+    id: session.user.id!,
+    name: session.user.name!,
+    onBoarding: session.user.onBoarding!,
+    isMentor: session.user.isMentor!,
     token: 'mock-access-token',
   });
   await page.route(/\/api\/auth\/session/, (route) => {
@@ -135,20 +151,25 @@ test.describe('Notification Center E2E Tests', () => {
   }) => {
     const mockNotif = await setupMenteeWithNotification(page, '101');
 
-    // Mock individual read API with an artificial delay before responding,
-    // so a badge update observed before this resolves can only be
-    // explained by an optimistic update - not by (accidentally) racing a
-    // near-instant mock response.
+    // Hold the PUT response pending indefinitely until the test explicitly
+    // releases it. This is what actually distinguishes "optimistic update"
+    // from "waited for the response": with a fixed delay, expect(...).not
+    // .toBeVisible()'s own retry window (5s) would swallow the difference
+    // and pass either way once the delay elapses.
+    let releasePut!: () => void;
+    const putHeld = new Promise<void>((resolve) => {
+      releasePut = resolve;
+    });
     await page.route(/\/v1\/users\/.*\/notifications\/101/, async (route) => {
       if (route.request().method() === 'PUT') {
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await putHeld;
         return route.fulfill({
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
             code: '0',
             msg: 'ok',
-            data: { ...mockNotif, read_at: '2024-01-01T00:00:00.000Z' },
+            data: { ...mockNotif, read_at: READ_AT_UNIX },
           }),
         });
       }
@@ -172,10 +193,12 @@ test.describe('Notification Center E2E Tests', () => {
     await page.getByText('Mentor Wang 已接受您的預約').click();
     await markReadRequest;
 
-    // The mocked response is still delayed at this point - the badge must
-    // already be gone, proving the UI updated optimistically rather than
-    // waiting for the backend response.
+    // The PUT response is still genuinely pending here - if the badge is
+    // already gone, that can only be an optimistic update, since the real
+    // response can never arrive until releasePut() below is called.
     await expect(badge).not.toBeVisible();
+
+    releasePut();
   });
 
   test('On API failure (500), verify unread state rolls back cleanly and shows error toast', async ({
