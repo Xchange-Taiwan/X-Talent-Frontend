@@ -12,6 +12,7 @@ import {
   captureApiFailure,
   captureError,
   captureFlowFailure,
+  type MonitoringEvent,
   sanitize,
 } from './monitoring';
 
@@ -105,7 +106,7 @@ describe('captureError', () => {
   });
 
   it('sanitizes and forwards runtime errors to Sentry in production', async () => {
-    const event = fromPartial({
+    const event = fromPartial<MonitoringEvent>({
       name: 'runtime_error.unhandled_js',
       message: 'Failed to authenticate user password=secret123',
       stack: 'Error stack containing email=user@test.com',
@@ -135,7 +136,7 @@ describe('captureError', () => {
   it('does NOT call Sentry when NODE_ENV is not production', async () => {
     vi.stubEnv('NODE_ENV', 'test');
 
-    const event = fromPartial({
+    const event = fromPartial<MonitoringEvent>({
       name: 'runtime_error.unhandled_js',
       message: 'Test error message',
     });
