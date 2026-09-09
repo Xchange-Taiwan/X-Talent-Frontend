@@ -497,8 +497,19 @@ async function cleanupStaleMenteeReservations(page: Page): Promise<void> {
 
     const cancelButtons = page.getByRole('button', { name: '取消預約' });
     for (let i = 0; i < MAX_CARDS_PER_TAB; i++) {
+      // .count() doesn't auto-wait - it's a synchronous read of whatever's
+      // in the DOM right now, so calling it before the list has finished
+      // its first load would misread "still loading" as "genuinely empty"
+      // and break out immediately (AI Review caught this). waitFor() first
+      // gives the list a real chance to render before that count matters.
+      const hasAny = await cancelButtons
+        .first()
+        .waitFor({ state: 'visible', timeout: 5_000 })
+        .then(() => true)
+        .catch(() => false);
+      if (!hasAny) break;
+
       const countBefore = await cancelButtons.count();
-      if (countBefore === 0) break;
 
       const cancelStart = Date.now(); // see the per-run mark() comment below
       await cancelButtons.first().click();
@@ -547,8 +558,17 @@ async function cleanupStaleMentorReservations(page: Page): Promise<void> {
 
   const rejectButtons = page.getByRole('button', { name: '拒絕' });
   for (let i = 0; i < MAX_CARDS_PER_TAB; i++) {
+    // Same reasoning as cleanupStaleMenteeReservations: .count() doesn't
+    // auto-wait, so give the list a real chance to render before trusting
+    // an empty count.
+    const hasAny = await rejectButtons
+      .first()
+      .waitFor({ state: 'visible', timeout: 5_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!hasAny) break;
+
     const countBefore = await rejectButtons.count();
-    if (countBefore === 0) break;
 
     const rejectStart = Date.now(); // see the per-run mark() comment below
     await rejectButtons.first().click();
