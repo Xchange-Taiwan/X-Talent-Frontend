@@ -22,11 +22,17 @@ const MENTOR_AUTH_FILE = path.join(__dirname, '../../.auth/mentor.json');
 // A real multi-step booking round trip against a live, unmocked backend
 // legitimately takes longer than the suite's default 90s budget
 // (playwright.config.ts) - this is the only spec in the repo that needs it.
-// 300s (not 180s) to leave real headroom for menteeBookSlot's and
-// waitForAcceptedNotification's own multi-attempt eventual-consistency
-// retries below, on top of everything else in this flow - both were added
-// after 180s already proved too tight against the real deployed backend.
-test.setTimeout(300_000);
+// 480s to leave real headroom for menteeBookSlot's,
+// mentorAcceptPendingReservation's, AND waitForAcceptedNotification's own
+// multi-attempt eventual-consistency retries below, stacked on top of each
+// other in the same run - each was added after the previous timeout budget
+// already proved too tight against the real deployed backend. This project
+// also has retries: 0 (playwright.config.ts) rather than relying on
+// Playwright's own test-level retry: unlike a pure read, this test writes
+// real data, so a blind whole-test retry can collide with a previous
+// attempt's not-yet-cleaned-up state instead of just getting a clean second
+// chance - failures here should surface once, not compound.
+test.setTimeout(480_000);
 
 interface SessionUser {
   id: string;
@@ -242,17 +248,20 @@ async function menteeBookSlot(
  * first card matching the mentee's name still exercises exactly the
  * accept -> notification path this test verifies, even if it isn't
  * necessarily today's freshly-booked row.
+ *
+ * Retries the navigation + tab + card lookup (not just the dialog
+ * interaction after it), same eventual-consistency reasoning as
+ * menteeBookSlot: the mentee's booking just completed, and this dashboard
+ * view genuinely wasn't guaranteed to reflect it yet the first real run
+ * against the deployed backend hit exactly this.
  */
 async function mentorAcceptPendingReservation(
   page: Page,
   bookingNote: string
 ): Promise<void> {
-  await page.goto('/reservation/mentor');
-
+  const MAX_ATTEMPTS = 5;
+  const POLL_INTERVAL_MS = 6_000;
   const pendingTab = page.getByRole('tab', { name: /待您回復/ });
-  await expect(pendingTab).toBeVisible({ timeout: 20_000 });
-  await pendingTab.click();
-
   // Filter by bookingNote (unique per run - includes an ISO timestamp), not
   // mentee name: the shared test account's name never changes between runs,
   // so a name-only filter can match a stray PENDING row left over from a
@@ -264,7 +273,26 @@ async function mentorAcceptPendingReservation(
     .getByTestId('reservation-card')
     .filter({ hasText: bookingNote })
     .first();
-  await expect(card).toBeVisible({ timeout: 20_000 });
+
+  let lastError: unknown;
+  let found = false;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      await page.goto('/reservation/mentor');
+      await expect(pendingTab).toBeVisible({ timeout: 20_000 });
+      await pendingTab.click();
+      await expect(card).toBeVisible({ timeout: 20_000 });
+      found = true;
+      break;
+    } catch (err) {
+      lastError = err;
+      if (attempt < MAX_ATTEMPTS) {
+        await page.waitForTimeout(POLL_INTERVAL_MS);
+      }
+    }
+  }
+  if (!found) throw lastError;
+
   await card.getByRole('button', { name: /接受/ }).click();
 
   const confirmDialog = page.getByRole('dialog');

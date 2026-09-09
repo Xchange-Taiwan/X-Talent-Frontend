@@ -71,6 +71,18 @@ export default defineConfig({
     {
       name: 'chromium-canary',
       testDir: './e2e/tests/canary',
+      // Overrides the top-level retries: these tests write real data
+      // (a real reservation, a real availability slot) against a real,
+      // shared backend account. A blind retry re-runs the whole stateful
+      // flow from scratch without knowing whether the previous attempt's
+      // writes were cleaned up - if they weren't (e.g. an earlier step
+      // failed before reaching the finally block's cleanup, or the cleanup
+      // itself failed), the retry's freshly computed target time can land
+      // in the same rounding bucket as the leftover data and collide with
+      // it, compounding one failure into several. A failure here should
+      // surface once and be looked at, not be silently retried into a
+      // worse state.
+      retries: 0,
       use: {
         ...devices['Desktop Chrome'],
       },
