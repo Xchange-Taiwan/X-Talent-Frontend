@@ -195,7 +195,7 @@ async function menteeBookSlot(
  */
 async function mentorAcceptPendingReservation(
   page: Page,
-  menteeName: string
+  bookingNote: string
 ): Promise<void> {
   await page.goto('/reservation/mentor');
 
@@ -203,9 +203,16 @@ async function mentorAcceptPendingReservation(
   await expect(pendingTab).toBeVisible({ timeout: 20_000 });
   await pendingTab.click();
 
+  // Filter by bookingNote (unique per run - includes an ISO timestamp), not
+  // mentee name: the shared test account's name never changes between runs,
+  // so a name-only filter can match a stray PENDING row left over from a
+  // previous failed/interrupted run instead of the one this run just
+  // created (AI Review flagged this as a real data-pollution risk - acting
+  // on the wrong row would leave *this* run's reservation un-accepted, and
+  // later make mentorDeleteAvailableSlot's cleanup fail too).
   const card = page
     .getByTestId('reservation-card')
-    .filter({ hasText: menteeName })
+    .filter({ hasText: bookingNote })
     .first();
   await expect(card).toBeVisible({ timeout: 20_000 });
   await card.getByRole('button', { name: /接受/ }).click();
@@ -219,6 +226,16 @@ async function mentorAcceptPendingReservation(
   await expect(confirmDialog).not.toBeVisible({ timeout: 20_000 });
 }
 
+/** Parses the notification bell's unread badge (absent/hidden -> 0 unread). */
+async function getUnreadNotificationCount(page: Page): Promise<number> {
+  const badge = page.locator('[aria-label*="則未讀通知"]');
+  const visible = await badge.isVisible().catch(() => false);
+  if (!visible) return 0;
+  const label = await badge.getAttribute('aria-label');
+  const match = label?.match(/有\s*(\d+)\s*則未讀通知/);
+  return match ? Number(match[1]) : 0;
+}
+
 /**
  * Mentee: poll for the real "mentor accepted your reservation" notification
  * (reservation_success, see src/components/layout/Header/notificationUtils.ts).
@@ -226,8 +243,20 @@ async function mentorAcceptPendingReservation(
  * the real backend, so this retries with a reload + reopen instead of
  * asserting once - the same cold-start/eventual-consistency tolerance
  * e2e/fixtures/auth.setup.ts already applies to sign-in.
+ *
+ * `baselineUnreadCount` (read *before* the mentor's accept action) guards
+ * against a false positive AI Review caught: this is a shared, repeatedly-
+ * reused real test account, so its notification center can already contain
+ * an old "已接受您的預約" notification from a previous run. Matching on text
+ * alone would pass immediately without ever confirming *this* run's
+ * notification actually arrived - requiring the unread count to have grown
+ * past its pre-action baseline makes sure we're observing a genuinely new
+ * arrival, not a stale leftover.
  */
-async function waitForAcceptedNotification(page: Page): Promise<void> {
+async function waitForAcceptedNotification(
+  page: Page,
+  baselineUnreadCount: number
+): Promise<void> {
   const MAX_ATTEMPTS = 5;
   const POLL_INTERVAL_MS = 6_000;
   const bellButton = page.getByRole('button', { name: '開啟通知選單' });
@@ -238,6 +267,14 @@ async function waitForAcceptedNotification(page: Page): Promise<void> {
     try {
       await page.reload();
       await expect(bellButton).toBeVisible({ timeout: 20_000 });
+
+      const unreadCount = await getUnreadNotificationCount(page);
+      if (unreadCount <= baselineUnreadCount) {
+        throw new Error(
+          `unread count (${unreadCount}) has not grown past baseline (${baselineUnreadCount}) yet`
+        );
+      }
+
       await bellButton.click();
       await expect(notificationText.first()).toBeVisible({ timeout: 8_000 });
       return;
@@ -265,8 +302,16 @@ async function waitForAcceptedNotification(page: Page): Promise<void> {
  * test failed; both tabs expose the same real 取消預約 button + dialog flow
  * (see e2e/tests/reservation/reservation-mentee.spec.ts's mocked
  * equivalents), so try both instead of assuming which one applies.
+ *
+ * Scoped by `bookingNote` (unique per run) rather than just grabbing the
+ * first cancel button on the tab, for the same reason
+ * mentorAcceptPendingReservation is: this shared, repeatedly-reused test
+ * account can carry a stray row from a previous run.
  */
-async function menteeCancelReservation(page: Page): Promise<void> {
+async function menteeCancelReservation(
+  page: Page,
+  bookingNote: string
+): Promise<void> {
   await page.goto('/reservation/mentee');
 
   for (const tabName of [/等待回復/, /即將到來/]) {
@@ -274,12 +319,14 @@ async function menteeCancelReservation(page: Page): Promise<void> {
     await expect(tab).toBeVisible({ timeout: 20_000 });
     await tab.click();
 
-    const cancelButton = page.getByRole('button', { name: '取消預約' }).first();
-    const hasCancelButton = await cancelButton
-      .isVisible({ timeout: 5_000 })
-      .catch(() => false);
-    if (!hasCancelButton) continue;
+    const card = page
+      .getByTestId('reservation-card')
+      .filter({ hasText: bookingNote })
+      .first();
+    const hasCard = await card.isVisible({ timeout: 5_000 }).catch(() => false);
+    if (!hasCard) continue;
 
+    const cancelButton = card.getByRole('button', { name: '取消預約' });
     await cancelButton.click();
     const cancelDialog = page.getByRole('dialog');
     await expect(
@@ -340,9 +387,10 @@ test.describe('真實後端通知 canary：mentor 接受預約 → mentee 收到
     const mentorContext = await browser.newContext({
       storageState: MENTOR_AUTH_FILE,
     });
-    // Hoisted so the finally block's cleanup can reach it even if an
+    // Hoisted so the finally block's cleanup can reach them even if an
     // assertion throws partway through the try block below.
     let target: TargetSlot | undefined;
+    let bookingNote: string | undefined;
 
     try {
       const menteePage = await menteeContext.newPage();
@@ -352,33 +400,35 @@ test.describe('真實後端通知 canary：mentor 接受預約 → mentee 收到
       const mentorUser = await getSessionUser(mentorPage);
 
       await menteePage.goto('/');
-      const menteeUser = await getSessionUser(menteePage);
 
       await mentorPage.goto(`/profile/${mentorUser.id}`);
       target = await computeTargetSlot(mentorPage);
       await mentorAddAvailableSlot(mentorPage, target);
 
-      const bookingNote = `[canary #687] ${new Date().toISOString()}`;
+      bookingNote = `[canary #687] ${new Date().toISOString()}`;
       await menteeBookSlot(menteePage, mentorUser.id, target, bookingNote);
 
-      await mentorAcceptPendingReservation(mentorPage, menteeUser.name);
+      const baselineUnreadCount = await getUnreadNotificationCount(menteePage);
+      await mentorAcceptPendingReservation(mentorPage, bookingNote);
 
-      await waitForAcceptedNotification(menteePage);
+      await waitForAcceptedNotification(menteePage, baselineUnreadCount);
     } finally {
       // Two independent best-effort cleanup steps - never let either failure
       // mask the real test outcome above, and a failure in one shouldn't
       // skip the other. Order matters: the slot can only be deleted directly
       // once its reservation is no longer PENDING/BOOKED (see
       // mentorDeleteAvailableSlot's doc comment).
-      try {
-        const menteeCleanupPage =
-          menteeContext.pages()[0] ?? (await menteeContext.newPage());
-        await menteeCancelReservation(menteeCleanupPage);
-      } catch (err) {
-        console.warn(
-          '[canary #687] cleanup: failed to cancel test reservation:',
-          err
-        );
+      if (bookingNote) {
+        try {
+          const menteeCleanupPage =
+            menteeContext.pages()[0] ?? (await menteeContext.newPage());
+          await menteeCancelReservation(menteeCleanupPage, bookingNote);
+        } catch (err) {
+          console.warn(
+            '[canary #687] cleanup: failed to cancel test reservation:',
+            err
+          );
+        }
       }
       if (target) {
         try {
