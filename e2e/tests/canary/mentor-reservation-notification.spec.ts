@@ -71,23 +71,8 @@ async function computeTargetSlot(page: Page): Promise<TargetSlot> {
   return page.evaluate(() => {
     const DURATION_MINUTES = 30;
     const now = new Date();
-    let start = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    const start = new Date(now.getTime() + 2 * 60 * 60 * 1000);
     start.setSeconds(0, 0);
-
-    // MentorScheduleDialog's calendar only ever shows the currently-open
-    // month - this test doesn't drive month navigation - so +2h rolling
-    // into next month (possible in the last ~2 hours of any month) would
-    // make selectCalendarDate unable to find the target day at all. Clamp
-    // back to the last moment of the current month instead. (This still
-    // can't fully rule out the last few minutes of a month, where even that
-    // clamp would land before `now` - an acceptably rare residual edge
-    // case given how narrow the window is.)
-    if (
-      start.getMonth() !== now.getMonth() ||
-      start.getFullYear() !== now.getFullYear()
-    ) {
-      start = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 45, 0, 0);
-    }
 
     // Snap to the calendar's 15-minute picker options (00/15/30/45),
     // rolling the hour (and, at the day boundary, the date) forward via
@@ -97,6 +82,24 @@ async function computeTargetSlot(page: Page): Promise<TargetSlot> {
       start.setHours(start.getHours() + 1, 0);
     } else {
       start.setMinutes(snappedMinutes);
+    }
+
+    // MentorScheduleDialog's calendar only ever shows the currently-open
+    // month - this test doesn't drive month navigation - so a rollover into
+    // next month (from the +2h offset above, OR from the 15-minute rounding
+    // step just above pushing e.g. 23:55 -> 00:00 the next day) would make
+    // selectCalendarDate unable to find the target day at all. Check *after*
+    // both of those, not before, since either one alone can cause the
+    // rollover; clamp back to the last available 15-minute slot of the
+    // current month instead. (This still can't fully rule out the last few
+    // minutes of a month, where even that clamp would land before `now` -
+    // an acceptably rare residual edge case given how narrow the window is.)
+    if (
+      start.getMonth() !== now.getMonth() ||
+      start.getFullYear() !== now.getFullYear()
+    ) {
+      start.setFullYear(now.getFullYear(), now.getMonth() + 1, 0);
+      start.setHours(23, 45, 0, 0);
     }
 
     const end = new Date(start.getTime() + DURATION_MINUTES * 60 * 1000);
