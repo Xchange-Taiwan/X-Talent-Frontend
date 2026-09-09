@@ -42,6 +42,38 @@ describe('PII Sanitization', () => {
     expect(sanitized).not.toContain('abc123');
   });
 
+  it('masks compound/snake_case query parameter keys, not just exact matches', () => {
+    const rawUrl =
+      'https://api.example.com/x?user_email=user@test.com&access_token=abc123&user-email=other@test.com&user_password=hunter2&safe=yes';
+    const sanitized = sanitize(rawUrl);
+    expect(sanitized).toContain('user_email=[REDACTED]');
+    expect(sanitized).toContain('access_token=[REDACTED]');
+    expect(sanitized).toContain('user-email=[REDACTED]');
+    expect(sanitized).toContain('user_password=[REDACTED]');
+    expect(sanitized).toContain('safe=yes');
+    expect(sanitized).not.toContain('user@test.com');
+    expect(sanitized).not.toContain('other@test.com');
+    expect(sanitized).not.toContain('abc123');
+    expect(sanitized).not.toContain('hunter2');
+  });
+
+  it('masks compound/snake_case JSON keys, not just exact matches', () => {
+    const rawJson = JSON.stringify({
+      user_email: 'user@test.com',
+      access_token: 'abc123',
+      companyEmail: 'other@test.com',
+      unrelated: 'safe-value',
+    });
+    const sanitized = sanitize(rawJson);
+    expect(sanitized).toContain('"user_email":"[REDACTED]"');
+    expect(sanitized).toContain('"access_token":"[REDACTED]"');
+    expect(sanitized).toContain('"companyEmail":"[REDACTED]"');
+    expect(sanitized).toContain('"unrelated":"safe-value"');
+    expect(sanitized).not.toContain('user@test.com');
+    expect(sanitized).not.toContain('abc123');
+    expect(sanitized).not.toContain('other@test.com');
+  });
+
   it('masks sensitive keys in JSON structures', () => {
     const rawJson = JSON.stringify({
       password: 'password123',

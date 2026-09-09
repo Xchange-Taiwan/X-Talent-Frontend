@@ -79,10 +79,18 @@ const SENSITIVE_KEYS = [
 
 /**
  * Replaces values of sensitive URL query parameters with [REDACTED].
- * e.g. ?token=abc123&password=secret ???token=[REDACTED]&password=[REDACTED]
+ * e.g. ?token=abc123&password=secret -> ?token=[REDACTED]&password=[REDACTED]
+ *
+ * Deliberately has no left-hand word boundary: `\b` treats `_` as a word
+ * character, so it would miss snake_case compound keys like `user_email`
+ * or `access_token` (no boundary exists between `_` and the sensitive
+ * word). Matching the sensitive word as a bare substring immediately
+ * before `=` catches those too, at the cost of over-redacting the rare
+ * benign key that happens to end in a sensitive word - an acceptable
+ * trade-off for PII protection.
  */
 const SENSITIVE_QUERY_PARAM_PATTERN = new RegExp(
-  `\\b(${SENSITIVE_KEYS.join('|')})=([^&\\s]*)`,
+  `(${SENSITIVE_KEYS.join('|')})=([^&\\s]*)`,
   'gi'
 );
 
@@ -94,11 +102,19 @@ function maskSensitiveQueryParams(text: string): string {
 
 /**
  * Replaces values of sensitive keys in JSON-like strings with [REDACTED].
- * e.g. "password":"secret" → "password":"[REDACTED]"
+ * e.g. "password":"secret" -> "password":"[REDACTED]"
+ *
+ * Matches by substring rather than exact key equality so compound keys
+ * like "user_email" or "companyEmail" are still caught, not just a
+ * literal "email" key - same PII-safety trade-off as
+ * SENSITIVE_QUERY_PARAM_PATTERN above.
  */
 function maskSensitiveJsonValues(text: string): string {
   return text.replace(/"([\w-]+)"\s*:\s*"([^"]*)"/g, (match, key, _value) => {
-    if (SENSITIVE_KEYS.includes(key.toLowerCase())) {
+    const lowerKey = key.toLowerCase();
+    if (
+      SENSITIVE_KEYS.some((sensitiveKey) => lowerKey.includes(sensitiveKey))
+    ) {
       return `"${key}":"[REDACTED]"`;
     }
     return match;
