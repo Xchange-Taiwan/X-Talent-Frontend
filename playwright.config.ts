@@ -28,12 +28,21 @@ export default defineConfig({
   // simultaneous on-demand compilation, which causes redirect-target tests to
   // time out under load. CI stays single-worker for stability.
   workers: process.env.CI ? 1 : 6,
-  reporter: 'html',
+  // 'list' prints each test's own pass/fail and duration to the terminal as
+  // it runs (in addition to 'html', which stays the CI artifact e2e.yml
+  // uploads) - without it there's no way to tell which specific test in a
+  // run is the slow one short of instrumenting it by hand.
+  reporter: [['list'], ['html']],
   timeout: 90_000,
 
   use: {
     baseURL,
-    trace: 'on-first-retry',
+    // 'on-first-retry' never captures anything for a project with
+    // retries: 0 (chromium-canary, playwright.config.ts) - a failure there
+    // left no trace to debug from. 'retain-on-failure' captures on every
+    // failure regardless of retry count, and is deleted for passing tests,
+    // so it isn't wasteful.
+    trace: 'retain-on-failure',
   },
 
   projects: [

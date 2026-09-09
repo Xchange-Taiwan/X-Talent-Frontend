@@ -469,6 +469,103 @@ async function mentorDeleteAvailableSlot(
   await expect(scheduleDialog).not.toBeVisible({ timeout: 15_000 });
 }
 
+/**
+ * Mentee: cancel every existing pending/upcoming reservation before this
+ * run's own flow starts, regardless of which earlier run created them.
+ * This is a dedicated test account (never a real user - see .env.example),
+ * reused across many manual re-runs while actively developing this very
+ * test, so a stray reservation left over from an earlier run can collide
+ * with this run's freshly computed target time (both round to the same
+ * 15-minute slot) and show up as a disabled, unbookable button with no
+ * useful error - and worse, that collision can eat the whole test timeout
+ * before the *this* run's own after-test cleanup ever gets a chance to
+ * run, perpetuating the problem into the next run too. Starting from a
+ * known-clean state sidesteps all of that, rather than trying to detect a
+ * collision mid-flow and decide whether it's safe to touch.
+ *
+ * Best-effort: wrapped in try/catch by the caller, same as the after-test
+ * cleanup - this is hygiene, not one of the test's actual assertions.
+ */
+async function cleanupStaleMenteeReservations(page: Page): Promise<void> {
+  const MAX_CARDS_PER_TAB = 20; // safety cap; never expected to be hit
+  await page.goto('/reservation/mentee');
+
+  for (const tabName of [/等待回復/, /即將到來/]) {
+    const tab = page.getByRole('tab', { name: tabName });
+    await expect(tab).toBeVisible({ timeout: 20_000 });
+    await tab.click();
+
+    for (let i = 0; i < MAX_CARDS_PER_TAB; i++) {
+      const cancelButton = page
+        .getByRole('button', { name: '取消預約' })
+        .first();
+      const hasCancelButton = await cancelButton
+        .waitFor({ state: 'visible', timeout: 5_000 })
+        .then(() => true)
+        .catch(() => false);
+      if (!hasCancelButton) break;
+
+      const cancelStart = Date.now(); // see the per-run mark() comment below
+      await cancelButton.click();
+      const cancelDialog = page.getByRole('dialog');
+      await expect(
+        cancelDialog.getByRole('heading', { name: '取消預約' })
+      ).toBeVisible({ timeout: 5_000 });
+      await cancelDialog
+        .locator('textarea')
+        .fill('[canary #687] pre-test cleanup');
+      await cancelDialog.getByRole('button', { name: '取消預約' }).click();
+      await expect(cancelDialog).not.toBeVisible({ timeout: 15_000 });
+      console.log(
+        `[timing] cancelled 1 stale mentee card (tab ${tabName}): ${((Date.now() - cancelStart) / 1000).toFixed(1)}s`
+      );
+    }
+  }
+}
+
+/**
+ * Mentor: reject every existing pending reservation (待您回復) before this
+ * run's own flow starts. Same rationale as cleanupStaleMenteeReservations -
+ * this only clears the mentor-side queue, which is a genuinely separate
+ * accumulation from the mentee-side one above (a reservation only leaves
+ * both sides' lists once it's resolved one way or another): a real run
+ * against the deployed backend found the mentor's own 待您回復 tab holding 2
+ * stale pending cards mentee-side cleanup never touched, which then made
+ * mentorDeleteAvailableSlot land on an unexpected page state.
+ */
+async function cleanupStaleMentorReservations(page: Page): Promise<void> {
+  const MAX_CARDS_PER_TAB = 20; // safety cap; never expected to be hit
+  await page.goto('/reservation/mentor');
+
+  const pendingTab = page.getByRole('tab', { name: /待您回復/ });
+  await expect(pendingTab).toBeVisible({ timeout: 20_000 });
+  await pendingTab.click();
+
+  for (let i = 0; i < MAX_CARDS_PER_TAB; i++) {
+    const rejectButton = page.getByRole('button', { name: '拒絕' }).first();
+    const hasRejectButton = await rejectButton
+      .waitFor({ state: 'visible', timeout: 5_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!hasRejectButton) break;
+
+    const rejectStart = Date.now(); // see the per-run mark() comment below
+    await rejectButton.click();
+    const rejectDialog = page.getByRole('dialog', {
+      name: '拒絕學員預約的原因',
+    });
+    await expect(rejectDialog).toBeVisible({ timeout: 5_000 });
+    await rejectDialog
+      .getByPlaceholder(/請在此輸入原因/)
+      .fill('[canary #687] pre-test cleanup');
+    await rejectDialog.getByRole('button', { name: '拒絕' }).click();
+    await expect(rejectDialog).not.toBeVisible({ timeout: 15_000 });
+    console.log(
+      `[timing] rejected 1 stale mentor card: ${((Date.now() - rejectStart) / 1000).toFixed(1)}s`
+    );
+  }
+}
+
 test.describe('真實後端通知 canary：mentor 接受預約 → mentee 收到通知', () => {
   test('mentor 建立可預約時段並接受 mentee 的真實預約 → mentee 端出現對應通知', async ({
     browser,
@@ -484,26 +581,65 @@ test.describe('真實後端通知 canary：mentor 接受預約 → mentee 收到
     let target: TargetSlot | undefined;
     let bookingNote: string | undefined;
 
+    // Per-step timing: this test's own duration (visible per-test via the
+    // 'list' reporter, playwright.config.ts) doesn't say *which* step ate
+    // the budget. Real runs against the deployed backend have taken
+    // anywhere from ~3 to ~9 minutes depending on how much stale data
+    // cleanupStaleMenteeReservations/cleanupStaleMentorReservations found -
+    // these marks are what make that breakdown visible instead of having to
+    // re-instrument by hand again.
+    const t0 = Date.now();
+    const mark = (label: string) =>
+      console.log(
+        `[timing] ${label}: ${((Date.now() - t0) / 1000).toFixed(1)}s`
+      );
+
     try {
       const menteePage = await menteeContext.newPage();
       const mentorPage = await mentorContext.newPage();
 
       await mentorPage.goto('/');
       const mentorUser = await getSessionUser(mentorPage);
+      mark('mentor session ready');
 
       await menteePage.goto('/');
+      mark('mentee page loaded');
+
+      try {
+        await cleanupStaleMenteeReservations(menteePage);
+      } catch (err) {
+        console.warn(
+          '[canary #687] mentee pre-test cleanup failed, proceeding anyway:',
+          err
+        );
+      }
+      mark('mentee pre-test cleanup done');
+
+      try {
+        await cleanupStaleMentorReservations(mentorPage);
+      } catch (err) {
+        console.warn(
+          '[canary #687] mentor pre-test cleanup failed, proceeding anyway:',
+          err
+        );
+      }
+      mark('mentor pre-test cleanup done');
 
       await mentorPage.goto(`/profile/${mentorUser.id}`);
       target = await computeTargetSlot(mentorPage);
       await mentorAddAvailableSlot(mentorPage, target);
+      mark('mentor added available slot');
 
       bookingNote = `[canary #687] ${new Date().toISOString()}`;
       await menteeBookSlot(menteePage, mentorUser.id, target, bookingNote);
+      mark('mentee booked slot');
 
       const baselineUnreadCount = await getUnreadNotificationCount(menteePage);
       await mentorAcceptPendingReservation(mentorPage, bookingNote);
+      mark('mentor accepted reservation');
 
       await waitForAcceptedNotification(menteePage, baselineUnreadCount);
+      mark('mentee saw notification');
     } finally {
       // Two independent best-effort cleanup steps - never let either failure
       // mask the real test outcome above, and a failure in one shouldn't
