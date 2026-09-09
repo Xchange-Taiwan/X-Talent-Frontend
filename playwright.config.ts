@@ -131,6 +131,13 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
       },
     },
+    {
+      name: 'chromium-notification',
+      testDir: './e2e/tests/notification',
+      use: {
+        ...devices['Desktop Chrome'],
+      },
+    },
   ],
 
   webServer: isRemote
