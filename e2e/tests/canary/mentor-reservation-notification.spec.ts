@@ -70,8 +70,24 @@ interface TargetSlot {
 async function computeTargetSlot(page: Page): Promise<TargetSlot> {
   return page.evaluate(() => {
     const DURATION_MINUTES = 30;
-    const start = new Date(Date.now() + 2 * 60 * 60 * 1000);
+    const now = new Date();
+    let start = new Date(now.getTime() + 2 * 60 * 60 * 1000);
     start.setSeconds(0, 0);
+
+    // MentorScheduleDialog's calendar only ever shows the currently-open
+    // month - this test doesn't drive month navigation - so +2h rolling
+    // into next month (possible in the last ~2 hours of any month) would
+    // make selectCalendarDate unable to find the target day at all. Clamp
+    // back to the last moment of the current month instead. (This still
+    // can't fully rule out the last few minutes of a month, where even that
+    // clamp would land before `now` - an acceptably rare residual edge
+    // case given how narrow the window is.)
+    if (
+      start.getMonth() !== now.getMonth() ||
+      start.getFullYear() !== now.getFullYear()
+    ) {
+      start = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 45, 0, 0);
+    }
 
     // Snap to the calendar's 15-minute picker options (00/15/30/45),
     // rolling the hour (and, at the day boundary, the date) forward via
@@ -268,12 +284,17 @@ async function waitForAcceptedNotification(
       await page.reload();
       await expect(bellButton).toBeVisible({ timeout: 20_000 });
 
-      const unreadCount = await getUnreadNotificationCount(page);
-      if (unreadCount <= baselineUnreadCount) {
-        throw new Error(
-          `unread count (${unreadCount}) has not grown past baseline (${baselineUnreadCount}) yet`
-        );
-      }
+      // getUnreadNotificationCount reads a point-in-time DOM snapshot, but
+      // the badge's count can still be arriving via a client-side fetch
+      // right after reload - a single immediate check would race that and
+      // fail almost every time. Poll with toPass instead of checking once,
+      // independent of the outer attempt/reload loop below (which exists
+      // for the separate concern of the backend not having created the
+      // notification yet at all).
+      await expect(async () => {
+        const unreadCount = await getUnreadNotificationCount(page);
+        expect(unreadCount).toBeGreaterThan(baselineUnreadCount);
+      }).toPass({ timeout: 15_000 });
 
       await bellButton.click();
       await expect(notificationText.first()).toBeVisible({ timeout: 8_000 });
@@ -323,7 +344,14 @@ async function menteeCancelReservation(
       .getByTestId('reservation-card')
       .filter({ hasText: bookingNote })
       .first();
-    const hasCard = await card.isVisible({ timeout: 5_000 }).catch(() => false);
+    // Locator.isVisible() ignores a `timeout` option entirely - it's a
+    // synchronous, point-in-time check, not a wait. Use waitFor() so a
+    // still-loading list gets a real chance to render the card before this
+    // tab is given up on as "no match here".
+    const hasCard = await card
+      .waitFor({ state: 'visible', timeout: 5_000 })
+      .then(() => true)
+      .catch(() => false);
     if (!hasCard) continue;
 
     const cancelButton = card.getByRole('button', { name: '取消預約' });
