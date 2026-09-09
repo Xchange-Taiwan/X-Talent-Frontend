@@ -1,10 +1,13 @@
+import { fromPartial } from '@total-typescript/shoehorn';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { apiClient, ApiError } from '@/lib/apiClient';
 
 import {
+  deleteMentorSchedule,
   fetchMentorSchedule,
   saveMentorSchedule,
+  type TimeSlotDTO,
   utcYearMonth,
 } from './schedule';
 
@@ -16,6 +19,7 @@ vi.mock('@/lib/apiClient', async (importActual) => {
       ...actual.apiClient,
       putUnwrapped: vi.fn(),
       getUnwrapped: vi.fn(),
+      delete: vi.fn(),
     },
   };
 });
@@ -54,7 +58,7 @@ describe('saveMentorSchedule', () => {
     await saveMentorSchedule({
       userId: '42',
       timeslots: [
-        {
+        fromPartial<TimeSlotDTO>({
           dt_type: 'ALLOW',
           dt_year: 2025,
           dt_month: 12,
@@ -63,7 +67,7 @@ describe('saveMentorSchedule', () => {
           exdate: [],
           timezone: 'UTC',
           user_id: 42,
-        },
+        }),
       ],
     });
 
@@ -80,6 +84,43 @@ describe('saveMentorSchedule', () => {
             dtend: 1767229800,
             timezone: 'UTC',
             exdate: [],
+          },
+        ],
+      }
+    );
+  });
+
+  it('filters out null, undefined, and empty string properties from payload and timeslots', async () => {
+    await saveMentorSchedule({
+      userId: '42',
+      timeslots: [
+        fromPartial<TimeSlotDTO>({
+          id: 123,
+          dt_type: 'ALLOW',
+          dtstart: 1767226200,
+          dtend: 1767229800,
+          timezone: 'UTC',
+          rrule: null,
+          exdate: undefined as any,
+          user_id: 42,
+        }),
+      ],
+      until: null,
+    });
+
+    expect(apiClient.putUnwrapped).toHaveBeenCalledWith(
+      '/v1/mentors/42/schedule',
+      {
+        timeslots: [
+          {
+            id: 123,
+            user_id: 42,
+            dt_type: 'ALLOW',
+            dt_year: 2026,
+            dt_month: 1,
+            dtstart: 1767226200,
+            dtend: 1767229800,
+            timezone: 'UTC',
           },
         ],
       }
@@ -122,6 +163,21 @@ describe('fetchMentorSchedule', () => {
     );
   });
 
+  it('forwards AbortSignal when provided', async () => {
+    const controller = new AbortController();
+    vi.mocked(apiClient.getUnwrapped).mockResolvedValueOnce({ segments: [] });
+
+    await fetchMentorSchedule(
+      { userId: '42', year: 2025, month: 12 },
+      controller.signal
+    );
+
+    expect(apiClient.getUnwrapped).toHaveBeenCalledWith(
+      '/v1/mentors/42/schedule/y/2025/m/12',
+      { auth: false, signal: controller.signal }
+    );
+  });
+
   it('swallows ApiError and returns empty object safely', async () => {
     const apiError = new ApiError(400, 'Custom error message');
     vi.mocked(apiClient.getUnwrapped).mockRejectedValueOnce(apiError);
@@ -146,5 +202,28 @@ describe('fetchMentorSchedule', () => {
     });
 
     expect(result).toEqual({});
+  });
+});
+
+describe('deleteMentorSchedule', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(apiClient.delete).mockResolvedValue(null);
+  });
+
+  it('calls apiClient.delete with the correct URL', async () => {
+    await deleteMentorSchedule({ userId: '42', scheduleId: '100' });
+    expect(apiClient.delete).toHaveBeenCalledWith(
+      '/v1/mentors/42/schedule/100'
+    );
+  });
+
+  it('bubbles up ApiError unmodified', async () => {
+    const apiError = new ApiError(404, 'Not Found');
+    vi.mocked(apiClient.delete).mockRejectedValueOnce(apiError);
+
+    await expect(
+      deleteMentorSchedule({ userId: '42', scheduleId: '100' })
+    ).rejects.toThrowError(apiError);
   });
 });
