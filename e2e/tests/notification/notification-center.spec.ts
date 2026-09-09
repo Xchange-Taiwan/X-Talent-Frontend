@@ -7,10 +7,12 @@ const PAGE_URL = '/'; // Notification bell lives in the header of the main/home 
 
 // --- Mock Payloads ---
 
+const MENTOR_USER_ID = '999000111'; // Fully mocked session identity - no real account needed
+
 function makeSession(isMentor: boolean) {
   return {
     user: {
-      id: isMentor ? '7468899508961767' : USER_ID,
+      id: isMentor ? MENTOR_USER_ID : USER_ID,
       name: isMentor ? 'Test Mentor' : 'Test Mentee',
       isMentor,
       onBoarding: true,
@@ -69,11 +71,11 @@ async function mockUnreadCount(page: Page, count: number) {
   });
 }
 
-async function mockNotificationList(page: Page, notifications: any[]) {
+async function mockNotificationList(
+  page: Page,
+  notifications: ReturnType<typeof makeNotificationVO>[]
+) {
   await page.route(/\/v1\/users\/.*\/notifications(\?|$)/, (route) => {
-    if (route.request().url().includes('unread-count')) {
-      return route.continue();
-    }
     return route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -98,7 +100,6 @@ test.describe('Notification Center E2E Tests', () => {
     await mockNotificationList(page, []);
 
     await page.goto(PAGE_URL);
-    await page.evaluate(() => localStorage.clear());
 
     const bell = page.getByRole('button', { name: '開啟通知選單' });
     await expect(bell).toBeVisible();
@@ -122,10 +123,8 @@ test.describe('Notification Center E2E Tests', () => {
     await mockNotificationList(page, [mockNotif]);
 
     // Mock individual read API
-    let markReadCalled = false;
     await page.route(/\/v1\/users\/.*\/notifications\/101/, (route) => {
       if (route.request().method() === 'PUT') {
-        markReadCalled = true;
         return route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -140,9 +139,6 @@ test.describe('Notification Center E2E Tests', () => {
     });
 
     await page.goto(PAGE_URL);
-    await page.evaluate(() => localStorage.clear());
-    // Reload page once to make sure localStorage is fully clean for this test
-    await page.reload();
 
     const bell = page.getByRole('button', { name: '開啟通知選單' });
     await expect(bell).toBeVisible();
@@ -151,11 +147,16 @@ test.describe('Notification Center E2E Tests', () => {
     await expect(badge).toHaveText('1');
 
     await bell.click();
+
+    const markReadRequest = page.waitForRequest(
+      (req) =>
+        req.url().includes('/notifications/101') && req.method() === 'PUT'
+    );
     await page.getByText('Mentor Wang 已接受您的預約').click();
+    await markReadRequest;
 
     // Verify optimistic update clears the badge or decrements it
     await expect(badge).not.toBeVisible();
-    expect(markReadCalled).toBe(true);
   });
 
   test('On API failure (500), verify unread state rolls back cleanly and shows error toast', async ({
@@ -184,8 +185,6 @@ test.describe('Notification Center E2E Tests', () => {
     });
 
     await page.goto(PAGE_URL);
-    await page.evaluate(() => localStorage.clear());
-    await page.reload();
 
     const bell = page.getByRole('button', { name: '開啟通知選單' });
     await bell.click();
@@ -262,6 +261,12 @@ test.describe('Notification Center E2E Tests', () => {
 
     await page.goto(PAGE_URL);
     await page.getByRole('button', { name: '開啟通知選單' }).click();
+
+    // The old (mentee) role's notification must not flash before the new
+    // (mentor) role's content renders - a stale-content leak between roles.
+    await expect(
+      page.getByText('Mentor Wang 已接受您的預約')
+    ).not.toBeVisible();
     await expect(page.getByText('您有新的預約')).toBeVisible();
   });
 });
