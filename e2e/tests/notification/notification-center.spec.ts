@@ -193,12 +193,16 @@ test.describe('Notification Center E2E Tests', () => {
     await page.getByText('Mentor Wang 已接受您的預約').click();
     await markReadRequest;
 
-    // The PUT response is still genuinely pending here - if the badge is
-    // already gone, that can only be an optimistic update, since the real
-    // response can never arrive until releasePut() below is called.
-    await expect(badge).not.toBeVisible();
-
-    releasePut();
+    try {
+      // The PUT response is still genuinely pending here - if the badge is
+      // already gone, that can only be an optimistic update, since the real
+      // response can never arrive until releasePut() is called.
+      await expect(badge).not.toBeVisible();
+    } finally {
+      // Always release, even on assertion failure - otherwise the held
+      // route never resolves and leaves a dangling pending request.
+      releasePut();
+    }
   });
 
   test('On API failure (500), verify unread state rolls back cleanly and shows error toast', async ({
