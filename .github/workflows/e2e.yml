@@ -13,7 +13,7 @@ on:
 jobs:
   # Purely mocked, no-credentials-needed projects (chromium-onboarding/-anon/
   # -profile/-reservation): pure frontend behavior, no real backend or
-  # credentials involved. A failure here is always a real regression.
+  # credentials involved.
   e2e-mock:
     runs-on: ubuntu-latest
     name: Playwright E2E (mock)
@@ -52,68 +52,18 @@ jobs:
           path: playwright-report/
           retention-days: 14
 
-  # Single-account real login smoke test (setup/chromium): the one real
-  # backend check meant to be a reliable, unconditional regression signal -
-  # not a flakiness-prone real business flow like e2e-canary below, so it
-  # gets its own blocking job rather than being lumped into either e2e-mock
-  # (misleadingly, since it's not mocked) or e2e-canary (which would make a
-  # genuine login regression silently non-blocking).
-  e2e-auth:
+  # Everything that hits the real, deployed backend: the single-account login
+  # smoke test (setup/chromium) and the dual-role mentor<->mentee canary
+  # (setup-canary/chromium-canary, X-Tracker #686/#687). This workflow only
+  # runs on a weekly schedule or a manual workflow_dispatch - it does not gate
+  # any PR or production deploy (see deploy-prod.yml's own separate curl-based
+  # smoke test for that) - so there's no continue-on-error split by
+  # flakiness-tolerance here: whoever manually triggers this before shipping
+  # wants a plain, unconditional pass/fail read on the real backend, canary
+  # included.
+  e2e-real:
     runs-on: ubuntu-latest
-    name: Playwright E2E (auth)
-    env:
-      BASE_URL: ${{ inputs.base_url || 'https://xtalentdev.vercel.app' }}
-      # Reuses the mentee canary credentials below - there was never a
-      # separate E2E_EMAIL account. NOTE FOR REVIEWER: E2E_MENTEE_* must be
-      # added to this repo's GitHub Actions secrets manually - that's an
-      # operational step outside this PR's code changes.
-      E2E_MENTEE_EMAIL: ${{ secrets.E2E_MENTEE_EMAIL }}
-      E2E_MENTEE_PASSWORD: ${{ secrets.E2E_MENTEE_PASSWORD }}
-      NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET_DEV }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: Set up PNPM
-        uses: pnpm/action-setup@v6
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Playwright browsers
-        run: pnpm playwright install --with-deps chromium
-
-      - name: Run Playwright auth tests
-        run: pnpm exec playwright test --project=setup --project=chromium
-        env:
-          PLAYWRIGHT_HTML_REPORT: playwright-report-auth
-
-      - name: Upload Playwright auth report
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: playwright-report-auth
-          path: playwright-report-auth/
-          retention-days: 14
-
-  # Dual-role real-backend canary only (X-Tracker #686/#687): a genuinely
-  # real, unmocked mentor<->mentee flow against a live deployed backend, so
-  # it's the one project prone to real network/timing flakiness. Runs as its
-  # own job with continue-on-error so it shows up as its own
-  # separately-judgeable check - a flake here can never be conflated with (or
-  # silently mask a regression in) e2e-mock or e2e-auth above, both of which
-  # stay a hard, unconditional signal.
-  e2e-canary:
-    runs-on: ubuntu-latest
-    name: Playwright E2E (canary)
-    continue-on-error: true
+    name: Playwright E2E (real backend)
     env:
       BASE_URL: ${{ inputs.base_url || 'https://xtalentdev.vercel.app' }}
       # NOTE FOR REVIEWER: these four secrets must be added to this repo's
@@ -144,15 +94,15 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm playwright install --with-deps chromium
 
-      - name: Run Playwright canary tests
-        run: pnpm exec playwright test --project=setup-canary --project=chromium-canary
+      - name: Run Playwright real-backend tests
+        run: pnpm test:e2e:backend
         env:
-          PLAYWRIGHT_HTML_REPORT: playwright-report-canary
+          PLAYWRIGHT_HTML_REPORT: playwright-report-real
 
-      - name: Upload Playwright canary report
+      - name: Upload Playwright real-backend report
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-report-canary
-          path: playwright-report-canary/
+          name: playwright-report-real
+          path: playwright-report-real/
           retention-days: 14
