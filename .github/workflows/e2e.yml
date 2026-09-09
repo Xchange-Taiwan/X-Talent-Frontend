@@ -52,24 +52,29 @@ jobs:
         run: pnpm playwright install --with-deps chromium
 
       # Mocked, no-credentials-needed projects (chromium-onboarding/-anon/
-      # -profile/-reservation): pure frontend behavior, no real backend
-      # involved, so a failure here is always a real regression. Let it fail
-      # the job loudly.
+      # -profile/-reservation) plus the single-account login smoke test
+      # (setup/chromium): both are meant to be a reliable regression signal,
+      # so a failure here is always treated as real and fails the job loudly.
+      # NOTE: intentionally NOT using the local-dev test:e2e:backend script,
+      # which also includes the canary project below - that script is a
+      # local convenience only. CI needs the finer-grained split so a
+      # real-backend canary flake can never silently mask a genuine
+      # regression in the plain login smoke test (caught by AI Review on the
+      # first version of this workflow, which had grouped them together).
       - name: Run Playwright tests
-        run: pnpm test:e2e:mock
+        run: pnpm exec playwright test --project=setup --project=chromium --project=chromium-onboarding --project=chromium-anon --project=chromium-profile --project=chromium-reservation
         env:
           PLAYWRIGHT_HTML_REPORT: playwright-report
 
-      # Everything that hits the real backend (single-account login smoke
-      # test + dual-role canary, X-Tracker #686/#687): continue-on-error so a
-      # real-backend flake there never reds the mock step above, and reports
-      # to its own HTML output so the two are always separately judgeable,
-      # never merged into one report.
-      - name: Run Playwright backend tests
+      # Dual-role real-backend canary only (X-Tracker #686/#687): runs as its
+      # own step with continue-on-error so a real-backend flake there never
+      # reds the step above, and reports to its own HTML output so the two
+      # are always separately judgeable, never merged into one report.
+      - name: Run Playwright canary tests
         continue-on-error: true
-        run: pnpm test:e2e:backend
+        run: pnpm exec playwright test --project=setup-canary --project=chromium-canary
         env:
-          PLAYWRIGHT_HTML_REPORT: playwright-report-backend
+          PLAYWRIGHT_HTML_REPORT: playwright-report-canary
 
       - name: Upload Playwright report
         if: always()
@@ -79,10 +84,10 @@ jobs:
           path: playwright-report/
           retention-days: 14
 
-      - name: Upload Playwright backend report
+      - name: Upload Playwright canary report
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-report-backend
-          path: playwright-report-backend/
+          name: playwright-report-canary
+          path: playwright-report-canary/
           retention-days: 14
