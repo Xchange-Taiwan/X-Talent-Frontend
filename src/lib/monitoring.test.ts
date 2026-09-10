@@ -295,8 +295,26 @@ describe('captureApiFailure', () => {
           status: '401',
         }),
         extra: expect.objectContaining({
-          endpoint: '/api/v1/auth/callback?token=[REDACTED]&code=123',
+          endpoint: '/api/v1/auth/callback?token=[REDACTED]&code=[REDACTED]',
           duration: 150,
+        }),
+      })
+    );
+  });
+
+  it('masks the OAuth authorization code in a NextAuth callback URL', async () => {
+    await captureApiFailure({
+      endpoint: '/api/auth/callback/google?code=4/0AY0e-g7abcdef&state=xyz',
+      method: 'GET',
+      status: 400,
+      message: 'OAuth callback failed',
+      route: '/auth/signin',
+    });
+
+    expect(mockCaptureEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        extra: expect.objectContaining({
+          endpoint: '/api/auth/callback/google?code=[REDACTED]&state=xyz',
         }),
       })
     );

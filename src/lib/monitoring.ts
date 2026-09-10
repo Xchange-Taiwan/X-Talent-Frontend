@@ -64,6 +64,15 @@ export interface ApiFailureEvent {
 /**
  * Keys whose values should be masked in error messages / stack traces.
  * Matches case-insensitively.
+ *
+ * `code` and `secret` cover the OAuth authorization code and client
+ * secret NextAuth's Google sign-in flow passes through
+ * `/api/auth/callback?code=...` - the code is redeemable for an access
+ * token, so it's as sensitive as the token itself. Being substring keys
+ * (like the rest of this list) they'll also mask unrelated compound
+ * fields such as `errorCode` or `statusCode` if those ever appear
+ * embedded in a sanitized message - an accepted over-redaction
+ * trade-off, same as every other key here.
  */
 const SENSITIVE_KEYS = [
   'password',
@@ -75,6 +84,8 @@ const SENSITIVE_KEYS = [
   'email',
   'phone',
   'idnumber',
+  'code',
+  'secret',
 ];
 
 /**
