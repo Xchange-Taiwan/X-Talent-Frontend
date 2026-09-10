@@ -8,6 +8,8 @@ import { useBookingForm } from '@/hooks/user/reservation/useBookingForm';
 import type { BookingSlot } from '@/lib/profile/bookingAvailability';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
 import { isSlotTaken } from '@/lib/profile/scheduleHelpers';
+import { FOCUS_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
+import { cn } from '@/lib/utils';
 import type { BookingFormValues } from '@/schemas/bookingSchema';
 
 import { BOOKED_SLOT_CLASSES, ScheduleSlotList } from './ScheduleSlotList';
@@ -91,7 +93,10 @@ export function MenteeBookingForm({
         <Textarea
           id="booking-question"
           placeholder="請在此輸入你的問題..."
-          className="h-[156px] w-full rounded-lg border-background-border"
+          className={cn(
+            'h-[156px] w-full rounded-lg border-background-border',
+            FOCUS_RING_NO_OFFSET_CLASSES
+          )}
           disabled={isSubmitting}
           {...register('bookingQuestion')}
         />
