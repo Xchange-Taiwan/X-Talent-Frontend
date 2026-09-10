@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
 import { Form } from '@/components/ui/form';
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { mockSkillGroups } from '@/test/fixtures/tagCatalog';
 
 import { TagMultiSelect } from './TagMultiSelect';
@@ -69,7 +70,7 @@ const TagMultiSelectDemo: React.FC<TagMultiSelectDemoProps> = ({
           <div className="flex gap-4">
             <button
               type="submit"
-              className="bg-brand-500 text-text-white hover:bg-brand-600 focus:ring-brand-500 rounded-lg px-4 py-2 focus:ring-2 focus:ring-offset-2 focus:outline-none"
+              className={`bg-brand-500 text-text-white hover:bg-brand-600 rounded-lg px-4 py-2 ${FOCUS_RING_CLASSES}`}
             >
               提交表單
             </button>
