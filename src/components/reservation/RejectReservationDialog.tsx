@@ -17,7 +17,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useConfirmActionDialog } from '@/hooks/reservation/useConfirmActionDialog';
 import { trackEvent } from '@/lib/analytics';
-import { FOCUS_WITHIN_RING_CLASSES } from '@/lib/ui/focusRing';
+import { FOCUS_WITHIN_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 import type { Reservation } from '@/types/reservation';
 
@@ -86,7 +86,7 @@ export default function RejectReservationDialog({
           <div
             className={cn(
               'rounded-2xl border p-2 transition-shadow',
-              FOCUS_WITHIN_RING_CLASSES
+              FOCUS_WITHIN_RING_NO_OFFSET_CLASSES
             )}
           >
             <Textarea

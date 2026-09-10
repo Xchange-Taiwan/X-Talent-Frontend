@@ -39,3 +39,11 @@ export const GROUP_FOCUS_RING_CLASSES =
  */
 export const FOCUS_WITHIN_RING_CLASSES =
   'focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:outline-none';
+
+/**
+ * Focus-within variant without offset.
+ * Use on a parent container when a child input gets focus and offset-2 would float or clip.
+ * Best for textareas, inputs, or compact elements styled as a single composite field.
+ */
+export const FOCUS_WITHIN_RING_NO_OFFSET_CLASSES =
+  'focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-0 focus-within:outline-none';

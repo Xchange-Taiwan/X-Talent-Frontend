@@ -5,7 +5,7 @@ import * as React from 'react';
 
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { FOCUS_WITHIN_RING_CLASSES } from '@/lib/ui/focusRing';
+import { FOCUS_WITHIN_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 
 export interface CategoryOption {
@@ -34,6 +34,7 @@ export interface CategoryMultiSelectProps {
   emptyText?: string;
   limitHelperText?: (selected: number, max: number) => string;
   className?: string;
+  disabled?: boolean;
 }
 
 const defaultLimitHelper = (selected: number, max: number): string =>
@@ -47,12 +48,14 @@ function FlatList({
   limitReached,
   onToggle,
   emptyText,
+  disabled = false,
 }: {
   options: CategoryOption[];
   selectedSet: Set<string>;
   limitReached: boolean;
   onToggle: (value: string) => void;
   emptyText: string;
+  disabled?: boolean;
 }): React.ReactElement {
   if (options.length === 0) {
     return (
@@ -65,19 +68,19 @@ function FlatList({
     <ul className="py-2">
       {options.map((opt) => {
         const checked = selectedSet.has(opt.value);
-        const disabled = !checked && limitReached;
+        const itemDisabled = disabled || (!checked && limitReached);
         return (
           <li key={opt.value}>
             <label
               className={cn(
                 'flex cursor-pointer items-center gap-3 px-4 py-2',
-                disabled && 'cursor-not-allowed opacity-50',
-                !disabled && 'hover:bg-background-bottom'
+                itemDisabled && 'cursor-not-allowed opacity-50',
+                !itemDisabled && 'hover:bg-background-bottom'
               )}
             >
               <Checkbox
                 checked={checked}
-                disabled={disabled}
+                disabled={itemDisabled}
                 onCheckedChange={() => onToggle(opt.value)}
               />
               <span className="text-base text-text-primary">{opt.label}</span>
@@ -99,6 +102,7 @@ export function CategoryMultiSelect({
   emptyText = '沒有符合的選項',
   limitHelperText = defaultLimitHelper,
   className,
+  disabled = false,
 }: CategoryMultiSelectProps): React.ReactElement {
   const [query, setQuery] = React.useState('');
   const [manualOpen, setManualOpen] = React.useState<Record<string, boolean>>(
@@ -126,6 +130,7 @@ export function CategoryMultiSelect({
   const limitReached = value.length >= maxSelected;
 
   const toggle = (optionValue: string): void => {
+    if (disabled) return;
     if (selectedSet.has(optionValue)) {
       onChange(value.filter((v) => v !== optionValue));
       return;
@@ -138,6 +143,7 @@ export function CategoryMultiSelect({
     isSearching ? true : Boolean(manualOpen[key]);
 
   const toggleCategory = (key: string): void => {
+    if (disabled) return;
     setManualOpen((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
@@ -155,13 +161,14 @@ export function CategoryMultiSelect({
         <div
           className={cn(
             'relative rounded-md border border-background-border p-0.5 transition-shadow',
-            FOCUS_WITHIN_RING_CLASSES
+            FOCUS_WITHIN_RING_NO_OFFSET_CLASSES
           )}
         >
           <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-text-tertiary" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            disabled={disabled}
             placeholder={searchPlaceholder}
             className="border-0 pl-9 shadow-none focus:outline-none focus-visible:ring-0 focus-visible:outline-none"
           />
@@ -176,6 +183,7 @@ export function CategoryMultiSelect({
             limitReached={limitReached}
             onToggle={toggle}
             emptyText={emptyText}
+            disabled={disabled}
           />
         )}
 
@@ -200,10 +208,10 @@ export function CategoryMultiSelect({
                 <button
                   type="button"
                   onClick={() => toggleCategory(cat.key)}
-                  disabled={isSearching}
+                  disabled={isSearching || disabled}
                   className={cn(
                     'flex w-full items-center justify-between px-4 py-3 text-left',
-                    !isSearching && 'hover:bg-background-bottom'
+                    !isSearching && !disabled && 'hover:bg-background-bottom'
                   )}
                 >
                   <span className="flex items-center gap-2">
@@ -232,19 +240,20 @@ export function CategoryMultiSelect({
                   <ul className="pb-2">
                     {cat.options.map((opt) => {
                       const checked = selectedSet.has(opt.value);
-                      const disabled = !checked && limitReached;
+                      const itemDisabled =
+                        disabled || (!checked && limitReached);
                       return (
                         <li key={opt.value}>
                           <label
                             className={cn(
-                              'flex cursor-pointer items-center gap-3 px-4 py-2 pl-11',
-                              disabled && 'cursor-not-allowed opacity-50',
-                              !disabled && 'hover:bg-background-bottom'
+                              'flex cursor-pointer items-center gap-3 px-8 py-2',
+                              itemDisabled && 'cursor-not-allowed opacity-50',
+                              !itemDisabled && 'hover:bg-background-bottom'
                             )}
                           >
                             <Checkbox
                               checked={checked}
-                              disabled={disabled}
+                              disabled={itemDisabled}
                               onCheckedChange={() => toggle(opt.value)}
                             />
                             <span className="text-base text-text-primary">
