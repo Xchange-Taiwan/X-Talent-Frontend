@@ -99,6 +99,7 @@ export const UserDropdown = React.memo(function UserDropdown({
             type="button"
             onClick={handleGoProfile}
             aria-current={isOnProfile ? 'page' : undefined}
+            data-testid="profile-header-button"
             className="group flex w-full items-center gap-4 px-6 pt-6 pb-4 text-left focus-visible:outline-none"
           >
             <UserAvatar

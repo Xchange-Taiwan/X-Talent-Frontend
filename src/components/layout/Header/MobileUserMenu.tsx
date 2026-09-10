@@ -94,6 +94,7 @@ export function MobileUserMenu({
             <button
               type="button"
               onClick={handleGoProfile}
+              data-testid="profile-header-button"
               className="group flex items-center gap-4 pt-4 pb-6 text-left focus-visible:outline-none"
             >
               <UserAvatar
