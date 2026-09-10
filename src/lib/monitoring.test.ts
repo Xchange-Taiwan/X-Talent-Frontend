@@ -243,6 +243,142 @@ describe('PII Sanitization', () => {
     expect(sanitized).not.toContain('user@test.com');
   });
 
+  it('fully masks a doubly-nested array-of-arrays value, not just the outer array', () => {
+    const rawJson = '{"password":[["nested"],"plain_secret"]}';
+    const sanitized = sanitize(rawJson);
+    expect(sanitized).toBe('{"password":"[REDACTED]"}');
+    expect(sanitized).not.toContain('nested');
+    expect(sanitized).not.toContain('plain_secret');
+  });
+
+  it('fully masks a doubly-nested object-of-objects value, not just the outer object', () => {
+    const rawJson = JSON.stringify({
+      password: { current: { value: 'hunter2', hint: 'pet name' } },
+      safe: 1,
+    });
+    const sanitized = sanitize(rawJson);
+    expect(sanitized).toBe('{"password":"[REDACTED]","safe":1}');
+    expect(sanitized).not.toContain('hunter2');
+    expect(sanitized).not.toContain('pet name');
+  });
+
+  it('masks a sensitive key buried several levels deep inside non-sensitive wrapper objects', () => {
+    const rawJson = JSON.stringify({
+      data: { user: { profile: { password: 'hunter2' } } },
+      safe: 1,
+    });
+    const sanitized = sanitize(rawJson);
+    expect(sanitized).toBe(
+      '{"data":{"user":{"profile":{"password":"[REDACTED]"}}},"safe":1}'
+    );
+    expect(sanitized).not.toContain('hunter2');
+  });
+
+  it('masks sensitive keys nested inside a mixed array of objects, preserving structure', () => {
+    const rawJson = JSON.stringify({
+      logs: [
+        { password: 'secret1', safe: 'ok' },
+        { token: ['a', 'b'], nested: { email: 'user@test.com' } },
+      ],
+    });
+    const sanitized = sanitize(rawJson);
+    expect(sanitized).toBe(
+      '{"logs":[{"password":"[REDACTED]","safe":"ok"},{"token":"[REDACTED]","nested":{"email":"[REDACTED]"}}]}'
+    );
+    expect(sanitized).not.toContain('secret1');
+    expect(sanitized).not.toContain('user@test.com');
+  });
+
+  it('still applies the shallow regex fallback for a JSON blob embedded in free text', () => {
+    const rawText = 'Request failed: {"password":"secret1","safe":"ok"}';
+    const sanitized = sanitize(rawText);
+    expect(sanitized).toBe(
+      'Request failed: {"password":"[REDACTED]","safe":"ok"}'
+    );
+    expect(sanitized).not.toContain('secret1');
+  });
+
+  it('recurses into a non-sensitive-keyed value in the fallback path to catch a sensitive key nested inside it', () => {
+    const nestedJson = JSON.stringify({
+      user: { password: 'secret', safe: 'ok' },
+    });
+    const rawText = `Error occurred: ${nestedJson}`;
+    const sanitized = sanitize(rawText);
+    expect(sanitized).toBe(
+      'Error occurred: {"user":{"password":"[REDACTED]","safe":"ok"}}'
+    );
+    expect(sanitized).not.toContain('secret');
+  });
+
+  it('recurses through multiple non-sensitive wrapper levels in the fallback path', () => {
+    const nestedJson = JSON.stringify({
+      data: { user: { password: 'secret' } },
+    });
+    const rawText = `Error: ${nestedJson}`;
+    const sanitized = sanitize(rawText);
+    expect(sanitized).toBe(
+      'Error: {"data":{"user":{"password":"[REDACTED]"}}}'
+    );
+    expect(sanitized).not.toContain('secret');
+  });
+
+  it('does not exhibit quadratic slowdown when recursively masking a deeply nested JSON array', () => {
+    let deeplyNested: unknown = 'plain_secret';
+    for (let i = 0; i < 500; i++) {
+      deeplyNested = [deeplyNested];
+    }
+    const rawJson = JSON.stringify({ password: deeplyNested, safe: 1 });
+    const start = performance.now();
+    const sanitized = sanitize(rawJson);
+    const elapsedMs = performance.now() - start;
+    expect(sanitized).toBe('{"password":"[REDACTED]","safe":1}');
+    expect(elapsedMs).toBeLessThan(1000);
+  });
+
+  it('redacts a value nested beyond the max recursion depth instead of crashing or leaking it', () => {
+    let deeplyNested: unknown = 'plain_secret';
+    for (let i = 0; i < 150; i++) {
+      deeplyNested = [deeplyNested];
+    }
+    const rawJson = JSON.stringify({ safe: deeplyNested });
+    const sanitized = sanitize(rawJson);
+    expect(sanitized).not.toContain('plain_secret');
+    expect(sanitized).toContain('[REDACTED]');
+  });
+
+  it('bounds the fallback recursion depth for deeply nested JSON embedded in free text, instead of crashing or leaking it', () => {
+    let nested: unknown = { password: 'deep_secret' };
+    for (let i = 0; i < 150; i++) {
+      nested = { wrapper: nested };
+    }
+    const rawText = `Error: ${JSON.stringify(nested)}`;
+    const sanitized = sanitize(rawText);
+    expect(sanitized).not.toContain('deep_secret');
+  });
+
+  it('preserves a big integer value at extreme length with no quadratic slowdown', () => {
+    const longDigits = '9'.repeat(100000);
+    const rawJson = `{"safe":${longDigits},"other":1}`;
+    const start = performance.now();
+    const sanitized = sanitize(rawJson);
+    const elapsedMs = performance.now() - start;
+    expect(sanitized).toBe(rawJson);
+    expect(elapsedMs).toBeLessThan(1000);
+  });
+
+  it('preserves a big integer id value that would lose precision through a naive JSON.parse/JSON.stringify round trip', () => {
+    const rawJson = '{"orderId":9007199254740993123,"safe":1}';
+    const sanitized = sanitize(rawJson);
+    expect(sanitized).toBe(rawJson);
+  });
+
+  it('still fully masks a big integer value when its key is sensitive, without leaking or crashing', () => {
+    const rawJson = '{"idnumber":123456789012345678901,"safe":1}';
+    const sanitized = sanitize(rawJson);
+    expect(sanitized).toBe('{"idnumber":"[REDACTED]","safe":1}');
+    expect(sanitized).not.toContain('123456789012345678901');
+  });
+
   it('handles empty or undefined values gracefully', () => {
     expect(sanitize(undefined)).toBeUndefined();
     expect(sanitize('')).toBe('');
