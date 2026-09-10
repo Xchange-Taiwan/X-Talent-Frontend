@@ -1,18 +1,46 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fromPartial } from '@total-typescript/shoehorn';
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { describe, expect, it } from 'vitest';
+import type { z } from 'zod';
 
 import { Form } from '@/components/ui/form';
+import type { ProfileFormContext } from '@/hooks/user/profile/useEditProfileForm';
+import type { jobSchema } from '@/schemas/profileSchema';
 
 import { JobExperienceSection } from './JobExperienceSection';
+
+type JobExperience = z.infer<typeof jobSchema>;
+
+/**
+ * The work-experience shape reused across nearly every test below - a
+ * factory keeps each test focused on the one field it's actually varying
+ * instead of restating the whole object.
+ */
+function createMockExperience(
+  overrides: Partial<JobExperience> = {}
+): JobExperience {
+  return {
+    id: 1,
+    job: '工程師 A',
+    company: '公司 A',
+    job_period_start: '2020',
+    job_period_end: '2022',
+    industry: 'TECH',
+    job_location: 'TWN',
+    description: '',
+    is_primary: true,
+    ...overrides,
+  };
+}
 
 function Harness({
   defaultValue = [],
   isMentor = true,
   onValidationChange = () => {},
 }: {
-  defaultValue?: any[];
+  defaultValue?: JobExperience[];
   isMentor?: boolean;
   onValidationChange?: (hasError: boolean) => void;
 }) {
@@ -31,8 +59,7 @@ function Harness({
         <JobExperienceSection
           industries={industries}
           locations={locations}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          form={form as any}
+          form={fromPartial<ProfileFormContext>(form)}
           isMentor={isMentor}
           onValidationChange={onValidationChange}
         />
@@ -54,17 +81,12 @@ describe('JobExperienceSection', () => {
 
   it('renders existing work experiences correctly', () => {
     const existing = [
-      {
-        id: 1,
+      createMockExperience({
         job: '資深工程師',
         company: '測試科技公司',
-        job_period_start: '2020',
         job_period_end: 'now',
-        industry: 'TECH',
-        job_location: 'TWN',
         description: '負責前端架構開發',
-        is_primary: true,
-      },
+      }),
     ];
 
     render(<Harness defaultValue={existing} />);
@@ -91,17 +113,13 @@ describe('JobExperienceSection', () => {
     const fields = ['job', 'company', 'job_period_start', 'job_period_end'];
     fields.forEach((field) => {
       const incomplete = [
-        {
-          id: 1,
+        createMockExperience({
           job: field === 'job' ? '' : '工程師',
           company: field === 'company' ? '' : '公司',
           job_period_start: field === 'job_period_start' ? '' : '2020',
           job_period_end: field === 'job_period_end' ? '' : '2022',
-          industry: 'TECH',
-          job_location: 'TWN',
           description: '',
-          is_primary: true,
-        },
+        }),
       ];
 
       const { unmount } = render(<Harness defaultValue={incomplete} />);
@@ -117,17 +135,11 @@ describe('JobExperienceSection', () => {
 
   it('checks chronological logical date ranges validation (starts after ends)', async () => {
     const invalidDates = [
-      {
-        id: 1,
-        job: '資深工程師',
-        company: '測試科技公司',
+      createMockExperience({
         job_period_start: '2023',
         job_period_end: '2020', // End before Start!
-        industry: 'TECH',
-        job_location: 'TWN',
         description: '',
-        is_primary: true,
-      },
+      }),
     ];
 
     render(<Harness defaultValue={invalidDates} />);
@@ -135,30 +147,31 @@ describe('JobExperienceSection', () => {
     expect(screen.getByText('開始年份不可大於結束年份')).toBeInTheDocument();
   });
 
+  it('does not flag a "至今" (ongoing) position as an invalid date range, regardless of start year', () => {
+    const ongoing = [
+      createMockExperience({
+        job_period_start: '2023',
+        job_period_end: 'now',
+        description: '',
+      }),
+    ];
+
+    render(<Harness defaultValue={ongoing} />);
+
+    expect(
+      screen.queryByText('開始年份不可大於結束年份')
+    ).not.toBeInTheDocument();
+  });
+
   it('deletes work experiences on trash button click and reassigns primary', async () => {
     const existing = [
-      {
-        id: 1,
-        job: '工程師 A',
-        company: '公司 A',
-        job_period_start: '2020',
-        job_period_end: '2022',
-        industry: 'TECH',
-        job_location: 'TWN',
-        description: '',
-        is_primary: true,
-      },
-      {
+      createMockExperience({ job: '工程師 A', company: '公司 A' }),
+      createMockExperience({
         id: 2,
         job: '工程師 B',
         company: '公司 B',
-        job_period_start: '2020',
-        job_period_end: '2022',
-        industry: 'TECH',
-        job_location: 'TWN',
-        description: '',
         is_primary: false,
-      },
+      }),
     ];
 
     render(<Harness defaultValue={existing} />);
@@ -177,30 +190,43 @@ describe('JobExperienceSection', () => {
     });
   });
 
-  it('toggles primary work experience using the checkbox', async () => {
+  it('hides the remove button for the sole remaining experience, so it can never be deleted down to an empty (broken) state', () => {
+    const existing = [createMockExperience()];
+
+    render(<Harness defaultValue={existing} />);
+
+    expect(
+      screen.queryByRole('button', { name: '移除' })
+    ).not.toBeInTheDocument();
+    // The field itself is still there and usable.
+    expect(screen.getByLabelText('職稱')).toHaveValue('工程師 A');
+  });
+
+  it('shows the remove button again once a second experience exists', () => {
     const existing = [
-      {
-        id: 1,
-        job: '工程師 A',
-        company: '公司 A',
-        job_period_start: '2020',
-        job_period_end: '2022',
-        industry: 'TECH',
-        job_location: 'TWN',
-        description: '',
-        is_primary: true,
-      },
-      {
+      createMockExperience({ job: '工程師 A', company: '公司 A' }),
+      createMockExperience({
         id: 2,
         job: '工程師 B',
         company: '公司 B',
-        job_period_start: '2020',
-        job_period_end: '2022',
-        industry: 'TECH',
-        job_location: 'TWN',
-        description: '',
         is_primary: false,
-      },
+      }),
+    ];
+
+    render(<Harness defaultValue={existing} />);
+
+    expect(screen.getAllByRole('button', { name: '移除' })).toHaveLength(2);
+  });
+
+  it('toggles primary work experience using the checkbox', async () => {
+    const existing = [
+      createMockExperience({ job: '工程師 A', company: '公司 A' }),
+      createMockExperience({
+        id: 2,
+        job: '工程師 B',
+        company: '公司 B',
+        is_primary: false,
+      }),
     ];
 
     render(<Harness defaultValue={existing} />);
@@ -223,28 +249,13 @@ describe('JobExperienceSection', () => {
 
   it('can reorder items up and down', async () => {
     const existing = [
-      {
-        id: 1,
-        job: '工程師 A',
-        company: '公司 A',
-        job_period_start: '2020',
-        job_period_end: '2022',
-        industry: 'TECH',
-        job_location: 'TWN',
-        description: '',
-        is_primary: true,
-      },
-      {
+      createMockExperience({ job: '工程師 A', company: '公司 A' }),
+      createMockExperience({
         id: 2,
         job: '工程師 B',
         company: '公司 B',
-        job_period_start: '2020',
-        job_period_end: '2022',
-        industry: 'TECH',
-        job_location: 'TWN',
-        description: '',
         is_primary: false,
-      },
+      }),
     ];
 
     render(<Harness defaultValue={existing} />);
@@ -278,28 +289,13 @@ describe('JobExperienceSection', () => {
 
   it('deletes a non-primary experience directly without primary reassign', async () => {
     const existing = [
-      {
-        id: 1,
-        job: '工程師 A',
-        company: '公司 A',
-        job_period_start: '2020',
-        job_period_end: '2022',
-        industry: 'TECH',
-        job_location: 'TWN',
-        description: '',
-        is_primary: true,
-      },
-      {
+      createMockExperience({ job: '工程師 A', company: '公司 A' }),
+      createMockExperience({
         id: 2,
         job: '工程師 B',
         company: '公司 B',
-        job_period_start: '2020',
-        job_period_end: '2022',
-        industry: 'TECH',
-        job_location: 'TWN',
-        description: '',
         is_primary: false,
-      },
+      }),
     ];
 
     render(<Harness defaultValue={existing} />);
