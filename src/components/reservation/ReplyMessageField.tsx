@@ -6,7 +6,7 @@ import * as React from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import {
   FOCUS_RING_CLASSES,
-  FOCUS_WITHIN_RING_CLASSES,
+  FOCUS_WITHIN_RING_NO_OFFSET_CLASSES,
 } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 
@@ -60,7 +60,7 @@ export function ReplyMessageField({
       <div
         className={cn(
           'rounded-2xl border p-2 transition-shadow',
-          FOCUS_WITHIN_RING_CLASSES
+          FOCUS_WITHIN_RING_NO_OFFSET_CLASSES
         )}
       >
         <Textarea
