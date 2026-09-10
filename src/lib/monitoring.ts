@@ -64,6 +64,22 @@ export interface ApiFailureEvent {
 /**
  * Keys whose values should be masked in error messages / stack traces.
  * Matches case-insensitively.
+ *
+ * `code` and `secret` cover the OAuth authorization code and client
+ * secret NextAuth's Google sign-in flow passes through
+ * `/api/auth/callback?code=...` - the code is redeemable for an access
+ * token, so it's as sensitive as the token itself.
+ *
+ * Every other entry here is a substring match (so compound keys like
+ * `user_email` or `companyEmail` are still caught), but `code` is
+ * written as `^code$` to anchor it to an *exact* match instead. A
+ * substring `code` would also mask `errorCode` and `statusCode` -
+ * common, non-sensitive diagnostic fields that appear in this
+ * codebase's own event shapes (see `FlowFailureEvent.errorCode` below)
+ * - destroying their value for debugging every time they show up
+ * embedded in a sanitized message. The `^`/`$` anchors apply only to
+ * this alternative in the joined regex, not the whole pattern, so the
+ * other keys keep their substring behavior.
  */
 const SENSITIVE_KEYS = [
   'password',
@@ -75,18 +91,93 @@ const SENSITIVE_KEYS = [
   'email',
   'phone',
   'idnumber',
+  '^code$',
+  'secret',
 ];
 
 /**
- * Replaces values of sensitive URL query parameters with [REDACTED].
- * e.g. ?token=abc123&password=secret → ?token=[REDACTED]&password=[REDACTED]
+ * Single precompiled regex to test whether a key contains any sensitive
+ * word, used instead of `SENSITIVE_KEYS.some(...).includes(...)` in the
+ * hot replace callbacks below - one regex engine pass per key instead of
+ * an array scan with a substring search per entry.
  */
+const SENSITIVE_KEY_TEST_PATTERN = new RegExp(SENSITIVE_KEYS.join('|'), 'i');
+
+/**
+ * Replaces values of sensitive URL query parameters with [REDACTED].
+ * e.g. ?token=abc123&password=secret -> ?token=[REDACTED]&password=[REDACTED]
+ * e.g. ?email_address=a@b.com -> ?email_address=[REDACTED]
+ * e.g. ?user[password]=secret -> ?user[password]=[REDACTED]
+ *
+ * The key group captures any run of word/hyphen/dot/bracket characters,
+ * with the sensitive-word check happening in the callback below via a
+ * precompiled test (`SENSITIVE_KEY_TEST_PATTERN`) - mirroring
+ * maskSensitiveJsonValues below - rather than requiring the sensitive
+ * word to be matched as part of the key inside the regex itself (an
+ * earlier version of this pattern). Embedding the keyword in the key
+ * alternation is what caused a severe ReDoS: for a long run of
+ * key-class characters that repeats a sensitive word many times with no
+ * `=` (e.g. `'token'.repeat(32000)`), the engine tried every position
+ * where the keyword alternative could match within that one run,
+ * backtracking the trailing `[\w.[\]-]*` for each - O(N^2), measured at
+ * over a second for a 160k-character input. Checking the key in the
+ * callback instead means the key is a single greedy quantifier with no
+ * internal choice point, so matching (or failing to match, when there's
+ * no trailing `=`) is O(N) with no backtracking to speak of.
+ *
+ * Trade-off: unlike the embedded-keyword version, a non-sensitive key's
+ * value can still "swallow" a sensitive key=value pair that's
+ * un-delimited inside it (e.g. in a free-text `url=/login?token=abc`,
+ * `token=abc` would be consumed as part of `url`'s value and never get
+ * its own match). This function only ever receives flat, single-level
+ * query strings and short free-text messages in this codebase (an
+ * `endpoint` URL's own query string, or one embedded `key=value` token
+ * in a message) - not a value that is itself a second nested URL with
+ * its own query string - so this is accepted as a shallow-match
+ * limitation, the same kind already documented on
+ * maskSensitiveJsonValues' array handling below.
+ *
+ * The character class includes `.`, `[` and `]` alongside `\w-` so
+ * dot notation (`user.email`) and bracket notation (`user[password]`) -
+ * both common in query-string/form serialization - are still caught,
+ * not just plain word keys.
+ *
+ * The value alternation tries a double-quoted string, then a
+ * single-quoted string, then a bare unquoted run - each quoted form is
+ * escape-aware (`(?:[^"\\]|\\.)*`) so a value containing an escaped
+ * quote or a literal space doesn't truncate the match early and leak
+ * the remainder. A plain `[^&\s]*` alone would stop at the first space
+ * inside `password="my secret"`, leaving `secret"` in the output. The
+ * bare alternative deliberately still allows `=` (an earlier version
+ * excluded it, intending to narrow the swallow trade-off above, but
+ * that broke a plain unquoted value that legitimately contains `=` -
+ * e.g. base64 padding in a token, or a password that happens to contain
+ * `=` - truncating it at the first `=` and leaking the remainder
+ * verbatim right after `[REDACTED]`, a worse outcome than the swallow
+ * trade-off it was trying to narrow).
+ *
+ * The leading `(^|[^\w.[\]-])` group anchors where a key is allowed to
+ * start: either the very start of the string, or right after a
+ * character that can't itself be part of a key. This is a captured
+ * group, not a lookbehind assertion (`(?<=...)`), even though the
+ * intent is lookbehind-like: lookbehind isn't supported in Safari
+ * before 16.4, and this pattern is built via `new RegExp` at module
+ * load time, so using it here would throw a SyntaxError and crash the
+ * module - and the whole page - on any older Safari/iOS. The matched
+ * boundary character is consumed and captured instead, then echoed back
+ * unchanged in the callback below.
+ */
+const SENSITIVE_QUERY_PARAM_PATTERN = new RegExp(
+  `(^|[^\\w.[\\]-])([\\w.[\\]-]+)=("(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*'|[^&\\s]*)`,
+  'gi'
+);
+
 function maskSensitiveQueryParams(text: string): string {
   return text.replace(
-    /([?&])([\w-]+)=([^&\s]*)/g,
-    (match, separator, key, _value) => {
-      if (SENSITIVE_KEYS.includes(key.toLowerCase())) {
-        return `${separator}${key}=[REDACTED]`;
+    SENSITIVE_QUERY_PARAM_PATTERN,
+    (match, prefix, key, _value) => {
+      if (SENSITIVE_KEY_TEST_PATTERN.test(key)) {
+        return `${prefix}${key}=[REDACTED]`;
       }
       return match;
     }
@@ -95,15 +186,70 @@ function maskSensitiveQueryParams(text: string): string {
 
 /**
  * Replaces values of sensitive keys in JSON-like strings with [REDACTED].
- * e.g. "password":"secret" → "password":"[REDACTED]"
+ * e.g. "password":"secret" -> "password":"[REDACTED]"
+ * e.g. "phone":987654321 -> "phone":"[REDACTED]"
+ * e.g. "user.email":"a@b.com" -> "user.email":"[REDACTED]"
+ *
+ * The key group captures any run of non-quote characters rather than
+ * `[\w-]+` (a previous version of this pattern), so keys containing
+ * dots or other punctuation - e.g. a flattened `"user.email"` key -
+ * are still matched instead of silently passing through unmasked. The
+ * substring check happens in the callback via a precompiled regex test
+ * (`SENSITIVE_KEY_TEST_PATTERN`), so compound keys like "user_email" or
+ * "companyEmail" are still caught, not just a literal "email" key -
+ * same PII-safety trade-off as SENSITIVE_QUERY_PARAM_PATTERN above.
+ *
+ * The value alternation also matches bare JSON number/boolean/null
+ * literals, not just quoted strings - a sensitive field sent as a
+ * non-string value (e.g. a numeric phone or id number) would otherwise
+ * have no surrounding quotes for the old string-only pattern to match,
+ * letting it through in plain text. The number branch includes an
+ * optional exponent suffix (`(?:[eE][+-]?\d+)?`) since plain JSON
+ * numbers allow scientific notation (e.g. `"phone":12345e2`) - without
+ * it, only the `12345` part would match and get redacted, leaving the
+ * `e2` behind as literal trailing text and producing invalid JSON
+ * (`"phone":"[REDACTED]"e2`).
+ *
+ * The quoted-string branch is escape-aware (`(?:[^"\\]|\\.)*`) rather
+ * than a plain `[^"]*`, which would stop at the first escaped quote
+ * inside the value (e.g. `"password":"my\"secret"`) and leave
+ * everything after it - including the rest of the secret - untouched.
+ *
+ * The `\[(?:[^\]"\\]|"(?:[^"\\]|\\.)*")*\]` alternative matches a flat
+ * JSON array (e.g. `"emails":["a@test.com","b@test.com"]`) so an
+ * array-shaped sensitive value collapses to a single redacted string
+ * instead of passing through untouched - none of the other alternatives
+ * have a `[` branch, so without this an array value simply wouldn't
+ * match at all. It's quote-aware rather than a plain `\[[^\]]*\]`: the
+ * latter stops at the *first* `]` anywhere, including one inside a
+ * string element's value (e.g. `["my]password"]`), which would truncate
+ * the match early and leave everything after it - including the rest of
+ * that secret and any further array elements - untouched.
+ *
+ * The final `\{(?:[^}"\\]|"(?:[^"\\]|\\.)*")*\}` alternative is the same
+ * idea for a flat JSON object value (e.g. a Mongo-style
+ * `"email":{"$eq":"user@test.com"}`, or `"password":{"value":"secret"}`)
+ * - without it, none of the other alternatives match a value starting
+ * with `{`, so the whole object would be skipped by this outer call and
+ * only get processed by the *next* match attempt inside it, at which
+ * point the inner key (`$eq`, `value`) usually isn't itself a sensitive
+ * word, letting the real PII inside leak untouched.
+ *
+ * Both the array and object branches are still shallow matches (they
+ * don't handle further nested arrays/objects inside them), consistent
+ * with the rest of this function's regex-based, not a real parser,
+ * approach.
  */
 function maskSensitiveJsonValues(text: string): string {
-  return text.replace(/"([\w-]+)"\s*:\s*"([^"]*)"/g, (match, key, _value) => {
-    if (SENSITIVE_KEYS.includes(key.toLowerCase())) {
-      return `"${key}":"[REDACTED]"`;
+  return text.replace(
+    /"([^"]+)"\s*:\s*("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null|\[(?:[^\]"\\]|"(?:[^"\\]|\\.)*")*\]|\{(?:[^}"\\]|"(?:[^"\\]|\\.)*")*\})/g,
+    (match, key, _value) => {
+      if (SENSITIVE_KEY_TEST_PATTERN.test(key)) {
+        return `"${key}":"[REDACTED]"`;
+      }
+      return match;
     }
-    return match;
-  });
+  );
 }
 
 export function sanitize(text: string | undefined): string | undefined {
