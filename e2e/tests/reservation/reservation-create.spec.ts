@@ -360,10 +360,7 @@ test.describe('從個人檔案頁建立預約流程', () => {
     // Textarea's FOCUS_RING_CLASSES) still renders alongside the error
     // message rather than being overridden by it.
     await expect(textarea).toBeFocused();
-    const boxShadow = await textarea.evaluate(
-      (el) => getComputedStyle(el).boxShadow
-    );
-    expect(boxShadow).not.toBe('none');
+    await expect(textarea).not.toHaveCSS('box-shadow', 'none');
     await expect(page.getByText('問題字數請勿超過 1000 字')).toBeVisible();
   });
 

@@ -121,11 +121,9 @@ test.describe('Header NotificationBell 鍵盤導覽', () => {
 
     // Assert the focus ring is visibly rendered (FOCUS_RING_CLASSES) instead
     // of the old `focus:outline-none`, which suppressed any visible
-    // indicator entirely.
-    const boxShadow = await markAllButton.evaluate(
-      (el) => getComputedStyle(el).boxShadow
-    );
-    expect(boxShadow).not.toBe('none');
+    // indicator entirely. Uses Playwright's auto-retrying toHaveCSS instead
+    // of a one-shot evaluate() so a render/paint delay doesn't flake this.
+    await expect(markAllButton).not.toHaveCSS('box-shadow', 'none');
 
     // Escape closes the popover and returns focus to the trigger button
     await page.keyboard.press('Escape');
