@@ -103,22 +103,32 @@ function maskSensitiveQueryParams(text: string): string {
 /**
  * Replaces values of sensitive keys in JSON-like strings with [REDACTED].
  * e.g. "password":"secret" -> "password":"[REDACTED]"
+ * e.g. "phone":987654321 -> "phone":"[REDACTED]"
  *
  * Matches by substring rather than exact key equality so compound keys
  * like "user_email" or "companyEmail" are still caught, not just a
  * literal "email" key - same PII-safety trade-off as
  * SENSITIVE_QUERY_PARAM_PATTERN above.
+ *
+ * The value alternation also matches bare JSON number/boolean/null
+ * literals, not just quoted strings - a sensitive field sent as a
+ * non-string value (e.g. a numeric phone or id number) would otherwise
+ * have no surrounding quotes for the old string-only pattern to match,
+ * letting it through in plain text.
  */
 function maskSensitiveJsonValues(text: string): string {
-  return text.replace(/"([\w-]+)"\s*:\s*"([^"]*)"/g, (match, key, _value) => {
-    const lowerKey = key.toLowerCase();
-    if (
-      SENSITIVE_KEYS.some((sensitiveKey) => lowerKey.includes(sensitiveKey))
-    ) {
-      return `"${key}":"[REDACTED]"`;
+  return text.replace(
+    /"([\w-]+)"\s*:\s*("[^"]*"|-?\d+(?:\.\d+)?|true|false|null)/g,
+    (match, key, _value) => {
+      const lowerKey = key.toLowerCase();
+      if (
+        SENSITIVE_KEYS.some((sensitiveKey) => lowerKey.includes(sensitiveKey))
+      ) {
+        return `"${key}":"[REDACTED]"`;
+      }
+      return match;
     }
-    return match;
-  });
+  );
 }
 
 export function sanitize(text: string | undefined): string | undefined {

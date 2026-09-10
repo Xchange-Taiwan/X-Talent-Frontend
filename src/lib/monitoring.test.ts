@@ -95,6 +95,26 @@ describe('PII Sanitization', () => {
     expect(sanitized).not.toContain('john@doe.com');
   });
 
+  it('masks non-string (number/boolean/null) JSON values for sensitive keys, not just quoted strings', () => {
+    const rawJson = JSON.stringify({
+      phone: 987654321,
+      idnumber: 123456789,
+      accessToken: null,
+      active: true,
+      score: 12.5,
+      unrelated: 42,
+    });
+    const sanitized = sanitize(rawJson);
+    expect(sanitized).toContain('"phone":"[REDACTED]"');
+    expect(sanitized).toContain('"idnumber":"[REDACTED]"');
+    expect(sanitized).toContain('"accessToken":"[REDACTED]"');
+    expect(sanitized).toContain('"active":true');
+    expect(sanitized).toContain('"score":12.5');
+    expect(sanitized).toContain('"unrelated":42');
+    expect(sanitized).not.toContain('987654321');
+    expect(sanitized).not.toContain('123456789');
+  });
+
   it('handles empty or undefined values gracefully', () => {
     expect(sanitize(undefined)).toBeUndefined();
     expect(sanitize('')).toBe('');
