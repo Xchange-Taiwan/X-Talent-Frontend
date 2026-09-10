@@ -62,7 +62,7 @@ export function MobileUserMenu({
           <button
             type="button"
             aria-label="開啟用戶選單"
-            className="flex items-center"
+            className="group flex items-center focus-visible:outline-none"
           >
             <UserAvatar
               src={avatarSrc}
@@ -70,6 +70,7 @@ export function MobileUserMenu({
               size={30}
               className="size-[30px]"
               priority
+              interactive
             />
           </button>
         </SheetTrigger>
@@ -84,7 +85,7 @@ export function MobileUserMenu({
                 className="ml-auto"
               >
                 <Cross2Icon
-                  className="text-brand-900 size-8"
+                  className="size-8 text-brand-900"
                   aria-hidden="true"
                 />
               </button>
@@ -103,11 +104,11 @@ export function MobileUserMenu({
                 className="size-14"
               />
               <div className="min-w-0">
-                <div className="text-text-primary truncate text-2xl font-semibold">
+                <div className="truncate text-2xl font-semibold text-text-primary">
                   {name || '我的個人頁面'}
                 </div>
                 {subtitle ? (
-                  <div className="text-text-tertiary mt-1 truncate text-sm">
+                  <div className="mt-1 truncate text-sm text-text-tertiary">
                     {subtitle}
                   </div>
                 ) : null}
@@ -124,7 +125,7 @@ export function MobileUserMenu({
               分享個人頁面
             </Button>
 
-            <div className="bg-background-bottom h-px w-full" />
+            <div className="h-px w-full bg-background-bottom" />
 
             {/* Account actions */}
             <nav className="flex flex-col py-2">
@@ -132,14 +133,14 @@ export function MobileUserMenu({
                 type="button"
                 onClick={handleAsMentor}
                 disabled={!userId}
-                className="text-text-primary py-4 text-left text-xl disabled:opacity-50"
+                className="py-4 text-left text-xl text-text-primary disabled:opacity-50"
               >
                 {isMentor ? '導師預約管理' : '成為導師'}
               </button>
               <button
                 type="button"
                 onClick={handleMyReservation}
-                className="text-text-primary py-4 text-left text-xl"
+                className="py-4 text-left text-xl text-text-primary"
               >
                 我的預約
               </button>
@@ -147,14 +148,14 @@ export function MobileUserMenu({
               <Link
                 href={FIND_MENTOR_HREF}
                 onClick={closeMenu}
-                className="text-text-primary py-4 text-left text-xl"
+                className="py-4 text-left text-xl text-text-primary"
               >
                 尋找導師
               </Link>
               <Link
                 href="/about"
                 onClick={closeMenu}
-                className="text-text-primary py-4 text-left text-xl"
+                className="py-4 text-left text-xl text-text-primary"
               >
                 關於 X-Talent
               </Link>
@@ -166,7 +167,7 @@ export function MobileUserMenu({
                   trackEvent({ name: 'feedback_open' });
                   closeMenu();
                 }}
-                className="text-text-primary py-4 text-left text-xl"
+                className="py-4 text-left text-xl text-text-primary"
               >
                 提供回饋
               </a>
@@ -175,7 +176,7 @@ export function MobileUserMenu({
             <div className="flex flex-col pb-6">
               <button
                 type="button"
-                className="text-text-primary py-4 text-left text-xl"
+                className="py-4 text-left text-xl text-text-primary"
                 onClick={handleLogout}
               >
                 登出
@@ -183,7 +184,7 @@ export function MobileUserMenu({
               {canDeleteAccount && (
                 <button
                   type="button"
-                  className="text-status-error-default py-4 text-left text-xl"
+                  className="py-4 text-left text-xl text-status-error-default"
                   onClick={handleDeleteAccount}
                 >
                   刪除帳號
