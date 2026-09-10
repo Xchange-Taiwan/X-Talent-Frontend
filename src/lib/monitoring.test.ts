@@ -77,6 +77,17 @@ describe('PII Sanitization', () => {
     expect(sanitized).not.toContain('0912345678');
   });
 
+  it('masks query parameter keys using bracket or dot notation, not just plain word keys', () => {
+    const rawUrl =
+      'https://api.example.com/x?user[password]=hunter2&user.email=user@test.com&safe=1';
+    const sanitized = sanitize(rawUrl);
+    expect(sanitized).toContain('user[password]=[REDACTED]');
+    expect(sanitized).toContain('user.email=[REDACTED]');
+    expect(sanitized).toContain('safe=1');
+    expect(sanitized).not.toContain('hunter2');
+    expect(sanitized).not.toContain('user@test.com');
+  });
+
   it('masks compound/snake_case JSON keys, not just exact matches', () => {
     const rawJson = JSON.stringify({
       user_email: 'user@test.com',
@@ -120,6 +131,13 @@ describe('PII Sanitization', () => {
     const sanitized = sanitize(rawJson);
     expect(sanitized).toBe('{"password":"[REDACTED]","safe":"ok"}');
     expect(sanitized).not.toContain('secret');
+  });
+
+  it('masks JSON keys that use dot notation, not just plain word keys', () => {
+    const rawJson = '{"user.email":"user@test.com","safe":"ok"}';
+    const sanitized = sanitize(rawJson);
+    expect(sanitized).toBe('{"user.email":"[REDACTED]","safe":"ok"}');
+    expect(sanitized).not.toContain('user@test.com');
   });
 
   it('masks non-string (number/boolean/null) JSON values for sensitive keys, not just quoted strings', () => {

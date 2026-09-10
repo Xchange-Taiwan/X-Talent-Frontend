@@ -78,19 +78,39 @@ const SENSITIVE_KEYS = [
 ];
 
 /**
+ * Single precompiled regex to test whether a key contains any sensitive
+ * word, used instead of `SENSITIVE_KEYS.some(...).includes(...)` in the
+ * hot replace callbacks below - one regex engine pass per key instead of
+ * an array scan with a substring search per entry.
+ */
+const SENSITIVE_KEY_TEST_PATTERN = new RegExp(SENSITIVE_KEYS.join('|'), 'i');
+
+/**
  * Replaces values of sensitive URL query parameters with [REDACTED].
  * e.g. ?token=abc123&password=secret -> ?token=[REDACTED]&password=[REDACTED]
  * e.g. ?email_address=a@b.com -> ?email_address=[REDACTED]
+ * e.g. ?user[password]=secret -> ?user[password]=[REDACTED]
  *
- * Captures the whole key (any run of word/hyphen characters) as long as
- * it *contains* a sensitive word anywhere in it, not just immediately
- * before `=`. A plain `\b` boundary would miss snake_case keys like
- * `user_email` (`_` is a word character, so there's no boundary there),
- * and requiring the sensitive word to directly precede `=` would still
- * miss keys with a suffix after it, like `email_address` or
- * `phone_number`. Over-redacting the rare benign key that happens to
- * contain a sensitive word is an acceptable trade-off for PII
- * protection.
+ * Captures the whole key (a run of word/hyphen/dot/bracket characters)
+ * as long as it *contains* a sensitive word anywhere in it, not just
+ * immediately before `=`. The key is deliberately matched inside the
+ * regex itself (rather than captured broadly and filtered in the
+ * callback, as maskSensitiveJsonValues does) - this text is free-form,
+ * not quote-delimited, so a broad `[^=&]+` key would greedily swallow
+ * an entire unrelated `key=value` pair that comes before a real one on
+ * the same line (e.g. in `url=/login?token=abc123`, the whole
+ * `url=/login?token` would be consumed as one non-sensitive match,
+ * hiding `token=abc123` from ever being matched on its own). Requiring
+ * the sensitive word to already be part of the matched run keeps the
+ * regex engine's backtracking naturally skipping over irrelevant
+ * prefixes and restarting right at the real key.
+ *
+ * The character class includes `.`, `[` and `]` alongside `\w-` so
+ * dot notation (`user.email`) and bracket notation (`user[password]`) -
+ * both common in query-string/form serialization - are still caught,
+ * not just plain word keys. Over-redacting the rare benign key that
+ * happens to contain a sensitive word is an acceptable trade-off for
+ * PII protection.
  *
  * The value alternation tries a double-quoted string, then a
  * single-quoted string, then a bare unquoted run - each quoted form is
@@ -100,7 +120,7 @@ const SENSITIVE_KEYS = [
  * inside `password="my secret"`, leaving `secret"` in the output.
  */
 const SENSITIVE_QUERY_PARAM_PATTERN = new RegExp(
-  `([\\w-]*(?:${SENSITIVE_KEYS.join('|')})[\\w-]*)=("(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*'|[^&\\s]*)`,
+  `([\\w.[\\]-]*(?:${SENSITIVE_KEYS.join('|')})[\\w.[\\]-]*)=("(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*'|[^&\\s]*)`,
   'gi'
 );
 
@@ -114,11 +134,16 @@ function maskSensitiveQueryParams(text: string): string {
  * Replaces values of sensitive keys in JSON-like strings with [REDACTED].
  * e.g. "password":"secret" -> "password":"[REDACTED]"
  * e.g. "phone":987654321 -> "phone":"[REDACTED]"
+ * e.g. "user.email":"a@b.com" -> "user.email":"[REDACTED]"
  *
- * Matches by substring rather than exact key equality so compound keys
- * like "user_email" or "companyEmail" are still caught, not just a
- * literal "email" key - same PII-safety trade-off as
- * SENSITIVE_QUERY_PARAM_PATTERN above.
+ * The key group captures any run of non-quote characters rather than
+ * `[\w-]+` (a previous version of this pattern), so keys containing
+ * dots or other punctuation - e.g. a flattened `"user.email"` key -
+ * are still matched instead of silently passing through unmasked. The
+ * substring check happens in the callback via a precompiled regex test
+ * (`SENSITIVE_KEY_TEST_PATTERN`), so compound keys like "user_email" or
+ * "companyEmail" are still caught, not just a literal "email" key -
+ * same PII-safety trade-off as SENSITIVE_QUERY_PARAM_PATTERN above.
  *
  * The value alternation also matches bare JSON number/boolean/null
  * literals, not just quoted strings - a sensitive field sent as a
@@ -133,12 +158,9 @@ function maskSensitiveQueryParams(text: string): string {
  */
 function maskSensitiveJsonValues(text: string): string {
   return text.replace(
-    /"([\w-]+)"\s*:\s*("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?|true|false|null)/g,
+    /"([^"]+)"\s*:\s*("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?|true|false|null)/g,
     (match, key, _value) => {
-      const lowerKey = key.toLowerCase();
-      if (
-        SENSITIVE_KEYS.some((sensitiveKey) => lowerKey.includes(sensitiveKey))
-      ) {
+      if (SENSITIVE_KEY_TEST_PATTERN.test(key)) {
         return `"${key}":"[REDACTED]"`;
       }
       return match;
