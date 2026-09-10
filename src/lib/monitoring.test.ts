@@ -88,6 +88,15 @@ describe('PII Sanitization', () => {
     expect(sanitized).not.toContain('user@test.com');
   });
 
+  it('does not exhibit quadratic backtracking on a long non-matching query-like string', () => {
+    const longBenignRun = 'a'.repeat(100000);
+    const start = performance.now();
+    const sanitized = sanitize(longBenignRun);
+    const elapsedMs = performance.now() - start;
+    expect(sanitized).toBe(longBenignRun);
+    expect(elapsedMs).toBeLessThan(1000);
+  });
+
   it('masks compound/snake_case JSON keys, not just exact matches', () => {
     const rawJson = JSON.stringify({
       user_email: 'user@test.com',
@@ -131,6 +140,17 @@ describe('PII Sanitization', () => {
     const sanitized = sanitize(rawJson);
     expect(sanitized).toBe('{"password":"[REDACTED]","safe":"ok"}');
     expect(sanitized).not.toContain('secret');
+  });
+
+  it('masks a JSON array value for a sensitive key, not just scalar values', () => {
+    const rawJson = JSON.stringify({
+      emails: ['user@test.com', 'other@test.com'],
+      safe: ['a', 'b'],
+    });
+    const sanitized = sanitize(rawJson);
+    expect(sanitized).toBe('{"emails":"[REDACTED]","safe":["a","b"]}');
+    expect(sanitized).not.toContain('user@test.com');
+    expect(sanitized).not.toContain('other@test.com');
   });
 
   it('masks JSON keys that use dot notation, not just plain word keys', () => {

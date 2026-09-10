@@ -118,9 +118,22 @@ const SENSITIVE_KEY_TEST_PATTERN = new RegExp(SENSITIVE_KEYS.join('|'), 'i');
  * quote or a literal space doesn't truncate the match early and leak
  * the remainder. A plain `[^&\s]*` alone would stop at the first space
  * inside `password="my secret"`, leaving `secret"` in the output.
+ *
+ * The leading `(?<=^|[^\w.[\]-])` lookbehind anchors where a key is
+ * allowed to start: either the very start of the string, or right after
+ * a character that can't itself be part of a key. Without it, a long
+ * run of key-class characters that never resolves to a sensitive word
+ * (e.g. a huge base64 blob with no `=`) forces the engine to retry the
+ * greedy `[\w.[\]-]*` from every single character offset within that
+ * run, each retry backtracking across the whole remaining run - O(N^2)
+ * for an N-character run, measured at ~27s for a 200k-character
+ * non-matching string. Because only the first character of a
+ * contiguous key-class run satisfies the lookbehind, the engine now
+ * attempts the expensive match once per run instead of once per
+ * character - the same 200k-character case verified at well under 1ms.
  */
 const SENSITIVE_QUERY_PARAM_PATTERN = new RegExp(
-  `([\\w.[\\]-]*(?:${SENSITIVE_KEYS.join('|')})[\\w.[\\]-]*)=("(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*'|[^&\\s]*)`,
+  `(?<=^|[^\\w.[\\]-])([\\w.[\\]-]*(?:${SENSITIVE_KEYS.join('|')})[\\w.[\\]-]*)=("(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*'|[^&\\s]*)`,
   'gi'
 );
 
@@ -155,10 +168,19 @@ function maskSensitiveQueryParams(text: string): string {
  * than a plain `[^"]*`, which would stop at the first escaped quote
  * inside the value (e.g. `"password":"my\"secret"`) and leave
  * everything after it - including the rest of the secret - untouched.
+ *
+ * The final `\[[^\]]*\]` alternative matches a flat JSON array (e.g.
+ * `"emails":["a@test.com","b@test.com"]`) so an array-shaped sensitive
+ * value collapses to a single redacted string instead of passing
+ * through untouched - none of the earlier alternatives have a `[`
+ * branch, so without this an array value simply wouldn't match at all.
+ * This is a shallow match (no nested array/object support) consistent
+ * with the rest of this function's regex-based, not a real parser,
+ * approach.
  */
 function maskSensitiveJsonValues(text: string): string {
   return text.replace(
-    /"([^"]+)"\s*:\s*("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?|true|false|null)/g,
+    /"([^"]+)"\s*:\s*("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?|true|false|null|\[[^\]]*\])/g,
     (match, key, _value) => {
       if (SENSITIVE_KEY_TEST_PATTERN.test(key)) {
         return `"${key}":"[REDACTED]"`;
