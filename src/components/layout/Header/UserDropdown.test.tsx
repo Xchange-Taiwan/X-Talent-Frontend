@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import type { Session } from 'next-auth';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -150,6 +150,29 @@ describe('UserDropdown share flow', () => {
     const avatarImg = screen.getByRole('img', { name: 'Test User 的頭像' });
     expect(avatarImg).toHaveClass('group-hover:opacity-80');
     expect(avatarImg).toHaveClass('group-focus-visible:ring-2');
+  });
+
+  it('wires the profile-header avatar with the hover/focus classes that depend on the parent group', () => {
+    render(
+      <UserDropdown
+        identity={authenticatedIdentity('user-1', { isMentor: false })}
+        user={buildUser({ name: 'Test User' })}
+      />
+    );
+
+    openMenu();
+
+    // Both the trigger and the profile-header button render an avatar with
+    // the same alt text - scope the query to the profile-header button via
+    // its data-testid rather than matching on className.
+    const profileButton = screen.getByTestId('profile-header-button');
+    expect(profileButton).toHaveClass('group');
+
+    const profileAvatarImg = within(profileButton).getByRole('img', {
+      name: 'Test User 的頭像',
+    });
+    expect(profileAvatarImg).toHaveClass('group-hover:opacity-80');
+    expect(profileAvatarImg).toHaveClass('group-focus-visible:ring-2');
   });
 
   it('does not render the merged header navigation links (尋找導師, 關於 X-Talent, 提供回饋) inside the desktop dropdown menu', () => {
