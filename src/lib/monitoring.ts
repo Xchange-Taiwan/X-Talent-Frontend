@@ -91,9 +91,16 @@ const SENSITIVE_KEYS = [
  * `phone_number`. Over-redacting the rare benign key that happens to
  * contain a sensitive word is an acceptable trade-off for PII
  * protection.
+ *
+ * The value alternation tries a double-quoted string, then a
+ * single-quoted string, then a bare unquoted run - each quoted form is
+ * escape-aware (`(?:[^"\\]|\\.)*`) so a value containing an escaped
+ * quote or a literal space doesn't truncate the match early and leak
+ * the remainder. A plain `[^&\s]*` alone would stop at the first space
+ * inside `password="my secret"`, leaving `secret"` in the output.
  */
 const SENSITIVE_QUERY_PARAM_PATTERN = new RegExp(
-  `([\\w-]*(?:${SENSITIVE_KEYS.join('|')})[\\w-]*)=([^&\\s]*)`,
+  `([\\w-]*(?:${SENSITIVE_KEYS.join('|')})[\\w-]*)=("(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*'|[^&\\s]*)`,
   'gi'
 );
 
@@ -118,10 +125,15 @@ function maskSensitiveQueryParams(text: string): string {
  * non-string value (e.g. a numeric phone or id number) would otherwise
  * have no surrounding quotes for the old string-only pattern to match,
  * letting it through in plain text.
+ *
+ * The quoted-string branch is escape-aware (`(?:[^"\\]|\\.)*`) rather
+ * than a plain `[^"]*`, which would stop at the first escaped quote
+ * inside the value (e.g. `"password":"my\"secret"`) and leave
+ * everything after it - including the rest of the secret - untouched.
  */
 function maskSensitiveJsonValues(text: string): string {
   return text.replace(
-    /"([\w-]+)"\s*:\s*("[^"]*"|-?\d+(?:\.\d+)?|true|false|null)/g,
+    /"([\w-]+)"\s*:\s*("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?|true|false|null)/g,
     (match, key, _value) => {
       const lowerKey = key.toLowerCase();
       if (

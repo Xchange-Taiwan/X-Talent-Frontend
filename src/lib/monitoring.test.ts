@@ -42,6 +42,15 @@ describe('PII Sanitization', () => {
     expect(sanitized).not.toContain('abc123');
   });
 
+  it('masks a quoted query parameter value even when it contains a literal space', () => {
+    const rawText = 'request failed for password="my secret" end of message';
+    const sanitized = sanitize(rawText);
+    expect(sanitized).toBe(
+      'request failed for password=[REDACTED] end of message'
+    );
+    expect(sanitized).not.toContain('secret');
+  });
+
   it('masks compound/snake_case query parameter keys, not just exact matches', () => {
     const rawUrl =
       'https://api.example.com/x?user_email=user@test.com&access_token=abc123&user-email=other@test.com&user_password=hunter2&safe=yes';
@@ -104,6 +113,13 @@ describe('PII Sanitization', () => {
     expect(sanitized).not.toContain('password123');
     expect(sanitized).not.toContain('jwt-token-xyz');
     expect(sanitized).not.toContain('john@doe.com');
+  });
+
+  it('fully masks a JSON string value that contains an escaped quote', () => {
+    const rawJson = JSON.stringify({ password: 'my"secret', safe: 'ok' });
+    const sanitized = sanitize(rawJson);
+    expect(sanitized).toBe('{"password":"[REDACTED]","safe":"ok"}');
+    expect(sanitized).not.toContain('secret');
   });
 
   it('masks non-string (number/boolean/null) JSON values for sensitive keys, not just quoted strings', () => {
