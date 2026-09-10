@@ -2,6 +2,11 @@
  * Shared Tailwind CSS focus-ring style definitions.
  * Centralizing these class strings ensures visual consistency across the entire app
  * and makes it easy to update focus styling in one place.
+ *
+ * NOTE TO FUTURE CONTRIBUTORS:
+ * Always import and use these constants (via the `@/lib/ui/focusRing` module)
+ * instead of hand-writing individual focus classes like `focus-visible:ring-2 focus-visible:ring-ring` etc.
+ * This guarantees a unified keyboard-accessibility experience across X-Talent.
  */
 
 /**

@@ -306,6 +306,64 @@ test.describe('從個人檔案頁建立預約流程', () => {
     await expect(textarea).toHaveValue('Hello mentor, testing error flow.');
   });
 
+  test('問題欄位超過 1000 字觸發驗證錯誤時，焦點環樣式仍正確顯示且未覆蓋錯誤訊息', async ({
+    page,
+  }) => {
+    // Sign in as mentee and set up session
+    await setupTestSession(page, false);
+
+    // Mock schedule API
+    await mockMentorSchedule(page, [
+      {
+        id: 101,
+        dt_type: 'ALLOW',
+        dtstart: DTSTART,
+        dtend: DTEND,
+        rrule: null,
+        exdate: [],
+      },
+    ]);
+
+    // Navigate to mentor profile
+    await page.goto(`/profile/${REAL_MENTOR_ID}`);
+
+    // Select the date on calendar
+    await selectCalendarDate(page, DATE_KEY);
+
+    // Find slot button and click
+    const startStr = new Date(DTSTART * 1000).toLocaleTimeString(
+      'en-US',
+      timeFormat
+    );
+    const endStr = new Date(DTEND * 1000).toLocaleTimeString(
+      'en-US',
+      timeFormat
+    );
+    const slotText = `${startStr} – ${endStr}`;
+    const slotButton = page.getByRole('button', { name: slotText });
+    await expect(slotButton).toBeVisible();
+    await slotButton.click();
+
+    // Fill in a question exceeding the 1000-char limit to trigger the
+    // (mode: 'onChange') validation error
+    const textarea = page.locator('textarea#booking-question');
+    await expect(textarea).toBeVisible();
+    await textarea.fill('a'.repeat(1001));
+
+    // Error message is shown and the submit button becomes disabled
+    await expect(page.getByText('問題字數請勿超過 1000 字')).toBeVisible();
+    const submitButton = page.getByRole('button', { name: '預約時間' });
+    await expect(submitButton).toBeDisabled();
+
+    // The textarea keeps input focus, and its focus-visible ring
+    // (FOCUS_RING_NO_OFFSET_CLASSES merged via `cn` on top of the base
+    // Textarea's FOCUS_RING_CLASSES) still renders alongside the error
+    // message rather than being overridden by it.
+    await expect(textarea).toBeFocused();
+    await expect(textarea).not.toHaveCSS('box-shadow', 'none');
+    await expect(page.getByText('問題字數請勿超過 1000 字')).toBeVisible();
+  });
+
   test('Mentor 檢視自己的個人頁 → 按鈕文案為「預約設定」且開啟的是 MentorScheduleDialog', async ({
     page,
   }) => {
