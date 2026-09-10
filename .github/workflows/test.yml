@@ -20,5 +20,5 @@ jobs:
       - name: Set up environment
         uses: ./.github/actions/setup-env
 
-      - name: Run unit & integration tests
-        run: pnpm test
+      - name: Run unit & integration tests with coverage
+        run: pnpm test:coverage
