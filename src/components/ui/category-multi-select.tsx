@@ -59,7 +59,7 @@ function FlatList({
 }): React.ReactElement {
   if (options.length === 0) {
     return (
-      <div className="px-4 py-6 text-center text-sm text-text-tertiary">
+      <div className="text-text-tertiary px-4 py-6 text-center text-sm">
         {emptyText}
       </div>
     );
@@ -83,7 +83,7 @@ function FlatList({
                 disabled={itemDisabled}
                 onCheckedChange={() => onToggle(opt.value)}
               />
-              <span className="text-base text-text-primary">{opt.label}</span>
+              <span className="text-text-primary text-base">{opt.label}</span>
             </label>
           </li>
         );
@@ -153,18 +153,18 @@ export function CategoryMultiSelect({
   return (
     <div
       className={cn(
-        'flex flex-col rounded-xl border border-background-border bg-background-white',
+        'border-background-border bg-background-white flex flex-col rounded-xl border',
         className
       )}
     >
-      <div className="border-b border-background-border p-3">
+      <div className="border-background-border border-b p-3">
         <div
           className={cn(
-            'relative rounded-md border border-background-border p-0.5 transition-shadow',
+            'border-background-border relative rounded-md border p-0.5 transition-shadow',
             FOCUS_WITHIN_RING_NO_OFFSET_CLASSES
           )}
         >
-          <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-text-tertiary" />
+          <Search className="text-text-tertiary absolute top-1/2 left-3 size-4 -translate-y-1/2" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -188,7 +188,7 @@ export function CategoryMultiSelect({
         )}
 
         {!flat && filteredCategories.length === 0 && (
-          <div className="px-4 py-6 text-center text-sm text-text-tertiary">
+          <div className="text-text-tertiary px-4 py-6 text-center text-sm">
             {emptyText}
           </div>
         )}
@@ -203,7 +203,7 @@ export function CategoryMultiSelect({
             return (
               <div
                 key={cat.key}
-                className={cn(idx !== 0 && 'border-t border-background-border')}
+                className={cn(idx !== 0 && 'border-background-border border-t')}
               >
                 <button
                   type="button"
@@ -216,11 +216,11 @@ export function CategoryMultiSelect({
                 >
                   <span className="flex items-center gap-2">
                     {open ? (
-                      <ChevronDown className="size-4 text-text-secondary" />
+                      <ChevronDown className="text-text-secondary size-4" />
                     ) : (
-                      <ChevronRight className="size-4 text-text-secondary" />
+                      <ChevronRight className="text-text-secondary size-4" />
                     )}
-                    <span className="text-base font-semibold text-text-primary">
+                    <span className="text-text-primary text-base font-semibold">
                       {cat.label}
                     </span>
                   </span>
@@ -256,7 +256,7 @@ export function CategoryMultiSelect({
                               disabled={itemDisabled}
                               onCheckedChange={() => toggle(opt.value)}
                             />
-                            <span className="text-base text-text-primary">
+                            <span className="text-text-primary text-base">
                               {opt.label}
                             </span>
                           </label>
@@ -272,7 +272,7 @@ export function CategoryMultiSelect({
 
       <div
         className={cn(
-          'border-t border-background-border px-4 py-2 text-sm tabular-nums',
+          'border-background-border border-t px-4 py-2 text-sm tabular-nums',
           limitReached ? 'text-status-error-default' : 'text-text-tertiary'
         )}
         aria-live="polite"
