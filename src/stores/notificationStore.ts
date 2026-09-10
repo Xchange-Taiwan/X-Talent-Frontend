@@ -10,11 +10,11 @@ export type { NotificationItem } from '@/services/notifications/types';
 export type NotificationStatus = 'loading' | 'error' | 'empty' | 'success';
 
 // Pure helper functions for key generation
-export const getStoreKey = (userId?: string): string => userId || 'generic';
+const getStoreKey = (userId?: string): string => userId || 'generic';
 
 const SEEN_COUNT_STORAGE_PREFIX = 'notif_seen_unread_count_';
 
-export const getStorageKey = (userId?: string): string =>
+const getStorageKey = (userId?: string): string =>
   `${SEEN_COUNT_STORAGE_PREFIX}${getStoreKey(userId)}`;
 
 export interface SharedNotificationState {
@@ -39,7 +39,7 @@ export interface SharedNotificationState {
  * marking, item missing/already read, or mutation not permitted for this
  * source/userId combination) - none of these are failures worth a toast.
  */
-export type MarkReadOutcome =
+type MarkReadOutcome =
   | { status: 'skipped' }
   | { status: 'success' }
   | { status: 'failed'; error: unknown };
@@ -52,20 +52,20 @@ export type MarkReadOutcome =
  * still how a total, no-detail failure (e.g. the plain HTTP endpoint, or a
  * caller's own `onMarkAllRead` rejecting) is reported.
  */
-export type MarkAllReadBulkAction = (ids: string[]) => Promise<string[] | void>;
+type MarkAllReadBulkAction = (ids: string[]) => Promise<string[] | void>;
 
-export type MarkAllReadOutcome =
+type MarkAllReadOutcome =
   | { status: 'skipped' }
   | { status: 'success' }
   | { status: 'partial-failed'; failedCount: number; totalCount: number }
   | { status: 'failed'; error: unknown };
 
-export type LoadMoreOutcome =
+type LoadMoreOutcome =
   | { status: 'skipped' }
   | { status: 'success' }
   | { status: 'failed'; error: unknown };
 
-export type RetryOutcome =
+type RetryOutcome =
   /** No `source.retry` installed - caller should fall back to a normal reload. */
   | { status: 'unsupported' }
   /** Resolved/rejected after being superseded (a newer retry, or every subscriber for this key unsubscribed) - already discarded, nothing for the caller to do. */
@@ -73,7 +73,7 @@ export type RetryOutcome =
   | { status: 'success' }
   | { status: 'failed'; error: unknown };
 
-export const getStoredSeenCount = (key: string): number => {
+const getStoredSeenCount = (key: string): number => {
   if (typeof window === 'undefined') return 0;
   const stored = safeGetStorage(key);
   const parsed = stored !== null ? Number(stored) : 0;

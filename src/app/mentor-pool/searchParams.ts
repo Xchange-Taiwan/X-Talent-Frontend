@@ -4,9 +4,9 @@ import type { SelectFilters } from '@/components/filter/MentorFilterDropdown';
 
 import { filterOptions } from './data';
 
-export const SEARCH_PARAM_KEY = 'q';
+const SEARCH_PARAM_KEY = 'q';
 
-export const FILTER_KEYS: ReadonlyArray<string> = Object.keys(filterOptions);
+const FILTER_KEYS: ReadonlyArray<string> = Object.keys(filterOptions);
 
 type AnyParams = URLSearchParams | ReadonlyURLSearchParams;
 

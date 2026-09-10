@@ -16,20 +16,20 @@ import { Reservation } from '@/types/reservation';
 
 export type ReservationRole = 'mentee' | 'mentor';
 
-export interface NextTokens {
+interface NextTokens {
   upcoming: number;
   pending: number;
   history: number;
 }
 
-export interface ReservationData {
+interface ReservationData {
   upcoming: Reservation[];
   pending: Reservation[];
   history: Reservation[];
   nextTokens: NextTokens;
 }
 
-export type ListKey = 'upcoming' | 'pending' | 'history';
+type ListKey = 'upcoming' | 'pending' | 'history';
 
 /**
  * Which tabs a mutation affects, split into a mandatory `source` (the tab
@@ -62,11 +62,11 @@ const ROLE_STATES: Record<
   },
 };
 
-export type ListLoadState = 'idle' | 'loading' | 'ready';
+type ListLoadState = 'idle' | 'loading' | 'ready';
 
-export type InitialListState = Record<ListKey, ListLoadState>;
+type InitialListState = Record<ListKey, ListLoadState>;
 
-export type LoadingMoreStates = Record<ListKey, boolean>;
+type LoadingMoreStates = Record<ListKey, boolean>;
 
 const EMPTY_LOADING_MORE: LoadingMoreStates = {
   upcoming: false,

@@ -9,12 +9,11 @@ import {
 } from '@/services/profile/tagCatalog';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 
-export const tagCatalogCache = createKeyedCache<string, TagCatalogsByBucket>();
+const tagCatalogCache = createKeyedCache<string, TagCatalogsByBucket>();
 
-export const tagCatalogReadManager = new AsyncReadManager<
-  string,
-  TagCatalogsByBucket
->(tagCatalogCache);
+const tagCatalogReadManager = new AsyncReadManager<string, TagCatalogsByBucket>(
+  tagCatalogCache
+);
 
 /**
  * Seed the in-memory catalog cache from SSR-fetched catalogs so that the

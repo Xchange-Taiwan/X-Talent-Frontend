@@ -9,7 +9,7 @@ const baseCache = createKeyedCache<string, MentorProfileVO | null>({
 });
 
 // Wrap the cache to preserve expired/stale entries for Stale-While-Revalidate support.
-export const userProfileDtoCache: typeof baseCache = {
+const userProfileDtoCache: typeof baseCache = {
   ...baseCache,
   get(key) {
     return baseCache.getWithStatus(key)?.value;
@@ -27,7 +27,7 @@ export const userProfileDtoReadManager = new AsyncReadManager<
   MentorProfileVO | null
 >(userProfileDtoCache);
 
-export function readFromDataCache(
+function readFromDataCache(
   key: string
 ): { data: MentorProfileVO | null; isStale: boolean } | undefined {
   const result = userProfileDtoCache.getWithStatus(key);
@@ -76,7 +76,7 @@ let lastPrimedTime = 0;
 let transitionTimer: NodeJS.Timeout | null = null;
 const transitionListeners = new Set<() => void>();
 
-export const OPTIMISTIC_TRANSITION_WINDOW_MS = 10000;
+const OPTIMISTIC_TRANSITION_WINDOW_MS = 10000;
 
 export function subscribeTransition(listener: () => void): () => void {
   transitionListeners.add(listener);
@@ -128,21 +128,4 @@ export function primeUserProfileDtoCache(
   }, OPTIMISTIC_TRANSITION_WINDOW_MS);
 
   notifyTransitionListeners();
-}
-
-/**
- * Prime the cache only when no fresh entry exists. Used by SSR pages that
- * pass an `initialDto` down to a client container — we want to seed the
- * client cache for first paint, but never overwrite a more authoritative
- * client-side prime (e.g. `useProfileSubmit`'s post-write `firstSyncedFetch`)
- * that landed during the same render cycle. Stale entries (past TTL) are
- * overwritten because the SSR initialDto is by definition fresh.
- */
-export function primeUserProfileDtoCacheIfEmpty(
-  userId: number,
-  language: string,
-  data: MentorProfileVO
-): void {
-  const key = `${userId}-${language}`;
-  userProfileDtoCache.prime(key, data, { ifEmpty: true });
 }

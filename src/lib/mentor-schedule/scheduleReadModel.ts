@@ -19,9 +19,7 @@ export interface ScheduleReadKey {
  * call itself, so `src/services/mentor-schedule` stays the only place that
  * knows the schedule endpoint (mirroring `ReservationReadModel`).
  */
-export type ScheduleFetcher = (
-  signal: AbortSignal
-) => Promise<RawMentorTimeslot[]>;
+type ScheduleFetcher = (signal: AbortSignal) => Promise<RawMentorTimeslot[]>;
 
 function toCacheKey({ userId, year, month }: ScheduleReadKey): string {
   return `${userId}:${year}-${month}`;

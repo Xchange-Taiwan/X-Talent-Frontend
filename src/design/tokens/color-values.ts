@@ -77,5 +77,3 @@ export const rawColors = {
   'marketing-orange': '29 100% 75%', // #FFBF82
   'landing-purple-light': '270 33% 96%', // #F7F2FB
 } as const;
-
-export type RawColorKey = keyof typeof rawColors;

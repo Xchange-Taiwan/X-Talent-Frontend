@@ -1,7 +1,3 @@
-export { InterestedPosition } from './InterestedPosition';
-export { PersonalInfo } from './PersonalInfo';
-export { SkillsToImprove } from './SkillsToImprove';
-export { TopicsToDiscuss } from './TopicsToDiscuss';
 export { WhoAreYou } from './WhoAreYou';
 export {
   formSchema,

@@ -22,14 +22,14 @@ export class ApiError extends Error {
   }
 }
 
-export class MaintenanceError extends Error {
+class MaintenanceError extends Error {
   constructor() {
     super('Maintenance mode');
     this.name = 'MaintenanceError';
   }
 }
 
-export interface ApiResponseEnvelope<T> {
+interface ApiResponseEnvelope<T> {
   code: string;
   msg: string;
   data: T | null | undefined;

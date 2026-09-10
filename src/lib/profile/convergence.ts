@@ -7,7 +7,7 @@ import type { MentorType } from '@/types/mentor';
 import type { MentorProfileVO } from '@/types/user';
 
 // MENTOR_POOL_POLL_LIMIT constant
-export const MENTOR_POOL_POLL_LIMIT = 20;
+const MENTOR_POOL_POLL_LIMIT = 20;
 
 export interface MentorCardFields {
   name: string;
@@ -73,7 +73,7 @@ export class ProfileRecordAdapter implements ConvergenceAdapter<MentorProfileVO>
 /**
  * Shared base class for search-index adapters to eliminate code duplication.
  */
-export abstract class BaseSearchIndexAdapter implements ConvergenceAdapter<
+abstract class BaseSearchIndexAdapter implements ConvergenceAdapter<
   MentorType[]
 > {
   constructor(protected userId: number) {}
@@ -190,7 +190,7 @@ export const FAST_CONVERGENCE_BUDGET = {
 /**
  * One place to decide what happens when the budget is exhausted.
  */
-export function handleExhaustion(flow: string, step: string, message: string) {
+function handleExhaustion(flow: string, step: string, message: string) {
   captureFlowFailure({
     flow,
     step,
