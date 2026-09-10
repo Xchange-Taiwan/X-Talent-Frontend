@@ -4,6 +4,11 @@ import { MessageSquarePlus } from 'lucide-react';
 import * as React from 'react';
 
 import { Textarea } from '@/components/ui/textarea';
+import {
+  FOCUS_RING_CLASSES,
+  FOCUS_WITHIN_RING_CLASSES,
+} from '@/lib/ui/focusRing';
+import { cn } from '@/lib/utils';
 
 interface ReplyMessageFieldProps {
   open: boolean;
@@ -37,7 +42,10 @@ export function ReplyMessageField({
       <button
         type="button"
         onClick={onOpen}
-        className="flex items-center gap-1.5 text-sm text-text-tertiary hover:text-text-primary"
+        className={cn(
+          'flex items-center gap-1.5 rounded-sm text-sm text-text-tertiary hover:text-text-primary',
+          FOCUS_RING_CLASSES
+        )}
         disabled={disabled}
       >
         <MessageSquarePlus className="size-4" aria-hidden />
@@ -49,10 +57,15 @@ export function ReplyMessageField({
   return (
     <div>
       <div className="mb-2 text-sm font-medium">{fieldLabel}</div>
-      <div className="rounded-2xl border p-2">
+      <div
+        className={cn(
+          'rounded-2xl border p-2 transition-shadow',
+          FOCUS_WITHIN_RING_CLASSES
+        )}
+      >
         <Textarea
           placeholder={placeholder}
-          className="min-h-[96px] resize-y border-0 shadow-none focus-visible:ring-0"
+          className="min-h-[96px] resize-y border-0 shadow-none focus-visible:ring-0 focus-visible:outline-none"
           {...textareaProps}
           disabled={disabled || textareaProps.disabled}
         />
