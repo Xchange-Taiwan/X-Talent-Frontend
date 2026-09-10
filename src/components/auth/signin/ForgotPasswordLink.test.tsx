@@ -1,37 +1,32 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { FormMockWrapper } from '@/test/mocks/FormMockWrapper';
 
 import ForgotPasswordLink from './ForgotPasswordLink';
 
-const mockPush = vi.fn();
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: mockPush,
-  }),
-}));
-
 describe('ForgotPasswordLink', () => {
-  it('renders successfully when wrapped in form context', () => {
+  it('renders as a real, keyboard-reachable link pointing to the forgot-password page', () => {
     render(
       <FormMockWrapper defaultValues={{ password: '' }} fieldName="password">
         <ForgotPasswordLink />
       </FormMockWrapper>
     );
-    const linkElement = screen.getByText('忘記密碼');
-    expect(linkElement).toBeInTheDocument();
+
+    const link = screen.getByRole('link', { name: '忘記密碼' });
+    expect(link).toHaveAttribute('href', '/auth/password-forgot');
   });
 
-  it('navigates to forgot password page on click', () => {
+  it('gives the link a visible keyboard focus ring', () => {
     render(
       <FormMockWrapper defaultValues={{ password: '' }} fieldName="password">
         <ForgotPasswordLink />
       </FormMockWrapper>
     );
-    const linkElement = screen.getByText('忘記密碼');
-    fireEvent.click(linkElement);
-    expect(mockPush).toHaveBeenCalledWith('/auth/password-forgot');
+
+    const link = screen.getByRole('link', { name: '忘記密碼' });
+    expect(link).toHaveClass('focus-visible:ring-2');
+    expect(link).toHaveClass('focus-visible:ring-ring');
   });
 });

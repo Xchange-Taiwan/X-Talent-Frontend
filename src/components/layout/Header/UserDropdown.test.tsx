@@ -102,14 +102,17 @@ describe('UserDropdown share flow', () => {
     );
 
     openMenu();
-    const shareButton = screen.getByRole('button', { name: '分享個人頁面' });
+    // The share trigger is a DropdownMenuItemSlot-wrapped Button, so within
+    // the open menu its accessible role is `menuitem` (per the ARIA menu
+    // pattern), not `button` - the underlying DOM node is still a <button>.
+    const shareButton = screen.getByRole('menuitem', { name: '分享個人頁面' });
 
     fireEvent.click(shareButton);
 
     // The dropdown closes synchronously — its content leaves the tree,
     // taking the share trigger with it, before the dialog appears.
     expect(
-      screen.queryByRole('button', { name: '分享個人頁面' })
+      screen.queryByRole('menuitem', { name: '分享個人頁面' })
     ).not.toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(queuedFrames).toHaveLength(1);
@@ -128,7 +131,7 @@ describe('UserDropdown share flow', () => {
     );
 
     openMenu();
-    const shareButton = screen.getByRole('button', { name: '分享個人頁面' });
+    const shareButton = screen.getByRole('menuitem', { name: '分享個人頁面' });
     expect(shareButton).toBeDisabled();
   });
 

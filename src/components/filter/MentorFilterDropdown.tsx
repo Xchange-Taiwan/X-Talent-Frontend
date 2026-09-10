@@ -4,6 +4,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 
 import FilterSelect from '@/components/filter/FilterSelect';
 import { Button } from '@/components/ui/button';
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
+import { cn } from '@/lib/utils';
 
 export type FilterOptions = {
   [key: string]: {
@@ -57,7 +59,12 @@ const MentorFilterDropdown = ({
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <button className="border-background-border flex h-10 w-full items-center justify-center gap-2 rounded-lg border px-4 py-1">
+        <button
+          className={cn(
+            'border-background-border flex h-10 w-full items-center justify-center gap-2 rounded-lg border px-4 py-1',
+            FOCUS_RING_CLASSES
+          )}
+        >
           <div className="flex items-center gap-1">
             <ListFilter className="size-5" />
             <span>篩選</span>
