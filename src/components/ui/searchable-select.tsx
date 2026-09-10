@@ -17,6 +17,8 @@ import {
 } from '@/components/ui/sheet';
 import { useKeyboardInset } from '@/hooks/useKeyboardInset';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
+import { cn } from '@/lib/utils';
 
 /**
  * Tailwind `sm` 以下視為手機版面。低於這個寬度時改用底部面板，不用浮動 popover。
@@ -164,7 +166,12 @@ export function SearchableSelect({
               />
               <div className="flex items-center justify-between px-4 py-3">
                 <SheetTitle className="text-base">{title}</SheetTitle>
-                <SheetClose className="rounded-sm p-1 text-text-tertiary hover:text-text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+                <SheetClose
+                  className={cn(
+                    'rounded-sm p-1 text-text-tertiary hover:text-text-primary',
+                    FOCUS_RING_CLASSES
+                  )}
+                >
                   <X className="size-5" aria-hidden="true" />
                   <span className="sr-only">關閉</span>
                 </SheetClose>
