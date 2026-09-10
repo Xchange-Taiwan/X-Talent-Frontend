@@ -71,14 +71,18 @@ function HeaderComponent(): JSX.Element {
                 <DisabledAwareLink
                   href={getProfileHref(identity.userId)}
                   disabled={isHintOnly}
-                  className="text-text-primary hover:text-brand-600 hidden font-['Open_Sans'] text-base transition-colors group-data-[auth-state=mentor]/auth-state:block"
+                  className={`text-text-primary hidden font-['Open_Sans'] text-base group-data-[auth-state=mentor]/auth-state:block ${
+                    isHintOnly ? '' : 'hover:text-brand-600 transition-colors'
+                  }`}
                 >
                   我的導師頁面
                 </DisabledAwareLink>
                 <DisabledAwareLink
                   href={getBecomeMentorHref(identity.userId)}
                   disabled={isHintOnly}
-                  className="text-text-primary hover:text-brand-600 hidden font-['Open_Sans'] text-base transition-colors group-data-[auth-state=guest]/auth-state:block group-data-[auth-state=mentee]/auth-state:block"
+                  className={`text-text-primary hidden font-['Open_Sans'] text-base group-data-[auth-state=guest]/auth-state:block group-data-[auth-state=mentee]/auth-state:block ${
+                    isHintOnly ? '' : 'hover:text-brand-600 transition-colors'
+                  }`}
                 >
                   成為導師
                 </DisabledAwareLink>
@@ -87,7 +91,9 @@ function HeaderComponent(): JSX.Element {
               <DisabledAwareLink
                 href={leftSecondNav.href}
                 disabled={isHintOnly}
-                className="text-text-primary hover:text-brand-600 font-['Open_Sans'] text-base transition-colors"
+                className={`text-text-primary font-['Open_Sans'] text-base ${
+                  isHintOnly ? '' : 'hover:text-brand-600 transition-colors'
+                }`}
               >
                 {leftSecondNav.label}
               </DisabledAwareLink>
