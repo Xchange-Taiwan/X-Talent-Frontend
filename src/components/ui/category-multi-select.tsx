@@ -5,6 +5,7 @@ import * as React from 'react';
 
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { FOCUS_WITHIN_RING_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 
 export interface CategoryOption {
@@ -55,7 +56,7 @@ function FlatList({
 }): React.ReactElement {
   if (options.length === 0) {
     return (
-      <div className="text-text-tertiary px-4 py-6 text-center text-sm">
+      <div className="px-4 py-6 text-center text-sm text-text-tertiary">
         {emptyText}
       </div>
     );
@@ -79,7 +80,7 @@ function FlatList({
                 disabled={disabled}
                 onCheckedChange={() => onToggle(opt.value)}
               />
-              <span className="text-text-primary text-base">{opt.label}</span>
+              <span className="text-base text-text-primary">{opt.label}</span>
             </label>
           </li>
         );
@@ -146,18 +147,23 @@ export function CategoryMultiSelect({
   return (
     <div
       className={cn(
-        'border-background-border bg-background-white flex flex-col rounded-xl border',
+        'flex flex-col rounded-xl border border-background-border bg-background-white',
         className
       )}
     >
-      <div className="border-background-border border-b p-3">
-        <div className="relative">
-          <Search className="text-text-tertiary absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+      <div className="border-b border-background-border p-3">
+        <div
+          className={cn(
+            'relative rounded-md border border-background-border p-0.5 transition-shadow',
+            FOCUS_WITHIN_RING_CLASSES
+          )}
+        >
+          <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-text-tertiary" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={searchPlaceholder}
-            className="border-0 pl-9 shadow-none focus-visible:ring-0"
+            className="border-0 pl-9 shadow-none focus:outline-none focus-visible:ring-0 focus-visible:outline-none"
           />
         </div>
       </div>
@@ -174,7 +180,7 @@ export function CategoryMultiSelect({
         )}
 
         {!flat && filteredCategories.length === 0 && (
-          <div className="text-text-tertiary px-4 py-6 text-center text-sm">
+          <div className="px-4 py-6 text-center text-sm text-text-tertiary">
             {emptyText}
           </div>
         )}
@@ -189,7 +195,7 @@ export function CategoryMultiSelect({
             return (
               <div
                 key={cat.key}
-                className={cn(idx !== 0 && 'border-background-border border-t')}
+                className={cn(idx !== 0 && 'border-t border-background-border')}
               >
                 <button
                   type="button"
@@ -202,11 +208,11 @@ export function CategoryMultiSelect({
                 >
                   <span className="flex items-center gap-2">
                     {open ? (
-                      <ChevronDown className="text-text-secondary size-4" />
+                      <ChevronDown className="size-4 text-text-secondary" />
                     ) : (
-                      <ChevronRight className="text-text-secondary size-4" />
+                      <ChevronRight className="size-4 text-text-secondary" />
                     )}
-                    <span className="text-text-primary text-base font-semibold">
+                    <span className="text-base font-semibold text-text-primary">
                       {cat.label}
                     </span>
                   </span>
@@ -241,7 +247,7 @@ export function CategoryMultiSelect({
                               disabled={disabled}
                               onCheckedChange={() => toggle(opt.value)}
                             />
-                            <span className="text-text-primary text-base">
+                            <span className="text-base text-text-primary">
                               {opt.label}
                             </span>
                           </label>
@@ -257,7 +263,7 @@ export function CategoryMultiSelect({
 
       <div
         className={cn(
-          'border-background-border border-t px-4 py-2 text-sm tabular-nums',
+          'border-t border-background-border px-4 py-2 text-sm tabular-nums',
           limitReached ? 'text-status-error-default' : 'text-text-tertiary'
         )}
         aria-live="polite"

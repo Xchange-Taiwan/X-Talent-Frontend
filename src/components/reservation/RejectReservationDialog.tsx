@@ -17,6 +17,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useConfirmActionDialog } from '@/hooks/reservation/useConfirmActionDialog';
 import { trackEvent } from '@/lib/analytics';
+import { FOCUS_WITHIN_RING_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 import type { Reservation } from '@/types/reservation';
 
@@ -82,10 +83,15 @@ export default function RejectReservationDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="rounded-2xl border p-2">
+          <div
+            className={cn(
+              'rounded-2xl border p-2 transition-shadow',
+              FOCUS_WITHIN_RING_CLASSES
+            )}
+          >
             <Textarea
               placeholder="請在此輸入原因..."
-              className="min-h-[120px] resize-y border-0 shadow-none focus-visible:ring-0"
+              className="min-h-[120px] resize-y border-0 shadow-none focus-visible:ring-0 focus-visible:outline-none"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               disabled={isSubmitting}
