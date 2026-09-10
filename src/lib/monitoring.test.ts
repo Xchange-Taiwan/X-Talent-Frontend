@@ -361,6 +361,16 @@ describe('captureApiFailure', () => {
     );
   });
 
+  it('does not mask errorCode/statusCode fields just because they contain "code"', () => {
+    const rawJson = JSON.stringify({
+      errorCode: 404,
+      statusCode: 500,
+      safe: 1,
+    });
+    const sanitized = sanitize(rawJson);
+    expect(sanitized).toBe(rawJson);
+  });
+
   it('does NOT call Sentry when NODE_ENV is not production', async () => {
     vi.stubEnv('NODE_ENV', 'test');
 

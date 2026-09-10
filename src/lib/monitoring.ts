@@ -68,11 +68,18 @@ export interface ApiFailureEvent {
  * `code` and `secret` cover the OAuth authorization code and client
  * secret NextAuth's Google sign-in flow passes through
  * `/api/auth/callback?code=...` - the code is redeemable for an access
- * token, so it's as sensitive as the token itself. Being substring keys
- * (like the rest of this list) they'll also mask unrelated compound
- * fields such as `errorCode` or `statusCode` if those ever appear
- * embedded in a sanitized message - an accepted over-redaction
- * trade-off, same as every other key here.
+ * token, so it's as sensitive as the token itself.
+ *
+ * Every other entry here is a substring match (so compound keys like
+ * `user_email` or `companyEmail` are still caught), but `code` is
+ * written as `^code$` to anchor it to an *exact* match instead. A
+ * substring `code` would also mask `errorCode` and `statusCode` -
+ * common, non-sensitive diagnostic fields that appear in this
+ * codebase's own event shapes (see `FlowFailureEvent.errorCode` below)
+ * - destroying their value for debugging every time they show up
+ * embedded in a sanitized message. The `^`/`$` anchors apply only to
+ * this alternative in the joined regex, not the whole pattern, so the
+ * other keys keep their substring behavior.
  */
 const SENSITIVE_KEYS = [
   'password',
@@ -84,7 +91,7 @@ const SENSITIVE_KEYS = [
   'email',
   'phone',
   'idnumber',
-  'code',
+  '^code$',
   'secret',
 ];
 
