@@ -84,8 +84,10 @@ const headerVariantStyles: Record<
     avatarFallbackClassName: 'font-medium',
     containerClassName: 'flex items-start gap-3 sm:gap-4',
     nameRowClassName: 'flex min-w-0 items-start justify-between gap-2',
-    nameLinkClassName:
-      'group min-w-0 truncate rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none',
+    nameLinkClassName: cn(
+      'group min-w-0 truncate rounded-sm no-underline',
+      FOCUS_RING_CLASSES
+    ),
     roleLineClassName: 'truncate text-xs text-text-tertiary sm:text-sm',
     roleLineInsideLink: true,
     badgeClassName: 'px-1.5 text-11',
@@ -149,7 +151,10 @@ export function ReservationIdentityHeader({
         href={href}
         onClick={onProfileLinkClick}
         disabled={disabled}
-        className="focus-visible:ring-brand-500 shrink-0 rounded-full transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+        className={cn(
+          'shrink-0 rounded-full transition-opacity hover:opacity-80',
+          FOCUS_RING_CLASSES
+        )}
         ariaLabel={`查看 ${reservation.name} 的個人資料`}
       >
         <Avatar className={style.avatarClassName}>

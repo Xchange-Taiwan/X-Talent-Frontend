@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import {
   step1Schema,
   step2Schema,
@@ -151,7 +152,7 @@ function OnboardingUIWizardDemo() {
         </div>
         <button
           onClick={resetAll}
-          className="bg-brand-500 text-text-white hover:bg-brand-600 focus:ring-brand-500 rounded-lg px-6 py-2.5 font-semibold focus:ring-2 focus:ring-offset-2 focus:outline-none"
+          className={`bg-brand-500 text-text-white hover:bg-brand-600 rounded-lg px-6 py-2.5 font-semibold ${FOCUS_RING_CLASSES}`}
         >
           重新開始
         </button>
