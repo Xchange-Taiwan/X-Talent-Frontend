@@ -37,6 +37,11 @@ import {
   useRepeatablePeriodSection,
   YEAR_OPTIONS,
 } from '@/hooks/user/profile/useRepeatablePeriodSection';
+import {
+  isT1Match,
+  normalize,
+  searchSchools,
+} from '@/lib/profile/searchSchools';
 import { cn } from '@/lib/utils';
 
 import { Section } from '../Section';
@@ -51,10 +56,10 @@ export function SchoolComboboxField({
   const [search, setSearch] = useState('');
 
   const trimmedSearch = search.trim();
-  const filteredSchools = trimmedSearch
-    ? taiwanSchools.filter((school) => school.includes(trimmedSearch))
-    : taiwanSchools;
-  const isExactMatch = taiwanSchools.some((school) => school === trimmedSearch);
+  const filteredSchools = searchSchools(search);
+  const isExactMatch = taiwanSchools.some((school) =>
+    isT1Match(school, normalize(trimmedSearch))
+  );
   const showCreateOption = trimmedSearch.length > 0 && !isExactMatch;
 
   const selectSchool = (value: string) => {
