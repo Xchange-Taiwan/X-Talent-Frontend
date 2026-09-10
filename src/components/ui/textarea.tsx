@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 /**
  * Textarea 元件屬性介面：繼承所有原生 HTML textarea 的屬性。
  */
-export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {}
+export type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement>;
 
 /**
  * Textarea 多行輸入框元件：
