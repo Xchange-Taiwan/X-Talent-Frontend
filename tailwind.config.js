@@ -31,6 +31,7 @@ export const theme = {
     },
     boxShadow: {
       card: shadows.card,
+      'card-hover': shadows.cardHover,
     },
     backgroundImage: {
       'auth-card': 'var(--bg-auth-card)',
