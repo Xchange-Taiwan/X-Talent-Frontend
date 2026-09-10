@@ -185,19 +185,65 @@ function maskSensitiveQueryParams(text: string): string {
 }
 
 /**
+ * Recursively masks sensitive keys in an already-`JSON.parse`d value.
+ *
+ * Walking the real object tree (rather than scanning text with a regex)
+ * is what lets this reach a sensitive key's value no matter how deeply
+ * it's nested - a nested array/object under a sensitive key is replaced
+ * with `[REDACTED]` wholesale without needing to descend into it, and a
+ * non-sensitive array/object is walked element-by-element / key-by-key
+ * so a sensitive key buried inside it still gets masked.
+ */
+function maskSensitiveJsonNode(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(maskSensitiveJsonNode);
+  }
+
+  if (value !== null && typeof value === 'object') {
+    const masked: Record<string, unknown> = {};
+    for (const [key, nodeValue] of Object.entries(
+      value as Record<string, unknown>
+    )) {
+      masked[key] = SENSITIVE_KEY_TEST_PATTERN.test(key)
+        ? '[REDACTED]'
+        : maskSensitiveJsonNode(nodeValue);
+    }
+    return masked;
+  }
+
+  return value;
+}
+
+/**
  * Replaces values of sensitive keys in JSON-like strings with [REDACTED].
  * e.g. "password":"secret" -> "password":"[REDACTED]"
  * e.g. "phone":987654321 -> "phone":"[REDACTED]"
  * e.g. "user.email":"a@b.com" -> "user.email":"[REDACTED]"
+ * e.g. {"password":[["nested"],"plain_secret"]} -> {"password":"[REDACTED]"}
  *
- * The key group captures any run of non-quote characters rather than
- * `[\w-]+` (a previous version of this pattern), so keys containing
- * dots or other punctuation - e.g. a flattened `"user.email"` key -
- * are still matched instead of silently passing through unmasked. The
- * substring check happens in the callback via a precompiled regex test
+ * When `text` is valid JSON on its own, it's parsed with `JSON.parse`,
+ * walked recursively via `maskSensitiveJsonNode` to mask every sensitive
+ * key regardless of nesting depth, then re-serialized with
+ * `JSON.stringify`. `JSON.parse` is a real parser, not a regex, so this
+ * path is immune to the shallow-match / ReDoS failure modes a
+ * hand-rolled bracket-matching regex would have for arbitrarily nested
+ * structures - do not replace it with one.
+ *
+ * `text` is not always valid JSON by itself though - it can be free text
+ * with an embedded `key: value` fragment, or a JSON-shaped blob sitting
+ * inside a larger error message (e.g. `Request failed: {"password":...}`).
+ * For that case `JSON.parse` throws and this falls back to the regex-based
+ * scan below, which finds `"key":value` pairs anywhere in the text without
+ * requiring the whole string to be valid JSON.
+ *
+ * The fallback regex's key group captures any run of non-quote characters
+ * rather than `[\w-]+` (a previous version of this pattern), so keys
+ * containing dots or other punctuation - e.g. a flattened `"user.email"`
+ * key - are still matched instead of silently passing through unmasked.
+ * The substring check happens in the callback via a precompiled regex test
  * (`SENSITIVE_KEY_TEST_PATTERN`), so compound keys like "user_email" or
- * "companyEmail" are still caught, not just a literal "email" key -
- * same PII-safety trade-off as SENSITIVE_QUERY_PARAM_PATTERN above.
+ * "companyEmail" are still caught, not just a literal "email" key - same
+ * PII-safety trade-off as SENSITIVE_QUERY_PARAM_PATTERN above.
  *
  * The value alternation also matches bare JSON number/boolean/null
  * literals, not just quoted strings - a sensitive field sent as a
@@ -235,12 +281,20 @@ function maskSensitiveQueryParams(text: string): string {
  * point the inner key (`$eq`, `value`) usually isn't itself a sensitive
  * word, letting the real PII inside leak untouched.
  *
- * Both the array and object branches are still shallow matches (they
- * don't handle further nested arrays/objects inside them), consistent
- * with the rest of this function's regex-based, not a real parser,
- * approach.
+ * The array and object branches here are still shallow matches (they
+ * don't handle further nested arrays/objects inside them) - but this
+ * fallback path is only reached for free text that isn't valid JSON on
+ * its own, where a full recursive parse isn't possible anyway. Genuinely
+ * nested JSON payloads take the `JSON.parse` path above instead.
  */
 function maskSensitiveJsonValues(text: string): string {
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return JSON.stringify(maskSensitiveJsonNode(parsed));
+  } catch {
+    // Not valid JSON by itself - fall through to the regex-based scan.
+  }
+
   return text.replace(
     /"([^"]+)"\s*:\s*("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null|\[(?:[^\]"\\]|"(?:[^"\\]|\\.)*")*\]|\{(?:[^}"\\]|"(?:[^"\\]|\\.)*")*\})/g,
     (match, key, _value) => {
