@@ -12,6 +12,8 @@ import type {
 } from '@/lib/profile/bookingAvailability';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
 import { isSlotTaken } from '@/lib/profile/scheduleHelpers';
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
+import { cn } from '@/lib/utils';
 import type { Reservation } from '@/types/reservation';
 
 import { ConfirmedReservationDialog } from './ConfirmedReservationDialog';
@@ -127,7 +129,10 @@ export function MentorScheduleConfig({
                   {/* Invisible absolute button covering the entire row to handle row click/keydown without nesting issues */}
                   <button
                     type="button"
-                    className="absolute inset-0 rounded-lg focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                    className={cn(
+                      'absolute inset-0 rounded-lg focus-visible:outline-none',
+                      FOCUS_RING_CLASSES
+                    )}
                     onClick={() => handleBookedSlotClick(slot)}
                     aria-label={`查看 ${formatBookingSlotTime(slot)} ${slot.reservation?.name ?? ''} 預約詳情`}
                   />

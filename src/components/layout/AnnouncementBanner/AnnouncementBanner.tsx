@@ -5,6 +5,8 @@ import { useRef } from 'react';
 
 import { useAnnouncement } from '@/hooks/useAnnouncement';
 import { useIsomorphicLayoutEffect } from '@/hooks/useIsomorphicLayoutEffect';
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
+import { cn } from '@/lib/utils';
 
 export function AnnouncementBanner(): JSX.Element | null {
   const { visible, data, handleDismiss } = useAnnouncement();
@@ -61,19 +63,22 @@ export function AnnouncementBanner(): JSX.Element | null {
     // show through it.
     <div
       ref={bannerRef}
-      className="border-status-warning-default/20 bg-light fixed inset-x-0 top-0 z-[60] w-full border-b"
+      className="fixed inset-x-0 top-0 z-[60] w-full border-b border-status-warning-default/20 bg-light"
       role="alert"
     >
-      <div className="bg-status-warning-default/10 text-text-primary flex w-full items-center justify-between gap-4 px-5 py-3 text-sm">
+      <div className="flex w-full items-center justify-between gap-4 bg-status-warning-default/10 px-5 py-3 text-sm text-text-primary">
         <div className="flex items-center gap-3">
-          <AlertTriangle className="text-status-warning-default size-5 shrink-0" />
+          <AlertTriangle className="size-5 shrink-0 text-status-warning-default" />
           <span className="font-['Open_Sans'] leading-relaxed font-medium">
             {data.message}
           </span>
         </div>
         <button
           onClick={handleDismiss}
-          className="text-text-secondary hover:bg-status-warning-default/20 focus:ring-ring shrink-0 rounded-full p-1 transition-colors focus:ring-2 focus:ring-offset-2 focus:outline-none"
+          className={cn(
+            'shrink-0 rounded-full p-1 text-text-secondary transition-colors hover:bg-status-warning-default/20 focus:outline-none',
+            FOCUS_RING_CLASSES
+          )}
           aria-label="關閉公告"
         >
           <X className="size-4" />
