@@ -56,10 +56,10 @@ export function ReservationCard({
           variant="card"
         >
           {/* Divider only on >=sm to match Figma feel */}
-          <div className="my-3 hidden h-px bg-background-border sm:block" />
+          <div className="bg-background-border my-3 hidden h-px sm:block" />
 
           {/* Date & time row */}
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-text-tertiary sm:mt-0 sm:text-sm">
+          <div className="text-text-tertiary mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs sm:mt-0 sm:text-sm">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               <div className="flex items-center gap-1.5">
                 <CalendarDays className="size-4" aria-hidden />

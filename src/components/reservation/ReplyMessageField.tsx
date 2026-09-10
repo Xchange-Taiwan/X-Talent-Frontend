@@ -37,7 +37,7 @@ export function ReplyMessageField({
       <button
         type="button"
         onClick={onOpen}
-        className="flex items-center gap-1.5 text-sm text-text-tertiary hover:text-text-primary"
+        className="text-text-tertiary hover:text-text-primary flex items-center gap-1.5 text-sm"
         disabled={disabled}
       >
         <MessageSquarePlus className="size-4" aria-hidden />
@@ -58,7 +58,7 @@ export function ReplyMessageField({
         />
       </div>
       {error ? (
-        <p className="mt-1 text-sm text-status-error-default">{error}</p>
+        <p className="text-status-error-default mt-1 text-sm">{error}</p>
       ) : null}
     </div>
   );

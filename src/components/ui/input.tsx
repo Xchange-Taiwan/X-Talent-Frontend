@@ -45,7 +45,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       <input
         type={type}
         className={cn(
-          'flex h-10 w-full rounded-md border border-background-border bg-background-white px-3 py-2 text-base ring-offset-background-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-text-tertiary disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
+          'border-background-border bg-background-white ring-offset-background-white placeholder:text-text-tertiary flex h-10 w-full rounded-md border px-3 py-2 text-base file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
           FOCUS_RING_CLASSES,
           className
         )}

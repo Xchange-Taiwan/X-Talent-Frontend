@@ -68,7 +68,7 @@ export default function ReservationConversationDialog({
           <button
             type="button"
             className={cn(
-              'inline-flex items-center gap-1 rounded-sm text-xs text-text-tertiary hover:text-text-primary focus-visible:outline-none sm:text-sm',
+              'text-text-tertiary hover:text-text-primary inline-flex items-center gap-1 rounded-sm text-xs focus-visible:outline-none sm:text-sm',
               FOCUS_RING_CLASSES
             )}
           >
@@ -100,7 +100,7 @@ export default function ReservationConversationDialog({
               </DialogDescription>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-tertiary sm:text-sm">
+          <div className="text-text-tertiary flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm">
             <span className="inline-flex items-center gap-1.5">
               <CalendarDays className="size-3.5" aria-hidden />
               {reservation.date}
@@ -114,7 +114,7 @@ export default function ReservationConversationDialog({
 
         <div className="flex-1 space-y-3 overflow-y-auto p-4 sm:p-6">
           {reservation.messages.length === 0 ? (
-            <p className="py-8 text-center text-sm text-text-tertiary">
+            <p className="text-text-tertiary py-8 text-center text-sm">
               尚無對話內容
             </p>
           ) : (
@@ -153,7 +153,7 @@ function MessageBubble({
       )}
     >
       {label && !isPrevSameRole ? (
-        <div className="text-11 font-medium text-text-tertiary sm:text-xs">
+        <div className="text-11 text-text-tertiary font-medium sm:text-xs">
           {label}
         </div>
       ) : null}
