@@ -1,5 +1,6 @@
 'use client';
 
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import type { Session } from 'next-auth';
 import * as React from 'react';
@@ -81,9 +82,11 @@ export const UserDropdown = React.memo(function UserDropdown({
               className="size-[30px]"
               priority
             />
-            <span className="text-xl leading-none" aria-hidden="true">
-              ▾
-            </span>
+            {menuOpen ? (
+              <ChevronUp className="size-5" aria-hidden="true" />
+            ) : (
+              <ChevronDown className="size-5" aria-hidden="true" />
+            )}
           </button>
         </DropdownMenuTrigger>
 
@@ -106,11 +109,11 @@ export const UserDropdown = React.memo(function UserDropdown({
             />
 
             <div className="min-w-0">
-              <div className="text-text-primary truncate text-3xl font-semibold">
+              <div className="truncate text-3xl font-semibold text-text-primary">
                 {name || '我的個人頁面'}
               </div>
               {subtitle ? (
-                <div className="text-text-tertiary mt-1 truncate text-sm">
+                <div className="mt-1 truncate text-sm text-text-tertiary">
                   {subtitle}
                 </div>
               ) : null}
@@ -128,7 +131,7 @@ export const UserDropdown = React.memo(function UserDropdown({
             </Button>
           </div>
 
-          <div className="bg-background-bottom h-px w-full" />
+          <div className="h-px w-full bg-background-bottom" />
 
           <div className="px-2 py-3">
             <DropdownMenuItem
@@ -159,7 +162,7 @@ export const UserDropdown = React.memo(function UserDropdown({
 
             {canDeleteAccount && (
               <DropdownMenuItem
-                className="text-status-error-default focus:text-status-error-default px-4 py-3 text-2xl"
+                className="px-4 py-3 text-2xl text-status-error-default focus:text-status-error-default"
                 onClick={handleDeleteAccount}
               >
                 刪除帳號
