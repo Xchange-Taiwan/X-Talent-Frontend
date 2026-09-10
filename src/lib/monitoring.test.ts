@@ -153,6 +153,17 @@ describe('PII Sanitization', () => {
     expect(sanitized).not.toContain('other@test.com');
   });
 
+  it('fully masks a JSON array value even when an element contains a literal ]', () => {
+    const rawJson = JSON.stringify({
+      passwords: ['my]password', 'other'],
+      safe: ['a'],
+    });
+    const sanitized = sanitize(rawJson);
+    expect(sanitized).toBe('{"passwords":"[REDACTED]","safe":["a"]}');
+    expect(sanitized).not.toContain('my]password');
+    expect(sanitized).not.toContain('other');
+  });
+
   it('masks JSON keys that use dot notation, not just plain word keys', () => {
     const rawJson = '{"user.email":"user@test.com","safe":"ok"}';
     const sanitized = sanitize(rawJson);

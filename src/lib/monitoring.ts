@@ -191,18 +191,23 @@ function maskSensitiveQueryParams(text: string): string {
  * inside the value (e.g. `"password":"my\"secret"`) and leave
  * everything after it - including the rest of the secret - untouched.
  *
- * The final `\[[^\]]*\]` alternative matches a flat JSON array (e.g.
- * `"emails":["a@test.com","b@test.com"]`) so an array-shaped sensitive
- * value collapses to a single redacted string instead of passing
- * through untouched - none of the earlier alternatives have a `[`
- * branch, so without this an array value simply wouldn't match at all.
- * This is a shallow match (no nested array/object support) consistent
- * with the rest of this function's regex-based, not a real parser,
- * approach.
+ * The final `\[(?:[^\]"\\]|"(?:[^"\\]|\\.)*")*\]` alternative matches a
+ * flat JSON array (e.g. `"emails":["a@test.com","b@test.com"]`) so an
+ * array-shaped sensitive value collapses to a single redacted string
+ * instead of passing through untouched - none of the earlier
+ * alternatives have a `[` branch, so without this an array value simply
+ * wouldn't match at all. It's quote-aware rather than a plain
+ * `\[[^\]]*\]`: the latter stops at the *first* `]` anywhere, including
+ * one inside a string element's value (e.g. `["my]password"]`), which
+ * would truncate the match early and leave everything after it -
+ * including the rest of that secret and any further array elements -
+ * untouched. This is still a shallow match (no nested array/object
+ * support) consistent with the rest of this function's regex-based, not
+ * a real parser, approach.
  */
 function maskSensitiveJsonValues(text: string): string {
   return text.replace(
-    /"([^"]+)"\s*:\s*("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?|true|false|null|\[[^\]]*\])/g,
+    /"([^"]+)"\s*:\s*("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?|true|false|null|\[(?:[^\]"\\]|"(?:[^"\\]|\\.)*")*\])/g,
     (match, key, _value) => {
       if (SENSITIVE_KEY_TEST_PATTERN.test(key)) {
         return `"${key}":"[REDACTED]"`;
