@@ -99,13 +99,13 @@ export const UserDropdown = React.memo(function UserDropdown({
             type="button"
             onClick={handleGoProfile}
             aria-current={isOnProfile ? 'page' : undefined}
-            className="flex w-full items-center gap-4 px-6 pt-6 pb-4 text-left"
+            className="group flex w-full items-center gap-4 px-6 pt-6 pb-4 text-left focus-visible:outline-none"
           >
             <UserAvatar
               src={avatarSrc}
               name={name}
               size={56}
-              className="size-14"
+              className="size-14 transition-opacity group-hover:opacity-80 group-focus-visible:ring-2 group-focus-visible:ring-brand-500 group-focus-visible:ring-offset-2"
             />
 
             <div className="min-w-0">

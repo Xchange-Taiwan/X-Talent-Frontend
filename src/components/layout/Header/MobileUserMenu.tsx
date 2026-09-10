@@ -94,13 +94,13 @@ export function MobileUserMenu({
             <button
               type="button"
               onClick={handleGoProfile}
-              className="flex items-center gap-4 pt-4 pb-6 text-left"
+              className="group flex items-center gap-4 pt-4 pb-6 text-left focus-visible:outline-none"
             >
               <UserAvatar
                 src={avatarSrc}
                 name={name}
                 size={56}
-                className="size-14"
+                className="size-14 transition-opacity group-hover:opacity-80 group-focus-visible:ring-2 group-focus-visible:ring-brand-500 group-focus-visible:ring-offset-2"
               />
               <div className="min-w-0">
                 <div className="truncate text-2xl font-semibold text-text-primary">

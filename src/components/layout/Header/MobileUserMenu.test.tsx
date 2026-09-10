@@ -98,6 +98,30 @@ describe('MobileUserMenu', () => {
     expect(avatarImg).toHaveClass('group-focus-visible:ring-2');
   });
 
+  it('wires the profile-header avatar with the hover/focus classes that depend on the parent group', () => {
+    render(
+      <MobileUserMenu
+        identity={authenticatedIdentity('user-1', { isMentor: false })}
+        user={buildUser({ name: 'Ada Lovelace' })}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '開啟用戶選單' }));
+
+    // Both the trigger and the profile-header button render an avatar with
+    // the same alt text - distinguish the profile-header one (size-14) from
+    // the trigger's (size-[30px]) via its className.
+    const avatarImgs = screen.getAllByRole('img', {
+      name: 'Ada Lovelace 的頭像',
+    });
+    const profileAvatarImg = avatarImgs.find((img) =>
+      img.className.includes('size-14')
+    );
+    expect(profileAvatarImg).toHaveClass('group-hover:opacity-80');
+    expect(profileAvatarImg).toHaveClass('group-focus-visible:ring-2');
+    expect(profileAvatarImg?.closest('button')).toHaveClass('group');
+  });
+
   it('renders with anonymous user safely with fallback alt text', () => {
     render(
       <MobileUserMenu
