@@ -4,6 +4,8 @@ import Image from 'next/image';
 import { useRef, useState } from 'react';
 import { Control, FieldValues, Path, useController } from 'react-hook-form';
 
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
+
 // Lazy-load the crop modal — it pulls in react-avatar-editor and Radix UI components
 // (~100kB+), which are only needed when the user actually opens the crop dialog.
 const AvatarCropModal = dynamic(() => import('./avatar-crop-modal'), {
@@ -62,7 +64,7 @@ const AvatarUpload = <T extends FieldValues>({
       <div
         className={`group bg-avatar-background relative flex size-36 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 lg:h-[150px] lg:w-[150px] ${
           errorMessage ? 'border-status-error-default' : 'border-avatar-border'
-        }`}
+        } ${FOCUS_RING_CLASSES}`}
         onClick={() => fileInputRef.current?.click()}
         onKeyDown={(e) => {
           if (e.key === ' ' || e.key === 'Enter') {
