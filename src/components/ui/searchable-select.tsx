@@ -161,14 +161,14 @@ export function SearchableSelect({
           >
             <div className="flex shrink-0 flex-col">
               <div
-                className="mx-auto mt-3 h-1 w-10 rounded-full bg-background-border"
+                className="bg-background-border mx-auto mt-3 h-1 w-10 rounded-full"
                 aria-hidden="true"
               />
               <div className="flex items-center justify-between px-4 py-3">
                 <SheetTitle className="text-base">{title}</SheetTitle>
                 <SheetClose
                   className={cn(
-                    'rounded-sm p-1 text-text-tertiary hover:text-text-primary',
+                    'text-text-tertiary hover:text-text-primary rounded-sm p-1',
                     FOCUS_RING_CLASSES
                   )}
                 >

@@ -43,7 +43,7 @@ export function ReplyMessageField({
         type="button"
         onClick={onOpen}
         className={cn(
-          'flex items-center gap-1.5 rounded-sm text-sm text-text-tertiary hover:text-text-primary',
+          'text-text-tertiary hover:text-text-primary flex items-center gap-1.5 rounded-sm text-sm',
           FOCUS_RING_CLASSES
         )}
         disabled={disabled}
@@ -71,7 +71,7 @@ export function ReplyMessageField({
         />
       </div>
       {error ? (
-        <p className="mt-1 text-sm text-status-error-default">{error}</p>
+        <p className="text-status-error-default mt-1 text-sm">{error}</p>
       ) : null}
     </div>
   );

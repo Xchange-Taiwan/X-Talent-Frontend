@@ -110,8 +110,8 @@ export default function AcceptReservationDialog({
           {menteeMessage ? (
             <div className="mt-6">
               <div className="mb-2 text-sm font-medium">學員所提出的問題</div>
-              <div className="rounded-2xl border bg-background-bottom/40 p-4 text-sm">
-                <p className="whitespace-pre-wrap text-text-primary">
+              <div className="bg-background-bottom/40 rounded-2xl border p-4 text-sm">
+                <p className="text-text-primary whitespace-pre-wrap">
                   {menteeMessage}
                 </p>
               </div>

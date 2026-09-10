@@ -149,7 +149,7 @@ export function ReservationIdentityHeader({
         href={href}
         onClick={onProfileLinkClick}
         disabled={disabled}
-        className="shrink-0 rounded-full transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+        className="focus-visible:ring-brand-500 shrink-0 rounded-full transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
         ariaLabel={`查看 ${reservation.name} 的個人資料`}
       >
         <Avatar className={style.avatarClassName}>

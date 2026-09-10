@@ -98,7 +98,7 @@ describe('MobileUserMenu', () => {
     expect(avatarImg).toHaveClass('group-focus-visible:ring-2');
   });
 
-  it('wires the profile-header avatar with the hover/focus classes that depend on the parent group', () => {
+  it('wires the profile-header avatar with a self-scoped hover class and a group-focus class', () => {
     render(
       <MobileUserMenu
         identity={authenticatedIdentity('user-1', { isMentor: false })}
@@ -117,7 +117,11 @@ describe('MobileUserMenu', () => {
     const profileAvatarImg = within(profileButton).getByRole('img', {
       name: 'Ada Lovelace 的頭像',
     });
-    expect(profileAvatarImg).toHaveClass('group-hover:opacity-80');
+    // The button spans the avatar plus the name/company text, but the
+    // hover fade should only trigger when the pointer is over the avatar
+    // itself - so this uses a plain `hover:` rather than `group-hover:`.
+    expect(profileAvatarImg).toHaveClass('hover:opacity-80');
+    expect(profileAvatarImg).not.toHaveClass('group-hover:opacity-80');
     expect(profileAvatarImg).toHaveClass('group-focus-visible:ring-2');
   });
 

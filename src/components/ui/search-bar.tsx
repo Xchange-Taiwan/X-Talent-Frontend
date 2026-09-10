@@ -89,12 +89,12 @@ const SearchBar: React.FC<SearchBarProps> = ({
   return (
     <div
       className={cn(
-        'flex w-full max-w-[846px] items-center rounded-2xl border border-background-border bg-background-white px-3 py-1.5 transition-shadow md:px-6 md:py-4',
+        'border-background-border bg-background-white flex w-full max-w-[846px] items-center rounded-2xl border px-3 py-1.5 transition-shadow md:px-6 md:py-4',
         FOCUS_CONTAINER_RING_CLASSES
       )}
     >
       <Search
-        className="mr-2 size-6 shrink-0 text-text-tertiary"
+        className="text-text-tertiary mr-2 size-6 shrink-0"
         aria-hidden="true"
       />
 
@@ -119,7 +119,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
         disabled={isLoading}
         aria-label="搜尋"
         className={cn(
-          'ml-2 size-10 shrink-0 cursor-pointer rounded-full border-none bg-brand-500 p-0 leading-5 md:size-auto md:rounded-[24px] md:px-6 md:py-2.5',
+          'bg-brand-500 ml-2 size-10 shrink-0 cursor-pointer rounded-full border-none p-0 leading-5 md:size-auto md:rounded-[24px] md:px-6 md:py-2.5',
           FOCUS_RING_CLASSES
         )}
       >

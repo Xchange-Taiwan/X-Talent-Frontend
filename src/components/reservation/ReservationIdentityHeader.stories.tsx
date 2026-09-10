@@ -54,7 +54,7 @@ export const CardStyle: Story = {
     showStatusBadge: true,
     variant: 'card',
     children: (
-      <div className="mt-2 text-xs text-text-tertiary sm:text-sm">
+      <div className="text-text-tertiary mt-2 text-xs sm:text-sm">
         2026-07-26 · 11:00 AM – 11:30 AM
       </div>
     ),

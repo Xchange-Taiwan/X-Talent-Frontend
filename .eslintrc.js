@@ -59,6 +59,13 @@ module.exports = {
     '@typescript-eslint/no-explicit-any': 'warn',
     'prefer-const': 'error',
     'no-var': 'error',
+    // eslint-plugin-tailwindcss's own class sorter doesn't resolve Tailwind
+    // v4's CSS-based @theme tokens (src/styles/global.css) the same way
+    // prettier-plugin-tailwindcss does, so the two disagree on the order of
+    // any class that isn't a core Tailwind utility (e.g. text-text-primary,
+    // bg-background-bottom) - each one "fixes" the other's output back and
+    // forth. Prettier already sorts classes, so just defer to it here.
+    'tailwindcss/classnames-order': 'off',
     'tailwindcss/no-custom-classname': [
       'error',
       {
