@@ -113,6 +113,28 @@ describe('PII Sanitization', () => {
     expect(elapsedMs).toBeLessThan(1000);
   });
 
+  it("redacts a sensitive key embedded one level deep inside a non-sensitive key's un-delimited URL-shaped value", () => {
+    const rawUrl =
+      'https://api.example.com/x?callbackUrl=/home?token=secret&safe=yes';
+    const sanitized = sanitize(rawUrl);
+    expect(sanitized).toContain('token=[REDACTED]');
+    expect(sanitized).toContain('safe=yes');
+    expect(sanitized).not.toContain('secret');
+  });
+
+  it('does not exhibit quadratic blowup from capped recursion on a long chain of un-delimited key=value pairs', () => {
+    // Each 'k=' swallows the rest as its own value (no & or whitespace to
+    // stop at), so a naive unbounded recursion into that swallowed
+    // remainder would re-scan an ever-shrinking string at every level -
+    // O(N^2). Recursion is capped at one extra level specifically to
+    // prevent this.
+    const longEqualsChain = 'k='.repeat(50000);
+    const start = performance.now();
+    sanitize(longEqualsChain);
+    const elapsedMs = performance.now() - start;
+    expect(elapsedMs).toBeLessThan(1000);
+  });
+
   it('masks compound/snake_case JSON keys, not just exact matches', () => {
     const rawJson = JSON.stringify({
       user_email: 'user@test.com',
@@ -486,15 +508,13 @@ describe('captureFlowFailure', () => {
     expect(arg.extra.message).not.toContain('a@b.c');
   });
 
-  it('does not redact a sensitive key=value pair swallowed inside a preceding non-sensitive key un-delimited value (known limitation)', async () => {
+  it('redacts a sensitive key=value pair swallowed inside a preceding non-sensitive key un-delimited value', async () => {
     // SENSITIVE_QUERY_PARAM_PATTERN checks the key in a callback rather than
-    // embedding the sensitive word in the key alternation, trading a rare
-    // correctness gap for eliminating a severe ReDoS (see the pattern's
-    // comment in monitoring.ts). This test documents that trade-off rather
-    // than asserting protection: 'url's un-delimited value swallows the
-    // embedded 'token=abc123' before it can become its own match. This
-    // codebase only ever passes flat, single-level query strings/messages
-    // through sanitize(), so this shape isn't expected in practice.
+    // embedding the sensitive word in the key alternation, avoiding a severe
+    // ReDoS (see the pattern's comment in monitoring.ts). A non-sensitive
+    // key's un-delimited value can still swallow an embedded key=value pair
+    // (e.g. NextAuth's callbackUrl=/home?token=secret), so the callback
+    // makes one extra pass over that swallowed value to catch it.
     await captureFlowFailure({
       flow: 'sign_in',
       step: 'authenticate',
@@ -505,7 +525,8 @@ describe('captureFlowFailure', () => {
       extra: { message: string };
     };
     expect(arg.extra.message).toContain('password=[REDACTED]');
-    expect(arg.extra.message).toContain('token=abc123');
+    expect(arg.extra.message).toContain('token=[REDACTED]');
+    expect(arg.extra.message).not.toContain('abc123');
   });
 
   it('captureFlowFailure catches Sentry logging errors and does not crash the caller', async () => {

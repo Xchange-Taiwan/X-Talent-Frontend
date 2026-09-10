@@ -128,14 +128,22 @@ const SENSITIVE_KEY_TEST_PATTERN = new RegExp(SENSITIVE_KEYS.join('|'), 'i');
  * Trade-off: unlike the embedded-keyword version, a non-sensitive key's
  * value can still "swallow" a sensitive key=value pair that's
  * un-delimited inside it (e.g. in a free-text `url=/login?token=abc`,
- * `token=abc` would be consumed as part of `url`'s value and never get
- * its own match). This function only ever receives flat, single-level
- * query strings and short free-text messages in this codebase (an
- * `endpoint` URL's own query string, or one embedded `key=value` token
- * in a message) - not a value that is itself a second nested URL with
- * its own query string - so this is accepted as a shallow-match
- * limitation, the same kind already documented on
- * maskSensitiveJsonValues' array handling below.
+ * `token=abc` would otherwise be consumed as part of `url`'s value and
+ * never get its own match - the common real-world shape being NextAuth's
+ * `callbackUrl=/home?token=secret`). To catch that case, the callback
+ * below makes exactly one extra pass over a non-sensitive key's swallowed
+ * value, re-running this same match/redact logic on it. That recursion is
+ * capped at a single extra level (depth 1) rather than being unbounded:
+ * recursing again on *that* pass's own non-sensitive matches would mean a
+ * crafted chain like `'k='.repeat(50000)` re-scans an ever-shrinking
+ * remainder at every level - the exact O(N^2) shape the embedded-keyword
+ * version was replaced to avoid, just moved from regex backtracking into
+ * recursion depth. Capping at one extra pass keeps total work at two
+ * linear scans regardless of input shape, while still fixing the common
+ * one-level-deep swallow case above. A third level of nesting (a URL
+ * whose value is itself a URL whose value is itself a URL) is still a
+ * known limitation, but this codebase only ever passes flat or
+ * one-level-nested query strings/messages through sanitize().
  *
  * The character class includes `.`, `[` and `]` alongside `\w-` so
  * dot notation (`user.email`) and bracket notation (`user[password]`) -
@@ -172,12 +180,18 @@ const SENSITIVE_QUERY_PARAM_PATTERN = new RegExp(
   'gi'
 );
 
-function maskSensitiveQueryParams(text: string): string {
+function maskSensitiveQueryParams(text: string, depth = 0): string {
   return text.replace(
     SENSITIVE_QUERY_PARAM_PATTERN,
-    (match, prefix, key, _value) => {
+    (match, prefix, key, value) => {
       if (SENSITIVE_KEY_TEST_PATTERN.test(key)) {
         return `${prefix}${key}=[REDACTED]`;
+      }
+      // Only ever recurse one extra level deep, and only when the
+      // swallowed value could possibly contain another key=value pair -
+      // see the capped-recursion trade-off documented above.
+      if (depth === 0 && value.includes('=')) {
+        return `${prefix}${key}=${maskSensitiveQueryParams(value, depth + 1)}`;
       }
       return match;
     }
