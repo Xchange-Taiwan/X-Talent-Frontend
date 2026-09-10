@@ -1,10 +1,11 @@
 import { cva, type VariantProps } from 'class-variance-authority';
 import * as React from 'react';
 
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 
 const badgeVariants = cva(
-  'inline-flex items-center rounded-lg border px-2.5 py-0.5 text-xs font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none',
+  `inline-flex items-center rounded-lg border px-2.5 py-0.5 text-xs font-semibold transition-colors ${FOCUS_RING_CLASSES}`,
   {
     variants: {
       variant: {

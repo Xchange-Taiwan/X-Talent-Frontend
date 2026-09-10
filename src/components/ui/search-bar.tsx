@@ -2,6 +2,7 @@ import { Loader2, Search } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 
 /**
  * SearchBar 元件屬性介面
@@ -78,13 +79,12 @@ const SearchBar: React.FC<SearchBarProps> = ({
     'aria-label': '搜尋',
   };
 
-  const inputClass =
-    'h-5 min-w-0 flex-auto truncate rounded-sm text-base outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+  const inputClass = `h-5 min-w-0 flex-auto truncate rounded-sm text-base ${FOCUS_RING_CLASSES}`;
 
   return (
-    <div className="border-background-border bg-background-white flex w-full max-w-[846px] items-center rounded-2xl border px-3 py-1.5 md:px-6 md:py-4">
+    <div className="flex w-full max-w-[846px] items-center rounded-2xl border border-background-border bg-background-white px-3 py-1.5 md:px-6 md:py-4">
       <Search
-        className="text-text-tertiary mr-2 size-6 shrink-0"
+        className="mr-2 size-6 shrink-0 text-text-tertiary"
         aria-hidden="true"
       />
 
@@ -108,7 +108,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
         onClick={handleSearch}
         disabled={isLoading}
         aria-label="搜尋"
-        className="bg-brand-500 ml-2 size-10 shrink-0 cursor-pointer rounded-full border-none p-0 leading-5 md:size-auto md:rounded-[24px] md:px-6 md:py-2.5"
+        className="ml-2 size-10 shrink-0 cursor-pointer rounded-full border-none bg-brand-500 p-0 leading-5 md:size-auto md:rounded-[24px] md:px-6 md:py-2.5"
       >
         {isLoading ? (
           <Loader2 className="size-4 animate-spin" aria-hidden="true" />

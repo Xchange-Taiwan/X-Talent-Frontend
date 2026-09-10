@@ -4,6 +4,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import * as React from 'react';
 
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 
 /**
@@ -101,7 +102,12 @@ const DialogContent = React.forwardRef<
     <DialogOverlay />
     <DialogContentFrame ref={ref} className={className} {...props}>
       {children}
-      <DialogPrimitive.Close className="absolute top-4 right-4 rounded-sm opacity-70 ring-offset-background-white transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none data-[state=open]:bg-background-bottom data-[state=open]:text-text-tertiary">
+      <DialogPrimitive.Close
+        className={cn(
+          'absolute top-4 right-4 rounded-sm opacity-70 ring-offset-background-white transition-opacity hover:opacity-100 disabled:pointer-events-none data-[state=open]:bg-background-bottom data-[state=open]:text-text-tertiary',
+          FOCUS_RING_CLASSES
+        )}
+      >
         <X className="size-4" aria-hidden="true" />
         <span className="sr-only">關閉</span>
       </DialogPrimitive.Close>
