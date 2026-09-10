@@ -2,6 +2,9 @@ import { StaticImageData } from 'next/image';
 import Link from 'next/link';
 import { forwardRef, memo } from 'react';
 
+import { FOCUS_WITHIN_RING_CLASSES } from '@/lib/ui/focusRing';
+import { cn } from '@/lib/utils';
+
 import { AvatarWithBadge } from './AvatarWithBadge';
 import { Information } from './Information';
 
@@ -35,7 +38,10 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
     return (
       <article
         ref={ref}
-        className="border-background-border bg-background-white relative w-[334px] overflow-hidden rounded-lg border transition-shadow hover:shadow-xl xl:h-[480px] xl:w-[413px]"
+        className={cn(
+          'border-background-border bg-background-white relative w-[334px] overflow-hidden rounded-lg border transition-shadow hover:shadow-xl xl:h-[480px] xl:w-[413px]',
+          FOCUS_WITHIN_RING_CLASSES
+        )}
       >
         <Link
           href={`/profile/${id}`}

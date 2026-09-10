@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, Locator, Page, test } from '@playwright/test';
 
 import { blockUnmockedExternalApi } from '../../helpers/route';
 
@@ -40,6 +40,24 @@ function mentorResponse(mentors: ReturnType<typeof makeMentor>[]) {
 }
 
 const PAGE_LIMIT = 9;
+
+/**
+ * Repeatedly presses Tab until the given locator receives focus, bounded so
+ * a broken tab order fails the test instead of hanging.
+ */
+async function tabUntilFocused(
+  page: Page,
+  locator: Locator,
+  maxPresses: number
+): Promise<void> {
+  for (let i = 0; i < maxPresses; i++) {
+    await page.keyboard.press('Tab');
+    const isFocused = await locator.evaluate(
+      (el) => el === document.activeElement
+    );
+    if (isFocused) return;
+  }
+}
 
 // ─── Setup ───────────────────────────────────────────────────────────────────
 
@@ -211,4 +229,37 @@ test('search returns no results → empty state message is shown', async ({
 
   await expect(page.getByText('找不到符合的導師')).toBeVisible();
   await expect(page.locator('article')).toHaveCount(0);
+});
+
+test('Tab 聚焦導師卡片 → 顯示焦點外框 → Enter 導向個人頁面', async ({
+  page,
+}) => {
+  await page.route(/\/v1\/mentors/, (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(mentorResponse([makeMentor(1)])),
+    });
+  });
+
+  // Force the client-side (mockable) fetch path so the rendered card, and
+  // therefore its /profile/{id} target, is deterministic.
+  await page.goto('/mentor-pool?q=test');
+  const card = page.locator('article').first();
+  await expect(card).toBeVisible({ timeout: 15_000 });
+
+  const cardLink = card.getByRole('link');
+  await tabUntilFocused(page, cardLink, 60);
+  await expect(cardLink).toBeFocused();
+
+  // The whole-card <Link> is absolutely positioned inside an
+  // `overflow-hidden` <article>, so the focus ring is applied to the
+  // <article> itself (FOCUS_WITHIN_RING_CLASSES) instead of the <Link> to
+  // avoid being clipped. Assert it renders instead of the old
+  // `focus-visible` no-op.
+  await expect(card).not.toHaveCSS('box-shadow', 'none');
+
+  // Enter triggers the native <a> click behavior and navigates.
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/profile\/1$/);
 });
