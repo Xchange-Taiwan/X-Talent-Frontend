@@ -91,7 +91,7 @@ export function MenteeBookingForm({
         <Textarea
           id="booking-question"
           placeholder="請在此輸入你的問題..."
-          className="h-[156px] w-full rounded-lg border-background-border focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0"
+          className="h-[156px] w-full rounded-lg border-background-border"
           disabled={isSubmitting}
           {...register('bookingQuestion')}
         />

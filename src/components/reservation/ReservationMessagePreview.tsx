@@ -4,6 +4,7 @@ import { MessageSquare } from 'lucide-react';
 import * as React from 'react';
 
 import ReservationConversationDialog from '@/components/reservation/ReservationConversationDialog';
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import type { Reservation } from '@/types/reservation';
 
 export type ReservationMessagePreviewVariant = 'card' | 'dialog';
@@ -23,8 +24,7 @@ const messagePreviewStyles: Record<
   MessagePreviewStyle
 > = {
   card: {
-    wrapperClassName:
-      'mt-3 block w-full cursor-pointer space-y-2 rounded-lg text-left focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none',
+    wrapperClassName: `mt-3 block w-full cursor-pointer space-y-2 rounded-lg text-left ${FOCUS_RING_CLASSES}`,
     itemClassName:
       'flex items-start gap-2 rounded-lg bg-background-bottom/40 p-2.5 text-xs transition-colors hover:bg-background-bottom/60 sm:text-sm',
     labelClassName: 'text-11 font-medium text-text-tertiary sm:text-xs',
@@ -34,8 +34,7 @@ const messagePreviewStyles: Record<
     labelInsideItem: true,
   },
   dialog: {
-    wrapperClassName:
-      'mt-6 block w-full cursor-pointer space-y-6 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none',
+    wrapperClassName: `mt-6 block w-full cursor-pointer space-y-6 rounded-sm text-left ${FOCUS_RING_CLASSES}`,
     itemClassName:
       'flex items-start gap-2 rounded-2xl border bg-background-bottom/40 p-4 text-xs transition-colors hover:bg-background-bottom/60 sm:text-sm',
     labelClassName: 'mb-2 text-sm font-medium text-text-primary',
