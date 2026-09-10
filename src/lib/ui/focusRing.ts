@@ -34,3 +34,11 @@ export const GROUP_FOCUS_RING_CLASSES =
  */
 export const FOCUS_WITHIN_RING_CLASSES =
   'focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:outline-none';
+
+/**
+ * Focus container ring variant using has-[input:focus-visible].
+ * Use on a parent container when a child input is focused via keyboard (focus-visible).
+ * This avoids showing focus rings on mouse clicks and prevents double-ring visual clutter.
+ */
+export const FOCUS_CONTAINER_RING_CLASSES =
+  'has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring has-[input:focus-visible]:ring-offset-2 has-[input:focus-visible]:outline-none';

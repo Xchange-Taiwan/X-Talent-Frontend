@@ -3,8 +3,8 @@ import React, { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
+  FOCUS_CONTAINER_RING_CLASSES,
   FOCUS_RING_CLASSES,
-  FOCUS_WITHIN_RING_CLASSES,
 } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 
@@ -90,7 +90,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
     <div
       className={cn(
         'flex w-full max-w-[846px] items-center rounded-2xl border border-background-border bg-background-white px-3 py-1.5 transition-shadow md:px-6 md:py-4',
-        FOCUS_WITHIN_RING_CLASSES
+        FOCUS_CONTAINER_RING_CLASSES
       )}
     >
       <Search
