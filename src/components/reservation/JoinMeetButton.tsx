@@ -17,7 +17,7 @@ interface JoinMeetButtonProps {
  * stays owned by each caller since ConfirmedReservationDialog also needs
  * `isPending` to disable its neighboring Cancel button.
  *
- * Brand color (bg-brand-500/text-text-primary/hover:bg-brand-500/90) comes
+ * Brand color (bg-brand-500/text-text-primary/hover:bg-brand-600) comes
  * from Button's own `default` variant - callers should only pass
  * layout/spacing classes here, not re-specify the brand color.
  */
