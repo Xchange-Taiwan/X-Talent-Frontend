@@ -121,7 +121,8 @@ function Calendar({
         dropdown_root: cn(
           isProfile
             ? 'relative inline-flex items-center gap-0.5 rounded-md px-1 py-0.5 text-sm font-semibold text-text-primary hover:bg-background-bottom-secondary'
-            : 'relative rounded-md border border-background-border shadow-sm has-focus:border-ring has-focus:ring has-focus:ring-ring/50',
+            : // Reconciled with standard ring-2 and ring-ring focus styles for visual consistency across the app
+              'relative rounded-md border border-background-border shadow-sm has-focus:border-ring has-focus:ring-2 has-focus:ring-ring',
           defaultClassNames.dropdown_root
         ),
 
@@ -332,12 +333,12 @@ function CalendarDayButton({
           'data-[range-middle=true]:text-text-primary',
           'data-[range-start=true]:text-text-primary',
 
-          // Focus state.
+          // Focus state. Reconciled with standard ring-2 and ring-ring focus styles for visual consistency across the app.
           'group-data-[focused=true]/day:relative',
           'group-data-[focused=true]/day:z-10',
           'group-data-[focused=true]/day:border-ring',
-          'group-data-[focused=true]/day:ring-[3px]',
-          'group-data-[focused=true]/day:ring-ring/50',
+          'group-data-[focused=true]/day:ring-2',
+          'group-data-[focused=true]/day:ring-ring',
 
           '[&>span]:text-xs',
           '[&>span]:opacity-70',
@@ -349,7 +350,7 @@ function CalendarDayButton({
           'bg-brand-500/20 hover:bg-brand-500/30',
 
         !modifiers.disabled &&
-          'group-data-[variant=profile]/calendar:text-text-primary group-data-[variant=profile]/calendar:font-medium'
+          'group-data-[variant=profile]/calendar:font-medium group-data-[variant=profile]/calendar:text-text-primary'
       )}
       {...props}
     />
