@@ -3,6 +3,8 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 import { describe, expect, it, vi } from 'vitest';
 
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
+
 import AvatarUpload from './avatar-upload';
 
 // Mock dynamic import of AvatarCropModal to prevent rendering issues in tests
@@ -46,6 +48,15 @@ describe('AvatarUpload', () => {
     const uploadButton = screen.getByRole('button');
     expect(uploadButton).toBeInTheDocument();
     expect(uploadButton).toHaveAttribute('tabindex', '0');
+  });
+
+  it('applies the shared focus-visible ring classes to the upload trigger', () => {
+    render(<TestFormWrapper />);
+
+    const uploadButton = screen.getByRole('button');
+    for (const className of FOCUS_RING_CLASSES.split(' ')) {
+      expect(uploadButton).toHaveClass(className);
+    }
   });
 
   it('triggers input click when mouse clicked', () => {
