@@ -7,7 +7,7 @@ import {
   WorkExperienceMetadata,
 } from '@/lib/profile/experienceCodec';
 
-export type ExperienceItem = {
+type ExperienceItem = {
   title: string;
   subtitle: string;
   description?: string;
@@ -15,7 +15,7 @@ export type ExperienceItem = {
   endDate: string;
 };
 
-export const ExperienceItemCard = ({
+const ExperienceItemCard = ({
   title,
   subtitle,
   description,

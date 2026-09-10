@@ -7,7 +7,7 @@ import type { Reservation } from '@/types/reservation';
  * the uppercase `'MENTEE' | 'MENTOR'` used on the wire and on
  * `Reservation.viewerRole` / `Reservation.cancelledBy`).
  */
-export type ReservationViewerRole = 'mentor' | 'mentee';
+type ReservationViewerRole = 'mentor' | 'mentee';
 
 const CANCELLED_BY_LABEL: Record<'MENTEE' | 'MENTOR', string> = {
   MENTOR: '已由導師取消',

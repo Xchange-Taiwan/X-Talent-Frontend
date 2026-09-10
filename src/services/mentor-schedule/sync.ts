@@ -17,7 +17,7 @@ export interface ScheduleMonthRef {
   month: number; // 1-12
 }
 
-export type SyncFailureReason = 'conflict' | 'unknown';
+type SyncFailureReason = 'conflict' | 'unknown';
 
 /** Internal — syncMonthSchedule passes raws back to the hook on success. */
 export type SyncOutcome =

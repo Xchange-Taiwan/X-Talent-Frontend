@@ -7,7 +7,7 @@ import ReservationConversationDialog from '@/components/reservation/ReservationC
 import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import type { Reservation } from '@/types/reservation';
 
-export type ReservationMessagePreviewVariant = 'card' | 'dialog';
+type ReservationMessagePreviewVariant = 'card' | 'dialog';
 
 interface MessagePreviewStyle {
   wrapperClassName: string;

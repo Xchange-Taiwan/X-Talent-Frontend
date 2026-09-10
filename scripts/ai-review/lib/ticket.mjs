@@ -3,7 +3,7 @@ const TICKET_BRANCH_PATTERN =
 const TRACKER_OWNER = 'Xchange-Taiwan';
 const TRACKER_REPO = 'X-Talent-Tracker';
 
-export function extractTicketNumber(branchName) {
+function extractTicketNumber(branchName) {
   const match = branchName?.match(TICKET_BRANCH_PATTERN);
   return match ? Number(match[1]) : null;
 }

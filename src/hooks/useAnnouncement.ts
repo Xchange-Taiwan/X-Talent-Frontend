@@ -14,10 +14,7 @@ import {
 
 const DISMISSED_STORAGE_KEY = 'announcement-dismissed';
 
-export const announcementCache = createKeyedCache<
-  string,
-  AnnouncementData | null
->();
+const announcementCache = createKeyedCache<string, AnnouncementData | null>();
 export const announcementReadManager = new AsyncReadManager<
   string,
   AnnouncementData | null

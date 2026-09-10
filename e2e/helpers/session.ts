@@ -67,26 +67,3 @@ export async function setSignedSessionCookie(
     },
   ]);
 }
-
-/**
- * Set a raw (intentionally invalid) session-token cookie. Used by onboarding
- * tests where the middleware only checks for cookie existence and the
- * server-side guard tolerates a decode failure.
- */
-export async function setRawSessionCookie(
-  page: Page,
-  value: string
-): Promise<void> {
-  const { name, domain, secure } = getCookieTarget();
-  await page.context().addCookies([
-    {
-      name,
-      value,
-      domain,
-      path: '/',
-      httpOnly: true,
-      secure,
-      sameSite: 'Lax',
-    },
-  ]);
-}

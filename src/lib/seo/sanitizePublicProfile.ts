@@ -4,7 +4,7 @@ import { readIndustryTag } from '@/lib/profile/readIndustryTag';
 import { isSafeUrl } from '@/lib/url/isSafeUrl';
 import type { MentorProfileVO } from '@/types/user';
 
-export type SocialPlatform =
+type SocialPlatform =
   'linkedin' | 'facebook' | 'instagram' | 'twitter' | 'youtube' | 'website';
 
 const SOCIAL_PLATFORMS: readonly SocialPlatform[] = [
@@ -16,7 +16,7 @@ const SOCIAL_PLATFORMS: readonly SocialPlatform[] = [
   'website',
 ];
 
-export interface PublicPersonalLink {
+interface PublicPersonalLink {
   platform: SocialPlatform;
   url: string;
 }
