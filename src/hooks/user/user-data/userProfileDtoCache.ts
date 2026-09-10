@@ -109,6 +109,11 @@ export function isOptimisticTransitionActive(): boolean {
  * Call this after the caller has already retrieved authoritative data (e.g.
  * pollUntilSynced result post profile-submit) to prime the cache before
  * navigating to a page that reads the same dto.
+ *
+ * This overwrites unconditionally. SSR-injected `initialData` does NOT go
+ * through here - `useUserProfileDto`'s own `hasCache` check is what stops a
+ * stale SSR payload from clobbering a fresher client-primed entry, by simply
+ * not passing `initialData` through when a cache entry already exists.
  */
 export function primeUserProfileDtoCache(
   userId: number,
