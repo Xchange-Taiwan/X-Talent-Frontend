@@ -78,9 +78,8 @@ export const UserDropdown = React.memo(function UserDropdown({
               src={avatarSrc}
               name={name}
               size={30}
-              className="size-[30px]"
+              className="size-[30px] transition-opacity group-hover:opacity-80 group-focus-visible:ring-2 group-focus-visible:ring-brand-500 group-focus-visible:ring-offset-2"
               priority
-              interactive
             />
             <span className="text-xl leading-none" aria-hidden="true">
               ▾
