@@ -119,28 +119,39 @@ const SENSITIVE_KEY_TEST_PATTERN = new RegExp(SENSITIVE_KEYS.join('|'), 'i');
  * the remainder. A plain `[^&\s]*` alone would stop at the first space
  * inside `password="my secret"`, leaving `secret"` in the output.
  *
- * The leading `(?<=^|[^\w.[\]-])` lookbehind anchors where a key is
- * allowed to start: either the very start of the string, or right after
- * a character that can't itself be part of a key. Without it, a long
- * run of key-class characters that never resolves to a sensitive word
- * (e.g. a huge base64 blob with no `=`) forces the engine to retry the
- * greedy `[\w.[\]-]*` from every single character offset within that
- * run, each retry backtracking across the whole remaining run - O(N^2)
- * for an N-character run, measured at ~27s for a 200k-character
- * non-matching string. Because only the first character of a
- * contiguous key-class run satisfies the lookbehind, the engine now
- * attempts the expensive match once per run instead of once per
- * character - the same 200k-character case verified at well under 1ms.
+ * The leading `(^|[^\w.[\]-])` group anchors where a key is allowed to
+ * start: either the very start of the string, or right after a
+ * character that can't itself be part of a key. Without it, a long run
+ * of key-class characters that never resolves to a sensitive word (e.g.
+ * a huge base64 blob with no `=`) forces the engine to retry the greedy
+ * `[\w.[\]-]*` from every single character offset within that run, each
+ * retry backtracking across the whole remaining run - O(N^2) for an
+ * N-character run, measured at ~27s for a 200k-character non-matching
+ * string. Because only the first character of a contiguous key-class
+ * run satisfies this, the engine now attempts the expensive match once
+ * per run instead of once per character - the same 200k-character case
+ * verified at well under 1ms.
+ *
+ * This is a captured group, not a lookbehind assertion (`(?<=...)`),
+ * even though the intent is lookbehind-like: lookbehind isn't supported
+ * in Safari before 16.4, and this pattern is built via `new RegExp` at
+ * module load time, so using it here would throw a SyntaxError and
+ * crash the module - and the whole page - on any older Safari/iOS.
+ * The matched boundary character is consumed and captured instead, then
+ * echoed back unchanged in the callback below.
  */
 const SENSITIVE_QUERY_PARAM_PATTERN = new RegExp(
-  `(?<=^|[^\\w.[\\]-])([\\w.[\\]-]*(?:${SENSITIVE_KEYS.join('|')})[\\w.[\\]-]*)=("(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*'|[^&\\s]*)`,
+  `(^|[^\\w.[\\]-])([\\w.[\\]-]*(?:${SENSITIVE_KEYS.join('|')})[\\w.[\\]-]*)=("(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*'|[^&\\s]*)`,
   'gi'
 );
 
 function maskSensitiveQueryParams(text: string): string {
-  return text.replace(SENSITIVE_QUERY_PARAM_PATTERN, (match, key, _value) => {
-    return `${key}=[REDACTED]`;
-  });
+  return text.replace(
+    SENSITIVE_QUERY_PARAM_PATTERN,
+    (match, prefix, key, _value) => {
+      return `${prefix}${key}=[REDACTED]`;
+    }
+  );
 }
 
 /**
