@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { SessionProvider } from 'next-auth/react';
 import React, { useEffect } from 'react';
-import { Path,useForm, UseFormReturn } from 'react-hook-form';
+import { Path, useForm, UseFormReturn } from 'react-hook-form';
 import * as z from 'zod';
 
 import { Form } from '@/components/ui/form';
