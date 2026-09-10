@@ -102,57 +102,63 @@ const SENSITIVE_KEY_TEST_PATTERN = new RegExp(SENSITIVE_KEYS.join('|'), 'i');
  * e.g. ?email_address=a@b.com -> ?email_address=[REDACTED]
  * e.g. ?user[password]=secret -> ?user[password]=[REDACTED]
  *
- * Captures the whole key (a run of word/hyphen/dot/bracket characters)
- * as long as it *contains* a sensitive word anywhere in it, not just
- * immediately before `=`. The key is deliberately matched inside the
- * regex itself (rather than captured broadly and filtered in the
- * callback, as maskSensitiveJsonValues does) - this text is free-form,
- * not quote-delimited, so a broad `[^=&]+` key would greedily swallow
- * an entire unrelated `key=value` pair that comes before a real one on
- * the same line (e.g. in `url=/login?token=abc123`, the whole
- * `url=/login?token` would be consumed as one non-sensitive match,
- * hiding `token=abc123` from ever being matched on its own). Requiring
- * the sensitive word to already be part of the matched run keeps the
- * regex engine's backtracking naturally skipping over irrelevant
- * prefixes and restarting right at the real key.
+ * The key group captures any run of word/hyphen/dot/bracket characters,
+ * with the sensitive-word check happening in the callback below via a
+ * precompiled test (`SENSITIVE_KEY_TEST_PATTERN`) - mirroring
+ * maskSensitiveJsonValues below - rather than requiring the sensitive
+ * word to be matched as part of the key inside the regex itself (an
+ * earlier version of this pattern). Embedding the keyword in the key
+ * alternation is what caused a severe ReDoS: for a long run of
+ * key-class characters that repeats a sensitive word many times with no
+ * `=` (e.g. `'token'.repeat(32000)`), the engine tried every position
+ * where the keyword alternative could match within that one run,
+ * backtracking the trailing `[\w.[\]-]*` for each - O(N^2), measured at
+ * over a second for a 160k-character input. Checking the key in the
+ * callback instead means the key is a single greedy quantifier with no
+ * internal choice point, so matching (or failing to match, when there's
+ * no trailing `=`) is O(N) with no backtracking to speak of.
+ *
+ * Trade-off: unlike the embedded-keyword version, a non-sensitive key's
+ * value can still "swallow" a sensitive key=value pair that's
+ * un-delimited inside it (e.g. in a free-text `url=/login?token=abc`,
+ * `token=abc` would be consumed as part of `url`'s value and never get
+ * its own match). This function only ever receives flat, single-level
+ * query strings and short free-text messages in this codebase (an
+ * `endpoint` URL's own query string, or one embedded `key=value` token
+ * in a message) - not a value that is itself a second nested URL with
+ * its own query string - so this is accepted as a shallow-match
+ * limitation, the same kind already documented on
+ * maskSensitiveJsonValues' array handling below.
  *
  * The character class includes `.`, `[` and `]` alongside `\w-` so
  * dot notation (`user.email`) and bracket notation (`user[password]`) -
  * both common in query-string/form serialization - are still caught,
- * not just plain word keys. Over-redacting the rare benign key that
- * happens to contain a sensitive word is an acceptable trade-off for
- * PII protection.
+ * not just plain word keys.
  *
  * The value alternation tries a double-quoted string, then a
  * single-quoted string, then a bare unquoted run - each quoted form is
  * escape-aware (`(?:[^"\\]|\\.)*`) so a value containing an escaped
  * quote or a literal space doesn't truncate the match early and leak
  * the remainder. A plain `[^&\s]*` alone would stop at the first space
- * inside `password="my secret"`, leaving `secret"` in the output.
+ * inside `password="my secret"`, leaving `secret"` in the output. The
+ * bare alternative also excludes `=` (real query-string values would be
+ * percent-encoded if they needed a literal `=`), which limits - though
+ * doesn't eliminate - how far a non-sensitive key's value can swallow
+ * into what follows it.
  *
  * The leading `(^|[^\w.[\]-])` group anchors where a key is allowed to
  * start: either the very start of the string, or right after a
- * character that can't itself be part of a key. Without it, a long run
- * of key-class characters that never resolves to a sensitive word (e.g.
- * a huge base64 blob with no `=`) forces the engine to retry the greedy
- * `[\w.[\]-]*` from every single character offset within that run, each
- * retry backtracking across the whole remaining run - O(N^2) for an
- * N-character run, measured at ~27s for a 200k-character non-matching
- * string. Because only the first character of a contiguous key-class
- * run satisfies this, the engine now attempts the expensive match once
- * per run instead of once per character - the same 200k-character case
- * verified at well under 1ms.
- *
- * This is a captured group, not a lookbehind assertion (`(?<=...)`),
- * even though the intent is lookbehind-like: lookbehind isn't supported
- * in Safari before 16.4, and this pattern is built via `new RegExp` at
- * module load time, so using it here would throw a SyntaxError and
- * crash the module - and the whole page - on any older Safari/iOS.
- * The matched boundary character is consumed and captured instead, then
- * echoed back unchanged in the callback below.
+ * character that can't itself be part of a key. This is a captured
+ * group, not a lookbehind assertion (`(?<=...)`), even though the
+ * intent is lookbehind-like: lookbehind isn't supported in Safari
+ * before 16.4, and this pattern is built via `new RegExp` at module
+ * load time, so using it here would throw a SyntaxError and crash the
+ * module - and the whole page - on any older Safari/iOS. The matched
+ * boundary character is consumed and captured instead, then echoed back
+ * unchanged in the callback below.
  */
 const SENSITIVE_QUERY_PARAM_PATTERN = new RegExp(
-  `(^|[^\\w.[\\]-])([\\w.[\\]-]*(?:${SENSITIVE_KEYS.join('|')})[\\w.[\\]-]*)=("(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*'|[^&\\s]*)`,
+  `(^|[^\\w.[\\]-])([\\w.[\\]-]+)=("(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*'|[^&\\s=]*)`,
   'gi'
 );
 
@@ -160,7 +166,10 @@ function maskSensitiveQueryParams(text: string): string {
   return text.replace(
     SENSITIVE_QUERY_PARAM_PATTERN,
     (match, prefix, key, _value) => {
-      return `${prefix}${key}=[REDACTED]`;
+      if (SENSITIVE_KEY_TEST_PATTERN.test(key)) {
+        return `${prefix}${key}=[REDACTED]`;
+      }
+      return match;
     }
   );
 }

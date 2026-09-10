@@ -97,6 +97,14 @@ describe('PII Sanitization', () => {
     expect(elapsedMs).toBeLessThan(1000);
   });
 
+  it('does not exhibit quadratic backtracking on a string of repeated sensitive words with no =', () => {
+    const longRepeatedKeyword = 'token'.repeat(40000);
+    const start = performance.now();
+    sanitize(longRepeatedKeyword);
+    const elapsedMs = performance.now() - start;
+    expect(elapsedMs).toBeLessThan(1000);
+  });
+
   it('masks compound/snake_case JSON keys, not just exact matches', () => {
     const rawJson = JSON.stringify({
       user_email: 'user@test.com',
@@ -433,7 +441,7 @@ describe('captureFlowFailure', () => {
       flow: 'sign_in',
       step: 'authenticate',
       message:
-        'failed url=/login?token=abc123&password=secret payload={"email":"a@b.c"}',
+        'failed request token=abc123&password=secret payload={"email":"a@b.c"}',
     });
 
     const arg = mockCaptureEvent.mock.calls[0][0] as {
@@ -444,6 +452,28 @@ describe('captureFlowFailure', () => {
     expect(arg.extra.message).toContain('"email":"[REDACTED]"');
     expect(arg.extra.message).not.toContain('abc123');
     expect(arg.extra.message).not.toContain('a@b.c');
+  });
+
+  it('does not redact a sensitive key=value pair swallowed inside a preceding non-sensitive key un-delimited value (known limitation)', async () => {
+    // SENSITIVE_QUERY_PARAM_PATTERN checks the key in a callback rather than
+    // embedding the sensitive word in the key alternation, trading a rare
+    // correctness gap for eliminating a severe ReDoS (see the pattern's
+    // comment in monitoring.ts). This test documents that trade-off rather
+    // than asserting protection: 'url's un-delimited value swallows the
+    // embedded 'token=abc123' before it can become its own match. This
+    // codebase only ever passes flat, single-level query strings/messages
+    // through sanitize(), so this shape isn't expected in practice.
+    await captureFlowFailure({
+      flow: 'sign_in',
+      step: 'authenticate',
+      message: 'failed url=/login?token=abc123&password=secret',
+    });
+
+    const arg = mockCaptureEvent.mock.calls[0][0] as {
+      extra: { message: string };
+    };
+    expect(arg.extra.message).toContain('password=[REDACTED]');
+    expect(arg.extra.message).toContain('token=abc123');
   });
 
   it('captureFlowFailure catches Sentry logging errors and does not crash the caller', async () => {
