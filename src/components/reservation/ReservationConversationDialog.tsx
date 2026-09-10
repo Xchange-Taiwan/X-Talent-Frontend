@@ -15,6 +15,7 @@ import {
 import { trackEvent } from '@/lib/analytics';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 import { getInitials } from '@/lib/avatar/getInitials';
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 import type {
   MessageRole,
@@ -66,7 +67,10 @@ export default function ReservationConversationDialog({
         {trigger ?? (
           <button
             type="button"
-            className="inline-flex items-center gap-1 rounded-sm text-xs text-text-tertiary hover:text-text-primary focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none sm:text-sm"
+            className={cn(
+              'inline-flex items-center gap-1 rounded-sm text-xs text-text-tertiary hover:text-text-primary focus-visible:outline-none sm:text-sm',
+              FOCUS_RING_CLASSES
+            )}
           >
             <MessageSquare className="size-3.5" aria-hidden />
             查看完整對話

@@ -5,6 +5,8 @@ import Image from 'next/image';
 import { useState } from 'react';
 
 import LogoImgUrl from '@/assets/logo.svg';
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
+import { cn } from '@/lib/utils';
 
 export default function MaintenancePage() {
   const [isReloading, setIsReloading] = useState(false);
@@ -16,7 +18,7 @@ export default function MaintenancePage() {
   };
 
   return (
-    <div className="bg-light fixed inset-0 z-[9999] flex flex-col items-center justify-center px-6 py-12 text-center">
+    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-light px-6 py-12 text-center">
       <div className="flex w-full max-w-md flex-col items-center">
         {/* Logo */}
         <div className="mb-12">
@@ -31,22 +33,22 @@ export default function MaintenancePage() {
 
         {/* Visual Illustration / Icons */}
         <div className="relative mb-8 flex items-center justify-center">
-          <div className="bg-brand-500/10 absolute -inset-4 rounded-full blur-xl"></div>
-          <div className="border-background-border bg-background-white relative flex size-24 items-center justify-center rounded-2xl border shadow-md">
-            <Wrench className="text-brand-500 size-12 animate-pulse" />
+          <div className="absolute -inset-4 rounded-full bg-brand-500/10 blur-xl"></div>
+          <div className="relative flex size-24 items-center justify-center rounded-2xl border border-background-border bg-background-white shadow-md">
+            <Wrench className="size-12 animate-pulse text-brand-500" />
           </div>
-          <div className="border-background-border bg-background-white absolute -right-2 -bottom-2 flex size-10 items-center justify-center rounded-full border shadow-sm">
-            <Clock className="text-text-secondary size-5" />
+          <div className="absolute -right-2 -bottom-2 flex size-10 items-center justify-center rounded-full border border-background-border bg-background-white shadow-sm">
+            <Clock className="size-5 text-text-secondary" />
           </div>
         </div>
 
         {/* Title */}
-        <h1 className="text-navy mb-4 text-2xl font-bold tracking-tight sm:text-3xl">
+        <h1 className="mb-4 text-2xl font-bold tracking-tight text-navy sm:text-3xl">
           系統維護中
         </h1>
 
         {/* Subtitle / Description */}
-        <p className="text-text-primary mb-8 text-sm leading-relaxed sm:text-base">
+        <p className="mb-8 text-sm leading-relaxed text-text-primary sm:text-base">
           為了提供更優質、穩定的服務，系統目前正在進行例行性維護。
           我們將於維護完成後立即恢復運作。造成您的不便，敬請見諒！
         </p>
@@ -55,7 +57,10 @@ export default function MaintenancePage() {
         <button
           onClick={handleReload}
           disabled={isReloading}
-          className="bg-brand-500 text-text-white hover:bg-brand-600 focus:ring-brand-500 inline-flex items-center gap-2 rounded-lg px-6 py-3 font-semibold shadow-sm transition-all focus:ring-2 focus:ring-offset-2 focus:outline-none disabled:opacity-50"
+          className={cn(
+            'inline-flex items-center gap-2 rounded-lg bg-brand-500 px-6 py-3 font-semibold text-text-white shadow-sm transition-all hover:bg-brand-600 focus:outline-none disabled:opacity-50',
+            FOCUS_RING_CLASSES
+          )}
         >
           <RefreshCw
             className={`size-4 ${isReloading ? 'animate-spin' : ''}`}
@@ -64,7 +69,7 @@ export default function MaintenancePage() {
         </button>
 
         {/* Footer / Contact info */}
-        <div className="text-text-tertiary mt-16 text-xs">
+        <div className="mt-16 text-xs text-text-tertiary">
           © {new Date().getFullYear()} XChange. All rights reserved.
         </div>
       </div>
