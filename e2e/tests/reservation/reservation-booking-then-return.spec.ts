@@ -15,7 +15,7 @@ import { setSignedSessionCookie } from '../../helpers/session';
 // present.
 test.use({ timezoneId: 'Asia/Taipei' });
 
-const REAL_MENTOR_ID = '7468899508961767'; // Jonas Lo (Mentor) - shared dev/staging fixture, see reservation-create.spec.ts
+const REAL_MENTOR_ID = '7482008160728084'; // display name "Mentee", Mentor role - shared dev/staging fixture, see reservation-create.spec.ts
 const REAL_MENTEE_ID = '7482008160728085'; // testing_visitor (Mentee)
 
 const DATE_KEY = '2026-07-17';
@@ -119,7 +119,7 @@ async function mockMenteeReservations(page: Page): Promise<void> {
       user_id: Number(REAL_MENTOR_ID),
       role: 'MENTOR',
       status: 'PENDING',
-      name: 'Jonas Lo',
+      name: 'Test Mentor',
       avatar: '',
       job_title: '',
       years_of_experience: '',
@@ -285,7 +285,9 @@ test.describe('預約流程：從個人檔案頁預約後返回「我的預約�
     await goToMyReservations(page);
     await expectClientSessionAlive(page);
     await page.getByRole('tab', { name: /等待回復/ }).click();
-    await expect(page.getByText('Jonas Lo')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('Test Mentor')).toBeVisible({
+      timeout: 10_000,
+    });
     await expect(page.getByText('目前尚無資料')).not.toBeVisible();
   });
 });

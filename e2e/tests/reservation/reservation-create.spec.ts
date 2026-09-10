@@ -6,8 +6,10 @@ import { setSignedSessionCookie } from '../../helpers/session';
 // Specify timezone locally to guarantee identical time behaviours across local & CI
 test.use({ timezoneId: 'Asia/Taipei' });
 
-// Static, valid user IDs from the dev/staging BFF database
-const REAL_MENTOR_ID = '7468899508961767'; // Jonas Lo (Mentor)
+// Static, valid user IDs from the dev/staging BFF database - both are
+// dedicated seeded test/fixture accounts (see .env.e2e.local's
+// E2E_MENTOR_EMAIL/E2E_MENTEE_EMAIL), not real production users.
+const REAL_MENTOR_ID = '7482008160728084'; // display name "Mentee", Mentor role (E2E_MENTOR_EMAIL)
 const REAL_MENTEE_ID = '7482008160728085'; // testing_visitor (Mentee)
 
 const timeFormat: Intl.DateTimeFormatOptions = {
