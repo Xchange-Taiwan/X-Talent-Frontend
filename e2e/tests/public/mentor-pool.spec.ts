@@ -57,6 +57,7 @@ async function tabUntilFocused(
     );
     if (isFocused) return;
   }
+  throw new Error(`無法在 ${maxPresses} 次 Tab 按鍵內聚焦目標元素`);
 }
 
 // ─── Setup ───────────────────────────────────────────────────────────────────
