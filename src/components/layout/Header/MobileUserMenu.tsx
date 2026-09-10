@@ -17,6 +17,7 @@ import {
 import { useAccountMenu } from '@/hooks/layout/useAccountMenu';
 import { trackEvent } from '@/lib/analytics';
 import { ResolvedIdentity } from '@/lib/auth/sessionHint';
+import { GROUP_FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 
 import { FEEDBACK_FORM_URL, FIND_MENTOR_HREF } from './constants';
 import { ShareProfileDialog } from './ShareProfileDialog';
@@ -101,7 +102,7 @@ export function MobileUserMenu({
                 src={avatarSrc}
                 name={name}
                 size={56}
-                className="size-14 transition-opacity group-hover:opacity-80 group-focus-visible:ring-2 group-focus-visible:ring-brand-500 group-focus-visible:ring-offset-2"
+                className={`size-14 transition-opacity group-hover:opacity-80 ${GROUP_FOCUS_RING_CLASSES}`}
               />
               <div className="min-w-0">
                 <div className="truncate text-2xl font-semibold text-text-primary">

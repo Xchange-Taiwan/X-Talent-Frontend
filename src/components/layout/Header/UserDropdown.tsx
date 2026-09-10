@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAccountMenu } from '@/hooks/layout/useAccountMenu';
 import { ResolvedIdentity } from '@/lib/auth/sessionHint';
+import { GROUP_FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 
 import { ShareProfileDialog } from './ShareProfileDialog';
 import { UserAvatar } from './UserAvatar';
@@ -106,7 +107,7 @@ export const UserDropdown = React.memo(function UserDropdown({
               src={avatarSrc}
               name={name}
               size={56}
-              className="size-14 transition-opacity group-hover:opacity-80 group-focus-visible:ring-2 group-focus-visible:ring-brand-500 group-focus-visible:ring-offset-2"
+              className={`size-14 transition-opacity group-hover:opacity-80 ${GROUP_FOCUS_RING_CLASSES}`}
             />
 
             <div className="min-w-0">
