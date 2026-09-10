@@ -80,17 +80,20 @@ const SENSITIVE_KEYS = [
 /**
  * Replaces values of sensitive URL query parameters with [REDACTED].
  * e.g. ?token=abc123&password=secret -> ?token=[REDACTED]&password=[REDACTED]
+ * e.g. ?email_address=a@b.com -> ?email_address=[REDACTED]
  *
- * Deliberately has no left-hand word boundary: `\b` treats `_` as a word
- * character, so it would miss snake_case compound keys like `user_email`
- * or `access_token` (no boundary exists between `_` and the sensitive
- * word). Matching the sensitive word as a bare substring immediately
- * before `=` catches those too, at the cost of over-redacting the rare
- * benign key that happens to end in a sensitive word - an acceptable
- * trade-off for PII protection.
+ * Captures the whole key (any run of word/hyphen characters) as long as
+ * it *contains* a sensitive word anywhere in it, not just immediately
+ * before `=`. A plain `\b` boundary would miss snake_case keys like
+ * `user_email` (`_` is a word character, so there's no boundary there),
+ * and requiring the sensitive word to directly precede `=` would still
+ * miss keys with a suffix after it, like `email_address` or
+ * `phone_number`. Over-redacting the rare benign key that happens to
+ * contain a sensitive word is an acceptable trade-off for PII
+ * protection.
  */
 const SENSITIVE_QUERY_PARAM_PATTERN = new RegExp(
-  `(${SENSITIVE_KEYS.join('|')})=([^&\\s]*)`,
+  `([\\w-]*(?:${SENSITIVE_KEYS.join('|')})[\\w-]*)=([^&\\s]*)`,
   'gi'
 );
 

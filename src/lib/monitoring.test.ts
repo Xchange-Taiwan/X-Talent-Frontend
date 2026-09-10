@@ -57,6 +57,17 @@ describe('PII Sanitization', () => {
     expect(sanitized).not.toContain('hunter2');
   });
 
+  it('masks query parameter keys with a sensitive word as a prefix, not just a suffix before =', () => {
+    const rawUrl =
+      'https://api.example.com/x?email_address=user@test.com&phone_number=0912345678&safeword=notasecret';
+    const sanitized = sanitize(rawUrl);
+    expect(sanitized).toContain('email_address=[REDACTED]');
+    expect(sanitized).toContain('phone_number=[REDACTED]');
+    expect(sanitized).toContain('safeword=notasecret');
+    expect(sanitized).not.toContain('user@test.com');
+    expect(sanitized).not.toContain('0912345678');
+  });
+
   it('masks compound/snake_case JSON keys, not just exact matches', () => {
     const rawJson = JSON.stringify({
       user_email: 'user@test.com',
