@@ -5,6 +5,8 @@ import { Path, useForm, UseFormReturn } from 'react-hook-form';
 import * as z from 'zod';
 
 import { Form } from '@/components/ui/form';
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
+import { cn } from '@/lib/utils';
 
 interface OnboardingStoryWrapperProps<T extends z.ZodTypeAny> {
   schema: T;
@@ -35,7 +37,7 @@ export const OnboardingStoryWrapper = <T extends z.ZodTypeAny>({
   return (
     <SessionProvider session={session}>
       <Form {...form}>
-        <div className="border-border bg-background-white max-w-md rounded-lg border p-6 shadow-sm">
+        <div className="max-w-md rounded-lg border border-border bg-background-white p-6 shadow-sm">
           {children(form)}
         </div>
       </Form>
@@ -70,7 +72,10 @@ export const OnboardingStepDemoWrapper = <T extends z.ZodTypeAny>({
           <div className="flex gap-4">
             <button
               type="submit"
-              className="bg-brand-500 text-text-white hover:bg-brand-600 focus:ring-brand-500 rounded-lg px-4 py-2 focus:ring-2 focus:ring-offset-2 focus:outline-none"
+              className={cn(
+                'rounded-lg bg-brand-500 px-4 py-2 text-text-white hover:bg-brand-600 focus:outline-none',
+                FOCUS_RING_CLASSES
+              )}
             >
               提交表單
             </button>
@@ -80,14 +85,14 @@ export const OnboardingStepDemoWrapper = <T extends z.ZodTypeAny>({
                 form.reset(defaultValues);
                 setSubmittedData(null);
               }}
-              className="border-background-border text-text-secondary hover:bg-background-bottom-secondary rounded-lg border px-4 py-2"
+              className="rounded-lg border border-background-border px-4 py-2 text-text-secondary hover:bg-background-bottom-secondary"
             >
               重置
             </button>
           </div>
 
           {/* Real-time Form values */}
-          <div className="text-text-tertiary mt-6 border-t pt-4 text-sm">
+          <div className="mt-6 border-t pt-4 text-sm text-text-tertiary">
             <p>
               <strong>表單當前數值：</strong>
               {JSON.stringify(form.watch(fieldName as Path<z.infer<T>>))}
@@ -103,7 +108,7 @@ export const OnboardingStepDemoWrapper = <T extends z.ZodTypeAny>({
               )}
             </p>
             {submittedData !== null && (
-              <p className="text-brand-600 mt-2">
+              <p className="mt-2 text-brand-600">
                 <strong>提交成功數據：</strong>
                 {JSON.stringify(submittedData)}
               </p>

@@ -6,7 +6,9 @@ import { setSignedSessionCookie } from '../../helpers/session';
 // server-side fetches succeed, preventing 404s and keeping tests fully reliable.
 // Following the codebase convention (e.g. mentor-pool.spec.ts), we test against
 // the live dev database directly, avoiding cargo-cult browser-only mocks.
-const REAL_MENTOR_ID = '7468899508961767'; // Jonas Lo (Mentor)
+// Both are dedicated seeded test/fixture accounts (see .env.e2e.local's
+// E2E_MENTOR_EMAIL/E2E_MENTEE_EMAIL), not real production users.
+const REAL_MENTOR_ID = '7482008160728084'; // display name "Mentee", Mentor role (E2E_MENTOR_EMAIL)
 const REAL_MENTEE_ID = '7482008160728085'; // testing_visitor (Mentee)
 
 // Helper to construct a flat NextAuth JWT Payload matching e2e/helpers/session.ts's SessionPayload.
@@ -37,7 +39,7 @@ test('檢視他人的 mentor 個人檔案 → 基本資訊、可預約時段區�
   // Scoped to <main> — the mentor's name is also baked into <title> by
   // generateMetadata, and an unscoped getByText() matches both, tripping
   // Playwright's strict mode.
-  const nameElement = page.getByRole('main').getByText('Jonas Lo');
+  const nameElement = page.getByRole('main').getByText('Mentee');
   await expect(nameElement).toBeVisible({ timeout: 15_000 });
 
   // Assert schedule calendar / booking section is visible

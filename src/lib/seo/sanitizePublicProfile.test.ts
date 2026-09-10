@@ -40,6 +40,38 @@ describe('sanitizePublicProfile', () => {
     expect(sanitized.isMentor).toBe(true);
   });
 
+  it('should never leak fields outside the known public whitelist, even if the source profile carries extra/sensitive ones', () => {
+    // MentorProfileVO has no email/password fields, but the BFF response
+    // this is built from could still carry other private data alongside
+    // them - sanitizePublicProfile must build a fresh object naming only
+    // the safe fields, never spread the input.
+    const profileWithExtraFields = {
+      ...baseProfile,
+      email: 'private@example.com',
+      password_hash: 'should-never-appear',
+      internal_notes: 'private admin notes',
+    } as MentorProfileVO;
+
+    const sanitized = sanitizePublicProfile(profileWithExtraFields);
+
+    expect(sanitized).toEqual({
+      userId: 123,
+      name: 'John Doe',
+      avatar: 'https://example.com/avatar.png',
+      jobTitle: 'Global Developer',
+      company: 'Base Inc',
+      about: 'About John',
+      industry: null,
+      expertises: [],
+      topics: [],
+      isMentor: true,
+      personalLinks: [],
+    });
+    expect(sanitized).not.toHaveProperty('email');
+    expect(sanitized).not.toHaveProperty('password_hash');
+    expect(sanitized).not.toHaveProperty('internal_notes');
+  });
+
   it('should fallback to outer job_title and company when experiences is empty, null, or contains no WORK experiences', () => {
     // Case 1: Null
     const profileNull: MentorProfileVO = {

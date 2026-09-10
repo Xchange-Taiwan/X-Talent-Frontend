@@ -8,6 +8,7 @@ import { ReservationStatusBadge } from '@/components/reservation/ReservationStat
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 import { getInitials } from '@/lib/avatar/getInitials';
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 import type { Reservation } from '@/types/reservation';
 
@@ -47,8 +48,10 @@ interface HeaderVariantStyle {
   nameClassName: (isLink: boolean) => string;
 }
 
-const DIALOG_NAME_LINK_CLASSNAME =
-  'group block min-w-0 flex-1 truncate rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none';
+const DIALOG_NAME_LINK_CLASSNAME = cn(
+  'group block min-w-0 flex-1 truncate rounded-sm no-underline',
+  FOCUS_RING_CLASSES
+);
 
 const headerVariantStyles: Record<
   ReservationIdentityHeaderVariant,

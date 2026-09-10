@@ -1,12 +1,26 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { fromPartial } from '@total-typescript/shoehorn';
 import type { Session } from 'next-auth';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/image', () => ({
-  default: ({ src, alt }: { src: string | { src: string }; alt: string }) => (
+  // className is forwarded so tests can assert the interactive hover/focus
+  // classes UserAvatar applies.
+  default: ({
+    src,
+    alt,
+    className,
+  }: {
+    src: string | { src: string };
+    alt: string;
+    className?: string;
+  }) => (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={typeof src === 'string' ? src : src.src} alt={alt} />
+    <img
+      src={typeof src === 'string' ? src : src.src}
+      alt={alt}
+      className={className}
+    />
   ),
 }));
 
@@ -62,6 +76,49 @@ describe('MobileUserMenu', () => {
       name: '陳導師 (Mentor) 的頭像',
     });
     expect(avatarImg).toBeInTheDocument();
+  });
+
+  it('wires the trigger avatar with the hover/focus classes that depend on the parent group', () => {
+    render(
+      <MobileUserMenu
+        identity={authenticatedIdentity('user-1', { isMentor: false })}
+        user={buildUser({ name: 'Ada Lovelace' })}
+      />
+    );
+
+    // The focus/hover feedback relies on `group-hover:`/`group-focus-visible:`
+    // on the avatar image responding to `group` on the trigger button - both
+    // sides of that coupling must hold for keyboard focus and mouse hover to
+    // show any visual feedback at all.
+    const trigger = screen.getByRole('button', { name: '開啟用戶選單' });
+    expect(trigger).toHaveClass('group');
+
+    const avatarImg = screen.getByRole('img', { name: 'Ada Lovelace 的頭像' });
+    expect(avatarImg).toHaveClass('group-hover:opacity-80');
+    expect(avatarImg).toHaveClass('group-focus-visible:ring-2');
+  });
+
+  it('wires the profile-header avatar with the hover/focus classes that depend on the parent group', () => {
+    render(
+      <MobileUserMenu
+        identity={authenticatedIdentity('user-1', { isMentor: false })}
+        user={buildUser({ name: 'Ada Lovelace' })}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '開啟用戶選單' }));
+
+    // Both the trigger and the profile-header button render an avatar with
+    // the same alt text - scope the query to the profile-header button via
+    // its data-testid rather than matching on className.
+    const profileButton = screen.getByTestId('profile-header-button');
+    expect(profileButton).toHaveClass('group');
+
+    const profileAvatarImg = within(profileButton).getByRole('img', {
+      name: 'Ada Lovelace 的頭像',
+    });
+    expect(profileAvatarImg).toHaveClass('group-hover:opacity-80');
+    expect(profileAvatarImg).toHaveClass('group-focus-visible:ring-2');
   });
 
   it('renders with anonymous user safely with fallback alt text', () => {
