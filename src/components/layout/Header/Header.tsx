@@ -49,6 +49,10 @@ function HeaderComponent(): JSX.Element {
     ? { label: '我的導師頁面', href: getProfileHref(identity.userId) }
     : { label: '成為導師', href: getBecomeMentorHref(identity.userId) };
 
+  const dynamicHoverClass = isHintOnly
+    ? ''
+    : 'hover:text-brand-600 transition-colors';
+
   return (
     <header className="bg-light fixed inset-x-0 top-[var(--banner-height,0px)] z-50 px-5">
       <div className="flex h-[70px] items-center justify-between">
@@ -71,18 +75,14 @@ function HeaderComponent(): JSX.Element {
                 <DisabledAwareLink
                   href={getProfileHref(identity.userId)}
                   disabled={isHintOnly}
-                  className={`text-text-primary hidden font-['Open_Sans'] text-base group-data-[auth-state=mentor]/auth-state:block ${
-                    isHintOnly ? '' : 'hover:text-brand-600 transition-colors'
-                  }`}
+                  className={`text-text-primary hidden font-['Open_Sans'] text-base group-data-[auth-state=mentor]/auth-state:block ${dynamicHoverClass}`}
                 >
                   我的導師頁面
                 </DisabledAwareLink>
                 <DisabledAwareLink
                   href={getBecomeMentorHref(identity.userId)}
                   disabled={isHintOnly}
-                  className={`text-text-primary hidden font-['Open_Sans'] text-base group-data-[auth-state=guest]/auth-state:block group-data-[auth-state=mentee]/auth-state:block ${
-                    isHintOnly ? '' : 'hover:text-brand-600 transition-colors'
-                  }`}
+                  className={`text-text-primary hidden font-['Open_Sans'] text-base group-data-[auth-state=guest]/auth-state:block group-data-[auth-state=mentee]/auth-state:block ${dynamicHoverClass}`}
                 >
                   成為導師
                 </DisabledAwareLink>
@@ -91,9 +91,7 @@ function HeaderComponent(): JSX.Element {
               <DisabledAwareLink
                 href={leftSecondNav.href}
                 disabled={isHintOnly}
-                className={`text-text-primary font-['Open_Sans'] text-base ${
-                  isHintOnly ? '' : 'hover:text-brand-600 transition-colors'
-                }`}
+                className={`text-text-primary font-['Open_Sans'] text-base ${dynamicHoverClass}`}
               >
                 {leftSecondNav.label}
               </DisabledAwareLink>
