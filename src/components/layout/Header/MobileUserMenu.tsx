@@ -69,7 +69,7 @@ export function MobileUserMenu({
               src={avatarSrc}
               name={name}
               size={30}
-              className="size-[30px] transition-opacity group-hover:opacity-80 group-focus-visible:ring-2 group-focus-visible:ring-brand-500 group-focus-visible:ring-offset-2"
+              className="group-focus-visible:ring-brand-500 size-[30px] transition-opacity group-hover:opacity-80 group-focus-visible:ring-2 group-focus-visible:ring-offset-2"
               priority
             />
           </button>
@@ -85,7 +85,7 @@ export function MobileUserMenu({
                 className="ml-auto"
               >
                 <Cross2Icon
-                  className="size-8 text-brand-900"
+                  className="text-brand-900 size-8"
                   aria-hidden="true"
                 />
               </button>
@@ -102,14 +102,14 @@ export function MobileUserMenu({
                 src={avatarSrc}
                 name={name}
                 size={56}
-                className={`size-14 transition-opacity group-hover:opacity-80 ${GROUP_FOCUS_RING_CLASSES}`}
+                className={`size-14 transition-opacity hover:opacity-80 ${GROUP_FOCUS_RING_CLASSES}`}
               />
               <div className="min-w-0">
-                <div className="truncate text-2xl font-semibold text-text-primary">
+                <div className="text-text-primary truncate text-2xl font-semibold">
                   {name || '我的個人頁面'}
                 </div>
                 {subtitle ? (
-                  <div className="mt-1 truncate text-sm text-text-tertiary">
+                  <div className="text-text-tertiary mt-1 truncate text-sm">
                     {subtitle}
                   </div>
                 ) : null}
@@ -126,7 +126,7 @@ export function MobileUserMenu({
               分享個人頁面
             </Button>
 
-            <div className="h-px w-full bg-background-bottom" />
+            <div className="bg-background-bottom h-px w-full" />
 
             {/* Account actions */}
             <nav className="flex flex-col py-2">
@@ -134,14 +134,14 @@ export function MobileUserMenu({
                 type="button"
                 onClick={handleAsMentor}
                 disabled={!userId}
-                className="py-4 text-left text-xl text-text-primary disabled:opacity-50"
+                className="text-text-primary py-4 text-left text-xl disabled:opacity-50"
               >
                 {isMentor ? '導師預約管理' : '成為導師'}
               </button>
               <button
                 type="button"
                 onClick={handleMyReservation}
-                className="py-4 text-left text-xl text-text-primary"
+                className="text-text-primary py-4 text-left text-xl"
               >
                 我的預約
               </button>
@@ -149,14 +149,14 @@ export function MobileUserMenu({
               <Link
                 href={FIND_MENTOR_HREF}
                 onClick={closeMenu}
-                className="py-4 text-left text-xl text-text-primary"
+                className="text-text-primary py-4 text-left text-xl"
               >
                 尋找導師
               </Link>
               <Link
                 href="/about"
                 onClick={closeMenu}
-                className="py-4 text-left text-xl text-text-primary"
+                className="text-text-primary py-4 text-left text-xl"
               >
                 關於 X-Talent
               </Link>
@@ -168,7 +168,7 @@ export function MobileUserMenu({
                   trackEvent({ name: 'feedback_open' });
                   closeMenu();
                 }}
-                className="py-4 text-left text-xl text-text-primary"
+                className="text-text-primary py-4 text-left text-xl"
               >
                 提供回饋
               </a>
@@ -177,7 +177,7 @@ export function MobileUserMenu({
             <div className="flex flex-col pb-6">
               <button
                 type="button"
-                className="py-4 text-left text-xl text-text-primary"
+                className="text-text-primary py-4 text-left text-xl"
                 onClick={handleLogout}
               >
                 登出
@@ -185,7 +185,7 @@ export function MobileUserMenu({
               {canDeleteAccount && (
                 <button
                   type="button"
-                  className="py-4 text-left text-xl text-status-error-default"
+                  className="text-status-error-default py-4 text-left text-xl"
                   onClick={handleDeleteAccount}
                 >
                   刪除帳號
