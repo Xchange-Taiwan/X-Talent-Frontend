@@ -141,10 +141,13 @@ const SENSITIVE_KEY_TEST_PATTERN = new RegExp(SENSITIVE_KEYS.join('|'), 'i');
  * quote or a literal space doesn't truncate the match early and leak
  * the remainder. A plain `[^&\s]*` alone would stop at the first space
  * inside `password="my secret"`, leaving `secret"` in the output. The
- * bare alternative also excludes `=` (real query-string values would be
- * percent-encoded if they needed a literal `=`), which limits - though
- * doesn't eliminate - how far a non-sensitive key's value can swallow
- * into what follows it.
+ * bare alternative deliberately still allows `=` (an earlier version
+ * excluded it, intending to narrow the swallow trade-off above, but
+ * that broke a plain unquoted value that legitimately contains `=` -
+ * e.g. base64 padding in a token, or a password that happens to contain
+ * `=` - truncating it at the first `=` and leaking the remainder
+ * verbatim right after `[REDACTED]`, a worse outcome than the swallow
+ * trade-off it was trying to narrow).
  *
  * The leading `(^|[^\w.[\]-])` group anchors where a key is allowed to
  * start: either the very start of the string, or right after a
@@ -158,7 +161,7 @@ const SENSITIVE_KEY_TEST_PATTERN = new RegExp(SENSITIVE_KEYS.join('|'), 'i');
  * unchanged in the callback below.
  */
 const SENSITIVE_QUERY_PARAM_PATTERN = new RegExp(
-  `(^|[^\\w.[\\]-])([\\w.[\\]-]+)=("(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*'|[^&\\s=]*)`,
+  `(^|[^\\w.[\\]-])([\\w.[\\]-]+)=("(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*'|[^&\\s]*)`,
   'gi'
 );
 
@@ -193,30 +196,46 @@ function maskSensitiveQueryParams(text: string): string {
  * literals, not just quoted strings - a sensitive field sent as a
  * non-string value (e.g. a numeric phone or id number) would otherwise
  * have no surrounding quotes for the old string-only pattern to match,
- * letting it through in plain text.
+ * letting it through in plain text. The number branch includes an
+ * optional exponent suffix (`(?:[eE][+-]?\d+)?`) since plain JSON
+ * numbers allow scientific notation (e.g. `"phone":12345e2`) - without
+ * it, only the `12345` part would match and get redacted, leaving the
+ * `e2` behind as literal trailing text and producing invalid JSON
+ * (`"phone":"[REDACTED]"e2`).
  *
  * The quoted-string branch is escape-aware (`(?:[^"\\]|\\.)*`) rather
  * than a plain `[^"]*`, which would stop at the first escaped quote
  * inside the value (e.g. `"password":"my\"secret"`) and leave
  * everything after it - including the rest of the secret - untouched.
  *
- * The final `\[(?:[^\]"\\]|"(?:[^"\\]|\\.)*")*\]` alternative matches a
- * flat JSON array (e.g. `"emails":["a@test.com","b@test.com"]`) so an
+ * The `\[(?:[^\]"\\]|"(?:[^"\\]|\\.)*")*\]` alternative matches a flat
+ * JSON array (e.g. `"emails":["a@test.com","b@test.com"]`) so an
  * array-shaped sensitive value collapses to a single redacted string
- * instead of passing through untouched - none of the earlier
- * alternatives have a `[` branch, so without this an array value simply
- * wouldn't match at all. It's quote-aware rather than a plain
- * `\[[^\]]*\]`: the latter stops at the *first* `]` anywhere, including
- * one inside a string element's value (e.g. `["my]password"]`), which
- * would truncate the match early and leave everything after it -
- * including the rest of that secret and any further array elements -
- * untouched. This is still a shallow match (no nested array/object
- * support) consistent with the rest of this function's regex-based, not
- * a real parser, approach.
+ * instead of passing through untouched - none of the other alternatives
+ * have a `[` branch, so without this an array value simply wouldn't
+ * match at all. It's quote-aware rather than a plain `\[[^\]]*\]`: the
+ * latter stops at the *first* `]` anywhere, including one inside a
+ * string element's value (e.g. `["my]password"]`), which would truncate
+ * the match early and leave everything after it - including the rest of
+ * that secret and any further array elements - untouched.
+ *
+ * The final `\{(?:[^}"\\]|"(?:[^"\\]|\\.)*")*\}` alternative is the same
+ * idea for a flat JSON object value (e.g. a Mongo-style
+ * `"email":{"$eq":"user@test.com"}`, or `"password":{"value":"secret"}`)
+ * - without it, none of the other alternatives match a value starting
+ * with `{`, so the whole object would be skipped by this outer call and
+ * only get processed by the *next* match attempt inside it, at which
+ * point the inner key (`$eq`, `value`) usually isn't itself a sensitive
+ * word, letting the real PII inside leak untouched.
+ *
+ * Both the array and object branches are still shallow matches (they
+ * don't handle further nested arrays/objects inside them), consistent
+ * with the rest of this function's regex-based, not a real parser,
+ * approach.
  */
 function maskSensitiveJsonValues(text: string): string {
   return text.replace(
-    /"([^"]+)"\s*:\s*("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?|true|false|null|\[(?:[^\]"\\]|"(?:[^"\\]|\\.)*")*\])/g,
+    /"([^"]+)"\s*:\s*("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null|\[(?:[^\]"\\]|"(?:[^"\\]|\\.)*")*\]|\{(?:[^}"\\]|"(?:[^"\\]|\\.)*")*\})/g,
     (match, key, _value) => {
       if (SENSITIVE_KEY_TEST_PATTERN.test(key)) {
         return `"${key}":"[REDACTED]"`;

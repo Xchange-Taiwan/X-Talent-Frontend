@@ -88,6 +88,14 @@ describe('PII Sanitization', () => {
     expect(sanitized).not.toContain('user@test.com');
   });
 
+  it('fully masks an unquoted query value that itself contains a literal =, not just up to the first one', () => {
+    const rawUrl = '?token=abcDEF123==&password=my=secret&safe=1';
+    const sanitized = sanitize(rawUrl);
+    expect(sanitized).toBe('?token=[REDACTED]&password=[REDACTED]&safe=1');
+    expect(sanitized).not.toContain('abcDEF123');
+    expect(sanitized).not.toContain('secret');
+  });
+
   it('does not exhibit quadratic backtracking on a long non-matching query-like string', () => {
     const longBenignRun = 'a'.repeat(100000);
     const start = performance.now();
@@ -197,6 +205,20 @@ describe('PII Sanitization', () => {
     expect(sanitized).toContain('"unrelated":42');
     expect(sanitized).not.toContain('987654321');
     expect(sanitized).not.toContain('123456789');
+  });
+
+  it('fully masks a JSON number in scientific notation, not just its mantissa', () => {
+    const rawJson = '{"phone":12345e2,"safe":42}';
+    const sanitized = sanitize(rawJson);
+    expect(sanitized).toBe('{"phone":"[REDACTED]","safe":42}');
+    expect(sanitized).not.toContain('e2');
+  });
+
+  it('masks a nested JSON object value for a sensitive key, not just scalar/array values', () => {
+    const rawJson = '{"email":{"$eq":"user@test.com"},"safe":1}';
+    const sanitized = sanitize(rawJson);
+    expect(sanitized).toBe('{"email":"[REDACTED]","safe":1}');
+    expect(sanitized).not.toContain('user@test.com');
   });
 
   it('handles empty or undefined values gracefully', () => {
