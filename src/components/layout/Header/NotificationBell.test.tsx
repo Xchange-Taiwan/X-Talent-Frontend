@@ -197,6 +197,15 @@ describe('NotificationBell', () => {
     expect(button).toHaveClass('[@media(hover:hover)]:hover:border-dark');
   });
 
+  it('contains tailwind CSS classes for a visible keyboard focus ring', () => {
+    renderBell({ unreadCount: 5 });
+    const button = screen.getByRole('button', { name: '開啟通知選單' });
+
+    expect(button).toHaveClass('focus-visible:ring-2');
+    expect(button).toHaveClass('focus-visible:ring-ring');
+    expect(button).toHaveClass('focus-visible:outline-none');
+  });
+
   it('contains tailwind CSS classes for the open state, matching the reservation tab active style', () => {
     renderBell({ unreadCount: 5 });
     const button = screen.getByRole('button', { name: '開啟通知選單' });
@@ -356,9 +365,10 @@ describe('NotificationBell', () => {
       fireEvent.click(button);
 
       expect(screen.getByText('載入失敗，請重試')).toBeInTheDocument();
-      expect(
-        screen.getByRole('button', { name: '重新嘗試' })
-      ).toBeInTheDocument();
+      const retryButton = screen.getByRole('button', { name: '重新嘗試' });
+      expect(retryButton).toBeInTheDocument();
+      expect(retryButton).toHaveClass('focus-visible:ring-2');
+      expect(retryButton).toHaveClass('focus-visible:ring-ring');
     });
 
     it('transitions to loading and then success when clicking retry button', async () => {
@@ -445,6 +455,42 @@ describe('NotificationBell', () => {
       renderBell({ initialStatus: 'success' });
 
       expect(screen.getByText('還有 99+ 則較舊的未讀通知')).toBeInTheDocument();
+
+      spy.mockRestore();
+    });
+
+    it('gives the load-more "點擊重試" button a visible keyboard focus ring', () => {
+      const spy = vi
+        .spyOn(useNotificationCenterModule, 'useNotificationCenter')
+        .mockReturnValue({
+          open: true,
+          status: 'success',
+          items: MOCK_MIXED_NOTIFICATIONS,
+          badgeCount: 8,
+          showBadge: false,
+          formattedCount: '8',
+          hasUnread: true,
+          onOpenChange: vi.fn(),
+          closeCenter: vi.fn(),
+          markRead: vi.fn(),
+          markAllRead: vi.fn(),
+          handleRetry: vi.fn(),
+          hasMore: true,
+          isLoadingMore: false,
+          hasLoadMoreError: true,
+          loadMore: vi.fn(),
+          olderUnreadCount: 0,
+        } as unknown as ReturnType<
+          typeof useNotificationCenterModule.useNotificationCenter
+        >);
+
+      renderBell({ initialStatus: 'success' });
+
+      const retryMoreButton = screen.getByRole('button', {
+        name: '點擊重試',
+      });
+      expect(retryMoreButton).toHaveClass('focus-visible:ring-2');
+      expect(retryMoreButton).toHaveClass('focus-visible:ring-ring');
 
       spy.mockRestore();
     });

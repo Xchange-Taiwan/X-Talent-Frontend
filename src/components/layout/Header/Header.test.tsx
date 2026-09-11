@@ -228,6 +228,28 @@ describe('Header', () => {
     );
   });
 
+  it('gives the logo and every top-level nav link a visible keyboard focus ring', () => {
+    mockUseSession.mockReturnValue({
+      data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
+      status: 'authenticated',
+    });
+    mockUseResolvedIdentity.mockReturnValue(AUTHENTICATED_MATCHING_IDENTITY);
+    render(<Header />);
+
+    const logoLink = screen.getByRole('link', { name: 'Go to homepage' });
+    const findMentorLink = screen.getByRole('link', { name: '尋找導師' });
+    const aboutLink = screen.getByRole('link', { name: '關於 X-Talent' });
+    const feedbackLink = screen.getByRole('link', {
+      name: '提供回饋（另開新分頁）',
+    });
+
+    for (const link of [logoLink, findMentorLink, aboutLink, feedbackLink]) {
+      expect(link).toHaveClass('focus-visible:ring-2');
+      expect(link).toHaveClass('focus-visible:ring-ring');
+      expect(link).toHaveClass('focus-visible:outline-none');
+    }
+  });
+
   it('tracks feedback_open when the desktop Header "提供回饋" link is clicked', () => {
     trackEvent.mockClear();
     mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });

@@ -11,6 +11,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuItemSlot,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAccountMenu } from '@/hooks/layout/useAccountMenu';
@@ -96,41 +97,45 @@ export const UserDropdown = React.memo(function UserDropdown({
           collisionPadding={8}
           className="max-h-[var(--radix-dropdown-menu-content-available-height)] w-[360px] overflow-y-auto rounded-2xl p-0"
         >
-          <button
-            type="button"
-            onClick={handleGoProfile}
-            aria-current={isOnProfile ? 'page' : undefined}
-            data-testid="profile-header-button"
-            className="group flex w-full items-center gap-4 px-6 pt-6 pb-4 text-left focus-visible:outline-none"
-          >
-            <UserAvatar
-              src={avatarSrc}
-              name={name}
-              size={56}
-              className={`size-14 transition-opacity hover:opacity-80 ${GROUP_FOCUS_RING_CLASSES}`}
-            />
+          <DropdownMenuItemSlot asChild>
+            <button
+              type="button"
+              onClick={handleGoProfile}
+              aria-current={isOnProfile ? 'page' : undefined}
+              data-testid="profile-header-button"
+              className="group flex w-full items-center gap-4 px-6 pt-6 pb-4 text-left focus-visible:outline-none"
+            >
+              <UserAvatar
+                src={avatarSrc}
+                name={name}
+                size={56}
+                className={`size-14 transition-opacity hover:opacity-80 ${GROUP_FOCUS_RING_CLASSES}`}
+              />
 
-            <div className="min-w-0">
-              <div className="text-text-primary truncate text-3xl font-semibold">
-                {name || '我的個人頁面'}
-              </div>
-              {subtitle ? (
-                <div className="text-text-tertiary mt-1 truncate text-sm">
-                  {subtitle}
+              <div className="min-w-0">
+                <div className="text-text-primary truncate text-3xl font-semibold">
+                  {name || '我的個人頁面'}
                 </div>
-              ) : null}
-            </div>
-          </button>
+                {subtitle ? (
+                  <div className="text-text-tertiary mt-1 truncate text-sm">
+                    {subtitle}
+                  </div>
+                ) : null}
+              </div>
+            </button>
+          </DropdownMenuItemSlot>
 
           <div className="px-6 pb-5">
-            <Button
-              variant="outline"
-              className="h-14 w-full rounded-2xl text-2xl font-semibold"
-              onClick={handleShareProfileClick}
-              disabled={!userId}
-            >
-              分享個人頁面
-            </Button>
+            <DropdownMenuItemSlot asChild disabled={!userId}>
+              <Button
+                variant="outline"
+                className="h-14 w-full rounded-2xl text-2xl font-semibold"
+                onClick={handleShareProfileClick}
+                disabled={!userId}
+              >
+                分享個人頁面
+              </Button>
+            </DropdownMenuItemSlot>
           </div>
 
           <div className="bg-background-bottom h-px w-full" />

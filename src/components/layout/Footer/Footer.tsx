@@ -2,7 +2,16 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { FC } from 'react';
 
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
+import { cn } from '@/lib/utils';
+
 import logoImgUrl from './assets/logo.png';
+
+const FOOTER_LINK_CLASSES = cn(
+  'block rounded-sm font-normal hover:underline',
+  FOCUS_RING_CLASSES,
+  'focus-visible:ring-offset-dark'
+);
 
 type FooterLink = {
   label: string;
@@ -62,7 +71,7 @@ export const Footer: FC = () => {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="block font-normal hover:underline"
+                  className={FOOTER_LINK_CLASSES}
                 >
                   {link.label}
                 </Link>
@@ -82,7 +91,7 @@ export const Footer: FC = () => {
                   href={link.href}
                   target="_blank"
                   rel="noreferrer"
-                  className="block font-normal hover:underline"
+                  className={FOOTER_LINK_CLASSES}
                 >
                   {link.label}
                 </a>
@@ -102,7 +111,7 @@ export const Footer: FC = () => {
                   href={link.href}
                   target="_blank"
                   rel="noreferrer"
-                  className="block font-normal hover:underline"
+                  className={FOOTER_LINK_CLASSES}
                 >
                   {link.label}
                 </a>

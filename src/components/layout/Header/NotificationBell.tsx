@@ -17,7 +17,10 @@ import {
 } from '@/hooks/useNotificationCenter';
 import { useScrollThumb } from '@/hooks/useScrollThumb';
 import { formatRelativeTime } from '@/lib/dateUtils';
-import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
+import {
+  FOCUS_RING_CLASSES,
+  FOCUS_RING_NO_OFFSET_CLASSES,
+} from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 
 import {
@@ -120,7 +123,10 @@ const NotificationList = React.memo(function NotificationList({
                 onItemClick(item.id);
                 onNavigate();
               }}
-              className="[@media(hover:hover)]:hover:bg-background-hover flex items-start gap-2.5 px-5 py-3 transition-colors hover:no-underline"
+              className={cn(
+                '[@media(hover:hover)]:hover:bg-background-hover flex items-start gap-2.5 px-5 py-3 transition-colors hover:no-underline',
+                FOCUS_RING_NO_OFFSET_CLASSES
+              )}
             >
               <span className="mt-1.5 flex size-4 shrink-0 items-center justify-center">
                 {item.unread && (
@@ -167,7 +173,10 @@ const NotificationList = React.memo(function NotificationList({
             <button
               type="button"
               onClick={() => onLoadMore && onLoadMore(true)}
-              className="text-brand-500 hover:text-brand-600 text-xs font-semibold transition-colors outline-none hover:underline"
+              className={cn(
+                'text-brand-500 hover:text-brand-600 rounded-sm text-xs font-semibold transition-colors hover:underline',
+                FOCUS_RING_CLASSES
+              )}
             >
               點擊重試
             </button>
@@ -230,7 +239,8 @@ export const NotificationBell = React.memo(function NotificationBell({
           type="button"
           title="通知"
           className={cn(
-            'group/bell border-background-border text-text-primary data-[state=open]:border-dark data-[state=open]:bg-dark data-[state=open]:text-text-white [@media(hover:hover)]:hover:border-dark [@media(hover:hover)]:hover:bg-dark [@media(hover:hover)]:hover:text-text-white relative flex size-[30px] items-center justify-center rounded-full border bg-transparent transition-all duration-200 outline-none',
+            'group/bell border-background-border text-text-primary data-[state=open]:border-dark data-[state=open]:bg-dark data-[state=open]:text-text-white [@media(hover:hover)]:hover:border-dark [@media(hover:hover)]:hover:bg-dark [@media(hover:hover)]:hover:text-text-white relative flex size-[30px] items-center justify-center rounded-full border bg-transparent transition-all duration-200',
+            FOCUS_RING_CLASSES,
             className
           )}
           aria-label="開啟通知選單"
@@ -283,7 +293,10 @@ export const NotificationBell = React.memo(function NotificationBell({
                 <button
                   type="button"
                   onClick={handleRetry}
-                  className="border-background-border text-text-primary hover:bg-background-hover inline-flex h-8 items-center justify-center rounded-lg border px-3 text-xs font-medium transition-all"
+                  className={cn(
+                    'border-background-border text-text-primary hover:bg-background-hover inline-flex h-8 items-center justify-center rounded-lg border px-3 text-xs font-medium transition-all',
+                    FOCUS_RING_CLASSES
+                  )}
                 >
                   重新嘗試
                 </button>

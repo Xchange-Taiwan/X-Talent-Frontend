@@ -164,11 +164,21 @@ const DropdownMenuItem = React.forwardRef<
 ));
 DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName;
 
+/**
+ * DropdownMenuItemSlot 是完全不帶預設樣式的 DropdownMenuPrimitive.Item。
+ *
+ * 用於搭配 `asChild` 包住一個已經有完整自訂樣式的互動元素（例如卡片式的按鈕），
+ * 讓它加入選單的鍵盤方向鍵巡覽序列（roving focus）與 `role="menuitem"` 語意，
+ * 同時不會像 `DropdownMenuItem` 一樣把預設 padding/字級等樣式疊加上去造成衝突。
+ */
+const DropdownMenuItemSlot = DropdownMenuPrimitive.Item;
+
 export {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuItemSlot,
   DropdownMenuPortal,
   DropdownMenuRadioGroup,
   DropdownMenuSeparator,

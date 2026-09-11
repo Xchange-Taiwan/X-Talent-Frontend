@@ -10,6 +10,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
 import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
 import { trackEvent } from '@/lib/analytics';
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
+import { cn } from '@/lib/utils';
 
 import { FEEDBACK_FORM_URL, FIND_MENTOR_HREF } from './constants';
 import { DisabledAwareLink } from './DisabledAwareLink';
@@ -19,6 +21,12 @@ import { MobileUserMenu } from './MobileUserMenu';
 import { getBecomeMentorHref, getProfileHref } from './navHrefs';
 import { NotificationBell } from './NotificationBell';
 import { UserDropdown } from './UserDropdown';
+
+const NAV_LINK_CLASSES = cn(
+  "text-text-primary rounded-sm font-['Open_Sans'] text-base",
+  FOCUS_RING_CLASSES
+);
+const NAV_LINK_HOVER_CLASSES = 'hover:text-brand-600 transition-colors';
 
 function HeaderComponent(): JSX.Element {
   const { data: session } = useSession();
@@ -49,22 +57,24 @@ function HeaderComponent(): JSX.Element {
     ? { label: '我的導師頁面', href: getProfileHref(identity.userId) }
     : { label: '成為導師', href: getBecomeMentorHref(identity.userId) };
 
-  const dynamicHoverClass = isHintOnly
-    ? ''
-    : 'hover:text-brand-600 transition-colors';
+  const dynamicHoverClass = isHintOnly ? '' : NAV_LINK_HOVER_CLASSES;
 
   return (
     <header className="bg-light fixed inset-x-0 top-[var(--banner-height,0px)] z-50 px-5">
       <div className="flex h-[70px] items-center justify-between">
         <div className="flex items-center gap-10">
-          <Link href="/" aria-label="Go to homepage">
+          <Link
+            href="/"
+            aria-label="Go to homepage"
+            className={cn('rounded-sm', FOCUS_RING_CLASSES)}
+          >
             <Image src={LogoImgUrl} alt="logo" />
           </Link>
 
           <nav className="hidden items-center gap-7 lg:flex">
             <Link
               href={FIND_MENTOR_HREF}
-              className="text-text-primary hover:text-brand-600 font-['Open_Sans'] text-base transition-colors"
+              className={cn(NAV_LINK_CLASSES, NAV_LINK_HOVER_CLASSES)}
             >
               尋找導師
             </Link>
@@ -75,14 +85,22 @@ function HeaderComponent(): JSX.Element {
                 <DisabledAwareLink
                   href={getProfileHref(identity.userId)}
                   disabled={isHintOnly}
-                  className={`text-text-primary hidden font-['Open_Sans'] text-base group-data-[auth-state=mentor]/auth-state:block ${dynamicHoverClass}`}
+                  className={cn(
+                    NAV_LINK_CLASSES,
+                    dynamicHoverClass,
+                    'hidden group-data-[auth-state=mentor]/auth-state:block'
+                  )}
                 >
                   我的導師頁面
                 </DisabledAwareLink>
                 <DisabledAwareLink
                   href={getBecomeMentorHref(identity.userId)}
                   disabled={isHintOnly}
-                  className={`text-text-primary hidden font-['Open_Sans'] text-base group-data-[auth-state=guest]/auth-state:block group-data-[auth-state=mentee]/auth-state:block ${dynamicHoverClass}`}
+                  className={cn(
+                    NAV_LINK_CLASSES,
+                    dynamicHoverClass,
+                    'hidden group-data-[auth-state=guest]/auth-state:block group-data-[auth-state=mentee]/auth-state:block'
+                  )}
                 >
                   成為導師
                 </DisabledAwareLink>
@@ -91,7 +109,7 @@ function HeaderComponent(): JSX.Element {
               <DisabledAwareLink
                 href={leftSecondNav.href}
                 disabled={isHintOnly}
-                className={`text-text-primary font-['Open_Sans'] text-base ${dynamicHoverClass}`}
+                className={cn(NAV_LINK_CLASSES, dynamicHoverClass)}
               >
                 {leftSecondNav.label}
               </DisabledAwareLink>
@@ -99,7 +117,7 @@ function HeaderComponent(): JSX.Element {
 
             <Link
               href="/about"
-              className="text-text-primary hover:text-brand-600 font-['Open_Sans'] text-base transition-colors"
+              className={cn(NAV_LINK_CLASSES, NAV_LINK_HOVER_CLASSES)}
             >
               關於 X-Talent
             </Link>
@@ -110,7 +128,7 @@ function HeaderComponent(): JSX.Element {
               rel="noopener noreferrer"
               aria-label="提供回饋（另開新分頁）"
               onClick={() => trackEvent({ name: 'feedback_open' })}
-              className="text-text-primary hover:text-brand-600 font-['Open_Sans'] text-base transition-colors"
+              className={cn(NAV_LINK_CLASSES, NAV_LINK_HOVER_CLASSES)}
             >
               提供回饋
             </a>
