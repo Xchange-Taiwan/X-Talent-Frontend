@@ -2,6 +2,8 @@
 const colors = require('./src/design/tokens/color');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const shadows = require('./src/design/tokens/shadow');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const fonts = require('./src/design/tokens/font');
 
 export const content = ['./src/**/*.{js,jsx,ts,tsx}'];
 
@@ -15,6 +17,9 @@ export const theme = {
   },
   colors,
   extend: {
+    fontFamily: {
+      'open-sans': fonts.openSans,
+    },
     fontSize: {
       11: ['11px', { lineHeight: '1' }],
       13: ['13px', { lineHeight: '1' }],

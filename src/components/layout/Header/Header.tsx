@@ -23,7 +23,7 @@ import { NotificationBell } from './NotificationBell';
 import { UserDropdown } from './UserDropdown';
 
 const NAV_LINK_CLASSES = cn(
-  "text-text-primary rounded-sm font-['Open_Sans'] text-base",
+  'text-text-primary rounded-sm font-open-sans text-base',
   FOCUS_RING_CLASSES
 );
 const NAV_LINK_HOVER_CLASSES = 'hover:text-brand-600 transition-colors';
