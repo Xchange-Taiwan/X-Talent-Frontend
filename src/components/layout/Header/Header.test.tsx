@@ -396,4 +396,49 @@ describe('Header', () => {
       expect(screen.queryAllByText('您有新的預約')).toHaveLength(0);
     });
   });
+
+  describe('navigation links hover style', () => {
+    it('applies hover:text-brand-600 and transition-colors class to active links', () => {
+      mockUseSession.mockReturnValue({
+        data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
+        status: 'authenticated',
+      });
+      mockUseResolvedIdentity.mockReturnValue(AUTHENTICATED_MATCHING_IDENTITY);
+
+      render(<Header />);
+
+      const findMentor = screen.getByRole('link', { name: '尋找導師' });
+      const about = screen.getByRole('link', { name: '關於 X-Talent' });
+      const feedback = screen.getByRole('link', {
+        name: '提供回饋（另開新分頁）',
+      });
+      const leftSecond = screen.getByRole('link', { name: '成為導師' });
+
+      expect(findMentor).toHaveClass(
+        'hover:text-brand-600',
+        'transition-colors'
+      );
+      expect(about).toHaveClass('hover:text-brand-600', 'transition-colors');
+      expect(feedback).toHaveClass('hover:text-brand-600', 'transition-colors');
+      expect(leftSecond).toHaveClass(
+        'hover:text-brand-600',
+        'transition-colors'
+      );
+    });
+
+    it('excludes hover:text-brand-600 and transition-colors class when link is disabled (hint-only)', () => {
+      mockUseSession.mockReturnValue({ data: null, status: 'loading' });
+      mockUseResolvedIdentity.mockReturnValue(
+        buildResolvedIdentity({
+          state: 'hint-only',
+        })
+      );
+
+      render(<Header />);
+
+      const link = screen.getByRole('link', { name: '成為導師' });
+      expect(link).not.toHaveClass('hover:text-brand-600');
+      expect(link).not.toHaveClass('transition-colors');
+    });
+  });
 });
