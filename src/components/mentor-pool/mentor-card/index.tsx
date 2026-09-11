@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { forwardRef, memo } from 'react';
 
 import { FOCUS_WITHIN_RING_CLASSES } from '@/lib/ui/focusRing';
+import { HOVER_CLICKABLE_CARD_CLASSES } from '@/lib/ui/hoverStyles';
 import { cn } from '@/lib/utils';
 
 import { AvatarWithBadge } from './AvatarWithBadge';
@@ -39,7 +40,8 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
       <article
         ref={ref}
         className={cn(
-          'border-background-border bg-background-white hover:shadow-card-hover relative w-[334px] overflow-hidden rounded-lg border transition-shadow xl:h-[480px] xl:w-[413px]',
+          'border-background-border bg-background-white relative w-[334px] overflow-hidden rounded-lg border transition-shadow xl:h-[480px] xl:w-[413px]',
+          HOVER_CLICKABLE_CARD_CLASSES,
           FOCUS_WITHIN_RING_CLASSES
         )}
       >

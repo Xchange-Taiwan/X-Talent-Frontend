@@ -3,6 +3,12 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import * as React from 'react';
 
 import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
+import {
+  HOVER_DESTRUCTIVE_CTA_CLASSES,
+  HOVER_GHOST_CLASSES,
+  HOVER_PRIMARY_CTA_CLASSES,
+  HOVER_SECONDARY_OUTLINE_CLASSES,
+} from '@/lib/ui/hoverStyles';
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
@@ -10,14 +16,21 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-brand-500 text-text-primary hover:bg-brand-600',
-        destructive:
-          'bg-status-error-default text-text-white hover:bg-status-error-active',
-        outline:
-          'border border-background-border bg-background-white hover:bg-background-bottom hover:text-text-primary',
+        default: cn(
+          'bg-brand-500 text-text-primary',
+          HOVER_PRIMARY_CTA_CLASSES
+        ),
+        destructive: cn(
+          'bg-status-error-default text-text-white',
+          HOVER_DESTRUCTIVE_CTA_CLASSES
+        ),
+        outline: cn(
+          'border border-background-border bg-background-white',
+          HOVER_SECONDARY_OUTLINE_CLASSES
+        ),
         secondary:
           'bg-background-bottom text-text-primary hover:bg-background-bottom/80',
-        ghost: 'hover:bg-background-bottom hover:text-text-primary',
+        ghost: HOVER_GHOST_CLASSES,
         link: 'text-brand-500 underline-offset-4 hover:underline',
       },
       size: {
