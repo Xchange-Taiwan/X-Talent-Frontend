@@ -69,7 +69,7 @@ export function AnnouncementBanner(): JSX.Element | null {
       <div className="bg-status-warning-default/10 text-text-primary flex w-full items-center justify-between gap-4 px-5 py-3 text-sm">
         <div className="flex items-center gap-3">
           <AlertTriangle className="text-status-warning-default size-5 shrink-0" />
-          <span className="font-['Open_Sans'] leading-relaxed font-medium">
+          <span className="font-open-sans leading-relaxed font-medium">
             {data.message}
           </span>
         </div>

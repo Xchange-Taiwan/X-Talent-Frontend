@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 // @ts-expect-error - color.ts is a CommonJS module
 import colors from './color';
 import { rawColors } from './color-values';
+// @ts-expect-error - font.ts is a CommonJS module
+import fonts from './font';
 // @ts-expect-error - shadow.ts is a CommonJS module
 import shadows from './shadow';
 
@@ -54,6 +56,17 @@ describe('Design Tokens Configuration', () => {
   describe('Shadow values', () => {
     it('should have the shadow-card token defined in shadow.ts', () => {
       expect(shadows.card).toBe('0 2px 12px rgba(0, 0, 0, 0.04)');
+    });
+  });
+
+  describe('Font values', () => {
+    it('should have the openSans token with a reasonable fallback stack', () => {
+      expect(fonts.openSans).toEqual([
+        "'Open Sans'",
+        'ui-sans-serif',
+        'system-ui',
+        'sans-serif',
+      ]);
     });
   });
 });

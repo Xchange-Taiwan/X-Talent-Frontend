@@ -22,6 +22,13 @@ const tailwindArbitraryFontSizeRule = {
     'Do not use arbitrary font sizes (e.g. text-[12px], text-[1.5rem]) in Tailwind classes. Please use standard font size classes like text-sm, text-base, text-14, text-18, etc.',
 };
 
+const tailwindArbitraryFontFamilyRule = {
+  selector:
+    "JSXAttribute[name.name='className'] Literal[value=/(^|\\s)font-\\[/], JSXAttribute[name.name='className'] TemplateElement[value.raw=/(^|\\s)font-\\[/], CallExpression[callee.name=/^(cn|clsx|cva)$/] Literal[value=/(^|\\s)font-\\[/], CallExpression[callee.name=/^(cn|clsx|cva)$/] TemplateElement[value.raw=/(^|\\s)font-\\[/]",
+  message:
+    "Do not use arbitrary font-family values (e.g. font-['Open_Sans']) in Tailwind classes. Please use a fontFamily token from tailwind.config.js (e.g. font-open-sans), adding a new one to src/design/tokens/font.ts if needed.",
+};
+
 module.exports = {
   // Stop the legacy eslintrc ancestor-directory cascade at the repo root.
   // Without this, running ESLint from a nested git worktree under
@@ -72,17 +79,18 @@ module.exports = {
         whitelist: ['destructive'],
       },
     ],
-    // Guard against arbitrary Tailwind colors, default Tailwind scales, and arbitrary font sizes
+    // Guard against arbitrary Tailwind colors, default Tailwind scales, and arbitrary font sizes/families
     'no-restricted-syntax': [
       'error',
       tailwindArbitraryColorRule,
       tailwindDefaultScaleRule,
       tailwindArbitraryFontSizeRule,
+      tailwindArbitraryFontFamilyRule,
     ],
   },
   overrides: [
     {
-      // Allow arbitrary Tailwind colors (like hardcoded brand colors and Next.js OG/Twitter Image routes that cannot consume Tailwind classes), but keep the default Tailwind scales and arbitrary font sizes rules
+      // Allow arbitrary Tailwind colors (like hardcoded brand colors and Next.js OG/Twitter Image routes that cannot consume Tailwind classes), but keep the default Tailwind scales and arbitrary font sizes/families rules
       files: [
         'src/components/icon/color/*.tsx',
         'src/app/**/opengraph-image.tsx',
@@ -93,6 +101,7 @@ module.exports = {
           'error',
           tailwindDefaultScaleRule,
           tailwindArbitraryFontSizeRule,
+          tailwindArbitraryFontFamilyRule,
         ],
       },
     },
