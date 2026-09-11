@@ -23,7 +23,7 @@ test('hover style constants export correct Tailwind classes', () => {
   expect(HOVER_GHOST_CLASSES).toContain('hover:bg-background-bottom');
   expect(HOVER_GHOST_CLASSES).toContain('hover:text-text-primary');
 
-  expect(HOVER_TEXT_LINK_CLASSES).toBe('hover:text-brand-600');
+  expect(HOVER_TEXT_LINK_CLASSES).toBe('hover:text-brand-700');
 
   expect(HOVER_CLICKABLE_CARD_CLASSES).toBe('hover:shadow-card-hover');
   expect(HOVER_CLICKABLE_CHIP_CLASSES).toBe('hover:bg-background-bottom');

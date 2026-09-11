@@ -52,9 +52,12 @@ export const HOVER_GHOST_CLASSES = HOVER_SECONDARY_OUTLINE_CLASSES;
  * Tier 3 - Plain text links / nav items.
  * For text-only interactive elements with no background surface at all
  * (header nav links, inline "link"-variant buttons, footer links). Shifts
- * the text color toward brand instead of adding a background.
+ * the text color toward brand instead of adding a background. Uses
+ * brand-700, not brand-600: on the white header/page background brand-600
+ * only reaches ~3.1:1 contrast, below the WCAG AA minimum of 4.5:1 for
+ * normal text; brand-700 reaches ~5.1:1.
  */
-export const HOVER_TEXT_LINK_CLASSES = 'hover:text-brand-600';
+export const HOVER_TEXT_LINK_CLASSES = 'hover:text-brand-700';
 
 /**
  * Tier 4 - Clickable cards.
