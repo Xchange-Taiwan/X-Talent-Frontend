@@ -215,6 +215,101 @@ describe('useMentorSchedule', () => {
     });
   });
 
+  describe('reader.hasNoAvailabilityThisMonth (X-Tracker #712)', () => {
+    it('is false once the browsed month has at least one bookable date', async () => {
+      vi.spyOn(Date, 'now').mockReturnValue(
+        new Date('2026-07-01T00:00:00Z').getTime()
+      );
+      mockLoadMonthSchedule.mockResolvedValue(defaultMockRaws);
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: 'mentee-9',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true);
+      });
+
+      expect(result.current.reader.hasNoAvailabilityThisMonth).toBe(false);
+    });
+
+    it('is true once the browsed month has resolved with zero bookable dates', async () => {
+      mockLoadMonthSchedule.mockResolvedValue([]);
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: 'mentee-9',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true);
+      });
+
+      expect(result.current.reader.hasNoAvailabilityThisMonth).toBe(true);
+    });
+
+    it('stays false while the month is still loading, even with no data yet', async () => {
+      const deferred = deferredMonth();
+      mockLoadMonthSchedule.mockReturnValue(deferred.promise);
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: 'mentee-9',
+        })
+      );
+
+      expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(false);
+      expect(result.current.reader.hasNoAvailabilityThisMonth).toBe(false);
+
+      await act(async () => {
+        deferred.resolve([]);
+      });
+
+      await waitFor(() => {
+        expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true);
+      });
+      expect(result.current.reader.hasNoAvailabilityThisMonth).toBe(true);
+    });
+
+    it('ignores bookable dates that fall in a different (e.g. prefetched next) month', async () => {
+      // dtstart resolves to a date in August, not the July month being browsed.
+      const augustOnlyRaws: RawMentorTimeslot[] = [
+        {
+          id: 202,
+          type: 'ALLOW' as const,
+          dtstart: buildDateTime('2026-08-10', '10:00').unix(),
+          dtend: buildDateTime('2026-08-10', '10:30').unix(),
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      vi.spyOn(Date, 'now').mockReturnValue(
+        new Date('2026-07-01T00:00:00Z').getTime()
+      );
+      mockLoadMonthSchedule.mockResolvedValue(augustOnlyRaws);
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: 'mentee-9',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true);
+      });
+
+      expect(result.current.reader.allowedDates).toContain('2026-08-10');
+      expect(result.current.reader.hasNoAvailabilityThisMonth).toBe(true);
+    });
+  });
+
   describe('month reads (X-Tracker #669)', () => {
     it('serves a month it has already loaded from cache instead of re-requesting it', async () => {
       mockLoadMonthSchedule.mockImplementation(async (ref) =>

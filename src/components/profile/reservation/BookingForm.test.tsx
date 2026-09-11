@@ -79,10 +79,52 @@ describe('BookingForm', () => {
     expect(screen.getByRole('button', { name: '處理中...' })).toBeDisabled();
   });
 
-  it('disables the submit button if isAuthenticated is false', () => {
+  it('shows a sign-in prompt instead of the form when isAuthenticated is false', () => {
     render(<BookingForm {...defaultProps} isAuthenticated={false} />);
-    const submitBtn = screen.getByRole('button', { name: '預約時間' });
-    expect(submitBtn).toBeDisabled();
+
+    expect(screen.getByText('登入後即可預約導師的時間')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '預約時間' })
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('你想問導師的問題')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '前往登入' }));
+    expect(mockRouter.push).toHaveBeenCalledWith('/auth/signin');
+  });
+
+  it('shows an empty-availability notice with a browse-other-mentors CTA and disables the textarea when hasNoAvailabilityThisMonth is true', () => {
+    render(<BookingForm {...defaultProps} hasNoAvailabilityThisMonth={true} />);
+
+    expect(
+      screen.getByText('這位導師目前尚未開放預約時段')
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('你想問導師的問題')).toBeDisabled();
+    expect(
+      screen.queryByRole('button', { name: '預約時間' })
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '瀏覽其他導師' }));
+    expect(mockRouter.push).toHaveBeenCalledWith('/mentor-pool');
+  });
+
+  it('prioritizes the no-availability notice over the sign-in prompt when both apply, since logging in would not unlock anything to book', () => {
+    render(
+      <BookingForm
+        {...defaultProps}
+        isAuthenticated={false}
+        hasNoAvailabilityThisMonth={true}
+      />
+    );
+
+    expect(
+      screen.getByText('這位導師目前尚未開放預約時段')
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('登入後即可預約導師的時間')
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '前往登入' })
+    ).not.toBeInTheDocument();
   });
 
   it('renders booking slots and the question input when not own profile', () => {

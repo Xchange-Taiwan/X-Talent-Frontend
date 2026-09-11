@@ -71,7 +71,12 @@ export default function ProfilePageUI({
   onConfirmReservation,
   editorDialog,
 }: Props) {
-  const { selectedDate, setSelectedDate, getDayBookingStatus } = schedule;
+  const {
+    selectedDate,
+    setSelectedDate,
+    getDayBookingStatus,
+    hasNoAvailabilityThisMonth,
+  } = schedule;
 
   // Render the schedule region while user data loads (most profile views are
   // mentors) so the calendar can appear before user data resolves; collapse
@@ -321,6 +326,7 @@ export default function ProfilePageUI({
                       onConfirmReservation={onConfirmReservation}
                       myUserId={loginUserId}
                       onMutationSuccess={schedule.reload}
+                      hasNoAvailabilityThisMonth={hasNoAvailabilityThisMonth}
                     />
                   )}
                   {editorDialog}
