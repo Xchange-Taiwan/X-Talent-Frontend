@@ -51,23 +51,37 @@ export const HOVER_GHOST_CLASSES = HOVER_SECONDARY_OUTLINE_CLASSES;
 /**
  * Tier 3 - Plain text links / nav items.
  * For text-only interactive elements with no background surface at all
- * (header nav links, inline "link"-variant buttons, footer links). A
- * brand-500 underline slides in under the text on hover instead of shifting
- * the text color - a pure color shift read as too weak a signal in the
- * header, and relying on color alone to convey hover state fails WCAG
- * 1.4.1. The element needs `relative` (included here) so the underline can
- * be absolutely positioned against it.
+ * (inline "link"-variant buttons, footer links, and other text that may
+ * wrap to multiple lines). Shifts the text color toward brand instead of
+ * adding a background. Uses brand-700, not brand-600: on the white
+ * header/page background brand-600 only reaches ~3.1:1 contrast, below the
+ * WCAG AA minimum of 4.5:1 for normal text; brand-700 reaches ~5.1:1.
+ *
+ * For a single-line element where a stronger hover signal than a color
+ * shift is warranted (e.g. the header nav), use
+ * `HOVER_NAV_UNDERLINE_CLASSES` instead - it isn't safe here because it
+ * can misrender on wrapped text.
+ */
+export const HOVER_TEXT_LINK_CLASSES = 'hover:text-brand-700';
+
+/**
+ * Tier 3 - Nav-style underline, single-line elements only.
+ * A brand-500 underline slides in under the text on hover instead of
+ * shifting the text color - a pure color shift read as too weak a signal
+ * in the header, and relying on color alone to convey hover state fails
+ * WCAG 1.4.1. The element needs `relative` (included here) so the
+ * underline can be absolutely positioned against it.
  *
  * Consuming element must not already use its own `::after` (this claims
  * it), and no ancestor between it and its own box may clip overflow
  * (`overflow-hidden`/`overflow-clip`) or the underline will be cut off.
  * Single-line text only: the underline is one absolutely-positioned bar
  * spanning the element's own box, so on text that wraps to multiple lines
- * it draws across the whole wrapped block instead of following each line -
- * fine for the header nav (never wraps), but don't reach for this tier on
- * inline text that can wrap without checking that first.
+ * it draws across the whole wrapped block instead of following each line.
+ * Reach for `HOVER_TEXT_LINK_CLASSES` instead for anything that can wrap
+ * (inline links, footer links).
  */
-export const HOVER_TEXT_LINK_CLASSES =
+export const HOVER_NAV_UNDERLINE_CLASSES =
   'relative after:absolute after:inset-x-0 after:-bottom-1 after:h-0.5 after:origin-left after:scale-x-0 after:bg-brand-500 after:transition-transform after:duration-200 after:ease-out hover:after:scale-x-100';
 
 /**
