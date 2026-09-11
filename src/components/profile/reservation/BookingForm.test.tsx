@@ -107,6 +107,26 @@ describe('BookingForm', () => {
     expect(mockRouter.push).toHaveBeenCalledWith('/mentor-pool');
   });
 
+  it('prioritizes the no-availability notice over the sign-in prompt when both apply, since logging in would not unlock anything to book', () => {
+    render(
+      <BookingForm
+        {...defaultProps}
+        isAuthenticated={false}
+        hasNoAvailabilityThisMonth={true}
+      />
+    );
+
+    expect(
+      screen.getByText('這位導師目前尚未開放預約時段')
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('登入後即可預約導師的時間')
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '前往登入' })
+    ).not.toBeInTheDocument();
+  });
+
   it('renders booking slots and the question input when not own profile', () => {
     render(<BookingForm {...defaultProps} />);
 

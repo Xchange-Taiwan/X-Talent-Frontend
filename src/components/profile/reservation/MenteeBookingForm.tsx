@@ -86,6 +86,41 @@ export function MenteeBookingForm({
     }
   };
 
+  // Checked before the sign-in gate below: if the mentor has nothing
+  // bookable this month, logging in wouldn't change that - sending an
+  // anonymous visitor through sign-in only to land back on this same empty
+  // state is exactly the wasted effort this ticket exists to remove. The
+  // textarea still renders (disabled) rather than disappearing entirely, so
+  // the form doesn't jump between two different shapes depending on auth.
+  if (hasNoAvailabilityThisMonth) {
+    return (
+      <div className="flex w-full flex-col gap-4">
+        <BookingPromptCard
+          message="這位導師目前尚未開放預約時段"
+          action={{
+            label: '瀏覽其他導師',
+            onClick: () => router.push('/mentor-pool'),
+            variant: 'outline',
+          }}
+        />
+        <div className="flex w-full flex-col gap-2">
+          <label htmlFor="booking-question" className="text-sm font-semibold">
+            你想問導師的問題
+          </label>
+          <Textarea
+            id="booking-question"
+            placeholder="請在此輸入你的問題..."
+            className={cn(
+              'border-background-border h-[156px] w-full rounded-lg',
+              FOCUS_RING_NO_OFFSET_CLASSES
+            )}
+            disabled
+          />
+        </div>
+      </div>
+    );
+  }
+
   // Anonymous visitors hit a dead end if they're allowed to fill in the rest
   // of the form: the submit button stays disabled with no explanation until
   // they try it. Swap the whole form for a sign-in prompt up front instead.
@@ -113,40 +148,29 @@ export function MenteeBookingForm({
       onSubmit={handleSubmit(onSubmit)}
       className="flex w-full flex-col gap-4"
     >
-      {hasNoAvailabilityThisMonth ? (
-        <BookingPromptCard
-          message="這位導師目前尚未開放預約時段"
-          action={{
-            label: '瀏覽其他導師',
-            onClick: () => router.push('/mentor-pool'),
-            variant: 'outline',
-          }}
-        />
-      ) : (
-        <ScheduleSlotList
-          slots={slots}
-          monthLoaded={monthLoaded}
-          renderSlot={(slot) => {
-            const isSelected =
-              selectedSlot?.start.getTime() === slot.start.getTime();
-            const taken = isSlotTaken(slot);
-            return (
-              <Button
-                key={`${slot.scheduleId}_${slot.start.getTime()}`}
-                type="button"
-                variant={isSelected ? 'default' : 'outline'}
-                disabled={taken}
-                onClick={() => setSelectedSlot(slot)}
-                className={`h-10 w-full text-sm ${
-                  taken ? BOOKED_SLOT_CLASSES : ''
-                }`}
-              >
-                {formatBookingSlotTime(slot)}
-              </Button>
-            );
-          }}
-        />
-      )}
+      <ScheduleSlotList
+        slots={slots}
+        monthLoaded={monthLoaded}
+        renderSlot={(slot) => {
+          const isSelected =
+            selectedSlot?.start.getTime() === slot.start.getTime();
+          const taken = isSlotTaken(slot);
+          return (
+            <Button
+              key={`${slot.scheduleId}_${slot.start.getTime()}`}
+              type="button"
+              variant={isSelected ? 'default' : 'outline'}
+              disabled={taken}
+              onClick={() => setSelectedSlot(slot)}
+              className={`h-10 w-full text-sm ${
+                taken ? BOOKED_SLOT_CLASSES : ''
+              }`}
+            >
+              {formatBookingSlotTime(slot)}
+            </Button>
+          );
+        }}
+      />
 
       <div className="flex w-full flex-col gap-2">
         <label htmlFor="booking-question" className="text-sm font-semibold">
@@ -159,7 +183,7 @@ export function MenteeBookingForm({
             'border-background-border h-[156px] w-full rounded-lg',
             FOCUS_RING_NO_OFFSET_CLASSES
           )}
-          disabled={isSubmitting || hasNoAvailabilityThisMonth}
+          disabled={isSubmitting}
           {...register('bookingQuestion')}
         />
         {errors.bookingQuestion && (
@@ -169,23 +193,21 @@ export function MenteeBookingForm({
         )}
       </div>
 
-      {!hasNoAvailabilityThisMonth && (
-        <Button
-          type="submit"
-          variant="default"
-          className="disabled:bg-background-border disabled:text-text-disable w-full rounded-full px-6 py-3 disabled:opacity-100"
-          disabled={isButtonDisabled}
-        >
-          {isSubmitting ? (
-            <>
-              <Loader2 className="mr-2 size-4 animate-spin" />
-              處理中...
-            </>
-          ) : (
-            '預約時間'
-          )}
-        </Button>
-      )}
+      <Button
+        type="submit"
+        variant="default"
+        className="disabled:bg-background-border disabled:text-text-disable w-full rounded-full px-6 py-3 disabled:opacity-100"
+        disabled={isButtonDisabled}
+      >
+        {isSubmitting ? (
+          <>
+            <Loader2 className="mr-2 size-4 animate-spin" />
+            處理中...
+          </>
+        ) : (
+          '預約時間'
+        )}
+      </Button>
     </form>
   );
 }
