@@ -61,6 +61,11 @@ export const HOVER_GHOST_CLASSES = HOVER_SECONDARY_OUTLINE_CLASSES;
  * Consuming element must not already use its own `::after` (this claims
  * it), and no ancestor between it and its own box may clip overflow
  * (`overflow-hidden`/`overflow-clip`) or the underline will be cut off.
+ * Single-line text only: the underline is one absolutely-positioned bar
+ * spanning the element's own box, so on text that wraps to multiple lines
+ * it draws across the whole wrapped block instead of following each line -
+ * fine for the header nav (never wraps), but don't reach for this tier on
+ * inline text that can wrap without checking that first.
  */
 export const HOVER_TEXT_LINK_CLASSES =
   'relative after:absolute after:inset-x-0 after:-bottom-1 after:h-0.5 after:origin-left after:scale-x-0 after:bg-brand-500 after:transition-transform after:duration-200 after:ease-out hover:after:scale-x-100';
