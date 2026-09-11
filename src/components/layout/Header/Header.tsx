@@ -11,6 +11,7 @@ import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
 import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
 import { trackEvent } from '@/lib/analytics';
 import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
+import { HOVER_TEXT_LINK_CLASSES } from '@/lib/ui/hoverStyles';
 import { cn } from '@/lib/utils';
 
 import { FEEDBACK_FORM_URL, FIND_MENTOR_HREF } from './constants';
@@ -23,10 +24,10 @@ import { NotificationBell } from './NotificationBell';
 import { UserDropdown } from './UserDropdown';
 
 const NAV_LINK_CLASSES = cn(
-  "text-text-primary rounded-sm font-['Open_Sans'] text-base",
+  'text-text-primary rounded-sm font-open-sans text-base',
   FOCUS_RING_CLASSES
 );
-const NAV_LINK_HOVER_CLASSES = 'hover:text-brand-700 transition-colors';
+const NAV_LINK_HOVER_CLASSES = cn(HOVER_TEXT_LINK_CLASSES, 'transition-colors');
 
 function HeaderComponent(): JSX.Element {
   const { data: session } = useSession();

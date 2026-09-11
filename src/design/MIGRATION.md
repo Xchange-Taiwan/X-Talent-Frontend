@@ -120,3 +120,20 @@ const badgeVariants = cva(
 1. **嚴禁新增硬編碼數值**：任何色彩設定，不論是在 `.css` 還是 Tailwind class 中，均不得使用自訂的十六進位（Hex）或 RGB 數值。
 2. **優先使用系統類名**：新開發之業務元件（如：profile, reservation, mentor-pool）與自訂元件，請一律優先採用 `text-text-primary`, `bg-brand-500`, `border-background-border` 等命名。
 3. **新增/修改元件時一律使用統一命名**：若發現殘留 legacy class 請直接修正（目前大部分元件層與區塊之遷移已全數完成，僅剩極少數零星殘留，請參考 [X-Tracker #404](https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/404) 進行最後的清理與收尾）。
+
+---
+
+## 5. Hover 樣式分級規範 (Hover Style Tier Guidelines)
+
+在 [X-Tracker #704](https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/704)、[#705](https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/705)、[#706](https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/706) 陸續修正個別元件的 hover 對比度問題後，我們發現專案缺乏統一的 hover 強度規範：各元件各自決定 hover 的顏色與強度，才會出現「有些完全沒做、有些做了但幾乎看不出來」的不一致狀況。
+
+為此，比照鍵盤 focus ring 已有的 `src/lib/ui/focusRing.ts` 共用模組，新增了 **`src/lib/ui/hoverStyles.ts`**，依元件重要性分為四種層級並各自定義建議的 hover class 常數：
+
+| 層級                     | 常數                                                            | 適用情境                             |
+| :----------------------- | :-------------------------------------------------------------- | :----------------------------------- |
+| Primary CTA              | `HOVER_PRIMARY_CTA_CLASSES` / `HOVER_DESTRUCTIVE_CTA_CLASSES`   | 實心品牌色 / 危險色按鈕（最高強調）  |
+| Secondary / Outline 按鈕 | `HOVER_SECONDARY_OUTLINE_CLASSES`                               | 邊框或次要填色按鈕                   |
+| Ghost / 純文字連結       | `HOVER_GHOST_CLASSES` / `HOVER_TEXT_LINK_CLASSES`               | 無底色按鈕、導覽列連結、行內文字連結 |
+| 可點擊卡片 / Chip        | `HOVER_CLICKABLE_CARD_CLASSES` / `HOVER_CLICKABLE_CHIP_CLASSES` | 導師卡片等大型可點擊容器、篩選 chips |
+
+**後續新增或修改互動元件時，一律引用此模組對應層級的常數，不要手刻 hover class。** 詳細用途說明請見模組內的 JSDoc 註解。
