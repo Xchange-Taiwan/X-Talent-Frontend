@@ -18,8 +18,18 @@ vi.mock('next/image', () => ({
 // the flash-prevention gating this file tests - stub each with a marker so
 // we can assert whether it rendered and inspect the props that matter here.
 vi.mock('@/components/profile/reservation/BookingForm', () => ({
-  BookingForm: ({ isUserDataLoading }: { isUserDataLoading: boolean }) => (
-    <div data-testid="booking-form" data-loading={String(isUserDataLoading)} />
+  BookingForm: ({
+    isUserDataLoading,
+    hasNoAvailabilityThisMonth,
+  }: {
+    isUserDataLoading: boolean;
+    hasNoAvailabilityThisMonth: boolean;
+  }) => (
+    <div
+      data-testid="booking-form"
+      data-loading={String(isUserDataLoading)}
+      data-no-availability={String(hasNoAvailabilityThisMonth)}
+    />
   ),
 }));
 const scheduleCalendarMock = vi.hoisted(() => ({
@@ -34,7 +44,9 @@ vi.mock('@/components/profile/reservation/ScheduleCalendar', () => ({
 
 import ProfilePageUI from './ui';
 
-function buildSchedule(): BookingCalendarReader {
+function buildSchedule(
+  overrides: Partial<BookingCalendarReader> = {}
+): BookingCalendarReader {
   return {
     selectedDate: '2026-08-20',
     setSelectedDate: vi.fn(),
@@ -44,6 +56,7 @@ function buildSchedule(): BookingCalendarReader {
     getDayBookingStatus: vi.fn(() => null),
     isFetching: false,
     reload: vi.fn(),
+    ...overrides,
   };
 }
 
@@ -89,7 +102,6 @@ function baseProps(
     setSelectedSlot: noop,
     isSubmitting: false,
     onConfirmReservation: asyncNoop,
-    hasNoAvailabilityThisMonth: false,
     ...overrides,
   };
 }
@@ -173,6 +185,36 @@ describe('ProfilePageUI - identity-resolution flash prevention', () => {
     expect(screen.getByTestId('booking-form')).toHaveAttribute(
       'data-loading',
       'false'
+    );
+  });
+
+  it('passes schedule.hasNoAvailabilityThisMonth through to BookingForm', () => {
+    const { rerender } = render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({ is_mentor: true }),
+          schedule: buildSchedule({ hasNoAvailabilityThisMonth: false }),
+        })}
+      />
+    );
+
+    expect(screen.getByTestId('booking-form')).toHaveAttribute(
+      'data-no-availability',
+      'false'
+    );
+
+    rerender(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({ is_mentor: true }),
+          schedule: buildSchedule({ hasNoAvailabilityThisMonth: true }),
+        })}
+      />
+    );
+
+    expect(screen.getByTestId('booking-form')).toHaveAttribute(
+      'data-no-availability',
+      'true'
     );
   });
 

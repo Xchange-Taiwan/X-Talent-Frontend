@@ -49,7 +49,6 @@ interface Props {
   isSubmitting: boolean;
   onConfirmReservation: (question?: string) => Promise<boolean>;
   editorDialog?: React.ReactNode;
-  hasNoAvailabilityThisMonth: boolean;
 }
 
 export default function ProfilePageUI({
@@ -71,9 +70,13 @@ export default function ProfilePageUI({
   isSubmitting,
   onConfirmReservation,
   editorDialog,
-  hasNoAvailabilityThisMonth,
 }: Props) {
-  const { selectedDate, setSelectedDate, getDayBookingStatus } = schedule;
+  const {
+    selectedDate,
+    setSelectedDate,
+    getDayBookingStatus,
+    hasNoAvailabilityThisMonth,
+  } = schedule;
 
   // Render the schedule region while user data loads (most profile views are
   // mentors) so the calendar can appear before user data resolves; collapse
