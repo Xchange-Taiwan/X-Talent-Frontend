@@ -67,7 +67,9 @@ export const HOVER_CLICKABLE_CARD_CLASSES = 'hover:shadow-card-hover';
 /**
  * Tier 4 - Clickable chips / pills.
  * Small, pill-shaped clickable surfaces (filter chips, tags) on a light
- * background, where a shadow lift doesn't read well at this size - use a
- * brand-tinted fill instead.
+ * background, where a shadow lift doesn't read well at this size. Uses the
+ * same light neutral grey fill as the secondary/ghost tier, matching the
+ * hover treatment of other interactive components instead of a
+ * brand-tinted fill.
  */
-export const HOVER_CLICKABLE_CHIP_CLASSES = 'hover:bg-brand-50';
+export const HOVER_CLICKABLE_CHIP_CLASSES = 'hover:bg-background-bottom';

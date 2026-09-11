@@ -26,7 +26,7 @@ test('hover style constants export correct Tailwind classes', () => {
   expect(HOVER_TEXT_LINK_CLASSES).toBe('hover:text-brand-600');
 
   expect(HOVER_CLICKABLE_CARD_CLASSES).toBe('hover:shadow-card-hover');
-  expect(HOVER_CLICKABLE_CHIP_CLASSES).toBe('hover:bg-brand-50');
+  expect(HOVER_CLICKABLE_CHIP_CLASSES).toBe('hover:bg-background-bottom');
 });
 
 test('cn() correctly merges hover style classes with custom overrides', () => {
