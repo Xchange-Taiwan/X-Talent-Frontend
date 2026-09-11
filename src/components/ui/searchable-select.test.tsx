@@ -117,6 +117,46 @@ function Harness({ open = true }: { open?: boolean }) {
   );
 }
 
+/**
+ * jsdom 把 scrollTop 定義在 Element.prototype 上，不是 HTMLElement.prototype，
+ * 所以要往上找到實際擁有這個屬性的 prototype，restore 時才能真的還原、而不是
+ * 讓 mock 永遠留在 HTMLElement.prototype 上污染後面的測試。
+ */
+function mockScrollTop(): { writes: number[]; restore: () => void } {
+  const owner = Object.getOwnPropertyDescriptor(
+    HTMLElement.prototype,
+    'scrollTop'
+  )
+    ? HTMLElement.prototype
+    : Element.prototype;
+  const originalDescriptor = Object.getOwnPropertyDescriptor(
+    owner,
+    'scrollTop'
+  );
+  const writes: number[] = [];
+
+  Object.defineProperty(owner, 'scrollTop', {
+    configurable: true,
+    get() {
+      return 0;
+    },
+    set(value: number) {
+      writes.push(value);
+    },
+  });
+
+  return {
+    writes,
+    restore() {
+      if (originalDescriptor) {
+        Object.defineProperty(owner, 'scrollTop', originalDescriptor);
+      } else {
+        delete (owner as { scrollTop?: number }).scrollTop;
+      }
+    },
+  };
+}
+
 function ControlledHarness({
   search,
   results,
@@ -284,30 +324,7 @@ describe('SearchableSelect', () => {
   // 使用者只看得到清單尾端的內容。
   it('resets the list scroll position back to top when the filtered results change', () => {
     stubViewport({ mobile: false });
-    const scrollTopWrites: number[] = [];
-    // jsdom 把 scrollTop 定義在 Element.prototype 上，不是 HTMLElement.prototype，
-    // 所以要往上找到實際擁有這個屬性的 prototype，restore 時才能真的還原、而不是
-    // 讓 mock 永遠留在 HTMLElement.prototype 上污染後面的測試。
-    const scrollTopOwner = Object.getOwnPropertyDescriptor(
-      HTMLElement.prototype,
-      'scrollTop'
-    )
-      ? HTMLElement.prototype
-      : Element.prototype;
-    const originalDescriptor = Object.getOwnPropertyDescriptor(
-      scrollTopOwner,
-      'scrollTop'
-    );
-
-    Object.defineProperty(scrollTopOwner, 'scrollTop', {
-      configurable: true,
-      get() {
-        return 0;
-      },
-      set(value: number) {
-        scrollTopWrites.push(value);
-      },
-    });
+    const { writes, restore } = mockScrollTop();
 
     try {
       const { rerender } = render(
@@ -316,46 +333,23 @@ describe('SearchableSelect', () => {
           results={['國立臺灣大學', '臺北醫學大學']}
         />
       );
-      scrollTopWrites.length = 0; // 只看 search 變更之後觸發的那一次
+      writes.length = 0; // 只看 search 變更之後觸發的那一次
 
       rerender(<ControlledHarness search="台大" results={['國立臺灣大學']} />);
 
-      expect(scrollTopWrites).toContain(0);
+      expect(writes).toContain(0);
     } finally {
-      if (originalDescriptor) {
-        Object.defineProperty(scrollTopOwner, 'scrollTop', originalDescriptor);
-      } else {
-        delete (scrollTopOwner as { scrollTop?: number }).scrollTop;
-      }
+      restore();
     }
   });
 
-  // 選單真正關閉（open 變 false）時要把 ref 清空，否則會一直抓著已經卸載的
-  // 舊節點（memory leak）。重新開啟時要能正確抓到新掛載的節點，捲動重置邏輯
-  // 才不會因為 ref 停留在舊的已卸載節點上而變成沒有效果的 no-op。
+  // listRef 故意不在選單關閉時清空（見 searchable-select.tsx 的註解：Radix 的
+  // 退場動畫可能被中途打斷重開，那種情況下節點會被沿用、不會再呼叫一次
+  // setListRef）。這裡驗證即使經過一次真正的關閉又重新開啟（節點確實卸載又
+  // 重新掛載），ref 也能正確換成新節點，捲動重置邏輯不會變成沒有效果的 no-op。
   it('re-acquires the list ref after closing and reopening, so scroll reset still works', () => {
     stubViewport({ mobile: false });
-    const scrollTopOwner = Object.getOwnPropertyDescriptor(
-      HTMLElement.prototype,
-      'scrollTop'
-    )
-      ? HTMLElement.prototype
-      : Element.prototype;
-    const originalDescriptor = Object.getOwnPropertyDescriptor(
-      scrollTopOwner,
-      'scrollTop'
-    );
-    const scrollTopWrites: number[] = [];
-
-    Object.defineProperty(scrollTopOwner, 'scrollTop', {
-      configurable: true,
-      get() {
-        return 0;
-      },
-      set(value: number) {
-        scrollTopWrites.push(value);
-      },
-    });
+    const { writes, restore } = mockScrollTop();
 
     try {
       const { rerender } = render(
@@ -368,7 +362,7 @@ describe('SearchableSelect', () => {
       expect(screen.getByRole('listbox')).toBeInTheDocument();
 
       // 關閉：呼叫端（例如 SchoolComboboxField）在關閉時會把 search 重置成空字串，
-      // CommandList 隨之卸載，listRef 應該被清空，不再指向舊節點。
+      // CommandList 隨之卸載。
       rerender(
         <ControlledHarness
           open={false}
@@ -391,18 +385,14 @@ describe('SearchableSelect', () => {
 
       // 使用者接著才開始打字：這是重新開啟之後、另外一次的 render，此時 ref
       // 早就掛好了，捲動重置的 effect 應該要能正常作用在目前的節點上。
-      scrollTopWrites.length = 0;
+      writes.length = 0;
       rerender(
         <ControlledHarness open search="台大" results={['國立臺灣大學']} />
       );
 
-      expect(scrollTopWrites).toContain(0);
+      expect(writes).toContain(0);
     } finally {
-      if (originalDescriptor) {
-        Object.defineProperty(scrollTopOwner, 'scrollTop', originalDescriptor);
-      } else {
-        delete (scrollTopOwner as { scrollTop?: number }).scrollTop;
-      }
+      restore();
     }
   });
 
@@ -411,27 +401,7 @@ describe('SearchableSelect', () => {
   // 卸載時傳入的 null，否則捲動重置的功能會在切換斷點之後跟著失效。
   it('keeps scroll reset working after the breakpoint switches while the dropdown is open', () => {
     const viewport = stubViewport({ mobile: false });
-    const scrollTopOwner = Object.getOwnPropertyDescriptor(
-      HTMLElement.prototype,
-      'scrollTop'
-    )
-      ? HTMLElement.prototype
-      : Element.prototype;
-    const originalDescriptor = Object.getOwnPropertyDescriptor(
-      scrollTopOwner,
-      'scrollTop'
-    );
-    const scrollTopWrites: number[] = [];
-
-    Object.defineProperty(scrollTopOwner, 'scrollTop', {
-      configurable: true,
-      get() {
-        return 0;
-      },
-      set(value: number) {
-        scrollTopWrites.push(value);
-      },
-    });
+    const { writes, restore } = mockScrollTop();
 
     try {
       const { rerender } = render(
@@ -450,18 +420,14 @@ describe('SearchableSelect', () => {
 
       // 斷點切換之後才打字（另外一次、分開的 render）：驗證 ref 仍然指向目前
       // 可見（mobile）的節點，而不是被切換前那個已經關閉的 desktop 節點卡住。
-      scrollTopWrites.length = 0;
+      writes.length = 0;
       rerender(
         <ControlledHarness open search="台大" results={['國立臺灣大學']} />
       );
 
-      expect(scrollTopWrites).toContain(0);
+      expect(writes).toContain(0);
     } finally {
-      if (originalDescriptor) {
-        Object.defineProperty(scrollTopOwner, 'scrollTop', originalDescriptor);
-      } else {
-        delete (scrollTopOwner as { scrollTop?: number }).scrollTop;
-      }
+      restore();
     }
   });
 });

@@ -107,19 +107,15 @@ export function SearchableSelect({
   // 舊節點卸載時 React 會用這個 ref 呼叫一次 `ref(null)`——直接指派會把 ref 覆寫成
   // null，即使當下真正可見、互動中的是另一個節點。改用 callback ref 忽略 null，讓
   // ref 永遠指向「最後一個真正掛上去」的節點，不被退場中的舊節點覆寫掉。
+  // 故意不在選單關閉時把 listRef 清成 null：Radix 的退場動畫可以被中途打斷
+  // （使用者在動畫結束前重新開啟），這種情況下 DOM 節點會被沿用、React 不會
+  // 再呼叫一次 setListRef，若曾經手動清空就會永久失去這個節點的參考。留著
+  // 已卸載的舊節點只是暫時多撐一輪，下次真的有新節點掛上來就會被取代掉。
   const setListRef = React.useCallback((node: HTMLDivElement | null) => {
     if (node) {
       listRef.current = node;
     }
   }, []);
-
-  // 上面的 callback ref 故意忽略 null，所以選單真正關閉時要自己清掉，否則
-  // listRef 會一直抓著已經從 DOM 移除的舊節點，直到下次開啟才被換掉。
-  React.useEffect(() => {
-    if (!open) {
-      listRef.current = null;
-    }
-  }, [open]);
 
   // cmdk 只在 shouldFilter 開啟時才會自己重新排序/捲動；這裡用 search 自行排序
   // (shouldFilter=false)，所以每次結果集換掉時要自己把捲動位置拉回頂端，
