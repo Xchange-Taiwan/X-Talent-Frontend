@@ -23,8 +23,9 @@ describe('PopularPositionChips', () => {
     expect(buttons.length).toBeGreaterThan(0);
 
     buttons.forEach((button) => {
-      // Assert hover class is updated to brand-50 for high contrast
-      expect(button).toHaveClass('hover:bg-brand-50');
+      // Assert hover class matches the shared light-grey hover used by
+      // other interactive components
+      expect(button).toHaveClass('hover:bg-background-bottom');
 
       // Assert text color is text-text-primary to ensure sufficient contrast
       expect(button).toHaveClass('text-text-primary');
