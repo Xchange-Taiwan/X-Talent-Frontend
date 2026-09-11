@@ -398,7 +398,7 @@ describe('Header', () => {
   });
 
   describe('navigation links hover style', () => {
-    it('applies hover:text-brand-700 and transition-colors class to active links', () => {
+    it('applies the underline hover classes to active links', () => {
       mockUseSession.mockReturnValue({
         data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
         status: 'authenticated',
@@ -415,18 +415,24 @@ describe('Header', () => {
       const leftSecond = screen.getByRole('link', { name: '成為導師' });
 
       expect(findMentor).toHaveClass(
-        'hover:text-brand-700',
-        'transition-colors'
+        'after:bg-brand-500',
+        'hover:after:scale-x-100'
       );
-      expect(about).toHaveClass('hover:text-brand-700', 'transition-colors');
-      expect(feedback).toHaveClass('hover:text-brand-700', 'transition-colors');
+      expect(about).toHaveClass(
+        'after:bg-brand-500',
+        'hover:after:scale-x-100'
+      );
+      expect(feedback).toHaveClass(
+        'after:bg-brand-500',
+        'hover:after:scale-x-100'
+      );
       expect(leftSecond).toHaveClass(
-        'hover:text-brand-700',
-        'transition-colors'
+        'after:bg-brand-500',
+        'hover:after:scale-x-100'
       );
     });
 
-    it('excludes hover:text-brand-700 and transition-colors class when link is disabled (hint-only)', () => {
+    it('excludes the underline hover classes when link is disabled (hint-only)', () => {
       mockUseSession.mockReturnValue({ data: null, status: 'loading' });
       mockUseResolvedIdentity.mockReturnValue(
         buildResolvedIdentity({
@@ -437,8 +443,8 @@ describe('Header', () => {
       render(<Header />);
 
       const link = screen.getByRole('link', { name: '成為導師' });
-      expect(link).not.toHaveClass('hover:text-brand-700');
-      expect(link).not.toHaveClass('transition-colors');
+      expect(link).not.toHaveClass('after:bg-brand-500');
+      expect(link).not.toHaveClass('hover:after:scale-x-100');
     });
   });
 });

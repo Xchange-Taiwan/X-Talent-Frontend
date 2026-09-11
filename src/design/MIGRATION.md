@@ -129,11 +129,12 @@ const badgeVariants = cva(
 
 為此，比照鍵盤 focus ring 已有的 `src/lib/ui/focusRing.ts` 共用模組，新增了 **`src/lib/ui/hoverStyles.ts`**，依元件重要性分為四種層級並各自定義建議的 hover class 常數：
 
-| 層級                     | 常數                                                            | 適用情境                             |
-| :----------------------- | :-------------------------------------------------------------- | :----------------------------------- |
-| Primary CTA              | `HOVER_PRIMARY_CTA_CLASSES` / `HOVER_DESTRUCTIVE_CTA_CLASSES`   | 實心品牌色 / 危險色按鈕（最高強調）  |
-| Secondary / Outline 按鈕 | `HOVER_SECONDARY_OUTLINE_CLASSES`                               | 邊框或次要填色按鈕                   |
-| Ghost / 純文字連結       | `HOVER_GHOST_CLASSES` / `HOVER_TEXT_LINK_CLASSES`               | 無底色按鈕、導覽列連結、行內文字連結 |
-| 可點擊卡片 / Chip        | `HOVER_CLICKABLE_CARD_CLASSES` / `HOVER_CLICKABLE_CHIP_CLASSES` | 導師卡片等大型可點擊容器、篩選 chips |
+| 層級                     | 常數                                                            | 適用情境                                              |
+| :----------------------- | :-------------------------------------------------------------- | :---------------------------------------------------- |
+| Primary CTA              | `HOVER_PRIMARY_CTA_CLASSES` / `HOVER_DESTRUCTIVE_CTA_CLASSES`   | 實心品牌色 / 危險色按鈕（最高強調）                   |
+| Secondary / Outline 按鈕 | `HOVER_SECONDARY_OUTLINE_CLASSES`                               | 邊框或次要填色按鈕                                    |
+| Ghost / 純文字連結       | `HOVER_GHOST_CLASSES` / `HOVER_TEXT_LINK_CLASSES`               | 無底色按鈕、行內文字連結、可能換行的 footer 連結      |
+| 導覽列底線               | `HOVER_NAV_UNDERLINE_CLASSES`                                   | 單行導覽列連結（如 Header nav），不可用於會換行的文字 |
+| 可點擊卡片 / Chip        | `HOVER_CLICKABLE_CARD_CLASSES` / `HOVER_CLICKABLE_CHIP_CLASSES` | 導師卡片等大型可點擊容器、篩選 chips                  |
 
 **後續新增或修改互動元件時，一律引用此模組對應層級的常數，不要手刻 hover class。** 詳細用途說明請見模組內的 JSDoc 註解。
