@@ -61,7 +61,12 @@ export default function ProfilePageContainer({
     includeBookedDates: isOwnProfile,
   });
   const { loaded, parsedDraft, reader, editor } = schedule;
-  const { selectedDate, setSelectedDate, allowedDates } = reader;
+  const {
+    selectedDate,
+    setSelectedDate,
+    allowedDates,
+    hasNoAvailabilityThisMonth,
+  } = reader;
 
   const [openReservationDialog, setOpenReservationDialog] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<BookingSlot | null>(null);
@@ -165,6 +170,7 @@ export default function ProfilePageContainer({
       setSelectedSlot={setSelectedSlot}
       isSubmitting={isSubmitting}
       onConfirmReservation={handleConfirmReservation}
+      hasNoAvailabilityThisMonth={hasNoAvailabilityThisMonth}
       onEditProfile={() => router.push(`/profile/${pageUserId}/edit`)}
       onBecomeMentor={() => router.push(getMentorOnboardingUrl(pageUserId))}
       editorDialog={

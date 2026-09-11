@@ -49,6 +49,7 @@ interface Props {
   isSubmitting: boolean;
   onConfirmReservation: (question?: string) => Promise<boolean>;
   editorDialog?: React.ReactNode;
+  hasNoAvailabilityThisMonth: boolean;
 }
 
 export default function ProfilePageUI({
@@ -70,6 +71,7 @@ export default function ProfilePageUI({
   isSubmitting,
   onConfirmReservation,
   editorDialog,
+  hasNoAvailabilityThisMonth,
 }: Props) {
   const { selectedDate, setSelectedDate, getDayBookingStatus } = schedule;
 
@@ -321,6 +323,7 @@ export default function ProfilePageUI({
                       onConfirmReservation={onConfirmReservation}
                       myUserId={loginUserId}
                       onMutationSuccess={schedule.reload}
+                      hasNoAvailabilityThisMonth={hasNoAvailabilityThisMonth}
                     />
                   )}
                   {editorDialog}

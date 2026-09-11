@@ -99,6 +99,7 @@ const defaultReaderMock: BookingCalendarReader = {
   setSelectedDate: () => {},
   allowedDates: [todayStr, '2026-08-04'],
   slotsSnapshot: { slots: [], monthLoaded: true, reservationsLoaded: true },
+  hasNoAvailabilityThisMonth: false,
   getDayBookingStatus: () => null,
   isFetching: false,
   hasError: false,

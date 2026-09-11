@@ -30,7 +30,7 @@ export function ScheduleSlotList({
           讀取中…
         </div>
       ) : slots.length === 0 ? (
-        <div className="text-text-disable flex min-h-10 items-center">
+        <div className="text-text-secondary flex min-h-10 items-center">
           無可預約的時段
         </div>
       ) : (

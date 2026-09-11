@@ -196,10 +196,12 @@ function Calendar({
           defaultClassNames.outside
         ),
 
-        disabled: cn(
-          'text-text-tertiary opacity-50',
-          defaultClassNames.disabled
-        ),
+        // Opacity is applied per-day in CalendarDayButton instead of here,
+        // so a disabled past date can look more "gone" than a disabled
+        // future date that simply has no open slot yet (see the `past`
+        // modifier there) - a single static class here couldn't tell the two
+        // apart.
+        disabled: cn('text-text-tertiary', defaultClassNames.disabled),
 
         hidden: cn('invisible', defaultClassNames.hidden),
 
@@ -273,6 +275,7 @@ function CalendarDayButton({
   const isAvailable =
     Boolean((modifiers as Record<string, boolean>).available) ||
     Boolean(className?.includes('rdp-day-available'));
+  const isPast = Boolean((modifiers as Record<string, boolean>).past);
 
   return (
     <Button
@@ -315,23 +318,12 @@ function CalendarDayButton({
           'font-normal',
           'leading-none',
 
-          // Range / selected states.
+          // Range / selected shape - kept unconditional (shape only, no
+          // color) since it's harmless even on the rare frame where a
+          // disabled day is still the bound `selected` value.
           'data-[range-end=true]:rounded-md',
           'data-[range-middle=true]:rounded-none',
           'data-[range-start=true]:rounded-md',
-          'data-[range-end=true]:bg-brand-500',
-          'data-[range-middle=true]:bg-background-bottom',
-          'data-[range-start=true]:bg-brand-500',
-          'data-[selected-single=true]:bg-brand-500',
-          'data-[selected-single=true]:text-text-primary',
-          'group-data-[variant=profile]/calendar:data-[selected-single=true]:bg-brand-100',
-          'group-data-[variant=profile]/calendar:data-[selected-single=true]:text-text-primary',
-          'group-data-[variant=profile]/calendar:data-[selected-single=true]:font-medium',
-          'group-data-[variant=profile]/calendar:data-[selected-single=true]:border',
-          'group-data-[variant=profile]/calendar:data-[selected-single=true]:border-brand-300',
-          'data-[range-end=true]:text-text-primary',
-          'data-[range-middle=true]:text-text-primary',
-          'data-[range-start=true]:text-text-primary',
 
           // Focus state. Reconciled with standard ring-2 and ring-ring focus styles for visual consistency across the app.
           'group-data-[focused=true]/day:relative',
@@ -344,10 +336,38 @@ function CalendarDayButton({
           '[&>span]:opacity-70',
         ].join(' '),
 
+        // Selected/range color only applies to a day the user can actually
+        // act on. Without this guard, a disabled day that's still the bound
+        // `selected` value (e.g. the calendar defaults `selected` to today
+        // before the mentee has picked anything, and today may have no open
+        // slot) renders with the same highlight as a real selection, even
+        // though it can't be clicked.
+        !modifiers.disabled &&
+          [
+            'data-[range-end=true]:bg-brand-500',
+            'data-[range-middle=true]:bg-background-bottom',
+            'data-[range-start=true]:bg-brand-500',
+            'data-[selected-single=true]:bg-brand-500',
+            'data-[selected-single=true]:text-text-primary',
+            'group-data-[variant=profile]/calendar:data-[selected-single=true]:bg-brand-100',
+            'group-data-[variant=profile]/calendar:data-[selected-single=true]:text-text-primary',
+            'group-data-[variant=profile]/calendar:data-[selected-single=true]:font-medium',
+            'group-data-[variant=profile]/calendar:data-[selected-single=true]:border',
+            'group-data-[variant=profile]/calendar:data-[selected-single=true]:border-brand-300',
+            'data-[range-end=true]:text-text-primary',
+            'data-[range-middle=true]:text-text-primary',
+            'data-[range-start=true]:text-text-primary',
+          ].join(' '),
+
         isAvailable &&
           !modifiers.selected &&
           !modifiers.disabled &&
           'bg-brand-500/20 hover:bg-brand-500/30',
+
+        // A past date is fully gone; a future date with no open slot yet
+        // still reads as "possibly opens later" - opacity tells them apart
+        // (see the disabled `text-text-tertiary` base in Calendar above).
+        modifiers.disabled && (isPast ? 'opacity-30' : 'opacity-60'),
 
         !modifiers.disabled &&
           'group-data-[variant=profile]/calendar:text-text-primary group-data-[variant=profile]/calendar:font-medium'

@@ -442,6 +442,19 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       [bookingStatusByDate]
     );
 
+  // True once the currently browsed month (not just the selected day) has
+  // resolved to zero bookable dates - lets a mentee-facing caller show an
+  // explanatory empty state instead of a dead-end form. allowedDates can
+  // span more than the displayed month (prefetch keeps the next month's
+  // rows around too), so it's filtered down to `currentMonthKey` first;
+  // gated on `monthLoaded` so a still-loading month never reads as empty.
+  const hasNoAvailabilityThisMonth = useMemo(
+    () =>
+      monthLoaded &&
+      !allowedDates.some((date) => date.startsWith(currentMonthKey)),
+    [monthLoaded, allowedDates, currentMonthKey]
+  );
+
   // --------------------------------------------------------------------
   // Draft mutations
   // --------------------------------------------------------------------
@@ -652,6 +665,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       isFetching,
       reload,
       hasError,
+      hasNoAvailabilityThisMonth,
     }),
     [
       selectedDate,
@@ -661,6 +675,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       isFetching,
       reload,
       hasError,
+      hasNoAvailabilityThisMonth,
     ]
   );
 

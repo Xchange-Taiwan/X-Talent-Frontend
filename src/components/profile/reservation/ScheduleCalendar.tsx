@@ -240,6 +240,13 @@ export const ScheduleCalendar = ({
     ? allowedDates.map((dateStr) => new Date(`${dateStr}T00:00:00`))
     : [];
 
+  // Lets CalendarDayButton tell a disabled past date apart from a disabled
+  // future one with no open slot (see the `past` modifier className below) -
+  // computed unconditionally so the distinction holds regardless of which
+  // `disable*` prop put the day out of reach.
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
   const contextValue = useMemo(
     () => ({ getDateStatus, size }),
     [getDateStatus, size]
@@ -272,6 +279,7 @@ export const ScheduleCalendar = ({
               onMonthChange={handleMonthChange}
               modifiers={{
                 available: availableDays,
+                past: { before: todayStart },
               }}
               modifiersClassNames={{
                 available: 'rdp-day-available',

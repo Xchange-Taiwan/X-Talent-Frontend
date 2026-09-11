@@ -40,6 +40,7 @@ function buildSchedule(): BookingCalendarReader {
     setSelectedDate: vi.fn(),
     allowedDates: [],
     slotsSnapshot: { slots: [], monthLoaded: true, reservationsLoaded: true },
+    hasNoAvailabilityThisMonth: false,
     getDayBookingStatus: vi.fn(() => null),
     isFetching: false,
     reload: vi.fn(),
@@ -88,6 +89,7 @@ function baseProps(
     setSelectedSlot: noop,
     isSubmitting: false,
     onConfirmReservation: asyncNoop,
+    hasNoAvailabilityThisMonth: false,
     ...overrides,
   };
 }
