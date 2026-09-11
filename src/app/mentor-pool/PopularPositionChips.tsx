@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 
 import { computeOverflowFit } from '@/lib/overflowFit';
+import { HOVER_CLICKABLE_CHIP_CLASSES } from '@/lib/ui/hoverStyles';
 
 import { POPULAR_POSITIONS } from './data';
 import { buildHref, setSearchPattern } from './searchParams';
@@ -81,7 +82,7 @@ export default function PopularPositionChips() {
             }}
             type="button"
             onClick={() => handleClick(position)}
-            className={`border-background-border bg-background-white text-text-primary hover:bg-brand-50 focus-visible:ring-ring shrink-0 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none ${
+            className={`border-background-border bg-background-white text-text-primary ${HOVER_CLICKABLE_CHIP_CLASSES} focus-visible:ring-ring shrink-0 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none ${
               i >= visibleCount ? 'xl:hidden' : ''
             }`}
           >
