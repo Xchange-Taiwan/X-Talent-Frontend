@@ -3,7 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { taiwanSchools } from '@/components/profile/edit/educationSection/schoolData';
 
 import { schoolAliases } from './schoolAliases';
-import { isT1Match, normalize, searchSchools } from './searchSchools';
+import {
+  findBestSubsequence,
+  hasExactMatch,
+  isT1Match,
+  normalize,
+  searchSchools,
+} from './searchSchools';
 
 describe('school search logic', () => {
   describe('normalize()', () => {
@@ -148,6 +154,67 @@ describe('school search logic', () => {
 
     it('returns false when the query does not match the school or its aliases at all', () => {
       expect(isT1Match('國立臺灣大學', normalize('政大'))).toBe(false);
+    });
+
+    it('uses the pre-normalized school name when provided, skipping re-normalization', () => {
+      // Pass a deliberately wrong pre-normalized value to prove it is trusted
+      // as-is rather than being recomputed from schoolName.
+      expect(isT1Match('國立臺灣大學', 'not-the-real-normalized-value')).toBe(
+        false
+      );
+      expect(
+        isT1Match(
+          '國立臺灣大學',
+          normalize('國立臺灣大學'),
+          normalize('國立臺灣大學')
+        )
+      ).toBe(true);
+    });
+  });
+
+  describe('hasExactMatch()', () => {
+    it('returns true when the query T1-matches a school name or alias', () => {
+      expect(hasExactMatch('台大', taiwanSchools)).toBe(true);
+      expect(hasExactMatch('國立臺灣大學', taiwanSchools)).toBe(true);
+    });
+
+    it('returns false for a T2/T3-only match', () => {
+      expect(hasExactMatch('台灣', taiwanSchools)).toBe(false);
+    });
+
+    it('returns false when query is empty or only whitespace', () => {
+      expect(hasExactMatch('', taiwanSchools)).toBe(false);
+      expect(hasExactMatch('   ', taiwanSchools)).toBe(false);
+    });
+
+    it('returns false when there is no match at all', () => {
+      expect(hasExactMatch('this-school-does-not-exist', taiwanSchools)).toBe(
+        false
+      );
+    });
+  });
+
+  describe('findBestSubsequence()', () => {
+    it('finds the minimal-span, minimal-start window for a simple case', () => {
+      expect(findBestSubsequence('ab', 'aabaaba')).toEqual({
+        span: 1,
+        start: 1,
+      });
+    });
+
+    it('returns null when nq is not a subsequence of S', () => {
+      expect(findBestSubsequence('xyz', 'aabaaba')).toBeNull();
+    });
+
+    it('stays correct and fast on a pathological, heavily-repeated-character input', () => {
+      // Regression guard for the DFS -> linear-scan rewrite: this input used
+      // to blow up combinatorially under exhaustive subsequence search.
+      const S = '大'.repeat(200);
+      const nq = '大'.repeat(20);
+      const start = Date.now();
+      const result = findBestSubsequence(nq, S);
+      expect(Date.now() - start).toBeLessThan(50);
+      expect(result).toEqual({ span: 19, start: 0 });
     });
   });
 

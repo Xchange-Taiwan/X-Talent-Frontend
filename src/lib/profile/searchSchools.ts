@@ -1,5 +1,14 @@
 import { schoolAliases } from './schoolAliases';
 
+// Precomputed once at module load since schoolAliases is static, self-owned
+// data (not fetched or mutated at runtime).
+const normalizedAliasesBySchool: Record<string, string[]> = Object.fromEntries(
+  Object.entries(schoolAliases).map(([school, aliases]) => [
+    school,
+    aliases.map((alias) => normalize(alias)),
+  ])
+);
+
 /**
  * 依據規定的 5 個步驟進行字串正規化：
  * 1. 去除所有空白字元（含全形空格）
@@ -35,19 +44,31 @@ export function normalize(input: string): string {
 
 /**
  * 判斷是否為 T1 命中（正規化後校名完全相同，或是完全等於該校任一別名的正規化結果）
+ * normalizedSchoolName 可選：呼叫端若已算過 normalize(schoolName)，傳入以避免重算。
  */
-export function isT1Match(schoolName: string, nq: string): boolean {
-  if (normalize(schoolName) === nq) {
+export function isT1Match(
+  schoolName: string,
+  nq: string,
+  normalizedSchoolName?: string
+): boolean {
+  const sNormalized = normalizedSchoolName ?? normalize(schoolName);
+  if (sNormalized === nq) {
     return true;
   }
-  const aliases = schoolAliases[schoolName] || [];
-  return aliases.some((alias) => normalize(alias) === nq);
+  const aliases = normalizedAliasesBySchool[schoolName] || [];
+  return aliases.some((alias) => alias === nq);
 }
 
 /**
  * 尋找最佳的子序列匹配（span 最小，若 span 相同則 start 最小）
  * span = 最後命中字元索引 - 第一個命中字元索引
  * start = 第一個命中字元索引
+ *
+ * 使用線性掃描（O(n) amortized），而非窮舉所有子序列組合的寫法——後者在字元大量
+ * 重複時（例如查詢「大大大」比對含多個「大」的校名）會產生指數級的分支。
+ * 作法：每輪從目前起點正向掃出「最早完成匹配」的結尾位置，再從該結尾反向掃出
+ * 對應的最緊起點，取所有輪次中 span 最小者；下一輪從該起點之後重新開始，
+ * 確保 i 只會單調前進，整體維持線性時間。
  */
 export function findBestSubsequence(
   nq: string,
@@ -59,42 +80,51 @@ export function findBestSubsequence(
     return null;
   }
 
-  let bestSpan = Infinity;
-  let bestStart = Infinity;
-  let found = false;
+  let bestStart = -1;
+  let bestLength = Infinity;
 
-  function dfs(nqIdx: number, sIdx: number, firstIdx: number, lastIdx: number) {
-    if (nqIdx === m) {
-      found = true;
-      const span = lastIdx - firstIdx;
-      const start = firstIdx;
-      if (span < bestSpan) {
-        bestSpan = span;
-        bestStart = start;
-      } else if (span === bestSpan && start < bestStart) {
-        bestStart = start;
+  let i = 0;
+  while (i < n) {
+    // 正向掃描：從 i 開始找出最早能完成 nq 全部字元匹配的結尾位置
+    let j = 0;
+    let k = i;
+    while (k < n && j < m) {
+      if (S[k] === nq[j]) {
+        j++;
       }
-      return;
+      k++;
     }
+    if (j < m) {
+      break;
+    }
+    const end = k - 1;
 
-    for (let i = sIdx; i < n; i++) {
-      if (S[i] === nq[nqIdx]) {
-        const nextFirst = nqIdx === 0 ? i : firstIdx;
-        // 剪枝：如果目前的 span 已經比已知的 bestSpan 大，就不需要再往下搜尋
-        if (nqIdx > 0 && i - nextFirst > bestSpan) {
-          continue;
+    // 反向掃描：從 end 往回找出對應這個結尾的最緊起點
+    let start = end;
+    let jj = m - 1;
+    for (let p = end; p >= i; p--) {
+      if (S[p] === nq[jj]) {
+        jj--;
+        if (jj < 0) {
+          start = p;
+          break;
         }
-        dfs(nqIdx + 1, i + 1, nextFirst, i);
       }
     }
+
+    const length = end - start + 1;
+    if (length < bestLength) {
+      bestLength = length;
+      bestStart = start;
+    }
+
+    i = start + 1;
   }
 
-  dfs(0, 0, -1, -1);
-
-  if (!found) {
+  if (bestStart === -1) {
     return null;
   }
-  return { span: bestSpan, start: bestStart };
+  return { span: bestLength - 1, start: bestStart };
 }
 
 interface NormalizedSchool {
@@ -162,7 +192,7 @@ export function searchSchools(query: string, schools: string[]): string[] {
     const { school, normalized: sNormalized } = normalizedSchools[i];
 
     // 1. T1 優先權：別名／完全相同
-    if (isT1Match(school, nq)) {
+    if (isT1Match(school, nq, sNormalized)) {
       t1Matches.push({ school, originalIndex: i });
       continue;
     }
@@ -215,4 +245,22 @@ export function searchSchools(query: string, schools: string[]): string[] {
     ...t2Matches.map((m) => m.school),
     ...t3Matches.map((m) => m.school),
   ];
+}
+
+/**
+ * 判斷 query 是否對 schools 中任一校產生 T1（別名／完全相同）命中。
+ * 供 UI 判斷 creatable「新增」選項是否顯示，避免 UI 元件自行 import
+ * normalize/isT1Match 並重新遍歷整個 schools 陣列。
+ */
+export function hasExactMatch(query: string, schools: string[]): boolean {
+  const trimmed = query.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  const nq = normalize(trimmed);
+  const normalizedSchools = getNormalizedSchools(schools);
+  return normalizedSchools.some(({ school, normalized }) =>
+    isT1Match(school, nq, normalized)
+  );
 }
