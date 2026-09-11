@@ -117,6 +117,35 @@ function Harness({ open = true }: { open?: boolean }) {
   );
 }
 
+function ControlledHarness({
+  search,
+  results,
+}: {
+  search: string;
+  results: string[];
+}) {
+  return (
+    <SearchableSelect
+      open
+      onOpenChange={() => {}}
+      title="選擇學校"
+      searchPlaceholder="搜尋學校..."
+      search={search}
+      onSearchChange={() => {}}
+      trigger={<Button>請選擇學校</Button>}
+    >
+      <CommandEmpty>找不到相符的學校</CommandEmpty>
+      <CommandGroup>
+        {results.map((school) => (
+          <CommandItem key={school} value={school}>
+            {school}
+          </CommandItem>
+        ))}
+      </CommandGroup>
+    </SearchableSelect>
+  );
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -245,6 +274,50 @@ describe('SearchableSelect', () => {
 
       expect(list).not.toContainElement(searchBox);
       unmount();
+    }
+  });
+
+  // cmdk 在 shouldFilter=false（受控 search）時不會自己重新排序或捲動清單，
+  // 所以結果集換掉時若不主動把捲動拉回頂端，排序第一的項目可能被捲到畫面外，
+  // 使用者只看得到清單尾端的內容。
+  it('resets the list scroll position back to top when the filtered results change', () => {
+    stubViewport({ mobile: false });
+    const scrollTopWrites: number[] = [];
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'scrollTop'
+    );
+
+    Object.defineProperty(HTMLElement.prototype, 'scrollTop', {
+      configurable: true,
+      get() {
+        return 0;
+      },
+      set(value: number) {
+        scrollTopWrites.push(value);
+      },
+    });
+
+    try {
+      const { rerender } = render(
+        <ControlledHarness
+          search="台"
+          results={['國立臺灣大學', '臺北醫學大學']}
+        />
+      );
+      scrollTopWrites.length = 0; // 只看 search 變更之後觸發的那一次
+
+      rerender(<ControlledHarness search="台大" results={['國立臺灣大學']} />);
+
+      expect(scrollTopWrites).toContain(0);
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(
+          HTMLElement.prototype,
+          'scrollTop',
+          originalDescriptor
+        );
+      }
     }
   });
 });
