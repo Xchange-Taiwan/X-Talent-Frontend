@@ -100,6 +100,32 @@ export function SearchableSelect({
   const isMobile = useMediaQuery(MOBILE_QUERY);
   const { inset, viewportHeight } = useKeyboardInset(open && isMobile);
 
+  const listRef = React.useRef<HTMLDivElement | null>(null);
+
+  // 桌機 Popover 與手機 Sheet 共用同一個 commandBody（因此共用這個 ref）。斷點跨越
+  // 的瞬間，Radix Presence 會讓正在退場動畫的舊分支節點與剛掛載的新分支節點短暫並存，
+  // 舊節點卸載時 React 會用這個 ref 呼叫一次 `ref(null)`——直接指派會把 ref 覆寫成
+  // null，即使當下真正可見、互動中的是另一個節點。改用 callback ref 忽略 null，讓
+  // ref 永遠指向「最後一個真正掛上去」的節點，不被退場中的舊節點覆寫掉。
+  // 故意不在選單關閉時把 listRef 清成 null：Radix 的退場動畫可以被中途打斷
+  // （使用者在動畫結束前重新開啟），這種情況下 DOM 節點會被沿用、React 不會
+  // 再呼叫一次 setListRef，若曾經手動清空就會永久失去這個節點的參考。留著
+  // 已卸載的舊節點只是暫時多撐一輪，下次真的有新節點掛上來就會被取代掉。
+  const setListRef = React.useCallback((node: HTMLDivElement | null) => {
+    if (node) {
+      listRef.current = node;
+    }
+  }, []);
+
+  // cmdk 只在 shouldFilter 開啟時才會自己重新排序/捲動；這裡用 search 自行排序
+  // (shouldFilter=false)，所以每次結果集換掉時要自己把捲動位置拉回頂端，
+  // 否則清單捲軸會停在輸入新字前的位置，導致排序第一的項目被捲到畫面外。
+  React.useEffect(() => {
+    if (listRef.current) {
+      listRef.current.scrollTop = 0;
+    }
+  }, [search]);
+
   const commandBody = (
     <Command
       shouldFilter={search === undefined}
@@ -111,7 +137,7 @@ export function SearchableSelect({
         onValueChange={onSearchChange}
       />
       {/* 搜尋框不在捲動容器內，所以清單再長也不會把它推出畫面 */}
-      <CommandList className="max-h-full min-h-0 flex-1">
+      <CommandList ref={setListRef} className="max-h-full min-h-0 flex-1">
         {children}
       </CommandList>
     </Command>
