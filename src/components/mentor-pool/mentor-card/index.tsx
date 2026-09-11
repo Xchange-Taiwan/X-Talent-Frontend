@@ -39,7 +39,7 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
       <article
         ref={ref}
         className={cn(
-          'border-background-border bg-background-white relative w-[334px] overflow-hidden rounded-lg border transition-shadow hover:shadow-xl xl:h-[480px] xl:w-[413px]',
+          'border-background-border bg-background-white hover:shadow-card-hover relative w-[334px] overflow-hidden rounded-lg border transition-shadow xl:h-[480px] xl:w-[413px]',
           FOCUS_WITHIN_RING_CLASSES
         )}
       >
