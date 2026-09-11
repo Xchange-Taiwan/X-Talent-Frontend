@@ -1,5 +1,3 @@
-import { taiwanSchools } from '@/components/profile/edit/educationSection/schoolData';
-
 import { schoolAliases } from './schoolAliases';
 
 /**
@@ -99,6 +97,30 @@ export function findBestSubsequence(
   return { span: bestSpan, start: bestStart };
 }
 
+interface NormalizedSchool {
+  school: string;
+  normalized: string;
+}
+
+// Cache per input array reference so callers that pass the same static
+// school list on every render don't pay for re-normalizing it each time.
+// Assumes callers treat the array as immutable (no in-place push/splice) -
+// true for the generated taiwanSchools list this is designed around.
+const normalizedSchoolsCache = new WeakMap<string[], NormalizedSchool[]>();
+
+function getNormalizedSchools(schools: string[]): NormalizedSchool[] {
+  const cached = normalizedSchoolsCache.get(schools);
+  if (cached) {
+    return cached;
+  }
+  const normalized = schools.map((school) => ({
+    school,
+    normalized: normalize(school),
+  }));
+  normalizedSchoolsCache.set(schools, normalized);
+  return normalized;
+}
+
 interface T1MatchItem {
   school: string;
   originalIndex: number;
@@ -119,24 +141,25 @@ interface T3MatchItem {
 
 /**
  * 搜尋學校純函式
- * query 為空或全空白時，回傳 taiwanSchools 原始順序。
+ * query 為空或全空白時，回傳 schools 原始順序。
  * 否則進行 L1, L2, L3 三層過濾與排序。
+ * schools 由呼叫端注入，lib 層不依賴任何特定資料來源。
  */
-export function searchSchools(query: string): string[] {
+export function searchSchools(query: string, schools: string[]): string[] {
   const trimmed = query.trim();
   if (!trimmed) {
-    return taiwanSchools;
+    return schools;
   }
 
   const nq = normalize(trimmed);
+  const normalizedSchools = getNormalizedSchools(schools);
 
   const t1Matches: T1MatchItem[] = [];
   const t2Matches: T2MatchItem[] = [];
   const t3Matches: T3MatchItem[] = [];
 
-  for (let i = 0; i < taiwanSchools.length; i++) {
-    const school = taiwanSchools[i];
-    const sNormalized = normalize(school);
+  for (let i = 0; i < normalizedSchools.length; i++) {
+    const { school, normalized: sNormalized } = normalizedSchools[i];
 
     // 1. T1 優先權：別名／完全相同
     if (isT1Match(school, nq)) {

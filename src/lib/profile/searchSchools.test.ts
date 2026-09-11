@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { taiwanSchools } from '@/components/profile/edit/educationSection/schoolData';
 
 import { schoolAliases } from './schoolAliases';
-import { normalize, searchSchools } from './searchSchools';
+import { isT1Match, normalize, searchSchools } from './searchSchools';
 
 describe('school search logic', () => {
   describe('normalize()', () => {
@@ -60,7 +60,7 @@ describe('school search logic', () => {
 
     acCases.forEach(({ query, expected }) => {
       it(`returns "${expected}" as the first result when querying "${query}"`, () => {
-        const results = searchSchools(query);
+        const results = searchSchools(query, taiwanSchools);
         expect(results.length).toBeGreaterThan(0);
         expect(results[0]).toBe(expected);
       });
@@ -68,48 +68,50 @@ describe('school search logic', () => {
 
     it('handles normalization queries on L1 level', () => {
       // 台灣大學 / 臺灣大學 -> 國立臺灣大學
-      expect(searchSchools('台灣大學')[0]).toBe('國立臺灣大學');
-      expect(searchSchools('臺灣大學')[0]).toBe('國立臺灣大學');
+      expect(searchSchools('台灣大學', taiwanSchools)[0]).toBe('國立臺灣大學');
+      expect(searchSchools('臺灣大學', taiwanSchools)[0]).toBe('國立臺灣大學');
 
       // 南台科大 -> 南臺科技大學
-      expect(searchSchools('南台科大')[0]).toBe('南臺科技大學');
+      expect(searchSchools('南台科大', taiwanSchools)[0]).toBe('南臺科技大學');
 
       // 臺北海洋 -> 台北海洋科技大學
-      expect(searchSchools('臺北海洋')[0]).toBe('台北海洋科技大學');
+      expect(searchSchools('臺北海洋', taiwanSchools)[0]).toBe(
+        '台北海洋科技大學'
+      );
 
       // Full-width english & spacing
-      expect(searchSchools('ＮＴＵ')[0]).toBe('國立臺灣大學');
-      expect(searchSchools('ntu')[0]).toBe('國立臺灣大學');
-      expect(searchSchools('NTU')[0]).toBe('國立臺灣大學');
-      expect(searchSchools('n t u')[0]).toBe('國立臺灣大學');
+      expect(searchSchools('ＮＴＵ', taiwanSchools)[0]).toBe('國立臺灣大學');
+      expect(searchSchools('ntu', taiwanSchools)[0]).toBe('國立臺灣大學');
+      expect(searchSchools('NTU', taiwanSchools)[0]).toBe('國立臺灣大學');
+      expect(searchSchools('n t u', taiwanSchools)[0]).toBe('國立臺灣大學');
 
       // Simplified Chinese -> 台灣大学
-      expect(searchSchools('台湾大学')[0]).toBe('國立臺灣大學');
+      expect(searchSchools('台湾大学', taiwanSchools)[0]).toBe('國立臺灣大學');
     });
 
     it('ensures aliases matching is exact match only, not includes', () => {
       // Searching "大" should not T1-match "台大"
-      const results = searchSchools('大');
+      const results = searchSchools('大', taiwanSchools);
       // "國立臺灣大學" should not be T1 (it is T2/T3, but since many schools end with 大學, it should just behave standardly)
       // Let's verify that "國立臺灣大學" is not the very first result because there are schools whose names start with or contain "大" in higher/closer positions (like 大仁科技大學, 大同大學, 大葉大學)
       expect(results[0]).not.toBe('國立臺灣大學');
     });
 
     it('L3: supports subsequence query "陽交" for "國立陽明交通大學"', () => {
-      const results = searchSchools('陽交');
+      const results = searchSchools('陽交', taiwanSchools);
       expect(results[0]).toBe('國立陽明交通大學');
     });
 
     it('L3: supports subsequence query "東大" containing 國立臺東大學, 東海大學, 東吳大學', () => {
-      const results = searchSchools('東大');
+      const results = searchSchools('東大', taiwanSchools);
       expect(results).toContain('國立臺東大學');
       expect(results).toContain('東海大學');
       expect(results).toContain('東吳大學');
     });
 
     it('L3: tie-break works stably for multiple calls', () => {
-      const run1 = searchSchools('東大');
-      const run2 = searchSchools('東大');
+      const run1 = searchSchools('東大', taiwanSchools);
+      const run2 = searchSchools('東大', taiwanSchools);
       expect(run1).toEqual(run2);
     });
 
@@ -117,13 +119,35 @@ describe('school search logic', () => {
       // "台大" matches "國立臺灣大學" (T1)
       // "台灣科技大學" matches "國立臺灣科技大學" (T2)
       // Let's make sure T1 -> T2 -> T3 ordering is preserved
-      const results = searchSchools('台大');
+      const results = searchSchools('台大', taiwanSchools);
       expect(results[0]).toBe('國立臺灣大學'); // T1
     });
 
     it('returns original list when query is empty or only whitespace', () => {
-      expect(searchSchools('')).toEqual(taiwanSchools);
-      expect(searchSchools('   ')).toEqual(taiwanSchools);
+      expect(searchSchools('', taiwanSchools)).toEqual(taiwanSchools);
+      expect(searchSchools('   ', taiwanSchools)).toEqual(taiwanSchools);
+    });
+  });
+
+  describe('isT1Match()', () => {
+    it('returns true for an exact normalized school name match', () => {
+      expect(isT1Match('國立臺灣大學', normalize('國立臺灣大學'))).toBe(true);
+      expect(isT1Match('國立臺灣大學', normalize('國立台灣大學'))).toBe(true);
+    });
+
+    it('returns true for an exact normalized alias match', () => {
+      expect(isT1Match('國立臺灣大學', normalize('台大'))).toBe(true);
+      expect(isT1Match('國立臺灣大學', normalize('ntu'))).toBe(true);
+    });
+
+    it('returns false for a T2/T3-only (substring or subsequence) match', () => {
+      // "台灣" is a substring/subsequence of "國立臺灣大學" but not an exact
+      // school name or alias match, so it must not be treated as T1.
+      expect(isT1Match('國立臺灣大學', normalize('台灣'))).toBe(false);
+    });
+
+    it('returns false when the query does not match the school or its aliases at all', () => {
+      expect(isT1Match('國立臺灣大學', normalize('政大'))).toBe(false);
     });
   });
 

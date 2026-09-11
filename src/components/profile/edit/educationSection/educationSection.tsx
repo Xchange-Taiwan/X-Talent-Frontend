@@ -56,9 +56,10 @@ export function SchoolComboboxField({
   const [search, setSearch] = useState('');
 
   const trimmedSearch = search.trim();
-  const filteredSchools = searchSchools(search);
+  const filteredSchools = searchSchools(search, taiwanSchools);
+  const normalizedSearch = normalize(trimmedSearch);
   const isExactMatch = taiwanSchools.some((school) =>
-    isT1Match(school, normalize(trimmedSearch))
+    isT1Match(school, normalizedSearch)
   );
   const showCreateOption = trimmedSearch.length > 0 && !isExactMatch;
 
