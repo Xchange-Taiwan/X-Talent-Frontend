@@ -113,6 +113,14 @@ export function SearchableSelect({
     }
   }, []);
 
+  // 上面的 callback ref 故意忽略 null，所以選單真正關閉時要自己清掉，否則
+  // listRef 會一直抓著已經從 DOM 移除的舊節點，直到下次開啟才被換掉。
+  React.useEffect(() => {
+    if (!open) {
+      listRef.current = null;
+    }
+  }, [open]);
+
   // cmdk 只在 shouldFilter 開啟時才會自己重新排序/捲動；這裡用 search 自行排序
   // (shouldFilter=false)，所以每次結果集換掉時要自己把捲動位置拉回頂端，
   // 否則清單捲軸會停在輸入新字前的位置，導致排序第一的項目被捲到畫面外。

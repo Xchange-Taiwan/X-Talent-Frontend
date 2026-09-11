@@ -120,13 +120,15 @@ function Harness({ open = true }: { open?: boolean }) {
 function ControlledHarness({
   search,
   results,
+  open = true,
 }: {
   search: string;
   results: string[];
+  open?: boolean;
 }) {
   return (
     <SearchableSelect
-      open
+      open={open}
       onOpenChange={() => {}}
       title="選擇學校"
       searchPlaceholder="搜尋學校..."
@@ -283,12 +285,21 @@ describe('SearchableSelect', () => {
   it('resets the list scroll position back to top when the filtered results change', () => {
     stubViewport({ mobile: false });
     const scrollTopWrites: number[] = [];
-    const originalDescriptor = Object.getOwnPropertyDescriptor(
+    // jsdom 把 scrollTop 定義在 Element.prototype 上，不是 HTMLElement.prototype，
+    // 所以要往上找到實際擁有這個屬性的 prototype，restore 時才能真的還原、而不是
+    // 讓 mock 永遠留在 HTMLElement.prototype 上污染後面的測試。
+    const scrollTopOwner = Object.getOwnPropertyDescriptor(
       HTMLElement.prototype,
+      'scrollTop'
+    )
+      ? HTMLElement.prototype
+      : Element.prototype;
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      scrollTopOwner,
       'scrollTop'
     );
 
-    Object.defineProperty(HTMLElement.prototype, 'scrollTop', {
+    Object.defineProperty(scrollTopOwner, 'scrollTop', {
       configurable: true,
       get() {
         return 0;
@@ -312,11 +323,144 @@ describe('SearchableSelect', () => {
       expect(scrollTopWrites).toContain(0);
     } finally {
       if (originalDescriptor) {
-        Object.defineProperty(
-          HTMLElement.prototype,
-          'scrollTop',
-          originalDescriptor
-        );
+        Object.defineProperty(scrollTopOwner, 'scrollTop', originalDescriptor);
+      } else {
+        delete (scrollTopOwner as { scrollTop?: number }).scrollTop;
+      }
+    }
+  });
+
+  // 選單真正關閉（open 變 false）時要把 ref 清空，否則會一直抓著已經卸載的
+  // 舊節點（memory leak）。重新開啟時要能正確抓到新掛載的節點，捲動重置邏輯
+  // 才不會因為 ref 停留在舊的已卸載節點上而變成沒有效果的 no-op。
+  it('re-acquires the list ref after closing and reopening, so scroll reset still works', () => {
+    stubViewport({ mobile: false });
+    const scrollTopOwner = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'scrollTop'
+    )
+      ? HTMLElement.prototype
+      : Element.prototype;
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      scrollTopOwner,
+      'scrollTop'
+    );
+    const scrollTopWrites: number[] = [];
+
+    Object.defineProperty(scrollTopOwner, 'scrollTop', {
+      configurable: true,
+      get() {
+        return 0;
+      },
+      set(value: number) {
+        scrollTopWrites.push(value);
+      },
+    });
+
+    try {
+      const { rerender } = render(
+        <ControlledHarness
+          open
+          search="台"
+          results={['國立臺灣大學', '臺北醫學大學']}
+        />
+      );
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
+
+      // 關閉：呼叫端（例如 SchoolComboboxField）在關閉時會把 search 重置成空字串，
+      // CommandList 隨之卸載，listRef 應該被清空，不再指向舊節點。
+      rerender(
+        <ControlledHarness
+          open={false}
+          search=""
+          results={['國立臺灣大學', '臺北醫學大學']}
+        />
+      );
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+
+      // 重新開啟（search 沿用關閉時已重置的空字串，跟真實使用情境一樣不會在
+      // 這一步同時變更 search）：新節點掛載，ref 要能正確重新抓到它。
+      rerender(
+        <ControlledHarness
+          open
+          search=""
+          results={['國立臺灣大學', '臺北醫學大學']}
+        />
+      );
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
+
+      // 使用者接著才開始打字：這是重新開啟之後、另外一次的 render，此時 ref
+      // 早就掛好了，捲動重置的 effect 應該要能正常作用在目前的節點上。
+      scrollTopWrites.length = 0;
+      rerender(
+        <ControlledHarness open search="台大" results={['國立臺灣大學']} />
+      );
+
+      expect(scrollTopWrites).toContain(0);
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(scrollTopOwner, 'scrollTop', originalDescriptor);
+      } else {
+        delete (scrollTopOwner as { scrollTop?: number }).scrollTop;
+      }
+    }
+  });
+
+  // 桌機 Popover 與手機 Sheet 共用同一個 listRef。斷點跨越時（例如旋轉平板），
+  // desktop 分支關閉、mobile 分支開啟幾乎同時發生，callback ref 必須忽略舊分支
+  // 卸載時傳入的 null，否則捲動重置的功能會在切換斷點之後跟著失效。
+  it('keeps scroll reset working after the breakpoint switches while the dropdown is open', () => {
+    const viewport = stubViewport({ mobile: false });
+    const scrollTopOwner = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'scrollTop'
+    )
+      ? HTMLElement.prototype
+      : Element.prototype;
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      scrollTopOwner,
+      'scrollTop'
+    );
+    const scrollTopWrites: number[] = [];
+
+    Object.defineProperty(scrollTopOwner, 'scrollTop', {
+      configurable: true,
+      get() {
+        return 0;
+      },
+      set(value: number) {
+        scrollTopWrites.push(value);
+      },
+    });
+
+    try {
+      const { rerender } = render(
+        <ControlledHarness
+          open
+          search="台"
+          results={['國立臺灣大學', '臺北醫學大學']}
+        />
+      );
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
+
+      // 跨過斷點：desktop 的 Popover 關閉、mobile 的 Sheet 開啟。search 維持不變，
+      // 跟真實情境一樣不會在同一步驟裡又同時變更 search。
+      viewport.setMobile(true);
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
+
+      // 斷點切換之後才打字（另外一次、分開的 render）：驗證 ref 仍然指向目前
+      // 可見（mobile）的節點，而不是被切換前那個已經關閉的 desktop 節點卡住。
+      scrollTopWrites.length = 0;
+      rerender(
+        <ControlledHarness open search="台大" results={['國立臺灣大學']} />
+      );
+
+      expect(scrollTopWrites).toContain(0);
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(scrollTopOwner, 'scrollTop', originalDescriptor);
+      } else {
+        delete (scrollTopOwner as { scrollTop?: number }).scrollTop;
       }
     }
   });
