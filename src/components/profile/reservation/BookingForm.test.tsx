@@ -79,52 +79,27 @@ describe('BookingForm', () => {
     expect(screen.getByRole('button', { name: '處理中...' })).toBeDisabled();
   });
 
-  it('shows a sign-in prompt instead of the form when isAuthenticated is false', () => {
+  it('disables the submit button if isAuthenticated is false', () => {
     render(<BookingForm {...defaultProps} isAuthenticated={false} />);
-
-    expect(screen.getByText('登入後即可預約導師的時間')).toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: '預約時間' })
-    ).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('你想問導師的問題')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: '前往登入' }));
-    expect(mockRouter.push).toHaveBeenCalledWith('/auth/signin');
+    const submitBtn = screen.getByRole('button', { name: '預約時間' });
+    expect(submitBtn).toBeDisabled();
   });
 
-  it('shows an empty-availability notice with a browse-other-mentors CTA and disables the textarea when hasNoAvailabilityThisMonth is true', () => {
+  it('shows a text-only empty-availability notice (no CTA) and disables the textarea when hasNoAvailabilityThisMonth is true', () => {
     render(<BookingForm {...defaultProps} hasNoAvailabilityThisMonth={true} />);
 
     expect(
-      screen.getByText('這位導師目前尚未開放預約時段')
+      screen.getByText('這位導師本月尚未開放預約時段，可切換月份查看其他時間')
     ).toBeInTheDocument();
     expect(screen.getByLabelText('你想問導師的問題')).toBeDisabled();
+    // The calendar above this form is still navigable to a later month, so
+    // there's no "browse other mentors" escape hatch to steer people away.
     expect(
-      screen.queryByRole('button', { name: '預約時間' })
+      screen.queryByRole('button', { name: '瀏覽其他導師' })
     ).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: '瀏覽其他導師' }));
-    expect(mockRouter.push).toHaveBeenCalledWith('/mentor-pool');
-  });
-
-  it('prioritizes the no-availability notice over the sign-in prompt when both apply, since logging in would not unlock anything to book', () => {
-    render(
-      <BookingForm
-        {...defaultProps}
-        isAuthenticated={false}
-        hasNoAvailabilityThisMonth={true}
-      />
-    );
-
-    expect(
-      screen.getByText('這位導師目前尚未開放預約時段')
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText('登入後即可預約導師的時間')
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: '前往登入' })
-    ).not.toBeInTheDocument();
+    // Submit stays visible (just disabled via the missing selectedSlot),
+    // rather than being swapped out for a different control.
+    expect(screen.getByRole('button', { name: '預約時間' })).toBeDisabled();
   });
 
   it('renders booking slots and the question input when not own profile', () => {
@@ -167,6 +142,20 @@ describe('BookingForm', () => {
     expect(screen.getByText('無可預約的時段')).toBeInTheDocument();
   });
 
+  it('keeps the question textarea disabled until a slot is selected, then enables it', () => {
+    const { rerender } = render(<BookingForm {...defaultProps} />);
+
+    expect(screen.getByLabelText('你想問導師的問題')).toBeDisabled();
+
+    rerender(<BookingForm {...defaultProps} selectedSlot={mockSlots[0]} />);
+    expect(screen.getByLabelText('你想問導師的問題')).not.toBeDisabled();
+
+    // Deselecting (e.g. the slot got taken) locks it back down - any text
+    // already typed stays in the uncontrolled field, just non-editable.
+    rerender(<BookingForm {...defaultProps} selectedSlot={null} />);
+    expect(screen.getByLabelText('你想問導師的問題')).toBeDisabled();
+  });
+
   it('disables the submit button if slot or question is missing (including test coverage gap)', async () => {
     const { rerender } = render(<BookingForm {...defaultProps} />);
 
@@ -184,18 +173,18 @@ describe('BookingForm', () => {
       ).not.toBeDisabled();
     });
 
-    // Scenario 3: [TEST GAP FIX] selectedSlot is null, but question is filled
-    rerender(<BookingForm {...defaultProps} selectedSlot={null} />);
+    // Scenario 3: [TEST GAP FIX] Select slot, but question is too long (> 1000 chars)
     const textarea = screen.getByPlaceholderText('請在此輸入你的問題...');
-    fireEvent.change(textarea, { target: { value: 'How to learn TS?' } });
-    expect(screen.getByRole('button', { name: '預約時間' })).toBeDisabled();
-
-    // Scenario 4: [TEST GAP FIX] Select slot, but question is too long (> 1000 chars)
-    rerender(<BookingForm {...defaultProps} selectedSlot={mockSlots[0]} />);
     fireEvent.change(textarea, { target: { value: 'a'.repeat(1001) } });
     await waitFor(() => {
       expect(screen.getByRole('button', { name: '預約時間' })).toBeDisabled();
     });
+
+    // Scenario 4: clearing the slot after typing disables submit again, even
+    // with a (now-uneditable) question still sitting in the field.
+    fireEvent.change(textarea, { target: { value: 'How to learn TS?' } });
+    rerender(<BookingForm {...defaultProps} selectedSlot={null} />);
+    expect(screen.getByRole('button', { name: '預約時間' })).toBeDisabled();
   });
 
   it('enables the submit button, handles confirm, and resets the textarea on success', async () => {
