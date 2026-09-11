@@ -26,7 +26,7 @@ const NAV_LINK_CLASSES = cn(
   "text-text-primary rounded-sm font-['Open_Sans'] text-base",
   FOCUS_RING_CLASSES
 );
-const NAV_LINK_HOVER_CLASSES = 'hover:text-brand-600 transition-colors';
+const NAV_LINK_HOVER_CLASSES = 'hover:text-brand-700 transition-colors';
 
 function HeaderComponent(): JSX.Element {
   const { data: session } = useSession();
