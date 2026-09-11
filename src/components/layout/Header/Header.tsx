@@ -27,7 +27,7 @@ const NAV_LINK_CLASSES = cn(
   'text-text-primary rounded-sm font-open-sans text-base',
   FOCUS_RING_CLASSES
 );
-const NAV_LINK_HOVER_CLASSES = cn(HOVER_TEXT_LINK_CLASSES, 'transition-colors');
+const NAV_LINK_HOVER_CLASSES = HOVER_TEXT_LINK_CLASSES;
 
 function HeaderComponent(): JSX.Element {
   const { data: session } = useSession();
