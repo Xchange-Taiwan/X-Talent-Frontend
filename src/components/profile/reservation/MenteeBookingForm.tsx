@@ -1,6 +1,7 @@
 'use client';
 
 import { Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -14,6 +15,37 @@ import { cn } from '@/lib/utils';
 import type { BookingFormValues } from '@/schemas/bookingSchema';
 
 import { BOOKED_SLOT_CLASSES, ScheduleSlotList } from './ScheduleSlotList';
+
+/** Shared shell for the sign-in and no-availability empty states below - both are a dashed card with a message and one optional CTA. */
+function BookingPromptCard({
+  message,
+  action,
+}: {
+  message: string;
+  action?: {
+    label: string;
+    onClick: () => void;
+    variant?: 'default' | 'outline';
+  };
+}) {
+  return (
+    <Card className="w-full border-dashed">
+      <CardContent className="flex flex-col items-center gap-3 p-6 text-center">
+        <p className="text-text-secondary text-sm">{message}</p>
+        {action && (
+          <Button
+            type="button"
+            variant={action.variant ?? 'default'}
+            className="rounded-full px-6"
+            onClick={action.onClick}
+          >
+            {action.label}
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 interface MenteeBookingFormProps {
   slots: BookingSlot[];
@@ -39,6 +71,7 @@ export function MenteeBookingForm({
   isAuthenticated,
   hasNoAvailabilityThisMonth = false,
 }: MenteeBookingFormProps) {
+  const router = useRouter();
   const {
     register,
     handleSubmit,
@@ -53,9 +86,58 @@ export function MenteeBookingForm({
     }
   };
 
+  // Checked before the sign-in gate below: if the mentor has nothing
+  // bookable this month, logging in wouldn't change that - sending an
+  // anonymous visitor through sign-in only to land back on this same empty
+  // state is exactly the wasted effort this ticket exists to remove. The
+  // textarea still renders (disabled) rather than disappearing entirely, so
+  // the form doesn't jump between two different shapes depending on auth.
+  if (hasNoAvailabilityThisMonth) {
+    return (
+      <div className="flex w-full flex-col gap-4">
+        <BookingPromptCard
+          message="這位導師目前尚未開放預約時段"
+          action={{
+            label: '瀏覽其他導師',
+            onClick: () => router.push('/mentor-pool'),
+            variant: 'outline',
+          }}
+        />
+        <div className="flex w-full flex-col gap-2">
+          <label htmlFor="booking-question" className="text-sm font-semibold">
+            你想問導師的問題
+          </label>
+          <Textarea
+            id="booking-question"
+            placeholder="請在此輸入你的問題..."
+            className={cn(
+              'border-background-border h-[156px] w-full rounded-lg',
+              FOCUS_RING_NO_OFFSET_CLASSES
+            )}
+            disabled
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Anonymous visitors hit a dead end if they're allowed to fill in the rest
+  // of the form: the submit button stays disabled with no explanation until
+  // they try it. Swap the whole form for a sign-in prompt up front instead.
+  if (!isAuthenticated) {
+    return (
+      <BookingPromptCard
+        message="登入後即可預約導師的時間"
+        action={{
+          label: '前往登入',
+          onClick: () => router.push('/auth/signin'),
+        }}
+      />
+    );
+  }
+
   const isButtonDisabled =
     isSubmitting ||
-    !isAuthenticated ||
     !selectedDate ||
     !selectedSlot ||
     isSlotTaken(selectedSlot) ||
@@ -66,43 +148,29 @@ export function MenteeBookingForm({
       onSubmit={handleSubmit(onSubmit)}
       className="flex w-full flex-col gap-4"
     >
-      {hasNoAvailabilityThisMonth ? (
-        // Text-only, no CTA: the calendar above this form is still fully
-        // navigable, so a mentor who opens up again in a later month is one
-        // page-flip away - a "browse other mentors" button here would just
-        // steer people away from someone they could still book.
-        <Card className="w-full border-dashed">
-          <CardContent className="p-6 text-center">
-            <p className="text-text-secondary text-sm">
-              這位導師本月尚未開放預約時段，可切換月份查看其他時間
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <ScheduleSlotList
-          slots={slots}
-          monthLoaded={monthLoaded}
-          renderSlot={(slot) => {
-            const isSelected =
-              selectedSlot?.start.getTime() === slot.start.getTime();
-            const taken = isSlotTaken(slot);
-            return (
-              <Button
-                key={`${slot.scheduleId}_${slot.start.getTime()}`}
-                type="button"
-                variant={isSelected ? 'default' : 'outline'}
-                disabled={taken}
-                onClick={() => setSelectedSlot(slot)}
-                className={`h-10 w-full text-sm ${
-                  taken ? BOOKED_SLOT_CLASSES : ''
-                }`}
-              >
-                {formatBookingSlotTime(slot)}
-              </Button>
-            );
-          }}
-        />
-      )}
+      <ScheduleSlotList
+        slots={slots}
+        monthLoaded={monthLoaded}
+        renderSlot={(slot) => {
+          const isSelected =
+            selectedSlot?.start.getTime() === slot.start.getTime();
+          const taken = isSlotTaken(slot);
+          return (
+            <Button
+              key={`${slot.scheduleId}_${slot.start.getTime()}`}
+              type="button"
+              variant={isSelected ? 'default' : 'outline'}
+              disabled={taken}
+              onClick={() => setSelectedSlot(slot)}
+              className={`h-10 w-full text-sm ${
+                taken ? BOOKED_SLOT_CLASSES : ''
+              }`}
+            >
+              {formatBookingSlotTime(slot)}
+            </Button>
+          );
+        }}
+      />
 
       <div className="flex w-full flex-col gap-2">
         <label htmlFor="booking-question" className="text-sm font-semibold">
@@ -115,10 +183,7 @@ export function MenteeBookingForm({
             'border-background-border h-[156px] w-full rounded-lg',
             FOCUS_RING_NO_OFFSET_CLASSES
           )}
-          // Gated on having an actual slot picked, not just on this month
-          // being empty: a slot two months out disables it exactly the same
-          // way, with no separate "which month" logic to keep in sync.
-          disabled={isSubmitting || !selectedSlot}
+          disabled={isSubmitting}
           {...register('bookingQuestion')}
         />
         {errors.bookingQuestion && (
