@@ -2,7 +2,7 @@
 
 import dayjs from 'dayjs';
 import { Loader2 } from 'lucide-react';
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useMemo, useState } from 'react';
 import { DayButton } from 'react-day-picker';
 import { useSwipeable } from 'react-swipeable';
 
@@ -236,37 +236,9 @@ export const ScheduleCalendar = ({
     preventScrollOnSwipe: false,
   });
 
-  const availableDays = useMemo(
-    () =>
-      highlightAvailableDates
-        ? allowedDates.map((dateStr) => new Date(`${dateStr}T00:00:00`))
-        : [],
-    [highlightAvailableDates, allowedDates]
-  );
-
-  // Lets CalendarDayButton tell a disabled past date apart from a disabled
-  // future one with no open slot (see the `past` modifier className below).
-  // Deliberately starts null and is only set from an effect: the server and
-  // a first-hydrating client can be on either side of midnight or in
-  // different timezones, so computing `new Date()` directly during render
-  // would make the initial SSR/CSR pass disagree on which days are past and
-  // trigger a hydration mismatch. Server and first client render both skip
-  // the `past` modifier (identical output); the client fills it in right
-  // after mount, a plain post-hydration state update.
-  const [todayStart, setTodayStart] = useState<Date | null>(null);
-  useEffect(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    setTodayStart(today);
-  }, []);
-
-  const modifiers = useMemo(
-    () => ({
-      available: availableDays,
-      ...(todayStart ? { past: { before: todayStart } } : {}),
-    }),
-    [availableDays, todayStart]
-  );
+  const availableDays = highlightAvailableDates
+    ? allowedDates.map((dateStr) => new Date(`${dateStr}T00:00:00`))
+    : [];
 
   const contextValue = useMemo(
     () => ({ getDateStatus, size }),
@@ -298,7 +270,9 @@ export const ScheduleCalendar = ({
               selected={selected}
               onSelect={handleSelect}
               onMonthChange={handleMonthChange}
-              modifiers={modifiers}
+              modifiers={{
+                available: availableDays,
+              }}
               modifiersClassNames={{
                 available: 'rdp-day-available',
               }}

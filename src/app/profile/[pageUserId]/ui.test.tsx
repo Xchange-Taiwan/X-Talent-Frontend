@@ -18,18 +18,8 @@ vi.mock('next/image', () => ({
 // the flash-prevention gating this file tests - stub each with a marker so
 // we can assert whether it rendered and inspect the props that matter here.
 vi.mock('@/components/profile/reservation/BookingForm', () => ({
-  BookingForm: ({
-    isUserDataLoading,
-    hasNoAvailabilityThisMonth,
-  }: {
-    isUserDataLoading: boolean;
-    hasNoAvailabilityThisMonth: boolean;
-  }) => (
-    <div
-      data-testid="booking-form"
-      data-loading={String(isUserDataLoading)}
-      data-no-availability={String(hasNoAvailabilityThisMonth)}
-    />
+  BookingForm: ({ isUserDataLoading }: { isUserDataLoading: boolean }) => (
+    <div data-testid="booking-form" data-loading={String(isUserDataLoading)} />
   ),
 }));
 const scheduleCalendarMock = vi.hoisted(() => ({
@@ -44,19 +34,15 @@ vi.mock('@/components/profile/reservation/ScheduleCalendar', () => ({
 
 import ProfilePageUI from './ui';
 
-function buildSchedule(
-  overrides: Partial<BookingCalendarReader> = {}
-): BookingCalendarReader {
+function buildSchedule(): BookingCalendarReader {
   return {
     selectedDate: '2026-08-20',
     setSelectedDate: vi.fn(),
     allowedDates: [],
     slotsSnapshot: { slots: [], monthLoaded: true, reservationsLoaded: true },
-    hasNoAvailabilityThisMonth: false,
     getDayBookingStatus: vi.fn(() => null),
     isFetching: false,
     reload: vi.fn(),
-    ...overrides,
   };
 }
 
@@ -185,36 +171,6 @@ describe('ProfilePageUI - identity-resolution flash prevention', () => {
     expect(screen.getByTestId('booking-form')).toHaveAttribute(
       'data-loading',
       'false'
-    );
-  });
-
-  it('passes schedule.hasNoAvailabilityThisMonth through to BookingForm', () => {
-    const { rerender } = render(
-      <ProfilePageUI
-        {...baseProps({
-          userData: buildUserData({ is_mentor: true }),
-          schedule: buildSchedule({ hasNoAvailabilityThisMonth: false }),
-        })}
-      />
-    );
-
-    expect(screen.getByTestId('booking-form')).toHaveAttribute(
-      'data-no-availability',
-      'false'
-    );
-
-    rerender(
-      <ProfilePageUI
-        {...baseProps({
-          userData: buildUserData({ is_mentor: true }),
-          schedule: buildSchedule({ hasNoAvailabilityThisMonth: true }),
-        })}
-      />
-    );
-
-    expect(screen.getByTestId('booking-form')).toHaveAttribute(
-      'data-no-availability',
-      'true'
     );
   });
 
