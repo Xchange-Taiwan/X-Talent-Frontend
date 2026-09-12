@@ -128,6 +128,4 @@ export interface BookingCalendarReader {
   isFetching: boolean;
   reload?: () => Promise<void>;
   hasError?: boolean;
-  /** True once the currently browsed month has resolved to zero bookable dates. */
-  hasNoAvailabilityThisMonth: boolean;
 }

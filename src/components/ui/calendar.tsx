@@ -196,12 +196,10 @@ function Calendar({
           defaultClassNames.outside
         ),
 
-        // Opacity is applied per-day in CalendarDayButton instead of here,
-        // so a disabled past date can look more "gone" than a disabled
-        // future date that simply has no open slot yet (see the `past`
-        // modifier there) - a single static class here couldn't tell the two
-        // apart.
-        disabled: cn('text-text-tertiary', defaultClassNames.disabled),
+        disabled: cn(
+          'text-text-tertiary opacity-50',
+          defaultClassNames.disabled
+        ),
 
         hidden: cn('invisible', defaultClassNames.hidden),
 
@@ -256,65 +254,6 @@ function Calendar({
   );
 }
 
-// Static - no props/state ever feed into these, so they're built once at
-// module scope instead of re-joining the same array on every CalendarDayButton
-// render (this component is instantiated ~35-42 times per visible month).
-const DAY_BUTTON_BASE_CLASSES = [
-  'flex',
-
-  // Keep the circle responsive and round.
-  '!h-auto',
-  '!w-full',
-  'aspect-square',
-  'max-w-[var(--cell-size)]',
-
-  'shrink-0',
-  'flex-col',
-  'items-center',
-  'justify-center',
-  'gap-1',
-  'rounded-full',
-
-  // Controlled by ScheduleCalendar size.
-  'text-[length:var(--calendar-day-font-size)]',
-
-  'font-normal',
-  'leading-none',
-
-  // Range / selected shape - kept unconditional (shape only, no
-  // color) since it's harmless even on the rare frame where a
-  // disabled day is still the bound `selected` value.
-  'data-[range-end=true]:rounded-md',
-  'data-[range-middle=true]:rounded-none',
-  'data-[range-start=true]:rounded-md',
-
-  // Focus state. Reconciled with standard ring-2 and ring-ring focus styles for visual consistency across the app.
-  'group-data-[focused=true]/day:relative',
-  'group-data-[focused=true]/day:z-10',
-  'group-data-[focused=true]/day:border-ring',
-  'group-data-[focused=true]/day:ring-2',
-  'group-data-[focused=true]/day:ring-ring',
-
-  '[&>span]:text-xs',
-  '[&>span]:opacity-70',
-].join(' ');
-
-const DAY_BUTTON_SELECTED_RANGE_CLASSES = [
-  'data-[range-end=true]:bg-brand-500',
-  'data-[range-middle=true]:bg-background-bottom',
-  'data-[range-start=true]:bg-brand-500',
-  'data-[selected-single=true]:bg-brand-500',
-  'data-[selected-single=true]:text-text-primary',
-  'group-data-[variant=profile]/calendar:data-[selected-single=true]:bg-brand-100',
-  'group-data-[variant=profile]/calendar:data-[selected-single=true]:text-text-primary',
-  'group-data-[variant=profile]/calendar:data-[selected-single=true]:font-medium',
-  'group-data-[variant=profile]/calendar:data-[selected-single=true]:border',
-  'group-data-[variant=profile]/calendar:data-[selected-single=true]:border-brand-300',
-  'data-[range-end=true]:text-text-primary',
-  'data-[range-middle=true]:text-text-primary',
-  'data-[range-start=true]:text-text-primary',
-].join(' ');
-
 function CalendarDayButton({
   className,
   day,
@@ -334,7 +273,6 @@ function CalendarDayButton({
   const isAvailable =
     Boolean((modifiers as Record<string, boolean>).available) ||
     Boolean(className?.includes('rdp-day-available'));
-  const isPast = Boolean((modifiers as Record<string, boolean>).past);
 
   return (
     <Button
@@ -355,25 +293,61 @@ function CalendarDayButton({
       className={cn(
         defaultClassNames.day,
         className,
-        DAY_BUTTON_BASE_CLASSES,
+        [
+          'flex',
 
-        // Selected/range color only applies to a day the user can actually
-        // act on. Without this guard, a disabled day that's still the bound
-        // `selected` value (e.g. the calendar defaults `selected` to today
-        // before the mentee has picked anything, and today may have no open
-        // slot) renders with the same highlight as a real selection, even
-        // though it can't be clicked.
-        !modifiers.disabled && DAY_BUTTON_SELECTED_RANGE_CLASSES,
+          // Keep the circle responsive and round.
+          '!h-auto',
+          '!w-full',
+          'aspect-square',
+          'max-w-[var(--cell-size)]',
+
+          'shrink-0',
+          'flex-col',
+          'items-center',
+          'justify-center',
+          'gap-1',
+          'rounded-full',
+
+          // Controlled by ScheduleCalendar size.
+          'text-[length:var(--calendar-day-font-size)]',
+
+          'font-normal',
+          'leading-none',
+
+          // Range / selected states.
+          'data-[range-end=true]:rounded-md',
+          'data-[range-middle=true]:rounded-none',
+          'data-[range-start=true]:rounded-md',
+          'data-[range-end=true]:bg-brand-500',
+          'data-[range-middle=true]:bg-background-bottom',
+          'data-[range-start=true]:bg-brand-500',
+          'data-[selected-single=true]:bg-brand-500',
+          'data-[selected-single=true]:text-text-primary',
+          'group-data-[variant=profile]/calendar:data-[selected-single=true]:bg-brand-100',
+          'group-data-[variant=profile]/calendar:data-[selected-single=true]:text-text-primary',
+          'group-data-[variant=profile]/calendar:data-[selected-single=true]:font-medium',
+          'group-data-[variant=profile]/calendar:data-[selected-single=true]:border',
+          'group-data-[variant=profile]/calendar:data-[selected-single=true]:border-brand-300',
+          'data-[range-end=true]:text-text-primary',
+          'data-[range-middle=true]:text-text-primary',
+          'data-[range-start=true]:text-text-primary',
+
+          // Focus state. Reconciled with standard ring-2 and ring-ring focus styles for visual consistency across the app.
+          'group-data-[focused=true]/day:relative',
+          'group-data-[focused=true]/day:z-10',
+          'group-data-[focused=true]/day:border-ring',
+          'group-data-[focused=true]/day:ring-2',
+          'group-data-[focused=true]/day:ring-ring',
+
+          '[&>span]:text-xs',
+          '[&>span]:opacity-70',
+        ].join(' '),
 
         isAvailable &&
           !modifiers.selected &&
           !modifiers.disabled &&
           'bg-brand-500/20 hover:bg-brand-500/30',
-
-        // A past date is fully gone; a future date with no open slot yet
-        // still reads as "possibly opens later" - opacity tells them apart
-        // (see the disabled `text-text-tertiary` base in Calendar above).
-        modifiers.disabled && (isPast ? 'opacity-30' : 'opacity-60'),
 
         !modifiers.disabled &&
           'group-data-[variant=profile]/calendar:text-text-primary group-data-[variant=profile]/calendar:font-medium'

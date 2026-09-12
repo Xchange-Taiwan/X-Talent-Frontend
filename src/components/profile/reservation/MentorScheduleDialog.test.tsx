@@ -93,7 +93,6 @@ const mockReader: BookingCalendarReader = {
   setSelectedDate: vi.fn(),
   allowedDates: ['2026-07-26'],
   slotsSnapshot: { slots: [], monthLoaded: true, reservationsLoaded: true },
-  hasNoAvailabilityThisMonth: false,
   getDayBookingStatus: vi.fn().mockReturnValue(null),
   isFetching: false,
   reload: vi.fn().mockResolvedValue(undefined),

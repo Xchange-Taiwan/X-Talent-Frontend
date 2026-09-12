@@ -24,8 +24,6 @@ interface BookingFormProps {
   onConfirmReservation: (question?: string) => Promise<boolean>;
   myUserId?: string;
   onMutationSuccess?: () => void | Promise<void>;
-  /** True once the currently browsed month has resolved to zero bookable dates. */
-  hasNoAvailabilityThisMonth?: boolean;
 }
 
 export function BookingForm({
@@ -41,7 +39,6 @@ export function BookingForm({
   onConfirmReservation,
   myUserId,
   onMutationSuccess,
-  hasNoAvailabilityThisMonth = false,
 }: BookingFormProps) {
   const router = useRouter();
   const { slots, monthLoaded } = slotsSnapshot;
@@ -89,7 +86,6 @@ export function BookingForm({
           selectedDate={selectedDate}
           onConfirmReservation={onConfirmReservation}
           isAuthenticated={isAuthenticated}
-          hasNoAvailabilityThisMonth={hasNoAvailabilityThisMonth}
         />
       )}
     </div>

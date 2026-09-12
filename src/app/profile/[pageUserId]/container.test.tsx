@@ -45,8 +45,6 @@ vi.mock('@/hooks/useMentorSchedule', () => ({
       selectedDate: '2026-08-20',
       setSelectedDate: vi.fn(),
       allowedDates: [],
-      slotsSnapshot: { slots: [], monthLoaded: true, reservationsLoaded: true },
-      hasNoAvailabilityThisMonth: false,
       reload: vi.fn(),
     },
     // Always non-null here: the container additionally gates rendering the
