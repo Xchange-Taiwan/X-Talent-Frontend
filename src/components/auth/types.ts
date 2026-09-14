@@ -6,7 +6,7 @@ export interface AuthFormProps<T extends FieldValues> {
   onSubmit: (values: T) => Promise<void>;
 }
 
-export type AuthPageType = 'signin' | 'signup';
+type AuthPageType = 'signin' | 'signup';
 type AuthFieldNames<T extends AuthPageType> = T extends 'signin'
   ? 'email' | 'password'
   : 'email' | 'password' | 'confirm_password';

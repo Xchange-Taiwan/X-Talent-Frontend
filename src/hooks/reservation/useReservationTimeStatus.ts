@@ -2,8 +2,7 @@
 
 import { useSyncExternalStore } from 'react';
 
-export type ReservationTimeStatus =
-  'far' | 'soon' | 'imminent' | 'live' | 'ended';
+type ReservationTimeStatus = 'far' | 'soon' | 'imminent' | 'live' | 'ended';
 
 export interface ReservationTimeInfo {
   status: ReservationTimeStatus;

@@ -512,7 +512,7 @@ export function buildBaseEvent(
  * - 'warning': expected-but-abnormal (rate limits, sync timeouts, conflicts)
  * - 'info': expected user-input failure (wrong password, email already taken)
  */
-export type FlowFailureLevel = 'error' | 'warning' | 'info';
+type FlowFailureLevel = 'error' | 'warning' | 'info';
 
 /**
  * Structured event for a failure in a critical user flow.

@@ -1,3 +1,4 @@
+import { fromAny } from '@total-typescript/shoehorn';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -193,8 +194,8 @@ describe('searchParams', () => {
     it('clears all filters when filters object has empty or null values', () => {
       const base = new URLSearchParams('q=hello&filter_skills=vue');
       const result = setSelectedFiltersOnParams(base, {
-        filter_skills: undefined as any,
-        filter_topics: null as any,
+        filter_skills: fromAny(undefined),
+        filter_topics: fromAny(null),
       });
       expect(result.get('q')).toBe('hello');
       expect(result.get('filter_skills')).toBeNull();

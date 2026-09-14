@@ -4,12 +4,12 @@ export interface KeyedCacheOptions {
   ttlMs?: number;
 }
 
-export interface PrimeOptions {
+interface PrimeOptions {
   ifEmpty?: boolean;
   ttlMs?: number;
 }
 
-export interface CacheEntryResult<V> {
+interface CacheEntryResult<V> {
   value: V;
   isStale: boolean;
 }

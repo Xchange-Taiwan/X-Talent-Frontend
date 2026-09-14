@@ -92,7 +92,7 @@ async function markReadInBatches(
   return failedIds;
 }
 
-export type { NotificationItem, NotificationStatus };
+export type { NotificationItem };
 
 export type UseNotificationCenterProps = {
   userId?: string;

@@ -30,5 +30,3 @@ export const FormMockWrapper = <
     </Form>
   );
 };
-
-export default FormMockWrapper;

@@ -14,7 +14,7 @@ import type { Reservation } from '@/types/reservation';
 
 import { ProfileLinkWrapper } from './ProfileLinkWrapper';
 
-export type ReservationIdentityDensity = 'default' | 'compact';
+type ReservationIdentityDensity = 'default' | 'compact';
 
 const containerPaddingByDensity: Record<ReservationIdentityDensity, string> = {
   default: 'p-4 sm:p-5',
@@ -26,7 +26,7 @@ const containerPaddingByDensity: Record<ReservationIdentityDensity, string> = {
  * `compact` - AcceptReservationDialog's smaller, non-responsive avatar and plainer text.
  * `card` - ReservationCard's top-aligned layout with a wrapped, shrink-0 badge slot.
  */
-export type ReservationIdentityHeaderVariant = 'dialog' | 'compact' | 'card';
+type ReservationIdentityHeaderVariant = 'dialog' | 'compact' | 'card';
 
 interface HeaderVariantStyle {
   avatarClassName: string;
@@ -208,7 +208,7 @@ export function ReservationIdentityHeader({
  * `accept` - AcceptReservationDialog's smaller avatar, plainer date/time row,
  * and no auto-rendered message blocks (it renders its own, differently labeled).
  */
-export type ReservationIdentityVariant = 'dialog' | 'accept';
+type ReservationIdentityVariant = 'dialog' | 'accept';
 
 const headerVariantByIdentityVariant: Record<
   ReservationIdentityVariant,

@@ -7,31 +7,16 @@ import type { MentorProfileVO } from '@/types/user';
 import {
   clearUserProfileDtoCache,
   getLastPrimedTime,
-  getUserProfileDtoFromCache,
-  isOptimisticTransitionActive,
-  OPTIMISTIC_TRANSITION_WINDOW_MS,
   primeUserProfileDtoCache,
-  primeUserProfileDtoCacheIfEmpty,
-  subscribeTransition,
-  subscribeUserProfileDtoCache,
   USER_PROFILE_DTO_CACHE_TTL_MS,
-  userProfileDtoCache,
   userProfileDtoReadManager,
 } from './userProfileDtoCache';
 
 export {
   clearUserProfileDtoCache,
   getLastPrimedTime,
-  getUserProfileDtoFromCache,
-  isOptimisticTransitionActive,
-  OPTIMISTIC_TRANSITION_WINDOW_MS,
   primeUserProfileDtoCache,
-  primeUserProfileDtoCacheIfEmpty,
-  subscribeTransition,
-  subscribeUserProfileDtoCache,
   USER_PROFILE_DTO_CACHE_TTL_MS,
-  userProfileDtoCache,
-  userProfileDtoReadManager,
 };
 
 export type ProfileFetchError = 'USER_NOT_FOUND' | 'FETCH_FAILED' | null;

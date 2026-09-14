@@ -14,7 +14,7 @@ import { Reservation } from '@/types/reservation';
 export type Variant =
   'upcoming' | 'pending-mentee' | 'pending-mentor' | 'history';
 
-export const ACCEPT_AFFECTED_TABS: MutationAffectedTabs = {
+const ACCEPT_AFFECTED_TABS: MutationAffectedTabs = {
   source: 'pending',
   destinations: ['upcoming'],
 };

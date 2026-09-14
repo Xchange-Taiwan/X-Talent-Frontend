@@ -1,11 +1,8 @@
 import type { StaticImageData } from 'next/image';
 
-import type { WorkExperienceMetadata } from '@/lib/profile/experienceCodec';
 import type { components } from '@/types/api';
 
 export type RawMentor = components['schemas']['SearchMentorProfileVO'];
-
-export type { WorkExperienceMetadata };
 
 export interface MentorType {
   user_id: number;

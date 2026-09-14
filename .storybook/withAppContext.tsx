@@ -3,7 +3,7 @@ import type { Decorator } from '@storybook/react';
 import { SessionContext, SessionContextValue } from 'next-auth/react';
 import type { Session } from 'next-auth';
 
-export const defaultMockUser = {
+const defaultMockUser = {
   id: 'test-user-id',
   email: 'test@example.com',
   name: 'Test User',
@@ -159,4 +159,3 @@ export const withAppContext: Decorator = (Story, context) => {
     </SessionContext.Provider>
   );
 };
-export default withAppContext;
