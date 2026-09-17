@@ -34,10 +34,14 @@ jobs:
 
       - name: Deploy to Vercel (Production for develop)
         id: deploy
+        shell: bash
         run: |
+          set -euo pipefail
           echo "🚀 Deploying to Vercel Production (develop)..."
-          url=$(vercel deploy --prebuilt --prod --archive=tgz --token=${{ env.VERCEL_TOKEN }} | tail -n 1)
-          echo "vercel_url=${url}" >> $GITHUB_OUTPUT
+          out="$(vercel deploy --prebuilt --prod --archive=tgz --token=${{ env.VERCEL_TOKEN }})"
+          echo "$out"
+          url="$(printf '%s\n' "$out" | tail -n 1)"
+          echo "vercel_url=$url" >> "$GITHUB_OUTPUT"
 
       - name: Comment on commit with deploy URL
         uses: actions/github-script@v9
