@@ -3,7 +3,7 @@ process.env.TZ = 'UTC';
 import dayjs from 'dayjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { MonthDraftStore } from './MonthDraftStore';
+import { MonthDraftStore, SlotDurationMinutes } from './MonthDraftStore';
 import { RawMentorTimeslot } from './scheduleHelpers';
 
 describe('MonthDraftStore Unit Tests', () => {
@@ -853,6 +853,25 @@ describe('MonthDraftStore Unit Tests', () => {
       expect(req.upsertPayload[0].id).toBe(101);
     });
 
+    it('marks a slot with a positive id as a fresh create when that id was never actually persisted', () => {
+      // A draft row can carry a positive id without ever having been saved
+      // (e.g. left over after a partial `reset()`). Only ids present in
+      // savedByMonth should be forwarded on the sync payload.
+      const neverPersistedRow: RawMentorTimeslot = {
+        ...defaultMockRaws[0],
+        id: 999,
+      };
+      const store = new MonthDraftStore({
+        savedByMonth: new Map(),
+        draftByMonth: new Map([['2026-07', [neverPersistedRow]]]),
+        dirtyMonths: new Set(['2026-07']),
+      });
+
+      const [req] = store.getSyncRequests('user-123');
+      expect(req.upsertPayload).toHaveLength(1);
+      expect(req.upsertPayload[0].id).toBeUndefined();
+    });
+
     it('dedupes upserts with identical (dtstart, dtend) and routes the persisted duplicate into deleteIds', () => {
       const duplicateRow: RawMentorTimeslot = {
         id: 103,
@@ -875,6 +894,419 @@ describe('MonthDraftStore Unit Tests', () => {
       const [req] = store.getSyncRequests('user-123');
       expect(req.upsertPayload).toHaveLength(1);
       expect(req.deleteIds).toContain(103);
+    });
+  });
+
+  describe('edit() no-op vs. real change detection', () => {
+    // buildDateTime always zeroes seconds/ms when reconstructing from an
+    // HH:mm string, so a round-trip no-op is only possible when dtstart is
+    // already minute-aligned (unlike defaultMockRaws' :40s dtstart).
+    const minuteAlignedRow: RawMentorTimeslot = {
+      id: 101,
+      type: 'ALLOW' as const,
+      dtstart: 1785069960, // July 26, 2026 12:46:00 PM UTC (whole minute)
+      dtend: 1785071760,
+      rrule: undefined,
+      exdate: [],
+    };
+
+    it('is a no-op and does not mark the month dirty when the occurrence value is unchanged', () => {
+      const draftMap = new Map<string, RawMentorTimeslot[]>([
+        ['2026-07', [minuteAlignedRow]],
+      ]);
+      const store = new MonthDraftStore({ draftByMonth: draftMap });
+
+      const startHM = dayjs(minuteAlignedRow.dtstart * 1000).format('HH:mm');
+      const res = store.edit(
+        101,
+        minuteAlignedRow.dtstart,
+        { startTime: startHM, durationMinutes: 30 },
+        '123'
+      );
+
+      expect(res).toEqual({ success: true });
+      const snap = store.snapshot();
+      expect(snap.dirtyMonths.has('2026-07')).toBe(false);
+      expect(snap.draftByMonth.get('2026-07')).toEqual([minuteAlignedRow]);
+    });
+
+    it('treats a duration-only change (same start time) as a real change requiring sync', () => {
+      const draftMap = new Map<string, RawMentorTimeslot[]>([
+        ['2026-07', [minuteAlignedRow]],
+      ]);
+      const store = new MonthDraftStore({ draftByMonth: draftMap });
+
+      const startHM = dayjs(minuteAlignedRow.dtstart * 1000).format('HH:mm');
+      const res = store.edit(
+        101,
+        minuteAlignedRow.dtstart,
+        { startTime: startHM, durationMinutes: 45 },
+        '123'
+      );
+
+      expect(res.success).toBe(true);
+      const snap = store.snapshot();
+      expect(snap.dirtyMonths.has('2026-07')).toBe(true);
+      const updated = snap.draftByMonth
+        .get('2026-07')
+        ?.find((r) => r.id === 101);
+      expect(updated!.dtend - updated!.dtstart).toBe(45 * 60);
+    });
+
+    it('defaults the start time to the occurrence itself when only duration is patched', () => {
+      const draftMap = new Map<string, RawMentorTimeslot[]>([
+        ['2026-07', [minuteAlignedRow]],
+      ]);
+      const store = new MonthDraftStore({ draftByMonth: draftMap });
+
+      const res = store.edit(
+        101,
+        minuteAlignedRow.dtstart,
+        { durationMinutes: 45 },
+        '123'
+      );
+
+      expect(res.success).toBe(true);
+      const updated = store
+        .snapshot()
+        .draftByMonth.get('2026-07')
+        ?.find((r) => r.id === 101);
+      // Start time is unchanged (no startTime patch was given); only the
+      // duration grew.
+      expect(updated!.dtstart).toBe(minuteAlignedRow.dtstart);
+      expect(updated!.dtend - updated!.dtstart).toBe(45 * 60);
+    });
+  });
+
+  describe('edit() cross-month move when the target month is not yet loaded', () => {
+    const recurringRow: RawMentorTimeslot = {
+      id: 101,
+      type: 'ALLOW' as const,
+      dtstart: 1785070000, // occurrence 1: July 26, 2026
+      dtend: 1785071800,
+      rrule: 'FREQ=WEEKLY;COUNT=2', // occurrence 2: August 2, 2026
+      exdate: [],
+    };
+    const augustOccurrenceUnix = 1785070000 + 7 * 24 * 60 * 60;
+
+    it('fails with TARGET_MONTH_NOT_LOADED when no cache lookup function was injected', () => {
+      const store = new MonthDraftStore({
+        draftByMonth: new Map([['2026-07', [recurringRow]]]),
+      });
+
+      const res = store.edit(
+        101,
+        augustOccurrenceUnix,
+        { startTime: '15:00' },
+        '123'
+      );
+
+      expect(res).toEqual({
+        success: false,
+        reason: 'TARGET_MONTH_NOT_LOADED',
+      });
+      const snap = store.snapshot();
+      expect(snap.dirtyMonths.size).toBe(0);
+      expect(snap.draftByMonth.get('2026-07')).toEqual([recurringRow]);
+    });
+
+    it('fails with TARGET_MONTH_NOT_LOADED when the cache lookup misses (month never fetched)', () => {
+      const getCachedMonthSchedule = vi.fn().mockReturnValue(undefined);
+      const store = new MonthDraftStore(
+        { draftByMonth: new Map([['2026-07', [recurringRow]]]) },
+        { getCachedMonthSchedule }
+      );
+
+      const res = store.edit(
+        101,
+        augustOccurrenceUnix,
+        { startTime: '15:00' },
+        '123'
+      );
+
+      expect(res).toEqual({
+        success: false,
+        reason: 'TARGET_MONTH_NOT_LOADED',
+      });
+      expect(getCachedMonthSchedule).toHaveBeenCalledWith({
+        userId: '123',
+        year: 2026,
+        month: 8,
+      });
+      expect(store.snapshot().dirtyMonths.size).toBe(0);
+    });
+
+    it('loads the target month from cache and keeps both source and target drafts consistent on success', () => {
+      const getCachedMonthSchedule = vi.fn().mockReturnValue([]);
+      const store = new MonthDraftStore(
+        { draftByMonth: new Map([['2026-07', [recurringRow]]]) },
+        { getCachedMonthSchedule }
+      );
+
+      const res = store.edit(
+        101,
+        augustOccurrenceUnix,
+        { startTime: '15:00' },
+        '123'
+      );
+
+      expect(res).toEqual({ success: true });
+      const snap = store.snapshot();
+
+      // Source month: parent row stays, with the moved occurrence exdated.
+      const julDraft = snap.draftByMonth.get('2026-07') ?? [];
+      const julParent = julDraft.find((r) => r.id === 101);
+      expect(julParent?.exdate).toContain(augustOccurrenceUnix);
+
+      // Target month: newly loaded (from cache) into both saved and draft,
+      // with the detached occurrence appended.
+      expect(snap.savedByMonth.get('2026-08')).toEqual([]);
+      const augDraft = snap.draftByMonth.get('2026-08') ?? [];
+      const detached = augDraft.find((r) => r.id < 0);
+      expect(detached).toBeDefined();
+      expect(detached!.dtstart).not.toBe(augustOccurrenceUnix); // moved to 15:00
+
+      expect(snap.dirtyMonths.has('2026-07')).toBe(true);
+      expect(snap.dirtyMonths.has('2026-08')).toBe(true);
+    });
+
+    it('rejects the move with OVERLAP when the cached target month already has a colliding slot', () => {
+      // Colliding slot sits exactly where the moved occurrence would land:
+      // Aug 2, 2026 at 15:00 (same day as augustOccurrenceUnix, new time).
+      const augDateStr = dayjs(augustOccurrenceUnix * 1000).format(
+        'YYYY-MM-DD'
+      );
+      const collideStart = dayjs(`${augDateStr}T15:00:00Z`).unix();
+      const collidingRow: RawMentorTimeslot = {
+        id: 202,
+        type: 'ALLOW',
+        dtstart: collideStart,
+        dtend: collideStart + 30 * 60,
+        rrule: undefined,
+        exdate: [],
+      };
+
+      const getCachedMonthSchedule = vi.fn().mockReturnValue([collidingRow]);
+      const store = new MonthDraftStore(
+        { draftByMonth: new Map([['2026-07', [recurringRow]]]) },
+        { getCachedMonthSchedule }
+      );
+
+      const res = store.edit(
+        101,
+        augustOccurrenceUnix,
+        { startTime: '15:00' },
+        '123'
+      );
+
+      expect(res).toEqual({ success: false, reason: 'OVERLAP' });
+      // Nothing was mutated on failure.
+      expect(store.snapshot().dirtyMonths.size).toBe(0);
+      expect(store.snapshot().draftByMonth.has('2026-08')).toBe(false);
+    });
+  });
+
+  describe('reloadMonth diff detection preserves local edits field-by-field', () => {
+    const savedRow: RawMentorTimeslot = {
+      id: 101,
+      type: 'ALLOW',
+      dtstart: 1785070000,
+      dtend: 1785071800,
+      rrule: undefined,
+      exdate: [],
+    };
+
+    it('preserves a local edit when only dtend (duration) differs from saved', () => {
+      const draftRow: RawMentorTimeslot = { ...savedRow, dtend: 1785073600 };
+      const store = new MonthDraftStore({
+        savedByMonth: new Map([['2026-07', [savedRow]]]),
+        draftByMonth: new Map([['2026-07', [draftRow]]]),
+        dirtyMonths: new Set(['2026-07']),
+      });
+
+      store.reloadMonth('2026-07', [savedRow]);
+
+      const finalDraft = store.snapshot().draftByMonth.get('2026-07') ?? [];
+      expect(finalDraft.find((r) => r.id === 101)?.dtend).toBe(1785073600);
+    });
+
+    it('preserves a local edit when only rrule differs from saved', () => {
+      const draftRow: RawMentorTimeslot = {
+        ...savedRow,
+        rrule: 'FREQ=WEEKLY;COUNT=2',
+      };
+      const store = new MonthDraftStore({
+        savedByMonth: new Map([['2026-07', [savedRow]]]),
+        draftByMonth: new Map([['2026-07', [draftRow]]]),
+        dirtyMonths: new Set(['2026-07']),
+      });
+
+      store.reloadMonth('2026-07', [savedRow]);
+
+      const finalDraft = store.snapshot().draftByMonth.get('2026-07') ?? [];
+      expect(finalDraft.find((r) => r.id === 101)?.rrule).toBe(
+        'FREQ=WEEKLY;COUNT=2'
+      );
+    });
+
+    it('preserves a local edit when only exdate differs from saved', () => {
+      const draftRow: RawMentorTimeslot = {
+        ...savedRow,
+        exdate: [1785070000],
+      };
+      const store = new MonthDraftStore({
+        savedByMonth: new Map([['2026-07', [savedRow]]]),
+        draftByMonth: new Map([['2026-07', [draftRow]]]),
+        dirtyMonths: new Set(['2026-07']),
+      });
+
+      store.reloadMonth('2026-07', [savedRow]);
+
+      const finalDraft = store.snapshot().draftByMonth.get('2026-07') ?? [];
+      expect(finalDraft.find((r) => r.id === 101)?.exdate).toEqual([
+        1785070000,
+      ]);
+    });
+  });
+
+  describe('delete() removing the last occurrence across every loaded month buffer', () => {
+    it('removes the row entirely from all buffers once its last occurrence is exdated, not just the one being deleted', () => {
+      // Single-occurrence "recurring" row (COUNT=1) loaded into two months;
+      // deleting its only occurrence should drop it from both buffers
+      // entirely, rather than merely appending to exdate.
+      const mockRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: 'FREQ=WEEKLY;COUNT=1',
+          exdate: [],
+        },
+      ];
+      const draftMap = new Map<string, RawMentorTimeslot[]>([
+        ['2026-07', mockRaws],
+        ['2026-08', mockRaws],
+      ]);
+      const store = new MonthDraftStore({ draftByMonth: draftMap });
+
+      store.delete(101, 1785070000);
+
+      const snap = store.snapshot();
+      expect(snap.draftByMonth.get('2026-07')).toHaveLength(0);
+      expect(snap.draftByMonth.get('2026-08')).toHaveLength(0);
+      expect(snap.pendingDeleteByMonth.get('2026-07')).toContain(101);
+      expect(snap.dirtyMonths.has('2026-07')).toBe(true);
+      expect(snap.dirtyMonths.has('2026-08')).toBe(true);
+    });
+
+    it('is idempotent when deleting an occurrence that was already exdated', () => {
+      const mockRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: 'FREQ=WEEKLY;COUNT=3',
+          exdate: [1785070000], // occurrence 1 already deleted
+        },
+      ];
+      const draftMap = new Map<string, RawMentorTimeslot[]>([
+        ['2026-07', mockRaws],
+      ]);
+      const store = new MonthDraftStore({ draftByMonth: draftMap });
+
+      // Deleting the same, already-exdated occurrence again should not
+      // duplicate it in the exdate array or otherwise change the row.
+      store.delete(101, 1785070000);
+
+      const draft = store.snapshot().draftByMonth.get('2026-07') ?? [];
+      const row = draft.find((r) => r.id === 101);
+      expect(row?.exdate).toEqual([1785070000]);
+    });
+  });
+
+  describe('add() restores a previously exdated occurrence instead of duplicating it', () => {
+    it('undoes the exdate on the existing recurring row rather than creating a second row', () => {
+      // buildDateTime always zeroes seconds when reconstructing from HH:mm,
+      // so a minute-aligned dtstart is required for the reconstructed
+      // candidate occurrence to exactly match the stored exdate value.
+      const julyDtstart = 1785069960; // July 26, 2026 12:46:00 PM UTC
+      const augustOccurrenceUnix = julyDtstart + 7 * 24 * 60 * 60; // Aug 2, 2026
+      const recurringRow: RawMentorTimeslot = {
+        id: 101,
+        type: 'ALLOW' as const,
+        dtstart: julyDtstart,
+        dtend: julyDtstart + 1800, // 30-minute slot
+        rrule: 'FREQ=WEEKLY;COUNT=2', // occurrences: July 26, Aug 2
+        exdate: [augustOccurrenceUnix], // Aug 2 was previously deleted
+      };
+      // Loaded under August, since add() looks up drafts by the target month.
+      const draftMap = new Map<string, RawMentorTimeslot[]>([
+        ['2026-08', [recurringRow]],
+      ]);
+      const store = new MonthDraftStore({ draftByMonth: draftMap });
+
+      const dateStr = dayjs(augustOccurrenceUnix * 1000).format('YYYY-MM-DD');
+      const startHM = dayjs(augustOccurrenceUnix * 1000).format('HH:mm');
+      const res = store.add({
+        startTime: startHM,
+        durationMinutes: 30,
+        selectedDate: dateStr,
+      });
+
+      expect(res.success).toBe(true);
+      expect(res.added).toBe(1);
+
+      const snap = store.snapshot();
+      const augDraft = snap.draftByMonth.get('2026-08') ?? [];
+      // No second row was created; the same parent row had its exdate undone.
+      expect(augDraft).toHaveLength(1);
+      const restored = augDraft.find((r) => r.id === 101);
+      expect(restored?.exdate).not.toContain(augustOccurrenceUnix);
+      expect(snap.dirtyMonths.has('2026-08')).toBe(true);
+    });
+  });
+
+  describe('add() rejects invalid candidate-occurrence inputs', () => {
+    it('fails when selectedDate is missing', () => {
+      const store = new MonthDraftStore();
+      const res = store.add({
+        startTime: '13:00',
+        durationMinutes: 30,
+        selectedDate: '',
+      });
+      expect(res).toEqual({ success: false, added: 0, skipped: 0 });
+    });
+
+    it('fails when startTime is missing', () => {
+      const store = new MonthDraftStore();
+      const res = store.add({
+        startTime: '',
+        durationMinutes: 30,
+        selectedDate: '2026-07-26',
+      });
+      expect(res).toEqual({ success: false, added: 0, skipped: 0 });
+    });
+
+    it('fails when durationMinutes is missing', () => {
+      const store = new MonthDraftStore();
+      const res = store.add({
+        startTime: '13:00',
+        durationMinutes: 0 as unknown as SlotDurationMinutes,
+        selectedDate: '2026-07-26',
+      });
+      expect(res).toEqual({ success: false, added: 0, skipped: 0 });
+    });
+
+    it('fails when selectedDate is not a parseable date', () => {
+      const store = new MonthDraftStore();
+      const res = store.add({
+        startTime: '13:00',
+        durationMinutes: 30,
+        selectedDate: 'not-a-real-date',
+      });
+      expect(res).toEqual({ success: false, added: 0, skipped: 0 });
     });
   });
 });
