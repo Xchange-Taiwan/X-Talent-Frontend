@@ -7,6 +7,7 @@ import {
 } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { trackEvent } from '@/lib/analytics';
 import type { BookingSlot } from '@/lib/profile/bookingAvailability';
 import { mockRouter } from '@/test/mocks/navigation';
 
@@ -16,6 +17,10 @@ vi.mock('next/navigation', async () => {
   const { navigationMockFactory } = await import('@/test/mocks/navigation');
   return navigationMockFactory();
 });
+
+vi.mock('@/lib/analytics', () => ({
+  trackEvent: vi.fn(),
+}));
 
 describe('BookingForm', () => {
   const mockSlots: BookingSlot[] = [
@@ -79,10 +84,23 @@ describe('BookingForm', () => {
     expect(screen.getByRole('button', { name: '處理中...' })).toBeDisabled();
   });
 
-  it('disables the submit button if isAuthenticated is false', () => {
+  it('shows a sign-in prompt instead of the booking form when isAuthenticated is false', () => {
     render(<BookingForm {...defaultProps} isAuthenticated={false} />);
-    const submitBtn = screen.getByRole('button', { name: '預約時間' });
-    expect(submitBtn).toBeDisabled();
+
+    expect(screen.getByText('登入後即可預約導師時段')).toBeInTheDocument();
+    const signInLink = screen.getByRole('link', { name: '前往登入' });
+    expect(signInLink).toHaveAttribute('href', '/auth/signin');
+
+    expect(
+      screen.queryByRole('button', { name: '預約時間' })
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('你想問導師的問題')).not.toBeInTheDocument();
+
+    fireEvent.click(signInLink);
+    expect(trackEvent).toHaveBeenCalledWith({
+      name: 'reservation_signin_prompt_click',
+      feature: 'reservation',
+    });
   });
 
   it('renders booking slots and the question input when not own profile', () => {
