@@ -594,8 +594,15 @@ export class MonthDraftStore {
 
       const isFullyEmpty = activeOccurrences(updatedParent).length === 0;
 
+      // A recurring row can be loaded into more than one month buffer (see
+      // ensureMonthLoaded / reloadMonth), so every buffer holding it needs
+      // both the mutation and the dirty flag — captured together here so a
+      // fully-removed month can't fall out of the dirty set once the row
+      // that would otherwise identify it is gone (that would silently drop
+      // its deletion from getSyncRequests()).
       this.draftByMonth.forEach((mDraft, mKey) => {
         if (mDraft.some((r: RawMentorTimeslot) => r.id === id)) {
+          this.markDirty(mKey);
           if (isFullyEmpty) {
             fullyRemovedFromSomeMonth = true;
             this.draftByMonth.set(
@@ -618,6 +625,7 @@ export class MonthDraftStore {
         parentMonthKey,
         parentDraft.filter((r: RawMentorTimeslot) => r.id !== id)
       );
+      this.markDirty(parentMonthKey);
     }
 
     if (fullyRemovedFromSomeMonth && id > 0) {
@@ -627,12 +635,6 @@ export class MonthDraftStore {
         this.pendingDeleteByMonth.set(parentMonthKey, [...current, id]);
       }
     }
-
-    this.draftByMonth.forEach((mDraft, mKey) => {
-      if (mDraft.some((r: RawMentorTimeslot) => r.id === id)) {
-        this.markDirty(mKey);
-      }
-    });
 
     this.emitChange();
   }
