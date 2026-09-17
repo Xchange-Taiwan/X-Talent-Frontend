@@ -1,10 +1,13 @@
 'use client';
 
 import { Loader2 } from 'lucide-react';
+import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useBookingForm } from '@/hooks/user/reservation/useBookingForm';
+import { trackEvent } from '@/lib/analytics';
 import type { BookingSlot } from '@/lib/profile/bookingAvailability';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
 import { isSlotTaken } from '@/lib/profile/scheduleHelpers';
@@ -49,9 +52,37 @@ export function MenteeBookingForm({
     }
   };
 
+  if (!isAuthenticated) {
+    return (
+      <Card className="w-full">
+        <CardContent className="flex flex-col items-center gap-4 p-6 text-center">
+          <p className="text-text-primary text-sm font-medium">
+            登入後即可預約導師時段
+          </p>
+          <Button
+            asChild
+            variant="default"
+            className="w-full rounded-full px-6 py-3"
+          >
+            <Link
+              href="/auth/signin"
+              onClick={() =>
+                trackEvent({
+                  name: 'reservation_signin_prompt_click',
+                  feature: 'reservation',
+                })
+              }
+            >
+              前往登入
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const isButtonDisabled =
     isSubmitting ||
-    !isAuthenticated ||
     !selectedDate ||
     !selectedSlot ||
     isSlotTaken(selectedSlot) ||
