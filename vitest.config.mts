@@ -59,9 +59,9 @@ export default defineConfig({
       ],
       // Coverage floor gate (see CONTRIBUTING.md "Coverage floor policy").
       //
-      // Baseline: measured 2026-09-10 on `develop` after #675-#683 landed, via
+      // Baseline: measured 2026-09-18 on `develop` after #722-#725 landed, via
       // `pnpm test:coverage`:
-      //   statements 85.28%, branches 78.79%, functions 78.45%, lines 86.64%
+      //   statements 87.01%, branches 80.39%, functions 81.21%, lines 88.16%
       //
       // Each floor below is set a couple of points under that measured number
       // so normal run-to-run noise doesn't cause spurious CI failures, while
@@ -73,10 +73,10 @@ export default defineConfig({
         // per-file requirement (Vitest defaults to global when omitted, but
         // that default is easy to invert by mistake - see CONTRIBUTING.md).
         perFile: false,
-        statements: 84,
-        branches: 77,
-        functions: 77,
-        lines: 85,
+        statements: 86,
+        branches: 79,
+        functions: 80,
+        lines: 87,
       },
     },
   },
