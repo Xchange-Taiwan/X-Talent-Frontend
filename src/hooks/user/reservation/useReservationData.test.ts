@@ -27,6 +27,7 @@ import {
 } from '@/services/reservations';
 import { mockSession, mockUseSession } from '@/test/mocks/nextAuth';
 
+import type { MutationAffectedTabs } from './useReservationData';
 import { useReservationData } from './useReservationData';
 
 const mockFetch = vi.mocked(fetchReservations);
@@ -475,6 +476,162 @@ describe('useReservationData (mentee)', () => {
         nextDtend: 67890,
       })
     );
+  });
+});
+
+describe('useReservationData - refetch invalidation gates (X-Tracker #725)', () => {
+  it('drops a tab key that does not map to a state this hook owns, rather than refetching it', async () => {
+    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    mockFetch.mockClear();
+
+    await act(async () => {
+      result.current.refetchOnConflict({
+        source: 'pending',
+        // Cast past the ListKey union: `states[tab]` resolves an
+        // unrecognized tab to `undefined`, which must fail the
+        // `ownStates.has(state)` gate instead of slipping through.
+        destinations: ['unknown-tab'],
+      } as unknown as MutationAffectedTabs);
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({ state: 'MENTEE_PENDING' })
+    );
+  });
+
+  it('excludes an affected history tab from the refetch range while history pagination is inactive', async () => {
+    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    mockFetch.mockClear();
+
+    await act(async () => {
+      result.current.refetchOnConflict({
+        source: 'pending',
+        destinations: ['history'],
+      });
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({ state: 'MENTEE_PENDING' })
+    );
+    expect(mockFetch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ state: 'MENTEE_HISTORY' })
+    );
+  });
+
+  it('short-circuits without fetching when every target is filtered out', async () => {
+    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    mockFetch.mockClear();
+
+    // History has never been loaded (historyActive is false), so the only
+    // requested target is filtered out and nothing remains to refetch.
+    await act(async () => {
+      result.current.refetchOnConflict({ source: 'history', destinations: [] });
+    });
+
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('onMutationSuccess and refetchOnConflict short-circuit when no affected tabs are given', async () => {
+    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    mockFetch.mockClear();
+
+    await act(async () => {
+      result.current.onMutationSuccess('MENTEE_PENDING', null);
+    });
+    expect(result.current.data?.pending).toHaveLength(1);
+
+    await act(async () => {
+      result.current.refetchOnConflict(null);
+    });
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('loadMore and refetchOnConflict short-circuit without a signed-in user', async () => {
+    mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });
+    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    mockFetch.mockClear();
+
+    await act(async () => {
+      await result.current.loadMore('upcoming');
+    });
+    await act(async () => {
+      result.current.refetchOnConflict({ source: 'pending', destinations: [] });
+    });
+
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('loadMore short-circuits when the tab has no cached page to paginate from yet', async () => {
+    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    mockFetch.mockClear();
+
+    // History was never loaded (loadHistory was never called), so its
+    // cache slot is empty.
+    await act(async () => {
+      await result.current.loadMore('history');
+    });
+
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('does not fetch another page when the cursor is at its initial (exhausted) value', async () => {
+    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    // The default stubFor resolves next_dtend: 0, i.e. no further pages.
+    mockFetch.mockClear();
+
+    await act(async () => {
+      await result.current.loadMore('upcoming');
+    });
+
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('reports and swallows a refetch failure instead of throwing', async () => {
+    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    mockFetch.mockClear();
+    mockFetch.mockRejectedValueOnce(new Error('refetch boom'));
+
+    await act(async () => {
+      result.current.refetchOnConflict({ source: 'pending', destinations: [] });
+    });
+
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'reservation_refetch',
+        message: 'refetch boom',
+      })
+    );
+  });
+
+  it('history load state falls back to idle when its cache is invalidated while the tab stays active', async () => {
+    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await act(async () => {
+      await result.current.loadHistory();
+    });
+    expect(result.current.initialState.history).toBe('ready');
+
+    // Invalidated externally (e.g. by another mutation) without touching
+    // historyActive: isHistoryLoading and isHistoryLoaded both go false
+    // while the tab is still active, landing on the innermost idle branch.
+    await act(async () => {
+      reservationReadModel.invalidate({
+        userId: String(mockSession.user.id),
+        state: 'MENTEE_HISTORY',
+      });
+    });
+
+    expect(result.current.initialState.history).toBe('idle');
   });
 });
 
