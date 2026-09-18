@@ -124,6 +124,17 @@ describe('mentor-schedule sync', () => {
 
       expect(scheduleReadModel.get(ref)).toBeUndefined();
     });
+
+    it('returns an empty array instead of throwing when the response carries no segments field (X-Tracker #724)', async () => {
+      // fetchMentorSchedule falls back to `{} as ScheduleData` both on a
+      // null response and on a caught request error - segments is absent
+      // either way, not an empty array.
+      vi.mocked(fetchMentorSchedule).mockResolvedValue({});
+
+      const raws = await loadMonthSchedule(ref);
+
+      expect(raws).toEqual([]);
+    });
   });
 
   describe('loadMonthScheduleFresh', () => {

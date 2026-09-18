@@ -2331,4 +2331,396 @@ describe('useMentorSchedule', () => {
       ).toEqual(['fresh-pending']);
     });
   });
+
+  describe('save-flow race guard and short-circuit gates (X-Tracker #724)', () => {
+    it('does not resurrect the old user’s save result into the new user’s buffer when a successful sync resolves after the account switches away', async () => {
+      mockLoadMonthSchedule.mockImplementation(async (ref) =>
+        ref.userId === 'userA' ? defaultMockRaws : []
+      );
+
+      const { result, rerender } = renderHook(
+        (props: {
+          backend: { userId: string; year: number; month: number };
+          loginUserId?: string;
+        }) => useMentorSchedule(props),
+        {
+          initialProps: {
+            backend: { userId: 'userA', year: 2026, month: 7 },
+            loginUserId: 'userA',
+          },
+        }
+      );
+
+      await waitFor(() => expect(result.current.loaded).toBe(true));
+
+      act(() => {
+        result.current.editor!.updateDraftSlot(101, 1785070000, {
+          startTime: '13:00',
+          durationMinutes: 45,
+        });
+      });
+
+      let resolveSync!: (r: Awaited<ReturnType<typeof syncMonths>>) => void;
+      vi.mocked(syncMonths).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveSync = resolve;
+          })
+      );
+
+      let confirmPromise!: ReturnType<
+        NonNullable<typeof result.current.editor>['confirmChanges']
+      >;
+      act(() => {
+        confirmPromise = result.current.editor!.confirmChanges();
+      });
+
+      // Account switches away while the save is still in flight.
+      rerender({
+        backend: { userId: 'userB', year: 2026, month: 7 },
+        loginUserId: 'userB',
+      });
+      await waitFor(() => expect(result.current.loaded).toBe(true));
+
+      resolveSync([
+        {
+          monthKey: '2026-07',
+          outcome: {
+            ok: true,
+            raws: [
+              {
+                id: 101,
+                type: 'ALLOW',
+                dtstart: 1785070000,
+                dtend: 1785072700,
+                rrule: undefined,
+                exdate: [],
+              },
+            ],
+          },
+        },
+      ]);
+
+      await act(async () => {
+        await confirmPromise;
+      });
+
+      // userB's own (empty) buffer must stay empty - userA's committed slot
+      // must never land in it just because the response arrived late.
+      expect(result.current.parsedDraft).toHaveLength(0);
+    });
+
+    it('discards every result - including a month that itself succeeded - from a mixed sync outcome once the account has switched away', async () => {
+      // MonthDraftStore.commit() already ignores a failed entry on its own,
+      // regardless of any account-switch guard (see MonthDraftStore.ts -
+      // commit() only writes months whose outcome.ok is true). So a
+      // wholesale-failure result array can't actually exercise the guard: it
+      // would look "protected" even with the guard deleted. Mixing in a
+      // genuinely successful month is what makes this test depend on the
+      // guard - only the guard stops that month's data from landing in
+      // userB's buffer.
+      mockLoadMonthSchedule.mockImplementation(async (ref) =>
+        ref.userId === 'userA' ? defaultMockRaws : []
+      );
+
+      const { result, rerender } = renderHook(
+        (props: {
+          backend: { userId: string; year: number; month: number };
+          loginUserId?: string;
+        }) => useMentorSchedule(props),
+        {
+          initialProps: {
+            backend: { userId: 'userA', year: 2026, month: 7 },
+            loginUserId: 'userA',
+          },
+        }
+      );
+
+      await waitFor(() => expect(result.current.loaded).toBe(true));
+
+      act(() => {
+        result.current.editor!.updateDraftSlot(101, 1785070000, {
+          startTime: '13:00',
+          durationMinutes: 45,
+        });
+      });
+
+      let resolveSync!: (r: Awaited<ReturnType<typeof syncMonths>>) => void;
+      vi.mocked(syncMonths).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveSync = resolve;
+          })
+      );
+
+      let confirmPromise!: ReturnType<
+        NonNullable<typeof result.current.editor>['confirmChanges']
+      >;
+      act(() => {
+        confirmPromise = result.current.editor!.confirmChanges();
+      });
+
+      // Account switches away while the save is still in flight.
+      rerender({
+        backend: { userId: 'userB', year: 2026, month: 7 },
+        loginUserId: 'userB',
+      });
+      await waitFor(() => expect(result.current.loaded).toBe(true));
+
+      resolveSync([
+        {
+          monthKey: '2026-07',
+          outcome: {
+            ok: true,
+            raws: [
+              {
+                id: 101,
+                type: 'ALLOW',
+                dtstart: 1785070000,
+                dtend: 1785072700,
+                rrule: undefined,
+                exdate: [],
+              },
+            ],
+          },
+        },
+        {
+          monthKey: '2026-08',
+          outcome: { ok: false, reason: 'conflict', message: 'boom' },
+        },
+      ]);
+
+      await act(async () => {
+        await confirmPromise;
+      });
+
+      // userB's own (empty) buffer must stay empty - not even the month that
+      // genuinely succeeded may leak into it just because the response
+      // arrived late.
+      expect(result.current.parsedDraft).toHaveLength(0);
+    });
+
+    it('confirmChanges short-circuits without calling syncMonths when there are no dirty months', async () => {
+      const { result } = setupSchedule();
+
+      await waitFor(() => expect(result.current.loaded).toBe(true));
+
+      const mockSyncMonths = vi.mocked(syncMonths);
+      mockSyncMonths.mockClear();
+
+      let outcome!: Awaited<
+        ReturnType<NonNullable<typeof result.current.editor>['confirmChanges']>
+      >;
+      await act(async () => {
+        outcome = await result.current.editor!.confirmChanges();
+      });
+
+      expect(outcome).toEqual({ ok: true });
+      expect(mockSyncMonths).not.toHaveBeenCalled();
+    });
+
+    it('resetChanges makes no observable store change when there are no dirty months', async () => {
+      // Array.from(dirtyMonths).map(...) over an empty Set already produces
+      // an empty request list on its own, so `loadMonthScheduleFresh` not
+      // being called doesn't actually depend on the guard - it would still
+      // be uncalled with the guard deleted. What the guard alone prevents is
+      // the trailing `store.reset([])` call, which - even with an empty
+      // list - still creates fresh Map/Set instances and calls
+      // `emitChange()`, producing a new `parsedDraft` array reference on
+      // every subscriber. Asserting reference stability is what actually
+      // depends on the guard being there.
+      const { result } = setupSchedule();
+
+      await waitFor(() => expect(result.current.loaded).toBe(true));
+
+      const draftBefore = result.current.parsedDraft;
+
+      act(() => {
+        result.current.editor!.resetChanges();
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(result.current.parsedDraft).toBe(draftBefore);
+    });
+
+    it('addSlotForSelectedDate returns zero added/skipped and leaves the draft untouched when no date is selected', async () => {
+      const { result } = setupSchedule();
+
+      await waitFor(() => expect(result.current.loaded).toBe(true));
+
+      act(() => {
+        result.current.reader.setSelectedDate(null);
+      });
+
+      let res!: ReturnType<
+        NonNullable<typeof result.current.editor>['addSlotForSelectedDate']
+      >;
+      act(() => {
+        res = result.current.editor!.addSlotForSelectedDate({
+          startTime: '10:00',
+          durationMinutes: 30,
+        });
+      });
+
+      expect(res).toEqual({ added: 0, skipped: 0 });
+      // The single pre-existing slot from defaultMockRaws is untouched.
+      expect(result.current.parsedDraft).toHaveLength(1);
+    });
+
+    it('never calls loadMonthSchedule when backend.userId is missing - there is no key to fetch with', async () => {
+      mockLoadMonthSchedule.mockResolvedValue(defaultMockRaws);
+
+      renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '', year: 2026, month: 7 },
+        })
+      );
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(mockLoadMonthSchedule).not.toHaveBeenCalled();
+    });
+
+    it('reload() short-circuits without fetching anything when backend.userId is missing', async () => {
+      mockLoadMonthSchedule.mockResolvedValue([]);
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '', year: 2026, month: 7 },
+          loginUserId: 'someone',
+        })
+      );
+
+      mockLoadMonthSchedule.mockClear();
+      mockFetchAllReservationsForState.mockClear();
+
+      await act(async () => {
+        await result.current.reader.reload?.();
+      });
+
+      expect(mockLoadMonthSchedule).not.toHaveBeenCalled();
+      expect(mockFetchAllReservationsForState).not.toHaveBeenCalled();
+    });
+
+    it('resetChanges does not apply a refetched result that resolves after the account has switched away', async () => {
+      mockLoadMonthSchedule.mockImplementation(async (ref) =>
+        ref.userId === 'userA' ? defaultMockRaws : []
+      );
+
+      const { result, rerender } = renderHook(
+        (props: {
+          backend: { userId: string; year: number; month: number };
+          loginUserId?: string;
+        }) => useMentorSchedule(props),
+        {
+          initialProps: {
+            backend: { userId: 'userA', year: 2026, month: 7 },
+            loginUserId: 'userA',
+          },
+        }
+      );
+
+      await waitFor(() => expect(result.current.loaded).toBe(true));
+
+      act(() => {
+        result.current.editor!.updateDraftSlot(101, 1785070000, {
+          startTime: '13:00',
+          durationMinutes: 45,
+        });
+      });
+
+      let resolveFresh!: (raws: RawMentorTimeslot[]) => void;
+      vi.mocked(loadMonthScheduleFresh).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveFresh = resolve;
+          })
+      );
+
+      act(() => {
+        result.current.editor!.resetChanges();
+      });
+
+      // Account switches away while the refetch is still in flight.
+      rerender({
+        backend: { userId: 'userB', year: 2026, month: 7 },
+        loginUserId: 'userB',
+      });
+      await waitFor(() => expect(result.current.loaded).toBe(true));
+
+      act(() => {
+        resolveFresh(defaultMockRaws);
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // userB's own (empty) buffer must stay empty - userA's refetched slot
+      // must never land in it just because the response arrived late.
+      expect(result.current.parsedDraft).toHaveLength(0);
+    });
+
+    it('resetChanges skips the failure fallback when the account has already switched away by the time the refetch rejects', async () => {
+      mockLoadMonthSchedule.mockImplementation(async (ref) =>
+        ref.userId === 'userA' ? defaultMockRaws : []
+      );
+
+      const { result, rerender } = renderHook(
+        (props: {
+          backend: { userId: string; year: number; month: number };
+          loginUserId?: string;
+        }) => useMentorSchedule(props),
+        {
+          initialProps: {
+            backend: { userId: 'userA', year: 2026, month: 7 },
+            loginUserId: 'userA',
+          },
+        }
+      );
+
+      await waitFor(() => expect(result.current.loaded).toBe(true));
+
+      act(() => {
+        result.current.editor!.updateDraftSlot(101, 1785070000, {
+          startTime: '13:00',
+          durationMinutes: 45,
+        });
+      });
+
+      let rejectFresh!: (err: Error) => void;
+      vi.mocked(loadMonthScheduleFresh).mockImplementation(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectFresh = reject;
+          })
+      );
+
+      act(() => {
+        result.current.editor!.resetChanges();
+      });
+
+      // Account switches away while the refetch is still in flight.
+      rerender({
+        backend: { userId: 'userB', year: 2026, month: 7 },
+        loginUserId: 'userB',
+      });
+      await waitFor(() => expect(result.current.loaded).toBe(true));
+
+      act(() => {
+        rejectFresh(new Error('network down'));
+      });
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // The failed refetch belonged to userA - its fallback (userA's
+      // pre-edit snapshot) must not be written into userB's buffer.
+      expect(result.current.parsedDraft).toHaveLength(0);
+    });
+  });
 });
