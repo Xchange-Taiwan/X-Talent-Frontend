@@ -49,8 +49,8 @@ export default function Page() {
             blurDataURL="data:image/webp;base64,UklGRmgAAABXRUJQVlA4IFwAAAAwAgCdASoKAAYAAUAmJZQAEPN8bsW11HJORAD+4Nv7ydzvgf+ppALM/+CXSyN+wgP/5CcvuL+rtpayQ/47L7f6tIIsv1J0vQKcYlJL2kGx3aUh553HrmuM09DAAA=="
           />
           <p className="max-w-5xl px-8 text-center text-base md:text-xl lg:px-0">
-            X-Talent 源自於台灣最大的互聯網工作者社群 XChange
-            ，有許多想要轉換跑道與資深的工作者，持續在平台中與各領域人才諮詢與交流，不僅僅精進專業技能，也在人脈拓展的同時，釐清職涯道路，甚至獲得內部推薦，產生改變與持續成長。
+            X-Talent 源自於台灣最大的互聯網工作者社群
+            XChange，有許多想要轉換跑道的工作者與資深工作者，持續在平台中與各領域人才諮詢與交流，不僅僅精進專業技能，也在人脈拓展的同時，釐清職涯道路，甚至獲得內部推薦，產生改變與持續成長。
           </p>
         </div>
       </section>
@@ -95,7 +95,7 @@ export default function Page() {
           一個涵蓋不同領域的人才平台，讓我們能不只是在摸索與碰撞中成長，而是可以從跨領域的
           Mentor 中加速專業與軟實力的成長。
           <br />
-          站在資深PM的肩膀上，運用最少的時間，獲取最多的經驗，一同在PM職涯上有所突破。
+          站在前輩的肩膀上，運用最少的時間，獲取最多的經驗，一同在職涯上有所突破。
         </p>
       </section>
 
