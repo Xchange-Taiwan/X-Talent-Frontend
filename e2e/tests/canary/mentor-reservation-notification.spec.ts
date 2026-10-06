@@ -62,6 +62,7 @@ async function getSessionUser(page: Page): Promise<SessionUser> {
 }
 
 interface TargetSlot {
+  startMs: number;
   dateKey: string;
   hour: string;
   minute: string;
@@ -73,13 +74,36 @@ interface TargetSlot {
  * entirely inside the mentor's browser (one `evaluate` call) so the date
  * key, hour/minute picker values, and the human-readable button label the
  * mentee will later search for are always mutually consistent, regardless
- * of the test runner's own OS timezone. Because it's a real unfrozen clock,
- * every run targets a different date/time slot, so repeated canary runs
- * never collide with a previous run's leftover data.
+ * of the test runner's own OS timezone. Pass `fixedStartMs` to rebuild the
+ * same fields for an explicit start instead (see avoidExistingSlots).
  */
-async function computeTargetSlot(page: Page): Promise<TargetSlot> {
-  return page.evaluate(() => {
+async function computeTargetSlot(
+  page: Page,
+  fixedStartMs?: number
+): Promise<TargetSlot> {
+  return page.evaluate((fixedStartMs) => {
     const DURATION_MINUTES = 30;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const describe = (start: Date) => {
+      const end = new Date(start.getTime() + DURATION_MINUTES * 60 * 1000);
+      // Same format MenteeBookingForm's slot buttons render via
+      // formatBookingSlotTime (src/lib/profile/scheduleFormatters.ts).
+      const timeFmt: Intl.DateTimeFormatOptions = {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      };
+      return {
+        startMs: start.getTime(),
+        dateKey: `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`,
+        hour: pad(start.getHours()),
+        minute: pad(start.getMinutes()),
+        label: `${start.toLocaleTimeString('en-US', timeFmt)} – ${end.toLocaleTimeString('en-US', timeFmt)}`,
+      };
+    };
+
+    if (fixedStartMs !== undefined) return describe(new Date(fixedStartMs));
+
     const now = new Date();
     const start = new Date(now.getTime() + 2 * 60 * 60 * 1000);
     start.setSeconds(0, 0);
@@ -112,24 +136,59 @@ async function computeTargetSlot(page: Page): Promise<TargetSlot> {
       start.setHours(23, 45, 0, 0);
     }
 
-    const end = new Date(start.getTime() + DURATION_MINUTES * 60 * 1000);
+    return describe(start);
+  }, fixedStartMs);
+}
 
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const dateKey = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`;
-    const hour = pad(start.getHours());
-    const minute = pad(start.getMinutes());
-
-    // Same format MenteeBookingForm's slot buttons render via
-    // formatBookingSlotTime (src/lib/profile/scheduleFormatters.ts).
-    const timeFmt: Intl.DateTimeFormatOptions = {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    };
-    const label = `${start.toLocaleTimeString('en-US', timeFmt)} – ${end.toLocaleTimeString('en-US', timeFmt)}`;
-
-    return { dateKey, hour, minute, label };
+/**
+ * Previous runs' slots can't be cleaned up: the backend locks any
+ * availability a reservation has ever referenced, cancelled or not
+ * (AvailabilityLockedError, X-Talent-Backend availability_repository.py).
+ * A re-run within ~30 minutes would land on such a leftover slot, and the
+ * overlapping new slot silently fails to save. Read the already-open
+ * schedule dialog's rows for the target date (24-hour `HH:mm – HH:mm`, see
+ * fmtTime in src/lib/profile/scheduleFormatters.ts) and step the target
+ * forward until it overlaps none of them.
+ */
+async function avoidExistingSlots(
+  page: Page,
+  scheduleDialog: Locator,
+  target: TargetSlot
+): Promise<TargetSlot> {
+  const DURATION_MINUTES = 30;
+  // The "+" trigger only renders once the month's slots have loaded.
+  await expect(
+    scheduleDialog.locator('button:has(svg.lucide-plus)')
+  ).toBeVisible({ timeout: 10_000 });
+  const rows = await scheduleDialog
+    .getByText(/^\d{2}:\d{2} – \d{2}:\d{2}$/)
+    .allTextContents();
+  const toMinutes = (hhmm: string) => {
+    const [h, m] = hhmm.split(':').map(Number);
+    return h * 60 + m;
+  };
+  const taken = rows.map((row) => {
+    const [start, end] = row.split(' – ');
+    return { start: toMinutes(start), end: toMinutes(end) || 24 * 60 };
   });
+
+  let current = target;
+  for (;;) {
+    const start = toMinutes(`${current.hour}:${current.minute}`);
+    const end = start + DURATION_MINUTES;
+    const clash = taken.find((slot) => start < slot.end && slot.start < end);
+    if (!clash) return current;
+    const next = await computeTargetSlot(
+      page,
+      current.startMs + (clash.end - start) * 60 * 1000
+    );
+    if (next.dateKey !== target.dateKey) {
+      throw new Error(
+        `avoidExistingSlots: no free ${DURATION_MINUTES}-minute slot left on ${target.dateKey}`
+      );
+    }
+    current = next;
+  }
 }
 
 // Scoped to `scope` rather than the whole page: the profile page behind the
@@ -154,8 +213,8 @@ async function selectCalendarDate(
  */
 async function mentorAddAvailableSlot(
   page: Page,
-  target: TargetSlot
-): Promise<void> {
+  initialTarget: TargetSlot
+): Promise<TargetSlot> {
   const openButton = page.getByRole('button', { name: '預約設定' });
   await expect(openButton).toBeVisible({ timeout: 20_000 });
   await openButton.click();
@@ -163,7 +222,8 @@ async function mentorAddAvailableSlot(
   const scheduleDialog = page.getByRole('dialog', { name: '設定可預約時段' });
   await expect(scheduleDialog).toBeVisible({ timeout: 10_000 });
 
-  await selectCalendarDate(scheduleDialog, target.dateKey);
+  await selectCalendarDate(scheduleDialog, initialTarget.dateKey);
+  const target = await avoidExistingSlots(page, scheduleDialog, initialTarget);
 
   // The "+" add-slot trigger is icon-only (no accessible name) - same
   // selector strategy MentorScheduleDialog.test.tsx already uses for it.
@@ -185,6 +245,7 @@ async function mentorAddAvailableSlot(
 
   await scheduleDialog.getByRole('button', { name: '儲存' }).click();
   await expect(scheduleDialog).not.toBeVisible({ timeout: 15_000 });
+  return target;
 }
 
 /**
@@ -268,7 +329,7 @@ async function mentorAcceptPendingReservation(
   // previous failed/interrupted run instead of the one this run just
   // created (AI Review flagged this as a real data-pollution risk - acting
   // on the wrong row would leave *this* run's reservation un-accepted, and
-  // later make mentorDeleteAvailableSlot's cleanup fail too).
+  // later make menteeCancelReservation's cleanup fail too).
   const card = page
     .getByTestId('reservation-card')
     .filter({ hasText: bookingNote })
@@ -304,9 +365,16 @@ async function mentorAcceptPendingReservation(
   await expect(confirmDialog).not.toBeVisible({ timeout: 20_000 });
 }
 
-/** Parses the notification bell's unread badge (absent/hidden -> 0 unread). */
+/**
+ * Parses the notification bell's unread badge (absent/hidden -> 0 unread).
+ * Scoped under the visible bell button: Header renders one bell per
+ * breakpoint, so a page-wide badge locator matches two elements and
+ * isVisible()'s strict-mode error would be swallowed as "0 unread".
+ */
 async function getUnreadNotificationCount(page: Page): Promise<number> {
-  const badge = page.locator('[aria-label*="則未讀通知"]');
+  const badge = page
+    .getByRole('button', { name: '開啟通知選單' })
+    .locator('[aria-label*="則未讀通知"]');
   const visible = await badge.isVisible().catch(() => false);
   if (!visible) return 0;
   const label = await badge.getAttribute('aria-label');
@@ -438,38 +506,6 @@ async function menteeCancelReservation(
 }
 
 /**
- * Mentor: remove the ALLOW slot this test added. Must run *after*
- * menteeCancelReservation - while a reservation is still PENDING/BOOKED
- * against this slot, MentorScheduleDialog's delete button opens a
- * confirmation prompt instead of deleting directly (see
- * getReservationBlock/showPrompt in MentorScheduleDialog.tsx), which this
- * cleanup doesn't drive. Once cancelled, the slot is a plain deletable draft
- * again, same as right after mentorAddAvailableSlot created it.
- */
-async function mentorDeleteAvailableSlot(
-  page: Page,
-  target: TargetSlot
-): Promise<void> {
-  const openButton = page.getByRole('button', { name: '預約設定' });
-  await expect(openButton).toBeVisible({ timeout: 20_000 });
-  await openButton.click();
-
-  const scheduleDialog = page.getByRole('dialog', { name: '設定可預約時段' });
-  await expect(scheduleDialog).toBeVisible({ timeout: 10_000 });
-
-  await selectCalendarDate(scheduleDialog, target.dateKey);
-
-  const slotRow = scheduleDialog
-    .getByRole('button')
-    .filter({ hasText: target.label });
-  await expect(slotRow).toBeVisible({ timeout: 10_000 });
-  await slotRow.locator('button:has(svg.lucide-x)').click();
-
-  await scheduleDialog.getByRole('button', { name: '儲存' }).click();
-  await expect(scheduleDialog).not.toBeVisible({ timeout: 15_000 });
-}
-
-/**
  * Mentee: cancel every existing pending/upcoming reservation before this
  * run's own flow starts, regardless of which earlier run created them.
  * This is a dedicated test account (never a real user - see .env.example),
@@ -545,8 +581,7 @@ async function cleanupStaleMenteeReservations(page: Page): Promise<void> {
  * accumulation from the mentee-side one above (a reservation only leaves
  * both sides' lists once it's resolved one way or another): a real run
  * against the deployed backend found the mentor's own 待您回復 tab holding 2
- * stale pending cards mentee-side cleanup never touched, which then made
- * mentorDeleteAvailableSlot land on an unexpected page state.
+ * stale pending cards mentee-side cleanup never touched.
  */
 async function cleanupStaleMentorReservations(page: Page): Promise<void> {
   const MAX_CARDS_PER_TAB = 20; // safety cap; never expected to be hit
@@ -603,9 +638,8 @@ test.describe('真實後端通知 canary：mentor 接受預約 → mentee 收到
     const mentorContext = await browser.newContext({
       storageState: MENTOR_AUTH_FILE,
     });
-    // Hoisted so the finally block's cleanup can reach them even if an
+    // Hoisted so the finally block's cleanup can reach it even if an
     // assertion throws partway through the try block below.
-    let target: TargetSlot | undefined;
     let bookingNote: string | undefined;
 
     // Per-step timing: this test's own duration (visible per-test via the
@@ -653,8 +687,10 @@ test.describe('真實後端通知 canary：mentor 接受預約 → mentee 收到
       mark('mentor pre-test cleanup done');
 
       await mentorPage.goto(`/profile/${mentorUser.id}`);
-      target = await computeTargetSlot(mentorPage);
-      await mentorAddAvailableSlot(mentorPage, target);
+      const target = await mentorAddAvailableSlot(
+        mentorPage,
+        await computeTargetSlot(mentorPage)
+      );
       mark('mentor added available slot');
 
       bookingNote = `[canary #687] ${new Date().toISOString()}`;
@@ -668,11 +704,9 @@ test.describe('真實後端通知 canary：mentor 接受預約 → mentee 收到
       await waitForAcceptedNotification(menteePage, baselineUnreadCount);
       mark('mentee saw notification');
     } finally {
-      // Two independent best-effort cleanup steps - never let either failure
-      // mask the real test outcome above, and a failure in one shouldn't
-      // skip the other. Order matters: the slot can only be deleted directly
-      // once its reservation is no longer PENDING/BOOKED (see
-      // mentorDeleteAvailableSlot's doc comment).
+      // Best-effort cleanup - never let a failure here mask the real test
+      // outcome above. The mentor's slot itself stays behind: the backend
+      // locks any slot a reservation has referenced (see avoidExistingSlots).
       if (bookingNote) {
         try {
           const menteeCleanupPage =
@@ -681,18 +715,6 @@ test.describe('真實後端通知 canary：mentor 接受預約 → mentee 收到
         } catch (err) {
           console.warn(
             '[canary #687] cleanup: failed to cancel test reservation:',
-            err
-          );
-        }
-      }
-      if (target) {
-        try {
-          const mentorCleanupPage =
-            mentorContext.pages()[0] ?? (await mentorContext.newPage());
-          await mentorDeleteAvailableSlot(mentorCleanupPage, target);
-        } catch (err) {
-          console.warn(
-            '[canary #687] cleanup: failed to delete mentor availability slot:',
             err
           );
         }

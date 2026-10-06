@@ -320,13 +320,13 @@ test('編輯姓名並儲存 → 重導向至 /profile/:userId', async ({ page })
   });
   await mockSessionGet(page, makeSession(false));
 
-  // First GET (initial load) returns the original name.
-  // Subsequent GETs (pollUntilSynced) return the updated name so isProfileSynced
-  // resolves on the first poll and the test doesn't wait the full 60-second timeout.
-  let getProfileCallCount = 0;
+  // GETs before the save return the original name; GETs after it (pollUntilSynced)
+  // return the updated name so isProfileSynced resolves on the first poll and the
+  // test doesn't wait the full 60-second timeout. Keyed on the PUT rather than a
+  // call count because the dev server's Strict Mode fires the initial fetch twice.
+  let profileSaved = false;
   await page.route(/\/v1\/mentors\/1\/zh_TW\/profile/, (route) => {
-    getProfileCallCount++;
-    const name = getProfileCallCount === 1 ? 'Test User' : 'Updated Name';
+    const name = profileSaved ? 'Updated Name' : 'Test User';
     return route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -339,8 +339,13 @@ test('編輯姓名並儲存 → 重導向至 /profile/:userId', async ({ page })
   // PUT /v1/mentors/1/profile (no zh_TW segment) → updateProfile success.
   // This pattern does not match the GET zh_TW URL, so the counter handler above
   // remains the sole handler for GET profile calls.
-  await mockApiRoute(page, /\/v1\/mentors\/1\/profile/, {
-    body: { code: '0', msg: 'ok', data: null },
+  await page.route(/\/v1\/mentors\/1\/profile/, (route) => {
+    profileSaved = true;
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
+    });
   });
 
   // PUT /api/auth/session → updateSession after save.

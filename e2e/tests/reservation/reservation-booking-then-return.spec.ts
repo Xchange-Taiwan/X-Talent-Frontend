@@ -16,7 +16,7 @@ import { setSignedSessionCookie } from '../../helpers/session';
 test.use({ timezoneId: 'Asia/Taipei' });
 
 const REAL_MENTOR_ID = '7482008160728084'; // display name "Mentee", Mentor role - shared dev/staging fixture, see reservation-create.spec.ts
-const REAL_MENTEE_ID = '7482008160728085'; // testing_visitor (Mentee)
+const REAL_MENTEE_ID = '7482008160728087'; // testing_visitor (Mentee)
 
 const DATE_KEY = '2026-07-17';
 const DTSTART = 1784281200; // 2026-07-17 15:00 Asia/Taipei

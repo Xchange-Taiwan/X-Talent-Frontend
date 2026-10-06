@@ -2,7 +2,7 @@
 
 import { act, renderHook, waitFor } from '@testing-library/react';
 import dayjs from 'dayjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 // Only the raw network read is mocked. Caching, in-flight de-duplication,
 // cancellation and "whose response is allowed to win" all run for real
@@ -1626,6 +1626,17 @@ describe('useMentorSchedule', () => {
     });
 
     it('correctly matches reservations to booking slots and populates menteeName', async () => {
+      // Past slots are dropped from the read model (nowSec in
+      // computeBookingAvailability), so pin the clock before this fixed
+      // 2026-09-26 slot instead of depending on the real date.
+      vi.useFakeTimers({
+        toFake: ['Date'],
+        now: (1790426800 - 24 * 60 * 60) * 1000,
+      });
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+
       const mockRaws: RawMentorTimeslot[] = [
         {
           id: 101,
