@@ -82,7 +82,11 @@ async function mockUnreadCount(page: Page, count: number) {
     return route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ code: '0', msg: 'ok', data: { count } }),
+      body: JSON.stringify({
+        code: '0',
+        msg: 'ok',
+        data: { unread_count: count },
+      }),
     });
   });
 }
@@ -240,9 +244,28 @@ test.describe('Notification Center E2E Tests', () => {
       page.getByText('無法將通知標示為已讀，請稍後再試').first()
     ).toBeVisible();
 
-    // Verify the unread badge rolled back and is visible again
-    const badge = bell.locator('[aria-label*="則未讀通知"]');
-    await expect(badge).toHaveText('1');
+    // The badge stays hidden by design: opening the center already marked
+    // the count as seen (showBadge = badgeCount > seenUnreadCount). Verify
+    // the rollback on the item itself instead. Reopening refreshes the list
+    // in the background - hold that refresh so what renders is the store's
+    // rolled-back state, not a fresh copy of the (unread) mock.
+    let releaseRefresh!: () => void;
+    const refreshHeld = new Promise<void>((resolve) => {
+      releaseRefresh = resolve;
+    });
+    await page.route(/\/v1\/users\/.*\/notifications(\?|$)/, async (route) => {
+      await refreshHeld;
+      return route.fallback();
+    });
+
+    try {
+      await bell.click();
+      await expect(page.getByText('Mentor Wang 已接受您的預約')).toHaveClass(
+        /font-bold/
+      );
+    } finally {
+      releaseRefresh();
+    }
   });
 
   test('Clicking a notification redirects to correct reservation endpoint', async ({

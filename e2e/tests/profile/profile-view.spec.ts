@@ -9,7 +9,7 @@ import { setSignedSessionCookie } from '../../helpers/session';
 // Both are dedicated seeded test/fixture accounts (see .env.e2e.local's
 // E2E_MENTOR_EMAIL/E2E_MENTEE_EMAIL), not real production users.
 const REAL_MENTOR_ID = '7482008160728084'; // display name "Mentee", Mentor role (E2E_MENTOR_EMAIL)
-const REAL_MENTEE_ID = '7482008160728085'; // testing_visitor (Mentee)
+const REAL_MENTEE_ID = '7482008160728087'; // testing_visitor (Mentee)
 
 // Helper to construct a flat NextAuth JWT Payload matching e2e/helpers/session.ts's SessionPayload.
 // NextAuth stores the flat JWT payload inside the encrypted cookie, which is then decrypted
@@ -52,7 +52,9 @@ test('檢視他人的 mentee 個人檔案 → 預約區塊不存在', async ({ p
 
   // Assert name is visible using the correct semantic locator.
   // Scoped to <main> for the same reason as the mentor case above.
-  const nameElement = page.getByRole('main').getByText('請不要把我變成Mentor');
+  const nameElement = page
+    .getByRole('main')
+    .getByText('Visitor', { exact: true });
   await expect(nameElement).toBeVisible({ timeout: 15_000 });
 
   // Assert the schedule calendar / booking section is collapsed (not visible)

@@ -10,7 +10,7 @@ test.use({ timezoneId: 'Asia/Taipei' });
 // dedicated seeded test/fixture accounts (see .env.e2e.local's
 // E2E_MENTOR_EMAIL/E2E_MENTEE_EMAIL), not real production users.
 const REAL_MENTOR_ID = '7482008160728084'; // display name "Mentee", Mentor role (E2E_MENTOR_EMAIL)
-const REAL_MENTEE_ID = '7482008160728085'; // testing_visitor (Mentee)
+const REAL_MENTEE_ID = '7482008160728087'; // testing_visitor (Mentee)
 
 const timeFormat: Intl.DateTimeFormatOptions = {
   hour: '2-digit',
