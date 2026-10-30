@@ -25,8 +25,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   // Local: cap parallelism so the Next.js dev server isn't overwhelmed by
-  // simultaneous on-demand compilation, which causes redirect-target tests to
-  // time out under load. CI stays single-worker for stability.
+  // simultaneous on-demand compilation. CI opts specific jobs into additional
+  // workers with the Playwright CLI; real-backend runs default to one worker.
   workers: process.env.CI ? 1 : 6,
   // 'list' prints each test's own pass/fail and duration to the terminal as
   // it runs (in addition to 'html', which stays the CI artifact e2e.yml
@@ -118,6 +118,17 @@ export default defineConfig({
     {
       name: 'chromium-profile',
       testDir: './e2e/tests/profile',
+      testIgnore: ['**/profile-view.spec.ts', '**/schedule-sync.spec.ts'],
+      use: {
+        ...devices['Desktop Chrome'],
+      },
+    },
+    // Profile-view reads the deployed backend's seeded accounts. Keep it out
+    // of the isolated mock job until the profile fixture is backend-independent.
+    {
+      name: 'chromium-profile-readonly',
+      testDir: './e2e/tests/profile',
+      testMatch: ['**/profile-view.spec.ts', '**/schedule-sync.spec.ts'],
       use: {
         ...devices['Desktop Chrome'],
       },
