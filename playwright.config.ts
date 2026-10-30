@@ -24,10 +24,9 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  // Local: cap parallelism so the Next.js dev server isn't overwhelmed by
-  // simultaneous on-demand compilation, which causes redirect-target tests to
-  // time out under load. CI stays single-worker for stability.
-  workers: process.env.CI ? 1 : 6,
+  // Shared backend accounts require serial execution locally and in CI.
+  // Browser-mocked runs opt into parallelism with --workers=4.
+  workers: 1,
   // 'list' prints each test's own pass/fail and duration to the terminal as
   // it runs (in addition to 'html', which stays the CI artifact e2e.yml
   // uploads) - without it there's no way to tell which specific test in a
@@ -118,6 +117,22 @@ export default defineConfig({
     {
       name: 'chromium-profile',
       testDir: './e2e/tests/profile',
+      testIgnore: ['**/profile-view.spec.ts', '**/schedule-sync.spec.ts'],
+      use: {
+        ...devices['Desktop Chrome'],
+      },
+    },
+    // Seeded profile/calendar flows retain a single-worker CI lane until
+    // their SSR dependencies are isolated and parallel trials pass.
+    {
+      name: 'chromium-backend-readonly',
+      testDir: './e2e/tests',
+      testMatch: [
+        '**/profile-view.spec.ts',
+        '**/schedule-sync.spec.ts',
+        '**/reservation-create.spec.ts',
+        '**/reservation-booking-then-return.spec.ts',
+      ],
       use: {
         ...devices['Desktop Chrome'],
       },
@@ -127,6 +142,10 @@ export default defineConfig({
     {
       name: 'chromium-reservation',
       testDir: './e2e/tests/reservation',
+      testIgnore: [
+        '**/reservation-create.spec.ts',
+        '**/reservation-booking-then-return.spec.ts',
+      ],
       use: {
         ...devices['Desktop Chrome'],
       },

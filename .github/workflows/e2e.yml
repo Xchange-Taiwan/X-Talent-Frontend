@@ -10,15 +10,20 @@ on:
         required: false
         default: 'https://xtalentdev.vercel.app'
 
+# Canary accounts are shared across runs, including runs targeting custom URLs.
+concurrency:
+  group: e2e-shared-accounts
+  cancel-in-progress: false
+
 jobs:
-  # Purely mocked, no-credentials-needed projects (chromium-onboarding/-anon/
-  # -profile/-reservation): pure frontend behavior, no real backend or
-  # credentials involved.
+  # Browser-mocked projects may still read real backend data during SSR.
+  # Signed sessions require the target deployment's NextAuth secret.
   e2e-mock:
     runs-on: ubuntu-latest
     name: Playwright E2E (mock)
     env:
       BASE_URL: ${{ inputs.base_url || 'https://xtalentdev.vercel.app' }}
+      NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET_DEV }}
 
     steps:
       - name: Checkout code
@@ -40,7 +45,7 @@ jobs:
         run: pnpm playwright install --with-deps chromium
 
       - name: Run Playwright tests
-        run: pnpm test:e2e:mock
+        run: pnpm test:e2e:mock --workers=4
         env:
           PLAYWRIGHT_HTML_REPORT: playwright-report
 
@@ -64,6 +69,8 @@ jobs:
   e2e-real:
     runs-on: ubuntu-latest
     name: Playwright E2E (real backend)
+    needs: e2e-mock
+    if: always() && !cancelled()
     env:
       BASE_URL: ${{ inputs.base_url || 'https://xtalentdev.vercel.app' }}
       # NOTE FOR REVIEWER: these four secrets must be added to this repo's
