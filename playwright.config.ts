@@ -24,10 +24,15 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  // Local: cap parallelism so the Next.js dev server isn't overwhelmed by
-  // simultaneous on-demand compilation, which causes redirect-target tests to
-  // time out under load. CI stays single-worker for stability.
-  workers: process.env.CI ? 1 : 6,
+  // Shared backend accounts and SSR dependencies require serial execution locally
+  // and in CI to prevent RDS connection exhaustion and on-demand compile contention.
+  // Browser-mocked runs can opt into parallelism via PLAYWRIGHT_WORKERS or CLI flags.
+  workers: process.env.PLAYWRIGHT_WORKERS
+    ? Number(process.env.PLAYWRIGHT_WORKERS)
+    : 1,
+  expect: {
+    timeout: 15_000,
+  },
   // 'list' prints each test's own pass/fail and duration to the terminal as
   // it runs (in addition to 'html', which stays the CI artifact e2e.yml
   // uploads) - without it there's no way to tell which specific test in a
