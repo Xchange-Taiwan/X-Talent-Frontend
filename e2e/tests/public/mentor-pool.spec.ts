@@ -97,9 +97,10 @@ test('type keyword in search bar → mentor list updates to match results', asyn
 }) => {
   await page.route(/\/v1\/mentors/, (route, request) => {
     const keyword = new URL(request.url()).searchParams.get('search_pattern');
-    const data = keyword
-      ? [makeMentor(10), makeMentor(11)]
-      : [makeMentor(1), makeMentor(2), makeMentor(3)];
+    const data =
+      keyword === 'React'
+        ? [makeMentor(10), makeMentor(11)]
+        : [makeMentor(1), makeMentor(2), makeMentor(3)];
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -107,12 +108,12 @@ test('type keyword in search bar → mentor list updates to match results', asyn
     });
   });
 
-  // Initial render comes from the unmocked SSR fetch — only wait for cards to
-  // exist, then verify the mocked client-side search actually replaces them.
-  await page.goto('/mentor-pool');
-  await expect(page.locator('article').first()).toBeVisible({
-    timeout: 15_000,
-  });
+  // Next.js still executes SSR during initial page load, but appending ?q=initial
+  // immediately triggers a client-side search request. Playwright's page.route
+  // intercepts this client-side fetch, deterministically seeding the card list
+  // with our mock data before user interaction begins.
+  await page.goto('/mentor-pool?q=initial');
+  await expect(page.locator('article')).toHaveCount(3);
 
   const responsePromise = page.waitForResponse(/\/v1\/mentors/);
   await page.fill(
@@ -143,12 +144,12 @@ test('apply a filter → mentor list updates to show only filtered results', asy
     });
   });
 
-  // Initial render comes from the unmocked SSR fetch — only wait for cards to
-  // exist, then verify the mocked client-side filter actually replaces them.
-  await page.goto('/mentor-pool');
-  await expect(page.locator('article').first()).toBeVisible({
-    timeout: 15_000,
-  });
+  // Next.js still executes SSR during initial page load, but appending ?q=initial
+  // immediately triggers a client-side search request. Playwright's page.route
+  // intercepts this client-side fetch, deterministically seeding the card list
+  // with our mock data before user interaction begins.
+  await page.goto('/mentor-pool?q=initial');
+  await expect(page.locator('article')).toHaveCount(3);
 
   // Open filter popover
   await page.getByRole('button', { name: /篩選/ }).click();
@@ -205,7 +206,7 @@ test('search returns no results → empty state message is shown', async ({
 }) => {
   await page.route(/\/v1\/mentors/, (route, request) => {
     const keyword = new URL(request.url()).searchParams.get('search_pattern');
-    const data = keyword ? [] : [makeMentor(1)];
+    const data = keyword === 'xyznotfound' ? [] : [makeMentor(1)];
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -213,9 +214,10 @@ test('search returns no results → empty state message is shown', async ({
     });
   });
 
-  // Initial render comes from the unmocked SSR fetch — only wait for a card
-  // to exist, then verify the mocked no-results search actually clears it.
-  await page.goto('/mentor-pool');
+  // Next.js still executes SSR during initial page load, but ?q=initial triggers
+  // a client-side search request intercepted by page.route, ensuring a deterministic
+  // visible card is present before verifying the empty state.
+  await page.goto('/mentor-pool?q=initial');
   await expect(page.locator('article').first()).toBeVisible({
     timeout: 15_000,
   });
