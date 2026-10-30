@@ -2,11 +2,13 @@
 
 ## Execution classes
 
-| Class                          | Projects                                                                                                    | CI strategy                                           | Data policy                                                        |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------ |
-| Browser-mocked / read-only SSR | `chromium-onboarding`, `chromium-anon`, `chromium-profile`, `chromium-reservation`, `chromium-notification` | 4 workers                                             | Browser mutations are mocked; SSR still reads the deployed backend |
-| Read-only backend              | `chromium-backend-readonly`                                                                                 | Runs with the real-backend job, one worker by default | Reads seeded dev accounts; does not create test records            |
-| Stateful backend               | `setup`, `chromium`, `setup-canary`, `chromium-canary`                                                      | One worker                                            | Uses shared authenticated accounts and canary cleanup              |
+| Class                          | Projects                                                                             | CI strategy                                           | Data policy                                                        |
+| ------------------------------ | ------------------------------------------------------------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------ |
+| Browser-mocked / read-only SSR | `chromium-anon`, `chromium-profile`, `chromium-reservation`, `chromium-notification` | 4 workers                                             | Browser mutations are mocked; SSR still reads the deployed backend |
+| Read-only backend              | `chromium-backend-readonly`                                                          | Runs with the real-backend job, one worker by default | Reads seeded dev accounts; does not create test records            |
+| Stateful backend               | `setup`, `chromium`, `setup-canary`, `chromium-canary`                               | One worker                                            | Uses shared authenticated accounts and canary cleanup              |
+
+`chromium-onboarding` also runs in the single-worker backend lane: a four-worker trial rendered Step 3 without catalog checkboxes, while its single-worker rerun passed. Its browser writes remain mocked; moving the suite limits exposure without claiming to fix the underlying intermittent SSR catalog failure.
 
 These suites are not fully backend-isolated. Browser interception cannot mock server-side requests. Profile, catalog, and mentor-pool SSR still require the dev backend. Signed sessions require `NEXTAUTH_SECRET` to match the target deployment; the workflow supplies `NEXTAUTH_SECRET_DEV`, so custom target URLs must use that secret too.
 
@@ -33,7 +35,7 @@ Authentication setup also performs real login requests. Global setup may warm th
 
 ## Worker configuration
 
-Local runs use six workers by default. The mock CI job passes `--workers=4`. CI real-backend runs retain one worker until test data is isolated per run.
+Local and CI runs default to one worker so the full suite does not overlap shared backend flows. The mock CI job passes `--workers=4`; use `pnpm test:e2e:mock --workers=4` locally for the same parallel lane. Do not override workers for the full suite or backend lane until test data is isolated per run.
 
 The real-backend job waits for the browser-mocked job, even if the latter fails, so canary mutations do not overlap its SSR reads. Workflow-level concurrency prevents overlapping workflow runs against shared accounts without cancelling active cleanup. This does not lock out manual local runs or other systems; coordinate those separately. GitHub may replace a pending run when another run queues.
 

@@ -24,10 +24,9 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  // Local: cap parallelism so the Next.js dev server isn't overwhelmed by
-  // simultaneous on-demand compilation. CI opts specific jobs into additional
-  // workers with the Playwright CLI; real-backend runs default to one worker.
-  workers: process.env.CI ? 1 : 6,
+  // Shared backend accounts require serial execution locally and in CI.
+  // Browser-mocked runs opt into parallelism with --workers=4.
+  workers: 1,
   // 'list' prints each test's own pass/fail and duration to the terminal as
   // it runs (in addition to 'html', which stays the CI artifact e2e.yml
   // uploads) - without it there's no way to tell which specific test in a
