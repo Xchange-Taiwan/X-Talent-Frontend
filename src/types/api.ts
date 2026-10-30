@@ -299,23 +299,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v1/mentors/{language}/universities': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get Universities */
-    get: operations['get_universities_api_v1_mentors__language__universities_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   '/api/v1/users/{language}/countries': {
     parameters: {
       query?: never;
@@ -988,20 +971,6 @@ export interface components {
        */
       msg: string;
       data?: components['schemas']['TokenRefreshVO'] | null;
-    };
-    /** ApiResponse[UniversityListVO] */
-    ApiResponse_UniversityListVO_: {
-      /**
-       * Code
-       * @default 0
-       */
-      code: string;
-      /**
-       * Msg
-       * @default ok
-       */
-      msg: string;
-      data?: components['schemas']['UniversityListVO'] | null;
     };
     /** ApiResponse[UnreadNotificationCountVO] */
     ApiResponse_UnreadNotificationCountVO_: {
@@ -1949,14 +1918,6 @@ export interface components {
     TokenRefreshVO: {
       auth: components['schemas']['TokenRefreshAuthVO'];
     };
-    /** UniversityListVO */
-    UniversityListVO: {
-      /**
-       * Universities
-       * @default []
-       */
-      universities: string[];
-    };
     /** UnreadNotificationCountVO */
     UnreadNotificationCountVO: {
       /** Unread Count */
@@ -2680,46 +2641,6 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['ApiResponse_int_'];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_universities_api_v1_mentors__language__universities_get: {
-    parameters: {
-      query: {
-        country_name: string;
-      };
-      header?: never;
-      path: {
-        language: components['schemas']['Language'];
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ApiResponse_UniversityListVO_'];
         };
       };
       /** @description Not found */

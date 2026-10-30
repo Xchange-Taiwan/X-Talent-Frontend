@@ -108,7 +108,10 @@ test('type keyword in search bar → mentor list updates to match results', asyn
     });
   });
 
-  // Seed the initial listing through the mocked client search.
+  // Next.js still executes SSR during initial page load, but appending ?q=initial
+  // immediately triggers a client-side search request. Playwright's page.route
+  // intercepts this client-side fetch, deterministically seeding the card list
+  // with our mock data before user interaction begins.
   await page.goto('/mentor-pool?q=initial');
   await expect(page.locator('article')).toHaveCount(3);
 
@@ -141,7 +144,10 @@ test('apply a filter → mentor list updates to show only filtered results', asy
     });
   });
 
-  // Seed the initial listing through the mocked client search.
+  // Next.js still executes SSR during initial page load, but appending ?q=initial
+  // immediately triggers a client-side search request. Playwright's page.route
+  // intercepts this client-side fetch, deterministically seeding the card list
+  // with our mock data before user interaction begins.
   await page.goto('/mentor-pool?q=initial');
   await expect(page.locator('article')).toHaveCount(3);
 
@@ -208,7 +214,9 @@ test('search returns no results → empty state message is shown', async ({
     });
   });
 
-  // Seed a visible card through the mocked client search before clearing it.
+  // Next.js still executes SSR during initial page load, but ?q=initial triggers
+  // a client-side search request intercepted by page.route, ensuring a deterministic
+  // visible card is present before verifying the empty state.
   await page.goto('/mentor-pool?q=initial');
   await expect(page.locator('article').first()).toBeVisible({
     timeout: 15_000,
