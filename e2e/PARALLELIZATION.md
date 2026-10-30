@@ -5,7 +5,7 @@
 | Class                          | Projects                                                                                                    | CI strategy                                           | Data policy                                                        |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------ |
 | Browser-mocked / read-only SSR | `chromium-onboarding`, `chromium-anon`, `chromium-profile`, `chromium-reservation`, `chromium-notification` | 4 workers                                             | Browser mutations are mocked; SSR still reads the deployed backend |
-| Read-only backend              | `chromium-profile-readonly`                                                                                 | Runs with the real-backend job, one worker by default | Reads seeded dev accounts; does not create test records            |
+| Read-only backend              | `chromium-backend-readonly`                                                                                 | Runs with the real-backend job, one worker by default | Reads seeded dev accounts; does not create test records            |
 | Stateful backend               | `setup`, `chromium`, `setup-canary`, `chromium-canary`                                                      | One worker                                            | Uses shared authenticated accounts and canary cleanup              |
 
 These suites are not fully backend-isolated. Browser interception cannot mock server-side requests. Profile, catalog, and mentor-pool SSR still require the dev backend. Signed sessions require `NEXTAUTH_SECRET` to match the target deployment; the workflow supplies `NEXTAUTH_SECRET_DEV`, so custom target URLs must use that secret too.
@@ -39,7 +39,7 @@ The real-backend job waits for the browser-mocked job, even if the latter fails,
 
 HTML reports remain separate artifacts: `playwright-report` and `playwright-report-real`.
 
-`schedule-sync.spec.ts` remains in the single-worker backend project because a four-worker trial needed a retry to find the seeded mentor's booking-settings button. Its schedule writes are mocked, but its SSR dependency is not isolated.
+`schedule-sync.spec.ts`, `reservation-create.spec.ts`, and `reservation-booking-then-return.spec.ts` remain in the single-worker backend project. Four-worker trials intermittently failed to find booking settings or the frozen calendar date. Their business writes are mocked, but seeded profile SSR dependencies are not isolated. Moving them avoids claiming that retries establish safe parallel execution.
 
 ## Enabling backend parallelism
 

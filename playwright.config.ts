@@ -123,12 +123,17 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
       },
     },
-    // Profile-view reads the deployed backend's seeded accounts. Keep it out
-    // of the isolated mock job until the profile fixture is backend-independent.
+    // Seeded profile/calendar flows retain a single-worker CI lane until
+    // their SSR dependencies are isolated and parallel trials pass.
     {
-      name: 'chromium-profile-readonly',
-      testDir: './e2e/tests/profile',
-      testMatch: ['**/profile-view.spec.ts', '**/schedule-sync.spec.ts'],
+      name: 'chromium-backend-readonly',
+      testDir: './e2e/tests',
+      testMatch: [
+        '**/profile-view.spec.ts',
+        '**/schedule-sync.spec.ts',
+        '**/reservation-create.spec.ts',
+        '**/reservation-booking-then-return.spec.ts',
+      ],
       use: {
         ...devices['Desktop Chrome'],
       },
@@ -138,6 +143,10 @@ export default defineConfig({
     {
       name: 'chromium-reservation',
       testDir: './e2e/tests/reservation',
+      testIgnore: [
+        '**/reservation-create.spec.ts',
+        '**/reservation-booking-then-return.spec.ts',
+      ],
       use: {
         ...devices['Desktop Chrome'],
       },
