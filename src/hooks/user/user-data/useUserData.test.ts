@@ -256,6 +256,20 @@ describe('useUserData caching', () => {
     unmount();
   });
 
+  it('treats initialDto = null (SSR fetch failure) as missing and runs the client-side fallback fetch', async () => {
+    const userId = 4201;
+    mockFetchUserById.mockResolvedValueOnce(makeUserDto(userId));
+
+    const { result, unmount } = renderHook(() =>
+      useUserData(userId, 'en', null)
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(mockFetchUserById).toHaveBeenCalledTimes(1);
+    expect(result.current.userData?.user_id).toBe(userId);
+    unmount();
+  });
+
   it('concurrent mounts of same user dedupe to one network call', async () => {
     const userId = 4005;
     let resolveFetch: (value: MentorProfileVO) => void = () => {};
