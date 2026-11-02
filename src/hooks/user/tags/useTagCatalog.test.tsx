@@ -92,6 +92,25 @@ describe('useTagCatalog', () => {
     expect(fetchTagCatalog).not.toHaveBeenCalled();
   });
 
+  it('treats an all-empty initialData (SSR fetch failure fallback) as missing and runs the client-side fetch', async () => {
+    const mockData = {
+      ...EMPTY_TAG_CATALOGS,
+      industry: [{ subject_group: 'IND_6', subject: 'Industry 6' }],
+    };
+    vi.mocked(fetchTagCatalog).mockResolvedValueOnce(mockData);
+
+    const { result } = renderHook(() =>
+      useTagCatalog('es', EMPTY_TAG_CATALOGS)
+    );
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(fetchTagCatalog).toHaveBeenCalledTimes(1);
+    expect(result.current.industry).toEqual(mockData.industry);
+  });
+
   it('handles fetch failures and allows subsequent retries', async () => {
     vi.mocked(fetchTagCatalog).mockRejectedValueOnce(new Error('Fetch failed'));
 

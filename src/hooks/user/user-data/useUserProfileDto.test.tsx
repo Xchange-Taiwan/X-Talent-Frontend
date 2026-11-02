@@ -234,13 +234,32 @@ describe('useUserProfileDto', () => {
       expect(fetchUserById).not.toHaveBeenCalled();
     });
 
-    it('seeds userDto as null synchronously and skips the initial fetch when initialData is null (USER_NOT_FOUND)', () => {
+    it('treats initialData = null (SSR fetch failure) as missing and runs the client-side fallback fetch', async () => {
+      vi.mocked(fetchUserById).mockResolvedValueOnce(mockUserDTO);
+
       const { result } = renderHook(() => useUserProfileDto(7, 'zh-TW', null));
 
-      expect(result.current.isLoading).toBe(false);
+      await vi.waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+      expect(fetchUserById).toHaveBeenCalledTimes(1);
+      expect(result.current.userDto).toEqual(mockUserDTO);
+      expect(result.current.error).toBeNull();
+    });
+
+    it('surfaces USER_NOT_FOUND when initialData is null and the client-side fallback fetch also returns null', async () => {
+      vi.mocked(fetchUserById).mockResolvedValueOnce(null);
+
+      const { result } = renderHook(() =>
+        useUserProfileDto(701, 'zh-TW', null)
+      );
+
+      await vi.waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+      expect(fetchUserById).toHaveBeenCalledTimes(1);
       expect(result.current.userDto).toBeNull();
       expect(result.current.error).toBe('USER_NOT_FOUND');
-      expect(fetchUserById).not.toHaveBeenCalled();
     });
 
     it('prioritizes client-side cache over SSR initialData to prevent regression/flash to old SSR data during transition', () => {
