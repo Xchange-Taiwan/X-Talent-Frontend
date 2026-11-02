@@ -43,13 +43,8 @@ export function useUserProfileDto(
 
   // If we already have a client-side primed cache entry, do NOT pass initialData to useAsyncRead
   // to prevent it from being overwritten by the stale/older SSR initialData.
-  // A null initialData (SSR fetch failed / returned null) must also be normalized
-  // to undefined so useAsyncRead runs the client-side fallback fetch instead of
-  // caching null as a populated value.
   const hasCache = key ? userProfileDtoReadManager.has(key) : false;
-  const effectiveInitialData = hasCache
-    ? undefined
-    : (initialData ?? undefined);
+  const effectiveInitialData = hasCache ? undefined : initialData;
 
   const bypassKey = options?.enabled === false ? null : key;
 
