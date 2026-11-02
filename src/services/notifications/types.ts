@@ -11,4 +11,7 @@ export type NotificationItem = {
   createdAt: string; // ISO string
   unread?: boolean;
   role?: 'mentor' | 'mentee';
+  actorRole?: 'mentor' | 'mentee' | 'system';
+  dtstart?: number;
+  dtend?: number;
 };

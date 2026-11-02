@@ -97,4 +97,21 @@ describe('mapNotificationVOToItem', () => {
       mapNotificationVOToItem({ ...baseApiItem, read_at: 1700000000 }).unread
     ).toBe(false);
   });
+
+  it('maps actor_role, dtstart, and dtend from metadata when present', () => {
+    const item = mapNotificationVOToItem({
+      ...baseApiItem,
+      type: 'reservation_upcoming',
+      metadata: {
+        role: 'mentee',
+        actor_role: 'system',
+        counterparty_name: 'Mentor C',
+        dtstart: 1755000000,
+        dtend: 1755001800,
+      },
+    });
+    expect(item.actorRole).toBe('system');
+    expect(item.dtstart).toBe(1755000000);
+    expect(item.dtend).toBe(1755001800);
+  });
 });

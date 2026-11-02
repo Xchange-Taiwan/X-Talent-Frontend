@@ -698,4 +698,32 @@ describe('useReservationData (mentor)', () => {
     const lastCall = mockFetch.mock.calls.at(-1)?.[0];
     expect(lastCall).not.toHaveProperty('batch');
   });
+
+  it('derives pending items with cancelledBy into history immediately', async () => {
+    mockFetch.mockImplementation(({ state }) => {
+      if (state === 'MENTOR_PENDING') {
+        return Promise.resolve({
+          items: [
+            {
+              ...makeReservation('stale-pending'),
+              cancelledBy: 'SYSTEM' as const,
+            },
+            makeReservation('active-pending'),
+          ],
+          next_dtend: 0,
+        });
+      }
+      return Promise.resolve({ items: [], next_dtend: 0 });
+    });
+
+    const { result } = renderHook(() => useReservationData({ role: 'mentor' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.data?.pending.map((it) => it.id)).toEqual([
+      'active-pending',
+    ]);
+    expect(result.current.data?.history.map((it) => it.id)).toEqual([
+      'stale-pending',
+    ]);
+  });
 });

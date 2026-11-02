@@ -78,4 +78,31 @@ describe('ReservationConversationDialog', () => {
 
     expect(screen.getByText('JC')).toBeInTheDocument();
   });
+
+  it('displays system auto-cancel notice tailored to mentor and mentee roles', () => {
+    const reservation: Reservation = {
+      ...mockReservation,
+      cancelledBy: 'SYSTEM',
+    };
+
+    openDialog(reservation);
+    expect(
+      screen.getByText(
+        '因您未於預約開始前 24 小時前確認，系統已自動取消此預約。'
+      )
+    ).toBeInTheDocument();
+
+    render(
+      <ReservationConversationDialog
+        reservation={reservation}
+        sourceRole="mentee"
+      />
+    );
+    fireEvent.click(screen.getAllByText('查看完整對話')[1]);
+    expect(
+      screen.getByText(
+        '因導師未於預約開始前 24 小時前確認，系統已自動取消此預約。'
+      )
+    ).toBeInTheDocument();
+  });
 });
