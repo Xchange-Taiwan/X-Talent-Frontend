@@ -1,3 +1,4 @@
+import dayjs from 'dayjs';
 import { describe, expect, it } from 'vitest';
 
 import { type NotificationItem } from '@/hooks/useNotificationCenter';
@@ -109,5 +110,58 @@ describe('notificationUtils', () => {
       body: '您有一則新通知',
     });
     expect(getNotificationHref(item)).toBe('/');
+  });
+
+  it('formats reservation_upcoming body with dtstart when present and falls back to 24h copy when absent', () => {
+    const dtstart = 1755000000;
+    const formatted = dayjs.unix(dtstart).format('YYYY/MM/DD HH:mm');
+    const withTime = buildItem({
+      type: 'reservation_upcoming',
+      role: 'mentee',
+      mentorName: '張導師',
+      dtstart,
+    });
+    expect(getNotificationContent(withTime)).toEqual({
+      title: '您與 張導師 的預約即將到來',
+      body: `您與 張導師 的會議即將在 ${formatted} 開始，請準時上線`,
+    });
+
+    const withoutTime = buildItem({
+      type: 'reservation_upcoming',
+      role: 'mentee',
+      mentorName: '張導師',
+    });
+    expect(getNotificationContent(withoutTime)).toEqual({
+      title: '您與 張導師 的預約即將到來',
+      body: '您 24 小時後有與 張導師 的會議，請準時上線',
+    });
+  });
+
+  it('renders system auto-cancel copy for mentor and mentee when actorRole is system', () => {
+    const menteeItem = buildItem({
+      type: 'reservation_canceled',
+      role: 'mentee',
+      actorRole: 'system',
+      mentorName: '陳導師',
+    });
+    expect(getNotificationContent(menteeItem)).toEqual({
+      title: '您與 陳導師 的預約已自動取消',
+      body: '因導師未於預約開始前 24 小時前確認，系統已自動取消此預約，歡迎重新預約',
+    });
+    expect(getNotificationHref(menteeItem)).toBe('/mentor-pool');
+
+    const mentorItem = buildItem({
+      type: 'reservation_canceled',
+      role: 'mentor',
+      actorRole: 'system',
+      menteeName: '小明',
+    });
+    expect(getNotificationContent(mentorItem)).toEqual({
+      title: '您與 小明 的預約已自動取消',
+      body: '因您未於預約開始前 24 小時前確認，系統已自動取消此預約',
+    });
+    expect(getNotificationHref(mentorItem)).toBe(
+      '/reservation/mentor?tab=history'
+    );
   });
 });

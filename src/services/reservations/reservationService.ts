@@ -34,6 +34,7 @@ export type FetchOptions = {
 type ReservationInfoVOWithVersion =
   components['schemas']['ReservationInfoVO'] & {
     version?: number;
+    cancelled_by?: 'MENTEE' | 'MENTOR' | 'SYSTEM' | null;
   };
 type UpdateReservationDTOWithVersion =
   components['schemas']['UpdateReservationDTO'] & {

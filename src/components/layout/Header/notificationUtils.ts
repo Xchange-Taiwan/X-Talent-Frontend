@@ -1,3 +1,5 @@
+import dayjs from 'dayjs';
+
 import type { NotificationItem } from '@/hooks/useNotificationCenter';
 
 type NotificationContent = {
@@ -9,6 +11,12 @@ type NotificationConfigEntry = {
   getContent: (item: NotificationItem) => NotificationContent;
   getHref: (item: NotificationItem, isMentorContext: boolean) => string;
 };
+
+function getMentorContext(item: NotificationItem): boolean {
+  return (
+    item.role === 'mentor' || (item.role === undefined && !!item.menteeName)
+  );
+}
 
 /**
  * Single source of truth for how each notification `type` renders (title,
@@ -45,6 +53,15 @@ const NOTIFICATION_CONFIG: Record<
   reservation_canceled: {
     getContent: (item) => {
       const name = item.mentorName || item.menteeName || '導師';
+      if (item.actorRole === 'system') {
+        const isMentor = getMentorContext(item);
+        return {
+          title: `您與 ${name} 的預約已自動取消`,
+          body: isMentor
+            ? '因您未於預約開始前 24 小時前確認，系統已自動取消此預約'
+            : '因導師未於預約開始前 24 小時前確認，系統已自動取消此預約，歡迎重新預約',
+        };
+      }
       return {
         title: `您與 ${name} 的預約已被取消`,
         body: '您的預約已被取消，歡迎重新預約',
@@ -56,6 +73,15 @@ const NOTIFICATION_CONFIG: Record<
   reservation_upcoming: {
     getContent: (item) => {
       const name = item.mentorName || item.menteeName || '導師';
+      if (typeof item.dtstart === 'number' && Number.isFinite(item.dtstart)) {
+        const formattedTime = dayjs
+          .unix(item.dtstart)
+          .format('YYYY/MM/DD HH:mm');
+        return {
+          title: `您與 ${name} 的預約即將到來`,
+          body: `您與 ${name} 的會議即將在 ${formattedTime} 開始，請準時上線`,
+        };
+      }
       return {
         title: `您與 ${name} 的預約即將到來`,
         body: `您 24 小時後有與 ${name} 的會議，請準時上線`,
@@ -74,12 +100,6 @@ const DEFAULT_CONTENT: NotificationContent = {
 };
 
 const DEFAULT_HREF = '/';
-
-function getMentorContext(item: NotificationItem): boolean {
-  return (
-    item.role === 'mentor' || (item.role === undefined && !!item.menteeName)
-  );
-}
 
 /**
  * Returns content templates (title, body) for notification items.

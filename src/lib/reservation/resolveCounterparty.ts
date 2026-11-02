@@ -33,17 +33,22 @@ export function resolveCounterpartyId(
   return reservation.senderUserId;
 }
 
+export type ReservationInfoVOWithCancelledBy =
+  components['schemas']['ReservationInfoVO'] & {
+    cancelled_by?: 'MENTEE' | 'MENTOR' | 'SYSTEM' | null;
+  };
+
 /**
  * Resolves the counterparty details (profile fields) from a raw ReservationInfoVO.
  */
 export function resolveCounterpartyProfile(
-  reservation: components['schemas']['ReservationInfoVO'],
+  reservation: ReservationInfoVOWithCancelledBy,
   myUserId?: string | number | null
 ): {
   name: string;
   avatar?: string;
   roleLine: string;
-  cancelledBy?: 'MENTEE' | 'MENTOR';
+  cancelledBy?: 'MENTEE' | 'MENTOR' | 'SYSTEM';
   /** Which side `myUserId` occupies for this reservation - undefined when
    * there is no signed-in viewer (myUserId is null/undefined) to resolve a
    * side for. */
@@ -85,12 +90,20 @@ export function resolveCounterpartyProfile(
       ? reservation.sender
       : reservation.participant;
 
+  const explicitCancelledBy =
+    reservation.cancelled_by === 'MENTEE' ||
+    reservation.cancelled_by === 'MENTOR' ||
+    reservation.cancelled_by === 'SYSTEM'
+      ? reservation.cancelled_by
+      : undefined;
+
   const cancelledBy =
-    counterparty?.status === 'REJECT'
+    explicitCancelledBy ??
+    (counterparty?.status === 'REJECT'
       ? toRole(counterparty?.role)
       : currentUserSide?.status === 'REJECT'
         ? toRole(currentUserSide?.role)
-        : undefined;
+        : undefined);
 
   // The viewer's own side is only meaningful when someone is actually
   // signed in - with no myUserId, `counterparty` was picked arbitrarily

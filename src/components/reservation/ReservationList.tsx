@@ -131,7 +131,9 @@ function ReservationItem({
         )
       }
       footer={
-        variant === 'history' && reservation.messages.length > 0 ? (
+        variant === 'history' &&
+        (reservation.messages.length > 0 ||
+          reservation.cancelledBy === 'SYSTEM') ? (
           <ReservationConversationDialog
             reservation={reservation}
             sourceRole={sourceRole}

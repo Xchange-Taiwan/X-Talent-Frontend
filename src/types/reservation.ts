@@ -36,10 +36,10 @@ export type Reservation = {
   senderUserId: number | string;
   participantUserId: number | string;
 
-  // Set when either side rejected/cancelled. Value is the canceller's role so
-  // the UI can render "已由導師/學員取消" on both mentor and mentee pages.
-  // Participant (other side) takes precedence when both are REJECT.
-  cancelledBy?: 'MENTEE' | 'MENTOR';
+  // Set when either side rejected/cancelled or the system auto-cancelled.
+  // Value is the canceller's role so the UI can render "已由導師/學員取消" or
+  // "已自動取消" on both mentor and mentee pages.
+  cancelledBy?: 'MENTEE' | 'MENTOR' | 'SYSTEM';
 
   // Which side the viewer this reservation was mapped for (mapToReservation's
   // myUserId) occupies - MENTEE or MENTOR. Undefined when the reservation was

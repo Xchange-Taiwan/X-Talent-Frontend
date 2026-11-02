@@ -234,20 +234,30 @@ export function useReservationData({
 
   const isHistoryLoaded = historyResult !== null && !isHistoryLoading;
 
-  const upcomingSorted = useMemo(() => {
+  const upcomingSorted = useMemo<Reservation[]>(() => {
     const sorted = upcomingResult ? sortByDtstartAsc(upcomingResult.items) : [];
     return sorted.filter((it) => !removedIds.upcoming.has(it.id));
   }, [upcomingResult, removedIds.upcoming]);
 
-  const pendingSorted = useMemo(() => {
+  const pendingSorted = useMemo<Reservation[]>(() => {
     const sorted = pendingResult ? sortByDtstartAsc(pendingResult.items) : [];
-    return sorted.filter((it) => !removedIds.pending.has(it.id));
+    return sorted.filter(
+      (it) => !removedIds.pending.has(it.id) && !it.cancelledBy
+    );
   }, [pendingResult, removedIds.pending]);
 
-  const historyItems = useMemo(() => {
+  const historyItems = useMemo<Reservation[]>(() => {
+    const derivedCancelledFromPending = (pendingResult?.items ?? []).filter(
+      (it) => !removedIds.pending.has(it.id) && Boolean(it.cancelledBy)
+    );
     const items = historyResult ? historyResult.items : [];
-    return items.filter((it) => !removedIds.history.has(it.id));
-  }, [historyResult, removedIds.history]);
+    const existingIds = new Set(items.map((it) => it.id));
+    const combined = [
+      ...derivedCancelledFromPending.filter((it) => !existingIds.has(it.id)),
+      ...items,
+    ];
+    return combined.filter((it) => !removedIds.history.has(it.id));
+  }, [pendingResult, historyResult, removedIds.pending, removedIds.history]);
 
   const data = useMemo<ReservationData | null>(() => {
     if (!myUserId) return null;

@@ -19,13 +19,22 @@ export function mapNotificationVOToItem(
   const isUnread = !apiItem.read_at;
   const metadata = (apiItem.metadata || {}) as {
     role?: 'mentor' | 'mentee';
+    actor_role?: 'mentor' | 'mentee' | 'system';
     counterparty_name?: string;
+    dtstart?: number;
+    dtend?: number;
   };
-  const { role, counterparty_name } = metadata;
+  const { role, actor_role, counterparty_name, dtstart, dtend } = metadata;
 
   // Map role and counterparty_name to menteeName/mentorName for frontend compatibility
   const menteeName = role === 'mentor' ? counterparty_name : undefined;
   const mentorName = role === 'mentee' ? counterparty_name : undefined;
+  const normalizedDtstart =
+    typeof dtstart === 'number' && Number.isFinite(dtstart)
+      ? dtstart
+      : undefined;
+  const normalizedDtend =
+    typeof dtend === 'number' && Number.isFinite(dtend) ? dtend : undefined;
 
   // Safe parsed createdAt - handle both seconds and milliseconds timestamps,
   // falling back to now if the backend omits or sends an invalid created_at
@@ -40,7 +49,10 @@ export function mapNotificationVOToItem(
     createdAt,
     unread: isUnread,
     role,
+    actorRole: actor_role,
     menteeName,
     mentorName,
+    ...(normalizedDtstart !== undefined ? { dtstart: normalizedDtstart } : {}),
+    ...(normalizedDtend !== undefined ? { dtend: normalizedDtend } : {}),
   };
 }
