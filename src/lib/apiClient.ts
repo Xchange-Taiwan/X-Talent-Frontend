@@ -205,7 +205,9 @@ async function request<T>(
         throw new MaintenanceError();
       }
       if (typeof window !== 'undefined') {
-        window.location.href = '/maintenance';
+        if (window.location.pathname !== '/maintenance') {
+          window.location.href = '/maintenance';
+        }
         return new Promise(() => {}); // Pause further execution during redirect
       }
     }
