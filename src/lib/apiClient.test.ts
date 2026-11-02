@@ -161,6 +161,47 @@ describe('apiClient', () => {
       });
     });
 
+    it('503 response with X-Maintenance-Mode header while already on /maintenance → does not reassign window.location.href to avoid infinite reload loop', async () => {
+      const originalLocation = window.location;
+      Object.defineProperty(window, 'location', {
+        writable: true,
+        configurable: true,
+        value: {
+          ...originalLocation,
+          pathname: '/maintenance',
+          href: '',
+        },
+      });
+
+      mockFetch.mockResolvedValue(
+        new Response(JSON.stringify({ message: 'Service Unavailable' }), {
+          status: 503,
+          headers: new Headers({ 'X-Maintenance-Mode': '1' }),
+        })
+      );
+
+      let hasResolvedOrRejected = false;
+      void apiClient
+        .get('/api/announcement', { auth: false, isLocal: true })
+        .then(() => {
+          hasResolvedOrRejected = true;
+        })
+        .catch(() => {
+          hasResolvedOrRejected = true;
+        });
+
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(window.location.href).toBe('');
+      expect(hasResolvedOrRejected).toBe(false);
+
+      Object.defineProperty(window, 'location', {
+        writable: true,
+        configurable: true,
+        value: originalLocation,
+      });
+    });
+
     it('503 response without X-Maintenance-Mode header on client-side → does not redirect and throws ApiError normally', async () => {
       const originalLocation = window.location;
       Object.defineProperty(window, 'location', {

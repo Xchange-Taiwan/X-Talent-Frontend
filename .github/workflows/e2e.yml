@@ -19,6 +19,7 @@ jobs:
     name: Playwright E2E (mock)
     env:
       BASE_URL: ${{ inputs.base_url || 'https://xtalentdev.vercel.app' }}
+      NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET_DEV }}
 
     steps:
       - name: Checkout code
