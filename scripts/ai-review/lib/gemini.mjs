@@ -1,4 +1,4 @@
-const DEFAULT_MODEL = 'gemini-3.1-pro-preview';
+const DEFAULT_MODEL = 'gemini-4-argon';
 const DEFAULT_MAX_OUTPUT_TOKENS = 16384;
 const MAX_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 1500;
@@ -82,7 +82,10 @@ async function callGeminiOnce(promptText, { model, maxOutputTokens, apiKey }) {
 
   const data = await res.json();
   const candidate = data?.candidates?.[0];
-  const text = candidate?.content?.parts?.[0]?.text;
+  const text = candidate?.content?.parts
+    ?.filter((p) => !p.thought)
+    .map((p) => p.text ?? '')
+    .join('');
 
   if (!text) {
     const err = new Error(
