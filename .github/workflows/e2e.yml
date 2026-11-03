@@ -58,6 +58,14 @@ jobs:
           path: playwright-report/
           retention-days: 14
 
+      - name: Upload standardized QA Archive screenshots (mock)
+        if: always() && hashFiles('qa-archive-runs/**') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: qa-archive-screenshots-mock
+          path: qa-archive-runs/
+          retention-days: 14
+
   # Everything that hits the real, deployed backend: the single-account login
   # smoke test (setup/chromium) and the dual-role mentor<->mentee canary
   # (setup-canary/chromium-canary, X-Tracker #686/#687). This workflow only
@@ -114,10 +122,10 @@ jobs:
           path: playwright-report-real/
           retention-days: 14
 
-      - name: Upload standardized QA Archive screenshots (if captured)
+      - name: Upload standardized QA Archive screenshots (real)
         if: always() && hashFiles('qa-archive-runs/**') != ''
         uses: actions/upload-artifact@v7
         with:
-          name: qa-archive-screenshots
+          name: qa-archive-screenshots-real
           path: qa-archive-runs/
           retention-days: 14

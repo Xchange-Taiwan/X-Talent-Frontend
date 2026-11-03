@@ -58,9 +58,13 @@ export function resolveArchiveOutputPath(
   options: Pick<CaptureArchiveOptions, 'runId' | 'outRootDir'> = {}
 ): string {
   const runId =
-    options.runId ?? process.env.QA_ARCHIVE_RUN_ID ?? 'latest-e2e-run';
+    options.runId?.trim() ||
+    process.env.QA_ARCHIVE_RUN_ID?.trim() ||
+    'latest-e2e-run';
   const outRootDir =
-    options.outRootDir ?? process.env.QA_ARCHIVE_OUT_DIR ?? 'qa-archive-runs';
+    options.outRootDir?.trim() ||
+    process.env.QA_ARCHIVE_OUT_DIR?.trim() ||
+    'qa-archive-runs';
   const normalizedScreen = screenId.replace(/\.png$/i, '');
   return path.resolve(outRootDir, runId, moduleId, `${normalizedScreen}.png`);
 }
