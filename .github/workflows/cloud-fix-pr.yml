@@ -142,6 +142,640 @@ jobs:
             playwright-${{ runner.os }}-
 
       - name: Install Playwright Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm playwright install chromium
+
+      - name: Configure Git and local environment for UI evidence and E2E
+        env:
+          BFF_OPENAPI_URL: ${{ secrets.BFF_OPENAPI_URL || vars.BFF_OPENAPI_URL }}
+          DESIGN_AUDIT_MENTOR_EMAIL: ${{ secrets.DESIGN_AUDIT_MENTOR_EMAIL || secrets.E2E_MENTOR_EMAIL }}
+          DESIGN_AUDIT_MENTOR_PASSWORD: ${{ secrets.DESIGN_AUDIT_MENTOR_PASSWORD || secrets.E2E_MENTOR_PASSWORD }}
+          DESIGN_AUDIT_MENTEE_EMAIL: ${{ secrets.DESIGN_AUDIT_MENTEE_EMAIL || secrets.E2E_MENTEE_EMAIL }}
+          DESIGN_AUDIT_MENTEE_PASSWORD: ${{ secrets.DESIGN_AUDIT_MENTEE_PASSWORD || secrets.E2E_MENTEE_PASSWORD }}
+          E2E_MENTOR_EMAIL: ${{ secrets.E2E_MENTOR_EMAIL || secrets.DESIGN_AUDIT_MENTOR_EMAIL }}
+          E2E_MENTOR_PASSWORD: ${{ secrets.E2E_MENTOR_PASSWORD || secrets.DESIGN_AUDIT_MENTOR_PASSWORD }}
+          E2E_MENTEE_EMAIL: ${{ secrets.E2E_MENTEE_EMAIL || secrets.DESIGN_AUDIT_MENTEE_EMAIL }}
+          E2E_MENTEE_PASSWORD: ${{ secrets.E2E_MENTEE_PASSWORD || secrets.DESIGN_AUDIT_MENTEE_PASSWORD }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET_DEV }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          git config user.name "x-talent-cloud-agent[bot]"
+          git config user.email "x-talent-cloud-agent[bot]@users.noreply.github.com"
+
+          RESOLVED_API_URL="https://8br2lpf3ll.execute-api.ap-northeast-1.amazonaws.com/dev/api"
+          if [ -n "$BFF_OPENAPI_URL" ]; then
+            DERIVED_API="${BFF_OPENAPI_URL%/openapi.json}"
+            if [[ "$DERIVED_API" != */api ]]; then
+              DERIVED_API="${DERIVED_API%/}/api"
+            fi
+            RESOLVED_API_URL="$DERIVED_API"
+          fi
+
+          {
+            printf '%s=%s\n' "NEXT_PUBLIC_API_URL" "$RESOLVED_API_URL"
+            printf '%s=%s\n' "NEXTAUTH_URL" "http://localhost:3000"
+            printf '%s=%s\n' "NEXTAUTH_SECRET" "$NEXTAUTH_SECRET"
+            printf '%s=%s\n' "GEMINI_API_KEY" "$GEMINI_API_KEY"
+            printf '%s=%s\n' "DESIGN_AUDIT_MENTOR_EMAIL" "$DESIGN_AUDIT_MENTOR_EMAIL"
+            printf '%s=%s\n' "DESIGN_AUDIT_MENTOR_PASSWORD" "$DESIGN_AUDIT_MENTOR_PASSWORD"
+            printf '%s=%s\n' "DESIGN_AUDIT_MENTEE_EMAIL" "$DESIGN_AUDIT_MENTEE_EMAIL"
+            printf '%s=%s\n' "DESIGN_AUDIT_MENTEE_PASSWORD" "$DESIGN_AUDIT_MENTEE_PASSWORD"
+          } > .env.development.local
+          chmod 600 .env.development.local
+
+          {
+            printf '%s=%s\n' "NEXT_PUBLIC_API_URL" "$RESOLVED_API_URL"
+            printf '%s=%s\n' "NEXTAUTH_SECRET" "$NEXTAUTH_SECRET"
+            printf '%s=%s\n' "E2E_MENTOR_EMAIL" "$E2E_MENTOR_EMAIL"
+            printf '%s=%s\n' "E2E_MENTOR_PASSWORD" "$E2E_MENTOR_PASSWORD"
+            printf '%s=%s\n' "E2E_MENTEE_EMAIL" "$E2E_MENTEE_EMAIL"
+            printf '%s=%s\n' "E2E_MENTEE_PASSWORD" "$E2E_MENTEE_PASSWORD"
+          } > .env.e2e.local
+          chmod 600 .env.e2e.local
+
+          mkdir -p .git/info .git/hooks
+          printf '\n.env.development.local\n.env.e2e.local\n.env*.local\n' >> .git/info/exclude
+          cat <<'HOOK' > .git/hooks/pre-commit
+          #!/usr/bin/env bash
+          if git diff --cached --name-only | grep -qE '(^|/)\.env(\..+)?$'; then
+            git reset HEAD -- '.env*' '*/.env*' >/dev/null 2>&1 || true
+            echo "Blocked staging of .env files in pre-commit hook." >&2
+            exit 1
+          fi
+          HOOK
+          chmod +x .git/hooks/pre-commit
+
+      - name: Run Gemini CLI for initial PR Fix (Phase 1)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER }}
+          PR_NUMBER: ${{ env.SAFE_PR_NUMBER }}
+          FIX_INSTRUCTIONS: ${{ inputs.fix_instructions }}
+        run: |
+          mkdir -p .agents/tmp
+          GH_TOKEN="${TRACKER_READ_TOKEN:-$GH_TOKEN}" gh issue view "$TICKET_NUMBER" --repo Xchange-Taiwan/X-Talent-Tracker --comments > .agents/tmp/ticket-spec.md 2>/dev/null || true
+
+          if [ -n "$FIX_INSTRUCTIONS" ]; then
+            PROMPT="我們正在處理 PR #${PR_NUMBER}（對應 Ticket #${TICKET_NUMBER}，規格位於 .agents/tmp/ticket-spec.md）。
+            工程師從 Discord 下達了以下具體修改指示：
+            「${FIX_INSTRUCTIONS}」
+            請依序執行：
+            1. 優先針對上述修改指示完成程式碼與測試調整。
+            2. 同時檢查 PR #${PR_NUMBER} 的失敗 CI Checks 與 AI Review 留言並一併修復。
+            3. 僅執行快速的 pnpm type-check 與 pnpm test（Vitest）確認通過（此階段嚴禁自行執行 pnpm test:e2e、npx playwright test 或 git push，下一步 Phase 2 將自動執行多輪 AI Review 與 E2E 收斂迴圈）。"
+          else
+            PROMPT="請針對 PR #${PR_NUMBER}（對應 Ticket #${TICKET_NUMBER}，規格位於 .agents/tmp/ticket-spec.md）檢查所有失敗的 CI Checks 與 AI Review 留言，完成程式碼與測試修復並僅執行快速的 pnpm type-check 與 pnpm test（Vitest）確認通過（此階段嚴禁自行執行 pnpm test:e2e、npx playwright test 或 git push，下一步 Phase 2 將自動執行多輪 AI Review 與 E2E 收斂迴圈）。"
+          fi
+          npx gemini -m "$GEMINI_MODEL" --approval-mode=yolo --skip-trust -p "$PROMPT"
+
+      - name: Run Multi-Round AI Review & Playwright E2E Convergence Loop (Phase 2)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER }}
+          MAX_AI_REVIEW_ROUNDS: ${{ env.SAFE_MAX_ROUNDS }}
+          RUN_E2E: ${{ env.SAFE_RUN_E2E }}
+        run: |
+          node scripts/cloud-converge-loop.mjs \
+            --ticket="$TICKET_NUMBER" \
+            --max-rounds="$MAX_AI_REVIEW_ROUNDS" \
+            --run-e2e="$RUN_E2E"
+
+      - name: Commit and push converged fixes to PR branch (Phase 3)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER }}
+          PR_NUMBER: ${{ env.SAFE_PR_NUMBER }}
+        run: |
+          trap 'rm -f .env.development.local .env.e2e.local' EXIT
+          PROMPT="PR #${PR_NUMBER}（對應 Ticket #${TICKET_NUMBER}）已通過雲端多輪 AI Review 與 Playwright E2E 收斂檢查。
+          請執行最後提交步驟：
+          1. 若修改涉及 src/ 下的 UI 畫面變更，請啟動 pnpm dev 並執行 node scripts/capture-ui-evidence.mjs 重新截圖，再透過 .agents/scripts/publish-evidence.sh 更新 pr-evidence 分支與 PR 描述中的截圖。
+          2. 將工作目錄中的所有程式碼與測試修改 commit 並 git push 到當前 PR 分支。"
+          npx gemini -m "$GEMINI_MODEL" --approval-mode=yolo --skip-trust -p "$PROMPT"
+
+      - name: Finalize and notify Discord Worker (Suggestion 4 auto-recovery & Vercel limit detection)
+        if: always()
+        env:
+          CALLBACK_SECRET: ${{ secrets.CLOUD_CALLBACK_SECRET || secrets.GITHUB_WEBHOOK_SECRET || secrets.TRACKER_READ_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER || inputs.ticket_number }}
+          PR_NUMBER: ${{ env.SAFE_PR_NUMBER || inputs.pr_number }}
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          rm -f .env.development.local .env.e2e.local
+          CLEAN_TICKET=$(printf '%s' "$TICKET_NUMBER" | tr -cd '0-9')
+          CLEAN_PR=$(printf '%s' "$PR_NUMBER" | tr -cd '0-9')
+
+          PR_URL="https://github.com/${{ github.repository }}/pull/${CLEAN_PR}"
+          VERCEL_LIMIT="false"
+          if [ -n "$CLEAN_PR" ]; then
+            CHECKS_TEXT=$(gh pr checks "$CLEAN_PR" --repo "${{ github.repository }}" 2>&1 || true)
+            if echo "$CHECKS_TEXT" | grep -qiE "Vercel.*fail|api-deployments-free-per-day|Resource is limited"; then
+              VERCEL_LIMIT="true"
+            fi
+          fi
+
+          if [ "$JOB_STATUS" = "success" ]; then
+            STATUS="fix_pr_succeeded"
+            MSG="雲端 Fix PR #${CLEAN_PR} 已完成多輪 AI Review 與 E2E 收斂並更新分支"
+          else
+            STATUS="fix_pr_failed"
+            MSG="雲端 Fix PR #${CLEAN_PR} 執行未完全通過（狀態: ${JOB_STATUS}），按鈕已自動解鎖可重試"
+          fi
+
+          if [ -n "$CALLBACK_SECRET" ]; then
+            jq -n \
+              --arg issueNumber "$CLEAN_TICKET" \
+              --arg status "$STATUS" \
+              --arg prNumber "$CLEAN_PR" \
+              --arg prUrl "$PR_URL" \
+              --arg message "$MSG" \
+              --arg runUrl "$RUN_URL" \
+              --argjson vercelLimitReached "$VERCEL_LIMIT" \
+              '{
+                issueNumber: ($issueNumber | tonumber? // null),
+                status: $status,
+                prNumber: ($prNumber | tonumber? // null),
+                prUrl: $prUrl,
+                message: $message,
+                vercelLimitReached: $vercelLimitReached,
+                runUrl: $runUrl
+              }' | curl -sS -X POST "$WORKER_CALLBACK_URL" \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer $CALLBACK_SECRET" \
+                -d @- || true
+          fi
+name: Cloud AI Fix PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      ticket_number:
+        description: 'X-Talent-Tracker Issue Number (e.g. 780)'
+        required: true
+        type: string
+      pr_number:
+        description: 'X-Talent-Frontend Pull Request Number (e.g. 1198)'
+        required: true
+        type: string
+      fix_instructions:
+        description: 'Optional custom fix instructions from Discord Modal (Suggestion 2)'
+        required: false
+        default: ''
+        type: string
+      max_review_rounds:
+        description: 'Maximum pre-push AI Review convergence rounds (1-20)'
+        required: false
+        default: '20'
+        type: string
+      run_e2e:
+        description: 'Run Playwright E2E suite in each convergence round'
+        required: false
+        default: 'true'
+        type: string
+      requester:
+        description: 'GitHub username of the engineer who triggered this run'
+        required: false
+        default: 'LowSugarCoke'
+        type: string
+
+concurrency:
+  group: cloud-fix-pr-${{ inputs.pr_number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+env:
+  GEMINI_MODEL: gemini-4-argon
+  GEMINI_CLI_TRUST_WORKSPACE: 'true'
+  WORKER_CALLBACK_URL: 'https://x-talent-discord-mention-notify.eat-what.workers.dev/__cloud-callback'
+
+jobs:
+  fix-pr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    name: 'Cloud AI Fix PR #${{ inputs.pr_number }} (#${{ inputs.ticket_number }})'
+    steps:
+      - name: Validate inputs and notify Discord Worker (fix_pr_started)
+        env:
+          CALLBACK_SECRET: ${{ secrets.CLOUD_CALLBACK_SECRET || secrets.GITHUB_WEBHOOK_SECRET || secrets.TRACKER_READ_TOKEN }}
+          TICKET_NUMBER: ${{ inputs.ticket_number }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          MAX_REVIEW_ROUNDS: ${{ inputs.max_review_rounds }}
+          RUN_E2E: ${{ inputs.run_e2e }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          CLEAN_TICKET="${TICKET_NUMBER//#/}"
+          CLEAN_TICKET="${CLEAN_TICKET//[[:space:]]/}"
+          CLEAN_PR="${PR_NUMBER//#/}"
+          CLEAN_PR="${CLEAN_PR//[[:space:]]/}"
+          if ! [[ "$CLEAN_TICKET" =~ ^[0-9]+$ ]]; then
+            echo "::error::Invalid ticket_number '${TICKET_NUMBER}'. Must be a positive integer."
+            exit 1
+          fi
+          if ! [[ "$CLEAN_PR" =~ ^[0-9]+$ ]]; then
+            echo "::error::Invalid pr_number '${PR_NUMBER}'. Must be a positive integer."
+            exit 1
+          fi
+          echo "SAFE_TICKET_NUMBER=${CLEAN_TICKET}" >> "$GITHUB_ENV"
+          echo "SAFE_PR_NUMBER=${CLEAN_PR}" >> "$GITHUB_ENV"
+
+          CLEAN_ROUNDS="${MAX_REVIEW_ROUNDS//[[:space:]]/}"
+          if ! [[ "$CLEAN_ROUNDS" =~ ^[0-9]+$ ]] || [ "$CLEAN_ROUNDS" -lt 1 ]; then
+            CLEAN_ROUNDS="20"
+          elif [ "$CLEAN_ROUNDS" -gt 20 ]; then
+            CLEAN_ROUNDS="20"
+          fi
+          echo "SAFE_MAX_ROUNDS=${CLEAN_ROUNDS}" >> "$GITHUB_ENV"
+
+          CLEAN_E2E="${RUN_E2E//[[:space:]]/}"
+          if [ "$CLEAN_E2E" = "false" ] || [ "$CLEAN_E2E" = "0" ]; then
+            echo "SAFE_RUN_E2E=false" >> "$GITHUB_ENV"
+          else
+            echo "SAFE_RUN_E2E=true" >> "$GITHUB_ENV"
+          fi
+
+          if [ -n "$CALLBACK_SECRET" ]; then
+            jq -n \
+              --arg issueNumber "$CLEAN_TICKET" \
+              --arg prNumber "$CLEAN_PR" \
+              --arg status "fix_pr_started" \
+              --arg runUrl "$RUN_URL" \
+              '{
+                issueNumber: ($issueNumber | tonumber? // null),
+                prNumber: ($prNumber | tonumber? // null),
+                status: $status,
+                runUrl: $runUrl
+              }' | curl -sS -X POST "$WORKER_CALLBACK_URL" \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer $CALLBACK_SECRET" \
+                -d @- || true
+          fi
+
+      - name: Checkout repository and PR branch
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Check out PR #${{ inputs.pr_number }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ env.SAFE_PR_NUMBER }}
+        run: gh pr checkout "$PR_NUMBER"
+
+      - name: Set up PNPM
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node.js with PNPM cache (Suggestion 6)
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers (Suggestion 6)
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm playwright install chromium
+
+      - name: Configure Git and local environment for UI evidence and E2E
+        env:
+          BFF_OPENAPI_URL: ${{ secrets.BFF_OPENAPI_URL || vars.BFF_OPENAPI_URL }}
+          DESIGN_AUDIT_MENTOR_EMAIL: ${{ secrets.DESIGN_AUDIT_MENTOR_EMAIL || secrets.E2E_MENTOR_EMAIL }}
+          DESIGN_AUDIT_MENTOR_PASSWORD: ${{ secrets.DESIGN_AUDIT_MENTOR_PASSWORD || secrets.E2E_MENTOR_PASSWORD }}
+          DESIGN_AUDIT_MENTEE_EMAIL: ${{ secrets.DESIGN_AUDIT_MENTEE_EMAIL || secrets.E2E_MENTEE_EMAIL }}
+          DESIGN_AUDIT_MENTEE_PASSWORD: ${{ secrets.DESIGN_AUDIT_MENTEE_PASSWORD || secrets.E2E_MENTEE_PASSWORD }}
+          E2E_MENTOR_EMAIL: ${{ secrets.E2E_MENTOR_EMAIL || secrets.DESIGN_AUDIT_MENTOR_EMAIL }}
+          E2E_MENTOR_PASSWORD: ${{ secrets.E2E_MENTOR_PASSWORD || secrets.DESIGN_AUDIT_MENTOR_PASSWORD }}
+          E2E_MENTEE_EMAIL: ${{ secrets.E2E_MENTEE_EMAIL || secrets.DESIGN_AUDIT_MENTEE_EMAIL }}
+          E2E_MENTEE_PASSWORD: ${{ secrets.E2E_MENTEE_PASSWORD || secrets.DESIGN_AUDIT_MENTEE_PASSWORD }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET_DEV }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          git config user.name "x-talent-cloud-agent[bot]"
+          git config user.email "x-talent-cloud-agent[bot]@users.noreply.github.com"
+
+          RESOLVED_API_URL="https://8br2lpf3ll.execute-api.ap-northeast-1.amazonaws.com/dev/api"
+          if [ -n "$BFF_OPENAPI_URL" ]; then
+            DERIVED_API="${BFF_OPENAPI_URL%/openapi.json}"
+            if [[ "$DERIVED_API" != */api ]]; then
+              DERIVED_API="${DERIVED_API%/}/api"
+            fi
+            RESOLVED_API_URL="$DERIVED_API"
+          fi
+
+          {
+            printf '%s=%s\n' "NEXT_PUBLIC_API_URL" "$RESOLVED_API_URL"
+            printf '%s=%s\n' "NEXTAUTH_URL" "http://localhost:3000"
+            printf '%s=%s\n' "NEXTAUTH_SECRET" "$NEXTAUTH_SECRET"
+            printf '%s=%s\n' "GEMINI_API_KEY" "$GEMINI_API_KEY"
+            printf '%s=%s\n' "DESIGN_AUDIT_MENTOR_EMAIL" "$DESIGN_AUDIT_MENTOR_EMAIL"
+            printf '%s=%s\n' "DESIGN_AUDIT_MENTOR_PASSWORD" "$DESIGN_AUDIT_MENTOR_PASSWORD"
+            printf '%s=%s\n' "DESIGN_AUDIT_MENTEE_EMAIL" "$DESIGN_AUDIT_MENTEE_EMAIL"
+            printf '%s=%s\n' "DESIGN_AUDIT_MENTEE_PASSWORD" "$DESIGN_AUDIT_MENTEE_PASSWORD"
+          } > .env.development.local
+          chmod 600 .env.development.local
+
+          {
+            printf '%s=%s\n' "NEXT_PUBLIC_API_URL" "$RESOLVED_API_URL"
+            printf '%s=%s\n' "NEXTAUTH_SECRET" "$NEXTAUTH_SECRET"
+            printf '%s=%s\n' "E2E_MENTOR_EMAIL" "$E2E_MENTOR_EMAIL"
+            printf '%s=%s\n' "E2E_MENTOR_PASSWORD" "$E2E_MENTOR_PASSWORD"
+            printf '%s=%s\n' "E2E_MENTEE_EMAIL" "$E2E_MENTEE_EMAIL"
+            printf '%s=%s\n' "E2E_MENTEE_PASSWORD" "$E2E_MENTEE_PASSWORD"
+          } > .env.e2e.local
+          chmod 600 .env.e2e.local
+
+          mkdir -p .git/info .git/hooks
+          printf '\n.env.development.local\n.env.e2e.local\n.env*.local\n' >> .git/info/exclude
+          cat <<'HOOK' > .git/hooks/pre-commit
+          #!/usr/bin/env bash
+          if git diff --cached --name-only | grep -qE '(^|/)\.env(\..+)?$'; then
+            git reset HEAD -- '.env*' '*/.env*' >/dev/null 2>&1 || true
+            echo "Blocked staging of .env files in pre-commit hook." >&2
+            exit 1
+          fi
+          HOOK
+          chmod +x .git/hooks/pre-commit
+
+      - name: Run Gemini CLI for initial PR Fix (Phase 1)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER }}
+          PR_NUMBER: ${{ env.SAFE_PR_NUMBER }}
+          FIX_INSTRUCTIONS: ${{ inputs.fix_instructions }}
+        run: |
+          mkdir -p .agents/tmp
+          GH_TOKEN="${TRACKER_READ_TOKEN:-$GH_TOKEN}" gh issue view "$TICKET_NUMBER" --repo Xchange-Taiwan/X-Talent-Tracker --comments > .agents/tmp/ticket-spec.md 2>/dev/null || true
+
+          if [ -n "$FIX_INSTRUCTIONS" ]; then
+            PROMPT="我們正在處理 PR #${PR_NUMBER}（對應 Ticket #${TICKET_NUMBER}，規格位於 .agents/tmp/ticket-spec.md）。
+            工程師從 Discord 下達了以下具體修改指示：
+            「${FIX_INSTRUCTIONS}」
+            請依序執行：
+            1. 優先針對上述修改指示完成程式碼與測試調整。
+            2. 同時檢查 PR #${PR_NUMBER} 的失敗 CI Checks 與 AI Review 留言並一併修復。
+            3. 僅執行快速的 pnpm type-check 與 pnpm test（Vitest）確認通過（此階段嚴禁自行執行 pnpm test:e2e、npx playwright test 或 git push，下一步 Phase 2 將自動執行多輪 AI Review 與 E2E 收斂迴圈）。"
+          else
+            PROMPT="請針對 PR #${PR_NUMBER}（對應 Ticket #${TICKET_NUMBER}，規格位於 .agents/tmp/ticket-spec.md）檢查所有失敗的 CI Checks 與 AI Review 留言，完成程式碼與測試修復並僅執行快速的 pnpm type-check 與 pnpm test（Vitest）確認通過（此階段嚴禁自行執行 pnpm test:e2e、npx playwright test 或 git push，下一步 Phase 2 將自動執行多輪 AI Review 與 E2E 收斂迴圈）。"
+          fi
+          npx gemini -m "$GEMINI_MODEL" --approval-mode=yolo --skip-trust -p "$PROMPT"
+
+      - name: Run Multi-Round AI Review & Playwright E2E Convergence Loop (Phase 2)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER }}
+          MAX_AI_REVIEW_ROUNDS: ${{ env.SAFE_MAX_ROUNDS }}
+          RUN_E2E: ${{ env.SAFE_RUN_E2E }}
+        run: |
+          node scripts/cloud-converge-loop.mjs \
+            --ticket="$TICKET_NUMBER" \
+            --max-rounds="$MAX_AI_REVIEW_ROUNDS" \
+            --run-e2e="$RUN_E2E"
+
+      - name: Commit and push converged fixes to PR branch (Phase 3)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER }}
+          PR_NUMBER: ${{ env.SAFE_PR_NUMBER }}
+        run: |
+          trap 'rm -f .env.development.local .env.e2e.local' EXIT
+          PROMPT="PR #${PR_NUMBER}（對應 Ticket #${TICKET_NUMBER}）已通過雲端多輪 AI Review 與 Playwright E2E 收斂檢查。
+          請執行最後提交步驟：
+          1. 若修改涉及 src/ 下的 UI 畫面變更，請啟動 pnpm dev 並執行 node scripts/capture-ui-evidence.mjs 重新截圖，再透過 .agents/scripts/publish-evidence.sh 更新 pr-evidence 分支與 PR 描述中的截圖。
+          2. 將工作目錄中的所有程式碼與測試修改 commit 並 git push 到當前 PR 分支。"
+          npx gemini -m "$GEMINI_MODEL" --approval-mode=yolo --skip-trust -p "$PROMPT"
+
+      - name: Finalize and notify Discord Worker (Suggestion 4 auto-recovery & Vercel limit detection)
+        if: always()
+        env:
+          CALLBACK_SECRET: ${{ secrets.CLOUD_CALLBACK_SECRET || secrets.GITHUB_WEBHOOK_SECRET || secrets.TRACKER_READ_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER || inputs.ticket_number }}
+          PR_NUMBER: ${{ env.SAFE_PR_NUMBER || inputs.pr_number }}
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          rm -f .env.development.local .env.e2e.local
+          CLEAN_TICKET=$(printf '%s' "$TICKET_NUMBER" | tr -cd '0-9')
+          CLEAN_PR=$(printf '%s' "$PR_NUMBER" | tr -cd '0-9')
+
+          PR_URL="https://github.com/${{ github.repository }}/pull/${CLEAN_PR}"
+          VERCEL_LIMIT="false"
+          if [ -n "$CLEAN_PR" ]; then
+            CHECKS_TEXT=$(gh pr checks "$CLEAN_PR" --repo "${{ github.repository }}" 2>&1 || true)
+            if echo "$CHECKS_TEXT" | grep -qiE "Vercel.*fail|api-deployments-free-per-day|Resource is limited"; then
+              VERCEL_LIMIT="true"
+            fi
+          fi
+
+          if [ "$JOB_STATUS" = "success" ]; then
+            STATUS="fix_pr_succeeded"
+            MSG="雲端 Fix PR #${CLEAN_PR} 已完成多輪 AI Review 與 E2E 收斂並更新分支"
+          else
+            STATUS="fix_pr_failed"
+            MSG="雲端 Fix PR #${CLEAN_PR} 執行未完全通過（狀態: ${JOB_STATUS}），按鈕已自動解鎖可重試"
+          fi
+
+          if [ -n "$CALLBACK_SECRET" ]; then
+            jq -n \
+              --arg issueNumber "$CLEAN_TICKET" \
+              --arg status "$STATUS" \
+              --arg prNumber "$CLEAN_PR" \
+              --arg prUrl "$PR_URL" \
+              --arg message "$MSG" \
+              --arg runUrl "$RUN_URL" \
+              --argjson vercelLimitReached "$VERCEL_LIMIT" \
+              '{
+                issueNumber: ($issueNumber | tonumber? // null),
+                status: $status,
+                prNumber: ($prNumber | tonumber? // null),
+                prUrl: $prUrl,
+                message: $message,
+                vercelLimitReached: $vercelLimitReached,
+                runUrl: $runUrl
+              }' | curl -sS -X POST "$WORKER_CALLBACK_URL" \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer $CALLBACK_SECRET" \
+                -d @- || true
+          fi
+name: Cloud AI Fix PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      ticket_number:
+        description: 'X-Talent-Tracker Issue Number (e.g. 780)'
+        required: true
+        type: string
+      pr_number:
+        description: 'X-Talent-Frontend Pull Request Number (e.g. 1198)'
+        required: true
+        type: string
+      fix_instructions:
+        description: 'Optional custom fix instructions from Discord Modal (Suggestion 2)'
+        required: false
+        default: ''
+        type: string
+      max_review_rounds:
+        description: 'Maximum pre-push AI Review convergence rounds (1-20)'
+        required: false
+        default: '20'
+        type: string
+      run_e2e:
+        description: 'Run Playwright E2E suite in each convergence round'
+        required: false
+        default: 'true'
+        type: string
+      requester:
+        description: 'GitHub username of the engineer who triggered this run'
+        required: false
+        default: 'LowSugarCoke'
+        type: string
+
+concurrency:
+  group: cloud-fix-pr-${{ inputs.pr_number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+env:
+  GEMINI_MODEL: gemini-4-argon
+  GEMINI_CLI_TRUST_WORKSPACE: 'true'
+  WORKER_CALLBACK_URL: 'https://x-talent-discord-mention-notify.eat-what.workers.dev/__cloud-callback'
+
+jobs:
+  fix-pr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    name: 'Cloud AI Fix PR #${{ inputs.pr_number }} (#${{ inputs.ticket_number }})'
+    steps:
+      - name: Validate inputs and notify Discord Worker (fix_pr_started)
+        env:
+          CALLBACK_SECRET: ${{ secrets.CLOUD_CALLBACK_SECRET || secrets.GITHUB_WEBHOOK_SECRET || secrets.TRACKER_READ_TOKEN }}
+          TICKET_NUMBER: ${{ inputs.ticket_number }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          MAX_REVIEW_ROUNDS: ${{ inputs.max_review_rounds }}
+          RUN_E2E: ${{ inputs.run_e2e }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          CLEAN_TICKET="${TICKET_NUMBER//#/}"
+          CLEAN_TICKET="${CLEAN_TICKET//[[:space:]]/}"
+          CLEAN_PR="${PR_NUMBER//#/}"
+          CLEAN_PR="${CLEAN_PR//[[:space:]]/}"
+          if ! [[ "$CLEAN_TICKET" =~ ^[0-9]+$ ]]; then
+            echo "::error::Invalid ticket_number '${TICKET_NUMBER}'. Must be a positive integer."
+            exit 1
+          fi
+          if ! [[ "$CLEAN_PR" =~ ^[0-9]+$ ]]; then
+            echo "::error::Invalid pr_number '${PR_NUMBER}'. Must be a positive integer."
+            exit 1
+          fi
+          echo "SAFE_TICKET_NUMBER=${CLEAN_TICKET}" >> "$GITHUB_ENV"
+          echo "SAFE_PR_NUMBER=${CLEAN_PR}" >> "$GITHUB_ENV"
+
+          CLEAN_ROUNDS="${MAX_REVIEW_ROUNDS//[[:space:]]/}"
+          if ! [[ "$CLEAN_ROUNDS" =~ ^[0-9]+$ ]] || [ "$CLEAN_ROUNDS" -lt 1 ]; then
+            CLEAN_ROUNDS="20"
+          elif [ "$CLEAN_ROUNDS" -gt 20 ]; then
+            CLEAN_ROUNDS="20"
+          fi
+          echo "SAFE_MAX_ROUNDS=${CLEAN_ROUNDS}" >> "$GITHUB_ENV"
+
+          CLEAN_E2E="${RUN_E2E//[[:space:]]/}"
+          if [ "$CLEAN_E2E" = "false" ] || [ "$CLEAN_E2E" = "0" ]; then
+            echo "SAFE_RUN_E2E=false" >> "$GITHUB_ENV"
+          else
+            echo "SAFE_RUN_E2E=true" >> "$GITHUB_ENV"
+          fi
+
+          if [ -n "$CALLBACK_SECRET" ]; then
+            jq -n \
+              --arg issueNumber "$CLEAN_TICKET" \
+              --arg prNumber "$CLEAN_PR" \
+              --arg status "fix_pr_started" \
+              --arg runUrl "$RUN_URL" \
+              '{
+                issueNumber: ($issueNumber | tonumber? // null),
+                prNumber: ($prNumber | tonumber? // null),
+                status: $status,
+                runUrl: $runUrl
+              }' | curl -sS -X POST "$WORKER_CALLBACK_URL" \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer $CALLBACK_SECRET" \
+                -d @- || true
+          fi
+
+      - name: Checkout repository and PR branch
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Check out PR #${{ inputs.pr_number }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ env.SAFE_PR_NUMBER }}
+        run: gh pr checkout "$PR_NUMBER"
+
+      - name: Set up PNPM
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node.js with PNPM cache (Suggestion 6)
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers (Suggestion 6)
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright Chromium
         run: |
           if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
             pnpm playwright install-deps chromium
