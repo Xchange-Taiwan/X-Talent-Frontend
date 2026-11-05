@@ -254,12 +254,6 @@ jobs:
           PR_URL=$(echo "$PR_JSON" | jq -r '.url // empty' 2>/dev/null || echo "")
 
           VERCEL_LIMIT="false"
-          if [ -n "$PR_NUMBER" ]; then
-            CHECKS_TEXT=$(gh pr checks "$PR_NUMBER" --repo "${{ github.repository }}" 2>&1 || true)
-            if echo "$CHECKS_TEXT" | grep -qiE "Vercel.*fail|api-deployments-free-per-day|Resource is limited"; then
-              VERCEL_LIMIT="true"
-            fi
-          fi
 
           if [ -n "$PR_NUMBER" ] && [ "$JOB_STATUS" = "success" ]; then
             STATUS="implement_succeeded"
