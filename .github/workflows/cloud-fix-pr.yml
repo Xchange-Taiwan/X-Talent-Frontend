@@ -42,18 +42,43 @@ jobs:
     timeout-minutes: 45
     name: 'Cloud AI Fix PR #${{ inputs.pr_number }} (#${{ inputs.ticket_number }})'
     steps:
-      - name: Notify Discord Worker (fix_pr_started)
+      - name: Validate inputs and notify Discord Worker (fix_pr_started)
         env:
           CALLBACK_SECRET: ${{ secrets.CLOUD_CALLBACK_SECRET || secrets.GITHUB_WEBHOOK_SECRET || secrets.TRACKER_READ_TOKEN }}
           TICKET_NUMBER: ${{ inputs.ticket_number }}
           PR_NUMBER: ${{ inputs.pr_number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          CLEAN_TICKET="${TICKET_NUMBER//#/}"
+          CLEAN_TICKET="${CLEAN_TICKET//[[:space:]]/}"
+          CLEAN_PR="${PR_NUMBER//#/}"
+          CLEAN_PR="${CLEAN_PR//[[:space:]]/}"
+          if ! [[ "$CLEAN_TICKET" =~ ^[0-9]+$ ]]; then
+            echo "::error::Invalid ticket_number '${TICKET_NUMBER}'. Must be a positive integer."
+            exit 1
+          fi
+          if ! [[ "$CLEAN_PR" =~ ^[0-9]+$ ]]; then
+            echo "::error::Invalid pr_number '${PR_NUMBER}'. Must be a positive integer."
+            exit 1
+          fi
+          echo "SAFE_TICKET_NUMBER=${CLEAN_TICKET}" >> "$GITHUB_ENV"
+          echo "SAFE_PR_NUMBER=${CLEAN_PR}" >> "$GITHUB_ENV"
+
           if [ -n "$CALLBACK_SECRET" ]; then
-            curl -sS -X POST "$WORKER_CALLBACK_URL" \
-              -H "Content-Type: application/json" \
-              -H "Authorization: Bearer $CALLBACK_SECRET" \
-              -d "{\"issueNumber\":${TICKET_NUMBER},\"prNumber\":${PR_NUMBER},\"status\":\"fix_pr_started\",\"runUrl\":\"${RUN_URL}\"}" || true
+            jq -n \
+              --arg issueNumber "$CLEAN_TICKET" \
+              --arg prNumber "$CLEAN_PR" \
+              --arg status "fix_pr_started" \
+              --arg runUrl "$RUN_URL" \
+              '{
+                issueNumber: ($issueNumber | tonumber? // null),
+                prNumber: ($prNumber | tonumber? // null),
+                status: $status,
+                runUrl: $runUrl
+              }' | curl -sS -X POST "$WORKER_CALLBACK_URL" \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer $CALLBACK_SECRET" \
+                -d @- || true
           fi
 
       - name: Checkout repository and PR branch
@@ -65,7 +90,7 @@ jobs:
       - name: Check out PR #${{ inputs.pr_number }}
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ inputs.pr_number }}
+          PR_NUMBER: ${{ env.SAFE_PR_NUMBER }}
         run: gh pr checkout "$PR_NUMBER"
 
       - name: Set up PNPM
@@ -107,24 +132,38 @@ jobs:
         run: |
           git config user.name "x-talent-cloud-agent[bot]"
           git config user.email "x-talent-cloud-agent[bot]@users.noreply.github.com"
-          cat <<EOF > .env.development.local
-          NEXTAUTH_URL=http://localhost:3000
-          NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
-          DESIGN_AUDIT_MENTOR_EMAIL=${DESIGN_AUDIT_MENTOR_EMAIL}
-          DESIGN_AUDIT_MENTOR_PASSWORD=${DESIGN_AUDIT_MENTOR_PASSWORD}
-          DESIGN_AUDIT_MENTEE_EMAIL=${DESIGN_AUDIT_MENTEE_EMAIL}
-          DESIGN_AUDIT_MENTEE_PASSWORD=${DESIGN_AUDIT_MENTEE_PASSWORD}
-          EOF
+          {
+            printf '%s=%s\n' "NEXTAUTH_URL" "http://localhost:3000"
+            printf '%s=%s\n' "NEXTAUTH_SECRET" "$NEXTAUTH_SECRET"
+            printf '%s=%s\n' "DESIGN_AUDIT_MENTOR_EMAIL" "$DESIGN_AUDIT_MENTOR_EMAIL"
+            printf '%s=%s\n' "DESIGN_AUDIT_MENTOR_PASSWORD" "$DESIGN_AUDIT_MENTOR_PASSWORD"
+            printf '%s=%s\n' "DESIGN_AUDIT_MENTEE_EMAIL" "$DESIGN_AUDIT_MENTEE_EMAIL"
+            printf '%s=%s\n' "DESIGN_AUDIT_MENTEE_PASSWORD" "$DESIGN_AUDIT_MENTEE_PASSWORD"
+          } > .env.development.local
+          chmod 600 .env.development.local
+
+          mkdir -p .git/info .git/hooks
+          printf '\n.env.development.local\n.env*.local\n' >> .git/info/exclude
+          cat <<'HOOK' > .git/hooks/pre-commit
+          #!/usr/bin/env bash
+          if git diff --cached --name-only | grep -qE '(^|/)\.env(\..+)?$'; then
+            git reset HEAD -- '.env*' '*/.env*' >/dev/null 2>&1 || true
+            echo "Blocked staging of .env files in pre-commit hook." >&2
+            exit 1
+          fi
+          HOOK
+          chmod +x .git/hooks/pre-commit
 
       - name: Run Gemini CLI for Fix PR (Suggestion 2 custom instructions + CI/Review fixes)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
-          TICKET_NUMBER: ${{ inputs.ticket_number }}
-          PR_NUMBER: ${{ inputs.pr_number }}
+          TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER }}
+          PR_NUMBER: ${{ env.SAFE_PR_NUMBER }}
           FIX_INSTRUCTIONS: ${{ inputs.fix_instructions }}
         run: |
+          trap 'rm -f .env.development.local' EXIT
           if [ -n "$FIX_INSTRUCTIONS" ]; then
             PROMPT="我們正在處理 PR #${PR_NUMBER}（對應 Ticket #${TICKET_NUMBER}）。
             工程師從 Discord 下達了以下具體修改指示：
@@ -144,39 +183,45 @@ jobs:
         env:
           CALLBACK_SECRET: ${{ secrets.CLOUD_CALLBACK_SECRET || secrets.GITHUB_WEBHOOK_SECRET || secrets.TRACKER_READ_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
-          TICKET_NUMBER: ${{ inputs.ticket_number }}
-          PR_NUMBER: ${{ inputs.pr_number }}
+          TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER || inputs.ticket_number }}
+          PR_NUMBER: ${{ env.SAFE_PR_NUMBER || inputs.pr_number }}
           JOB_STATUS: ${{ job.status }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          PR_URL="https://github.com/${{ github.repository }}/pull/${PR_NUMBER}"
+          rm -f .env.development.local
+          CLEAN_TICKET=$(printf '%s' "$TICKET_NUMBER" | tr -cd '0-9')
+          CLEAN_PR=$(printf '%s' "$PR_NUMBER" | tr -cd '0-9')
+
+          PR_URL="https://github.com/${{ github.repository }}/pull/${CLEAN_PR}"
           VERCEL_LIMIT="false"
-          CHECKS_TEXT=$(gh pr checks "$PR_NUMBER" --repo "${{ github.repository }}" 2>&1 || true)
-          if echo "$CHECKS_TEXT" | grep -qiE "Vercel.*fail|api-deployments-free-per-day|Resource is limited"; then
-            VERCEL_LIMIT="true"
+          if [ -n "$CLEAN_PR" ]; then
+            CHECKS_TEXT=$(gh pr checks "$CLEAN_PR" --repo "${{ github.repository }}" 2>&1 || true)
+            if echo "$CHECKS_TEXT" | grep -qiE "Vercel.*fail|api-deployments-free-per-day|Resource is limited"; then
+              VERCEL_LIMIT="true"
+            fi
           fi
 
           if [ "$JOB_STATUS" = "success" ]; then
             STATUS="fix_pr_succeeded"
-            MSG="雲端 Fix PR #${PR_NUMBER} 已執行完成並更新分支"
+            MSG="雲端 Fix PR #${CLEAN_PR} 已執行完成並更新分支"
           else
             STATUS="fix_pr_failed"
-            MSG="雲端 Fix PR #${PR_NUMBER} 執行未完全通過（狀態: ${JOB_STATUS}），按鈕已自動解鎖可重試"
+            MSG="雲端 Fix PR #${CLEAN_PR} 執行未完全通過（狀態: ${JOB_STATUS}），按鈕已自動解鎖可重試"
           fi
 
           if [ -n "$CALLBACK_SECRET" ]; then
             jq -n \
-              --arg issueNumber "$TICKET_NUMBER" \
+              --arg issueNumber "$CLEAN_TICKET" \
               --arg status "$STATUS" \
-              --arg prNumber "$PR_NUMBER" \
+              --arg prNumber "$CLEAN_PR" \
               --arg prUrl "$PR_URL" \
               --arg message "$MSG" \
               --arg runUrl "$RUN_URL" \
               --argjson vercelLimitReached "$VERCEL_LIMIT" \
               '{
-                issueNumber: ($issueNumber | tonumber),
+                issueNumber: ($issueNumber | tonumber? // null),
                 status: $status,
-                prNumber: ($prNumber | tonumber),
+                prNumber: ($prNumber | tonumber? // null),
                 prUrl: $prUrl,
                 message: $message,
                 vercelLimitReached: $vercelLimitReached,
