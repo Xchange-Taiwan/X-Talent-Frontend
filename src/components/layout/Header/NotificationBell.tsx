@@ -352,7 +352,7 @@ export const NotificationBell = React.memo(function NotificationBell({
                   FOCUS_RING_CLASSES
                 )}
               >
-                Mark all as read
+                全部標示為已讀
               </button>
             </div>
           )}

@@ -723,7 +723,7 @@ describe('NotificationBell', () => {
       expect(unreadTitle).toHaveClass('font-bold');
     });
 
-    it('marks all notifications as read when "Mark all as read" is clicked and calls onMarkAllRead exactly for unread items', async () => {
+    it('marks all notifications as read when "全部標示為已讀" is clicked and calls onMarkAllRead exactly for unread items', async () => {
       const onMarkAllReadMock = vi.fn();
       const mixedNotifications: NotificationItem[] = [
         {
@@ -757,7 +757,7 @@ describe('NotificationBell', () => {
       expect(readTitle).toHaveClass('font-normal');
 
       const markAllBtn = screen.getByRole('button', {
-        name: 'Mark all as read',
+        name: '全部標示為已讀',
       });
       expect(markAllBtn).toBeInTheDocument();
 
@@ -807,7 +807,7 @@ describe('NotificationBell', () => {
       fireEvent.click(button);
 
       const markAllBtn = screen.getByRole('button', {
-        name: 'Mark all as read',
+        name: '全部標示為已讀',
       });
       fireEvent.click(markAllBtn);
 
@@ -847,7 +847,7 @@ describe('NotificationBell', () => {
       expect(unreadTitle).toHaveClass('font-bold');
 
       const markAllBtn = screen.getByRole('button', {
-        name: 'Mark all as read',
+        name: '全部標示為已讀',
       });
       fireEvent.click(markAllBtn);
 
@@ -914,7 +914,7 @@ describe('NotificationBell', () => {
       expect(title2).toHaveClass('font-bold');
 
       const markAllBtn = screen.getByRole('button', {
-        name: 'Mark all as read',
+        name: '全部標示為已讀',
       });
       fireEvent.click(markAllBtn);
 
@@ -967,7 +967,7 @@ describe('NotificationBell', () => {
       fireEvent.click(button);
 
       const markAllBtn = screen.getByRole('button', {
-        name: 'Mark all as read',
+        name: '全部標示為已讀',
       });
       fireEvent.click(markAllBtn);
 
@@ -981,7 +981,7 @@ describe('NotificationBell', () => {
       expect(mockToast).not.toHaveBeenCalled();
     });
 
-    it('disables "Mark all as read" button when there are no unread notifications', () => {
+    it('disables "全部標示為已讀" button when there are no unread notifications', () => {
       const readNotifications: NotificationItem[] = [
         {
           id: 'read-1',
@@ -998,7 +998,7 @@ describe('NotificationBell', () => {
       fireEvent.click(button);
 
       const markAllBtn = screen.getByRole('button', {
-        name: 'Mark all as read',
+        name: '全部標示為已讀',
       });
       expect(markAllBtn).toBeInTheDocument();
       expect(markAllBtn).toBeDisabled();
@@ -1072,7 +1072,7 @@ describe('NotificationBell', () => {
       expect(screen.getByText('5')).toBeInTheDocument();
     });
 
-    it('does NOT reset seenUnreadCount to 0 and keeps localStorage intact when rollback occurs on mark all as read failure', async () => {
+    it('does NOT reset seenUnreadCount to 0 and keeps localStorage intact when rollback occurs on 全部標示為已讀 failure', async () => {
       const onMarkAllReadErrorMock = vi
         .fn()
         .mockRejectedValue(new Error('Network error'));
@@ -1088,7 +1088,7 @@ describe('NotificationBell', () => {
       );
 
       const markAllBtn = screen.getByRole('button', {
-        name: 'Mark all as read',
+        name: '全部標示為已讀',
       });
       fireEvent.click(markAllBtn);
 
