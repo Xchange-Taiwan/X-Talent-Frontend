@@ -45,7 +45,7 @@ if (!process.env.GEMINI_API_KEY) {
 
 import { callGemini } from './lib/gemini.mjs';
 import { buildPrompt } from './lib/prompt.mjs';
-import { fetchTicketContext } from './lib/ticket.mjs';
+import { fetchArchitectureKnowledgeBase, fetchTicketContext } from './lib/ticket.mjs';
 
 function parseCliOption(prefix) {
   const arg = process.argv.slice(2).find((item) => item.startsWith(prefix));
@@ -117,9 +117,13 @@ async function main() {
     ? `\n\n## 雲端 Playwright E2E 驗證狀態\n${e2eReport}`
     : '';
 
+  const archKbSection = await fetchArchitectureKnowledgeBase(
+    ticket.ticketFound ? `#${ticket.number} ${ticket.title} ${branch}` : branch
+  );
+
   const ticketSection = ticket.ticketFound
-    ? `## 對應 Ticket\n**#${ticket.number} ${ticket.title}**\n\n${ticket.body}${e2eSection}`
-    : `## 對應 Ticket\n（僅根據 diff 進行分析）${e2eSection}`;
+    ? `## 對應 Ticket\n**#${ticket.number} ${ticket.title}**\n\n${ticket.body}${e2eSection}${archKbSection}`
+    : `## 對應 Ticket\n（僅根據 diff 進行分析）${e2eSection}${archKbSection}`;
 
   const planPrompt = buildPrompt(
     new URL('./prompts/planner.md', import.meta.url),

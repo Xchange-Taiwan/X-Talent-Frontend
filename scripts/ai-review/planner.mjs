@@ -1,6 +1,6 @@
 import { callGemini } from './lib/gemini.mjs';
 import { getDiff } from './lib/diff.mjs';
-import { fetchTicketContext } from './lib/ticket.mjs';
+import { fetchArchitectureKnowledgeBase, fetchTicketContext } from './lib/ticket.mjs';
 import { buildPrompt } from './lib/prompt.mjs';
 import { encodeContext, writeGithubOutput } from './lib/context-io.mjs';
 
@@ -45,8 +45,12 @@ const ticketSection = ticket.ticketFound
     ].join('\n')
   : '## 對應 Ticket\n（這個 PR 的 branch 名稱找不到對應的 ticket 編號，僅根據 diff 進行分析）';
 
+const archKbSection = await fetchArchitectureKnowledgeBase(
+  ticket.ticketFound ? `#${ticket.number} ${ticket.title} ${headBranch}` : headBranch
+);
+
 const prompt = buildPrompt(new URL('./prompts/planner.md', import.meta.url), {
-  TICKET_SECTION: ticketSection,
+  TICKET_SECTION: `${ticketSection}${archKbSection}`,
   DIFF: diff,
   TRUNCATED_NOTE: truncated ? '（注意：diff 過大，內容已截斷）' : '',
 });

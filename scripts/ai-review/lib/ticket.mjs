@@ -62,3 +62,35 @@ export async function fetchTicketContext(branchName, token, fallbackTicket) {
     })),
   };
 }
+
+
+const ARCH_KB_ENDPOINT =
+  process.env.ARCH_KB_ENDPOINT ||
+  'https://x-talent-discord-mention-notify.eat-what.workers.dev/__arch-kb';
+
+/**
+ * Fetches the pre-indexed X-Talent Architecture Knowledge Base (Global Map +
+ * matched Domain Cards for Frontend, Backend, AWS Infra, BFF Contracts, ADRs,
+ * and Figma Route Mappings) from the Cloudflare KV Worker endpoint.
+ * Fails gracefully (returns '') if offline or unreachable.
+ */
+export async function fetchArchitectureKnowledgeBase(queryText) {
+  try {
+    const res = await fetch(ARCH_KB_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: String(queryText || '').slice(0, 1000) }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return '';
+    const data = await res.json();
+    if (!data?.kb) return '';
+    return (
+      '\n\n## X-Talent 跨專案架構知識庫 (Cloudflare KV Architecture KB)\n```json\n' +
+      JSON.stringify(data.kb, null, 2).slice(0, 12000) +
+      '\n```'
+    );
+  } catch {
+    return '';
+  }
+}
