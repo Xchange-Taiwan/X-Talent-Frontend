@@ -700,4 +700,55 @@ describe('computeBookingAvailability', () => {
       expect(slotsExpired).toHaveLength(0);
     });
   });
+
+  describe('Ticket #784: Unified occurrence projection & virtual slots', () => {
+    it('projects availableDates, bookedDates, earliestSelectableDate, and slotsWithMeta including virtual slots for deleted schedule rules', () => {
+      const mockReservation = fromPartial<Reservation>({
+        id: 'res-virtual',
+        name: 'Virtual Mentee',
+        dtstart: futureTime2,
+        dtend: futureTime2 + 1800,
+      });
+
+      const draftRows: RawMentorTimeslot[] = [
+        // Open ALLOW slot on 2026-05-01
+        {
+          id: 10,
+          type: 'ALLOW',
+          dtstart: futureTime1,
+          dtend: futureTime1 + 1800,
+          rrule: undefined,
+          exdate: [],
+        },
+        // Orphan virtual BOOKED slot (id < 0) whose underlying ALLOW rule was deleted
+        {
+          id: -99,
+          type: 'BOOKED',
+          dtstart: futureTime2,
+          dtend: futureTime2 + 1800,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+
+      const model = computeBookingAvailability({
+        draftRows,
+        nowSec,
+        selectedDate: '2026-05-01',
+        reservations: [mockReservation],
+      });
+
+      expect(model.availableDates).toEqual(['2026-05-01']);
+      expect(model.bookedDates).toEqual(['2026-05-01']);
+      expect(model.earliestSelectableDate).toBe('2026-05-01');
+      expect(model.slotsForSelectedDate).toHaveLength(1);
+      expect(model.slotsWithMeta).toHaveLength(2);
+      expect(model.slotsWithMeta[0].reservationBlock).toBeNull();
+      expect(model.slotsWithMeta[1].slot.id).toBe(-99);
+      expect(model.slotsWithMeta[1].reservationBlock).toBe('BOOKED');
+      expect(model.slotsWithMeta[1].matchedReservation).toEqual(
+        mockReservation
+      );
+    });
+  });
 });
