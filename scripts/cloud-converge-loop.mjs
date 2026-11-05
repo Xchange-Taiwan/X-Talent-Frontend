@@ -100,7 +100,10 @@ export function detectChangedE2eSpecs(
       normalized.startsWith('src/') ||
       normalized === 'middleware.ts' ||
       normalized === 'next.config.js' ||
-      normalized === 'tailwind.config.js'
+      normalized === 'tailwind.config.js' ||
+      normalized === 'playwright.config.ts' ||
+      normalized === 'package.json' ||
+      (normalized.startsWith('e2e/') && !normalized.endsWith('.spec.ts'))
     ) {
       hasAppCodeChanges = true;
     }
