@@ -138,15 +138,12 @@ jobs:
             playwright-${{ runner.os }}-
 
       - name: Install Playwright Chromium
-        run: |
-          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
-            pnpm playwright install-deps chromium
-          else
-            pnpm playwright install --with-deps chromium
-          fi
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm playwright install chromium
 
       - name: Configure Git and local environment for UI evidence and E2E
         env:
+          BFF_OPENAPI_URL: ${{ secrets.BFF_OPENAPI_URL || vars.BFF_OPENAPI_URL }}
           DESIGN_AUDIT_MENTOR_EMAIL: ${{ secrets.DESIGN_AUDIT_MENTOR_EMAIL || secrets.E2E_MENTOR_EMAIL }}
           DESIGN_AUDIT_MENTOR_PASSWORD: ${{ secrets.DESIGN_AUDIT_MENTOR_PASSWORD || secrets.E2E_MENTOR_PASSWORD }}
           DESIGN_AUDIT_MENTEE_EMAIL: ${{ secrets.DESIGN_AUDIT_MENTEE_EMAIL || secrets.E2E_MENTEE_EMAIL }}
@@ -160,7 +157,18 @@ jobs:
         run: |
           git config user.name "x-talent-cloud-agent[bot]"
           git config user.email "x-talent-cloud-agent[bot]@users.noreply.github.com"
+
+          RESOLVED_API_URL="https://8br2lpf3ll.execute-api.ap-northeast-1.amazonaws.com/dev/api"
+          if [ -n "$BFF_OPENAPI_URL" ]; then
+            DERIVED_API="${BFF_OPENAPI_URL%/openapi.json}"
+            if [[ "$DERIVED_API" != */api ]]; then
+              DERIVED_API="${DERIVED_API%/}/api"
+            fi
+            RESOLVED_API_URL="$DERIVED_API"
+          fi
+
           {
+            printf '%s=%s\n' "NEXT_PUBLIC_API_URL" "$RESOLVED_API_URL"
             printf '%s=%s\n' "NEXTAUTH_URL" "http://localhost:3000"
             printf '%s=%s\n' "NEXTAUTH_SECRET" "$NEXTAUTH_SECRET"
             printf '%s=%s\n' "GEMINI_API_KEY" "$GEMINI_API_KEY"
@@ -172,6 +180,7 @@ jobs:
           chmod 600 .env.development.local
 
           {
+            printf '%s=%s\n' "NEXT_PUBLIC_API_URL" "$RESOLVED_API_URL"
             printf '%s=%s\n' "NEXTAUTH_SECRET" "$NEXTAUTH_SECRET"
             printf '%s=%s\n' "E2E_MENTOR_EMAIL" "$E2E_MENTOR_EMAIL"
             printf '%s=%s\n' "E2E_MENTOR_PASSWORD" "$E2E_MENTOR_PASSWORD"
@@ -196,28 +205,33 @@ jobs:
         id: gemini_implement
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER }}
           BRANCH_NAME: ${{ env.SAFE_BRANCH_NAME }}
           EXTRA_PROMPT: ${{ inputs.extra_prompt }}
         run: |
+          mkdir -p .agents/tmp
+          GH_TOKEN="${TRACKER_READ_TOKEN:-$GH_TOKEN}" gh issue view "$TICKET_NUMBER" --repo Xchange-Taiwan/X-Talent-Tracker --comments > .agents/tmp/ticket-spec.md 2>/dev/null || true
+
           if [ -n "$BRANCH_NAME" ]; then
             git fetch origin "$BRANCH_NAME"
             git checkout "$BRANCH_NAME" || git checkout -b "$BRANCH_NAME" "origin/$BRANCH_NAME"
             bash .agents/scripts/link-ticket-branch.sh "$TICKET_NUMBER" "$BRANCH_NAME" || true
-            PROMPT="我們正在處理從本地 Promote 上雲端的分支 ${BRANCH_NAME}，對應 https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/${TICKET_NUMBER}。
+            PROMPT="我們正在處理從本地 Promote 上雲端的分支 ${BRANCH_NAME}，對應 https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/${TICKET_NUMBER}（完整 Issue 規格與留言已預先下載至 .agents/tmp/ticket-spec.md）。
             請依序執行：
-            1. 檢查 git diff origin/develop 與 Issue #${TICKET_NUMBER} 的所有驗收條件（Acceptance Criteria）。
-            2. 若有尚未實作完畢的需求、缺少的 Vitest 單元測試或對應的 Playwright E2E 測試，請直接補齊程式碼與測試。
-            3. 執行 pnpm type-check 與 pnpm test 確保通過。
-            4. 注意：此階段請勿執行 gh pr create 開立 PR，因為下一步將由雲端腳本執行最多 20 輪 AI Review 與 Playwright E2E 自動收斂迴圈。
+            1. 直接讀取 .agents/tmp/ticket-spec.md（請勿讀取 .git/config 或重新執行 gh auth），並檢查 git diff origin/develop 與 Issue #${TICKET_NUMBER} 的所有驗收條件（Acceptance Criteria）。
+            2. 若有尚未實作完畢的需求、缺少的 Vitest 單元測試或對應的 Playwright E2E (.spec.ts) 測試檔案，請直接補齊程式碼與測試檔案。
+            3. 僅執行快速的 pnpm type-check 與 pnpm test（Vitest 單元測試）確保通過。
+            4. 效能與流程限制：此階段嚴禁自行執行 pnpm test:e2e、npx playwright test、pnpm build 或啟動 pnpm dev，也請勿執行 gh pr create，因為下一步 Phase 2 (scripts/cloud-converge-loop.mjs) 會自動啟動 Playwright 執行 E2E 驗證與最多 20 輪 AI Review 自癒收斂迴圈。
             ${EXTRA_PROMPT}"
           else
             PROMPT="請針對 https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/${TICKET_NUMBER} 執行第一階段程式碼與測試實作：
-            1. 執行 bash .agents/scripts/link-ticket-branch.sh ${TICKET_NUMBER} 建立並綁定 Linked Branch，確認看板移至 In progress。
-            2. 根據 Issue #${TICKET_NUMBER} 需求完成程式碼、Vitest 單元測試與對應的 Playwright E2E 測試實作，並執行 pnpm type-check 與 pnpm test 確保通過。
-            3. 注意：此階段請勿執行 gh pr create 開立 PR，因為下一步將由雲端腳本執行最多 20 輪 AI Review 與 Playwright E2E 自動收斂迴圈，收斂完成後再統一截圖與開立 PR。
+            1. Issue #${TICKET_NUMBER} 的完整規格與留言已預先下載至 .agents/tmp/ticket-spec.md，請直接讀取該檔案（請勿讀取 .git/config 或重新執行 gh auth）。
+            2. 執行 bash .agents/scripts/link-ticket-branch.sh ${TICKET_NUMBER} 建立並綁定 Linked Branch，確認看板移至 In progress。
+            3. 根據 Issue #${TICKET_NUMBER} 需求完成程式碼、Vitest 單元測試與對應的 Playwright E2E (.spec.ts) 測試檔案撰寫，並僅執行快速的 pnpm type-check 與 pnpm test（Vitest 單元測試）確保通過。
+            4. 效能與流程限制：此階段嚴禁自行執行 pnpm test:e2e、npx playwright test、pnpm build 或啟動 pnpm dev，也請勿執行 gh pr create，因為下一步 Phase 2 (scripts/cloud-converge-loop.mjs) 會自動啟動 Playwright 執行 E2E 驗證與最多 20 輪 AI Review 自癒收斂迴圈，收斂完成後再統一截圖與開立 PR。
             ${EXTRA_PROMPT}"
           fi
           npx gemini -m "$GEMINI_MODEL" --approval-mode=yolo --skip-trust -p "$PROMPT"
@@ -240,6 +254,7 @@ jobs:
       - name: Capture UI evidence and submit Pull Request (Phase 3)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER }}
@@ -247,7 +262,7 @@ jobs:
           trap 'rm -f .env.development.local .env.e2e.local' EXIT
           PROMPT="程式碼已通過雲端 Pre-PR 多輪 AI Review 與 Playwright E2E 收斂檢查（摘要位於 .agents/tmp/cloud-converge-summary.md）。
           請針對 Issue #${TICKET_NUMBER} 完成最後提交與開立 PR：
-          1. 若 git diff origin/develop 涉及 UI 元件或頁面變更，請於背景啟動 pnpm dev 並執行 node scripts/capture-ui-evidence.mjs 擷取畫面截圖存入 .agents/tmp/evidence/。
+          1. 若 git diff origin/develop 涉及 src/ 下的 UI 元件或頁面變更，請於背景啟動 pnpm dev 並執行 node scripts/capture-ui-evidence.mjs 擷取畫面截圖存入 .agents/tmp/evidence/（若僅修改測試或腳本則無須截圖）。
           2. 遵循 .agents/skills/submit-pr/SKILL.md 流程：發佈截圖至 pr-evidence 分支（若有截圖）、將所有變更 commit 並 git push 至遠端分支。
           3. 使用 gh pr create 開立指向 develop 的 Pull Request（若該分支已有開啟的 PR 則使用 gh pr edit 更新描述），並在 PR 描述中附上 .agents/tmp/cloud-converge-summary.md 的收斂摘要與 Ref: https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/${TICKET_NUMBER}。
           4. 將 Project #7 看板上的 Issue #${TICKET_NUMBER} 狀態更新為 PR Review。"
