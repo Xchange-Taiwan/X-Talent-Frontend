@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
- * Runs the AI Review pipeline locally using the FREE Gemini model (`gemini-4-argon`)
- * configured in `.env.development.local` (`GEMINI_API_KEY`), consuming ZERO
- * Claude Code / Aside sub-agent tokens.
+ * Runs the AI Review pipeline locally or in the Cloud Pre-PR convergence loop
+ * using the FREE Gemini model (`gemini-4-argon`) configured in
+ * `.env.development.local` or environment variables (`GEMINI_API_KEY`),
+ * consuming ZERO Claude Code / Aside sub-agent tokens.
  *
  * If `GEMINI_API_KEY` is not configured on the developer's machine, prints a
  * graceful fallback notice so the agent performs a single-pass in-context
@@ -11,11 +12,16 @@
  */
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
+
 import { config } from 'dotenv';
 
 config({ path: path.resolve('.env.development.local') });
 config({ path: path.resolve('.env.local') });
 config({ path: path.resolve('.env') });
+
+if (!process.env.GEMINI_MAX_OUTPUT_TOKENS) {
+  process.env.GEMINI_MAX_OUTPUT_TOKENS = '32768';
+}
 
 if (!process.env.GEMINI_API_KEY) {
   console.log(
@@ -27,6 +33,8 @@ if (!process.env.GEMINI_API_KEY) {
           reason:
             'No local GEMINI_API_KEY found in .env.development.local. Skip spawning sub-agents; rely on local lint/type-check/vitest and GitHub Actions CI Gemini review.',
         },
+        requirementCoverage: [],
+        findings: {},
       },
       null,
       2
@@ -39,11 +47,22 @@ import { callGemini } from './lib/gemini.mjs';
 import { buildPrompt } from './lib/prompt.mjs';
 import { fetchTicketContext } from './lib/ticket.mjs';
 
+function parseCliOption(prefix) {
+  const arg = process.argv.slice(2).find((item) => item.startsWith(prefix));
+  return arg ? arg.slice(prefix.length).trim() : '';
+}
+
 async function main() {
+  const baseRef =
+    parseCliOption('--base-ref=') || process.env.BASE_REF || 'origin/develop';
+  const explicitTicket =
+    parseCliOption('--ticket=') || process.env.TICKET_NUMBER || '';
+  const e2eReport = process.env.E2E_VERIFICATION_REPORT || '';
+
   const branch = execFileSync('git', ['branch', '--show-current'], {
     encoding: 'utf8',
   }).trim();
-  const diff = execFileSync('git', ['diff', 'origin/develop'], {
+  const diff = execFileSync('git', ['diff', baseRef], {
     encoding: 'utf8',
     maxBuffer: 10 * 1024 * 1024,
   });
@@ -54,7 +73,16 @@ async function main() {
         {
           overallRisk: {
             level: 'low',
-            reason: 'Empty diff against origin/develop.',
+            reason: `Empty diff against ${baseRef}.`,
+          },
+          requirementCoverage: [],
+          findings: {
+            security: [],
+            correctness: [],
+            businessLogic: [],
+            performance: [],
+            testing: [],
+            architecture: [],
           },
         },
         null,
@@ -81,13 +109,17 @@ async function main() {
   let ticket = { ticketFound: false };
   if (ghToken) {
     try {
-      ticket = await fetchTicketContext(branch, ghToken);
+      ticket = await fetchTicketContext(branch, ghToken, explicitTicket);
     } catch {}
   }
 
+  const e2eSection = e2eReport
+    ? `\n\n## 雲端 Playwright E2E 驗證狀態\n${e2eReport}`
+    : '';
+
   const ticketSection = ticket.ticketFound
-    ? `## 對應 Ticket\n**#${ticket.number} ${ticket.title}**\n\n${ticket.body}`
-    : '## 對應 Ticket\n（僅根據 diff 進行分析）';
+    ? `## 對應 Ticket\n**#${ticket.number} ${ticket.title}**\n\n${ticket.body}${e2eSection}`
+    : `## 對應 Ticket\n（僅根據 diff 進行分析）${e2eSection}`;
 
   const planPrompt = buildPrompt(
     new URL('./prompts/planner.md', import.meta.url),
@@ -148,6 +180,9 @@ async function main() {
           reason: 'Completed',
         },
         mergeRecommendation: summary?.mergeRecommendation ?? '',
+        requirementCoverage: Array.isArray(summary?.requirementCoverage)
+          ? summary.requirementCoverage
+          : [],
         findings: {
           security: security?.findings ?? [],
           correctness: correctness?.findings ?? [],
@@ -174,6 +209,8 @@ main().catch((err) => {
         level: 'low',
         reason: 'Deferred to GitHub Actions CI Gemini pipeline.',
       },
+      requirementCoverage: [],
+      findings: {},
     })
   );
 });

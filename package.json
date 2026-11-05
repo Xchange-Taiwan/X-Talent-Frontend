@@ -26,6 +26,8 @@
     "prepare": "husky install",
     "gemini": "gemini -m gemini-4-argon",
     "gemini-yolo": "cross-env GEMINI_CLI_TRUST_WORKSPACE=true gemini -m gemini-4-argon --approval-mode=yolo --skip-trust",
+    "cloud:converge": "node scripts/cloud-converge-loop.mjs",
+    "cloud:promote": "node scripts/cloud-promote.mjs",
     "generate:types": "node scripts/generate-types.mjs",
     "generate:tokens": "node scripts/generate-tokens.mjs",
     "generate:tokens:check": "node scripts/generate-tokens.mjs --check",
