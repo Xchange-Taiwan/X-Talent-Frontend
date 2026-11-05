@@ -1,7 +1,6 @@
 ---
-name: implement
-description: 'Implement a piece of work based on a spec or set of tickets.'
-disable-model-invocation: true
+name: 'implement'
+description: '在 X-Talent / X-Frontend 等專案實作 GitHub Issue 或 Ticket 需求（含自動呼叫 /start-ticket 建立並綁定 Linked Branch、擷取 UI 證據截圖、本地 /ai-review、/submit-pr 開立 PR 與更新看板至 PR Review、以及 /fix-pr 收斂 CI）。當使用者要求實作（implement）某張 Ticket 或 Issue 時使用。'
 ---
 
 Implement the work described by the user in the spec or tickets.
@@ -10,38 +9,47 @@ Implement the work described by the user in the spec or tickets.
 
 If the workspace is an `X-Frontend` project (e.g., `X-Talent-Frontend` or similar frontend repository), you MUST strictly follow this modular workflow:
 
-1. **Setup Branch:**
-   - Call the `/start-ticket <github-issue-url>` skill to automatically pull develop, create/link the branch programmatically via GraphQL, and analyze requirements.
+1. **Setup & Link Branch (Hard Gate — Never Skip):**
+   - Call the `/start-ticket <github-issue-url>` skill to automatically pull `develop`, create/link the branch programmatically via GraphQL (`createLinkedBranch`), move the Project V2 board status to `In progress`, and analyze requirements.
+   - **Recommended one-step execution** (prevents lost shell variables across separate tool calls and handles pre-existing local/remote branches and worktrees idempotently):
+     - **On macOS/Linux (Bash/Zsh)**:
+       ```bash
+       bash .agents/scripts/link-ticket-branch.sh <issue-number-or-url> "<feat|fix>/<issue-number>-<slug>"
+       ```
+     - **On Windows (PowerShell)**:
+       ```powershell
+       & .agents/scripts/link-ticket-branch.ps1 <issue-number-or-url> "<feat|fix>/<issue-number>-<slug>"
+       ```
+   - **Git Worktree / Pre-existing Branch Rule**:
+     - Never create a branch solely with `git checkout -b` or `git worktree add -b` and skip `/start-ticket`! If you are working in a `git worktree` (or if `develop` is checked out in the main working tree, or a local/remote branch already exists), run `link-ticket-branch.sh` / `link-ticket-branch.ps1` with `--no-checkout` (or `-NoCheckout`) first so `createLinkedBranch` creates and links the remote branch on GitHub from `origin/develop`, then `git fetch origin <branch>` and attach your worktree (`git worktree add <path> <branch>`).
+   - **Verification Gate**: Before proceeding to Step 2, verify that the command output confirms `✅ Verified Development link on #<issue-number>` (`linkedBranches` or `linkedPRs` is non-empty). Do not start implementation on an unlinked branch.
 
-2. **Implement Feature:**
-   - Implement the requirements step-by-step. Use TDD where possible.
-   - Run typechecking and tests regularly.
-   - **Capture screenshot evidence for UI-facing changes (hard requirement, not best-effort):** CLAUDE.md requires visually verifying UI work before reporting it done, and `/submit-pr` Step 3 requires evidence to already exist for any UI-facing change. Do this **before** calling `/ai-review` in Step 3, not after — do not defer it to `/submit-pr`. With `pnpm dev` running locally, run:
-     ```bash
-     node scripts/capture-ui-evidence.mjs --routes <route1,route2,...> --role visitor|mentee|mentor [--viewport desktop|mobile]
-     ```
-     This drives a real Playwright browser against `http://localhost:3000`, logs in for real when `--role` isn't `visitor`, and saves numbered PNGs into `.agents/tmp/evidence/` (one call per role/viewport combination in scope — see below). Keep the printed file paths; `/submit-pr` Step 3 publishes them and embeds the resulting links in the PR body. Skip this entirely for changes with no visible UI surface (pure logic, config, tests) — do not run it "just in case."
-     - **Do not proceed to Step 3 (`/ai-review`) if a UI-facing change was made but `.agents/tmp/evidence/` is still empty afterward.** Re-run the script (or fix whatever route/selector broke) before continuing.
-     - **Role-specific surfaces** (header, navigation, profile, onboarding, or anything else CLAUDE.md's role-based UI rule applies to): call the script once per role actually reachable on the changed surface — visitor, mentee, mentor — instead of just one shot. The script signs in through the real sign-in UI using `DESIGN_AUDIT_MENTOR_EMAIL`/`DESIGN_AUDIT_MENTOR_PASSWORD` for mentor and `DESIGN_AUDIT_MENTEE_EMAIL`/`DESIGN_AUDIT_MENTEE_PASSWORD` for mentee (`.env.development.local`); these are separate from `E2E_MENTEE_*`/`E2E_MENTOR_*` (the Playwright e2e suite's own real-login credentials, see `e2e/fixtures/auth.setup.ts`) — never mix the two. Each invocation opens a fresh browser context, so there's no session to reset between roles. This always targets your own local `pnpm dev` server, never the deployed dev site (that's `/penpot-sync`'s job).
-     - **Multi-viewport (RWD) coverage** is out of scope here — this step is single-viewport, quick PR evidence, not a design audit. When a change genuinely needs a full role × viewport sweep, run `/rwd-test` separately for that; don't fold its heavier output (composite images, HackMD upload, temporary code hacks) into this flow.
+2. **Write Lightweight Unit Tests First (TDD) & Implement Feature:**
+   - **Unit/Component Tests First (Vitest — NOT Browser E2E)**:
+     - Before writing production code, translate the ticket's Acceptance Criteria into fast, lightweight unit or component tests (`.test.ts` / `.test.tsx` in `src/`, run via `pnpm test` / `vitest run`).
+     - Do **NOT** write or run heavy browser E2E (`playwright test`) before or during normal feature coding unless the ticket itself explicitly requests new E2E specs.
+   - Implement the requirements step-by-step until your new and existing unit tests pass.
+   - Run deterministic local checks (`pnpm lint`, `pnpm type-check`, `pnpm test`).
+   - **UI Screenshot Evidence (Delegated to CI Pipeline by Default)**:
+     - Do **NOT** waste local tokens or time starting `pnpm dev` and debugging local Playwright screenshot scripts before opening the PR — the GitHub Actions CI pipeline (`deploy-pr.yml`) automatically captures and attaches UI screenshots from the deployed PR Preview.
+     - Only run `node scripts/capture-ui-evidence.mjs` locally if the user explicitly asks for local screenshots before opening a PR.
 
-3. **Run AI Review Locally:**
-   - Once implementation is complete, call the `/ai-review` skill to launch parallel sub-agents (Security, Correctness, Business Logic, Performance, Testing, Architecture, and Review Guide).
-   - These agents will review your changes locally against the actual X-Tracker ticket requirements.
-   - **Pass/Blocked criterion**: `/ai-review`'s summary stage returns `overallRisk.level` (`low` / `medium` / `high`), not a literal status line — derive the verdict yourself:
-     - `overallRisk.level == "low"` → **PASS**.
-     - `overallRisk.level == "medium"` or `"high"` → **BLOCKED**.
+3. **Fast Pre-PR Verification (Zero Sub-Agent Overhead):**
+   - **Never spawn 7 local sub-agents** for pre-PR review (full 7-agent AI Review runs automatically on GitHub Actions CI using the free `gemini-4-argon` pipeline after the PR is opened).
+   - Before calling `/submit-pr`, perform **1 single-pass in-context self-check** (or run `node scripts/ai-review/run-local.mjs`, which uses free Gemini if `GEMINI_API_KEY` is in `.env.development.local` and otherwise exits immediately):
+     - Confirm every Acceptance Criterion from the ticket is implemented and covered by a unit test.
+     - Confirm no PII/secrets are logged and error/empty states are handled.
+     - Confirm `pnpm lint`, `pnpm type-check`, and `pnpm test` all pass with exit code 0.
    - **Automated Handoff Contract**:
-     - **If PASS**: You MUST automatically transition to **Step 4 (`/submit-pr`)** in the exact same turn without stopping, asking the user, or halting the workflow.
-     - **If BLOCKED**: Directly address the findings yourself (critical issues, security warnings, logic bugs, anything driving the risk level), then re-run `/ai-review` and re-evaluate. Repeat this fix-and-re-review cycle up to a maximum of **20 attempts**. If it is still BLOCKED after 20 attempts, you MUST halt, output the accumulated findings clearly to the user, and wait for manual intervention. Do not proceed to `/submit-pr` until it passes.
+     - Once the single-pass check and `pnpm lint && pnpm type-check && pnpm test` pass, **immediately transition to Step 4 (`/submit-pr`)** in the exact same turn without stopping or asking the user.
 
 4. **Complete & Submit PR:**
-   - Once implementation is done, verified, and reviewed, call the `/submit-pr` skill to run final tests, commit, push, create a PR, and move the ticket to `PR Review` status.
+   - Once implementation is done, verified, and reviewed, call the `/submit-pr` skill to verify/self-heal the ticket-to-branch link, run final tests, commit, push, create a PR, and move the ticket to `PR Review` status.
 
-5. **Post-PR Fix Loop:**
+5. **Post-PR Fix Loop (Token-Efficient CI Watch):**
    - Unless the user has explicitly indicated they only want the PR opened and nothing further (e.g. "just open the PR", "stop once it's submitted"), automatically continue into the `/fix-pr` skill immediately after Step 4 succeeds — do not stop to ask first.
-   - `/fix-pr` runs under its own existing rules unchanged (up to 20 rounds, Vercel daily-limit failures excluded from the retry budget and reported instead of retried). Do not alter or share its retry budget with Step 3's local `/ai-review` loop.
-   - `/implement` is only considered fully complete when `/fix-pr` converges (all watched checks green) or its only remaining blocker is the Vercel daily deployment limit. Any other non-converged outcome (including hitting the 20-round cap) means `/implement` is **not** complete — report `/fix-pr`'s final findings to the user as-is and wait for manual intervention.
+   - `/fix-pr` uses `.agents/scripts/wait-pr-checks.sh` / `.ps1` to wait quietly in the terminal (0 LLM tokens burned while waiting) until the CI pipeline and free Gemini `AI Review: Final Summary` finish, and runs at most **3 fix rounds** (without spawning local sub-agents).
+   - `/implement` is only considered fully complete when `/fix-pr` converges (all watched checks green and AI Review `Overall Risk: low`) or its only remaining blocker is the Vercel daily deployment limit.
    - Never auto-merge the PR (`gh pr merge`) and never advance the X-Talent-Tracker board status past `PR Review` — both remain manual actions for the user, even when `/fix-pr` fully converges.
 
 ---

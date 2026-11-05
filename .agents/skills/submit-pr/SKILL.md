@@ -1,7 +1,6 @@
 ---
-name: submit-pr
-description: 'Run quality checks, commit with highlighted changes, create a PR, and move the ticket to PR Review on the project board.'
-disable-model-invocation: true
+name: 'submit-pr'
+description: '在完成實作與測試後，自動驗證或補齊 Ticket 與 Branch 的連結、發佈 UI 截圖證據至 pr-evidence 分支、撰寫 Conventional Commit 並推送、建立 Pull Request，且確保 GitHub Project V2 看板卡片穩定移至 PR Review。'
 ---
 
 Submit changes for PR review, updating issue tracking status and highlighting modifications.
@@ -41,19 +40,9 @@ Submit changes for PR review, updating issue tracking status and highlighting mo
        . .agents/scripts/load-config.ps1
        ```
 
-3. **Publish Screenshot Evidence (UI-facing changes only)**
-   - **Mandatory Screenshot Policy**: For any UI-facing change (any visual change on pages, components, layout, navigation, onboarding, profile, header, or footer), screenshot evidence **MUST** be present.
-   - **Automatic Local Screenshot Generation**: If `.agents/tmp/evidence/` is empty or missing, this means `/implement` Step 2 was skipped or failed — you **MUST NOT** skip this step or degrade straight to `N/A`. Instead, automatically:
-     1. Start the local dev server (`pnpm dev`) in the background.
-     2. Wait for it to become ready (listen on port 3000).
-     3. For each role that's reachable on the changed surface (visitor, mentee, mentor) and each viewport in scope (desktop, mobile), run:
-        ```bash
-        node scripts/capture-ui-evidence.mjs --routes <route1,route2,...> --role visitor|mentee|mentor --viewport desktop|mobile
-        ```
-        This is the same script `/implement` Step 2 uses — it drives a real Playwright browser, signs in for real using the `DESIGN_AUDIT_MENTEE_*`/`DESIGN_AUDIT_MENTOR_*` credentials from `.env.development.local` when the role isn't `visitor`, and saves PNGs straight into `.agents/tmp/evidence/`. There is no separate authenticate/capture/save choreography to improvise here.
-     4. Shut down/kill the background dev server process.
-     - **If the script itself errors** (e.g. a selector changed, a route 404s): fix the underlying cause (check the route exists, check `.env.development.local` has the credentials) and retry. Do not silently give up and write `N/A` — an empty evidence folder for a UI change should be rare enough that hitting it here means something upstream is actually broken and worth surfacing, not routing around.
-   - Publish the captured screenshot files to the shared evidence branch to get stable, embeddable links:
+3. **Publish Screenshot Evidence (If Already Captured Locally; Otherwise Delegated to CI)**
+   - **CI Pipeline Auto-Capture Default**: To save local agent tokens and avoid slow local `pnpm dev` / Playwright timeouts, UI screenshots are captured automatically by the GitHub Actions CI pipeline (`deploy-pr.yml`) against the deployed PR Preview URL.
+   - If `.agents/tmp/evidence/*.png` already contains screenshots (e.g. captured at the user's explicit request), publish them to the `pr-evidence` branch:
      - **On macOS/Linux (Bash/Zsh)**:
        ```bash
        bash .agents/scripts/publish-evidence.sh .agents/tmp/evidence/*.png
@@ -62,10 +51,7 @@ Submit changes for PR review, updating issue tracking status and highlighting mo
        ```powershell
        Get-ChildItem -Path .agents\tmp\evidence\*.png | ForEach-Object { & .agents/scripts/publish-evidence.ps1 $_.FullName }
        ```
-   - Each stdout line is one `https://raw.githubusercontent.com/...` URL, in the same order as the input files — one per screenshot. Keep these for Step 4's commit message.
-   - The script pushes straight to a dedicated `pr-evidence` branch via git plumbing (`hash-object`/`read-tree`/`commit-tree`); it never touches your current branch, working tree, staged changes, or index, so it is safe to run at any point in this flow.
-   - **Failure is non-blocking**: if the script errors (e.g. no push permission), do not halt the PR — skip embedding screenshots and leave the `## Screenshot` section as `N/A`.
-   - If there is no UI-facing change at all (e.g. pure config, backend tests, server scripts), skip this step entirely.
+   - If `.agents/tmp/evidence/` is empty or missing, **do NOT start `pnpm dev` locally** — simply proceed to Step 4 and write `N/A` (the CI pipeline will automatically capture and post the PR Preview screenshots).
 
 4. **Commit with High-lighted Changes & Push**
    - Write a mature, professional conventional commit message.
@@ -93,13 +79,18 @@ Submit changes for PR review, updating issue tracking status and highlighting mo
 
    - **X-Tracker Ticket Link Requirement**: The commit message and PR description MUST link explicitly to the **X-Talent-Tracker** issue, **NOT** the X-Talent-Frontend issue (unless no `$ISSUE_NUMBER` is resolved).
    - Clearly **high-light** modified files/modules using bold or code markdown blocks in the "What Does This PR Do?" section.
-   - **Push with Upstream Tracking**: Push to origin setting the upstream tracking branch to avoid push failures on newly created local branches:
+   - **Ensure Ticket-to-Branch Link Before Push (Self-Healing Gate)**:
+     Because `Ref: https://github.com/...` in the commit footer is NOT a GitHub closing keyword, GitHub only populates the issue's `Development` section if the branch was linked via `createLinkedBranch`. Before pushing, always run `link-ticket-branch` with `--no-checkout --no-board-update` so that even if `/start-ticket` was skipped or the branch was created via `git checkout -b` / `git worktree`, the branch is guaranteed to be linked on GitHub before the PR is opened:
      - **On macOS/Linux (Bash/Zsh)**:
        ```bash
+       BRANCH_NAME=$(git branch --show-current)
+       bash .agents/scripts/link-ticket-branch.sh "" "$BRANCH_NAME" --no-checkout --no-board-update
        git push -u origin "$BRANCH_NAME"
        ```
      - **On Windows (PowerShell)**:
        ```powershell
+       $BRANCH_NAME = (git branch --show-current)
+       & .agents/scripts/link-ticket-branch.ps1 "" $BRANCH_NAME -NoCheckout -NoBoardUpdate
        git push -u origin $BRANCH_NAME
        ```
 
@@ -148,18 +139,50 @@ Submit changes for PR review, updating issue tracking status and highlighting mo
      fi
 
      if [ -z "$ITEM_ID" ]; then
+       ISSUE_NODE_ID=$(gh api graphql -F login="$ORG" -F repo="$TRACKER_REPO" -F issue_number="$ISSUE_NUMBER" -f query='
+         query($login: String!, $repo: String!, $issue_number: Int!) {
+           repository(owner: $login, name: $repo) { issue(number: $issue_number) { id } }
+         }
+       ' --jq '.data.repository.issue.id' 2>/dev/null)
+       if [ -n "$PROJECT_ID" ] && [ -n "$ISSUE_NODE_ID" ]; then
+         ITEM_ID=$(gh api graphql -F project_id="$PROJECT_ID" -F content_id="$ISSUE_NODE_ID" -f query='
+           mutation($project_id: ID!, $content_id: ID!) {
+             addProjectV2ItemById(input: { projectId: $project_id, contentId: $content_id }) { item { id } }
+           }
+         ' --jq '.data.addProjectV2ItemById.item.id' 2>/dev/null)
+         # Wait 3s for GitHub Project "Item added to project" automation to finish before setting PR Review
+         sleep 3
+       fi
+     fi
+
+     if [ -z "$ITEM_ID" ]; then
        echo "⚠️ 找不到對應的 Project Board 卡片，PR 已建立但看板狀態需手動更新"
        exit 0
      fi
 
      if [ -n "$PR_REVIEW_OPTION_ID" ] && [ "$PR_REVIEW_OPTION_ID" != "null" ]; then
-       gh api graphql -F project_id="$PROJECT_ID" -F item_id="$ITEM_ID" -F field_id="$FIELD_ID" -F option_id="$PR_REVIEW_OPTION_ID" -f query='
-         mutation($project_id: ID!, $item_id: ID!, $field_id: ID!, $option_id: String!) {
-           updateProjectV2ItemFieldValue(
-             input: { projectId: $project_id, itemId: $item_id, fieldId: $field_id, value: { singleSelectOptionId: $option_id } }
-           ) { projectV2Item { id } }
-         }
-       ' >/dev/null
+       for attempt in 1 2 3 4; do
+         gh api graphql -f project_id="$PROJECT_ID" -f item_id="$ITEM_ID" -f field_id="$FIELD_ID" -f option_id="$PR_REVIEW_OPTION_ID" -f query='
+           mutation($project_id: ID!, $item_id: ID!, $field_id: ID!, $option_id: String!) {
+             updateProjectV2ItemFieldValue(
+               input: { projectId: $project_id, itemId: $item_id, fieldId: $field_id, value: { singleSelectOptionId: $option_id } }
+             ) { projectV2Item { id } }
+           }
+         ' >/dev/null
+         sleep 2
+         ACTUAL_OPT=$(gh api graphql -F item_id="$ITEM_ID" -f query='
+           query($item_id: ID!) {
+             node(id: $item_id) {
+               ... on ProjectV2Item {
+                 fieldValueByName(name: "Status") {
+                   ... on ProjectV2ItemFieldSingleSelectValue { optionId }
+                 }
+               }
+             }
+           }
+         ' --jq '.data.node.fieldValueByName.optionId // empty' 2>/dev/null)
+         [ "$ACTUAL_OPT" = "$PR_REVIEW_OPTION_ID" ] && break
+       done
        echo "✅ Ticket #$ISSUE_NUMBER moved to PR Review"
      fi
      ```
@@ -203,18 +226,50 @@ Submit changes for PR review, updating issue tracking status and highlighting mo
      }
 
      if (-not $ITEM_ID) {
+       $ISSUE_NODE_ID = (gh api graphql -F login="$ORG" -F repo="$TRACKER_REPO" -F issue_number="$ISSUE_NUMBER" -f query='
+         query($login: String!, $repo: String!, $issue_number: Int!) {
+           repository(owner: $login, name: $repo) { issue(number: $issue_number) { id } }
+         }
+       ' --jq '.data.repository.issue.id' 2>$null)
+       if ($PROJECT_ID -and $ISSUE_NODE_ID) {
+         $ITEM_ID = (gh api graphql -F project_id="$PROJECT_ID" -F content_id="$ISSUE_NODE_ID" -f query='
+           mutation($project_id: ID!, $content_id: ID!) {
+             addProjectV2ItemById(input: { projectId: $project_id, contentId: $content_id }) { item { id } }
+           }
+         ' --jq '.data.addProjectV2ItemById.item.id' 2>$null)
+         # Wait 3s for GitHub Project "Item added to project" automation to finish before setting PR Review
+         Start-Sleep -Seconds 3
+       }
+     }
+
+     if (-not $ITEM_ID) {
        Write-Host "⚠️ 找不到對應的 Project Board 卡片，PR 已建立但看板狀態需手動更新"
        return
      }
 
      if ($PR_REVIEW_OPTION_ID -and $PR_REVIEW_OPTION_ID -ne "null") {
-       gh api graphql -F project_id="$PROJECT_ID" -F item_id="$ITEM_ID" -F field_id="$FIELD_ID" -F option_id="$PR_REVIEW_OPTION_ID" -f query='
-         mutation($project_id: ID!, $item_id: ID!, $field_id: ID!, $option_id: String!) {
-           updateProjectV2ItemFieldValue(
-             input: { projectId: $project_id, itemId: $item_id, fieldId: $field_id, value: { singleSelectOptionId: $option_id } }
-           ) { projectV2Item { id } }
-         }
-       ' | Out-Null
+       foreach ($attempt in 1..4) {
+         gh api graphql -f project_id="$PROJECT_ID" -f item_id="$ITEM_ID" -f field_id="$FIELD_ID" -f option_id="$PR_REVIEW_OPTION_ID" -f query='
+           mutation($project_id: ID!, $item_id: ID!, $field_id: ID!, $option_id: String!) {
+             updateProjectV2ItemFieldValue(
+               input: { projectId: $project_id, itemId: $item_id, fieldId: $field_id, value: { singleSelectOptionId: $option_id } }
+             ) { projectV2Item { id } }
+           }
+         ' | Out-Null
+         Start-Sleep -Seconds 2
+         $ACTUAL_OPT = (gh api graphql -F item_id="$ITEM_ID" -f query='
+           query($item_id: ID!) {
+             node(id: $item_id) {
+               ... on ProjectV2Item {
+                 fieldValueByName(name: "Status") {
+                   ... on ProjectV2ItemFieldSingleSelectValue { optionId }
+                 }
+               }
+             }
+           }
+         ' --jq '.data.node.fieldValueByName.optionId // empty' 2>$null)
+         if ($ACTUAL_OPT -eq $PR_REVIEW_OPTION_ID) { break }
+       }
        Write-Host "✅ Ticket #$ISSUE_NUMBER moved to PR Review"
      }
      ```
