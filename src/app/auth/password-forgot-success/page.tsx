@@ -9,38 +9,35 @@ export default function Page() {
   const { isResending, handleResend, handleChangeEmail } = usePasswordResend();
 
   return (
-    <div className="flex w-full flex-col items-center justify-center py-16">
-      <AuthMessageCard
-        icon={EmailVerifyIconUrl}
-        iconAlt="郵件已送出"
-        title="郵件已送出"
-        contentClassName="px-10 pt-20 pb-20 text-center"
-      >
-        <div className="text-text-secondary flex w-full flex-col items-center gap-1 text-center">
-          系統將自動寄送郵件給您，請查看您的信箱並點擊連結以重設密碼。
-        </div>
+    <AuthMessageCard
+      icon={EmailVerifyIconUrl}
+      iconAlt="郵件已送出"
+      title="郵件已送出"
+    >
+      <p className="text-text-secondary">
+        系統將自動寄送郵件給您，請查看您的信箱並點擊連結以重設密碼。
+      </p>
 
-        <div className="flex w-full justify-center gap-4 pt-6">
-          <Button
-            type="button"
-            shape="pill"
-            className="w-[135px]"
-            onClick={handleResend}
-            disabled={isResending}
-          >
-            {isResending ? '寄送中...' : '重新寄送'}
-          </Button>
-          <Button
-            type="button"
-            shape="pill"
-            className="w-[135px]"
-            variant="outline"
-            onClick={handleChangeEmail}
-          >
-            更換信箱
-          </Button>
-        </div>
-      </AuthMessageCard>
-    </div>
+      <div className="flex flex-wrap justify-center gap-4">
+        <Button
+          type="button"
+          shape="pill"
+          className="min-w-[135px] px-6"
+          onClick={handleResend}
+          disabled={isResending}
+        >
+          {isResending ? '寄送中...' : '重新寄送'}
+        </Button>
+        <Button
+          type="button"
+          shape="pill"
+          className="min-w-[135px] px-6"
+          variant="outline"
+          onClick={handleChangeEmail}
+        >
+          更換信箱
+        </Button>
+      </div>
+    </AuthMessageCard>
   );
 }

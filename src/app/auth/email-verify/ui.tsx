@@ -13,16 +13,19 @@ export default function EmailVerificationPage({
 }: EmailVerificationPageProps) {
   return (
     <AuthMessageCard
-      icon={EmailVerifyIconUrl.src}
+      icon={EmailVerifyIconUrl.src ?? EmailVerifyIconUrl}
       iconAlt="Verify Email"
       title="驗證信箱"
-      contentClassName="px-6 pb-8 pt-16 text-center md:p-20"
     >
       <p className="text-text-secondary">
         已傳送一封驗證信，點選連結以完成帳號註冊。
       </p>
 
-      <Button shape="pill" className="max-w-60" onClick={onNavigateHome}>
+      <Button
+        shape="pill"
+        className="min-w-[135px] px-6"
+        onClick={onNavigateHome}
+      >
         回首頁
       </Button>
 

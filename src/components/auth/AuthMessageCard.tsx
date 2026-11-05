@@ -1,6 +1,10 @@
 import Image, { StaticImageData } from 'next/image';
 import { ReactNode } from 'react';
 
+import { cn } from '@/lib/utils';
+
+import AuthCard from './AuthCard';
+
 interface AuthMessageCardProps {
   icon: string | StaticImageData;
   iconAlt?: string;
@@ -14,11 +18,12 @@ export default function AuthMessageCard({
   iconAlt = 'Auth Message',
   title,
   children,
-  contentClassName = 'px-6 py-10 text-center md:p-20',
+  contentClassName,
 }: AuthMessageCardProps) {
   return (
-    <div className="border-background-border mx-auto my-8 max-w-[90%] overflow-hidden rounded-2xl border-2 border-solid md:my-40 md:max-w-[630px]">
-      <div className="bg-brand-50 relative h-[108px]">
+    <AuthCard
+      showBanner
+      bannerContent={
         <Image
           className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-2/3 transform"
           src={icon}
@@ -26,11 +31,13 @@ export default function AuthMessageCard({
           width={80}
           height={80}
         />
-      </div>
-      <div className={`flex flex-col items-center gap-6 ${contentClassName}`}>
-        <h1 className="text-32 leading-10 font-bold">{title}</h1>
-        {children}
-      </div>
-    </div>
+      }
+      contentClassName={cn('text-center', contentClassName)}
+    >
+      <h1 className="text-32 text-text-primary leading-10 font-bold">
+        {title}
+      </h1>
+      {children}
+    </AuthCard>
   );
 }

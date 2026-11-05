@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
 
+import AuthCard from '@/components/auth/AuthCard';
+import { linkStyle } from '@/components/auth/constants';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,7 +19,11 @@ function PasswordResetForm() {
   } = form;
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} noValidate>
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      className="flex w-full flex-col gap-6"
+      noValidate
+    >
       <div className="space-y-6">
         <div className="space-y-2">
           <Label
@@ -30,7 +36,6 @@ function PasswordResetForm() {
             id="password"
             type="password"
             placeholder="請輸入新密碼"
-            className="border-background-border placeholder:text-text-disable h-[36px] rounded-[8px] border px-3 text-sm"
             {...register('password')}
           />
           {errors.password && (
@@ -51,7 +56,6 @@ function PasswordResetForm() {
             id="confirm_password"
             type="password"
             placeholder="請再次輸入新密碼"
-            className="border-background-border placeholder:text-text-disable h-[36px] rounded-[8px] border px-3 text-sm"
             {...register('confirm_password')}
           />
           {errors.confirm_password && (
@@ -62,13 +66,12 @@ function PasswordResetForm() {
         </div>
       </div>
 
-      <div className="mt-8 flex justify-center">
+      <div className="mt-2 flex justify-center">
         <Button
           type="submit"
-          size="sm"
           shape="pill"
           disabled={isSubmitting}
-          className="min-w-[92px] px-6"
+          className="min-w-[135px] px-6"
         >
           {isSubmitting ? '處理中...' : '更改密碼'}
         </Button>
@@ -79,29 +82,20 @@ function PasswordResetForm() {
 
 export default function Page() {
   return (
-    <div className="bg-background-white">
-      <main className="px-6 py-16">
-        <div className="border-background-border bg-background-white shadow-card mx-auto w-full max-w-[556px] rounded-2xl border px-9 py-14">
-          <div className="mx-auto w-full max-w-[484px]">
-            <h1 className="text-32 text-text-primary mb-8 text-center leading-[1.2] font-bold">
-              重設密碼
-            </h1>
+    <AuthCard>
+      <div className="mx-auto flex w-full max-w-[484px] flex-col items-center gap-6">
+        <h1 className="text-32 text-text-primary text-center leading-10 font-bold">
+          重設密碼
+        </h1>
 
-            <Suspense>
-              <PasswordResetForm />
-            </Suspense>
+        <Suspense>
+          <PasswordResetForm />
+        </Suspense>
 
-            <div className="mt-6 text-center">
-              <Link
-                href="/auth/signin"
-                className="text-text-primary text-sm underline underline-offset-2"
-              >
-                返回登入頁
-              </Link>
-            </div>
-          </div>
-        </div>
-      </main>
-    </div>
+        <Link href="/auth/signin" className={linkStyle}>
+          返回登入頁
+        </Link>
+      </div>
+    </AuthCard>
   );
 }
