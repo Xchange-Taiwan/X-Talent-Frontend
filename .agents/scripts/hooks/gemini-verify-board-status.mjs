@@ -15,10 +15,12 @@
  * Automatically self-heals both on GitHub before returning `{}` so the agent
  * doesn't even have to spend an extra turn unless self-healing fails.
  */
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { linkTicketBranch } from '../link-ticket-branch.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../../..');
@@ -31,12 +33,17 @@ function finishOk() {
   process.exit(0);
 }
 
-try {
-  process.chdir(repoRoot);
-  const branch = execSync('git branch --show-current', {
+function runCmd(bin, args) {
+  return execFileSync(bin, args, {
+    cwd: repoRoot,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'ignore'],
   }).trim();
+}
+
+try {
+  process.chdir(repoRoot);
+  const branch = runCmd('git', ['branch', '--show-current']);
 
   if (!branch || branch === 'develop' || branch === 'main') {
     finishOk();
@@ -56,54 +63,75 @@ try {
   const org = cfg.org;
   const trackerRepo = cfg.repos.tracker;
   const frontendRepo = cfg.repos.frontend;
-  const projectNumber = cfg.project.number;
+  const projectNumber = Number(cfg.project.number);
   const projectId = cfg.project.id;
   const fieldId = cfg.fields.status.id;
   const inProgressOpt = cfg.fields.status.options.in_progress;
   const prReviewOpt = cfg.fields.status.options.pr_review;
 
-  const openPrOut = execSync(
-    `gh pr list --repo "${org}/${frontendRepo}" --head "${branch}" --state open --json number --jq "length"`,
-    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
-  ).trim();
+  const openPrOut = runCmd('gh', [
+    'pr',
+    'list',
+    '--repo',
+    `${org}/${frontendRepo}`,
+    '--head',
+    branch,
+    '--state',
+    'open',
+    '--json',
+    'number',
+    '--jq',
+    'length',
+  ]);
   const openPrCount = Number(openPrOut) || 0;
 
   const expectedOpt = openPrCount > 0 ? prReviewOpt : inProgressOpt;
-  const expectedLabel = openPrCount > 0 ? 'PR Review' : 'In progress';
 
-  const issueQuery = `query($login:String!,$repo:String!,$num:Int!){repository(owner:$login,name:$repo){issue(number:$num){id linkedBranches(first:5){nodes{ref{name}}} closedByPullRequestsReferences(first:5){nodes{number}} projectItems(first:10){nodes{id project{number} fieldValueByName(name:"Status"){... on ProjectV2ItemFieldSingleSelectValue{name optionId}}}}}}}`;
-  const rawIssue = execSync(
-    `gh api graphql -f login="${org}" -f repo="${trackerRepo}" -F num=${issueNumber} -f query='${issueQuery}'`,
-    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
-  );
-  const issue = JSON.parse(rawIssue)?.data?.repository?.issue;
-  if (!issue || !issue.id) finishOk();
+  const issueQuery =
+    'query($login:String!,$repo:String!,$num:Int!){repository(owner:$login,name:$repo){issue(number:$num){id linkedBranches(first:5){nodes{ref{name}}} closedByPullRequestsReferences(first:5){nodes{number}} projectItems(first:10){nodes{id project{number} fieldValueByName(name:"Status"){... on ProjectV2ItemFieldSingleSelectValue{name optionId}}}}}}}';
 
-  // 1. Self-heal missing branch link if neither linkedBranches nor closedByPullRequestsReferences is populated
+  const queryRepo = (repoName) => {
+    try {
+      const rawIssue = runCmd('gh', [
+        'api',
+        'graphql',
+        '-f',
+        `login=${org}`,
+        '-f',
+        `repo=${repoName}`,
+        '-F',
+        `num=${issueNumber}`,
+        '-f',
+        `query=${issueQuery}`,
+      ]);
+      return JSON.parse(rawIssue)?.data?.repository?.issue ?? null;
+    } catch {
+      return null;
+    }
+  };
+
+  let issue = queryRepo(trackerRepo);
+  if (!issue?.id && trackerRepo !== frontendRepo) {
+    issue = queryRepo(frontendRepo);
+  }
+  if (!issue?.id) finishOk();
+
+  // 1. Self-heal missing branch link via shared linkTicketBranch
   const lbCount = (issue.linkedBranches?.nodes || []).length;
   const prCount = (issue.closedByPullRequestsReferences?.nodes || []).length;
-  if (lbCount === 0 && prCount === 0 && openPrCount === 0) {
+  if (lbCount === 0 && prCount === 0) {
     try {
-      const repoIdRaw = execSync(
-        `gh api graphql -f login="${org}" -f repo="${frontendRepo}" -f query='query($login:String!,$repo:String!){repository(owner:$login,name:$repo){id}}' --jq ".data.repository.id"`,
-        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
-      ).trim();
-      const headOid = execSync('git rev-parse HEAD', {
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'ignore'],
-      }).trim();
-      if (repoIdRaw && headOid) {
-        const createMut = `mutation($issueId:ID!,$repositoryId:ID!,$oid:GitObjectID!,$name:String!){createLinkedBranch(input:{issueId:$issueId,repositoryId:$repositoryId,oid:$oid,name:$name}){linkedBranch{id}}}`;
-        execSync(
-          `gh api graphql -f issueId="${issue.id}" -f repositoryId="${repoIdRaw}" -f oid="${headOid}" -f name="${branch}" -f query='${createMut}'`,
-          { stdio: 'ignore' }
-        );
-      }
+      linkTicketBranch([
+        String(issueNumber),
+        branch,
+        '--no-checkout',
+        '--no-board-update',
+      ]);
     } catch {}
   }
 
   // 2. Self-heal Project V2 board status
-  let pItem = (issue.projectItems?.nodes || []).find(
+  const pItem = (issue.projectItems?.nodes || []).find(
     (n) => n?.project?.number === projectNumber
   );
   let itemId = pItem?.id;
@@ -121,21 +149,41 @@ try {
   }
 
   if (!itemId && projectId) {
-    const addMut = `mutation($proj:ID!,$content:ID!){addProjectV2ItemById(input:{projectId:$proj,contentId:$content}){item{id}}}`;
-    itemId = execSync(
-      `gh api graphql -f proj="${projectId}" -f content="${issue.id}" -f query='${addMut}' --jq ".data.addProjectV2ItemById.item.id"`,
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
-    ).trim();
+    const addMut =
+      'mutation($proj:ID!,$content:ID!){addProjectV2ItemById(input:{projectId:$proj,contentId:$content}){item{id}}}';
+    itemId = runCmd('gh', [
+      'api',
+      'graphql',
+      '-f',
+      `proj=${projectId}`,
+      '-f',
+      `content=${issue.id}`,
+      '-f',
+      `query=${addMut}`,
+      '--jq',
+      '.data.addProjectV2ItemById.item.id',
+    ]);
   }
 
   if (itemId) {
-    const upMut = `mutation($proj:ID!,$item:ID!,$field:ID!,$opt:String!){updateProjectV2ItemFieldValue(input:{projectId:$proj,itemId:$item,fieldId:$field,value:{singleSelectOptionId:$opt}}){projectV2Item{id}}}`;
+    const upMut =
+      'mutation($proj:ID!,$item:ID!,$field:ID!,$opt:String!){updateProjectV2ItemFieldValue(input:{projectId:$proj,itemId:$item,fieldId:$field,value:{singleSelectOptionId:$opt}}){projectV2Item{id}}}';
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        execSync(
-          `gh api graphql -f proj="${projectId}" -f item="${itemId}" -f field="${fieldId}" -f opt="${expectedOpt}" -f query='${upMut}'`,
-          { stdio: 'ignore' }
-        );
+        runCmd('gh', [
+          'api',
+          'graphql',
+          '-f',
+          `proj=${projectId}`,
+          '-f',
+          `item=${itemId}`,
+          '-f',
+          `field=${fieldId}`,
+          '-f',
+          `opt=${expectedOpt}`,
+          '-f',
+          `query=${upMut}`,
+        ]);
         finishOk();
       } catch {}
     }

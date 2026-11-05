@@ -9,7 +9,7 @@
  * self-check (0 sub-agents) or defers full AI Review to the GitHub Actions CI
  * pipeline.
  */
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { config } from 'dotenv';
 
@@ -40,10 +40,10 @@ import { buildPrompt } from './lib/prompt.mjs';
 import { fetchTicketContext } from './lib/ticket.mjs';
 
 async function main() {
-  const branch = execSync('git branch --show-current', {
+  const branch = execFileSync('git', ['branch', '--show-current'], {
     encoding: 'utf8',
   }).trim();
-  const diff = execSync('git diff origin/develop', {
+  const diff = execFileSync('git', ['diff', 'origin/develop'], {
     encoding: 'utf8',
     maxBuffer: 10 * 1024 * 1024,
   });
@@ -72,7 +72,9 @@ async function main() {
     process.env.TRACKER_READ_TOKEN || process.env.GITHUB_TOKEN || '';
   if (!ghToken) {
     try {
-      ghToken = execSync('gh auth token', { encoding: 'utf8' }).trim();
+      ghToken = execFileSync('gh', ['auth', 'token'], {
+        encoding: 'utf8',
+      }).trim();
     } catch {}
   }
 

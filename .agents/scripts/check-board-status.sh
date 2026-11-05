@@ -73,10 +73,12 @@ get_issue_info() {
   ' 2>/dev/null
 }
 
-ISSUE_INFO=$(get_issue_info "$TRACKER_REPO")
+MATCHED_REPO="$TRACKER_REPO"
+ISSUE_INFO=$(get_issue_info "$MATCHED_REPO")
 HAS_ISSUE=$(echo "$ISSUE_INFO" | jq -r '.data.organization.repository.issue.id // empty' 2>/dev/null)
 if [ -z "$HAS_ISSUE" ]; then
-  ISSUE_INFO=$(get_issue_info "$FRONTEND_REPO")
+  MATCHED_REPO="$FRONTEND_REPO"
+  ISSUE_INFO=$(get_issue_info "$MATCHED_REPO")
   HAS_ISSUE=$(echo "$ISSUE_INFO" | jq -r '.data.organization.repository.issue.id // empty' 2>/dev/null)
 fi
 [ -z "$HAS_ISSUE" ] && exit 0
@@ -91,7 +93,7 @@ if [ "${LINK_COUNT:-0}" -eq 0 ] 2>/dev/null; then
   # Self-heal: attempt to link the branch automatically via link-ticket-branch.sh
   if [ -f "$REPO_ROOT/.agents/scripts/link-ticket-branch.sh" ]; then
     bash "$REPO_ROOT/.agents/scripts/link-ticket-branch.sh" "$ISSUE_NUMBER" "$BRANCH_NAME" --no-checkout --no-board-update >/dev/null 2>&1 || true
-    ISSUE_INFO=$(get_issue_info "$TRACKER_REPO")
+    ISSUE_INFO=$(get_issue_info "$MATCHED_REPO")
     LINK_COUNT=$(echo "$ISSUE_INFO" | jq -r '
       ((.data.organization.repository.issue.linkedBranches.nodes | length) +
        (.data.organization.repository.issue.closedByPullRequestsReferences.nodes | length))
