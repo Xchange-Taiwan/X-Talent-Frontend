@@ -33,10 +33,7 @@ import {
 } from '@/services/reservations';
 import type { Reservation } from '@/types/reservation';
 
-import {
-  buildRejectOrCancelAffectedTabs,
-  useReservationActions,
-} from './useReservationActions';
+import { useReservationActions } from './useReservationActions';
 
 const mockAcceptService = vi.mocked(acceptReservation);
 const mockRejectService = vi.mocked(rejectOrCancelReservation);
@@ -67,33 +64,6 @@ beforeEach(() => {
     if (!myUserId) {
       throw new Error('[reservationMutations] missing current user id');
     }
-  });
-});
-
-describe('buildRejectOrCancelAffectedTabs', () => {
-  it('should return upcoming as source and history as destination for upcoming variant', () => {
-    expect(buildRejectOrCancelAffectedTabs('upcoming')).toEqual({
-      source: 'upcoming',
-      destinations: ['history'],
-    });
-  });
-
-  it('should return pending as source and history as destination for pending-mentor variant', () => {
-    expect(buildRejectOrCancelAffectedTabs('pending-mentor')).toEqual({
-      source: 'pending',
-      destinations: ['history'],
-    });
-  });
-
-  it('should return pending as source and history as destination for pending-mentee variant', () => {
-    expect(buildRejectOrCancelAffectedTabs('pending-mentee')).toEqual({
-      source: 'pending',
-      destinations: ['history'],
-    });
-  });
-
-  it('should return null for history variant', () => {
-    expect(buildRejectOrCancelAffectedTabs('history')).toBeNull();
   });
 });
 
@@ -135,10 +105,7 @@ describe('useReservationActions', () => {
         description: '會議連結將於數分鐘內寄至雙方信箱',
       });
 
-      expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc', {
-        source: 'pending',
-        destinations: ['upcoming'],
-      });
+      expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc');
       expect(result.current.isMutating).toBe(false);
     });
 
@@ -215,11 +182,10 @@ describe('useReservationActions', () => {
       ).rejects.toThrow('[reservationMutations] missing current user id');
     });
 
-    it('should call onVersionConflict exactly once on 409 (toast is owned by the confirm dialog, not this hook)', async () => {
+    it('rethrows ReservationVersionConflictError on 409 (toast is owned by the confirm dialog, not this hook)', async () => {
       mockAcceptService.mockRejectedValue(
         new ReservationVersionConflictError()
       );
-      const mockOnVersionConflict = vi.fn();
 
       const { result } = renderHook(() =>
         useReservationActions({
@@ -227,7 +193,6 @@ describe('useReservationActions', () => {
           variant: 'pending-mentor',
           myRole: 'mentor',
           onMutationSuccess: mockOnMutationSuccess,
-          onVersionConflict: mockOnVersionConflict,
         })
       );
 
@@ -237,11 +202,6 @@ describe('useReservationActions', () => {
         })
       ).rejects.toBeInstanceOf(ReservationVersionConflictError);
 
-      expect(mockOnVersionConflict).toHaveBeenCalledTimes(1);
-      expect(mockOnVersionConflict).toHaveBeenCalledWith({
-        source: 'pending',
-        destinations: ['upcoming'],
-      });
       expect(mockToast).not.toHaveBeenCalled();
       expect(mockOnMutationSuccess).not.toHaveBeenCalled();
     });
@@ -288,10 +248,7 @@ describe('useReservationActions', () => {
         description: '已拒絕預約',
       });
 
-      expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc', {
-        source: 'pending',
-        destinations: ['history'],
-      });
+      expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc');
       expect(result.current.isMutating).toBe(false);
     });
 
@@ -408,11 +365,10 @@ describe('useReservationActions', () => {
       ).rejects.toThrow('[reservationMutations] missing current user id');
     });
 
-    it('should call onVersionConflict exactly once on 409 (toast is owned by the confirm dialog, not this hook)', async () => {
+    it('rethrows ReservationVersionConflictError on 409 (toast is owned by the confirm dialog, not this hook)', async () => {
       mockRejectService.mockRejectedValue(
         new ReservationVersionConflictError()
       );
-      const mockOnVersionConflict = vi.fn();
 
       const { result } = renderHook(() =>
         useReservationActions({
@@ -420,7 +376,6 @@ describe('useReservationActions', () => {
           variant: 'pending-mentor',
           myRole: 'mentor',
           onMutationSuccess: mockOnMutationSuccess,
-          onVersionConflict: mockOnVersionConflict,
         })
       );
 
@@ -434,11 +389,6 @@ describe('useReservationActions', () => {
         })
       ).rejects.toBeInstanceOf(ReservationVersionConflictError);
 
-      expect(mockOnVersionConflict).toHaveBeenCalledTimes(1);
-      expect(mockOnVersionConflict).toHaveBeenCalledWith({
-        source: 'pending',
-        destinations: ['history'],
-      });
       expect(mockToast).not.toHaveBeenCalled();
       expect(mockOnMutationSuccess).not.toHaveBeenCalled();
     });

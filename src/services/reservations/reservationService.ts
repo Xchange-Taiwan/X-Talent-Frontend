@@ -3,6 +3,7 @@ import dayjs from 'dayjs';
 import { apiClient } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
+  MENTOR_SCHEDULE_RESERVATIONS_TTL_MS,
   type ReservationReadKey,
   reservationReadModel,
 } from '@/lib/reservation/reservationReadModel';
@@ -244,22 +245,48 @@ export async function fetchAllReservationsForState(
  * instead of paying for a background fetch nobody is watching.
  */
 export function invalidateReservationRead(key: ReservationReadKey): void {
-  if (!reservationReadModel.hasSubscribers(key)) {
-    reservationReadModel.invalidate(key);
-    return;
-  }
-  fetchReservations({ userId: key.userId, state: key.state })
-    .then((result) => {
-      reservationReadModel.set(key, result);
-    })
-    .catch((err) => {
-      captureFlowFailure({
-        flow: 'reservation_mutation_invalidate',
-        step: `refresh_${key.state}`,
-        message: err instanceof Error ? err.message : String(err),
-        level: 'warning',
+  for (const targetKey of reservationReadModel.getMatchingKeys(key)) {
+    if (!reservationReadModel.hasSubscribers(targetKey)) {
+      reservationReadModel.invalidate(targetKey);
+      continue;
+    }
+    if (targetKey.endOfMonthUnix !== undefined) {
+      const endOfMonthUnix = targetKey.endOfMonthUnix;
+      fetchAllReservationsForState(
+        targetKey.userId,
+        targetKey.state,
+        endOfMonthUnix
+      )
+        .then((items) => {
+          reservationReadModel.set(
+            targetKey,
+            { items, next_dtend: 0 },
+            MENTOR_SCHEDULE_RESERVATIONS_TTL_MS
+          );
+        })
+        .catch((err) => {
+          captureFlowFailure({
+            flow: 'reservation_mutation_invalidate',
+            step: `refresh_${targetKey.state}`,
+            message: err instanceof Error ? err.message : String(err),
+            level: 'warning',
+          });
+        });
+      continue;
+    }
+    fetchReservations({ userId: targetKey.userId, state: targetKey.state })
+      .then((result) => {
+        reservationReadModel.set(targetKey, result);
+      })
+      .catch((err) => {
+        captureFlowFailure({
+          flow: 'reservation_mutation_invalidate',
+          step: `refresh_${targetKey.state}`,
+          message: err instanceof Error ? err.message : String(err),
+          level: 'warning',
+        });
       });
-    });
+  }
 }
 
 /* ================================

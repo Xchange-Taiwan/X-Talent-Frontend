@@ -183,20 +183,17 @@ const mockReservation = {
 };
 
 describe('ReservationList', () => {
-  const mockOnMutationSuccess = vi.fn();
-
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('triggers onMutationSuccess with source pending / destinations [upcoming] when accepting in pending-mentor variant', async () => {
+  it('calls updateReservationStatus when accepting in pending-mentor variant', async () => {
     render(
       <ReservationList
         items={[mockReservation]}
         variant="pending-mentor"
         sourceRole="mentor"
         myUserId="user-123"
-        onMutationSuccess={mockOnMutationSuccess}
       />
     );
 
@@ -206,21 +203,15 @@ describe('ReservationList', () => {
     await waitFor(() => {
       expect(updateReservationStatus).toHaveBeenCalledTimes(1);
     });
-
-    expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc', {
-      source: 'pending',
-      destinations: ['upcoming'],
-    });
   });
 
-  it('triggers onMutationSuccess with source pending / destinations [history] when rejecting in pending-mentor variant', async () => {
+  it('calls updateReservationStatus when rejecting in pending-mentor variant', async () => {
     render(
       <ReservationList
         items={[mockReservation]}
         variant="pending-mentor"
         sourceRole="mentor"
         myUserId="user-123"
-        onMutationSuccess={mockOnMutationSuccess}
       />
     );
 
@@ -230,21 +221,15 @@ describe('ReservationList', () => {
     await waitFor(() => {
       expect(updateReservationStatus).toHaveBeenCalledTimes(1);
     });
-
-    expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc', {
-      source: 'pending',
-      destinations: ['history'],
-    });
   });
 
-  it('triggers onMutationSuccess with source pending / destinations [history] when cancelling in pending-mentee variant', async () => {
+  it('calls updateReservationStatus when cancelling in pending-mentee variant', async () => {
     render(
       <ReservationList
         items={[mockReservation]}
         variant="pending-mentee"
         sourceRole="mentee"
         myUserId="user-123"
-        onMutationSuccess={mockOnMutationSuccess}
       />
     );
 
@@ -254,21 +239,15 @@ describe('ReservationList', () => {
     await waitFor(() => {
       expect(updateReservationStatus).toHaveBeenCalledTimes(1);
     });
-
-    expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc', {
-      source: 'pending',
-      destinations: ['history'],
-    });
   });
 
-  it('triggers onMutationSuccess with source upcoming / destinations [history] when cancelling in upcoming variant', async () => {
+  it('calls updateReservationStatus when cancelling in upcoming variant', async () => {
     render(
       <ReservationList
         items={[mockReservation]}
         variant="upcoming"
         sourceRole="mentor"
         myUserId="user-123"
-        onMutationSuccess={mockOnMutationSuccess}
       />
     );
 
@@ -277,11 +256,6 @@ describe('ReservationList', () => {
 
     await waitFor(() => {
       expect(updateReservationStatus).toHaveBeenCalledTimes(1);
-    });
-
-    expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc', {
-      source: 'upcoming',
-      destinations: ['history'],
     });
   });
 
@@ -298,7 +272,6 @@ describe('ReservationList', () => {
         variant="pending-mentor"
         sourceRole="mentor"
         myUserId="user-123"
-        onMutationSuccess={mockOnMutationSuccess}
       />
     );
 

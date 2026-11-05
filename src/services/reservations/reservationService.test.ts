@@ -197,6 +197,35 @@ describe('reservationService API Error Handling', () => {
 
       unsubscribe();
     });
+
+    it('refreshes subscribed month-scoped calendar slices when invalidated with an unscoped key', async () => {
+      const scopedKey = {
+        userId: '1',
+        state: 'MENTOR_PENDING',
+        endOfMonthUnix: 2000,
+      } as const;
+      reservationReadModel.set(scopedKey, { items: [], next_dtend: 0 });
+      const unsubscribe = reservationReadModel.subscribe(
+        scopedKey,
+        () => new Promise(() => {}),
+        () => {}
+      );
+      mockGet.mockResolvedValue({
+        reservations: [
+          makeApiReservation({ id: 99, dtstart: 100, dtend: 200 }),
+        ],
+        next_dtend: 0,
+      });
+
+      invalidateReservationRead({ userId: '1', state: 'MENTOR_PENDING' });
+
+      await vi.waitFor(() => {
+        expect(reservationReadModel.get(scopedKey)?.items).toHaveLength(1);
+      });
+      expect(reservationReadModel.get(scopedKey)?.items[0].id).toBe('99');
+
+      unsubscribe();
+    });
   });
 
   describe('updateReservationStatus', () => {

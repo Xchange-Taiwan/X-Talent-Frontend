@@ -273,5 +273,59 @@ describe('ReservationReadModel', () => {
 
       expect(reservationReadModel.get(key)).toEqual(page('a'));
     });
+
+    it('evictItem() removes the reservation from both unscoped and month-scoped slices for (userId, state)', () => {
+      const unscoped = {
+        userId: 'mentor-1',
+        state: 'MENTOR_PENDING',
+      } as const;
+      const monthA = {
+        userId: 'mentor-1',
+        state: 'MENTOR_PENDING',
+        endOfMonthUnix: 1000,
+      } as const;
+      const otherState = {
+        userId: 'mentor-1',
+        state: 'MENTOR_UPCOMING',
+        endOfMonthUnix: 1000,
+      } as const;
+
+      reservationReadModel.set(unscoped, page('res-1'));
+      reservationReadModel.set(monthA, page('res-1'));
+      reservationReadModel.set(otherState, page('res-1'));
+
+      reservationReadModel.evictItem(unscoped, 'res-1');
+
+      expect(reservationReadModel.get(unscoped)?.items).toEqual([]);
+      expect(reservationReadModel.get(monthA)?.items).toEqual([]);
+      expect(reservationReadModel.get(otherState)?.items).toHaveLength(1);
+    });
+
+    it('invalidate() with an unscoped key invalidates both unscoped and indexed month-scoped slices', () => {
+      const unscoped = {
+        userId: 'mentor-1',
+        state: 'MENTOR_PENDING',
+      } as const;
+      const monthA = {
+        userId: 'mentor-1',
+        state: 'MENTOR_PENDING',
+        endOfMonthUnix: 1000,
+      } as const;
+      const monthB = {
+        userId: 'mentor-1',
+        state: 'MENTOR_PENDING',
+        endOfMonthUnix: 2000,
+      } as const;
+
+      reservationReadModel.set(unscoped, page('u'));
+      reservationReadModel.set(monthA, page('a'));
+      reservationReadModel.set(monthB, page('b'));
+
+      reservationReadModel.invalidate(unscoped);
+
+      expect(reservationReadModel.get(unscoped)).toBeUndefined();
+      expect(reservationReadModel.get(monthA)).toBeUndefined();
+      expect(reservationReadModel.get(monthB)).toBeUndefined();
+    });
   });
 });

@@ -213,9 +213,27 @@ describe('acceptReservation', () => {
     ).rejects.toThrow('[reservationMutations] missing current user id');
   });
 
-  it('should throw ReservationVersionConflictError and skip Sentry capture on 409', async () => {
-    const reservation = makeMockReservation({ version: 3 });
+  it('should throw ReservationVersionConflictError, skip Sentry capture, and invalidate both unscoped and month-scoped slices on 409', async () => {
+    const reservation = makeMockReservation({
+      version: 3,
+      senderUserId: '10',
+      participantUserId: '20',
+    });
     mockPut.mockRejectedValue(new ApiError(409, 'version conflict'));
+
+    const unscopedPending = { userId: '10', state: 'MENTOR_PENDING' } as const;
+    const scopedPending = {
+      userId: '10',
+      state: 'MENTOR_PENDING',
+      endOfMonthUnix: 1706745599,
+    } as const;
+    const unscopedUpcoming = {
+      userId: '10',
+      state: 'MENTOR_UPCOMING',
+    } as const;
+    reservationReadModel.set(unscopedPending, emptyPage);
+    reservationReadModel.set(scopedPending, emptyPage);
+    reservationReadModel.set(unscopedUpcoming, emptyPage);
 
     await expect(
       acceptReservation({
@@ -227,6 +245,42 @@ describe('acceptReservation', () => {
     ).rejects.toBeInstanceOf(ReservationVersionConflictError);
 
     expect(mockCaptureFailure).not.toHaveBeenCalled();
+    expect(reservationReadModel.get(unscopedPending)).toBeUndefined();
+    expect(reservationReadModel.get(scopedPending)).toBeUndefined();
+    expect(reservationReadModel.get(unscopedUpcoming)).toBeUndefined();
+  });
+
+  it('optimistically evicts the reservation from subscribed PENDING slices and invalidates unsubscribed slices on 200 OK', async () => {
+    const reservation = makeMockReservation({
+      id: 'res-123',
+      senderUserId: '10',
+      participantUserId: '20',
+    });
+    mockPut.mockResolvedValue({ code: '0', msg: 'success', data: {} });
+
+    const subscribedPending = {
+      userId: '10',
+      state: 'MENTOR_PENDING',
+    } as const;
+    reservationReadModel.set(subscribedPending, {
+      items: [reservation],
+      next_dtend: 0,
+    });
+    const unsubscribe = reservationReadModel.subscribe(
+      subscribedPending,
+      () => new Promise(() => {}),
+      () => {}
+    );
+
+    await acceptReservation({
+      message: 'hello',
+      reservation,
+      myUserId: '10',
+      myRole: 'mentor',
+    });
+
+    expect(reservationReadModel.get(subscribedPending)?.items).toEqual([]);
+    unsubscribe();
   });
 
   it('invalidates both parties PENDING + UPCOMING reads on success (X-Tracker #651)', async () => {
@@ -392,9 +446,25 @@ describe('rejectOrCancelReservation', () => {
     ).rejects.toThrow('[reservationMutations] missing current user id');
   });
 
-  it('should throw ReservationVersionConflictError and skip Sentry capture on 409', async () => {
-    const reservation = makeMockReservation({ version: 3 });
+  it('should throw ReservationVersionConflictError, skip Sentry capture, and invalidate both unscoped and month-scoped slices on 409', async () => {
+    const reservation = makeMockReservation({
+      version: 3,
+      senderUserId: '10',
+      participantUserId: '20',
+    });
     mockPut.mockRejectedValue(new ApiError(409, 'version conflict'));
+
+    const unscopedUpcoming = {
+      userId: '10',
+      state: 'MENTOR_UPCOMING',
+    } as const;
+    const scopedUpcoming = {
+      userId: '10',
+      state: 'MENTOR_UPCOMING',
+      endOfMonthUnix: 1706745599,
+    } as const;
+    reservationReadModel.set(unscopedUpcoming, emptyPage);
+    reservationReadModel.set(scopedUpcoming, emptyPage);
 
     await expect(
       rejectOrCancelReservation({
@@ -406,6 +476,8 @@ describe('rejectOrCancelReservation', () => {
     ).rejects.toBeInstanceOf(ReservationVersionConflictError);
 
     expect(mockCaptureFailure).not.toHaveBeenCalled();
+    expect(reservationReadModel.get(unscopedUpcoming)).toBeUndefined();
+    expect(reservationReadModel.get(scopedUpcoming)).toBeUndefined();
   });
 
   it('invalidates both parties PENDING + UPCOMING + HISTORY reads on success (X-Tracker #651)', async () => {
