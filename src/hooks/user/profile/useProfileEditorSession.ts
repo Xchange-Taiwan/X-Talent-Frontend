@@ -67,6 +67,7 @@ export function useProfileEditorSession({
 
   useIsomorphicLayoutEffect(() => {
     if (!isAuthorized || !userDto) return;
+    if (userDto.user_id !== Number(pageUserId)) return;
     if (hydratedPageUserIdRef.current === pageUserId && !isHydrating) {
       return;
     }
