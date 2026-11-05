@@ -50,7 +50,10 @@ export default async function Page({ params }: PageProps) {
     fetchTagCatalogServer('zh_TW'),
   ]);
 
-  if (!initialDto) notFound();
+  const hasServerApiUrl = Boolean(
+    process.env.SSR_API_URL || process.env.NEXT_PUBLIC_API_URL
+  );
+  if (!initialDto && hasServerApiUrl) notFound();
 
   // Login state is resolved entirely client-side (see ProfilePageContainer's
   // useIdentity()). Dropping the SSR getServerSession() call here lets this
@@ -60,15 +63,16 @@ export default async function Page({ params }: PageProps) {
   // caching. useIdentity's session-hint-cookie fast path (see
   // container.tsx) resolves identity before role-specific UI ever renders,
   // so there is no first-paint flash to trade off here.
-  const publicProfile = sanitizePublicProfile(
-    initialDto,
-    buildTagLabelMap(catalogs)
-  );
+  const publicProfile = initialDto
+    ? sanitizePublicProfile(initialDto, buildTagLabelMap(catalogs))
+    : null;
   const siteUrl = getSiteUrl();
 
   return (
     <>
-      <PersonJsonLd profile={publicProfile} siteUrl={siteUrl} />
+      {publicProfile && (
+        <PersonJsonLd profile={publicProfile} siteUrl={siteUrl} />
+      )}
       <ProfilePageContainer
         pageUserId={pageUserId}
         initialDto={initialDto}

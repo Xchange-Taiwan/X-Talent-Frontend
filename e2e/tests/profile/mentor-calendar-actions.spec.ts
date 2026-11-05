@@ -192,9 +192,23 @@ test.describe('導師個人頁日曆直接操作預約與鎖定時段攔截 (#78
 
     await mockApiRoute(
       page,
-      new RegExp(`/v1/users/${REAL_MENTOR_ID}/zh_TW/profile`),
+      new RegExp(`/v1/(?:mentors|users)/${REAL_MENTOR_ID}/zh_TW/profile`),
       { body: makeMentorProfile() }
     );
+    await mockApiRoute(page, /\/v1\/users\/zh_TW\/tags\/catalog/, {
+      body: {
+        code: '0',
+        msg: 'ok',
+        data: {
+          catalogs: {
+            skill: { groups: [] },
+            topic: { groups: [] },
+            position: { groups: [] },
+            industry: { groups: [] },
+          },
+        },
+      },
+    });
   });
 
   test('導師點擊日曆 PENDING 時段 → 開啟 QuickReplyDialog 並完成接受預約', async ({

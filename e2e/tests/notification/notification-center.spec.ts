@@ -452,4 +452,54 @@ test.describe('Notification Center E2E Tests', () => {
     await page.getByText('您與 Mentee Lin 的預約已自動取消').click();
     await expect(page).toHaveURL(/\/reservation\/mentor\?tab=history/);
   });
+
+  test('Mobile viewport (375x812) opens notification popover with responsive width and without truncating content (#807)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await setupMenteeWithNotification(page, '109');
+
+    await page.goto(PAGE_URL);
+
+    const mobileHeader = page.getByTestId('mobile-header-right');
+    await expect(mobileHeader).toBeVisible();
+
+    const bell = mobileHeader.getByRole('button', { name: '開啟通知選單' });
+    await expect(bell).toBeVisible();
+    await bell.click();
+
+    const popover = page.getByRole('dialog');
+    await expect(popover).toBeVisible();
+    await expect(popover.getByText('通知', { exact: true })).toBeVisible();
+
+    const notifTitle = popover.getByText('Mentor Wang 已接受您的預約');
+    const notifBody = popover.getByText('前往查看您的預約詳情');
+    await expect(notifTitle).toBeVisible();
+    await expect(notifBody).toBeVisible();
+    await expect(
+      popover.getByRole('button', { name: '全部標示為已讀' })
+    ).toBeVisible();
+
+    // Spec (#807): w-[360px] max-w-[min(360px,calc(100vw-32px))]
+    // Wait for Radix Popover's zoom-in-95 open animation to settle so
+    // boundingBox() measures the final unscaled layout box (375 - 32 = 343px).
+    await expect
+      .poll(async () => {
+        const box = await popover.boundingBox();
+        return box ? Math.round(box.width) : 0;
+      })
+      .toBe(343);
+
+    const popoverBox = await popover.boundingBox();
+    expect(popoverBox).not.toBeNull();
+    expect(popoverBox!.width).toBeGreaterThan(300);
+    expect(popoverBox!.x).toBeGreaterThanOrEqual(0);
+    expect(popoverBox!.x + popoverBox!.width).toBeLessThanOrEqual(375);
+
+    // Ensure notification text is not horizontally clipped/overflowing its container
+    const isHorizontallyTruncated = await notifTitle.evaluate(
+      (el) => el.scrollWidth > el.clientWidth
+    );
+    expect(isHorizontallyTruncated).toBe(false);
+  });
 });

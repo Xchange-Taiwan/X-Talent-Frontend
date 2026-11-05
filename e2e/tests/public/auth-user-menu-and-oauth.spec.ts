@@ -40,7 +40,7 @@ async function mockGoogleCallbackServerAction(
       const patchedLines = bodyText
         .split('\n')
         .map((line) =>
-          /^1:\{/.test(line) ? `1:${JSON.stringify(mockPayload)}` : line
+          /^1:(?:E)?\{/.test(line) ? `1:${JSON.stringify(mockPayload)}` : line
         );
       return route.fulfill({
         status: 200,

@@ -117,7 +117,9 @@ export function useMentorPool({
     refetch,
   } = useAsyncRead(mentorPoolReadManager, activeKey, fetcher, {
     initialData:
-      !hasConditions && !initialError ? initialUnfilteredState : undefined,
+      !hasConditions && !initialError && initialMentors.length > 0
+        ? initialUnfilteredState
+        : undefined,
   });
 
   const { run: runLoadMore, isPending: isLoadMorePending } = useAsyncAction();

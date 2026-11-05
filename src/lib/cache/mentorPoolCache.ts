@@ -121,6 +121,7 @@ export const mentorPoolStore = {
     const state = mentorPoolStore.buildInitialUnfilteredState(opts);
     if (
       !opts.initialError &&
+      opts.initialMentors.length > 0 &&
       !mentorPoolReadManager.has(UNFILTERED_MENTOR_POOL_KEY)
     ) {
       mentorPoolReadManager.set(UNFILTERED_MENTOR_POOL_KEY, state);
