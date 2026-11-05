@@ -52,6 +52,13 @@ export const MENTOR_SCHEDULE_RESERVATIONS_TTL_MS = 30_000;
 // TTL or a cache handle in.
 const cache = createKeyedCache<string, FetchReservationsResult>();
 const manager = new AsyncReadManager<string, FetchReservationsResult>(cache);
+const knownKeys = new Map<string, ReservationReadKey>();
+
+function trackKey(key: ReservationReadKey): string {
+  const ck = toCacheKey(key);
+  knownKeys.set(ck, key);
+  return ck;
+}
 
 export interface ReservationReadModel {
   /** Synchronous cached-snapshot read; does not trigger a fetch. */
@@ -89,7 +96,21 @@ export interface ReservationReadModel {
       current: FetchReservationsResult | undefined
     ) => FetchReservationsResult | undefined
   ): void;
-  /** Drop the cached value at `key` and cancel any fetch in flight for it. */
+  /**
+   * Return all tracked keys matching `(userId, state)`. When `key.endOfMonthUnix`
+   * is omitted, returns the unscoped `{ userId, state }` slot plus every indexed
+   * month-scoped `{ userId, state, endOfMonthUnix }` slot for that user and state.
+   */
+  getMatchingKeys(key: ReservationReadKey): ReservationReadKey[];
+  /**
+   * Optimistically remove `reservationId` from the cached items of `key` (and
+   * any matching month-scoped slices when `key.endOfMonthUnix` is omitted).
+   */
+  evictItem(key: ReservationReadKey, reservationId: string): void;
+  /**
+   * Drop the cached value at `key` (and any matching month-scoped slices when
+   * `key.endOfMonthUnix` is omitted) and cancel any fetch in flight for it.
+   */
   invalidate(key: ReservationReadKey): void;
   /**
    * Whether a component is actively subscribed to `key` right now (i.e.
@@ -117,21 +138,70 @@ export const reservationReadModel: ReservationReadModel = {
     return manager.get(toCacheKey(key));
   },
   set(key, value, ttlMs) {
-    manager.set(toCacheKey(key), value, ttlMs);
+    manager.set(trackKey(key), value, ttlMs);
   },
   subscribe(key, fetcher, onUpdate, options) {
-    return manager.subscribe(toCacheKey(key), fetcher, onUpdate, options);
+    return manager.subscribe(trackKey(key), fetcher, onUpdate, options);
   },
   update(key, updater) {
-    manager.update(toCacheKey(key), updater);
+    manager.update(trackKey(key), updater);
+  },
+  getMatchingKeys(key) {
+    if (key.endOfMonthUnix !== undefined) {
+      return [key];
+    }
+    const unscopedKey: ReservationReadKey = {
+      userId: key.userId,
+      state: key.state,
+    };
+    const matches: ReservationReadKey[] = [unscopedKey];
+    knownKeys.forEach((tracked) => {
+      if (
+        tracked.userId === key.userId &&
+        tracked.state === key.state &&
+        tracked.endOfMonthUnix !== undefined
+      ) {
+        matches.push(tracked);
+      }
+    });
+    return matches;
+  },
+  evictItem(key, reservationId) {
+    for (const targetKey of reservationReadModel.getMatchingKeys(key)) {
+      const ck = toCacheKey(targetKey);
+      if (manager.get(ck) !== undefined) {
+        manager.update(ck, (current) =>
+          current
+            ? {
+                ...current,
+                items: current.items.filter((it) => it.id !== reservationId),
+              }
+            : undefined
+        );
+      }
+    }
   },
   invalidate(key) {
-    manager.invalidate(toCacheKey(key));
+    for (const targetKey of reservationReadModel.getMatchingKeys(key)) {
+      const ck = toCacheKey(targetKey);
+      if (
+        key.endOfMonthUnix === undefined &&
+        targetKey.endOfMonthUnix !== undefined &&
+        manager.getListenerCount(ck) > 0
+      ) {
+        continue;
+      }
+      manager.invalidate(ck);
+      if (manager.getListenerCount(ck) === 0) {
+        knownKeys.delete(ck);
+      }
+    }
   },
   hasSubscribers(key) {
     return manager.getListenerCount(toCacheKey(key)) > 0;
   },
   clear() {
+    knownKeys.clear();
     manager.clear();
   },
 };

@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useProfileLinkClick } from '@/hooks/reservation/useProfileLinkClick';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
-import type { MutationAffectedTabs } from '@/hooks/user/reservation/useReservationData';
 import { trackEvent } from '@/lib/analytics';
 import { resolveReservationViewer } from '@/lib/reservation/reservationViewerModel';
 import type { Reservation } from '@/types/reservation';
@@ -39,25 +38,16 @@ function ReservationItem({
   variant,
   sourceRole,
   myUserId,
-  onMutationSuccess,
-  onVersionConflict,
 }: {
   reservation: Reservation;
   variant: Variant;
   sourceRole: SourceRole;
   myUserId: string | undefined;
-  onMutationSuccess?: (
-    id: string,
-    affected: MutationAffectedTabs | null
-  ) => void;
-  onVersionConflict?: (affected: MutationAffectedTabs | null) => void;
 }) {
   const { accept, rejectOrCancel, isMutating } = useReservationActions({
     myUserId,
     variant,
     myRole: sourceRole,
-    onMutationSuccess,
-    onVersionConflict,
   });
 
   const viewer = resolveReservationViewer({
@@ -152,8 +142,6 @@ export function ReservationList({
   hasMore = false,
   onLoadMore,
   isLoadingMore = false,
-  onMutationSuccess,
-  onVersionConflict,
 }: {
   items: Reservation[];
   variant: Variant;
@@ -162,16 +150,6 @@ export function ReservationList({
   hasMore?: boolean;
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
-  // Called after a successful accept / reject / cancel so the parent hook can
-  // optimistically remove the operated item and refetch only the affected
-  // states in the background.
-  onMutationSuccess?: (
-    id: string,
-    affected: MutationAffectedTabs | null
-  ) => void;
-  // Called once when a status update is rejected with a 409 version
-  // conflict, so the parent hook can refetch the affected tabs in place.
-  onVersionConflict?: (affected: MutationAffectedTabs | null) => void;
 }) {
   return (
     <div className="space-y-3 sm:space-y-4">
@@ -182,8 +160,6 @@ export function ReservationList({
           variant={variant}
           sourceRole={sourceRole}
           myUserId={myUserId}
-          onMutationSuccess={onMutationSuccess}
-          onVersionConflict={onVersionConflict}
         />
       ))}
 

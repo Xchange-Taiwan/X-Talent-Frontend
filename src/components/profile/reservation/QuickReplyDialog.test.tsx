@@ -3,8 +3,11 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
-import type { MutationAffectedTabs } from '@/hooks/user/reservation/useReservationData';
 import { trackEvent } from '@/lib/analytics';
+import {
+  RESERVATION_CONFLICT_MESSAGE,
+  ReservationVersionConflictError,
+} from '@/services/reservations';
 import { mockToast } from '@/test/mocks/useToast';
 import type { Reservation } from '@/types/reservation';
 
@@ -124,13 +127,11 @@ describe('QuickReplyDialog', () => {
 
     // Simulate successful accept action (calls onMutationSuccess callback in useReservationActions)
     const state = {
-      successCallback: undefined as
-        | ((id: string, affected: MutationAffectedTabs | null) => void)
-        | undefined,
+      successCallback: undefined as ((id: string) => void) | undefined,
     };
     vi.mocked(useReservationActions).mockReturnValue({
       accept: vi.fn().mockImplementation(() => {
-        state.successCallback?.('res-103', null);
+        state.successCallback?.('res-103');
       }),
       rejectOrCancel: mockRejectOrCancel,
       isMutating: false,
@@ -244,14 +245,12 @@ describe('QuickReplyDialog', () => {
     const onOpenChange = vi.fn();
 
     const state = {
-      successCallback: undefined as
-        | ((id: string, affected: MutationAffectedTabs | null) => void)
-        | undefined,
+      successCallback: undefined as ((id: string) => void) | undefined,
     };
     vi.mocked(useReservationActions).mockReturnValue({
       accept: mockAccept,
       rejectOrCancel: vi.fn().mockImplementation(() => {
-        state.successCallback?.('res-103', null);
+        state.successCallback?.('res-103');
       }),
       isMutating: false,
     });
@@ -307,6 +306,29 @@ describe('QuickReplyDialog', () => {
       expect.objectContaining({
         variant: 'destructive',
         description: '接受預約失敗,請稍後再試',
+      })
+    );
+  });
+
+  it('displays the version conflict toast when accept fails with ReservationVersionConflictError (409)', async () => {
+    vi.mocked(useReservationActions).mockReturnValue({
+      accept: vi.fn().mockRejectedValue(new ReservationVersionConflictError()),
+      rejectOrCancel: mockRejectOrCancel,
+      isMutating: false,
+    });
+
+    render(<QuickReplyDialog {...defaultProps} />);
+
+    const acceptBtn = screen.getByRole('button', { name: '接受' });
+    await act(async () => {
+      fireEvent.click(acceptBtn);
+      await Promise.resolve();
+    });
+
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'destructive',
+        description: RESERVATION_CONFLICT_MESSAGE,
       })
     );
   });

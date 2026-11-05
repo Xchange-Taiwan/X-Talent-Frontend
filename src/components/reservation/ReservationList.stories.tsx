@@ -19,12 +19,6 @@ const meta: Meta<typeof ReservationList> = {
   ],
   args: {
     myUserId: 'user-mentor-current',
-    onMutationSuccess: (id, affectedTabs) => {
-      console.log(
-        `Mutation success for reservation ${id}. Affected tabs:`,
-        affectedTabs
-      );
-    },
   },
 };
 
