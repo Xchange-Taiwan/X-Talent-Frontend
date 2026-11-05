@@ -4,6 +4,27 @@ on:
   pull_request:
     branches:
       - '**'
+    paths-ignore:
+      - 'e2e/**'
+      - '.github/**'
+      - '.agents/**'
+      - '.gemini/**'
+      - '.husky/**'
+      - '.lavish/**'
+      - '.storybook/**'
+      - '.vscode/**'
+      - 'scripts/**'
+      - 'docs/**'
+      - '**/*.md'
+      - '**/*.test.ts'
+      - '**/*.test.tsx'
+      - '**/*.spec.ts'
+      - '**/*.spec.tsx'
+      - '**/*.stories.ts'
+      - '**/*.stories.tsx'
+      - 'playwright.config.ts'
+      - 'vitest.config.mts'
+      - 'tsconfig.test.json'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -34,10 +55,10 @@ jobs:
         uses: actions/cache@v6
         with:
           path: .next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('src/**/*', 'next.config.js', 'tailwind.config.js', 'postcss.config.js') }}
+          key: ${{ runner.os }}-vercel-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('src/**/*', 'next.config.js', 'tailwind.config.js', 'postcss.config.js') }}
           restore-keys: |
-            ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-
-            ${{ runner.os }}-nextjs-
+            ${{ runner.os }}-vercel-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-
+            ${{ runner.os }}-vercel-nextjs-
 
       - name: Install Vercel CLI
         run: npm install --global vercel@51.2.1
@@ -47,7 +68,14 @@ jobs:
 
       # Single build: vercel build runs next build internally with Vercel env vars
       - name: Build project with Vercel
-        run: vercel build --token=${{ env.VERCEL_TOKEN }} 2>&1 | tee .build-output.txt
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! vercel build --token="${{ env.VERCEL_TOKEN }}" 2>&1 | tee .build-output.txt; then
+            echo "Cached Vercel build failed; clearing .next/cache and retrying clean build..."
+            rm -rf .next .vercel/output
+            vercel build --token="${{ env.VERCEL_TOKEN }}" 2>&1 | tee .build-output.txt
+          fi
 
       - name: Deploy PR preview
         id: vercel_preview
