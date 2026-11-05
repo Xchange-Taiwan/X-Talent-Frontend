@@ -1,4 +1,4 @@
-﻿process.env.TZ = 'UTC';
+process.env.TZ = 'UTC';
 
 import { act, renderHook, waitFor } from '@testing-library/react';
 import dayjs from 'dayjs';
@@ -245,7 +245,7 @@ describe('useMentorSchedule', () => {
       );
 
       expect(mockLoadMonthSchedule).toHaveBeenCalledTimes(2);
-      expect(result.current.parsedDraft).toHaveLength(1);
+      expect(result.current.editor!.draftOccurrences!).toHaveLength(1);
     });
 
     it('unmounting mid-request neither updates state nor leaves a rejection unhandled', async () => {
@@ -298,8 +298,9 @@ describe('useMentorSchedule', () => {
         {
           id: 101,
           type: 'ALLOW' as const,
-          dtstart: result.current.parsedDraft[0].occurrenceUnix,
-          dtend: result.current.parsedDraft[0].occurrenceUnix + 2700,
+          dtstart: result.current.editor!.draftOccurrences![0].occurrenceUnix,
+          dtend:
+            result.current.editor!.draftOccurrences![0].occurrenceUnix + 2700,
           rrule: undefined,
           exdate: [],
         },
@@ -318,12 +319,12 @@ describe('useMentorSchedule', () => {
         await result.current.reader.reload?.();
       });
 
-      expect(result.current.parsedDraft).toHaveLength(1);
-      expect(result.current.parsedDraft[0].occurrenceUnix).toBe(
+      expect(result.current.editor!.draftOccurrences!).toHaveLength(1);
+      expect(result.current.editor!.draftOccurrences![0].occurrenceUnix).toBe(
         savedRaws[0].dtstart
       );
       expect(result.current.editor!.draftForSelectedDate).toEqual(
-        result.current.parsedDraft.filter(
+        result.current.editor!.draftOccurrences!.filter(
           (p) => p.dateKey === result.current.reader.selectedDate
         )
       );
@@ -338,8 +339,8 @@ describe('useMentorSchedule', () => {
       expect(result.current.loaded).toBe(true);
     });
 
-    expect(result.current.parsedDraft).toHaveLength(1);
-    const slot = result.current.parsedDraft[0];
+    expect(result.current.editor!.draftOccurrences!).toHaveLength(1);
+    const slot = result.current.editor!.draftOccurrences![0];
     expect(slot.occurrenceId).toBe('101_1785070000');
     expect(slot.id).toBe(101);
     expect(slot.occurrenceUnix).toBe(1785070000);
@@ -364,8 +365,8 @@ describe('useMentorSchedule', () => {
     const expectedTime = buildDateTime(baseDate, '13:00');
     const expectedUnix = Math.floor(expectedTime.valueOf() / 1000);
 
-    expect(result.current.parsedDraft).toHaveLength(1);
-    const updatedSlot = result.current.parsedDraft[0];
+    expect(result.current.editor!.draftOccurrences!).toHaveLength(1);
+    const updatedSlot = result.current.editor!.draftOccurrences![0];
     expect(updatedSlot.occurrenceUnix).toBe(expectedUnix);
     expect(updatedSlot.durationMinutes).toBe(45);
   });
@@ -377,13 +378,13 @@ describe('useMentorSchedule', () => {
       expect(result.current.loaded).toBe(true);
     });
 
-    expect(result.current.parsedDraft).toHaveLength(1);
+    expect(result.current.editor!.draftOccurrences!).toHaveLength(1);
 
     act(() => {
       result.current.editor!.deleteDraftSlot(101, 1785070000);
     });
 
-    expect(result.current.parsedDraft).toHaveLength(0);
+    expect(result.current.editor!.draftOccurrences!).toHaveLength(0);
   });
 
   it('prevents updateDraftSlot when it causes an overlap conflict', async () => {
@@ -431,7 +432,9 @@ describe('useMentorSchedule', () => {
     });
 
     // Check that slot 101 is unchanged
-    const slot101 = result.current.parsedDraft.find((s) => s.id === 101);
+    const slot101 = result.current.editor!.draftOccurrences!.find(
+      (s) => s.id === 101
+    );
     expect(slot101?.occurrenceUnix).toBe(1785070000);
   });
 
@@ -454,7 +457,7 @@ describe('useMentorSchedule', () => {
     });
 
     // There should be 2 active occurrences of slot 101 initially
-    expect(result.current.parsedDraft).toHaveLength(2);
+    expect(result.current.editor!.draftOccurrences!).toHaveLength(2);
 
     act(() => {
       // Update occurrence 1 (1785070000)
@@ -470,16 +473,20 @@ describe('useMentorSchedule', () => {
     // So there should be 2 slots in parsedDraft now:
     // - The remaining weekly occurrence (starts at 1785674800, slot 101)
     // - The detached, updated slot (starts at 13:00 local, negative temporary ID)
-    expect(result.current.parsedDraft).toHaveLength(2);
+    expect(result.current.editor!.draftOccurrences!).toHaveLength(2);
 
-    const parentOcc = result.current.parsedDraft.find((s) => s.id === 101);
+    const parentOcc = result.current.editor!.draftOccurrences!.find(
+      (s) => s.id === 101
+    );
     expect(parentOcc?.occurrenceUnix).toBe(1785674800); // the remaining weekly occurrence is untouched
 
     const baseDate = dayjs(1785070000 * 1000).format('YYYY-MM-DD');
     const expectedTime = buildDateTime(baseDate, '13:00');
     const expectedUnix = Math.floor(expectedTime.valueOf() / 1000);
 
-    const detachedOcc = result.current.parsedDraft.find((s) => s.id < 0);
+    const detachedOcc = result.current.editor!.draftOccurrences!.find(
+      (s) => s.id < 0
+    );
     expect(detachedOcc?.occurrenceUnix).toBe(expectedUnix); // the detached occurrence is updated to 13:00 local
     expect(detachedOcc?.durationMinutes).toBe(45);
   });
@@ -505,9 +512,9 @@ describe('useMentorSchedule', () => {
       });
     });
 
-    expect(result.current.parsedDraft).toHaveLength(2);
-    const recurringRowId = result.current.parsedDraft[0].id;
-    const secondOccurrence = result.current.parsedDraft[1];
+    expect(result.current.editor!.draftOccurrences!).toHaveLength(2);
+    const recurringRowId = result.current.editor!.draftOccurrences![0].id;
+    const secondOccurrence = result.current.editor!.draftOccurrences![1];
 
     act(() => {
       result.current.editor!.deleteDraftSlot(
@@ -516,7 +523,7 @@ describe('useMentorSchedule', () => {
       );
     });
 
-    expect(result.current.parsedDraft).toHaveLength(1);
+    expect(result.current.editor!.draftOccurrences!).toHaveLength(1);
 
     act(() => {
       result.current.reader.setSelectedDate(secondOccurrence.dateKey);
@@ -533,9 +540,11 @@ describe('useMentorSchedule', () => {
     // The occurrence should be restored into the ORIGINAL recurring row
     // (same id, no second row created at the same time) rather than
     // producing a duplicate row that would look like an overlap when saved.
-    expect(result.current.parsedDraft).toHaveLength(2);
+    expect(result.current.editor!.draftOccurrences!).toHaveLength(2);
     expect(
-      result.current.parsedDraft.every((s) => s.id === recurringRowId)
+      result.current.editor!.draftOccurrences!.every(
+        (s) => s.id === recurringRowId
+      )
     ).toBe(true);
   });
 
@@ -558,9 +567,9 @@ describe('useMentorSchedule', () => {
       });
     });
 
-    expect(result.current.parsedDraft).toHaveLength(2);
-    const recurringRowId = result.current.parsedDraft[0].id;
-    const secondOccurrence = result.current.parsedDraft[1];
+    expect(result.current.editor!.draftOccurrences!).toHaveLength(2);
+    const recurringRowId = result.current.editor!.draftOccurrences![0].id;
+    const secondOccurrence = result.current.editor!.draftOccurrences![1];
 
     act(() => {
       result.current.editor!.deleteDraftSlot(
@@ -582,8 +591,10 @@ describe('useMentorSchedule', () => {
       });
     });
 
-    expect(result.current.parsedDraft).toHaveLength(2);
-    const idsPresent = new Set(result.current.parsedDraft.map((s) => s.id));
+    expect(result.current.editor!.draftOccurrences!).toHaveLength(2);
+    const idsPresent = new Set(
+      result.current.editor!.draftOccurrences!.map((s) => s.id)
+    );
     expect(idsPresent.size).toBe(2);
   });
 
@@ -605,7 +616,7 @@ describe('useMentorSchedule', () => {
       expect(result.current.loaded).toBe(true);
     });
 
-    expect(result.current.parsedDraft).toHaveLength(2);
+    expect(result.current.editor!.draftOccurrences!).toHaveLength(2);
 
     act(() => {
       // Delete occurrence 1 (1785070000)
@@ -613,9 +624,11 @@ describe('useMentorSchedule', () => {
     });
 
     // Parent should exdate 1785070000, leaving only the second weekly occurrence (1785674800) active.
-    expect(result.current.parsedDraft).toHaveLength(1);
-    expect(result.current.parsedDraft[0].id).toBe(101);
-    expect(result.current.parsedDraft[0].occurrenceUnix).toBe(1785674800);
+    expect(result.current.editor!.draftOccurrences!).toHaveLength(1);
+    expect(result.current.editor!.draftOccurrences![0].id).toBe(101);
+    expect(result.current.editor!.draftOccurrences![0].occurrenceUnix).toBe(
+      1785674800
+    );
   });
 
   it('regression: a recurring ALLOW row whose weekly occurrences cross a month boundary, edited on a cross-boundary occurrence, ends up in exactly one month buffer with no duplicate representation', async () => {
@@ -650,7 +663,7 @@ describe('useMentorSchedule', () => {
     });
 
     // There should be 2 active occurrences of slot 101 initially (one in Month 7, one in Month 8)
-    expect(result.current.parsedDraft).toHaveLength(2);
+    expect(result.current.editor!.draftOccurrences!).toHaveLength(2);
 
     act(() => {
       // Edit the August 2 occurrence (1785674800 - Month 8)
@@ -665,16 +678,20 @@ describe('useMentorSchedule', () => {
     // Total active occurrences should still be 2:
     // - One in July (the original parent row with exdate)
     // - One in August (the detached non-recurring slot)
-    expect(result.current.parsedDraft).toHaveLength(2);
+    expect(result.current.editor!.draftOccurrences!).toHaveLength(2);
 
-    const julyOcc = result.current.parsedDraft.find((s) => s.id === 101);
+    const julyOcc = result.current.editor!.draftOccurrences!.find(
+      (s) => s.id === 101
+    );
     expect(julyOcc?.occurrenceUnix).toBe(1785070000); // July occurrence remains untouched under original parent ID
 
     const baseDate = dayjs(1785674800 * 1000).format('YYYY-MM-DD');
     const expectedTime = buildDateTime(baseDate, '13:00');
     const expectedUnix = Math.floor(expectedTime.valueOf() / 1000);
 
-    const augustOcc = result.current.parsedDraft.find((s) => s.id < 0);
+    const augustOcc = result.current.editor!.draftOccurrences!.find(
+      (s) => s.id < 0
+    );
     expect(augustOcc?.occurrenceUnix).toBe(expectedUnix); // the detached occurrence is updated to 13:00 local of August 2
     expect(augustOcc?.durationMinutes).toBe(45);
 
@@ -717,7 +734,7 @@ describe('useMentorSchedule', () => {
       expect(result.current.loaded).toBe(true);
     });
 
-    expect(result.current.parsedDraft).toHaveLength(1);
+    expect(result.current.editor!.draftOccurrences!).toHaveLength(1);
 
     // Edit occurrence of slot 101, but the base Date is set to August 2, 2026 (1785674800)
     // Under the new code, this non-recurring slot is correctly removed from July and added to August buffer.
@@ -729,8 +746,8 @@ describe('useMentorSchedule', () => {
       expect(res.success).toBe(true);
     });
 
-    expect(result.current.parsedDraft).toHaveLength(1);
-    const updatedSlot = result.current.parsedDraft[0];
+    expect(result.current.editor!.draftOccurrences!).toHaveLength(1);
+    const updatedSlot = result.current.editor!.draftOccurrences![0];
     expect(updatedSlot.id).toBe(101); // remains slot 101
     expect(updatedSlot.occurrenceUnix).toBe(1785675600); // has been moved to August 2, 13:00!
     expect(updatedSlot.dateKey).toBe('2026-08-02');
@@ -774,7 +791,7 @@ describe('useMentorSchedule', () => {
       expect(result.current.loaded).toBe(true);
     });
 
-    expect(result.current.parsedDraft).toHaveLength(1);
+    expect(result.current.editor!.draftOccurrences!).toHaveLength(1);
 
     // Edit the slot to August 2, 2026 (1785674800)
     // Since August has a cache miss, updateDraftSlot should return TARGET_MONTH_NOT_LOADED, blocking the edit
@@ -788,9 +805,11 @@ describe('useMentorSchedule', () => {
     });
 
     // Ensure the slot remains in July unchanged
-    expect(result.current.parsedDraft).toHaveLength(1);
-    expect(result.current.parsedDraft[0].id).toBe(101);
-    expect(result.current.parsedDraft[0].occurrenceUnix).toBe(1785070000);
+    expect(result.current.editor!.draftOccurrences!).toHaveLength(1);
+    expect(result.current.editor!.draftOccurrences![0].id).toBe(101);
+    expect(result.current.editor!.draftOccurrences![0].occurrenceUnix).toBe(
+      1785070000
+    );
   });
 
   it('regression: a cross-month edit/move blocks editing if there is an overlap conflict with existing slots in the target month', async () => {
@@ -844,9 +863,11 @@ describe('useMentorSchedule', () => {
     });
 
     // Ensure slot 101 remains in July and is not moved or modified
-    expect(result.current.parsedDraft).toHaveLength(1);
-    expect(result.current.parsedDraft[0].id).toBe(101);
-    expect(result.current.parsedDraft[0].occurrenceUnix).toBe(1785070000);
+    expect(result.current.editor!.draftOccurrences!).toHaveLength(1);
+    expect(result.current.editor!.draftOccurrences![0].id).toBe(101);
+    expect(result.current.editor!.draftOccurrences![0].occurrenceUnix).toBe(
+      1785070000
+    );
   });
 
   it('regression: a recurring ALLOW row whose weekly occurrences cross a month boundary, deleted on a cross-boundary occurrence, successfully exdates the row across all monthly buffers and prevents duplicate representation', async () => {
@@ -880,7 +901,7 @@ describe('useMentorSchedule', () => {
     });
 
     // There should be 2 active occurrences of slot 101 initially (one in Month 7, one in Month 8)
-    expect(result.current.parsedDraft).toHaveLength(2);
+    expect(result.current.editor!.draftOccurrences!).toHaveLength(2);
 
     act(() => {
       // Delete the August 2 occurrence (1785674800 - Month 8)
@@ -890,9 +911,9 @@ describe('useMentorSchedule', () => {
 
     // Total active occurrences should now be 1:
     // - Only the July 26 occurrence (since August 2 is exdated on all copies of parent row 101)
-    expect(result.current.parsedDraft).toHaveLength(1);
+    expect(result.current.editor!.draftOccurrences!).toHaveLength(1);
 
-    const julyOcc = result.current.parsedDraft[0];
+    const julyOcc = result.current.editor!.draftOccurrences![0];
     expect(julyOcc.occurrenceUnix).toBe(1785070000); // Only the July 26 occurrence remains
     expect(julyOcc.id).toBe(101);
 
@@ -923,7 +944,9 @@ describe('useMentorSchedule', () => {
     });
 
     // Draft now diverges from the originally-loaded (saved) data.
-    expect(result.current.parsedDraft[0].occurrenceUnix).not.toBe(1785070000);
+    expect(result.current.editor!.draftOccurrences![0].occurrenceUnix).not.toBe(
+      1785070000
+    );
 
     vi.mocked(loadMonthScheduleFresh).mockRejectedValue(
       new Error('network down')
@@ -936,9 +959,11 @@ describe('useMentorSchedule', () => {
     // Falls back to savedByMonth (the original, pre-edit data) instead of
     // leaving the UI stuck showing the failed-to-discard draft.
     await waitFor(() => {
-      expect(result.current.parsedDraft[0]?.occurrenceUnix).toBe(1785070000);
+      expect(result.current.editor!.draftOccurrences![0]?.occurrenceUnix).toBe(
+        1785070000
+      );
     });
-    expect(result.current.parsedDraft).toHaveLength(1);
+    expect(result.current.editor!.draftOccurrences!).toHaveLength(1);
   });
 
   it('regression: switching accounts while viewing the same calendar month reloads the new user instead of reusing the stale buffer', async () => {
@@ -971,14 +996,14 @@ describe('useMentorSchedule', () => {
 
     const { result, rerender } = renderHook(
       (props: { backend: { userId: string; year: number; month: number } }) =>
-        useMentorSchedule(props),
+        useMentorSchedule({ ...props, loginUserId: props.backend.userId }),
       { initialProps: { backend: { userId: 'userA', year: 2026, month: 7 } } }
     );
 
     await waitFor(() => {
       expect(result.current.loaded).toBe(true);
     });
-    expect(result.current.parsedDraft[0]?.id).toBe(101);
+    expect(result.current.editor!.draftOccurrences![0]?.id).toBe(101);
 
     // Same calendar month key ('2026-07'), different user - the buffer must
     // not be mistaken for already-loaded just because that month key was
@@ -986,7 +1011,7 @@ describe('useMentorSchedule', () => {
     rerender({ backend: { userId: 'userB', year: 2026, month: 7 } });
 
     await waitFor(() => {
-      expect(result.current.parsedDraft[0]?.id).toBe(201);
+      expect(result.current.editor!.draftOccurrences![0]?.id).toBe(201);
     });
   });
 
@@ -1091,7 +1116,7 @@ describe('useMentorSchedule', () => {
     await waitFor(() => {
       expect(result.current.loaded).toBe(true);
     });
-    expect(result.current.parsedDraft).toHaveLength(1);
+    expect(result.current.editor!.draftOccurrences!).toHaveLength(1);
 
     act(() => {
       result.current.editor!.updateDraftSlot(101, 1785070000, {
@@ -1130,9 +1155,9 @@ describe('useMentorSchedule', () => {
     // array - even though the store's live state for userA was still
     // empty (cache miss, stuck revalidate) at the moment the fallback ran.
     await waitFor(() => {
-      expect(result.current.parsedDraft).toHaveLength(1);
+      expect(result.current.editor!.draftOccurrences!).toHaveLength(1);
     });
-    expect(result.current.parsedDraft[0]?.id).toBe(101);
+    expect(result.current.editor!.draftOccurrences![0]?.id).toBe(101);
   });
 
   describe('failed fetch vs empty schedule distinction (issue 620)', () => {
@@ -1150,7 +1175,7 @@ describe('useMentorSchedule', () => {
       });
 
       expect(result.current.reader.hasError).toBe(false);
-      expect(result.current.parsedDraft).toHaveLength(0);
+      expect(result.current.reader.slotsSnapshot.slots).toHaveLength(0);
     });
 
     it('sets hasError to true when fetch fails and there is no cache/buffer', async () => {
@@ -1167,7 +1192,7 @@ describe('useMentorSchedule', () => {
       });
 
       expect(result.current.reader.hasError).toBe(true);
-      expect(result.current.parsedDraft).toHaveLength(0);
+      expect(result.current.reader.slotsSnapshot.slots).toHaveLength(0);
     });
 
     it('clears error and retries successfully when reload is called', async () => {
@@ -1907,7 +1932,7 @@ describe('useMentorSchedule', () => {
 
       // State is left as-is (pre-failure) rather than cleared or corrupted.
       expect(result.current.editor!.reservations).toEqual([]);
-      expect(result.current.parsedDraft).toHaveLength(1);
+      expect(result.current.editor!.draftOccurrences!).toHaveLength(1);
     });
 
     it('does not apply reloaded schedule or reservations if the active user changes mid-flight', async () => {
@@ -1967,7 +1992,7 @@ describe('useMentorSchedule', () => {
       // Ensure the old user's reloaded data is NOT applied
       expect(result.current.editor!.reservations).toEqual([]);
       // Should not contain 1785075000 (old user's reloaded schedule)
-      const hasOldReloaded = result.current.parsedDraft.some(
+      const hasOldReloaded = result.current.editor!.draftOccurrences!.some(
         (d) => d.start.getTime() === 1785075000 * 1000
       );
       expect(hasOldReloaded).toBe(false);
@@ -2011,7 +2036,7 @@ describe('useMentorSchedule', () => {
         });
       });
 
-      const draftBeforeReload = result.current.parsedDraft;
+      const draftBeforeReload = result.current.editor!.draftOccurrences!;
 
       // Trigger reload
       mockLoadMonthSchedule.mockResolvedValue(reloadedRaws);
@@ -2020,7 +2045,9 @@ describe('useMentorSchedule', () => {
       });
 
       // Verify the dirty draft is preserved and not discarded or overwritten
-      expect(result.current.parsedDraft).toEqual(draftBeforeReload);
+      expect(result.current.editor!.draftOccurrences!).toEqual(
+        draftBeforeReload
+      );
     });
 
     it('does not apply state update or trigger errors if the component unmounts mid-flight of reload', async () => {
@@ -2242,8 +2269,8 @@ describe('useMentorSchedule', () => {
         await reloadPromise;
       });
 
-      const hasAugustSlots = result.current.parsedDraft.some((slot) =>
-        slot.dateKey.startsWith('2026-08')
+      const hasAugustSlots = result.current.editor!.draftOccurrences!.some(
+        (slot) => slot.dateKey.startsWith('2026-08')
       );
       expect(hasAugustSlots).toBe(false);
       // July's own slot is where it belongs, and August's is untouched.
@@ -2418,7 +2445,7 @@ describe('useMentorSchedule', () => {
 
       // userB's own (empty) buffer must stay empty - userA's committed slot
       // must never land in it just because the response arrived late.
-      expect(result.current.parsedDraft).toHaveLength(0);
+      expect(result.current.editor!.draftOccurrences!).toHaveLength(0);
     });
 
     it('discards every result - including a month that itself succeeded - from a mixed sync outcome once the account has switched away', async () => {
@@ -2508,7 +2535,7 @@ describe('useMentorSchedule', () => {
       // userB's own (empty) buffer must stay empty - not even the month that
       // genuinely succeeded may leak into it just because the response
       // arrived late.
-      expect(result.current.parsedDraft).toHaveLength(0);
+      expect(result.current.editor!.draftOccurrences!).toHaveLength(0);
     });
 
     it('confirmChanges short-circuits without calling syncMonths when there are no dirty months', async () => {
@@ -2544,7 +2571,7 @@ describe('useMentorSchedule', () => {
 
       await waitFor(() => expect(result.current.loaded).toBe(true));
 
-      const draftBefore = result.current.parsedDraft;
+      const draftBefore = result.current.editor!.draftOccurrences!;
 
       act(() => {
         result.current.editor!.resetChanges();
@@ -2553,7 +2580,7 @@ describe('useMentorSchedule', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.parsedDraft).toBe(draftBefore);
+      expect(result.current.editor!.draftOccurrences!).toBe(draftBefore);
     });
 
     it('addSlotForSelectedDate returns zero added/skipped and leaves the draft untouched when no date is selected', async () => {
@@ -2577,7 +2604,7 @@ describe('useMentorSchedule', () => {
 
       expect(res).toEqual({ added: 0, skipped: 0 });
       // The single pre-existing slot from defaultMockRaws is untouched.
-      expect(result.current.parsedDraft).toHaveLength(1);
+      expect(result.current.editor!.draftOccurrences!).toHaveLength(1);
     });
 
     it('never calls loadMonthSchedule when backend.userId is missing - there is no key to fetch with', async () => {
@@ -2672,7 +2699,7 @@ describe('useMentorSchedule', () => {
 
       // userB's own (empty) buffer must stay empty - userA's refetched slot
       // must never land in it just because the response arrived late.
-      expect(result.current.parsedDraft).toHaveLength(0);
+      expect(result.current.editor!.draftOccurrences!).toHaveLength(0);
     });
 
     it('resetChanges skips the failure fallback when the account has already switched away by the time the refetch rejects', async () => {
@@ -2731,7 +2758,109 @@ describe('useMentorSchedule', () => {
 
       // The failed refetch belonged to userA - its fallback (userA's
       // pre-edit snapshot) must not be written into userB's buffer.
-      expect(result.current.parsedDraft).toHaveLength(0);
+      expect(result.current.editor!.draftOccurrences!).toHaveLength(0);
+    });
+  });
+
+  describe('cursor lifecycle, earliest-date auto-selection, and past-date clamping (#784)', () => {
+    it('auto-selects earliestSelectableDate when schedule loads and resets selectedSlot when selectedDate changes', async () => {
+      vi.spyOn(Date, 'now').mockReturnValue(
+        new Date('2026-07-01T00:00:00Z').getTime()
+      );
+      mockLoadMonthSchedule.mockResolvedValue(defaultMockRaws);
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: '123',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+
+      expect(result.current.reader.selectedDate).toBe('2026-07-26');
+      expect(result.current.reader.earliestSelectableDate).toBe('2026-07-26');
+
+      act(() => {
+        result.current.reader.setSelectedSlot?.(
+          result.current.reader.slotsSnapshot.slots[0] ?? null
+        );
+      });
+      expect(result.current.reader.selectedSlot).not.toBeNull();
+
+      act(() => {
+        result.current.reader.setSelectedDate('2026-07-27');
+      });
+      expect(result.current.reader.selectedSlot).toBeNull();
+    });
+
+    it('onMonthChange updates year/month and clamps selectedDate to today when navigating to a past month', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-07-26T12:00:00'));
+      try {
+        mockLoadMonthSchedule.mockResolvedValue([]);
+        const { result } = renderHook(() =>
+          useMentorSchedule({
+            backend: { userId: '123' },
+            loginUserId: '123',
+          })
+        );
+
+        act(() => {
+          result.current.reader.onMonthChange?.(
+            new Date('2026-08-01T00:00:00')
+          );
+        });
+        expect(result.current.reader.year).toBe(2026);
+        expect(result.current.reader.month).toBe(8);
+        expect(result.current.reader.selectedDate).toBe('2026-08-01');
+
+        act(() => {
+          result.current.reader.onMonthChange?.(
+            new Date('2026-06-01T00:00:00')
+          );
+        });
+        expect(result.current.reader.year).toBe(2026);
+        expect(result.current.reader.month).toBe(6);
+        expect(result.current.reader.selectedDate).toBe('2026-07-26');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('clampSelectedDateToToday snaps a past selectedDate to today and updates year/month', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-07-26T12:00:00'));
+      try {
+        mockLoadMonthSchedule.mockResolvedValue([]);
+        const { result } = renderHook(() =>
+          useMentorSchedule({
+            backend: { userId: '123' },
+            loginUserId: '123',
+          })
+        );
+
+        act(() => {
+          result.current.reader.onMonthChange?.(
+            new Date('2026-06-01T00:00:00'),
+            { preserveSelectedDate: true }
+          );
+          result.current.reader.setSelectedDate('2026-06-15');
+        });
+        expect(result.current.reader.selectedDate).toBe('2026-06-15');
+        expect(result.current.reader.month).toBe(6);
+
+        act(() => {
+          result.current.reader.clampSelectedDateToToday?.();
+        });
+        expect(result.current.reader.selectedDate).toBe('2026-07-26');
+        expect(result.current.reader.year).toBe(2026);
+        expect(result.current.reader.month).toBe(7);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });

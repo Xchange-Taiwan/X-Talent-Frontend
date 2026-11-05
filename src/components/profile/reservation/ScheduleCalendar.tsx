@@ -2,7 +2,7 @@
 
 import dayjs from 'dayjs';
 import { Loader2 } from 'lucide-react';
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { DayButton } from 'react-day-picker';
 import { useSwipeable } from 'react-swipeable';
 
@@ -96,6 +96,8 @@ const calendarComponents = { DayButton: CustomDayButton };
 
 interface ScheduleCalendarProps {
   selected: Date;
+  /** Optional controlled month cursor (e.g. from useMentorSchedule). */
+  month?: Date;
   onSelect?: (date: Date) => void;
   onMonthChange?: (date: Date) => void;
   allowedDates?: string[];
@@ -195,6 +197,7 @@ const scheduleCalendarSizeClassNames: Record<ScheduleCalendarSize, string> = {
 
 export const ScheduleCalendar = ({
   selected,
+  month: controlledMonth,
   onSelect,
   onMonthChange,
   allowedDates = [],
@@ -211,7 +214,16 @@ export const ScheduleCalendar = ({
   className,
   getDateStatus,
 }: ScheduleCalendarProps) => {
-  const [displayMonth, setDisplayMonth] = useState<Date>(selected);
+  const targetMonth = controlledMonth ?? selected;
+  const targetMonthKey = dayjs(targetMonth).format('YYYY-MM');
+  const [displayMonth, setDisplayMonth] = useState<Date>(targetMonth);
+
+  useEffect(() => {
+    setDisplayMonth((prev) =>
+      dayjs(prev).format('YYYY-MM') === targetMonthKey ? prev : targetMonth
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetMonthKey]);
 
   const calendarVariant =
     variant ?? (size === 'profile' ? 'profile' : 'default');

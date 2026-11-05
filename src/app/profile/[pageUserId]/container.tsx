@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import MentorScheduleDialog from '@/components/profile/reservation/MentorScheduleDialog';
@@ -10,10 +10,8 @@ import { Button } from '@/components/ui/button';
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
 import { useBookingConfirmation } from '@/hooks/user/reservation/useBookingConfirmation';
-import { useReservationDateClamp } from '@/hooks/user/reservation/useReservationDateClamp';
 import { primeTagCatalogCacheIfEmpty } from '@/hooks/user/tags/useTagCatalog';
 import useUserData from '@/hooks/user/user-data/useUserData';
-import { BookingSlot } from '@/lib/profile/bookingAvailability';
 import { getMentorOnboardingUrl } from '@/lib/routes';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
@@ -50,33 +48,16 @@ export default function ProfilePageContainer({
   const loginUserId =
     identity.state === 'confirmed-member' ? identity.userId : '';
 
-  const [year, setYear] = useState(() => new Date().getFullYear());
-  const [month, setMonth] = useState(() => new Date().getMonth() + 1);
-
   const isOwnProfile = loginUserId === pageUserId;
 
   const schedule = useMentorSchedule({
-    backend: { userId: pageUserId, year, month },
+    backend: { userId: pageUserId },
     loginUserId,
     includeBookedDates: isOwnProfile,
   });
-  const { loaded, parsedDraft, reader, editor } = schedule;
-  const { selectedDate, setSelectedDate, allowedDates } = reader;
+  const { loaded, reader, editor } = schedule;
 
   const [openReservationDialog, setOpenReservationDialog] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<BookingSlot | null>(null);
-
-  useEffect(() => {
-    setSelectedSlot(null);
-  }, [selectedDate]);
-
-  // Auto-select the first available date once schedule is loaded
-  useEffect(() => {
-    if (!loaded) return;
-    const firstSlot = parsedDraft.find((s) => s.type === 'ALLOW');
-    if (firstSlot) setSelectedDate(firstSlot.dateKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded]);
 
   const {
     userData,
@@ -92,22 +73,20 @@ export default function ProfilePageContainer({
   const canShowOwnerControls = isOwnProfile;
   const avatarSrc = userData?.avatar || DefaultAvatarImgUrl;
 
-  const { handleScheduleMonthChange, clampSelectedDateToToday } =
-    useReservationDateClamp({
-      selectedDate,
-      setSelectedDate,
-      year,
-      setYear,
-      month,
-      setMonth,
-      openReservationDialog,
-    });
+  const handleScheduleMonthChange = useCallback(
+    (date: Date) => {
+      reader.onMonthChange?.(date, {
+        preserveSelectedDate: openReservationDialog,
+      });
+    },
+    [reader, openReservationDialog]
+  );
 
   const { isSubmitting, handleConfirmReservation } = useBookingConfirmation({
     loginUserId,
     userData,
-    selectedSlot,
-    setSelectedSlot,
+    selectedSlot: reader.selectedSlot ?? null,
+    setSelectedSlot: reader.setSelectedSlot ?? (() => {}),
   });
 
   if (error === 'FETCH_FAILED') {
@@ -141,7 +120,7 @@ export default function ProfilePageContainer({
     // (still possible when that day has saved slots), snap selectedDate
     // forward to today so the dialog never opens on an un-editable past
     // date with its slot editor primed.
-    clampSelectedDateToToday();
+    reader.clampSelectedDateToToday?.();
     if (userData.is_mentor && isOwnProfile) {
       setOpenReservationDialog(true);
       return;
@@ -158,11 +137,8 @@ export default function ProfilePageContainer({
       isIdentityResolved={isIdentityResolved}
       canShowOwnerControls={canShowOwnerControls}
       avatarSrc={avatarSrc}
-      allowedDates={allowedDates}
       onReservation={reservationHandler}
       onScheduleMonthChange={handleScheduleMonthChange}
-      selectedSlot={selectedSlot}
-      setSelectedSlot={setSelectedSlot}
       isSubmitting={isSubmitting}
       onConfirmReservation={handleConfirmReservation}
       onEditProfile={() => router.push(`/profile/${pageUserId}/edit`)}

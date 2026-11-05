@@ -57,6 +57,13 @@ export interface SlotsSnapshot {
   reservationsLoaded: boolean;
 }
 
+export interface EditorSlotWithMeta {
+  slot: ParsedMentorTimeslot;
+  isPast: boolean;
+  reservationBlock: 'BOOKED' | 'PENDING' | null;
+  matchedReservation?: Reservation;
+}
+
 export type UpdateDraftSlotResult = {
   success: boolean;
   reason?: 'OVERLAP' | 'TARGET_MONTH_NOT_LOADED' | 'READ_ONLY';
@@ -73,6 +80,12 @@ export type UpdateDraftSlotResult = {
  */
 export type MentorScheduleEditor = {
   draftForSelectedDate: ParsedMentorTimeslot[];
+  /** All parsed draft occurrences across loaded months (for editor/test inspection). */
+  draftOccurrences?: ParsedMentorTimeslot[];
+  /** Pre-projected editor slots for the selected date (including virtual slots and matched reservations). */
+  slotsWithMeta?: EditorSlotWithMeta[];
+  /** Future-only ALLOW occurrences on the selected date for AddSlotModal defaults. */
+  futureSlots?: ParsedMentorTimeslot[];
   /**
    * Add one ALLOW entry at `startTime` for `durationMinutes`. If
    * `weeklyWithinMonth` is true, the entry is a single row with a weekly
@@ -111,10 +124,25 @@ export type MentorScheduleEditor = {
 };
 
 export interface BookingCalendarReader {
+  year?: number;
+  month?: number;
   selectedDate: string | null;
   setSelectedDate: (dateKey: string | null) => void;
+  selectedSlot?: BookingSlot | null;
+  setSelectedSlot?: (slot: BookingSlot | null) => void;
+  onMonthChange?: (
+    date: Date,
+    options?: { preserveSelectedDate?: boolean }
+  ) => void;
+  clampSelectedDateToToday?: () => void;
   /** All local dates (YYYY-MM-DD) that have at least one ALLOW occurrence after expanding rrules. */
   allowedDates: string[];
+  /** Dates with open (unbooked, non-pending) future ALLOW occurrences. */
+  availableDates?: string[];
+  /** Dates with future BOOKED or PENDING occurrences. */
+  bookedDates?: string[];
+  /** Earliest selectable date (YYYY-MM-DD) among allowedDates, or null when none exist. */
+  earliestSelectableDate?: string | null;
   /**
    * The selected date's booking slots, bundled with the two loading flags
    * that gate whether it's safe to render/interact with them

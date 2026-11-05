@@ -39,13 +39,13 @@ interface Props {
   isIdentityResolved: boolean;
   canShowOwnerControls: boolean;
   avatarSrc: string | StaticImageData;
-  allowedDates: string[];
-  onScheduleMonthChange: (date: Date) => void;
+  allowedDates?: string[];
+  onScheduleMonthChange?: (date: Date) => void;
   onReservation: () => void;
   onEditProfile: () => void;
   onBecomeMentor: () => void;
-  selectedSlot: BookingSlot | null;
-  setSelectedSlot: (slot: BookingSlot | null) => void;
+  selectedSlot?: BookingSlot | null;
+  setSelectedSlot?: (slot: BookingSlot | null) => void;
   isSubmitting: boolean;
   onConfirmReservation: (question?: string) => Promise<boolean>;
   editorDialog?: React.ReactNode;
@@ -72,6 +72,12 @@ export default function ProfilePageUI({
   editorDialog,
 }: Props) {
   const { selectedDate, setSelectedDate, getDayBookingStatus } = schedule;
+  const resolvedAllowedDates = allowedDates ?? schedule.allowedDates;
+  const resolvedSelectedSlot = selectedSlot ?? schedule.selectedSlot ?? null;
+  const resolvedSetSelectedSlot =
+    setSelectedSlot ?? schedule.setSelectedSlot ?? (() => {});
+  const resolvedOnMonthChange =
+    onScheduleMonthChange ?? ((d: Date) => schedule.onMonthChange?.(d));
 
   // Render the schedule region while user data loads (most profile views are
   // mentors) so the calendar can appear before user data resolves; collapse
@@ -296,9 +302,14 @@ export default function ProfilePageUI({
                           ? new Date(selectedDate + 'T00:00:00')
                           : new Date()
                       }
+                      month={
+                        schedule.year && schedule.month
+                          ? new Date(schedule.year, schedule.month - 1, 1)
+                          : undefined
+                      }
                       onSelect={(d) => setSelectedDate(d ? toDateKey(d) : null)}
-                      onMonthChange={onScheduleMonthChange}
-                      allowedDates={allowedDates}
+                      onMonthChange={resolvedOnMonthChange}
+                      allowedDates={resolvedAllowedDates}
                       showTodayStyle={false}
                       disableEmptyDates={true}
                       isMonthLoading={!schedule.slotsSnapshot.monthLoaded}
@@ -313,8 +324,8 @@ export default function ProfilePageUI({
                       isUserDataLoading={userLoading || !isIdentityResolved}
                       isAuthenticated={!!loginUserId}
                       slotsSnapshot={schedule.slotsSnapshot}
-                      selectedSlot={selectedSlot}
-                      setSelectedSlot={setSelectedSlot}
+                      selectedSlot={resolvedSelectedSlot}
+                      setSelectedSlot={resolvedSetSelectedSlot}
                       isSubmitting={isSubmitting}
                       selectedDate={selectedDate}
                       onReservation={onReservation}
