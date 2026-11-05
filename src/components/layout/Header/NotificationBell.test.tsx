@@ -185,7 +185,8 @@ describe('NotificationBell', () => {
       .getByText('尚無新通知')
       .closest('[class*="max-w-"]');
     expect(popoverContent).toBeInTheDocument();
-    expect(popoverContent).toHaveClass('max-w-[min(300px,calc(100vw-32px))]');
+    expect(popoverContent).toHaveClass('w-[360px]');
+    expect(popoverContent).toHaveClass('max-w-[min(360px,calc(100vw-32px))]');
     expect(popoverContent).toHaveClass('lg:max-w-[calc(100vw-32px)]');
   });
 
