@@ -263,4 +263,21 @@ describe('BookingForm', () => {
     const submitBtn = screen.getByRole('button', { name: '預約時間' });
     expect(submitBtn).toBeDisabled();
   });
+
+  it('constrains wrapper max-width at xl breakpoint for two-column desktop layout (#803)', () => {
+    const { container, rerender } = render(
+      <BookingForm {...defaultProps} isUserDataLoading={true} />
+    );
+
+    const skeleton = screen.getByTestId('booking-form-skeleton');
+    expect(skeleton).toHaveClass('md:max-w-[695px]', 'xl:max-w-[414px]');
+    expect(skeleton).not.toHaveClass('2xl:max-w-[414px]');
+
+    rerender(<BookingForm {...defaultProps} isUserDataLoading={false} />);
+    expect(container.firstElementChild).toHaveClass(
+      'md:max-w-[695px]',
+      'xl:max-w-[414px]'
+    );
+    expect(container.firstElementChild).not.toHaveClass('2xl:max-w-[414px]');
+  });
 });

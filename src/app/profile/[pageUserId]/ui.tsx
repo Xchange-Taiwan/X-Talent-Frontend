@@ -96,7 +96,7 @@ export default function ProfilePageUI({
     <div>
       <ProfileBanner />
 
-      <div className="container mb-20 max-w-screen-lg 2xl:max-w-screen-xl">
+      <div className="container mb-20 max-w-screen-lg xl:max-w-screen-xl">
         {userLoading ? (
           <ProfileHeaderSkeleton />
         ) : userData ? (
@@ -177,8 +177,8 @@ export default function ProfilePageUI({
           </div>
         ) : null}
 
-        <div className="flex flex-col gap-8 2xl:flex-row 2xl:gap-12">
-          <div className="w-full 2xl:w-3/5">
+        <div className="flex flex-col gap-8 xl:flex-row xl:gap-12">
+          <div className="w-full xl:w-3/5">
             {userLoading ? (
               <ProfileContentSkeleton />
             ) : userData ? (
@@ -270,17 +270,17 @@ export default function ProfilePageUI({
           </div>
 
           {showScheduleRegion && (
-            <div className="w-full 2xl:w-2/5">
+            <div className="w-full xl:w-2/5">
               {!scheduleLoaded ? (
                 <ScheduleSkeleton />
               ) : (
-                <div className="flex w-full max-w-[335px] flex-col gap-4 md:max-w-[695px] 2xl:max-w-[414px]">
+                <div className="flex w-full max-w-[335px] flex-col gap-4 md:max-w-[695px] xl:max-w-[414px]">
                   <div className="border-background-border bg-background-white w-full rounded-2xl border p-5 shadow-sm">
                     <div className="border-background-border mb-3 border-b pb-3">
                       <p className="text-text-tertiary mb-1 text-xs font-medium">
                         可預約日期
                       </p>
-                      <h2 className="text-text-primary text-2xl font-semibold tracking-tight md:text-3xl 2xl:text-2xl">
+                      <h2 className="text-text-primary text-2xl font-semibold tracking-tight md:text-3xl xl:text-2xl">
                         {formatSelectedDate(
                           selectedDate
                             ? new Date(selectedDate + 'T00:00:00')

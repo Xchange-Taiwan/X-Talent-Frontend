@@ -32,6 +32,7 @@ vi.mock('@/components/profile/reservation/ScheduleCalendar', () => ({
   },
 }));
 
+import { ProfilePageSkeleton } from './skeleton';
 import ProfilePageUI from './ui';
 
 function buildSchedule(): BookingCalendarReader {
@@ -313,5 +314,60 @@ describe('ProfilePageUI - BookingForm visibility', () => {
       />
     );
     expect(screen.queryByTestId('booking-form')).not.toBeInTheDocument();
+  });
+});
+
+describe('ProfilePageUI & ProfilePageSkeleton - desktop two-column breakpoint (#803)', () => {
+  it('applies xl two-column layout classes to the main profile container, left/right columns, and schedule card wrapper', () => {
+    const { container } = render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({ is_mentor: true, about: 'Mentor bio' }),
+          isIdentityResolved: true,
+        })}
+      />
+    );
+
+    const mainContainer = container.querySelector('.container');
+    expect(mainContainer).toHaveClass('max-w-screen-lg', 'xl:max-w-screen-xl');
+    expect(mainContainer).not.toHaveClass('2xl:max-w-screen-xl');
+
+    const aboutHeading = screen.getByText('關於我');
+    const leftColumn = aboutHeading.closest('.w-full');
+    expect(leftColumn).toHaveClass('xl:w-3/5');
+    expect(leftColumn).not.toHaveClass('2xl:w-3/5');
+
+    const columnsRow = leftColumn?.parentElement;
+    expect(columnsRow).toHaveClass('flex-col', 'xl:flex-row', 'xl:gap-12');
+    expect(columnsRow).not.toHaveClass('2xl:flex-row');
+
+    const calendarCardHeading = screen.getByText('可預約日期');
+    const dateHeading = calendarCardHeading.nextElementSibling;
+    expect(dateHeading).toHaveClass('md:text-3xl', 'xl:text-2xl');
+    expect(dateHeading).not.toHaveClass('2xl:text-2xl');
+
+    const scheduleWrapper = screen
+      .getByTestId('schedule-calendar')
+      .closest('.max-w-\\[335px\\]');
+    expect(scheduleWrapper).toHaveClass('md:max-w-[695px]', 'xl:max-w-[414px]');
+    expect(scheduleWrapper).not.toHaveClass('2xl:max-w-[414px]');
+
+    const rightColumn = scheduleWrapper?.parentElement;
+    expect(rightColumn).toHaveClass('w-full', 'xl:w-2/5');
+    expect(rightColumn).not.toHaveClass('2xl:w-2/5');
+  });
+
+  it('keeps ProfilePageSkeleton aligned with the xl two-column layout breakpoint', () => {
+    const { container } = render(<ProfilePageSkeleton />);
+
+    const mainContainer = container.querySelector('.container');
+    expect(mainContainer).toHaveClass('max-w-screen-lg', 'xl:max-w-screen-xl');
+    expect(mainContainer).not.toHaveClass('2xl:max-w-screen-xl');
+
+    const columnsRow = mainContainer?.querySelector('.xl\\:flex-row');
+    expect(columnsRow).toBeInTheDocument();
+    expect(columnsRow).toHaveClass('xl:gap-12');
+    expect(mainContainer?.querySelector('.xl\\:w-3\\/5')).toBeInTheDocument();
+    expect(mainContainer?.querySelector('.xl\\:w-2\\/5')).toBeInTheDocument();
   });
 });

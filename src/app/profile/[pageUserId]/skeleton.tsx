@@ -74,14 +74,14 @@ export function ProfilePageSkeleton() {
     <div className="animate-delayed-fade-in">
       <ProfileBanner />
 
-      <div className="container mb-20 max-w-screen-lg 2xl:max-w-screen-xl">
+      <div className="container mb-20 max-w-screen-lg xl:max-w-screen-xl">
         <ProfileHeaderSkeleton />
 
-        <div className="flex flex-col gap-8 2xl:flex-row 2xl:gap-12">
-          <div className="w-full 2xl:w-3/5">
+        <div className="flex flex-col gap-8 xl:flex-row xl:gap-12">
+          <div className="w-full xl:w-3/5">
             <ProfileContentSkeleton />
           </div>
-          <div className="w-full 2xl:w-2/5">
+          <div className="w-full xl:w-2/5">
             <ScheduleSkeleton />
           </div>
         </div>

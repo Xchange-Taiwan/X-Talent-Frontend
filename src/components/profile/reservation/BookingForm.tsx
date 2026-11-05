@@ -47,7 +47,7 @@ export function BookingForm({
   if (isUserDataLoading) {
     return (
       <div
-        className="flex w-full max-w-[335px] animate-pulse flex-col gap-4 md:max-w-[695px] 2xl:max-w-[414px]"
+        className="flex w-full max-w-[335px] animate-pulse flex-col gap-4 md:max-w-[695px] xl:max-w-[414px]"
         data-testid="booking-form-skeleton"
       >
         <div className="flex flex-col gap-2">
@@ -67,7 +67,7 @@ export function BookingForm({
   }
 
   return (
-    <div className="flex w-full max-w-[335px] flex-col gap-4 md:max-w-[695px] 2xl:max-w-[414px]">
+    <div className="flex w-full max-w-[335px] flex-col gap-4 md:max-w-[695px] xl:max-w-[414px]">
       {isOwnMentorProfile ? (
         <MentorScheduleConfig
           slotsSnapshot={slotsSnapshot}
