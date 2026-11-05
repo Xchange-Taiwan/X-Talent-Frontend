@@ -1,5 +1,6 @@
 import { expect, Page, test } from '@playwright/test';
 
+import { mockApiRoute } from '../../helpers/route';
 import {
   setSignedMaintenanceCookie,
   setSignedSessionCookie,
@@ -54,6 +55,13 @@ test.describe('Middleware (RefreshTokenError & Maintenance Mode) & AnnouncementB
   test('RefreshTokenError 造訪公開路由 → Middleware 清除過期 session-hint 且 SessionErrorWatcher 自動觸發 signOut 導向 /auth/signin', async ({
     page,
   }) => {
+    await mockApiRoute(
+      page,
+      new RegExp(`/v1/users/${USER_ID}/notifications/unread-count`),
+      {
+        body: { code: '0', msg: 'ok', data: { unread_count: 0 } },
+      }
+    );
     await seedStaleSessionHint(page);
     await setSignedSessionCookie(page, {
       id: USER_ID,

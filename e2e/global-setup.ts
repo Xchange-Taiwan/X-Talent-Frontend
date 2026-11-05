@@ -37,8 +37,10 @@ const PAGES_TO_WARM = [
   // Next.js API routes
   '/api/auth/session',
   '/api/auth/providers',
+  '/api/auth/csrf',
   // App pages
   '/',
+  '/about',
   '/mentor-pool',
   '/auth/signin',
   '/auth/signup',

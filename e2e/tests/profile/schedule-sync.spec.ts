@@ -417,4 +417,67 @@ test.describe('導師時段儲存與衝突攔截 E2E 測試', () => {
       `/v1/mentors/${REAL_MENTOR_ID}/schedule/${EXISTING_SLOT_ID}`
     );
   });
+
+  test('新增當月時段草稿後切換至下個月再切回當月 → 未儲存的時段草稿仍保留於日曆中並可正常儲存', async ({
+    page,
+  }) => {
+    await setupTestSession(page, true);
+
+    await mockApiRoute(
+      page,
+      new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule/y/2026/m/7`),
+      { body: { code: '0', msg: 'ok', data: { segments: [] } } }
+    );
+    await mockApiRoute(
+      page,
+      new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule/y/2026/m/8`),
+      { body: { code: '0', msg: 'ok', data: { segments: [] } } }
+    );
+    await mockApiRoute(
+      page,
+      new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule/y/2026/m/9`),
+      { body: { code: '0', msg: 'ok', data: { segments: [] } } }
+    );
+
+    let savedBody: { timeslots: { dtstart: number }[] } | null = null;
+    await page.route(
+      new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule`),
+      async (route) => {
+        if (route.request().method() === 'PUT') {
+          savedBody = await route.request().postDataJSON();
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
+          });
+        }
+        return route.fallback();
+      }
+    );
+
+    const scheduleDialog = await openScheduleDialog(page, REAL_MENTOR_ID);
+
+    // 1. 於當月（2026-07-17）新增 15:00 – 15:30 時段草稿
+    await selectCalendarDate(scheduleDialog, '2026-07-17');
+    await createTimeSlot(page, scheduleDialog, '15', '00');
+    await expect(scheduleDialog.getByText('15:00 – 15:30')).toBeVisible();
+
+    // 2. 切換至下個月（2026 年 8 月）並點選 2026-08-15
+    await scheduleDialog.locator('button.rdp-button_next').click();
+    await selectCalendarDate(scheduleDialog, '2026-08-15');
+    await expect(scheduleDialog.getByText('15:00 – 15:30')).not.toBeVisible();
+
+    // 3. 切回當月（2026 年 7 月）並點選 2026-07-17，驗證未儲存時段草稿仍保留
+    await scheduleDialog.locator('button.rdp-button_previous').click();
+    await selectCalendarDate(scheduleDialog, '2026-07-17');
+    await expect(scheduleDialog.getByText('15:00 – 15:30')).toBeVisible();
+
+    // 4. 點擊「儲存」並驗證時段草稿成功送出
+    await scheduleDialog.getByRole('button', { name: '儲存' }).click();
+    await expect(scheduleDialog).not.toBeVisible({ timeout: 15_000 });
+
+    expect(savedBody).not.toBeNull();
+    expect(savedBody!.timeslots).toHaveLength(1);
+    expect(savedBody!.timeslots[0].dtstart).toBe(1784271600); // 2026-07-17 15:00:00 Asia/Taipei
+  });
 });

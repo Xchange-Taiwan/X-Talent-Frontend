@@ -1,5 +1,6 @@
 import { expect, Page, test } from '@playwright/test';
 
+import { mockApiRoute } from '../../helpers/route';
 import { setSignedSessionCookie } from '../../helpers/session';
 
 const USER_ID = '999998';
@@ -53,6 +54,12 @@ async function mockGoogleCallbackServerAction(
 }
 
 test.describe('UserDropdown (Share Profile & Logout) & Google OAuth Callback E2E (#791)', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockApiRoute(page, /\/v1\/users\/.*\/notifications\/unread-count/, {
+      body: { code: '0', msg: 'ok', data: { unread_count: 0 } },
+    });
+  });
+
   test('用戶選單點擊「分享個人頁面」→ 開啟 ShareProfileDialog 顯示姓名、職稱、社群連結並可複製個人頁網址', async ({
     page,
     context,
@@ -133,6 +140,22 @@ test.describe('UserDropdown (Share Profile & Logout) & Google OAuth Callback E2E
         .getByTestId('desktop-header-right')
         .getByRole('link', { name: '登入' })
     ).toBeVisible();
+
+    // Wait for NextAuth signOut() to finish clearing the session cookie before
+    // navigating, so page.goto() does not abort the in-flight POST /api/auth/signout.
+    await expect
+      .poll(
+        async () => {
+          const cookies = await page.context().cookies();
+          return cookies.some(
+            (c) =>
+              c.name === 'next-auth.session-token' ||
+              c.name === '__Secure-next-auth.session-token'
+          );
+        },
+        { timeout: 15_000 }
+      )
+      .toBe(false);
 
     // Navigating to a protected route should redirect to /auth/signin
     await page.goto('/reservation/mentee');
