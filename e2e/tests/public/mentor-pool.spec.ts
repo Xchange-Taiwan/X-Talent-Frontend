@@ -266,3 +266,70 @@ test('Tab 聚焦導師卡片 → 顯示焦點外框 → Enter 導向個人頁面
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/profile\/1$/);
 });
+
+test('點擊 PopularPositionChips 熱門職位標籤 → 觸發篩選並更新列表，點進導師個人頁後 page.goBack() 返回保留原篩選條件與導師列表快取', async ({
+  page,
+}) => {
+  let chipFetchCount = 0;
+
+  await page.route(/\/v1\/mentors(\?|$)/, (route, request) => {
+    const keyword = new URL(request.url()).searchParams.get('search_pattern');
+    if (keyword === '前端工程師') {
+      chipFetchCount += 1;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mentorResponse([makeMentor(1), makeMentor(2)])),
+      });
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        mentorResponse([makeMentor(1), makeMentor(2), makeMentor(3)])
+      ),
+    });
+  });
+
+  await page.goto('/mentor-pool?q=initial');
+  await expect(page.locator('article')).toHaveCount(3);
+
+  const chipGroup = page.getByLabel('熱門職位');
+  const chipResponsePromise = page.waitForResponse(
+    (res) =>
+      /\/v1\/mentors(\?|$)/.test(res.url()) &&
+      new URL(res.url()).searchParams.get('search_pattern') === '前端工程師'
+  );
+  await chipGroup.getByRole('button', { name: '前端工程師' }).click();
+  await chipResponsePromise;
+
+  await expect(page).toHaveURL(
+    /q=%E5%89%8D%E7%AB%AF%E5%B7%A5%E7%A8%8B%E5%B8%AB/
+  );
+  await expect(
+    page.locator('input[placeholder="搜尋有興趣職位、公司或是想精進的領域"]')
+  ).toHaveValue('前端工程師');
+  await expect(page.locator('article')).toHaveCount(2);
+  await expect(page.getByText('找到 2 位導師')).toBeVisible();
+  expect(chipFetchCount).toBe(1);
+
+  // 點進篩選後的導師個人頁再透過 page.goBack() 返回，驗證篩選條件與快取列表保留
+  await page
+    .locator('article')
+    .first()
+    .getByRole('link', { name: '前往 Mentor 1 的個人頁面' })
+    .click();
+  await expect(page).toHaveURL(/\/profile\/1$/);
+
+  await page.goBack();
+
+  await expect(page).toHaveURL(
+    /\/mentor-pool\?q=%E5%89%8D%E7%AB%AF%E5%B7%A5%E7%A8%8B%E5%B8%AB/
+  );
+  await expect(
+    page.locator('input[placeholder="搜尋有興趣職位、公司或是想精進的領域"]')
+  ).toHaveValue('前端工程師');
+  await expect(page.locator('article')).toHaveCount(2);
+  await expect(page.getByText('找到 2 位導師')).toBeVisible();
+  expect(chipFetchCount).toBe(1);
+});
