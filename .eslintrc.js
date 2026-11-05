@@ -147,6 +147,8 @@ module.exports = {
     'build/',
     'dist/',
     'storybook-static/',
+    'playwright-report*/',
+    'test-results/',
     '*.config.js',
     '*.config.ts',
     '.eslintrc.js',

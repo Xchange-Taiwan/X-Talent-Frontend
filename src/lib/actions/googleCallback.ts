@@ -15,17 +15,21 @@ export async function googleCallback(
   code: string,
   state: string
 ): Promise<OAuthCallbackResponse> {
-  const res = await fetch(`${BFF_URL}/v2/oauth/google/callback`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code, state }),
-  });
+  try {
+    const res = await fetch(`${BFF_URL}/v2/oauth/google/callback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, state }),
+    });
 
-  const data = (await res.json()) as OAuthCallbackResponse;
+    const data = (await res.json()) as OAuthCallbackResponse;
 
-  const refreshToken = extractRefreshToken(res.headers);
-  const cookieStore = await cookies();
-  setOAuthRefreshBridge(cookieStore, refreshToken);
+    const refreshToken = extractRefreshToken(res.headers);
+    const cookieStore = await cookies();
+    setOAuthRefreshBridge(cookieStore, refreshToken);
 
-  return data;
+    return data;
+  } catch {
+    return { code: '1', msg: 'Callback request failed', data: null };
+  }
 }

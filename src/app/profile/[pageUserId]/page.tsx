@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
 import { PersonJsonLd } from '@/components/seo/PersonJsonLd';
+import { BASE_URL } from '@/lib/apiClient';
 import { buildTagLabelMap } from '@/lib/profile/tagLabelMap';
 import { buildMentorMetadata } from '@/lib/seo/buildMentorMetadata';
 import { sanitizePublicProfile } from '@/lib/seo/sanitizePublicProfile';
@@ -50,7 +51,7 @@ export default async function Page({ params }: PageProps) {
     fetchTagCatalogServer('zh_TW'),
   ]);
 
-  if (!initialDto) notFound();
+  if (!initialDto && BASE_URL) notFound();
 
   // Login state is resolved entirely client-side (see ProfilePageContainer's
   // useIdentity()). Dropping the SSR getServerSession() call here lets this
@@ -60,15 +61,16 @@ export default async function Page({ params }: PageProps) {
   // caching. useIdentity's session-hint-cookie fast path (see
   // container.tsx) resolves identity before role-specific UI ever renders,
   // so there is no first-paint flash to trade off here.
-  const publicProfile = sanitizePublicProfile(
-    initialDto,
-    buildTagLabelMap(catalogs)
-  );
+  const publicProfile = initialDto
+    ? sanitizePublicProfile(initialDto, buildTagLabelMap(catalogs))
+    : null;
   const siteUrl = getSiteUrl();
 
   return (
     <>
-      <PersonJsonLd profile={publicProfile} siteUrl={siteUrl} />
+      {publicProfile && (
+        <PersonJsonLd profile={publicProfile} siteUrl={siteUrl} />
+      )}
       <ProfilePageContainer
         pageUserId={pageUserId}
         initialDto={initialDto}

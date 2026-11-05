@@ -10,6 +10,52 @@ const MOCK_INTERESTS = {
   data: { interests: [], language: 'zh_TW' },
 };
 
+const MOCK_TAG_CATALOG = {
+  code: '0',
+  msg: 'ok',
+  data: {
+    catalogs: {
+      skill: {
+        kind: 'skill',
+        groups: [
+          {
+            subject_group: 'software_development',
+            subject: '軟體開發',
+            leaves: [
+              { subject_group: 'frontend', subject: '前端開發' },
+              { subject_group: 'backend', subject: '後端開發' },
+            ],
+          },
+        ],
+      },
+      topic: {
+        kind: 'topic',
+        groups: [
+          {
+            subject_group: 'career_growth',
+            subject: '職涯發展',
+            leaves: [{ subject_group: 'resume_review', subject: '履歷健檢' }],
+          },
+        ],
+      },
+      position: {
+        kind: 'position',
+        groups: [
+          {
+            subject_group: 'engineering',
+            subject: '工程研發',
+            leaves: [{ subject_group: 'fe_engineer', subject: '前端工程師' }],
+          },
+        ],
+      },
+      industry: {
+        kind: 'industry',
+        groups: [{ subject_group: 'tech', subject: '科技業', leaves: [] }],
+      },
+    },
+  },
+};
+
 function makeMentor(id: number) {
   return {
     user_id: id,
@@ -71,6 +117,15 @@ test.beforeEach(async ({ page }) => {
       body: JSON.stringify(MOCK_INTERESTS),
     })
   );
+  // Provide a fallback tag catalog for client-side useTagCatalog when SSR
+  // fetchTagCatalogServer returns EMPTY_TAG_CATALOGS (e.g., when BASE_URL is unset).
+  await page.route(/\/v1\/users\/zh_TW\/tags\/catalog/, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_TAG_CATALOG),
+    })
+  );
   // Abort any external API call not explicitly mocked above so tests fail fast
   // instead of waiting for the real AWS endpoint to time out.
   await blockUnmockedExternalApi(page);
@@ -79,12 +134,23 @@ test.beforeEach(async ({ page }) => {
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 test('page loads → mentor cards are displayed', async ({ page }) => {
-  // The initial listing is server-rendered in MentorPoolWithData (RSC) —
-  // page.route() only intercepts browser-initiated requests, so it can't mock
-  // this fetch. Assert internal consistency (heading count matches rendered
-  // cards) against whatever the real dev backend returns, instead of a
-  // hardcoded mock-driven count.
-  await page.goto('/mentor-pool');
+  await page.route(/\/v1\/mentors/, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        mentorResponse([makeMentor(1), makeMentor(2), makeMentor(3)])
+      ),
+    })
+  );
+
+  // When NEXT_PUBLIC_API_URL is configured, the initial listing is SSR-rendered
+  // in MentorPoolWithData (RSC); when unset in local/CI mock runs, append ?q=initial
+  // so the client-side fetch path seeds the mentor cards deterministically.
+  const targetUrl = process.env.NEXT_PUBLIC_API_URL
+    ? '/mentor-pool'
+    : '/mentor-pool?q=initial';
+  await page.goto(targetUrl);
 
   const articles = page.locator('article');
   await expect(articles.first()).toBeVisible({ timeout: 15_000 });

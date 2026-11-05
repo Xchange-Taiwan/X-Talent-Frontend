@@ -217,9 +217,13 @@ test.describe('導師時段儲存與衝突攔截 E2E 測試', () => {
     await page.clock.setFixedTime(new Date('2026-07-15T10:00:00+08:00'));
 
     // Mock own profile GET call
-    await mockApiRoute(page, new RegExp(`/v1/users/${REAL_MENTOR_ID}`), {
-      body: makeProfile(true),
-    });
+    await mockApiRoute(
+      page,
+      new RegExp(`/v1/(users|mentors)/${REAL_MENTOR_ID}`),
+      {
+        body: makeProfile(true),
+      }
+    );
 
     // Mock reservations call
     await mockApiRoute(

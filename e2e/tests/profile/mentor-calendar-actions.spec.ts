@@ -192,7 +192,7 @@ test.describe('導師個人頁日曆直接操作預約與鎖定時段攔截 (#78
 
     await mockApiRoute(
       page,
-      new RegExp(`/v1/users/${REAL_MENTOR_ID}/zh_TW/profile`),
+      new RegExp(`/v1/(users|mentors)/${REAL_MENTOR_ID}/zh_TW/profile`),
       { body: makeMentorProfile() }
     );
   });

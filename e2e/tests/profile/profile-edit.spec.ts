@@ -159,6 +159,76 @@ const MOCK_EXPERTISES = {
   },
 };
 
+const MOCK_TAG_CATALOG = {
+  code: '0',
+  msg: 'ok',
+  data: {
+    catalogs: {
+      skill: {
+        groups: [
+          {
+            subject_group: 'SKILL_GROUP',
+            subject: '技術能力',
+            language: 'zh_TW',
+            leaves: [
+              {
+                tag_id: 1,
+                subject_group: 'TEST_SKILL',
+                subject: '測試技能',
+                language: 'zh_TW',
+              },
+            ],
+          },
+        ],
+      },
+      topic: {
+        groups: [
+          {
+            subject_group: 'TOPIC_GROUP',
+            subject: '服務主題',
+            language: 'zh_TW',
+            leaves: [
+              {
+                tag_id: 2,
+                subject_group: 'TEST_TOPIC',
+                subject: '測試主題',
+                language: 'zh_TW',
+              },
+            ],
+          },
+        ],
+      },
+      position: {
+        groups: [
+          {
+            subject_group: 'POS_GROUP',
+            subject: '工程職位',
+            language: 'zh_TW',
+            leaves: [
+              {
+                tag_id: 3,
+                subject_group: 'TEST_POS',
+                subject: '測試職位',
+                language: 'zh_TW',
+              },
+            ],
+          },
+        ],
+      },
+      industry: {
+        groups: [
+          {
+            subject_group: 'TECH',
+            subject: '科技業',
+            language: 'zh_TW',
+            leaves: [],
+          },
+        ],
+      },
+    },
+  },
+};
+
 function makeInterest(subject: string) {
   return {
     code: '0',
@@ -203,6 +273,9 @@ async function mockSessionGet(page: Page, session: object): Promise<void> {
  * Mock all dropdown option endpoints used by the profile edit page.
  */
 async function mockDropdowns(page: Page): Promise<void> {
+  await mockApiRoute(page, /\/v1\/users\/zh_TW\/tags\/catalog/, {
+    body: MOCK_TAG_CATALOG,
+  });
   await mockApiRoute(page, /\/v1\/users\/zh_TW\/countries/, {
     body: MOCK_COUNTRIES,
   });
