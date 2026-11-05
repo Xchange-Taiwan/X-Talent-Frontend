@@ -4,7 +4,32 @@ on:
   push:
     branches:
       - develop
+    paths-ignore:
+      - 'e2e/**'
+      - '.github/**'
+      - '.agents/**'
+      - '.gemini/**'
+      - '.husky/**'
+      - '.lavish/**'
+      - '.storybook/**'
+      - '.vscode/**'
+      - 'scripts/**'
+      - 'docs/**'
+      - '**/*.md'
+      - '**/*.test.ts'
+      - '**/*.test.tsx'
+      - '**/*.spec.ts'
+      - '**/*.spec.tsx'
+      - '**/*.stories.ts'
+      - '**/*.stories.tsx'
+      - 'playwright.config.ts'
+      - 'vitest.config.mts'
+      - 'tsconfig.test.json'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
