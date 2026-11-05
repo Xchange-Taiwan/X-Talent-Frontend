@@ -26,7 +26,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   // Shared backend accounts and SSR dependencies require serial execution locally
   // and in CI to prevent RDS connection exhaustion and on-demand compile contention.
-  // Browser-mocked runs can opt into parallelism via PLAYWRIGHT_WORKERS or CLI flags.
+  // Browser-mocked runs opt into parallelism via PLAYWRIGHT_WORKERS or --workers=4.
   workers: process.env.PLAYWRIGHT_WORKERS
     ? Number(process.env.PLAYWRIGHT_WORKERS)
     : 1,
@@ -123,6 +123,22 @@ export default defineConfig({
     {
       name: 'chromium-profile',
       testDir: './e2e/tests/profile',
+      testIgnore: ['**/profile-view.spec.ts', '**/schedule-sync.spec.ts'],
+      use: {
+        ...devices['Desktop Chrome'],
+      },
+    },
+    // Seeded profile/calendar flows retain a single-worker CI lane until
+    // their SSR dependencies are isolated and parallel trials pass.
+    {
+      name: 'chromium-backend-readonly',
+      testDir: './e2e/tests',
+      testMatch: [
+        '**/profile-view.spec.ts',
+        '**/schedule-sync.spec.ts',
+        '**/reservation-create.spec.ts',
+        '**/reservation-booking-then-return.spec.ts',
+      ],
       use: {
         ...devices['Desktop Chrome'],
       },
@@ -132,6 +148,10 @@ export default defineConfig({
     {
       name: 'chromium-reservation',
       testDir: './e2e/tests/reservation',
+      testIgnore: [
+        '**/reservation-create.spec.ts',
+        '**/reservation-booking-then-return.spec.ts',
+      ],
       use: {
         ...devices['Desktop Chrome'],
       },

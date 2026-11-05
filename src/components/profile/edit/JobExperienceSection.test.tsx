@@ -109,9 +109,9 @@ describe('JobExperienceSection', () => {
     });
   });
 
-  it('prevents adding a new work experience with various incomplete fields', () => {
-    const fields = ['job', 'company', 'job_period_start', 'job_period_end'];
-    fields.forEach((field) => {
+  it.each(['job', 'company', 'job_period_start', 'job_period_end'])(
+    'prevents adding a new work experience when %s is incomplete',
+    (field) => {
       const incomplete = [
         createMockExperience({
           job: field === 'job' ? '' : '工程師',
@@ -122,16 +122,15 @@ describe('JobExperienceSection', () => {
         }),
       ];
 
-      const { unmount } = render(<Harness defaultValue={incomplete} />);
+      render(<Harness defaultValue={incomplete} />);
       const addButton = screen.getByRole('button', { name: '新增' });
       fireEvent.click(addButton);
 
       // Verify that no new item was added
       const jobFields = screen.getAllByLabelText('職稱');
       expect(jobFields).toHaveLength(1);
-      unmount();
-    });
-  });
+    }
+  );
 
   it('checks chronological logical date ranges validation (starts after ends)', async () => {
     const invalidDates = [
