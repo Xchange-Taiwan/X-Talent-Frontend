@@ -85,7 +85,19 @@ describe('BookingForm', () => {
   });
 
   it('shows a sign-in prompt instead of the booking form when isAuthenticated is false', () => {
-    render(<BookingForm {...defaultProps} isAuthenticated={false} />);
+    const setSelectedSlot = vi.fn();
+    render(
+      <BookingForm
+        {...defaultProps}
+        isAuthenticated={false}
+        setSelectedSlot={setSelectedSlot}
+      />
+    );
+
+    expect(screen.getByText('當日可預約時段')).toBeInTheDocument();
+    const slotBtn = screen.getByRole('button', { name: /10:00/i });
+    fireEvent.click(slotBtn);
+    expect(setSelectedSlot).toHaveBeenCalledWith(mockSlots[0]);
 
     expect(screen.getByText('登入後即可預約導師時段')).toBeInTheDocument();
     const signInLink = screen.getByRole('link', { name: '前往登入' });

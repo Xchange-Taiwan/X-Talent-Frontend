@@ -386,4 +386,62 @@ test.describe('從個人檔案頁建立預約流程', () => {
     // Verify that MentorScheduleDialog is open (should contain text "設定可預約時段")
     await expect(page.getByText('設定可預約時段')).toBeVisible();
   });
+
+  test('未登入訪客造訪導師個人頁並點擊可預約日期與時段 → 顯示登入引導且點擊「前往登入」導向 /auth/signin (#712)', async ({
+    page,
+  }) => {
+    // Ensure visitor has no active session
+    await page.route(/\/api\/auth\/session/, (route) => {
+      if (route.request().method() === 'GET') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({}),
+        });
+      }
+      return route.continue();
+    });
+
+    // Mock schedule API with an available slot
+    await mockMentorSchedule(page, [
+      {
+        id: 101,
+        dt_type: 'ALLOW',
+        dtstart: DTSTART,
+        dtend: DTEND,
+        rrule: null,
+        exdate: [],
+      },
+    ]);
+
+    // Navigate to mentor profile as unauthenticated visitor
+    await page.goto(`/profile/${REAL_MENTOR_ID}`);
+
+    // Select the bookable date on calendar
+    await selectCalendarDate(page, DATE_KEY);
+
+    // Click the bookable time slot
+    const startStr = new Date(DTSTART * 1000).toLocaleTimeString(
+      'en-US',
+      timeFormat
+    );
+    const endStr = new Date(DTEND * 1000).toLocaleTimeString(
+      'en-US',
+      timeFormat
+    );
+    const slotText = `${startStr} – ${endStr}`;
+    const slotButton = page.getByRole('button', { name: slotText });
+    await expect(slotButton).toBeVisible();
+    await slotButton.click();
+
+    // Sign-in prompt and CTA button are shown instead of the booking question textarea
+    await expect(page.getByText('登入後即可預約導師時段')).toBeVisible();
+    await expect(page.locator('textarea#booking-question')).toBeHidden();
+
+    const signInLink = page.getByRole('link', { name: '前往登入' });
+    await expect(signInLink).toBeVisible();
+    await signInLink.click();
+
+    await expect(page).toHaveURL(/\/auth\/signin/, { timeout: 10_000 });
+  });
 });

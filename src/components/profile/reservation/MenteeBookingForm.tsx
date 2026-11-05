@@ -52,32 +52,61 @@ export function MenteeBookingForm({
     }
   };
 
+  const slotList = (
+    <ScheduleSlotList
+      slots={slots}
+      monthLoaded={monthLoaded}
+      renderSlot={(slot) => {
+        const isSelected =
+          selectedSlot?.start.getTime() === slot.start.getTime();
+        const taken = isSlotTaken(slot);
+        return (
+          <Button
+            key={`${slot.scheduleId}_${slot.start.getTime()}`}
+            type="button"
+            variant={isSelected ? 'default' : 'outline'}
+            disabled={taken}
+            onClick={() => setSelectedSlot(slot)}
+            className={`h-10 w-full text-sm ${
+              taken ? BOOKED_SLOT_CLASSES : ''
+            }`}
+          >
+            {formatBookingSlotTime(slot)}
+          </Button>
+        );
+      }}
+    />
+  );
+
   if (!isAuthenticated) {
     return (
-      <Card className="w-full">
-        <CardContent className="flex flex-col items-center gap-4 p-6 text-center">
-          <p className="text-text-primary text-sm font-medium">
-            登入後即可預約導師時段
-          </p>
-          <Button
-            asChild
-            variant="default"
-            className="w-full rounded-full px-6 py-3"
-          >
-            <Link
-              href="/auth/signin"
-              onClick={() =>
-                trackEvent({
-                  name: 'reservation_signin_prompt_click',
-                  feature: 'reservation',
-                })
-              }
+      <div className="flex w-full flex-col gap-4">
+        {slotList}
+        <Card className="w-full">
+          <CardContent className="flex flex-col items-center gap-4 p-6 text-center">
+            <p className="text-text-primary text-sm font-medium">
+              登入後即可預約導師時段
+            </p>
+            <Button
+              asChild
+              variant="default"
+              className="w-full rounded-full px-6 py-3"
             >
-              前往登入
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
+              <Link
+                href="/auth/signin"
+                onClick={() =>
+                  trackEvent({
+                    name: 'reservation_signin_prompt_click',
+                    feature: 'reservation',
+                  })
+                }
+              >
+                前往登入
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
@@ -93,29 +122,7 @@ export function MenteeBookingForm({
       onSubmit={handleSubmit(onSubmit)}
       className="flex w-full flex-col gap-4"
     >
-      <ScheduleSlotList
-        slots={slots}
-        monthLoaded={monthLoaded}
-        renderSlot={(slot) => {
-          const isSelected =
-            selectedSlot?.start.getTime() === slot.start.getTime();
-          const taken = isSlotTaken(slot);
-          return (
-            <Button
-              key={`${slot.scheduleId}_${slot.start.getTime()}`}
-              type="button"
-              variant={isSelected ? 'default' : 'outline'}
-              disabled={taken}
-              onClick={() => setSelectedSlot(slot)}
-              className={`h-10 w-full text-sm ${
-                taken ? BOOKED_SLOT_CLASSES : ''
-              }`}
-            >
-              {formatBookingSlotTime(slot)}
-            </Button>
-          );
-        }}
-      />
+      {slotList}
 
       <div className="flex w-full flex-col gap-2">
         <label htmlFor="booking-question" className="text-sm font-semibold">
