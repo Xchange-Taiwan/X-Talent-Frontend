@@ -356,6 +356,155 @@ test.describe('歷史紀錄 Tab 測試', () => {
       .filter({ hasText: 'Mentor CancelB' });
     await expect(cardByMentee.getByRole('status')).toHaveText('已由學員取消');
   });
+
+  test('SYSTEM 自動取消之預約於歷史紀錄顯示「已自動取消」標籤，且展開完整對話紀錄彈窗顯示系統自動取消提示', async ({
+    page,
+  }) => {
+    await setSignedSessionCookie(page);
+    await mockSessionGet(page);
+
+    const cancelledBySystem = {
+      ...makeReservation(14, 'Mentor AutoCancel'),
+      cancelled_by: 'SYSTEM',
+    };
+
+    await mockReservationEndpoints(page, {
+      MENTEE_HISTORY: [cancelledBySystem],
+    });
+
+    await page.goto(PAGE_URL);
+
+    await expect(page.getByRole('tab', { name: /歷史紀錄/ })).toBeVisible({
+      timeout: 15_000,
+    });
+    await page.getByRole('tab', { name: /歷史紀錄/ }).click();
+
+    const cardBySystem = page
+      .getByTestId('reservation-card')
+      .filter({ hasText: 'Mentor AutoCancel' });
+    await expect(cardBySystem).toBeVisible({ timeout: 10_000 });
+    await expect(cardBySystem.getByRole('status')).toHaveText('已自動取消');
+    await expect(
+      cardBySystem.getByText(
+        '因導師未於預約開始前 24 小時前確認，系統已自動取消此預約。'
+      )
+    ).toBeVisible();
+
+    const viewChatBtn = cardBySystem.getByRole('button', {
+      name: '查看完整對話',
+    });
+    await expect(viewChatBtn).toBeVisible();
+    await viewChatBtn.click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(
+      dialog.getByRole('heading', { name: '完整對話紀錄' })
+    ).toBeVisible();
+    await expect(
+      dialog.getByText(
+        '因導師未於預約開始前 24 小時前確認，系統已自動取消此預約。'
+      )
+    ).toBeVisible();
+  });
+
+  test('逾時未回覆（距離 dtstart 小於 24 小時）的 PENDING 預約於讀取時自動收斂至「歷史紀錄」Tab', async ({
+    page,
+  }) => {
+    await setSignedSessionCookie(page);
+    await mockSessionGet(page);
+
+    const nowUnix = Math.floor(Date.now() / 1000);
+    const overduePending = {
+      ...makeReservation(15, 'Mentor OverduePending'),
+      dtstart: nowUnix + 12 * 3600,
+      dtend: nowUnix + 13 * 3600,
+      cancelled_by: 'SYSTEM',
+    };
+    const activePending = {
+      ...makeReservation(16, 'Mentor ActivePending'),
+      dtstart: nowUnix + 48 * 3600,
+      dtend: nowUnix + 49 * 3600,
+    };
+
+    await mockReservationEndpoints(page, {
+      MENTEE_PENDING: [overduePending, activePending],
+      MENTEE_HISTORY: [],
+    });
+
+    await page.goto(PAGE_URL);
+
+    const pendingTab = page.getByRole('tab', { name: /等待回復/ });
+    await expect(pendingTab).toBeVisible({ timeout: 15_000 });
+    await pendingTab.click();
+
+    // 等待回復 Tab 僅顯示尚未逾時的預約，逾時未回覆的預約已被濾除
+    await expect(page.getByText('Mentor ActivePending')).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(page.getByText('Mentor OverduePending')).not.toBeVisible();
+
+    // 切換至歷史紀錄 Tab，驗證該筆逾時 PENDING 預約已自動收斂至歷史紀錄並標示為已自動取消
+    await page.getByRole('tab', { name: /歷史紀錄/ }).click();
+    const convergedCard = page
+      .getByTestId('reservation-card')
+      .filter({ hasText: 'Mentor OverduePending' });
+    await expect(convergedCard).toBeVisible({ timeout: 10_000 });
+    await expect(convergedCard.getByRole('status')).toHaveText('已自動取消');
+  });
+});
+
+test.describe('學員端空狀態情境文案與 CTA 導向測試', () => {
+  test('驗證三個 Tab（「即將到來」、「等待回復」、「歷史紀錄」）空狀態情境文案，且點擊「前往尋找導師」導向 /mentor-pool', async ({
+    page,
+  }) => {
+    await setSignedSessionCookie(page);
+    await mockSessionGet(page);
+    await mockReservationEndpoints(page);
+
+    await page.goto(PAGE_URL);
+
+    // 1. 即將到來 Tab 空狀態
+    await expect(page.getByRole('tab', { name: /即將到來/ })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByText('目前尚無資料')).toBeVisible();
+    await expect(
+      page.getByText(
+        '目前還沒有即將到來的預約，立即前往導師池尋找適合的導師吧！'
+      )
+    ).toBeVisible();
+    await expect(
+      page.getByRole('link', { name: '前往尋找導師' })
+    ).toHaveAttribute('href', '/mentor-pool');
+
+    // 2. 等待回復 Tab 空狀態
+    await page.getByRole('tab', { name: /等待回復/ }).click();
+    await expect(page.getByText('目前尚無資料')).toBeVisible();
+    await expect(
+      page.getByText(
+        '目前還沒有等待回復的預約，前往導師池探索並向導師提出預約申請吧！'
+      )
+    ).toBeVisible();
+    await expect(
+      page.getByRole('link', { name: '前往尋找導師' })
+    ).toHaveAttribute('href', '/mentor-pool');
+
+    // 3. 歷史紀錄 Tab 空狀態與點擊 CTA 導向
+    await page.getByRole('tab', { name: /歷史紀錄/ }).click();
+    await expect(page.getByText('目前尚無資料')).toBeVisible();
+    await expect(
+      page.getByText(
+        '目前還沒有歷史預約紀錄，前往導師池展開你的第一場職涯交流吧！'
+      )
+    ).toBeVisible();
+
+    const ctaLink = page.getByRole('link', { name: '前往尋找導師' });
+    await expect(ctaLink).toHaveAttribute('href', '/mentor-pool');
+    await ctaLink.click();
+
+    await expect(page).toHaveURL(/\/mentor-pool/);
+  });
 });
 
 test.describe('學員取消預約與即將到來 Tab 測試', () => {
