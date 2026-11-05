@@ -165,31 +165,31 @@ const scheduleCalendarSizeClassNames: Record<ScheduleCalendarSize, string> = {
     '[--cell-size:max(2rem,44px)]',
     'min-[700px]:[--cell-size:3.75rem]',
     'min-[900px]:[--cell-size:4rem]',
-    '2xl:[--cell-size:3.5rem]',
+    'xl:[--cell-size:3.5rem]',
 
     // Profile page day text size
     '[--calendar-day-font-size:0.875rem]',
     'min-[700px]:[--calendar-day-font-size:1.25rem]',
     'min-[900px]:[--calendar-day-font-size:1.5rem]',
-    '2xl:[--calendar-day-font-size:1.25rem]',
+    'xl:[--calendar-day-font-size:1.25rem]',
 
     // Profile page weekday text size
     '[--calendar-weekday-font-size:0.8rem]',
     'min-[700px]:[--calendar-weekday-font-size:1rem]',
     'min-[900px]:[--calendar-weekday-font-size:1.125rem]',
-    '2xl:[--calendar-weekday-font-size:1rem]',
+    'xl:[--calendar-weekday-font-size:1rem]',
 
     // Profile page caption / dropdown text size
     '[--calendar-caption-font-size:0.875rem]',
     'min-[700px]:[--calendar-caption-font-size:1rem]',
     'min-[900px]:[--calendar-caption-font-size:1.125rem]',
-    '2xl:[--calendar-caption-font-size:1rem]',
+    'xl:[--calendar-caption-font-size:1rem]',
 
     // Profile page icon size
     '[--calendar-chevron-size:1rem]',
     'min-[700px]:[--calendar-chevron-size:1.5rem]',
     'min-[900px]:[--calendar-chevron-size:1.75rem]',
-    '2xl:[--calendar-chevron-size:1.25rem]',
+    'xl:[--calendar-chevron-size:1.25rem]',
   ].join(' '),
 };
 
