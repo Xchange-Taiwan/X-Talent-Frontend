@@ -47,6 +47,30 @@ test('unchecked terms of service shows inline error', async ({ page }) => {
   await expect(page.getByText('請確認並同意服務條款')).toBeVisible();
 });
 
+test('empty form submission shows Traditional Chinese inline validation errors without sending signup request (#804)', async ({
+  page,
+}) => {
+  let signupRequestCount = 0;
+  await page.route(/\/v1\/auth\/signup/, async (route) => {
+    signupRequestCount += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ code: '0' }),
+    });
+  });
+
+  await page.click('button[type="submit"]');
+
+  await expect(page.getByText('請輸入電子郵件')).toBeVisible();
+  await expect(page.getByText('密碼至少需為 8 個字')).toHaveCount(2);
+  await expect(page.getByText('請確認並同意服務條款')).toBeVisible();
+  await expect(page.getByText('Required')).toHaveCount(0);
+
+  expect(signupRequestCount).toBe(0);
+  await expect(page).toHaveURL('/auth/signup');
+});
+
 test('Google sign-up button triggers OAuth redirect', async ({ page }) => {
   await mockApiRoute(page, /\/v2\/oauth\/google\/authorize\/signup/, {
     body: {
