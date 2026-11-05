@@ -454,8 +454,9 @@ describe('useUserProfileDto', () => {
     );
 
     // Also verify manual force refetch bypasses optimistic convergence protection
+    vi.mocked(fetchUserById).mockReset();
+    vi.mocked(fetchUserById).mockResolvedValue(staleWithOldAvatar);
     primeUserProfileDtoCache(31, 'zh-TW', primedWithAvatar);
-    vi.mocked(fetchUserById).mockResolvedValueOnce(staleWithOldAvatar);
 
     const { result } = renderHook(() => useUserProfileDto(31, 'zh-TW'));
     act(() => {

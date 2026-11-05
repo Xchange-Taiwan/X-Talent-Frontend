@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { useSession } from 'next-auth/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -417,7 +417,9 @@ describe('useResolvedIdentity', () => {
       expect(result.current.isMentor).toBe(true);
 
       // Advance past the 10,000ms optimistic transition window
-      vi.advanceTimersByTime(10001);
+      act(() => {
+        vi.advanceTimersByTime(10001);
+      });
 
       expect(result.current.name).toBe('Session Name');
       expect(result.current.avatar).toBe('https://example.com/session.png');
