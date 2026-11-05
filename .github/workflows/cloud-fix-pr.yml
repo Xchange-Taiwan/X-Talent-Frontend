@@ -233,12 +233,6 @@ jobs:
 
           PR_URL="https://github.com/${{ github.repository }}/pull/${CLEAN_PR}"
           VERCEL_LIMIT="false"
-          if [ -n "$CLEAN_PR" ]; then
-            CHECKS_TEXT=$(gh pr checks "$CLEAN_PR" --repo "${{ github.repository }}" 2>&1 || true)
-            if echo "$CHECKS_TEXT" | grep -qiE "Vercel.*fail|api-deployments-free-per-day|Resource is limited"; then
-              VERCEL_LIMIT="true"
-            fi
-          fi
 
           if [ "$JOB_STATUS" = "success" ]; then
             STATUS="fix_pr_succeeded"
