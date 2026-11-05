@@ -84,3 +84,62 @@ test('檢視自己的個人檔案（isOwnMentorProfile 為 true 時）→ 顯示
   await expect(bookingButton).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('button', { name: '預約時間' })).toHaveCount(0);
 });
+
+test('導師個人頁 RWD 斷點驗證（#803）→ 1280x720 (xl) 左右雙欄並排，小於 1280px 退回單欄堆疊', async ({
+  page,
+}) => {
+  const mentorId = REAL_MENTOR_ID;
+
+  // 1. Standard desktop viewport at xl breakpoint (1280x720)
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto(`/profile/${mentorId}`);
+
+  await expect(page.getByRole('main').getByText('Mentee')).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByText('可預約日期')).toBeVisible({ timeout: 15_000 });
+
+  const leftColumn = page.locator('main .xl\\:w-3\\/5');
+  const rightColumn = page.locator('main .xl\\:w-2\\/5');
+
+  await expect(leftColumn).toBeVisible();
+  await expect(rightColumn).toBeVisible();
+
+  const xlLeftBox = await leftColumn.boundingBox();
+  const xlRightBox = await rightColumn.boundingBox();
+
+  expect(xlLeftBox).not.toBeNull();
+  expect(xlRightBox).not.toBeNull();
+
+  // At 1280px (xl), the right reservation panel sits to the right of the left info column
+  // and aligns at the top rather than collapsing below into a single-column stack.
+  expect(xlRightBox!.x).toBeGreaterThan(xlLeftBox!.x);
+  expect(xlRightBox!.x).toBeGreaterThanOrEqual(
+    xlLeftBox!.x + xlLeftBox!.width - 1
+  );
+  expect(Math.abs(xlRightBox!.y - xlLeftBox!.y)).toBeLessThan(5);
+
+  // 2. Viewport below 1280px (e.g. 1024x720 lg breakpoint) falls back to single-column stack
+  await page.setViewportSize({ width: 1024, height: 720 });
+
+  await expect
+    .poll(async () => {
+      const lBox = await leftColumn.boundingBox();
+      const rBox = await rightColumn.boundingBox();
+      if (!lBox || !rBox) return false;
+      return (
+        Math.abs(rBox.x - lBox.x) < 5 && rBox.y >= lBox.y + lBox.height - 1
+      );
+    })
+    .toBe(true);
+
+  const belowXlLeftBox = await leftColumn.boundingBox();
+  const belowXlRightBox = await rightColumn.boundingBox();
+
+  expect(belowXlLeftBox).not.toBeNull();
+  expect(belowXlRightBox).not.toBeNull();
+  expect(Math.abs(belowXlRightBox!.x - belowXlLeftBox!.x)).toBeLessThan(5);
+  expect(belowXlRightBox!.y).toBeGreaterThanOrEqual(
+    belowXlLeftBox!.y + belowXlLeftBox!.height - 1
+  );
+});

@@ -24,7 +24,7 @@ const ProfilePageUI = dynamic(() => import('./ui'), {
 
 interface Props {
   pageUserId: string;
-  initialDto: MentorProfileVO;
+  initialDto: MentorProfileVO | null;
   initialCatalogs: TagCatalogsByBucket;
 }
 

@@ -817,6 +817,18 @@ describe('middleware public routes', () => {
     expect(response.status).toBe(200);
   });
 
+  it.each(['/about', '/privacy', '/terms'])(
+    'allows unauthenticated access to public static route %s without redirecting',
+    async (routePath) => {
+      mockGetToken.mockResolvedValue(null);
+
+      const response = await middleware(makeRequest(routePath));
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('location')).toBeNull();
+    }
+  );
+
   it('redirects unauthenticated users to signin for protected api routes', async () => {
     mockGetToken.mockResolvedValue(null);
 

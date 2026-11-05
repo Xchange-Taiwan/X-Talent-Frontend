@@ -1,4 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
+import { fromPartial } from '@total-typescript/shoehorn';
 import type { ReadonlyURLSearchParams } from 'next/navigation';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -1141,6 +1142,25 @@ describe('useMentorPool', () => {
     expect(result.current.mentors.at(-1)?.name).toBe('Multi Page 2 #0');
     expect(result.current.mentorCount).toBe(PAGE_LIMIT + 1);
     expect(mockFetchMentors).toHaveBeenCalledTimes(3);
+  });
+
+  it('falls back to client-side fetchMentors when SSR initialMentors is empty without initialError', async () => {
+    mockFetchMentors.mockResolvedValueOnce(mockInitialMentors);
+
+    const { result } = renderHook(() =>
+      useMentorPool({
+        initialMentors: [],
+        initialMentorCount: 0,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
+        labelMap: testLabelMap,
+      })
+    );
+
+    await act(async () => {});
+
+    expect(mockFetchMentors).toHaveBeenCalledTimes(1);
+    expect(result.current.mentors[0].name).toBe('Initial Mentor');
+    expect(result.current.isLoading).toBe(false);
   });
 });
 

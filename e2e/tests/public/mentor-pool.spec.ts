@@ -10,6 +10,76 @@ const MOCK_INTERESTS = {
   data: { interests: [], language: 'zh_TW' },
 };
 
+const MOCK_TAG_CATALOG = {
+  code: '0',
+  msg: 'ok',
+  data: {
+    catalogs: {
+      skill: {
+        groups: [
+          {
+            subject_group: 'SKILL_GROUP',
+            subject: '技術能力',
+            language: 'zh_TW',
+            leaves: [
+              {
+                tag_id: 1,
+                subject_group: 'FRONTEND',
+                subject: '前端開發',
+                language: 'zh_TW',
+              },
+            ],
+          },
+        ],
+      },
+      topic: {
+        groups: [
+          {
+            subject_group: 'TOPIC_GROUP',
+            subject: '服務主題',
+            language: 'zh_TW',
+            leaves: [
+              {
+                tag_id: 2,
+                subject_group: 'CAREER',
+                subject: '職涯規劃',
+                language: 'zh_TW',
+              },
+            ],
+          },
+        ],
+      },
+      position: {
+        groups: [
+          {
+            subject_group: 'POS_GROUP',
+            subject: '工程職位',
+            language: 'zh_TW',
+            leaves: [
+              {
+                tag_id: 3,
+                subject_group: 'SWE',
+                subject: '軟體工程師',
+                language: 'zh_TW',
+              },
+            ],
+          },
+        ],
+      },
+      industry: {
+        groups: [
+          {
+            subject_group: 'TECH',
+            subject: '科技業',
+            language: 'zh_TW',
+            leaves: [],
+          },
+        ],
+      },
+    },
+  },
+};
+
 function makeMentor(id: number) {
   return {
     user_id: id,
@@ -71,6 +141,13 @@ test.beforeEach(async ({ page }) => {
       body: JSON.stringify(MOCK_INTERESTS),
     })
   );
+  await page.route(/\/v1\/users\/zh_TW\/tags\/catalog/, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_TAG_CATALOG),
+    })
+  );
   // Abort any external API call not explicitly mocked above so tests fail fast
   // instead of waiting for the real AWS endpoint to time out.
   await blockUnmockedExternalApi(page);
@@ -79,11 +156,19 @@ test.beforeEach(async ({ page }) => {
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 test('page loads → mentor cards are displayed', async ({ page }) => {
-  // The initial listing is server-rendered in MentorPoolWithData (RSC) —
-  // page.route() only intercepts browser-initiated requests, so it can't mock
-  // this fetch. Assert internal consistency (heading count matches rendered
-  // cards) against whatever the real dev backend returns, instead of a
-  // hardcoded mock-driven count.
+  await page.route(/\/v1\/mentors/, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        mentorResponse([makeMentor(1), makeMentor(2), makeMentor(3)])
+      ),
+    })
+  );
+
+  // The initial listing is server-rendered in MentorPoolWithData (RSC) when
+  // NEXT_PUBLIC_API_URL is configured, and falls back to client-side
+  // /v1/mentors when SSR runs without a backend URL.
   await page.goto('/mentor-pool');
 
   const articles = page.locator('article');
