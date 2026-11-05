@@ -112,9 +112,12 @@ export function hasDtoConverged(
   incoming: MentorProfileVO
 ): boolean {
   const avatarConverged =
-    !primed.avatar ||
-    (typeof incoming.avatar === 'string' &&
-      incoming.avatar.startsWith(primed.avatar));
+    primed.avatar === undefined
+      ? true
+      : !primed.avatar
+        ? !incoming.avatar
+        : typeof incoming.avatar === 'string' &&
+          incoming.avatar.startsWith(primed.avatar);
 
   const experiencesConverged =
     primed.experiences === undefined ||

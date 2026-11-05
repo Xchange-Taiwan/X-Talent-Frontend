@@ -9,21 +9,12 @@ import {
   subscribeUserProfileDtoCache,
 } from '@/hooks/user/user-data/userProfileDtoCache';
 import {
-  type IdentityPatch,
-  identityPatchFromDto,
+  optimisticIdentityFromDto,
+  type OptimisticIdentityProjection,
 } from '@/lib/identity/identityProjection';
-import {
-  decode,
-  type MentorExperiencePayload,
-} from '@/lib/profile/experienceCodec';
-import type { PersonalLink } from '@/types/types';
 import type { MentorProfileVO } from '@/types/user';
 
-export interface OptimisticIdentityProjection extends IdentityPatch {
-  jobTitle?: string;
-  company?: string;
-  personalLinks?: PersonalLink[];
-}
+export type { OptimisticIdentityProjection };
 
 interface SnapshotMemo {
   cachedDto: MentorProfileVO | null;
@@ -76,21 +67,7 @@ export function useOptimisticIdentity(
       return memo.patch;
     }
 
-    let patch: OptimisticIdentityProjection | undefined;
-    if (cachedDto) {
-      const basePatch = identityPatchFromDto(cachedDto);
-      const rawExperiences = Array.isArray(cachedDto.experiences)
-        ? (cachedDto.experiences as unknown as MentorExperiencePayload[])
-        : [];
-      const parsedExp = decode(rawExperiences);
-      patch = {
-        ...basePatch,
-        jobTitle: cachedDto.job_title ?? undefined,
-        company: cachedDto.company ?? undefined,
-        personalLinks: parsedExp.personalLinks,
-      };
-    }
-
+    const patch = cachedDto ? optimisticIdentityFromDto(cachedDto) : undefined;
     memoRef.current = { cachedDto, isActive, patch };
     return patch;
   }, [userId]);

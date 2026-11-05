@@ -1,4 +1,9 @@
 import { captureFlowFailure } from '@/lib/monitoring';
+import {
+  decode,
+  type MentorExperiencePayload,
+} from '@/lib/profile/experienceCodec';
+import type { PersonalLink } from '@/types/types';
 import type { MentorProfileVO } from '@/types/user';
 
 /**
@@ -51,6 +56,32 @@ export function identityPatchFromDto(dto: MentorProfileVO): IdentityPatch {
       IDENTITY_FIELD_READERS[key](dto);
   }
   return patch as IdentityPatch;
+}
+
+export interface OptimisticIdentityProjection extends IdentityPatch {
+  jobTitle?: string;
+  company?: string;
+  personalLinks?: PersonalLink[];
+}
+
+/**
+ * Projects the full optimistic identity (including jobTitle, company, and
+ * decoded personalLinks) from a cached MentorProfileVO.
+ */
+export function optimisticIdentityFromDto(
+  dto: MentorProfileVO
+): OptimisticIdentityProjection {
+  const basePatch = identityPatchFromDto(dto);
+  const rawExperiences = Array.isArray(dto.experiences)
+    ? (dto.experiences as unknown as MentorExperiencePayload[])
+    : [];
+  const parsedExp = decode(rawExperiences);
+  return {
+    ...basePatch,
+    jobTitle: dto.job_title ?? undefined,
+    company: dto.company ?? undefined,
+    personalLinks: parsedExp.personalLinks,
+  };
 }
 
 /**

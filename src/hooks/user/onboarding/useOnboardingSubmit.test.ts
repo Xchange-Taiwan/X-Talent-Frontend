@@ -115,46 +115,7 @@ describe('useOnboardingSubmit', () => {
     });
   });
 
-  it('propagates isMentor: true immediately when completing mentor onboarding', async () => {
-    const formData = {
-      name: 'Mentor Name',
-      avatar: 'mentor-avatar.png',
-      location: 'TWN',
-      years_of_experience: '3_5',
-      language: 'zh_TW',
-      want_position: ['position1'],
-      want_skill: ['skill1'],
-      want_topic: ['topic1'],
-    };
-
-    mockUpdateProfile.mockResolvedValue(undefined as unknown as void);
-    const mockStub = {
-      user_id: 123,
-      is_mentor: true,
-    } as unknown as ReturnType<typeof buildOnboardingDtoStub>;
-    mockBuildOnboardingDtoStub.mockReturnValue(mockStub);
-
-    const { result } = renderHook(() =>
-      useOnboardingSubmit({ industries: mockIndustries })
-    );
-
-    await act(async () => {
-      await result.current.submitProfile(formData, false);
-    });
-
-    expect(mockPrimeUserDataCache).toHaveBeenCalledWith(123, 'zh_TW', mockStub);
-    expect(mockUpdateSession).toHaveBeenCalledWith({
-      user: {
-        id: '123',
-        name: 'Mentor Name',
-        avatar: 'mentor-avatar.png',
-        isMentor: true,
-        onBoarding: true,
-      },
-    });
-  });
-
-  it('should fallback to clearUserDataCache if session userId is invalid', async () => {
+  it('should skip priming cache with NaN if session userId is invalid', async () => {
     const formData = {
       name: 'New Name',
       avatar: 'new-avatar.png',
@@ -187,7 +148,7 @@ describe('useOnboardingSubmit', () => {
       formData
     );
     expect(mockPrimeUserDataCache).not.toHaveBeenCalled();
-    expect(mockClearUserDataCache).toHaveBeenCalledWith(NaN, 'zh_TW');
+    expect(mockClearUserDataCache).not.toHaveBeenCalled();
   });
 
   it('should capture failure and rethrow error when API fails', async () => {

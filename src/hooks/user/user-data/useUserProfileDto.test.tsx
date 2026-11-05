@@ -7,6 +7,7 @@ import { mockUserDTO } from '@/test/fixtures/profile';
 import {
   clearUserProfileDtoCache,
   getLastPrimedTime,
+  hasDtoConverged,
   primeUserProfileDtoCache,
   useUserProfileDto,
 } from './useUserProfileDto';
@@ -417,5 +418,52 @@ describe('useUserProfileDto', () => {
 
     const { result } = renderHook(() => useUserProfileDto(30, 'zh-TW'));
     expect(result.current.userDto).toEqual(primedDto);
+  });
+
+  it('accepts incoming backend DTO during background revalidation once hasDtoConverged is true, and protects deleted avatars (primed.avatar = null) from stale URLs (#785)', async () => {
+    const primedClearedAvatar = {
+      ...mockUserDTO,
+      name: 'Avatar Cleared User',
+      avatar: null,
+    } as unknown as typeof mockUserDTO;
+    const staleWithOldAvatar = {
+      ...mockUserDTO,
+      name: 'Avatar Cleared User',
+      avatar: 'https://example.com/old-avatar.png',
+    };
+
+    expect(hasDtoConverged(primedClearedAvatar, staleWithOldAvatar)).toBe(
+      false
+    );
+    expect(hasDtoConverged(primedClearedAvatar, primedClearedAvatar)).toBe(
+      true
+    );
+
+    const primedWithAvatar = {
+      ...mockUserDTO,
+      name: 'Converged User',
+      avatar: 'https://example.com/new.png',
+    };
+    const backendConvergedWithQuery = {
+      ...mockUserDTO,
+      name: 'Converged User',
+      avatar: 'https://example.com/new.png?cb=123',
+    };
+    expect(hasDtoConverged(primedWithAvatar, backendConvergedWithQuery)).toBe(
+      true
+    );
+
+    // Also verify manual force refetch bypasses optimistic convergence protection
+    primeUserProfileDtoCache(31, 'zh-TW', primedWithAvatar);
+    vi.mocked(fetchUserById).mockResolvedValueOnce(staleWithOldAvatar);
+
+    const { result } = renderHook(() => useUserProfileDto(31, 'zh-TW'));
+    act(() => {
+      result.current.refetch?.();
+    });
+
+    await vi.waitFor(() => {
+      expect(result.current.userDto).toEqual(staleWithOldAvatar);
+    });
   });
 });

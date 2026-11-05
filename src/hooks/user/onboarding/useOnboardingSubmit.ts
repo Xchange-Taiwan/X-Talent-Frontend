@@ -3,10 +3,7 @@
 import { useSession } from 'next-auth/react';
 
 import { buildOnboardingDtoStub } from '@/hooks/user/onboarding/buildOnboardingDtoStub';
-import {
-  clearUserDataCache,
-  primeUserDataCache,
-} from '@/hooks/user/user-data/useUserData';
+import { primeUserDataCache } from '@/hooks/user/user-data/useUserData';
 import {
   applyIdentityPatch,
   deriveOptimisticIdentityPatch,
@@ -40,7 +37,7 @@ export function useOnboardingSubmit({ industries }: Options) {
       const patch = deriveOptimisticIdentityPatch({
         name: validatedData.name ?? session?.user?.name ?? '',
         avatarUrl: validatedData.avatar,
-        isMentorOnboarding: Boolean(stub?.is_mentor),
+        isMentorOnboarding: false,
         fallbackAvatar: session?.user?.avatar,
         fallbackIsMentor: session?.user?.isMentor,
         fallbackOnBoarding: true,
@@ -50,8 +47,6 @@ export function useOnboardingSubmit({ industries }: Options) {
         primeProfileDto: () => {
           if (Number.isFinite(sessionUserId) && stub) {
             primeUserDataCache(sessionUserId, 'zh_TW', stub);
-          } else if (session?.user?.id) {
-            clearUserDataCache(Number(session.user.id), 'zh_TW');
           }
         },
         updateSession: (p) =>

@@ -386,4 +386,73 @@ describe('useResolvedIdentity', () => {
 
     clearUserProfileDtoCache(123, 'zh_TW');
   });
+
+  it('reverts from optimistic identity back to session values once the 10-second transition window expires (#785)', async () => {
+    vi.useFakeTimers();
+    try {
+      clearUserProfileDtoCache(123, 'zh_TW');
+      mockUseSession.mockReturnValue({
+        data: {
+          user: {
+            id: '123',
+            name: 'Session Name',
+            isMentor: false,
+            avatar: 'https://example.com/session.png',
+          },
+        },
+        status: 'authenticated',
+      } as never);
+
+      primeUserProfileDtoCache(123, 'zh_TW', {
+        user_id: 123,
+        name: 'Optimistic Name',
+        avatar: 'https://example.com/optimistic.png',
+        is_mentor: true,
+        onboarding: true,
+      } as unknown as MentorProfileVO);
+
+      const { result } = renderHook(() => useResolvedIdentity());
+      expect(result.current.name).toBe('Optimistic Name');
+      expect(result.current.avatar).toBe('https://example.com/optimistic.png');
+      expect(result.current.isMentor).toBe(true);
+
+      // Advance past the 10,000ms optimistic transition window
+      vi.advanceTimersByTime(10001);
+
+      expect(result.current.name).toBe('Session Name');
+      expect(result.current.avatar).toBe('https://example.com/session.png');
+      expect(result.current.isMentor).toBe(false);
+    } finally {
+      clearUserProfileDtoCache(123, 'zh_TW');
+      vi.useRealTimers();
+    }
+  });
+
+  it('reflects avatar removal (avatar: null) during the optimistic transition window without falling back to the stale session avatar (#785)', () => {
+    clearUserProfileDtoCache(123, 'zh_TW');
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          id: '123',
+          name: 'Session Name',
+          isMentor: false,
+          avatar: 'https://example.com/old-session-avatar.png',
+        },
+      },
+      status: 'authenticated',
+    } as never);
+
+    primeUserProfileDtoCache(123, 'zh_TW', {
+      user_id: 123,
+      name: 'Session Name',
+      avatar: null,
+      is_mentor: false,
+      onboarding: true,
+    } as unknown as MentorProfileVO);
+
+    const { result } = renderHook(() => useResolvedIdentity());
+    expect(result.current.avatar).toBeUndefined();
+
+    clearUserProfileDtoCache(123, 'zh_TW');
+  });
 });
