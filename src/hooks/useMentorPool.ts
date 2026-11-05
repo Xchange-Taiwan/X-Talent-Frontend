@@ -11,71 +11,20 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useAsyncRead } from '@/hooks/useAsyncRead';
-import { mentorPoolReadManager } from '@/lib/cache/mentorPoolCache';
+import {
+  applyMentorPage,
+  EMPTY_MENTOR_POOL_STATE,
+  type MentorPageAction,
+  type MentorPoolPageState,
+  mentorPoolReadManager,
+  mentorPoolStore,
+  toMentorPoolConditionKey,
+} from '@/lib/cache/mentorPoolCache';
 import { isAbortError } from '@/lib/errorUtils';
 import { fetchMentors } from '@/services/search-mentor/mentors';
 import type { MentorType } from '@/types/mentor';
 
-const FORCE_REFRESH_OPTIONS = { force: true };
-
-export interface MentorPoolPageState {
-  mentors: MentorType[];
-  cursor: string | undefined;
-  hasMore: boolean;
-  mentorCount: number;
-  isNoResults: boolean;
-  hasError: boolean;
-}
-
-export type MentorPageAction =
-  | { type: 'replace'; page: MentorType[] }
-  | { type: 'append'; page: MentorType[] };
-
-export function applyMentorPage(
-  state: MentorPoolPageState,
-  action: MentorPageAction
-): MentorPoolPageState {
-  switch (action.type) {
-    case 'replace': {
-      const { page } = action;
-      return {
-        mentors: page,
-        cursor: page.at(-1)?.updated_at?.toString(),
-        hasMore: page.length === PAGE_LIMIT,
-        mentorCount: page.length,
-        isNoResults: page.length === 0,
-        hasError: false,
-      };
-    }
-    case 'append': {
-      const { page } = action;
-      if (page.length === 0) {
-        return {
-          ...state,
-          hasMore: false,
-        };
-      }
-
-      const newMentors = page.filter(
-        (newMentor) =>
-          !state.mentors.some(
-            (prevMentor) => prevMentor.user_id === newMentor.user_id
-          )
-      );
-
-      return {
-        mentors: [...state.mentors, ...newMentors],
-        cursor: page.at(-1)?.updated_at?.toString(),
-        hasMore: page.length === PAGE_LIMIT,
-        mentorCount: state.mentorCount + page.length,
-        isNoResults: false,
-        hasError: false,
-      };
-    }
-    default:
-      return state;
-  }
-}
+export { applyMentorPage, type MentorPageAction, type MentorPoolPageState };
 
 interface UseMentorPoolProps {
   initialMentors: MentorType[];
@@ -103,57 +52,48 @@ export function useMentorPool({
     });
   }, [toast]);
 
-  const hasInitialFilters = hasAnyCondition(params);
+  const hasConditions = hasAnyCondition(params);
+  const paramsString = params?.toString() ?? '';
+  const conditionKey = toMentorPoolConditionKey(paramsString, hasConditions);
 
-  const getInitialUnfilteredState = useCallback(
-    (): MentorPoolPageState => ({
-      mentors: initialMentors,
-      cursor: initialMentors.at(-1)?.updated_at?.toString(),
-      hasMore: initialMentors.length === PAGE_LIMIT,
-      mentorCount: initialMentorCount,
-      isNoResults: initialMentors.length === 0,
-      hasError: hasInitialFilters ? false : (initialError ?? false),
-    }),
-    [initialMentors, initialMentorCount, hasInitialFilters, initialError]
+  const initialUnfilteredState = useMemo(
+    () =>
+      mentorPoolStore.seedInitialUnfiltered({
+        initialMentors,
+        initialMentorCount,
+        hasInitialFilters: hasConditions,
+        initialError,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [initialMentors, initialMentorCount, initialError]
   );
 
-  const [pageState, setPageState] = useState<MentorPoolPageState>(() => {
-    if (hasInitialFilters) {
-      return {
-        mentors: [],
-        cursor: undefined,
-        hasMore: true,
-        mentorCount: 0,
-        isNoResults: false,
-        hasError: false,
-      };
-    }
-    return getInitialUnfilteredState();
-  });
-
-  const { run: runLoadMore, isPending: isLoadMorePending } = useAsyncAction();
-  const [retryCount, setRetryCount] = useState<number>(0);
-  const [hasClientFetched, setHasClientFetched] = useState(false);
-
-  // Derive filterKey for useAsyncRead
-  const filterKey =
-    hasAnyCondition(params) ||
-    (initialError && (retryCount > 0 || hasClientFetched))
-      ? `filter_${params.toString()}_retry_${retryCount}`
-      : null;
-
-  const latestFilterKeyRef = useRef(filterKey);
+  // Track whether any client-side filter navigation or retry has occurred so
+  // clearing filters after an SSR initialError fetches fresh instead of
+  // falling back to the stale SSR error state.
+  const [hasClientActivity, setHasClientActivity] = useState(hasConditions);
   useEffect(() => {
-    latestFilterKeyRef.current = filterKey;
-  }, [filterKey]);
+    if (hasConditions && !hasClientActivity) {
+      setHasClientActivity(true);
+    }
+  }, [hasConditions, hasClientActivity]);
+
+  const shouldHoldInitialError =
+    Boolean(initialError) && !hasConditions && !hasClientActivity;
+  const activeKey = shouldHoldInitialError ? null : conditionKey;
+
+  const latestKeyRef = useRef(activeKey);
+  const loadMoreAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    latestKeyRef.current = activeKey;
+    loadMoreAbortRef.current?.abort();
+    loadMoreAbortRef.current = null;
+  }, [activeKey]);
 
   const fetcher = useCallback(
     (signal: AbortSignal) => {
       const conditions = paramsToFetchConditions(params);
-      return fetchMentors(
-        { ...conditions, limit: PAGE_LIMIT, cursor: '' },
-        signal
-      ).catch((err) => {
+      return mentorPoolStore.fetchPageOne(conditions, signal).catch((err) => {
         if (!isAbortError(err, signal)) {
           showErrorToast();
         }
@@ -163,106 +103,57 @@ export function useMentorPool({
     [params, showErrorToast]
   );
 
-  // Let useAsyncRead handle the main data fetch, loading, error, and cancellation
   const {
-    data: fetchedData,
-    isLoading: isFilterLoading,
-    error: filterError,
-  } = useAsyncRead(
-    mentorPoolReadManager,
-    filterKey,
-    fetcher,
-    FORCE_REFRESH_OPTIONS
-  );
-
-  // Derived loading state combining local filter loading (Latest Wins) and pagination loading
-  const isLoading =
-    filterKey !== null
-      ? !hasClientFetched || isFilterLoading || isLoadMorePending
-      : isFilterLoading || isLoadMorePending;
-
-  // Synchronize useAsyncRead state back to local pageState during render phase (React 18 Concurrent-safe)
-  const [prevSyncInputs, setPrevSyncInputs] = useState<{
-    filterKey: string | null;
-    fetchedData: MentorType[] | null;
-    isFilterLoading: boolean;
-    filterError: string | null;
-  }>({
-    filterKey: null,
-    fetchedData: null,
-    isFilterLoading: false,
-    filterError: null,
+    data: cachedPageState,
+    isLoading: isPageLoading,
+    error: pageError,
+    refetch,
+  } = useAsyncRead(mentorPoolReadManager, activeKey, fetcher, {
+    initialData:
+      !hasConditions && !initialError ? initialUnfilteredState : undefined,
   });
 
-  if (
-    filterKey !== prevSyncInputs.filterKey ||
-    (fetchedData ?? null) !== prevSyncInputs.fetchedData ||
-    isFilterLoading !== prevSyncInputs.isFilterLoading ||
-    (filterError ?? null) !== prevSyncInputs.filterError
-  ) {
-    setPrevSyncInputs({
-      filterKey,
-      fetchedData: fetchedData ?? null,
-      isFilterLoading,
-      filterError: filterError ?? null,
-    });
+  const { run: runLoadMore, isPending: isLoadMorePending } = useAsyncAction();
+  const [loadMoreErrorKey, setLoadMoreErrorKey] = useState<string | null>(null);
 
-    if (filterKey === null) {
-      if (prevSyncInputs.filterKey !== null) {
-        setPageState(getInitialUnfilteredState());
-        setHasClientFetched(false);
-      }
-    } else {
-      setHasClientFetched(true);
-
-      if (fetchedData) {
-        if (fetchedData !== prevSyncInputs.fetchedData) {
-          setPageState((prev) => {
-            if (prev.mentors === fetchedData) {
-              return prev; // Bailout!
-            }
-            return applyMentorPage(prev, {
-              type: 'replace',
-              page: fetchedData,
-            });
-          });
-        }
-      } else if (isFilterLoading) {
-        setPageState((prev) => {
-          if (!prev.isNoResults && !prev.hasMore && !prev.hasError) {
-            return prev; // Bailout to avoid redundant state updates
-          }
-          return {
-            ...prev,
-            isNoResults: false,
-            hasMore: false,
-            hasError: false,
-          };
-        });
-      } else if (filterError) {
-        setPageState((prev) => {
-          if (
-            prev.mentors.length === 0 &&
-            prev.mentorCount === 0 &&
-            prev.hasError &&
-            !prev.isNoResults
-          ) {
-            return prev; // Bailout to avoid loop
-          }
-          return {
-            ...prev,
-            mentors: [],
-            mentorCount: 0,
-            hasError: true,
-            isNoResults: false,
-          };
-        });
-      }
+  const pageState = useMemo<MentorPoolPageState>(() => {
+    if (shouldHoldInitialError) {
+      return initialUnfilteredState;
     }
-  }
+    if (cachedPageState) {
+      if (
+        loadMoreErrorKey === activeKey &&
+        cachedPageState.mentors.length === 0
+      ) {
+        return { ...cachedPageState, hasError: true };
+      }
+      return cachedPageState;
+    }
+    if (pageError) {
+      return {
+        ...EMPTY_MENTOR_POOL_STATE,
+        hasMore: false,
+        hasError: true,
+      };
+    }
+    return {
+      ...EMPTY_MENTOR_POOL_STATE,
+      hasMore: false,
+    };
+  }, [
+    shouldHoldInitialError,
+    initialUnfilteredState,
+    cachedPageState,
+    pageError,
+    loadMoreErrorKey,
+    activeKey,
+  ]);
+
+  const isLoading = isPageLoading || isLoadMorePending;
 
   const fetchMoreMentors = useCallback(async () => {
-    const currentKey = filterKey;
+    const currentKey = activeKey;
+    if (!currentKey) return;
     const conditions = paramsToFetchConditions(params);
     const param = {
       ...conditions,
@@ -270,27 +161,35 @@ export function useMentorPool({
       cursor: pageState.cursor,
     };
 
-    const rtnList = await runLoadMore(() => fetchMentors(param), {
-      preventConcurrent: true,
-      throwError: false,
-      onError: () => {
-        if (latestFilterKeyRef.current === currentKey) {
-          showErrorToast();
-          setPageState((prev) => ({
-            ...prev,
-            hasError: prev.mentors.length === 0,
-          }));
-        }
+    const rtnList = await runLoadMore(
+      () => {
+        const controller = new AbortController();
+        loadMoreAbortRef.current = controller;
+        return fetchMentors(param, controller.signal);
       },
-    });
+      {
+        preventConcurrent: true,
+        throwError: false,
+        onError: (err) => {
+          if (
+            latestKeyRef.current === currentKey &&
+            !isAbortError(err, loadMoreAbortRef.current?.signal)
+          ) {
+            showErrorToast();
+            if (pageState.mentors.length === 0) {
+              setLoadMoreErrorKey(currentKey);
+            }
+          }
+        },
+      }
+    );
 
     if (!rtnList) return;
-    if (latestFilterKeyRef.current === currentKey) {
-      setPageState((prev) =>
-        applyMentorPage(prev, { type: 'append', page: rtnList })
-      );
+    if (latestKeyRef.current === currentKey) {
+      setLoadMoreErrorKey(null);
+      mentorPoolStore.appendPage(currentKey, pageState, rtnList);
     }
-  }, [params, pageState.cursor, runLoadMore, filterKey, showErrorToast]);
+  }, [activeKey, params, pageState, runLoadMore, showErrorToast]);
 
   const handleScrollToBottom = useCallback(async () => {
     if (!pageState.hasMore || isLoading) return;
@@ -298,8 +197,13 @@ export function useMentorPool({
   }, [pageState.hasMore, fetchMoreMentors, isLoading]);
 
   const handleRetry = useCallback(() => {
-    setRetryCount((prev) => prev + 1);
-  }, []);
+    setLoadMoreErrorKey(null);
+    if (shouldHoldInitialError) {
+      setHasClientActivity(true);
+      return;
+    }
+    refetch();
+  }, [shouldHoldInitialError, refetch]);
 
   // Dynamically translate tag labels inside useMemo on return. This preserves dynamic localization
   // updates (e.g. language switching) without coupling translation state updates to useEffect fetching.

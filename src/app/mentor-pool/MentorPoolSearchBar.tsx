@@ -1,27 +1,13 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useTransition } from 'react';
-
 import SearchBar from '@/components/ui/search-bar';
-
-import {
-  buildHref,
-  getSearchPatternFromParams,
-  setSearchPattern,
-} from './searchParams';
+import { useMentorPoolFilters } from '@/hooks/useMentorPoolFilters';
 
 export default function MentorPoolSearchBar() {
-  const router = useRouter();
-  const params = useSearchParams();
-  const [, startTransition] = useTransition();
-  const currentQ = getSearchPatternFromParams(params);
+  const { searchQuery: currentQ, setSearchQuery } = useMentorPoolFilters();
 
   const handleSearch = async (query: string) => {
-    const next = setSearchPattern(params, query);
-    startTransition(() => {
-      router.push(buildHref(next));
-    });
+    setSearchQuery(query);
   };
 
   return (

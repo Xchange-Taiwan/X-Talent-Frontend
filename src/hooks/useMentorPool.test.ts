@@ -958,6 +958,56 @@ describe('useMentorPool', () => {
     // fetchMentors should ONLY be called once because the second load-more was blocked
     expect(mockFetchMentors).toHaveBeenCalledTimes(1);
   });
+
+  it('reuses cached paginated state when navigating back to a previously visited filter condition without mutating cache keys (#786)', async () => {
+    mockSearchParams.toString.mockReturnValue('q=react');
+    mockSearchParams.get.mockImplementation((key) =>
+      key === 'q' ? 'react' : null
+    );
+
+    const reactMentors = [
+      { ...mockInitialMentors[0], user_id: 201, name: 'React Mentor' },
+    ];
+    const vueMentors = [
+      { ...mockInitialMentors[0], user_id: 202, name: 'Vue Mentor' },
+    ];
+    mockFetchMentors
+      .mockResolvedValueOnce(reactMentors)
+      .mockResolvedValueOnce(vueMentors);
+
+    const { result, rerender } = renderHook(() =>
+      useMentorPool({
+        initialMentors: mockInitialMentors,
+        initialMentorCount: 1,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
+        labelMap: testLabelMap,
+      })
+    );
+
+    await act(async () => {});
+    expect(result.current.mentors[0].name).toBe('React Mentor');
+    expect(mockFetchMentors).toHaveBeenCalledTimes(1);
+
+    // Switch to q=vue
+    mockSearchParams.toString.mockReturnValue('q=vue');
+    mockSearchParams.get.mockImplementation((key) =>
+      key === 'q' ? 'vue' : null
+    );
+    rerender();
+    await act(async () => {});
+    expect(result.current.mentors[0].name).toBe('Vue Mentor');
+    expect(mockFetchMentors).toHaveBeenCalledTimes(2);
+
+    // Switch back to q=react -> must serve cached state synchronously without a 3rd fetch!
+    mockSearchParams.toString.mockReturnValue('q=react');
+    mockSearchParams.get.mockImplementation((key) =>
+      key === 'q' ? 'react' : null
+    );
+    rerender();
+    expect(result.current.mentors[0].name).toBe('React Mentor');
+    expect(result.current.isLoading).toBe(false);
+    expect(mockFetchMentors).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('applyMentorPage', () => {

@@ -1,8 +1,159 @@
+import { PAGE_LIMIT } from '@/app/mentor-pool/constants';
+import type { MentorPoolFetchConditions } from '@/app/mentor-pool/searchParams';
 import { AsyncReadManager } from '@/lib/asyncReadManager';
 import { createKeyedCache } from '@/lib/createKeyedCache';
+import { fetchMentors } from '@/services/search-mentor/mentors';
 import type { MentorType } from '@/types/mentor';
 
-const mentorPoolCache = createKeyedCache<string, MentorType[]>();
-export const mentorPoolReadManager = new AsyncReadManager<string, MentorType[]>(
-  mentorPoolCache
-);
+export const UNFILTERED_MENTOR_POOL_KEY = '__unfiltered__';
+
+export interface MentorPoolPageState {
+  mentors: MentorType[];
+  cursor: string | undefined;
+  hasMore: boolean;
+  mentorCount: number;
+  isNoResults: boolean;
+  hasError: boolean;
+}
+
+export const EMPTY_MENTOR_POOL_STATE: MentorPoolPageState = {
+  mentors: [],
+  cursor: undefined,
+  hasMore: true,
+  mentorCount: 0,
+  isNoResults: false,
+  hasError: false,
+};
+
+export type MentorPageAction =
+  | { type: 'replace'; page: MentorType[]; totalCount?: number }
+  | { type: 'append'; page: MentorType[] };
+
+export function applyMentorPage(
+  state: MentorPoolPageState,
+  action: MentorPageAction
+): MentorPoolPageState {
+  switch (action.type) {
+    case 'replace': {
+      const { page, totalCount } = action;
+      return {
+        mentors: page,
+        cursor: page.at(-1)?.updated_at?.toString(),
+        hasMore: page.length === PAGE_LIMIT,
+        mentorCount: totalCount ?? page.length,
+        isNoResults: page.length === 0,
+        hasError: false,
+      };
+    }
+    case 'append': {
+      const { page } = action;
+      if (page.length === 0) {
+        return {
+          ...state,
+          hasMore: false,
+        };
+      }
+
+      const newMentors = page.filter(
+        (newMentor) =>
+          !state.mentors.some(
+            (prevMentor) => prevMentor.user_id === newMentor.user_id
+          )
+      );
+
+      return {
+        mentors: [...state.mentors, ...newMentors],
+        cursor: page.at(-1)?.updated_at?.toString(),
+        hasMore: page.length === PAGE_LIMIT,
+        mentorCount: state.mentorCount + page.length,
+        isNoResults: false,
+        hasError: false,
+      };
+    }
+    default:
+      return state;
+  }
+}
+
+export function toMentorPoolConditionKey(
+  paramsString: string,
+  hasConditions: boolean
+): string {
+  return hasConditions ? `filter_${paramsString}` : UNFILTERED_MENTOR_POOL_KEY;
+}
+
+const mentorPoolCache = createKeyedCache<string, MentorPoolPageState>();
+export const mentorPoolReadManager = new AsyncReadManager<
+  string,
+  MentorPoolPageState
+>(mentorPoolCache);
+
+export const mentorPoolStore = {
+  buildInitialUnfilteredState(opts: {
+    initialMentors: MentorType[];
+    initialMentorCount: number;
+    hasInitialFilters: boolean;
+    initialError?: boolean;
+  }): MentorPoolPageState {
+    const {
+      initialMentors,
+      initialMentorCount,
+      hasInitialFilters,
+      initialError,
+    } = opts;
+    return {
+      mentors: initialMentors,
+      cursor: initialMentors.at(-1)?.updated_at?.toString(),
+      hasMore: initialMentors.length === PAGE_LIMIT,
+      mentorCount: initialMentorCount,
+      isNoResults: initialMentors.length === 0,
+      hasError: hasInitialFilters ? false : (initialError ?? false),
+    };
+  },
+
+  seedInitialUnfiltered(opts: {
+    initialMentors: MentorType[];
+    initialMentorCount: number;
+    hasInitialFilters: boolean;
+    initialError?: boolean;
+  }): MentorPoolPageState {
+    const state = mentorPoolStore.buildInitialUnfilteredState(opts);
+    if (
+      !opts.initialError &&
+      !mentorPoolReadManager.has(UNFILTERED_MENTOR_POOL_KEY)
+    ) {
+      mentorPoolReadManager.set(UNFILTERED_MENTOR_POOL_KEY, state);
+    }
+    return state;
+  },
+
+  async fetchPageOne(
+    conditions: MentorPoolFetchConditions,
+    signal: AbortSignal
+  ): Promise<MentorPoolPageState> {
+    const page = await fetchMentors(
+      { ...conditions, limit: PAGE_LIMIT, cursor: '' },
+      signal
+    );
+    return applyMentorPage(EMPTY_MENTOR_POOL_STATE, {
+      type: 'replace',
+      page,
+    });
+  },
+
+  appendPage(
+    key: string,
+    fallbackBase: MentorPoolPageState,
+    page: MentorType[]
+  ): MentorPoolPageState {
+    let nextState = fallbackBase;
+    mentorPoolReadManager.update(key, (current) => {
+      nextState = applyMentorPage(current ?? fallbackBase, {
+        type: 'append',
+        page,
+      });
+      return nextState;
+    });
+    return nextState;
+  },
+};
