@@ -76,7 +76,7 @@ export function parseConvergeArgs(argv = [], env = process.env) {
 
 /**
  * Identifies modified/added Playwright spec files from `git diff --name-only`
- * and separates any specs not already covered by `pnpm test:e2e:mock`
+ * and separates mock-lane specs, backend-readonly specs, and onboarding specs
  * (excluding stateful real-backend canary specs unless explicitly enabled).
  */
 export function detectChangedE2eSpecs(
@@ -84,12 +84,26 @@ export function detectChangedE2eSpecs(
   { includeCanary = false } = {}
 ) {
   const allChangedSpecs = [];
+  const changedMockSpecs = [];
+  const changedReadonlySpecs = [];
   const extraNonMockSpecs = [];
+  let hasAppCodeChanges = false;
 
   for (const rawFile of changedFiles) {
     const normalized = String(rawFile ?? '')
       .replace(/\\/g, '/')
       .trim();
+    if (!normalized) {
+      continue;
+    }
+    if (
+      normalized.startsWith('src/') ||
+      normalized === 'middleware.ts' ||
+      normalized === 'next.config.js' ||
+      normalized === 'tailwind.config.js'
+    ) {
+      hasAppCodeChanges = true;
+    }
     if (
       !normalized.startsWith('e2e/tests/') ||
       !normalized.endsWith('.spec.ts')
@@ -101,17 +115,27 @@ export function detectChangedE2eSpecs(
     }
     allChangedSpecs.push(normalized);
 
-    const inMockDir =
-      MOCK_PROJECT_DIRS.some((dir) => normalized.startsWith(dir)) &&
-      !MOCK_PROJECT_IGNORED.has(normalized);
-    if (!inMockDir && normalized.startsWith('e2e/tests/onboarding/')) {
+    if (MOCK_PROJECT_IGNORED.has(normalized)) {
+      changedReadonlySpecs.push(normalized);
+      continue;
+    }
+
+    const inMockDir = MOCK_PROJECT_DIRS.some((dir) =>
+      normalized.startsWith(dir)
+    );
+    if (inMockDir) {
+      changedMockSpecs.push(normalized);
+    } else if (normalized.startsWith('e2e/tests/onboarding/')) {
       extraNonMockSpecs.push(normalized);
     }
   }
 
   return {
     allChangedSpecs,
+    changedMockSpecs,
+    changedReadonlySpecs,
     extraNonMockSpecs,
+    hasAppCodeChanges,
   };
 }
 
@@ -237,7 +261,7 @@ export function buildRoundFixPrompt({
   }
 
   sections.push(
-    '修復完成後，請自行執行 `pnpm type-check` 與 `pnpm test` 確認通過。'
+    '修復完成後，請僅執行快速的 `pnpm type-check` 與 `pnpm test`（Vitest）確認通過；請勿在此修復步驟內自行執行 `pnpm test:e2e`、`npx playwright test` 或啟動 `pnpm dev`，收斂迴圈進入下一輪時會自動重新執行 E2E 驗證。'
   );
 
   return sections.join('\n\n');
@@ -373,21 +397,50 @@ export async function runConvergeLoop(
       const diffFiles = diffFilesRes.ok
         ? diffFilesRes.stdout.split(/\r?\n/).filter(Boolean)
         : [];
-      const { allChangedSpecs, extraNonMockSpecs } =
-        detectChangedE2eSpecs(diffFiles);
+      const {
+        allChangedSpecs,
+        changedMockSpecs,
+        changedReadonlySpecs,
+        extraNonMockSpecs,
+        hasAppCodeChanges,
+      } = detectChangedE2eSpecs(diffFiles);
       lastChangedSpecs = allChangedSpecs;
 
-      const mockE2eRes = deps.execStep('pnpm', [
-        'test:e2e:mock',
-        '--workers=4',
-      ]);
-      if (!mockE2eRes.ok) {
-        deps.log(
-          `[cloud-converge] pnpm test:e2e:mock failed in round ${round}`
-        );
-        e2eErrors.push(
-          `[pnpm test:e2e:mock]\n${mockE2eRes.combined || mockE2eRes.stderr}`
-        );
+      // For pure E2E test tickets (no src/ changes and at least one changed spec),
+      // only run the modified mock specs instead of the entire 14-spec mock suite.
+      const isPureE2eDiff = !hasAppCodeChanges && allChangedSpecs.length > 0;
+
+      if (!isPureE2eDiff || changedMockSpecs.length > 0) {
+        const mockArgs = isPureE2eDiff
+          ? ['test:e2e:mock', '--workers=4', '--retries=1', ...changedMockSpecs]
+          : ['test:e2e:mock', '--workers=4', '--retries=1'];
+        const mockE2eRes = deps.execStep('pnpm', mockArgs);
+        if (!mockE2eRes.ok) {
+          deps.log(
+            `[cloud-converge] pnpm test:e2e:mock failed in round ${round}`
+          );
+          e2eErrors.push(
+            `[pnpm test:e2e:mock]\n${mockE2eRes.combined || mockE2eRes.stderr}`
+          );
+        }
+      }
+
+      if (changedReadonlySpecs.length > 0) {
+        const readonlyRes = deps.execStep('pnpm', [
+          'playwright',
+          'test',
+          '--project=chromium-backend-readonly',
+          '--retries=1',
+          ...changedReadonlySpecs,
+        ]);
+        if (!readonlyRes.ok) {
+          deps.log(
+            `[cloud-converge] backend-readonly E2E specs failed in round ${round}`
+          );
+          e2eErrors.push(
+            `[playwright chromium-backend-readonly specs]\n${readonlyRes.combined || readonlyRes.stderr}`
+          );
+        }
       }
 
       if (extraNonMockSpecs.length > 0) {
@@ -395,6 +448,7 @@ export async function runConvergeLoop(
           'playwright',
           'test',
           '--project=chromium-onboarding',
+          '--retries=1',
           ...extraNonMockSpecs,
         ]);
         if (!extraRes.ok) {
@@ -409,7 +463,7 @@ export async function runConvergeLoop(
 
       lastE2ePassed = e2eErrors.length === 0;
       e2eReportForReviewer = lastE2ePassed
-        ? `Playwright E2E 測試已通過（已執行 pnpm test:e2e:mock --workers=4${allChangedSpecs.length > 0 ? `，涵蓋變更 Spec：${allChangedSpecs.join(', ')}` : ''}）。`
+        ? `Playwright E2E 測試已通過（已執行 E2E 驗證${allChangedSpecs.length > 0 ? `，涵蓋變更 Spec：${allChangedSpecs.join(', ')}` : ''}）。`
         : `Playwright E2E 測試失敗：\n${e2eErrors.join('\n').slice(0, 1500)}`;
     }
 
