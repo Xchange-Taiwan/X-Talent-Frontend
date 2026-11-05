@@ -1,10 +1,9 @@
 ---
-name: ai-review
-description: 'Run the full AI review pipeline locally in parallel using concurrent sub-agents, with zero API keys required.'
-disable-model-invocation: true
+name: 'ai-review'
+description: '執行低 Token 消耗的本地程式碼預審：優先透過 scripts/ai-review/run-local.mjs 呼叫免費的 Gemini (gemini-4-argon)，若無設定則退回單次 In-Context 自我檢查（嚴禁啟動 7 個本地 Sub-agents 消耗對話 Token）。'
 ---
 
-Run a complete, parallelized multi-stage AI Review locally using concurrent sub-agents without needing any external API keys.
+Run a zero-sub-agent AI Review locally before or during PR preparation.
 
 ## Usage
 
@@ -12,26 +11,21 @@ Run a complete, parallelized multi-stage AI Review locally using concurrent sub-
 /ai-review
 ```
 
-## What this does
+## What this does (Zero Sub-Agent Policy)
 
-1. **Retrieve Changes & Ticket Context**:
-   - Run `git diff origin/develop` to capture all unstaged, staged, or committed changes on the current branch.
-   - Detect the current branch name and extract the associated issue number (e.g., `feat/45-xxx` -> issue `45`).
-   - If an issue number is found, automatically use GitHub CLI to fetch the full issue context (title, body, and comments) from `Xchange-Taiwan/X-Talent-Tracker` (or fallback to the current repo if needed):
-     ```bash
-     gh issue view <issue-number> --repo Xchange-Taiwan/X-Talent-Tracker --json title,body,comments
-     ```
+To prevent burning massive primary-agent (Claude / Aside) tokens by spawning 7 parallel sub-agents in a loop, **NEVER launch `subagent` / `invoke_agent` for local AI review**. Instead:
 
-2. **Invoke Parallel Sub-Agents with Shared Context**:
-   - Call the `invoke_agent` tool in parallel (concurrently in a single turn) to launch multiple independent `generalist` sub-agents, passing the git diff, the custom project prompts, and the **fetched Ticket requirements** to relevant agents (especially Business Logic, Correctness, and Review Guide):
-     - **Sub-agent 1 (Security)**: Apply instructions from `scripts/ai-review/prompts/security.md` to review potential leaks, vulnerabilities, and insecure patterns.
-     - **Sub-agent 2 (Correctness)**: Compare the code diff against the **Ticket requirements** and apply `scripts/ai-review/prompts/correctness.md` to find logic flaws or regressions.
-     - **Sub-agent 3 (Business Logic)**: Compare the code diff against the **Ticket requirements** and apply `scripts/ai-review/prompts/business-logic.md` to ensure every specified business feature is correctly implemented.
-     - **Sub-agent 4 (Performance)**: Apply instructions from `scripts/ai-review/prompts/performance.md`.
-     - **Sub-agent 5 (Testing)**: Apply instructions from `scripts/ai-review/prompts/testing.md` to suggest test coverage matching the ticket's functionality.
-     - **Sub-agent 6 (Architecture)**: Apply instructions from `scripts/ai-review/prompts/architecture.md`.
-     - **Sub-agent 7 (Review Guide)**: Apply instructions from `scripts/ai-review/prompts/review-guide.md` referencing the original ticket goals.
+1. **Run the Free Gemini Local Runner (`run-local.mjs`)**:
 
-3. **Aggregate & Generate Final Summary**:
-   - Once all parallel sub-agents return their findings, read the custom summary prompt in `scripts/ai-review/prompts/summary.md`.
-   - Aggregate all the sub-agent outputs and compile the final review comment.
+   ```bash
+   node scripts/ai-review/run-local.mjs
+   ```
+   - When `GEMINI_API_KEY` is present in `.env.development.local`, this script directly calls the free `gemini-4-argon` API in parallel (matching the GitHub Actions CI pipeline 1:1) and prints a compact JSON summary with `overallRisk.level` (`low` / `medium` / `high`) and any `findings`.
+   - When `GEMINI_API_KEY` is not configured on the developer's machine, the script exits 0 with `mode: "fallback-in-context"`.
+
+2. **Fallback Single-Pass In-Context Check (When `mode == "fallback-in-context"`)**:
+   - Do **NOT** spawn sub-agents. Perform a single-pass check directly in your current context against these 4 gates:
+     1. **Business Logic & AC Coverage**: Every Acceptance Criterion from the `X-Talent-Tracker` ticket is implemented.
+     2. **Correctness & Edge Cases**: Null/undefined states, loading/error states, and role boundaries (`visitor` / `mentee` / `mentor`) are handled safely.
+     3. **Security & PII**: No secrets, tokens, emails, or passwords leak into logs or analytics payloads.
+     4. **Unit Test Coverage**: New or modified hooks, schemas, services, and UI branches have corresponding Vitest unit/component tests (`pnpm test`).

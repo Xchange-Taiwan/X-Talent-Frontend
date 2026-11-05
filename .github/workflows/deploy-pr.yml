@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 env:
@@ -77,7 +77,44 @@ jobs:
               print('Bundle size data not available in build output.')
           EOF
 
-      - name: Post PR comment (preview URL + bundle size)
+      - name: Auto-capture UI evidence screenshots on PR Preview
+        id: ui_evidence
+        continue-on-error: true
+        env:
+          PREVIEW_URL: ${{ steps.vercel_preview.outputs.url }}
+        run: |
+          touch .evidence-markdown.txt
+          if [ -z "$PREVIEW_URL" ]; then exit 0; fi
+
+          git fetch origin "${{ github.event.pull_request.base.ref }}" --depth=20 || true
+          CHANGED_UI=$(git diff --name-only "origin/${{ github.event.pull_request.base.ref }}...HEAD" -- 'src/app/' 'src/components/' 'src/styles/' | grep -vE '\.(test|spec|stories)\.(ts|tsx)$' || true)
+          if [ -z "$CHANGED_UI" ]; then
+            echo "No UI-facing files changed; skipping screenshot capture."
+            exit 0
+          fi
+
+          # Infer public routes from changed src/app/**/page.tsx files, defaulting to /
+          ROUTES=$(echo "$CHANGED_UI" | sed -n 's|^src/app||; s|/page\.tsx$||p' | sed 's|([^/]*)||g; s|//|/|g; s|^$|/|' | grep -v '\[' | sort -u | head -n 3 | paste -sd, -)
+          if [ -z "$ROUTES" ]; then ROUTES="/"; fi
+
+          echo "Capturing UI evidence on $PREVIEW_URL for routes: $ROUTES"
+          npx playwright install chromium
+          mkdir -p .agents/tmp/evidence
+          node scripts/capture-ui-evidence.mjs --base-url "$PREVIEW_URL" --routes "$ROUTES" --role visitor --viewport desktop || true
+          node scripts/capture-ui-evidence.mjs --base-url "$PREVIEW_URL" --routes "$ROUTES" --role visitor --viewport mobile || true
+
+          if ls .agents/tmp/evidence/*.png >/dev/null 2>&1; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            export EVIDENCE_BRANCH="pr-evidence"
+            URLS=$(bash .agents/scripts/publish-evidence.sh .agents/tmp/evidence/*.png || true)
+            for u in $URLS; do
+              label=$(basename "$u" .png)
+              echo "![${label}](${u})" >> .evidence-markdown.txt
+            done
+          fi
+
+      - name: Post PR comment (preview URL + bundle size + UI screenshots)
         uses: actions/github-script@v9
         env:
           PREVIEW_URL: ${{ steps.vercel_preview.outputs.url }}
@@ -85,9 +122,12 @@ jobs:
           script: |
             const fs = require('fs');
             const bundleReport = fs.readFileSync('.bundle-report.txt', 'utf8').trim();
+            const evidenceMd = fs.existsSync('.evidence-markdown.txt')
+              ? fs.readFileSync('.evidence-markdown.txt', 'utf8').trim()
+              : '';
             const previewUrl = process.env.PREVIEW_URL;
 
-            const body = [
+            const bodyParts = [
               '## 🚀 PR Preview Deployment',
               '',
               '| | |',
@@ -95,14 +135,48 @@ jobs:
               `| **Preview URL** | ${previewUrl} |`,
               '| **Status** | ✅ Deployed |',
               '',
+            ];
+
+            if (evidenceMd) {
+              bodyParts.push('### 📸 Auto-Captured UI Evidence', '', evidenceMd, '');
+            }
+
+            bodyParts.push(
               '<details>',
               '<summary>📦 Bundle Size Report</summary>',
               '',
               '```',
               bundleReport,
               '```',
-              '</details>',
-            ].join('\n');
+              '</details>'
+            );
+
+            const body = bodyParts.join('\n');
+
+            // If the PR body currently has "## Screenshot\n\nN/A", replace N/A with the auto-captured screenshots
+            if (evidenceMd) {
+              try {
+                const { data: pr } = await github.rest.pulls.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: context.issue.number,
+                });
+                if (pr.body && /## Screenshot\s+N\/A/i.test(pr.body)) {
+                  const updatedPrBody = pr.body.replace(
+                    /## Screenshot\s+N\/A/i,
+                    `## Screenshot\n\n${evidenceMd}`
+                  );
+                  await github.rest.pulls.update({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    pull_number: context.issue.number,
+                    body: updatedPrBody,
+                  });
+                }
+              } catch (e) {
+                console.warn('Could not auto-update PR body screenshots:', e.message);
+              }
+            }
 
             const { data: comments } = await github.rest.issues.listComments({
               issue_number: context.issue.number,

@@ -1,4 +1,7 @@
 {
+  "model": {
+    "name": "gemini-4-argon"
+  },
   "mcpServers": {
     "genable": {
       "command": "npx",
@@ -14,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .agents/scripts/hooks/gemini-verify-board-status.sh",
+            "command": "node .agents/scripts/hooks/gemini-verify-board-status.mjs",
             "timeout": 30000,
             "name": "verify-board-status"
           }

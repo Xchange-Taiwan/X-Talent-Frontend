@@ -59,8 +59,12 @@ Below is the fenced JSON block containing the configuration variables. Custom ag
       "id": "PVTSSF_lADOBFpxMc4BULhhzhBVb_Y",
       "options": {
         "backlog": "79bd68fc",
+        "ready_for_review": "86e0fe35",
+        "todo": "f75ad846",
         "in_progress": "47fc9ee4",
-        "pr_review": "013ebc9d"
+        "pr_review": "013ebc9d",
+        "qa_review": "8c4c8ea2",
+        "done": "98236657"
       }
     }
   }

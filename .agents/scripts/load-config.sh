@@ -37,14 +37,28 @@ PARSED_VARS=$(node -e '
     const config = JSON.parse(process.argv[1]);
     const esc = s => "\x27" + String(s).replace(/\x27/g, "\x27\\\x27\x27") + "\x27";
     console.log("export ORG=" + esc(config.org));
+    console.log("export GITHUB_ORG=" + esc(config.org));
+    console.log("export TRACKER_ORG=" + esc(config.org));
     console.log("export TRACKER_REPO=" + esc(config.repos.tracker));
     console.log("export FRONTEND_REPO=" + esc(config.repos.frontend));
     console.log("export PROJECT_NUMBER=" + esc(config.project.number));
     console.log("export PROJECT_ID=" + esc(config.project.id));
     console.log("export FIELD_ID=" + esc(config.fields.status.id));
+    console.log("export STATUS_FIELD_ID=" + esc(config.fields.status.id));
     console.log("export BACKLOG_OPTION_ID=" + esc(config.fields.status.options.backlog));
+    console.log("export STATUS_BACKLOG=" + esc(config.fields.status.options.backlog));
+    console.log("export READY_FOR_REVIEW_OPTION_ID=" + esc(config.fields.status.options.ready_for_review || "86e0fe35"));
+    console.log("export STATUS_READY_FOR_REVIEW=" + esc(config.fields.status.options.ready_for_review || "86e0fe35"));
+    console.log("export TODO_OPTION_ID=" + esc(config.fields.status.options.todo || "f75ad846"));
+    console.log("export STATUS_TODO=" + esc(config.fields.status.options.todo || "f75ad846"));
     console.log("export IN_PROGRESS_OPTION_ID=" + esc(config.fields.status.options.in_progress));
+    console.log("export STATUS_IN_PROGRESS=" + esc(config.fields.status.options.in_progress));
     console.log("export PR_REVIEW_OPTION_ID=" + esc(config.fields.status.options.pr_review));
+    console.log("export STATUS_PR_REVIEW=" + esc(config.fields.status.options.pr_review));
+    console.log("export QA_REVIEW_OPTION_ID=" + esc(config.fields.status.options.qa_review || "8c4c8ea2"));
+    console.log("export STATUS_QA_REVIEW=" + esc(config.fields.status.options.qa_review || "8c4c8ea2"));
+    console.log("export DONE_OPTION_ID=" + esc(config.fields.status.options.done || "98236657"));
+    console.log("export STATUS_DONE=" + esc(config.fields.status.options.done || "98236657"));
   } catch (e) {
     console.error("ERROR: Failed to parse configuration JSON: " + e.message);
     process.exit(1);
