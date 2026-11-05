@@ -43,20 +43,44 @@ describe('cloud-converge-loop', () => {
   });
 
   describe('detectChangedE2eSpecs', () => {
-    it('identifies changed E2E spec files and separates onboarding specs from mock suite', () => {
+    it('identifies changed E2E spec files and separates mock, readonly, and onboarding specs', () => {
       const files = [
         'src/components/Header.tsx',
         'e2e/tests/reservation/reservation-mentee.spec.ts',
+        'e2e/tests/reservation/reservation-create.spec.ts',
         'e2e/tests/onboarding/onboarding.spec.ts',
         'e2e/tests/canary/booking.spec.ts',
       ];
       const result = detectChangedE2eSpecs(files);
       expect(result.allChangedSpecs).toEqual([
         'e2e/tests/reservation/reservation-mentee.spec.ts',
+        'e2e/tests/reservation/reservation-create.spec.ts',
         'e2e/tests/onboarding/onboarding.spec.ts',
+      ]);
+      expect(result.changedMockSpecs).toEqual([
+        'e2e/tests/reservation/reservation-mentee.spec.ts',
+      ]);
+      expect(result.changedReadonlySpecs).toEqual([
+        'e2e/tests/reservation/reservation-create.spec.ts',
       ]);
       expect(result.extraNonMockSpecs).toEqual([
         'e2e/tests/onboarding/onboarding.spec.ts',
+      ]);
+      expect(result.hasAppCodeChanges).toBe(true);
+    });
+
+    it('detects pure E2E diffs without app code changes', () => {
+      const files = [
+        'e2e/tests/public/signup.spec.ts',
+        'e2e/tests/reservation/reservation-create.spec.ts',
+      ];
+      const result = detectChangedE2eSpecs(files);
+      expect(result.hasAppCodeChanges).toBe(false);
+      expect(result.changedMockSpecs).toEqual([
+        'e2e/tests/public/signup.spec.ts',
+      ]);
+      expect(result.changedReadonlySpecs).toEqual([
+        'e2e/tests/reservation/reservation-create.spec.ts',
       ]);
     });
   });
@@ -161,6 +185,54 @@ describe('cloud-converge-loop', () => {
       expect(writeFile).toHaveBeenCalledTimes(1);
       expect(res.summaryMd).toContain('已完全收斂通過 (Converged)');
       expect(res.summaryMd).toContain('2 / 20 輪');
+    });
+
+    it('runs only changed mock and readonly specs when diff is a pure E2E ticket', async () => {
+      const executedPnpmCalls = [];
+      const execStep = vi.fn((cmd, args) => {
+        if (cmd === 'git' && args[0] === 'diff') {
+          return {
+            ok: true,
+            stdout:
+              'e2e/tests/public/signup.spec.ts\ne2e/tests/reservation/reservation-create.spec.ts\n',
+            stderr: '',
+          };
+        }
+        if (cmd === 'pnpm') {
+          executedPnpmCalls.push(args);
+        }
+        if (cmd === 'node' && args[0]?.includes('run-local.mjs')) {
+          return {
+            ok: true,
+            stdout: JSON.stringify({
+              overallRisk: { level: 'low', reason: 'Clean' },
+              requirementCoverage: [],
+              findings: {},
+            }),
+          };
+        }
+        return { ok: true, stdout: '', stderr: '' };
+      });
+
+      const res = await runConvergeLoop(
+        { maxRounds: 5, ticketNumber: '823', runE2e: true },
+        { execStep, writeFile: () => {}, log: () => {} }
+      );
+
+      expect(res.converged).toBe(true);
+      expect(executedPnpmCalls).toContainEqual([
+        'test:e2e:mock',
+        '--workers=4',
+        '--retries=1',
+        'e2e/tests/public/signup.spec.ts',
+      ]);
+      expect(executedPnpmCalls).toContainEqual([
+        'playwright',
+        'test',
+        '--project=chromium-backend-readonly',
+        '--retries=1',
+        'e2e/tests/reservation/reservation-create.spec.ts',
+      ]);
     });
 
     it('triggers Stall Guard when identical findings repeat across 2 consecutive rounds', async () => {
