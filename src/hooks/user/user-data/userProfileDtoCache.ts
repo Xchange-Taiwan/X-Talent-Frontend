@@ -104,6 +104,106 @@ export function isOptimisticTransitionActive(): boolean {
 }
 
 /**
+ * Checks whether an incoming backend DTO has caught up with a client-primed
+ * optimistic DTO during the post-save transition window.
+ */
+export function hasDtoConverged(
+  primed: MentorProfileVO,
+  incoming: MentorProfileVO
+): boolean {
+  const avatarConverged =
+    !primed.avatar ||
+    (typeof incoming.avatar === 'string' &&
+      incoming.avatar.startsWith(primed.avatar));
+
+  const experiencesConverged =
+    primed.experiences === undefined ||
+    JSON.stringify(incoming.experiences ?? null) ===
+      JSON.stringify(primed.experiences ?? null);
+
+  return (
+    (incoming.name ?? null) === (primed.name ?? null) &&
+    Boolean(incoming.is_mentor) === Boolean(primed.is_mentor) &&
+    Boolean(incoming.onboarding) === Boolean(primed.onboarding) &&
+    (incoming.job_title ?? null) === (primed.job_title ?? null) &&
+    (incoming.company ?? null) === (primed.company ?? null) &&
+    avatarConverged &&
+    experiencesConverged
+  );
+}
+
+/**
+ * Resolves effective initialData for SSR hydration: skips stale SSR initialData
+ * when a client-side cache entry already exists for `key`.
+ */
+export function getEffectiveInitialDto(
+  key: string | null,
+  initialData?: MentorProfileVO | null
+): MentorProfileVO | null | undefined {
+  const hasCache = key ? userProfileDtoReadManager.has(key) : false;
+  return hasCache ? undefined : initialData;
+}
+
+/**
+ * Guard predicate for `useAsyncRead` `shouldCache`: only cache non-null DTOs
+ * whose reference differs from what is already stored.
+ */
+export function shouldCacheUserProfileDto(
+  key: string | null,
+  res: MentorProfileVO | null
+): boolean {
+  return res !== null && (!key || res !== userProfileDtoReadManager.get(key));
+}
+
+/**
+ * Encapsulates SWR fetch resolution, null/error eviction on manual refetch,
+ * and `hasDtoConverged` protection for primed optimistic DTOs during background
+ * revalidation.
+ */
+export async function resolveUserProfileDtoFetch(
+  key: string | null,
+  fetcher: (signal: AbortSignal) => Promise<MentorProfileVO | null>,
+  signal: AbortSignal,
+  context?: { force?: boolean }
+): Promise<MentorProfileVO | null> {
+  const isManualRefetch = !!context?.force;
+  try {
+    const res = await fetcher(signal);
+
+    if (res === null && key) {
+      if (isManualRefetch) {
+        userProfileDtoReadManager.evict(key);
+        return null;
+      }
+      const existing = userProfileDtoReadManager.get(key);
+      if (existing) {
+        return existing;
+      }
+      return null;
+    }
+
+    if (
+      res !== null &&
+      key &&
+      !isManualRefetch &&
+      isOptimisticTransitionActive()
+    ) {
+      const existing = userProfileDtoReadManager.get(key);
+      if (existing && !hasDtoConverged(existing, res)) {
+        return existing;
+      }
+    }
+
+    return res;
+  } catch (err) {
+    if (isManualRefetch && key) {
+      userProfileDtoReadManager.evict(key);
+    }
+    throw err;
+  }
+}
+
+/**
  * Writes a known-fresh dto into the in-memory cache so the next consumer of
  * useUserProfileDto for this user renders from cache without an API call.
  * Call this after the caller has already retrieved authoritative data (e.g.

@@ -12,11 +12,6 @@ vi.mock('next-auth/react', async () => {
   return nextAuthMockFactory();
 });
 
-const mockUseCurrentAvatar = vi.fn();
-vi.mock('@/hooks/user/profile/useCurrentAvatar', () => ({
-  useCurrentAvatar: () => mockUseCurrentAvatar(),
-}));
-
 const mockPostBackendLogout = vi.fn();
 vi.mock('@/services/auth/backendLogout', () => ({
   postBackendLogout: () => mockPostBackendLogout(),
@@ -48,7 +43,6 @@ describe('useAccountMenu', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseCurrentAvatar.mockReturnValue(null);
     vi.stubGlobal(
       'requestAnimationFrame',
       (cb: FrameRequestCallback): number => {
@@ -124,11 +118,13 @@ describe('useAccountMenu', () => {
       expect(disabled.current.canDeleteAccount).toBe(false);
     });
 
-    it('reads the avatar through useCurrentAvatar, falling back to an empty string', () => {
-      mockUseCurrentAvatar.mockReturnValue('https://example.com/avatar.png');
+    it('reads the avatar from identity.avatar, falling back to an empty string', () => {
       const { result } = renderHook(() =>
         useAccountMenu({
-          identity: authenticatedIdentity('user-1', { isMentor: false }),
+          identity: authenticatedIdentity('user-1', {
+            isMentor: false,
+            avatar: 'https://example.com/avatar.png',
+          }),
           user: buildUser(),
           closeMenu,
         })
@@ -137,8 +133,7 @@ describe('useAccountMenu', () => {
       expect(result.current.avatarSrc).toBe('https://example.com/avatar.png');
     });
 
-    it('falls back to identity.avatar when useCurrentAvatar returns null', () => {
-      mockUseCurrentAvatar.mockReturnValue(null);
+    it('falls back to identity.avatar when provided', () => {
       const { result } = renderHook(() =>
         useAccountMenu({
           identity: authenticatedIdentity('user-1', {
@@ -155,8 +150,7 @@ describe('useAccountMenu', () => {
       );
     });
 
-    it('falls back to an empty string when both useCurrentAvatar and identity.avatar are absent', () => {
-      mockUseCurrentAvatar.mockReturnValue(null);
+    it('falls back to an empty string when identity.avatar is absent', () => {
       const { result } = renderHook(() =>
         useAccountMenu({
           identity: authenticatedIdentity('user-1', { isMentor: false }),

@@ -392,4 +392,30 @@ describe('useUserProfileDto', () => {
     unmount();
     unmountStale();
   });
+
+  it('retains primed optimistic DTO during the transition window when background revalidation returns a non-converged stale DTO (#785)', async () => {
+    const primedDto = {
+      ...mockUserDTO,
+      name: 'Optimistic Updated Name',
+      job_title: 'Principal Engineer',
+      company: 'New Corp',
+      is_mentor: true,
+    };
+    const staleBackendDto = {
+      ...mockUserDTO,
+      name: 'Old Stale Name',
+      job_title: 'Junior Engineer',
+      company: 'Old Corp',
+      is_mentor: false,
+    };
+
+    primeUserProfileDtoCache(30, 'zh-TW', primedDto);
+    vi.mocked(fetchUserById).mockResolvedValueOnce(staleBackendDto);
+
+    // Advance only 1s (still inside the 10s optimistic transition window)
+    vi.advanceTimersByTime(1000);
+
+    const { result } = renderHook(() => useUserProfileDto(30, 'zh-TW'));
+    expect(result.current.userDto).toEqual(primedDto);
+  });
 });

@@ -3,10 +3,15 @@ import { useSession } from 'next-auth/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  clearUserProfileDtoCache,
+  primeUserProfileDtoCache,
+} from '@/hooks/user/user-data/userProfileDtoCache';
+import {
   DOM_AUTH_AVATAR_ATTR,
   DOM_AUTH_STATE_ATTR,
   SESSION_HINT_COOKIE,
 } from '@/lib/auth/sessionHint';
+import type { MentorProfileVO } from '@/types/user';
 
 import { useResolvedIdentity } from './useResolvedIdentity';
 
@@ -323,5 +328,62 @@ describe('useResolvedIdentity', () => {
         document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)
       ).toBeNull();
     });
+  });
+
+  it('overlays active optimistic identity projection fields (name, avatar, isMentor, jobTitle, company, personalLinks) onto the session during the transition window (#785)', async () => {
+    clearUserProfileDtoCache(123, 'zh_TW');
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          id: '123',
+          name: 'Old Session Name',
+          isMentor: false,
+          avatar: 'https://example.com/old.png',
+          jobTitle: 'Old Role',
+          company: 'Old Co',
+        },
+      },
+      status: 'authenticated',
+    } as never);
+
+    primeUserProfileDtoCache(123, 'zh_TW', {
+      user_id: 123,
+      name: 'Optimistic Mentor Name',
+      avatar: 'https://example.com/new-optimistic.png',
+      is_mentor: true,
+      onboarding: true,
+      job_title: 'Staff Engineer',
+      company: 'XChange',
+      experiences: [
+        {
+          category: 'LINK',
+          order: 0,
+          mentor_experiences_metadata: {
+            data: [
+              { platform: 'linkedin', url: 'https://linkedin.com/in/test' },
+            ],
+          },
+        },
+      ],
+    } as unknown as MentorProfileVO);
+
+    const { result } = renderHook(() => useResolvedIdentity());
+
+    await waitFor(() => {
+      expect(result.current).toMatchObject({
+        state: 'confirmed-member',
+        userId: '123',
+        name: 'Optimistic Mentor Name',
+        avatar: 'https://example.com/new-optimistic.png',
+        isMentor: true,
+        jobTitle: 'Staff Engineer',
+        company: 'XChange',
+        personalLinks: [
+          { platform: 'linkedin', url: 'https://linkedin.com/in/test' },
+        ],
+      });
+    });
+
+    clearUserProfileDtoCache(123, 'zh_TW');
   });
 });

@@ -5,7 +5,6 @@ import type { Session } from 'next-auth';
 import { signOut } from 'next-auth/react';
 import * as React from 'react';
 
-import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
 import { clearSessionHint, ResolvedIdentity } from '@/lib/auth/sessionHint';
 import { getMentorOnboardingUrl } from '@/lib/routes';
 import { postBackendLogout } from '@/services/auth/backendLogout';
@@ -58,11 +57,11 @@ export function useAccountMenu({
   const isMentor = Boolean(identity.isMentor);
   const canDeleteAccount =
     process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT === 'true';
-  const name = user?.name ?? '';
-  const avatarSrc = useCurrentAvatar() ?? identity.avatar ?? '';
-  const jobTitle = user?.jobTitle ?? '';
-  const company = user?.company ?? '';
-  const personalLinks = user?.personalLinks ?? [];
+  const name = identity.name ?? user?.name ?? '';
+  const avatarSrc = identity.avatar ?? user?.avatar ?? '';
+  const jobTitle = identity.jobTitle ?? user?.jobTitle ?? '';
+  const company = identity.company ?? user?.company ?? '';
+  const personalLinks = identity.personalLinks ?? user?.personalLinks ?? [];
 
   const profilePath = userId ? `/profile/${userId}` : '/';
 
