@@ -11,13 +11,13 @@ import { MentorCardList } from '@/components/mentor-pool/mentor-card-list';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import {
-  type ActiveFilterBadge,
-  resolveActiveFilterBadges,
-} from '@/hooks/useMentorPoolFilters';
 import type { MentorType } from '@/types/mentor';
 
 import PopularPositionChips from './PopularPositionChips';
+import {
+  type ActiveFilterBadge,
+  resolveActiveFilterBadges,
+} from './searchParams';
 
 interface Props {
   mentors: MentorType[];

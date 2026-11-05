@@ -93,12 +93,19 @@ export function useMentorPool({
   const fetcher = useCallback(
     (signal: AbortSignal) => {
       const conditions = paramsToFetchConditions(params);
-      return mentorPoolStore.fetchPageOne(conditions, signal).catch((err) => {
-        if (!isAbortError(err, signal)) {
-          showErrorToast();
-        }
-        throw err;
-      });
+      return mentorPoolStore
+        .fetchPageOne(
+          (limit, sig) =>
+            fetchMentors({ ...conditions, limit, cursor: '' }, sig),
+          signal,
+          PAGE_LIMIT
+        )
+        .catch((err) => {
+          if (!isAbortError(err, signal)) {
+            showErrorToast();
+          }
+          throw err;
+        });
     },
     [params, showErrorToast]
   );
@@ -161,19 +168,18 @@ export function useMentorPool({
       cursor: pageState.cursor,
     };
 
+    const controller = new AbortController();
+    loadMoreAbortRef.current = controller;
+
     const rtnList = await runLoadMore(
-      () => {
-        const controller = new AbortController();
-        loadMoreAbortRef.current = controller;
-        return fetchMentors(param, controller.signal);
-      },
+      () => fetchMentors(param, controller.signal),
       {
         preventConcurrent: true,
         throwError: false,
         onError: (err) => {
           if (
             latestKeyRef.current === currentKey &&
-            !isAbortError(err, loadMoreAbortRef.current?.signal)
+            !isAbortError(err, controller.signal)
           ) {
             showErrorToast();
             if (pageState.mentors.length === 0) {

@@ -5,6 +5,7 @@ import { useCallback, useMemo, useTransition } from 'react';
 
 import { filterOptions as defaultFilterOptions } from '@/app/mentor-pool/data';
 import {
+  type ActiveFilterBadge,
   buildHref,
   clearAllConditions,
   getSearchPatternFromParams,
@@ -13,6 +14,7 @@ import {
   paramsToFetchConditions,
   parseFiltersFromParams,
   removeFilterFromParams,
+  resolveActiveFilterBadges,
   setSearchPattern,
   setSelectedFiltersOnParams,
 } from '@/app/mentor-pool/searchParams';
@@ -22,29 +24,7 @@ import type {
 } from '@/components/filter/MentorFilterDropdown';
 import { trackEvent } from '@/lib/analytics';
 
-export interface ActiveFilterBadge {
-  key: string;
-  name: string;
-  value: string;
-  label: string;
-}
-
-export function resolveActiveFilterBadges(
-  selectedFilters: SelectFilters,
-  filterOptions: FilterOptions = defaultFilterOptions
-): ActiveFilterBadge[] {
-  return Object.entries(selectedFilters).map(([key, filter]) => {
-    const label =
-      filterOptions[key]?.options.find((o) => o.value === filter.value)
-        ?.label ?? filter.value;
-    return {
-      key,
-      name: filter.name,
-      value: filter.value,
-      label,
-    };
-  });
-}
+export { type ActiveFilterBadge, resolveActiveFilterBadges };
 
 export interface UseMentorPoolFiltersOptions {
   filterOptions?: FilterOptions;
