@@ -26,6 +26,7 @@ vi.mock('@/lib/analytics', () => ({
 import { trackEvent } from '@/lib/analytics';
 import { ApiError } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
+import { SignUpSchema } from '@/schemas/auth';
 import { signUp } from '@/services/auth/signUp';
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockToast } from '@/test/mocks/useToast';
@@ -224,5 +225,37 @@ describe('useSignUpForm', () => {
       description: 'Internal DB crash - HTTP狀態碼: 500。',
     });
     expect(mockRouter.push).not.toHaveBeenCalled();
+  });
+
+  it('initializes confirm_password in defaultValues and produces Traditional Chinese validation errors instead of "Required" (#804)', async () => {
+    const { result } = renderHook(() => useSignUpForm());
+
+    expect(result.current.form.getValues()).toEqual({
+      email: '',
+      password: '',
+      confirm_password: '',
+      hasReadTermsOfService: false,
+    });
+
+    const onInvalid = vi.fn();
+    await act(async () => {
+      await result.current.form.handleSubmit(vi.fn(), onInvalid)();
+    });
+
+    expect(onInvalid).toHaveBeenCalledTimes(1);
+    const errors = onInvalid.mock.calls[0][0];
+    expect(errors.email?.message).toBe('請輸入電子郵件');
+    expect(errors.password?.message).toBe('密碼至少需為 8 個字');
+    expect(errors.confirm_password?.message).toBe('密碼至少需為 8 個字');
+    expect(errors.hasReadTermsOfService?.message).toBe('請確認並同意服務條款');
+
+    // Also verify SignUpSchema.safeParse({}) when fields are undefined never returns English "Required"
+    const parsed = SignUpSchema.safeParse({});
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      for (const issue of parsed.error.issues) {
+        expect(issue.message).not.toBe('Required');
+      }
+    }
   });
 });

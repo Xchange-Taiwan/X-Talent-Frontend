@@ -29,6 +29,7 @@ export default function useSignUpForm(): AuthFormProps<SignUpValues> {
     defaultValues: {
       email: '',
       password: '',
+      confirm_password: '',
       hasReadTermsOfService: false,
     },
   });

@@ -112,7 +112,7 @@ test.describe('Header NotificationBell 鍵盤導覽', () => {
     await expect(page.getByText('您有新的預約')).toBeVisible();
 
     const markAllButton = page.getByRole('button', {
-      name: 'Mark all as read',
+      name: '全部標示為已讀',
     });
 
     // Continue tabbing from the trigger into the popover content

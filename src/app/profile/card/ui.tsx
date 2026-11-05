@@ -31,8 +31,7 @@ export default function ProfileCardUI({
 
         {!isMentor && (
           <p className="text-base">
-            Now you can explore mentors or build your mentor profile in just 1
-            step.
+            現在你可以開始探索導師，或只需一步即可建立你的導師檔案
           </p>
         )}
       </div>
@@ -71,7 +70,7 @@ export default function ProfileCardUI({
             className="grow rounded-full px-6 py-3 sm:grow-0"
             onClick={onBecomeMentor}
           >
-            成為 Mentor
+            成為導師
           </Button>
           <Button
             variant="default"

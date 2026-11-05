@@ -590,7 +590,7 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
     expect(putProfileCalled).toBe(false);
   });
 
-  test('Mentee 造訪 /profile/card → 顯示完成個人頁面訊息與「成為 Mentor」、「開始探索 X-Talent」導向', async ({
+  test('Mentee 造訪 /profile/card → 顯示完成個人頁面訊息與「成為導師」、「開始探索 X-Talent」導向', async ({
     page,
   }) => {
     const session = makeSession(false);
@@ -615,15 +615,18 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
       timeout: 15_000,
     });
     await expect(
+      page.getByText('現在你可以開始探索導師，或只需一步即可建立你的導師檔案')
+    ).toBeVisible();
+    await expect(
       page.getByRole('heading', { name: 'Test Mentee' })
     ).toBeVisible();
 
-    const becomeMentorBtn = page.getByRole('button', { name: '成為 Mentor' });
+    const becomeMentorBtn = page.getByRole('button', { name: '成為導師' });
     const exploreBtn = page.getByRole('button', { name: '開始探索 X-Talent' });
     await expect(becomeMentorBtn).toBeVisible();
     await expect(exploreBtn).toBeVisible();
 
-    // Click 成為 Mentor → navigates to /profile/:id/edit?mentor-onboarding=true
+    // Click 成為導師 → navigates to /profile/:id/edit?mentor-onboarding=true
     await becomeMentorBtn.click();
     await expect(page).toHaveURL(
       `/profile/${USER_ID}/edit?mentor-onboarding=true`,
@@ -670,7 +673,7 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
       page.getByRole('heading', { name: 'Test Mentor' })
     ).toBeVisible();
     await expect(
-      page.getByRole('button', { name: '成為 Mentor' })
+      page.getByRole('button', { name: '成為導師' })
     ).not.toBeVisible();
 
     const backToProfileBtn = page.getByRole('button', {
