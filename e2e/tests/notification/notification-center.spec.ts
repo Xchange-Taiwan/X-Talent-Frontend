@@ -1,4 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
+import dayjs from 'dayjs';
 import type { Session } from 'next-auth';
 
 import type { components } from '@/types/api';
@@ -40,7 +41,12 @@ function makeNotificationVO(
   type: string,
   unread: boolean,
   counterparty: string,
-  role: 'mentor' | 'mentee'
+  role: 'mentor' | 'mentee',
+  extraMetadata: {
+    actor_role?: 'mentor' | 'mentee' | 'system';
+    dtstart?: number;
+    dtend?: number;
+  } = {}
 ): NotificationVO {
   return {
     id: Number(id),
@@ -50,6 +56,7 @@ function makeNotificationVO(
     metadata: {
       role,
       counterparty_name: counterparty,
+      ...extraMetadata,
     },
   };
 }
@@ -327,5 +334,122 @@ test.describe('Notification Center E2E Tests', () => {
       page.getByText('Mentor Wang 已接受您的預約')
     ).not.toBeVisible();
     await expect(page.getByText('您有新的預約')).toBeVisible();
+  });
+
+  test('reservation_upcoming notification with metadata.dtstart renders formatted meeting time (YYYY/MM/DD HH:mm)', async ({
+    page,
+  }) => {
+    const dtstart = 1755000000;
+    const formattedTime = dayjs.unix(dtstart).format('YYYY/MM/DD HH:mm');
+    const upcomingNotif = makeNotificationVO(
+      '106',
+      'reservation_upcoming',
+      true,
+      'Mentor Wang',
+      'mentee',
+      { dtstart, dtend: dtstart + 1800 }
+    );
+
+    await loginAs(page, false);
+    await mockUnreadCount(page, 1);
+    await mockNotificationList(page, [upcomingNotif]);
+
+    await page.goto(PAGE_URL);
+    await page.getByRole('button', { name: '開啟通知選單' }).click();
+
+    await expect(
+      page.getByText('您與 Mentor Wang 的預約即將到來')
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        `您與 Mentor Wang 的會議即將在 ${formattedTime} 開始，請準時上線`
+      )
+    ).toBeVisible();
+  });
+
+  test('reservation_canceled with actor_role system renders mentee auto-cancel copy and redirects to /mentor-pool', async ({
+    page,
+  }) => {
+    const menteeAutoCancelNotif = makeNotificationVO(
+      '107',
+      'reservation_canceled',
+      true,
+      'Mentor Chen',
+      'mentee',
+      { actor_role: 'system' }
+    );
+
+    await loginAs(page, false);
+    await mockUnreadCount(page, 1);
+    await mockNotificationList(page, [menteeAutoCancelNotif]);
+
+    await page.route(/\/v1\/users\/.*\/notifications\/107/, (route) => {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: '0',
+          msg: 'ok',
+          data: { ...menteeAutoCancelNotif, read_at: READ_AT_UNIX },
+        }),
+      });
+    });
+
+    await page.goto(PAGE_URL);
+    await page.getByRole('button', { name: '開啟通知選單' }).click();
+
+    await expect(
+      page.getByText('您與 Mentor Chen 的預約已自動取消')
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        '因導師未於預約開始前 24 小時前確認，系統已自動取消此預約，歡迎重新預約'
+      )
+    ).toBeVisible();
+
+    await page.getByText('您與 Mentor Chen 的預約已自動取消').click();
+    await expect(page).toHaveURL(/\/mentor-pool/);
+  });
+
+  test('reservation_canceled with actor_role system renders mentor auto-cancel copy and redirects to /reservation/mentor?tab=history', async ({
+    page,
+  }) => {
+    const mentorAutoCancelNotif = makeNotificationVO(
+      '108',
+      'reservation_canceled',
+      true,
+      'Mentee Lin',
+      'mentor',
+      { actor_role: 'system' }
+    );
+
+    await loginAs(page, true);
+    await mockUnreadCount(page, 1);
+    await mockNotificationList(page, [mentorAutoCancelNotif]);
+
+    await page.route(/\/v1\/users\/.*\/notifications\/108/, (route) => {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: '0',
+          msg: 'ok',
+          data: { ...mentorAutoCancelNotif, read_at: READ_AT_UNIX },
+        }),
+      });
+    });
+
+    await page.goto(PAGE_URL);
+    await page.getByRole('button', { name: '開啟通知選單' }).click();
+
+    await expect(
+      page.getByText('您與 Mentee Lin 的預約已自動取消')
+    ).toBeVisible();
+    await expect(
+      page.getByText('因您未於預約開始前 24 小時前確認，系統已自動取消此預約')
+    ).toBeVisible();
+
+    await page.getByText('您與 Mentee Lin 的預約已自動取消').click();
+    await expect(page).toHaveURL(/\/reservation\/mentor\?tab=history/);
   });
 });

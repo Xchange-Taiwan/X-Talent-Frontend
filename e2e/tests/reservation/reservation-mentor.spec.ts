@@ -497,4 +497,171 @@ test.describe('歷史紀錄 Tab 測試', () => {
       .filter({ hasText: 'Mentee CancelB' });
     await expect(cardByMentee.getByRole('status')).toHaveText('已由學員取消');
   });
+
+  test('SYSTEM 自動取消之預約於歷史紀錄顯示「已自動取消」標籤，且展開完整對話紀錄彈窗顯示系統自動取消提示', async ({
+    page,
+  }) => {
+    await setSignedSessionCookie(page, {
+      id: USER_ID,
+      name: 'Test Mentor',
+      isMentor: true,
+      onBoarding: true,
+      token: 'mock-access-token',
+    });
+    await mockSessionGet(page);
+
+    const cancelledBySystem = {
+      ...makeReservation(24, 'Mentee AutoCancel'),
+      cancelled_by: 'SYSTEM',
+    };
+
+    await mockReservationListEndpoints(page, {
+      MENTOR_HISTORY: [cancelledBySystem],
+    });
+
+    await page.goto(PAGE_URL);
+
+    await expect(page.getByRole('tab', { name: /歷史紀錄/ })).toBeVisible({
+      timeout: 15_000,
+    });
+    await page.getByRole('tab', { name: /歷史紀錄/ }).click();
+
+    const cardBySystem = page
+      .getByTestId('reservation-card')
+      .filter({ hasText: 'Mentee AutoCancel' });
+    await expect(cardBySystem).toBeVisible({ timeout: 10_000 });
+    await expect(cardBySystem.getByRole('status')).toHaveText('已自動取消');
+    await expect(
+      cardBySystem.getByText(
+        '因您未於預約開始前 24 小時前確認，系統已自動取消此預約。'
+      )
+    ).toBeVisible();
+
+    const viewChatBtn = cardBySystem.getByRole('button', {
+      name: '查看完整對話',
+    });
+    await expect(viewChatBtn).toBeVisible();
+    await viewChatBtn.click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(
+      dialog.getByRole('heading', { name: '完整對話紀錄' })
+    ).toBeVisible();
+    await expect(
+      dialog.getByText(
+        '因您未於預約開始前 24 小時前確認，系統已自動取消此預約。'
+      )
+    ).toBeVisible();
+  });
+
+  test('逾時未回覆（距離 dtstart 小於 24 小時）的 PENDING 預約於讀取時自動收斂至「歷史紀錄」Tab', async ({
+    page,
+  }) => {
+    await setSignedSessionCookie(page, {
+      id: USER_ID,
+      name: 'Test Mentor',
+      isMentor: true,
+      onBoarding: true,
+      token: 'mock-access-token',
+    });
+    await mockSessionGet(page);
+
+    const nowUnix = Math.floor(Date.now() / 1000);
+    const overduePending = {
+      ...makeReservation(25, 'Mentee OverduePending'),
+      dtstart: nowUnix + 12 * 3600,
+      dtend: nowUnix + 13 * 3600,
+      cancelled_by: 'SYSTEM',
+    };
+    const activePending = {
+      ...makeReservation(26, 'Mentee ActivePending'),
+      dtstart: nowUnix + 48 * 3600,
+      dtend: nowUnix + 49 * 3600,
+    };
+
+    await mockReservationListEndpoints(page, {
+      MENTOR_PENDING: [overduePending, activePending],
+      MENTOR_HISTORY: [],
+    });
+
+    await page.goto(PAGE_URL);
+
+    const pendingTab = page.getByRole('tab', { name: /待您回復/ });
+    await expect(pendingTab).toBeVisible({ timeout: 15_000 });
+    await pendingTab.click();
+
+    // 待您回復 Tab 僅顯示尚未逾時的預約，逾時未回覆的預約已被濾除
+    await expect(page.getByText('Mentee ActivePending')).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(page.getByText('Mentee OverduePending')).not.toBeVisible();
+
+    // 切換至歷史紀錄 Tab，驗證該筆逾時 PENDING 預約已自動收斂至歷史紀錄並標示為已自動取消
+    await page.getByRole('tab', { name: /歷史紀錄/ }).click();
+    const convergedCard = page
+      .getByTestId('reservation-card')
+      .filter({ hasText: 'Mentee OverduePending' });
+    await expect(convergedCard).toBeVisible({ timeout: 10_000 });
+    await expect(convergedCard.getByRole('status')).toHaveText('已自動取消');
+  });
+});
+
+test.describe('導師端空狀態情境文案與 CTA 導向測試', () => {
+  test('驗證三個 Tab（「即將到來」、「待您回復」、「歷史紀錄」）空狀態情境文案，且點擊「管理可預約時段」導向 /profile/:userId', async ({
+    page,
+  }) => {
+    await setSignedSessionCookie(page, {
+      id: USER_ID,
+      name: 'Test Mentor',
+      isMentor: true,
+      onBoarding: true,
+      token: 'mock-access-token',
+    });
+    await mockSessionGet(page);
+    await mockReservationListEndpoints(page);
+
+    await page.goto(PAGE_URL);
+
+    // 1. 即將到來 Tab 空狀態
+    await expect(page.getByRole('tab', { name: /即將到來/ })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByText('目前尚無資料')).toBeVisible();
+    await expect(
+      page.getByText(
+        '目前還沒有即將到來的預約，前往個人頁面確認或新增可預約時段，讓學員更容易找到你！'
+      )
+    ).toBeVisible();
+    await expect(
+      page.getByRole('link', { name: '管理可預約時段' })
+    ).toHaveAttribute('href', `/profile/${USER_ID}`);
+
+    // 2. 待您回復 Tab 空狀態
+    await page.getByRole('tab', { name: /待您回復/ }).click();
+    await expect(page.getByText('目前尚無資料')).toBeVisible();
+    await expect(
+      page.getByText(
+        '目前還沒有待您回復的預約申請，前往個人頁面管理可預約時段以提升預約率！'
+      )
+    ).toBeVisible();
+    await expect(
+      page.getByRole('link', { name: '管理可預約時段' })
+    ).toHaveAttribute('href', `/profile/${USER_ID}`);
+
+    // 3. 歷史紀錄 Tab 空狀態與點擊 CTA 導向
+    await page.getByRole('tab', { name: /歷史紀錄/ }).click();
+    await expect(page.getByText('目前尚無資料')).toBeVisible();
+    await expect(
+      page.getByText(
+        '目前還沒有歷史預約紀錄，前往個人頁面設定可預約時段，開始你的導師交流之旅吧！'
+      )
+    ).toBeVisible();
+
+    const ctaLink = page.getByRole('link', { name: '管理可預約時段' });
+    await expect(ctaLink).toHaveAttribute('href', `/profile/${USER_ID}`);
+    await ctaLink.click();
+
+    await expect(page).toHaveURL(new RegExp(`/profile/${USER_ID}`));
+  });
 });
