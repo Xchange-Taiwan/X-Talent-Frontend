@@ -1,14 +1,13 @@
 'use client';
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
+import { useMentorPoolFilters } from '@/hooks/useMentorPoolFilters';
 import { computeOverflowFit } from '@/lib/overflowFit';
 import { HOVER_CLICKABLE_CHIP_CLASSES } from '@/lib/ui/hoverStyles';
 
 import { POPULAR_POSITIONS } from './data';
-import { buildHref, setSearchPattern } from './searchParams';
 
 // Desktop SearchBar width is the source of truth. We measure each chip on
 // mount and trim to what fits in this width on xl. Below xl, all chips are
@@ -18,9 +17,7 @@ const DESKTOP_WIDTH = 846;
 const GAP_PX = 8;
 
 export default function PopularPositionChips() {
-  const router = useRouter();
-  const params = useSearchParams();
-  const [, startTransition] = useTransition();
+  const { setSearchQuery } = useMentorPoolFilters();
   const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [visibleCount, setVisibleCount] = useState(POPULAR_POSITIONS.length);
@@ -59,10 +56,7 @@ export default function PopularPositionChips() {
   }, []);
 
   const handleClick = (position: string) => {
-    const next = setSearchPattern(params, position);
-    startTransition(() => {
-      router.push(buildHref(next));
-    });
+    setSearchQuery(position);
   };
 
   return (

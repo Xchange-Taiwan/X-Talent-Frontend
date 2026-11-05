@@ -958,6 +958,190 @@ describe('useMentorPool', () => {
     // fetchMentors should ONLY be called once because the second load-more was blocked
     expect(mockFetchMentors).toHaveBeenCalledTimes(1);
   });
+
+  it('reuses cached paginated state when navigating back to a previously visited filter condition without mutating cache keys (#786)', async () => {
+    mockSearchParams.toString.mockReturnValue('q=react');
+    mockSearchParams.get.mockImplementation((key) =>
+      key === 'q' ? 'react' : null
+    );
+
+    const reactMentors = [
+      { ...mockInitialMentors[0], user_id: 201, name: 'React Mentor' },
+    ];
+    const vueMentors = [
+      { ...mockInitialMentors[0], user_id: 202, name: 'Vue Mentor' },
+    ];
+    mockFetchMentors
+      .mockResolvedValueOnce(reactMentors)
+      .mockResolvedValueOnce(vueMentors);
+
+    const { result, rerender } = renderHook(() =>
+      useMentorPool({
+        initialMentors: mockInitialMentors,
+        initialMentorCount: 1,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
+        labelMap: testLabelMap,
+      })
+    );
+
+    await act(async () => {});
+    expect(result.current.mentors[0].name).toBe('React Mentor');
+    expect(mockFetchMentors).toHaveBeenCalledTimes(1);
+
+    // Switch to q=vue
+    mockSearchParams.toString.mockReturnValue('q=vue');
+    mockSearchParams.get.mockImplementation((key) =>
+      key === 'q' ? 'vue' : null
+    );
+    rerender();
+    await act(async () => {});
+    expect(result.current.mentors[0].name).toBe('Vue Mentor');
+    expect(mockFetchMentors).toHaveBeenCalledTimes(2);
+
+    // Switch back to q=react -> must serve cached state synchronously without a 3rd fetch!
+    mockSearchParams.toString.mockReturnValue('q=react');
+    mockSearchParams.get.mockImplementation((key) =>
+      key === 'q' ? 'react' : null
+    );
+    rerender();
+    expect(result.current.mentors[0].name).toBe('React Mentor');
+    expect(result.current.isLoading).toBe(false);
+    expect(mockFetchMentors).toHaveBeenCalledTimes(2);
+  });
+
+  it('aborts an in-flight loadMore request when filter conditions change and suppresses destructive toast (#786)', async () => {
+    const largeInitialMentors = Array.from({ length: PAGE_LIMIT }, (_, i) => ({
+      ...mockInitialMentors[0],
+      user_id: i + 1,
+    }));
+
+    let capturedSignal: AbortSignal | undefined;
+    let rejectLoadMore!: (err: Error) => void;
+    const loadMorePromise = new Promise<MentorType[]>((_, reject) => {
+      rejectLoadMore = reject;
+    });
+
+    mockFetchMentors
+      .mockImplementationOnce((_params, signal) => {
+        capturedSignal = signal;
+        return loadMorePromise;
+      })
+      .mockResolvedValueOnce([
+        { ...mockInitialMentors[0], user_id: 301, name: 'Filtered Mentor' },
+      ]);
+
+    const { result, rerender } = renderHook(() =>
+      useMentorPool({
+        initialMentors: largeInitialMentors,
+        initialMentorCount: PAGE_LIMIT,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
+        labelMap: testLabelMap,
+      })
+    );
+
+    // Start loadMore while unfiltered
+    let scrollDonePromise!: Promise<void>;
+    act(() => {
+      scrollDonePromise = result.current.handleScrollToBottom();
+    });
+
+    expect(capturedSignal).toBeDefined();
+    expect(capturedSignal?.aborted).toBe(false);
+
+    // Switch filter conditions while loadMore is still in flight
+    mockSearchParams.toString.mockReturnValue('q=filtered');
+    mockSearchParams.get.mockImplementation((key) =>
+      key === 'q' ? 'filtered' : null
+    );
+    rerender();
+
+    expect(capturedSignal?.aborted).toBe(true);
+
+    // Reject the aborted loadMore promise and verify no error toast is triggered
+    await act(async () => {
+      rejectLoadMore(new Error('Network cancelled'));
+      await scrollDonePromise.catch(() => {});
+    });
+
+    expect(mockToast).not.toHaveBeenCalled();
+    expect(result.current.mentors[0].name).toBe('Filtered Mentor');
+  });
+
+  it('preserves multi-page state accumulated via appendPage when switching between filter conditions and back (#786)', async () => {
+    mockSearchParams.toString.mockReturnValue('q=multi');
+    mockSearchParams.get.mockImplementation((key) =>
+      key === 'q' ? 'multi' : null
+    );
+
+    const page1 = Array.from({ length: PAGE_LIMIT }, (_, i) => ({
+      ...mockInitialMentors[0],
+      user_id: 400 + i,
+      name: `Multi Page 1 #${i}`,
+      updated_at: 1000 + i,
+    }));
+    const page2 = [
+      {
+        ...mockInitialMentors[0],
+        user_id: 500,
+        name: 'Multi Page 2 #0',
+        updated_at: 2000,
+      },
+    ];
+    const otherFilterPage = [
+      {
+        ...mockInitialMentors[0],
+        user_id: 600,
+        name: 'Other Filter Mentor',
+        updated_at: 3000,
+      },
+    ];
+
+    mockFetchMentors
+      .mockResolvedValueOnce(page1)
+      .mockResolvedValueOnce(page2)
+      .mockResolvedValueOnce(otherFilterPage);
+
+    const { result, rerender } = renderHook(() =>
+      useMentorPool({
+        initialMentors: mockInitialMentors,
+        initialMentorCount: 1,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
+        labelMap: testLabelMap,
+      })
+    );
+
+    await act(async () => {});
+    expect(result.current.mentors.length).toBe(PAGE_LIMIT);
+
+    // Append page 2 via infinite scroll
+    await act(async () => {
+      await result.current.handleScrollToBottom();
+    });
+    expect(result.current.mentors.length).toBe(PAGE_LIMIT + 1);
+    expect(result.current.mentorCount).toBe(PAGE_LIMIT + 1);
+
+    // Navigate to q=other
+    mockSearchParams.toString.mockReturnValue('q=other');
+    mockSearchParams.get.mockImplementation((key) =>
+      key === 'q' ? 'other' : null
+    );
+    rerender();
+    await act(async () => {});
+    expect(result.current.mentors.length).toBe(1);
+    expect(result.current.mentors[0].name).toBe('Other Filter Mentor');
+    expect(mockFetchMentors).toHaveBeenCalledTimes(3);
+
+    // Navigate back to q=multi -> all PAGE_LIMIT + 1 mentors and mentorCount are preserved without a 4th fetch
+    mockSearchParams.toString.mockReturnValue('q=multi');
+    mockSearchParams.get.mockImplementation((key) =>
+      key === 'q' ? 'multi' : null
+    );
+    rerender();
+    expect(result.current.mentors.length).toBe(PAGE_LIMIT + 1);
+    expect(result.current.mentors.at(-1)?.name).toBe('Multi Page 2 #0');
+    expect(result.current.mentorCount).toBe(PAGE_LIMIT + 1);
+    expect(mockFetchMentors).toHaveBeenCalledTimes(3);
+  });
 });
 
 describe('applyMentorPage', () => {

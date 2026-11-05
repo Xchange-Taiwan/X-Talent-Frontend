@@ -1,15 +1,11 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useMemo, useTransition } from 'react';
+import { useMemo } from 'react';
 
-import type {
-  FilterOptions,
-  SelectFilters,
-} from '@/components/filter/MentorFilterDropdown';
+import type { FilterOptions } from '@/components/filter/MentorFilterDropdown';
 import { useMentorPool } from '@/hooks/useMentorPool';
+import { useMentorPoolFilters } from '@/hooks/useMentorPoolFilters';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
-import { trackEvent } from '@/lib/analytics';
 import { buildTagLabelMap } from '@/lib/profile/tagLabelMap';
 import type { MentorType } from '@/types/mentor';
 import type {
@@ -18,13 +14,6 @@ import type {
 } from '@/types/tagCatalog';
 
 import { filterOptions } from './data';
-import {
-  buildHref,
-  clearAllConditions,
-  parseFiltersFromParams,
-  removeFilterFromParams,
-  setSelectedFiltersOnParams,
-} from './searchParams';
 import MentorPoolUI from './ui';
 
 // BE search index stores filter targets (industry, skills, topics) as the
@@ -65,10 +54,6 @@ export default function MentorPoolContainer({
   initialTagCatalog,
   initialError,
 }: Props) {
-  const router = useRouter();
-  const params = useSearchParams();
-  const [isPending, startTransition] = useTransition();
-  const selectedFilters = parseFiltersFromParams(params);
   const tagCatalog = useTagCatalog('zh_TW', initialTagCatalog);
 
   const dynamicFilterOptions = useMemo<FilterOptions>(
@@ -90,6 +75,16 @@ export default function MentorPoolContainer({
     [tagCatalog.have_skill, tagCatalog.have_topic, tagCatalog.industry]
   );
 
+  const {
+    params,
+    selectedFilters,
+    activeFilterBadges,
+    isReplacing,
+    setFilters,
+    removeFilter,
+    clearAll,
+  } = useMentorPoolFilters({ filterOptions: dynamicFilterOptions });
+
   const labelMap = useMemo(() => buildTagLabelMap(tagCatalog), [tagCatalog]);
 
   // All state management, pagination tracking, and error handling are delegated to custom hook
@@ -108,46 +103,19 @@ export default function MentorPoolContainer({
     initialError,
   });
 
-  const handleFilterChange = useCallback(
-    (filters: SelectFilters) => {
-      const next = setSelectedFiltersOnParams(params, filters);
-      startTransition(() => {
-        router.push(buildHref(next));
-      });
-    },
-    [params, router]
-  );
-
-  const handleRemoveFilter = useCallback(
-    (key: string) => {
-      const next = removeFilterFromParams(params, key);
-      startTransition(() => {
-        router.push(buildHref(next));
-      });
-    },
-    [params, router]
-  );
-
-  const handleClearAll = useCallback(() => {
-    trackEvent({ name: 'mentor_pool_clear_all_filters_click' });
-    const next = clearAllConditions(params);
-    startTransition(() => {
-      router.push(buildHref(next));
-    });
-  }, [params, router]);
-
   return (
     <MentorPoolUI
       mentors={mentors}
       mentorCount={mentorCount}
       isLoading={isLoading}
-      isReplacing={isPending}
+      isReplacing={isReplacing}
       listStatus={listStatus}
       selectedFilters={selectedFilters}
+      activeFilterBadges={activeFilterBadges}
       filterOptions={dynamicFilterOptions}
-      onFilterChange={handleFilterChange}
-      onRemoveFilter={handleRemoveFilter}
-      onClearAll={handleClearAll}
+      onFilterChange={setFilters}
+      onRemoveFilter={removeFilter}
+      onClearAll={clearAll}
       onScrollToBottom={handleScrollToBottom}
       onRetry={handleRetry}
     />

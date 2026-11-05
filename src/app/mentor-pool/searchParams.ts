@@ -1,8 +1,35 @@
 import type { ReadonlyURLSearchParams } from 'next/navigation';
 
-import type { SelectFilters } from '@/components/filter/MentorFilterDropdown';
+import type {
+  FilterOptions,
+  SelectFilters,
+} from '@/components/filter/MentorFilterDropdown';
 
 import { filterOptions } from './data';
+
+export interface ActiveFilterBadge {
+  key: string;
+  name: string;
+  value: string;
+  label: string;
+}
+
+export function resolveActiveFilterBadges(
+  selectedFilters: SelectFilters,
+  options: FilterOptions = filterOptions
+): ActiveFilterBadge[] {
+  return Object.entries(selectedFilters).map(([key, filter]) => {
+    const label =
+      options[key]?.options.find((o) => o.value === filter.value)?.label ??
+      filter.value;
+    return {
+      key,
+      name: filter.name,
+      value: filter.value,
+      label,
+    };
+  });
+}
 
 const SEARCH_PARAM_KEY = 'q';
 

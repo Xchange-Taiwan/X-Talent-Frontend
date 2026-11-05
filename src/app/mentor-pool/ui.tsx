@@ -14,6 +14,10 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import type { MentorType } from '@/types/mentor';
 
 import PopularPositionChips from './PopularPositionChips';
+import {
+  type ActiveFilterBadge,
+  resolveActiveFilterBadges,
+} from './searchParams';
 
 interface Props {
   mentors: MentorType[];
@@ -22,6 +26,7 @@ interface Props {
   isReplacing: boolean;
   listStatus: 'loading' | 'error' | 'empty' | 'success';
   selectedFilters: SelectFilters;
+  activeFilterBadges?: ActiveFilterBadge[];
   filterOptions: FilterOptions;
   onFilterChange: (opts: SelectFilters) => void;
   onRemoveFilter: (key: string) => void;
@@ -37,6 +42,7 @@ export default function MentorPoolUI({
   isReplacing,
   listStatus,
   selectedFilters,
+  activeFilterBadges,
   filterOptions,
   onFilterChange,
   onRemoveFilter,
@@ -44,6 +50,9 @@ export default function MentorPoolUI({
   onScrollToBottom,
   onRetry,
 }: Props) {
+  const badges =
+    activeFilterBadges ??
+    resolveActiveFilterBadges(selectedFilters, filterOptions);
   const hasMentors = listStatus === 'success';
   const showOverlay = hasMentors && isReplacing;
   const showFullSpinner = listStatus === 'loading';
@@ -70,36 +79,28 @@ export default function MentorPoolUI({
           </div>
         </div>
         <div className="mb-5 flex flex-wrap gap-3">
-          {Object.entries(selectedFilters).map(([key, filter]) => {
-            // URL params persist the BE `subject_group` code; resolve back to
-            // the localized `subject` label for display, falling back to the
-            // code if the tag isn't in the current catalog.
-            const label =
-              filterOptions[key]?.options.find((o) => o.value === filter.value)
-                ?.label ?? filter.value;
-            return (
-              <Badge
-                key={key}
-                variant={'filter'}
-                className="text-sm leading-5 font-medium"
+          {badges.map(({ key, name, label }) => (
+            <Badge
+              key={key}
+              variant={'filter'}
+              className="text-sm leading-5 font-medium"
+            >
+              <span>
+                {name}: {label}
+              </span>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onRemoveFilter(key);
+                }}
+                aria-label={`移除「${name}：${label}」篩選`}
+                className="focus-visible:ring-ring inline-flex items-center rounded-sm bg-transparent p-0 hover:opacity-70 focus:outline-none focus-visible:ring-2"
               >
-                <span>
-                  {filter.name}: {label}
-                </span>
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onRemoveFilter(key);
-                  }}
-                  aria-label={`移除「${filter.name}：${label}」篩選`}
-                  className="focus-visible:ring-ring inline-flex items-center rounded-sm bg-transparent p-0 hover:opacity-70 focus:outline-none focus-visible:ring-2"
-                >
-                  <XIcon className="size-4" aria-hidden />
-                </button>
-              </Badge>
-            );
-          })}
+                <XIcon className="size-4" aria-hidden />
+              </button>
+            </Badge>
+          ))}
         </div>
         {hasMentors && (
           <div className="relative mb-6">
