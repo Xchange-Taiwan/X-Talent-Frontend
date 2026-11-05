@@ -124,45 +124,68 @@ export function readCookie(name: string): string | undefined {
   return safeDecodeURIComponent(raw);
 }
 
+import type { PersonalLink } from '@/types/types';
+
+export interface ResolvedIdentitySummaryFields {
+  name?: string;
+  jobTitle?: string;
+  company?: string;
+  personalLinks?: PersonalLink[];
+}
+
 export type ResolvedIdentity =
-  | {
+  | ({
       state: 'unknown';
       userId: undefined;
       avatar: undefined;
       isMentor: false;
-    }
-  | {
+    } & ResolvedIdentitySummaryFields)
+  | ({
       state: 'hint-only';
       userId: undefined;
       avatar: string | undefined;
       isMentor: boolean;
-    }
-  | {
+    } & ResolvedIdentitySummaryFields)
+  | ({
       state: 'confirmed-guest';
       userId: undefined;
       avatar: undefined;
       isMentor: false;
-    }
-  | {
+    } & ResolvedIdentitySummaryFields)
+  | ({
       state: 'confirmed-member';
       userId: string;
       avatar: string | undefined;
       isMentor: boolean;
-    };
+    } & ResolvedIdentitySummaryFields);
+
+export interface OptimisticIdentityOverlay {
+  name?: string;
+  avatar?: string | null;
+  isMentor?: boolean;
+  jobTitle?: string;
+  company?: string;
+  personalLinks?: PersonalLink[];
+}
 
 export function resolveIdentity(
   session:
     | {
         user?: {
           id?: string | number;
+          name?: string | null;
           avatar?: string | null;
           isMentor?: boolean;
+          jobTitle?: string | null;
+          company?: string | null;
+          personalLinks?: PersonalLink[];
         };
       }
     | null
     | undefined,
   status: 'loading' | 'authenticated' | 'unauthenticated',
-  hintInput?: SessionHint | null
+  hintInput?: SessionHint | null,
+  optimisticOverlay?: OptimisticIdentityOverlay
 ): ResolvedIdentity {
   const hasFullUser = Boolean(session?.user?.id);
   const sessionSettled = hasFullUser || status !== 'loading';
@@ -195,13 +218,31 @@ export function resolveIdentity(
 
   if (hasFullUser) {
     const userId = String(session!.user!.id);
-    const isMentor = Boolean(session?.user?.isMentor);
-    const avatar = session?.user?.avatar ?? undefined;
+    const isMentor =
+      optimisticOverlay?.isMentor !== undefined
+        ? Boolean(optimisticOverlay.isMentor)
+        : Boolean(session?.user?.isMentor);
+    const avatar =
+      optimisticOverlay !== undefined && 'avatar' in optimisticOverlay
+        ? (optimisticOverlay.avatar ?? undefined)
+        : (session?.user?.avatar ?? undefined);
+    const name = optimisticOverlay?.name ?? session?.user?.name ?? undefined;
+    const jobTitle =
+      optimisticOverlay?.jobTitle ?? session?.user?.jobTitle ?? undefined;
+    const company =
+      optimisticOverlay?.company ?? session?.user?.company ?? undefined;
+    const personalLinks =
+      optimisticOverlay?.personalLinks ?? session?.user?.personalLinks;
+
     return {
       state: 'confirmed-member',
       userId,
       avatar,
       isMentor,
+      ...(name !== undefined ? { name } : {}),
+      ...(jobTitle !== undefined ? { jobTitle } : {}),
+      ...(company !== undefined ? { company } : {}),
+      ...(personalLinks !== undefined ? { personalLinks } : {}),
     };
   }
 

@@ -2,13 +2,11 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useSession } from 'next-auth/react';
-import { memo, useMemo } from 'react';
+import { memo } from 'react';
 
 import LogoImgUrl from '@/assets/logo.svg';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
-import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
 import { trackEvent } from '@/lib/analytics';
 import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { HOVER_NAV_UNDERLINE_CLASSES } from '@/lib/ui/hoverStyles';
@@ -32,27 +30,9 @@ const NAV_LINK_CLASSES = cn(
 const NAV_LINK_HOVER_CLASSES = HOVER_NAV_UNDERLINE_CLASSES;
 
 function HeaderComponent(): JSX.Element {
-  const { data: session } = useSession();
-  const currentAvatar = useCurrentAvatar();
   const identity = useResolvedIdentity();
 
   const isHintOnly = identity.state === 'hint-only';
-
-  const virtualUser = useMemo(() => {
-    if (session?.user) {
-      return {
-        ...session.user,
-        avatar: currentAvatar ?? undefined,
-      };
-    }
-    return {
-      id: identity.userId,
-      isMentor: identity.isMentor,
-      avatar: currentAvatar ?? undefined,
-      name: '',
-      email: '',
-    };
-  }, [session?.user, identity.userId, identity.isMentor, currentAvatar]);
 
   // `userId` only ever comes from the real session, never the hint — while
   // the state is hint-only these hrefs are unused (the link is disabled).
@@ -160,7 +140,7 @@ function HeaderComponent(): JSX.Element {
                   userId={identity.userId}
                   key={identity.userId ?? 'guest'}
                 />
-                <UserDropdown identity={identity} user={virtualUser} />
+                <UserDropdown identity={identity} />
               </>
             )}
           </div>
@@ -180,7 +160,7 @@ function HeaderComponent(): JSX.Element {
                   userId={identity.userId}
                   key={identity.userId ?? 'guest'}
                 />
-                <MobileUserMenu identity={identity} user={virtualUser} />
+                <MobileUserMenu identity={identity} />
               </>
             )}
             <HamburgerMenu identity={identity} />

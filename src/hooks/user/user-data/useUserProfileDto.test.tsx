@@ -7,6 +7,7 @@ import { mockUserDTO } from '@/test/fixtures/profile';
 import {
   clearUserProfileDtoCache,
   getLastPrimedTime,
+  hasDtoConverged,
   primeUserProfileDtoCache,
   useUserProfileDto,
 } from './useUserProfileDto';
@@ -391,5 +392,121 @@ describe('useUserProfileDto', () => {
 
     unmount();
     unmountStale();
+  });
+
+  it('retains primed optimistic DTO during the transition window when background revalidation returns a non-converged stale DTO (#785)', async () => {
+    const primedDto = {
+      ...mockUserDTO,
+      name: 'Optimistic Updated Name',
+      job_title: 'Principal Engineer',
+      company: 'New Corp',
+      is_mentor: true,
+    };
+    const staleBackendDto = {
+      ...mockUserDTO,
+      name: 'Old Stale Name',
+      job_title: 'Junior Engineer',
+      company: 'Old Corp',
+      is_mentor: false,
+    };
+
+    vi.mocked(fetchUserById).mockReset();
+    vi.mocked(fetchUserById).mockResolvedValueOnce(staleBackendDto);
+
+    // 1. Initial fetch populates cache
+    const { result, unmount } = renderHook(() =>
+      useUserProfileDto(30, 'zh-TW')
+    );
+    await vi.waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+    expect(result.current.userDto).toEqual(staleBackendDto);
+
+    // 2. Advance past TTL (60,000 ms) so mounting a second consumer triggers background SWR revalidation
+    vi.advanceTimersByTime(60001);
+
+    let resolveBackgroundFetch!: (val: typeof mockUserDTO) => void;
+    const backgroundFetchPromise = new Promise<typeof mockUserDTO>(
+      (resolve) => {
+        resolveBackgroundFetch = resolve;
+      }
+    );
+    vi.mocked(fetchUserById).mockReturnValueOnce(backgroundFetchPromise);
+
+    const { result: revalResult, unmount: unmountReval } = renderHook(() =>
+      useUserProfileDto(30, 'zh-TW')
+    );
+
+    await vi.waitFor(() => {
+      expect(fetchUserById).toHaveBeenCalledTimes(2);
+    });
+
+    // 3. Prime optimistic DTO while background revalidation is in flight (enters 10s transition window)
+    act(() => {
+      primeUserProfileDtoCache(30, 'zh-TW', primedDto);
+    });
+
+    // 4. Resolve the in-flight background revalidation with the non-converged staleBackendDto
+    await act(async () => {
+      resolveBackgroundFetch(staleBackendDto);
+      await backgroundFetchPromise;
+    });
+
+    // Wait for the background fetch resolution to propagate through resolveUserProfileDtoFetch:
+    // because staleBackendDto has not converged with primedDto, userDto becomes primedDto (not staleBackendDto)
+    await vi.waitFor(() => {
+      expect(revalResult.current.userDto).toEqual(primedDto);
+    });
+
+    unmount();
+    unmountReval();
+  });
+
+  it('accepts incoming backend DTO during background revalidation once hasDtoConverged is true, and protects deleted avatars (primed.avatar = null) from stale URLs (#785)', async () => {
+    const primedClearedAvatar = {
+      ...mockUserDTO,
+      name: 'Avatar Cleared User',
+      avatar: null,
+    } as unknown as typeof mockUserDTO;
+    const staleWithOldAvatar = {
+      ...mockUserDTO,
+      name: 'Avatar Cleared User',
+      avatar: 'https://example.com/old-avatar.png',
+    };
+
+    expect(hasDtoConverged(primedClearedAvatar, staleWithOldAvatar)).toBe(
+      false
+    );
+    expect(hasDtoConverged(primedClearedAvatar, primedClearedAvatar)).toBe(
+      true
+    );
+
+    const primedWithAvatar = {
+      ...mockUserDTO,
+      name: 'Converged User',
+      avatar: 'https://example.com/new.png',
+    };
+    const backendConvergedWithQuery = {
+      ...mockUserDTO,
+      name: 'Converged User',
+      avatar: 'https://example.com/new.png?cb=123',
+    };
+    expect(hasDtoConverged(primedWithAvatar, backendConvergedWithQuery)).toBe(
+      true
+    );
+
+    // Also verify manual force refetch bypasses optimistic convergence protection
+    vi.mocked(fetchUserById).mockReset();
+    vi.mocked(fetchUserById).mockResolvedValue(staleWithOldAvatar);
+    primeUserProfileDtoCache(31, 'zh-TW', primedWithAvatar);
+
+    const { result } = renderHook(() => useUserProfileDto(31, 'zh-TW'));
+    act(() => {
+      result.current.refetch?.();
+    });
+
+    await vi.waitFor(() => {
+      expect(result.current.userDto).toEqual(staleWithOldAvatar);
+    });
   });
 });

@@ -108,13 +108,14 @@ describe('useOnboardingSubmit', () => {
         id: '123',
         name: 'New Name',
         avatar: 'new-avatar.png',
+        isMentor: false,
         onBoarding: true,
         avatarUpdatedAt: expect.any(Number),
       },
     });
   });
 
-  it('should fallback to clearUserDataCache if session userId is invalid', async () => {
+  it('should skip priming cache with NaN if session userId is invalid', async () => {
     const formData = {
       name: 'New Name',
       avatar: 'new-avatar.png',
@@ -147,7 +148,7 @@ describe('useOnboardingSubmit', () => {
       formData
     );
     expect(mockPrimeUserDataCache).not.toHaveBeenCalled();
-    expect(mockClearUserDataCache).toHaveBeenCalledWith(NaN, 'zh_TW');
+    expect(mockClearUserDataCache).not.toHaveBeenCalled();
   });
 
   it('should capture failure and rethrow error when API fails', async () => {

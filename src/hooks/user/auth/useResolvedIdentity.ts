@@ -3,6 +3,7 @@
 import { useSession } from 'next-auth/react';
 import { useEffect, useMemo, useState } from 'react';
 
+import { useOptimisticIdentity } from '@/hooks/user/identity/useOptimisticIdentity';
 import {
   clearSessionHint,
   decodeSessionHint,
@@ -67,14 +68,19 @@ export function useResolvedIdentity(): ResolvedIdentity {
   const { data: session, status } = useSession();
   const [hint, setHint] = useState<SessionHint | null | undefined>(undefined);
 
+  const sessionUserId = session?.user?.id ? Number(session.user.id) : NaN;
+  const optimisticPatch = useOptimisticIdentity(
+    Number.isFinite(sessionUserId) ? sessionUserId : null
+  );
+
   useEffect(() => {
     const rawCookie = readCookie(SESSION_HINT_COOKIE);
     setHint(rawCookie !== undefined ? decodeSessionHint(rawCookie) : undefined);
   }, [session, status]);
 
   const identity = useMemo(
-    () => resolveIdentity(session, status, hint),
-    [session, status, hint]
+    () => resolveIdentity(session, status, hint, optimisticPatch),
+    [session, status, hint, optimisticPatch]
   );
 
   useEffect(() => {

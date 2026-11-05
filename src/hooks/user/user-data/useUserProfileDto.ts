@@ -6,8 +6,12 @@ import type { MentorProfileVO } from '@/types/user';
 
 import {
   clearUserProfileDtoCache,
+  getEffectiveInitialDto,
   getLastPrimedTime,
+  hasDtoConverged,
   primeUserProfileDtoCache,
+  resolveUserProfileDtoFetch,
+  shouldCacheUserProfileDto,
   USER_PROFILE_DTO_CACHE_TTL_MS,
   userProfileDtoReadManager,
 } from './userProfileDtoCache';
@@ -15,6 +19,7 @@ import {
 export {
   clearUserProfileDtoCache,
   getLastPrimedTime,
+  hasDtoConverged,
   primeUserProfileDtoCache,
   USER_PROFILE_DTO_CACHE_TTL_MS,
 };
@@ -40,12 +45,7 @@ export function useUserProfileDto(
   options?: { enabled?: boolean }
 ): UseUserProfileDtoResult {
   const key = userId && language ? `${userId}-${language}` : null;
-
-  // If we already have a client-side primed cache entry, do NOT pass initialData to useAsyncRead
-  // to prevent it from being overwritten by the stale/older SSR initialData.
-  const hasCache = key ? userProfileDtoReadManager.has(key) : false;
-  const effectiveInitialData = hasCache ? undefined : initialData;
-
+  const effectiveInitialData = getEffectiveInitialDto(key, initialData);
   const bypassKey = options?.enabled === false ? null : key;
 
   const {
@@ -56,33 +56,16 @@ export function useUserProfileDto(
   } = useAsyncRead(
     userProfileDtoReadManager,
     bypassKey,
-    async (signal, context) => {
-      const isManualRefetch = !!context?.force;
-      try {
-        const res = await fetchUserById(userId, language, signal);
-
-        if (res === null && key) {
-          if (isManualRefetch) {
-            userProfileDtoReadManager.evict(key);
-            return null;
-          }
-          const existing = userProfileDtoReadManager.get(key);
-          if (existing) {
-            return existing;
-          }
-        }
-        return res;
-      } catch (err) {
-        if (isManualRefetch && key) {
-          userProfileDtoReadManager.evict(key);
-        }
-        throw err;
-      }
-    },
+    (signal, context) =>
+      resolveUserProfileDtoFetch(
+        key,
+        (s) => fetchUserById(userId, language, s),
+        signal,
+        context
+      ),
     {
       initialData: effectiveInitialData,
-      shouldCache: (res) =>
-        res !== null && (!key || res !== userProfileDtoReadManager.get(key)),
+      shouldCache: (res) => shouldCacheUserProfileDto(key, res),
     }
   );
 
