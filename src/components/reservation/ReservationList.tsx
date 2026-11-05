@@ -1,5 +1,7 @@
 'use client';
 
+import { CalendarX2 } from 'lucide-react';
+import Link from 'next/link';
 import type * as React from 'react';
 
 import AcceptReservationDialog from '@/components/reservation/AcceptReservationDialog';
@@ -29,6 +31,42 @@ const cardVariantOf = (variant: Variant): ReservationCardVariant =>
     : variant === 'history'
       ? 'history'
       : 'pending';
+
+function resolveEmptyStateContent(
+  sourceRole: SourceRole,
+  variant: Variant,
+  myUserId: string | undefined
+): {
+  description: string;
+  ctaLabel?: string;
+  ctaHref?: string;
+} {
+  if (sourceRole === 'mentee') {
+    const description =
+      variant === 'upcoming'
+        ? '目前還沒有即將到來的預約，立即前往導師池尋找適合的導師吧！'
+        : variant === 'pending-mentee'
+          ? '目前還沒有等待回復的預約，前往導師池探索並向導師提出預約申請吧！'
+          : '目前還沒有歷史預約紀錄，前往導師池展開你的第一場職涯交流吧！';
+    return {
+      description,
+      ctaLabel: '前往尋找導師',
+      ctaHref: '/mentor-pool',
+    };
+  }
+
+  const description =
+    variant === 'upcoming'
+      ? '目前還沒有即將到來的預約，前往個人頁面確認或新增可預約時段，讓學員更容易找到你！'
+      : variant === 'pending-mentor'
+        ? '目前還沒有待您回復的預約申請，前往個人頁面管理可預約時段以提升預約率！'
+        : '目前還沒有歷史預約紀錄，前往個人頁面設定可預約時段，開始你的導師交流之旅吧！';
+  return {
+    description,
+    ctaLabel: myUserId ? '管理可預約時段' : undefined,
+    ctaHref: myUserId ? `/profile/${myUserId}` : undefined,
+  };
+}
 
 /**
  * Individual Reservation List Item holding its own independent loading and action state.
@@ -151,6 +189,8 @@ export function ReservationList({
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
 }) {
+  const emptyState = resolveEmptyStateContent(sourceRole, variant, myUserId);
+
   return (
     <div className="space-y-3 sm:space-y-4">
       {items.map((it) => (
@@ -165,8 +205,22 @@ export function ReservationList({
 
       {items.length === 0 && (
         <Card className="border-dashed">
-          <CardContent className="text-text-tertiary p-8 text-center">
-            目前尚無資料
+          <CardContent className="flex flex-col items-center justify-center gap-2 p-8 text-center">
+            <CalendarX2
+              className="text-text-tertiary mb-1 size-10"
+              aria-hidden="true"
+            />
+            <p className="text-text-primary text-base font-medium">
+              目前尚無資料
+            </p>
+            <p className="text-text-secondary max-w-md text-sm">
+              {emptyState.description}
+            </p>
+            {emptyState.ctaLabel && emptyState.ctaHref && (
+              <Button asChild className="mt-2 rounded-full px-6">
+                <Link href={emptyState.ctaHref}>{emptyState.ctaLabel}</Link>
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}

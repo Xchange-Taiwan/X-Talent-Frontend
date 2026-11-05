@@ -317,4 +317,88 @@ describe('ReservationList', () => {
     const card = screen.getByTestId('reservation-card-res-abc');
     expect(card).toHaveAttribute('data-profile-href', '/profile/user-456');
   });
+
+  describe('Empty State guidance & CTA (#806)', () => {
+    it.each([
+      [
+        'upcoming' as const,
+        '目前還沒有即將到來的預約，立即前往導師池尋找適合的導師吧！',
+      ],
+      [
+        'pending-mentee' as const,
+        '目前還沒有等待回復的預約，前往導師池探索並向導師提出預約申請吧！',
+      ],
+      [
+        'history' as const,
+        '目前還沒有歷史預約紀錄，前往導師池展開你的第一場職涯交流吧！',
+      ],
+    ])(
+      'renders contextual mentee empty state and "前往尋找導師" CTA link to /mentor-pool for %s tab',
+      (variant, expectedCopy) => {
+        render(
+          <ReservationList
+            items={[]}
+            variant={variant}
+            sourceRole="mentee"
+            myUserId="user-123"
+          />
+        );
+
+        expect(screen.getByText('目前尚無資料')).toBeInTheDocument();
+        expect(screen.getByText(expectedCopy)).toBeInTheDocument();
+
+        const ctaLink = screen.getByRole('link', { name: '前往尋找導師' });
+        expect(ctaLink).toHaveAttribute('href', '/mentor-pool');
+      }
+    );
+
+    it.each([
+      [
+        'upcoming' as const,
+        '目前還沒有即將到來的預約，前往個人頁面確認或新增可預約時段，讓學員更容易找到你！',
+      ],
+      [
+        'pending-mentor' as const,
+        '目前還沒有待您回復的預約申請，前往個人頁面管理可預約時段以提升預約率！',
+      ],
+      [
+        'history' as const,
+        '目前還沒有歷史預約紀錄，前往個人頁面設定可預約時段，開始你的導師交流之旅吧！',
+      ],
+    ])(
+      'renders contextual mentor empty state and "管理可預約時段" CTA link to /profile/:id for %s tab',
+      (variant, expectedCopy) => {
+        render(
+          <ReservationList
+            items={[]}
+            variant={variant}
+            sourceRole="mentor"
+            myUserId="mentor-789"
+          />
+        );
+
+        expect(screen.getByText('目前尚無資料')).toBeInTheDocument();
+        expect(screen.getByText(expectedCopy)).toBeInTheDocument();
+
+        const ctaLink = screen.getByRole('link', { name: '管理可預約時段' });
+        expect(ctaLink).toHaveAttribute('href', '/profile/mentor-789');
+      }
+    );
+
+    it('omits the mentor profile CTA link when myUserId is undefined', () => {
+      render(
+        <ReservationList
+          items={[]}
+          variant="upcoming"
+          sourceRole="mentor"
+          myUserId={undefined}
+        />
+      );
+
+      expect(screen.getByText('目前尚無資料')).toBeInTheDocument();
+      expect(
+        screen.queryByRole('link', { name: '管理可預約時段' })
+      ).not.toBeInTheDocument();
+    });
+  });
 });
