@@ -410,14 +410,56 @@ describe('useUserProfileDto', () => {
       is_mentor: false,
     };
 
-    primeUserProfileDtoCache(30, 'zh-TW', primedDto);
+    vi.mocked(fetchUserById).mockReset();
     vi.mocked(fetchUserById).mockResolvedValueOnce(staleBackendDto);
 
-    // Advance only 1s (still inside the 10s optimistic transition window)
-    vi.advanceTimersByTime(1000);
+    // 1. Initial fetch populates cache
+    const { result, unmount } = renderHook(() =>
+      useUserProfileDto(30, 'zh-TW')
+    );
+    await vi.waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+    expect(result.current.userDto).toEqual(staleBackendDto);
 
-    const { result } = renderHook(() => useUserProfileDto(30, 'zh-TW'));
-    expect(result.current.userDto).toEqual(primedDto);
+    // 2. Advance past TTL (60,000 ms) so mounting a second consumer triggers background SWR revalidation
+    vi.advanceTimersByTime(60001);
+
+    let resolveBackgroundFetch!: (val: typeof mockUserDTO) => void;
+    const backgroundFetchPromise = new Promise<typeof mockUserDTO>(
+      (resolve) => {
+        resolveBackgroundFetch = resolve;
+      }
+    );
+    vi.mocked(fetchUserById).mockReturnValueOnce(backgroundFetchPromise);
+
+    const { result: revalResult, unmount: unmountReval } = renderHook(() =>
+      useUserProfileDto(30, 'zh-TW')
+    );
+
+    await vi.waitFor(() => {
+      expect(fetchUserById).toHaveBeenCalledTimes(2);
+    });
+
+    // 3. Prime optimistic DTO while background revalidation is in flight (enters 10s transition window)
+    act(() => {
+      primeUserProfileDtoCache(30, 'zh-TW', primedDto);
+    });
+
+    // 4. Resolve the in-flight background revalidation with the non-converged staleBackendDto
+    await act(async () => {
+      resolveBackgroundFetch(staleBackendDto);
+      await backgroundFetchPromise;
+    });
+
+    // Wait for the background fetch resolution to propagate through resolveUserProfileDtoFetch:
+    // because staleBackendDto has not converged with primedDto, userDto becomes primedDto (not staleBackendDto)
+    await vi.waitFor(() => {
+      expect(revalResult.current.userDto).toEqual(primedDto);
+    });
+
+    unmount();
+    unmountReval();
   });
 
   it('accepts incoming backend DTO during background revalidation once hasDtoConverged is true, and protects deleted avatars (primed.avatar = null) from stale URLs (#785)', async () => {
