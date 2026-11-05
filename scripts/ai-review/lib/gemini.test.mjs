@@ -24,10 +24,40 @@ afterEach(() => {
 });
 
 describe('callGemini', () => {
-  it('parses a clean JSON response', async () => {
+  it('parses a clean JSON response and targets gemini-4-argon by default', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(candidateResponse('{"ok":true}'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(callGemini('prompt')).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('models/gemini-4-argon:generateContent'),
+      expect.any(Object)
+    );
+  });
+
+  it('ignores thought parts before parsing the JSON response', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValueOnce(candidateResponse('{"ok":true}'))
+      vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          candidates: [
+            {
+              finishReason: 'STOP',
+              content: {
+                parts: [
+                  { thought: true, text: 'thinking about the diff...' },
+                  { text: '{"ok":true}' },
+                ],
+              },
+            },
+          ],
+        }),
+        text: async () => '',
+      })
     );
 
     await expect(callGemini('prompt')).resolves.toEqual({ ok: true });

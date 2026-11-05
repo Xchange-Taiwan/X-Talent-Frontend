@@ -197,4 +197,26 @@ describe('ScheduleCalendar', () => {
 
     expect(onSelect).not.toHaveBeenCalled();
   });
+
+  it('uses xl breakpoint for desktop two-column calendar cell and typography sizing when size="profile" (#803)', () => {
+    const { container } = render(
+      <ScheduleCalendar {...defaultProps} size="profile" />
+    );
+
+    const wrapper = container.firstElementChild;
+    expect(wrapper).toHaveClass(
+      'xl:[--cell-size:3.5rem]',
+      'xl:[--calendar-day-font-size:1.25rem]',
+      'xl:[--calendar-weekday-font-size:1rem]',
+      'xl:[--calendar-caption-font-size:1rem]',
+      'xl:[--calendar-chevron-size:1.25rem]'
+    );
+    expect(wrapper).not.toHaveClass(
+      '2xl:[--cell-size:3.5rem]',
+      '2xl:[--calendar-day-font-size:1.25rem]',
+      '2xl:[--calendar-weekday-font-size:1rem]',
+      '2xl:[--calendar-caption-font-size:1rem]',
+      '2xl:[--calendar-chevron-size:1.25rem]'
+    );
+  });
 });

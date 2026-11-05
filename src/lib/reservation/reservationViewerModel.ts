@@ -9,9 +9,10 @@ import type { Reservation } from '@/types/reservation';
  */
 type ReservationViewerRole = 'mentor' | 'mentee';
 
-const CANCELLED_BY_LABEL: Record<'MENTEE' | 'MENTOR', string> = {
+const CANCELLED_BY_LABEL: Record<'MENTEE' | 'MENTOR' | 'SYSTEM', string> = {
   MENTOR: '已由導師取消',
   MENTEE: '已由學員取消',
+  SYSTEM: '已自動取消',
 };
 
 export interface ReservationViewerModel {

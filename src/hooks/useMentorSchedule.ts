@@ -30,6 +30,7 @@ import {
   SlotsSnapshot,
 } from '@/lib/profile/bookingAvailability';
 import { MonthDraftStore } from '@/lib/profile/MonthDraftStore';
+import { toDateKey } from '@/lib/profile/scheduleFormatters';
 import {
   formatTimeslot,
   monthKeyFromYearMonth,
@@ -74,8 +75,8 @@ const RESERVATIONS_READ_OPTIONS: AsyncReadOptions<
 type Options = {
   backend: {
     userId: string;
-    year: number;
-    month: number; // 1-12
+    year?: number;
+    month?: number; // 1-12
   };
   loginUserId?: string;
   /**
@@ -93,14 +94,6 @@ export type UseMentorScheduleReturn = {
   /** Sticky: true once any month has resolved. Use this for first-paint skeletons. */
   loaded: boolean;
   /**
-   * Full, unfiltered draft occurrences across all types (ALLOW/BOOKED/
-   * PENDING/FORBIDDEN), sorted chronologically. Page-level orchestration
-   * only (e.g. auto-selecting the calendar's first available date on load)
-   * - not part of either narrow domain interface below, since neither the
-   * reader nor the editor needs the *unfiltered* draft.
-   */
-  parsedDraft: ParsedMentorTimeslot[];
-  /**
    * The read-only view a mentee or visitor uses to view a mentor's booking
    * schedule. Always present.
    */
@@ -116,6 +109,24 @@ export type UseMentorScheduleReturn = {
 
 export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   const { backend, loginUserId, includeBookedDates = false } = opts;
+
+  const [cursorYear, setCursorYear] = useState<number>(
+    () => backend.year ?? new Date().getFullYear()
+  );
+  const [cursorMonth, setCursorMonth] = useState<number>(
+    () => backend.month ?? new Date().getMonth() + 1
+  );
+
+  // Sync controlled year/month props when callers pass them explicitly
+  useEffect(() => {
+    if (backend.year !== undefined) setCursorYear(backend.year);
+  }, [backend.year]);
+  useEffect(() => {
+    if (backend.month !== undefined) setCursorMonth(backend.month);
+  }, [backend.month]);
+
+  const activeYear = backend.year ?? cursorYear;
+  const activeMonth = backend.month ?? cursorMonth;
 
   // External standalone MonthDraftStore for cross-month states and
   // synchronization logic. It reads already-cached months straight off the
@@ -137,9 +148,17 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   const { dirtyMonths, allDraftSlots: allDraftRaws } = storeState;
 
   const [loaded, setLoaded] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<string | null>(
+  const [selectedDate, setSelectedDateState] = useState<string | null>(
     dayjs().format('YYYY-MM-DD')
   );
+  const [selectedSlot, setSelectedSlot] = useState<BookingSlot | null>(null);
+  const hasAutoSelectedRef = useRef(false);
+
+  const setSelectedDate = useCallback((nextDate: string | null) => {
+    setSelectedDateState(nextDate);
+    setSelectedSlot(null);
+  }, []);
+
   // Purely a presentation flag for a *user-triggered* reload (the calendar's
   // retry button, or a quick-reply accept/reject). The read model only reports
   // `isLoading` to the reader that asked for the refresh, and here that is
@@ -149,7 +168,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   // whose response is allowed to win is entirely the read model's business.
   const [isReloadingSchedule, setIsReloadingSchedule] = useState(false);
 
-  const currentMonthKey = monthKeyFromYearMonth(backend.year, backend.month);
+  const currentMonthKey = monthKeyFromYearMonth(activeYear, activeMonth);
 
   // The viewer only manages their own schedule when they're logged in as the
   // profile being viewed - a mentee/visitor (loginUserId unset or pointing
@@ -166,10 +185,10 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   // rather than a fresh object literal per render.
   const scheduleKey = useMemo<ScheduleReadKey | null>(
     () =>
-      backend.userId && backend.year && backend.month
-        ? { userId: backend.userId, year: backend.year, month: backend.month }
+      backend.userId && activeYear && activeMonth
+        ? { userId: backend.userId, year: activeYear, month: activeMonth }
         : null,
-    [backend.userId, backend.year, backend.month]
+    [backend.userId, activeYear, activeMonth]
   );
 
   const fetchMonthRaws = useCallback(
@@ -234,15 +253,15 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   // `res.next_dtend >= endOfMonthUnix` pagination-loop guard downstream.
   const endOfMonthUnix = useMemo(
     () =>
-      backend.year && backend.month
-        ? dayjs(new Date(backend.year, backend.month - 1, 1))
+      activeYear && activeMonth
+        ? dayjs(new Date(activeYear, activeMonth - 1, 1))
             .endOf('month')
             .unix()
         : 0,
-    [backend.year, backend.month]
+    [activeYear, activeMonth]
   );
 
-  const reservationsActive = isOwner && !!backend.year && !!backend.month;
+  const reservationsActive = isOwner && !!activeYear && !!activeMonth;
 
   const upcomingKey = useMemo<ReservationReadKey | null>(
     () =>
@@ -357,6 +376,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       reservationReadModel.clear();
       store.clearAll();
       setLoaded(false);
+      hasAutoSelectedRef.current = false;
     }
     prevUserIdRef.current = backend.userId;
   }, [backend.userId, store]);
@@ -365,7 +385,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   // forward navigation hits cache. Past months are intentionally skipped.
   useEffect(() => {
     if (!loaded || !backend.userId) return;
-    const next = dayjs(new Date(backend.year, backend.month - 1, 1)).add(
+    const next = dayjs(new Date(activeYear, activeMonth - 1, 1)).add(
       1,
       'month'
     );
@@ -377,7 +397,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       });
     }, 0);
     return () => clearTimeout(handle);
-  }, [loaded, backend.userId, backend.year, backend.month]);
+  }, [loaded, backend.userId, activeYear, activeMonth]);
 
   // --------------------------------------------------------------------
   // Derived view models
@@ -411,10 +431,71 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       draftRows: allDraftRaws,
       nowSec,
       includeBookedDates,
+      selectedDate,
+      reservations,
     });
-  }, [allDraftRaws, includeBookedDates]);
+  }, [allDraftRaws, includeBookedDates, selectedDate, reservations]);
 
-  const { allowedDates, bookingStatusByDate } = availabilityModel;
+  const {
+    allowedDates,
+    availableDates,
+    bookedDates,
+    earliestSelectableDate,
+    bookingStatusByDate,
+    slotsWithMeta,
+    futureSlots,
+  } = availabilityModel;
+
+  // Initial earliest-date auto-selection once the schedule has loaded
+  useEffect(() => {
+    if (!loaded || hasAutoSelectedRef.current) return;
+    const firstAllow =
+      earliestSelectableDate ??
+      parsedDraft.find((s) => s.type === 'ALLOW')?.dateKey ??
+      null;
+    if (!firstAllow) return;
+    hasAutoSelectedRef.current = true;
+    setSelectedDate(firstAllow);
+    const [y, m] = firstAllow.split('-').map(Number);
+    if (y && m) {
+      setCursorYear(y);
+      setCursorMonth(m);
+    }
+  }, [loaded, earliestSelectableDate, parsedDraft, setSelectedDate]);
+
+  const handleMonthChange = useCallback(
+    (date: Date, options?: { preserveSelectedDate?: boolean }) => {
+      const newYear = date.getFullYear();
+      const newMonth = date.getMonth() + 1;
+      setCursorYear(newYear);
+      setCursorMonth(newMonth);
+
+      if (!options?.preserveSelectedDate) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const monthStart = new Date(newYear, newMonth - 1, 1);
+        const anchor = monthStart < today ? today : monthStart;
+        setSelectedDate(toDateKey(anchor));
+      }
+    },
+    [setSelectedDate]
+  );
+
+  const clampSelectedDateToToday = useCallback(() => {
+    if (!selectedDate) return;
+    const sel = new Date(selectedDate + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (sel < today) {
+      setSelectedDate(toDateKey(today));
+      const todayYear = today.getFullYear();
+      const todayMonth = today.getMonth() + 1;
+      if (todayYear !== activeYear || todayMonth !== activeMonth) {
+        setCursorYear(todayYear);
+        setCursorMonth(todayMonth);
+      }
+    }
+  }, [selectedDate, setSelectedDate, activeYear, activeMonth]);
 
   const generateBookingSlots = useCallback(
     (dateKey: string): BookingSlot[] => {
@@ -644,9 +725,18 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
   const reader: BookingCalendarReader = useMemo(
     () => ({
+      year: activeYear,
+      month: activeMonth,
       selectedDate,
       setSelectedDate,
+      selectedSlot,
+      setSelectedSlot,
+      onMonthChange: handleMonthChange,
+      clampSelectedDateToToday,
       allowedDates,
+      availableDates,
+      bookedDates,
+      earliestSelectableDate,
       slotsSnapshot,
       getDayBookingStatus,
       isFetching,
@@ -654,8 +744,17 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       hasError,
     }),
     [
+      activeYear,
+      activeMonth,
       selectedDate,
+      setSelectedDate,
+      selectedSlot,
+      handleMonthChange,
+      clampSelectedDateToToday,
       allowedDates,
+      availableDates,
+      bookedDates,
+      earliestSelectableDate,
       slotsSnapshot,
       getDayBookingStatus,
       isFetching,
@@ -673,6 +772,9 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     if (!isOwner) return null;
     return {
       draftForSelectedDate,
+      draftOccurrences: parsedDraft,
+      slotsWithMeta,
+      futureSlots,
       addSlotForSelectedDate,
       updateDraftSlot,
       deleteDraftSlot,
@@ -683,6 +785,9 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   }, [
     isOwner,
     draftForSelectedDate,
+    parsedDraft,
+    slotsWithMeta,
+    futureSlots,
     addSlotForSelectedDate,
     updateDraftSlot,
     deleteDraftSlot,
@@ -693,7 +798,6 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
   return {
     loaded,
-    parsedDraft,
     reader,
     editor,
   };

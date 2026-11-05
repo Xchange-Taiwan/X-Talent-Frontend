@@ -1,4 +1,4 @@
-import { CalendarDays, Clock } from 'lucide-react';
+import { AlertCircle, CalendarDays, Clock } from 'lucide-react';
 import * as React from 'react';
 
 import { JoinMeetButton } from '@/components/reservation/JoinMeetButton';
@@ -77,6 +77,23 @@ export function ReservationCard({
             sourceRole={sourceRole}
             variant="card"
           />
+
+          {item.cancelledBy === 'SYSTEM' ? (
+            <div
+              role="note"
+              className="border-status-warning-default/40 bg-status-warning-active/15 text-text-primary mt-3 flex items-start gap-2 rounded-lg border p-2.5 text-xs sm:text-sm"
+            >
+              <AlertCircle
+                className="text-status-info-default mt-0.5 size-4 shrink-0"
+                aria-hidden
+              />
+              <span>
+                {sourceRole === 'mentor'
+                  ? '因您未於預約開始前 24 小時前確認，系統已自動取消此預約。'
+                  : '因導師未於預約開始前 24 小時前確認，系統已自動取消此預約。'}
+              </span>
+            </div>
+          ) : null}
 
           {footer ? <div className="mt-3">{footer}</div> : null}
 

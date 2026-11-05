@@ -261,7 +261,7 @@ export const NotificationBell = React.memo(function NotificationBell({
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="border-background-border bg-background-white w-[360px] max-w-[min(300px,calc(100vw-32px))] rounded-2xl border p-0 shadow-xl outline-none lg:max-w-[calc(100vw-32px)]"
+        className="border-background-border bg-background-white w-[360px] max-w-[min(360px,calc(100vw-32px))] rounded-2xl border p-0 shadow-xl outline-none lg:max-w-[calc(100vw-32px)]"
       >
         <div className="overflow-hidden rounded-2xl py-5">
           <div ref={scrollThumbHandlers.trackRefCallback} className="relative">

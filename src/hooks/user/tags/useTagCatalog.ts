@@ -40,16 +40,38 @@ export interface UseTagCatalogResult extends TagCatalogsByBucket {
   error: string | null;
 }
 
+function isEmptyTagCatalog(
+  catalog: TagCatalogsByBucket | null | undefined
+): boolean {
+  if (!catalog) return true;
+  return (
+    catalog.want_position.length === 0 &&
+    catalog.want_skill.length === 0 &&
+    catalog.want_topic.length === 0 &&
+    catalog.have_skill.length === 0 &&
+    catalog.have_topic.length === 0 &&
+    catalog.industry.length === 0
+  );
+}
+
 export default function useTagCatalog(
   language: string,
   initialData?: TagCatalogsByBucket
 ): UseTagCatalogResult {
+  // Normalize an all-empty SSR catalog (returned when fetchTagCatalogServer
+  // fails on the server) to undefined so useAsyncRead falls back to the
+  // client-side fetch instead of caching EMPTY_TAG_CATALOGS.
+  const effectiveInitialData = isEmptyTagCatalog(initialData)
+    ? undefined
+    : initialData;
+
   const { data, isLoading, error } = useAsyncRead(
     tagCatalogReadManager,
     language || null,
     (signal) => fetchTagCatalog(language, signal),
     {
-      initialData,
+      initialData: effectiveInitialData,
+      shouldCache: (res) => !isEmptyTagCatalog(res),
     }
   );
 

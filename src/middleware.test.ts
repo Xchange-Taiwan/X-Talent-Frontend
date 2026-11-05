@@ -1,9 +1,10 @@
 import { get } from '@vercel/global-config';
 import { NextRequest } from 'next/server';
-import { getToken } from 'next-auth/jwt';
+import { decode, getToken } from 'next-auth/jwt';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next-auth/jwt', () => ({
+  decode: vi.fn(),
   getToken: vi.fn(),
 }));
 
@@ -21,6 +22,7 @@ import { captureApiFailure } from '@/lib/monitoring';
 
 import { middleware } from './middleware';
 
+const mockDecode = vi.mocked(decode);
 const mockGetToken = vi.mocked(getToken);
 const mockGet = vi.mocked(get);
 const mockCaptureApiFailure = vi.mocked(captureApiFailure);
@@ -764,6 +766,34 @@ describe('middleware maintenance mode', () => {
     expect(responseMaintenance.status).toBe(307);
     expect(responseMaintenance.headers.get('location')).toBe(
       'https://example.com/'
+    );
+  });
+
+  it('honors a signed __e2e_maintenance cookie for maintenance mode and bypass token when NEXTAUTH_SECRET is set', async () => {
+    process.env.NEXTAUTH_SECRET = 'test-secret';
+    mockDecode.mockResolvedValue({
+      maintenanceMode: true,
+      bypassToken: 'e2e-bypass-token',
+    } as never);
+
+    const blockedReq = new NextRequest('https://example.com/about', {
+      headers: { cookie: '__e2e_maintenance=signed-jwe' },
+    });
+    const blockedRes = await middleware(blockedReq);
+    expect(blockedRes.status).toBe(307);
+    expect(blockedRes.headers.get('location')).toContain('/maintenance');
+
+    const bypassReq = new NextRequest(
+      'https://example.com/about?bypass=e2e-bypass-token',
+      {
+        headers: { cookie: '__e2e_maintenance=signed-jwe' },
+      }
+    );
+    const bypassRes = await middleware(bypassReq);
+    expect(bypassRes.status).toBe(307);
+    expect(bypassRes.headers.get('location')).toBe('https://example.com/about');
+    expect(bypassRes.cookies.get('maintenance_bypass')?.value).toBe(
+      'e2e-bypass-token'
     );
   });
 });

@@ -24,9 +24,15 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  // Shared backend accounts require serial execution locally and in CI.
-  // Browser-mocked runs opt into parallelism with --workers=4.
-  workers: 1,
+  // Shared backend accounts and SSR dependencies require serial execution locally
+  // and in CI to prevent RDS connection exhaustion and on-demand compile contention.
+  // Browser-mocked runs opt into parallelism via PLAYWRIGHT_WORKERS or --workers=4.
+  workers: process.env.PLAYWRIGHT_WORKERS
+    ? Number(process.env.PLAYWRIGHT_WORKERS)
+    : 1,
+  expect: {
+    timeout: 15_000,
+  },
   // 'list' prints each test's own pass/fail and duration to the terminal as
   // it runs (in addition to 'html', which stays the CI artifact e2e.yml
   // uploads) - without it there's no way to tell which specific test in a

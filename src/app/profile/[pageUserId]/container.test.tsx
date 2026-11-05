@@ -40,10 +40,15 @@ vi.mock('@/hooks/user/tags/useTagCatalog', () => ({
 vi.mock('@/hooks/useMentorSchedule', () => ({
   useMentorSchedule: () => ({
     loaded: true,
-    parsedDraft: [],
     reader: {
+      year: 2026,
+      month: 8,
       selectedDate: '2026-08-20',
       setSelectedDate: vi.fn(),
+      selectedSlot: null,
+      setSelectedSlot: vi.fn(),
+      onMonthChange: vi.fn(),
+      clampSelectedDateToToday: vi.fn(),
       allowedDates: [],
       reload: vi.fn(),
     },
@@ -51,13 +56,6 @@ vi.mock('@/hooks/useMentorSchedule', () => ({
     // dialog on canShowOwnerControls (driven by the identity mocks below),
     // so this stub's own truthiness never has to vary per test case.
     editor: {},
-  }),
-}));
-
-vi.mock('@/hooks/user/reservation/useReservationDateClamp', () => ({
-  useReservationDateClamp: () => ({
-    handleScheduleMonthChange: vi.fn(),
-    clampSelectedDateToToday: vi.fn(),
   }),
 }));
 

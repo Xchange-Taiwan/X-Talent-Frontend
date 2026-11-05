@@ -184,6 +184,15 @@ describe('resolveReservationViewer - cancelledByLabel', () => {
     });
     expect(cancelledByLabel).toBe('已由學員取消');
   });
+
+  it('renders the system auto-cancelled label', () => {
+    const reservation = makeReservation({ cancelledBy: 'SYSTEM' });
+    const { cancelledByLabel } = resolveReservationViewer({
+      reservation,
+      myUserId: 'user-sender',
+    });
+    expect(cancelledByLabel).toBe('已自動取消');
+  });
 });
 
 describe('resolveReservationViewer - null reservation', () => {

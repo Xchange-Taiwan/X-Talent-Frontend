@@ -39,13 +39,13 @@ interface Props {
   isIdentityResolved: boolean;
   canShowOwnerControls: boolean;
   avatarSrc: string | StaticImageData;
-  allowedDates: string[];
-  onScheduleMonthChange: (date: Date) => void;
+  allowedDates?: string[];
+  onScheduleMonthChange?: (date: Date) => void;
   onReservation: () => void;
   onEditProfile: () => void;
   onBecomeMentor: () => void;
-  selectedSlot: BookingSlot | null;
-  setSelectedSlot: (slot: BookingSlot | null) => void;
+  selectedSlot?: BookingSlot | null;
+  setSelectedSlot?: (slot: BookingSlot | null) => void;
   isSubmitting: boolean;
   onConfirmReservation: (question?: string) => Promise<boolean>;
   editorDialog?: React.ReactNode;
@@ -72,6 +72,12 @@ export default function ProfilePageUI({
   editorDialog,
 }: Props) {
   const { selectedDate, setSelectedDate, getDayBookingStatus } = schedule;
+  const resolvedAllowedDates = allowedDates ?? schedule.allowedDates;
+  const resolvedSelectedSlot = selectedSlot ?? schedule.selectedSlot ?? null;
+  const resolvedSetSelectedSlot =
+    setSelectedSlot ?? schedule.setSelectedSlot ?? (() => {});
+  const resolvedOnMonthChange =
+    onScheduleMonthChange ?? ((d: Date) => schedule.onMonthChange?.(d));
 
   // Render the schedule region while user data loads (most profile views are
   // mentors) so the calendar can appear before user data resolves; collapse
@@ -96,7 +102,7 @@ export default function ProfilePageUI({
     <div>
       <ProfileBanner />
 
-      <div className="container mb-20 max-w-screen-lg 2xl:max-w-screen-xl">
+      <div className="container mb-20 max-w-screen-lg xl:max-w-screen-xl">
         {userLoading ? (
           <ProfileHeaderSkeleton />
         ) : userData ? (
@@ -177,8 +183,8 @@ export default function ProfilePageUI({
           </div>
         ) : null}
 
-        <div className="flex flex-col gap-8 2xl:flex-row 2xl:gap-12">
-          <div className="w-full 2xl:w-3/5">
+        <div className="flex flex-col gap-8 xl:flex-row xl:gap-12">
+          <div className="w-full xl:w-3/5">
             {userLoading ? (
               <ProfileContentSkeleton />
             ) : userData ? (
@@ -270,17 +276,17 @@ export default function ProfilePageUI({
           </div>
 
           {showScheduleRegion && (
-            <div className="w-full 2xl:w-2/5">
+            <div className="w-full xl:w-2/5">
               {!scheduleLoaded ? (
                 <ScheduleSkeleton />
               ) : (
-                <div className="flex w-full max-w-[335px] flex-col gap-4 md:max-w-[695px] 2xl:max-w-[414px]">
+                <div className="flex w-full max-w-[335px] flex-col gap-4 md:max-w-[695px] xl:max-w-[414px]">
                   <div className="border-background-border bg-background-white w-full rounded-2xl border p-5 shadow-sm">
                     <div className="border-background-border mb-3 border-b pb-3">
                       <p className="text-text-tertiary mb-1 text-xs font-medium">
                         可預約日期
                       </p>
-                      <h2 className="text-text-primary text-2xl font-semibold tracking-tight md:text-3xl 2xl:text-2xl">
+                      <h2 className="text-text-primary text-2xl font-semibold tracking-tight md:text-3xl xl:text-2xl">
                         {formatSelectedDate(
                           selectedDate
                             ? new Date(selectedDate + 'T00:00:00')
@@ -296,9 +302,14 @@ export default function ProfilePageUI({
                           ? new Date(selectedDate + 'T00:00:00')
                           : new Date()
                       }
+                      month={
+                        schedule.year && schedule.month
+                          ? new Date(schedule.year, schedule.month - 1, 1)
+                          : undefined
+                      }
                       onSelect={(d) => setSelectedDate(d ? toDateKey(d) : null)}
-                      onMonthChange={onScheduleMonthChange}
-                      allowedDates={allowedDates}
+                      onMonthChange={resolvedOnMonthChange}
+                      allowedDates={resolvedAllowedDates}
                       showTodayStyle={false}
                       disableEmptyDates={true}
                       isMonthLoading={!schedule.slotsSnapshot.monthLoaded}
@@ -313,8 +324,8 @@ export default function ProfilePageUI({
                       isUserDataLoading={userLoading || !isIdentityResolved}
                       isAuthenticated={!!loginUserId}
                       slotsSnapshot={schedule.slotsSnapshot}
-                      selectedSlot={selectedSlot}
-                      setSelectedSlot={setSelectedSlot}
+                      selectedSlot={resolvedSelectedSlot}
+                      setSelectedSlot={resolvedSetSelectedSlot}
                       isSubmitting={isSubmitting}
                       selectedDate={selectedDate}
                       onReservation={onReservation}

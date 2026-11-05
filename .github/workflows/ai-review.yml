@@ -14,7 +14,7 @@ permissions:
   pull-requests: write
 
 env:
-  GEMINI_MODEL: gemini-3.1-pro-preview
+  GEMINI_MODEL: gemini-4-argon
   # scripts/ai-review/lib/gemini.mjs defaults to 16384 when unset, which a
   # sufficiently large diff can exceed (the reviewer's JSON response gets cut
   # off mid-object and the job fails with finishReason: MAX_TOKENS instead of

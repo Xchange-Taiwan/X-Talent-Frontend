@@ -7,7 +7,6 @@ import { ReservationListSkeleton } from '@/app/reservation/skeleton';
 import { ReservationList } from '@/components/reservation/ReservationList';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  type MutationAffectedTabs,
   type ReservationRole,
   useReservationData,
 } from '@/hooks/user/reservation/useReservationData';
@@ -27,8 +26,6 @@ export function ReservationDashboard({ userRole }: ReservationDashboardProps) {
     myUserId,
     loadMore,
     loadHistory,
-    onMutationSuccess,
-    refetchOnConflict,
   } = useReservationData({ role: userRole });
 
   const upcoming = data?.upcoming ?? [];
@@ -73,8 +70,6 @@ export function ReservationDashboard({ userRole }: ReservationDashboardProps) {
         onLoadMorePending={loadMorePending}
         onLoadMoreHistory={loadMoreHistory}
         onLoadHistory={loadHistory}
-        onMutationSuccess={onMutationSuccess}
-        onVersionConflict={refetchOnConflict}
       />
     </Suspense>
   );
@@ -104,11 +99,6 @@ export interface ReservationDashboardViewProps {
   onLoadMorePending: () => void;
   onLoadMoreHistory: () => void;
   onLoadHistory: () => void;
-  onMutationSuccess?: (
-    id: string,
-    affected: MutationAffectedTabs | null
-  ) => void;
-  onVersionConflict?: (affected: MutationAffectedTabs | null) => void;
 }
 
 export function ReservationDashboardView({
@@ -127,8 +117,6 @@ export function ReservationDashboardView({
   onLoadMorePending,
   onLoadMoreHistory,
   onLoadHistory,
-  onMutationSuccess,
-  onVersionConflict,
 }: ReservationDashboardViewProps) {
   const isMentee = userRole === 'mentee';
   const upcomingTabValue = isMentee ? 'upcoming-mentee' : 'upcoming-mentor';
@@ -247,8 +235,6 @@ export function ReservationDashboardView({
                     hasMore={nextTokens.upcoming !== 0}
                     onLoadMore={onLoadMoreUpcoming}
                     isLoadingMore={loadingMoreStates.upcoming}
-                    onMutationSuccess={onMutationSuccess}
-                    onVersionConflict={onVersionConflict}
                   />
                 )}
               </TabsContent>
@@ -265,8 +251,6 @@ export function ReservationDashboardView({
                     hasMore={nextTokens.pending !== 0}
                     onLoadMore={onLoadMorePending}
                     isLoadingMore={loadingMoreStates.pending}
-                    onMutationSuccess={onMutationSuccess}
-                    onVersionConflict={onVersionConflict}
                   />
                 )}
               </TabsContent>
@@ -283,7 +267,6 @@ export function ReservationDashboardView({
                     hasMore={nextTokens.history !== 0}
                     onLoadMore={onLoadMoreHistory}
                     isLoadingMore={loadingMoreStates.history}
-                    onMutationSuccess={onMutationSuccess}
                   />
                 )}
               </TabsContent>

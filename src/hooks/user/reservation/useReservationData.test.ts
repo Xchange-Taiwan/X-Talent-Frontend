@@ -27,7 +27,6 @@ import {
 } from '@/services/reservations';
 import { mockSession, mockUseSession } from '@/test/mocks/nextAuth';
 
-import type { MutationAffectedTabs } from './useReservationData';
 import { useReservationData } from './useReservationData';
 
 const mockFetch = vi.mocked(fetchReservations);
@@ -171,57 +170,24 @@ describe('useReservationData (mentee)', () => {
     });
   });
 
-  it('onMutationSuccess never calls fetchReservations - cache freshness is now owned by the write path (X-Tracker #651)', async () => {
+  it('reservationReadModel.evictItem removes the operated item from active lists and allows it to appear in destination tabs (X-Tracker #783)', async () => {
     const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     mockFetch.mockClear();
 
-    await act(async () => {
-      result.current.onMutationSuccess('any-id', {
-        source: 'pending',
-        destinations: ['history'],
-      });
-    });
-
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-
-  it('onMutationSuccess filters out (removes) the operated item from active lists in local state', async () => {
-    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    // Initially, there's a reservation in pending
     expect(result.current.data?.pending).toHaveLength(1);
     expect(result.current.data?.pending[0].id).toBe('MENTEE_PENDING');
 
     await act(async () => {
-      result.current.onMutationSuccess('MENTEE_PENDING', {
-        source: 'pending',
-        destinations: [],
-      });
+      reservationReadModel.evictItem(
+        { userId: String(mockSession.user.id), state: 'MENTEE_PENDING' },
+        'MENTEE_PENDING'
+      );
     });
 
-    expect(result.current.data?.pending).toHaveLength(0);
-  });
-
-  it('onMutationSuccess only hides the item from the source (first) tab, never a destination tab it has not actually appeared in yet', async () => {
-    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    // Accept-shaped call: 'pending' is the source (item currently lives
-    // there), 'upcoming' is the destination it's moving to.
-    await act(async () => {
-      result.current.onMutationSuccess('MENTEE_PENDING', {
-        source: 'pending',
-        destinations: ['upcoming'],
-      });
-    });
-
+    expect(mockFetch).not.toHaveBeenCalled();
     expect(result.current.data?.pending).toHaveLength(0);
 
-    // The write path (not this hook) is what makes the item show up in the
-    // destination tab's cache - simulate that here. It must render, not be
-    // hidden by a stray removedIds entry from the call above.
     await act(async () => {
       reservationReadModel.set(
         { userId: String(mockSession.user.id), state: 'MENTEE_UPCOMING' },
@@ -232,61 +198,6 @@ describe('useReservationData (mentee)', () => {
     expect(result.current.data?.upcoming.map((it) => it.id)).toEqual([
       'MENTEE_PENDING',
     ]);
-  });
-
-  it('refetchOnConflict refetches the affected states without removing the item first', async () => {
-    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    // Initially, there's a reservation in pending
-    expect(result.current.data?.pending).toHaveLength(1);
-
-    // Refetch resolves with the same item (still present, just refreshed —
-    // unlike onMutationSuccess, refetchOnConflict never assumes it moved out).
-    mockFetch.mockClear();
-
-    await act(async () => {
-      result.current.refetchOnConflict({ source: 'pending', destinations: [] });
-    });
-
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: mockSession.user.id,
-        state: 'MENTEE_PENDING',
-      })
-    );
-    expect(result.current.data?.pending).toHaveLength(1);
-  });
-
-  it('refetchOnConflict refetches history too when it has been loaded', async () => {
-    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    await act(async () => {
-      await result.current.loadHistory();
-    });
-    mockFetch.mockClear();
-
-    await act(async () => {
-      result.current.refetchOnConflict({
-        source: 'pending',
-        destinations: ['history'],
-      });
-    });
-
-    expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: mockSession.user.id,
-        state: 'MENTEE_PENDING',
-      })
-    );
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: mockSession.user.id,
-        state: 'MENTEE_HISTORY',
-      })
-    );
   });
 
   it('initial fetch failure → data stays null, isLoading becomes false', async () => {
@@ -479,80 +390,8 @@ describe('useReservationData (mentee)', () => {
   });
 });
 
-describe('useReservationData - refetch invalidation gates (X-Tracker #725)', () => {
-  it('drops a tab key that does not map to a state this hook owns, rather than refetching it', async () => {
-    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    mockFetch.mockClear();
-
-    await act(async () => {
-      result.current.refetchOnConflict({
-        source: 'pending',
-        // Cast past the ListKey union: `states[tab]` resolves an
-        // unrecognized tab to `undefined`, which must fail the
-        // `ownStates.has(state)` gate instead of slipping through.
-        destinations: ['unknown-tab'],
-      } as unknown as MutationAffectedTabs);
-    });
-
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.objectContaining({ state: 'MENTEE_PENDING' })
-    );
-  });
-
-  it('excludes an affected history tab from the refetch range while history pagination is inactive', async () => {
-    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    mockFetch.mockClear();
-
-    await act(async () => {
-      result.current.refetchOnConflict({
-        source: 'pending',
-        destinations: ['history'],
-      });
-    });
-
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.objectContaining({ state: 'MENTEE_PENDING' })
-    );
-    expect(mockFetch).not.toHaveBeenCalledWith(
-      expect.objectContaining({ state: 'MENTEE_HISTORY' })
-    );
-  });
-
-  it('short-circuits without fetching when every target is filtered out', async () => {
-    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    mockFetch.mockClear();
-
-    // History has never been loaded (historyActive is false), so the only
-    // requested target is filtered out and nothing remains to refetch.
-    await act(async () => {
-      result.current.refetchOnConflict({ source: 'history', destinations: [] });
-    });
-
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-
-  it('onMutationSuccess and refetchOnConflict short-circuit when no affected tabs are given', async () => {
-    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    mockFetch.mockClear();
-
-    await act(async () => {
-      result.current.onMutationSuccess('MENTEE_PENDING', null);
-    });
-    expect(result.current.data?.pending).toHaveLength(1);
-
-    await act(async () => {
-      result.current.refetchOnConflict(null);
-    });
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-
-  it('loadMore and refetchOnConflict short-circuit without a signed-in user', async () => {
+describe('useReservationData - pagination and cache gates', () => {
+  it('loadMore short-circuits without a signed-in user', async () => {
     mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });
     const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -560,9 +399,6 @@ describe('useReservationData - refetch invalidation gates (X-Tracker #725)', () 
 
     await act(async () => {
       await result.current.loadMore('upcoming');
-    });
-    await act(async () => {
-      result.current.refetchOnConflict({ source: 'pending', destinations: [] });
     });
 
     expect(mockFetch).not.toHaveBeenCalled();
@@ -593,24 +429,6 @@ describe('useReservationData - refetch invalidation gates (X-Tracker #725)', () 
     });
 
     expect(mockFetch).not.toHaveBeenCalled();
-  });
-
-  it('reports and swallows a refetch failure instead of throwing', async () => {
-    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    mockFetch.mockClear();
-    mockFetch.mockRejectedValueOnce(new Error('refetch boom'));
-
-    await act(async () => {
-      result.current.refetchOnConflict({ source: 'pending', destinations: [] });
-    });
-
-    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
-      expect.objectContaining({
-        flow: 'reservation_refetch',
-        message: 'refetch boom',
-      })
-    );
   });
 
   it('history load state falls back to idle when its cache is invalidated while the tab stays active', async () => {
@@ -664,38 +482,31 @@ describe('useReservationData (mentor)', () => {
     expect(result.current.isLoading).toBe(false);
   });
 
-  it('accept-flow onMutationSuccess only hides the source tab locally - no refetch (X-Tracker #651)', async () => {
-    const { result } = renderHook(() => useReservationData({ role: 'mentor' }));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    mockFetch.mockClear();
-
-    await act(async () => {
-      result.current.onMutationSuccess('MENTOR_PENDING', {
-        source: 'pending',
-        destinations: ['upcoming'],
-      });
+  it('derives pending items with cancelledBy into history immediately', async () => {
+    mockFetch.mockImplementation(({ state }) => {
+      if (state === 'MENTOR_PENDING') {
+        return Promise.resolve({
+          items: [
+            {
+              ...makeReservation('stale-pending'),
+              cancelledBy: 'SYSTEM' as const,
+            },
+            makeReservation('active-pending'),
+          ],
+          next_dtend: 0,
+        });
+      }
+      return Promise.resolve({ items: [], next_dtend: 0 });
     });
 
-    expect(mockFetch).not.toHaveBeenCalled();
-    expect(result.current.data?.pending).toHaveLength(0);
-  });
-
-  it('refetchOnConflict never sends batch param so backend uses default page size', async () => {
     const { result } = renderHook(() => useReservationData({ role: 'mentor' }));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    mockFetch.mockClear();
 
-    await act(async () => {
-      result.current.refetchOnConflict({ source: 'pending', destinations: [] });
-    });
-
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: mockSession.user.id,
-        state: 'MENTOR_PENDING',
-      })
-    );
-    const lastCall = mockFetch.mock.calls.at(-1)?.[0];
-    expect(lastCall).not.toHaveProperty('batch');
+    expect(result.current.data?.pending.map((it) => it.id)).toEqual([
+      'active-pending',
+    ]);
+    expect(result.current.data?.history.map((it) => it.id)).toEqual([
+      'stale-pending',
+    ]);
   });
 });

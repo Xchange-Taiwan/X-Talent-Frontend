@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getToken } from 'next-auth/jwt';
+import { decode, getToken } from 'next-auth/jwt';
 import { match } from 'path-to-regexp';
 
 import {
@@ -46,12 +46,24 @@ export async function middleware(req: NextRequest) {
   const bypassParam = nextUrl.searchParams.get('bypass');
   const bypassCookie = req.cookies.get('maintenance_bypass')?.value;
 
+  const e2eMaintenanceCookie = req.cookies.get('__e2e_maintenance')?.value;
+  const e2eMaintenanceOverride =
+    e2eMaintenanceCookie && process.env.NEXTAUTH_SECRET
+      ? await decode({
+          token: e2eMaintenanceCookie,
+          secret: process.env.NEXTAUTH_SECRET,
+        }).catch(() => null)
+      : null;
+
   // The env var is an override for local dev and emergency use (it requires
   // a redeploy to change). Normal operation rotates the token in Global
   // Config instead, which - like maintenance mode itself - takes effect
   // immediately with no redeploy. Only fetched when actually needed, so
   // ordinary requests with no bypass param/cookie don't pay for the read.
-  let bypassToken: string | undefined = process.env.MAINTENANCE_BYPASS_TOKEN;
+  let bypassToken: string | undefined =
+    (typeof e2eMaintenanceOverride?.bypassToken === 'string'
+      ? e2eMaintenanceOverride.bypassToken
+      : undefined) || process.env.MAINTENANCE_BYPASS_TOKEN;
   if (!bypassToken && (bypassParam || bypassCookie)) {
     const bypassResult = await getMaintenanceBypassToken(500);
     bypassToken = bypassResult.value ?? undefined;
@@ -80,6 +92,7 @@ export async function middleware(req: NextRequest) {
   // -------- 0.1 Check Maintenance Mode --------
   let isInMaintenanceMode = false;
   const isEnvMaintenance =
+    e2eMaintenanceOverride?.maintenanceMode === true ||
     process.env.NEXT_PUBLIC_MAINTENANCE_MODE === 'true' ||
     process.env.MAINTENANCE_MODE === 'true';
 

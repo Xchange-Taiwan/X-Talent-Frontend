@@ -28,8 +28,10 @@ import { trackEvent } from '@/lib/analytics';
 import {
   BookingCalendarReader,
   DtType,
+  EditorSlotWithMeta,
   MentorScheduleEditor,
   ParsedMentorTimeslot,
+  projectEditorOccurrences,
   SlotDurationMinutes,
 } from '@/lib/profile/bookingAvailability';
 import {
@@ -40,12 +42,9 @@ import {
   snapDuration,
   snapMinute,
 } from '@/lib/profile/scheduleFormatters';
-import {
-  findMatchedReservation,
-  isReadOnlyVirtualSlot,
-} from '@/lib/profile/scheduleHelpers';
 import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
+import type { Reservation } from '@/types/reservation';
 
 import { ScheduleCalendar } from './ScheduleCalendar';
 
@@ -55,8 +54,6 @@ const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) =>
 const MINUTE_OPTIONS = ['00', '15', '30', '45'];
 const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
 
-type ReservationPromptType = Exclude<DtType, 'ALLOW'> | null;
-
 type ActiveDialog =
   | { kind: 'add' }
   | { kind: 'edit'; id: number; occurrenceUnix: number }
@@ -64,6 +61,7 @@ type ActiveDialog =
       kind: 'prompt';
       prompt: Exclude<DtType, 'ALLOW'>;
       slot?: ParsedMentorTimeslot;
+      matchedReservation?: Reservation;
     }
   | null;
 
@@ -104,12 +102,10 @@ export default function MentorScheduleDialog({
   const [activeDialog, setActiveDialog] = useState<ActiveDialog>(null);
   const [lastPrompt, setLastPrompt] =
     useState<Exclude<DtType, 'ALLOW'>>('BOOKED');
-  // Mirrors the slot of the most recent prompt dialog. activeDialog.slot
-  // drops to undefined the instant the dialog starts its close animation
-  // (onOpenChange fires before the fade-out finishes), so without this the
-  // mentee name would flicker back to the unmatched fallback text mid-close.
-  const [lastPromptSlot, setLastPromptSlot] = useState<
-    ParsedMentorTimeslot | undefined
+  // Mirrors the matched reservation of the most recent prompt dialog so the
+  // mentee name does not flicker back to the unmatched fallback text mid-close.
+  const [lastPromptReservation, setLastPromptReservation] = useState<
+    Reservation | undefined
   >(undefined);
 
   const displayPrompt =
@@ -117,25 +113,23 @@ export default function MentorScheduleDialog({
 
   const showPrompt = (
     prompt: Exclude<DtType, 'ALLOW'>,
-    slot?: ParsedMentorTimeslot
+    slot?: ParsedMentorTimeslot,
+    matchedReservation?: Reservation
   ) => {
     setLastPrompt(prompt);
-    setLastPromptSlot(slot);
-    setActiveDialog({ kind: 'prompt', prompt, slot });
+    setLastPromptReservation(matchedReservation);
+    setActiveDialog({ kind: 'prompt', prompt, slot, matchedReservation });
   };
 
-  const handleSlotAction = (
-    slot: ParsedMentorTimeslot,
-    reservationBlock: ReservationPromptType
-  ) => {
-    if (reservationBlock) {
-      showPrompt(reservationBlock, slot);
+  const handleSlotAction = (item: EditorSlotWithMeta) => {
+    if (item.reservationBlock) {
+      showPrompt(item.reservationBlock, item.slot, item.matchedReservation);
       return;
     }
     setActiveDialog({
       kind: 'edit',
-      id: slot.id,
-      occurrenceUnix: slot.occurrenceUnix,
+      id: item.slot.id,
+      occurrenceUnix: item.slot.occurrenceUnix,
     });
   };
 
@@ -149,53 +143,22 @@ export default function MentorScheduleDialog({
     }
   }, [open]);
 
-  // Show all ALLOW slots (including past) so the editor stays consistent with
-  // what was scheduled; past slots render disabled to make it clear they
-  // can't be edited or deleted. BOOKED/PENDING are tracked separately below
-  // because reservation lifecycle is managed on a different page.
   const nowSec = Math.floor(Date.now() / 1000);
-  const visibleSlots = draftForSelectedDate.filter((s) => s.type === 'ALLOW');
-  // Future-only subset used for the AddSlotModal "next slot" default — we
-  // don't want the picker to suggest a time that's already in the past.
-  const futureSlots = visibleSlots.filter(
-    (s) => Math.floor(s.start.getTime() / 1000) > nowSec
-  );
-
-  // Block deletion/edit when a read-only BOOKED or PENDING placeholder (a
-  // backend-synthesized virtual slot, id < 0 — not a real mentor_availability
-  // row) exists at this ALLOW slot's start. With one row per slot, the start
-  // timestamp is the natural identity to match against the placeholder.
-  const bookedStarts = useMemo(
-    () =>
-      new Set(
-        draftForSelectedDate
-          .filter(
-            (s) => s.type === 'BOOKED' && isReadOnlyVirtualSlot(s.type, s.id)
-          )
-          .map((s) => Math.floor(s.start.getTime() / 1000))
-      ),
-    [draftForSelectedDate]
-  );
-  const pendingStarts = useMemo(
-    () =>
-      new Set(
-        draftForSelectedDate
-          .filter(
-            (s) => isReadOnlyVirtualSlot(s.type, s.id) && s.type === 'PENDING'
-          )
-          .map((s) => Math.floor(s.start.getTime() / 1000))
-      ),
-    [draftForSelectedDate]
-  );
-
-  const getReservationBlock = (
-    slot: ParsedMentorTimeslot
-  ): ReservationPromptType => {
-    const slotStart = Math.floor(slot.start.getTime() / 1000);
-    if (bookedStarts.has(slotStart)) return 'BOOKED';
-    if (pendingStarts.has(slotStart)) return 'PENDING';
-    return null;
-  };
+  const { slotsWithMeta, futureSlots } = useMemo(() => {
+    if (schedule.slotsWithMeta && schedule.futureSlots) {
+      return {
+        slotsWithMeta: schedule.slotsWithMeta,
+        futureSlots: schedule.futureSlots,
+      };
+    }
+    return projectEditorOccurrences(draftForSelectedDate, reservations, nowSec);
+  }, [
+    schedule.slotsWithMeta,
+    schedule.futureSlots,
+    draftForSelectedDate,
+    reservations,
+    nowSec,
+  ]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -214,17 +177,13 @@ export default function MentorScheduleDialog({
     onOpenChange(false);
   };
 
-  const promptSlot =
-    activeDialog?.kind === 'prompt' ? activeDialog.slot : lastPromptSlot;
-  const matchedReservation = useMemo(() => {
-    if (!promptSlot) return undefined;
-    const slotStart = Math.floor(promptSlot.start.getTime() / 1000);
-    const slotEnd = Math.floor(promptSlot.end.getTime() / 1000);
-    return findMatchedReservation(reservations, slotStart, slotEnd);
-  }, [promptSlot, reservations]);
+  const matchedReservation =
+    activeDialog?.kind === 'prompt'
+      ? activeDialog.matchedReservation
+      : lastPromptReservation;
 
   const menteeName = matchedReservation?.name;
-  // Keyed only by the two prompts getReservationBlock can actually produce
+  // Keyed only by the two prompts reservationBlock can actually produce
   // (a slot is either open, BOOKED, or PENDING — FORBIDDEN never reaches the
   // dialog even though displayPrompt's type is the wider Exclude<DtType,
   // 'ALLOW'>), so any other value falls back to the PENDING copy below.
@@ -255,11 +214,11 @@ export default function MentorScheduleDialog({
 
   const editingSlot =
     activeDialog?.kind === 'edit'
-      ? (visibleSlots.find(
-          (s) =>
-            s.id === activeDialog.id &&
-            s.occurrenceUnix === activeDialog.occurrenceUnix
-        ) ?? null)
+      ? (slotsWithMeta.find(
+          (item) =>
+            item.slot.id === activeDialog.id &&
+            item.slot.occurrenceUnix === activeDialog.occurrenceUnix
+        )?.slot ?? null)
       : null;
 
   const prevSlotRef = useRef<ParsedMentorTimeslot | null>(null);
@@ -281,6 +240,11 @@ export default function MentorScheduleDialog({
               selected={
                 selectedDate ? new Date(selectedDate + 'T00:00:00') : new Date()
               }
+              month={
+                reader.year && reader.month
+                  ? new Date(reader.year, reader.month - 1, 1)
+                  : undefined
+              }
               onSelect={(d) =>
                 setSelectedDate(
                   d
@@ -288,7 +252,11 @@ export default function MentorScheduleDialog({
                     : null
                 )
               }
-              onMonthChange={onMonthChange}
+              onMonthChange={
+                onMonthChange ??
+                ((d) =>
+                  reader.onMonthChange?.(d, { preserveSelectedDate: true }))
+              }
               allowedDates={allowedDates}
               showTodayStyle={false}
               disableEmptyDates={false}
@@ -314,16 +282,14 @@ export default function MentorScheduleDialog({
                   </div>
                 ) : (
                   <div className="mt-3 flex flex-col gap-3">
-                    {visibleSlots.map((slot) => {
+                    {slotsWithMeta.map((item) => {
+                      const { slot, isPast, reservationBlock } = item;
                       const startLabel = fmtTime(
                         Math.floor(slot.start.getTime() / 1000)
                       );
                       const endLabel = fmtTime(
                         Math.floor(slot.end.getTime() / 1000)
                       );
-                      const reservationBlock = getReservationBlock(slot);
-                      const isPast =
-                        Math.floor(slot.start.getTime() / 1000) <= nowSec;
                       return (
                         <div
                           key={slot.occurrenceId}
@@ -332,12 +298,11 @@ export default function MentorScheduleDialog({
                             : {
                                 role: 'button',
                                 tabIndex: 0,
-                                onClick: () =>
-                                  handleSlotAction(slot, reservationBlock),
+                                onClick: () => handleSlotAction(item),
                                 onKeyDown: (e: KeyboardEvent) => {
                                   if (e.key === 'Enter' || e.key === ' ') {
                                     e.preventDefault();
-                                    handleSlotAction(slot, reservationBlock);
+                                    handleSlotAction(item);
                                   }
                                 },
                               })}
@@ -370,7 +335,11 @@ export default function MentorScheduleDialog({
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   if (reservationBlock) {
-                                    showPrompt(reservationBlock);
+                                    showPrompt(
+                                      reservationBlock,
+                                      slot,
+                                      item.matchedReservation
+                                    );
                                     return;
                                   }
                                   deleteDraftSlot(slot.id, slot.occurrenceUnix);

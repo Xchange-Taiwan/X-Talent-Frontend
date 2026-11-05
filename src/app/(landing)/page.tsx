@@ -51,7 +51,7 @@ const ROLE_CHIPS = [
 export default function Page() {
   return (
     <>
-      <section className="flex h-[532px] flex-col items-center justify-center bg-[url('/landing/home-page-hero-sm.svg')] bg-cover bg-no-repeat px-4 text-center sm:bg-[url('/landing/home-page-hero-md.svg')] sm:px-0 lg:h-[640px] lg:bg-none">
+      <section className="relative isolate flex h-[532px] flex-col items-center justify-center overflow-hidden bg-[url('/landing/home-page-hero-sm.svg')] bg-cover bg-no-repeat px-4 text-center sm:bg-[url('/landing/home-page-hero-md.svg')] sm:px-0 lg:h-[640px] lg:bg-none">
         <h1 className="text-navy mb-8 text-3xl leading-normal font-bold sm:text-4xl md:text-5xl">
           交流讓
           <br className="md:hidden" />

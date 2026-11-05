@@ -1,6 +1,9 @@
 import { ApiError } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
-import type { ReservationReadKey } from '@/lib/reservation/reservationReadModel';
+import {
+  type ReservationReadKey,
+  reservationReadModel,
+} from '@/lib/reservation/reservationReadModel';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import { Reservation } from '@/types/reservation';
 
@@ -169,20 +172,35 @@ export async function acceptReservation({
   myUserId,
   myRole,
 }: AcceptParams): Promise<void> {
-  await performStatusUpdate({
-    text: message,
-    myUserId,
-    status: 'ACCEPT',
-    flowName: 'reservation_accept',
-    reservation,
-  });
+  try {
+    await performStatusUpdate({
+      text: message,
+      myUserId,
+      status: 'ACCEPT',
+      flowName: 'reservation_accept',
+      reservation,
+    });
+  } catch (err) {
+    if (err instanceof ReservationVersionConflictError && myUserId) {
+      affectedKeys(reservation, myUserId, myRole, [
+        'pending',
+        'upcoming',
+        'history',
+      ]).forEach(invalidateReservationRead);
+    }
+    throw err;
+  }
 
   // myUserId is guaranteed defined here: performStatusUpdate above already
   // throws when it's missing.
   if (!myUserId) return;
 
-  // Accept moves the reservation out of PENDING and into UPCOMING for both
-  // parties - see invalidateReservationRead.
+  // Optimistically remove the item from both parties' PENDING slices first,
+  // then invalidate/refresh PENDING + UPCOMING across unscoped and
+  // month-scoped slices.
+  affectedKeys(reservation, myUserId, myRole, ['pending']).forEach((key) =>
+    reservationReadModel.evictItem(key, reservation.id)
+  );
   affectedKeys(reservation, myUserId, myRole, ['pending', 'upcoming']).forEach(
     invalidateReservationRead
   );
@@ -207,22 +225,34 @@ export async function rejectOrCancelReservation({
   myUserId,
   myRole,
 }: RejectOrCancelParams): Promise<void> {
-  await performStatusUpdate({
-    text,
-    myUserId,
-    status: 'REJECT',
-    flowName: 'reservation_reject',
-    reservation,
-  });
+  try {
+    await performStatusUpdate({
+      text,
+      myUserId,
+      status: 'REJECT',
+      flowName: 'reservation_reject',
+      reservation,
+    });
+  } catch (err) {
+    if (err instanceof ReservationVersionConflictError && myUserId) {
+      affectedKeys(reservation, myUserId, myRole, [
+        'pending',
+        'upcoming',
+        'history',
+      ]).forEach(invalidateReservationRead);
+    }
+    throw err;
+  }
 
   // myUserId is guaranteed defined here: performStatusUpdate above already
   // throws when it's missing.
   if (!myUserId) return;
 
-  // A reject moves it from PENDING to HISTORY; a cancel moves it from
-  // UPCOMING to HISTORY - invalidating all three covers either source
-  // without needing to know which one this call was, for both parties. See
-  // invalidateReservationRead.
+  // Optimistically remove the item from PENDING + UPCOMING source slices, then
+  // invalidate/refresh PENDING + UPCOMING + HISTORY for both parties.
+  affectedKeys(reservation, myUserId, myRole, ['pending', 'upcoming']).forEach(
+    (key) => reservationReadModel.evictItem(key, reservation.id)
+  );
   affectedKeys(reservation, myUserId, myRole, [
     'pending',
     'upcoming',
