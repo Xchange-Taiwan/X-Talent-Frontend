@@ -3,14 +3,24 @@ const TICKET_BRANCH_PATTERN =
 const TRACKER_OWNER = 'Xchange-Taiwan';
 const TRACKER_REPO = 'X-Talent-Tracker';
 
-function extractTicketNumber(branchName) {
+export function extractTicketNumber(branchName, fallbackTicket) {
   const match = branchName?.match(TICKET_BRANCH_PATTERN);
-  return match ? Number(match[1]) : null;
+  if (match) {
+    return Number(match[1]);
+  }
+  const cleanFallback = String(fallbackTicket ?? '')
+    .replace(/^#/, '')
+    .trim();
+  if (/^\d+$/.test(cleanFallback)) {
+    const num = Number(cleanFallback);
+    return num > 0 ? num : null;
+  }
+  return null;
 }
 
-async function ghGet(path, token) {
+async function ghGet(apiPath, token) {
   const res = await fetch(
-    `https://api.github.com/repos/${TRACKER_OWNER}/${TRACKER_REPO}${path}`,
+    `https://api.github.com/repos/${TRACKER_OWNER}/${TRACKER_REPO}${apiPath}`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -19,20 +29,21 @@ async function ghGet(path, token) {
     }
   );
   if (!res.ok) {
-    throw new Error(`GitHub API error fetching ${path} (${res.status})`);
+    throw new Error(`GitHub API error fetching ${apiPath} (${res.status})`);
   }
   return res.json();
 }
 
 /**
- * Parses the ticket number out of the PR's head branch name and fetches the
- * corresponding issue + comments from the (private) X-Talent-Tracker repo.
- * Returns { ticketFound: false } when the branch name has no ticket number,
- * or when it does but the token is missing/invalid — callers should treat
- * that as "no ticket context available", not a hard failure.
+ * Parses the ticket number out of the PR's head branch name (or uses an
+ * explicit fallback ticket number) and fetches the corresponding issue +
+ * comments from the (private) X-Talent-Tracker repo.
+ * Returns { ticketFound: false } when no valid ticket number is present,
+ * or when the token is missing/invalid — callers should treat that as
+ * "no ticket context available", not a hard failure.
  */
-export async function fetchTicketContext(branchName, token) {
-  const number = extractTicketNumber(branchName);
+export async function fetchTicketContext(branchName, token, fallbackTicket) {
+  const number = extractTicketNumber(branchName, fallbackTicket);
   if (!number) {
     return { ticketFound: false };
   }
