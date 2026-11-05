@@ -1,9 +1,8 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useSession } from 'next-auth/react';
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useMemo } from 'react';
 
 import { AvatarSection } from '@/components/profile/edit/AvatarSection';
 import { CategoryMultiSelectField } from '@/components/profile/edit/CategoryMultiSelectField';
@@ -29,17 +28,10 @@ import { PageLoading } from '@/components/ui/loading-spinner';
 import { totalWorkSpanOptions } from '@/constant/seniority';
 import { useProfileAuth } from '@/hooks/user/auth/useProfileAuth';
 import useLocations from '@/hooks/user/country/useLocations';
-import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
-import { useEditProfileData } from '@/hooks/user/profile/useEditProfileData';
-import { useEditProfileForm } from '@/hooks/user/profile/useEditProfileForm';
-import { useFormErrorScroll } from '@/hooks/user/profile/useFormErrorScroll';
-import { useProfileSubmit } from '@/hooks/user/profile/useProfileSubmit';
+import { useProfileEditorSession } from '@/hooks/user/profile/useProfileEditorSession';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
-import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { tagGroupsToCategories } from '@/lib/profile/categoryGrouping';
-import { mapVoToFormValues } from '@/lib/profile/profileSaveAdapter';
 import { MENTOR_ONBOARDING_KEY } from '@/lib/routes';
-import { ProfileFormValues } from '@/schemas/profileSchema';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 
 const JobExperienceSection = dynamic(
@@ -91,18 +83,12 @@ export default function EditProfileContainer({
   pageUserId,
   initialTagCatalog,
 }: Props) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const isMentorOnboarding =
     searchParams?.get(MENTOR_ONBOARDING_KEY) === 'true' ||
     searchParams?.get('onboarding') === 'true';
 
-  const { data: session, update: updateSession } = useSession();
-
   const { isAuthorized, isResolving } = useProfileAuth(pageUserId);
-
-  const [jobSectionError, setJobSectionError] = useState(false);
-  const [educationSectionError, setEducationSectionError] = useState(false);
 
   const { locations } = useLocations('zh_TW');
   const locationOptions = useMemo(
@@ -112,50 +98,26 @@ export default function EditProfileContainer({
   const tagCatalog = useTagCatalog('zh_TW', initialTagCatalog);
   const industries = tagCatalog.industry;
 
-  const [isContainerLoading, setIsContainerLoading] = useState(true);
-  const [prevPageUserId, setPrevPageUserId] = useState(pageUserId);
-
-  // Synchronously reset container loading state back to true when route switches to a different pageUserId.
-  // This satisfies React's standard prop-sync guidelines and prevents old user data leaks during swaps.
-  if (pageUserId !== prevPageUserId) {
-    setPrevPageUserId(pageUserId);
-    setIsContainerLoading(true);
-  }
-
-  const { userDto, isMentor, isError } = useEditProfileData({
-    userId: Number(pageUserId),
+  const {
+    form,
+    formRef,
+    isMentorRole,
+    isError,
+    isHydrating,
+    isSaving,
+    handleAvatarFileChange,
+    handleFormSubmit,
+    setJobSectionError,
+    setEducationSectionError,
+    handleGoToPrev,
+    isPromptOpen,
+    cancelLeave,
+    confirmLeave,
+  } = useProfileEditorSession({
+    pageUserId,
     isAuthorized,
+    isMentorOnboarding,
   });
-
-  // Effective mentor-mode flag: true once the user is already a mentor OR is
-  // going through the "become a mentor" onboarding flow. Drives both the Zod
-  // schema's required fields (via useEditProfileForm) and which mentor-only
-  // sections render below — the two must stay in sync or required fields can
-  // end up invisible while still blocking submit.
-  const isMentorRole = isMentor || isMentorOnboarding;
-
-  const { form } = useEditProfileForm(isMentorRole);
-
-  const { formRef, onError, scrollToField } =
-    useFormErrorScroll<ProfileFormValues>();
-
-  const lastResetUserIdRef = useRef<number | null>(null);
-
-  // Reset form when user profile data successfully loads or updates
-  useLayoutEffect(() => {
-    if (!isAuthorized || !userDto) return;
-    if (lastResetUserIdRef.current === userDto.user_id && !isContainerLoading)
-      return; // Tolerates SWR focus revalidation successes silently without resetting active inputs.
-
-    const formValues = mapVoToFormValues(userDto, isMentorOnboarding);
-    form.reset(formValues);
-    lastResetUserIdRef.current = userDto.user_id;
-    setIsContainerLoading(false);
-  }, [userDto, isAuthorized, isMentorOnboarding, form, isContainerLoading]);
-
-  // Kicks off the S3 upload the moment the user crops a new avatar so
-  // submit doesn't pay the round trip — see useBackgroundAvatarUpload.
-  const avatarUpload = useBackgroundAvatarUpload();
 
   const haveTopicCategories = tagGroupsToCategories(tagCatalog.have_topic);
   const haveSkillCategories = tagGroupsToCategories(tagCatalog.have_skill);
@@ -164,23 +126,6 @@ export default function EditProfileContainer({
   );
   const wantSkillCategories = tagGroupsToCategories(tagCatalog.want_skill);
   const wantTopicCategories = tagGroupsToCategories(tagCatalog.want_topic);
-
-  // NOTE: document.getElementById/formRef querySelector is used to query dynamic error-bearing section container boundaries.
-  // This approach bypasses standard React refs to avoid inflating complexity with dozens of sub-component
-  // ref callback dictionaries, while cleanly retaining declarative styling structures.
-  const { onSubmit, isSaving } = useProfileSubmit({
-    pageUserId,
-    isMentorOnboarding,
-    session,
-    updateSession,
-    consumeAvatarUpload: avatarUpload.consume,
-    currentDto: userDto,
-  });
-
-  // Suppress the prompt while a submit is in flight so onSubmit's own
-  // router.push isn't blocked by us. isSaving stays true through the
-  // navigation (only reset on failure), so the page unmounts cleanly.
-  const unsaved = useUnsavedChangesPrompt(form.formState.isDirty && !isSaving);
 
   if (isResolving) return <PageLoading />;
 
@@ -199,11 +144,7 @@ export default function EditProfileContainer({
     );
   }
 
-  if (isContainerLoading) return <PageLoading />;
-
-  const handleGoToPrev = () => {
-    unsaved.guardNavigate(() => router.push(`/profile/${pageUserId}`));
-  };
+  if (isHydrating) return <PageLoading />;
 
   return (
     <div className="mx-auto w-11/12 max-w-[1064px] pb-20">
@@ -217,15 +158,7 @@ export default function EditProfileContainer({
         <form
           ref={formRef}
           id="edit-profile-form"
-          onSubmit={form.handleSubmit((values) => {
-            if (jobSectionError || educationSectionError) {
-              scrollToField(
-                jobSectionError ? 'work_experiences' : 'educations'
-              );
-              return;
-            }
-            return onSubmit(values, form.formState.dirtyFields);
-          }, onError)}
+          onSubmit={handleFormSubmit}
           className="space-y-10"
         >
           <AvatarSection
@@ -233,9 +166,7 @@ export default function EditProfileContainer({
             control={form.control}
             name="avatarFile"
             isMentor={isMentorRole}
-            onFileChange={(file) =>
-              avatarUpload.kickOff(file, form.getValues('avatar'))
-            }
+            onFileChange={handleAvatarFileChange}
           />
 
           <Section id="name" title="姓名" required>
@@ -358,9 +289,9 @@ export default function EditProfileContainer({
       </Form>
 
       <Dialog
-        open={unsaved.isPromptOpen}
+        open={isPromptOpen}
         onOpenChange={(open) => {
-          if (!open) unsaved.cancelLeave();
+          if (!open) cancelLeave();
         }}
       >
         <DialogContent className="max-w-md">
@@ -371,21 +302,10 @@ export default function EditProfileContainer({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:justify-end">
-            <Button variant="outline" onClick={unsaved.cancelLeave}>
+            <Button variant="outline" onClick={cancelLeave}>
               繼續編輯
             </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                // Restore the pre-edit avatar in S3 before navigating. Fire
-                // and forget — re-uploading the snapshot can take a couple of
-                // seconds, and the user shouldn't have to wait while leaving
-                // a page they explicitly cancelled. The hook drops the job
-                // ref synchronously so unmount cleanup can't double-abort.
-                void avatarUpload.rollback();
-                unsaved.confirmLeave();
-              }}
-            >
+            <Button variant="destructive" onClick={confirmLeave}>
               離開頁面
             </Button>
           </DialogFooter>

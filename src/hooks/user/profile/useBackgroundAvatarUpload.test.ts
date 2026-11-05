@@ -433,4 +433,38 @@ describe('useBackgroundAvatarUpload', () => {
       await expect(consumePromise).rejects.toThrow('S3 Network Error');
     });
   });
+
+  it('automatically rolls back a completed, unconsumed S3 upload when the hook unmounts (browser back / navigation leak protection, #787)', async () => {
+    const file = new File(['new-avatar-bytes'], 'avatar.png', {
+      type: 'image/png',
+    });
+    mockUpdateAvatar.mockResolvedValueOnce(
+      'https://s3.amazonaws.com/bucket/avatar.png?v=999'
+    );
+    const mockOldBlob = new Blob(['original-avatar-bytes'], {
+      type: 'image/jpeg',
+    });
+    mockGetAvatarSnapshot.mockResolvedValue(mockOldBlob);
+
+    const { result, unmount } = renderHook(() => useBackgroundAvatarUpload());
+
+    await act(async () => {
+      result.current.kickOff(file, 'https://old-avatar.com/old.jpg');
+      await Promise.resolve();
+    });
+
+    expect(mockUpdateAvatar).toHaveBeenCalledTimes(1);
+
+    // Unmount without calling consume()
+    unmount();
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockUpdateAvatar).toHaveBeenCalledTimes(2);
+    const restoredFile = mockUpdateAvatar.mock.calls[1][0];
+    expect(restoredFile.name).toBe('avatar');
+    expect(restoredFile.type).toBe('image/jpeg');
+  });
 });

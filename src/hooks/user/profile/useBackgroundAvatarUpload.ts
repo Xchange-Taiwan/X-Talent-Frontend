@@ -65,22 +65,11 @@ export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
     userIdRef.current = resolvedUserId;
   }, [resolvedUserId]);
 
-  useEffect(() => {
-    return () => {
-      jobRef.current?.controller.abort();
-      jobRef.current = null;
-    };
-  }, []);
-
   const kickOff = useCallback(
     (file: File, currentAvatarUrl: string | null | undefined) => {
       const current = jobRef.current;
       if (current?.file === file) return;
 
-      // Preserve the original snapshot across multiple file picks within the
-      // same session. We only fetch on the FIRST kickOff so a rollback restores
-      // the truly-pre-edit image, not whichever intermediate crop the user
-      // briefly tried.
       const oldBytesPromise =
         current?.oldBytesPromise ?? snapshotAvatarBytes(currentAvatarUrl);
 
@@ -105,8 +94,6 @@ export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
           return url;
         },
         (err) => {
-          // Aborts are expected when the user re-crops or unmounts — swallow
-          // so they don't surface as upload failures at submit time.
           if (controller.signal.aborted) {
             job.status = 'failed';
             return undefined;
@@ -116,11 +103,6 @@ export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
         }
       );
 
-      // If the user abandons the form without ever calling consume() (e.g.
-      // navigates away mid-crop), nothing else awaits job.promise. Attach a
-      // no-op catch so that rejection doesn't surface as an unhandled
-      // promise rejection — consume() still awaits the same job.promise and
-      // observes the original rejection independently.
       job.promise.catch(() => {});
 
       jobRef.current = job;
@@ -141,8 +123,6 @@ export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
         jobRef.current = null;
         return current.promise;
       }
-      // Fallback: kickOff hadn't fired (e.g. file picked outside the wired
-      // component) — upload synchronously so the submit still completes.
       return updateAvatar(file, userIdRef.current);
     },
     []
@@ -190,6 +170,14 @@ export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
       console.error('avatar rollback failed:', err);
     }
   }, []);
+
+  // Automatically abort in-flight uploads or roll back completed, unconsumed
+  // S3 uploads whenever the editor session unmounts (e.g. browser back).
+  useEffect(() => {
+    return () => {
+      void rollback();
+    };
+  }, [rollback]);
 
   return { kickOff, consume, rollback, abort };
 }
