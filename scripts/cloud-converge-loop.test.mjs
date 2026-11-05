@@ -83,6 +83,21 @@ describe('cloud-converge-loop', () => {
         'e2e/tests/reservation/reservation-create.spec.ts',
       ]);
     });
+
+    it('treats shared E2E helpers or playwright.config.ts changes as full-suite triggers', () => {
+      expect(
+        detectChangedE2eSpecs([
+          'e2e/helpers/route.ts',
+          'e2e/tests/public/signup.spec.ts',
+        ]).hasAppCodeChanges
+      ).toBe(true);
+      expect(
+        detectChangedE2eSpecs([
+          'playwright.config.ts',
+          'e2e/tests/public/signup.spec.ts',
+        ]).hasAppCodeChanges
+      ).toBe(true);
+    });
   });
 
   describe('evaluateRoundConvergence', () => {
