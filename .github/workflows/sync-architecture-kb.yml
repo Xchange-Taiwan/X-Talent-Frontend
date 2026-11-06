@@ -1,0 +1,23 @@
+name: Sync Architecture Knowledge Base to Cloudflare KV
+
+on:
+  schedule:
+    # Runs every 24 hours at 04:00 UTC (12:00 Taipei / 23:00 EST) on public repo (unlimited free minutes)
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+jobs:
+  sync-arch-kb:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Cloudflare Worker Hybrid Architecture & Tickets Pool KB Sync
+        run: |
+          response=$(curl -sS -w "\n%{http_code}" -X POST "https://x-talent-discord-mention-notify.eat-what.workers.dev/__sync-arch-kb" \
+            -H "Content-Type: application/json" \
+            -d '{}')
+          body=$(echo "$response" | sed '$d')
+          code=$(echo "$response" | tail -n 1)
+          echo "Cloudflare KV Sync Response ($code): $body"
+          if [ "$code" != "200" ]; then
+            exit 1
+          fi
