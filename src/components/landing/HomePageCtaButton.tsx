@@ -63,15 +63,15 @@ export function resolveHomePageCta(
 
 const BUTTON_CLASS_BY_VARIANT: Record<HomePageCtaVariant, string> = {
   hero: 'group h-14 min-w-[240px] gap-3 rounded-md px-9 py-3 text-base font-medium tracking-[0.04em]',
-  role: 'group border-brand-600 text-brand-700 min-h-11 w-full max-w-[342px] gap-3 rounded-md px-8 py-2.5 text-sm font-medium tracking-[0.04em] sm:w-auto sm:min-w-[252px]',
+  role: 'group border-brand-600 text-brand-700 h-12 min-h-12 w-full max-w-[342px] gap-3 rounded-md border-[1.5px] px-8 py-2.5 text-sm font-medium tracking-[0.04em] sm:h-11 sm:min-h-11 sm:w-auto sm:min-w-[252px]',
   closing:
-    'group min-h-11 w-full max-w-[342px] gap-3 rounded-md px-8 py-2.5 text-sm font-medium tracking-[0.04em] sm:w-auto sm:min-w-[199px]',
+    'group h-12 min-h-12 w-full max-w-[342px] gap-3 rounded-md px-8 py-2.5 text-sm font-medium tracking-[0.04em] sm:h-11 sm:min-h-11 sm:w-auto sm:min-w-[199px]',
 };
 
 const SKELETON_CLASS_BY_VARIANT: Record<HomePageCtaVariant, string> = {
   hero: 'h-14 w-[240px] rounded-md',
-  role: 'h-11 w-full max-w-[342px] rounded-md sm:w-[252px]',
-  closing: 'h-11 w-full max-w-[342px] rounded-md sm:w-[199px]',
+  role: 'h-12 w-full max-w-[342px] rounded-md sm:h-11 sm:w-[252px]',
+  closing: 'h-12 w-full max-w-[342px] rounded-md sm:h-11 sm:w-[199px]',
 };
 
 const UNKNOWN_SKELETON_VISIBILITY =

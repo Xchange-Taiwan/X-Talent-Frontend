@@ -30,13 +30,30 @@ describe('LandingPage', () => {
     const heroSection = heading.closest('section');
 
     expect(heroSection).not.toBeNull();
-    expect(heroSection).toHaveClass('relative', 'isolate', 'overflow-hidden');
+    expect(heroSection).toHaveClass(
+      'relative',
+      'isolate',
+      'overflow-hidden',
+      'bg-center',
+      'lg:pt-[180px]',
+      'lg:pb-16'
+    );
+    expect(heading).toHaveClass('mb-6', 'text-3xl', 'sm:text-4xl');
+
+    const subtitle = screen.getByText(
+      'Find your Mentor/Mentee to build up connections, break up limits.'
+    );
+    expect(subtitle).toHaveClass(
+      'max-w-[320px]',
+      'sm:max-w-[460px]',
+      'lg:max-w-[500px]'
+    );
 
     const heroImage = screen.getByAltText(
       'X-Talent 平台主視覺：專業工作者交流情境'
     );
     expect(heroImage).toBeInTheDocument();
-    expect(heroImage).toHaveClass('-z-10');
+    expect(heroImage).toHaveClass('-z-10', 'object-cover', 'object-center');
   });
 
   it.each([

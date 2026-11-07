@@ -120,7 +120,7 @@ test.describe('首頁 CTA 按鈕依身分顯示與導向 (#709)', () => {
     );
     await mockApiRoute(
       page,
-      new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule/y/\d+/m/\d+`),
+      new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule/y/\\d+/m/\\d+`),
       ok({ segments: [] })
     );
     await mockApiRoute(
