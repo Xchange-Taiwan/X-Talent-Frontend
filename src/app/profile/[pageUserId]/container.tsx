@@ -1,8 +1,8 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useRouter } from 'next/navigation';
-import { useCallback, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import MentorScheduleDialog from '@/components/profile/reservation/MentorScheduleDialog';
@@ -12,7 +12,7 @@ import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
 import { useBookingConfirmation } from '@/hooks/user/reservation/useBookingConfirmation';
 import { primeTagCatalogCacheIfEmpty } from '@/hooks/user/tags/useTagCatalog';
 import useUserData from '@/hooks/user/user-data/useUserData';
-import { getMentorOnboardingUrl } from '@/lib/routes';
+import { getMentorOnboardingUrl, OPEN_SCHEDULE_DIALOG_KEY } from '@/lib/routes';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
 
@@ -21,6 +21,28 @@ import { ProfilePageSkeleton } from './skeleton';
 const ProfilePageUI = dynamic(() => import('./ui'), {
   loading: () => <ProfilePageSkeleton />,
 });
+
+function ScheduleAutoOpenWatcher({
+  canAutoOpen,
+  onAutoOpen,
+}: {
+  canAutoOpen: boolean;
+  onAutoOpen: () => void;
+}): null {
+  const searchParams = useSearchParams();
+  const shouldAutoOpen = searchParams?.get(OPEN_SCHEDULE_DIALOG_KEY) === 'true';
+  const hasAutoOpenedRef = useRef(false);
+
+  useEffect(() => {
+    if (!shouldAutoOpen || !canAutoOpen || hasAutoOpenedRef.current) {
+      return;
+    }
+    hasAutoOpenedRef.current = true;
+    onAutoOpen();
+  }, [shouldAutoOpen, canAutoOpen, onAutoOpen]);
+
+  return null;
+}
 
 interface Props {
   pageUserId: string;
@@ -81,6 +103,16 @@ export default function ProfilePageContainer({
     },
     [reader, openReservationDialog]
   );
+
+  const canAutoOpenSchedule = Boolean(
+    !userLoading && userData?.is_mentor && canShowOwnerControls && editor
+  );
+
+  const handleAutoOpenSchedule = useCallback(() => {
+    reader.clampSelectedDateToToday?.();
+    setOpenReservationDialog(true);
+    router.replace?.(`/profile/${pageUserId}`, { scroll: false });
+  }, [reader, router, pageUserId]);
 
   const { isSubmitting, handleConfirmReservation } = useBookingConfirmation({
     loginUserId,
@@ -148,13 +180,21 @@ export default function ProfilePageContainer({
         // driven by the same loginUserId === pageUserId check, so editor is
         // guaranteed non-null here.
         userData && canShowOwnerControls && editor ? (
-          <MentorScheduleDialog
-            open={openReservationDialog}
-            onOpenChange={setOpenReservationDialog}
-            reader={reader}
-            schedule={editor}
-            onMonthChange={handleScheduleMonthChange}
-          />
+          <>
+            <Suspense fallback={null}>
+              <ScheduleAutoOpenWatcher
+                canAutoOpen={canAutoOpenSchedule}
+                onAutoOpen={handleAutoOpenSchedule}
+              />
+            </Suspense>
+            <MentorScheduleDialog
+              open={openReservationDialog}
+              onOpenChange={setOpenReservationDialog}
+              reader={reader}
+              schedule={editor}
+              onMonthChange={handleScheduleMonthChange}
+            />
+          </>
         ) : undefined
       }
     />

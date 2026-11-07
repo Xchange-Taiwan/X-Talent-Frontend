@@ -63,7 +63,6 @@ export async function fetchTicketContext(branchName, token, fallbackTicket) {
   };
 }
 
-
 const ARCH_KB_ENDPOINT =
   process.env.ARCH_KB_ENDPOINT ||
   'https://x-talent-discord-mention-notify.eat-what.workers.dev/__arch-kb';

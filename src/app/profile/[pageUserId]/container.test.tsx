@@ -2,8 +2,14 @@ import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const mockPush = vi.fn();
+const mockReplace = vi.fn();
+const mockClampSelectedDateToToday = vi.fn();
+let currentSearchParams = new URLSearchParams();
+
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: mockPush, replace: mockReplace }),
+  useSearchParams: () => currentSearchParams,
 }));
 
 // ProfilePageUI is loaded via next/dynamic; swap it for a shim that renders
@@ -16,7 +22,12 @@ vi.mock('next/dynamic', () => ({
 }));
 
 vi.mock('@/components/profile/reservation/MentorScheduleDialog', () => ({
-  default: () => <div data-testid="mentor-schedule-dialog" />,
+  default: ({ open }: { open?: boolean }) => (
+    <div
+      data-testid="mentor-schedule-dialog"
+      data-open={open ? 'true' : 'false'}
+    />
+  ),
 }));
 
 const mockUseResolvedIdentity = vi.fn();
@@ -48,7 +59,7 @@ vi.mock('@/hooks/useMentorSchedule', () => ({
       selectedSlot: null,
       setSelectedSlot: vi.fn(),
       onMonthChange: vi.fn(),
-      clampSelectedDateToToday: vi.fn(),
+      clampSelectedDateToToday: mockClampSelectedDateToToday,
       allowedDates: [],
       reload: vi.fn(),
     },
@@ -117,6 +128,7 @@ function identity({
 describe('ProfilePageContainer - owner-editor injection gating', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    currentSearchParams = new URLSearchParams();
     mockUseUserData.mockReturnValue({
       userData: { user_id: 123, name: 'Test Mentor', is_mentor: true },
       isLoading: false,
@@ -243,5 +255,76 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
     expect(
       screen.queryByTestId('mentor-schedule-dialog')
     ).not.toBeInTheDocument();
+  });
+
+  it('auto-opens MentorScheduleDialog and cleans URL for confirmed mentor owner with ?open-schedule=true (#709)', () => {
+    mockUseResolvedIdentity.mockReturnValue(
+      identity({
+        sessionSettled: true,
+        hasFullUser: true,
+        userId: PAGE_USER_ID,
+      })
+    );
+
+    const { unmount } = renderContainer();
+    expect(screen.getByTestId('mentor-schedule-dialog')).toHaveAttribute(
+      'data-open',
+      'false'
+    );
+    expect(mockReplace).not.toHaveBeenCalled();
+    unmount();
+
+    currentSearchParams = new URLSearchParams('open-schedule=true');
+    renderContainer();
+
+    expect(screen.getByTestId('mentor-schedule-dialog')).toHaveAttribute(
+      'data-open',
+      'true'
+    );
+    expect(mockClampSelectedDateToToday).toHaveBeenCalledTimes(1);
+    expect(mockReplace).toHaveBeenCalledWith(`/profile/${PAGE_USER_ID}`, {
+      scroll: false,
+    });
+  });
+
+  it('blocks ?open-schedule=true for non-owner, guest, unsettled, or non-mentor (#709)', () => {
+    currentSearchParams = new URLSearchParams('open-schedule=true');
+
+    for (const [settled, full, uid] of [
+      [true, true, '999'],
+      [true, false, null],
+      [false, false, PAGE_USER_ID],
+    ] as const) {
+      mockUseResolvedIdentity.mockReturnValue(
+        identity({ sessionSettled: settled, hasFullUser: full, userId: uid })
+      );
+      const { unmount } = renderContainer();
+      expect(
+        screen.queryByTestId('mentor-schedule-dialog')
+      ).not.toBeInTheDocument();
+      unmount();
+    }
+
+    mockUseUserData.mockReturnValue({
+      userData: { user_id: 123, name: 'Mentee', is_mentor: false },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    mockUseResolvedIdentity.mockReturnValue(
+      identity({
+        sessionSettled: true,
+        hasFullUser: true,
+        userId: PAGE_USER_ID,
+      })
+    );
+    renderContainer();
+
+    expect(screen.getByTestId('mentor-schedule-dialog')).toHaveAttribute(
+      'data-open',
+      'false'
+    );
+    expect(mockClampSelectedDateToToday).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 });

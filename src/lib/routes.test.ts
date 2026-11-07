@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  getBecomeMentorHref,
   getMentorOnboardingUrl,
+  getMentorScheduleManagementUrl,
+  getOpenScheduleHref,
   getProfileEditUrl,
   MENTOR_ONBOARDING_KEY,
+  OPEN_SCHEDULE_DIALOG_KEY,
 } from './routes';
 
 describe('routes helpers', () => {
@@ -27,5 +31,18 @@ describe('routes helpers', () => {
         '/profile/abc/edit?mentor-onboarding=true'
       );
     });
+  });
+
+  it('builds mentor onboarding and schedule hrefs (#709)', () => {
+    expect(OPEN_SCHEDULE_DIALOG_KEY).toBe('open-schedule');
+    expect(getBecomeMentorHref('u1')).toBe(
+      '/profile/u1/edit?mentor-onboarding=true'
+    );
+    expect(getBecomeMentorHref(undefined)).toBe('/auth/signup');
+    expect(getMentorScheduleManagementUrl('u1')).toBe(
+      '/profile/u1?open-schedule=true'
+    );
+    expect(getOpenScheduleHref('u1')).toBe('/profile/u1?open-schedule=true');
+    expect(getOpenScheduleHref(undefined)).toBe('/');
   });
 });

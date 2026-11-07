@@ -1,9 +1,149 @@
-import { expect, test } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
+
+import { mockApiRoute } from '../../helpers/route';
+import { setSignedSessionCookie } from '../../helpers/session';
+
+const REAL_MENTOR_ID = '7482008160728084';
+const MENTEE_ID = '999991';
+const ok = (data: unknown) => ({ body: { code: '0', msg: 'ok', data } });
+
+async function loginAs(page: Page, id: string, isMentor: boolean) {
+  await mockApiRoute(
+    page,
+    /\/v1\/users\/.*\/notifications\/unread-count/,
+    ok({ unread_count: 0 })
+  );
+  await setSignedSessionCookie(page, {
+    id,
+    name: 'Test User',
+    onBoarding: true,
+    isMentor,
+    jobTitle: 'Engineer',
+    company: 'XChange',
+    personalLinks: [],
+    token: 'mock-token',
+  });
+}
 
 test('home page loads', async ({ page }) => {
   await page.goto('/');
   await expect(page).toHaveURL('/');
   await expect(page.locator('body')).toBeVisible();
+});
+
+test.describe('首頁 CTA 按鈕依身分顯示與導向 (#709)', () => {
+  test('訪客造訪首頁 → 3 顆 CTA 導向 /auth/signup', async ({ page }) => {
+    await page.goto('/');
+
+    for (const [id, text] of [
+      ['homepage-cta-hero', '加入 X-Talent'],
+      ['homepage-cta-role', '成為 Mentor/Mentee'],
+      ['homepage-cta-closing', '加入 X-Talent'],
+    ] as const) {
+      const cta = page.getByTestId(id);
+      await expect(cta).toHaveText(text);
+      await expect(cta).toHaveAttribute('href', '/auth/signup');
+    }
+
+    await page.getByTestId('homepage-cta-hero').click();
+    await expect(page).toHaveURL(/\/auth\/signup$/);
+  });
+
+  test('Mentee 造訪首頁 → Hero/Footer 導向 /mentor-pool，段落 CTA 導向 Mentor 註冊頁', async ({
+    page,
+  }) => {
+    await loginAs(page, MENTEE_ID, false);
+    await page.goto('/');
+
+    await expect(page.getByTestId('homepage-cta-hero')).toHaveAttribute(
+      'href',
+      '/mentor-pool'
+    );
+    await expect(page.getByTestId('homepage-cta-role')).toHaveAttribute(
+      'href',
+      `/profile/${MENTEE_ID}/edit?mentor-onboarding=true`
+    );
+    const closingCta = page.getByTestId('homepage-cta-closing');
+    await expect(closingCta).toHaveText('尋找導師');
+    await closingCta.click();
+    await expect(page).toHaveURL(/\/mentor-pool$/);
+  });
+
+  test('Mentor 造訪首頁 → 點擊開放預約時段導向個人頁並自動開啟時段管理彈窗', async ({
+    page,
+  }) => {
+    const empty = { groups: [] };
+    await loginAs(page, REAL_MENTOR_ID, true);
+    await mockApiRoute(
+      page,
+      new RegExp(`/v1/(?:mentors|users)/${REAL_MENTOR_ID}/zh_TW/profile`),
+      ok({
+        user_id: Number(REAL_MENTOR_ID),
+        name: 'Test Mentor',
+        avatar: '',
+        onboarding: true,
+        is_mentor: true,
+        job_title: 'Senior Engineer',
+        company: 'XChange',
+        years_of_experience: 'THREE_TO_FIVE',
+        location: 'TWN',
+        personal_statement: 'Bio',
+        about: 'About',
+        language: 'zh_TW',
+        industry: {
+          id: 1,
+          subject_group: 'TECH',
+          subject: '科技業',
+          category: 'INDUSTRY',
+          language: 'zh_TW',
+        },
+        want_position: [],
+        want_skill: [],
+        want_topic: [],
+        have_skill: ['TEST_SKILL'],
+        have_topic: ['TEST_TOPIC'],
+        expertises: { professions: [], language: 'zh_TW' },
+        experiences: [],
+      })
+    );
+    await mockApiRoute(
+      page,
+      /\/v1\/users\/zh_TW\/tags\/catalog/,
+      ok({
+        catalogs: {
+          skill: empty,
+          topic: empty,
+          position: empty,
+          industry: empty,
+        },
+      })
+    );
+    await mockApiRoute(
+      page,
+      new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule/y/\\d+/m/\\d+`),
+      ok({ segments: [] })
+    );
+    await mockApiRoute(
+      page,
+      new RegExp(`/v1/users/${REAL_MENTOR_ID}/reservations`),
+      ok({ reservations: [], next_cursor: null })
+    );
+
+    await page.goto('/');
+
+    const roleCta = page.getByTestId('homepage-cta-role');
+    await expect(roleCta).toHaveText('開放預約時段');
+    await expect(roleCta).toHaveAttribute(
+      'href',
+      `/profile/${REAL_MENTOR_ID}?open-schedule=true`
+    );
+
+    await roleCta.click();
+    await expect(page).toHaveURL(new RegExp(`/profile/${REAL_MENTOR_ID}`));
+    await expect(
+      page.getByRole('dialog', { name: '設定可預約時段' })
+    ).toBeVisible({ timeout: 15_000 });
+  });
 });
 
 test('mentor pool page is accessible without authentication', async ({
