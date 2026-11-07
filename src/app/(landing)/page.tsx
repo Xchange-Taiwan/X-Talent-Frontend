@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 
 import { FeatureItem } from '@/components/landing/FeatureItem';
+import { HomePageCtaButton } from '@/components/landing/HomePageCtaButton';
 import { HomePageSliderClient } from '@/components/landing/HomePageSliderClient';
 
 import { featureData } from './data';
@@ -60,6 +61,9 @@ export default function Page() {
         <p className="text-text-primary max-w-[516px] text-lg sm:text-xl md:text-2xl lg:max-w-[630px]">
           Find your Mentor/Mentee to build up connections, break up limits.
         </p>
+        <div className="mt-8">
+          <HomePageCtaButton variant="hero" />
+        </div>
 
         <Image
           src="/landing/home-page-hero.webp"
@@ -152,7 +156,7 @@ export default function Page() {
         </div>
       </section>
 
-      <section className="flex h-auto w-full py-10 md:h-[780px] md:py-0 xl:h-[820px]">
+      <section className="flex h-auto w-full py-10 md:min-h-[780px] md:py-16 xl:min-h-[820px] xl:py-20">
         <div className="m-auto flex h-auto w-full max-w-screen-xl flex-col items-center justify-center px-4 md:h-full md:px-8 xl:px-0">
           <div className="flex">
             <Image
@@ -289,12 +293,42 @@ export default function Page() {
               </div>
             </div>
           </div>
+          <div className="mt-12 flex w-full flex-col items-center text-center md:mt-16">
+            <p className="text-text-secondary mb-6 max-w-[280px] text-base leading-6 sm:max-w-none">
+              成為 Mentor 或 Mentee，展開你的下一段交流。
+            </p>
+            <HomePageCtaButton variant="role" />
+          </div>
         </div>
       </section>
 
       <section className="bg-background-bottom-secondary flex items-center justify-center">
         <div className="w-full max-w-[600px] py-10 lg:max-w-6xl">
           <HomePageSliderClient />
+        </div>
+      </section>
+
+      <section
+        aria-labelledby="homepage-closing-cta-title"
+        className="bg-brand-50 flex w-full items-center justify-center px-6 py-14 text-center sm:py-20"
+      >
+        <div className="flex w-full max-w-[1200px] flex-col items-center">
+          <h2
+            id="homepage-closing-cta-title"
+            className="text-navy sm:text-32 text-2xl leading-9 font-bold sm:leading-[1.5]"
+          >
+            你的下一步，
+            <br className="sm:hidden" />
+            從一次交流開始。
+          </h2>
+          <p className="text-text-secondary mt-4 text-base leading-7 sm:leading-6">
+            找到適合你的 Mentor，
+            <br className="sm:hidden" />
+            讓前輩的經驗陪你探索職涯方向。
+          </p>
+          <div className="mt-7 flex w-full justify-center sm:mt-8">
+            <HomePageCtaButton variant="closing" />
+          </div>
         </div>
       </section>
     </>

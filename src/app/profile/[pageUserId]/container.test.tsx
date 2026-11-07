@@ -2,8 +2,13 @@ import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const mockPush = vi.fn();
+const mockReplace = vi.fn();
+let currentSearchParams = new URLSearchParams();
+
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: mockPush, replace: mockReplace }),
+  useSearchParams: () => currentSearchParams,
 }));
 
 // ProfilePageUI is loaded via next/dynamic; swap it for a shim that renders
@@ -16,7 +21,12 @@ vi.mock('next/dynamic', () => ({
 }));
 
 vi.mock('@/components/profile/reservation/MentorScheduleDialog', () => ({
-  default: () => <div data-testid="mentor-schedule-dialog" />,
+  default: ({ open }: { open?: boolean }) => (
+    <div
+      data-testid="mentor-schedule-dialog"
+      data-open={open ? 'true' : 'false'}
+    />
+  ),
 }));
 
 const mockUseResolvedIdentity = vi.fn();
@@ -117,6 +127,7 @@ function identity({
 describe('ProfilePageContainer - owner-editor injection gating', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    currentSearchParams = new URLSearchParams();
     mockUseUserData.mockReturnValue({
       userData: { user_id: 123, name: 'Test Mentor', is_mentor: true },
       isLoading: false,
@@ -243,5 +254,42 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
     expect(
       screen.queryByTestId('mentor-schedule-dialog')
     ).not.toBeInTheDocument();
+  });
+
+  it('automatically opens MentorScheduleDialog and cleans up the query parameter when ?open-schedule=true is present for the confirmed mentor owner (#709)', () => {
+    currentSearchParams = new URLSearchParams('open-schedule=true');
+    mockUseResolvedIdentity.mockReturnValue(
+      identity({
+        sessionSettled: true,
+        hasFullUser: true,
+        userId: PAGE_USER_ID,
+      })
+    );
+
+    renderContainer();
+
+    const dialog = screen.getByTestId('mentor-schedule-dialog');
+    expect(dialog).toBeInTheDocument();
+    expect(dialog).toHaveAttribute('data-open', 'true');
+    expect(mockReplace).toHaveBeenCalledWith(`/profile/${PAGE_USER_ID}`, {
+      scroll: false,
+    });
+  });
+
+  it('keeps MentorScheduleDialog closed by default when ?open-schedule=true is absent (#709)', () => {
+    mockUseResolvedIdentity.mockReturnValue(
+      identity({
+        sessionSettled: true,
+        hasFullUser: true,
+        userId: PAGE_USER_ID,
+      })
+    );
+
+    renderContainer();
+
+    const dialog = screen.getByTestId('mentor-schedule-dialog');
+    expect(dialog).toBeInTheDocument();
+    expect(dialog).toHaveAttribute('data-open', 'false');
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 });
