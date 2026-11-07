@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  getBecomeMentorHref,
-  getOpenScheduleHref,
-  getProfileHref,
-} from './navHrefs';
+import { getBecomeMentorHref, getProfileHref } from './navHrefs';
 
 describe('navHrefs', () => {
   describe('getProfileHref', () => {
@@ -26,18 +22,6 @@ describe('navHrefs', () => {
 
     it('falls back to signup when userId is undefined', () => {
       expect(getBecomeMentorHref(undefined)).toBe('/auth/signup');
-    });
-  });
-
-  describe('getOpenScheduleHref', () => {
-    it('returns the profile schedule management URL when userId is present', () => {
-      expect(getOpenScheduleHref('user-123')).toBe(
-        '/profile/user-123?open-schedule=true'
-      );
-    });
-
-    it('falls back to "/" when userId is undefined', () => {
-      expect(getOpenScheduleHref(undefined)).toBe('/');
     });
   });
 });

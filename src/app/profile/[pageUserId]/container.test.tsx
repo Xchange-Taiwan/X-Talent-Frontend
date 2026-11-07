@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockPush = vi.fn();
 const mockReplace = vi.fn();
+const mockClampSelectedDateToToday = vi.fn();
 let currentSearchParams = new URLSearchParams();
 
 vi.mock('next/navigation', () => ({
@@ -58,7 +59,7 @@ vi.mock('@/hooks/useMentorSchedule', () => ({
       selectedSlot: null,
       setSelectedSlot: vi.fn(),
       onMonthChange: vi.fn(),
-      clampSelectedDateToToday: vi.fn(),
+      clampSelectedDateToToday: mockClampSelectedDateToToday,
       allowedDates: [],
       reload: vi.fn(),
     },
@@ -256,8 +257,7 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('automatically opens MentorScheduleDialog and cleans up the query parameter when ?open-schedule=true is present for the confirmed mentor owner (#709)', () => {
-    currentSearchParams = new URLSearchParams('open-schedule=true');
+  it('auto-opens MentorScheduleDialog and cleans URL for confirmed mentor owner with ?open-schedule=true (#709)', () => {
     mockUseResolvedIdentity.mockReturnValue(
       identity({
         sessionSettled: true,
@@ -266,17 +266,51 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
       })
     );
 
+    const { unmount } = renderContainer();
+    expect(screen.getByTestId('mentor-schedule-dialog')).toHaveAttribute(
+      'data-open',
+      'false'
+    );
+    expect(mockReplace).not.toHaveBeenCalled();
+    unmount();
+
+    currentSearchParams = new URLSearchParams('open-schedule=true');
     renderContainer();
 
-    const dialog = screen.getByTestId('mentor-schedule-dialog');
-    expect(dialog).toBeInTheDocument();
-    expect(dialog).toHaveAttribute('data-open', 'true');
+    expect(screen.getByTestId('mentor-schedule-dialog')).toHaveAttribute(
+      'data-open',
+      'true'
+    );
+    expect(mockClampSelectedDateToToday).toHaveBeenCalledTimes(1);
     expect(mockReplace).toHaveBeenCalledWith(`/profile/${PAGE_USER_ID}`, {
       scroll: false,
     });
   });
 
-  it('keeps MentorScheduleDialog closed by default when ?open-schedule=true is absent (#709)', () => {
+  it('blocks ?open-schedule=true for non-owner, guest, unsettled, or non-mentor (#709)', () => {
+    currentSearchParams = new URLSearchParams('open-schedule=true');
+
+    for (const [settled, full, uid] of [
+      [true, true, '999'],
+      [true, false, null],
+      [false, false, PAGE_USER_ID],
+    ] as const) {
+      mockUseResolvedIdentity.mockReturnValue(
+        identity({ sessionSettled: settled, hasFullUser: full, userId: uid })
+      );
+      const { unmount } = renderContainer();
+      expect(
+        screen.queryByTestId('mentor-schedule-dialog')
+      ).not.toBeInTheDocument();
+      unmount();
+    }
+
+    mockUseUserData.mockReturnValue({
+      userData: { user_id: 123, name: 'Mentee', is_mentor: false },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
     mockUseResolvedIdentity.mockReturnValue(
       identity({
         sessionSettled: true,
@@ -284,12 +318,13 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
         userId: PAGE_USER_ID,
       })
     );
-
     renderContainer();
 
-    const dialog = screen.getByTestId('mentor-schedule-dialog');
-    expect(dialog).toBeInTheDocument();
-    expect(dialog).toHaveAttribute('data-open', 'false');
+    expect(screen.getByTestId('mentor-schedule-dialog')).toHaveAttribute(
+      'data-open',
+      'false'
+    );
+    expect(mockClampSelectedDateToToday).not.toHaveBeenCalled();
     expect(mockReplace).not.toHaveBeenCalled();
   });
 });

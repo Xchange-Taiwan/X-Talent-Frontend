@@ -160,33 +160,33 @@ export default function ProfilePageContainer({
   };
 
   return (
-    <>
-      <Suspense fallback={null}>
-        <ScheduleAutoOpenWatcher
-          canAutoOpen={canAutoOpenSchedule}
-          onAutoOpen={handleAutoOpenSchedule}
-        />
-      </Suspense>
-      <ProfilePageUI
-        userData={userData}
-        userLoading={userLoading}
-        schedule={reader}
-        scheduleLoaded={loaded}
-        loginUserId={loginUserId}
-        isIdentityResolved={isIdentityResolved}
-        canShowOwnerControls={canShowOwnerControls}
-        avatarSrc={avatarSrc}
-        onReservation={reservationHandler}
-        onScheduleMonthChange={handleScheduleMonthChange}
-        isSubmitting={isSubmitting}
-        onConfirmReservation={handleConfirmReservation}
-        onEditProfile={() => router.push(`/profile/${pageUserId}/edit`)}
-        onBecomeMentor={() => router.push(getMentorOnboardingUrl(pageUserId))}
-        editorDialog={
-          // canShowOwnerControls and the hook's own editor gating are both
-          // driven by the same loginUserId === pageUserId check, so editor is
-          // guaranteed non-null here.
-          userData && canShowOwnerControls && editor ? (
+    <ProfilePageUI
+      userData={userData}
+      userLoading={userLoading}
+      schedule={reader}
+      scheduleLoaded={loaded}
+      loginUserId={loginUserId}
+      isIdentityResolved={isIdentityResolved}
+      canShowOwnerControls={canShowOwnerControls}
+      avatarSrc={avatarSrc}
+      onReservation={reservationHandler}
+      onScheduleMonthChange={handleScheduleMonthChange}
+      isSubmitting={isSubmitting}
+      onConfirmReservation={handleConfirmReservation}
+      onEditProfile={() => router.push(`/profile/${pageUserId}/edit`)}
+      onBecomeMentor={() => router.push(getMentorOnboardingUrl(pageUserId))}
+      editorDialog={
+        // canShowOwnerControls and the hook's own editor gating are both
+        // driven by the same loginUserId === pageUserId check, so editor is
+        // guaranteed non-null here.
+        userData && canShowOwnerControls && editor ? (
+          <>
+            <Suspense fallback={null}>
+              <ScheduleAutoOpenWatcher
+                canAutoOpen={canAutoOpenSchedule}
+                onAutoOpen={handleAutoOpenSchedule}
+              />
+            </Suspense>
             <MentorScheduleDialog
               open={openReservationDialog}
               onOpenChange={setOpenReservationDialog}
@@ -194,9 +194,9 @@ export default function ProfilePageContainer({
               schedule={editor}
               onMonthChange={handleScheduleMonthChange}
             />
-          ) : undefined
-        }
-      />
-    </>
+          </>
+        ) : undefined
+      }
+    />
   );
 }

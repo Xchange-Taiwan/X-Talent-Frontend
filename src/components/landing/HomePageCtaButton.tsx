@@ -1,21 +1,24 @@
 'use client';
 
 import { ArrowRight } from 'lucide-react';
-import { memo } from 'react';
+import Link from 'next/link';
+import { memo, type MouseEvent } from 'react';
 
-import { FIND_MENTOR_HREF } from '@/components/layout/Header/constants';
-import { DisabledAwareLink } from '@/components/layout/Header/DisabledAwareLink';
-import {
-  getBecomeMentorHref,
-  getOpenScheduleHref,
-} from '@/components/layout/Header/navHrefs';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
+import { trackEvent } from '@/lib/analytics';
 import { ResolvedIdentity } from '@/lib/auth/sessionHint';
+import {
+  FIND_MENTOR_HREF,
+  getBecomeMentorHref,
+  getOpenScheduleHref,
+  SIGNUP_HREF,
+} from '@/lib/routes';
 import { cn } from '@/lib/utils';
 
-export const SIGNUP_HREF = '/auth/signup';
+export { SIGNUP_HREF };
+export const HOMEPAGE_CTA_CLICK_EVENT = 'homepage_cta_click';
 
 export type HomePageCtaVariant = 'hero' | 'role' | 'closing';
 
@@ -29,87 +32,86 @@ export function resolveHomePageCta(
   variant: HomePageCtaVariant,
   identity: ResolvedIdentity
 ): ResolvedHomePageCta {
-  if (variant === 'hero' || variant === 'closing') {
-    if (
-      identity.state === 'confirmed-member' ||
-      identity.state === 'hint-only'
-    ) {
-      return {
-        label: '尋找導師',
-        href: FIND_MENTOR_HREF,
-        disabled: false,
-      };
-    }
+  const isMember =
+    identity.state === 'confirmed-member' || identity.state === 'hint-only';
 
+  if (variant !== 'role') {
     return {
-      label: '加入 X-Talent',
-      href: SIGNUP_HREF,
+      label: isMember ? '尋找導師' : '加入 X-Talent',
+      href: isMember ? FIND_MENTOR_HREF : SIGNUP_HREF,
       disabled: false,
     };
   }
 
-  if (identity.state === 'confirmed-member') {
-    if (identity.isMentor) {
-      return {
+  if (!isMember) {
+    return { label: '成為 Mentor/Mentee', href: SIGNUP_HREF, disabled: false };
+  }
+
+  const disabled = identity.state === 'hint-only';
+  return identity.isMentor
+    ? {
         label: '開放預約時段',
         href: getOpenScheduleHref(identity.userId),
-        disabled: false,
+        disabled,
+      }
+    : {
+        label: '成為 Mentor',
+        href: getBecomeMentorHref(identity.userId),
+        disabled,
       };
-    }
-
-    return {
-      label: '成為 Mentor',
-      href: getBecomeMentorHref(identity.userId),
-      disabled: false,
-    };
-  }
-
-  if (identity.state === 'hint-only') {
-    if (identity.isMentor) {
-      return {
-        label: '開放預約時段',
-        href: getOpenScheduleHref(identity.userId),
-        disabled: true,
-      };
-    }
-
-    return {
-      label: '成為 Mentor',
-      href: getBecomeMentorHref(identity.userId),
-      disabled: true,
-    };
-  }
-
-  return {
-    label: '成為 Mentor/Mentee',
-    href: SIGNUP_HREF,
-    disabled: false,
-  };
 }
 
-function getButtonClassName(variant: HomePageCtaVariant): string {
-  if (variant === 'hero') {
-    return 'group h-14 min-w-[240px] gap-3 rounded-md px-9 py-3 text-base font-medium tracking-[0.04em]';
-  }
+const BUTTON_CLASS_BY_VARIANT: Record<HomePageCtaVariant, string> = {
+  hero: 'group h-14 min-w-[240px] gap-3 rounded-md px-9 py-3 text-base font-medium tracking-[0.04em]',
+  role: 'group border-brand-600 text-brand-700 min-h-11 w-full max-w-[342px] gap-3 rounded-md px-8 py-2.5 text-sm font-medium tracking-[0.04em] sm:w-auto sm:min-w-[252px]',
+  closing:
+    'group min-h-11 w-full max-w-[342px] gap-3 rounded-md px-8 py-2.5 text-sm font-medium tracking-[0.04em] sm:w-auto sm:min-w-[199px]',
+};
 
-  if (variant === 'role') {
-    return 'group border-brand-600 text-brand-700 min-h-11 w-full max-w-[342px] gap-3 rounded-md px-8 py-2.5 text-sm font-medium tracking-[0.04em] sm:w-auto sm:min-w-[252px]';
-  }
+const SKELETON_CLASS_BY_VARIANT: Record<HomePageCtaVariant, string> = {
+  hero: 'h-14 w-[240px] rounded-md',
+  role: 'h-11 w-full max-w-[342px] rounded-md sm:w-[252px]',
+  closing: 'h-11 w-full max-w-[342px] rounded-md sm:w-[199px]',
+};
 
-  return 'group min-h-11 w-full max-w-[342px] gap-3 rounded-md px-8 py-2.5 text-sm font-medium tracking-[0.04em] sm:w-auto sm:min-w-[199px]';
-}
+const UNKNOWN_SKELETON_VISIBILITY =
+  'group-data-[auth-state=guest]/auth-state:hidden group-data-[auth-state=mentee]/auth-state:hidden group-data-[auth-state=mentor]/auth-state:hidden';
 
-function getSkeletonClassName(variant: HomePageCtaVariant): string {
-  if (variant === 'hero') {
-    return 'h-14 w-[240px] rounded-md';
-  }
+const UNKNOWN_PRIMARY_ITEMS = [
+  [
+    '加入 X-Talent',
+    SIGNUP_HREF,
+    false,
+    'hidden group-data-[auth-state=guest]/auth-state:inline-flex',
+  ],
+  [
+    '尋找導師',
+    FIND_MENTOR_HREF,
+    false,
+    'hidden group-data-[auth-state=mentee]/auth-state:inline-flex group-data-[auth-state=mentor]/auth-state:inline-flex',
+  ],
+] as const;
 
-  if (variant === 'role') {
-    return 'h-11 w-full max-w-[342px] rounded-md sm:w-[252px]';
-  }
-
-  return 'h-11 w-full max-w-[342px] rounded-md sm:w-[199px]';
-}
+const UNKNOWN_ROLE_ITEMS = [
+  [
+    '成為 Mentor/Mentee',
+    SIGNUP_HREF,
+    false,
+    'hidden group-data-[auth-state=guest]/auth-state:inline-flex',
+  ],
+  [
+    '成為 Mentor',
+    getBecomeMentorHref(undefined),
+    true,
+    'hidden group-data-[auth-state=mentee]/auth-state:inline-flex',
+  ],
+  [
+    '開放預約時段',
+    getOpenScheduleHref(undefined),
+    true,
+    'hidden group-data-[auth-state=mentor]/auth-state:inline-flex',
+  ],
+] as const;
 
 export interface HomePageCtaButtonProps {
   variant: HomePageCtaVariant;
@@ -131,28 +133,45 @@ function CtaLinkItem({
   testId?: string;
   className?: string;
 }): JSX.Element {
-  const buttonVariant = variant === 'role' ? 'outline' : 'default';
   const dataCta = variant === 'role' ? 'shared' : variant;
-  const iconClassName =
-    variant === 'hero'
-      ? 'size-5 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5'
-      : 'size-4 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5';
+  const handleClick = (e: MouseEvent<HTMLAnchorElement>) => {
+    if (disabled) {
+      e.preventDefault();
+      return;
+    }
+    trackEvent({
+      name: HOMEPAGE_CTA_CLICK_EVENT,
+      metadata: { cta: dataCta, variant, label },
+    });
+  };
 
   return (
     <Button
       asChild
-      variant={buttonVariant}
-      className={cn(getButtonClassName(variant), className)}
+      variant={variant === 'role' ? 'outline' : 'default'}
+      className={cn(
+        BUTTON_CLASS_BY_VARIANT[variant],
+        disabled && 'pointer-events-none opacity-50',
+        className
+      )}
     >
-      <DisabledAwareLink
-        href={href}
-        disabled={disabled}
+      <Link
+        href={disabled ? '#' : href}
+        aria-disabled={disabled}
+        tabIndex={disabled ? -1 : undefined}
         data-testid={testId}
         data-cta={dataCta}
+        onClick={handleClick}
       >
         <span>{label}</span>
-        <ArrowRight className={iconClassName} aria-hidden="true" />
-      </DisabledAwareLink>
+        <ArrowRight
+          className={cn(
+            variant === 'hero' ? 'size-5' : 'size-4',
+            'shrink-0 transition-transform duration-200 group-hover:translate-x-0.5'
+          )}
+          aria-hidden="true"
+        />
+      </Link>
     </Button>
   );
 }
@@ -164,71 +183,26 @@ function HomePageCtaButtonComponent({
   const identity = useResolvedIdentity();
 
   if (identity.state === 'unknown') {
-    const skeletonVisibility =
-      'group-data-[auth-state=guest]/auth-state:hidden group-data-[auth-state=mentee]/auth-state:hidden group-data-[auth-state=mentor]/auth-state:hidden';
-
-    if (variant === 'hero' || variant === 'closing') {
-      return (
-        <>
-          <Skeleton
-            className={cn(getSkeletonClassName(variant), skeletonVisibility)}
-          />
-          <CtaLinkItem
-            variant={variant}
-            label="加入 X-Talent"
-            href={SIGNUP_HREF}
-            className={cn(
-              'hidden group-data-[auth-state=guest]/auth-state:inline-flex',
-              className
-            )}
-          />
-          <CtaLinkItem
-            variant={variant}
-            label="尋找導師"
-            href={FIND_MENTOR_HREF}
-            className={cn(
-              'hidden group-data-[auth-state=mentee]/auth-state:inline-flex group-data-[auth-state=mentor]/auth-state:inline-flex',
-              className
-            )}
-          />
-        </>
-      );
-    }
-
+    const items =
+      variant === 'role' ? UNKNOWN_ROLE_ITEMS : UNKNOWN_PRIMARY_ITEMS;
     return (
       <>
         <Skeleton
-          className={cn(getSkeletonClassName(variant), skeletonVisibility)}
-        />
-        <CtaLinkItem
-          variant="role"
-          label="成為 Mentor/Mentee"
-          href={SIGNUP_HREF}
           className={cn(
-            'hidden group-data-[auth-state=guest]/auth-state:inline-flex',
-            className
+            SKELETON_CLASS_BY_VARIANT[variant],
+            UNKNOWN_SKELETON_VISIBILITY
           )}
         />
-        <CtaLinkItem
-          variant="role"
-          label="成為 Mentor"
-          href={getBecomeMentorHref(undefined)}
-          disabled={true}
-          className={cn(
-            'hidden group-data-[auth-state=mentee]/auth-state:inline-flex',
-            className
-          )}
-        />
-        <CtaLinkItem
-          variant="role"
-          label="開放預約時段"
-          href={getOpenScheduleHref(undefined)}
-          disabled={true}
-          className={cn(
-            'hidden group-data-[auth-state=mentor]/auth-state:inline-flex',
-            className
-          )}
-        />
+        {items.map(([label, href, disabled, gateClass]) => (
+          <CtaLinkItem
+            key={label}
+            variant={variant}
+            label={label}
+            href={href}
+            disabled={disabled}
+            className={cn(gateClass, className)}
+          />
+        ))}
       </>
     );
   }
