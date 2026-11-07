@@ -45,7 +45,10 @@ if (!process.env.GEMINI_API_KEY) {
 
 import { callGemini } from './lib/gemini.mjs';
 import { buildPrompt } from './lib/prompt.mjs';
-import { fetchArchitectureKnowledgeBase, fetchTicketContext } from './lib/ticket.mjs';
+import {
+  fetchArchitectureKnowledgeBase,
+  fetchTicketContext,
+} from './lib/ticket.mjs';
 
 function parseCliOption(prefix) {
   const arg = process.argv.slice(2).find((item) => item.startsWith(prefix));
