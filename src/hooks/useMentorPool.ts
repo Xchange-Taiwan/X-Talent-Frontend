@@ -220,6 +220,7 @@ export function useMentorPool({
       pageState.mentors.map((m) => ({
         ...m,
         have_topic: m.have_topic.map((c) => labelMap.get(c) ?? c),
+        have_skill: m.have_skill.map((c) => labelMap.get(c) ?? c),
       })),
     [pageState.mentors, labelMap]
   );

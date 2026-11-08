@@ -49,7 +49,7 @@ const mockInitialMentors: MentorType[] = [
     want_position: [],
     want_skill: [],
     want_topic: [],
-    have_skill: [],
+    have_skill: ['skill_a'],
     have_topic: ['topic_a'],
     updated_at: 100,
   },
@@ -58,6 +58,8 @@ const mockInitialMentors: MentorType[] = [
 const testLabelMap = new Map<string, string>([
   ['topic_a', 'Localized Topic A'],
   ['topic_b', 'Localized Topic B'],
+  ['skill_a', 'Localized Skill A'],
+  ['skill_b', 'Localized Skill B'],
 ]);
 
 describe('useMentorPool', () => {
@@ -80,6 +82,7 @@ describe('useMentorPool', () => {
 
     expect(result.current.mentors[0].name).toBe('Initial Mentor');
     expect(result.current.mentors[0].have_topic).toEqual(['Localized Topic A']);
+    expect(result.current.mentors[0].have_skill).toEqual(['Localized Skill A']);
     expect(result.current.mentorCount).toBe(1);
     expect(result.current.isLoading).toBe(false);
     expect(result.current.isNoResults).toBe(false);

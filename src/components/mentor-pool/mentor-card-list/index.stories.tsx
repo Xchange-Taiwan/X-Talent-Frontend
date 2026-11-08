@@ -40,6 +40,26 @@ export const ShortList: Story = {
   },
 };
 
+export const FilteredSkillPrioritized: Story = {
+  args: {
+    mentors: mockMentors.slice(0, 3),
+    activeFilterBadges: [
+      {
+        key: 'filter_skills',
+        name: '技能',
+        value: 'Figma',
+        label: 'Figma',
+      },
+      {
+        key: 'filter_skills',
+        name: '技能',
+        value: 'Next.js',
+        label: 'Next.js',
+      },
+    ],
+  },
+};
+
 export const EmptyList: Story = {
   args: {
     mentors: [],

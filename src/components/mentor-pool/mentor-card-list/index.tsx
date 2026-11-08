@@ -1,5 +1,6 @@
-import { memo, useEffect, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 
+import type { ActiveFilterBadge } from '@/app/mentor-pool/searchParams';
 import { MentorType } from '@/types/mentor';
 
 import { MentorCard } from '../mentor-card';
@@ -7,16 +8,56 @@ import { MentorCard } from '../mentor-card';
 interface MentorCardListProps {
   mentors: MentorType[];
   onScrollToBottom: () => Promise<void>;
+  activeFilterBadges?: ActiveFilterBadge[];
+}
+
+export function buildMentorCardTags(
+  mentor: Pick<MentorType, 'have_topic' | 'have_skill'>,
+  prioritizedLabels?: ReadonlySet<string>
+): string[] {
+  const combined = Array.from(
+    new Set([
+      ...(mentor.have_topic ?? []),
+      ...(mentor.have_skill ?? []),
+    ])
+  ).filter(Boolean);
+
+  if (!prioritizedLabels || prioritizedLabels.size === 0) {
+    return combined;
+  }
+
+  const matched: string[] = [];
+  const rest: string[] = [];
+  for (const tag of combined) {
+    if (prioritizedLabels.has(tag)) {
+      matched.push(tag);
+    } else {
+      rest.push(tag);
+    }
+  }
+  return [...matched, ...rest];
 }
 
 const MentorCardListBase = ({
   mentors,
   onScrollToBottom,
+  activeFilterBadges,
 }: MentorCardListProps) => {
   const observer = useRef<IntersectionObserver | null>(null);
   const lastCardRef = useRef<HTMLElement | null>(null);
   const onScrollToBottomRef = useRef(onScrollToBottom);
   onScrollToBottomRef.current = onScrollToBottom;
+
+  const prioritizedLabels = useMemo(() => {
+    const set = new Set<string>();
+    for (const badge of activeFilterBadges ?? []) {
+      if (badge.key === 'filter_topics' || badge.key === 'filter_skills') {
+        if (badge.label) set.add(badge.label);
+        if (badge.value) set.add(badge.value);
+      }
+    }
+    return set;
+  }, [activeFilterBadges]);
 
   const lastMentorId = mentors.at(-1)?.user_id;
 
@@ -60,7 +101,7 @@ const MentorCardListBase = ({
             job_title={mentor.job_title}
             company={mentor.company}
             about={mentor.about}
-            haveTopicLabels={mentor.have_topic}
+            haveTopicLabels={buildMentorCardTags(mentor, prioritizedLabels)}
             priority={index === 0}
           />
         ))}

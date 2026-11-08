@@ -78,6 +78,10 @@ describe('MentorFilterDropdown', () => {
     // Click the first select trigger (專業技能) to open its options
     fireEvent.click(selects[0]);
 
+    const listbox = screen.getByRole('listbox');
+    expect(listbox).toHaveAttribute('data-side', 'bottom');
+    expect(listbox).toHaveClass('max-h-60');
+
     // Click the option '前端開發'
     const option = screen.getByText('前端開發');
     fireEvent.click(option);
