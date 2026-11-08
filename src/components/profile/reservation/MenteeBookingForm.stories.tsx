@@ -38,6 +38,32 @@ export const Unauthenticated: Story = {
   },
 };
 
+export const UnauthenticatedSignInPrompt: Story = {
+  args: {
+    slots: mockBookingSlots,
+    monthLoaded: true,
+    selectedSlot: null,
+    setSelectedSlot: () => {},
+    isSubmitting: false,
+    selectedDate: '2026-08-05',
+    onConfirmReservation: async () => true,
+    isAuthenticated: false,
+  },
+};
+
+export const NoAvailableSlots: Story = {
+  args: {
+    slots: [],
+    monthLoaded: true,
+    selectedSlot: null,
+    setSelectedSlot: () => {},
+    isSubmitting: false,
+    selectedDate: '2026-08-05',
+    onConfirmReservation: async () => true,
+    isAuthenticated: true,
+  },
+};
+
 export const NotSelected: Story = {
   args: {
     slots: mockBookingSlots,

@@ -34,6 +34,32 @@ export const Default: Story = {
   },
 };
 
+export const UpcomingReservationWithDtstart: Story = {
+  args: {
+    initialStatus: 'success',
+    initialNotifications: [
+      {
+        id: 'upcoming-dtstart-1',
+        type: 'reservation_upcoming',
+        mentorName: '陳導師 (Mentor)',
+        role: 'mentee',
+        dtstart: 1785931200,
+        createdAt: new Date().toISOString(),
+        unread: true,
+      },
+      {
+        id: 'auto-canceled-system-2',
+        type: 'reservation_canceled',
+        mentorName: '張大同 (Harrison)',
+        role: 'mentee',
+        actorRole: 'system',
+        createdAt: new Date(Date.now() - 3600 * 1000).toISOString(),
+        unread: true,
+      },
+    ],
+  },
+};
+
 export const LoadingState: Story = {
   args: {
     initialStatus: 'loading',
