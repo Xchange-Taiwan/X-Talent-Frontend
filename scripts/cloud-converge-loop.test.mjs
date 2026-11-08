@@ -6,6 +6,7 @@ import {
   clampMaxRounds,
   detectChangedE2eSpecs,
   evaluateRoundConvergence,
+  extractJsonObject,
   formatConvergenceSummaryMarkdown,
   parseConvergeArgs,
   runConvergeLoop,
@@ -42,6 +43,24 @@ describe('cloud-converge-loop', () => {
     });
   });
 
+  describe('extractJsonObject', () => {
+    it('extracts valid JSON even when preceded by dotenv or CLI log lines', () => {
+      const noisyOutput = [
+        '[dotenv@17.2.0] injecting env (8) from .env.development.local',
+        JSON.stringify({
+          mode: 'gemini-local',
+          overallRisk: { level: 'low', reason: 'Clean' },
+          requirementCoverage: [],
+          findings: {},
+        }),
+      ].join('\n');
+
+      const parsed = extractJsonObject(noisyOutput);
+      expect(parsed?.overallRisk?.level).toBe('low');
+      expect(parsed?.mode).toBe('gemini-local');
+    });
+  });
+
   describe('detectChangedE2eSpecs', () => {
     it('identifies changed E2E spec files and separates mock, readonly, and onboarding specs', () => {
       const files = [
@@ -67,6 +86,7 @@ describe('cloud-converge-loop', () => {
         'e2e/tests/onboarding/onboarding.spec.ts',
       ]);
       expect(result.hasAppCodeChanges).toBe(true);
+      expect(result.hasSharedE2eChanges).toBe(false);
     });
 
     it('detects pure E2E diffs without app code changes', () => {
@@ -84,6 +104,15 @@ describe('cloud-converge-loop', () => {
       ]);
     });
 
+    it('ignores unit test and Storybook files when checking hasAppCodeChanges', () => {
+      const result = detectChangedE2eSpecs([
+        'src/components/Header.stories.tsx',
+        'src/components/Header.test.tsx',
+      ]);
+      expect(result.hasAppCodeChanges).toBe(false);
+      expect(result.allChangedSpecs).toEqual([]);
+    });
+
     it('treats shared E2E helpers or playwright.config.ts changes as full-suite triggers', () => {
       expect(
         detectChangedE2eSpecs([
@@ -95,7 +124,7 @@ describe('cloud-converge-loop', () => {
         detectChangedE2eSpecs([
           'playwright.config.ts',
           'e2e/tests/public/signup.spec.ts',
-        ]).hasAppCodeChanges
+        ]).hasSharedE2eChanges
       ).toBe(true);
     });
   });
@@ -200,6 +229,47 @@ describe('cloud-converge-loop', () => {
       expect(writeFile).toHaveBeenCalledTimes(1);
       expect(res.summaryMd).toContain('已完全收斂通過 (Converged)');
       expect(res.summaryMd).toContain('2 / 20 輪');
+    });
+
+    it('runs targeted changed mock specs even when src/ app code is modified alongside specs', async () => {
+      const executedPnpmCalls = [];
+      const execStep = vi.fn((cmd, args) => {
+        if (cmd === 'git' && args[0] === 'diff') {
+          return {
+            ok: true,
+            stdout:
+              'src/components/layout/Header/NotificationBell.tsx\ne2e/tests/notification/notification-center.spec.ts\n',
+            stderr: '',
+          };
+        }
+        if (cmd === 'pnpm') {
+          executedPnpmCalls.push(args);
+        }
+        if (cmd === 'node' && args[0]?.includes('run-local.mjs')) {
+          return {
+            ok: true,
+            stdout: JSON.stringify({
+              overallRisk: { level: 'low', reason: 'Clean' },
+              requirementCoverage: [],
+              findings: {},
+            }),
+          };
+        }
+        return { ok: true, stdout: '', stderr: '' };
+      });
+
+      const res = await runConvergeLoop(
+        { maxRounds: 5, ticketNumber: '858', runE2e: true },
+        { execStep, writeFile: () => {}, log: () => {} }
+      );
+
+      expect(res.converged).toBe(true);
+      expect(executedPnpmCalls).toContainEqual([
+        'test:e2e:mock',
+        '--workers=4',
+        '--retries=1',
+        'e2e/tests/notification/notification-center.spec.ts',
+      ]);
     });
 
     it('runs only changed mock and readonly specs when diff is a pure E2E ticket', async () => {
