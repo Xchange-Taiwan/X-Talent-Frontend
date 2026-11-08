@@ -5,6 +5,7 @@
 
 @layer base {
   :root {
+    color-scheme: light;
     --background: var(--color-background-white);
     --foreground: var(--color-text-primary);
 
@@ -69,6 +70,7 @@
 
 /* Optional but recommended: keep scrollbar space stable to reduce layout shift */
 html {
+  color-scheme: light;
   scrollbar-gutter: stable;
 }
 
