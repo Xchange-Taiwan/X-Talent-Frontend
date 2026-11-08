@@ -7,6 +7,7 @@ vi.mock('next/navigation', async () => {
 });
 
 import type { FilterOptions } from '@/components/filter/MentorFilterDropdown';
+import { mockMentors } from '@/components/mentor-pool/__mocks__/mentors.mock';
 
 import MentorPoolUI from './ui';
 
@@ -75,5 +76,22 @@ describe('MentorPoolUI Mutual Exclusion', () => {
     expect(
       screen.queryAllByRole('status').some((el) => el.textContent === '載入中')
     ).toBe(false);
+  });
+
+  it('renders the load-more spinner inside an absolute container to prevent bottom scroll layout shifts (#851)', () => {
+    render(
+      <MentorPoolUI
+        {...defaultProps}
+        mentors={mockMentors.slice(0, 2)}
+        mentorCount={2}
+        listStatus="success"
+        isLoading={true}
+        isReplacing={false}
+      />
+    );
+
+    const loadMoreContainer = screen.getByTestId('load-more-spinner');
+    expect(loadMoreContainer).toHaveClass('absolute');
+    expect(loadMoreContainer).toHaveClass('pointer-events-none');
   });
 });
