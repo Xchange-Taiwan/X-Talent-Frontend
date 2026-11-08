@@ -65,7 +65,7 @@ export async function fetchTicketContext(branchName, token, fallbackTicket) {
 
 const ARCH_KB_ENDPOINT =
   process.env.ARCH_KB_ENDPOINT ||
-  'https://x-talent-discord-mention-notify.eat-what.workers.dev/__arch-kb';
+  'https://x-talent-discord-mention-notify.x-talent.workers.dev/__arch-kb';
 
 /**
  * Fetches the pre-indexed X-Talent Architecture Knowledge Base (Global Map +
