@@ -5,6 +5,10 @@ export type ReservationMessage = {
   // Resolved party for this message. Undefined when neither the message's own
   // role nor the sender/participant fallback could classify it.
   role?: MessageRole;
+  // Marks a message that represents the cancellation/rejection reason on a
+  // cancelled reservation so card previews and conversation dialogs can label
+  // it as "取消原因" instead of overwriting or mislabeling the original question.
+  isCancelReason?: boolean;
 };
 
 export type Reservation = {
@@ -20,6 +24,9 @@ export type Reservation = {
   // card preview. Either side may be undefined when that party hasn't written.
   menteeMessage?: ReservationMessage;
   mentorMessage?: ReservationMessage;
+  // Cancellation/rejection reason message when the reservation was cancelled
+  // by MENTEE or MENTOR, kept separate from the original booking message/reply.
+  cancelReasonMessage?: ReservationMessage;
 
   // Required by the PUT reservation status endpoint
   scheduleId: number;

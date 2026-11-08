@@ -124,3 +124,27 @@ export const SystemAutoCancelled: Story = {
     sourceRole: 'mentee',
   },
 };
+
+// 6. Cancelled With Reason (Distinguishes 預約提問 from 取消原因, #860)
+export const CancelledWithReason: Story = {
+  args: {
+    reservation: {
+      ...mockReservation,
+      cancelledBy: 'MENTEE',
+      messages: [
+        ...mockReservation.messages,
+        {
+          content: '抱歉導師，當日臨時有產品上線緊急會議，需先取消本次預約。',
+          role: 'MENTEE',
+          isCancelReason: true,
+        },
+      ],
+      cancelReasonMessage: {
+        content: '抱歉導師，當日臨時有產品上線緊急會議，需先取消本次預約。',
+        role: 'MENTEE',
+        isCancelReason: true,
+      },
+    },
+    sourceRole: 'mentee',
+  },
+};

@@ -105,4 +105,22 @@ describe('ReservationConversationDialog', () => {
       )
     ).toBeInTheDocument();
   });
+
+  it('distinguishes original booking question ("預約提問") and cancellation reason ("取消原因") on cancelled reservations (#860)', () => {
+    const reservation: Reservation = {
+      ...mockReservation,
+      cancelledBy: 'MENTEE',
+      messages: [
+        { content: '原本的預約提問 M1', role: 'MENTEE' },
+        { content: '臨時有事的取消原因 M2', role: 'MENTEE' },
+      ],
+    };
+
+    openDialog(reservation);
+
+    expect(screen.getByText('原本的預約提問 M1')).toBeInTheDocument();
+    expect(screen.getByText('臨時有事的取消原因 M2')).toBeInTheDocument();
+    expect(screen.getByText('預約提問')).toBeInTheDocument();
+    expect(screen.getByText('取消原因')).toBeInTheDocument();
+  });
 });

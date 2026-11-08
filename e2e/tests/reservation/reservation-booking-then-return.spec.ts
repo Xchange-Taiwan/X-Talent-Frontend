@@ -237,10 +237,10 @@ test.describe('預約流程：從個人檔案頁預約後返回「我的預約�
     // the in-memory MENTEE_PENDING cache with the pre-booking (empty) page.
     await goToMyReservations(page);
     await expectClientSessionAlive(page);
-    await expect(page.getByRole('tab', { name: /等待回復/ })).toBeVisible({
+    await expect(page.getByRole('tab', { name: /等待回覆/ })).toBeVisible({
       timeout: 15_000,
     });
-    await page.getByRole('tab', { name: /等待回復/ }).click();
+    await page.getByRole('tab', { name: /等待回覆/ }).click();
     await expect(page.getByText('目前尚無資料')).toBeVisible({
       timeout: 10_000,
     });
@@ -284,7 +284,7 @@ test.describe('預約流程：從個人檔案頁預約後返回「我的預約�
     // must now reflect the booking without a manual reload.
     await goToMyReservations(page);
     await expectClientSessionAlive(page);
-    await page.getByRole('tab', { name: /等待回復/ }).click();
+    await page.getByRole('tab', { name: /等待回覆/ }).click();
     await expect(page.getByText('Test Mentor')).toBeVisible({
       timeout: 10_000,
     });

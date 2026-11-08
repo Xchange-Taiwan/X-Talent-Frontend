@@ -4,6 +4,7 @@ import { MessageSquare } from 'lucide-react';
 import * as React from 'react';
 
 import ReservationConversationDialog from '@/components/reservation/ReservationConversationDialog';
+import { resolveReservationMessages } from '@/lib/reservation/resolveReservationMessages';
 import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import type { Reservation } from '@/types/reservation';
 
@@ -63,8 +64,9 @@ export function ReservationMessagePreview({
   sourceRole,
   variant = 'dialog',
 }: ReservationMessagePreviewProps) {
-  const { menteeMessage, mentorMessage } = reservation;
-  if (!menteeMessage && !mentorMessage) return null;
+  const { menteeMessage, mentorMessage, cancelReasonMessage } =
+    resolveReservationMessages(reservation);
+  if (!menteeMessage && !mentorMessage && !cancelReasonMessage) return null;
 
   const style = messagePreviewStyles[variant];
 
@@ -96,6 +98,13 @@ export function ReservationMessagePreview({
             <MessagePreviewItem
               label="導師回覆"
               content={mentorMessage.content}
+              style={style}
+            />
+          ) : null}
+          {cancelReasonMessage ? (
+            <MessagePreviewItem
+              label="取消原因"
+              content={cancelReasonMessage.content}
               style={style}
             />
           ) : null}
