@@ -95,3 +95,71 @@ describe('MentorPoolUI Mutual Exclusion', () => {
     expect(loadMoreContainer).toHaveClass('pointer-events-none');
   });
 });
+
+describe('MentorCardList IntersectionObserver stability (#851)', () => {
+  it('does not recreate IntersectionObserver when only onScrollToBottom reference changes, and re-observes when last mentor user_id changes', () => {
+    const observeSpy = vi.fn();
+    const disconnectSpy = vi.fn();
+    const OriginalIntersectionObserver = globalThis.IntersectionObserver;
+
+    class MockIntersectionObserver {
+      constructor(public callback: IntersectionObserverCallback) {}
+      observe = observeSpy;
+      disconnect = disconnectSpy;
+      unobserve = vi.fn();
+      takeRecords = vi.fn(() => []);
+      root = null;
+      rootMargin = '';
+      thresholds = [0.5];
+    }
+
+    globalThis.IntersectionObserver =
+      MockIntersectionObserver as unknown as typeof IntersectionObserver;
+
+    try {
+      const handler1 = vi.fn(async () => {});
+      const handler2 = vi.fn(async () => {});
+
+      const { rerender } = render(
+        <MentorPoolUI
+          {...defaultProps}
+          mentors={mockMentors.slice(0, 2)}
+          mentorCount={2}
+          listStatus="success"
+          onScrollToBottom={handler1}
+        />
+      );
+
+      expect(observeSpy).toHaveBeenCalledTimes(1);
+
+      // Rerender with a new onScrollToBottom callback reference but identical mentors
+      rerender(
+        <MentorPoolUI
+          {...defaultProps}
+          mentors={mockMentors.slice(0, 2)}
+          mentorCount={2}
+          listStatus="success"
+          onScrollToBottom={handler2}
+        />
+      );
+
+      // Must NOT disconnect and re-observe the same last card
+      expect(observeSpy).toHaveBeenCalledTimes(1);
+
+      // Rerender with a new last mentor user_id
+      rerender(
+        <MentorPoolUI
+          {...defaultProps}
+          mentors={mockMentors.slice(0, 3)}
+          mentorCount={3}
+          listStatus="success"
+          onScrollToBottom={handler2}
+        />
+      );
+
+      expect(observeSpy).toHaveBeenCalledTimes(2);
+    } finally {
+      globalThis.IntersectionObserver = OriginalIntersectionObserver;
+    }
+  });
+});
