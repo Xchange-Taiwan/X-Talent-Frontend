@@ -60,6 +60,32 @@ export const UpcomingReservationWithDtstart: Story = {
   },
 };
 
+export const CanceledReservationByRole: Story = {
+  args: {
+    initialStatus: 'success',
+    initialNotifications: [
+      {
+        id: 'canceled-mentor-view-1',
+        type: 'reservation_canceled',
+        menteeName: '林學員 (Mentee)',
+        role: 'mentor',
+        actorRole: 'mentee',
+        createdAt: new Date().toISOString(),
+        unread: true,
+      },
+      {
+        id: 'canceled-mentee-view-2',
+        type: 'reservation_canceled',
+        mentorName: '陳導師 (Mentor)',
+        role: 'mentee',
+        actorRole: 'mentor',
+        createdAt: new Date(Date.now() - 1800 * 1000).toISOString(),
+        unread: true,
+      },
+    ],
+  },
+};
+
 export const LoadingState: Story = {
   args: {
     initialStatus: 'loading',

@@ -164,4 +164,45 @@ describe('notificationUtils', () => {
       '/reservation/mentor?tab=history'
     );
   });
+
+  it('distinguishes mentor vs mentee body copy for non-system reservation_canceled (#858)', () => {
+    const menteeItem = buildItem({
+      type: 'reservation_canceled',
+      role: 'mentee',
+      actorRole: 'mentor',
+      mentorName: '陳導師',
+    });
+    expect(getNotificationContent(menteeItem)).toEqual({
+      title: '您與 陳導師 的預約已被取消',
+      body: '您的預約已被取消，歡迎重新預約',
+    });
+    expect(getNotificationHref(menteeItem)).toBe('/mentor-pool');
+
+    const mentorItemExplicit = buildItem({
+      type: 'reservation_canceled',
+      role: 'mentor',
+      actorRole: 'mentee',
+      menteeName: '小明',
+    });
+    expect(getNotificationContent(mentorItemExplicit)).toEqual({
+      title: '您與 小明 的預約已被取消',
+      body: '學員已取消此次預約，點擊查看預約紀錄',
+    });
+    expect(getNotificationHref(mentorItemExplicit)).toBe(
+      '/reservation/mentor?tab=history'
+    );
+
+    const mentorItemInferred = buildItem({
+      type: 'reservation_canceled',
+      role: undefined,
+      menteeName: '小華',
+    });
+    expect(getNotificationContent(mentorItemInferred)).toEqual({
+      title: '您與 小華 的預約已被取消',
+      body: '學員已取消此次預約，點擊查看預約紀錄',
+    });
+    expect(getNotificationHref(mentorItemInferred)).toBe(
+      '/reservation/mentor?tab=history'
+    );
+  });
 });
