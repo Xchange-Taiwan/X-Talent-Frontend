@@ -24,6 +24,16 @@ export const Default: Story = {
   },
 };
 
+export const SinglePageFullList: Story = {
+  args: {
+    mentors: Array.from({ length: 9 }, (_, index) => ({
+      ...mockMentors[index % mockMentors.length],
+      user_id: index + 1,
+      name: `${mockMentors[index % mockMentors.length].name} #${index + 1}`,
+    })),
+  },
+};
+
 export const ShortList: Story = {
   args: {
     mentors: mockMentors.slice(0, 2),

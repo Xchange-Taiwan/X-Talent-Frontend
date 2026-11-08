@@ -117,14 +117,17 @@ export default function MentorPoolUI({
                 <LoadingSpinner size="lg" />
               </div>
             )}
+            {showLoadMoreSpinner && (
+              <div
+                data-testid="load-more-spinner"
+                className="pointer-events-none absolute inset-x-0 -bottom-9 flex items-center justify-center"
+              >
+                <LoadingSpinner size="lg" />
+              </div>
+            )}
           </div>
         )}
         {showFullSpinner && (
-          <div className="flex size-full items-center justify-center">
-            <LoadingSpinner size="lg" />
-          </div>
-        )}
-        {showLoadMoreSpinner && (
           <div className="flex size-full items-center justify-center">
             <LoadingSpinner size="lg" />
           </div>

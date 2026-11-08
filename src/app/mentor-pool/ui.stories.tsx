@@ -77,6 +77,16 @@ export const ReplacingOverlay: Story = {
   },
 };
 
+export const LoadingMoreState: Story = {
+  args: {
+    mentors: mockMentors,
+    mentorCount: mockMentors.length,
+    isLoading: true,
+    isReplacing: false,
+    listStatus: 'success',
+  },
+};
+
 export const LoadingState: Story = {
   args: {
     mentors: [],

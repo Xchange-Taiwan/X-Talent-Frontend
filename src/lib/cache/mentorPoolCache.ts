@@ -35,10 +35,11 @@ export function applyMentorPage(
   switch (action.type) {
     case 'replace': {
       const { page, totalCount } = action;
+      const nextCursor = page.at(-1)?.updated_at?.toString();
       return {
         mentors: page,
-        cursor: page.at(-1)?.updated_at?.toString(),
-        hasMore: page.length === pageLimit,
+        cursor: nextCursor,
+        hasMore: Boolean(nextCursor) && page.length === pageLimit,
         mentorCount: totalCount ?? page.length,
         isNoResults: page.length === 0,
         hasError: false,
@@ -60,11 +61,23 @@ export function applyMentorPage(
           )
       );
 
+      if (newMentors.length === 0) {
+        return {
+          ...state,
+          hasMore: false,
+        };
+      }
+
+      const nextCursor = page.at(-1)?.updated_at?.toString();
+
       return {
         mentors: [...state.mentors, ...newMentors],
-        cursor: page.at(-1)?.updated_at?.toString(),
-        hasMore: page.length === pageLimit,
-        mentorCount: state.mentorCount + page.length,
+        cursor: nextCursor,
+        hasMore:
+          Boolean(nextCursor) &&
+          nextCursor !== state.cursor &&
+          page.length === pageLimit,
+        mentorCount: state.mentorCount + newMentors.length,
         isNoResults: false,
         hasError: false,
       };
@@ -102,10 +115,11 @@ export const mentorPoolStore = {
       initialError,
       pageLimit = DEFAULT_MENTOR_PAGE_LIMIT,
     } = opts;
+    const nextCursor = initialMentors.at(-1)?.updated_at?.toString();
     return {
       mentors: initialMentors,
-      cursor: initialMentors.at(-1)?.updated_at?.toString(),
-      hasMore: initialMentors.length === pageLimit,
+      cursor: nextCursor,
+      hasMore: Boolean(nextCursor) && initialMentors.length === pageLimit,
       mentorCount: initialMentorCount,
       isNoResults: initialMentors.length === 0,
       hasError: hasInitialFilters ? false : (initialError ?? false),
