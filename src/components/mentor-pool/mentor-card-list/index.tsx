@@ -15,26 +15,32 @@ const MentorCardListBase = ({
 }: MentorCardListProps) => {
   const observer = useRef<IntersectionObserver | null>(null);
   const lastCardRef = useRef<HTMLElement | null>(null);
+  const onScrollToBottomRef = useRef(onScrollToBottom);
+  onScrollToBottomRef.current = onScrollToBottom;
+
+  const lastMentorId = mentors.at(-1)?.user_id;
 
   useEffect(() => {
     observer.current?.disconnect();
+    if (lastMentorId === undefined || !lastCardRef.current) {
+      return;
+    }
+
     observer.current = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting) {
-          onScrollToBottom();
+        if (entries[0]?.isIntersecting) {
+          void onScrollToBottomRef.current();
         }
       },
       { threshold: 0.5 }
     );
 
-    if (lastCardRef.current) {
-      observer.current.observe(lastCardRef.current);
-    }
+    observer.current.observe(lastCardRef.current);
 
     return () => {
       observer.current?.disconnect();
     };
-  }, [mentors, onScrollToBottom]);
+  }, [lastMentorId]);
 
   return (
     <div className="flex flex-col items-center gap-6">
