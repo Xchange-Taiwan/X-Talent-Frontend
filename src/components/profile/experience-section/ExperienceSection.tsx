@@ -35,7 +35,7 @@ const ExperienceItemCard = ({
           {title}
         </h2>
         {description && (
-          <p className="text-text-secondary text-sm break-words">
+          <p className="text-text-secondary text-sm break-words whitespace-pre-line">
             {description}
           </p>
         )}

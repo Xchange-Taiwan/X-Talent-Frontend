@@ -26,7 +26,7 @@ export const WhoAreYou: FC<Props> = ({ form }) => {
   const { data: session } = useSession();
   const stableCacheBust = useRef(Date.now()).current;
   const avatarDisplayUrl = watchedAvatar
-    ? `${watchedAvatar}?cb=${session?.user?.avatarUpdatedAt ?? stableCacheBust}`
+    ? `${watchedAvatar}${watchedAvatar.includes('?') ? '&' : '?'}cb=${session?.user?.avatarUpdatedAt ?? stableCacheBust}`
     : '';
 
   return (
