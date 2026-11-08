@@ -453,6 +453,74 @@ test.describe('Notification Center E2E Tests', () => {
     await expect(page).toHaveURL(/\/reservation\/mentor\?tab=history/);
   });
 
+  test('reservation_canceled (non-system) renders mentor-perspective copy for mentor and mentee rebooking copy for mentee (#858)', async ({
+    page,
+  }) => {
+    const mentorCancelNotif = makeNotificationVO(
+      '110',
+      'reservation_canceled',
+      true,
+      'Mentee Lin',
+      'mentor',
+      { actor_role: 'mentee' }
+    );
+
+    await loginAs(page, true);
+    await mockUnreadCount(page, 1);
+    await mockNotificationList(page, [mentorCancelNotif]);
+
+    await page.route(/\/v1\/users\/.*\/notifications\/110/, (route) => {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: '0',
+          msg: 'ok',
+          data: { ...mentorCancelNotif, read_at: READ_AT_UNIX },
+        }),
+      });
+    });
+
+    await page.goto(PAGE_URL);
+    await page.getByRole('button', { name: '開啟通知選單' }).click();
+
+    await expect(
+      page.getByText('您與 Mentee Lin 的預約已被取消')
+    ).toBeVisible();
+    await expect(
+      page.getByText('學員已取消此次預約，點擊查看預約紀錄')
+    ).toBeVisible();
+    await expect(
+      page.getByText('您的預約已被取消，歡迎重新預約')
+    ).not.toBeVisible();
+
+    await page.getByText('您與 Mentee Lin 的預約已被取消').click();
+    await expect(page).toHaveURL(/\/reservation\/mentor\?tab=history/);
+
+    // Switch to mentee view and verify mentee copy
+    const menteeCancelNotif = makeNotificationVO(
+      '111',
+      'reservation_canceled',
+      true,
+      'Mentor Chen',
+      'mentee',
+      { actor_role: 'mentor' }
+    );
+    await loginAs(page, false);
+    await mockUnreadCount(page, 1);
+    await mockNotificationList(page, [menteeCancelNotif]);
+
+    await page.goto(PAGE_URL);
+    await page.getByRole('button', { name: '開啟通知選單' }).click();
+
+    await expect(
+      page.getByText('您與 Mentor Chen 的預約已被取消')
+    ).toBeVisible();
+    await expect(
+      page.getByText('您的預約已被取消，歡迎重新預約')
+    ).toBeVisible();
+  });
+
   test('Mobile viewport (375x812) opens notification popover with responsive width and without truncating content (#807)', async ({
     page,
   }) => {
@@ -480,7 +548,7 @@ test.describe('Notification Center E2E Tests', () => {
       popover.getByRole('button', { name: '全部標示為已讀' })
     ).toBeVisible();
 
-    // Spec (#807): w-[360px] max-w-[min(360px,calc(100vw-32px))]
+    // Spec (#807, #858): w-[calc(100vw-32px)] max-w-[360px] with collisionPadding={16}
     // Wait for Radix Popover's zoom-in-95 open animation to settle so
     // boundingBox() measures the final unscaled layout box (375 - 32 = 343px).
     await expect
@@ -493,13 +561,47 @@ test.describe('Notification Center E2E Tests', () => {
     const popoverBox = await popover.boundingBox();
     expect(popoverBox).not.toBeNull();
     expect(popoverBox!.width).toBeGreaterThan(300);
-    expect(popoverBox!.x).toBeGreaterThanOrEqual(0);
-    expect(popoverBox!.x + popoverBox!.width).toBeLessThanOrEqual(375);
+    expect(Math.round(popoverBox!.x)).toBe(16);
+    expect(Math.round(375 - (popoverBox!.x + popoverBox!.width))).toBe(16);
 
     // Ensure notification text is not horizontally clipped/overflowing its container
     const isHorizontallyTruncated = await notifTitle.evaluate(
       (el) => el.scrollWidth > el.clientWidth
     );
     expect(isHorizontallyTruncated).toBe(false);
+  });
+
+  test('Mobile viewport (390x844) positions notification popover with balanced left and right margins instead of sticking to left: 0px (#858)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await setupMenteeWithNotification(page, '112');
+
+    await page.goto(PAGE_URL);
+
+    const mobileHeader = page.getByTestId('mobile-header-right');
+    await expect(mobileHeader).toBeVisible();
+
+    const bell = mobileHeader.getByRole('button', { name: '開啟通知選單' });
+    await expect(bell).toBeVisible();
+    await bell.click();
+
+    const popover = page.getByRole('dialog');
+    await expect(popover).toBeVisible();
+
+    // 390 - 32 = 358px, with 16px margin on both left and right
+    await expect
+      .poll(async () => {
+        const box = await popover.boundingBox();
+        return box ? Math.round(box.width) : 0;
+      })
+      .toBe(358);
+
+    const popoverBox = await popover.boundingBox();
+    expect(popoverBox).not.toBeNull();
+    const leftMargin = Math.round(popoverBox!.x);
+    const rightMargin = Math.round(390 - (popoverBox!.x + popoverBox!.width));
+    expect(leftMargin).toBe(16);
+    expect(rightMargin).toBe(16);
   });
 });

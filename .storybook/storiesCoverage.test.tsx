@@ -183,6 +183,21 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
       type: 'reservation_upcoming',
       dtstart: 1785931200,
     });
+    expect(
+      notificationBellStories.CanceledReservationByRole.args
+        ?.initialNotifications
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'reservation_canceled',
+          role: 'mentor',
+        }),
+        expect.objectContaining({
+          type: 'reservation_canceled',
+          role: 'mentee',
+        }),
+      ])
+    );
 
     expect(announcementBannerStories.ActiveMaintenanceNotice).toBeDefined();
     expect(guestActionButtonsStories.ConfirmedGuest).toBeDefined();
