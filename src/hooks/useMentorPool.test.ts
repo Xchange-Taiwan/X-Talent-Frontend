@@ -328,7 +328,7 @@ describe('useMentorPool', () => {
     expect(
       result.current.mentors.find((m) => m.user_id === 21)?.have_topic
     ).toEqual(['Localized Topic B']);
-    expect(result.current.mentorCount).toBe(PAGE_LIMIT + 2); // API count includes both
+    expect(result.current.mentorCount).toBe(PAGE_LIMIT + 1); // Deduplicated unique mentor count
   });
 
   it('retains infinite scroll retry availability (hasMore) when scroll fetch fails', async () => {
@@ -1260,8 +1260,48 @@ describe('applyMentorPage', () => {
     // Should deduplicate, adding only newMentor (user_id 11)
     expect(nextState.mentors).toEqual([sampleMentor, newMentor]);
     expect(nextState.cursor).toBe('1100'); // taken from last element of action.page, which is newMentor
-    expect(nextState.mentorCount).toBe(3); // count is accumulated based on raw page length (1 + 2 = 3)
+    expect(nextState.mentorCount).toBe(2); // count is accumulated based on deduplicated new mentors (1 + 1 = 2)
     expect(nextState.hasMore).toBe(false);
     expect(nextState.hasError).toBe(false);
+  });
+
+  it('sets hasMore to false when page is full but cursor (updated_at) is missing (#851)', () => {
+    const pageWithoutUpdatedAt = Array.from({ length: 9 }, (_, i) => ({
+      ...sampleMentor,
+      user_id: i + 1,
+      updated_at: null,
+    }));
+
+    const nextState = applyMentorPage(initialPageState, {
+      type: 'replace',
+      page: pageWithoutUpdatedAt,
+    });
+
+    expect(nextState.cursor).toBeUndefined();
+    expect(nextState.hasMore).toBe(false);
+    expect(nextState.mentorCount).toBe(9);
+  });
+
+  it('sets hasMore to false, preserves mentors reference, and does not inflate mentorCount when append receives only duplicate mentors (#851)', () => {
+    const fullFirstPage = Array.from({ length: 9 }, (_, i) => ({
+      ...sampleMentor,
+      user_id: i + 1,
+      updated_at: 1000 + i,
+    }));
+
+    const stateAfterFirstPage = applyMentorPage(initialPageState, {
+      type: 'replace',
+      page: fullFirstPage,
+    });
+    expect(stateAfterFirstPage.hasMore).toBe(true);
+
+    const nextState = applyMentorPage(stateAfterFirstPage, {
+      type: 'append',
+      page: fullFirstPage,
+    });
+
+    expect(nextState.hasMore).toBe(false);
+    expect(nextState.mentorCount).toBe(9);
+    expect(nextState.mentors).toBe(stateAfterFirstPage.mentors);
   });
 });
