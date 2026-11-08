@@ -1,8 +1,7 @@
 ---
-name: "to-tickets"
-description: "將規劃、規格或對話拆解為多張具依賴關係（Blocked by）的 GitHub Issues，自動加入 GitHub Project V2 看板並設定與同步看板狀態（Backlog / In progress / Ready for Review / PR Review）。"
+name: 'to-tickets'
+description: '將規劃、規格或對話拆解為多張具依賴關係（Blocked by）的 GitHub Issues，自動加入 GitHub Project V2 看板並設定與同步看板狀態（Backlog / In progress / Ready for Review / PR Review）。'
 ---
-
 
 # To Tickets
 
@@ -164,10 +163,11 @@ Publish the approved tickets. **How** depends on the tracker `/setup-matt-pocock
 
 Work the **frontier**: any ticket whose blockers are all done. For a purely linear chain that means top to bottom.
 
-  **Moving Tickets When Working / Resolving Them Directly**:
-  When an agent is asked to work through and resolve/verify these tickets (for example, Figma alignment/verification tickets or non-PR tasks):
-  - Move the active ticket to **In progress** (`$IN_PROGRESS_OPTION_ID` = `"47fc9ee4"`) when starting it.
-  - Once a ticket is resolved and verified, you **MUST** move its Project V2 card to **Ready for Review** (`$READY_FOR_REVIEW_OPTION_ID` = `"86e0fe35"`, or `$PR_REVIEW_OPTION_ID` = `"013ebc9d"` if a PR was opened) using a 4-attempt retry loop (since GitHub's Project V2 GraphQL API intermittently returns HTTP 502 on the first call) and verify that `.data.node.fieldValueByName.optionId` matches before moving on to the next ticket.
+**Moving Tickets When Working / Resolving Them Directly**:
+When an agent is asked to work through and resolve/verify these tickets (for example, Figma alignment/verification tickets or non-PR tasks):
+
+- Move the active ticket to **In progress** (`$IN_PROGRESS_OPTION_ID` = `"47fc9ee4"`) when starting it.
+- Once a ticket is resolved and verified, you **MUST** move its Project V2 card to **Ready for Review** (`$READY_FOR_REVIEW_OPTION_ID` = `"86e0fe35"`, or `$PR_REVIEW_OPTION_ID` = `"013ebc9d"` if a PR was opened) using a 4-attempt retry loop (since GitHub's Project V2 GraphQL API intermittently returns HTTP 502 on the first call) and verify that `.data.node.fieldValueByName.optionId` matches before moving on to the next ticket.
 
 Do NOT close or modify any parent issue.
 
