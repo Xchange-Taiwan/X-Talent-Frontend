@@ -22,7 +22,11 @@ const MentorCardListBase = ({
 
   useEffect(() => {
     observer.current?.disconnect();
-    if (lastMentorId === undefined || !lastCardRef.current) {
+    if (
+      lastMentorId === undefined ||
+      !lastCardRef.current ||
+      typeof IntersectionObserver === 'undefined'
+    ) {
       return;
     }
 
