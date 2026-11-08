@@ -172,7 +172,13 @@ describe('MentorCardList tag merging, deduplication, and filter prioritization (
       have_skill: ['React', 'TypeScript', '系統設計', 'Next.js'],
     });
 
-    expect(tags).toEqual(['職涯諮詢', 'React', '系統設計', 'TypeScript', 'Next.js']);
+    expect(tags).toEqual([
+      '職涯諮詢',
+      'React',
+      '系統設計',
+      'TypeScript',
+      'Next.js',
+    ]);
   });
 
   it('pins matched skill/topic filter labels to the front while preserving order of remaining tags', () => {

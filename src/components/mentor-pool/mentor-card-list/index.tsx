@@ -16,10 +16,7 @@ export function buildMentorCardTags(
   prioritizedLabels?: ReadonlySet<string>
 ): string[] {
   const combined = Array.from(
-    new Set([
-      ...(mentor.have_topic ?? []),
-      ...(mentor.have_skill ?? []),
-    ])
+    new Set([...(mentor.have_topic ?? []), ...(mentor.have_skill ?? [])])
   ).filter(Boolean);
 
   if (!prioritizedLabels || prioritizedLabels.size === 0) {

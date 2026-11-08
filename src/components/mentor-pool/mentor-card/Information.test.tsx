@@ -91,9 +91,9 @@ describe('Information Component', () => {
     );
     expect(aboutEl).toBeInTheDocument();
     expect(aboutEl).toHaveClass('min-h-[40px]');
-    expect(
-      screen.getByTestId('display-container').parentElement
-    ).toHaveClass('mt-auto');
+    expect(screen.getByTestId('display-container').parentElement).toHaveClass(
+      'mt-auto'
+    );
   });
 
   it('renders "at" company separator when both title and company are provided', () => {
