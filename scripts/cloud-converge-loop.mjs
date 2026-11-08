@@ -75,6 +75,58 @@ export function parseConvergeArgs(argv = [], env = process.env) {
 }
 
 /**
+ * Extracts a JSON object from stdout even when preceded by dotenv or CLI
+ * banners (e.g. `[dotenv@17.x.x] injecting env ...`).
+ */
+export function extractJsonObject(rawText) {
+  const text = String(rawText ?? '').trim();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    let searchFrom = 0;
+    while (searchFrom < text.length) {
+      const start = text.indexOf('{', searchFrom);
+      if (start === -1) break;
+      let depth = 0;
+      let inString = false;
+      let escapeNext = false;
+      for (let i = start; i < text.length; i++) {
+        const ch = text[i];
+        if (escapeNext) {
+          escapeNext = false;
+          continue;
+        }
+        if (ch === '\\') {
+          escapeNext = true;
+          continue;
+        }
+        if (ch === '"') {
+          inString = !inString;
+          continue;
+        }
+        if (inString) continue;
+        if (ch === '{') {
+          depth += 1;
+        } else if (ch === '}') {
+          depth -= 1;
+          if (depth === 0) {
+            const candidate = text.slice(start, i + 1);
+            try {
+              return JSON.parse(candidate);
+            } catch {
+              break;
+            }
+          }
+        }
+      }
+      searchFrom = start + 1;
+    }
+    return null;
+  }
+}
+
+/**
  * Identifies modified/added Playwright spec files from `git diff --name-only`
  * and separates mock-lane specs, backend-readonly specs, and onboarding specs
  * (excluding stateful real-backend canary specs unless explicitly enabled).
@@ -88,6 +140,7 @@ export function detectChangedE2eSpecs(
   const changedReadonlySpecs = [];
   const extraNonMockSpecs = [];
   let hasAppCodeChanges = false;
+  let hasSharedE2eChanges = false;
 
   for (const rawFile of changedFiles) {
     const normalized = String(rawFile ?? '')
@@ -96,14 +149,24 @@ export function detectChangedE2eSpecs(
     if (!normalized) {
       continue;
     }
+    const isUnitOrStoryFile =
+      normalized.endsWith('.test.ts') ||
+      normalized.endsWith('.test.tsx') ||
+      normalized.endsWith('.stories.ts') ||
+      normalized.endsWith('.stories.tsx');
+
     if (
-      normalized.startsWith('src/') ||
+      normalized === 'playwright.config.ts' ||
+      (normalized.startsWith('e2e/') && !normalized.endsWith('.spec.ts'))
+    ) {
+      hasSharedE2eChanges = true;
+      hasAppCodeChanges = true;
+    } else if (
+      (normalized.startsWith('src/') && !isUnitOrStoryFile) ||
       normalized === 'middleware.ts' ||
       normalized === 'next.config.js' ||
       normalized === 'tailwind.config.js' ||
-      normalized === 'playwright.config.ts' ||
-      normalized === 'package.json' ||
-      (normalized.startsWith('e2e/') && !normalized.endsWith('.spec.ts'))
+      normalized === 'package.json'
     ) {
       hasAppCodeChanges = true;
     }
@@ -139,6 +202,7 @@ export function detectChangedE2eSpecs(
     changedReadonlySpecs,
     extraNonMockSpecs,
     hasAppCodeChanges,
+    hasSharedE2eChanges,
   };
 }
 
@@ -264,7 +328,7 @@ export function buildRoundFixPrompt({
   }
 
   sections.push(
-    '修復完成後，請僅執行快速的 `pnpm type-check` 與 `pnpm test`（Vitest）確認通過；請勿在此修復步驟內自行執行 `pnpm test:e2e`、`npx playwright test` 或啟動 `pnpm dev`，收斂迴圈進入下一輪時會自動重新執行 E2E 驗證。'
+    '修復完成後，請僅執行快速的 `pnpm type-check` 與針對變更檔案的 `npx vitest related $(git diff --name-only origin/develop | tr \'\\n\' \' \') --run` 確認通過；請勿在此修復步驟內自行執行全量 `pnpm test`、`pnpm test:e2e`、`npx playwright test` 或啟動 `pnpm dev`，收斂迴圈進入下一輪時會自動重新執行全量單元測試與 E2E 驗證。'
   );
 
   return sections.join('\n\n');
@@ -406,17 +470,32 @@ export async function runConvergeLoop(
         changedReadonlySpecs,
         extraNonMockSpecs,
         hasAppCodeChanges,
+        hasSharedE2eChanges,
       } = detectChangedE2eSpecs(diffFiles);
       lastChangedSpecs = allChangedSpecs;
 
-      // For pure E2E test tickets (no src/ changes and at least one changed spec),
-      // only run the modified mock specs instead of the entire 14-spec mock suite.
-      const isPureE2eDiff = !hasAppCodeChanges && allChangedSpecs.length > 0;
+      // When a ticket provides targeted E2E specs (and didn't touch shared
+      // E2E helpers/config), run only those changed specs so we don't compile
+      // all 14 unrelated routes on every round. If no E2E specs were modified
+      // on a runtime app code change (or shared E2E helpers changed), fall back
+      // to running the full mock suite. Pure unit-test / Storybook diffs skip E2E.
+      const useTargetedSpecs =
+        !hasSharedE2eChanges && allChangedSpecs.length > 0;
+      const shouldRunFullMockSuite =
+        hasSharedE2eChanges ||
+        (hasAppCodeChanges && allChangedSpecs.length === 0) ||
+        (diffFiles.length === 0 && !hasAppCodeChanges);
 
-      if (!isPureE2eDiff || changedMockSpecs.length > 0) {
-        const mockArgs = isPureE2eDiff
-          ? ['test:e2e:mock', '--workers=4', '--retries=1', ...changedMockSpecs]
-          : ['test:e2e:mock', '--workers=4', '--retries=1'];
+      if (shouldRunFullMockSuite || changedMockSpecs.length > 0) {
+        const mockArgs =
+          useTargetedSpecs && changedMockSpecs.length > 0
+            ? [
+                'test:e2e:mock',
+                '--workers=4',
+                '--retries=1',
+                ...changedMockSpecs,
+              ]
+            : ['test:e2e:mock', '--workers=4', '--retries=1'];
         const mockE2eRes = deps.execStep('pnpm', mockArgs);
         if (!mockE2eRes.ok) {
           deps.log(
@@ -494,9 +573,10 @@ export async function runConvergeLoop(
       findings: {},
     };
     if (reviewRes.ok && reviewRes.stdout.trim()) {
-      try {
-        reviewJson = JSON.parse(reviewRes.stdout.trim());
-      } catch {
+      const parsedJson = extractJsonObject(reviewRes.stdout);
+      if (parsedJson) {
+        reviewJson = parsedJson;
+      } else {
         deps.log(
           `[cloud-converge] Warning: could not parse run-local.mjs output in round ${round}`
         );
