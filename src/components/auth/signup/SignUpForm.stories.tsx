@@ -86,6 +86,20 @@ export const ValidationError: Story = {
   ),
 };
 
+export const EmptySubmitValidationError: Story = {
+  render: () => (
+    <SignUpFormWrapper
+      defaultValues={{
+        email: '',
+        password: '',
+        confirm_password: '',
+        hasReadTermsOfService: false,
+      }}
+      triggerValidation={true}
+    />
+  ),
+};
+
 export const PasswordMismatch: Story = {
   render: () => (
     <SignUpFormWrapper
