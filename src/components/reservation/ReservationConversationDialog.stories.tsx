@@ -113,3 +113,14 @@ export const EmptyConversation: Story = {
     sourceRole: 'mentor',
   },
 };
+
+// 5. System Auto-Cancelled (Shows warning banner inside dialog)
+export const SystemAutoCancelled: Story = {
+  args: {
+    reservation: {
+      ...mockReservation,
+      cancelledBy: 'SYSTEM',
+    },
+    sourceRole: 'mentee',
+  },
+};

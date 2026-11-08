@@ -87,12 +87,66 @@ export const HistoryList: Story = {
   },
 };
 
-// 5. Empty State
+// 5. Empty State (Default Mentor Upcoming)
 export const EmptyState: Story = {
   args: {
     items: [],
     variant: 'upcoming',
     sourceRole: 'mentor',
+  },
+};
+
+export const EmptyUpcomingMentee: Story = {
+  args: {
+    items: [],
+    variant: 'upcoming',
+    sourceRole: 'mentee',
+    myUserId: 'user-mentee-current',
+  },
+};
+
+export const EmptyPendingMentee: Story = {
+  args: {
+    items: [],
+    variant: 'pending-mentee',
+    sourceRole: 'mentee',
+    myUserId: 'user-mentee-current',
+  },
+};
+
+export const EmptyHistoryMentee: Story = {
+  args: {
+    items: [],
+    variant: 'history',
+    sourceRole: 'mentee',
+    myUserId: 'user-mentee-current',
+  },
+};
+
+export const EmptyUpcomingMentor: Story = {
+  args: {
+    items: [],
+    variant: 'upcoming',
+    sourceRole: 'mentor',
+    myUserId: 'user-mentor-current',
+  },
+};
+
+export const EmptyPendingMentor: Story = {
+  args: {
+    items: [],
+    variant: 'pending-mentor',
+    sourceRole: 'mentor',
+    myUserId: 'user-mentor-current',
+  },
+};
+
+export const EmptyHistoryMentor: Story = {
+  args: {
+    items: [],
+    variant: 'history',
+    sourceRole: 'mentor',
+    myUserId: 'user-mentor-current',
   },
 };
 
