@@ -328,7 +328,7 @@ export function buildRoundFixPrompt({
   }
 
   sections.push(
-    '修復完成後，請僅執行快速的 `pnpm type-check` 與針對變更檔案的 `npx vitest related $(git diff --name-only origin/develop | tr \'\\n\' \' \') --run` 確認通過；請勿在此修復步驟內自行執行全量 `pnpm test`、`pnpm test:e2e`、`npx playwright test` 或啟動 `pnpm dev`，收斂迴圈進入下一輪時會自動重新執行全量單元測試與 E2E 驗證。'
+    "修復完成後，請僅執行快速的 `pnpm type-check` 與針對變更檔案的 `npx vitest related $(git diff --name-only origin/develop | tr '\\n' ' ') --run` 確認通過；請勿在此修復步驟內自行執行全量 `pnpm test`、`pnpm test:e2e`、`npx playwright test` 或啟動 `pnpm dev`，收斂迴圈進入下一輪時會自動重新執行全量單元測試與 E2E 驗證。"
   );
 
   return sections.join('\n\n');
