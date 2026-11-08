@@ -172,7 +172,7 @@ jobs:
         run: |
           mkdir -p .agents/tmp
           GH_TOKEN="${TRACKER_READ_TOKEN:-$GH_TOKEN}" gh issue view "$TICKET_NUMBER" --repo Xchange-Taiwan/X-Talent-Tracker --comments > .agents/tmp/ticket-spec.md 2>/dev/null || true
-           ARCH_QUERY="#${TICKET_NUMBER} $(head -n 25 .agents/tmp/ticket-spec.md 2>/dev/null | tr '\n' ' ' || echo '')"
+          ARCH_QUERY="#${TICKET_NUMBER} $(head -n 25 .agents/tmp/ticket-spec.md 2>/dev/null | tr '\n' ' ' || echo '')"
           jq -n --arg q "$ARCH_QUERY" '{query: $q}' | curl -sS -X POST "https://x-talent-discord-mention-notify.x-talent.workers.dev/__arch-kb" -H "Content-Type: application/json" -d @- | jq -r 'if .kb then "\n\n## X-Talent 跨專案架構知識庫 (Cloudflare KV Architecture KB)\n```json\n" + (.kb | tojson) + "\n```" else "" end' >> .agents/tmp/ticket-spec.md 2>/dev/null || true
 
           if [ -n "$FIX_INSTRUCTIONS" ]; then
@@ -182,9 +182,9 @@ jobs:
             請依序執行：
             1. 優先針對上述修改指示完成程式碼與測試調整。
             2. 同時檢查 PR #${PR_NUMBER} 的失敗 CI Checks 與 AI Review 留言並一併修復。
-            3. 僅執行快速的 pnpm type-check 與 pnpm test（Vitest）確認通過（此階段嚴禁自行執行 pnpm test:e2e、npx playwright test 或 git push，下一步 Phase 2 將自動執行多輪 AI Review 與 E2E 收斂迴圈）。"
+            3. 僅執行快速的 pnpm type-check 與針對變更檔案的單元測試（npx vitest related \$(git diff --name-only origin/develop | tr '\n' ' ') --run）確認通過（此階段嚴禁自行執行全量 pnpm test、pnpm test:e2e、npx playwright test 或 git push，下一步 Phase 2 將自動執行全量單元測試、多輪 AI Review 與 E2E 收斂迴圈）。"
           else
-            PROMPT="請針對 PR #${PR_NUMBER}（對應 Ticket #${TICKET_NUMBER}，規格位於 .agents/tmp/ticket-spec.md）檢查所有失敗的 CI Checks 與 AI Review 留言，完成程式碼與測試修復並僅執行快速的 pnpm type-check 與 pnpm test（Vitest）確認通過（此階段嚴禁自行執行 pnpm test:e2e、npx playwright test 或 git push，下一步 Phase 2 將自動執行多輪 AI Review 與 E2E 收斂迴圈）。"
+            PROMPT="請針對 PR #${PR_NUMBER}（對應 Ticket #${TICKET_NUMBER}，規格位於 .agents/tmp/ticket-spec.md）檢查所有失敗的 CI Checks 與 AI Review 留言，完成程式碼與測試修復並僅執行快速的 pnpm type-check 與針對變更檔案的單元測試（npx vitest related \$(git diff --name-only origin/develop | tr '\n' ' ') --run）確認通過（此階段嚴禁自行執行全量 pnpm test、pnpm test:e2e、npx playwright test 或 git push，下一步 Phase 2 將自動執行全量單元測試、多輪 AI Review 與 E2E 收斂迴圈）。"
           fi
           npx gemini -m "$GEMINI_MODEL" --approval-mode=yolo --skip-trust -p "$PROMPT"
 
@@ -205,19 +205,12 @@ jobs:
 
       - name: Commit and push converged fixes to PR branch (Phase 3)
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER }}
           PR_NUMBER: ${{ env.SAFE_PR_NUMBER }}
-        run: |
-          trap 'rm -f .env.development.local .env.e2e.local' EXIT
-          PROMPT="PR #${PR_NUMBER}（對應 Ticket #${TICKET_NUMBER}）已通過雲端多輪 AI Review 與 Playwright E2E 收斂檢查。
-          請執行最後提交步驟：
-          1. 若修改涉及 src/ 下的 UI 畫面變更，請啟動 pnpm dev 並執行 node scripts/capture-ui-evidence.mjs 重新截圖，再透過 .agents/scripts/publish-evidence.sh 更新 pr-evidence 分支與 PR 描述中的截圖。
-          2. 將工作目錄中的所有程式碼與測試修改 commit 並 git push 到當前 PR 分支。"
-          npx gemini -m "$GEMINI_MODEL" --approval-mode=yolo --skip-trust -p "$PROMPT"
+        run: bash .agents/scripts/cloud-submit-pr.sh fix-pr
 
       - name: Finalize and notify Discord Worker (Suggestion 4 auto-recovery & Vercel limit detection)
         if: always()
@@ -255,8 +248,8 @@ jobs:
               --argjson vercelLimitReached "$VERCEL_LIMIT" \
               '{
                 issueNumber: ($issueNumber | tonumber? // null),
-                status: $status,
                 prNumber: ($prNumber | tonumber? // null),
+                status: $status,
                 prUrl: $prUrl,
                 message: $message,
                 vercelLimitReached: $vercelLimitReached,
