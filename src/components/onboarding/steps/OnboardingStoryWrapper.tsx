@@ -1,0 +1,121 @@
+import { zodResolver } from '@hookform/resolvers/zod';
+import { SessionProvider } from 'next-auth/react';
+import React, { useEffect } from 'react';
+import { Path, useForm, UseFormReturn } from 'react-hook-form';
+import * as z from 'zod';
+
+import { Form } from '@/components/ui/form';
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
+import { cn } from '@/lib/utils';
+
+interface OnboardingStoryWrapperProps<T extends z.ZodTypeAny> {
+  schema: T;
+  defaultValues: z.infer<T>;
+  session?: import('next-auth').Session | null;
+  triggerValidation?: boolean;
+  children: (form: UseFormReturn<z.infer<T>>) => React.ReactNode;
+}
+
+export const OnboardingStoryWrapper = <T extends z.ZodTypeAny>({
+  schema,
+  defaultValues,
+  session,
+  triggerValidation = false,
+  children,
+}: OnboardingStoryWrapperProps<T>) => {
+  const form = useForm<z.infer<T>>({
+    resolver: zodResolver(schema),
+    defaultValues,
+  });
+
+  useEffect(() => {
+    if (triggerValidation) {
+      form.trigger();
+    }
+  }, [triggerValidation, form]);
+
+  return (
+    <SessionProvider session={session}>
+      <Form {...form}>
+        <div className="border-border bg-background-white max-w-md rounded-lg border p-6 shadow-sm">
+          {children(form)}
+        </div>
+      </Form>
+    </SessionProvider>
+  );
+};
+
+interface OnboardingStepDemoWrapperProps<T extends z.ZodTypeAny> {
+  schema: T;
+  fieldName: string;
+  defaultValues: z.infer<T>;
+  children: (form: UseFormReturn<z.infer<T>>) => React.ReactNode;
+}
+
+export const OnboardingStepDemoWrapper = <T extends z.ZodTypeAny>({
+  schema,
+  fieldName,
+  defaultValues,
+  children,
+}: OnboardingStepDemoWrapperProps<T>) => {
+  const [submittedData, setSubmittedData] = React.useState<unknown>(null);
+
+  return (
+    <OnboardingStoryWrapper schema={schema} defaultValues={defaultValues}>
+      {(form) => (
+        <form
+          onSubmit={form.handleSubmit((data) => setSubmittedData(data))}
+          className="space-y-6"
+        >
+          {children(form)}
+
+          <div className="flex gap-4">
+            <button
+              type="submit"
+              className={cn(
+                'bg-brand-500 text-text-white hover:bg-brand-600 rounded-lg px-4 py-2 focus:outline-none',
+                FOCUS_RING_CLASSES
+              )}
+            >
+              提交表單
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                form.reset(defaultValues);
+                setSubmittedData(null);
+              }}
+              className="border-background-border text-text-secondary hover:bg-background-bottom-secondary rounded-lg border px-4 py-2"
+            >
+              重置
+            </button>
+          </div>
+
+          {/* Real-time Form values */}
+          <div className="text-text-tertiary mt-6 border-t pt-4 text-sm">
+            <p>
+              <strong>表單當前數值：</strong>
+              {JSON.stringify(form.watch(fieldName as Path<z.infer<T>>))}
+            </p>
+            <p className="mt-1">
+              <strong>表單驗證狀態：</strong>
+              {form.formState.errors[fieldName] ? (
+                <span className="text-status-error-default">
+                  {form.formState.errors[fieldName]?.message as string}
+                </span>
+              ) : (
+                <span className="text-status-success-default">驗證通過</span>
+              )}
+            </p>
+            {submittedData !== null && (
+              <p className="text-brand-600 mt-2">
+                <strong>提交成功數據：</strong>
+                {JSON.stringify(submittedData)}
+              </p>
+            )}
+          </div>
+        </form>
+      )}
+    </OnboardingStoryWrapper>
+  );
+};

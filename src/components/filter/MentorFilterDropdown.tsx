@@ -1,7 +1,5 @@
-import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
-import ArrowDropUpIcon from '@mui/icons-material/ArrowDropUp';
-import FilterListIcon from '@mui/icons-material/FilterList';
 import * as Popover from '@radix-ui/react-popover';
+import { ChevronDown, ChevronUp, ListFilter } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 
 import FilterSelect from '@/components/filter/FilterSelect';
@@ -59,22 +57,22 @@ const MentorFilterDropdown = ({
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <button className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#E6E8EA] px-4 py-1">
+        <Button variant="outline" className="w-full gap-2 font-normal">
           <div className="flex items-center gap-1">
-            <FilterListIcon className="h-5 w-5" />
+            <ListFilter className="size-5" />
             <span>篩選</span>
           </div>
           {open ? (
-            <ArrowDropUpIcon className="h-5 w-5" />
+            <ChevronUp className="size-5" />
           ) : (
-            <ArrowDropDownIcon className="h-5 w-5" />
+            <ChevronDown className="size-5" />
           )}
-        </button>
+        </Button>
       </Popover.Trigger>
 
       <Popover.Portal>
         <Popover.Content
-          className="dark:bg-white z-[55] flex max-h-[calc(var(--radix-popover-content-available-height)-8px)] w-[320px] flex-col rounded-md border border-gray-200 bg-background-white shadow-xl"
+          className="border-background-border bg-background-white z-[55] flex max-h-[calc(var(--radix-popover-content-available-height)-8px)] w-[320px] flex-col rounded-md border shadow-xl"
           sideOffset={8}
           collisionPadding={8}
         >
@@ -89,7 +87,7 @@ const MentorFilterDropdown = ({
               />
             ))}
           </div>
-          <div className="flex gap-2 border-t border-gray-100 p-4 pt-3">
+          <div className="border-background-border flex gap-2 border-t p-4 pt-3">
             <Button className="w-full" onClick={applyFilters}>
               套用
             </Button>

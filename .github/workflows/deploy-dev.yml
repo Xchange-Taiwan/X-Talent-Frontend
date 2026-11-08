@@ -4,7 +4,32 @@ on:
   push:
     branches:
       - develop
+    paths-ignore:
+      - 'e2e/**'
+      - '.github/**'
+      - '.agents/**'
+      - '.gemini/**'
+      - '.husky/**'
+      - '.lavish/**'
+      - '.storybook/**'
+      - '.vscode/**'
+      - 'scripts/**'
+      - 'docs/**'
+      - '**/*.md'
+      - '**/*.test.ts'
+      - '**/*.test.tsx'
+      - '**/*.spec.ts'
+      - '**/*.spec.tsx'
+      - '**/*.stories.ts'
+      - '**/*.stories.tsx'
+      - 'playwright.config.ts'
+      - 'vitest.config.mts'
+      - 'tsconfig.test.json'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -18,20 +43,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Set up PNPM
-        uses: pnpm/action-setup@v2
-        with:
-          version: 9
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Set up environment
+        uses: ./.github/actions/setup-env
 
       - name: Install Vercel CLI
         run: npm install --global vercel@51.2.1
@@ -44,13 +59,17 @@ jobs:
 
       - name: Deploy to Vercel (Production for develop)
         id: deploy
+        shell: bash
         run: |
+          set -euo pipefail
           echo "🚀 Deploying to Vercel Production (develop)..."
-          url=$(vercel deploy --prebuilt --prod --archive=tgz --token=${{ env.VERCEL_TOKEN }} | tail -n 1)
-          echo "vercel_url=${url}" >> $GITHUB_OUTPUT
+          out="$(vercel deploy --prebuilt --prod --archive=tgz --token=${{ env.VERCEL_TOKEN }})"
+          echo "$out"
+          url="$(printf '%s\n' "$out" | tail -n 1)"
+          echo "vercel_url=$url" >> "$GITHUB_OUTPUT"
 
       - name: Comment on commit with deploy URL
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             github.rest.repos.createCommitComment({

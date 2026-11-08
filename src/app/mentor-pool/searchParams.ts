@@ -1,14 +1,39 @@
 import type { ReadonlyURLSearchParams } from 'next/navigation';
 
-import type { SelectFilters } from '@/components/filter/MentorFilterDropdown';
+import type {
+  FilterOptions,
+  SelectFilters,
+} from '@/components/filter/MentorFilterDropdown';
 
 import { filterOptions } from './data';
 
-export const SEARCH_PARAM_KEY = 'q';
+export interface ActiveFilterBadge {
+  key: string;
+  name: string;
+  value: string;
+  label: string;
+}
 
-export const FILTER_KEYS: ReadonlyArray<string> = Object.keys(filterOptions);
+export function resolveActiveFilterBadges(
+  selectedFilters: SelectFilters,
+  options: FilterOptions = filterOptions
+): ActiveFilterBadge[] {
+  return Object.entries(selectedFilters).map(([key, filter]) => {
+    const label =
+      options[key]?.options.find((o) => o.value === filter.value)?.label ??
+      filter.value;
+    return {
+      key,
+      name: filter.name,
+      value: filter.value,
+      label,
+    };
+  });
+}
 
-export type ServerSearchParams = Record<string, string | string[] | undefined>;
+const SEARCH_PARAM_KEY = 'q';
+
+const FILTER_KEYS: ReadonlyArray<string> = Object.keys(filterOptions);
 
 type AnyParams = URLSearchParams | ReadonlyURLSearchParams;
 
@@ -20,22 +45,6 @@ export interface MentorPoolFetchConditions {
   filter_skills?: string;
   filter_topics?: string;
   filter_industries?: string;
-}
-
-function pickString(value: string | string[] | undefined): string | undefined {
-  if (Array.isArray(value)) return value[0];
-  return value;
-}
-
-export function toURLSearchParams(
-  searchParams: ServerSearchParams
-): URLSearchParams {
-  const next = new URLSearchParams();
-  Object.entries(searchParams).forEach(([key, value]) => {
-    const v = pickString(value);
-    if (v) next.set(key, v);
-  });
-  return next;
 }
 
 export function getSearchPatternFromParams(params: AnyParams | null): string {

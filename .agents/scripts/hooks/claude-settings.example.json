@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .agents/scripts/hooks/claude-verify-board-status.sh",
+            "timeout": 30,
+            "statusMessage": "Verifying X-Tracker board status..."
+          }
+        ]
+      }
+    ]
+  }
+}

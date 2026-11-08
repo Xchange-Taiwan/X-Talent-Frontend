@@ -1,12 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ApiError } from '@/lib/apiClient';
 import { resetPassword } from '@/services/auth/resetPasswordByEmail';
 
-vi.mock('@/lib/apiClient', () => ({
-  apiClient: {
-    get: vi.fn(),
-  },
-}));
+vi.mock('@/lib/apiClient', async (importActual) => {
+  const actual = await importActual<typeof import('@/lib/apiClient')>();
+  return {
+    ...actual,
+    apiClient: {
+      ...actual.apiClient,
+      getUnwrapped: vi.fn(),
+    },
+  };
+});
 
 import { apiClient } from '@/lib/apiClient';
 
@@ -15,25 +21,16 @@ describe('resetPasswordByEmail', () => {
     vi.clearAllMocks();
   });
 
-  it('apiClient.get resolves with code "0" → returns { status: "success", code: 200 }', async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({
-      code: '0',
-      msg: 'ok',
-      data: { ttl_secs: 300 },
-    });
+  it('apiClient.getUnwrapped resolves successfully → returns successfully', async () => {
+    vi.mocked(apiClient.getUnwrapped).mockResolvedValue({ ttl_secs: 300 });
 
-    const result = await resetPassword('test@example.com');
-
-    expect(result).toEqual({ status: 'success', code: 200 });
+    await expect(resetPassword('test@example.com')).resolves.toBeUndefined();
   });
 
-  it('throws error → wraps in createGeneralErrorResponse(500, ...)', async () => {
-    vi.mocked(apiClient.get).mockRejectedValue(new Error('網路錯誤'));
+  it('apiClient.getUnwrapped throws ApiError → propagates the error', async () => {
+    const apiError = new ApiError(400, '信件寄送失敗');
+    vi.mocked(apiClient.getUnwrapped).mockRejectedValue(apiError);
 
-    await expect(resetPassword('test@example.com')).rejects.toMatchObject({
-      status: 'error',
-      code: 500,
-      message: '網路錯誤',
-    });
+    await expect(resetPassword('test@example.com')).rejects.toThrow(apiError);
   });
 });

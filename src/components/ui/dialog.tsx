@@ -4,16 +4,51 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import * as React from 'react';
 
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 
+/**
+ * Dialog 對話框元件的根容器，用於控制對話框的開啟狀態與整體行為。
+ *
+ * 經由 Radix UI 的 Dialog.Root 封裝，支援受控 (controlled) 與非受控 (uncontrolled) 模式。
+ *
+ * @example
+ * <Dialog open={isOpen} onOpenChange={setIsOpen}>
+ *   <DialogTrigger>開啟對話框</DialogTrigger>
+ *   <DialogContent>對話框內容</DialogContent>
+ * </Dialog>
+ */
 const Dialog = DialogPrimitive.Root;
 
+/**
+ * DialogTrigger 用於觸發對話框開啟的按鈕/元件。
+ *
+ * 預設會渲染為一個 button，通常會搭配 `asChild` 屬性將觸發行為套用至子元件（例如 Button）。
+ *
+ * @example
+ * <DialogTrigger asChild>
+ *   <Button>編輯檔案</Button>
+ * </DialogTrigger>
+ */
 const DialogTrigger = DialogPrimitive.Trigger;
 
+/**
+ * DialogPortal 將對話框內容渲染至 React Portal 中，使其脫離常規 DOM 流，通常渲染於 body 底部以避免層級 (z-index) 衝突。
+ */
 const DialogPortal = DialogPrimitive.Portal;
 
+/**
+ * DialogClose 用於關閉對話框的觸發元件。
+ *
+ * 通常置於對話框內容之內，點擊時會將對話框的 open 狀態設為 false。
+ */
 const DialogClose = DialogPrimitive.Close;
 
+/**
+ * DialogOverlay 對話框的背景遮罩。
+ *
+ * 鋪滿整個螢幕，點擊遮罩預設會關閉對話框。支援動畫與透明度設定。
+ */
 const DialogOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
@@ -21,7 +56,7 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'bg-black/80 fixed inset-0 z-50  data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+      'bg-dark/80 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 fixed inset-0 z-50',
       className
     )}
     {...props}
@@ -29,30 +64,63 @@ const DialogOverlay = React.forwardRef<
 ));
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
+/**
+ * DialogContentFrame 對話框的內容樣式容器。
+ *
+ * 不含 Portal、Overlay 與 Close 按鈕，提供標準的動畫、邊框、半徑、背景與內邊距，適合組合模式下自訂彈窗結構。
+ */
+const DialogContentFrame = React.forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
+>(({ className, children, ...props }, ref) => (
+  <DialogPrimitive.Content
+    ref={ref}
+    className={cn(
+      'bg-background-white data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid max-h-[90dvh] w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto border p-6 shadow-lg duration-200 sm:rounded-lg',
+      className
+    )}
+    {...props}
+  >
+    {children}
+  </DialogPrimitive.Content>
+));
+DialogContentFrame.displayName = 'DialogContentFrame';
+
+/**
+ * DialogContent 對話框的主體內容容器。
+ *
+ * 包含對話框的實際內容（如標題、描述、表單、按鈕等），內置預設的置中樣式、響應式設計與關閉按鈕。
+ *
+ * @param className - 額外的自訂樣式類名
+ * @param children - 對話框內部的子元件
+ */
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
 >(({ className, children, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
-    <DialogPrimitive.Content
-      ref={ref}
-      className={cn(
-        'fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg',
-        className
-      )}
-      {...props}
-    >
+    <DialogContentFrame ref={ref} className={className} {...props}>
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
-        <X className="h-4 w-4" aria-hidden="true" />
+      <DialogPrimitive.Close
+        className={cn(
+          'ring-offset-background-white data-[state=open]:bg-background-bottom data-[state=open]:text-text-tertiary absolute top-4 right-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 disabled:pointer-events-none',
+          FOCUS_RING_CLASSES
+        )}
+      >
+        <X className="size-4" aria-hidden="true" />
         <span className="sr-only">關閉</span>
       </DialogPrimitive.Close>
-    </DialogPrimitive.Content>
+    </DialogContentFrame>
   </DialogPortal>
 ));
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
+/**
+ * DialogHeader 對話框的頭部區域。
+ *
+ * 用於放置 DialogTitle (標題) 與 DialogDescription (描述文字)，提供標準的垂直間距。
+ */
 const DialogHeader = ({
   className,
   ...props
@@ -67,6 +135,11 @@ const DialogHeader = ({
 );
 DialogHeader.displayName = 'DialogHeader';
 
+/**
+ * DialogFooter 對話框的底部區域。
+ *
+ * 用於放置操作按鈕（例如確認、取消、儲存等），在桌機版預設靠右對齊，手機版垂直排列。
+ */
 const DialogFooter = ({
   className,
   ...props
@@ -81,6 +154,11 @@ const DialogFooter = ({
 );
 DialogFooter.displayName = 'DialogFooter';
 
+/**
+ * DialogTitle 對話框的標題元件。
+ *
+ * 為螢幕閱讀器與無障礙功能 (accessibility) 提供明確的標題定義。
+ */
 const DialogTitle = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
@@ -88,7 +166,7 @@ const DialogTitle = React.forwardRef<
   <DialogPrimitive.Title
     ref={ref}
     className={cn(
-      'text-lg font-semibold leading-none tracking-tight',
+      'text-lg leading-none font-semibold tracking-tight',
       className
     )}
     {...props}
@@ -96,13 +174,18 @@ const DialogTitle = React.forwardRef<
 ));
 DialogTitle.displayName = DialogPrimitive.Title.displayName;
 
+/**
+ * DialogDescription 對話框的描述文字元件。
+ *
+ * 用於提供標題之外的詳細輔助說明資訊。
+ */
 const DialogDescription = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn('text-sm text-muted-foreground', className)}
+    className={cn('text-text-tertiary text-sm', className)}
     {...props}
   />
 ));
@@ -112,6 +195,7 @@ export {
   Dialog,
   DialogClose,
   DialogContent,
+  DialogContentFrame,
   DialogDescription,
   DialogFooter,
   DialogHeader,

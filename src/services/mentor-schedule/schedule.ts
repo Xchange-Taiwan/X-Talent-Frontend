@@ -1,4 +1,4 @@
-import { apiClient, ApiError } from '@/lib/apiClient';
+import { apiClient } from '@/lib/apiClient';
 import { components } from '@/types/api';
 
 export interface ScheduleRequest {
@@ -7,38 +7,40 @@ export interface ScheduleRequest {
   month: number;
 }
 
-export type SegmentVO = components['schemas']['MentorScheduleSegmentVO'];
+export type TimeSlotDTO = components['schemas']['TimeSlotDTO'];
+export type SegmentVO = TimeSlotDTO;
 export type ScheduleData = components['schemas']['MentorScheduleQueryVO'];
 
-export type TimeSlotDTO = components['schemas']['TimeSlotDTO'];
-
-interface ScheduleApiResponse {
-  code: string;
-  msg: string;
-  data: ScheduleData;
-}
-
+/**
+ * `signal` lets a caller cancel the request when the month it belongs to is
+ * no longer the one being viewed. A cancelled request lands in the same
+ * catch as any other failure and resolves to an empty schedule; callers that
+ * need to tell cancellation apart must check the signal themselves.
+ */
 export async function fetchMentorSchedule(
-  param: ScheduleRequest
+  param: ScheduleRequest,
+  signal?: AbortSignal
 ): Promise<ScheduleData> {
   try {
-    const result = await apiClient.get<ScheduleApiResponse>(
+    const data = await apiClient.getUnwrapped<ScheduleData>(
       `/v1/mentors/${param.userId}/schedule/y/${param.year}/m/${param.month}`,
-      { auth: false }
+      { auth: false, ...(signal ? { signal } : {}) }
     );
-    if (result.code !== '0') return {} as ScheduleData;
-    return result.data;
+    return data ?? ({} as ScheduleData);
   } catch {
     return {} as ScheduleData;
   }
 }
 
-interface SaveScheduleResponse {
-  code: string;
-  msg: string;
-}
-
 type CleanObject = Record<string, unknown>;
+
+export function utcYearMonth(unixSeconds: number): {
+  year: number;
+  month: number;
+} {
+  const date = new Date(unixSeconds * 1000);
+  return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 };
+}
 
 /**
  * PUT /v1/mentors/:userId/schedule
@@ -62,27 +64,29 @@ export async function saveMentorSchedule(params: {
 
   const body = cleanOptional({
     until: params.until,
-    timeslots: params.timeslots.map((t) =>
-      cleanOptional({
+    timeslots: params.timeslots.map((t) => {
+      const { year, month } = utcYearMonth(t.dtstart);
+      return cleanOptional({
         id: t.id,
         user_id: Number(params.userId),
         dt_type: t.dt_type,
+        // The schedule API requires the UTC month bucket for every slot.
+        // Derive it from dtstart so callers cannot omit stale generated DTO fields.
+        dt_year: year,
+        dt_month: month,
         dtstart: t.dtstart,
         dtend: t.dtend,
         rrule: t.rrule,
         timezone: 'UTC',
         exdate: t.exdate,
-      })
-    ),
+      });
+    }),
   });
 
-  const result = await apiClient.put<SaveScheduleResponse>(
+  await apiClient.putUnwrapped<null>(
     `/v1/mentors/${params.userId}/schedule`,
     body
   );
-  if (result.code !== '0') {
-    throw new ApiError(200, result.msg || 'Save failed', result);
-  }
 }
 
 /**

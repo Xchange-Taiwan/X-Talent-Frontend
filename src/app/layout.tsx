@@ -3,13 +3,13 @@ import '../styles/global.css';
 import * as Sentry from '@sentry/nextjs';
 import type { Metadata } from 'next';
 import Script from 'next/script';
-import { getServerSession } from 'next-auth/next';
 
-import authOptions from '@/auth.config';
+import { AnnouncementBanner } from '@/components/layout/AnnouncementBanner';
 import { Footer } from '@/components/layout/Footer';
 import { Header } from '@/components/layout/Header';
 import Providers from '@/components/Providers';
 import { Toaster } from '@/components/ui/toaster';
+import { SESSION_HINT_INLINE_SCRIPT } from '@/lib/auth/sessionHint';
 import { getSiteUrl } from '@/lib/site-url';
 
 import { notoSansTC } from './font';
@@ -49,42 +49,20 @@ export function generateMetadata(): Metadata {
   };
 }
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await getServerSession(authOptions);
-
-  // Preload the logged-in user's avatar through the next/image optimizer so the
-  // profile view / edit page's first paint does not wait on a cold S3 fetch.
-  // imageSrcSet + imageSizes lets the browser pick the same width that
-  // <Image sizes="150-160px" /> will request (w=256 at 1x DPR, w=384 at 2x),
-  // avoiding the cache-miss caused by a fixed-width preload.
-  // Skip preload entirely when the avatar URL carries no `?v=` query — the
-  // upload pipeline always bakes in a cache buster, so a bare URL means
-  // legacy data we'd rather refetch live than cache for 30 days.
-  const sessionAvatar = session?.user?.avatar ?? null;
-  const avatarSrc =
-    sessionAvatar && sessionAvatar.includes('?v=') ? sessionAvatar : null;
-  const buildOptimizerUrl = (w: number) =>
-    `/_next/image?url=${encodeURIComponent(avatarSrc ?? '')}&w=${w}&q=75`;
-  const avatarSrcSet = avatarSrc
-    ? `${buildOptimizerUrl(256)} 256w, ${buildOptimizerUrl(384)} 384w`
-    : null;
-
   return (
-    <html lang="zh-TW" className={notoSansTC.className}>
+    <html lang="zh-TW" className={`${notoSansTC.className} group/auth-state`}>
       <head>
-        {avatarSrcSet && (
-          <link
-            rel="preload"
-            as="image"
-            imageSrcSet={avatarSrcSet}
-            imageSizes="160px"
-            fetchPriority="high"
-          />
-        )}
+        {/* Instant SSR-Hint CSS Toggle script */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: SESSION_HINT_INLINE_SCRIPT,
+          }}
+        />
         {/* Preconnect to third-party origins so the TLS handshake overlaps with
             HTML parse instead of blocking the first script byte. crossOrigin
             is required so the warmed connection is reused for the actual
@@ -114,7 +92,7 @@ export default async function RootLayout({
       <body id="app">
         <a
           href="#main-content"
-          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+          className="focus:bg-brand-500 focus:text-text-primary focus:ring-ring sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:rounded-md focus:px-4 focus:py-2 focus:shadow-lg focus:ring-2 focus:ring-offset-2 focus:outline-none"
         >
           跳至主要內容
         </a>
@@ -158,13 +136,14 @@ export default async function RootLayout({
             }}
           />
         )}
-        <Providers session={session}>
+        <Providers>
           <div className="flex min-h-screen flex-col">
+            <AnnouncementBanner />
             <Header />
             <main
               id="main-content"
               tabIndex={-1}
-              className="grow pt-[70px] focus:outline-none"
+              className="grow pt-[calc(70px_+_var(--banner-height,0px))] focus:outline-none"
             >
               {children}
             </main>

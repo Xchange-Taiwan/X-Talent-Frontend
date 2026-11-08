@@ -1,0 +1,50 @@
+export type MessageRole = 'MENTEE' | 'MENTOR';
+
+export type ReservationMessage = {
+  content: string;
+  // Resolved party for this message. Undefined when neither the message's own
+  // role nor the sender/participant fallback could classify it.
+  role?: MessageRole;
+};
+
+export type Reservation = {
+  id: string;
+  name: string;
+  avatar?: string;
+  roleLine: string;
+  date: string;
+  time: string;
+  // Full conversation in the order returned by the API. Empty when no messages.
+  messages: ReservationMessage[];
+  // Latest message authored by each party — derived from `messages` for the
+  // card preview. Either side may be undefined when that party hasn't written.
+  menteeMessage?: ReservationMessage;
+  mentorMessage?: ReservationMessage;
+
+  // Required by the PUT reservation status endpoint
+  scheduleId: number;
+  dtstart: number;
+  dtend: number;
+
+  // Optimistic-lock version for the PUT status-transition endpoint (accept /
+  // reject / cancel). Sent back on every status update so the backend can
+  // detect a stale write and return 409 instead of silently overwriting.
+  // Defaults to 0 until the backend ships the field (X-Talent-Backend #44).
+  version: number;
+
+  // Both user ids are kept so we can reliably determine which side the current user is on
+  senderUserId: number | string;
+  participantUserId: number | string;
+
+  // Set when either side rejected/cancelled or the system auto-cancelled.
+  // Value is the canceller's role so the UI can render "已由導師/學員取消" or
+  // "已自動取消" on both mentor and mentee pages.
+  cancelledBy?: 'MENTEE' | 'MENTOR' | 'SYSTEM';
+
+  // Which side the viewer this reservation was mapped for (mapToReservation's
+  // myUserId) occupies - MENTEE or MENTOR. Undefined when the reservation was
+  // mapped with no signed-in viewer. Consumed by resolveReservationViewer
+  // (src/lib/reservation/reservationViewerModel.ts) so a caller never has to
+  // hardcode which role it's rendering for.
+  viewerRole?: 'MENTEE' | 'MENTOR';
+};

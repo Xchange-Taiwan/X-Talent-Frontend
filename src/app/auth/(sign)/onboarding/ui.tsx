@@ -5,21 +5,18 @@ import dynamic from 'next/dynamic';
 import { UseFormReturn } from 'react-hook-form';
 import * as z from 'zod';
 
+import { WhoAreYou } from '@/components/onboarding/steps';
+import { Button } from '@/components/ui/button';
+import { Form } from '@/components/ui/form';
 import {
   step1Schema,
   step2Schema,
   step3Schema,
   step4Schema,
   step5Schema,
-  WhoAreYou,
-} from '@/components/onboarding/steps';
-import { Button } from '@/components/ui/button';
-import { Form } from '@/components/ui/form';
-import { LocationType } from '@/services/profile/countries';
-import {
-  type IndustryOption,
-  type TagCatalogGroupVO,
-} from '@/services/profile/tagCatalog';
+} from '@/schemas/onboarding';
+import type { LocationType } from '@/types/location';
+import type { IndustryOption, TagCatalogGroupVO } from '@/types/tagCatalog';
 
 // Steps 2-5 are only rendered after the user completes step 1.
 // Lazy-load them so their code is excluded from the initial bundle and
@@ -49,7 +46,6 @@ interface Props {
   currentStep: number;
   stepsTotal: number;
   stepTitle: readonly string[];
-  avatarError: string | null;
   step1Form: UseFormReturn<z.infer<typeof step1Schema>>;
   step2Form: UseFormReturn<z.infer<typeof step2Schema>>;
   step3Form: UseFormReturn<z.infer<typeof step3Schema>>;
@@ -84,15 +80,12 @@ function StepHeader({
 }) {
   return (
     <div>
-      <p className="mb-6 text-base font-semibold text-text-tertiary">
+      <p className="text-text-tertiary mb-6 text-base font-semibold">
         步驟 {currentStep} / {stepsTotal}
       </p>
       <div className="flex items-center gap-3">
         {showBack && (
-          <ChevronLeft
-            className="h-6 w-6 cursor-pointer"
-            onClick={onGoToPrev}
-          />
+          <ChevronLeft className="size-6 cursor-pointer" onClick={onGoToPrev} />
         )}
         <p className="text-4xl font-bold">{stepTitle[currentStep - 1]}</p>
       </div>
@@ -104,7 +97,6 @@ export default function OnboardingUI({
   currentStep,
   stepsTotal,
   stepTitle,
-  avatarError,
   step1Form,
   step2Form,
   step3Form,
@@ -139,7 +131,7 @@ export default function OnboardingUI({
                 showBack={false}
                 onGoToPrev={onGoToPrev}
               />
-              <WhoAreYou form={step1Form} avatarError={avatarError} />
+              <WhoAreYou form={step1Form} />
               <Button className="rounded-xl px-12" type="submit">
                 下一步
               </Button>
@@ -244,7 +236,7 @@ export default function OnboardingUI({
               >
                 {isSubmitting ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="mr-2 size-4 animate-spin" />
                     提交
                   </>
                 ) : (

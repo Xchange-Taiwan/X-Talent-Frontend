@@ -1,0 +1,140 @@
+# 色彩 Token 系統收斂與遷移計畫 (Color Token Convergence & Migration Plan)
+
+本專案已完成「雙軌色彩 token 系統」在**定義層**的收斂工作（`src/design/tokens/color.ts` 為唯一來源）。
+
+同時，**元件層**的遷移工作也已大致完成：
+
+- [#397](https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/397)（22 個 UI Primitives 元件遷移）
+- [#398](https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/398)（10 個 Storybook stories 遷移）
+- [#399](https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/399)（Reservation / Profile 元件遷移）
+- [#400](https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/400)（Layout / Auth / Onboarding / Mentor-pool 等元件遷移）
+
+以上項目皆已全數完成並合併至 `develop` 主線。目前僅剩零星殘留的 legacy class 待處理（已開立收尾 Ticket [X-Tracker #404](https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/404) 進行最後的清理）。兩套命名目前數值一致，不影響任何視覺表現。
+
+以下為調整重點、現已完成的修改，以及後續基礎與業務元件的逐步遷移指引。
+
+---
+
+## 1. 架構調整與現狀 (What We Achieved)
+
+### 1.1 唯一色彩 Token 來源 (Single Source of Truth)
+
+我們已將 `./src/design/tokens/color.ts` 確立為全專案唯一的色彩 Token 定義檔。
+
+- 所有的 **shadcn/ui 語意變數**（如 `primary`, `secondary`, `destructive`, `muted`, `border` 等）已全數併入 `src/design/tokens/color.ts` 統一管理。
+- **`tailwind.config.js` 瘦身**：移除了 `extend.colors` 中與 `color.ts` 重複定義的冗餘區塊。現在 Tailwind 全部的色彩直接從 `colors` 模組載入，確保結構無重複維護問題。
+
+### 1.2 清除 HSL 數值重複 (Eliminated Duplicate CSS Variables)
+
+在 `src/styles/global.css` 中，我們重構了 `:root` 宣告：
+
+- 移除了 legacy / shadcn 變數中硬編碼的 HSL 數值（如 `--primary: 180 64% 48%` 與 `--color-brand-500: 180 64% 48%` 的重疊維護）。
+- **變數映射（Alias-based mapping）**：現在所有的 shadcn 變數直接以 `var()` 映射至自訂的 Color System Tokens。例如：
+  - `--primary: var(--color-brand-500);`
+  - `--secondary: var(--color-background-bottom);`
+  - `--border: var(--color-background-border);`
+- 這意謂著：即使舊元件或第三方套件仍在使用 `bg-primary` 或 `border-border`，其底層數值也已 100% 同步於自訂色彩系統，達成了數值層面的完全收斂。
+
+---
+
+## 2. 遷移映射表 (Tailwind Class Mapping Table)
+
+在後續的元件開發與重構中，請依照下表逐步將 legacy/shadcn 語意類名替換為統一說明的設計系統類名：
+
+| 舊語意類名 (Legacy Class Name)                        | 新統一系統類名 (Unified Class Name) | 對應說明 (Description)       |
+| :---------------------------------------------------- | :---------------------------------- | :--------------------------- |
+| `bg-primary`, `text-primary`                          | `bg-brand-500`, `text-brand-500`    | 品牌色（亮青色 Teal）        |
+| `text-primary-foreground`                             | `text-text-primary`                 | 品牌色上的高對比深灰文字色   |
+| `bg-secondary`, `bg-accent`                           | `bg-background-bottom`              | 次要背景色 / 卡片底色        |
+| `text-secondary-foreground`, `text-accent-foreground` | `text-text-primary`                 | 次要色上的主要文字色         |
+| `bg-muted`                                            | `bg-background-bottom`              | 靜態、被動或失效狀態底色     |
+| `text-muted-foreground`                               | `text-text-tertiary`                | 輔助/說明文字色（灰色）      |
+| `bg-destructive`                                      | `bg-status-error-default`           | 警告/危險/刪除狀態色（紅色） |
+| `text-destructive-foreground`                         | `text-text-white`                   | 警告狀態底下的白色文字       |
+| `border-border`, `border-input`                       | `border-background-border`          | 基礎框線 / 輸入框框線色      |
+| `bg-background`                                       | `bg-background-white`               | 頂層最亮主背景色（白色）     |
+| `text-foreground`                                     | `text-text-primary`                 | 頂層最深主文字色（深灰色）   |
+| `bg-card`                                             | `bg-background-white`               | 卡片底色（白色）             |
+| `text-card-foreground`                                | `text-text-primary`                 | 卡片內主要文字色             |
+| `bg-popover`                                          | `bg-background-white`               | 彈出式選單/氣泡底色（白色）  |
+| `text-popover-foreground`                             | `text-text-primary`                 | 彈出式選單/氣泡內主要文字色  |
+
+---
+
+## 3. 基礎元件遷移範例 (Migration Example)
+
+我們已將 `src/components/ui/badge.tsx` 作為首個遷移範例，程式碼調整對比如下：
+
+### 調整前 (Before)
+
+```tsx
+const badgeVariants = cva(
+  'inline-flex items-center rounded-lg border ...',
+  {
+    variants: {
+      variant: {
+        default:
+          'border-transparent bg-primary text-primary-foreground hover:bg-primary/80',
+        secondary:
+          'border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80',
+        destructive:
+          'border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80',
+        outline: 'text-foreground',
+        filter:
+          'py-1.5 pr-2 pl-3 h-8 border border-background-border rounded-lg gap-2 hover:bg-background-bottom-secondary transition-colors',
+      },
+    },
+    ...
+  }
+);
+```
+
+### 調整後 (After)
+
+```tsx
+const badgeVariants = cva(
+  'inline-flex items-center rounded-lg border ...',
+  {
+    variants: {
+      variant: {
+        default:
+          'border-transparent bg-brand-500 text-text-primary hover:bg-brand-500/80',
+        secondary:
+          'border-transparent bg-background-bottom text-text-primary hover:bg-background-bottom/80',
+        destructive:
+          'border-transparent bg-status-error-default text-text-white hover:bg-status-error-default/80',
+        outline: 'text-text-primary',
+        filter:
+          'py-1.5 pr-2 pl-3 h-8 border border-background-border rounded-lg gap-2 hover:bg-background-bottom-secondary transition-colors',
+      },
+    },
+    ...
+  }
+);
+```
+
+---
+
+## 4. 前端開發規範 (Developer Guidelines)
+
+1. **嚴禁新增硬編碼數值**：任何色彩設定，不論是在 `.css` 還是 Tailwind class 中，均不得使用自訂的十六進位（Hex）或 RGB 數值。
+2. **優先使用系統類名**：新開發之業務元件（如：profile, reservation, mentor-pool）與自訂元件，請一律優先採用 `text-text-primary`, `bg-brand-500`, `border-background-border` 等命名。
+3. **新增/修改元件時一律使用統一命名**：若發現殘留 legacy class 請直接修正（目前大部分元件層與區塊之遷移已全數完成，僅剩極少數零星殘留，請參考 [X-Tracker #404](https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/404) 進行最後的清理與收尾）。
+
+---
+
+## 5. Hover 樣式分級規範 (Hover Style Tier Guidelines)
+
+在 [X-Tracker #704](https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/704)、[#705](https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/705)、[#706](https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/706) 陸續修正個別元件的 hover 對比度問題後，我們發現專案缺乏統一的 hover 強度規範：各元件各自決定 hover 的顏色與強度，才會出現「有些完全沒做、有些做了但幾乎看不出來」的不一致狀況。
+
+為此，比照鍵盤 focus ring 已有的 `src/lib/ui/focusRing.ts` 共用模組，新增了 **`src/lib/ui/hoverStyles.ts`**，依元件重要性分為四種層級並各自定義建議的 hover class 常數：
+
+| 層級                     | 常數                                                            | 適用情境                                              |
+| :----------------------- | :-------------------------------------------------------------- | :---------------------------------------------------- |
+| Primary CTA              | `HOVER_PRIMARY_CTA_CLASSES` / `HOVER_DESTRUCTIVE_CTA_CLASSES`   | 實心品牌色 / 危險色按鈕（最高強調）                   |
+| Secondary / Outline 按鈕 | `HOVER_SECONDARY_OUTLINE_CLASSES`                               | 邊框或次要填色按鈕                                    |
+| Ghost / 純文字連結       | `HOVER_GHOST_CLASSES` / `HOVER_TEXT_LINK_CLASSES`               | 無底色按鈕、行內文字連結、可能換行的 footer 連結      |
+| 導覽列底線               | `HOVER_NAV_UNDERLINE_CLASSES`                                   | 單行導覽列連結（如 Header nav），不可用於會換行的文字 |
+| 可點擊卡片 / Chip        | `HOVER_CLICKABLE_CARD_CLASSES` / `HOVER_CLICKABLE_CHIP_CLASSES` | 導師卡片等大型可點擊容器、篩選 chips                  |
+
+**後續新增或修改互動元件時，一律引用此模組對應層級的常數，不要手刻 hover class。** 詳細用途說明請見模組內的 JSDoc 註解。

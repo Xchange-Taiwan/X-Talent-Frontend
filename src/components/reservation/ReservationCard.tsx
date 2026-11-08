@@ -1,14 +1,12 @@
-import { CalendarDays, Clock, Mail, MessageSquare } from 'lucide-react';
-import Image from 'next/image';
-import Link from 'next/link';
+import { AlertCircle, CalendarDays, Clock } from 'lucide-react';
 import * as React from 'react';
 
-import { ReservationStatusBadge } from '@/components/reservation/ReservationStatusBadge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { JoinMeetButton } from '@/components/reservation/JoinMeetButton';
+import { ReservationIdentityHeader } from '@/components/reservation/ReservationIdentity';
+import { ReservationMessagePreview } from '@/components/reservation/ReservationMessagePreview';
 import { Card, CardContent } from '@/components/ui/card';
-import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
-
-import type { Reservation } from './types';
+import { useReservationMeetLink } from '@/hooks/user/reservation/useReservationMeetLink';
+import type { Reservation } from '@/types/reservation';
 
 export type ReservationCardVariant = 'upcoming' | 'pending' | 'history';
 
@@ -18,7 +16,10 @@ export function ReservationCard({
   footer,
   profileHref,
   onProfileClick,
+  disabled,
   variant,
+  myUserId,
+  sourceRole,
 }: {
   item: Reservation;
   actions?: React.ReactNode;
@@ -26,159 +27,118 @@ export function ReservationCard({
   // mount the "view full conversation" entry without coupling the card to it.
   footer?: React.ReactNode;
   profileHref?: string;
-  onProfileClick?: () => void;
+  onProfileClick?: (e: React.MouseEvent) => void;
+  // Makes the profile link inert (e.g. while a mutation is in flight).
+  disabled?: boolean;
   // Drives upcoming-only affordances (status badge and email hint).
   variant?: ReservationCardVariant;
+  myUserId?: string | number;
+  // Which role the current user is browsing as. Required (no default) so a
+  // caller can't silently misattribute the message preview's "view full
+  // conversation" analytics - ReservationList always passes this explicitly
+  // for both its mentor and mentee surfaces.
+  sourceRole: 'mentor' | 'mentee';
 }) {
   const isUpcoming = variant === 'upcoming';
-  const { menteeMessage, mentorMessage } = item;
-  const hasAnyMessage = Boolean(menteeMessage || mentorMessage);
-
-  const initials = item.name
-    .split(' ')
-    .map((n) => n[0])
-    .slice(0, 2)
-    .join('');
-
-  const [imageFailed, setImageFailed] = React.useState(false);
-
-  const avatar = (
-    <Avatar className="h-10 w-10 sm:h-12 sm:w-12">
-      {item.avatar && !imageFailed ? (
-        <Image
-          src={getAvatarThumbUrl(item.avatar)}
-          alt={item.name}
-          fill
-          sizes="(min-width: 640px) 48px, 40px"
-          className="object-cover"
-          onError={() => setImageFailed(true)}
-        />
-      ) : null}
-      <AvatarFallback className="font-medium">{initials}</AvatarFallback>
-    </Avatar>
-  );
-
-  const profileAriaLabel = `查看 ${item.name} 的個人資料`;
 
   return (
-    <Card className="border-muted/40 transition-shadow hover:shadow-sm">
+    <Card
+      className="border-background-border/40 transition-shadow hover:shadow-sm"
+      data-testid="reservation-card"
+    >
       <CardContent className="p-3 sm:p-4">
-        <div className="flex items-start gap-3 sm:gap-4">
-          {/* Avatar */}
-          {profileHref ? (
-            <Link
-              href={profileHref}
-              aria-label={profileAriaLabel}
-              onClick={onProfileClick}
-              className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-              {avatar}
-            </Link>
-          ) : (
-            <div className="shrink-0">{avatar}</div>
-          )}
+        <ReservationIdentityHeader
+          reservation={item}
+          profileHref={profileHref}
+          onProfileLinkClick={onProfileClick}
+          disabled={disabled}
+          showStatusBadge={isUpcoming}
+          variant="card"
+        >
+          {/* Divider only on >=sm to match Figma feel */}
+          <div className="bg-background-border my-3 hidden h-px sm:block" />
 
-          {/* Main content */}
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              {profileHref ? (
-                <Link
-                  href={profileHref}
-                  aria-label={profileAriaLabel}
-                  onClick={onProfileClick}
-                  className="group min-w-0 truncate rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                >
-                  <div className="truncate text-sm font-medium group-hover:underline sm:text-base">
-                    {item.name}
-                  </div>
-                  <div className="truncate text-xs text-muted-foreground sm:text-sm">
-                    {item.roleLine}
-                  </div>
-                </Link>
-              ) : (
-                <div className="min-w-0 truncate">
-                  <div className="truncate text-sm font-medium sm:text-base">
-                    {item.name}
-                  </div>
-                  <div className="truncate text-xs text-muted-foreground sm:text-sm">
-                    {item.roleLine}
-                  </div>
-                </div>
-              )}
-              <div className="shrink-0">{actions}</div>
+          {/* Date & time row */}
+          <div className="text-text-tertiary mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs sm:mt-0 sm:text-sm">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <div className="flex items-center gap-1.5">
+                <CalendarDays className="size-4" aria-hidden />
+                <span className="truncate">{item.date}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Clock className="size-4" aria-hidden />
+                <span className="truncate">{item.time}</span>
+              </div>
             </div>
-
-            {/* Divider only on >=sm to match Figma feel */}
-            <div className="my-3 hidden h-px bg-border sm:block" />
-
-            {/* Date & time row */}
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-muted-foreground sm:mt-0 sm:text-sm">
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                <div className="flex items-center gap-1.5">
-                  <CalendarDays className="h-4 w-4" aria-hidden />
-                  <span className="truncate">{item.date}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Clock className="h-4 w-4" aria-hidden />
-                  <span className="truncate">{item.time}</span>
-                </div>
-              </div>
-              {isUpcoming ? (
-                <ReservationStatusBadge
-                  dtstart={item.dtstart}
-                  dtend={item.dtend}
-                />
-              ) : null}
-            </div>
-
-            {hasAnyMessage ? (
-              <div className="mt-3 space-y-2">
-                {menteeMessage ? (
-                  <div className="flex items-start gap-2 rounded-lg bg-muted/40 p-2.5 text-xs sm:text-sm">
-                    <MessageSquare
-                      className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground sm:h-4 sm:w-4"
-                      aria-hidden
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[11px] font-medium text-muted-foreground sm:text-xs">
-                        學員留言
-                      </div>
-                      <p className="mt-0.5 line-clamp-2 whitespace-pre-wrap break-words text-foreground">
-                        {menteeMessage.content}
-                      </p>
-                    </div>
-                  </div>
-                ) : null}
-                {mentorMessage ? (
-                  <div className="flex items-start gap-2 rounded-lg bg-muted/40 p-2.5 text-xs sm:text-sm">
-                    <MessageSquare
-                      className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground sm:h-4 sm:w-4"
-                      aria-hidden
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[11px] font-medium text-muted-foreground sm:text-xs">
-                        導師回覆
-                      </div>
-                      <p className="mt-0.5 line-clamp-2 whitespace-pre-wrap break-words text-foreground">
-                        {mentorMessage.content}
-                      </p>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-
-            {footer ? <div className="mt-3">{footer}</div> : null}
-
-            {isUpcoming ? (
-              <div className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground sm:text-xs">
-                <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                <span>會議連結已寄至您的信箱</span>
-              </div>
-            ) : null}
           </div>
-        </div>
+
+          <ReservationMessagePreview
+            reservation={item}
+            sourceRole={sourceRole}
+            variant="card"
+          />
+
+          {item.cancelledBy === 'SYSTEM' ? (
+            <div
+              role="note"
+              className="border-status-warning-default/40 bg-status-warning-active/15 text-text-primary mt-3 flex items-start gap-2 rounded-lg border p-2.5 text-xs sm:text-sm"
+            >
+              <AlertCircle
+                className="text-status-info-default mt-0.5 size-4 shrink-0"
+                aria-hidden
+              />
+              <span>
+                {sourceRole === 'mentor'
+                  ? '因您未於預約開始前 24 小時前確認，系統已自動取消此預約。'
+                  : '因導師未於預約開始前 24 小時前確認，系統已自動取消此預約。'}
+              </span>
+            </div>
+          ) : null}
+
+          {footer ? <div className="mt-3">{footer}</div> : null}
+
+          {isUpcoming ? (
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+              <div className="flex w-full items-center gap-2 sm:w-auto">
+                {/* Actions (such as cancel button) grouped with Meet button on all screen sizes */}
+                {actions ? (
+                  <div className="flex-1 sm:flex-none">{actions}</div>
+                ) : null}
+                <div className="flex-1 sm:flex-none">
+                  <UpcomingJoinMeetButton
+                    reservationId={item.id}
+                    myUserId={myUserId}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : /* If not upcoming (e.g. pending), show actions at the bottom on all screen sizes */
+          actions ? (
+            <div className="mt-3 flex w-full items-center justify-end gap-2">
+              {actions}
+            </div>
+          ) : null}
+        </ReservationIdentityHeader>
       </CardContent>
     </Card>
+  );
+}
+
+function UpcomingJoinMeetButton({
+  reservationId,
+  myUserId,
+}: {
+  reservationId: string;
+  myUserId?: string | number;
+}) {
+  const { joinMeet, isPending } = useReservationMeetLink({ myUserId });
+
+  return (
+    <JoinMeetButton
+      onClick={() => joinMeet(reservationId)}
+      isPending={isPending}
+      size="sm"
+      className="h-9 w-full rounded-lg px-4 text-xs font-medium sm:w-auto sm:text-sm"
+    />
   );
 }

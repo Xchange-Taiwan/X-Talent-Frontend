@@ -5,7 +5,8 @@ vi.mock('@/services/profile/user', () => ({
   fetchUserById: vi.fn(),
 }));
 
-import { fetchUserById, type MentorProfileVO } from '@/services/profile/user';
+import { fetchUserById } from '@/services/profile/user';
+import type { MentorProfileVO } from '@/types/user';
 
 import useUserData, {
   clearUserDataCache,
@@ -228,7 +229,7 @@ describe('useUserData caching', () => {
 
     const first = renderHook(() => useUserData(userId, 'en'));
     await waitFor(() => expect(first.result.current.isLoading).toBe(false));
-    expect(first.result.current.error).toBe('User not found');
+    expect(first.result.current.error).toBe('USER_NOT_FOUND');
     first.unmount();
 
     mockFetchUserById.mockResolvedValueOnce(makeUserDto(userId));
@@ -238,6 +239,35 @@ describe('useUserData caching', () => {
     expect(mockFetchUserById).toHaveBeenCalledTimes(2);
     expect(second.result.current.userData).not.toBeNull();
     second.unmount();
+  });
+
+  it('forwards initialDto through to useUserProfileDto, rendering populated data immediately with no fetch', () => {
+    const userId = 4200;
+    const ssrDto = makeUserDto(userId);
+
+    const { result, unmount } = renderHook(() =>
+      useUserData(userId, 'en', ssrDto)
+    );
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.userData).not.toBeNull();
+    expect(result.current.userData?.user_id).toBe(userId);
+    expect(mockFetchUserById).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it('treats initialDto = null (SSR fetch failure) as missing and runs the client-side fallback fetch', async () => {
+    const userId = 4201;
+    mockFetchUserById.mockResolvedValueOnce(makeUserDto(userId));
+
+    const { result, unmount } = renderHook(() =>
+      useUserData(userId, 'en', null)
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(mockFetchUserById).toHaveBeenCalledTimes(1);
+    expect(result.current.userData?.user_id).toBe(userId);
+    unmount();
   });
 
   it('concurrent mounts of same user dedupe to one network call', async () => {

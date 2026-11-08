@@ -1,0 +1,293 @@
+name: AI Review Pipeline
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches: ['**']
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  GEMINI_MODEL: gemini-4-argon
+  # scripts/ai-review/lib/gemini.mjs defaults to 16384 when unset, which a
+  # sufficiently large diff can exceed (the reviewer's JSON response gets cut
+  # off mid-object and the job fails with finishReason: MAX_TOKENS instead of
+  # posting findings).
+  GEMINI_MAX_OUTPUT_TOKENS: '32768'
+
+jobs:
+  planner:
+    runs-on: ubuntu-latest
+    name: 'AI Review: Planner'
+    outputs:
+      plan: ${{ steps.run.outputs.plan }}
+    steps:
+      - name: Checkout base branch (trusted scripts)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - name: Set up AI review agent
+        uses: ./.github/actions/setup-ai-agent
+        with:
+          base-ref: ${{ github.event.pull_request.base.ref }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
+
+      - name: Run planner agent
+        id: run
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN }}
+          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: node scripts/ai-review/planner.mjs
+
+  security:
+    needs: planner
+    runs-on: ubuntu-latest
+    name: 'AI Review: Security'
+    outputs:
+      findings: ${{ steps.run.outputs.findings }}
+    steps:
+      - name: Checkout base branch (trusted scripts)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - name: Set up AI review agent
+        uses: ./.github/actions/setup-ai-agent
+        with:
+          base-ref: ${{ github.event.pull_request.base.ref }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
+
+      - name: Run security agent
+        id: run
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PLAN_B64: ${{ needs.planner.outputs.plan }}
+        run: node scripts/ai-review/security.mjs
+
+  correctness:
+    needs: planner
+    runs-on: ubuntu-latest
+    name: 'AI Review: Correctness / Regression'
+    outputs:
+      findings: ${{ steps.run.outputs.findings }}
+    steps:
+      - name: Checkout base branch (trusted scripts)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - name: Set up AI review agent
+        uses: ./.github/actions/setup-ai-agent
+        with:
+          base-ref: ${{ github.event.pull_request.base.ref }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
+
+      - name: Run correctness agent
+        id: run
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PLAN_B64: ${{ needs.planner.outputs.plan }}
+        run: node scripts/ai-review/correctness.mjs
+
+  business_logic:
+    needs: planner
+    runs-on: ubuntu-latest
+    name: 'AI Review: Business Logic'
+    outputs:
+      findings: ${{ steps.run.outputs.findings }}
+    steps:
+      - name: Checkout base branch (trusted scripts)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - name: Set up AI review agent
+        uses: ./.github/actions/setup-ai-agent
+        with:
+          base-ref: ${{ github.event.pull_request.base.ref }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
+
+      - name: Run business-logic agent
+        id: run
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PLAN_B64: ${{ needs.planner.outputs.plan }}
+        run: node scripts/ai-review/business-logic.mjs
+
+  performance:
+    needs: planner
+    runs-on: ubuntu-latest
+    name: 'AI Review: Performance'
+    outputs:
+      findings: ${{ steps.run.outputs.findings }}
+    steps:
+      - name: Checkout base branch (trusted scripts)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - name: Set up AI review agent
+        uses: ./.github/actions/setup-ai-agent
+        with:
+          base-ref: ${{ github.event.pull_request.base.ref }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
+
+      - name: Run performance agent
+        id: run
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PLAN_B64: ${{ needs.planner.outputs.plan }}
+        run: node scripts/ai-review/performance.mjs
+
+  testing:
+    needs: planner
+    runs-on: ubuntu-latest
+    name: 'AI Review: Testing'
+    outputs:
+      findings: ${{ steps.run.outputs.findings }}
+    steps:
+      - name: Checkout base branch (trusted scripts)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - name: Set up AI review agent
+        uses: ./.github/actions/setup-ai-agent
+        with:
+          base-ref: ${{ github.event.pull_request.base.ref }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
+
+      - name: Run testing agent
+        id: run
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PLAN_B64: ${{ needs.planner.outputs.plan }}
+        run: node scripts/ai-review/testing.mjs
+
+  architecture:
+    needs: planner
+    runs-on: ubuntu-latest
+    name: 'AI Review: Architecture'
+    outputs:
+      findings: ${{ steps.run.outputs.findings }}
+    steps:
+      - name: Checkout base branch (trusted scripts)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - name: Set up AI review agent
+        uses: ./.github/actions/setup-ai-agent
+        with:
+          base-ref: ${{ github.event.pull_request.base.ref }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
+
+      - name: Run architecture agent
+        id: run
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PLAN_B64: ${{ needs.planner.outputs.plan }}
+        run: node scripts/ai-review/architecture.mjs
+
+  review_guide:
+    needs: planner
+    runs-on: ubuntu-latest
+    name: 'AI Review: Review Guide'
+    outputs:
+      guide: ${{ steps.run.outputs.guide }}
+    steps:
+      - name: Checkout base branch (trusted scripts)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - name: Set up AI review agent
+        uses: ./.github/actions/setup-ai-agent
+        with:
+          base-ref: ${{ github.event.pull_request.base.ref }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
+
+      - name: Run review-guide agent
+        id: run
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PLAN_B64: ${{ needs.planner.outputs.plan }}
+        run: node scripts/ai-review/review-guide.mjs
+
+  summary:
+    needs:
+      [
+        planner,
+        security,
+        correctness,
+        business_logic,
+        performance,
+        testing,
+        architecture,
+        review_guide,
+      ]
+    runs-on: ubuntu-latest
+    name: 'AI Review: Final Summary'
+    if: ${{ !cancelled() }}
+    steps:
+      - name: Checkout base branch (trusted scripts)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Generate final summary comment
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PLAN_B64: ${{ needs.planner.outputs.plan }}
+          SECURITY_FINDINGS_B64: ${{ needs.security.outputs.findings }}
+          CORRECTNESS_FINDINGS_B64: ${{ needs.correctness.outputs.findings }}
+          BUSINESS_LOGIC_FINDINGS_B64: ${{ needs.business_logic.outputs.findings }}
+          PERFORMANCE_FINDINGS_B64: ${{ needs.performance.outputs.findings }}
+          TESTING_FINDINGS_B64: ${{ needs.testing.outputs.findings }}
+          ARCHITECTURE_FINDINGS_B64: ${{ needs.architecture.outputs.findings }}
+          REVIEW_GUIDE_B64: ${{ needs.review_guide.outputs.guide }}
+        run: node scripts/ai-review/generate-summary.mjs
+
+      - name: Post PR comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node scripts/ai-review/post-comment.mjs

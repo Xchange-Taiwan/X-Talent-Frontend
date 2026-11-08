@@ -1,5 +1,5 @@
 import type { Category } from '@/components/ui/category-multi-select';
-import type { TagCatalogGroupVO } from '@/services/profile/tagCatalog';
+import type { TagCatalogGroupVO } from '@/types/tagCatalog';
 
 interface SubjectItem {
   subject: string | null;
@@ -63,7 +63,7 @@ export function tagGroupsToCategories(groups: TagCatalogGroupVO[]): Category[] {
   return groups.map((group) => ({
     key: group.subject_group,
     label: group.subject,
-    options: group.leaves.map((leaf) => ({
+    options: (group.leaves ?? []).map((leaf) => ({
       value: leaf.subject_group,
       label: leaf.subject,
     })),

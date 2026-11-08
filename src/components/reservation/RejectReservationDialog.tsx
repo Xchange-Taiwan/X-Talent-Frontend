@@ -3,7 +3,7 @@
 import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
 
-import { Button } from '@/components/ui/button';
+import { Button, type ButtonProps } from '@/components/ui/button';
 import {
   Dialog,
   DialogClose,
@@ -15,55 +15,46 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/components/ui/use-toast';
+import { useConfirmActionDialog } from '@/hooks/reservation/useConfirmActionDialog';
 import { trackEvent } from '@/lib/analytics';
+import { FOCUS_WITHIN_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
-
-import type { Reservation } from './types';
+import type { Reservation } from '@/types/reservation';
 
 interface Props {
   reservation: Reservation;
   className?: string;
+  disabled?: boolean;
+  size?: ButtonProps['size'];
   onReject?: (payload: { id: string; reason: string }) => Promise<void> | void;
 }
 
 export default function RejectReservationDialog({
   reservation,
   className,
+  disabled = false,
+  size = 'sm',
   onReject,
 }: Props) {
-  const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const { toast } = useToast();
 
-  function onOpenChange(next: boolean) {
-    if (isSubmitting) return;
-    setOpen(next);
-    if (next) {
+  const { open, isSubmitting, onOpenChange, execute } = useConfirmActionDialog({
+    errorMessage: '拒絕預約失敗,請稍後再試',
+    onOpen: () => {
       setReason('');
       trackEvent({
         name: 'feature_opened',
         feature: 'reservation',
         metadata: { dialog: 'reject_reservation' },
       });
-    }
-  }
+    },
+  });
 
-  async function handleReject() {
-    setIsSubmitting(true);
-    try {
+  const handleReject = () => {
+    execute(async () => {
       await onReject?.({ id: reservation.id, reason });
-      setIsSubmitting(false);
-      setOpen(false);
-    } catch {
-      toast({
-        variant: 'destructive',
-        description: '拒絕預約失敗,請稍後再試',
-      });
-      setIsSubmitting(false);
-    }
-  }
+    });
+  };
 
   const trimmedReason = reason.trim();
   const canSubmit = trimmedReason.length > 0 && !isSubmitting;
@@ -72,9 +63,10 @@ export default function RejectReservationDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button
-          size="sm"
+          size={size}
           variant="destructive"
-          className={cn('min-h-9 px-3', className)}
+          className={cn(size === 'sm' && 'min-h-9 px-3', className)}
+          disabled={disabled}
         >
           拒絕
         </Button>
@@ -91,10 +83,15 @@ export default function RejectReservationDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="rounded-2xl border p-2">
+          <div
+            className={cn(
+              'rounded-2xl border p-2 transition-shadow',
+              FOCUS_WITHIN_RING_NO_OFFSET_CLASSES
+            )}
+          >
             <Textarea
               placeholder="請在此輸入原因..."
-              className="min-h-[120px] resize-y border-0 shadow-none focus-visible:ring-0"
+              className="min-h-[120px] resize-y border-0 shadow-none focus-visible:ring-0 focus-visible:outline-none"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               disabled={isSubmitting}
@@ -114,13 +111,12 @@ export default function RejectReservationDialog({
 
             <Button
               type="button"
-              className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 sm:w-auto"
-              disabled={!canSubmit}
+              variant="destructive"
+              className="w-full sm:w-auto"
+              disabled={!canSubmit || disabled}
               onClick={handleReject}
             >
-              {isSubmitting && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
+              {isSubmitting && <Loader2 className="mr-2 size-4 animate-spin" />}
               拒絕
             </Button>
           </DialogFooter>

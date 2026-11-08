@@ -67,7 +67,7 @@ export const GroupedSelections: React.FC<GroupedSelectionsProps> = ({
       <p
         className={cn(
           'text-sm tabular-nums',
-          limitReached ? 'text-status-200' : 'text-text-tertiary'
+          limitReached ? 'text-status-error-default' : 'text-text-tertiary'
         )}
         aria-live="polite"
       >
@@ -92,11 +92,11 @@ export const GroupedSelections: React.FC<GroupedSelectionsProps> = ({
             >
               <span className="flex items-center gap-2">
                 {open ? (
-                  <ChevronDown className="h-5 w-5 text-text-secondary" />
+                  <ChevronDown className="text-text-secondary size-5" />
                 ) : (
-                  <ChevronRight className="h-5 w-5 text-text-secondary" />
+                  <ChevronRight className="text-text-secondary size-5" />
                 )}
-                <h3 className="text-base font-semibold text-text-primary">
+                <h3 className="text-text-primary text-base font-semibold">
                   {cat.label}
                 </h3>
               </span>

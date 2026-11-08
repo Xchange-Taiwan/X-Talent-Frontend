@@ -2,6 +2,7 @@
 
 import type { FC, ReactNode } from 'react';
 
+import { ProfileBanner } from '@/components/profile/profile-banner';
 import { TagDisplay } from '@/hooks/user/user-data/useUserData';
 
 import { AvatarCard } from '../avatar-card';
@@ -14,7 +15,7 @@ const Tag: FC<{ displayText: string }> = ({ displayText }) => {
   if (!displayText) return null;
 
   return (
-    <div className="border-neutral-300 rounded-xl border px-4 py-2">
+    <div className="border-background-border rounded-xl border px-4 py-2">
       {displayText}
     </div>
   );
@@ -72,18 +73,18 @@ export const ProfileCard: FC<Props> = ({
 }) => {
   return (
     <div className="overflow-hidden rounded-2xl shadow-xl">
-      <div className="relative h-[111px] bg-gradient-to-br from-[#92e7e7] to-[#e7a0d4] sm:h-[100px]">
+      <ProfileBanner>
         <AvatarCard
-          className="absolute -bottom-56 left-1/2 -translate-x-1/2 -translate-y-1/2 sm:-bottom-40 sm:left-[180px]"
+          className="absolute -bottom-56 left-1/2 -translate-x-1/2 -translate-y-1/2 sm:-bottom-40 sm:left-10 sm:translate-x-0"
           name={name}
           avatarImgUrl={avatarImgUrl}
           jobTitle={jobTitle}
           companyName={company}
           linkedinUrl={linkedinUrl}
         />
-      </div>
+      </ProfileBanner>
 
-      <div className="bg-bright flex flex-col gap-10 px-4 pb-10 pt-[165px] sm:px-10 sm:pt-[132px]">
+      <div className="bg-background-white flex flex-col gap-10 px-4 pt-[165px] pb-10 sm:px-10 sm:pt-[132px]">
         {renderTagList('有興趣多了解的職位', interestedRole, 'interestedRole')}
         {renderTagList('想多了解、加強的技能', skillEnhancementTarget, 'skill')}
         {renderTagList('想多了解的主題', talkTopic, 'topic')}

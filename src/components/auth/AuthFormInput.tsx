@@ -68,13 +68,13 @@ const AuthFormInput = <T extends FieldValues>({
               <button
                 type="button"
                 onClick={togglePasswordVisibility}
-                className="absolute right-1 top-1/2 -translate-y-1/2 rounded-sm p-2 text-gray-400 hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="text-text-tertiary hover:text-text-secondary focus-visible:ring-ring absolute top-1/2 right-1 -translate-y-1/2 rounded-sm p-2 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
                 aria-label={showPassword ? '隱藏密碼' : '顯示密碼'}
               >
                 {showPassword ? (
-                  <EyeOff className="h-5 w-5" />
+                  <EyeOff className="size-5" />
                 ) : (
-                  <Eye className="h-5 w-5" />
+                  <Eye className="size-5" />
                 )}
               </button>
             )}

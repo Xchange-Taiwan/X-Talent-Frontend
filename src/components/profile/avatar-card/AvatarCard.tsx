@@ -31,15 +31,13 @@ export const AvatarCard: FC<Props> = ({
     <div
       className={cn('flex flex-col items-center gap-6 sm:flex-row', className)}
     >
-      <div className="relative h-[120px] w-[120px] flex-shrink-0 overflow-hidden rounded-full bg-background-white">
+      <div className="bg-background-white relative h-[120px] w-[120px] flex-shrink-0 overflow-hidden rounded-full">
         <Image
           src={avatarImgUrl || DefaultAvatarImgUrl}
           alt={'Avatar of ' + name}
           fill
           sizes="120px"
-          style={{
-            objectFit: 'contain',
-          }}
+          className="object-contain"
         />
       </div>
 
@@ -49,7 +47,7 @@ export const AvatarCard: FC<Props> = ({
 
           {!!linkedinUrl && (
             <LinkedinColor
-              className="h-5 w-5 cursor-pointer sm:h-6 sm:w-6"
+              className="size-5 cursor-pointer sm:size-6"
               onClick={() => handleNavigateToLinkedin(linkedinUrl)}
             />
           )}

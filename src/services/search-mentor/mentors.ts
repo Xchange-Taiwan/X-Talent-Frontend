@@ -1,38 +1,20 @@
 import { apiClient } from '@/lib/apiClient';
+import type { components } from '@/types/api';
+import type { MentorRequest, MentorType } from '@/types/mentor';
 
-import {
-  mapMentor,
-  type MentorListResponse,
-  type MentorRequest,
-  type MentorsType,
-  type MentorType,
-  type WorkExperienceMetadata,
-} from './mapMentor';
-
-export type {
-  MentorListResponse,
-  MentorRequest,
-  MentorsType,
-  MentorType,
-  WorkExperienceMetadata,
-};
+import { mapMentor } from './mapMentor';
 
 export async function fetchMentors(
-  param: MentorRequest
+  param: MentorRequest,
+  signal?: AbortSignal
 ): Promise<MentorType[]> {
-  try {
-    const result = await apiClient.get<MentorListResponse>('/v1/mentors', {
-      auth: false,
-      params: param as unknown as Record<string, string | number | undefined>,
-    });
+  const data = await apiClient.getUnwrapped<
+    components['schemas']['SearchMentorProfileListVO']
+  >('/v1/mentors', {
+    auth: false,
+    params: param as unknown as Record<string, string | number | undefined>,
+    signal,
+  });
 
-    if (result.code !== '0') {
-      console.error(`API Error: ${result.msg}`);
-      return [];
-    }
-    return (result.data?.mentors ?? []).map(mapMentor);
-  } catch (error) {
-    console.error('Fetch Mentors Error:', error);
-    return [];
-  }
+  return (data?.mentors ?? []).map(mapMentor);
 }

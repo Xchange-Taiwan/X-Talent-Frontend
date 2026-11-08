@@ -1,6 +1,7 @@
 import dayjs from 'dayjs';
 
 import { ApiError } from '@/lib/apiClient';
+import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
 import { RawMentorTimeslot, segmentToRaw } from '@/lib/profile/scheduleHelpers';
 
 import {
@@ -9,13 +10,6 @@ import {
   saveMentorSchedule,
   TimeSlotDTO,
 } from './schedule';
-import {
-  cacheKey,
-  readCache,
-  readInflight,
-  trackInflight,
-  writeCache,
-} from './scheduleCache';
 
 export interface ScheduleMonthRef {
   userId: string;
@@ -23,7 +17,7 @@ export interface ScheduleMonthRef {
   month: number; // 1-12
 }
 
-export type SyncFailureReason = 'conflict' | 'unknown';
+type SyncFailureReason = 'conflict' | 'unknown';
 
 /** Internal — syncMonthSchedule passes raws back to the hook on success. */
 export type SyncOutcome =
@@ -32,14 +26,18 @@ export type SyncOutcome =
 
 /** Public — surfaced to UI; success has no payload. */
 export type SyncResult =
-  | { ok: true }
-  | { ok: false; reason: SyncFailureReason; message: string };
+  { ok: true } | { ok: false; reason: SyncFailureReason; message: string };
 
-/** Fetch + filter to slots whose dtstart falls in the requested local month. */
+/**
+ * Fetch + filter to slots whose dtstart falls in the requested local month.
+ * This is the raw network read: caching, de-duplication and cancellation are
+ * `MentorScheduleReadModel`'s job, not this function's.
+ */
 export async function loadMonthSchedule(
-  ref: ScheduleMonthRef
+  ref: ScheduleMonthRef,
+  signal?: AbortSignal
 ): Promise<RawMentorTimeslot[]> {
-  const data = await fetchMentorSchedule(ref);
+  const data = await fetchMentorSchedule(ref, signal);
   return (data?.segments ?? []).map(segmentToRaw).filter((r) => {
     const d = dayjs(r.dtstart * 1000);
     return d.year() === ref.year && d.month() + 1 === ref.month;
@@ -47,59 +45,25 @@ export async function loadMonthSchedule(
 }
 
 /**
- * Returns the cached value (sync, may be undefined) and a deduped promise
- * that resolves to fresh data and writes it to cache. Callers should hydrate
- * with `cached` immediately and update from `revalidate` when it differs.
+ * Force a network fetch and publish the result through the read model,
+ * bypassing any cache hit. The write cancels whatever fetch was in flight
+ * for that month, so a slower response can never clobber these rows.
  */
-export function loadMonthScheduleCached(ref: ScheduleMonthRef): {
-  cached: RawMentorTimeslot[] | undefined;
-  revalidate: Promise<RawMentorTimeslot[]>;
-} {
-  const key = cacheKey(ref);
-  const cached = readCache(key);
-
-  let revalidate = readInflight(key);
-  if (!revalidate) {
-    revalidate = trackInflight(
-      key,
-      loadMonthSchedule(ref).then((raws) => {
-        writeCache(key, raws);
-        return raws;
-      })
-    );
-  }
-
-  return { cached, revalidate };
-}
-
-/** Force a network fetch and write the result to cache, bypassing any cache hit. */
 export async function loadMonthScheduleFresh(
   ref: ScheduleMonthRef
 ): Promise<RawMentorTimeslot[]> {
   const raws = await loadMonthSchedule(ref);
-  writeCache(cacheKey(ref), raws);
+  scheduleReadModel.set(ref, raws);
   return raws;
 }
 
 /**
- * Fire-and-forget background fetch that populates cache for a month.
- * No-op when the month is already cached or a request is in flight.
+ * Fire-and-forget background fetch that populates the read model for a
+ * month. No-op when the month is already cached or a request is in flight.
  * Failures are silenced — prefetch must never disrupt the user.
  */
 export function prefetchMonthSchedule(ref: ScheduleMonthRef): void {
-  const key = cacheKey(ref);
-  if (readCache(key) !== undefined) return;
-  if (readInflight(key) !== undefined) return;
-
-  trackInflight(
-    key,
-    loadMonthSchedule(ref).then((raws) => {
-      writeCache(key, raws);
-      return raws;
-    })
-  ).catch(() => {
-    // Silent: prefetch failures shouldn't surface to the user.
-  });
+  scheduleReadModel.prefetch(ref, (signal) => loadMonthSchedule(ref, signal));
 }
 
 /**

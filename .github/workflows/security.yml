@@ -6,6 +6,10 @@ on:
   push:
     branches: [main, develop]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   pull-requests: write
@@ -17,20 +21,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Set up PNPM
-        uses: pnpm/action-setup@v2
-        with:
-          version: 9
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Set up environment
+        uses: ./.github/actions/setup-env
 
       - name: Security audit (fail on critical only)
         id: audit
@@ -86,7 +80,7 @@ jobs:
         id: depcheck
         run: |
           output=$(npx depcheck \
-            --ignores="@types/*,eslint-*,prettier-*,postcss,autoprefixer,tailwindcss,husky,lint-staged,tailwindcss-animate,jimp,sharp,@playwright/test,@testing-library/user-event,openapi-typescript" \
+            --ignores="@types/*,eslint-*,prettier-*,postcss,tailwindcss,@tailwindcss/postcss,husky,lint-staged,tailwindcss-animate,sharp,@playwright/test,@testing-library/user-event,openapi-typescript,@google/gemini-cli,@storybook/addon-a11y,@storybook/addon-docs,@storybook/addon-onboarding,storybook,cross-env,lavish-axi" \
             2>&1) || true
           echo "$output"
           if echo "$output" | grep -qE "^Unused (dependencies|devDependencies)"; then

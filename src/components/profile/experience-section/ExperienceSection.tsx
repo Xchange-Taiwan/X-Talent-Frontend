@@ -5,9 +5,9 @@ import Divider from '@/components/auth/Divider';
 import {
   EducationExperienceMetadata,
   WorkExperienceMetadata,
-} from '@/hooks/user/user-data/useUserData';
+} from '@/lib/profile/experienceCodec';
 
-export type ExperienceItem = {
+type ExperienceItem = {
   title: string;
   subtitle: string;
   description?: string;
@@ -15,7 +15,7 @@ export type ExperienceItem = {
   endDate: string;
 };
 
-export const ExperienceItemCard = ({
+const ExperienceItemCard = ({
   title,
   subtitle,
   description,
@@ -24,21 +24,18 @@ export const ExperienceItemCard = ({
 }: ExperienceItem) => {
   return (
     <section className="mb-6 flex flex-col gap-3">
-      <div className="flex justify-between gap-2 text-sm text-gray-600">
+      <div className="text-text-secondary flex justify-between gap-2 text-sm">
         <span className="min-w-0 break-words">{subtitle}</span>
         <span className="shrink-0 text-xs">
           {startDate} - {endDate}
         </span>
       </div>
       <div>
-        <h2
-          className="mb-1 break-words text-base font-bold"
-          style={{ color: '#49454F' }}
-        >
+        <h2 className="text-text-secondary mb-1 text-base font-bold break-words">
           {title}
         </h2>
         {description && (
-          <p className="break-words text-sm" style={{ color: '#49454F' }}>
+          <p className="text-text-secondary text-sm break-words">
             {description}
           </p>
         )}

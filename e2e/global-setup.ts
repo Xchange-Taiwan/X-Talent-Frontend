@@ -37,8 +37,10 @@ const PAGES_TO_WARM = [
   // Next.js API routes
   '/api/auth/session',
   '/api/auth/providers',
+  '/api/auth/csrf',
   // App pages
   '/',
+  '/about',
   '/mentor-pool',
   '/auth/signin',
   '/auth/signup',
@@ -48,6 +50,7 @@ const PAGES_TO_WARM = [
   '/auth/password-forgot-success',
   '/auth/password-reset-success',
   '/auth/email-verify',
+  '/auth/email-verified',
   '/profile/1/edit',
   '/profile/card',
   '/reservation/mentee',

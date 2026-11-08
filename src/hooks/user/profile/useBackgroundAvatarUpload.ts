@@ -1,7 +1,9 @@
 'use client';
 
+import { useSession } from 'next-auth/react';
 import { useCallback, useEffect, useRef } from 'react';
 
+import { getAvatarSnapshot } from '@/services/profile/getAvatarSnapshot';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 
 interface AvatarUploadJob {
@@ -20,6 +22,7 @@ export interface UseBackgroundAvatarUpload {
   kickOff: (file: File, currentAvatarUrl: string | null | undefined) => void;
   consume: (file: File | undefined) => Promise<string | undefined>;
   rollback: () => Promise<void>;
+  abort: () => void;
 }
 
 async function snapshotAvatarBytes(
@@ -27,9 +30,7 @@ async function snapshotAvatarBytes(
 ): Promise<Blob | null> {
   if (!url) return null;
   try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    return await res.blob();
+    return await getAvatarSnapshot(url);
   } catch {
     return null;
   }
@@ -50,22 +51,25 @@ async function snapshotAvatarBytes(
 export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
   const jobRef = useRef<AvatarUploadJob | null>(null);
 
+  // Session resolution belongs here (a hook), not in the updateAvatar
+  // service — kept in a ref so the stable useCallbacks below always read
+  // the latest id without needing session in their dependency arrays.
+  // Assigned in an effect (commit phase), never during render, so this
+  // stays safe under Strict Mode / concurrent re-renders.
+  const { data: session } = useSession();
+  const resolvedUserId = session?.user?.id
+    ? Number(session.user.id)
+    : undefined;
+  const userIdRef = useRef<number | undefined>(resolvedUserId);
   useEffect(() => {
-    return () => {
-      jobRef.current?.controller.abort();
-      jobRef.current = null;
-    };
-  }, []);
+    userIdRef.current = resolvedUserId;
+  }, [resolvedUserId]);
 
   const kickOff = useCallback(
     (file: File, currentAvatarUrl: string | null | undefined) => {
       const current = jobRef.current;
       if (current?.file === file) return;
 
-      // Preserve the original snapshot across multiple file picks within the
-      // same session. We only fetch on the FIRST kickOff so a rollback restores
-      // the truly-pre-edit image, not whichever intermediate crop the user
-      // briefly tried.
       const oldBytesPromise =
         current?.oldBytesPromise ?? snapshotAvatarBytes(currentAvatarUrl);
 
@@ -80,14 +84,16 @@ export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
         status: 'uploading',
       };
 
-      job.promise = updateAvatar(file, controller.signal).then(
+      job.promise = updateAvatar(
+        file,
+        userIdRef.current,
+        controller.signal
+      ).then(
         (url) => {
           job.status = 'completed';
           return url;
         },
         (err) => {
-          // Aborts are expected when the user re-crops or unmounts — swallow
-          // so they don't surface as upload failures at submit time.
           if (controller.signal.aborted) {
             job.status = 'failed';
             return undefined;
@@ -97,10 +103,17 @@ export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
         }
       );
 
+      job.promise.catch(() => {});
+
       jobRef.current = job;
     },
     []
   );
+
+  const abort = useCallback(() => {
+    jobRef.current?.controller.abort();
+    jobRef.current = null;
+  }, []);
 
   const consume = useCallback(
     async (file: File | undefined): Promise<string | undefined> => {
@@ -110,9 +123,7 @@ export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
         jobRef.current = null;
         return current.promise;
       }
-      // Fallback: kickOff hadn't fired (e.g. file picked outside the wired
-      // component) — upload synchronously so the submit still completes.
-      return updateAvatar(file);
+      return updateAvatar(file, userIdRef.current);
     },
     []
   );
@@ -152,7 +163,7 @@ export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
       const restoreFile = new File([oldBytes], 'avatar', {
         type: oldBytes.type || 'image/jpeg',
       });
-      await updateAvatar(restoreFile);
+      await updateAvatar(restoreFile, userIdRef.current);
     } catch (err) {
       // Best-effort: the form is already navigating away on cancel, surfacing
       // a hard error here would be confusing. Log for monitoring instead.
@@ -160,5 +171,13 @@ export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
     }
   }, []);
 
-  return { kickOff, consume, rollback };
+  // Automatically abort in-flight uploads or roll back completed, unconsumed
+  // S3 uploads whenever the editor session unmounts (e.g. browser back).
+  useEffect(() => {
+    return () => {
+      void rollback();
+    };
+  }, [rollback]);
+
+  return { kickOff, consume, rollback, abort };
 }

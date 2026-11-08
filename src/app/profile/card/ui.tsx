@@ -22,7 +22,7 @@ export default function ProfileCardUI({
   onBackToProfile,
 }: Props) {
   return (
-    <div className="mx-auto w-11/12 max-w-[630px] pb-20 pt-10">
+    <div className="mx-auto w-11/12 max-w-[630px] pt-10 pb-20">
       <div className="text-center">
         {!isMentor && (
           <p className="mb-3 text-4xl font-bold">恭喜你完成個人頁面的建立！</p>
@@ -31,8 +31,7 @@ export default function ProfileCardUI({
 
         {!isMentor && (
           <p className="text-base">
-            Now you can explore mentors or build your mentor profile in just 1
-            step.
+            現在你可以開始探索導師，或只需一步即可建立你的導師檔案
           </p>
         )}
       </div>
@@ -71,7 +70,7 @@ export default function ProfileCardUI({
             className="grow rounded-full px-6 py-3 sm:grow-0"
             onClick={onBecomeMentor}
           >
-            成為 Mentor
+            成為導師
           </Button>
           <Button
             variant="default"

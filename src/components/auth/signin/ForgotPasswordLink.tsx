@@ -1,19 +1,16 @@
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 import { linkStyle } from '@/components/auth/constants';
-import { FormDescription } from '@/components/ui/form';
 import { cn } from '@/lib/utils';
 
 const ForgotPasswordLink: React.FC = () => {
-  const router = useRouter();
-
   return (
-    <FormDescription
+    <Link
+      href="/auth/password-forgot"
       className={cn(linkStyle, 'inline-block')}
-      onClick={() => router.push('/auth/password-forgot')}
     >
       忘記密碼
-    </FormDescription>
+    </Link>
   );
 };
 

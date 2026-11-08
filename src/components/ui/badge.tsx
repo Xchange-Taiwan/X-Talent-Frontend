@@ -1,23 +1,23 @@
 import { cva, type VariantProps } from 'class-variance-authority';
 import * as React from 'react';
 
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 
 const badgeVariants = cva(
-  'inline-flex items-center rounded-lg border px-2.5 py-0.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+  `inline-flex items-center rounded-lg border px-2.5 py-0.5 text-xs font-semibold transition-colors ${FOCUS_RING_CLASSES}`,
   {
     variants: {
       variant: {
         default:
-          'border-transparent bg-primary text-primary-foreground hover:bg-primary/80',
+          'border-transparent bg-brand-500 text-text-primary hover:bg-brand-500/80',
         secondary:
-          'border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80',
+          'border-transparent bg-background-bottom text-text-primary hover:bg-background-bottom/80',
         destructive:
-          'border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80',
-        outline: 'text-foreground',
-        primaryAlt:
-          'border-transparent bg-primary text-black-foreground hover:bg-primary/90',
-        filter: 'py-1.5 pr-2 pl-3 h-8 border border-[#E6E8EA] rounded-lg gap-2',
+          'border-transparent bg-status-error-default text-text-white hover:bg-status-error-default/80',
+        outline: 'text-text-primary',
+        filter:
+          'h-8 gap-2 rounded-lg border border-background-border py-1.5 pr-2 pl-3 transition-colors hover:bg-background-bottom-secondary',
       },
     },
     defaultVariants: {
@@ -26,15 +26,30 @@ const badgeVariants = cva(
   }
 );
 
+/**
+ * Properties for the Badge component. Inherits all standard HTML div element attributes
+ * and variant configuration properties from the CVA configuration.
+ */
 export interface BadgeProps
   extends
     React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof badgeVariants> {}
+    VariantProps<typeof badgeVariants> {
+  /**
+   * The visual style variant of the badge.
+   * @default 'default'
+   */
+  variant?:
+    'default' | 'secondary' | 'destructive' | 'outline' | 'filter' | null;
+}
 
+/**
+ * A Badge component used to display tags, status highlights, or category labels,
+ * with various styling variants defined by class-variance-authority (CVA).
+ */
 function Badge({ className, variant, ...props }: BadgeProps) {
   return (
     <div className={cn(badgeVariants({ variant }), className)} {...props} />
   );
 }
 
-export { Badge, badgeVariants };
+export { Badge };

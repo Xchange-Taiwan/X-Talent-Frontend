@@ -1,4 +1,9 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+'use client';
+
+import { useRef, useState } from 'react';
+
+import { useIsomorphicLayoutEffect } from '@/hooks/useIsomorphicLayoutEffect';
+import { computeOverflowFit } from '@/lib/overflowFit';
 
 import { Tag } from './Tag';
 
@@ -27,28 +32,23 @@ export const Information = ({
     haveTopicLabels.length
   );
 
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     if (!measureRef.current || !containerRef.current) return;
 
-    widthsRef.current = Array.from(measureRef.current.children).map(
+    const widths = Array.from(measureRef.current.children).map(
       (child) => (child as HTMLElement).getBoundingClientRect().width
     );
+    widthsRef.current = widths;
 
-    const computeVisible = (containerWidth: number) => {
-      const widths = widthsRef.current;
-      let total = EXTRA_BADGE_RESERVE_PX;
-      let lastIndex = widths.length - 1;
-      for (let i = 0; i < widths.length; i++) {
-        const gap = i > 0 ? TAG_GAP_PX : 0;
-        total += widths[i] + gap;
-        if (total > containerWidth) {
-          lastIndex = i - 1;
-          break;
-        }
-      }
-      setVisibleTagsCount(
-        Math.max(0, Math.min(lastIndex + 1, haveTopicLabels.length))
-      );
+    const computeVisible = (width: number) => {
+      const { visibleCount } = computeOverflowFit({
+        itemWidths: widthsRef.current,
+        containerWidth: width,
+        gapPx: TAG_GAP_PX,
+        reservePx: EXTRA_BADGE_RESERVE_PX,
+        defaultVisibleCount: haveTopicLabels.length,
+      });
+      setVisibleTagsCount(visibleCount);
     };
 
     computeVisible(containerRef.current.getBoundingClientRect().width);
@@ -73,25 +73,32 @@ export const Information = ({
         {(job_title || company) && (
           <div className="flex gap-[6px] text-sm font-normal tracking-wide">
             {job_title}
-            {job_title && company && <span className="text-[#9DA8B9]">at</span>}
+            {job_title && company && (
+              <span className="text-text-tertiary">at</span>
+            )}
             {company}
           </div>
         )}
       </div>
-      <p className="line-clamp-2 text-sm font-normal tracking-wide text-[#9DA8B9]">
+      <p className="text-text-tertiary line-clamp-2 text-sm font-normal tracking-wide">
         {about}
       </p>
       <div className="relative">
         <div
           ref={measureRef}
           aria-hidden
-          className="pointer-events-none invisible absolute left-0 top-0 flex flex-wrap gap-2"
+          data-testid="measure-container"
+          className="pointer-events-none invisible absolute top-0 left-0 flex flex-wrap gap-2"
         >
           {haveTopicLabels.map((offer) => (
             <Tag label={offer} key={`measure-${offer}`} />
           ))}
         </div>
-        <div ref={containerRef} className="flex flex-wrap gap-2">
+        <div
+          ref={containerRef}
+          data-testid="display-container"
+          className="flex flex-wrap gap-2"
+        >
           {visibleOffers.map((offer) => (
             <Tag label={offer} key={offer} />
           ))}

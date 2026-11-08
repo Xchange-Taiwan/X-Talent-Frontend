@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, Locator, Page, test } from '@playwright/test';
 
 import { blockUnmockedExternalApi } from '../../helpers/route';
 
@@ -8,6 +8,76 @@ const MOCK_INTERESTS = {
   code: '0',
   msg: 'ok',
   data: { interests: [], language: 'zh_TW' },
+};
+
+const MOCK_TAG_CATALOG = {
+  code: '0',
+  msg: 'ok',
+  data: {
+    catalogs: {
+      skill: {
+        groups: [
+          {
+            subject_group: 'SKILL_GROUP',
+            subject: '技術能力',
+            language: 'zh_TW',
+            leaves: [
+              {
+                tag_id: 1,
+                subject_group: 'FRONTEND',
+                subject: '前端開發',
+                language: 'zh_TW',
+              },
+            ],
+          },
+        ],
+      },
+      topic: {
+        groups: [
+          {
+            subject_group: 'TOPIC_GROUP',
+            subject: '服務主題',
+            language: 'zh_TW',
+            leaves: [
+              {
+                tag_id: 2,
+                subject_group: 'CAREER',
+                subject: '職涯規劃',
+                language: 'zh_TW',
+              },
+            ],
+          },
+        ],
+      },
+      position: {
+        groups: [
+          {
+            subject_group: 'POS_GROUP',
+            subject: '工程職位',
+            language: 'zh_TW',
+            leaves: [
+              {
+                tag_id: 3,
+                subject_group: 'SWE',
+                subject: '軟體工程師',
+                language: 'zh_TW',
+              },
+            ],
+          },
+        ],
+      },
+      industry: {
+        groups: [
+          {
+            subject_group: 'TECH',
+            subject: '科技業',
+            language: 'zh_TW',
+            leaves: [],
+          },
+        ],
+      },
+    },
+  },
 };
 
 function makeMentor(id: number) {
@@ -41,6 +111,25 @@ function mentorResponse(mentors: ReturnType<typeof makeMentor>[]) {
 
 const PAGE_LIMIT = 9;
 
+/**
+ * Repeatedly presses Tab until the given locator receives focus, bounded so
+ * a broken tab order fails the test instead of hanging.
+ */
+async function tabUntilFocused(
+  page: Page,
+  locator: Locator,
+  maxPresses: number
+): Promise<void> {
+  for (let i = 0; i < maxPresses; i++) {
+    await page.keyboard.press('Tab');
+    const isFocused = await locator.evaluate(
+      (el) => el === document.activeElement
+    );
+    if (isFocused) return;
+  }
+  throw new Error(`無法在 ${maxPresses} 次 Tab 按鍵內聚焦目標元素`);
+}
+
 // ─── Setup ───────────────────────────────────────────────────────────────────
 
 test.beforeEach(async ({ page }) => {
@@ -52,6 +141,13 @@ test.beforeEach(async ({ page }) => {
       body: JSON.stringify(MOCK_INTERESTS),
     })
   );
+  await page.route(/\/v1\/users\/zh_TW\/tags\/catalog/, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_TAG_CATALOG),
+    })
+  );
   // Abort any external API call not explicitly mocked above so tests fail fast
   // instead of waiting for the real AWS endpoint to time out.
   await blockUnmockedExternalApi(page);
@@ -60,29 +156,36 @@ test.beforeEach(async ({ page }) => {
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 test('page loads → mentor cards are displayed', async ({ page }) => {
-  const mentors = Array.from({ length: 3 }, (_, i) => makeMentor(i + 1));
   await page.route(/\/v1\/mentors/, (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(mentorResponse(mentors)),
+      body: JSON.stringify(
+        mentorResponse([makeMentor(1), makeMentor(2), makeMentor(3)])
+      ),
     })
   );
 
+  // The initial listing is server-rendered in MentorPoolWithData (RSC) when
+  // NEXT_PUBLIC_API_URL is configured, and falls back to client-side
+  // /v1/mentors when SSR runs without a backend URL.
   await page.goto('/mentor-pool');
 
-  await expect(page.locator('article')).toHaveCount(3);
-  await expect(page.getByText('找到 3 位導師')).toBeVisible();
+  const articles = page.locator('article');
+  await expect(articles.first()).toBeVisible({ timeout: 15_000 });
+  const count = await articles.count();
+  await expect(page.getByText(`找到 ${count} 位導師`)).toBeVisible();
 });
 
 test('type keyword in search bar → mentor list updates to match results', async ({
   page,
 }) => {
   await page.route(/\/v1\/mentors/, (route, request) => {
-    const keyword = new URL(request.url()).searchParams.get('searchPattern');
-    const data = keyword
-      ? [makeMentor(10), makeMentor(11)]
-      : [makeMentor(1), makeMentor(2), makeMentor(3)];
+    const keyword = new URL(request.url()).searchParams.get('search_pattern');
+    const data =
+      keyword === 'React'
+        ? [makeMentor(10), makeMentor(11)]
+        : [makeMentor(1), makeMentor(2), makeMentor(3)];
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -90,7 +193,11 @@ test('type keyword in search bar → mentor list updates to match results', asyn
     });
   });
 
-  await page.goto('/mentor-pool');
+  // Next.js still executes SSR during initial page load, but appending ?q=initial
+  // immediately triggers a client-side search request. Playwright's page.route
+  // intercepts this client-side fetch, deterministically seeding the card list
+  // with our mock data before user interaction begins.
+  await page.goto('/mentor-pool?q=initial');
   await expect(page.locator('article')).toHaveCount(3);
 
   const responsePromise = page.waitForResponse(/\/v1\/mentors/);
@@ -108,10 +215,11 @@ test('apply a filter → mentor list updates to show only filtered results', asy
   page,
 }) => {
   await page.route(/\/v1\/mentors/, (route, request) => {
-    const position = new URL(request.url()).searchParams.get(
-      'filter_positions'
-    );
-    const data = position
+    // There is no position filter in the current UI (mentor-pool/data.ts
+    // only defines filter_skills / filter_topics / filter_industries, in
+    // that order) — filter_skills is the first combobox the test opens.
+    const skill = new URL(request.url()).searchParams.get('filter_skills');
+    const data = skill
       ? [makeMentor(20)]
       : [makeMentor(1), makeMentor(2), makeMentor(3)];
     route.fulfill({
@@ -121,15 +229,21 @@ test('apply a filter → mentor list updates to show only filtered results', asy
     });
   });
 
-  await page.goto('/mentor-pool');
+  // Next.js still executes SSR during initial page load, but appending ?q=initial
+  // immediately triggers a client-side search request. Playwright's page.route
+  // intercepts this client-side fetch, deterministically seeding the card list
+  // with our mock data before user interaction begins.
+  await page.goto('/mentor-pool?q=initial');
   await expect(page.locator('article')).toHaveCount(3);
 
   // Open filter popover
   await page.getByRole('button', { name: /篩選/ }).click();
 
-  // Position is the first filter — click its SelectTrigger (role=combobox)
+  // filter_skills options come from the tag catalog, itself SSR-fetched (see
+  // fetchTagCatalogServer) and therefore unmockable here — select whichever
+  // real option renders first instead of a hardcoded label.
   await page.getByRole('combobox').first().click();
-  await page.getByRole('option', { name: 'Frontend Developer' }).click();
+  await page.getByRole('option').first().click();
 
   const responsePromise = page.waitForResponse(/\/v1\/mentors/);
   await page.getByRole('button', { name: '套用' }).click();
@@ -156,7 +270,11 @@ test('scroll to bottom → additional mentors are loaded and appended', async ({
     });
   });
 
-  await page.goto('/mentor-pool');
+  // Force the client-side (mockable) fetch path — via any search condition —
+  // instead of the unmocked SSR listing, so mentors.length is a deterministic
+  // multiple of PAGE_LIMIT and container.tsx's scroll-trigger guard
+  // (mentors.length % PAGE_LIMIT === 0) reliably fires fetchMoreMentors.
+  await page.goto('/mentor-pool?q=test');
   await expect(page.locator('article')).toHaveCount(PAGE_LIMIT);
 
   // Bring the last card into the viewport — IntersectionObserver fires and
@@ -172,8 +290,8 @@ test('search returns no results → empty state message is shown', async ({
   page,
 }) => {
   await page.route(/\/v1\/mentors/, (route, request) => {
-    const keyword = new URL(request.url()).searchParams.get('searchPattern');
-    const data = keyword ? [] : [makeMentor(1)];
+    const keyword = new URL(request.url()).searchParams.get('search_pattern');
+    const data = keyword === 'xyznotfound' ? [] : [makeMentor(1)];
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -181,8 +299,13 @@ test('search returns no results → empty state message is shown', async ({
     });
   });
 
-  await page.goto('/mentor-pool');
-  await expect(page.locator('article')).toHaveCount(1);
+  // Next.js still executes SSR during initial page load, but ?q=initial triggers
+  // a client-side search request intercepted by page.route, ensuring a deterministic
+  // visible card is present before verifying the empty state.
+  await page.goto('/mentor-pool?q=initial');
+  await expect(page.locator('article').first()).toBeVisible({
+    timeout: 15_000,
+  });
 
   const responsePromise = page.waitForResponse(/\/v1\/mentors/);
   await page.fill(
@@ -194,4 +317,104 @@ test('search returns no results → empty state message is shown', async ({
 
   await expect(page.getByText('找不到符合的導師')).toBeVisible();
   await expect(page.locator('article')).toHaveCount(0);
+});
+
+test('Tab 聚焦導師卡片 → 顯示焦點外框 → Enter 導向個人頁面', async ({
+  page,
+}) => {
+  await page.route(/\/v1\/mentors/, (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(mentorResponse([makeMentor(1)])),
+    });
+  });
+
+  // Force the client-side (mockable) fetch path so the rendered card, and
+  // therefore its /profile/{id} target, is deterministic.
+  await page.goto('/mentor-pool?q=test');
+  const card = page.locator('article').first();
+  await expect(card).toBeVisible({ timeout: 15_000 });
+
+  const cardLink = card.getByRole('link');
+  await tabUntilFocused(page, cardLink, 60);
+  await expect(cardLink).toBeFocused();
+
+  // The whole-card <Link> is absolutely positioned inside an
+  // `overflow-hidden` <article>, so the focus ring is applied to the
+  // <article> itself (FOCUS_WITHIN_RING_CLASSES) instead of the <Link> to
+  // avoid being clipped. Assert it renders instead of the old
+  // `focus-visible` no-op.
+  await expect(card).not.toHaveCSS('box-shadow', 'none');
+
+  // Enter triggers the native <a> click behavior and navigates.
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/profile\/1$/);
+});
+
+test('點擊 PopularPositionChips 熱門職位標籤 → 觸發篩選並更新列表，點進導師個人頁後 page.goBack() 返回保留原篩選條件與導師列表快取', async ({
+  page,
+}) => {
+  let chipFetchCount = 0;
+
+  await page.route(/\/v1\/mentors(\?|$)/, (route, request) => {
+    const keyword = new URL(request.url()).searchParams.get('search_pattern');
+    if (keyword === '前端工程師') {
+      chipFetchCount += 1;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mentorResponse([makeMentor(1), makeMentor(2)])),
+      });
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        mentorResponse([makeMentor(1), makeMentor(2), makeMentor(3)])
+      ),
+    });
+  });
+
+  await page.goto('/mentor-pool?q=initial');
+  await expect(page.locator('article')).toHaveCount(3);
+
+  const chipGroup = page.getByLabel('熱門職位');
+  const chipResponsePromise = page.waitForResponse(
+    (res) =>
+      /\/v1\/mentors(\?|$)/.test(res.url()) &&
+      new URL(res.url()).searchParams.get('search_pattern') === '前端工程師'
+  );
+  await chipGroup.getByRole('button', { name: '前端工程師' }).click();
+  await chipResponsePromise;
+
+  await expect(page).toHaveURL(
+    /q=%E5%89%8D%E7%AB%AF%E5%B7%A5%E7%A8%8B%E5%B8%AB/
+  );
+  await expect(
+    page.locator('input[placeholder="搜尋有興趣職位、公司或是想精進的領域"]')
+  ).toHaveValue('前端工程師');
+  await expect(page.locator('article')).toHaveCount(2);
+  await expect(page.getByText('找到 2 位導師')).toBeVisible();
+  expect(chipFetchCount).toBe(1);
+
+  // 點進篩選後的導師個人頁再透過 page.goBack() 返回，驗證篩選條件與快取列表保留
+  await page
+    .locator('article')
+    .first()
+    .getByRole('link', { name: '前往 Mentor 1 的個人頁面' })
+    .click();
+  await expect(page).toHaveURL(/\/profile\/1$/);
+
+  await page.goBack();
+
+  await expect(page).toHaveURL(
+    /\/mentor-pool\?q=%E5%89%8D%E7%AB%AF%E5%B7%A5%E7%A8%8B%E5%B8%AB/
+  );
+  await expect(
+    page.locator('input[placeholder="搜尋有興趣職位、公司或是想精進的領域"]')
+  ).toHaveValue('前端工程師');
+  await expect(page.locator('article')).toHaveCount(2);
+  await expect(page.getByText('找到 2 位導師')).toBeVisible();
+  expect(chipFetchCount).toBe(1);
 });

@@ -4,7 +4,14 @@ import * as z from 'zod';
 
 import { Checkbox } from '@/components/ui/checkbox';
 import { FormField, FormMessage } from '@/components/ui/form';
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
+import { cn } from '@/lib/utils';
 import { SignUpSchema } from '@/schemas/auth';
+
+const TERMS_LINK_CLASSES = cn(
+  'text-brand-500 cursor-pointer rounded-sm text-sm underline',
+  FOCUS_RING_CLASSES
+);
 
 interface TermsOfServiceCheckboxProps {
   control: Control<z.infer<typeof SignUpSchema>>;
@@ -18,15 +25,15 @@ export default function TermsOfServiceCheckbox({
       control={control}
       name="hasReadTermsOfService"
       render={({ field }) => (
-        <div className="flex items-center space-x-3 space-y-0">
+        <div className="flex items-center space-y-0 space-x-3">
           <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-          <span className="text-neutral-600 text-sm font-medium leading-none">
+          <span className="text-text-secondary text-sm leading-none font-medium">
             我同意 X-Talent{' '}
             <Link
               href="/privacy"
               target="_blank"
               rel="noreferrer"
-              className="text-blue-600 cursor-pointer text-sm underline"
+              className={TERMS_LINK_CLASSES}
             >
               隱私權政策
             </Link>
@@ -35,7 +42,7 @@ export default function TermsOfServiceCheckbox({
               href="/terms"
               target="_blank"
               rel="noreferrer"
-              className="text-blue-600 cursor-pointer text-sm underline"
+              className={TERMS_LINK_CLASSES}
             >
               服務條款
             </Link>

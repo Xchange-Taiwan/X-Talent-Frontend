@@ -1,0 +1,54 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/lib/apiClient', async (importActual) => {
+  const actual = await importActual<typeof import('@/lib/apiClient')>();
+  return {
+    ...actual,
+    apiClient: {
+      ...actual.apiClient,
+      getUnwrapped: vi.fn(),
+    },
+  };
+});
+
+import { apiClient, ApiError } from '@/lib/apiClient';
+
+import { fetchPresignedUrl } from './presignedUrl';
+
+describe('presignedUrl service', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('fetchPresignedUrl', () => {
+    it('returns data when successful', async () => {
+      const mockData = {
+        url: 'https://s3.amazonaws.com/bucket',
+        fields: {
+          key: 'avatar.png',
+          AWSAccessKeyId: 'abc',
+          'x-amz-security-token': 'token',
+          policy: 'policy',
+          signature: 'sig',
+        },
+      };
+
+      vi.mocked(apiClient.getUnwrapped).mockResolvedValue(mockData);
+
+      const result = await fetchPresignedUrl(42);
+      expect(result).toEqual(mockData);
+      expect(apiClient.getUnwrapped).toHaveBeenCalledWith(
+        '/v1/storage/presigned-url/42'
+      );
+    });
+
+    it('returns null and catches ApiError without unhandled rejection', async () => {
+      vi.mocked(apiClient.getUnwrapped).mockRejectedValue(
+        new ApiError(400, 'Failed presigned')
+      );
+
+      const result = await fetchPresignedUrl(42);
+      expect(result).toBeNull();
+    });
+  });
+});

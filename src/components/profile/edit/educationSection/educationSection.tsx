@@ -7,18 +7,14 @@ import {
   TrashIcon,
 } from '@radix-ui/react-icons';
 import { Check, ChevronsUpDown } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
-import { useFieldArray, UseFormReturn, useWatch } from 'react-hook-form';
+import React, { useState } from 'react';
 
 import { ConfirmDialog } from '@/components/profile/edit/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import {
-  Command,
   CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
-  CommandList,
 } from '@/components/ui/command';
 import {
   FormControl,
@@ -28,11 +24,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   Select,
   SelectContent,
@@ -40,16 +32,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ProfileFormContext } from '@/hooks/user/profile/useEditProfileForm';
+import {
+  useRepeatablePeriodSection,
+  YEAR_OPTIONS,
+} from '@/hooks/user/profile/useRepeatablePeriodSection';
+import { hasExactMatch, searchSchools } from '@/lib/profile/searchSchools';
 import { cn } from '@/lib/utils';
 
-import { ProfileFormValues } from '../profileSchema';
 import { Section } from '../Section';
 import { taiwanSchools } from './schoolData';
-
-const CURRENT_YEAR = new Date().getFullYear();
-const YEAR_OPTIONS = Array.from({ length: CURRENT_YEAR - 1940 + 1 }, (_, i) =>
-  (CURRENT_YEAR - i).toString()
-);
 
 export function SchoolComboboxField({
   field,
@@ -60,10 +52,8 @@ export function SchoolComboboxField({
   const [search, setSearch] = useState('');
 
   const trimmedSearch = search.trim();
-  const filteredSchools = trimmedSearch
-    ? taiwanSchools.filter((school) => school.includes(trimmedSearch))
-    : taiwanSchools;
-  const isExactMatch = taiwanSchools.some((school) => school === trimmedSearch);
+  const filteredSchools = searchSchools(search, taiwanSchools);
+  const isExactMatch = hasExactMatch(search, taiwanSchools);
   const showCreateOption = trimmedSearch.length > 0 && !isExactMatch;
 
   const selectSchool = (value: string) => {
@@ -75,7 +65,7 @@ export function SchoolComboboxField({
   return (
     <FormItem className="grow">
       <FormLabel>學校名稱</FormLabel>
-      <Popover
+      <SearchableSelect
         open={open}
         onOpenChange={(next) => {
           // Closing without an explicit pick (outside click / Escape) discards
@@ -84,8 +74,11 @@ export function SchoolComboboxField({
           setSearch('');
           setOpen(next);
         }}
-      >
-        <PopoverTrigger asChild>
+        title="選擇學校"
+        searchPlaceholder="搜尋學校..."
+        search={search}
+        onSearchChange={setSearch}
+        trigger={
           <FormControl>
             <Button
               variant="outline"
@@ -93,60 +86,46 @@ export function SchoolComboboxField({
               aria-expanded={open}
               className="w-full justify-between font-normal"
             >
-              <span className={cn(!field.value && 'text-muted-foreground')}>
+              <span className={cn(!field.value && 'text-text-tertiary')}>
                 {field.value || '請選擇學校'}
               </span>
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
             </Button>
           </FormControl>
-        </PopoverTrigger>
-        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-          <Command shouldFilter={false}>
-            <CommandInput
-              placeholder="搜尋學校..."
-              value={search}
-              onValueChange={setSearch}
-            />
-            <CommandList>
-              <CommandEmpty>找不到相符的學校</CommandEmpty>
-              <CommandGroup>
-                {filteredSchools.map((school) => (
-                  <CommandItem
-                    key={school}
-                    value={school}
-                    onSelect={selectSchool}
-                  >
-                    <Check
-                      className={cn(
-                        'mr-2 h-4 w-4',
-                        field.value === school ? 'opacity-100' : 'opacity-0'
-                      )}
-                    />
-                    {school}
-                  </CommandItem>
-                ))}
-                {showCreateOption && (
-                  <CommandItem
-                    key="__create_school__"
-                    value={trimmedSearch}
-                    onSelect={() => selectSchool(trimmedSearch)}
-                  >
-                    <PlusIcon className="mr-2 h-4 w-4" />
-                    新增「{trimmedSearch}」
-                  </CommandItem>
+        }
+      >
+        <CommandEmpty>找不到相符的學校</CommandEmpty>
+        <CommandGroup>
+          {filteredSchools.map((school) => (
+            <CommandItem key={school} value={school} onSelect={selectSchool}>
+              <Check
+                className={cn(
+                  'mr-2 size-4',
+                  field.value === school ? 'opacity-100' : 'opacity-0'
                 )}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
+              />
+              {school}
+            </CommandItem>
+          ))}
+          {showCreateOption && (
+            <CommandItem
+              key="__create_school__"
+              value={trimmedSearch}
+              onSelect={() => selectSchool(trimmedSearch)}
+            >
+              <PlusIcon className="mr-2 size-4" />
+              新增「{trimmedSearch}」
+            </CommandItem>
+          )}
+        </CommandGroup>
+      </SearchableSelect>
       <FormMessage />
     </FormItem>
   );
 }
 
 interface Props {
-  form: UseFormReturn<ProfileFormValues>;
+  form: ProfileFormContext;
   isMentor: boolean;
   onValidationChange: (hasError: boolean) => void;
 }
@@ -158,30 +137,28 @@ export const EducationSection = ({
 }: Props) => {
   const {
     control,
-    getValues,
     formState: { errors },
   } = form;
 
-  const { fields, append, remove, move } = useFieldArray({
-    control,
-    name: 'educations',
-  });
+  const { fields, move, isInvalidPeriod, tryAppend, remove } =
+    useRepeatablePeriodSection(
+      form,
+      {
+        arrayName: 'educations',
+        periodStartKey: 'education_period_start',
+        periodEndKey: 'education_period_end',
+        isIncompleteForAppend: (last) =>
+          !last?.subject ||
+          !last?.school ||
+          !last?.education_period_start ||
+          !last?.education_period_end,
+        incompleteAlertMessage: '請先完成上一筆教育資料再新增',
+      },
+      onValidationChange
+    );
 
   const addEducation = () => {
-    const educations = getValues('educations');
-    const last = educations?.at(-1);
-    if (
-      educations.length > 0 &&
-      (!last?.subject ||
-        !last?.school ||
-        !last?.education_period_start ||
-        !last?.education_period_end)
-    ) {
-      alert('請先完成上一筆教育資料再新增');
-      return;
-    }
-
-    append({
+    tryAppend({
       id: -1,
       subject: '',
       school: '',
@@ -190,40 +167,10 @@ export const EducationSection = ({
     });
   };
 
-  const watchedEducations = useWatch({
-    control,
-    name: 'educations',
-  }) as
-    | Array<{
-        education_period_start?: string;
-        education_period_end?: string;
-      }>
-    | undefined;
-
-  useEffect(() => {
-    const hasError = watchedEducations?.some((edu) => {
-      const start = edu.education_period_start;
-      const end = edu.education_period_end;
-      return start && end && end !== 'now' && Number(start) > Number(end);
-    });
-    onValidationChange(!!hasError);
-  }, [watchedEducations, onValidationChange]);
-
   return (
-    <Section
-      title={
-        <>
-          {isMentor && <span className="text-status-200">* </span>}
-          教育經歷
-        </>
-      }
-    >
+    <Section title="教育經歷" required={isMentor}>
       {fields.map((field, index) => {
-        const watched = watchedEducations?.[index] ?? {};
-        const start = watched.education_period_start;
-        const end = watched.education_period_end;
-        const isInvalidPeriod =
-          start && end && end !== 'now' && Number(start) > Number(end);
+        const invalidPeriod = isInvalidPeriod(index);
 
         return (
           <div key={field.id} className="mb-4 rounded-lg border p-4">
@@ -236,7 +183,7 @@ export const EducationSection = ({
                   disabled={index === 0}
                   onClick={() => move(index, index - 1)}
                 >
-                  <ChevronUpIcon className="h-5 w-5" />
+                  <ChevronUpIcon className="size-5" />
                 </Button>
                 <Button
                   type="button"
@@ -245,7 +192,7 @@ export const EducationSection = ({
                   disabled={index === fields.length - 1}
                   onClick={() => move(index, index + 1)}
                 >
-                  <ChevronDownIcon className="h-5 w-5" />
+                  <ChevronDownIcon className="size-5" />
                 </Button>
               </div>
             )}
@@ -336,8 +283,8 @@ export const EducationSection = ({
               />
             </div>
 
-            {isInvalidPeriod && (
-              <p className="mb-4 text-sm font-medium text-status-200">
+            {invalidPeriod && (
+              <p className="text-status-error-default mb-4 text-sm font-medium">
                 開始年份不可大於結束年份
               </p>
             )}
@@ -349,7 +296,7 @@ export const EducationSection = ({
                 onConfirm={() => remove(index)}
                 trigger={
                   <Button variant="destructive">
-                    <TrashIcon className="mr-2 h-5 w-5" />
+                    <TrashIcon className="mr-2 size-5" />
                     移除
                   </Button>
                 }
@@ -361,14 +308,14 @@ export const EducationSection = ({
 
       <Button
         variant="ghost"
-        className="rounded-full px-4 py-3 text-brand-500"
+        className="text-brand-500 rounded-full px-4 py-3"
         onClick={addEducation}
       >
-        <PlusIcon className="mr-2 h-5 w-5" />
+        <PlusIcon className="mr-2 size-5" />
         新增
       </Button>
       {errors.educations?.message && (
-        <p className="mt-2 text-sm font-medium text-destructive">
+        <p className="text-status-error-default mt-2 text-sm font-medium">
           {errors.educations?.message as string}
         </p>
       )}

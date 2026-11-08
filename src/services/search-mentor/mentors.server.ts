@@ -1,42 +1,10 @@
+import { apiClient, BASE_URL } from '@/lib/apiClient';
 import type { components } from '@/types/api';
+import type { MentorRequest, MentorType } from '@/types/mentor';
 
-import { mapMentor, type MentorRequest, type MentorType } from './mapMentor';
+import { mapMentor } from './mapMentor';
 
-type MentorListResponse =
-  components['schemas']['ApiResponse_SearchMentorProfileListVO_'];
-
-// SSR_API_URL is preferred when set, so server-side fetches inside a
-// Docker container can reach the BFF via the docker network DNS name
-// (e.g. http://bff:8000/api), while the browser bundle still uses
-// NEXT_PUBLIC_API_URL (e.g. http://localhost:8006/api).
-const BASE_URL =
-  process.env.SSR_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? '';
-// Unfiltered listing is shared by every visitor — keep ISR so LCP stays fast.
-// Filtered/searched listings have unbounded cache-key combinations, so we
-// bypass the data cache to avoid blowing up Next's fetch cache and the BFF.
-//
-// 10-minute TTL (vs the original 60s) is safe because profile submits now
-// fire `revalidatePath('/mentor-pool')` (see profile/[pageUserId]/actions.ts),
-// so any user-driven change is invalidated on demand. The TTL only bounds
-// the staleness window for non-frontend-triggered changes (admin actions,
-// search-index lag, account deletions that don't yet revalidate this path).
-const REVALIDATE_SECONDS = 600;
-
-function buildUrl(
-  path: string,
-  params?: Record<string, string | number | undefined | null>
-): string {
-  const url = `${BASE_URL}${path}`;
-  if (!params) return url;
-  const query = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      query.append(key, String(value));
-    }
-  });
-  const qs = query.toString();
-  return qs ? `${url}?${qs}` : url;
-}
+const REVALIDATE_SECONDS = 60 * 60 * 24;
 
 function hasMentorRequestConditions(param: MentorRequest): boolean {
   return Boolean(
@@ -55,29 +23,21 @@ export async function fetchMentorsServer(
   // with the proper env, instead of throwing a noisy "Invalid URL" during
   // build prerender.
   if (!BASE_URL) return [];
-  try {
-    const fetchOptions: RequestInit = hasMentorRequestConditions(param)
-      ? { cache: 'no-store' }
-      : { next: { revalidate: REVALIDATE_SECONDS } };
-    const res = await fetch(
-      buildUrl(
-        '/v1/mentors',
-        param as unknown as Record<string, string | number | undefined>
-      ),
-      fetchOptions
-    );
-    if (!res.ok) {
-      console.error(`SSR fetchMentors failed: ${res.status}`);
-      return [];
-    }
-    const result = (await res.json()) as MentorListResponse;
-    if (result.code !== '0') {
-      console.error(`SSR fetchMentors API error: ${result.msg}`);
-      return [];
-    }
-    return (result.data?.mentors ?? []).map(mapMentor);
-  } catch (error) {
-    console.error('SSR fetchMentors error:', error);
-    return [];
-  }
+
+  const fetchOptions = hasMentorRequestConditions(param)
+    ? { cache: 'no-store' as const }
+    : { next: { revalidate: REVALIDATE_SECONDS } };
+
+  const data = await apiClient.getUnwrapped<
+    components['schemas']['SearchMentorProfileListVO']
+  >('/v1/mentors', {
+    auth: false,
+    params: param as unknown as Record<
+      string,
+      string | number | boolean | undefined | null
+    >,
+    ...fetchOptions,
+  });
+
+  return (data?.mentors ?? []).map(mapMentor);
 }

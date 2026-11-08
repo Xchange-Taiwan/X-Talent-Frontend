@@ -28,14 +28,10 @@ export const HomePageSlider: FC = () => {
       }}
     >
       {sliderList.map(({ name, text, avatar }, index) => (
-        <SwiperSlide
-          className="margin-0"
-          key={`${name}_Slide_${index + 1}`}
-          style={{ width: '100%', margin: 0 }}
-        >
+        <SwiperSlide className="m-0 w-full" key={`${name}_Slide_${index + 1}`}>
           <div className="mb-4 flex flex-col gap-10 px-6 py-8 sm:flex-row">
-            <div className="flex flex-shrink-0 basis-40 flex-col  items-center gap-4">
-              <div className="relative h-28 w-28 overflow-clip rounded-full">
+            <div className="flex flex-shrink-0 basis-40 flex-col items-center gap-4">
+              <div className="relative size-28 overflow-clip rounded-full">
                 <Image
                   fill
                   src={avatar}
@@ -44,7 +40,7 @@ export const HomePageSlider: FC = () => {
                   className="object-cover"
                 />
               </div>
-              <p className="text-center text-xl font-bold text-[#003C5A]">
+              <p className="text-logoBlue text-center text-xl font-bold">
                 {name}
               </p>
             </div>

@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import { StaticImageData } from 'next/image';
 
-import { TotalWorkSpanEnum } from '@/components/onboarding/steps/constant';
+import { TotalWorkSpanEnum } from '@/constant/seniority';
 
 interface AvatarWithBadgeProps {
   avatar: string | StaticImageData;
@@ -30,7 +30,7 @@ export const AvatarWithBadge = ({
         priority={priority}
         loading={priority ? 'eager' : 'lazy'}
       />
-      <figcaption className="absolute bottom-[30px] right-[30px] rounded-lg bg-[#000000]/30 px-2.5 py-1 text-text-white">
+      <figcaption className="bg-dark/30 text-text-white absolute right-[30px] bottom-[30px] rounded-lg px-2.5 py-1">
         {displayYears}工作經驗
       </figcaption>
     </figure>

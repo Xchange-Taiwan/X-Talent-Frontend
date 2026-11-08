@@ -1,7 +1,20 @@
 'use client';
 
-import { FieldPath, FieldValues, UseFormReturn } from 'react-hook-form';
+import { Check, ChevronDown } from 'lucide-react';
+import { useState } from 'react';
+import {
+  Control,
+  FieldPath,
+  FieldValues,
+  UseFormReturn,
+} from 'react-hook-form';
 
+import { Button } from '@/components/ui/button';
+import {
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from '@/components/ui/command';
 import {
   FormControl,
   FormField,
@@ -9,6 +22,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   Select,
   SelectContent,
@@ -17,17 +31,18 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-
-import { ProfileFormValues } from './profileSchema';
+import { cn } from '@/lib/utils';
 
 //--------------------------------------------------
 // 📦 Reusable Field Components
 //--------------------------------------------------
 
-export interface TextFieldProps {
-  form: UseFormReturn<ProfileFormValues>;
+export interface TextFieldProps<
+  TFieldValues extends FieldValues = FieldValues,
+> {
+  control: Control<TFieldValues>;
   /** Only string fields are supported; use `as const` for other types to avoid errors */
-  name: keyof ProfileFormValues;
+  name: FieldPath<TFieldValues>;
   /** Placeholder text (you can pass Traditional Chinese here) */
   placeholder?: string;
   /** HTML input type (e.g. "text", "email") */
@@ -37,14 +52,14 @@ export interface TextFieldProps {
 /**
  * A generic text input field that guards against non-string values.
  */
-export const TextField = ({
-  form,
+export const TextField = <TFieldValues extends FieldValues>({
+  control,
   name,
   placeholder,
   type = 'text',
-}: TextFieldProps) => (
+}: TextFieldProps<TFieldValues>) => (
   <FormField
-    control={form.control}
+    control={control}
     name={name}
     render={({ field }) => (
       <FormItem>
@@ -63,7 +78,9 @@ export const TextField = ({
   />
 );
 
-export interface TextareaFieldProps extends Omit<TextFieldProps, 'type'> {
+export interface TextareaFieldProps<
+  TFieldValues extends FieldValues = FieldValues,
+> extends Omit<TextFieldProps<TFieldValues>, 'type'> {
   /** Number of rows (height) for the textarea */
   rows?: number;
 }
@@ -71,14 +88,14 @@ export interface TextareaFieldProps extends Omit<TextFieldProps, 'type'> {
 /**
  * A generic textarea field with configurable row height.
  */
-export const TextareaField = ({
-  form,
+export const TextareaField = <TFieldValues extends FieldValues>({
+  control,
   name,
   rows = 6,
   placeholder,
-}: TextareaFieldProps) => (
+}: TextareaFieldProps<TFieldValues>) => (
   <FormField
-    control={form.control}
+    control={control}
     name={name}
     render={({ field }) => (
       <FormItem>
@@ -141,3 +158,105 @@ export const SelectField = <T extends FieldValues>({
     )}
   />
 );
+
+export interface ComboboxFieldProps<T extends FieldValues> {
+  form: UseFormReturn<T>;
+  name: FieldPath<T>;
+  placeholder?: string;
+  searchPlaceholder?: string;
+  emptyText?: string;
+  /**
+   * 手機版底部面板的標題。省略時沿用 `placeholder`。
+   */
+  title?: string;
+  options: Array<{ label: string; value: string }>;
+}
+
+/**
+ * A searchable single-select combobox, for fields whose option list is too
+ * large for Select: Radix Select always mounts a hidden native <select>
+ * mirroring every SelectItem (even while closed, for native form/typeahead
+ * support), so a several-hundred-option Select forces that many DOM nodes on
+ * mount regardless of open state. Popover+Command has no such mirror — its
+ * option list only mounts once opened.
+ *
+ * Presentation is delegated to SearchableSelect, which renders a popover on
+ * desktop and a bottom sheet on mobile.
+ */
+export const ComboboxField = <T extends FieldValues>({
+  form,
+  name,
+  placeholder = '請選擇',
+  searchPlaceholder = '搜尋...',
+  emptyText = '沒有符合的選項',
+  title,
+  options,
+}: ComboboxFieldProps<T>) => {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <FormField
+      control={form.control}
+      name={name}
+      render={({ field }) => {
+        const selected = options.find((opt) => opt.value === field.value);
+        return (
+          <FormItem>
+            <SearchableSelect
+              open={open}
+              onOpenChange={(next) => {
+                setOpen(next);
+                if (!next) field.onBlur();
+              }}
+              title={title ?? placeholder}
+              searchPlaceholder={searchPlaceholder}
+              trigger={
+                <FormControl>
+                  <Button
+                    ref={field.ref}
+                    disabled={field.disabled}
+                    onBlur={field.onBlur}
+                    type="button"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    className="hover:bg-background-white hover:text-text-primary w-full justify-between px-3 py-2 text-base font-normal disabled:cursor-not-allowed md:text-sm"
+                  >
+                    <span className={cn(!selected && 'text-text-tertiary')}>
+                      {selected ? selected.label : placeholder}
+                    </span>
+                    <ChevronDown className="size-4 shrink-0 opacity-50" />
+                  </Button>
+                </FormControl>
+              }
+            >
+              <CommandEmpty>{emptyText}</CommandEmpty>
+              <CommandGroup>
+                {options.map((opt) => (
+                  <CommandItem
+                    key={opt.value}
+                    value={opt.label}
+                    onSelect={() => {
+                      field.onChange(opt.value);
+                      field.onBlur();
+                      setOpen(false);
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        'mr-2 size-4',
+                        opt.value === field.value ? 'opacity-100' : 'opacity-0'
+                      )}
+                    />
+                    {opt.label}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </SearchableSelect>
+            <FormMessage />
+          </FormItem>
+        );
+      }}
+    />
+  );
+};

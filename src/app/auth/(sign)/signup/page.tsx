@@ -1,7 +1,8 @@
 'use client';
+
 import AuthTitle from '@/components/auth/AuthTitle';
 import Divider from '@/components/auth/Divider';
-import GoogleSignUpButton from '@/components/auth/GoogleButton';
+import GoogleButton from '@/components/auth/GoogleButton';
 import SignUpForm from '@/components/auth/signup/SignUpForm';
 import useSignUpForm from '@/hooks/auth/useSignUpForm';
 
@@ -14,7 +15,7 @@ export default function Page() {
         <AuthTitle>註冊 X-Talent 帳戶</AuthTitle>
         <SignUpForm {...signUpFormProps} />
         <Divider>或</Divider>
-        <GoogleSignUpButton
+        <GoogleButton
           isSubmitting={signUpFormProps.isSubmitting}
           label="使用 Google 帳號註冊"
           isSignIn={false}

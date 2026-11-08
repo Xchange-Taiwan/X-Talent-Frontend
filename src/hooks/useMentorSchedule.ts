@@ -4,270 +4,391 @@ import dayjs from 'dayjs';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 dayjs.extend(isSameOrBefore);
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-
 import {
-  activeOccurrences,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
+
+import { useAsyncRead } from '@/hooks/useAsyncRead';
+import type { AsyncReadOptions } from '@/lib/asyncReadManager';
+import {
+  type ScheduleReadKey,
+  scheduleReadModel,
+} from '@/lib/mentor-schedule/scheduleReadModel';
+import { captureFlowFailure } from '@/lib/monitoring';
+import {
+  BookingCalendarReader,
   BookingSlot,
-  buildDateTime,
-  expandRrule,
-  formatTimeslot,
-  hasAnyOccurrenceOverlap,
-  MonthKey,
-  monthKeyFromDateStr,
-  monthKeyFromYearMonth,
-  nextTempId,
+  computeBookingAvailability,
+  MentorScheduleEditor,
   ParsedMentorTimeslot,
+  SlotsSnapshot,
+} from '@/lib/profile/bookingAvailability';
+import { MonthDraftStore } from '@/lib/profile/MonthDraftStore';
+import { toDateKey } from '@/lib/profile/scheduleFormatters';
+import {
+  formatTimeslot,
+  monthKeyFromYearMonth,
   parseMonthKey,
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
-import { TimeSlotDTO } from '@/services/mentor-schedule/schedule';
-import { clearAllScheduleCache } from '@/services/mentor-schedule/scheduleCache';
 import {
-  loadMonthScheduleCached,
+  type FetchReservationsResult,
+  MENTOR_SCHEDULE_RESERVATIONS_TTL_MS,
+  type ReservationReadKey,
+  reservationReadModel,
+} from '@/lib/reservation/reservationReadModel';
+import {
+  loadMonthSchedule,
   loadMonthScheduleFresh,
-  MonthSyncRequest,
   prefetchMonthSchedule,
-  ScheduleMonthRef,
   syncMonths,
   SyncResult,
 } from '@/services/mentor-schedule/sync';
+import type { ReservationState } from '@/services/reservations';
+import { fetchAllReservationsForState } from '@/services/reservations';
+import type { Reservation } from '@/types/reservation';
 
-export type { BookingSlot } from '@/lib/profile/scheduleHelpers';
-export { expandRrule } from '@/lib/profile/scheduleHelpers';
+// useEffect runs after paint, so on an account switch there's a window where
+// the browser can paint one frame of the new userId alongside the previous
+// user's still-buffered draft before the cleanup effect fires. useLayoutEffect
+// runs before paint, closing that window; it's a no-op during SSR (no DOM to
+// mutate before), so fall back to useEffect there to avoid React's dev warning.
+const useIsomorphicLayoutEffect =
+  typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+
+// See MENTOR_SCHEDULE_RESERVATIONS_TTL_MS: this calendar's reservation slots
+// can go stale from the other party's action with no local write to catch
+// it, so they expire on their own. Hoisted to module scope because
+// `useAsyncRead` keeps the options object in a ref - a fresh literal per
+// render would be pointless churn.
+const RESERVATIONS_READ_OPTIONS: AsyncReadOptions<
+  ReservationReadKey,
+  FetchReservationsResult
+> = { ttlMs: MENTOR_SCHEDULE_RESERVATIONS_TTL_MS };
 
 type Options = {
   backend: {
     userId: string;
-    year: number;
-    month: number; // 1-12
+    year?: number;
+    month?: number; // 1-12
   };
+  loginUserId?: string;
+  /**
+   * Include dates whose only occurrences are already BOOKED in
+   * `allowedDates`, so the mentor viewing their own profile can still select
+   * a fully-booked date to view/manage the reservation. Mentee/visitor
+   * callers must leave this false: they share the same `allowedDates` to
+   * disable calendar dates, and a fully-booked date has no bookable slot for
+   * them to select.
+   */
+  includeBookedDates?: boolean;
 };
-
-export type SlotDurationMinutes = 30 | 45 | 60;
 
 export type UseMentorScheduleReturn = {
   /** Sticky: true once any month has resolved. Use this for first-paint skeletons. */
   loaded: boolean;
-  /** Per-month: false while the *current* (year, month) is being fetched after a cache miss. */
-  monthLoaded: boolean;
-  isFetching: boolean;
-  selectedDate: string | null;
-  setSelectedDate: (dateStr: string | null) => void;
-
-  parsedDraft: ParsedMentorTimeslot[];
-  draftForSelectedDate: ParsedMentorTimeslot[];
-  /** All local dates (YYYY-MM-DD) that have at least one ALLOW occurrence after expanding rrules. */
-  allowedDates: string[];
-
-  generateBookingSlots: (dateKey: string) => BookingSlot[];
-
   /**
-   * Add one ALLOW entry at `startTime` for `durationMinutes`. If
-   * `weeklyWithinMonth` is true, the entry is a single row with a weekly
-   * `FREQ=WEEKLY;COUNT=N` rrule covering every same-weekday date remaining in
-   * the selected date's month; otherwise it's a non-recurring row. Returns
-   * counts of created occurrences so callers can show "added N, skipped M".
+   * The read-only view a mentee or visitor uses to view a mentor's booking
+   * schedule. Always present.
    */
-  addSlotForSelectedDate: (opts: {
-    startTime: string; // HH:mm
-    durationMinutes: SlotDurationMinutes;
-    weeklyWithinMonth?: boolean;
-  }) => { added: number; skipped: number };
-
+  reader: BookingCalendarReader;
   /**
-   * Edit a single occurrence. For non-recurring rows this updates the row
-   * directly. For recurring rows the targeted occurrence is detached: it is
-   * added to the parent's exdate and a new non-recurring row is created with
-   * the patch applied — leaving sibling occurrences untouched.
+   * The stateful view a mentor uses to manage and sync their own available
+   * slots. Only non-null when `loginUserId` matches `backend.userId` (the
+   * viewer is managing their own schedule) - a mentee or visitor never
+   * receives this.
    */
-  updateDraftSlot: (
-    id: number,
-    occurrenceUnix: number,
-    patch: {
-      startTime?: string; // HH:mm
-      durationMinutes?: SlotDurationMinutes;
-    }
-  ) => boolean;
-
-  /**
-   * Delete a single occurrence. Non-recurring rows are removed entirely; on
-   * recurring rows the occurrence is added to exdate, and the row is removed
-   * only when no active occurrences remain.
-   */
-  deleteDraftSlot: (id: number, occurrenceUnix: number) => void;
-
-  confirmChanges: () => Promise<SyncResult>;
-  resetChanges: () => void;
+  editor: MentorScheduleEditor | null;
 };
 
 export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
-  const { backend } = opts;
+  const { backend, loginUserId, includeBookedDates = false } = opts;
 
-  // Per-month buffers. Editing a slot only mutates that slot's month entry;
-  // unloaded months stay absent from these maps until the user navigates to
-  // them. Slot ids issued by the backend are globally unique so the same id
-  // never appears in two month buffers.
-  const [savedByMonth, setSavedByMonth] = useState<
-    Map<MonthKey, RawMentorTimeslot[]>
-  >(() => new Map());
-  const [draftByMonth, setDraftByMonth] = useState<
-    Map<MonthKey, RawMentorTimeslot[]>
-  >(() => new Map());
-  const [pendingDeleteByMonth, setPendingDeleteByMonth] = useState<
-    Map<MonthKey, number[]>
-  >(() => new Map());
-  const [dirtyMonths, setDirtyMonths] = useState<Set<MonthKey>>(
-    () => new Set()
+  const [cursorYear, setCursorYear] = useState<number>(
+    () => backend.year ?? new Date().getFullYear()
   );
+  const [cursorMonth, setCursorMonth] = useState<number>(
+    () => backend.month ?? new Date().getMonth() + 1
+  );
+
+  // Sync controlled year/month props when callers pass them explicitly
+  useEffect(() => {
+    if (backend.year !== undefined) setCursorYear(backend.year);
+  }, [backend.year]);
+  useEffect(() => {
+    if (backend.month !== undefined) setCursorMonth(backend.month);
+  }, [backend.month]);
+
+  const activeYear = backend.year ?? cursorYear;
+  const activeMonth = backend.month ?? cursorMonth;
+
+  // External standalone MonthDraftStore for cross-month states and
+  // synchronization logic. It reads already-cached months straight off the
+  // read model (a cross-month edit needs the target month's rows, and can
+  // only proceed if they are already there) - never a fetch of its own.
+  const [store] = useState(
+    () =>
+      new MonthDraftStore(undefined, {
+        getCachedMonthSchedule: (ref) => scheduleReadModel.get(ref),
+      })
+  );
+
+  const storeState = useSyncExternalStore(
+    useCallback((listener) => store.subscribe(listener), [store]),
+    useCallback(() => store.snapshot(), [store]),
+    useCallback(() => store.snapshot(), [store])
+  );
+
+  const { dirtyMonths, allDraftSlots: allDraftRaws } = storeState;
 
   const [loaded, setLoaded] = useState(false);
-  const [monthLoaded, setMonthLoaded] = useState(false);
-  const [isFetching, setIsFetching] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<string | null>(
+  const [selectedDate, setSelectedDateState] = useState<string | null>(
     dayjs().format('YYYY-MM-DD')
   );
+  const [selectedSlot, setSelectedSlot] = useState<BookingSlot | null>(null);
+  const hasAutoSelectedRef = useRef(false);
 
-  const currentMonthKey = monthKeyFromYearMonth(backend.year, backend.month);
+  const setSelectedDate = useCallback((nextDate: string | null) => {
+    setSelectedDateState(nextDate);
+    setSelectedSlot(null);
+  }, []);
 
-  // Mirror dirtyMonths into a ref so the load effect's per-month dirty guard
-  // sees the latest value without re-subscribing.
-  const dirtyMonthsRef = useRef<Set<MonthKey>>(dirtyMonths);
-  useEffect(() => {
-    dirtyMonthsRef.current = dirtyMonths;
-  }, [dirtyMonths]);
+  // Purely a presentation flag for a *user-triggered* reload (the calendar's
+  // retry button, or a quick-reply accept/reject). The read model only reports
+  // `isLoading` to the reader that asked for the refresh, and here that is
+  // `reloadSchedule` rather than this render - so without this the retry
+  // button would leave the error state on screen with no feedback at all
+  // until the response landed. It says nothing about staleness or mounting:
+  // whose response is allowed to win is entirely the read model's business.
+  const [isReloadingSchedule, setIsReloadingSchedule] = useState(false);
 
-  // Union of persisted ids across every loaded month. Slot ids are globally
-  // unique, so checking membership across months is safe and lets toServiceSlot
-  // emit the `id` field for any persisted slot regardless of which month
-  // confirmChanges is currently building a payload for.
-  const persistedIdSet = useMemo(() => {
-    const s = new Set<number>();
-    savedByMonth.forEach((raws) => {
-      for (const r of raws) if (r.id > 0) s.add(r.id);
-    });
-    return s;
-  }, [savedByMonth]);
+  const currentMonthKey = monthKeyFromYearMonth(activeYear, activeMonth);
 
-  const toServiceSlot = useCallback(
-    (r: RawMentorTimeslot): TimeSlotDTO => {
-      const slot: TimeSlotDTO = {
-        user_id: 0,
-        dt_type: 'ALLOW',
-        dtstart: r.dtstart,
-        dtend: r.dtend,
-        rrule: r.rrule,
-        timezone: 'UTC',
-        exdate: r.exdate,
-      };
-      if (r.id > 0 && persistedIdSet.has(r.id)) slot.id = r.id;
-      return slot;
-    },
-    [persistedIdSet]
+  // The viewer only manages their own schedule when they're logged in as the
+  // profile being viewed - a mentee/visitor (loginUserId unset or pointing
+  // at someone else) must never receive the editor below.
+  const isOwner = !!loginUserId && loginUserId === backend.userId;
+
+  // --------------------------------------------------------------------
+  // Month schedule
+  // --------------------------------------------------------------------
+
+  // useAsyncRead compares keys by reference to detect a "key changed" edge
+  // during render, so this must stay referentially stable across renders
+  // when (userId, year, month) hasn't actually changed - hence useMemo
+  // rather than a fresh object literal per render.
+  const scheduleKey = useMemo<ScheduleReadKey | null>(
+    () =>
+      backend.userId && activeYear && activeMonth
+        ? { userId: backend.userId, year: activeYear, month: activeMonth }
+        : null,
+    [backend.userId, activeYear, activeMonth]
   );
 
-  // Drop everything when the backend user changes — buffers belong to a
-  // specific user.
-  const prevUserIdRef = useRef<string | null>(null);
+  const fetchMonthRaws = useCallback(
+    async (signal: AbortSignal): Promise<RawMentorTimeslot[]> => {
+      // Unreachable in practice: the read model only ever runs this for a
+      // key it was subscribed with, and a null key is never subscribed.
+      if (!scheduleKey) return [];
+      return loadMonthSchedule(scheduleKey, signal);
+    },
+    [scheduleKey]
+  );
+
+  // Cache hits, in-flight de-duplication, cancelling the previous month's
+  // request on a swipe, and discarding a response whose account/month is no
+  // longer on screen are all MentorScheduleReadModel's job - this hook holds
+  // no staleness bookkeeping of its own.
+  const scheduleRead = useAsyncRead(
+    scheduleReadModel,
+    scheduleKey,
+    fetchMonthRaws
+  );
+  const monthRaws = scheduleRead.data;
+
+  const monthLoaded =
+    scheduleKey !== null && !scheduleRead.isLoading && !isReloadingSchedule;
+  const isFetching = scheduleRead.isLoading || isReloadingSchedule;
+  const hasError = !isReloadingSchedule && scheduleRead.error !== null;
+
+  // Mirror whatever the read model published for the viewed month into the
+  // draft store. `reloadMonth` (rather than `ensureMonthLoaded`) is correct
+  // for both entry points here: for a clean month the two are identical, and
+  // for a dirty one the published rows are always genuinely newer than what
+  // the draft was based on - the read model only republishes a month after a
+  // save, a discard, or an explicit reload - so rebasing the unsaved edits on
+  // top of them is exactly what's wanted. The reference check skips the
+  // no-op case where the store is already sitting on these very rows (e.g.
+  // swiping back to an already-loaded month), which would otherwise churn
+  // every downstream memo for nothing.
   useEffect(() => {
+    if (monthRaws === null) return;
+    if (store.snapshot().savedByMonth.get(currentMonthKey) === monthRaws) {
+      return;
+    }
+    store.reloadMonth(currentMonthKey, monthRaws);
+  }, [monthRaws, currentMonthKey, store]);
+
+  // Sticky across month changes: once anything has resolved, first-paint
+  // skeletons are done for good (until an account switch resets it below).
+  useEffect(() => {
+    if (scheduleRead.data !== null || scheduleRead.error !== null) {
+      setLoaded(true);
+    }
+  }, [scheduleRead.data, scheduleRead.error]);
+
+  // --------------------------------------------------------------------
+  // Reservations for the viewed month
+  // --------------------------------------------------------------------
+
+  // Native Date(year, monthIndex, day) rather than dayjs's string parser:
+  // Safari's Date.parse rejects unpadded YYYY-M-DD strings (e.g. '2026-7-01')
+  // as Invalid Date, which would make endOfMonthUnix NaN and defeat the
+  // `res.next_dtend >= endOfMonthUnix` pagination-loop guard downstream.
+  const endOfMonthUnix = useMemo(
+    () =>
+      activeYear && activeMonth
+        ? dayjs(new Date(activeYear, activeMonth - 1, 1))
+            .endOf('month')
+            .unix()
+        : 0,
+    [activeYear, activeMonth]
+  );
+
+  const reservationsActive = isOwner && !!activeYear && !!activeMonth;
+
+  const upcomingKey = useMemo<ReservationReadKey | null>(
+    () =>
+      reservationsActive && loginUserId
+        ? { userId: loginUserId, state: 'MENTOR_UPCOMING', endOfMonthUnix }
+        : null,
+    [reservationsActive, loginUserId, endOfMonthUnix]
+  );
+  const pendingKey = useMemo<ReservationReadKey | null>(
+    () =>
+      reservationsActive && loginUserId
+        ? { userId: loginUserId, state: 'MENTOR_PENDING', endOfMonthUnix }
+        : null,
+    [reservationsActive, loginUserId, endOfMonthUnix]
+  );
+
+  const createReservationsFetcher = useCallback(
+    (state: ReservationState) => async (): Promise<FetchReservationsResult> => {
+      if (!loginUserId) return { items: [], next_dtend: 0 };
+      try {
+        const items = await fetchAllReservationsForState(
+          loginUserId,
+          state,
+          endOfMonthUnix
+        );
+        return { items, next_dtend: 0 };
+      } catch (err) {
+        // fetchAllReservationsForState already swallows its own fetch errors
+        // internally (returning whatever it collected before failing, never
+        // rejecting), so this only fires for something unexpected -
+        // defense-in-depth. Rethrowing keeps the read model's result in the
+        // error state, which is what holds `reservationsLoaded` false.
+        captureFlowFailure({
+          flow: 'mentor_schedule_fetch_reservations',
+          step: 'fetch_all_reservations',
+          message: err instanceof Error ? err.message : String(err),
+          level: 'warning',
+        });
+        throw err;
+      }
+    },
+    [loginUserId, endOfMonthUnix]
+  );
+
+  const fetchUpcoming = useMemo(
+    () => createReservationsFetcher('MENTOR_UPCOMING'),
+    [createReservationsFetcher]
+  );
+  const fetchPending = useMemo(
+    () => createReservationsFetcher('MENTOR_PENDING'),
+    [createReservationsFetcher]
+  );
+
+  const upcomingRead = useAsyncRead(
+    reservationReadModel,
+    upcomingKey,
+    fetchUpcoming,
+    RESERVATIONS_READ_OPTIONS
+  );
+  const pendingRead = useAsyncRead(
+    reservationReadModel,
+    pendingKey,
+    fetchPending,
+    RESERVATIONS_READ_OPTIONS
+  );
+
+  const reservations = useMemo<Reservation[]>(
+    () => [
+      ...(upcomingRead.data?.items ?? []),
+      ...(pendingRead.data?.items ?? []),
+    ],
+    [upcomingRead.data, pendingRead.data]
+  );
+
+  // Tracks the reservations read specifically (separate from monthLoaded,
+  // which only reflects the schedule/draft read). A booked slot's `status`
+  // comes from the schedule read and can resolve before this one, so a
+  // dot/label can show PENDING while `slot.reservation` (matched from
+  // `reservations`) is still unset - most visibly right after this hook
+  // remounts (e.g. navigating back to the profile page), which restarts both
+  // reads from scratch. Callers must gate any "click a booked slot" UI on
+  // this flag too, not just monthLoaded, or a fast click in that window can
+  // read a PENDING slot with no `reservation` attached yet and misfire
+  // whatever fallback that caller has for "no reservation". A failed read
+  // deliberately leaves this false rather than "loaded but incomplete".
+  const reservationsLoaded =
+    upcomingKey === null || pendingKey === null
+      ? true
+      : upcomingRead.data !== null && pendingRead.data !== null;
+
+  // --------------------------------------------------------------------
+  // Account switch
+  // --------------------------------------------------------------------
+
+  // Drop everything when the backend user changes - buffers belong to a
+  // specific user. prevUserIdRef is only ever written post-commit (inside
+  // the layout effect below), never during render - writing a ref during
+  // render is unsafe under Concurrent Mode, since a render React later
+  // discards would still have mutated it. In-flight async work in
+  // confirmChanges/resetChanges reads this ref after its await to detect an
+  // account switch that happened mid-flight, so a stale response for the
+  // old user never overwrites the draft store the new user is looking at.
+  // (The *read* paths need no such check: their keys carry the userId, so a
+  // late response can only ever land on the account it belongs to.)
+  const prevUserIdRef = useRef<string | null>(null);
+  useIsomorphicLayoutEffect(() => {
     if (
       prevUserIdRef.current !== null &&
       prevUserIdRef.current !== backend.userId
     ) {
-      clearAllScheduleCache();
-      setSavedByMonth(new Map());
-      setDraftByMonth(new Map());
-      setPendingDeleteByMonth(new Map());
-      setDirtyMonths(new Set());
+      scheduleReadModel.clear();
+      reservationReadModel.clear();
+      store.clearAll();
       setLoaded(false);
+      hasAutoSelectedRef.current = false;
     }
     prevUserIdRef.current = backend.userId;
-  }, [backend.userId]);
-
-  // Load the currently-viewed month into the buffer lazily. Months that are
-  // already buffered (clean OR dirty) are not re-applied: the per-month dirty
-  // guard inside `apply` protects unsaved edits even if a stale revalidate
-  // resolves later. Background revalidate still updates clean months silently.
-  useEffect(() => {
-    if (!backend.userId || !backend.year || !backend.month) return;
-    let ignore = false;
-
-    const monthKey = currentMonthKey;
-    const ref: ScheduleMonthRef = {
-      userId: backend.userId,
-      year: backend.year,
-      month: backend.month,
-    };
-
-    const apply = (raws: RawMentorTimeslot[]) => {
-      if (dirtyMonthsRef.current.has(monthKey)) return;
-      setSavedByMonth((prev) => {
-        const next = new Map(prev);
-        next.set(monthKey, raws);
-        return next;
-      });
-      setDraftByMonth((prev) => {
-        const next = new Map(prev);
-        next.set(monthKey, raws);
-        return next;
-      });
-    };
-
-    const hasBuffer = draftByMonth.has(monthKey);
-    const { cached, revalidate } = loadMonthScheduleCached(ref);
-
-    if (hasBuffer) {
-      // Already buffered earlier in this session — no fetch needed.
-      setLoaded(true);
-      setMonthLoaded(true);
-    } else if (cached) {
-      apply(cached);
-      setLoaded(true);
-      setMonthLoaded(true);
-    } else {
-      // Cache miss + no buffer: skeleton until revalidate lands. monthLoaded
-      // -> false so consumers can distinguish "fetching" from "settled empty";
-      // sticky `loaded` is left untouched.
-      setMonthLoaded(false);
-      setIsFetching(true);
-    }
-
-    revalidate
-      .then((raws) => {
-        if (ignore) return;
-        if (dirtyMonthsRef.current.has(monthKey)) return;
-        if (cached && JSON.stringify(cached) === JSON.stringify(raws)) {
-          setLoaded(true);
-          setMonthLoaded(true);
-          return;
-        }
-        apply(raws);
-        setLoaded(true);
-        setMonthLoaded(true);
-      })
-      .catch(() => {
-        // Treat fetch failure as "settled" so the UI doesn't hang on a
-        // skeleton; the user will see the empty state instead.
-        if (!ignore && !cached && !hasBuffer) {
-          setLoaded(true);
-          setMonthLoaded(true);
-        }
-      })
-      .finally(() => {
-        if (!ignore) setIsFetching(false);
-      });
-
-    return () => {
-      ignore = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backend.userId, backend.year, backend.month]);
+  }, [backend.userId, store]);
 
   // Prefetch the next month after the current month finishes loading, so
   // forward navigation hits cache. Past months are intentionally skipped.
   useEffect(() => {
     if (!loaded || !backend.userId) return;
-    const next = dayjs(`${backend.year}-${backend.month}-01`).add(1, 'month');
+    const next = dayjs(new Date(activeYear, activeMonth - 1, 1)).add(
+      1,
+      'month'
+    );
     const handle = setTimeout(() => {
       prefetchMonthSchedule({
         userId: backend.userId,
@@ -276,23 +397,24 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       });
     }, 0);
     return () => clearTimeout(handle);
-  }, [loaded, backend.userId, backend.year, backend.month]);
+  }, [loaded, backend.userId, activeYear, activeMonth]);
 
-  // Flatten all per-month draft buffers so calendar derivations cover every
-  // month the user has touched, not just the currently-viewed month.
-  const allDraftRaws = useMemo(() => {
-    const out: RawMentorTimeslot[] = [];
-    draftByMonth.forEach((raws) => out.push(...raws));
-    return out;
-  }, [draftByMonth]);
+  // --------------------------------------------------------------------
+  // Derived view models
+  // --------------------------------------------------------------------
 
-  const parsedDraft = useMemo(
-    () =>
-      allDraftRaws
-        .flatMap(formatTimeslot)
-        .sort((a, b) => a.start.getTime() - b.start.getTime()),
-    [allDraftRaws]
-  );
+  const parsedDraft = useMemo(() => {
+    const formatted = allDraftRaws.flatMap(formatTimeslot);
+    const seen = new Set<string>();
+    const out: ParsedMentorTimeslot[] = [];
+    for (const slot of formatted) {
+      if (!seen.has(slot.occurrenceId)) {
+        seen.add(slot.occurrenceId);
+        out.push(slot);
+      }
+    }
+    return out.sort((a, b) => a.start.getTime() - b.start.getTime());
+  }, [allDraftRaws]);
 
   const draftForSelectedDate = useMemo(
     () =>
@@ -302,380 +424,157 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     [parsedDraft, selectedDate]
   );
 
-  const allowedDates = useMemo(() => {
-    const dates = new Set<string>();
-    for (const slot of allDraftRaws) {
-      if (slot.type !== 'ALLOW') continue;
-      const occurrences = expandRrule(slot.dtstart, slot.rrule);
-      for (const occ of occurrences) {
-        if (slot.exdate.includes(occ)) continue;
-        dates.add(dayjs(occ * 1000).format('YYYY-MM-DD'));
+  // Compute booking availability read model using our extracted pure non-React module
+  const availabilityModel = useMemo(() => {
+    const nowSec = Math.floor(Date.now() / 1000);
+    return computeBookingAvailability({
+      draftRows: allDraftRaws,
+      nowSec,
+      includeBookedDates,
+      selectedDate,
+      reservations,
+    });
+  }, [allDraftRaws, includeBookedDates, selectedDate, reservations]);
+
+  const {
+    allowedDates,
+    availableDates,
+    bookedDates,
+    earliestSelectableDate,
+    bookingStatusByDate,
+    slotsWithMeta,
+    futureSlots,
+  } = availabilityModel;
+
+  // Initial earliest-date auto-selection once the schedule has loaded
+  useEffect(() => {
+    if (!loaded || hasAutoSelectedRef.current) return;
+    const firstAllow =
+      earliestSelectableDate ??
+      parsedDraft.find((s) => s.type === 'ALLOW')?.dateKey ??
+      null;
+    if (!firstAllow) return;
+    hasAutoSelectedRef.current = true;
+    setSelectedDate(firstAllow);
+    const [y, m] = firstAllow.split('-').map(Number);
+    if (y && m) {
+      setCursorYear(y);
+      setCursorMonth(m);
+    }
+  }, [loaded, earliestSelectableDate, parsedDraft, setSelectedDate]);
+
+  const handleMonthChange = useCallback(
+    (date: Date, options?: { preserveSelectedDate?: boolean }) => {
+      const newYear = date.getFullYear();
+      const newMonth = date.getMonth() + 1;
+      setCursorYear(newYear);
+      setCursorMonth(newMonth);
+
+      if (!options?.preserveSelectedDate) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const monthStart = new Date(newYear, newMonth - 1, 1);
+        const anchor = monthStart < today ? today : monthStart;
+        setSelectedDate(toDateKey(anchor));
+      }
+    },
+    [setSelectedDate]
+  );
+
+  const clampSelectedDateToToday = useCallback(() => {
+    if (!selectedDate) return;
+    const sel = new Date(selectedDate + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (sel < today) {
+      setSelectedDate(toDateKey(today));
+      const todayYear = today.getFullYear();
+      const todayMonth = today.getMonth() + 1;
+      if (todayYear !== activeYear || todayMonth !== activeMonth) {
+        setCursorYear(todayYear);
+        setCursorMonth(todayMonth);
       }
     }
-    return Array.from(dates);
-  }, [allDraftRaws]);
+  }, [selectedDate, setSelectedDate, activeYear, activeMonth]);
 
   const generateBookingSlots = useCallback(
     (dateKey: string): BookingSlot[] => {
-      const bookedStarts = new Set(
-        allDraftRaws.filter((s) => s.type === 'BOOKED').map((s) => s.dtstart)
-      );
-      const nowSec = Math.floor(Date.now() / 1000);
-      const result: BookingSlot[] = [];
-
-      for (const slot of allDraftRaws) {
-        if (slot.type !== 'ALLOW') continue;
-
-        const occurrences = expandRrule(slot.dtstart, slot.rrule);
-        const slotDuration = slot.dtend - slot.dtstart;
-
-        for (const occ of occurrences) {
-          if (slot.exdate.includes(occ)) continue;
-          if (occ <= nowSec) continue;
-          if (dayjs(occ * 1000).format('YYYY-MM-DD') !== dateKey) continue;
-          result.push({
-            start: new Date(occ * 1000),
-            end: new Date((occ + slotDuration) * 1000),
-            scheduleId: slot.id,
-            isBooked: bookedStarts.has(occ),
-          });
-        }
-      }
-
-      result.sort((a, b) => a.start.getTime() - b.start.getTime());
-      return result;
+      return availabilityModel.generateBookingSlots(dateKey, reservations);
     },
-    [allDraftRaws]
+    [availabilityModel, reservations]
   );
 
-  const updateMonthDraft = useCallback(
-    (
-      monthKey: MonthKey,
-      updater: (prev: RawMentorTimeslot[]) => RawMentorTimeslot[]
-    ): boolean => {
-      let changed = false;
-      setDraftByMonth((prev) => {
-        const current = prev.get(monthKey) ?? [];
-        const next = updater(current);
-        if (next === current) return prev;
-        changed = true;
-        const out = new Map(prev);
-        out.set(monthKey, next);
-        return out;
-      });
-      return changed;
-    },
-    []
+  // Bundles the selected date's slots with the two flags that gate whether
+  // it's safe to render/interact with them, so callers (e.g. the profile
+  // page UI) don't need to know how to call generateBookingSlots
+  // themselves or which flags travel with its result - see SlotsSnapshot.
+  const slotsSnapshot = useMemo<SlotsSnapshot>(
+    () => ({
+      slots: selectedDate ? generateBookingSlots(selectedDate) : [],
+      monthLoaded,
+      reservationsLoaded,
+    }),
+    [selectedDate, generateBookingSlots, monthLoaded, reservationsLoaded]
   );
 
-  const markDirty = useCallback((monthKey: MonthKey) => {
-    setDirtyMonths((prev) => {
-      if (prev.has(monthKey)) return prev;
-      const next = new Set(prev);
-      next.add(monthKey);
-      return next;
-    });
-  }, []);
+  const getDayBookingStatus: BookingCalendarReader['getDayBookingStatus'] =
+    useCallback(
+      (dateKey: string) => bookingStatusByDate.get(dateKey) ?? null,
+      [bookingStatusByDate]
+    );
 
-  // Slots are scoped to a specific month buffer; when the dialog calls a
-  // mutator with just an id we recover the owning month by scanning all
-  // loaded buffers (cheap — a mentor rarely buffers more than a few months
-  // per session).
-  const findMonthForSlotId = useCallback(
-    (id: number): MonthKey | null => {
-      let result: MonthKey | null = null;
-      draftByMonth.forEach((raws, key) => {
-        if (result !== null) return;
-        if (raws.some((r) => r.id === id)) result = key;
-      });
-      return result;
-    },
-    [draftByMonth]
-  );
+  // --------------------------------------------------------------------
+  // Draft mutations
+  // --------------------------------------------------------------------
 
-  const addSlotForSelectedDate: UseMentorScheduleReturn['addSlotForSelectedDate'] =
+  const addSlotForSelectedDate: MentorScheduleEditor['addSlotForSelectedDate'] =
     useCallback(
       ({ startTime, durationMinutes, weeklyWithinMonth }) => {
-        if (!selectedDate || !startTime) return { added: 0, skipped: 0 };
-
-        const startDayjs = buildDateTime(selectedDate, startTime);
-        if (!startDayjs.isValid()) return { added: 0, skipped: 0 };
-
-        const monthKey = monthKeyFromDateStr(selectedDate);
-        const durationSeconds = durationMinutes * 60;
-
-        // Walk same-weekday dates from selectedDate to month-end. The first
-        // entry is always the selected date itself; subsequent entries exist
-        // only when weeklyWithinMonth is true.
-        const candidateOccurrences: number[] = [];
-        if (weeklyWithinMonth) {
-          const selectedDay = dayjs(selectedDate);
-          let cursor = selectedDay;
-          while (cursor.month() === selectedDay.month()) {
-            const d = buildDateTime(cursor.format('YYYY-MM-DD'), startTime);
-            if (d.isValid()) {
-              candidateOccurrences.push(Math.floor(d.valueOf() / 1000));
-            }
-            cursor = cursor.add(7, 'day');
-          }
-        } else {
-          candidateOccurrences.push(Math.floor(startDayjs.valueOf() / 1000));
-        }
-
-        if (candidateOccurrences.length === 0) {
-          return { added: 0, skipped: 0 };
-        }
-
-        let added = 0;
-        let skipped = 0;
-        updateMonthDraft(monthKey, (prev) => {
-          // Reject the whole entry if any candidate occurrence overlaps an
-          // existing slot. This keeps weekly add atomic — we don't silently
-          // create a partial recurrence.
-          if (
-            hasAnyOccurrenceOverlap(
-              prev,
-              null,
-              candidateOccurrences,
-              durationSeconds
-            )
-          ) {
-            skipped = candidateOccurrences.length;
-            return prev;
-          }
-
-          const dtstart = candidateOccurrences[0];
-          const count = candidateOccurrences.length;
-          const rrule = count > 1 ? `FREQ=WEEKLY;COUNT=${count}` : undefined;
-
-          added = count;
-          return [
-            ...prev,
-            {
-              id: nextTempId(prev),
-              type: 'ALLOW' as const,
-              dtstart,
-              dtend: dtstart + durationSeconds,
-              rrule,
-              exdate: [],
-            },
-          ];
+        if (!selectedDate) return { added: 0, skipped: 0 };
+        const res = store.add({
+          startTime,
+          durationMinutes,
+          weeklyWithinMonth,
+          selectedDate,
         });
-
-        if (added > 0) markDirty(monthKey);
-        return { added, skipped };
+        return {
+          added: res.added,
+          skipped: res.skipped,
+        };
       },
-      [selectedDate, updateMonthDraft, markDirty]
+      [store, selectedDate]
     );
 
-  const updateDraftSlot: UseMentorScheduleReturn['updateDraftSlot'] =
-    useCallback(
-      (id, occurrenceUnix, patch) => {
-        const monthKey = findMonthForSlotId(id);
-        if (!monthKey) return false;
-
-        let succeeded = false;
-        updateMonthDraft(monthKey, (prev) => {
-          const target = prev.find((r) => r.id === id);
-          if (!target) return prev;
-
-          const baseDate = dayjs(occurrenceUnix * 1000).format('YYYY-MM-DD');
-          const fmtHM = (sec: number) => dayjs(sec * 1000).format('HH:mm');
-          const startHM = patch.startTime ?? fmtHM(occurrenceUnix);
-
-          const s = buildDateTime(baseDate, startHM);
-          if (!s.isValid()) return prev;
-
-          const newDtstart = Math.floor(s.valueOf() / 1000);
-          const oldDurationSeconds = target.dtend - target.dtstart;
-          const durationSeconds =
-            (patch.durationMinutes ?? Math.round(oldDurationSeconds / 60)) * 60;
-
-          // Recurring row: detach this occurrence (exdate it on the parent,
-          // emit a new non-recurring row with the patch) so sibling weeks
-          // stay untouched. Non-recurring row: mutate it in place.
-          const isRecurring = !!target.rrule;
-          const noChange =
-            newDtstart === occurrenceUnix &&
-            durationSeconds === oldDurationSeconds;
-          if (isRecurring && noChange) {
-            // Submitting the edit modal without changes shouldn't surface
-            // an overlap error — report success and skip the mutation.
-            succeeded = true;
-            return prev;
-          }
-
-          // Build the prospective next state and overlap-check it against
-          // candidate occurrences (excluding the parent row, whose own
-          // occurrence at occurrenceUnix is being replaced/exdated).
-          if (isRecurring) {
-            const updatedParent: RawMentorTimeslot = {
-              ...target,
-              exdate: target.exdate.includes(occurrenceUnix)
-                ? target.exdate
-                : [...target.exdate, occurrenceUnix],
-            };
-            const detachedRow: RawMentorTimeslot = {
-              id: nextTempId(prev),
-              type: 'ALLOW' as const,
-              dtstart: newDtstart,
-              dtend: newDtstart + durationSeconds,
-              rrule: undefined,
-              exdate: [],
-            };
-            const intermediate = prev.map((r) =>
-              r.id === id ? updatedParent : r
-            );
-            if (
-              hasAnyOccurrenceOverlap(
-                intermediate,
-                null,
-                [newDtstart],
-                durationSeconds
-              )
-            ) {
-              return prev;
-            }
-            succeeded = true;
-            return [...intermediate, detachedRow];
-          }
-
-          if (
-            hasAnyOccurrenceOverlap(prev, id, [newDtstart], durationSeconds)
-          ) {
-            return prev;
-          }
-
-          succeeded = true;
-          return prev.map((r) =>
-            r.id === id
-              ? {
-                  ...r,
-                  dtstart: newDtstart,
-                  dtend: newDtstart + durationSeconds,
-                  rrule: undefined,
-                  exdate: [],
-                }
-              : r
-          );
-        });
-
-        if (succeeded) markDirty(monthKey);
-        return succeeded;
-      },
-      [findMonthForSlotId, updateMonthDraft, markDirty]
-    );
-
-  const deleteDraftSlot = useCallback(
-    (id: number, occurrenceUnix: number) => {
-      const monthKey = findMonthForSlotId(id);
-      if (!monthKey) return;
-
-      let removedFromDraft = false;
-      updateMonthDraft(monthKey, (prev) => {
-        const target = prev.find((r) => r.id === id);
-        if (!target) return prev;
-
-        // Recurring row: only this occurrence is removed via exdate. If that
-        // would empty the row of active occurrences, drop the row entirely.
-        if (target.rrule) {
-          const updatedExdate = target.exdate.includes(occurrenceUnix)
-            ? target.exdate
-            : [...target.exdate, occurrenceUnix];
-          const updated: RawMentorTimeslot = {
-            ...target,
-            exdate: updatedExdate,
-          };
-          if (activeOccurrences(updated).length === 0) {
-            removedFromDraft = true;
-            return prev.filter((r) => r.id !== id);
-          }
-          return prev.map((r) => (r.id === id ? updated : r));
-        }
-
-        removedFromDraft = true;
-        return prev.filter((r) => r.id !== id);
-      });
-
-      // Only persisted rows that were fully removed need a backend DELETE.
-      // Detached/exdated rrule rows ride the next save via rrule + exdate.
-      if (removedFromDraft && id > 0) {
-        setPendingDeleteByMonth((prev) => {
-          const current = prev.get(monthKey) ?? [];
-          if (current.includes(id)) return prev;
-          const next = new Map(prev);
-          next.set(monthKey, [...current, id]);
-          return next;
-        });
-      }
-      markDirty(monthKey);
+  const updateDraftSlot: MentorScheduleEditor['updateDraftSlot'] = useCallback(
+    (id, occurrenceUnix, patch) => {
+      return store.edit(id, occurrenceUnix, patch, backend.userId);
     },
-    [findMonthForSlotId, updateMonthDraft, markDirty]
+    [store, backend.userId]
+  );
+
+  const deleteDraftSlot: MentorScheduleEditor['deleteDraftSlot'] = useCallback(
+    (id, occurrenceUnix) => {
+      store.delete(id, occurrenceUnix);
+    },
+    [store]
   );
 
   const confirmChanges = useCallback(async (): Promise<SyncResult> => {
     if (dirtyMonths.size === 0 || !backend.userId) return { ok: true };
 
-    const requests: MonthSyncRequest[] = Array.from(dirtyMonths).map(
-      (monthKey) => {
-        const { year, month } = parseMonthKey(monthKey);
-        const draftRaws = draftByMonth.get(monthKey) ?? [];
-        const pendingDeletes = pendingDeleteByMonth.get(monthKey) ?? [];
+    const requests = store.getSyncRequests(backend.userId);
 
-        const rawUpsert = draftRaws
-          .filter((r) => !pendingDeletes.includes(r.id) && r.type === 'ALLOW')
-          .map(toServiceSlot);
-
-        // Dedupe by (dtstart, dtend) within this month; queue any persisted
-        // duplicate for deletion to avoid PUT conflicts. Mirrors the original
-        // single-month behaviour from issue #224.
-        const seenKeys = new Map<string, number>();
-        const upsertPayload: TimeSlotDTO[] = [];
-        const extraDeleteIds: number[] = [];
-        for (const slot of rawUpsert) {
-          const key = `${slot.dtstart}_${slot.dtend}`;
-          if (!seenKeys.has(key)) {
-            seenKeys.set(key, upsertPayload.length);
-            upsertPayload.push(slot);
-          } else if (typeof slot.id === 'number' && slot.id > 0) {
-            extraDeleteIds.push(slot.id);
-          }
-        }
-
-        return {
-          ref: { userId: backend.userId, year, month },
-          upsertPayload,
-          deleteIds: [...pendingDeletes, ...extraDeleteIds],
-        };
-      }
-    );
-
+    const userIdAtStart = backend.userId;
     const results = await syncMonths(requests);
 
-    // Update buffers for every month that succeeded; leave failed months in
-    // place so the user can retry without losing edits.
-    setSavedByMonth((prev) => {
-      const next = new Map(prev);
-      for (const r of results)
-        if (r.outcome.ok) next.set(r.monthKey, r.outcome.raws);
-      return next;
-    });
-    setDraftByMonth((prev) => {
-      const next = new Map(prev);
-      for (const r of results)
-        if (r.outcome.ok) next.set(r.monthKey, r.outcome.raws);
-      return next;
-    });
-    setPendingDeleteByMonth((prev) => {
-      const next = new Map(prev);
-      for (const r of results) if (r.outcome.ok) next.delete(r.monthKey);
-      return next;
-    });
-    setDirtyMonths((prev) => {
-      const next = new Set(prev);
-      for (const r of results) if (r.outcome.ok) next.delete(r.monthKey);
-      return next;
-    });
+    // The user may have switched accounts while syncMonths was in flight
+    // (which resets the store to the new user's empty buffers). Skip only
+    // the commit in that case - writing the old user's results into that
+    // store would corrupt it - but still report the real outcome below so a
+    // genuine save failure isn't swallowed as a false success.
+    if (prevUserIdRef.current === userIdAtStart) {
+      store.commit(results);
+    }
 
     const firstFail = results.find((r) => !r.outcome.ok);
     if (firstFail && !firstFail.outcome.ok) {
@@ -686,63 +585,220 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       };
     }
     return { ok: true };
-  }, [
-    dirtyMonths,
-    draftByMonth,
-    pendingDeleteByMonth,
-    toServiceSlot,
-    backend.userId,
-  ]);
+  }, [dirtyMonths, backend.userId, store]);
 
   const resetChanges = useCallback(() => {
     if (!backend.userId || dirtyMonths.size === 0) return;
     const monthKeys = Array.from(dirtyMonths);
+    const userIdAtStart = backend.userId;
+    // Captured synchronously, before the await below, so a fast
+    // A -> B -> A account switch during the refetch can't read this back
+    // as B's (or an intervening clearAll's empty) savedByMonth - only to
+    // find prevUserIdRef back at A and wrongly treat that empty state as
+    // "A has no saved data" once the catch fallback runs.
+    const originalSaved = new Map(store.snapshot().savedByMonth);
     (async () => {
-      const reloaded = await Promise.all(
-        monthKeys.map(async (mk) => {
-          const { year, month } = parseMonthKey(mk);
-          const raws = await loadMonthScheduleFresh({
-            userId: backend.userId,
-            year,
-            month,
-          });
-          return [mk, raws] as const;
-        })
-      );
-      setSavedByMonth((prev) => {
-        const next = new Map(prev);
-        for (const [mk, raws] of reloaded) next.set(mk, raws);
-        return next;
-      });
-      setDraftByMonth((prev) => {
-        const next = new Map(prev);
-        for (const [mk, raws] of reloaded) next.set(mk, raws);
-        return next;
-      });
-      setPendingDeleteByMonth((prev) => {
-        const next = new Map(prev);
-        for (const [mk] of reloaded) next.delete(mk);
-        return next;
-      });
-      setDirtyMonths(new Set());
+      try {
+        const reloaded = await Promise.all(
+          monthKeys.map(async (mk) => {
+            const { year, month } = parseMonthKey(mk);
+            const raws = await loadMonthScheduleFresh({
+              userId: backend.userId,
+              year,
+              month,
+            });
+            return [mk, raws] as const;
+          })
+        );
+        // The user may have switched accounts while the refetch was in
+        // flight (which resets the store to the new user's empty buffers).
+        // Writing the old user's reloaded months now would corrupt it.
+        if (prevUserIdRef.current !== userIdAtStart) return;
+        store.reset(reloaded);
+      } catch (err) {
+        captureFlowFailure({
+          flow: 'mentor_schedule_reset',
+          step: 'reload_month_schedule',
+          message: err instanceof Error ? err.message : String(err),
+          level: 'warning',
+        });
+        if (prevUserIdRef.current !== userIdAtStart) return;
+        // Refetch failed: fall back to the pre-await saved snapshot for
+        // each dirty month so the draft still clears instead of leaving the
+        // UI stuck showing unsaved edits with no way to discard them.
+        const fallback = monthKeys.map(
+          (mk) => [mk, originalSaved.get(mk) ?? []] as const
+        );
+        store.reset(fallback);
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backend.userId, dirtyMonths]);
+  }, [backend.userId, dirtyMonths, store]);
 
-  return {
-    loaded,
-    monthLoaded,
-    isFetching,
-    selectedDate,
-    setSelectedDate,
-    parsedDraft,
+  // --------------------------------------------------------------------
+  // Reload
+  // --------------------------------------------------------------------
+
+  const reloadReservations = useCallback(async () => {
+    if (!upcomingKey || !pendingKey || !loginUserId) return;
+
+    // Neither this month's cache entry nor any other surface's is touched by
+    // hand here (X-Tracker #651): the write path itself (acceptReservation /
+    // rejectOrCancelReservation / createReservation, see
+    // invalidateReservationRead) is what invalidates the reads its own
+    // mutation actually affects. This reload just re-fetches this hook's own
+    // current month unconditionally and re-primes it below - a plain write,
+    // not an invalidation - so this view reflects its own mutation
+    // immediately instead of waiting out MENTOR_SCHEDULE_RESERVATIONS_TTL_MS.
+    // A failed fetch simply leaves whatever was cached before untouched,
+    // bounded by that same TTL rather than evicted outright.
+    //
+    // Each write is addressed by its own (user, state, month) key and cancels
+    // whatever fetch was in flight for it, so a slower competing read - the
+    // mount read for this very month, say - can neither win the race nor
+    // leak into a month or an account the user has since moved on to.
+    try {
+      const [upcoming, pending] = await Promise.all([
+        fetchAllReservationsForState(
+          loginUserId,
+          'MENTOR_UPCOMING',
+          endOfMonthUnix
+        ),
+        fetchAllReservationsForState(
+          loginUserId,
+          'MENTOR_PENDING',
+          endOfMonthUnix
+        ),
+      ]);
+      reservationReadModel.set(
+        upcomingKey,
+        { items: upcoming, next_dtend: 0 },
+        MENTOR_SCHEDULE_RESERVATIONS_TTL_MS
+      );
+      reservationReadModel.set(
+        pendingKey,
+        { items: pending, next_dtend: 0 },
+        MENTOR_SCHEDULE_RESERVATIONS_TTL_MS
+      );
+    } catch (err) {
+      captureFlowFailure({
+        flow: 'mentor_schedule_reload_reservations',
+        step: 'reload_reservations_for_state',
+        message: err instanceof Error ? err.message : String(err),
+        level: 'warning',
+      });
+    }
+  }, [upcomingKey, pendingKey, loginUserId, endOfMonthUnix]);
+
+  const reloadSchedule = useCallback(async () => {
+    if (!scheduleKey) return;
+    setIsReloadingSchedule(true);
+    try {
+      const published = await scheduleReadModel.refresh(
+        scheduleKey,
+        fetchMonthRaws
+      );
+      // `null` means the refresh never published - its month was cleared or
+      // overwritten mid-flight (an account switch), so there is no failure to
+      // report and nothing the user can act on.
+      if (published?.error) {
+        captureFlowFailure({
+          flow: 'mentor_schedule_reload_schedule',
+          step: 'reload_month_schedule_fresh',
+          message: published.error,
+          level: 'warning',
+        });
+      }
+    } finally {
+      setIsReloadingSchedule(false);
+    }
+  }, [scheduleKey, fetchMonthRaws]);
+
+  const reload = useCallback(async () => {
+    if (!scheduleKey) return;
+    await Promise.all([reloadReservations(), reloadSchedule()]);
+  }, [scheduleKey, reloadReservations, reloadSchedule]);
+
+  // --------------------------------------------------------------------
+  // Public interfaces
+  // --------------------------------------------------------------------
+
+  const reader: BookingCalendarReader = useMemo(
+    () => ({
+      year: activeYear,
+      month: activeMonth,
+      selectedDate,
+      setSelectedDate,
+      selectedSlot,
+      setSelectedSlot,
+      onMonthChange: handleMonthChange,
+      clampSelectedDateToToday,
+      allowedDates,
+      availableDates,
+      bookedDates,
+      earliestSelectableDate,
+      slotsSnapshot,
+      getDayBookingStatus,
+      isFetching,
+      reload,
+      hasError,
+    }),
+    [
+      activeYear,
+      activeMonth,
+      selectedDate,
+      setSelectedDate,
+      selectedSlot,
+      handleMonthChange,
+      clampSelectedDateToToday,
+      allowedDates,
+      availableDates,
+      bookedDates,
+      earliestSelectableDate,
+      slotsSnapshot,
+      getDayBookingStatus,
+      isFetching,
+      reload,
+      hasError,
+    ]
+  );
+
+  // Calendar navigation, month-loaded gating, and reload/error all live on
+  // `reader` (always present, above). The mentor managing their own schedule
+  // always receives both from this hook, so the editor only adds what's
+  // genuinely specific to draft mutation - it never re-declares a member
+  // `reader` already owns.
+  const editor: MentorScheduleEditor | null = useMemo(() => {
+    if (!isOwner) return null;
+    return {
+      draftForSelectedDate,
+      draftOccurrences: parsedDraft,
+      slotsWithMeta,
+      futureSlots,
+      addSlotForSelectedDate,
+      updateDraftSlot,
+      deleteDraftSlot,
+      confirmChanges,
+      resetChanges,
+      reservations,
+    };
+  }, [
+    isOwner,
     draftForSelectedDate,
-    allowedDates,
-    generateBookingSlots,
+    parsedDraft,
+    slotsWithMeta,
+    futureSlots,
     addSlotForSelectedDate,
     updateDraftSlot,
     deleteDraftSlot,
     confirmChanges,
     resetChanges,
+    reservations,
+  ]);
+
+  return {
+    loaded,
+    reader,
+    editor,
   };
 }

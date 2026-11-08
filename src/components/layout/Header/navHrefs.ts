@@ -1,0 +1,8 @@
+// Single source of truth for the userId-dependent nav destinations shared by
+// Header.tsx and HamburgerMenu.tsx, so the two never drift out of sync.
+
+export { getBecomeMentorHref } from '@/lib/routes';
+
+export function getProfileHref(userId: string | undefined): string {
+  return userId ? `/profile/${userId}` : '/';
+}

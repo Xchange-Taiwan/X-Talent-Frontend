@@ -1,18 +1,8 @@
-import { getSession } from 'next-auth/react';
-
 import {
-  fetchPresignedUrlByUserId,
+  fetchPresignedUrl,
   PresignedUrlData,
+  PresignedUrlFields,
 } from '@/services/profile/presignedUrl';
-
-interface PresignedUrlFields {
-  key: string;
-  AWSAccessKeyId: string;
-  'x-amz-security-token': string;
-  policy: string;
-  signature: string;
-  [key: string]: string;
-}
 
 // S3 presigned POST URLs are valid for 15 minutes; cap our cache at 10 to
 // leave headroom for the actual upload to complete before expiry.
@@ -44,12 +34,8 @@ function isCacheUsable(
 export function prefetchPresignedUrl(userId: number): void {
   if (!Number.isFinite(userId) || userId <= 0) return;
   if (isCacheUsable(presignedCache, userId)) return;
-  const promise = fetchPresignedUrlByUserId(userId).catch(() => null);
+  const promise = fetchPresignedUrl(userId).catch(() => null);
   presignedCache = { userId, fetchedAt: Date.now(), promise };
-}
-
-export function clearPresignedUrlCache(): void {
-  presignedCache = null;
 }
 
 async function consumePresignedUrl(
@@ -62,7 +48,7 @@ async function consumePresignedUrl(
     const result = await cached.promise;
     if (result) return result;
   }
-  return fetchPresignedUrlByUserId(userId);
+  return fetchPresignedUrl(userId);
 }
 
 // 你的後端 policy 有這條：["starts-with", "$Content-Type", "image/"]
@@ -74,15 +60,12 @@ async function uploadToS3WithPresignedPost(
 ): Promise<void> {
   const formData = new FormData();
 
-  // S3 Presigned POST: 必須先塞所有 fields
+  // S3 presigned-POST requires fields and policy-matching Content-Type to be appended before the file field.
   Object.entries(presigned.fields).forEach(([k, v]) => {
     formData.append(k, v);
   });
 
-  // 很多 presigned policy 會要求 Content-Type
   formData.append('Content-Type', avatarFile.type);
-
-  // S3 期待 file 欄位名稱是 file
   formData.append('file', avatarFile);
 
   // S3 upload uses raw fetch — not our API, so apiClient is not used here
@@ -117,16 +100,18 @@ function buildS3ObjectUrl(bucketUrl: string, key: string): string {
  * 1) Get a presigned URL (consumes the prefetched cache when available)
  * 2) Upload the file directly to S3 via presigned POST
  * 3) Return the public object URL (bucketUrl + key)
+ *
+ * `userId` is the caller's resolved auth identity — this service layer
+ * never reads session/auth state itself, so callers (hooks/components)
+ * are responsible for resolving it (e.g. via `useSession`).
  */
 export async function updateAvatar(
   avatarFile: File,
+  userId: number | undefined,
   signal?: AbortSignal
 ): Promise<string | undefined> {
   try {
-    const session = await getSession();
-    const userId = session?.user?.id;
-
-    if (!userId) {
+    if (!userId || !Number.isFinite(userId)) {
       throw new Error('未獲取到有效的身份驗證信息，請重新登入。');
     }
 
@@ -134,7 +119,7 @@ export async function updateAvatar(
       throw new Error('頭像檔案必須是圖片格式 (image/*)。');
     }
 
-    const presigned = await consumePresignedUrl(Number(userId));
+    const presigned = await consumePresignedUrl(userId);
     if (!presigned?.url || !presigned?.fields?.key) {
       throw new Error('取得 presigned url 失敗或回傳格式不完整');
     }

@@ -1,71 +1,113 @@
-'use client';
-
-/**
- * Centralized API client with automatic JWT token management.
- *
- * Usage:
- *   import { apiClient } from '@/lib/apiClient';
- *
- *   // Authenticated (default — Bearer token injected from NextAuth session)
- *   const data = await apiClient.get<UserDTO>('/v1/mentors/123/en/profile');
- *
- *   // Public endpoint (no token)
- *   const data = await apiClient.get<MentorType[]>('/v1/mentors', { auth: false });
- *
- *   // With query params
- *   const mentors = await apiClient.get<MentorType[]>('/v1/mentors', { params: { limit: 10 } });
- */
-
 import type { Session } from 'next-auth';
-import { getSession } from 'next-auth/react';
 
 import { captureApiFailure } from '@/lib/monitoring';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+import { singleFlight } from './singleFlight';
+
+let sessionGetter: () => Promise<Session | null> = () => Promise.resolve(null);
+
+export function setSessionGetter(getter: () => Promise<Session | null>) {
+  sessionGetter = getter;
+}
+
+// ─── Custom Errors ───────────────────────────────────────────────────────────
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
     message: string,
-    public readonly body?: unknown
+    public readonly code?: string
   ) {
     super(message);
     this.name = 'ApiError';
   }
 }
 
-type RequestOptions = {
+class MaintenanceError extends Error {
+  constructor() {
+    super('Maintenance mode');
+    this.name = 'MaintenanceError';
+  }
+}
+
+interface ApiResponseEnvelope<T> {
+  code: string;
+  msg: string;
+  data: T | null | undefined;
+}
+
+// SSR_API_URL is preferred when set, so server-side fetches inside a
+// Docker container can reach the BFF via the docker network DNS name
+// (e.g. http://bff:8000/api), while the browser bundle still uses
+// NEXT_PUBLIC_API_URL (e.g. http://localhost:8006/api).
+export const BASE_URL =
+  process.env.SSR_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? '';
+
+export type RequestOptions = Omit<RequestInit, 'body' | 'headers'> & {
   /** Attach Bearer token from NextAuth session. Respects JWT_ENABLED flag. Default: true */
   auth?: boolean;
-  /** Extra headers merged on top of defaults */
-  headers?: Record<string, string>;
   /** Query string params — undefined/null values are omitted */
   params?: Record<string, string | number | boolean | undefined | null>;
-  /** AbortSignal forwarded to fetch — caller controls cancellation */
-  signal?: AbortSignal;
+  /** Extra headers merged on top of defaults */
+  headers?: Record<string, string>;
+  /** Treat `path` as a local Next.js API route — skip prefixing BASE_URL. Default: false */
+  isLocal?: boolean;
+  /** Internal/External option to throw on maintenance mode instead of returning an unsettled promise */
+  throwOnMaintenance?: boolean;
 };
 
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError';
 }
 
-// ─── Internals ───────────────────────────────────────────────────────────────
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
+// Deduplicate concurrent session lookups. `sessionGetter` (next-auth's
+// imperative `getSession()`) always issues a fresh, uncached network
+// request - unlike the `useSession()` hook, it doesn't share the
+// SessionProvider's client-side state. A page that fires several
+// authenticated requests at once (e.g. loading multiple lists in
+// parallel) would otherwise trigger one `/api/auth/session` round trip
+// per request; singleFlight collapses concurrent callers onto the same
+// in-flight lookup so only the slowest response in a burst is paid once.
+//
+// Routine lookups and 401 refreshes use separate maps rather than sharing
+// one: a 401 refresh must always start a lookup that begins *after* the
+// 401 was observed. If it instead joined a routine lookup already in
+// flight (started before the 401 happened), it could get back the same
+// stale token that just failed, retry with it, and 401 again.
+const sessionLookupMap = new Map<'session', Promise<Session | null>>();
+const refreshMap = new Map<'refresh', Promise<Session | null>>();
 
-// Deduplicate concurrent 401 refresh calls — if multiple requests fail at once,
-// they all wait on the same refresh rather than each triggering a new one.
-let pendingRefresh: Promise<Session | null> | null = null;
-
-function refreshSession(): Promise<Session | null> {
-  if (!pendingRefresh) {
-    pendingRefresh = getSession().finally(() => {
-      pendingRefresh = null;
-    });
-  }
-  return pendingRefresh;
+function getSharedSession(): Promise<Session | null> {
+  if (typeof window === 'undefined') return Promise.resolve(null);
+  return singleFlight(sessionLookupMap, 'session', () => sessionGetter());
 }
 
-function buildUrl(path: string, params?: RequestOptions['params']): string {
-  const url = `${BASE_URL}${path}`;
+function refreshSession(): Promise<Session | null> {
+  if (typeof window === 'undefined') return Promise.resolve(null);
+  // Once a refresh completes, drop any routine lookup entry so the 401
+  // handler's retry (which calls getAuthHeader() -> getSharedSession())
+  // is forced to start a fresh lookup instead of possibly joining a
+  // routine lookup that was already in flight before the refresh even
+  // started, and could still resolve to the pre-refresh, stale token.
+  return singleFlight(refreshMap, 'refresh', () => sessionGetter()).finally(
+    () => {
+      sessionLookupMap.delete('session');
+    }
+  );
+}
+
+function isAbsoluteUrl(path: string): boolean {
+  // Also matches protocol-relative URLs (e.g. //evil.com) — without this,
+  // the browser would resolve them as external, but this check would treat
+  // them as internal and attach the user's auth token to them.
+  return /^(?:https?:)?\/\//i.test(path);
+}
+
+function buildUrl(
+  path: string,
+  params?: RequestOptions['params'],
+  isLocal = false
+): string {
+  const url = isAbsoluteUrl(path) || isLocal ? path : `${BASE_URL}${path}`;
   if (!params) return url;
 
   const query = new URLSearchParams();
@@ -80,7 +122,8 @@ function buildUrl(path: string, params?: RequestOptions['params']): string {
 }
 
 async function getAuthHeader(): Promise<Record<string, string>> {
-  const session = await getSession();
+  if (typeof window === 'undefined') return {};
+  const session = await getSharedSession();
   const token = session?.accessToken;
   if (!token) return {};
   return { Authorization: `Bearer ${token}` };
@@ -93,15 +136,32 @@ async function request<T>(
   options: RequestOptions = {},
   isRetry = false
 ): Promise<T> {
-  const { auth = true, headers = {}, params, signal } = options;
+  const {
+    auth = true,
+    headers = {},
+    params,
+    signal,
+    isLocal = false,
+    ...restOptions
+  } = options;
 
-  const authHeader = auth ? await getAuthHeader() : {};
+  // Never attach the user's session token to an absolute external URL —
+  // only relative paths (our own backend) are trusted to receive it.
+  const effectiveAuth = auth && !isAbsoluteUrl(path);
+
+  if (typeof window === 'undefined' && effectiveAuth) {
+    throw new Error(
+      'Server-side authenticated requests are not supported. Use auth: false.'
+    );
+  }
+
+  const authHeader = effectiveAuth ? await getAuthHeader() : {};
 
   const startTime = Date.now();
   let response: Response;
 
   try {
-    response = await fetch(buildUrl(path, params), {
+    response = await fetch(buildUrl(path, params, isLocal), {
       method,
       headers: {
         'Content-Type': 'application/json',
@@ -110,6 +170,7 @@ async function request<T>(
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       ...(signal ? { signal } : {}),
+      ...restOptions,
     });
   } catch (networkError) {
     // Caller-driven cancellation — not an error worth reporting.
@@ -136,6 +197,21 @@ async function request<T>(
   }
 
   if (!response.ok) {
+    if (
+      response.status === 503 &&
+      response.headers.get('X-Maintenance-Mode') === '1'
+    ) {
+      if (options?.throwOnMaintenance) {
+        throw new MaintenanceError();
+      }
+      if (typeof window !== 'undefined') {
+        if (window.location.pathname !== '/maintenance') {
+          window.location.href = '/maintenance';
+        }
+        return new Promise(() => {}); // Pause further execution during redirect
+      }
+    }
+
     const errorBody = await response.json().catch(() => ({}));
     const message =
       (errorBody as Record<string, string>).msg ||
@@ -148,7 +224,11 @@ async function request<T>(
       message,
       duration: Date.now() - startTime,
     });
-    throw new ApiError(response.status, message, errorBody);
+    throw new ApiError(
+      response.status,
+      message,
+      errorBody?.code ? String(errorBody.code) : undefined
+    );
   }
 
   // Handle 204 No Content and other empty responses
@@ -160,20 +240,107 @@ async function request<T>(
   return parsed;
 }
 
+// Helper to perform unwrapped requests and handle code checks centrally
+async function executeRequestUnwrapped<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  options?: RequestOptions
+): Promise<T | null | undefined> {
+  const result = await request<ApiResponseEnvelope<T>>(
+    method,
+    path,
+    body,
+    options
+  );
+
+  if (!result) {
+    return undefined;
+  }
+
+  if (result.code !== '0') {
+    const rawCode = result.code;
+    const numericStatus = Number(rawCode);
+    const validStatus =
+      !isNaN(numericStatus) && numericStatus >= 400 && numericStatus < 600
+        ? numericStatus
+        : 400;
+
+    throw new ApiError(validStatus, result.msg, rawCode);
+  }
+
+  return result.data;
+}
+
 // ─── Public API ──────────────────────────────────────────────────────────────
 export const apiClient = {
   get: <T>(path: string, options?: RequestOptions) =>
     request<T>('GET', path, undefined, options),
 
+  getUnwrapped: async <T>(
+    path: string,
+    options?: RequestOptions
+  ): Promise<T | null | undefined> => {
+    return executeRequestUnwrapped<T>('GET', path, undefined, options);
+  },
+
   post: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('POST', path, body, options),
+
+  postUnwrapped: async <T>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions
+  ): Promise<T | null | undefined> => {
+    return executeRequestUnwrapped<T>('POST', path, body, options);
+  },
 
   put: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('PUT', path, body, options),
 
+  putUnwrapped: async <T>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions
+  ): Promise<T | null | undefined> => {
+    return executeRequestUnwrapped<T>('PUT', path, body, options);
+  },
+
   patch: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('PATCH', path, body, options),
 
+  patchUnwrapped: async <T>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions
+  ): Promise<T | null | undefined> => {
+    return executeRequestUnwrapped<T>('PATCH', path, body, options);
+  },
+
   delete: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('DELETE', path, body, options),
+
+  deleteUnwrapped: async <T>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions
+  ): Promise<T | null | undefined> => {
+    return executeRequestUnwrapped<T>('DELETE', path, body, options);
+  },
+
+  getExternalBlob: async (
+    url: string,
+    options?: RequestOptions
+  ): Promise<Blob> => {
+    const { signal, ...restOptions } = options ?? {};
+    const response = await fetch(url, {
+      method: 'GET',
+      ...(signal ? { signal } : {}),
+      ...restOptions,
+    });
+    if (!response.ok) {
+      throw new Error(`fetch external blob failed: ${response.status}`);
+    }
+    return response.blob();
+  },
 };

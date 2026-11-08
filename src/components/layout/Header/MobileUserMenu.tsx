@@ -1,13 +1,10 @@
 'use client';
 
 import { Cross2Icon } from '@radix-ui/react-icons';
-import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import type { Session } from 'next-auth';
-import { signOut } from 'next-auth/react';
 import * as React from 'react';
 
-import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import { DeleteAccountDialog } from '@/components/auth/DeleteAccountDialog';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,86 +14,47 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
+import { useAccountMenu } from '@/hooks/layout/useAccountMenu';
+import { trackEvent } from '@/lib/analytics';
+import { ResolvedIdentity } from '@/lib/auth/sessionHint';
+import { GROUP_FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 
+import { FEEDBACK_FORM_URL, FIND_MENTOR_HREF } from './constants';
 import { ShareProfileDialog } from './ShareProfileDialog';
+import { UserAvatar } from './UserAvatar';
 
 export type MobileUserMenuProps = {
-  user: Session['user'];
+  identity: ResolvedIdentity;
+  user?: Session['user'];
 };
 
-export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
-  const router = useRouter();
+export function MobileUserMenu({
+  identity,
+  user,
+}: MobileUserMenuProps): JSX.Element {
   const [open, setOpen] = React.useState(false);
-  const [shareDialogOpen, setShareDialogOpen] = React.useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
 
-  const close = (): void => setOpen(false);
-
-  const userId = user.id;
-  const isMentor = Boolean(user.isMentor);
-  const canDeleteAccount = [
-    'testing_visitor@xchange.com.tw',
-    'testing_mentee@xchange.com.tw',
-    'testing_mentor@xchange.com.tw',
-  ].includes(user.email ?? '');
-  const name = user.name ?? '';
-  // Read through useCurrentAvatar so a just-uploaded avatar shows up before
-  // NextAuth's session round-trip lands. URL already carries its own `?v=`
-  // cache buster from upload time.
-  const avatarSrc = useCurrentAvatar() ?? '';
-  const jobTitle = user.jobTitle ?? '';
-  const company = user.company ?? '';
-  const personalLinks = user.personalLinks ?? [];
-
-  const profilePath = userId ? `/profile/${userId}` : '/';
-  const profileUrl =
-    typeof window !== 'undefined'
-      ? `${window.location.origin}${profilePath}`
-      : profilePath;
-
-  const subtitle =
-    jobTitle && company
-      ? `${jobTitle} at ${company}`
-      : jobTitle || company || '';
-
-  const handleGoProfile = (): void => {
-    close();
-    router.push(profilePath);
-  };
-
-  const handleShareProfile = (): void => {
-    if (!userId) return;
-    // Open dialog directly on top of the sheet (z-[101] > sheet z-50).
-    // Closing the sheet first causes a timing issue where the sheet's close
-    // animation is still running when the dialog tries to mount.
-    setShareDialogOpen(true);
-  };
-
-  const handleAsMentor = (): void => {
-    if (!userId) return;
-    close();
-    router.push(
-      isMentor
-        ? '/reservation/mentor'
-        : `/profile/${userId}/edit?onboarding=true`
-    );
-  };
-
-  const handleMyReservation = (): void => {
-    close();
-    router.push('/reservation/mentee');
-  };
-
-  const handleDeleteAccount = (): void => {
-    close();
-    requestAnimationFrame(() => setDeleteDialogOpen(true));
-  };
-
-  const handleLogout = (): void => {
-    close();
-    signOut();
-  };
+  const closeMenu = React.useCallback(() => setOpen(false), []);
+  const {
+    userId,
+    isMentor,
+    canDeleteAccount,
+    name,
+    avatarSrc,
+    subtitle,
+    personalLinks,
+    profilePath,
+    shareDialogOpen,
+    setShareDialogOpen,
+    deleteDialogOpen,
+    setDeleteDialogOpen,
+    handleGoProfile,
+    handleShareProfile,
+    handleAsMentor,
+    handleMyReservation,
+    handleDeleteAccount,
+    handleLogout,
+  } = useAccountMenu({ identity, user, closeMenu });
 
   return (
     <>
@@ -105,15 +63,13 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
           <button
             type="button"
             aria-label="開啟用戶選單"
-            className="flex items-center"
+            className="group flex items-center focus-visible:outline-none"
           >
-            <Image
-              src={avatarSrc || DefaultAvatarImgUrl}
-              alt={name ? `${name} 的頭像` : '我的頭像'}
-              width={32}
-              height={32}
-              sizes="32px"
-              className="h-8 w-8 rounded-full object-cover"
+            <UserAvatar
+              src={avatarSrc}
+              name={name}
+              size={30}
+              className={`size-[30px] transition-opacity group-hover:opacity-80 ${GROUP_FOCUS_RING_CLASSES}`}
               priority
             />
           </button>
@@ -129,7 +85,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
                 className="ml-auto"
               >
                 <Cross2Icon
-                  className="text-blue-900 h-8 w-8"
+                  className="text-brand-900 size-8"
                   aria-hidden="true"
                 />
               </button>
@@ -139,22 +95,21 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
             <button
               type="button"
               onClick={handleGoProfile}
-              className="flex items-center gap-4 pb-6 pt-4 text-left"
+              data-testid="profile-header-button"
+              className="group flex items-center gap-4 pt-4 pb-6 text-left focus-visible:outline-none"
             >
-              <Image
-                src={avatarSrc || DefaultAvatarImgUrl}
-                alt={name ? `${name} 的頭像` : '我的頭像'}
-                width={56}
-                height={56}
-                sizes="56px"
-                className="h-14 w-14 rounded-full object-cover"
+              <UserAvatar
+                src={avatarSrc}
+                name={name}
+                size={56}
+                className={`size-14 transition-opacity hover:opacity-80 ${GROUP_FOCUS_RING_CLASSES}`}
               />
               <div className="min-w-0">
-                <div className="text-black truncate text-2xl font-semibold">
+                <div className="text-text-primary truncate text-2xl font-semibold">
                   {name || '我的個人頁面'}
                 </div>
                 {subtitle ? (
-                  <div className="mt-1 truncate text-sm text-gray-500">
+                  <div className="text-text-tertiary mt-1 truncate text-sm">
                     {subtitle}
                   </div>
                 ) : null}
@@ -171,7 +126,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
               分享個人頁面
             </Button>
 
-            <div className="h-px w-full bg-muted" />
+            <div className="bg-background-bottom h-px w-full" />
 
             {/* Account actions */}
             <nav className="flex flex-col py-2">
@@ -179,23 +134,50 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
                 type="button"
                 onClick={handleAsMentor}
                 disabled={!userId}
-                className="text-black py-4 text-left text-xl disabled:opacity-50"
+                className="text-text-primary py-4 text-left text-xl disabled:opacity-50"
               >
                 {isMentor ? '導師預約管理' : '成為導師'}
               </button>
               <button
                 type="button"
                 onClick={handleMyReservation}
-                className="text-black py-4 text-left text-xl"
+                className="text-text-primary py-4 text-left text-xl"
               >
                 我的預約
               </button>
+
+              <Link
+                href={FIND_MENTOR_HREF}
+                onClick={closeMenu}
+                className="text-text-primary py-4 text-left text-xl"
+              >
+                尋找導師
+              </Link>
+              <Link
+                href="/about"
+                onClick={closeMenu}
+                className="text-text-primary py-4 text-left text-xl"
+              >
+                關於 X-Talent
+              </Link>
+              <a
+                href={FEEDBACK_FORM_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => {
+                  trackEvent({ name: 'feedback_open' });
+                  closeMenu();
+                }}
+                className="text-text-primary py-4 text-left text-xl"
+              >
+                提供回饋
+              </a>
             </nav>
 
             <div className="flex flex-col pb-6">
               <button
                 type="button"
-                className="text-black py-4 text-left text-xl"
+                className="text-text-primary py-4 text-left text-xl"
                 onClick={handleLogout}
               >
                 登出
@@ -203,7 +185,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
               {canDeleteAccount && (
                 <button
                   type="button"
-                  className="py-4 text-left text-xl text-destructive"
+                  className="text-status-error-default py-4 text-left text-xl"
                   onClick={handleDeleteAccount}
                 >
                   刪除帳號
@@ -223,12 +205,12 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
         open={shareDialogOpen}
         onOpenChange={(nextOpen) => {
           setShareDialogOpen(nextOpen);
-          if (!nextOpen) close();
+          if (!nextOpen) closeMenu();
         }}
         name={name || '我的個人頁面'}
         avatarSrc={avatarSrc}
         subtitle={subtitle}
-        profileUrl={profileUrl}
+        profilePath={profilePath}
         personalLinks={personalLinks}
       />
     </>

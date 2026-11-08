@@ -2,7 +2,7 @@
 
 import AuthTitle from '@/components/auth/AuthTitle';
 import Divider from '@/components/auth/Divider';
-import GoogleSignUpButton from '@/components/auth/GoogleButton';
+import GoogleButton from '@/components/auth/GoogleButton';
 import SignInForm from '@/components/auth/signin/SignInForm';
 import useSignInForm from '@/hooks/auth/useSignInForm';
 
@@ -15,7 +15,7 @@ export default function Page() {
         <AuthTitle>登入 X-Talent 帳戶</AuthTitle>
         <SignInForm {...signInFormProps} />
         <Divider>或</Divider>
-        <GoogleSignUpButton
+        <GoogleButton
           isSubmitting={signInFormProps.isSubmitting}
           label="使用 Google 帳號登入"
           isSignIn={true}

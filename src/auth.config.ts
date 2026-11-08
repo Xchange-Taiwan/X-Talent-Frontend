@@ -2,9 +2,52 @@ import { cookies } from 'next/headers';
 import type { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 
-import { OAUTH_REFRESH_BRIDGE_COOKIE } from '@/lib/auth/oauthRefreshBridge';
+import { consumeOAuthRefreshBridge } from '@/lib/auth/oauthRefreshBridge';
+import { singleFlight } from '@/lib/singleFlight';
+import { isSafeUrl } from '@/lib/url/isSafeUrl';
 import { SignInSchema } from '@/schemas/auth';
-import { refreshAccessToken } from '@/services/auth/refreshToken';
+import {
+  refreshAccessToken,
+  extractRefreshToken,
+} from '@/services/auth/refreshToken';
+
+export interface MentorExperience {
+  category: string;
+  mentor_experiences_metadata?: {
+    data?: unknown[];
+  };
+}
+
+export interface PersonalLink {
+  platform: string;
+  url: string;
+}
+
+function isPersonalLink(l: unknown): l is PersonalLink {
+  if (typeof l !== 'object' || l === null) return false;
+  const raw = l as Record<string, unknown>;
+  return (
+    typeof raw.url === 'string' &&
+    typeof raw.platform === 'string' &&
+    Boolean(raw.url) &&
+    isSafeUrl(raw.url)
+  );
+}
+
+export function resolveMentorExperienceLinks(
+  experiences: MentorExperience[] | undefined | null
+): PersonalLink[] {
+  if (!experiences) return [];
+  return experiences
+    .filter((exp) => exp.category === 'LINK')
+    .flatMap((exp) => {
+      const list = exp.mentor_experiences_metadata?.data;
+      return Array.isArray(list) ? list : [];
+    })
+    .filter(isPersonalLink);
+}
+
+export const REFRESH_SKEW_SECONDS = 300;
 
 function decodeJwtExp(jwtString: string): number | null {
   try {
@@ -21,11 +64,6 @@ function decodeJwtExp(jwtString: string): number | null {
   }
 }
 
-function extractRefreshToken(headers: Headers): string | undefined {
-  const setCookie = headers.get('set-cookie') ?? '';
-  return setCookie.match(/refresh_token=([^;,]+)/)?.[1] ?? undefined;
-}
-
 // BFF rotates the refresh_token on every /v1/auth/token call (revokes the old
 // rt:* index immediately). Concurrent jwt callbacks reading the same stored
 // refresh token would all POST it; first wins, the rest get invalid_grant.
@@ -38,14 +76,78 @@ const inflightRefresh = new Map<
 function refreshAccessTokenSingleflight(
   currentRefreshToken: string
 ): ReturnType<typeof refreshAccessToken> {
-  const existing = inflightRefresh.get(currentRefreshToken);
-  if (existing) return existing;
-  const promise = refreshAccessToken(currentRefreshToken).finally(() => {
-    inflightRefresh.delete(currentRefreshToken);
-  });
-  inflightRefresh.set(currentRefreshToken, promise);
-  return promise;
+  return singleFlight(inflightRefresh, currentRefreshToken, () =>
+    refreshAccessToken(currentRefreshToken)
+  );
 }
+
+export const jwtCallback: NonNullable<
+  NextAuthOptions['callbacks']
+>['jwt'] = async ({ token, user, account, trigger, session }) => {
+  if (user) {
+    return {
+      ...token,
+      ...user,
+      ...(account ? { provider: account.provider } : {}),
+    };
+  }
+
+  if (trigger === 'update' && session?.user) {
+    return {
+      ...token,
+      ...session.user,
+    };
+  }
+
+  const backendToken = token.token;
+  const storedRefreshToken = token.refreshToken;
+
+  if (backendToken && storedRefreshToken) {
+    const exp = decodeJwtExp(backendToken);
+    const isExpiringSoon =
+      exp !== null && exp - Date.now() / 1000 < REFRESH_SKEW_SECONDS;
+
+    if (isExpiringSoon) {
+      try {
+        const { token: newToken, refreshToken: newRefreshToken } =
+          await refreshAccessTokenSingleflight(storedRefreshToken);
+        return {
+          ...token,
+          token: newToken,
+          refreshToken: newRefreshToken ?? storedRefreshToken,
+          error: undefined,
+        };
+      } catch {
+        return { ...token, error: 'RefreshTokenError' as const };
+      }
+    }
+  }
+
+  return token;
+};
+
+export const sessionCallback: NonNullable<
+  NextAuthOptions['callbacks']
+>['session'] = async ({ session, token }) => {
+  session.user = {
+    id: (token.id as string | undefined) ?? undefined,
+    name: (token.name as string | null | undefined) ?? undefined,
+    avatar: (token.avatar as string | undefined) ?? undefined,
+    avatarUpdatedAt: (token.avatarUpdatedAt as number | undefined) ?? undefined,
+    onBoarding: (token.onBoarding as boolean | undefined) ?? undefined,
+    isMentor: (token.isMentor as boolean | undefined) ?? undefined,
+    jobTitle: (token.jobTitle as string | undefined) ?? undefined,
+    company: (token.company as string | undefined) ?? undefined,
+    personalLinks: token.personalLinks ?? [],
+    msg: (token.msg as string | undefined) ?? undefined,
+  };
+
+  session.accessToken = (token.token as string | undefined) ?? undefined;
+  session.user.provider = (token.provider as string | undefined) ?? undefined;
+  session.user.email = (token.email as string | undefined) ?? undefined;
+  session.error = token.error;
+  return session;
+};
 
 const authOptions = {
   session: { strategy: 'jwt' },
@@ -77,25 +179,14 @@ const authOptions = {
         const response = await res.json();
         if (!res.ok || !response?.data) return null;
 
-        const experiences: {
-          category: string;
-          mentor_experiences_metadata?: { data?: unknown[] };
-        }[] = response.data.user.experiences ?? [];
-        const personalLinks = experiences
-          .filter((exp) => exp.category === 'LINK')
-          .flatMap(
-            (exp) =>
-              (exp.mentor_experiences_metadata?.data ?? []) as {
-                platform: string;
-                url: string;
-              }[]
-          )
-          .filter((l) => Boolean(l.url));
+        const personalLinks = resolveMentorExperienceLinks(
+          response.data.user.experiences
+        );
 
         return {
           id: String(response.data.auth.user_id),
           token: response.data.auth.token,
-          refreshToken: extractRefreshToken(res.headers),
+          refreshToken: extractRefreshToken(res.headers) ?? undefined,
           email: response.data.auth.email,
           onBoarding: response.data.user.onboarding,
           isMentor: response.data.user.is_mentor,
@@ -123,26 +214,10 @@ const authOptions = {
         try {
           const user = JSON.parse(credentials.user as string);
 
-          const cookieStore = cookies();
-          const refreshToken = cookieStore.get(
-            OAUTH_REFRESH_BRIDGE_COOKIE
-          )?.value;
-          cookieStore.delete(OAUTH_REFRESH_BRIDGE_COOKIE);
+          const cookieStore = await cookies();
+          const refreshToken = consumeOAuthRefreshBridge(cookieStore);
 
-          const experiences: {
-            category: string;
-            mentor_experiences_metadata?: { data?: unknown[] };
-          }[] = user.experiences ?? [];
-          const personalLinks = experiences
-            .filter((exp) => exp.category === 'LINK')
-            .flatMap(
-              (exp) =>
-                (exp.mentor_experiences_metadata?.data ?? []) as {
-                  platform: string;
-                  url: string;
-                }[]
-            )
-            .filter((l) => Boolean(l.url));
+          const personalLinks = resolveMentorExperienceLinks(user.experiences);
 
           return {
             id: String(user.user_id),
@@ -166,70 +241,8 @@ const authOptions = {
   ],
 
   callbacks: {
-    async jwt({ token, user, account, trigger, session }) {
-      if (user) {
-        return {
-          ...token,
-          ...user,
-          ...(account ? { provider: account.provider } : {}),
-        };
-      }
-
-      if (trigger === 'update' && session?.user) {
-        return {
-          ...token,
-          ...session.user,
-        };
-      }
-
-      const backendToken = token.token;
-      const storedRefreshToken = token.refreshToken;
-
-      if (backendToken && storedRefreshToken) {
-        const exp = decodeJwtExp(backendToken);
-        const isExpiringSoon = exp !== null && exp - Date.now() / 1000 < 300;
-
-        if (isExpiringSoon) {
-          try {
-            const { token: newToken, refreshToken: newRefreshToken } =
-              await refreshAccessTokenSingleflight(storedRefreshToken);
-            return {
-              ...token,
-              token: newToken,
-              refreshToken: newRefreshToken ?? storedRefreshToken,
-              error: undefined,
-            };
-          } catch {
-            return { ...token, error: 'RefreshTokenError' as const };
-          }
-        }
-      }
-
-      return token;
-    },
-
-    async session({ session, token }) {
-      session.user = {
-        id: (token.id as string | undefined) ?? undefined,
-        name: (token.name as string | null | undefined) ?? undefined,
-        avatar: (token.avatar as string | undefined) ?? undefined,
-        avatarUpdatedAt:
-          (token.avatarUpdatedAt as number | undefined) ?? undefined,
-        onBoarding: (token.onBoarding as boolean | undefined) ?? undefined,
-        isMentor: (token.isMentor as boolean | undefined) ?? undefined,
-        jobTitle: (token.jobTitle as string | undefined) ?? undefined,
-        company: (token.company as string | undefined) ?? undefined,
-        personalLinks: token.personalLinks ?? [],
-        msg: (token.msg as string | undefined) ?? undefined,
-      };
-
-      session.accessToken = (token.token as string | undefined) ?? undefined;
-      session.user.provider =
-        (token.provider as string | undefined) ?? undefined;
-      session.user.email = (token.email as string | undefined) ?? undefined;
-      session.error = token.error;
-      return session;
-    },
+    jwt: jwtCallback,
+    session: sessionCallback,
   },
 
   secret: process.env.NEXTAUTH_SECRET,

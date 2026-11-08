@@ -1,31 +1,19 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useMemo, useRef, useState, useTransition } from 'react';
+import { useMemo } from 'react';
 
-import avatarImage from '@/assets/default-avatar.png';
-import type {
-  FilterOptions,
-  SelectFilters,
-} from '@/components/filter/MentorFilterDropdown';
+import type { FilterOptions } from '@/components/filter/MentorFilterDropdown';
+import { useMentorPool } from '@/hooks/useMentorPool';
+import { useMentorPoolFilters } from '@/hooks/useMentorPoolFilters';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
-import { trackEvent } from '@/lib/analytics';
+import { buildTagLabelMap } from '@/lib/profile/tagLabelMap';
+import type { MentorType } from '@/types/mentor';
 import type {
   TagCatalogGroupVO,
   TagCatalogsByBucket,
-} from '@/services/profile/tagCatalog';
-import { fetchMentors, MentorType } from '@/services/search-mentor/mentors';
+} from '@/types/tagCatalog';
 
-import { PAGE_LIMIT } from './constants';
 import { filterOptions } from './data';
-import {
-  buildHref,
-  clearAllConditions,
-  paramsToFetchConditions,
-  parseFiltersFromParams,
-  removeFilterFromParams,
-  setSelectedFiltersOnParams,
-} from './searchParams';
 import MentorPoolUI from './ui';
 
 // BE search index stores filter targets (industry, skills, topics) as the
@@ -46,7 +34,7 @@ function flattenLeaves(
   groups: TagCatalogGroupVO[]
 ): { subject_group: string; subject: string }[] {
   return groups.flatMap((g) =>
-    g.leaves.map((leaf) => ({
+    (g.leaves ?? []).map((leaf) => ({
       subject_group: leaf.subject_group,
       subject: leaf.subject,
     }))
@@ -55,21 +43,17 @@ function flattenLeaves(
 
 interface Props {
   initialMentors: MentorType[];
-  initialCursor: string;
   initialMentorCount: number;
   initialTagCatalog: TagCatalogsByBucket;
+  initialError?: boolean;
 }
 
 export default function MentorPoolContainer({
   initialMentors,
-  initialCursor,
   initialMentorCount,
   initialTagCatalog,
+  initialError,
 }: Props) {
-  const router = useRouter();
-  const params = useSearchParams();
-  const [isPending, startTransition] = useTransition();
-  const selectedFilters = parseFiltersFromParams(params);
   const tagCatalog = useTagCatalog('zh_TW', initialTagCatalog);
 
   const dynamicFilterOptions = useMemo<FilterOptions>(
@@ -91,126 +75,49 @@ export default function MentorPoolContainer({
     [tagCatalog.have_skill, tagCatalog.have_topic, tagCatalog.industry]
   );
 
-  // /v1/mentors returns have_topic as subject_group codes (e.g.
-  // "promotion_review"), not the localized labels — translate via the catalog
-  // so cards show the zh_TW subject (e.g. "升遷考核制度"). Falls back to the
-  // code if a tag isn't in the catalog (legacy or unpublished tag).
-  const haveTopicLabelMap = useMemo(() => {
-    const map = new Map<string, string>();
-    tagCatalog.have_topic.forEach((g) =>
-      g.leaves.forEach((l) => map.set(l.subject_group, l.subject))
-    );
-    return map;
-  }, [tagCatalog.have_topic]);
+  const {
+    params,
+    selectedFilters,
+    activeFilterBadges,
+    isReplacing,
+    setFilters,
+    removeFilter,
+    clearAll,
+  } = useMentorPoolFilters({ filterOptions: dynamicFilterOptions });
 
-  const [mentorCount, setMentorCount] = useState<number>(initialMentorCount);
-  const [mentors, setMentors] = useState<MentorType[]>(initialMentors);
-  const [isNoResults, setIsNoResults] = useState(initialMentors.length === 0);
-  const [isLoading, setIsLoading] = useState(false);
-  const [cursor, setCursor] = useState<string | undefined>(initialCursor);
-  const isLoadingRef = useRef(false);
-  // Monotonic counter — every fetch claims an id. Late responses whose id no
-  // longer matches the current value are stale and must not touch state.
-  const requestIdRef = useRef(0);
+  const labelMap = useMemo(() => buildTagLabelMap(tagCatalog), [tagCatalog]);
 
-  const fetchMoreMentors = useCallback(async () => {
-    const myRequestId = ++requestIdRef.current;
-    const conditions = paramsToFetchConditions(params);
-    const param = {
-      ...conditions,
-      limit: PAGE_LIMIT,
-      cursor,
-    };
-    setIsLoading(true);
-    isLoadingRef.current = true;
-    let rtnList: MentorType[] = [];
-    try {
-      rtnList = (await fetchMentors(param)).map((mentor) => ({
-        ...mentor,
-        avatar:
-          typeof mentor.avatar === 'string' && mentor.avatar
-            ? `${mentor.avatar}${mentor.updated_at ? `?cb=${mentor.updated_at}` : ''}`
-            : avatarImage,
-      }));
-    } finally {
-      if (myRequestId === requestIdRef.current) {
-        setIsLoading(false);
-        isLoadingRef.current = false;
-      }
-    }
-    if (myRequestId !== requestIdRef.current) return;
-    if (rtnList.length > 0) {
-      setMentors((prevMentors) => {
-        const newMentors = rtnList.filter(
-          (newMentor) =>
-            !prevMentors.some(
-              (prevMentor) => prevMentor.user_id === newMentor.user_id
-            )
-        );
-        return [...prevMentors, ...newMentors];
-      });
-      setMentorCount((prev) => prev + rtnList.length);
-      setCursor(rtnList.at(-1)?.updated_at?.toString());
-      return;
-    }
-    setIsNoResults(true);
-  }, [params, cursor]);
-
-  const handleScrollToBottom = useCallback(async () => {
-    if (mentors.length % PAGE_LIMIT || isLoadingRef.current) return;
-    await fetchMoreMentors();
-  }, [mentors.length, fetchMoreMentors]);
-
-  const handleFilterChange = useCallback(
-    (filters: SelectFilters) => {
-      const next = setSelectedFiltersOnParams(params, filters);
-      startTransition(() => {
-        router.push(buildHref(next));
-      });
-    },
-    [params, router]
-  );
-
-  const handleRemoveFilter = useCallback(
-    (key: string) => {
-      const next = removeFilterFromParams(params, key);
-      startTransition(() => {
-        router.push(buildHref(next));
-      });
-    },
-    [params, router]
-  );
-
-  const handleClearAll = useCallback(() => {
-    trackEvent({ name: 'mentor_pool_clear_all_filters_click' });
-    const next = clearAllConditions(params);
-    startTransition(() => {
-      router.push(buildHref(next));
-    });
-  }, [params, router]);
-
-  const mentorsForUI = useMemo(
-    () =>
-      mentors.map((m) => ({
-        ...m,
-        have_topic: m.have_topic.map((c) => haveTopicLabelMap.get(c) ?? c),
-      })),
-    [mentors, haveTopicLabelMap]
-  );
+  // All state management, pagination tracking, and error handling are delegated to custom hook
+  const {
+    mentors,
+    mentorCount,
+    isLoading,
+    listStatus,
+    handleScrollToBottom,
+    handleRetry,
+  } = useMentorPool({
+    initialMentors,
+    initialMentorCount,
+    params,
+    labelMap,
+    initialError,
+  });
 
   return (
     <MentorPoolUI
-      mentors={mentorsForUI}
+      mentors={mentors}
       mentorCount={mentorCount}
       isLoading={isLoading}
-      isReplacing={isPending}
-      isNoResults={isNoResults}
+      isReplacing={isReplacing}
+      listStatus={listStatus}
       selectedFilters={selectedFilters}
+      activeFilterBadges={activeFilterBadges}
       filterOptions={dynamicFilterOptions}
-      onFilterChange={handleFilterChange}
-      onRemoveFilter={handleRemoveFilter}
-      onClearAll={handleClearAll}
+      onFilterChange={setFilters}
+      onRemoveFilter={removeFilter}
+      onClearAll={clearAll}
       onScrollToBottom={handleScrollToBottom}
+      onRetry={handleRetry}
     />
   );
 }

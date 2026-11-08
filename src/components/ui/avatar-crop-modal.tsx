@@ -1,8 +1,9 @@
-import { Modal, Slider } from '@mui/material';
 import React, { useEffect, useRef, useState } from 'react';
 import AvatarEditor from 'react-avatar-editor';
 
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Slider } from '@/components/ui/slider';
 
 interface AvatarCropModalProps {
   file: File | null;
@@ -109,55 +110,59 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
   };
 
   return (
-    <Modal open={isOpen} onClose={onClose}>
-      <div
-        className="fixed inset-0 flex items-center justify-center p-4"
-        onClick={(e) => e.stopPropagation()}
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent
+        className="bg-avatar-background flex max-h-[95vh] w-fit max-w-[95vw] flex-col items-center justify-center overflow-y-auto rounded-lg border-none p-6 shadow-lg sm:rounded-lg [&>button]:hidden"
+        aria-describedby={undefined}
       >
-        <div className="max-h-full overflow-y-auto rounded-lg bg-[#F4FCFC] p-6 shadow-lg">
-          {file && (
-            <div
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
-              onTouchCancel={handleTouchEnd}
+        <DialogTitle className="sr-only">剪裁大頭貼</DialogTitle>
+        {file && (
+          <div
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchEnd}
+            className="touch-none"
+          >
+            <AvatarEditor
+              ref={editorRef}
+              image={file}
+              width={editorSize}
+              height={editorSize}
+              border={50}
+              borderRadius={300}
+              scale={zoomScale}
               style={{ touchAction: 'none' }}
-            >
-              <AvatarEditor
-                ref={editorRef}
-                image={file}
-                width={editorSize}
-                height={editorSize}
-                border={50}
-                borderRadius={300}
-                scale={zoomScale}
-                style={{ touchAction: 'none' }}
-              />
-            </div>
-          )}
-          <Slider
-            value={zoomScale}
-            min={MIN_SCALE}
-            max={MAX_SCALE}
-            step={0.1}
-            onChange={(_, newScale) => setZoomScale(newScale as number)}
-            className="mt-4"
-          />
-          <div className="mt-4 flex justify-center gap-3">
-            <Button
-              variant="outline"
-              onClick={onClose}
-              className="rounded-xl px-12"
-            >
-              取消
-            </Button>
-            <Button onClick={handleSaveImage} className="rounded-xl px-12">
-              儲存
-            </Button>
+            />
           </div>
+        )}
+        <Slider
+          className="mt-4"
+          value={[zoomScale]}
+          min={MIN_SCALE}
+          max={MAX_SCALE}
+          step={0.1}
+          onValueChange={(value: number[]) => setZoomScale(value[0])}
+        />
+        <div className="mt-4 flex w-full justify-center gap-3">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            className="rounded-xl px-12"
+          >
+            取消
+          </Button>
+          <Button onClick={handleSaveImage} className="rounded-xl px-12">
+            儲存
+          </Button>
         </div>
-      </div>
-    </Modal>
+      </DialogContent>
+    </Dialog>
   );
 };
 

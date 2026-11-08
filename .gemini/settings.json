@@ -1,0 +1,28 @@
+{
+  "model": {
+    "name": "gemini-4-argon"
+  },
+  "mcpServers": {
+    "genable": {
+      "command": "npx",
+      "args": ["-y", "genable-mcp"],
+      "env": {},
+      "trust": true
+    }
+  },
+  "hooks": {
+    "AfterAgent": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .agents/scripts/hooks/gemini-verify-board-status.mjs",
+            "timeout": 30000,
+            "name": "verify-board-status"
+          }
+        ]
+      }
+    ]
+  }
+}

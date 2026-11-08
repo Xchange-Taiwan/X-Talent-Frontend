@@ -1,12 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ApiError } from '@/lib/apiClient';
 import { resetPassword } from '@/services/auth/resetPassword';
 
-vi.mock('@/lib/apiClient', () => ({
-  apiClient: {
-    put: vi.fn(),
-  },
-}));
+vi.mock('@/lib/apiClient', async (importActual) => {
+  const actual = await importActual<typeof import('@/lib/apiClient')>();
+  return {
+    ...actual,
+    apiClient: {
+      ...actual.apiClient,
+      putUnwrapped: vi.fn(),
+    },
+  };
+});
 
 import { apiClient } from '@/lib/apiClient';
 
@@ -15,36 +21,20 @@ describe('resetPassword', () => {
     vi.clearAllMocks();
   });
 
-  it('apiClient.put resolves with code "0" → returns { status: "success", code: 200 }', async () => {
-    vi.mocked(apiClient.put).mockResolvedValue({
-      code: '0',
-      msg: 'ok',
-      data: null,
-    });
-
-    const result = await resetPassword('token123', 'NewPass1!', 'NewPass1!');
-
-    expect(result).toEqual({ status: 'success', code: 200 });
-  });
-
-  it('throws existing AuthResponse error → re-throws original error unchanged', async () => {
-    const authError = { status: 'error', code: 400, message: '無效的 token' };
-    vi.mocked(apiClient.put).mockRejectedValue(authError);
+  it('apiClient.putUnwrapped resolves successfully → returns successfully', async () => {
+    vi.mocked(apiClient.putUnwrapped).mockResolvedValue(null);
 
     await expect(
       resetPassword('token123', 'NewPass1!', 'NewPass1!')
-    ).rejects.toEqual(authError);
+    ).resolves.toBeUndefined();
   });
 
-  it('throws unknown error → wraps in createGeneralErrorResponse(500, ...)', async () => {
-    vi.mocked(apiClient.put).mockRejectedValue(new Error('網路錯誤'));
+  it('apiClient.putUnwrapped throws ApiError → propagates the error', async () => {
+    const apiError = new ApiError(400, '無效的 token');
+    vi.mocked(apiClient.putUnwrapped).mockRejectedValue(apiError);
 
     await expect(
       resetPassword('token123', 'NewPass1!', 'NewPass1!')
-    ).rejects.toMatchObject({
-      status: 'error',
-      code: 500,
-      message: '網路錯誤',
-    });
+    ).rejects.toThrow(apiError);
   });
 });

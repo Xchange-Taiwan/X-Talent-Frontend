@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarDays, Clock, MessageSquare } from 'lucide-react';
+import { AlertCircle, CalendarDays, Clock, MessageSquare } from 'lucide-react';
 import { useState } from 'react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -14,9 +14,14 @@ import {
 } from '@/components/ui/dialog';
 import { trackEvent } from '@/lib/analytics';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
+import { getInitials } from '@/lib/avatar/getInitials';
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
-
-import type { MessageRole, Reservation, ReservationMessage } from './types';
+import type {
+  MessageRole,
+  Reservation,
+  ReservationMessage,
+} from '@/types/reservation';
 
 interface Props {
   reservation: Reservation;
@@ -54,12 +59,7 @@ export default function ReservationConversationDialog({
     }
   }
 
-  const initials =
-    reservation.name
-      .split(' ')
-      .map((s) => s[0])
-      .join('')
-      .slice(0, 2) || 'U';
+  const initials = getInitials(reservation.name);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -67,9 +67,12 @@ export default function ReservationConversationDialog({
         {trigger ?? (
           <button
             type="button"
-            className="inline-flex items-center gap-1 rounded-sm text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:text-sm"
+            className={cn(
+              'text-text-tertiary hover:text-text-primary inline-flex items-center gap-1 rounded-sm text-xs focus-visible:outline-none sm:text-sm',
+              FOCUS_RING_CLASSES
+            )}
           >
-            <MessageSquare className="h-3.5 w-3.5" aria-hidden />
+            <MessageSquare className="size-3.5" aria-hidden />
             查看完整對話
           </button>
         )}
@@ -78,7 +81,7 @@ export default function ReservationConversationDialog({
       <DialogContent className="flex max-h-[85vh] w-[92vw] max-w-[480px] flex-col gap-0 p-0 sm:max-w-lg">
         <DialogHeader className="space-y-3 border-b p-4 sm:p-6">
           <div className="flex items-center gap-3">
-            <Avatar className="h-10 w-10 shrink-0">
+            <Avatar className="size-10 shrink-0">
               {reservation.avatar ? (
                 <AvatarImage
                   src={getAvatarThumbUrl(reservation.avatar)}
@@ -97,31 +100,47 @@ export default function ReservationConversationDialog({
               </DialogDescription>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground sm:text-sm">
+          <div className="text-text-tertiary flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm">
             <span className="inline-flex items-center gap-1.5">
-              <CalendarDays className="h-3.5 w-3.5" aria-hidden />
+              <CalendarDays className="size-3.5" aria-hidden />
               {reservation.date}
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5" aria-hidden />
+              <Clock className="size-3.5" aria-hidden />
               {reservation.time}
             </span>
           </div>
         </DialogHeader>
 
         <div className="flex-1 space-y-3 overflow-y-auto p-4 sm:p-6">
+          {reservation.cancelledBy === 'SYSTEM' ? (
+            <div
+              role="note"
+              className="border-status-warning-default/40 bg-status-warning-active/15 text-text-primary flex items-start gap-2 rounded-lg border p-3 text-xs sm:text-sm"
+            >
+              <AlertCircle
+                className="text-status-info-default mt-0.5 size-4 shrink-0"
+                aria-hidden
+              />
+              <span>
+                {sourceRole === 'mentor'
+                  ? '因您未於預約開始前 24 小時前確認，系統已自動取消此預約。'
+                  : '因導師未於預約開始前 24 小時前確認，系統已自動取消此預約。'}
+              </span>
+            </div>
+          ) : null}
+
           {reservation.messages.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
+            <p className="text-text-tertiary py-8 text-center text-sm">
               尚無對話內容
             </p>
           ) : (
-            reservation.messages.map((message, index) => (
+            reservation.messages.map((message, index, array) => (
               <MessageBubble
                 key={index}
                 message={message}
                 isPrevSameRole={
-                  index > 0 &&
-                  reservation.messages[index - 1].role === message.role
+                  index > 0 && array[index - 1].role === message.role
                 }
               />
             ))
@@ -151,16 +170,16 @@ function MessageBubble({
       )}
     >
       {label && !isPrevSameRole ? (
-        <div className="text-[11px] font-medium text-muted-foreground sm:text-xs">
+        <div className="text-11 text-text-tertiary font-medium sm:text-xs">
           {label}
         </div>
       ) : null}
       <div
         className={cn(
-          'max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2.5 text-sm',
-          isMentor && 'bg-primary text-primary-foreground',
-          isMentee && 'bg-muted text-foreground',
-          !message.role && 'bg-muted/60 text-muted-foreground'
+          'max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm break-words whitespace-pre-wrap',
+          isMentor && 'bg-brand-500 text-text-primary',
+          isMentee && 'bg-background-bottom text-text-primary',
+          !message.role && 'bg-background-bottom/60 text-text-tertiary'
         )}
       >
         {message.content}

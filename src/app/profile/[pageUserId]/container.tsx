@@ -1,18 +1,20 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
-import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
+import MentorScheduleDialog from '@/components/profile/reservation/MentorScheduleDialog';
+import { Button } from '@/components/ui/button';
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
-import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
+import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
+import { useBookingConfirmation } from '@/hooks/user/reservation/useBookingConfirmation';
 import { primeTagCatalogCacheIfEmpty } from '@/hooks/user/tags/useTagCatalog';
 import useUserData from '@/hooks/user/user-data/useUserData';
-import { primeUserProfileDtoCacheIfEmpty } from '@/hooks/user/user-data/useUserProfileDto';
-import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
-import type { MentorProfileVO } from '@/services/profile/user';
+import { getMentorOnboardingUrl, OPEN_SCHEDULE_DIALOG_KEY } from '@/lib/routes';
+import type { TagCatalogsByBucket } from '@/types/tagCatalog';
+import type { MentorProfileVO } from '@/types/user';
 
 import { ProfilePageSkeleton } from './skeleton';
 
@@ -20,111 +22,121 @@ const ProfilePageUI = dynamic(() => import('./ui'), {
   loading: () => <ProfilePageSkeleton />,
 });
 
+function ScheduleAutoOpenWatcher({
+  canAutoOpen,
+  onAutoOpen,
+}: {
+  canAutoOpen: boolean;
+  onAutoOpen: () => void;
+}): null {
+  const searchParams = useSearchParams();
+  const shouldAutoOpen = searchParams?.get(OPEN_SCHEDULE_DIALOG_KEY) === 'true';
+  const hasAutoOpenedRef = useRef(false);
+
+  useEffect(() => {
+    if (!shouldAutoOpen || !canAutoOpen || hasAutoOpenedRef.current) {
+      return;
+    }
+    hasAutoOpenedRef.current = true;
+    onAutoOpen();
+  }, [shouldAutoOpen, canAutoOpen, onAutoOpen]);
+
+  return null;
+}
+
 interface Props {
   pageUserId: string;
-  initialDto: MentorProfileVO;
+  initialDto: MentorProfileVO | null;
   initialCatalogs: TagCatalogsByBucket;
-  initialLoginUserId: string;
 }
 
 export default function ProfilePageContainer({
   pageUserId,
-  initialDto,
+  initialDto: _initialDto,
   initialCatalogs,
-  initialLoginUserId,
 }: Props) {
   const router = useRouter();
-
-  // Synchronously seed the in-memory dto cache from the SSR-fetched initialDto
-  // BEFORE child hooks run. This is intentionally inside render (not useEffect)
-  // so the first render of useUserProfileDto's lazy-init `useState` reads the
-  // primed entry — first paint shows content with no skeleton flash.
-  // `IfEmpty` preserves a more authoritative client-side prime that
-  // `useProfileSubmit` may have just written via `firstSyncedFetch`.
   const pageUserIdNumber = Number(pageUserId);
-  if (Number.isFinite(pageUserIdNumber)) {
-    primeUserProfileDtoCacheIfEmpty(pageUserIdNumber, 'zh_TW', initialDto);
-  }
+
   // Same idea for the tag catalog: SSR already fetched the localized labels,
   // so seed the client cache here so useTagCatalog resolves subject_group
   // codes to Chinese labels on first paint instead of flashing raw codes.
   primeTagCatalogCacheIfEmpty('zh_TW', initialCatalogs);
 
-  const [year, setYear] = useState(() => new Date().getFullYear());
-  const [month, setMonth] = useState(() => new Date().getMonth() + 1);
+  const identity = useResolvedIdentity();
+  const isIdentityResolved =
+    identity.state === 'confirmed-guest' ||
+    identity.state === 'confirmed-member';
+  const loginUserId =
+    identity.state === 'confirmed-member' ? identity.userId : '';
+
+  const isOwnProfile = loginUserId === pageUserId;
 
   const schedule = useMentorSchedule({
-    backend: { userId: pageUserId, year, month },
+    backend: { userId: pageUserId },
+    loginUserId,
+    includeBookedDates: isOwnProfile,
   });
-  const { loaded, selectedDate, setSelectedDate, parsedDraft, allowedDates } =
-    schedule;
+  const { loaded, reader, editor } = schedule;
 
   const [openReservationDialog, setOpenReservationDialog] = useState(false);
-  const [openMenteeReservationDialog, setOpenMenteeReservationDialog] =
-    useState(false);
 
-  const handleScheduleMonthChange = (date: Date) => {
-    const newYear = date.getFullYear();
-    const newMonth = date.getMonth() + 1;
-    setYear(newYear);
-    setMonth(newMonth);
-    // Carry the viewed month into the booking dialogs by anchoring
-    // selectedDate to the new month. Skip while a dialog is open so
-    // in-dialog month navigation does not clobber the user's day pick.
-    // Clamp to today so a past month never anchors to an un-editable
-    // past day (which would let the dialog render its slot editor on
-    // a date the mentor cannot configure).
-    if (!openReservationDialog && !openMenteeReservationDialog) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const monthStart = new Date(newYear, newMonth - 1, 1);
-      const anchor = monthStart < today ? today : monthStart;
-      const pad = (n: number) => String(n).padStart(2, '0');
-      setSelectedDate(
-        `${anchor.getFullYear()}-${pad(anchor.getMonth() + 1)}-${pad(anchor.getDate())}`
-      );
-    }
-  };
+  const {
+    userData,
+    isLoading: userLoading,
+    error,
+    refetch,
+  } = useUserData(pageUserIdNumber, 'zh_TW', _initialDto);
 
-  // Auto-select the first available date once schedule is loaded
-  useEffect(() => {
-    if (!loaded) return;
-    const firstSlot = parsedDraft.find((s) => s.type === 'ALLOW');
-    if (firstSlot) setSelectedDate(firstSlot.dateKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded]);
+  // Single source of truth for "should owner-only controls (edit button,
+  // become-mentor button, schedule-management dialog) render" so ui.tsx
+  // doesn't need to re-derive this comparison at each of its three call
+  // sites.
+  const canShowOwnerControls = isOwnProfile;
+  const avatarSrc = userData?.avatar || DefaultAvatarImgUrl;
 
-  const { data: session } = useSession();
-  // Prefer the live session id once hydrated; fall back to the SSR-resolved
-  // value so own-profile UI (edit button, etc.) renders correctly on first
-  // paint without waiting for next-auth's client hydration.
-  const loginUserId = session?.user?.id
-    ? String(session.user.id)
-    : initialLoginUserId;
-  const isLogging = Boolean(loginUserId);
-
-  const { userData, isLoading: userLoading } = useUserData(
-    pageUserIdNumber,
-    'zh_TW'
+  const handleScheduleMonthChange = useCallback(
+    (date: Date) => {
+      reader.onMonthChange?.(date, {
+        preserveSelectedDate: openReservationDialog,
+      });
+    },
+    [reader, openReservationDialog]
   );
 
-  // The S3 avatar URL is a stable key (re-uploads overwrite in place), so a
-  // `?v=` query is the only way to bust the Image Optimizer / browser cache.
-  // updateAvatar bakes the cache buster into the URL it returns at upload
-  // time. On own-profile, prefer the just-submitted override (set
-  // synchronously by useProfileSubmit) over `userData.avatar`, which can
-  // briefly come from a stale ISR initialDto on the post-submit navigation
-  // race. The override clears once session.user.avatar catches up.
-  const isOwnProfile = loginUserId === pageUserId;
-  const currentAvatar = useCurrentAvatar();
-  const resolvedAvatar = isOwnProfile
-    ? (currentAvatar ?? userData?.avatar)
-    : userData?.avatar;
-  const avatarSrc = resolvedAvatar || DefaultAvatarImgUrl;
+  const canAutoOpenSchedule = Boolean(
+    !userLoading && userData?.is_mentor && canShowOwnerControls && editor
+  );
 
-  if (!userLoading && !userData) {
+  const handleAutoOpenSchedule = useCallback(() => {
+    reader.clampSelectedDateToToday?.();
+    setOpenReservationDialog(true);
+    router.replace?.(`/profile/${pageUserId}`, { scroll: false });
+  }, [reader, router, pageUserId]);
+
+  const { isSubmitting, handleConfirmReservation } = useBookingConfirmation({
+    loginUserId,
+    userData,
+    selectedSlot: reader.selectedSlot ?? null,
+    setSelectedSlot: reader.setSelectedSlot ?? (() => {}),
+  });
+
+  if (error === 'FETCH_FAILED') {
     return (
-      <div className="flex h-[50vh] items-center justify-center text-gray-500">
+      <div className="flex h-[50vh] flex-col items-center justify-center gap-4 text-center">
+        <p className="text-text-tertiary font-medium">
+          載入個人檔案資料時發生連線錯誤
+        </p>
+        <Button onClick={refetch} variant="default" size="default">
+          重新載入
+        </Button>
+      </div>
+    );
+  }
+
+  if (error === 'USER_NOT_FOUND' || (!userLoading && !userData)) {
+    return (
+      <div className="text-text-tertiary flex h-[50vh] items-center justify-center">
         沒有該位使用者
       </div>
     );
@@ -140,29 +152,9 @@ export default function ProfilePageContainer({
     // (still possible when that day has saved slots), snap selectedDate
     // forward to today so the dialog never opens on an un-editable past
     // date with its slot editor primed.
-    if (selectedDate) {
-      const sel = new Date(selectedDate + 'T00:00:00');
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      if (sel < today) {
-        const pad = (n: number) => String(n).padStart(2, '0');
-        setSelectedDate(
-          `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`
-        );
-        const todayYear = today.getFullYear();
-        const todayMonth = today.getMonth() + 1;
-        if (todayYear !== year || todayMonth !== month) {
-          setYear(todayYear);
-          setMonth(todayMonth);
-        }
-      }
-    }
-    if (userData.is_mentor && pageUserId === loginUserId) {
+    reader.clampSelectedDateToToday?.();
+    if (userData.is_mentor && isOwnProfile) {
       setOpenReservationDialog(true);
-      return;
-    }
-    if (userData.is_mentor && pageUserId !== loginUserId) {
-      setOpenMenteeReservationDialog(true);
       return;
     }
   };
@@ -171,22 +163,39 @@ export default function ProfilePageContainer({
     <ProfilePageUI
       userData={userData}
       userLoading={userLoading}
-      pageUserId={pageUserId}
-      schedule={schedule}
+      schedule={reader}
       scheduleLoaded={loaded}
       loginUserId={loginUserId}
-      isLogging={isLogging}
+      isIdentityResolved={isIdentityResolved}
+      canShowOwnerControls={canShowOwnerControls}
       avatarSrc={avatarSrc}
-      allowedDates={allowedDates}
-      openReservationDialog={openReservationDialog}
-      setOpenReservationDialog={setOpenReservationDialog}
-      openMenteeReservationDialog={openMenteeReservationDialog}
-      setOpenMenteeReservationDialog={setOpenMenteeReservationDialog}
       onReservation={reservationHandler}
       onScheduleMonthChange={handleScheduleMonthChange}
+      isSubmitting={isSubmitting}
+      onConfirmReservation={handleConfirmReservation}
       onEditProfile={() => router.push(`/profile/${pageUserId}/edit`)}
-      onBecomeMentor={() =>
-        router.push(`/profile/${pageUserId}/edit?onboarding=true`)
+      onBecomeMentor={() => router.push(getMentorOnboardingUrl(pageUserId))}
+      editorDialog={
+        // canShowOwnerControls and the hook's own editor gating are both
+        // driven by the same loginUserId === pageUserId check, so editor is
+        // guaranteed non-null here.
+        userData && canShowOwnerControls && editor ? (
+          <>
+            <Suspense fallback={null}>
+              <ScheduleAutoOpenWatcher
+                canAutoOpen={canAutoOpenSchedule}
+                onAutoOpen={handleAutoOpenSchedule}
+              />
+            </Suspense>
+            <MentorScheduleDialog
+              open={openReservationDialog}
+              onOpenChange={setOpenReservationDialog}
+              reader={reader}
+              schedule={editor}
+              onMonthChange={handleScheduleMonthChange}
+            />
+          </>
+        ) : undefined
       }
     />
   );

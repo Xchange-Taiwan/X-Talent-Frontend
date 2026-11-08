@@ -11,6 +11,12 @@ interface SessionPayload {
   jobTitle?: string;
   company?: string;
   personalLinks?: { platform: string; url: string }[];
+  error?: 'RefreshTokenError';
+}
+
+export interface MaintenanceOverridePayload {
+  maintenanceMode: boolean;
+  bypassToken?: string;
 }
 
 // Derive cookie domain, secure flag, and cookie *name* from BASE_URL so the
@@ -69,19 +75,24 @@ export async function setSignedSessionCookie(
 }
 
 /**
- * Set a raw (intentionally invalid) session-token cookie. Used by onboarding
- * tests where the middleware only checks for cookie existence and the
- * server-side guard tolerates a decode failure.
+ * Forge a signed `__e2e_maintenance` cookie verified by `src/middleware.ts`
+ * via `NEXTAUTH_SECRET` so an isolated Playwright context can exercise
+ * maintenance mode and bypass-token flows without toggling global config.
  */
-export async function setRawSessionCookie(
+export async function setSignedMaintenanceCookie(
   page: Page,
-  value: string
+  payload: MaintenanceOverridePayload
 ): Promise<void> {
-  const { name, domain, secure } = getCookieTarget();
+  const signed = await encode({
+    token: payload as unknown as JWT,
+    secret: process.env.NEXTAUTH_SECRET ?? 'secret',
+  });
+
+  const { domain, secure } = getCookieTarget();
   await page.context().addCookies([
     {
-      name,
-      value,
+      name: '__e2e_maintenance',
+      value: signed,
       domain,
       path: '/',
       httpOnly: true,

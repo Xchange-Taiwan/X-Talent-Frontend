@@ -1,53 +1,9 @@
-import type { StaticImageData } from 'next/image';
-
-import type { WorkExperienceMetadata } from '@/hooks/user/user-data/useUserData';
-import type { components } from '@/types/api';
-
-type RawMentor = components['schemas']['SearchMentorProfileVO'];
-
-export type MentorListResponse =
-  components['schemas']['ApiResponse_SearchMentorProfileListVO_'];
-
-export type { WorkExperienceMetadata };
-
-export interface MentorType {
-  user_id: number;
-  name: string;
-  avatar: string | StaticImageData;
-  job_title: string;
-  company: string;
-  years_of_experience: string;
-  location: string;
-  personal_statement: string;
-  about: string;
-  seniority_level: string;
-  industry: string | null;
-  want_position: string[];
-  want_skill: string[];
-  want_topic: string[];
-  have_skill: string[];
-  have_topic: string[];
-  updated_at: number | null;
-}
+import avatarImage from '@/assets/default-avatar.png';
+import type { MentorType, RawMentor } from '@/types/mentor';
 
 function readCodes(codes: ReadonlyArray<string> | null | undefined): string[] {
   if (!codes) return [];
   return codes.filter((c): c is string => Boolean(c));
-}
-
-export type MentorsType = components['schemas']['SearchMentorProfileListVO'];
-
-export interface MentorRequest {
-  // snake_case to match the BFF/Search query param exactly. Object.entries
-  // in mentors.server.ts / mentors.ts forwards keys verbatim into the URL,
-  // so a camelCase key here would silently be dropped by FastAPI's
-  // search_pattern: str = Query(None) and the keyword would have no effect.
-  search_pattern?: string;
-  filter_skills?: string;
-  filter_topics?: string;
-  filter_industries?: string;
-  limit: number;
-  cursor?: string;
 }
 
 export function mapMentor(raw: RawMentor): MentorType {
@@ -57,7 +13,7 @@ export function mapMentor(raw: RawMentor): MentorType {
   // the User-service GET response. The runtime value is a string here.
   const industry = raw.industry as unknown as string | null | undefined;
 
-  return {
+  const mapped: MentorType = {
     user_id: raw.user_id,
     name: raw.name ?? '',
     avatar: raw.avatar ?? '',
@@ -75,5 +31,19 @@ export function mapMentor(raw: RawMentor): MentorType {
     have_skill: readCodes(raw.have_skill),
     have_topic: readCodes(raw.have_topic),
     updated_at: raw.updated_at ?? null,
+  };
+
+  return resolveMentorAvatar(mapped);
+}
+
+// Cache-busts the avatar URL by updated_at so a re-uploaded photo isn't
+// served stale; shared by SSR and client fetches so both render identically.
+export function resolveMentorAvatar(mentor: MentorType): MentorType {
+  return {
+    ...mentor,
+    avatar:
+      typeof mentor.avatar === 'string' && mentor.avatar
+        ? `${mentor.avatar}${mentor.updated_at ? `?cb=${mentor.updated_at}` : ''}`
+        : avatarImage,
   };
 }

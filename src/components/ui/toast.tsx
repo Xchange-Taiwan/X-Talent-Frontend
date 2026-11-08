@@ -3,10 +3,21 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { X } from 'lucide-react';
 import * as React from 'react';
 
+import { useLeftSwipeDismiss } from '@/hooks/useLeftSwipeDismiss';
 import { cn } from '@/lib/utils';
 
+/**
+ * ToastProvider 吐司通知元件的全局提供者 (Provider)。
+ *
+ * 用於管理與調度多個 Toast 吐司通知的渲染。
+ */
 const ToastProvider = ToastPrimitives.Provider;
 
+/**
+ * ToastViewport 吐司通知元件的顯示區域（視窗）。
+ *
+ * 定位在畫面中特定的角落（預設為右下角/右上角），所有 Toast 都會被渲染在此 Viewport 之中。
+ */
 const ToastViewport = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Viewport>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Viewport>
@@ -14,7 +25,7 @@ const ToastViewport = React.forwardRef<
   <ToastPrimitives.Viewport
     ref={ref}
     className={cn(
-      'fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col md:max-w-[420px]',
+      'fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:top-auto sm:right-0 sm:bottom-0 sm:flex-col md:max-w-[420px]',
       className
     )}
     {...props}
@@ -23,13 +34,14 @@ const ToastViewport = React.forwardRef<
 ToastViewport.displayName = ToastPrimitives.Viewport.displayName;
 
 const toastVariants = cva(
-  'group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-top-full data-[state=open]:sm:slide-in-from-bottom-full',
+  'group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all data-[state=closed]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:animate-in data-[state=open]:slide-in-from-top-full data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=end]:animate-out data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none data-[state=open]:sm:slide-in-from-bottom-full',
   {
     variants: {
       variant: {
-        default: 'border bg-background text-foreground',
+        default: 'border bg-background-white text-text-primary',
+        // eslint-disable-next-line tailwindcss/no-custom-classname
         destructive:
-          'destructive group border-destructive bg-destructive text-destructive-foreground',
+          'destructive group border-status-error-default bg-status-error-default text-text-white',
       },
     },
     defaultVariants: {
@@ -38,21 +50,75 @@ const toastVariants = cva(
   }
 );
 
+// Composes our left-swipe pointer handler with whatever handler of the same
+// name a caller passed to <Toast>, so passing e.g. onPointerDownCapture
+// augments the gesture instead of silently replacing it. Ordering matches
+// Radix's own composeEventHandlers convention (used throughout the Radix
+// primitives this component is already built on): the caller's handler runs
+// first, and ours only runs if they didn't opt out via preventDefault().
+function composeHandlers<E extends React.SyntheticEvent>(
+  ours: (event: E) => void,
+  theirs?: (event: E) => void
+) {
+  return (event: E) => {
+    theirs?.(event);
+    if (!event.defaultPrevented) {
+      ours(event);
+    }
+  };
+}
+
+/**
+ * Toast 單個吐司通知元件的主體。
+ *
+ * 支援預設 (default) 與破壞性/錯誤 (destructive) 等多種視覺變體 (variant)。
+ *
+ * Radix 的 swipeDirection 只能設定單一方向（此專案採用 "right"），因此左滑關閉
+ * 是透過 `useLeftSwipeDismiss` 以原生 Pointer Event 補上，並沿用 Radix 相同的
+ * data-swipe / --radix-toast-swipe-* CSS 變數，讓退場動畫共用同一套樣式。
+ *
+ * @param variant - 吐司通知樣式變體：'default' | 'destructive'。
+ */
 const Toast = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Root>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Root> &
     VariantProps<typeof toastVariants>
 >(({ className, variant, ...props }, ref) => {
+  const leftSwipeHandlers = useLeftSwipeDismiss({
+    onDismiss: () => props.onOpenChange?.(false),
+  });
+
   return (
     <ToastPrimitives.Root
       ref={ref}
       className={cn(toastVariants({ variant }), className)}
       {...props}
+      onPointerDownCapture={composeHandlers(
+        leftSwipeHandlers.onPointerDownCapture,
+        props.onPointerDownCapture
+      )}
+      onPointerMoveCapture={composeHandlers(
+        leftSwipeHandlers.onPointerMoveCapture,
+        props.onPointerMoveCapture
+      )}
+      onPointerUpCapture={composeHandlers(
+        leftSwipeHandlers.onPointerUpCapture,
+        props.onPointerUpCapture
+      )}
+      onPointerCancelCapture={composeHandlers(
+        leftSwipeHandlers.onPointerCancelCapture,
+        props.onPointerCancelCapture
+      )}
     />
   );
 });
 Toast.displayName = ToastPrimitives.Root.displayName;
 
+/**
+ * ToastAction 吐司通知內的自訂動作按鈕（例如：重試、撤銷等）。
+ *
+ * 會自動繼承 Toast 的變體風格。
+ */
 const ToastAction = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Action>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Action>
@@ -60,7 +126,7 @@ const ToastAction = React.forwardRef<
   <ToastPrimitives.Action
     ref={ref}
     className={cn(
-      'bg-transparent inline-flex h-8 shrink-0 items-center justify-center rounded-md border px-3 text-sm font-medium ring-offset-background transition-colors hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 group-[.destructive]:border-muted/40 group-[.destructive]:hover:border-destructive/30 group-[.destructive]:hover:bg-destructive group-[.destructive]:hover:text-destructive-foreground group-[.destructive]:focus:ring-destructive',
+      'ring-offset-background-white group-[.destructive]:border-background-bottom/40 hover:bg-background-bottom group-[.destructive]:hover:border-status-error-default/30 group-[.destructive]:hover:bg-status-error-default group-[.destructive]:hover:text-text-white focus:ring-ring group-[.destructive]:focus:ring-status-error-default inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-transparent px-3 text-sm font-medium transition-colors focus:ring-2 focus:ring-offset-2 focus:outline-none disabled:pointer-events-none disabled:opacity-50',
       className
     )}
     {...props}
@@ -68,6 +134,9 @@ const ToastAction = React.forwardRef<
 ));
 ToastAction.displayName = ToastPrimitives.Action.displayName;
 
+/**
+ * ToastClose 用於關閉個別吐司通知的按鈕（預設顯示為右上角 X 圖標）。
+ */
 const ToastClose = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Close>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Close>
@@ -75,17 +144,20 @@ const ToastClose = React.forwardRef<
   <ToastPrimitives.Close
     ref={ref}
     className={cn(
-      'group-[.destructive]:text-red-300 group-[.destructive]:hover:text-red-50 group-[.destructive]:focus-visible:ring-red-400 group-[.destructive]:focus-visible:ring-offset-red-600 absolute right-2 top-2 rounded-md p-1 text-foreground/50 opacity-0 transition-opacity hover:text-foreground focus:opacity-100 focus-visible:outline-none focus-visible:ring-2 group-hover:opacity-100',
+      'text-text-primary/50 group-[.destructive]:text-status-error-active hover:text-text-primary group-[.destructive]:hover:text-text-white group-[.destructive]:focus-visible:ring-status-error-active group-[.destructive]:focus-visible:ring-offset-status-error-default absolute top-2 right-2 rounded-md p-1 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 focus-visible:ring-2 focus-visible:outline-none',
       className
     )}
     toast-close=""
     {...props}
   >
-    <X className="h-4 w-4" />
+    <X className="size-4" />
   </ToastPrimitives.Close>
 ));
 ToastClose.displayName = ToastPrimitives.Close.displayName;
 
+/**
+ * ToastTitle 吐司通知的標題。
+ */
 const ToastTitle = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Title>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Title>
@@ -98,6 +170,9 @@ const ToastTitle = React.forwardRef<
 ));
 ToastTitle.displayName = ToastPrimitives.Title.displayName;
 
+/**
+ * ToastDescription 吐司通知的詳細描述文字。
+ */
 const ToastDescription = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Description>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Description>

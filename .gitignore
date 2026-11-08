@@ -33,7 +33,6 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts
 
 # env
 .env
@@ -47,18 +46,31 @@ next-env.d.ts
 .claude/
 CLAUDE.md
 
+# Gemini CLI local caches and logs
+/.gemini/*
+!/.gemini/settings.json
+/gemini.log
+
 # Test reports and screenshots
 /reports/
 /.playwright-mcp/
 /lighthouse-reports/
+/ai-review-report.md
+
+# Scratch screenshots captured for PR evidence (published out-of-band by
+# .agents/scripts/publish-evidence.sh, never committed to a code branch)
+/.agents/tmp/
 
 # Playwright E2E
 /playwright-report/
 /test-results/
-e2e/.auth/user.json
+e2e/.auth/*.json
 
 # RWD testing scripts and screenshots
 /rwd-testing/
 
 # Avatar assets for RWD testing (generated, not source)
 /public/avatars/
+
+*storybook.log
+storybook-static

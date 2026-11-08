@@ -2,6 +2,10 @@ import { StaticImageData } from 'next/image';
 import Link from 'next/link';
 import { forwardRef, memo } from 'react';
 
+import { FOCUS_WITHIN_RING_CLASSES } from '@/lib/ui/focusRing';
+import { HOVER_CLICKABLE_CARD_CLASSES } from '@/lib/ui/hoverStyles';
+import { cn } from '@/lib/utils';
+
 import { AvatarWithBadge } from './AvatarWithBadge';
 import { Information } from './Information';
 
@@ -35,12 +39,16 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
     return (
       <article
         ref={ref}
-        className="relative w-[334px] overflow-hidden rounded-lg border border-[#E6E8EA] bg-background-white transition-shadow hover:shadow-xl xl:h-[480px] xl:w-[413px]"
+        className={cn(
+          'border-background-border bg-background-white relative w-[334px] overflow-hidden rounded-lg border transition-shadow xl:h-[480px] xl:w-[413px]',
+          HOVER_CLICKABLE_CARD_CLASSES,
+          FOCUS_WITHIN_RING_CLASSES
+        )}
       >
         <Link
           href={`/profile/${id}`}
           aria-label={`前往 ${name} 的個人頁面`}
-          className="absolute bottom-0 left-0 right-0 top-0 z-10"
+          className="absolute inset-0 z-10"
         ></Link>
         <AvatarWithBadge
           avatar={avatar}
@@ -48,7 +56,7 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
           name={name}
           priority={priority}
         />
-        <div className="px-4 pb-6 pt-4">
+        <div className="px-4 pt-4 pb-6">
           <Information
             name={name}
             job_title={job_title}

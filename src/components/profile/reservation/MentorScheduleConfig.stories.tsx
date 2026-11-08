@@ -1,0 +1,49 @@
+import type { Meta, StoryObj } from '@storybook/nextjs';
+
+import { mockBookingSlots } from './__mocks__/reservationStories.mock';
+import { MentorScheduleConfig } from './MentorScheduleConfig';
+
+const meta: Meta<typeof MentorScheduleConfig> = {
+  title: '業務模組元件/個人檔案(Profile)/Reservation/MentorScheduleConfig',
+  component: MentorScheduleConfig,
+  tags: ['autodocs'],
+};
+
+export default meta;
+type Story = StoryObj<typeof MentorScheduleConfig>;
+
+export const Loading: Story = {
+  args: {
+    slotsSnapshot: { slots: [], monthLoaded: false, reservationsLoaded: false },
+    onReservation: () => alert('設定預約被點擊'),
+  },
+};
+
+export const Empty: Story = {
+  args: {
+    slotsSnapshot: { slots: [], monthLoaded: true, reservationsLoaded: true },
+    onReservation: () => alert('設定預約被點擊'),
+  },
+};
+
+export const WithSlots: Story = {
+  args: {
+    slotsSnapshot: {
+      slots: mockBookingSlots,
+      monthLoaded: true,
+      reservationsLoaded: true,
+    },
+    onReservation: () => alert('設定預約被點擊'),
+  },
+};
+
+export const WithMixedSlots: Story = {
+  args: {
+    slotsSnapshot: {
+      slots: mockBookingSlots,
+      monthLoaded: true,
+      reservationsLoaded: true,
+    },
+    onReservation: () => alert('設定預約被點擊'),
+  },
+};

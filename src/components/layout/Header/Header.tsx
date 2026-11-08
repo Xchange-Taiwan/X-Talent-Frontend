@@ -2,71 +2,105 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useSession } from 'next-auth/react';
-import { memo, useRef } from 'react';
+import { memo } from 'react';
 
 import LogoImgUrl from '@/assets/logo.svg';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
 import { trackEvent } from '@/lib/analytics';
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
+import { HOVER_NAV_UNDERLINE_CLASSES } from '@/lib/ui/hoverStyles';
+import { cn } from '@/lib/utils';
 
-import { FEEDBACK_FORM_URL } from './constants';
+import { FEEDBACK_FORM_URL, FIND_MENTOR_HREF } from './constants';
+import { DisabledAwareLink } from './DisabledAwareLink';
+import { GuestActionButtons } from './GuestActionButtons';
 import { HamburgerMenu } from './HamburgerMenu';
 import { MobileUserMenu } from './MobileUserMenu';
+import { getBecomeMentorHref, getProfileHref } from './navHrefs';
+import { NotificationBell } from './NotificationBell';
 import { UserDropdown } from './UserDropdown';
 
+const NAV_LINK_CLASSES = cn(
+  'text-text-primary rounded-sm font-open-sans text-base',
+  FOCUS_RING_CLASSES
+);
+// The header's nav labels are always single-line, so the underline treatment is safe here -
+// see HOVER_NAV_UNDERLINE_CLASSES' doc for why it isn't the general-purpose text-link tier.
+const NAV_LINK_HOVER_CLASSES = HOVER_NAV_UNDERLINE_CLASSES;
+
 function HeaderComponent(): JSX.Element {
-  const { data: session, status } = useSession();
-  const wasAuthenticated = useRef(false);
-  if (status === 'authenticated') wasAuthenticated.current = true;
-  const isLoading = status === 'loading' && !wasAuthenticated.current;
+  const identity = useResolvedIdentity();
 
-  const isLoggedIn = Boolean(session?.user?.id);
-  const isMentor = Boolean(session?.user?.isMentor);
-  const userId = session?.user?.id;
+  const isHintOnly = identity.state === 'hint-only';
 
-  const findMentorHref = '/mentor-pool';
+  // `userId` only ever comes from the real session, never the hint — while
+  // the state is hint-only these hrefs are unused (the link is disabled).
+  const leftSecondNav = identity.isMentor
+    ? { label: '我的導師頁面', href: getProfileHref(identity.userId) }
+    : { label: '成為導師', href: getBecomeMentorHref(identity.userId) };
 
-  const becomeMentorHref = !isLoggedIn
-    ? '/auth/signup'
-    : `/profile/${userId}/edit?onboarding=true`;
-
-  const profileHref = userId ? `/profile/${userId}` : '/';
-
-  const leftSecondNav = isMentor
-    ? { label: '我的導師頁面', href: profileHref }
-    : { label: '成為導師', href: becomeMentorHref };
+  const dynamicHoverClass = isHintOnly ? '' : NAV_LINK_HOVER_CLASSES;
 
   return (
-    <header className="fixed inset-x-0 z-50 bg-light px-5">
+    <header className="bg-light fixed inset-x-0 top-[var(--banner-height,0px)] z-50 px-5">
       <div className="flex h-[70px] items-center justify-between">
         <div className="flex items-center gap-10">
-          <Link href="/" aria-label="Go to homepage">
+          <Link
+            href="/"
+            aria-label="Go to homepage"
+            className={cn('rounded-sm', FOCUS_RING_CLASSES)}
+          >
             <Image src={LogoImgUrl} alt="logo" />
           </Link>
 
-          <nav className="hidden items-center gap-7 md:flex">
+          <nav className="hidden items-center gap-7 lg:flex">
             <Link
-              href={findMentorHref}
-              className="text-black font-['Open_Sans'] text-base"
+              href={FIND_MENTOR_HREF}
+              className={cn(NAV_LINK_CLASSES, NAV_LINK_HOVER_CLASSES)}
             >
               尋找導師
             </Link>
 
-            {isLoading ? (
-              <Skeleton className="h-4 w-20" />
+            {identity.state === 'unknown' ? (
+              <>
+                <Skeleton className="h-6 w-24 group-data-[auth-state=guest]/auth-state:hidden group-data-[auth-state=mentee]/auth-state:hidden group-data-[auth-state=mentor]/auth-state:hidden" />
+                <DisabledAwareLink
+                  href={getProfileHref(identity.userId)}
+                  disabled={isHintOnly}
+                  className={cn(
+                    NAV_LINK_CLASSES,
+                    dynamicHoverClass,
+                    'hidden group-data-[auth-state=mentor]/auth-state:block'
+                  )}
+                >
+                  我的導師頁面
+                </DisabledAwareLink>
+                <DisabledAwareLink
+                  href={getBecomeMentorHref(identity.userId)}
+                  disabled={isHintOnly}
+                  className={cn(
+                    NAV_LINK_CLASSES,
+                    dynamicHoverClass,
+                    'hidden group-data-[auth-state=guest]/auth-state:block group-data-[auth-state=mentee]/auth-state:block'
+                  )}
+                >
+                  成為導師
+                </DisabledAwareLink>
+              </>
             ) : (
-              <Link
+              <DisabledAwareLink
                 href={leftSecondNav.href}
-                className="text-black font-['Open_Sans'] text-base"
+                disabled={isHintOnly}
+                className={cn(NAV_LINK_CLASSES, dynamicHoverClass)}
               >
                 {leftSecondNav.label}
-              </Link>
+              </DisabledAwareLink>
             )}
 
             <Link
               href="/about"
-              className="text-black font-['Open_Sans'] text-base"
+              className={cn(NAV_LINK_CLASSES, NAV_LINK_HOVER_CLASSES)}
             >
               關於 X-Talent
             </Link>
@@ -77,49 +111,59 @@ function HeaderComponent(): JSX.Element {
               rel="noopener noreferrer"
               aria-label="提供回饋（另開新分頁）"
               onClick={() => trackEvent({ name: 'feedback_open' })}
-              className="text-black font-['Open_Sans'] text-base"
+              className={cn(NAV_LINK_CLASSES, NAV_LINK_HOVER_CLASSES)}
             >
               提供回饋
             </a>
           </nav>
         </div>
 
-        <div className="flex items-center gap-3 md:mr-20">
-          <div className="hidden items-center gap-3 md:flex">
-            {isLoading ? (
-              <Skeleton className="h-8 w-20 rounded-full" />
-            ) : !isLoggedIn ? (
+        <div className="flex items-center gap-3 lg:mr-20">
+          <div
+            className="hidden items-center gap-3 lg:flex"
+            data-testid="desktop-header-right"
+          >
+            {identity.state === 'unknown' ? (
               <>
-                <Link href="/auth/signup">
-                  <Button
-                    variant="outline"
-                    className="border-primary text-primary hover:text-primary"
-                  >
-                    註冊
-                  </Button>
-                </Link>
-
-                <Link href="/auth/signin">
-                  <Button className="bg-primary hover:bg-primary">登入</Button>
-                </Link>
+                <div className="group-data-[auth-state=guest]/auth-state:hidden group-data-[auth-state=mentee]/auth-state:hidden group-data-[auth-state=mentor]/auth-state:hidden">
+                  <Skeleton className="size-9 rounded-full" />
+                </div>
+                <div className="hidden size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center group-data-[auth-state=mentee]/auth-state:block group-data-[auth-state=mentor]/auth-state:block" />
+                <GuestActionButtons identity={identity} />
               </>
+            ) : identity.state === 'confirmed-guest' ? (
+              <GuestActionButtons identity={identity} />
             ) : (
-              <UserDropdown user={session!.user} />
+              <>
+                <NotificationBell
+                  className="hidden lg:flex"
+                  userId={identity.userId}
+                  key={identity.userId ?? 'guest'}
+                />
+                <UserDropdown identity={identity} />
+              </>
             )}
           </div>
 
-          <div className="flex items-center gap-3 md:hidden">
-            {isLoading ? (
-              <Skeleton className="h-8 w-8 rounded-full" />
-            ) : isLoggedIn ? (
-              <MobileUserMenu user={session!.user} />
-            ) : null}
-            <HamburgerMenu
-              isLoading={isLoading}
-              isLoggedIn={isLoggedIn}
-              isMentor={isMentor}
-              userId={userId}
-            />
+          <div
+            className="flex items-center gap-3 lg:hidden"
+            data-testid="mobile-header-right"
+          >
+            {identity.state === 'unknown' ? (
+              <>
+                <Skeleton className="hidden size-9 rounded-full group-data-[auth-state=mentee]/auth-state:block group-data-[auth-state=mentor]/auth-state:block" />
+                <div className="hidden size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center group-data-[auth-state=mentee]/auth-state:block group-data-[auth-state=mentor]/auth-state:block" />
+              </>
+            ) : identity.state === 'confirmed-guest' ? null : (
+              <>
+                <NotificationBell
+                  userId={identity.userId}
+                  key={identity.userId ?? 'guest'}
+                />
+                <MobileUserMenu identity={identity} />
+              </>
+            )}
+            <HamburgerMenu identity={identity} />
           </div>
         </div>
       </div>

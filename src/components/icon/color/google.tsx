@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { SVGProps } from 'react';
 
-interface Props extends SVGProps<SVGSVGElement> {}
+type Props = SVGProps<SVGSVGElement>;
 
 const Google = (props: Props) => (
   <svg

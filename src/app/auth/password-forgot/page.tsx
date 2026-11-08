@@ -1,5 +1,6 @@
 'use client';
 
+import AuthCard from '@/components/auth/AuthCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,45 +15,47 @@ export default function Page() {
   } = form;
 
   return (
-    <div className="flex w-full flex-col items-center justify-center py-16">
+    <AuthCard>
       <form
         onSubmit={handleSubmit(onSubmit)}
-        className="mx-auto flex w-[342px] flex-col items-center gap-6 rounded-2xl border border-[#E6E8EA] px-10 py-20 lg:w-[629px]"
+        className="mx-auto flex w-full max-w-[484px] flex-col items-center gap-6"
         noValidate
       >
-        <main className="flex w-full flex-auto flex-col justify-center gap-6 sm:flex-none ">
-          <div className="flex flex-col items-center gap-6">
-            <h1 className="text-[32px] font-bold leading-10">忘記密碼</h1>
-          </div>
+        <h1 className="text-32 text-text-primary text-center leading-10 font-bold">
+          忘記密碼
+        </h1>
 
-          <div className="flex w-full flex-col items-start gap-1">
-            <div className="grid w-full items-center gap-1.5">
-              <Label htmlFor="email">電子郵件地址</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="請填入您的E-mail"
-                {...register('email')}
-              />
-              {errors.email && (
-                <p className="text-sm text-status-200">
-                  {errors.email.message}
-                </p>
-              )}
-            </div>
-          </div>
-        </main>
+        <div className="grid w-full items-center gap-2">
+          <Label
+            htmlFor="email"
+            className="text-text-primary text-base font-normal"
+          >
+            電子郵件地址
+          </Label>
+          <Input
+            id="email"
+            type="email"
+            placeholder="請填入您的E-mail"
+            {...register('email')}
+          />
+          {errors.email && (
+            <p className="text-status-error-default text-sm">
+              {errors.email.message}
+            </p>
+          )}
+        </div>
 
-        <footer className="flex w-[94px] flex-col gap-4">
+        <div className="mt-2 flex justify-center">
           <Button
             type="submit"
-            className="rounded-full"
+            shape="pill"
+            className="min-w-[135px] px-6"
             disabled={isSubmitting}
           >
             {isSubmitting ? '處理中...' : '送出'}
           </Button>
-        </footer>
+        </div>
       </form>
-    </div>
+    </AuthCard>
   );
 }

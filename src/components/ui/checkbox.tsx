@@ -4,24 +4,74 @@ import * as CheckboxPrimitive from '@radix-ui/react-checkbox';
 import { Check } from 'lucide-react';
 import * as React from 'react';
 
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 
+/**
+ * Properties for the Checkbox component. Inherits standard Radix UI Checkbox Primitive Root properties.
+ */
+export interface CheckboxProps extends React.ComponentPropsWithoutRef<
+  typeof CheckboxPrimitive.Root
+> {
+  /**
+   * The controlled checked state of the checkbox.
+   */
+  checked?: boolean | 'indeterminate';
+
+  /**
+   * The default checked state when first rendered.
+   */
+  defaultChecked?: boolean;
+
+  /**
+   * Event handler called when the checked state changes.
+   */
+  onCheckedChange?: (checked: boolean | 'indeterminate') => void;
+
+  /**
+   * Whether the checkbox is disabled.
+   * @default false
+   */
+  disabled?: boolean;
+
+  /**
+   * Whether the checkbox is required for form submission.
+   */
+  required?: boolean;
+
+  /**
+   * The name of the checkbox (for form submission).
+   */
+  name?: string;
+
+  /**
+   * The value of the checkbox (for form submission).
+   * @default "on"
+   */
+  value?: string;
+}
+
+/**
+ * A custom checkbox component built on top of Radix UI's Checkbox primitive,
+ * with customizable styling and accessibility features built-in.
+ */
 const Checkbox = React.forwardRef<
   React.ElementRef<typeof CheckboxPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>
+  CheckboxProps
 >(({ className, ...props }, ref) => (
   <CheckboxPrimitive.Root
     ref={ref}
     className={cn(
-      'peer h-4 w-4 shrink-0 rounded-sm border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground',
+      'peer border-brand-500 ring-offset-background-white data-[state=checked]:bg-brand-500 data-[state=checked]:text-text-primary size-4 shrink-0 rounded-sm border disabled:cursor-not-allowed disabled:opacity-50',
+      FOCUS_RING_CLASSES,
       className
     )}
     {...props}
   >
     <CheckboxPrimitive.Indicator
-      className={cn('text-current flex items-center justify-center')}
+      className={cn('flex items-center justify-center text-current')}
     >
-      <Check className="h-4 w-4" />
+      <Check className="size-4" />
     </CheckboxPrimitive.Indicator>
   </CheckboxPrimitive.Root>
 ));

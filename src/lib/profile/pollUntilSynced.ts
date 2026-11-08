@@ -1,24 +1,18 @@
-import { ProfileFormValues } from '@/components/profile/edit/profileSchema';
 import { captureFlowFailure } from '@/lib/monitoring';
-import { fetchUser, MentorProfileVO } from '@/services/profile/user';
+import { ProfileFormValues } from '@/schemas/profileSchema';
+import type { MentorProfileVO } from '@/types/user';
 
-function isProfileSynced(
-  values: ProfileFormValues,
-  latest: MentorProfileVO,
-  avatar: string
-): boolean {
-  if (latest.name !== values.name) return false;
-  if ((latest.location ?? '') !== (values.location ?? '')) return false;
-  if ((latest.personal_statement ?? '') !== (values.statement ?? ''))
-    return false;
-  if ((latest.about ?? '') !== (values.about ?? '')) return false;
-  if ((latest.years_of_experience ?? '') !== (values.years_of_experience ?? ''))
-    return false;
-  if ((latest.industry?.subject_group ?? '') !== (values.industry ?? ''))
-    return false;
-  if (avatar && latest.avatar !== avatar) return false;
-  return true;
-}
+import {
+  CONVERGENCE_BUDGET,
+  FAST_CONVERGENCE_BUDGET,
+  type MentorCardFields,
+  ProfileRecordAdapter,
+  runConvergence,
+  SearchIndexDeleteAdapter,
+  SearchIndexSyncAdapter,
+} from './convergence';
+
+export type { MentorCardFields };
 
 /**
  * Single, fast attempt to read the latest profile and confirm it matches the
@@ -35,18 +29,24 @@ function isProfileSynced(
  * background reconcile path so the user is not blocked on backend latency.
  */
 export async function firstSyncedFetch(
+  userId: number,
   values: ProfileFormValues,
   avatar: string,
   timeoutMs = 800
 ): Promise<MentorProfileVO | null> {
+  if (!userId || Number.isNaN(userId)) return null;
+
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<null>((resolve) => {
     timer = setTimeout(() => resolve(null), timeoutMs);
   });
 
-  const fetchPromise = fetchUser('zh_TW')
+  const adapter = new ProfileRecordAdapter(userId, values, avatar);
+
+  const fetchPromise = adapter
+    .fetch()
     .then((latest) => {
-      if (latest && isProfileSynced(values, latest, avatar)) return latest;
+      if (latest && adapter.isCaughtUp(latest)) return latest;
       return null;
     })
     .catch(() => null);
@@ -59,44 +59,136 @@ export async function firstSyncedFetch(
 }
 
 /**
- * Polls fetchUser until the backend reflects the submitted values, or the
+ * Polls fetchUserById until the backend reflects the submitted values, or the
  * retry budget is exhausted. Designed for fire-and-forget background use:
  * never throws, and reports a Sentry breadcrumb if max retries elapse
  * without sync.
  */
 export async function pollUntilSynced(
+  userId: number,
   values: ProfileFormValues,
   avatar: string,
-  maxRetries = 12,
-  intervalMs = 5000
+  maxRetries = CONVERGENCE_BUDGET.maxRetries,
+  intervalMs = CONVERGENCE_BUDGET.intervalMs
 ): Promise<MentorProfileVO | null> {
-  let latest: MentorProfileVO | null = null;
-  let synced = false;
+  if (!userId || Number.isNaN(userId)) return null;
 
-  for (let i = 0; i < maxRetries; i++) {
-    if (i > 0) {
-      await new Promise((resolve) => setTimeout(resolve, intervalMs));
-    }
-    try {
-      latest = await fetchUser('zh_TW');
-    } catch {
-      latest = null;
-      continue;
-    }
-    if (latest && isProfileSynced(values, latest, avatar)) {
-      synced = true;
-      break;
-    }
-  }
+  const adapter = new ProfileRecordAdapter(userId, values, avatar);
+  const { latest } = await runConvergence(adapter, maxRetries, intervalMs);
+  return latest;
+}
 
-  if (!synced) {
+/**
+ * Polls the mentor-pool search query until this user no longer appears in
+ * it. Called before `revalidatePath('/mentor-pool')` on account deletion
+ * so the fresh SSR fetch that revalidation triggers doesn't re-cache a
+ * stale result.
+ */
+export async function pollUntilUserDeleted(
+  userId: number,
+  name?: string,
+  maxRetries = FAST_CONVERGENCE_BUDGET.maxRetries,
+  intervalMs = FAST_CONVERGENCE_BUDGET.intervalMs
+): Promise<boolean> {
+  if (!userId || Number.isNaN(userId)) return true;
+
+  const adapter = new SearchIndexDeleteAdapter(userId, name);
+  const { confirmed } = await runConvergence(adapter, maxRetries, intervalMs);
+  return confirmed;
+}
+
+/**
+ * Polls the mentor-pool search query (scoped to `fields.name` via
+ * `search_pattern`, so it isn't limited to the unfiltered listing's first
+ * page) until this user's card reflects every just-saved, card-visible
+ * field (or, for a user newly becoming a mentor, until the card appears
+ * at all). Only meaningful for mentors — callers should skip this for
+ * mentee saves, since those never appear in the listing.
+ */
+export async function pollUntilMentorPoolSynced(
+  userId: number,
+  fields: MentorCardFields,
+  maxRetries = FAST_CONVERGENCE_BUDGET.maxRetries,
+  intervalMs = FAST_CONVERGENCE_BUDGET.intervalMs
+): Promise<boolean> {
+  if (!userId || Number.isNaN(userId)) return true;
+
+  const adapter = new SearchIndexSyncAdapter(userId, fields);
+  const { confirmed } = await runConvergence(adapter, maxRetries, intervalMs);
+  return confirmed;
+}
+
+/**
+ * Owns the "confirm the mentor-pool search index reflects this save, then
+ * revalidate" sequence for the profile-update flow — the single place this
+ * poll-then-revalidate pairing lives, instead of being hand-sequenced at
+ * each call site. A no-op when the save isn't mentor-relevant: skips the
+ * confirmation poll entirely and never re-invokes `revalidate`, since the
+ * immediate revalidate the caller already fired (its own concern, not
+ * this function's) already covers a mentee save.
+ */
+export async function confirmProfileSynced(
+  userId: number,
+  fields: MentorCardFields,
+  isMentorRelevant: boolean,
+  revalidate: () => Promise<void>,
+  poll: (
+    userId: number,
+    fields: MentorCardFields
+  ) => Promise<boolean> = pollUntilMentorPoolSynced
+): Promise<void> {
+  if (!isMentorRelevant) return;
+  try {
+    await poll(userId, fields);
+  } catch (e) {
     captureFlowFailure({
       flow: 'profile_update',
-      step: 'background_sync',
-      message: 'pollUntilSynced exhausted retries without sync',
+      step: 'poll_mentor_pool_sync_error',
+      message: e instanceof Error ? e.message : String(e),
+      level: 'warning',
+    });
+  }
+  await revalidate();
+}
+
+/**
+ * Owns the "confirm the mentor-pool search index no longer lists the
+ * deleted user, then purge the profile/mentor-pool caches" sequence for
+ * account deletion. Mirrors `revalidateProfilePath`
+ * (`src/app/profile/[pageUserId]/actions.ts`) but scoped to the caller's
+ * own account rather than a `[pageUserId]` route param — see that
+ * function's own doc comment for why deletion doesn't reuse it directly.
+ */
+export async function confirmDeletionSynced(
+  userId: number,
+  name: string | undefined,
+  revalidatePaths: Array<() => void>,
+  poll: (
+    userId: number,
+    name?: string
+  ) => Promise<boolean> = pollUntilUserDeleted
+): Promise<void> {
+  try {
+    await poll(userId, name);
+  } catch (e) {
+    captureFlowFailure({
+      flow: 'delete_account',
+      step: 'after_poll',
+      message: e instanceof Error ? e.message : String(e),
       level: 'warning',
     });
   }
 
-  return latest;
+  for (const revalidate of revalidatePaths) {
+    try {
+      revalidate();
+    } catch (e) {
+      captureFlowFailure({
+        flow: 'delete_account',
+        step: 'after_revalidate',
+        message: e instanceof Error ? e.message : String(e),
+        level: 'warning',
+      });
+    }
+  }
 }

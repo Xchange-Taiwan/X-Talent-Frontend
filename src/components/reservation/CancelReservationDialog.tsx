@@ -3,7 +3,7 @@
 import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
 
-import { Button } from '@/components/ui/button';
+import { Button, type ButtonProps } from '@/components/ui/button';
 import {
   Dialog,
   DialogClose,
@@ -15,15 +15,16 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/components/ui/use-toast';
+import { useConfirmActionDialog } from '@/hooks/reservation/useConfirmActionDialog';
 import { trackEvent } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
-
-import type { Reservation } from './types';
+import type { Reservation } from '@/types/reservation';
 
 interface Props {
   reservation: Reservation;
   className?: string;
+  disabled?: boolean;
+  size?: ButtonProps['size'];
   onConfirmCancel?: (payload: {
     id: string;
     reason: string;
@@ -33,40 +34,29 @@ interface Props {
 export default function CancelReservationDialog({
   reservation,
   className,
+  disabled = false,
+  size = 'sm',
   onConfirmCancel,
 }: Props) {
-  const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const { toast } = useToast();
 
-  function onOpenChange(next: boolean) {
-    if (isSubmitting) return;
-    setOpen(next);
-    if (next) {
+  const { open, isSubmitting, onOpenChange, execute } = useConfirmActionDialog({
+    errorMessage: '取消預約失敗,請稍後再試',
+    onOpen: () => {
       setReason('');
       trackEvent({
         name: 'feature_opened',
         feature: 'reservation',
         metadata: { dialog: 'cancel_reservation' },
       });
-    }
-  }
+    },
+  });
 
-  async function handleConfirm() {
-    setIsSubmitting(true);
-    try {
+  const handleConfirm = () => {
+    execute(async () => {
       await onConfirmCancel?.({ id: reservation.id, reason });
-      setIsSubmitting(false);
-      setOpen(false);
-    } catch {
-      toast({
-        variant: 'destructive',
-        description: '取消預約失敗,請稍後再試',
-      });
-      setIsSubmitting(false);
-    }
-  }
+    });
+  };
 
   const canSubmit = reason.trim().length > 0 && !isSubmitting;
 
@@ -74,9 +64,10 @@ export default function CancelReservationDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button
-          size="sm"
+          size={size}
           variant="destructive"
-          className={cn('min-h-9 px-3', className)}
+          className={cn(size === 'sm' && 'min-h-9 px-3', className)}
+          disabled={disabled}
         >
           取消預約
         </Button>
@@ -112,13 +103,12 @@ export default function CancelReservationDialog({
               </Button>
             </DialogClose>
             <Button
-              disabled={!canSubmit}
-              className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 sm:w-auto"
+              variant="destructive"
+              disabled={!canSubmit || disabled}
+              className="w-full sm:w-auto"
               onClick={handleConfirm}
             >
-              {isSubmitting && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
+              {isSubmitting && <Loader2 className="mr-2 size-4 animate-spin" />}
               取消預約
             </Button>
           </DialogFooter>

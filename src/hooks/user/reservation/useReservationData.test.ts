@@ -19,6 +19,8 @@ vi.mock('@/services/reservations', async () => {
 vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
 vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn() }));
 
+import { captureFlowFailure } from '@/lib/monitoring';
+import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
 import {
   fetchReservations,
   type ReservationState,
@@ -28,6 +30,7 @@ import { mockSession, mockUseSession } from '@/test/mocks/nextAuth';
 import { useReservationData } from './useReservationData';
 
 const mockFetch = vi.mocked(fetchReservations);
+const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 
 const makeReservation = (id: string) => ({
   id,
@@ -41,6 +44,7 @@ const makeReservation = (id: string) => ({
   dtend: 1700003600,
   senderUserId: 'sender-1',
   participantUserId: 'participant-1',
+  version: 0,
 });
 
 const stubFor = (state: ReservationState) =>
@@ -51,6 +55,7 @@ const stubFor = (state: ReservationState) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  reservationReadModel.clear();
   mockUseSession.mockReturnValue({
     data: mockSession,
     status: 'authenticated',
@@ -77,14 +82,18 @@ describe('useReservationData (mentee)', () => {
     );
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTEE_UPCOMING',
-    });
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTEE_PENDING',
-    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTEE_UPCOMING',
+      })
+    );
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTEE_PENDING',
+      })
+    );
     expect(mockFetch).not.toHaveBeenCalledWith(
       expect.objectContaining({ state: 'MENTEE_HISTORY' })
     );
@@ -113,72 +122,82 @@ describe('useReservationData (mentee)', () => {
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTEE_HISTORY',
-    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTEE_HISTORY',
+      })
+    );
     expect(result.current.isHistoryLoaded).toBe(true);
     expect(result.current.data?.history).toHaveLength(1);
   });
 
-  it('onMutationSuccess refetches only the affected states (history skipped when not loaded)', async () => {
+  it('resets historyActive on fetch failure, allowing subsequent loadHistory retries', async () => {
     const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     mockFetch.mockClear();
 
-    await act(async () => {
-      result.current.onMutationSuccess('any-id', [
-        'MENTEE_PENDING',
-        'MENTEE_HISTORY',
-      ]);
-    });
+    // Mock fetch failure for history
+    mockFetch.mockRejectedValueOnce(new Error('Fetch failed'));
 
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTEE_PENDING',
-    });
-  });
-
-  it('onMutationSuccess refetches history when it has been loaded', async () => {
-    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
     await act(async () => {
       await result.current.loadHistory();
     });
-    mockFetch.mockClear();
 
+    // Wait for failure
+    await waitFor(() => {
+      expect(result.current.isLoadingHistory).toBe(false);
+      expect(result.current.isHistoryLoaded).toBe(false);
+      expect(result.current.initialState.history).toBe('idle'); // Should revert to idle!
+    });
+
+    // Now Mock fetch success for history retry
+    const mockRetriedReservations = {
+      items: [makeReservation('MENTEE_HISTORY')],
+      next_dtend: 0,
+    };
+    mockFetch.mockResolvedValueOnce(mockRetriedReservations);
+
+    // Call loadHistory again to retry
     await act(async () => {
-      result.current.onMutationSuccess('any-id', [
-        'MENTEE_PENDING',
-        'MENTEE_HISTORY',
-      ]);
+      await result.current.loadHistory();
     });
 
-    expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTEE_PENDING',
-    });
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTEE_HISTORY',
+    await waitFor(() => {
+      expect(result.current.isHistoryLoaded).toBe(true);
+      expect(result.current.initialState.history).toBe('ready');
+      expect(result.current.data?.history).toHaveLength(1);
     });
   });
 
-  it('onMutationSuccess ignores affectedStates that belong to the other role', async () => {
+  it('reservationReadModel.evictItem removes the operated item from active lists and allows it to appear in destination tabs (X-Tracker #783)', async () => {
     const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     mockFetch.mockClear();
 
+    expect(result.current.data?.pending).toHaveLength(1);
+    expect(result.current.data?.pending[0].id).toBe('MENTEE_PENDING');
+
     await act(async () => {
-      result.current.onMutationSuccess('any-id', [
-        'MENTOR_PENDING',
-        'MENTOR_UPCOMING',
-      ]);
+      reservationReadModel.evictItem(
+        { userId: String(mockSession.user.id), state: 'MENTEE_PENDING' },
+        'MENTEE_PENDING'
+      );
     });
 
     expect(mockFetch).not.toHaveBeenCalled();
+    expect(result.current.data?.pending).toHaveLength(0);
+
+    await act(async () => {
+      reservationReadModel.set(
+        { userId: String(mockSession.user.id), state: 'MENTEE_UPCOMING' },
+        { items: [makeReservation('MENTEE_PENDING')], next_dtend: 0 }
+      );
+    });
+
+    expect(result.current.data?.upcoming.map((it) => it.id)).toEqual([
+      'MENTEE_PENDING',
+    ]);
   });
 
   it('initial fetch failure → data stays null, isLoading becomes false', async () => {
@@ -230,16 +249,16 @@ describe('useReservationData (mentee)', () => {
     });
 
     await act(async () => {
-      void result.current.loadMore('MENTEE_UPCOMING');
+      void result.current.loadMore('upcoming');
     });
-    expect(result.current.loadingMoreStates.MENTEE_UPCOMING).toBe(true);
-    expect(result.current.loadingMoreStates.MENTEE_PENDING).toBe(false);
+    expect(result.current.loadingMoreStates.upcoming).toBe(true);
+    expect(result.current.loadingMoreStates.pending).toBe(false);
 
     await act(async () => {
-      void result.current.loadMore('MENTEE_PENDING');
+      void result.current.loadMore('pending');
     });
-    expect(result.current.loadingMoreStates.MENTEE_UPCOMING).toBe(true);
-    expect(result.current.loadingMoreStates.MENTEE_PENDING).toBe(true);
+    expect(result.current.loadingMoreStates.upcoming).toBe(true);
+    expect(result.current.loadingMoreStates.pending).toBe(true);
 
     await act(async () => {
       resolveUpcoming({
@@ -247,8 +266,8 @@ describe('useReservationData (mentee)', () => {
         next_dtend: 0,
       });
     });
-    expect(result.current.loadingMoreStates.MENTEE_UPCOMING).toBe(false);
-    expect(result.current.loadingMoreStates.MENTEE_PENDING).toBe(true);
+    expect(result.current.loadingMoreStates.upcoming).toBe(false);
+    expect(result.current.loadingMoreStates.pending).toBe(true);
 
     await act(async () => {
       resolvePending({
@@ -256,7 +275,7 @@ describe('useReservationData (mentee)', () => {
         next_dtend: 0,
       });
     });
-    expect(result.current.loadingMoreStates.MENTEE_PENDING).toBe(false);
+    expect(result.current.loadingMoreStates.pending).toBe(false);
   });
 
   it('component unmounts before fetch resolves → state is NOT updated', async () => {
@@ -282,6 +301,156 @@ describe('useReservationData (mentee)', () => {
 
     expect(result.current.data).toBeNull();
   });
+
+  it('does not capture flow failure when fetchReservations throws AbortError (request cancellation)', async () => {
+    const abortError = new Error('The operation was aborted.');
+    abortError.name = 'AbortError';
+    mockFetch.mockRejectedValue(abortError);
+
+    renderHook(() => useReservationData({ role: 'mentee' }));
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalled();
+    });
+
+    expect(mockCaptureFlowFailure).not.toHaveBeenCalled();
+  });
+
+  it('captures flow failure when fetchReservations throws a regular Error', async () => {
+    const regularError = new Error('Network failure');
+    mockFetch.mockRejectedValue(regularError);
+
+    renderHook(() => useReservationData({ role: 'mentee' }));
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalled();
+    });
+
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'reservation_initial_fetch',
+        message: 'Network failure',
+      })
+    );
+  });
+
+  it('loadMore uses the updated next_dtend token from the cache, avoiding stale closure bugs', async () => {
+    mockFetch.mockReset();
+    // First fetch for upcoming returns next_dtend: 12345
+    mockFetch.mockImplementation(({ state }) => {
+      if (state === 'MENTEE_UPCOMING') {
+        return Promise.resolve({
+          items: [makeReservation('upcoming-1')],
+          next_dtend: 12345,
+        });
+      }
+      return Promise.resolve({ items: [], next_dtend: 0 });
+    });
+
+    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    // Mock next fetch to return next_dtend: 67890
+    mockFetch.mockResolvedValueOnce({
+      items: [makeReservation('upcoming-2')],
+      next_dtend: 67890,
+    });
+
+    await act(async () => {
+      await result.current.loadMore('upcoming');
+    });
+
+    // Verify first loadMore called with cursor 12345
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTEE_UPCOMING',
+        nextDtend: 12345,
+      })
+    );
+
+    // Mock next fetch for second loadMore
+    mockFetch.mockResolvedValueOnce({
+      items: [makeReservation('upcoming-3')],
+      next_dtend: 0,
+    });
+
+    await act(async () => {
+      await result.current.loadMore('upcoming');
+    });
+
+    // Verify second loadMore called with the updated cursor 67890 (no stale closure!)
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTEE_UPCOMING',
+        nextDtend: 67890,
+      })
+    );
+  });
+});
+
+describe('useReservationData - pagination and cache gates', () => {
+  it('loadMore short-circuits without a signed-in user', async () => {
+    mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });
+    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    mockFetch.mockClear();
+
+    await act(async () => {
+      await result.current.loadMore('upcoming');
+    });
+
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('loadMore short-circuits when the tab has no cached page to paginate from yet', async () => {
+    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    mockFetch.mockClear();
+
+    // History was never loaded (loadHistory was never called), so its
+    // cache slot is empty.
+    await act(async () => {
+      await result.current.loadMore('history');
+    });
+
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('does not fetch another page when the cursor is at its initial (exhausted) value', async () => {
+    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    // The default stubFor resolves next_dtend: 0, i.e. no further pages.
+    mockFetch.mockClear();
+
+    await act(async () => {
+      await result.current.loadMore('upcoming');
+    });
+
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('history load state falls back to idle when its cache is invalidated while the tab stays active', async () => {
+    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await act(async () => {
+      await result.current.loadHistory();
+    });
+    expect(result.current.initialState.history).toBe('ready');
+
+    // Invalidated externally (e.g. by another mutation) without touching
+    // historyActive: isHistoryLoading and isHistoryLoaded both go false
+    // while the tab is still active, landing on the innermost idle branch.
+    await act(async () => {
+      reservationReadModel.invalidate({
+        userId: String(mockSession.user.id),
+        state: 'MENTEE_HISTORY',
+      });
+    });
+
+    expect(result.current.initialState.history).toBe('idle');
+  });
 });
 
 describe('useReservationData (mentor)', () => {
@@ -291,14 +460,18 @@ describe('useReservationData (mentor)', () => {
     );
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTOR_UPCOMING',
-    });
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTOR_PENDING',
-    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTOR_UPCOMING',
+      })
+    );
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTOR_PENDING',
+      })
+    );
     expect(mockFetch).not.toHaveBeenCalledWith(
       expect.objectContaining({ state: 'MENTOR_HISTORY' })
     );
@@ -309,43 +482,31 @@ describe('useReservationData (mentor)', () => {
     expect(result.current.isLoading).toBe(false);
   });
 
-  it('accept-flow refetch only triggers MENTOR_PENDING + MENTOR_UPCOMING', async () => {
+  it('derives pending items with cancelledBy into history immediately', async () => {
+    mockFetch.mockImplementation(({ state }) => {
+      if (state === 'MENTOR_PENDING') {
+        return Promise.resolve({
+          items: [
+            {
+              ...makeReservation('stale-pending'),
+              cancelledBy: 'SYSTEM' as const,
+            },
+            makeReservation('active-pending'),
+          ],
+          next_dtend: 0,
+        });
+      }
+      return Promise.resolve({ items: [], next_dtend: 0 });
+    });
+
     const { result } = renderHook(() => useReservationData({ role: 'mentor' }));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    mockFetch.mockClear();
 
-    await act(async () => {
-      result.current.onMutationSuccess('any-id', [
-        'MENTOR_PENDING',
-        'MENTOR_UPCOMING',
-      ]);
-    });
-
-    expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTOR_PENDING',
-    });
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTOR_UPCOMING',
-    });
-  });
-
-  it('refetch never sends batch param so backend uses default page size', async () => {
-    const { result } = renderHook(() => useReservationData({ role: 'mentor' }));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    mockFetch.mockClear();
-
-    await act(async () => {
-      result.current.onMutationSuccess('any-id', ['MENTOR_PENDING']);
-    });
-
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTOR_PENDING',
-    });
-    const lastCall = mockFetch.mock.calls.at(-1)?.[0];
-    expect(lastCall).not.toHaveProperty('batch');
+    expect(result.current.data?.pending.map((it) => it.id)).toEqual([
+      'active-pending',
+    ]);
+    expect(result.current.data?.history.map((it) => it.id)).toEqual([
+      'stale-pending',
+    ]);
   });
 });

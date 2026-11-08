@@ -1,3 +1,4 @@
+import { ProfileBanner } from '@/components/profile/profile-banner';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export function ProfileHeaderSkeleton() {
@@ -65,18 +66,22 @@ export function ScheduleSkeleton() {
 }
 
 export function ProfilePageSkeleton() {
+  // animate-delayed-fade-in stays invisible for the first ~150ms - a fast
+  // navigation (page ready before then) never flashes this skeleton at
+  // all, only a genuinely slow one fades it in. Used as both the route
+  // `loading.tsx` fallback and container.tsx's dynamic-import fallback.
   return (
-    <div>
-      <div className="relative h-[111px] bg-gradient-to-br from-[#92e7e7] to-[#e7a0d4] sm:h-[100px]" />
+    <div className="animate-delayed-fade-in">
+      <ProfileBanner />
 
-      <div className="container mb-20 max-w-[1024px] 2xl:max-w-[1280px]">
+      <div className="container mb-20 max-w-screen-lg xl:max-w-screen-xl">
         <ProfileHeaderSkeleton />
 
-        <div className="flex flex-col gap-8 2xl:flex-row 2xl:gap-12">
-          <div className="w-full 2xl:w-3/5">
+        <div className="flex flex-col gap-8 xl:flex-row xl:gap-12">
+          <div className="w-full xl:w-3/5">
             <ProfileContentSkeleton />
           </div>
-          <div className="w-full 2xl:w-2/5">
+          <div className="w-full xl:w-2/5">
             <ScheduleSkeleton />
           </div>
         </div>

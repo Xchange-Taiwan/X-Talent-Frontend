@@ -2,10 +2,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import { FC, Fragment, ReactNode } from 'react';
 
-import aboutPage_1 from '@/assets/landing/aboutPage_1.webp';
-import aboutPage_icon_1 from '@/assets/landing/aboutPage_icon_1.svg';
-import aboutPage_icon_2 from '@/assets/landing/aboutPage_icon_2.svg';
-import aboutPage_icon_3 from '@/assets/landing/aboutPage_icon_3.svg';
+import { FeatureItem } from '@/components/landing/FeatureItem';
 
 import { featureData } from '../data';
 
@@ -28,27 +25,11 @@ const SectionTitle: FC<{ children: ReactNode }> = ({ children }) => (
   </h2>
 );
 
-const FeatureItem = ({ icon, text }: { icon: string; text: string }) => {
-  return (
-    <div className="mb-[50px] flex items-center md:w-2/4 md:flex-col xl:mx-[60px] xl:w-auto">
-      <Image
-        className="h-[70px] w-[70px]"
-        src={icon}
-        alt=""
-        role="presentation"
-      />
-      <p className="ml-[20px] text-base tracking-[0.085em] md:mt-8 md:text-xl">
-        {text}
-      </p>
-    </div>
-  );
-};
-
 export default function Page() {
   return (
     <Fragment>
-      <section className="relative  flex h-[532px] w-full items-center justify-center overflow-hidden bg-[url('/landing/about-page-hero-sm.svg')] bg-cover bg-center sm:bg-[url('/landing/about-page-hero.svg')]">
-        <h1 className="text-center text-3xl font-bold leading-normal tracking-widest text-[#172E59] md:text-5xl">
+      <section className="relative flex h-[532px] w-full items-center justify-center overflow-hidden bg-[url('/landing/about-page-hero-sm.svg')] bg-cover bg-center sm:bg-[url('/landing/about-page-hero.svg')]">
+        <h1 className="text-navy text-center text-3xl leading-normal font-bold tracking-widest md:text-5xl">
           關於 <br className="md:hidden" />
           X-Talent
         </h1>
@@ -60,34 +41,53 @@ export default function Page() {
           <Image
             width={500}
             height={320}
-            src={aboutPage_1}
+            src="/landing/aboutPage_1.webp"
             alt="X-Talent 起源 — XChange 社群成員交流情境"
             sizes="500px"
             priority={false}
             placeholder="blur"
+            blurDataURL="data:image/webp;base64,UklGRmgAAABXRUJQVlA4IFwAAAAwAgCdASoKAAYAAUAmJZQAEPN8bsW11HJORAD+4Nv7ydzvgf+ppALM/+CXSyN+wgP/5CcvuL+rtpayQ/47L7f6tIIsv1J0vQKcYlJL2kGx3aUh553HrmuM09DAAA=="
           />
           <p className="max-w-5xl px-8 text-center text-base md:text-xl lg:px-0">
-            X-Talent 源自於台灣最大的互聯網工作者社群 XChange
-            ，有許多想要轉換跑道與資深的工作者，持續在平台中與各領域人才諮詢與交流，不僅僅精進專業技能，也在人脈拓展的同時，釐清職涯道路，甚至獲得內部推薦，產生改變與持續成長。
+            X-Talent 源自於台灣最大的互聯網工作者社群
+            XChange，有許多想要轉換跑道的工作者與資深工作者，持續在平台中與各領域人才諮詢與交流，不僅僅精進專業技能，也在人脈拓展的同時，釐清職涯道路，甚至獲得內部推薦，產生改變與持續成長。
           </p>
         </div>
       </section>
 
-      <section className="bg-[#172E59] py-20 text-center text-light">
+      <section className="bg-navy text-light py-20 text-center">
         <SectionTitle>X-Talent 的核心價值</SectionTitle>
 
         <div className="mx-auto mb-20 flex max-w-xl justify-between px-12 sm:px-0">
           <div>
-            <Image src={aboutPage_icon_1} alt="" role="presentation" />
+            <Image
+              src="/landing/aboutPage_icon_1.svg"
+              width={58}
+              height={57}
+              alt=""
+              role="presentation"
+            />
             <p className="mt-7 font-medium">交流</p>
           </div>
           <div>
-            <Image src={aboutPage_icon_2} alt="" role="presentation" />
+            <Image
+              src="/landing/aboutPage_icon_2.svg"
+              width={58}
+              height={58}
+              alt=""
+              role="presentation"
+            />
             <p className="mt-7 font-medium">改變</p>
           </div>
           <div>
-            <Image src={aboutPage_icon_3} alt="" role="presentation" />
-            <p className="mt-7 font-medium ">成長</p>
+            <Image
+              src="/landing/aboutPage_icon_3.svg"
+              width={58}
+              height={49}
+              alt=""
+              role="presentation"
+            />
+            <p className="mt-7 font-medium">成長</p>
           </div>
         </div>
 
@@ -95,7 +95,7 @@ export default function Page() {
           一個涵蓋不同領域的人才平台，讓我們能不只是在摸索與碰撞中成長，而是可以從跨領域的
           Mentor 中加速專業與軟實力的成長。
           <br />
-          站在資深PM的肩膀上，運用最少的時間，獲取最多的經驗，一同在PM職涯上有所突破。
+          站在前輩的肩膀上，運用最少的時間，獲取最多的經驗，一同在職涯上有所突破。
         </p>
       </section>
 
@@ -106,9 +106,17 @@ export default function Page() {
           的職涯可能性
         </SectionTitle>
         <div className="flex w-full flex-col items-center justify-center">
-          <div className="text-black flex flex-col flex-wrap justify-center font-bold md:flex-row">
+          <div className="text-text-primary flex flex-col flex-wrap justify-center font-bold md:flex-row">
             {featureData.map((item) => (
-              <FeatureItem key={item.text} icon={item.icon} text={item.text} />
+              <FeatureItem
+                key={item.text}
+                icon={item.icon}
+                width={item.width}
+                height={item.height}
+                text={item.text}
+                className="mb-[50px] flex items-center md:w-2/4 md:flex-col xl:mx-[60px] xl:w-auto"
+                imageClassName="h-[70px] w-[70px]"
+              />
             ))}
           </div>
         </div>

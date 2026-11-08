@@ -1,13 +1,16 @@
-import { TotalWorkSpanEnum } from '@/components/onboarding/steps/constant';
+import { TotalWorkSpanEnum } from '@/constant/seniority';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
-import { isSafeUrl } from '@/lib/url/isSafeUrl';
-import { ExperienceType } from '@/services/profile/experienceType';
 import {
-  buildTagLabelMap,
-  type TagCatalogsByBucket,
-} from '@/services/profile/tagCatalog';
-import { MentorProfileVO } from '@/services/profile/user';
-import type { TagVO } from '@/types/tag';
+  decode,
+  type EducationExperienceMetadata,
+  type MentorExperiencePayload,
+  type PersonalLinkMetadata,
+  type WorkExperienceMetadata,
+} from '@/lib/profile/experienceCodec';
+import { readIndustryTag } from '@/lib/profile/readIndustryTag';
+import { buildTagLabelMap } from '@/lib/profile/tagLabelMap';
+import type { TagCatalogsByBucket } from '@/types/tagCatalog';
+import type { MentorProfileVO } from '@/types/user';
 
 import {
   clearUserProfileDtoCache,
@@ -25,29 +28,6 @@ export const USER_DATA_CACHE_TTL_MS = USER_PROFILE_DTO_CACHE_TTL_MS;
 export interface TagDisplay {
   subject_group: string;
   subject: string;
-}
-
-export interface WorkExperienceMetadata {
-  job?: string;
-  company?: string;
-  job_period_start?: string;
-  job_period_end?: string;
-  job_location?: string;
-  description?: string;
-  industry?: string;
-  is_primary?: boolean;
-}
-
-export interface EducationExperienceMetadata {
-  subject?: string;
-  school?: string;
-  education_period_start?: string;
-  education_period_end?: string;
-}
-
-export interface PersonalLinkMetadata {
-  platform: string;
-  url: string;
 }
 
 export interface UserType {
@@ -70,11 +50,6 @@ export interface UserType {
   personalLinks?: PersonalLinkMetadata[];
 }
 
-type ExperienceBlock = {
-  category: ExperienceType;
-  mentor_experiences_metadata?: { data?: unknown[] };
-};
-
 // Subject_group codes shipped by the BFF round-trip directly back to writes,
 // so resolve them to display labels via the localized catalog. Catalog miss
 // (legacy or unpublished tag) falls back to the raw code rather than dropping
@@ -92,56 +67,19 @@ function toTagDisplay(
     }));
 }
 
-function getBlocksByCategory(
-  experiences: MentorProfileVO['experiences'],
-  category: ExperienceType
-): ExperienceBlock[] {
-  if (!experiences) return [];
-  return (experiences as unknown as ExperienceBlock[]).filter(
-    (exp) => exp.category === category
-  );
-}
-
-function getMetadataArray<T>(block: ExperienceBlock): T[] {
-  return (block.mentor_experiences_metadata?.data ?? []) as T[];
-}
-
 function parseUserDtoToUserType(
   userDto: MentorProfileVO,
   catalogs: TagCatalogsByBucket
 ): UserType {
   const labelMap = buildTagLabelMap(catalogs);
 
-  const workBlocks = getBlocksByCategory(
-    userDto.experiences,
-    ExperienceType.WORK
+  const { workExperiences, educations, personalLinks } = decode(
+    userDto.experiences as unknown as MentorExperiencePayload[]
   );
-  const educationBlocks = getBlocksByCategory(
-    userDto.experiences,
-    ExperienceType.EDUCATION
-  );
-  const linkBlocks = getBlocksByCategory(
-    userDto.experiences,
-    ExperienceType.LINK
-  );
-
-  const workExperiences = workBlocks.flatMap((b) =>
-    getMetadataArray<WorkExperienceMetadata>(b)
-  );
-  const educations = educationBlocks.flatMap((b) =>
-    getMetadataArray<EducationExperienceMetadata>(b)
-  );
-  // Drop links whose URL doesn't pass the scheme allow-list. The form schema
-  // already blocks javascript:, but profiles can be written via direct BFF
-  // calls — render-time filtering closes that bypass before <a href> ever
-  // sees the value.
-  const personalLinks = linkBlocks
-    .flatMap((b) => getMetadataArray<PersonalLinkMetadata>(b))
-    .filter((l) => isSafeUrl(l.url));
 
   // BFF emits industry enriched (TagVO-shaped); OpenAPI types it as
   // `Record<string, never>`. Pull subject through the local TagVO type.
-  const industryTag = userDto.industry as unknown as TagVO | null | undefined;
+  const industryTag = readIndustryTag(userDto.industry);
 
   return {
     user_id: userDto.user_id,
@@ -168,22 +106,35 @@ function parseUserDtoToUserType(
   };
 }
 
-function useUserData(userId: number, language: string) {
+function useUserData(
+  userId: number,
+  language: string,
+  initialDto?: MentorProfileVO | null,
+  initialCatalogs?: TagCatalogsByBucket
+) {
+  // /profile/[pageUserId]/page.tsx handles 404 via notFound() on the server
+  // and types initialDto as non-null MentorProfileVO. The only caller that
+  // passes initialDto = null is /profile/card (an authenticated route for the
+  // logged-in user), where null signals that the SSR prefetch failed and
+  // useUserData should fall back to the client-side fetch (see
+  // app/profile/card/page.tsx). Direct callers of useUserProfileDto that pass
+  // null still get synchronous USER_NOT_FOUND without a redundant fetch.
   const {
     userDto,
     isLoading: dtoLoading,
     error,
-  } = useUserProfileDto(userId, language);
+    refetch,
+  } = useUserProfileDto(userId, language, initialDto ?? undefined);
   // Catalog supplies localized labels for the raw subject_group arrays
   // (want_*, have_*) and for the enriched industry. Loads in parallel with
   // the user dto and is cached app-wide via getTagCatalogCached.
-  const tagCatalog = useTagCatalog(language);
+  const tagCatalog = useTagCatalog(language, initialCatalogs);
 
   const userData: UserType | null = userDto
     ? parseUserDtoToUserType(userDto, tagCatalog)
     : null;
 
-  return { userData, isLoading: dtoLoading, error };
+  return { userData, isLoading: dtoLoading, error, refetch };
 }
 
 export default useUserData;

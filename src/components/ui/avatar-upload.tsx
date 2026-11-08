@@ -1,10 +1,12 @@
 import { Camera, ImageIcon } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Control, FieldValues, Path, useController } from 'react-hook-form';
 
-// Lazy-load the crop modal — it pulls in react-avatar-editor and @mui/material
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
+
+// Lazy-load the crop modal — it pulls in react-avatar-editor and Radix UI components
 // (~100kB+), which are only needed when the user actually opens the crop dialog.
 const AvatarCropModal = dynamic(() => import('./avatar-crop-modal'), {
   ssr: false,
@@ -23,7 +25,10 @@ const AvatarUpload = <T extends FieldValues>({
   avatarUrl,
   onFileChange,
 }: AvatarUploadProps<T>) => {
-  const { field } = useController({ control, name });
+  const { field, fieldState } = useController({ control, name });
+  const errorMessage = fieldState.error?.message;
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const imagePreviewUrl = field.value
     ? URL.createObjectURL(field.value)
@@ -55,33 +60,34 @@ const AvatarUpload = <T extends FieldValues>({
   };
 
   return (
-    <div className="mb-10 flex justify-center lg:justify-start">
+    <div className="mb-10 flex flex-col items-center lg:items-start">
       <div
-        className="group relative flex h-36 w-36 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 border-[#B7CBCB] bg-[#F4FCFC] lg:h-[150px] lg:w-[150px]"
-        onClick={() => document.getElementById('fileInput')?.click()}
+        className={`group bg-avatar-background relative flex size-36 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 lg:h-[150px] lg:w-[150px] ${
+          errorMessage ? 'border-status-error-default' : 'border-avatar-border'
+        } ${FOCUS_RING_CLASSES}`}
+        onClick={() => fileInputRef.current?.click()}
+        onKeyDown={(e) => {
+          if (e.key === ' ' || e.key === 'Enter') {
+            e.preventDefault();
+            fileInputRef.current?.click();
+          }
+        }}
+        role="button"
+        tabIndex={0}
       >
         <input
-          id="fileInput"
+          ref={fileInputRef}
           type="file"
           accept="image/*"
-          style={{ display: 'none' }}
+          className="hidden"
           onChange={handleUploadAvatar}
+          onClick={(e) => e.stopPropagation()}
         />
 
         {/* Hover show upload icon */}
-        <div className="absolute inset-0 flex items-center justify-center bg-[#6f6f6f] opacity-0 transition-opacity duration-200 group-hover:opacity-75">
-          <Camera size={50} color="#B7CBCB" />
+        <div className="bg-avatar-overlay absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-75">
+          <Camera size={50} className="text-avatar-border" />
         </div>
-
-        {/* Modal for cropping image — lazy-loaded on first open */}
-        {open && (
-          <AvatarCropModal
-            file={selectedImage}
-            isOpen={open}
-            onClose={handleClose}
-            onSave={handleSaveImage}
-          />
-        )}
 
         {imagePreviewUrl ? (
           <Image
@@ -90,14 +96,32 @@ const AvatarUpload = <T extends FieldValues>({
             width={150}
             height={150}
             sizes="150px"
-            className="h-full w-full rounded-full object-cover"
+            className="size-full rounded-full object-cover"
             priority
           />
         ) : (
           // Show default avatar if no image is selected
-          <ImageIcon size={50} color="#B7CBCB" />
+          <ImageIcon size={50} className="text-avatar-border" />
         )}
       </div>
+      {errorMessage && (
+        <p className="text-status-error-default mt-2 text-center text-sm font-medium lg:text-left">
+          {errorMessage}
+        </p>
+      )}
+
+      {/* Rendered outside the trigger div — nesting it inside would let clicks
+          inside the modal (e.g. releasing a drag on the editor canvas) bubble
+          through the React tree to the trigger's onClick and reopen the file
+          picker, even though the modal itself portals elsewhere in the DOM. */}
+      {open && (
+        <AvatarCropModal
+          file={selectedImage}
+          isOpen={open}
+          onClose={handleClose}
+          onSave={handleSaveImage}
+        />
+      )}
     </div>
   );
 };
