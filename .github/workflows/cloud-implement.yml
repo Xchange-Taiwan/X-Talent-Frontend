@@ -169,7 +169,7 @@ jobs:
         run: |
           mkdir -p .agents/tmp
           GH_TOKEN="${TRACKER_READ_TOKEN:-$GH_TOKEN}" gh issue view "$TICKET_NUMBER" --repo Xchange-Taiwan/X-Talent-Tracker --comments > .agents/tmp/ticket-spec.md 2>/dev/null || true
-           ARCH_QUERY="#${TICKET_NUMBER} $(head -n 25 .agents/tmp/ticket-spec.md 2>/dev/null | tr '\n' ' ' || echo '')"
+          ARCH_QUERY="#${TICKET_NUMBER} $(head -n 25 .agents/tmp/ticket-spec.md 2>/dev/null | tr '\n' ' ' || echo '')"
           jq -n --arg q "$ARCH_QUERY" '{query: $q}' | curl -sS -X POST "https://x-talent-discord-mention-notify.x-talent.workers.dev/__arch-kb" -H "Content-Type: application/json" -d @- | jq -r 'if .kb then "\n\n## X-Talent 跨專案架構知識庫 (Cloudflare KV Architecture KB)\n```json\n" + (.kb | tojson) + "\n```" else "" end' >> .agents/tmp/ticket-spec.md 2>/dev/null || true
 
           if [ -n "$BRANCH_NAME" ]; then
@@ -180,15 +180,15 @@ jobs:
             請依序執行：
             1. 直接讀取 .agents/tmp/ticket-spec.md（請勿讀取 .git/config 或重新執行 gh auth），並檢查 git diff origin/develop 與 Issue #${TICKET_NUMBER} 的所有驗收條件（Acceptance Criteria）。
             2. 若有尚未實作完畢的需求、缺少的 Vitest 單元測試、對應的 Playwright E2E (.spec.ts) 測試檔案，或當修改/新增 src/components/**/*.tsx 下元件時尚未同步更新的 Storybook (.stories.tsx) 檔案，請直接在同一分支補齊程式碼、測試與 .stories.tsx。
-            3. 僅執行快速的 pnpm type-check 與 pnpm test（Vitest 單元測試）確保通過。
-            4. 效能與流程限制：此階段嚴禁自行執行 pnpm test:e2e、npx playwright test、pnpm build 或啟動 pnpm dev，也請勿執行 gh pr create，因為下一步 Phase 2 (scripts/cloud-converge-loop.mjs) 會自動啟動 Playwright 執行 E2E 驗證與最多 20 輪 AI Review 自癒收斂迴圈。
+            3. 僅執行快速的 pnpm type-check 與針對變更檔案的單元測試（npx vitest related \$(git diff --name-only origin/develop | tr '\n' ' ') --run）確保通過；請勿在此階段執行全量 pnpm test，全站單元測試將由下一步 Phase 2 統一執行。
+            4. 效能與流程限制：此階段嚴禁自行執行全量 pnpm test、pnpm test:e2e、npx playwright test、pnpm build 或啟動 pnpm dev，也請勿執行 gh pr create，因為下一步 Phase 2 (scripts/cloud-converge-loop.mjs) 會自動執行全量單元測試、Playwright E2E 驗證與最多 20 輪 AI Review 自癒收斂迴圈。
             ${EXTRA_PROMPT}"
           else
+            bash .agents/scripts/link-ticket-branch.sh "$TICKET_NUMBER" || true
             PROMPT="請針對 https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/${TICKET_NUMBER} 執行第一階段程式碼與測試實作：
-            1. Issue #${TICKET_NUMBER} 的完整規格與留言已預先下載至 .agents/tmp/ticket-spec.md，請直接讀取該檔案（請勿讀取 .git/config 或重新執行 gh auth）。
-            2. 執行 bash .agents/scripts/link-ticket-branch.sh ${TICKET_NUMBER} 建立並綁定 Linked Branch，確認看板移至 In progress。
-            3. 根據 Issue #${TICKET_NUMBER} 需求完成程式碼、Vitest 單元測試與對應的 Playwright E2E (.spec.ts) 測試檔案撰寫；若涉及新增或修改 src/components/**/*.tsx 下的 UI 元件，必須同步在同一 PR 新增或更新對應的 Storybook (.stories.tsx) 檔案，並僅執行快速的 pnpm type-check 與 pnpm test（Vitest 單元測試）確保通過。
-            4. 效能與流程限制：此階段嚴禁自行執行 pnpm test:e2e、npx playwright test、pnpm build 或啟動 pnpm dev，也請勿執行 gh pr create，因為下一步 Phase 2 (scripts/cloud-converge-loop.mjs) 會自動啟動 Playwright 執行 E2E 驗證與最多 20 輪 AI Review 自癒收斂迴圈，收斂完成後再統一截圖與開立 PR。
+            1. Issue #${TICKET_NUMBER} 的完整規格與留言已預先下載至 .agents/tmp/ticket-spec.md，且 Linked Branch 已預先建立並切換完成，請直接讀取 .agents/tmp/ticket-spec.md（請勿讀取 .git/config 或重新執行 gh auth）。
+            2. 根據 Issue #${TICKET_NUMBER} 需求完成程式碼、Vitest 單元測試與對應的 Playwright E2E (.spec.ts) 測試檔案撰寫；若涉及新增或修改 src/components/**/*.tsx 下的 UI 元件，必須同步在同一 PR 新增或更新對應的 Storybook (.stories.tsx) 檔案，並僅執行快速的 pnpm type-check 與針對變更檔案的單元測試（npx vitest related \$(git diff --name-only origin/develop | tr '\n' ' ') --run）確保通過。
+            3. 效能與流程限制：此階段嚴禁自行執行全量 pnpm test、pnpm test:e2e、npx playwright test、pnpm build 或啟動 pnpm dev，也請勿執行 gh pr create，因為下一步 Phase 2 (scripts/cloud-converge-loop.mjs) 會自動執行全量單元測試、Playwright E2E 驗證與最多 20 輪 AI Review 自癒收斂迴圈，收斂完成後由 Phase 3 自動提交與開立 PR。
             ${EXTRA_PROMPT}"
           fi
           npx gemini -m "$GEMINI_MODEL" --approval-mode=yolo --skip-trust -p "$PROMPT"
@@ -208,22 +208,13 @@ jobs:
             --max-rounds="$MAX_AI_REVIEW_ROUNDS" \
             --run-e2e="$RUN_E2E"
 
-      - name: Capture UI evidence and submit Pull Request (Phase 3)
+      - name: Submit Pull Request and sync Project Board (Phase 3)
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER }}
-        run: |
-          trap 'rm -f .env.development.local .env.e2e.local' EXIT
-          PROMPT="程式碼已通過雲端 Pre-PR 多輪 AI Review 與 Playwright E2E 收斂檢查（摘要位於 .agents/tmp/cloud-converge-summary.md）。
-          請針對 Issue #${TICKET_NUMBER} 完成最後提交與開立 PR：
-          1. 若 git diff origin/develop 涉及 src/ 下的 UI 元件或頁面變更，請於背景啟動 pnpm dev 並執行 node scripts/capture-ui-evidence.mjs 擷取畫面截圖存入 .agents/tmp/evidence/（若僅修改測試或腳本則無須截圖）。
-          2. 遵循 .agents/skills/submit-pr/SKILL.md 流程：發佈截圖至 pr-evidence 分支（若有截圖）、將所有變更 commit 並 git push 至遠端分支。
-          3. 使用 gh pr create 開立指向 develop 的 Pull Request（若該分支已有開啟的 PR 則使用 gh pr edit 更新描述），並在 PR 描述中附上 .agents/tmp/cloud-converge-summary.md 的收斂摘要與 Ref: https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/${TICKET_NUMBER}。
-          4. 將 Project #7 看板上的 Issue #${TICKET_NUMBER} 狀態更新為 PR Review。"
-          npx gemini -m "$GEMINI_MODEL" --approval-mode=yolo --skip-trust -p "$PROMPT"
+        run: bash .agents/scripts/cloud-submit-pr.sh implement
 
       - name: Finalize and notify Discord Worker (Suggestion 4 auto-recovery & Vercel limit detection)
         if: always()

@@ -37,14 +37,31 @@ chmod 600 .env.development.local
 } > .env.e2e.local
 chmod 600 .env.e2e.local
 
+# Un-ignore .agents/tmp in .gitignore during headless Cloud CI runs so Gemini
+# CLI read_file can immediately read .agents/tmp/ticket-spec.md without hitting
+# ignore-pattern rejections, while keeping .gitignore clean via --skip-worktree.
+if [ -f .gitignore ]; then
+  sed -i '/^\/\.agents\/tmp\//d' .gitignore || true
+  git update-index --skip-worktree .gitignore 2>/dev/null || true
+fi
+
+# Strip external npx genable-mcp startup overhead in headless Cloud CI runs.
+if [ -f .gemini/settings.json ] && command -v jq >/dev/null 2>&1; then
+  jq 'del(.mcpServers) | .fileFiltering = ((.fileFiltering // {}) + {"respectGitIgnore": false})' .gemini/settings.json > .gemini/settings.json.tmp && mv .gemini/settings.json.tmp .gemini/settings.json || true
+  git update-index --skip-worktree .gemini/settings.json 2>/dev/null || true
+fi
+
 mkdir -p .git/info .git/hooks
-printf '\n.env.development.local\n.env.e2e.local\n.env*.local\n' >> .git/info/exclude
+printf '\n.env.development.local\n.env.e2e.local\n.env*.local\n.agents/tmp/\n' >> .git/info/exclude
 cat <<'HOOK' > .git/hooks/pre-commit
 #!/usr/bin/env bash
 if git diff --cached --name-only | grep -qE '(^|/)\.env(\..+)?$'; then
   git reset HEAD -- '.env*' '*/.env*' >/dev/null 2>&1 || true
   echo "Blocked staging of .env files in pre-commit hook." >&2
   exit 1
+fi
+if git diff --cached --name-only | grep -qE '^\.agents/tmp/'; then
+  git reset HEAD -- '.agents/tmp' '.agents/tmp/*' >/dev/null 2>&1 || true
 fi
 HOOK
 chmod +x .git/hooks/pre-commit
