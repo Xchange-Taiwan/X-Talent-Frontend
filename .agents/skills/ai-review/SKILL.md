@@ -43,5 +43,5 @@ pnpm cloud:converge --ticket=<issue-number> --max-rounds=20 --run-e2e=true
 - Executes up to **20 rounds** of:
   1. `pnpm lint`, `pnpm type-check`, and `pnpm test` (Vitest unit tests)
   2. `pnpm test:e2e:mock --workers=4` + any modified `e2e/tests/**/*.spec.ts` files
-  3. 7-agent parallel `node scripts/ai-review/run-local.mjs` (`gemini-4-argon`)
+  3. 7-agent parallel `node scripts/ai-review/run-local.mjs` (`gemini-4-argon`), including checking that any added or modified UI components under `src/components/**/*.tsx` have up-to-date companion `.stories.tsx` files in the same PR
 - Automatically invokes Gemini CLI (`gemini-4-argon`) to fix any findings or E2E failures at the end of each round, and **early-exits immediately** once `overallRisk.level === 'low'`, `0 findings`, and all unit + E2E tests pass.

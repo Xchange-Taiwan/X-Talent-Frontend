@@ -24,11 +24,14 @@ If the workspace is an `X-Frontend` project (e.g., `X-Talent-Frontend` or simila
      - Never create a branch solely with `git checkout -b` or `git worktree add -b` and skip `/start-ticket`! If you are working in a `git worktree` (or if `develop` is checked out in the main working tree, or a local/remote branch already exists), run `link-ticket-branch.sh` / `link-ticket-branch.ps1` with `--no-checkout` (or `-NoCheckout`) first so `createLinkedBranch` creates and links the remote branch on GitHub from `origin/develop`, then `git fetch origin <branch>` and attach your worktree (`git worktree add <path> <branch>`).
    - **Verification Gate**: Before proceeding to Step 2, verify that the command output confirms `✅ Verified Development link on #<issue-number>` (`linkedBranches` or `linkedPRs` is non-empty). Do not start implementation on an unlinked branch.
 
-2. **Write Lightweight Unit Tests First (TDD) & Implement Feature:**
+2. **Write Lightweight Unit Tests First (TDD), Implement Feature, & Sync Storybook (`.stories.tsx`):**
    - **Unit/Component Tests First (Vitest — Local Mode)**:
      - Before writing production code, translate the ticket's Acceptance Criteria into fast, lightweight unit or component tests (`.test.ts` / `.test.tsx` in `src/`, run via `pnpm test` / `vitest run`).
      - In local developer sessions, do **NOT** run heavy browser E2E (`playwright test`) unless the ticket itself explicitly requests new E2E specs; in Cloud VM sessions (`cloud-implement.yml`), Playwright E2E (`pnpm test:e2e:mock --workers=4` + changed specs) runs automatically in the Pre-PR convergence loop.
    - Implement the requirements step-by-step until your new and existing unit tests pass.
+   - **Storybook Source Sync (Mandatory for `src/components/` Changes — Zero Vercel Quota Cost)**:
+     - Whenever you create or modify a UI component under `src/components/**/*.tsx`, you **MUST** create or update its companion Storybook story file (`.stories.tsx` in the same directory) within the **same commit/PR** so all new props, states, and variants are covered in the GitHub repository's `.stories.tsx` files (used directly by Design Hub / Codex and Cloudflare Storybook static deployments).
+     - Never trigger extra Vercel deployments for Storybook — committing `.stories.tsx` alongside the feature PR consumes **0 extra Vercel deployment quota**.
    - Run deterministic checks (`pnpm lint`, `pnpm type-check`, `pnpm test`).
    - **UI Screenshot Evidence (Delegated to CI Pipeline by Default)**:
      - Do **NOT** waste local tokens or time starting `pnpm dev` and debugging local Playwright screenshot scripts before opening the PR — the GitHub Actions CI pipeline (`deploy-pr.yml`) or Cloud VM Phase 3 automatically captures and attaches UI screenshots.

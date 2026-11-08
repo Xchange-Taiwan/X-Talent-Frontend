@@ -179,7 +179,7 @@ jobs:
             PROMPT="我們正在處理從本地 Promote 上雲端的分支 ${BRANCH_NAME}，對應 https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/${TICKET_NUMBER}（完整 Issue 規格與留言已預先下載至 .agents/tmp/ticket-spec.md）。
             請依序執行：
             1. 直接讀取 .agents/tmp/ticket-spec.md（請勿讀取 .git/config 或重新執行 gh auth），並檢查 git diff origin/develop 與 Issue #${TICKET_NUMBER} 的所有驗收條件（Acceptance Criteria）。
-            2. 若有尚未實作完畢的需求、缺少的 Vitest 單元測試或對應的 Playwright E2E (.spec.ts) 測試檔案，請直接補齊程式碼與測試檔案。
+            2. 若有尚未實作完畢的需求、缺少的 Vitest 單元測試、對應的 Playwright E2E (.spec.ts) 測試檔案，或當修改/新增 src/components/**/*.tsx 下元件時尚未同步更新的 Storybook (.stories.tsx) 檔案，請直接在同一分支補齊程式碼、測試與 .stories.tsx。
             3. 僅執行快速的 pnpm type-check 與 pnpm test（Vitest 單元測試）確保通過。
             4. 效能與流程限制：此階段嚴禁自行執行 pnpm test:e2e、npx playwright test、pnpm build 或啟動 pnpm dev，也請勿執行 gh pr create，因為下一步 Phase 2 (scripts/cloud-converge-loop.mjs) 會自動啟動 Playwright 執行 E2E 驗證與最多 20 輪 AI Review 自癒收斂迴圈。
             ${EXTRA_PROMPT}"
@@ -187,7 +187,7 @@ jobs:
             PROMPT="請針對 https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/${TICKET_NUMBER} 執行第一階段程式碼與測試實作：
             1. Issue #${TICKET_NUMBER} 的完整規格與留言已預先下載至 .agents/tmp/ticket-spec.md，請直接讀取該檔案（請勿讀取 .git/config 或重新執行 gh auth）。
             2. 執行 bash .agents/scripts/link-ticket-branch.sh ${TICKET_NUMBER} 建立並綁定 Linked Branch，確認看板移至 In progress。
-            3. 根據 Issue #${TICKET_NUMBER} 需求完成程式碼、Vitest 單元測試與對應的 Playwright E2E (.spec.ts) 測試檔案撰寫，並僅執行快速的 pnpm type-check 與 pnpm test（Vitest 單元測試）確保通過。
+            3. 根據 Issue #${TICKET_NUMBER} 需求完成程式碼、Vitest 單元測試與對應的 Playwright E2E (.spec.ts) 測試檔案撰寫；若涉及新增或修改 src/components/**/*.tsx 下的 UI 元件，必須同步在同一 PR 新增或更新對應的 Storybook (.stories.tsx) 檔案，並僅執行快速的 pnpm type-check 與 pnpm test（Vitest 單元測試）確保通過。
             4. 效能與流程限制：此階段嚴禁自行執行 pnpm test:e2e、npx playwright test、pnpm build 或啟動 pnpm dev，也請勿執行 gh pr create，因為下一步 Phase 2 (scripts/cloud-converge-loop.mjs) 會自動啟動 Playwright 執行 E2E 驗證與最多 20 輪 AI Review 自癒收斂迴圈，收斂完成後再統一截圖與開立 PR。
             ${EXTRA_PROMPT}"
           fi

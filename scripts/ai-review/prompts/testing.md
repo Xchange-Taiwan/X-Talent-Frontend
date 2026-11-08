@@ -23,6 +23,7 @@
 - 這次新增/變更的邏輯（hook、service、關鍵條件分支）是否有對應的 unit/integration test
 - 對照 Planner 標記的 `riskAreas`，確認這些風險領域是否有測試涵蓋（例如輸入驗證、邊界情況、認證/角色邏輯）
 - 表單新增 Zod schema 時，是否有對應的驗證測試
+- 新增或修改 `src/components/**/*.tsx` 下的共用或業務 UI 元件（含 Props / Variants / 狀態變更）時，是否已在同目錄下同步新增或更新對應的 Storybook `.stories.tsx` 檔案
 
 不需要對每個檔案都要求 100% 覆蓋，只指出「這段邏輯有風險、但完全沒測試」這種明確缺口。
 
