@@ -1,21 +1,35 @@
-name: Deploy Storybook (Vercel)
+name: Deploy Storybook (Cloudflare)
 
 on:
+  push:
+    branches:
+      - develop
+    paths:
+      - 'src/components/**'
+      - 'src/**/*.stories.*'
+      - 'src/**/*.mdx'
+      - '.storybook/**'
+      - 'public/**'
+      - 'tailwind.config.*'
+      - '.github/workflows/deploy-storybook.yml'
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
-  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_STORYBOOK }}
-  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
 jobs:
   deploy-storybook:
     runs-on: ubuntu-latest
-    name: Build & Deploy Storybook
+    name: Build & Deploy Storybook to Cloudflare
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Set up environment
         uses: ./.github/actions/setup-env
@@ -23,25 +37,42 @@ jobs:
       - name: Build Storybook
         run: pnpm build-storybook
 
-      - name: Install Vercel CLI
-        run: npm install --global vercel@51.2.1
-
-      - name: Deploy Storybook to Vercel
-        id: deploy
+      - name: Configure CORS & Cloudflare Workers Static Assets
+        shell: bash
         run: |
-          echo "🚀 Deploying Storybook to Vercel..."
-          url=$(vercel deploy ./storybook-static --prod --yes | tail -n 1)
-          echo "vercel_url=${url}" >> $GITHUB_OUTPUT
+          cat << 'EOF' > ./storybook-static/_headers
+          /*
+            Access-Control-Allow-Origin: *
+          EOF
+          cat << 'EOF' > ./storybook-wrangler.jsonc
+          {
+            "name": "x-talent-storybook",
+            "compatibility_date": "2026-10-29",
+            "workers_dev": true,
+            "assets": {
+              "directory": "./storybook-static"
+            }
+          }
+          EOF
+
+      - name: Deploy Storybook to Cloudflare Workers Static Assets
+        id: deploy
+        shell: bash
+        run: |
+          echo "🚀 Deploying Storybook to Cloudflare (x-talent-storybook.x-talent.workers.dev)..."
+          npx --yes wrangler@4 deploy --config ./storybook-wrangler.jsonc
+          echo "storybook_url=https://x-talent-storybook.x-talent.workers.dev" >> "$GITHUB_OUTPUT"
 
       - name: Comment on commit with deploy URL
-        uses: actions/github-script@v9
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/github-script@v7
         env:
-          VERCEL_URL: ${{ steps.deploy.outputs.vercel_url }}
+          STORYBOOK_URL: ${{ steps.deploy.outputs.storybook_url }}
         with:
           script: |
             github.rest.repos.createCommitComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               commit_sha: context.sha,
-              body: `📚 Storybook deployed:\n${process.env.VERCEL_URL}`
+              body: `📚 Storybook deployed to Cloudflare:\n${process.env.STORYBOOK_URL}`
             })
