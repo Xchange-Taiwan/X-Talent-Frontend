@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
+import dayjs from 'dayjs';
 import React, { useState } from 'react';
 
 import type {
@@ -6,6 +7,7 @@ import type {
   MentorScheduleEditor,
   ParsedMentorTimeslot,
 } from '@/lib/profile/bookingAvailability';
+import type { Reservation } from '@/types/reservation';
 
 import MentorScheduleDialog from './MentorScheduleDialog';
 
@@ -28,9 +30,11 @@ const meta: Meta<typeof MentorScheduleDialog> = {
 export default meta;
 type Story = StoryObj<typeof MentorScheduleDialog>;
 
-const todayStr = '2026-08-05';
+const targetDay = dayjs().add(1, 'day').startOf('day');
+const pastDay = dayjs().subtract(1, 'day').startOf('day');
+const targetDateStr = targetDay.format('YYYY-MM-DD');
+const pastDateStr = pastDay.format('YYYY-MM-DD');
 
-// Helpers to construct ParsedMentorTimeslot
 const makeSlot = ({
   id,
   hour,
@@ -46,12 +50,16 @@ const makeSlot = ({
   type: 'ALLOW' | 'BOOKED' | 'PENDING';
   isPast?: boolean;
 }): ParsedMentorTimeslot => {
-  const year = 2026;
-  const month = 8;
-  const day = isPast ? 4 : 5;
-  const start = new Date(year, month - 1, day, hour, minute);
+  const baseDay = isPast ? pastDay : targetDay;
+  const start = baseDay
+    .hour(hour)
+    .minute(minute)
+    .second(0)
+    .millisecond(0)
+    .toDate();
   const end = new Date(start.getTime() + duration * 60 * 1000);
   const occurrenceUnix = Math.floor(start.getTime() / 1000);
+  const dateKey = baseDay.format('YYYY-MM-DD');
   return {
     occurrenceId: `${id}_${occurrenceUnix}`,
     id,
@@ -61,45 +69,115 @@ const makeSlot = ({
     end,
     durationMinutes: duration,
     formatted: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
-    dateKey: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+    dateKey,
     exdate: [],
     slotDurationSeconds: duration * 60,
     isRecurringInstance: false,
   };
 };
 
+const allowSlot14 = makeSlot({
+  id: 1,
+  hour: 14,
+  minute: 0,
+  duration: 30,
+  type: 'ALLOW',
+});
+const allowSlot15 = makeSlot({
+  id: 2,
+  hour: 15,
+  minute: 0,
+  duration: 30,
+  type: 'ALLOW',
+});
+const virtualBookedSlot15 = makeSlot({
+  id: -2,
+  hour: 15,
+  minute: 0,
+  duration: 30,
+  type: 'BOOKED',
+});
+const allowSlot16 = makeSlot({
+  id: 3,
+  hour: 16,
+  minute: 0,
+  duration: 45,
+  type: 'ALLOW',
+});
+const virtualPendingSlot16 = makeSlot({
+  id: -3,
+  hour: 16,
+  minute: 0,
+  duration: 45,
+  type: 'PENDING',
+});
+const pastAllowSlot10 = makeSlot({
+  id: 4,
+  hour: 10,
+  minute: 0,
+  duration: 30,
+  type: 'ALLOW',
+  isPast: true,
+});
+
 const mockDraftSlots: ParsedMentorTimeslot[] = [
-  // 1. Available future slot
-  makeSlot({ id: 1, hour: 14, minute: 0, duration: 30, type: 'ALLOW' }),
-
-  // 2. Booked future slot (ALLOW slot matched by a BOOKED status start)
-  makeSlot({ id: 2, hour: 15, minute: 0, duration: 30, type: 'ALLOW' }),
-  makeSlot({ id: 2, hour: 15, minute: 0, duration: 30, type: 'BOOKED' }),
-
-  // 3. Pending future slot (ALLOW slot matched by a PENDING status start)
-  makeSlot({ id: 3, hour: 16, minute: 0, duration: 45, type: 'ALLOW' }),
-  makeSlot({ id: 3, hour: 16, minute: 0, duration: 45, type: 'PENDING' }),
-
-  // 4. Past slot (ALLOW slot starting in the past relative to 2026-08-05)
-  makeSlot({
-    id: 4,
-    hour: 10,
-    minute: 0,
-    duration: 30,
-    type: 'ALLOW',
-    isPast: true,
-  }),
+  allowSlot14,
+  allowSlot15,
+  virtualBookedSlot15,
+  allowSlot16,
+  virtualPendingSlot16,
+  pastAllowSlot10,
 ];
 
-// Calendar navigation (selectedDate/allowedDates/monthLoaded/hasError/reload)
-// lives on the reader, shared with the mentee/visitor view - not re-declared
-// on the editor. See BookingCalendarReader / MentorScheduleEditor.
+const mockReservations: Reservation[] = [
+  {
+    id: 'res-booked-15',
+    name: '王小明',
+    roleLine: 'Frontend Engineer @ Startup',
+    date: targetDateStr,
+    time: '15:00 - 15:30',
+    messages: [{ role: 'MENTEE', content: '想請教前端系統設計與職涯規劃' }],
+    scheduleId: allowSlot15.id,
+    dtstart: allowSlot15.occurrenceUnix,
+    dtend: Math.floor(allowSlot15.end.getTime() / 1000),
+    version: 1,
+    senderUserId: 'mentee-101',
+    participantUserId: 'mentor-1',
+    viewerRole: 'MENTOR',
+  },
+  {
+    id: 'res-pending-16',
+    name: '陳怡君',
+    roleLine: 'Product Designer @ Studio',
+    date: targetDateStr,
+    time: '16:00 - 16:45',
+    messages: [{ role: 'MENTEE', content: '想討論作品集與跨國求職準備' }],
+    scheduleId: allowSlot16.id,
+    dtstart: allowSlot16.occurrenceUnix,
+    dtend: Math.floor(allowSlot16.end.getTime() / 1000),
+    version: 1,
+    senderUserId: 'mentee-102',
+    participantUserId: 'mentor-1',
+    viewerRole: 'MENTOR',
+  },
+];
+
+const orphanDraftSlots: ParsedMentorTimeslot[] = [
+  allowSlot14,
+  // Orphan virtual BOOKED & PENDING slots whose underlying ALLOW schedule rule was deleted
+  virtualBookedSlot15,
+  virtualPendingSlot16,
+];
+
 const defaultReaderMock: BookingCalendarReader = {
-  selectedDate: todayStr,
+  year: targetDay.year(),
+  month: targetDay.month() + 1,
+  selectedDate: targetDateStr,
   setSelectedDate: () => {},
-  allowedDates: [todayStr, '2026-08-04'],
+  allowedDates: [targetDateStr, pastDateStr],
   slotsSnapshot: { slots: [], monthLoaded: true, reservationsLoaded: true },
-  getDayBookingStatus: () => null,
+  getDayBookingStatus: (dateKey: string) =>
+    dateKey === targetDateStr ? 'PENDING' : null,
   isFetching: false,
   hasError: false,
   reload: async () => {},
@@ -112,7 +190,7 @@ const defaultScheduleMock: MentorScheduleEditor = {
   deleteDraftSlot: () => {},
   confirmChanges: async () => ({ ok: true }),
   resetChanges: () => {},
-  reservations: [],
+  reservations: mockReservations,
 };
 
 interface DialogWrapperProps {
@@ -153,6 +231,44 @@ export const Default: Story = {
     onOpenChange: () => {},
     reader: defaultReaderMock,
     schedule: defaultScheduleMock,
+  },
+};
+
+export const WithBookedAndPendingPrompts: Story = {
+  render: (args) => (
+    <DialogWrapper reader={args.reader} schedule={args.schedule} />
+  ),
+  args: {
+    open: true,
+    onOpenChange: () => {},
+    reader: defaultReaderMock,
+    schedule: {
+      ...defaultScheduleMock,
+      draftForSelectedDate: [
+        allowSlot14,
+        allowSlot15,
+        virtualBookedSlot15,
+        allowSlot16,
+        virtualPendingSlot16,
+      ],
+      reservations: mockReservations,
+    },
+  },
+};
+
+export const OrphanVirtualReservationSlot: Story = {
+  render: (args) => (
+    <DialogWrapper reader={args.reader} schedule={args.schedule} />
+  ),
+  args: {
+    open: true,
+    onOpenChange: () => {},
+    reader: defaultReaderMock,
+    schedule: {
+      ...defaultScheduleMock,
+      draftForSelectedDate: orphanDraftSlots,
+      reservations: mockReservations,
+    },
   },
 };
 

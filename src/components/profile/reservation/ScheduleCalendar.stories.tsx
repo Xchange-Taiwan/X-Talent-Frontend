@@ -84,3 +84,19 @@ export const WithStatusDots: Story = {
     },
   },
 };
+
+const nextMonthCursor = today.add(1, 'month').startOf('month');
+const nextMonthAvailableStr = nextMonthCursor
+  .add(4, 'day')
+  .format('YYYY-MM-DD');
+
+export const ControlledMonthCursor: Story = {
+  args: {
+    selected: today.toDate(),
+    month: nextMonthCursor.toDate(),
+    showTodayStyle: true,
+    size: 'profile',
+    highlightAvailableDates: true,
+    allowedDates: [formattedTodayStr, nextMonthAvailableStr],
+  },
+};

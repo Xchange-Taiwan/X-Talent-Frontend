@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import React from 'react';
 
+import { encodeSessionHint } from '@/lib/auth/sessionHint';
+
 import { Header } from './Header';
 
 const meta: Meta<typeof Header> = {
@@ -53,6 +55,18 @@ const mockMenteeUser = {
   personalLinks: [],
 };
 
+const mentorV2SessionHint = encodeSessionHint({
+  isMentor: true,
+  userId: mockMentorUser.id,
+  avatar: mockMentorUser.avatar,
+});
+
+const menteeV2SessionHint = encodeSessionHint({
+  isMentor: false,
+  userId: mockMenteeUser.id,
+  avatar: mockMenteeUser.avatar,
+});
+
 // 1. Unresolved / Loading State
 export const UnresolvedState: Story = {
   parameters: {
@@ -84,7 +98,7 @@ export const MentorSession: Story = {
         user: mockMentorUser,
         expires: '2099-01-01T00:00:00.000Z',
       },
-      sessionHint: '1',
+      sessionHint: mentorV2SessionHint,
     },
   },
 };
@@ -98,18 +112,29 @@ export const MenteeSession: Story = {
         user: mockMenteeUser,
         expires: '2099-01-01T00:00:00.000Z',
       },
-      sessionHint: '0',
+      sessionHint: menteeV2SessionHint,
     },
   },
 };
 
-// 5. Resolving User State (Logged in per hint cookie, but full session is loading)
+// 5. Resolving User State (Logged in per v2 hint cookie with avatar & isMentor, while full session is loading)
 export const ResolvingUserState: Story = {
   parameters: {
     auth: {
       status: 'loading',
       session: null,
-      sessionHint: '0', // logged in as mentee but session details are loading
+      sessionHint: menteeV2SessionHint,
+    },
+  },
+};
+
+// 6. Resolving Mentor State with v2 sessionHint (avatar + isMentor=true projected before session resolves)
+export const ResolvingMentorV2HintState: Story = {
+  parameters: {
+    auth: {
+      status: 'loading',
+      session: null,
+      sessionHint: mentorV2SessionHint,
     },
   },
 };
