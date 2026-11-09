@@ -11,10 +11,9 @@ export type RawMentor = Omit<
 
 export type MentorListWireResponse = Omit<
   components['schemas']['SearchMentorProfileListVO'],
-  'mentors' | 'next_id'
+  'mentors' | 'next_cursor'
 > & {
   mentors?: RawMentor[];
-  next_id?: number | null;
   next_cursor?: string | null;
 };
 

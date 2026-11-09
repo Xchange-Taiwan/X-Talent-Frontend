@@ -29,10 +29,8 @@ export type MentorPageAction =
 
 export function applyMentorPage(
   state: MentorPoolPageState,
-  action: MentorPageAction,
-  _pageLimit: number = DEFAULT_MENTOR_PAGE_LIMIT
+  action: MentorPageAction
 ): MentorPoolPageState {
-  void _pageLimit;
   switch (action.type) {
     case 'replace': {
       const { page, totalCount } = action;
@@ -98,7 +96,6 @@ export const mentorPoolStore = {
     initialMentorCount: number;
     hasInitialFilters: boolean;
     initialError?: boolean;
-    pageLimit?: number;
   }): MentorPoolPageState {
     const {
       initialMentors,
@@ -142,32 +139,23 @@ export const mentorPoolStore = {
     pageLimit: number = DEFAULT_MENTOR_PAGE_LIMIT
   ): Promise<MentorPoolPageState> {
     const page = await fetchPage(pageLimit, signal);
-    return applyMentorPage(
-      EMPTY_MENTOR_POOL_STATE,
-      {
-        type: 'replace',
-        page,
-      },
-      pageLimit
-    );
+    return applyMentorPage(EMPTY_MENTOR_POOL_STATE, {
+      type: 'replace',
+      page,
+    });
   },
 
   appendPage(
     key: string,
     fallbackBase: MentorPoolPageState,
-    page: MentorPage,
-    pageLimit: number = DEFAULT_MENTOR_PAGE_LIMIT
+    page: MentorPage
   ): MentorPoolPageState {
     let nextState = fallbackBase;
     mentorPoolReadManager.update(key, (current) => {
-      nextState = applyMentorPage(
-        current ?? fallbackBase,
-        {
-          type: 'append',
-          page,
-        },
-        pageLimit
-      );
+      nextState = applyMentorPage(current ?? fallbackBase, {
+        type: 'append',
+        page,
+      });
       return nextState;
     });
     return nextState;
