@@ -127,4 +127,29 @@ describe('ReservationMessagePreview', () => {
 
     expect(screen.getByText('完整對話紀錄')).toBeInTheDocument();
   });
+
+  it('renders both original mentee question ("學員留言") and cancellation reason ("取消原因") when cancelled by mentee (#860)', () => {
+    const reservation: Reservation = {
+      ...mockReservation,
+      cancelledBy: 'MENTEE',
+      messages: [
+        { content: '原本的預約提問 M1', role: 'MENTEE' },
+        { content: '臨時有事的取消原因 M2', role: 'MENTEE' },
+      ],
+      menteeMessage: { content: '臨時有事的取消原因 M2', role: 'MENTEE' },
+    };
+
+    render(
+      <ReservationMessagePreview
+        reservation={reservation}
+        sourceRole="mentee"
+        variant="card"
+      />
+    );
+
+    expect(screen.getByText('學員留言')).toBeInTheDocument();
+    expect(screen.getByText('原本的預約提問 M1')).toBeInTheDocument();
+    expect(screen.getByText('取消原因')).toBeInTheDocument();
+    expect(screen.getByText('臨時有事的取消原因 M2')).toBeInTheDocument();
+  });
 });

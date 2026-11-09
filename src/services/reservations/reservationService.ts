@@ -8,6 +8,7 @@ import {
   reservationReadModel,
 } from '@/lib/reservation/reservationReadModel';
 import { resolveCounterpartyProfile } from '@/lib/reservation/resolveCounterparty';
+import { classifyReservationMessages } from '@/lib/reservation/resolveReservationMessages';
 import { components } from '@/types/api';
 import { Reservation, ReservationMessage } from '@/types/reservation';
 
@@ -96,9 +97,7 @@ export function mapToReservation(
     ],
   ]);
 
-  const messages: ReservationMessage[] = [];
-  let menteeMessage: ReservationMessage | undefined;
-  let mentorMessage: ReservationMessage | undefined;
+  const rawMessages: ReservationMessage[] = [];
   for (const message of reservation.messages ?? []) {
     if (typeof message.content !== 'string') continue;
     const trimmed = message.content.trim();
@@ -107,10 +106,11 @@ export function mapToReservation(
     const item: ReservationMessage = role
       ? { content: trimmed, role }
       : { content: trimmed };
-    messages.push(item);
-    if (role === 'MENTEE') menteeMessage = item;
-    else if (role === 'MENTOR') mentorMessage = item;
+    rawMessages.push(item);
   }
+
+  const { messages, menteeMessage, mentorMessage, cancelReasonMessage } =
+    classifyReservationMessages(rawMessages, cancelledBy);
 
   return {
     id: String(reservation.id ?? ''),
@@ -122,6 +122,7 @@ export function mapToReservation(
     messages,
     menteeMessage,
     mentorMessage,
+    ...(cancelReasonMessage ? { cancelReasonMessage } : {}),
     scheduleId: reservation.schedule_id,
     dtstart: reservation.dtstart,
     dtend: reservation.dtend,

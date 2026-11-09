@@ -1,7 +1,7 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { useAsyncRead } from '@/hooks/useAsyncRead';
 import { trackEvent } from '@/lib/analytics';
@@ -90,8 +90,15 @@ export function useReservationData({
 }: {
   role: ReservationRole;
 }): UseReservationDataReturn {
-  const { data: session } = useSession();
-  const myUserId = session?.user?.id ? String(session.user.id) : '';
+  const { data: session, status } = useSession();
+  const lastUserIdRef = useRef('');
+  const currentSessionUserId = session?.user?.id ? String(session.user.id) : '';
+  if (currentSessionUserId) {
+    lastUserIdRef.current = currentSessionUserId;
+  } else if (status === 'unauthenticated') {
+    lastUserIdRef.current = '';
+  }
+  const myUserId = currentSessionUserId || lastUserIdRef.current;
   const states = ROLE_STATES[role];
 
   const [loadingMoreStates, setLoadingMoreStates] =

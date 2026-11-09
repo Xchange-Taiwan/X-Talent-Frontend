@@ -326,7 +326,7 @@ describe('ReservationList', () => {
       ],
       [
         'pending-mentee' as const,
-        '目前還沒有等待回復的預約，前往導師池探索並向導師提出預約申請吧！',
+        '目前還沒有等待回覆的預約，前往導師池探索並向導師提出預約申請吧！',
       ],
       [
         'history' as const,
@@ -359,7 +359,7 @@ describe('ReservationList', () => {
       ],
       [
         'pending-mentor' as const,
-        '目前還沒有待您回復的預約申請，前往個人頁面管理可預約時段以提升預約率！',
+        '目前還沒有待您回覆的預約申請，前往個人頁面管理可預約時段以提升預約率！',
       ],
       [
         'history' as const,

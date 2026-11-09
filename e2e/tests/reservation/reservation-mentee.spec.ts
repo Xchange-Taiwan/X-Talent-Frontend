@@ -198,11 +198,11 @@ test('頁面載入 → 三個 Tab 可見', async ({ page }) => {
   await expect(page.getByRole('tab', { name: /即將到來/ })).toBeVisible({
     timeout: 15_000,
   });
-  await expect(page.getByRole('tab', { name: /等待回復/ })).toBeVisible();
+  await expect(page.getByRole('tab', { name: /等待回覆/ })).toBeVisible();
   await expect(page.getByRole('tab', { name: /歷史紀錄/ })).toBeVisible();
 });
 
-test('點擊等待回復 Tab → pending 預約卡片顯示', async ({ page }) => {
+test('點擊等待回覆 Tab → pending 預約卡片顯示', async ({ page }) => {
   await setSignedSessionCookie(page);
   await mockSessionGet(page);
   await mockReservationEndpoints(page, {
@@ -212,10 +212,10 @@ test('點擊等待回復 Tab → pending 預約卡片顯示', async ({ page }) =
   await page.goto(PAGE_URL);
 
   // Wait for tabs to be visible before clicking
-  await expect(page.getByRole('tab', { name: /等待回復/ })).toBeVisible({
+  await expect(page.getByRole('tab', { name: /等待回覆/ })).toBeVisible({
     timeout: 15_000,
   });
-  await page.getByRole('tab', { name: /等待回復/ }).click();
+  await page.getByRole('tab', { name: /等待回覆/ }).click();
 
   await expect(page.getByText('Mentor Wang')).toBeVisible({ timeout: 10_000 });
 });
@@ -434,11 +434,11 @@ test.describe('歷史紀錄 Tab 測試', () => {
 
     await page.goto(PAGE_URL);
 
-    const pendingTab = page.getByRole('tab', { name: /等待回復/ });
+    const pendingTab = page.getByRole('tab', { name: /等待回覆/ });
     await expect(pendingTab).toBeVisible({ timeout: 15_000 });
     await pendingTab.click();
 
-    // 等待回復 Tab 僅顯示尚未逾時的預約，逾時未回覆的預約已被濾除
+    // 等待回覆 Tab 僅顯示尚未逾時的預約，逾時未回覆的預約已被濾除
     await expect(page.getByText('Mentor ActivePending')).toBeVisible({
       timeout: 10_000,
     });
@@ -455,7 +455,7 @@ test.describe('歷史紀錄 Tab 測試', () => {
 });
 
 test.describe('學員端空狀態情境文案與 CTA 導向測試', () => {
-  test('驗證三個 Tab（「即將到來」、「等待回復」、「歷史紀錄」）空狀態情境文案，且點擊「前往尋找導師」導向 /mentor-pool', async ({
+  test('驗證三個 Tab（「即將到來」、「等待回覆」、「歷史紀錄」）空狀態情境文案，且點擊「前往尋找導師」導向 /mentor-pool', async ({
     page,
   }) => {
     await setSignedSessionCookie(page);
@@ -478,12 +478,12 @@ test.describe('學員端空狀態情境文案與 CTA 導向測試', () => {
       page.getByRole('link', { name: '前往尋找導師' })
     ).toHaveAttribute('href', '/mentor-pool');
 
-    // 2. 等待回復 Tab 空狀態
-    await page.getByRole('tab', { name: /等待回復/ }).click();
+    // 2. 等待回覆 Tab 空狀態
+    await page.getByRole('tab', { name: /等待回覆/ }).click();
     await expect(page.getByText('目前尚無資料')).toBeVisible();
     await expect(
       page.getByText(
-        '目前還沒有等待回復的預約，前往導師池探索並向導師提出預約申請吧！'
+        '目前還沒有等待回覆的預約，前往導師池探索並向導師提出預約申請吧！'
       )
     ).toBeVisible();
     await expect(
@@ -527,7 +527,7 @@ test.describe('學員取消預約與即將到來 Tab 測試', () => {
     await expect(page.getByRole('button', { name: '取消預約' })).toBeVisible();
   });
 
-  test('在「等待回復」tab 點擊取消 → 填寫取消原因並確認 → 卡片從 pending 列表消失', async ({
+  test('在「等待回覆」tab 點擊取消 → 填寫取消原因並確認 → 卡片從 pending 列表消失', async ({
     page,
   }) => {
     await setSignedSessionCookie(page);
@@ -565,11 +565,11 @@ test.describe('學員取消預約與即將到來 Tab 測試', () => {
 
     await page.goto(PAGE_URL);
 
-    // 前往「等待回復」tab
-    await expect(page.getByRole('tab', { name: /等待回復/ })).toBeVisible({
+    // 前往「等待回覆」tab
+    await expect(page.getByRole('tab', { name: /等待回覆/ })).toBeVisible({
       timeout: 15_000,
     });
-    await page.getByRole('tab', { name: /等待回復/ }).click();
+    await page.getByRole('tab', { name: /等待回覆/ }).click();
     await expect(page.getByText('Mentor Wang')).toBeVisible({
       timeout: 10_000,
     });
@@ -718,10 +718,10 @@ test.describe('學員取消預約與即將到來 Tab 測試', () => {
 
     await page.goto(PAGE_URL);
 
-    await expect(page.getByRole('tab', { name: /等待回復/ })).toBeVisible({
+    await expect(page.getByRole('tab', { name: /等待回覆/ })).toBeVisible({
       timeout: 15_000,
     });
-    await page.getByRole('tab', { name: /等待回復/ }).click();
+    await page.getByRole('tab', { name: /等待回覆/ }).click();
     await expect(page.getByText('Mentor Wang')).toBeVisible({
       timeout: 10_000,
     });
@@ -743,5 +743,159 @@ test.describe('學員取消預約與即將到來 Tab 測試', () => {
 
     // 驗證卡片仍留在列表，並未消失
     await expect(page.getByText('Mentor Wang')).toBeVisible();
+  });
+});
+
+test.describe('預約管理頁 UX 細節與轉址驗證 (#860)', () => {
+  test('直接造訪 /reservation → 自動轉址至 /reservation/mentee', async ({
+    page,
+  }) => {
+    await setSignedSessionCookie(page);
+    await mockSessionGet(page);
+    await mockReservationEndpoints(page);
+
+    await page.goto('/reservation');
+
+    await expect(page).toHaveURL(/\/reservation\/mentee/);
+    await expect(page.getByRole('tab', { name: /即將到來/ })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByRole('tab', { name: /等待回覆/ })).toBeVisible();
+  });
+
+  test('切換至「歷史紀錄」分頁載入期間，保留「即將到來 1」與「等待回覆 1」徽章計數不閃跳歸 0', async ({
+    page,
+  }) => {
+    await setSignedSessionCookie(page);
+    await mockSessionGet(page);
+
+    let resolveHistory!: () => void;
+    const historyDelay = new Promise<void>((res) => {
+      resolveHistory = res;
+    });
+
+    await page.route(
+      new RegExp(`/v1/users/${USER_ID}/reservations\\?`),
+      async (route) => {
+        const url = new URL(route.request().url());
+        const state = url.searchParams.get('state') ?? '';
+        if (state === 'MENTEE_UPCOMING') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(
+              makeReservationResponse([makeReservation(1, 'Mentor Upcoming')])
+            ),
+          });
+        }
+        if (state === 'MENTEE_PENDING') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(
+              makeReservationResponse([makeReservation(2, 'Mentor Pending')])
+            ),
+          });
+        }
+        if (state === 'MENTEE_HISTORY') {
+          await historyDelay;
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(
+              makeReservationResponse([makeReservation(3, 'Mentor History')])
+            ),
+          });
+        }
+        return route.continue();
+      }
+    );
+
+    await page.goto(PAGE_URL);
+
+    const upcomingTab = page.getByRole('tab', { name: /即將到來/ });
+    const pendingTab = page.getByRole('tab', { name: /等待回覆/ });
+    const historyTab = page.getByRole('tab', { name: /歷史紀錄/ });
+
+    await expect(upcomingTab).toHaveText(/即將到來\s*1/, { timeout: 15_000 });
+    await expect(pendingTab).toHaveText(/等待回覆\s*1/, { timeout: 15_000 });
+
+    // 點擊切換至歷史紀錄（此時 MENTEE_HISTORY API 仍在等待回應）
+    await historyTab.click();
+
+    // 載入期間徽章計數維持 1，不閃跳歸 0
+    await expect(upcomingTab).toHaveText(/即將到來\s*1/);
+    await expect(pendingTab).toHaveText(/等待回覆\s*1/);
+
+    resolveHistory();
+    await expect(page.getByText('Mentor History')).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(historyTab).toHaveText(/歷史紀錄\s*1/);
+  });
+
+  test('歷史紀錄中已取消且含原始提問與取消原因之預約，卡片與完整對話彈窗清楚區分「學員留言／預約提問」與「取消原因」', async ({
+    page,
+  }) => {
+    await setSignedSessionCookie(page);
+    await mockSessionGet(page);
+
+    const cancelledWithBothMsgs = {
+      ...makeReservation(25, 'Mentor BothMessages'),
+      messages: [
+        {
+          id: 201,
+          user_id: Number(USER_ID),
+          role: 'MENTEE',
+          content: '原始提問 M1：想請教前端架構設計',
+        },
+        {
+          id: 202,
+          user_id: Number(USER_ID),
+          role: 'MENTEE',
+          content: '取消原因 M2：臨時有緊急會議需改期',
+        },
+      ],
+    };
+    cancelledWithBothMsgs.sender.status = 'REJECT';
+
+    await mockReservationEndpoints(page, {
+      MENTEE_HISTORY: [cancelledWithBothMsgs],
+    });
+
+    await page.goto(PAGE_URL);
+
+    await expect(page.getByRole('tab', { name: /歷史紀錄/ })).toBeVisible({
+      timeout: 15_000,
+    });
+    await page.getByRole('tab', { name: /歷史紀錄/ }).click();
+
+    const card = page
+      .getByTestId('reservation-card')
+      .filter({ hasText: 'Mentor BothMessages' });
+    await expect(card).toBeVisible({ timeout: 10_000 });
+
+    // 卡片外層預覽同時顯示原始提問（學員留言）與取消原因（取消原因）
+    await expect(card.getByText('學員留言')).toBeVisible();
+    await expect(
+      card.getByText('原始提問 M1：想請教前端架構設計')
+    ).toBeVisible();
+    await expect(card.getByText('取消原因', { exact: true })).toBeVisible();
+    await expect(
+      card.getByText('取消原因 M2：臨時有緊急會議需改期')
+    ).toBeVisible();
+
+    // 開啟完整對話紀錄彈窗，驗證「預約提問」與「取消原因」標籤清楚區分
+    await card.getByRole('button', { name: '查看完整對話' }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText('預約提問')).toBeVisible();
+    await expect(dialog.getByText('取消原因', { exact: true })).toBeVisible();
+    await expect(
+      dialog.getByText('原始提問 M1：想請教前端架構設計')
+    ).toBeVisible();
+    await expect(
+      dialog.getByText('取消原因 M2：臨時有緊急會議需改期')
+    ).toBeVisible();
   });
 });

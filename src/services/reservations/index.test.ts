@@ -153,6 +153,90 @@ describe('mapToReservation', () => {
     ]);
   });
 
+  it('cancelledBy = MENTEE with initial question and cancel reason → preserves menteeMessage and sets cancelReasonMessage (#860)', () => {
+    const reservation = makeReservation({
+      participant: {
+        user_id: 20,
+        role: 'MENTEE',
+        status: 'REJECT',
+        name: 'Bob',
+        avatar: '',
+        job_title: 'Designer',
+        years_of_experience: 'ONE_TO_THREE',
+      },
+      messages: [
+        {
+          user_id: 20,
+          role: 'MENTEE',
+          content: 'Original booking question M1',
+        },
+        { user_id: 20, role: 'MENTEE', content: 'Cancellation reason M2' },
+      ],
+    });
+    const result = mapToReservation(reservation);
+    expect(result.cancelledBy).toBe('MENTEE');
+    expect(result.menteeMessage).toEqual({
+      content: 'Original booking question M1',
+      role: 'MENTEE',
+    });
+    expect(result.cancelReasonMessage).toEqual({
+      content: 'Cancellation reason M2',
+      role: 'MENTEE',
+      isCancelReason: true,
+    });
+    expect(result.messages).toEqual([
+      { content: 'Original booking question M1', role: 'MENTEE' },
+      {
+        content: 'Cancellation reason M2',
+        role: 'MENTEE',
+        isCancelReason: true,
+      },
+    ]);
+  });
+
+  it('cancelledBy = MENTOR with mentee question and mentor reject reason → preserves menteeMessage and sets cancelReasonMessage (#860)', () => {
+    const reservation = makeReservation({
+      sender: {
+        user_id: 10,
+        role: 'MENTEE',
+        status: 'PENDING',
+        name: 'Bob',
+        avatar: '',
+        job_title: 'Designer',
+        years_of_experience: 'ONE_TO_THREE',
+      },
+      participant: {
+        user_id: 20,
+        role: 'MENTOR',
+        status: 'REJECT',
+        name: 'Alice',
+        avatar: '',
+        job_title: 'Engineer',
+        years_of_experience: 'THREE_TO_FIVE',
+      },
+      messages: [
+        {
+          user_id: 10,
+          role: 'MENTEE',
+          content: 'Original booking question M1',
+        },
+        { user_id: 20, role: 'MENTOR', content: 'Mentor rejection reason R1' },
+      ],
+    });
+    const result = mapToReservation(reservation);
+    expect(result.cancelledBy).toBe('MENTOR');
+    expect(result.menteeMessage).toEqual({
+      content: 'Original booking question M1',
+      role: 'MENTEE',
+    });
+    expect(result.mentorMessage).toBeUndefined();
+    expect(result.cancelReasonMessage).toEqual({
+      content: 'Mentor rejection reason R1',
+      role: 'MENTOR',
+      isCancelReason: true,
+    });
+  });
+
   it('multi-turn conversation → messages preserves every turn in order', () => {
     const reservation = makeReservation({
       messages: [

@@ -154,3 +154,13 @@ export const EmptyHistoryMentor: Story = {
 export const LoadingState: Story = {
   render: () => <ReservationListSkeleton rows={3} />,
 };
+
+// 7. History Cancelled With Original Question & Cancel Reason (#860)
+export const CancelledHistoryWithReason: Story = {
+  args: {
+    items: [mockReservations[8]],
+    variant: 'history',
+    sourceRole: 'mentee',
+    myUserId: 'user-mentee-jolin',
+  },
+};
