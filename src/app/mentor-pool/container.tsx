@@ -43,6 +43,7 @@ function flattenLeaves(
 
 interface Props {
   initialMentors: MentorType[];
+  initialNextCursor?: string | null;
   initialMentorCount: number;
   initialTagCatalog: TagCatalogsByBucket;
   initialError?: boolean;
@@ -50,6 +51,7 @@ interface Props {
 
 export default function MentorPoolContainer({
   initialMentors,
+  initialNextCursor,
   initialMentorCount,
   initialTagCatalog,
   initialError,
@@ -97,6 +99,7 @@ export default function MentorPoolContainer({
     handleRetry,
   } = useMentorPool({
     initialMentors,
+    initialNextCursor,
     initialMentorCount,
     params,
     labelMap,

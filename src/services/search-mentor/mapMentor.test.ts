@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import avatarImage from '@/assets/default-avatar.png';
-import type { components } from '@/types/api';
 import type { MentorType } from '@/types/mentor';
 
-import { mapMentor, resolveMentorAvatar } from './mapMentor';
-
-type RawMentor = components['schemas']['SearchMentorProfileVO'];
+import {
+  mapMentor,
+  mapMentorPage,
+  type RawMentor,
+  resolveMentorAvatar,
+} from './mapMentor';
 
 function createRawMentor(
   overrides: Partial<RawMentor> & { user_id: number }
@@ -70,7 +72,7 @@ describe('mapMentor', () => {
       want_topic: ['react'],
       have_skill: ['nodejs'],
       have_topic: ['topic_a', 'topic_b'],
-      updated_at: 1610000000,
+      updated_at: '2021-01-07T06:13:20Z',
     });
 
     const mapped = mapMentor(raw);
@@ -78,7 +80,7 @@ describe('mapMentor', () => {
     expect(mapped).toEqual({
       user_id: 123,
       name: 'John Doe',
-      avatar: 'https://example.com/avatar.jpg?cb=1610000000',
+      avatar: 'https://example.com/avatar.jpg?cb=2021-01-07T06%3A13%3A20Z',
       job_title: 'Software Engineer',
       company: 'Tech Corp',
       years_of_experience: '3_5',
@@ -92,7 +94,7 @@ describe('mapMentor', () => {
       want_topic: ['react'],
       have_skill: ['nodejs'],
       have_topic: ['topic_a', 'topic_b'],
-      updated_at: 1610000000,
+      updated_at: '2021-01-07T06:13:20Z',
     });
   });
 
@@ -143,11 +145,11 @@ describe('mapMentor', () => {
     const rawWithUpdated = createRawMentor({
       user_id: 999,
       avatar: 'https://example.com/avatar.jpg',
-      updated_at: 1620000000,
+      updated_at: '2021-05-03T00:00:00Z',
     });
     const mappedWithUpdated = mapMentor(rawWithUpdated);
     expect(mappedWithUpdated.avatar).toBe(
-      'https://example.com/avatar.jpg?cb=1620000000'
+      'https://example.com/avatar.jpg?cb=2021-05-03T00%3A00%3A00Z'
     );
   });
 });
@@ -170,13 +172,13 @@ describe('resolveMentorAvatar', () => {
     want_topic: ['react'],
     have_skill: ['nodejs'],
     have_topic: ['topic_a', 'topic_b'],
-    updated_at: 1610000000,
+    updated_at: '2021-01-07T06:13:20Z',
   };
 
   it('applies avatar cache-busting when updated_at is present', () => {
     const resolved = resolveMentorAvatar(baseMentor);
     expect(resolved.avatar).toBe(
-      'https://example.com/avatar.jpg?cb=1610000000'
+      'https://example.com/avatar.jpg?cb=2021-01-07T06%3A13%3A20Z'
     );
   });
 
@@ -190,5 +192,30 @@ describe('resolveMentorAvatar', () => {
     const mentor = { ...baseMentor, avatar: '' };
     const resolved = resolveMentorAvatar(mentor);
     expect(resolved.avatar).toBe(avatarImage);
+  });
+});
+
+describe('mapMentorPage', () => {
+  it('maps mentors array and preserves non-empty next_cursor', () => {
+    const page = mapMentorPage({
+      mentors: [createRawMentor({ user_id: 10, name: 'Alice' })],
+      next_cursor: 'cursor-token-1',
+    });
+
+    expect(page.mentors).toHaveLength(1);
+    expect(page.mentors[0].user_id).toBe(10);
+    expect(page.mentors[0].name).toBe('Alice');
+    expect(page.nextCursor).toBe('cursor-token-1');
+  });
+
+  it('normalizes empty string, null, or omitted next_cursor to null and handles nullish data', () => {
+    expect(mapMentorPage()).toEqual({ mentors: [], nextCursor: null });
+    expect(mapMentorPage(null)).toEqual({ mentors: [], nextCursor: null });
+    expect(
+      mapMentorPage({
+        mentors: [createRawMentor({ user_id: 11 })],
+        next_cursor: '',
+      }).nextCursor
+    ).toBeNull();
   });
 });

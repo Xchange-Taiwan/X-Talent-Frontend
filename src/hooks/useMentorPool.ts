@@ -28,6 +28,7 @@ export { applyMentorPage, type MentorPageAction, type MentorPoolPageState };
 
 interface UseMentorPoolProps {
   initialMentors: MentorType[];
+  initialNextCursor?: string | null;
   initialMentorCount: number;
   params: ReturnType<typeof useSearchParams>;
   labelMap: Map<string, string>;
@@ -36,6 +37,7 @@ interface UseMentorPoolProps {
 
 export function useMentorPool({
   initialMentors,
+  initialNextCursor = null,
   initialMentorCount,
   params,
   labelMap,
@@ -60,6 +62,7 @@ export function useMentorPool({
     () =>
       mentorPoolStore.seedInitialUnfiltered({
         initialMentors,
+        initialNextCursor,
         initialMentorCount,
         hasInitialFilters: hasConditions,
         initialError,
@@ -95,8 +98,7 @@ export function useMentorPool({
       const conditions = paramsToFetchConditions(params);
       return mentorPoolStore
         .fetchPageOne(
-          (limit, sig) =>
-            fetchMentors({ ...conditions, limit, cursor: '' }, sig),
+          (limit, sig) => fetchMentors({ ...conditions, limit }, sig),
           signal,
           PAGE_LIMIT
         )
@@ -167,7 +169,7 @@ export function useMentorPool({
     const param = {
       ...conditions,
       limit: PAGE_LIMIT,
-      cursor: pageState.cursor,
+      cursor: pageState.nextCursor ?? undefined,
     };
 
     const controller = new AbortController();

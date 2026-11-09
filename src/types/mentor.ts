@@ -2,7 +2,20 @@ import type { StaticImageData } from 'next/image';
 
 import type { components } from '@/types/api';
 
-export type RawMentor = components['schemas']['SearchMentorProfileVO'];
+export type RawMentor = Omit<
+  components['schemas']['SearchMentorProfileVO'],
+  'updated_at'
+> & {
+  updated_at?: string | number | null;
+};
+
+export type MentorListWireResponse = Omit<
+  components['schemas']['SearchMentorProfileListVO'],
+  'mentors' | 'next_cursor'
+> & {
+  mentors?: RawMentor[];
+  next_cursor?: string | null;
+};
 
 export interface MentorType {
   user_id: number;
@@ -21,7 +34,12 @@ export interface MentorType {
   want_topic: string[];
   have_skill: string[];
   have_topic: string[];
-  updated_at: number | null;
+  updated_at: string | null;
+}
+
+export interface MentorPage {
+  mentors: MentorType[];
+  nextCursor: string | null;
 }
 
 export interface MentorRequest {
@@ -29,6 +47,7 @@ export interface MentorRequest {
   filter_skills?: string;
   filter_topics?: string;
   filter_industries?: string;
+  sort_by?: 'recent' | 'popularity';
   limit: number;
   cursor?: string;
 }

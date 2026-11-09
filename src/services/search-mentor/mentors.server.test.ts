@@ -28,20 +28,18 @@ describe('fetchMentorsServer', () => {
     mockBaseUrl.value = 'https://api.example.com';
   });
 
-  it('returns empty array and does not fetch if BASE_URL is empty', async () => {
+  it('returns an empty page and does not fetch if BASE_URL is empty', async () => {
     mockBaseUrl.value = '';
     const params = fromPartial<MentorRequest>({ limit: 10 });
 
     const result = await fetchMentorsServer(params);
 
-    expect(result).toEqual([]);
+    expect(result).toEqual({ mentors: [], nextCursor: null });
     expect(mockGetUnwrapped).not.toHaveBeenCalled();
   });
 
   it('fetches mentors successfully and maps them', async () => {
-    const rawResponse = fromPartial<
-      components['schemas']['SearchMentorProfileListVO']
-    >({
+    const rawResponse = fromPartial({
       mentors: [
         fromPartial<components['schemas']['SearchMentorProfileVO']>({
           user_id: 1,
@@ -50,6 +48,7 @@ describe('fetchMentorsServer', () => {
           company: 'Google',
         }),
       ],
+      next_cursor: 'opaque-cursor-2',
     });
 
     mockGetUnwrapped.mockResolvedValue(rawResponse);
@@ -63,11 +62,27 @@ describe('fetchMentorsServer', () => {
         params,
       })
     );
-    expect(result).toHaveLength(1);
-    expect(result[0].user_id).toBe(1);
-    expect(result[0].name).toBe('Alice Smith');
-    expect(result[0].job_title).toBe('Product Manager');
-    expect(result[0].company).toBe('Google');
+    expect(result.mentors).toHaveLength(1);
+    expect(result.mentors[0].user_id).toBe(1);
+    expect(result.mentors[0].name).toBe('Alice Smith');
+    expect(result.mentors[0].job_title).toBe('Product Manager');
+    expect(result.mentors[0].company).toBe('Google');
+    expect(result.nextCursor).toBe('opaque-cursor-2');
+  });
+
+  it('defaults nextCursor to null when next_cursor is omitted in wire response', async () => {
+    const rawResponse = fromPartial<
+      components['schemas']['SearchMentorProfileListVO']
+    >({
+      mentors: [],
+    });
+
+    mockGetUnwrapped.mockResolvedValue(rawResponse);
+
+    const params = fromPartial<MentorRequest>({ limit: 10 });
+    const result = await fetchMentorsServer(params);
+
+    expect(result).toEqual({ mentors: [], nextCursor: null });
   });
 
   it('handles null/undefined response from apiClient.getUnwrapped gracefully', async () => {
@@ -76,7 +91,7 @@ describe('fetchMentorsServer', () => {
     const params = fromPartial<MentorRequest>({ limit: 10 });
     const result = await fetchMentorsServer(params);
 
-    expect(result).toEqual([]);
+    expect(result).toEqual({ mentors: [], nextCursor: null });
   });
 
   it('propagates API errors to the caller', async () => {

@@ -1649,6 +1649,8 @@ export interface components {
       previous_reserve?: components['schemas']['PreviousReserveRef'] | null;
       sender: components['schemas']['RUserInfoVO'];
       participant: components['schemas']['RUserInfoVO'];
+      /** Cancelled By */
+      cancelled_by?: ('MENTOR' | 'MENTEE' | 'SYSTEM') | null;
     };
     /** ReservationMessageDTO */
     ReservationMessageDTO: {
@@ -1714,8 +1716,8 @@ export interface components {
     SearchMentorProfileListVO: {
       /** Mentors */
       mentors: components['schemas']['SearchMentorProfileVO'][];
-      /** Next Id */
-      next_id: number | null;
+      /** Next Cursor */
+      next_cursor: string | null;
     };
     /** SearchMentorProfileVO */
     SearchMentorProfileVO: {
@@ -1793,7 +1795,7 @@ export interface components {
       /** Have Topic */
       have_topic?: string[] | null;
       /** Updated At */
-      updated_at: number | null;
+      updated_at: string | null;
       /** Views */
       views: number | null;
     };
@@ -2382,6 +2384,7 @@ export interface operations {
         filter_topics?: string[];
         filter_expertises?: string[];
         filter_industries?: string[];
+        sort_by?: string;
         limit?: number;
         cursor?: string;
       };

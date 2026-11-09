@@ -27,7 +27,7 @@ export const mockMentors: MentorType[] = [
       '職涯諮詢',
       '求職履歷優化',
     ],
-    updated_at: 1722240000,
+    updated_at: '2024-07-29T08:00:00Z',
   },
   {
     user_id: 2,
@@ -54,7 +54,7 @@ export const mockMentors: MentorType[] = [
       'Vitest',
     ],
     have_topic: ['Frontend', 'React', 'TypeScript', 'Performance Optimization'],
-    updated_at: 1722241000,
+    updated_at: '2024-07-29T08:16:40Z',
   },
   {
     user_id: 3,
@@ -88,7 +88,7 @@ export const mockMentors: MentorType[] = [
       'System Architecture',
       'Career Coaching',
     ],
-    updated_at: 1722242000,
+    updated_at: '2024-07-29T08:33:20Z',
   },
   {
     user_id: 4,
@@ -114,7 +114,7 @@ export const mockMentors: MentorType[] = [
       'Big Data Analytics',
       'AI Solutions',
     ],
-    updated_at: 1722243000,
+    updated_at: '2024-07-29T08:50:00Z',
   },
   {
     user_id: 5,
@@ -140,7 +140,7 @@ export const mockMentors: MentorType[] = [
       'Microservices',
       'Cloud Native',
     ],
-    updated_at: 1722244000,
+    updated_at: '2024-07-29T09:06:40Z',
   },
   {
     user_id: 6,
@@ -166,6 +166,6 @@ export const mockMentors: MentorType[] = [
       'Growth Marketing',
       'PR Strategy',
     ],
-    updated_at: 1722245000,
+    updated_at: '2024-07-29T09:23:20Z',
   },
 ];
