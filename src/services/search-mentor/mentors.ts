@@ -1,16 +1,11 @@
 import { apiClient } from '@/lib/apiClient';
-import type { components } from '@/types/api';
-import type { MentorPage, MentorRequest } from '@/types/mentor';
+import type {
+  MentorListWireResponse,
+  MentorPage,
+  MentorRequest,
+} from '@/types/mentor';
 
-import { mapMentor, type RawMentor } from './mapMentor';
-
-type MentorListWireResponse = Omit<
-  components['schemas']['SearchMentorProfileListVO'],
-  'mentors'
-> & {
-  mentors?: RawMentor[];
-  next_cursor?: string | null;
-};
+import { mapMentorPage } from './mapMentor';
 
 export async function fetchMentors(
   param: MentorRequest,
@@ -25,8 +20,5 @@ export async function fetchMentors(
     }
   );
 
-  return {
-    mentors: (data?.mentors ?? []).map((mentor) => mapMentor(mentor)),
-    nextCursor: data?.next_cursor ?? null,
-  };
+  return mapMentorPage(data);
 }

@@ -2,7 +2,21 @@ import type { StaticImageData } from 'next/image';
 
 import type { components } from '@/types/api';
 
-export type RawMentor = components['schemas']['SearchMentorProfileVO'];
+export type RawMentor = Omit<
+  components['schemas']['SearchMentorProfileVO'],
+  'updated_at'
+> & {
+  updated_at?: string | number | null;
+};
+
+export type MentorListWireResponse = Omit<
+  components['schemas']['SearchMentorProfileListVO'],
+  'mentors' | 'next_id'
+> & {
+  mentors?: RawMentor[];
+  next_id?: number | null;
+  next_cursor?: string | null;
+};
 
 export interface MentorType {
   user_id: number;

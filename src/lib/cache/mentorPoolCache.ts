@@ -36,10 +36,11 @@ export function applyMentorPage(
   switch (action.type) {
     case 'replace': {
       const { page, totalCount } = action;
+      const nextCursor = page.nextCursor || null;
       return {
         mentors: page.mentors,
-        nextCursor: page.nextCursor,
-        hasMore: page.nextCursor !== null,
+        nextCursor,
+        hasMore: page.mentors.length > 0 && nextCursor !== null,
         mentorCount: totalCount ?? page.mentors.length,
         isNoResults: page.mentors.length === 0,
         hasError: false,
@@ -47,6 +48,7 @@ export function applyMentorPage(
     }
     case 'append': {
       const { page } = action;
+      const nextCursor = page.nextCursor || null;
 
       const newMentors = page.mentors.filter(
         (newMentor) =>
@@ -55,10 +57,17 @@ export function applyMentorPage(
           )
       );
 
+      const hasValidNextCursor =
+        nextCursor !== null && nextCursor !== state.nextCursor;
+      const hasProgress = newMentors.length > 0 && hasValidNextCursor;
+
       return {
-        mentors: [...state.mentors, ...newMentors],
-        nextCursor: page.nextCursor,
-        hasMore: page.nextCursor !== null,
+        mentors:
+          newMentors.length === 0
+            ? state.mentors
+            : [...state.mentors, ...newMentors],
+        nextCursor,
+        hasMore: hasProgress,
         mentorCount: state.mentorCount + newMentors.length,
         isNoResults: false,
         hasError: false,
@@ -98,10 +107,11 @@ export const mentorPoolStore = {
       initialError,
       initialNextCursor = null,
     } = opts;
+    const nextCursor = initialNextCursor || null;
     return {
       mentors: initialMentors,
-      nextCursor: initialNextCursor,
-      hasMore: initialNextCursor !== null,
+      nextCursor,
+      hasMore: initialMentors.length > 0 && nextCursor !== null,
       mentorCount: initialMentorCount,
       isNoResults: initialMentors.length === 0,
       hasError: hasInitialFilters ? false : (initialError ?? false),

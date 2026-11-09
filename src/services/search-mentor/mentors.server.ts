@@ -1,16 +1,11 @@
 import { apiClient, BASE_URL } from '@/lib/apiClient';
-import type { components } from '@/types/api';
-import type { MentorPage, MentorRequest } from '@/types/mentor';
+import type {
+  MentorListWireResponse,
+  MentorPage,
+  MentorRequest,
+} from '@/types/mentor';
 
-import { mapMentor, type RawMentor } from './mapMentor';
-
-type MentorListWireResponse = Omit<
-  components['schemas']['SearchMentorProfileListVO'],
-  'mentors'
-> & {
-  mentors?: RawMentor[];
-  next_cursor?: string | null;
-};
+import { mapMentorPage } from './mapMentor';
 
 const REVALIDATE_SECONDS = 60 * 60 * 24;
 
@@ -30,7 +25,7 @@ export async function fetchMentorsServer(
   // Skip silently — the SSR-empty result lets the client take over at runtime
   // with the proper env, instead of throwing a noisy "Invalid URL" during
   // build prerender.
-  if (!BASE_URL) return { mentors: [], nextCursor: null };
+  if (!BASE_URL) return mapMentorPage();
 
   const fetchOptions = hasMentorRequestConditions(param)
     ? { cache: 'no-store' as const }
@@ -48,8 +43,5 @@ export async function fetchMentorsServer(
     }
   );
 
-  return {
-    mentors: (data?.mentors ?? []).map((mentor) => mapMentor(mentor)),
-    nextCursor: data?.next_cursor ?? null,
-  };
+  return mapMentorPage(data);
 }

@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import avatarImage from '@/assets/default-avatar.png';
-import type { components } from '@/types/api';
 import type { MentorType } from '@/types/mentor';
 
-import { mapMentor, resolveMentorAvatar } from './mapMentor';
-
-type RawMentor = components['schemas']['SearchMentorProfileVO'];
+import {
+  mapMentor,
+  mapMentorPage,
+  type RawMentor,
+  resolveMentorAvatar,
+} from './mapMentor';
 
 function createRawMentor(
   overrides: Partial<RawMentor> & { user_id: number }
@@ -190,5 +192,30 @@ describe('resolveMentorAvatar', () => {
     const mentor = { ...baseMentor, avatar: '' };
     const resolved = resolveMentorAvatar(mentor);
     expect(resolved.avatar).toBe(avatarImage);
+  });
+});
+
+describe('mapMentorPage', () => {
+  it('maps mentors array and preserves non-empty next_cursor', () => {
+    const page = mapMentorPage({
+      mentors: [createRawMentor({ user_id: 10, name: 'Alice' })],
+      next_cursor: 'cursor-token-1',
+    });
+
+    expect(page.mentors).toHaveLength(1);
+    expect(page.mentors[0].user_id).toBe(10);
+    expect(page.mentors[0].name).toBe('Alice');
+    expect(page.nextCursor).toBe('cursor-token-1');
+  });
+
+  it('normalizes empty string, null, or omitted next_cursor to null and handles nullish data', () => {
+    expect(mapMentorPage()).toEqual({ mentors: [], nextCursor: null });
+    expect(mapMentorPage(null)).toEqual({ mentors: [], nextCursor: null });
+    expect(
+      mapMentorPage({
+        mentors: [createRawMentor({ user_id: 11 })],
+        next_cursor: '',
+      }).nextCursor
+    ).toBeNull();
   });
 });

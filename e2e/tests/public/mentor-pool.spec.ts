@@ -121,8 +121,15 @@ function makeMentor(
   };
 }
 
-function mentorResponse(mentors: ReturnType<typeof makeMentor>[]) {
-  return { code: '0', msg: 'ok', data: { mentors, next_id: 0 } };
+function mentorResponse(
+  mentors: ReturnType<typeof makeMentor>[],
+  nextCursor: string | null = null
+) {
+  return {
+    code: '0',
+    msg: 'ok',
+    data: { mentors, next_id: 0, next_cursor: nextCursor },
+  };
 }
 
 const PAGE_LIMIT = 9;
@@ -149,6 +156,10 @@ async function tabUntilFocused(
 // ─── Setup ───────────────────────────────────────────────────────────────────
 
 test.beforeEach(async ({ page }) => {
+  // Register the catch-all abort handler first so it sits at the bottom of
+  // Playwright's LIFO route stack; subsequent explicit page.route() mocks
+  // registered below take precedence over it.
+  await blockUnmockedExternalApi(page);
   // Silence the three background interests calls (used for skill label mapping)
   await page.route(/\/v1\/users\/zh_TW\/interests/, (route) =>
     route.fulfill({
@@ -164,9 +175,6 @@ test.beforeEach(async ({ page }) => {
       body: JSON.stringify(MOCK_TAG_CATALOG),
     })
   );
-  // Abort any external API call not explicitly mocked above so tests fail fast
-  // instead of waiting for the real AWS endpoint to time out.
-  await blockUnmockedExternalApi(page);
 });
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -279,23 +287,27 @@ test('scroll to bottom → additional mentors are loaded and appended', async ({
   await page.route(/\/v1\/mentors/, (route, request) => {
     const cursor = new URL(request.url()).searchParams.get('cursor');
     const data = cursor ? secondPage : firstPage;
+    const nextCursor = cursor ? null : 'opaque-cursor-page-2';
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(mentorResponse(data)),
+      body: JSON.stringify(mentorResponse(data, nextCursor)),
     });
   });
 
   // Force the client-side (mockable) fetch path — via any search condition —
-  // instead of the unmocked SSR listing, so mentors.length is a deterministic
-  // multiple of PAGE_LIMIT and container.tsx's scroll-trigger guard
-  // (mentors.length % PAGE_LIMIT === 0) reliably fires fetchMoreMentors.
+  // instead of the unmocked SSR listing, so the first page's next_cursor
+  // continuation token is deterministically seeded before scrolling.
   await page.goto('/mentor-pool?q=test');
   await expect(page.locator('article')).toHaveCount(PAGE_LIMIT);
 
   // Bring the last card into the viewport — IntersectionObserver fires and
-  // triggers fetchMoreMentors (guard: mentors.length % PAGE_LIMIT === 0)
-  const loadMorePromise = page.waitForResponse(/\/v1\/mentors/);
+  // triggers fetchMoreMentors using the server-returned next_cursor token.
+  const loadMorePromise = page.waitForResponse(
+    (res) =>
+      /\/v1\/mentors/.test(res.url()) &&
+      new URL(res.url()).searchParams.get('cursor') === 'opaque-cursor-page-2'
+  );
   await page.locator('article').last().scrollIntoViewIfNeeded();
   await loadMorePromise;
 
@@ -485,13 +497,13 @@ test('篩選下拉選單向下展開不遮擋觸發器、導師卡片同列等�
   // 3. 驗證篩選選單使用 popper 向下展開，不遮擋觸發器本身
   await page.getByRole('button', { name: /篩選/ }).click();
   const firstCombobox = page.getByRole('combobox').first();
+  const triggerBox = await firstCombobox.boundingBox();
   await firstCombobox.click();
 
   const listbox = page.getByRole('listbox');
   await expect(listbox).toBeVisible();
   await expect(listbox).toHaveAttribute('data-side', 'bottom');
 
-  const triggerBox = await firstCombobox.boundingBox();
   const listboxBox = await listbox.boundingBox();
   expect(triggerBox).not.toBeNull();
   expect(listboxBox).not.toBeNull();

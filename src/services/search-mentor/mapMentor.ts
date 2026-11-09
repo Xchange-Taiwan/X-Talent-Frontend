@@ -1,8 +1,12 @@
 import avatarImage from '@/assets/default-avatar.png';
-import type { components } from '@/types/api';
-import type { MentorType } from '@/types/mentor';
+import type {
+  MentorListWireResponse,
+  MentorPage,
+  MentorType,
+  RawMentor,
+} from '@/types/mentor';
 
-export type RawMentor = components['schemas']['SearchMentorProfileVO'];
+export type { MentorListWireResponse, RawMentor };
 
 function readCodes(codes: ReadonlyArray<string> | null | undefined): string[] {
   if (!codes) return [];
@@ -15,6 +19,11 @@ export function mapMentor(raw: RawMentor): MentorType {
   // because BFF inherits from MentorProfileVO whose industry is a Dict on
   // the User-service GET response. The runtime value is a string here.
   const industry = raw.industry as unknown as string | null | undefined;
+  const rawUpdatedAt = raw.updated_at;
+  const updatedAt =
+    rawUpdatedAt === null || rawUpdatedAt === undefined || rawUpdatedAt === ''
+      ? null
+      : String(rawUpdatedAt);
 
   const mapped: MentorType = {
     user_id: raw.user_id,
@@ -33,7 +42,7 @@ export function mapMentor(raw: RawMentor): MentorType {
     want_topic: readCodes(raw.want_topic),
     have_skill: readCodes(raw.have_skill),
     have_topic: readCodes(raw.have_topic),
-    updated_at: raw.updated_at ?? null,
+    updated_at: updatedAt,
   };
 
   return resolveMentorAvatar(mapped);
@@ -52,5 +61,14 @@ export function resolveMentorAvatar(mentor: MentorType): MentorType {
               : ''
           }`
         : avatarImage,
+  };
+}
+
+export function mapMentorPage(
+  data?: MentorListWireResponse | null
+): MentorPage {
+  return {
+    mentors: (data?.mentors ?? []).map((mentor) => mapMentor(mentor)),
+    nextCursor: data?.next_cursor || null,
   };
 }

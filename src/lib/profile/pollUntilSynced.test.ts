@@ -4,15 +4,8 @@ vi.mock('@/services/profile/user', () => ({
   fetchUserById: vi.fn(),
 }));
 
-const { mentorFetchSpy } = vi.hoisted(() => ({ mentorFetchSpy: vi.fn() }));
-
 vi.mock('@/services/search-mentor/mentors', () => ({
-  fetchMentors: async (...args: unknown[]) => {
-    const result = await mentorFetchSpy(...args);
-    return Array.isArray(result)
-      ? { mentors: result, nextCursor: null }
-      : result;
-  },
+  fetchMentors: vi.fn(),
 }));
 
 vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
@@ -22,6 +15,7 @@ import { fromAny, fromPartial } from '@total-typescript/shoehorn';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { defaultValues } from '@/schemas/profileSchema';
 import { fetchUserById } from '@/services/profile/user';
+import { fetchMentors } from '@/services/search-mentor/mentors';
 import type { MentorType } from '@/types/mentor';
 import type { MentorProfileVO } from '@/types/user';
 
@@ -35,7 +29,7 @@ import {
 } from './pollUntilSynced';
 
 const mockFetchUserById = vi.mocked(fetchUserById);
-const mockFetchMentors = mentorFetchSpy;
+const mockFetchMentors = vi.mocked(fetchMentors);
 const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 
 const makeMentor = (
@@ -274,7 +268,10 @@ describe('pollUntilUserDeleted', () => {
   });
 
   it('returns true as soon as the user is absent from the mentor-pool listing (no name → unfiltered search)', async () => {
-    mockFetchMentors.mockResolvedValueOnce([makeMentor(2), makeMentor(3)]);
+    mockFetchMentors.mockResolvedValueOnce({
+      mentors: [makeMentor(2), makeMentor(3)],
+      nextCursor: null,
+    });
 
     const result = await pollUntilUserDeleted(1, undefined, 6, 2000);
 
@@ -287,7 +284,7 @@ describe('pollUntilUserDeleted', () => {
   });
 
   it('scopes the query to search_pattern when a name is given', async () => {
-    mockFetchMentors.mockResolvedValueOnce([]);
+    mockFetchMentors.mockResolvedValueOnce({ mentors: [], nextCursor: null });
 
     await pollUntilUserDeleted(1, 'Jane Doe', 6, 2000);
 
@@ -299,9 +296,18 @@ describe('pollUntilUserDeleted', () => {
 
   it('keeps retrying while the user is still in the listing, then succeeds', async () => {
     mockFetchMentors
-      .mockResolvedValueOnce([makeMentor(1), makeMentor(2)])
-      .mockResolvedValueOnce([makeMentor(1)])
-      .mockResolvedValueOnce([makeMentor(2)]);
+      .mockResolvedValueOnce({
+        mentors: [makeMentor(1), makeMentor(2)],
+        nextCursor: null,
+      })
+      .mockResolvedValueOnce({
+        mentors: [makeMentor(1)],
+        nextCursor: null,
+      })
+      .mockResolvedValueOnce({
+        mentors: [makeMentor(2)],
+        nextCursor: null,
+      });
 
     const promise = pollUntilUserDeleted(1, undefined, 6, 2000);
     await vi.advanceTimersByTimeAsync(2000 * 2);
@@ -313,7 +319,10 @@ describe('pollUntilUserDeleted', () => {
   it('treats fetch errors as inconclusive and keeps retrying', async () => {
     mockFetchMentors
       .mockRejectedValueOnce(new Error('network down'))
-      .mockResolvedValueOnce([makeMentor(2)]);
+      .mockResolvedValueOnce({
+        mentors: [makeMentor(2)],
+        nextCursor: null,
+      });
 
     const promise = pollUntilUserDeleted(1, undefined, 6, 2000);
     await vi.advanceTimersByTimeAsync(2000);
@@ -323,7 +332,10 @@ describe('pollUntilUserDeleted', () => {
   });
 
   it('returns false and reports a flow failure once the retry budget is exhausted', async () => {
-    mockFetchMentors.mockResolvedValue([makeMentor(1)]);
+    mockFetchMentors.mockResolvedValue({
+      mentors: [makeMentor(1)],
+      nextCursor: null,
+    });
 
     const promise = pollUntilUserDeleted(1, undefined, 3, 2000);
     await vi.advanceTimersByTimeAsync(2000 * 3);
@@ -367,17 +379,20 @@ describe('pollUntilMentorPoolSynced', () => {
       haveTopic: ['career', 'leadership'],
       avatar: 'https://cdn/a.png',
     });
-    mockFetchMentors.mockResolvedValueOnce([
-      makeMentor(1, {
-        name: 'New Name',
-        job_title: 'Engineer',
-        company: 'Acme',
-        about: 'new about',
-        years_of_experience: '5_10',
-        have_topic: ['leadership', 'career'], // order-independent
-        avatar: 'https://cdn/a.png?cb=123',
-      }),
-    ]);
+    mockFetchMentors.mockResolvedValueOnce({
+      mentors: [
+        makeMentor(1, {
+          name: 'New Name',
+          job_title: 'Engineer',
+          company: 'Acme',
+          about: 'new about',
+          years_of_experience: '5_10',
+          have_topic: ['leadership', 'career'], // order-independent
+          avatar: 'https://cdn/a.png?cb=123',
+        }),
+      ],
+      nextCursor: null,
+    });
 
     const result = await pollUntilMentorPoolSynced(1, fields, 6, 2000);
 
@@ -398,20 +413,26 @@ describe('pollUntilMentorPoolSynced', () => {
       avatar: 'https://cdn/a.png',
     });
     mockFetchMentors
-      .mockResolvedValueOnce([
-        makeMentor(1, {
-          name: 'Same Name',
-          job_title: 'Engineer', // stale — only this field lags
-          avatar: 'https://cdn/a.png?cb=123',
-        }),
-      ])
-      .mockResolvedValueOnce([
-        makeMentor(1, {
-          name: 'Same Name',
-          job_title: 'Senior Engineer',
-          avatar: 'https://cdn/a.png?cb=124',
-        }),
-      ]);
+      .mockResolvedValueOnce({
+        mentors: [
+          makeMentor(1, {
+            name: 'Same Name',
+            job_title: 'Engineer', // stale — only this field lags
+            avatar: 'https://cdn/a.png?cb=123',
+          }),
+        ],
+        nextCursor: null,
+      })
+      .mockResolvedValueOnce({
+        mentors: [
+          makeMentor(1, {
+            name: 'Same Name',
+            job_title: 'Senior Engineer',
+            avatar: 'https://cdn/a.png?cb=124',
+          }),
+        ],
+        nextCursor: null,
+      });
 
     const promise = pollUntilMentorPoolSynced(1, fields, 6, 2000);
     await vi.advanceTimersByTimeAsync(2000);
@@ -422,8 +443,14 @@ describe('pollUntilMentorPoolSynced', () => {
 
   it('keeps retrying while the card still shows the old name, then succeeds', async () => {
     mockFetchMentors
-      .mockResolvedValueOnce([makeMentor(1, { name: 'Old Name' })])
-      .mockResolvedValueOnce([makeMentor(1, { name: 'New Name' })]);
+      .mockResolvedValueOnce({
+        mentors: [makeMentor(1, { name: 'Old Name' })],
+        nextCursor: null,
+      })
+      .mockResolvedValueOnce({
+        mentors: [makeMentor(1, { name: 'New Name' })],
+        nextCursor: null,
+      });
 
     const promise = pollUntilMentorPoolSynced(
       1,
@@ -439,11 +466,14 @@ describe('pollUntilMentorPoolSynced', () => {
 
   it('keeps retrying while the card is missing entirely (newly-mentor case), then succeeds', async () => {
     mockFetchMentors
-      .mockResolvedValueOnce([makeMentor(2)])
-      .mockResolvedValueOnce([
-        makeMentor(1, { name: 'New Mentor' }),
-        makeMentor(2),
-      ]);
+      .mockResolvedValueOnce({
+        mentors: [makeMentor(2)],
+        nextCursor: null,
+      })
+      .mockResolvedValueOnce({
+        mentors: [makeMentor(1, { name: 'New Mentor' }), makeMentor(2)],
+        nextCursor: null,
+      });
 
     const promise = pollUntilMentorPoolSynced(
       1,
@@ -457,7 +487,10 @@ describe('pollUntilMentorPoolSynced', () => {
   });
 
   it('returns false and reports a flow failure once the retry budget is exhausted', async () => {
-    mockFetchMentors.mockResolvedValue([makeMentor(1, { name: 'Old Name' })]);
+    mockFetchMentors.mockResolvedValue({
+      mentors: [makeMentor(1, { name: 'Old Name' })],
+      nextCursor: null,
+    });
 
     const promise = pollUntilMentorPoolSynced(
       1,
@@ -501,8 +534,14 @@ describe('confirmProfileSynced', () => {
   it('mentor-relevant → polls the mentor-pool listing until synced, then revalidates', async () => {
     const fields = makeFields({ name: 'New Name' });
     mockFetchMentors
-      .mockResolvedValueOnce([makeMentor(1, { name: 'Old Name' })])
-      .mockResolvedValueOnce([makeMentor(1, { name: 'New Name' })]);
+      .mockResolvedValueOnce({
+        mentors: [makeMentor(1, { name: 'Old Name' })],
+        nextCursor: null,
+      })
+      .mockResolvedValueOnce({
+        mentors: [makeMentor(1, { name: 'New Name' })],
+        nextCursor: null,
+      });
     const revalidate = vi.fn().mockResolvedValue(undefined);
 
     const promise = confirmProfileSynced(1, fields, true, revalidate);
@@ -514,7 +553,10 @@ describe('confirmProfileSynced', () => {
   });
 
   it('mentor-relevant, poll exhausts retry budget → still revalidates', async () => {
-    mockFetchMentors.mockResolvedValue([makeMentor(1, { name: 'Old Name' })]);
+    mockFetchMentors.mockResolvedValue({
+      mentors: [makeMentor(1, { name: 'Old Name' })],
+      nextCursor: null,
+    });
     const revalidate = vi.fn().mockResolvedValue(undefined);
 
     const promise = confirmProfileSynced(
@@ -561,8 +603,14 @@ describe('confirmDeletionSynced', () => {
 
   it('polls (via the real pollUntilUserDeleted by default) until the user is absent, then invokes every revalidatePaths callback', async () => {
     mockFetchMentors
-      .mockResolvedValueOnce([makeMentor(42)])
-      .mockResolvedValueOnce([]);
+      .mockResolvedValueOnce({
+        mentors: [makeMentor(42)],
+        nextCursor: null,
+      })
+      .mockResolvedValueOnce({
+        mentors: [],
+        nextCursor: null,
+      });
     const revalidateProfile = vi.fn();
     const revalidateMentorPool = vi.fn();
 
@@ -644,7 +692,10 @@ describe('confirmDeletionSynced', () => {
   });
 
   it('falls back to an unscoped poll when no name is given (default poll)', async () => {
-    mockFetchMentors.mockResolvedValueOnce([]);
+    mockFetchMentors.mockResolvedValueOnce({
+      mentors: [],
+      nextCursor: null,
+    });
 
     await confirmDeletionSynced(42, undefined, [vi.fn()]);
 

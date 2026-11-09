@@ -1714,8 +1714,8 @@ export interface components {
     SearchMentorProfileListVO: {
       /** Mentors */
       mentors: components['schemas']['SearchMentorProfileVO'][];
-      /** Next Cursor */
-      next_cursor: string | null;
+      /** Next Id */
+      next_id: number | null;
     };
     /** SearchMentorProfileVO */
     SearchMentorProfileVO: {
@@ -1793,7 +1793,7 @@ export interface components {
       /** Have Topic */
       have_topic?: string[] | null;
       /** Updated At */
-      updated_at: string | null;
+      updated_at: number | null;
       /** Views */
       views: number | null;
     };
