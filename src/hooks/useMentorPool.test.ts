@@ -1308,5 +1308,4 @@ describe('applyMentorPage', () => {
     expect(nextState.hasMore).toBe(true);
     expect(nextState.hasError).toBe(false);
   });
-
 });

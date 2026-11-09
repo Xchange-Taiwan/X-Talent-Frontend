@@ -127,10 +127,7 @@ export const mentorPoolStore = {
   },
 
   async fetchPageOne(
-    fetchPage: (
-      limit: number,
-      signal: AbortSignal
-    ) => Promise<MentorPage>,
+    fetchPage: (limit: number, signal: AbortSignal) => Promise<MentorPage>,
     signal: AbortSignal,
     pageLimit: number = DEFAULT_MENTOR_PAGE_LIMIT
   ): Promise<MentorPoolPageState> {
