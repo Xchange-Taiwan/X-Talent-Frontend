@@ -3,7 +3,7 @@ import { isProfileSynced } from '@/lib/profile/profileSaveAdapter';
 import { ProfileFormValues } from '@/schemas/profileSchema';
 import { fetchUserById } from '@/services/profile/user';
 import { fetchMentors } from '@/services/search-mentor/mentors';
-import type { MentorType } from '@/types/mentor';
+import { asMentorPage, type MentorType } from '@/types/mentor';
 import type { MentorProfileVO } from '@/types/user';
 
 // MENTOR_POOL_POLL_LIMIT constant
@@ -91,9 +91,8 @@ abstract class BaseSearchIndexAdapter implements ConvergenceAdapter<
       const result = await fetchMentors({
         search_pattern: this.getSearchPattern(),
         limit: MENTOR_POOL_POLL_LIMIT,
-        cursor: '',
       });
-      return result;
+      return asMentorPage(result).mentors;
     } catch {
       return null;
     }

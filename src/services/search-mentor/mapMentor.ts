@@ -1,5 +1,11 @@
 import avatarImage from '@/assets/default-avatar.png';
-import type { MentorType, RawMentor } from '@/types/mentor';
+import type { components } from '@/types/api';
+import type { MentorType } from '@/types/mentor';
+
+type GeneratedRawMentor = components['schemas']['SearchMentorProfileVO'];
+export type RawMentor = Omit<GeneratedRawMentor, 'updated_at'> & {
+  updated_at?: string | number | null;
+};
 
 function readCodes(codes: ReadonlyArray<string> | null | undefined): string[] {
   if (!codes) return [];
@@ -43,7 +49,11 @@ export function resolveMentorAvatar(mentor: MentorType): MentorType {
     ...mentor,
     avatar:
       typeof mentor.avatar === 'string' && mentor.avatar
-        ? `${mentor.avatar}${mentor.updated_at ? `?cb=${mentor.updated_at}` : ''}`
+        ? `${mentor.avatar}${
+            mentor.updated_at
+              ? `?cb=${encodeURIComponent(mentor.updated_at)}`
+              : ''
+          }`
         : avatarImage,
   };
 }

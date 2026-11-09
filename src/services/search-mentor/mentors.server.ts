@@ -1,8 +1,16 @@
 import { apiClient, BASE_URL } from '@/lib/apiClient';
 import type { components } from '@/types/api';
-import type { MentorRequest, MentorType } from '@/types/mentor';
+import type { MentorPageResult, MentorRequest } from '@/types/mentor';
 
-import { mapMentor } from './mapMentor';
+import { mapMentor, type RawMentor } from './mapMentor';
+
+type MentorListWireResponse = Omit<
+  components['schemas']['SearchMentorProfileListVO'],
+  'mentors'
+> & {
+  mentors?: RawMentor[];
+  next_cursor?: string | null;
+};
 
 const REVALIDATE_SECONDS = 60 * 60 * 24;
 
@@ -17,27 +25,31 @@ function hasMentorRequestConditions(param: MentorRequest): boolean {
 
 export async function fetchMentorsServer(
   param: MentorRequest
-): Promise<MentorType[]> {
+): Promise<MentorPageResult> {
   // BASE_URL may be unset at build time (no .env.production* / .env.local).
   // Skip silently — the SSR-empty result lets the client take over at runtime
   // with the proper env, instead of throwing a noisy "Invalid URL" during
   // build prerender.
-  if (!BASE_URL) return [];
+  if (!BASE_URL) return { mentors: [], nextCursor: null };
 
   const fetchOptions = hasMentorRequestConditions(param)
     ? { cache: 'no-store' as const }
     : { next: { revalidate: REVALIDATE_SECONDS } };
 
-  const data = await apiClient.getUnwrapped<
-    components['schemas']['SearchMentorProfileListVO']
-  >('/v1/mentors', {
-    auth: false,
-    params: param as unknown as Record<
-      string,
-      string | number | boolean | undefined | null
-    >,
-    ...fetchOptions,
-  });
+  const data = await apiClient.getUnwrapped<MentorListWireResponse>(
+    '/v1/mentors',
+    {
+      auth: false,
+      params: param as unknown as Record<
+        string,
+        string | number | boolean | undefined | null
+      >,
+      ...fetchOptions,
+    }
+  );
 
-  return (data?.mentors ?? []).map(mapMentor);
+  return {
+    mentors: (data?.mentors ?? []).map((mentor) => mapMentor(mentor)),
+    nextCursor: data?.next_cursor ?? null,
+  };
 }

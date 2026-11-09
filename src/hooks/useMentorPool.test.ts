@@ -1170,7 +1170,7 @@ describe('useMentorPool', () => {
 describe('applyMentorPage', () => {
   const initialPageState: MentorPoolPageState = {
     mentors: [],
-    cursor: undefined,
+    nextCursor: null,
     hasMore: true,
     mentorCount: 0,
     isNoResults: false,
@@ -1198,43 +1198,52 @@ describe('applyMentorPage', () => {
   };
 
   it('handles replace action with non-empty page', () => {
-    const action = { type: 'replace' as const, page: [sampleMentor] };
+    const action = {
+      type: 'replace' as const,
+      page: { mentors: [sampleMentor], nextCursor: 'opaque-next' },
+    };
     const nextState = applyMentorPage(initialPageState, action);
 
     expect(nextState.mentors).toEqual([sampleMentor]);
-    expect(nextState.cursor).toBe('1000');
-    expect(nextState.hasMore).toBe(false); // as page length 1 !== PAGE_LIMIT (9)
+    expect(nextState.nextCursor).toBe('opaque-next');
+    expect(nextState.hasMore).toBe(true);
     expect(nextState.mentorCount).toBe(1);
     expect(nextState.isNoResults).toBe(false);
     expect(nextState.hasError).toBe(false);
   });
 
   it('handles replace action with empty page', () => {
-    const action = { type: 'replace' as const, page: [] };
+    const action = {
+      type: 'replace' as const,
+      page: { mentors: [], nextCursor: null },
+    };
     const nextState = applyMentorPage(initialPageState, action);
 
     expect(nextState.mentors).toEqual([]);
-    expect(nextState.cursor).toBeUndefined();
+    expect(nextState.nextCursor).toBeNull();
     expect(nextState.hasMore).toBe(false);
     expect(nextState.mentorCount).toBe(0);
     expect(nextState.isNoResults).toBe(true);
     expect(nextState.hasError).toBe(false);
   });
 
-  it('handles append action with empty page by setting hasMore to false', () => {
+  it('uses the server continuation token for an empty append page', () => {
     const state: MentorPoolPageState = {
       mentors: [sampleMentor],
-      cursor: '1000',
+      nextCursor: 'opaque-current',
       hasMore: true,
       mentorCount: 1,
       isNoResults: false,
       hasError: false,
     };
-    const action = { type: 'append' as const, page: [] };
+    const action = {
+      type: 'append' as const,
+      page: { mentors: [], nextCursor: null },
+    };
     const nextState = applyMentorPage(state, action);
 
     expect(nextState.mentors).toEqual([sampleMentor]);
-    expect(nextState.cursor).toBe('1000');
+    expect(nextState.nextCursor).toBeNull();
     expect(nextState.hasMore).toBe(false);
     expect(nextState.mentorCount).toBe(1);
     expect(nextState.isNoResults).toBe(false);
@@ -1244,7 +1253,7 @@ describe('applyMentorPage', () => {
   it('handles append action with non-empty page, filters duplicates, and updates count/cursor', () => {
     const state: MentorPoolPageState = {
       mentors: [sampleMentor],
-      cursor: '1000',
+      nextCursor: 'opaque-current',
       hasMore: true,
       mentorCount: 1,
       isNoResults: false,
@@ -1256,55 +1265,19 @@ describe('applyMentorPage', () => {
 
     const action = {
       type: 'append' as const,
-      page: [duplicateMentor, newMentor],
+      page: {
+        mentors: [duplicateMentor, newMentor],
+        nextCursor: 'opaque-next',
+      },
     };
     const nextState = applyMentorPage(state, action);
 
     // Should deduplicate, adding only newMentor (user_id 11)
     expect(nextState.mentors).toEqual([sampleMentor, newMentor]);
-    expect(nextState.cursor).toBe('1100'); // taken from last element of action.page, which is newMentor
-    expect(nextState.mentorCount).toBe(2); // count is accumulated based on deduplicated new mentors (1 + 1 = 2)
-    expect(nextState.hasMore).toBe(false);
+    expect(nextState.nextCursor).toBe('opaque-next');
+    expect(nextState.mentorCount).toBe(2);
+    expect(nextState.hasMore).toBe(true);
     expect(nextState.hasError).toBe(false);
   });
 
-  it('sets hasMore to false when page is full but cursor (updated_at) is missing (#851)', () => {
-    const pageWithoutUpdatedAt = Array.from({ length: 9 }, (_, i) => ({
-      ...sampleMentor,
-      user_id: i + 1,
-      updated_at: null,
-    }));
-
-    const nextState = applyMentorPage(initialPageState, {
-      type: 'replace',
-      page: pageWithoutUpdatedAt,
-    });
-
-    expect(nextState.cursor).toBeUndefined();
-    expect(nextState.hasMore).toBe(false);
-    expect(nextState.mentorCount).toBe(9);
-  });
-
-  it('sets hasMore to false, preserves mentors reference, and does not inflate mentorCount when append receives only duplicate mentors (#851)', () => {
-    const fullFirstPage = Array.from({ length: 9 }, (_, i) => ({
-      ...sampleMentor,
-      user_id: i + 1,
-      updated_at: 1000 + i,
-    }));
-
-    const stateAfterFirstPage = applyMentorPage(initialPageState, {
-      type: 'replace',
-      page: fullFirstPage,
-    });
-    expect(stateAfterFirstPage.hasMore).toBe(true);
-
-    const nextState = applyMentorPage(stateAfterFirstPage, {
-      type: 'append',
-      page: fullFirstPage,
-    });
-
-    expect(nextState.hasMore).toBe(false);
-    expect(nextState.mentorCount).toBe(9);
-    expect(nextState.mentors).toBe(stateAfterFirstPage.mentors);
-  });
 });

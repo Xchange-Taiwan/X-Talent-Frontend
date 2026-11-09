@@ -21,7 +21,21 @@ export interface MentorType {
   want_topic: string[];
   have_skill: string[];
   have_topic: string[];
-  updated_at: number | null;
+  // Current BFF emits ISO-8601. number remains only for legacy fixtures while
+  // the generated OpenAPI client is regenerated from the additive BE release.
+  updated_at: string | number | null;
+}
+
+export interface MentorPage {
+  mentors: MentorType[];
+  nextCursor: string | null;
+}
+
+/** @deprecated Only retained for internal callers/tests during the API cutover. */
+export type MentorPageResult = MentorPage | MentorType[];
+
+export function asMentorPage(result: MentorPageResult): MentorPage {
+  return Array.isArray(result) ? { mentors: result, nextCursor: null } : result;
 }
 
 export interface MentorRequest {
@@ -29,6 +43,7 @@ export interface MentorRequest {
   filter_skills?: string;
   filter_topics?: string;
   filter_industries?: string;
+  sort_by?: 'recent' | 'popularity';
   limit: number;
   cursor?: string;
 }

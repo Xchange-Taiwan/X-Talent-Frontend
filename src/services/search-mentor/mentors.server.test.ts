@@ -63,11 +63,13 @@ describe('fetchMentorsServer', () => {
         params,
       })
     );
-    expect(result).toHaveLength(1);
-    expect(result[0].user_id).toBe(1);
-    expect(result[0].name).toBe('Alice Smith');
-    expect(result[0].job_title).toBe('Product Manager');
-    expect(result[0].company).toBe('Google');
+    expect(Array.isArray(result)).toBe(false);
+    if (Array.isArray(result)) throw new Error('Expected a mentor page');
+    expect(result.mentors).toHaveLength(1);
+    expect(result.mentors[0].user_id).toBe(1);
+    expect(result.mentors[0].name).toBe('Alice Smith');
+    expect(result.mentors[0].job_title).toBe('Product Manager');
+    expect(result.mentors[0].company).toBe('Google');
   });
 
   it('handles null/undefined response from apiClient.getUnwrapped gracefully', async () => {
