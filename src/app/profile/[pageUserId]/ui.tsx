@@ -192,8 +192,17 @@ export default function ProfilePageUI({
                 {userData.about && (
                   <div>
                     <p className="mb-4 text-xl font-bold">關於我</p>
-                    <p className="text-text-tertiary text-sm break-words">
+                    <p className="text-text-tertiary text-sm break-words whitespace-pre-line">
                       {userData.about}
+                    </p>
+                  </div>
+                )}
+
+                {userData.personal_statement && (
+                  <div className={userData.about ? 'mt-10' : undefined}>
+                    <p className="mb-4 text-xl font-bold">給導生的話</p>
+                    <p className="text-text-tertiary text-sm break-words whitespace-pre-line">
+                      {userData.personal_statement}
                     </p>
                   </div>
                 )}

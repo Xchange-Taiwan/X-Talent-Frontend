@@ -72,7 +72,7 @@ export const WorkSectionFilled: StoryObj<typeof WorkExperienceSection> = {
           industry: 'Software',
           job_location: 'TWN',
           description:
-            '率領 6 人研發小組，重構核心結帳系統，效能提升 35%，並降低錯誤率 50%。',
+            '率領 6 人研發小組，重構核心結帳系統：\n1. 首屏載入效能提升 35%\n2. 結帳流程錯誤率降低 50%\n3. 建立自動化 E2E 與單元測試防線',
           is_primary: true,
         },
         {

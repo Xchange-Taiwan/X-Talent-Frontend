@@ -38,6 +38,7 @@ export interface UserType {
   company: string;
   is_mentor: boolean;
   about?: string;
+  personal_statement?: string;
   years_of_experience?: string;
   industry?: string;
   want_position: TagDisplay[];
@@ -89,6 +90,7 @@ function parseUserDtoToUserType(
     company: userDto.company ?? '',
     is_mentor: userDto.is_mentor ?? false,
     about: userDto.about ?? '',
+    personal_statement: userDto.personal_statement ?? '',
     years_of_experience: userDto.years_of_experience
       ? (TotalWorkSpanEnum[
           userDto.years_of_experience as keyof typeof TotalWorkSpanEnum

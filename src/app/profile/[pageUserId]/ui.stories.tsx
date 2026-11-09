@@ -32,7 +32,9 @@ const mockMentorUserData: UserType = {
   company: 'Google',
   is_mentor: true,
   about:
-    '擁有 8 年以上跨國數位產品設計經驗，曾主導多個大型 B2B 與 B2C 產品的設計系統與互動體驗優化。熱衷於協助設計師與轉職者釐清職涯方向、打磨作品集與準備跨國面試。',
+    '擁有 8 年以上跨國數位產品設計經驗，曾主導多個大型 B2B 與 B2C 產品的設計系統與互動體驗優化。\n\n擅長領域包含：\n1. 跨國產品設計與體驗策略\n2. 設計系統 (Design System) 架構與落地\n3. 作品集健檢與跨國職涯規劃',
+  personal_statement:
+    '歡迎預約一對一諮詢！\n1. 請事先準備想討論的問題清單\n2. 若需作品集健檢，請於預約留言附上連結',
   years_of_experience: '5~10 年',
   industry: '網際網路 / 軟體',
   want_position: [],
@@ -57,7 +59,7 @@ const mockMentorUserData: UserType = {
       industry: 'Software',
       job_location: 'TWN',
       description:
-        '負責 Cloud Console 核心工作流設計與跨產品 Design System 演進。',
+        '負責 Cloud Console 核心工作流設計與跨產品 Design System 演進。\n1. 主導 5 個產品線的設計系統元件收斂\n2. 與跨時區工程與產品團隊協作推動無障礙設計規範',
       is_primary: true,
     },
     {
