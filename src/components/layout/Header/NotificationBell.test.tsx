@@ -185,9 +185,8 @@ describe('NotificationBell', () => {
       .getByText('尚無新通知')
       .closest('[class*="max-w-"]');
     expect(popoverContent).toBeInTheDocument();
-    expect(popoverContent).toHaveClass('w-[360px]');
-    expect(popoverContent).toHaveClass('max-w-[min(360px,calc(100vw-32px))]');
-    expect(popoverContent).toHaveClass('lg:max-w-[calc(100vw-32px)]');
+    expect(popoverContent).toHaveClass('w-[calc(100vw-32px)]');
+    expect(popoverContent).toHaveClass('max-w-[360px]');
   });
 
   it('contains tailwind CSS classes for the hover state to avoid JS state overhead', () => {
@@ -613,7 +612,7 @@ describe('NotificationBell', () => {
       const button = screen.getByRole('button', { name: '開啟通知選單' });
       fireEvent.click(button);
 
-      // Check reservation_canceled href for Mentor context
+      // Check reservation_canceled href and mentor-perspective body for Mentor context (#858)
       const canceledLink = screen
         .getByText('您與 小明 的預約已被取消')
         .closest('a');
@@ -621,6 +620,12 @@ describe('NotificationBell', () => {
         'href',
         '/reservation/mentor?tab=history'
       );
+      expect(
+        screen.getByText('學員已取消此次預約，點擊查看預約紀錄')
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText('您的預約已被取消，歡迎重新預約')
+      ).not.toBeInTheDocument();
 
       // Check reservation_upcoming href for Mentor context
       const upcomingLink = screen

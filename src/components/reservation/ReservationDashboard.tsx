@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect } from 'react';
+import { Suspense, useCallback, useEffect, useRef } from 'react';
 
 import { ReservationListSkeleton } from '@/app/reservation/skeleton';
 import { ReservationList } from '@/components/reservation/ReservationList';
@@ -141,6 +141,61 @@ export function ReservationDashboardView({
   const tabParam = searchParams.get('tab');
   const activeTab = (tabParam && TAB_MAPPING[tabParam]) || upcomingTabValue;
 
+  const lastCountsRef = useRef<{
+    role: ReservationRole;
+    upcoming: number;
+    pending: number;
+    history: number;
+    hasHistoryLoadedOnce: boolean;
+  }>({
+    role: userRole,
+    upcoming: upcoming.length,
+    pending: pending.length,
+    history: history.length,
+    hasHistoryLoadedOnce: isHistoryLoaded,
+  });
+
+  if (lastCountsRef.current.role !== userRole) {
+    lastCountsRef.current = {
+      role: userRole,
+      upcoming: upcoming.length,
+      pending: pending.length,
+      history: history.length,
+      hasHistoryLoadedOnce: isHistoryLoaded,
+    };
+  }
+
+  const isAnyTabLoading =
+    isLoadingUpcoming || isLoadingPending || isLoadingHistory;
+
+  if (!isLoadingUpcoming && (upcoming.length > 0 || !isAnyTabLoading)) {
+    lastCountsRef.current.upcoming = upcoming.length;
+  }
+  if (!isLoadingPending && (pending.length > 0 || !isAnyTabLoading)) {
+    lastCountsRef.current.pending = pending.length;
+  }
+  if (isHistoryLoaded && !isLoadingHistory) {
+    lastCountsRef.current.history = history.length;
+    lastCountsRef.current.hasHistoryLoadedOnce = true;
+  }
+
+  const upcomingBadgeCount =
+    upcoming.length === 0 && isAnyTabLoading
+      ? lastCountsRef.current.upcoming
+      : upcoming.length;
+  const pendingBadgeCount =
+    pending.length === 0 && isAnyTabLoading
+      ? lastCountsRef.current.pending
+      : pending.length;
+  const showHistoryBadge =
+    isHistoryLoaded || lastCountsRef.current.hasHistoryLoadedOnce;
+  const historyBadgeCount =
+    (!isHistoryLoaded || isLoadingHistory) &&
+    history.length === 0 &&
+    lastCountsRef.current.hasHistoryLoadedOnce
+      ? lastCountsRef.current.history
+      : history.length;
+
   // Load history automatically if activeTab starts as history and is not loaded
   useEffect(() => {
     if (activeTab === 'history' && !isHistoryLoaded && !isLoadingHistory) {
@@ -170,7 +225,7 @@ export function ReservationDashboardView({
   };
 
   const title = isMentee ? '預約導師' : '擔任導師';
-  const pendingLabel = isMentee ? '等待回復' : '待您回復';
+  const pendingLabel = isMentee ? '等待回覆' : '待您回覆';
   const pendingVariant = isMentee ? 'pending-mentee' : 'pending-mentor';
 
   return (
@@ -199,7 +254,7 @@ export function ReservationDashboardView({
                         className={triggerClass}
                       >
                         即將到來
-                        <span className={countClass}>{upcoming.length}</span>
+                        <span className={countClass}>{upcomingBadgeCount}</span>
                       </TabsTrigger>
 
                       <TabsTrigger
@@ -207,13 +262,15 @@ export function ReservationDashboardView({
                         className={triggerClass}
                       >
                         {pendingLabel}
-                        <span className={countClass}>{pending.length}</span>
+                        <span className={countClass}>{pendingBadgeCount}</span>
                       </TabsTrigger>
 
                       <TabsTrigger value="history" className={triggerClass}>
                         歷史紀錄
-                        {isHistoryLoaded ? (
-                          <span className={countClass}>{history.length}</span>
+                        {showHistoryBadge ? (
+                          <span className={countClass}>
+                            {historyBadgeCount}
+                          </span>
                         ) : null}
                       </TabsTrigger>
                     </TabsList>

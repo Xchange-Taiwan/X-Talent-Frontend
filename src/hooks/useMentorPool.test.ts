@@ -19,11 +19,14 @@ vi.mock('@/services/search-mentor/mentors', () => ({
 
 import { PAGE_LIMIT } from '@/app/mentor-pool/constants';
 import avatarImage from '@/assets/default-avatar.png';
-import { mentorPoolReadManager } from '@/lib/cache/mentorPoolCache';
+import {
+  mentorPoolReadManager,
+  mentorPoolStore,
+} from '@/lib/cache/mentorPoolCache';
 import { fetchMentors } from '@/services/search-mentor/mentors';
 import { mockSearchParams } from '@/test/mocks/navigation';
 import { mockToast } from '@/test/mocks/useToast';
-import type { MentorType } from '@/types/mentor';
+import type { MentorPage, MentorType } from '@/types/mentor';
 
 import {
   applyMentorPage,
@@ -49,20 +52,23 @@ const mockInitialMentors: MentorType[] = [
     want_position: [],
     want_skill: [],
     want_topic: [],
-    have_skill: [],
+    have_skill: ['skill_a'],
     have_topic: ['topic_a'],
-    updated_at: 100,
+    updated_at: '2026-11-09T00:00:00Z',
   },
 ];
 
 const testLabelMap = new Map<string, string>([
   ['topic_a', 'Localized Topic A'],
   ['topic_b', 'Localized Topic B'],
+  ['skill_a', 'Localized Skill A'],
+  ['skill_b', 'Localized Skill B'],
 ]);
 
 describe('useMentorPool', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockFetchMentors.mockReset();
     mentorPoolReadManager.clear();
     mockSearchParams.toString.mockReturnValue('');
     mockSearchParams.get.mockReturnValue(null);
@@ -80,6 +86,7 @@ describe('useMentorPool', () => {
 
     expect(result.current.mentors[0].name).toBe('Initial Mentor');
     expect(result.current.mentors[0].have_topic).toEqual(['Localized Topic A']);
+    expect(result.current.mentors[0].have_skill).toEqual(['Localized Skill A']);
     expect(result.current.mentorCount).toBe(1);
     expect(result.current.isLoading).toBe(false);
     expect(result.current.isNoResults).toBe(false);
@@ -110,12 +117,12 @@ describe('useMentorPool', () => {
         want_topic: [],
         have_skill: [],
         have_topic: ['topic_b'],
-        updated_at: 200,
+        updated_at: '2026-11-09T00:00:01Z',
       },
     ];
 
-    let resolveFetch!: (value: MentorType[]) => void;
-    const fetchPromise = new Promise<MentorType[]>((resolve) => {
+    let resolveFetch!: (value: MentorPage) => void;
+    const fetchPromise = new Promise<MentorPage>((resolve) => {
       resolveFetch = resolve;
     });
     mockFetchMentors.mockReturnValue(fetchPromise);
@@ -134,7 +141,7 @@ describe('useMentorPool', () => {
     expect(result.current.mentors).toEqual([]);
 
     await act(async () => {
-      resolveFetch(fetchedMentors);
+      resolveFetch({ mentors: fetchedMentors, nextCursor: null });
       await fetchPromise;
     });
 
@@ -152,7 +159,7 @@ describe('useMentorPool', () => {
     });
 
     let rejectFetch!: (reason: Error) => void;
-    const fetchPromise = new Promise<MentorType[]>((_, reject) => {
+    const fetchPromise = new Promise<MentorPage>((_, reject) => {
       rejectFetch = reject;
     });
     mockFetchMentors.mockReturnValue(fetchPromise);
@@ -201,7 +208,7 @@ describe('useMentorPool', () => {
     });
 
     let rejectFetch!: (reason: Error) => void;
-    const fetchPromise = new Promise<MentorType[]>((_, reject) => {
+    const fetchPromise = new Promise<MentorPage>((_, reject) => {
       rejectFetch = reject;
     });
 
@@ -237,13 +244,13 @@ describe('useMentorPool', () => {
       return null;
     });
 
-    let resolveFetch1!: (value: MentorType[]) => void;
-    const fetchPromise1 = new Promise<MentorType[]>((resolve) => {
+    let resolveFetch1!: (value: MentorPage) => void;
+    const fetchPromise1 = new Promise<MentorPage>((resolve) => {
       resolveFetch1 = resolve;
     });
 
-    let resolveFetch2!: (value: MentorType[]) => void;
-    const fetchPromise2 = new Promise<MentorType[]>((resolve) => {
+    let resolveFetch2!: (value: MentorPage) => void;
+    const fetchPromise2 = new Promise<MentorPage>((resolve) => {
       resolveFetch2 = resolve;
     });
 
@@ -271,7 +278,10 @@ describe('useMentorPool', () => {
 
     // Resolve first (now obsolete) fetch
     await act(async () => {
-      resolveFetch1([{ ...mockInitialMentors[0], user_id: 99 }]);
+      resolveFetch1({
+        mentors: [{ ...mockInitialMentors[0], user_id: 99 }],
+        nextCursor: null,
+      });
       await fetchPromise1;
     });
 
@@ -281,7 +291,7 @@ describe('useMentorPool', () => {
     // Resolve second (latest) fetch
     const latestMentors = [{ ...mockInitialMentors[0], user_id: 100 }];
     await act(async () => {
-      resolveFetch2(latestMentors);
+      resolveFetch2({ mentors: latestMentors, nextCursor: null });
       await fetchPromise2;
     });
 
@@ -307,11 +317,15 @@ describe('useMentorPool', () => {
       },
     ];
 
-    mockFetchMentors.mockResolvedValue(paginatedMentors);
+    mockFetchMentors.mockResolvedValue({
+      mentors: paginatedMentors,
+      nextCursor: null,
+    });
 
     const { result } = renderHook(() =>
       useMentorPool({
         initialMentors: largeInitialMentors,
+        initialNextCursor: 'opaque-next-cursor',
         initialMentorCount: PAGE_LIMIT,
         params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
@@ -328,7 +342,11 @@ describe('useMentorPool', () => {
     expect(
       result.current.mentors.find((m) => m.user_id === 21)?.have_topic
     ).toEqual(['Localized Topic B']);
-    expect(result.current.mentorCount).toBe(PAGE_LIMIT + 1); // Deduplicated unique mentor count
+    expect(result.current.mentorCount).toBe(PAGE_LIMIT + 1);
+    expect(mockFetchMentors).toHaveBeenCalledWith(
+      expect.objectContaining({ cursor: 'opaque-next-cursor' }),
+      expect.any(AbortSignal)
+    );
   });
 
   it('retains infinite scroll retry availability (hasMore) when scroll fetch fails', async () => {
@@ -345,6 +363,7 @@ describe('useMentorPool', () => {
     const { result } = renderHook(() =>
       useMentorPool({
         initialMentors: largeInitialMentors,
+        initialNextCursor: 'opaque-next-cursor',
         initialMentorCount: PAGE_LIMIT,
         params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
@@ -384,7 +403,10 @@ describe('useMentorPool', () => {
       },
     ];
 
-    mockFetchMentors.mockResolvedValue(fetchedMentors);
+    mockFetchMentors.mockResolvedValue({
+      mentors: fetchedMentors,
+      nextCursor: null,
+    });
 
     const { result, rerender } = renderHook(() =>
       useMentorPool({
@@ -425,12 +447,12 @@ describe('useMentorPool', () => {
     });
 
     let rejectFetch1!: (reason: Error) => void;
-    const fetchPromise1 = new Promise<MentorType[]>((_, reject) => {
+    const fetchPromise1 = new Promise<MentorPage>((_, reject) => {
       rejectFetch1 = reject;
     });
 
-    let resolveFetch2!: (value: MentorType[]) => void;
-    const fetchPromise2 = new Promise<MentorType[]>((resolve) => {
+    let resolveFetch2!: (value: MentorPage) => void;
+    const fetchPromise2 = new Promise<MentorPage>((resolve) => {
       resolveFetch2 = resolve;
     });
 
@@ -477,7 +499,7 @@ describe('useMentorPool', () => {
     // Resolve second (latest) fetch
     const latestMentors = [{ ...mockInitialMentors[0], user_id: 100 }];
     await act(async () => {
-      resolveFetch2(latestMentors);
+      resolveFetch2({ mentors: latestMentors, nextCursor: null });
       await fetchPromise2;
     });
 
@@ -494,13 +516,13 @@ describe('useMentorPool', () => {
       return null;
     });
 
-    let resolveFetch1!: (value: MentorType[]) => void;
-    const fetchPromise1 = new Promise<MentorType[]>((resolve) => {
+    let resolveFetch1!: (value: MentorPage) => void;
+    const fetchPromise1 = new Promise<MentorPage>((resolve) => {
       resolveFetch1 = resolve;
     });
 
-    let resolveFetch2!: (value: MentorType[]) => void;
-    const fetchPromise2 = new Promise<MentorType[]>((resolve) => {
+    let resolveFetch2!: (value: MentorPage) => void;
+    const fetchPromise2 = new Promise<MentorPage>((resolve) => {
       resolveFetch2 = resolve;
     });
 
@@ -531,7 +553,7 @@ describe('useMentorPool', () => {
       { ...mockInitialMentors[0], user_id: 100, name: 'Latest Mentor' },
     ];
     await act(async () => {
-      resolveFetch2(latestMentors);
+      resolveFetch2({ mentors: latestMentors, nextCursor: null });
       await fetchPromise2;
     });
 
@@ -544,7 +566,7 @@ describe('useMentorPool', () => {
       { ...mockInitialMentors[0], user_id: 50, name: 'Stale Mentor' },
     ];
     await act(async () => {
-      resolveFetch1(staleMentors);
+      resolveFetch1({ mentors: staleMentors, nextCursor: null });
       await fetchPromise1;
     });
 
@@ -577,7 +599,7 @@ describe('useMentorPool', () => {
     });
 
     let rejectFetch!: (reason: Error) => void;
-    const fetchPromise = new Promise<MentorType[]>((_, reject) => {
+    const fetchPromise = new Promise<MentorPage>((_, reject) => {
       rejectFetch = reject;
     });
     mockFetchMentors.mockReturnValue(fetchPromise);
@@ -680,6 +702,7 @@ describe('useMentorPool', () => {
     const { result } = renderHook(() =>
       useMentorPool({
         initialMentors: largeInitialMentors,
+        initialNextCursor: 'opaque-next-cursor',
         initialMentorCount: PAGE_LIMIT,
         params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
@@ -737,8 +760,8 @@ describe('useMentorPool', () => {
     expect(mockFetchMentors).toHaveBeenCalledTimes(1);
 
     // Use a manual pending promise for the second fetch (retry) to test transition states
-    let resolveRetryFetch!: (value: MentorType[]) => void;
-    const retryPromise = new Promise<MentorType[]>((resolve) => {
+    let resolveRetryFetch!: (value: MentorPage) => void;
+    const retryPromise = new Promise<MentorPage>((resolve) => {
       resolveRetryFetch = resolve;
     });
     mockFetchMentors.mockReturnValueOnce(retryPromise);
@@ -751,7 +774,7 @@ describe('useMentorPool', () => {
     expect(result.current.hasError).toBe(false);
 
     await act(async () => {
-      resolveRetryFetch(mockInitialMentors);
+      resolveRetryFetch({ mentors: mockInitialMentors, nextCursor: null });
       await retryPromise;
     });
 
@@ -783,8 +806,8 @@ describe('useMentorPool', () => {
     expect(mockFetchMentors).not.toHaveBeenCalled();
 
     // Use a manual pending promise for the retry fetch to test transition states
-    let resolveRetryFetch!: (value: MentorType[]) => void;
-    const retryPromise = new Promise<MentorType[]>((resolve) => {
+    let resolveRetryFetch!: (value: MentorPage) => void;
+    const retryPromise = new Promise<MentorPage>((resolve) => {
       resolveRetryFetch = resolve;
     });
     mockFetchMentors.mockReturnValueOnce(retryPromise);
@@ -799,7 +822,7 @@ describe('useMentorPool', () => {
     expect(result.current.hasError).toBe(false);
 
     await act(async () => {
-      resolveRetryFetch(mockInitialMentors);
+      resolveRetryFetch({ mentors: mockInitialMentors, nextCursor: null });
       await retryPromise;
     });
 
@@ -838,7 +861,10 @@ describe('useMentorPool', () => {
     const clientFetchedMentors = [
       { ...mockInitialMentors[0], name: 'Client Mentor' },
     ];
-    mockFetchMentors.mockResolvedValueOnce(clientFetchedMentors);
+    mockFetchMentors.mockResolvedValueOnce({
+      mentors: clientFetchedMentors,
+      nextCursor: null,
+    });
 
     rerender();
 
@@ -856,7 +882,10 @@ describe('useMentorPool', () => {
 
     // Since client fetch was performed, it should NOT early return to SSR error.
     // It should perform a fresh fetch client-side for unfiltered listing!
-    mockFetchMentors.mockResolvedValueOnce(mockInitialMentors);
+    mockFetchMentors.mockResolvedValueOnce({
+      mentors: mockInitialMentors,
+      nextCursor: null,
+    });
 
     rerender();
 
@@ -887,7 +916,7 @@ describe('useMentorPool', () => {
   });
 
   it('supports multiple rapid filter changes and triggers fetchMentors for each valid change without concurrent blocking', async () => {
-    mockFetchMentors.mockResolvedValue([]);
+    mockFetchMentors.mockResolvedValue({ mentors: [], nextCursor: null });
     mockSearchParams.get.mockImplementation((key) => {
       if (key === 'q') return 'react';
       return null;
@@ -919,8 +948,8 @@ describe('useMentorPool', () => {
   });
 
   it('prevents concurrent loads when fetchMoreMentors is called multiple times rapidly due to preventConcurrent: true', async () => {
-    let resolveFetch: (v: MentorType[]) => void = () => {};
-    const fetchPromise = new Promise<MentorType[]>((resolve) => {
+    let resolveFetch: (v: MentorPage) => void = () => {};
+    const fetchPromise = new Promise<MentorPage>((resolve) => {
       resolveFetch = resolve;
     });
     mockFetchMentors.mockReturnValue(fetchPromise);
@@ -933,6 +962,7 @@ describe('useMentorPool', () => {
     const { result } = renderHook(() =>
       useMentorPool({
         initialMentors: largeInitialMentors,
+        initialNextCursor: 'opaque-next-cursor',
         initialMentorCount: PAGE_LIMIT,
         params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
@@ -948,12 +978,15 @@ describe('useMentorPool', () => {
     });
 
     await act(async () => {
-      resolveFetch([
-        {
-          ...mockInitialMentors[0],
-          user_id: 100,
-        },
-      ]);
+      resolveFetch({
+        mentors: [
+          {
+            ...mockInitialMentors[0],
+            user_id: 100,
+          },
+        ],
+        nextCursor: null,
+      });
     });
 
     // fetchMentors should ONLY be called once because the second load-more was blocked
@@ -973,8 +1006,8 @@ describe('useMentorPool', () => {
       { ...mockInitialMentors[0], user_id: 202, name: 'Vue Mentor' },
     ];
     mockFetchMentors
-      .mockResolvedValueOnce(reactMentors)
-      .mockResolvedValueOnce(vueMentors);
+      .mockResolvedValueOnce({ mentors: reactMentors, nextCursor: null })
+      .mockResolvedValueOnce({ mentors: vueMentors, nextCursor: null });
 
     const { result, rerender } = renderHook(() =>
       useMentorPool({
@@ -1018,7 +1051,7 @@ describe('useMentorPool', () => {
 
     let capturedSignal: AbortSignal | undefined;
     let rejectLoadMore!: (err: Error) => void;
-    const loadMorePromise = new Promise<MentorType[]>((_, reject) => {
+    const loadMorePromise = new Promise<MentorPage>((_, reject) => {
       rejectLoadMore = reject;
     });
 
@@ -1027,13 +1060,17 @@ describe('useMentorPool', () => {
         capturedSignal = signal;
         return loadMorePromise;
       })
-      .mockResolvedValueOnce([
-        { ...mockInitialMentors[0], user_id: 301, name: 'Filtered Mentor' },
-      ]);
+      .mockResolvedValueOnce({
+        mentors: [
+          { ...mockInitialMentors[0], user_id: 301, name: 'Filtered Mentor' },
+        ],
+        nextCursor: null,
+      });
 
     const { result, rerender } = renderHook(() =>
       useMentorPool({
         initialMentors: largeInitialMentors,
+        initialNextCursor: 'opaque-next-cursor',
         initialMentorCount: PAGE_LIMIT,
         params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
@@ -1078,14 +1115,14 @@ describe('useMentorPool', () => {
       ...mockInitialMentors[0],
       user_id: 400 + i,
       name: `Multi Page 1 #${i}`,
-      updated_at: 1000 + i,
+      updated_at: `2026-11-09T00:00:${String(i).padStart(2, '0')}Z`,
     }));
     const page2 = [
       {
         ...mockInitialMentors[0],
         user_id: 500,
         name: 'Multi Page 2 #0',
-        updated_at: 2000,
+        updated_at: '2026-11-09T00:01:00Z',
       },
     ];
     const otherFilterPage = [
@@ -1093,14 +1130,14 @@ describe('useMentorPool', () => {
         ...mockInitialMentors[0],
         user_id: 600,
         name: 'Other Filter Mentor',
-        updated_at: 3000,
+        updated_at: '2026-11-09T00:02:00Z',
       },
     ];
 
     mockFetchMentors
-      .mockResolvedValueOnce(page1)
-      .mockResolvedValueOnce(page2)
-      .mockResolvedValueOnce(otherFilterPage);
+      .mockResolvedValueOnce({ mentors: page1, nextCursor: 'opaque-page-2' })
+      .mockResolvedValueOnce({ mentors: page2, nextCursor: null })
+      .mockResolvedValueOnce({ mentors: otherFilterPage, nextCursor: null });
 
     const { result, rerender } = renderHook(() =>
       useMentorPool({
@@ -1145,7 +1182,10 @@ describe('useMentorPool', () => {
   });
 
   it('falls back to client-side fetchMentors when SSR initialMentors is empty without initialError', async () => {
-    mockFetchMentors.mockResolvedValueOnce(mockInitialMentors);
+    mockFetchMentors.mockResolvedValueOnce({
+      mentors: mockInitialMentors,
+      nextCursor: null,
+    });
 
     const { result } = renderHook(() =>
       useMentorPool({
@@ -1162,12 +1202,43 @@ describe('useMentorPool', () => {
     expect(result.current.mentors[0].name).toBe('Initial Mentor');
     expect(result.current.isLoading).toBe(false);
   });
+
+  it('normalizes empty string initialNextCursor to null and prevents scroll fetch', async () => {
+    const { result } = renderHook(() =>
+      useMentorPool({
+        initialMentors: mockInitialMentors,
+        initialNextCursor: '',
+        initialMentorCount: 1,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
+        labelMap: testLabelMap,
+      })
+    );
+
+    await act(async () => {
+      await result.current.handleScrollToBottom();
+    });
+
+    expect(mockFetchMentors).not.toHaveBeenCalled();
+  });
+
+  it('sets hasMore=false in buildInitialUnfilteredState when initialMentors is empty even if initialNextCursor is non-empty', () => {
+    const state = mentorPoolStore.buildInitialUnfilteredState({
+      initialMentors: [],
+      initialNextCursor: 'opaque-stale-cursor',
+      initialMentorCount: 0,
+      hasInitialFilters: false,
+    });
+
+    expect(state.nextCursor).toBe('opaque-stale-cursor');
+    expect(state.hasMore).toBe(false);
+    expect(state.isNoResults).toBe(true);
+  });
 });
 
 describe('applyMentorPage', () => {
   const initialPageState: MentorPoolPageState = {
     mentors: [],
-    cursor: undefined,
+    nextCursor: null,
     hasMore: true,
     mentorCount: 0,
     isNoResults: false,
@@ -1191,47 +1262,69 @@ describe('applyMentorPage', () => {
     want_topic: [],
     have_skill: [],
     have_topic: [],
-    updated_at: 1000,
+    updated_at: '2026-11-09T00:00:00Z',
   };
 
   it('handles replace action with non-empty page', () => {
-    const action = { type: 'replace' as const, page: [sampleMentor] };
+    const action = {
+      type: 'replace' as const,
+      page: { mentors: [sampleMentor], nextCursor: 'opaque-next' },
+    };
     const nextState = applyMentorPage(initialPageState, action);
 
     expect(nextState.mentors).toEqual([sampleMentor]);
-    expect(nextState.cursor).toBe('1000');
-    expect(nextState.hasMore).toBe(false); // as page length 1 !== PAGE_LIMIT (9)
+    expect(nextState.nextCursor).toBe('opaque-next');
+    expect(nextState.hasMore).toBe(true);
     expect(nextState.mentorCount).toBe(1);
     expect(nextState.isNoResults).toBe(false);
     expect(nextState.hasError).toBe(false);
   });
 
   it('handles replace action with empty page', () => {
-    const action = { type: 'replace' as const, page: [] };
+    const action = {
+      type: 'replace' as const,
+      page: { mentors: [], nextCursor: null },
+    };
     const nextState = applyMentorPage(initialPageState, action);
 
     expect(nextState.mentors).toEqual([]);
-    expect(nextState.cursor).toBeUndefined();
+    expect(nextState.nextCursor).toBeNull();
     expect(nextState.hasMore).toBe(false);
     expect(nextState.mentorCount).toBe(0);
     expect(nextState.isNoResults).toBe(true);
     expect(nextState.hasError).toBe(false);
   });
 
-  it('handles append action with empty page by setting hasMore to false', () => {
+  it('sets hasMore to false on replace when mentors is empty even if nextCursor is non-null', () => {
+    const action = {
+      type: 'replace' as const,
+      page: { mentors: [], nextCursor: 'opaque-cursor' },
+    };
+    const nextState = applyMentorPage(initialPageState, action);
+
+    expect(nextState.mentors).toEqual([]);
+    expect(nextState.nextCursor).toBe('opaque-cursor');
+    expect(nextState.hasMore).toBe(false);
+    expect(nextState.isNoResults).toBe(true);
+  });
+
+  it('uses the server continuation token for an empty append page', () => {
     const state: MentorPoolPageState = {
       mentors: [sampleMentor],
-      cursor: '1000',
+      nextCursor: 'opaque-current',
       hasMore: true,
       mentorCount: 1,
       isNoResults: false,
       hasError: false,
     };
-    const action = { type: 'append' as const, page: [] };
+    const action = {
+      type: 'append' as const,
+      page: { mentors: [], nextCursor: null },
+    };
     const nextState = applyMentorPage(state, action);
 
     expect(nextState.mentors).toEqual([sampleMentor]);
-    expect(nextState.cursor).toBe('1000');
+    expect(nextState.nextCursor).toBeNull();
     expect(nextState.hasMore).toBe(false);
     expect(nextState.mentorCount).toBe(1);
     expect(nextState.isNoResults).toBe(false);
@@ -1241,7 +1334,7 @@ describe('applyMentorPage', () => {
   it('handles append action with non-empty page, filters duplicates, and updates count/cursor', () => {
     const state: MentorPoolPageState = {
       mentors: [sampleMentor],
-      cursor: '1000',
+      nextCursor: 'opaque-current',
       hasMore: true,
       mentorCount: 1,
       isNoResults: false,
@@ -1249,59 +1342,107 @@ describe('applyMentorPage', () => {
     };
 
     const duplicateMentor = { ...sampleMentor };
-    const newMentor = { ...sampleMentor, user_id: 11, updated_at: 1100 };
+    const newMentor = {
+      ...sampleMentor,
+      user_id: 11,
+      updated_at: '2026-11-09T00:00:01Z',
+    };
 
     const action = {
       type: 'append' as const,
-      page: [duplicateMentor, newMentor],
+      page: {
+        mentors: [duplicateMentor, newMentor],
+        nextCursor: 'opaque-next',
+      },
     };
     const nextState = applyMentorPage(state, action);
 
     // Should deduplicate, adding only newMentor (user_id 11)
     expect(nextState.mentors).toEqual([sampleMentor, newMentor]);
-    expect(nextState.cursor).toBe('1100'); // taken from last element of action.page, which is newMentor
-    expect(nextState.mentorCount).toBe(2); // count is accumulated based on deduplicated new mentors (1 + 1 = 2)
-    expect(nextState.hasMore).toBe(false);
+    expect(nextState.nextCursor).toBe('opaque-next');
+    expect(nextState.mentorCount).toBe(2);
+    expect(nextState.hasMore).toBe(true);
     expect(nextState.hasError).toBe(false);
   });
 
-  it('sets hasMore to false when page is full but cursor (updated_at) is missing (#851)', () => {
-    const pageWithoutUpdatedAt = Array.from({ length: 9 }, (_, i) => ({
-      ...sampleMentor,
-      user_id: i + 1,
-      updated_at: null,
-    }));
+  it('sets hasMore to false, preserves mentors reference, and does not inflate mentorCount when append receives only duplicate mentors', () => {
+    const state: MentorPoolPageState = {
+      mentors: [sampleMentor],
+      nextCursor: 'opaque-current',
+      hasMore: true,
+      mentorCount: 1,
+      isNoResults: false,
+      hasError: false,
+    };
 
-    const nextState = applyMentorPage(initialPageState, {
-      type: 'replace',
-      page: pageWithoutUpdatedAt,
+    const nextState = applyMentorPage(state, {
+      type: 'append',
+      page: {
+        mentors: [{ ...sampleMentor }],
+        nextCursor: 'opaque-next',
+      },
     });
 
-    expect(nextState.cursor).toBeUndefined();
+    expect(nextState.mentors).toBe(state.mentors);
+    expect(nextState.nextCursor).toBe('opaque-next');
     expect(nextState.hasMore).toBe(false);
-    expect(nextState.mentorCount).toBe(9);
+    expect(nextState.mentorCount).toBe(1);
+    expect(nextState.hasError).toBe(false);
   });
 
-  it('sets hasMore to false, preserves mentors reference, and does not inflate mentorCount when append receives only duplicate mentors (#851)', () => {
-    const fullFirstPage = Array.from({ length: 9 }, (_, i) => ({
-      ...sampleMentor,
-      user_id: i + 1,
-      updated_at: 1000 + i,
-    }));
+  it('sets hasMore to false and preserves mentors reference when append receives an empty page with a non-null nextCursor', () => {
+    const state: MentorPoolPageState = {
+      mentors: [sampleMentor],
+      nextCursor: 'opaque-current',
+      hasMore: true,
+      mentorCount: 1,
+      isNoResults: false,
+      hasError: false,
+    };
 
-    const stateAfterFirstPage = applyMentorPage(initialPageState, {
-      type: 'replace',
-      page: fullFirstPage,
-    });
-    expect(stateAfterFirstPage.hasMore).toBe(true);
-
-    const nextState = applyMentorPage(stateAfterFirstPage, {
+    const nextState = applyMentorPage(state, {
       type: 'append',
-      page: fullFirstPage,
+      page: {
+        mentors: [],
+        nextCursor: 'opaque-next',
+      },
     });
 
+    expect(nextState.mentors).toBe(state.mentors);
+    expect(nextState.nextCursor).toBe('opaque-next');
     expect(nextState.hasMore).toBe(false);
-    expect(nextState.mentorCount).toBe(9);
-    expect(nextState.mentors).toBe(stateAfterFirstPage.mentors);
+    expect(nextState.mentorCount).toBe(1);
+    expect(nextState.hasError).toBe(false);
+  });
+
+  it('sets hasMore to false when append receives an unchanged nextCursor', () => {
+    const state: MentorPoolPageState = {
+      mentors: [sampleMentor],
+      nextCursor: 'opaque-same',
+      hasMore: true,
+      mentorCount: 1,
+      isNoResults: false,
+      hasError: false,
+    };
+
+    const newMentor = {
+      ...sampleMentor,
+      user_id: 11,
+      updated_at: '2026-11-09T00:00:01Z',
+    };
+
+    const nextState = applyMentorPage(state, {
+      type: 'append',
+      page: {
+        mentors: [newMentor],
+        nextCursor: 'opaque-same',
+      },
+    });
+
+    expect(nextState.mentors).toEqual([sampleMentor, newMentor]);
+    expect(nextState.nextCursor).toBe('opaque-same');
+    expect(nextState.hasMore).toBe(false);
+    expect(nextState.mentorCount).toBe(2);
+    expect(nextState.hasError).toBe(false);
   });
 });

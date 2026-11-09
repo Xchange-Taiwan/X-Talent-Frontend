@@ -306,11 +306,21 @@ export const mockReservations: Reservation[] = [
           '導師您好，目前團隊剛開始推行 Design System，我們遇到了多語系命名、Dark Mode 語意色彩定義的實務問題。想向導師取經，了解在中大型專案中如何建立持久且彈性的 Token 系統。謝謝！',
         role: 'MENTEE',
       },
+      {
+        content: '抱歉導師，當日臨時有產品上線緊急會議，需先取消本次預約。',
+        role: 'MENTEE',
+        isCancelReason: true,
+      },
     ],
     menteeMessage: {
       content:
         '導師您好，目前團隊剛開始推行 Design System，我們遇到了多語系命名、Dark Mode 語意色彩定義的實務問題。想向導師取經，了解在中大型專案中如何建立持久且彈性的 Token 系統。謝謝！',
       role: 'MENTEE',
+    },
+    cancelReasonMessage: {
+      content: '抱歉導師，當日臨時有產品上線緊急會議，需先取消本次預約。',
+      role: 'MENTEE',
+      isCancelReason: true,
     },
     scheduleId: 1009,
     dtstart: daysFromNow(-19),

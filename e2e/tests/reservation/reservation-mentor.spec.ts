@@ -155,11 +155,11 @@ test('頁面載入 → 三個 Tab 可見', async ({ page }) => {
   await expect(page.getByRole('tab', { name: /即將到來/ })).toBeVisible({
     timeout: 15_000,
   });
-  await expect(page.getByRole('tab', { name: /待您回復/ })).toBeVisible();
+  await expect(page.getByRole('tab', { name: /待您回覆/ })).toBeVisible();
   await expect(page.getByRole('tab', { name: /歷史紀錄/ })).toBeVisible();
 });
 
-test('待您回復 Tab → pending 預約卡片顯示，含接受與拒絕按鈕', async ({
+test('待您回覆 Tab → pending 預約卡片顯示，含接受與拒絕按鈕', async ({
   page,
 }) => {
   await setSignedSessionCookie(page, {
@@ -176,10 +176,10 @@ test('待您回復 Tab → pending 預約卡片顯示，含接受與拒絕按鈕
 
   await page.goto(PAGE_URL);
 
-  await expect(page.getByRole('tab', { name: /待您回復/ })).toBeVisible({
+  await expect(page.getByRole('tab', { name: /待您回覆/ })).toBeVisible({
     timeout: 15_000,
   });
-  await page.getByRole('tab', { name: /待您回復/ }).click();
+  await page.getByRole('tab', { name: /待您回覆/ }).click();
 
   // Card with the mentee's name appears
   await expect(page.getByText('Mentee Lee')).toBeVisible({ timeout: 10_000 });
@@ -240,11 +240,11 @@ test('點擊接受並確認 → 卡片移至即將到來 Tab', async ({ page }) 
 
   await page.goto(PAGE_URL);
 
-  // Navigate to 待您回復 and open the accept dialog
-  await expect(page.getByRole('tab', { name: /待您回復/ })).toBeVisible({
+  // Navigate to 待您回覆 and open the accept dialog
+  await expect(page.getByRole('tab', { name: /待您回覆/ })).toBeVisible({
     timeout: 15_000,
   });
-  await page.getByRole('tab', { name: /待您回復/ }).click();
+  await page.getByRole('tab', { name: /待您回覆/ }).click();
   await expect(page.getByText('Mentee Lee')).toBeVisible({ timeout: 10_000 });
 
   await page.getByRole('button', { name: /接受/ }).click();
@@ -265,12 +265,12 @@ test('點擊接受並確認 → 卡片移至即將到來 Tab', async ({ page }) 
   await page.getByRole('tab', { name: /即將到來/ }).click();
   await expect(page.getByText('Mentee Lee')).toBeVisible({ timeout: 10_000 });
 
-  // 待您回復 should now be empty
-  await page.getByRole('tab', { name: /待您回復/ }).click();
+  // 待您回覆 should now be empty
+  await page.getByRole('tab', { name: /待您回覆/ }).click();
   await expect(page.getByText('Mentee Lee')).not.toBeVisible();
 });
 
-test('點擊拒絕並填入原因後確認 → 卡片從待您回復消失', async ({ page }) => {
+test('點擊拒絕並填入原因後確認 → 卡片從待您回覆消失', async ({ page }) => {
   await setSignedSessionCookie(page, {
     id: USER_ID,
     name: 'Test Mentor',
@@ -316,11 +316,11 @@ test('點擊拒絕並填入原因後確認 → 卡片從待您回復消失', asy
 
   await page.goto(PAGE_URL);
 
-  // Navigate to 待您回復 and open the accept dialog
-  await expect(page.getByRole('tab', { name: /待您回復/ })).toBeVisible({
+  // Navigate to 待您回覆 and open the accept dialog
+  await expect(page.getByRole('tab', { name: /待您回覆/ })).toBeVisible({
     timeout: 15_000,
   });
-  await page.getByRole('tab', { name: /待您回復/ }).click();
+  await page.getByRole('tab', { name: /待您回覆/ }).click();
   await expect(page.getByText('Mentee Lee')).toBeVisible({ timeout: 10_000 });
 
   // 接受/拒絕 are two independent dialogs (AcceptReservationDialog /
@@ -338,10 +338,10 @@ test('點擊拒絕並填入原因後確認 → 卡片從待您回復消失', asy
   await rejectDialog.getByRole('button', { name: '拒絕' }).click();
 
   // Page reloads; wait for tabs to re-render
-  await expect(page.getByRole('tab', { name: /待您回復/ })).toBeVisible({
+  await expect(page.getByRole('tab', { name: /待您回覆/ })).toBeVisible({
     timeout: 15_000,
   });
-  await page.getByRole('tab', { name: /待您回復/ }).click();
+  await page.getByRole('tab', { name: /待您回覆/ }).click();
 
   // Card should be gone
   await expect(page.getByText('Mentee Lee')).not.toBeVisible();
@@ -587,11 +587,11 @@ test.describe('歷史紀錄 Tab 測試', () => {
 
     await page.goto(PAGE_URL);
 
-    const pendingTab = page.getByRole('tab', { name: /待您回復/ });
+    const pendingTab = page.getByRole('tab', { name: /待您回覆/ });
     await expect(pendingTab).toBeVisible({ timeout: 15_000 });
     await pendingTab.click();
 
-    // 待您回復 Tab 僅顯示尚未逾時的預約，逾時未回覆的預約已被濾除
+    // 待您回覆 Tab 僅顯示尚未逾時的預約，逾時未回覆的預約已被濾除
     await expect(page.getByText('Mentee ActivePending')).toBeVisible({
       timeout: 10_000,
     });
@@ -608,7 +608,7 @@ test.describe('歷史紀錄 Tab 測試', () => {
 });
 
 test.describe('導師端空狀態情境文案與 CTA 導向測試', () => {
-  test('驗證三個 Tab（「即將到來」、「待您回復」、「歷史紀錄」）空狀態情境文案，且點擊「管理可預約時段」導向 /profile/:userId', async ({
+  test('驗證三個 Tab（「即將到來」、「待您回覆」、「歷史紀錄」）空狀態情境文案，且點擊「管理可預約時段」導向 /profile/:userId', async ({
     page,
   }) => {
     await setSignedSessionCookie(page, {
@@ -637,12 +637,12 @@ test.describe('導師端空狀態情境文案與 CTA 導向測試', () => {
       page.getByRole('link', { name: '管理可預約時段' })
     ).toHaveAttribute('href', `/profile/${USER_ID}`);
 
-    // 2. 待您回復 Tab 空狀態
-    await page.getByRole('tab', { name: /待您回復/ }).click();
+    // 2. 待您回覆 Tab 空狀態
+    await page.getByRole('tab', { name: /待您回覆/ }).click();
     await expect(page.getByText('目前尚無資料')).toBeVisible();
     await expect(
       page.getByText(
-        '目前還沒有待您回復的預約申請，前往個人頁面管理可預約時段以提升預約率！'
+        '目前還沒有待您回覆的預約申請，前往個人頁面管理可預約時段以提升預約率！'
       )
     ).toBeVisible();
     await expect(

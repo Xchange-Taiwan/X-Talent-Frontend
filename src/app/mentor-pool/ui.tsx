@@ -107,6 +107,7 @@ export default function MentorPoolUI({
             <MentorCardList
               mentors={mentors}
               onScrollToBottom={onScrollToBottom}
+              activeFilterBadges={badges}
             />
             {showOverlay && (
               <div

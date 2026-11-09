@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 
 import { mockMentors } from '../__mocks__/mentors.mock';
+import { buildMentorCardTags } from '../mentor-card-list';
 import { MentorCard } from './index';
 
 const meta: Meta<typeof MentorCard> = {
@@ -15,7 +16,7 @@ const meta: Meta<typeof MentorCard> = {
     job_title: mockMentors[0].job_title,
     company: mockMentors[0].company,
     about: mockMentors[0].about,
-    haveTopicLabels: mockMentors[0].have_topic,
+    haveTopicLabels: buildMentorCardTags(mockMentors[0]),
     priority: false,
   },
   argTypes: {
@@ -44,7 +45,7 @@ export const Default: Story = {
     job_title: mockMentors[0].job_title,
     company: mockMentors[0].company,
     about: mockMentors[0].about,
-    haveTopicLabels: mockMentors[0].have_topic,
+    haveTopicLabels: buildMentorCardTags(mockMentors[0]),
   },
 };
 
@@ -57,7 +58,7 @@ export const FrontendEngineer: Story = {
     job_title: mockMentors[1].job_title,
     company: mockMentors[1].company,
     about: mockMentors[1].about,
-    haveTopicLabels: mockMentors[1].have_topic,
+    haveTopicLabels: buildMentorCardTags(mockMentors[1]),
   },
 };
 
@@ -70,6 +71,19 @@ export const StaffProductManager: Story = {
     job_title: mockMentors[2].job_title,
     company: mockMentors[2].company,
     about: mockMentors[2].about,
-    haveTopicLabels: mockMentors[2].have_topic,
+    haveTopicLabels: buildMentorCardTags(mockMentors[2]),
+  },
+};
+
+export const ShortBioWithoutRole: Story = {
+  args: {
+    id: mockMentors[0].user_id,
+    avatar: mockMentors[0].avatar,
+    years: mockMentors[0].years_of_experience,
+    name: mockMentors[0].name,
+    job_title: '',
+    company: '',
+    about: '簡短的一行自介。',
+    haveTopicLabels: buildMentorCardTags(mockMentors[0]),
   },
 };

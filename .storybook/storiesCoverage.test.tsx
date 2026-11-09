@@ -24,6 +24,7 @@ import { ReplyMessageField } from '@/components/reservation/ReplyMessageField';
 import * as replyMessageFieldStories from '@/components/reservation/ReplyMessageField.stories';
 import * as reservationCardStories from '@/components/reservation/ReservationCard.stories';
 import * as reservationConversationDialogStories from '@/components/reservation/ReservationConversationDialog.stories';
+import * as reservationDashboardStories from '@/components/reservation/ReservationDashboard.stories';
 import * as reservationListStories from '@/components/reservation/ReservationList.stories';
 import * as reservationMessagePreviewStories from '@/components/reservation/ReservationMessagePreview.stories';
 import * as sliderStories from '@/components/ui/slider.stories';
@@ -168,6 +169,14 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
     expect(
       reservationMessagePreviewStories.DialogVariantWithBothMessages
     ).toBeDefined();
+    expect(reservationMessagePreviewStories.CancelledWithReason).toBeDefined();
+    expect(
+      reservationConversationDialogStories.CancelledWithReason
+    ).toBeDefined();
+    expect(
+      reservationDashboardStories.HistoryLoadingWithPreservedCounts
+    ).toBeDefined();
+    expect(reservationListStories.CancelledHistoryWithReason).toBeDefined();
   });
 
   it('exposes and renders MenteeBookingForm, NotificationBell, Header, and Slider stories (#712, #823, #804, #807)', () => {
@@ -183,6 +192,21 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
       type: 'reservation_upcoming',
       dtstart: 1785931200,
     });
+    expect(
+      notificationBellStories.CanceledReservationByRole.args
+        ?.initialNotifications
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'reservation_canceled',
+          role: 'mentor',
+        }),
+        expect.objectContaining({
+          type: 'reservation_canceled',
+          role: 'mentee',
+        }),
+      ])
+    );
 
     expect(announcementBannerStories.ActiveMaintenanceNotice).toBeDefined();
     expect(guestActionButtonsStories.ConfirmedGuest).toBeDefined();

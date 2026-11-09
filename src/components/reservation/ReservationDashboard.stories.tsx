@@ -112,3 +112,18 @@ export const LoadingState: Story = {
     isHistoryLoaded: false,
   },
 };
+
+// 5. History Tab Loading While Preserving Existing Badge Counts (#860)
+export const HistoryLoadingWithPreservedCounts: Story = {
+  args: {
+    userRole: 'mentee',
+    myUserId: 'user-mentee-current',
+    upcoming: [mockReservations[5]],
+    pending: [mockReservations[1]],
+    history: [],
+    isLoadingUpcoming: false,
+    isLoadingPending: false,
+    isLoadingHistory: true,
+    isHistoryLoaded: false,
+  },
+};

@@ -91,9 +91,8 @@ abstract class BaseSearchIndexAdapter implements ConvergenceAdapter<
       const result = await fetchMentors({
         search_pattern: this.getSearchPattern(),
         limit: MENTOR_POOL_POLL_LIMIT,
-        cursor: '',
       });
-      return result;
+      return result.mentors;
     } catch {
       return null;
     }

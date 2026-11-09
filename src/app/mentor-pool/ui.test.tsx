@@ -8,6 +8,7 @@ vi.mock('next/navigation', async () => {
 
 import type { FilterOptions } from '@/components/filter/MentorFilterDropdown';
 import { mockMentors } from '@/components/mentor-pool/__mocks__/mentors.mock';
+import { buildMentorCardTags } from '@/components/mentor-pool/mentor-card-list';
 
 import MentorPoolUI from './ui';
 
@@ -161,5 +162,75 @@ describe('MentorCardList IntersectionObserver stability (#851)', () => {
     } finally {
       globalThis.IntersectionObserver = OriginalIntersectionObserver;
     }
+  });
+});
+
+describe('MentorCardList tag merging, deduplication, and filter prioritization (#859)', () => {
+  it('merges have_topic before have_skill and deduplicates identical labels', () => {
+    const tags = buildMentorCardTags({
+      have_topic: ['職涯諮詢', 'React', '系統設計'],
+      have_skill: ['React', 'TypeScript', '系統設計', 'Next.js'],
+    });
+
+    expect(tags).toEqual([
+      '職涯諮詢',
+      'React',
+      '系統設計',
+      'TypeScript',
+      'Next.js',
+    ]);
+  });
+
+  it('pins matched skill/topic filter labels to the front while preserving order of remaining tags', () => {
+    const tags = buildMentorCardTags(
+      {
+        have_topic: ['職涯諮詢', '產品規劃'],
+        have_skill: ['Figma', 'TypeScript'],
+      },
+      new Set(['TypeScript'])
+    );
+
+    expect(tags).toEqual(['TypeScript', '職涯諮詢', '產品規劃', 'Figma']);
+  });
+
+  it('renders skill tags and prioritizes active skill filter badge on MentorCard in MentorPoolUI', () => {
+    render(
+      <MentorPoolUI
+        {...defaultProps}
+        mentors={[
+          {
+            ...mockMentors[0],
+            have_topic: ['UI/UX 設計', '使用者研究'],
+            have_skill: ['UI/UX 設計', 'Figma', 'Prototyping'],
+          },
+        ]}
+        mentorCount={1}
+        listStatus="success"
+        selectedFilters={{
+          filter_skills: { name: '專業技能', value: 'prototyping' },
+        }}
+        activeFilterBadges={[
+          {
+            key: 'filter_skills',
+            name: '專業技能',
+            value: 'prototyping',
+            label: 'Prototyping',
+          },
+        ]}
+      />
+    );
+
+    const displayContainer = screen.getByTestId('display-container');
+    const renderedLabels = Array.from(displayContainer.children).map(
+      (el) => el.textContent
+    );
+    expect(renderedLabels[0]).toBe('Prototyping');
+    expect(renderedLabels).toContain('Figma');
+    expect(
+      renderedLabels.filter((label) => label === 'UI/UX 設計')
+    ).toHaveLength(1);
+
+    const article = screen.getByRole('article');
+    expect(article).toHaveClass('flex', 'h-full', 'flex-col');
   });
 });

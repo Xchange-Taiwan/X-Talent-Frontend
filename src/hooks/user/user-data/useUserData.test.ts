@@ -296,4 +296,23 @@ describe('useUserData caching', () => {
     a.unmount();
     b.unmount();
   });
+
+  it('maps about and personal_statement from MentorProfileVO into userData (#857)', () => {
+    const userId = 4300;
+    const ssrDto: MentorProfileVO = {
+      ...makeUserDto(userId),
+      about: '第一段介紹\n第二段介紹',
+      personal_statement: '給導生的第一點\n給導生的第二點',
+    };
+
+    const { result, unmount } = renderHook(() =>
+      useUserData(userId, 'en', ssrDto)
+    );
+
+    expect(result.current.userData?.about).toBe('第一段介紹\n第二段介紹');
+    expect(result.current.userData?.personal_statement).toBe(
+      '給導生的第一點\n給導生的第二點'
+    );
+    unmount();
+  });
 });

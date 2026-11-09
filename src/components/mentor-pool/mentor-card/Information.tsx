@@ -67,7 +67,7 @@ export const Information = ({
   const extraOffersCount = haveTopicLabels.length - visibleTagsCount;
 
   return (
-    <div className="flex h-full flex-col gap-4">
+    <div className="flex h-full flex-1 flex-col gap-4">
       <div>
         <h3 className="text-base font-bold tracking-[0.5px]">{name}</h3>
         {(job_title || company) && (
@@ -80,10 +80,10 @@ export const Information = ({
           </div>
         )}
       </div>
-      <p className="text-text-tertiary line-clamp-2 text-sm font-normal tracking-wide">
+      <p className="text-text-tertiary line-clamp-2 min-h-[40px] text-sm font-normal tracking-wide">
         {about}
       </p>
-      <div className="relative">
+      <div className="relative mt-auto">
         <div
           ref={measureRef}
           aria-hidden

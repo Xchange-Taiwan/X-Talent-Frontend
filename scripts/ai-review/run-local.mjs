@@ -15,9 +15,9 @@ import path from 'node:path';
 
 import { config } from 'dotenv';
 
-config({ path: path.resolve('.env.development.local') });
-config({ path: path.resolve('.env.local') });
-config({ path: path.resolve('.env') });
+config({ path: path.resolve('.env.development.local'), quiet: true });
+config({ path: path.resolve('.env.local'), quiet: true });
+config({ path: path.resolve('.env'), quiet: true });
 
 if (!process.env.GEMINI_MAX_OUTPUT_TOKENS) {
   process.env.GEMINI_MAX_OUTPUT_TOKENS = '32768';

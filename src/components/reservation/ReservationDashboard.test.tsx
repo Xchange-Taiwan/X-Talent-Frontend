@@ -145,7 +145,7 @@ describe('ReservationDashboard', () => {
 
     // Check tabs are rendered with correct counts
     expect(screen.getByText(/即將到來/)).toBeInTheDocument();
-    expect(screen.getByText(/等待回復/)).toBeInTheDocument();
+    expect(screen.getByText(/等待回覆/)).toBeInTheDocument();
     expect(screen.getByText(/歷史紀錄/)).toBeInTheDocument();
 
     // Check correct count badges
@@ -170,7 +170,7 @@ describe('ReservationDashboard', () => {
 
     // Check tabs are rendered with correct counts
     expect(screen.getByText(/即將到來/)).toBeInTheDocument();
-    expect(screen.getByText(/待您回復/)).toBeInTheDocument(); // Mentor specific label
+    expect(screen.getByText(/待您回覆/)).toBeInTheDocument(); // Mentor specific label
     expect(screen.getByText(/歷史紀錄/)).toBeInTheDocument();
 
     // Check upcoming list is rendered for mentor
@@ -316,6 +316,44 @@ describe('ReservationDashboard', () => {
     // It should replace the URL with tab=pending
     expect(mockReplace).toHaveBeenCalledWith(
       expect.stringContaining('tab=pending')
+    );
+  });
+
+  it('preserves existing badge counts for upcoming and pending tabs while history is loading (#860)', () => {
+    vi.mocked(useReservationData).mockReturnValue(
+      fromPartial({
+        ...baseHookReturnValue,
+        isHistoryLoaded: false,
+        isLoadingHistory: false,
+      })
+    );
+
+    const { rerender } = render(<ReservationDashboard userRole="mentee" />);
+
+    expect(screen.getByTestId('trigger-upcoming-mentee')).toHaveTextContent(
+      '即將到來1'
+    );
+    expect(screen.getByTestId('trigger-pending-mentee')).toHaveTextContent(
+      '等待回覆1'
+    );
+
+    // Simulate transient empty data while history is loading after clicking History tab
+    vi.mocked(useReservationData).mockReturnValue(
+      fromPartial({
+        ...baseHookReturnValue,
+        data: null,
+        isHistoryLoaded: false,
+        isLoadingHistory: true,
+      })
+    );
+
+    rerender(<ReservationDashboard userRole="mentee" />);
+
+    expect(screen.getByTestId('trigger-upcoming-mentee')).toHaveTextContent(
+      '即將到來1'
+    );
+    expect(screen.getByTestId('trigger-pending-mentee')).toHaveTextContent(
+      '等待回覆1'
     );
   });
 });

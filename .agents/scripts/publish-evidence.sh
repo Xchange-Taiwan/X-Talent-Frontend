@@ -43,45 +43,56 @@ fi
 BRANCH_SLUG=$(echo "$BRANCH" | tr '/' '-')
 PREFIX="$BRANCH_SLUG/$(date -u +%Y%m%dT%H%M%SZ)"
 
-PARENT_SHA=$(git ls-remote origin "refs/heads/$EVIDENCE_BRANCH" | cut -f1 || true)
-
 SCRATCH_INDEX=$(mktemp -u)
 cleanup() { rm -f "$SCRATCH_INDEX"; }
 trap cleanup EXIT
 
 export GIT_INDEX_FILE="$SCRATCH_INDEX"
 
-if [ -n "$PARENT_SHA" ]; then
-  git read-tree "$PARENT_SHA"
-else
-  MARKER=$(mktemp)
-  printf 'Evidence branch for PR screenshots, published by .agents/scripts/publish-evidence.sh.\n\nThis is an orphan branch: it shares no history with the repository code\nbranches. Pull request bodies link into it by commit sha, so links stay\nstable even after later runs overwrite the same paths at the branch tip.\n' > "$MARKER"
-  MARKER_BLOB=$(git hash-object -w "$MARKER")
-  rm -f "$MARKER"
-  git update-index --add --cacheinfo 100644 "$MARKER_BLOB" ".pr-evidence"
-fi
+for ATTEMPT in 1 2 3; do
+  rm -f "$SCRATCH_INDEX"
+  git fetch origin "$EVIDENCE_BRANCH" >/dev/null 2>&1 || true
+  PARENT_SHA=$(git ls-remote origin "refs/heads/$EVIDENCE_BRANCH" | cut -f1 || true)
 
-INDEX=0
-declare -a REL_PATHS
-for f in "$@"; do
-  BLOB=$(git hash-object -w "$f")
-  FILENAME=$(basename "$f")
-  REL_PATH="$PREFIX/$INDEX-$FILENAME"
-  git update-index --add --cacheinfo 100644 "$BLOB" "$REL_PATH"
-  REL_PATHS+=("$REL_PATH")
-  INDEX=$((INDEX + 1))
+  if [ -n "$PARENT_SHA" ]; then
+    git read-tree "$PARENT_SHA"
+  else
+    MARKER=$(mktemp)
+    printf 'Evidence branch for PR screenshots, published by .agents/scripts/publish-evidence.sh.\n\nThis is an orphan branch: it shares no history with the repository code\nbranches. Pull request bodies link into it by commit sha, so links stay\nstable even after later runs overwrite the same paths at the branch tip.\n' > "$MARKER"
+    MARKER_BLOB=$(git hash-object -w "$MARKER")
+    rm -f "$MARKER"
+    git update-index --add --cacheinfo 100644 "$MARKER_BLOB" ".pr-evidence"
+  fi
+
+  INDEX=0
+  REL_PATHS=()
+  for f in "$@"; do
+    BLOB=$(git hash-object -w "$f")
+    FILENAME=$(basename "$f")
+    REL_PATH="$PREFIX/$INDEX-$FILENAME"
+    git update-index --add --cacheinfo 100644 "$BLOB" "$REL_PATH"
+    REL_PATHS+=("$REL_PATH")
+    INDEX=$((INDEX + 1))
+  done
+
+  NEW_TREE=$(git write-tree)
+
+  COMMIT_MSG="evidence: $BRANCH"
+  if [ -n "$PARENT_SHA" ]; then
+    COMMIT_SHA=$(echo "$COMMIT_MSG" | git commit-tree "$NEW_TREE" -p "$PARENT_SHA")
+  else
+    COMMIT_SHA=$(echo "$COMMIT_MSG" | git commit-tree "$NEW_TREE")
+  fi
+
+  if git push origin "$COMMIT_SHA:refs/heads/$EVIDENCE_BRANCH" >&2; then
+    break
+  fi
+  if [ "$ATTEMPT" -eq 3 ]; then
+    echo "ERROR: failed to push to $EVIDENCE_BRANCH after 3 attempts" >&2
+    exit 1
+  fi
+  sleep 2
 done
-
-NEW_TREE=$(git write-tree)
-
-COMMIT_MSG="evidence: $BRANCH"
-if [ -n "$PARENT_SHA" ]; then
-  COMMIT_SHA=$(echo "$COMMIT_MSG" | git commit-tree "$NEW_TREE" -p "$PARENT_SHA")
-else
-  COMMIT_SHA=$(echo "$COMMIT_MSG" | git commit-tree "$NEW_TREE")
-fi
-
-git push origin "$COMMIT_SHA:refs/heads/$EVIDENCE_BRANCH" >&2
 
 for REL_PATH in "${REL_PATHS[@]}"; do
   echo "https://raw.githubusercontent.com/$REPO_SLUG/$COMMIT_SHA/$REL_PATH"

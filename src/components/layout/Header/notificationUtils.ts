@@ -52,9 +52,9 @@ const NOTIFICATION_CONFIG: Record<
   },
   reservation_canceled: {
     getContent: (item) => {
+      const isMentor = getMentorContext(item);
       const name = item.mentorName || item.menteeName || '導師';
       if (item.actorRole === 'system') {
-        const isMentor = getMentorContext(item);
         return {
           title: `您與 ${name} 的預約已自動取消`,
           body: isMentor
@@ -64,7 +64,9 @@ const NOTIFICATION_CONFIG: Record<
       }
       return {
         title: `您與 ${name} 的預約已被取消`,
-        body: '您的預約已被取消，歡迎重新預約',
+        body: isMentor
+          ? '學員已取消此次預約，點擊查看預約紀錄'
+          : '您的預約已被取消，歡迎重新預約',
       };
     },
     getHref: (_item, isMentorContext) =>

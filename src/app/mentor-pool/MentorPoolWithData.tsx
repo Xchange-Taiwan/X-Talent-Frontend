@@ -10,11 +10,10 @@ import MentorPoolContainer from './container';
 // filtered/search results are fetched client-side by MentorPoolContainer.
 export default async function MentorPoolWithData() {
   let initialError = false;
-  const [initialMentors, initialTagCatalog] = await Promise.all([
+  const [initialMentorPage, initialTagCatalog] = await Promise.all([
     fetchMentorsServer({
       search_pattern: '',
       limit: PAGE_LIMIT,
-      cursor: '',
     }).catch((err: unknown) => {
       console.error(
         'SSR fetchMentors error captured:',
@@ -23,15 +22,15 @@ export default async function MentorPoolWithData() {
       // Opt-out of static/ISR caching for this failed run to preserve healthy cache
       unstable_noStore();
       initialError = true;
-      return [];
+      return { mentors: [], nextCursor: null };
     }),
     fetchTagCatalogServer('zh_TW'),
   ]);
-
   return (
     <MentorPoolContainer
-      initialMentors={initialMentors}
-      initialMentorCount={initialMentors.length}
+      initialMentors={initialMentorPage.mentors}
+      initialNextCursor={initialMentorPage.nextCursor}
+      initialMentorCount={initialMentorPage.mentors.length}
       initialTagCatalog={initialTagCatalog}
       initialError={initialError}
     />

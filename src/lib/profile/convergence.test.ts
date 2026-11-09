@@ -213,7 +213,7 @@ describe('SearchIndexSyncAdapter', () => {
       haveTopic: ['tech'],
       avatar: 'avatar-url',
     };
-    mockFetchMentors.mockResolvedValueOnce([]);
+    mockFetchMentors.mockResolvedValueOnce({ mentors: [], nextCursor: null });
 
     const adapter = new SearchIndexSyncAdapter(1, fields);
     const result = await adapter.fetch();
@@ -222,7 +222,6 @@ describe('SearchIndexSyncAdapter', () => {
     expect(mockFetchMentors).toHaveBeenCalledWith({
       search_pattern: 'Jane Doe',
       limit: 20,
-      cursor: '',
     });
   });
 
@@ -307,7 +306,7 @@ describe('SearchIndexDeleteAdapter', () => {
   });
 
   it('fetches mentors from index scoped to optional name', async () => {
-    mockFetchMentors.mockResolvedValueOnce([]);
+    mockFetchMentors.mockResolvedValueOnce({ mentors: [], nextCursor: null });
 
     const adapter = new SearchIndexDeleteAdapter(1, 'Jane');
     const result = await adapter.fetch();
@@ -316,7 +315,6 @@ describe('SearchIndexDeleteAdapter', () => {
     expect(mockFetchMentors).toHaveBeenCalledWith({
       search_pattern: 'Jane',
       limit: 20,
-      cursor: '',
     });
   });
 

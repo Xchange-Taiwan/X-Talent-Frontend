@@ -15,6 +15,7 @@ import {
 import { trackEvent } from '@/lib/analytics';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 import { getInitials } from '@/lib/avatar/getInitials';
+import { resolveReservationMessages } from '@/lib/reservation/resolveReservationMessages';
 import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 import type {
@@ -44,6 +45,10 @@ export default function ReservationConversationDialog({
 }: Props) {
   const [open, setOpen] = useState(false);
 
+  const { messages: resolvedMessages, cancelReasonMessage } =
+    resolveReservationMessages(reservation);
+  const hasCancelReason = Boolean(cancelReasonMessage);
+
   function onOpenChange(next: boolean) {
     setOpen(next);
     if (next) {
@@ -53,7 +58,7 @@ export default function ReservationConversationDialog({
         metadata: {
           reservation_id: reservation.id,
           source_role: sourceRole,
-          message_count: reservation.messages.length,
+          message_count: resolvedMessages.length,
         },
       });
     }
@@ -130,17 +135,21 @@ export default function ReservationConversationDialog({
             </div>
           ) : null}
 
-          {reservation.messages.length === 0 ? (
+          {resolvedMessages.length === 0 ? (
             <p className="text-text-tertiary py-8 text-center text-sm">
               尚無對話內容
             </p>
           ) : (
-            reservation.messages.map((message, index, array) => (
+            resolvedMessages.map((message, index, array) => (
               <MessageBubble
                 key={index}
                 message={message}
+                hasCancelReason={hasCancelReason}
                 isPrevSameRole={
-                  index > 0 && array[index - 1].role === message.role
+                  index > 0 &&
+                  !message.isCancelReason &&
+                  !array[index - 1].isCancelReason &&
+                  array[index - 1].role === message.role
                 }
               />
             ))
@@ -153,14 +162,23 @@ export default function ReservationConversationDialog({
 
 function MessageBubble({
   message,
+  hasCancelReason,
   isPrevSameRole,
 }: {
   message: ReservationMessage;
+  hasCancelReason: boolean;
   isPrevSameRole: boolean;
 }) {
   const isMentor = message.role === 'MENTOR';
   const isMentee = message.role === 'MENTEE';
+  const isCancelReason = Boolean(message.isCancelReason);
   const label = message.role ? ROLE_LABEL[message.role] : '';
+  const tagLabel = isCancelReason
+    ? '取消原因'
+    : hasCancelReason && isMentee
+      ? '預約提問'
+      : '';
+  const showHeader = isCancelReason || (Boolean(label) && !isPrevSameRole);
 
   return (
     <div
@@ -169,9 +187,21 @@ function MessageBubble({
         isMentor ? 'items-end' : 'items-start'
       )}
     >
-      {label && !isPrevSameRole ? (
-        <div className="text-11 text-text-tertiary font-medium sm:text-xs">
-          {label}
+      {showHeader ? (
+        <div className="text-11 text-text-tertiary flex items-center gap-1.5 font-medium sm:text-xs">
+          {label ? <span>{label}</span> : null}
+          {tagLabel ? (
+            <span
+              className={cn(
+                'text-11 rounded px-1.5 py-0.5 font-medium',
+                isCancelReason
+                  ? 'bg-status-error-default/10 text-status-error-default'
+                  : 'bg-background-bottom text-text-secondary'
+              )}
+            >
+              {tagLabel}
+            </span>
+          ) : null}
         </div>
       ) : null}
       <div

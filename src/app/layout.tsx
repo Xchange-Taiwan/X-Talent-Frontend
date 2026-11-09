@@ -57,6 +57,8 @@ export default function RootLayout({
   return (
     <html lang="zh-TW" className={`${notoSansTC.className} group/auth-state`}>
       <head>
+        <meta name="darkreader-lock" />
+        <meta name="color-scheme" content="light" />
         {/* Instant SSR-Hint CSS Toggle script */}
         <script
           dangerouslySetInnerHTML={{

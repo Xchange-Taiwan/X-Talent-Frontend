@@ -1,13 +1,13 @@
 import { AsyncReadManager } from '@/lib/asyncReadManager';
 import { createKeyedCache } from '@/lib/createKeyedCache';
-import type { MentorType } from '@/types/mentor';
+import type { MentorPage, MentorType } from '@/types/mentor';
 
 export const DEFAULT_MENTOR_PAGE_LIMIT = 9;
 export const UNFILTERED_MENTOR_POOL_KEY = '__unfiltered__';
 
 export interface MentorPoolPageState {
   mentors: MentorType[];
-  cursor: string | undefined;
+  nextCursor: string | null;
   hasMore: boolean;
   mentorCount: number;
   isNoResults: boolean;
@@ -16,7 +16,7 @@ export interface MentorPoolPageState {
 
 export const EMPTY_MENTOR_POOL_STATE: MentorPoolPageState = {
   mentors: [],
-  cursor: undefined,
+  nextCursor: null,
   hasMore: true,
   mentorCount: 0,
   isNoResults: false,
@@ -24,59 +24,48 @@ export const EMPTY_MENTOR_POOL_STATE: MentorPoolPageState = {
 };
 
 export type MentorPageAction =
-  | { type: 'replace'; page: MentorType[]; totalCount?: number }
-  | { type: 'append'; page: MentorType[] };
+  | { type: 'replace'; page: MentorPage; totalCount?: number }
+  | { type: 'append'; page: MentorPage };
 
 export function applyMentorPage(
   state: MentorPoolPageState,
-  action: MentorPageAction,
-  pageLimit: number = DEFAULT_MENTOR_PAGE_LIMIT
+  action: MentorPageAction
 ): MentorPoolPageState {
   switch (action.type) {
     case 'replace': {
       const { page, totalCount } = action;
-      const nextCursor = page.at(-1)?.updated_at?.toString();
+      const nextCursor = page.nextCursor || null;
       return {
-        mentors: page,
-        cursor: nextCursor,
-        hasMore: Boolean(nextCursor) && page.length === pageLimit,
-        mentorCount: totalCount ?? page.length,
-        isNoResults: page.length === 0,
+        mentors: page.mentors,
+        nextCursor,
+        hasMore: page.mentors.length > 0 && nextCursor !== null,
+        mentorCount: totalCount ?? page.mentors.length,
+        isNoResults: page.mentors.length === 0,
         hasError: false,
       };
     }
     case 'append': {
       const { page } = action;
-      if (page.length === 0) {
-        return {
-          ...state,
-          hasMore: false,
-        };
-      }
+      const nextCursor = page.nextCursor || null;
 
-      const newMentors = page.filter(
+      const newMentors = page.mentors.filter(
         (newMentor) =>
           !state.mentors.some(
             (prevMentor) => prevMentor.user_id === newMentor.user_id
           )
       );
 
-      if (newMentors.length === 0) {
-        return {
-          ...state,
-          hasMore: false,
-        };
-      }
-
-      const nextCursor = page.at(-1)?.updated_at?.toString();
+      const hasValidNextCursor =
+        nextCursor !== null && nextCursor !== state.nextCursor;
+      const hasProgress = newMentors.length > 0 && hasValidNextCursor;
 
       return {
-        mentors: [...state.mentors, ...newMentors],
-        cursor: nextCursor,
-        hasMore:
-          Boolean(nextCursor) &&
-          nextCursor !== state.cursor &&
-          page.length === pageLimit,
+        mentors:
+          newMentors.length === 0
+            ? state.mentors
+            : [...state.mentors, ...newMentors],
+        nextCursor,
+        hasMore: hasProgress,
         mentorCount: state.mentorCount + newMentors.length,
         isNoResults: false,
         hasError: false,
@@ -103,23 +92,23 @@ export const mentorPoolReadManager = new AsyncReadManager<
 export const mentorPoolStore = {
   buildInitialUnfilteredState(opts: {
     initialMentors: MentorType[];
+    initialNextCursor?: string | null;
     initialMentorCount: number;
     hasInitialFilters: boolean;
     initialError?: boolean;
-    pageLimit?: number;
   }): MentorPoolPageState {
     const {
       initialMentors,
       initialMentorCount,
       hasInitialFilters,
       initialError,
-      pageLimit = DEFAULT_MENTOR_PAGE_LIMIT,
+      initialNextCursor = null,
     } = opts;
-    const nextCursor = initialMentors.at(-1)?.updated_at?.toString();
+    const nextCursor = initialNextCursor || null;
     return {
       mentors: initialMentors,
-      cursor: nextCursor,
-      hasMore: Boolean(nextCursor) && initialMentors.length === pageLimit,
+      nextCursor,
+      hasMore: initialMentors.length > 0 && nextCursor !== null,
       mentorCount: initialMentorCount,
       isNoResults: initialMentors.length === 0,
       hasError: hasInitialFilters ? false : (initialError ?? false),
@@ -128,6 +117,7 @@ export const mentorPoolStore = {
 
   seedInitialUnfiltered(opts: {
     initialMentors: MentorType[];
+    initialNextCursor?: string | null;
     initialMentorCount: number;
     hasInitialFilters: boolean;
     initialError?: boolean;
@@ -144,37 +134,28 @@ export const mentorPoolStore = {
   },
 
   async fetchPageOne(
-    fetchPage: (limit: number, signal: AbortSignal) => Promise<MentorType[]>,
+    fetchPage: (limit: number, signal: AbortSignal) => Promise<MentorPage>,
     signal: AbortSignal,
     pageLimit: number = DEFAULT_MENTOR_PAGE_LIMIT
   ): Promise<MentorPoolPageState> {
     const page = await fetchPage(pageLimit, signal);
-    return applyMentorPage(
-      EMPTY_MENTOR_POOL_STATE,
-      {
-        type: 'replace',
-        page,
-      },
-      pageLimit
-    );
+    return applyMentorPage(EMPTY_MENTOR_POOL_STATE, {
+      type: 'replace',
+      page,
+    });
   },
 
   appendPage(
     key: string,
     fallbackBase: MentorPoolPageState,
-    page: MentorType[],
-    pageLimit: number = DEFAULT_MENTOR_PAGE_LIMIT
+    page: MentorPage
   ): MentorPoolPageState {
     let nextState = fallbackBase;
     mentorPoolReadManager.update(key, (current) => {
-      nextState = applyMentorPage(
-        current ?? fallbackBase,
-        {
-          type: 'append',
-          page,
-        },
-        pageLimit
-      );
+      nextState = applyMentorPage(current ?? fallbackBase, {
+        type: 'append',
+        page,
+      });
       return nextState;
     });
     return nextState;

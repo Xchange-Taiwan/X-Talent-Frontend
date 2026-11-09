@@ -267,7 +267,7 @@ export async function mentorAcceptPendingReservation(
 ): Promise<void> {
   const MAX_ATTEMPTS = 5;
   const POLL_INTERVAL_MS = 6_000;
-  const pendingTab = page.getByRole('tab', { name: /待您回復/ });
+  const pendingTab = page.getByRole('tab', { name: /待您回覆/ });
   const card = page
     .getByTestId('reservation-card')
     .filter({ hasText: bookingNote })
@@ -313,7 +313,7 @@ export async function mentorRejectPendingReservation(
 ): Promise<void> {
   const MAX_ATTEMPTS = 5;
   const POLL_INTERVAL_MS = 6_000;
-  const pendingTab = page.getByRole('tab', { name: /待您回復/ });
+  const pendingTab = page.getByRole('tab', { name: /待您回覆/ });
   const card = page
     .getByTestId('reservation-card')
     .filter({ hasText: bookingNote })
@@ -463,7 +463,7 @@ export async function waitForAcceptedNotification(
 
 /**
  * Mentee: cancel the reservation matching `bookingNote`, searching both
- * 等待回復 and 即將到來 tabs.
+ * 等待回覆 and 即將到來 tabs.
  */
 export async function menteeCancelReservation(
   page: Page,
@@ -471,7 +471,7 @@ export async function menteeCancelReservation(
 ): Promise<void> {
   await page.goto('/reservation/mentee');
 
-  for (const tabName of [/等待回復/, /即將到來/]) {
+  for (const tabName of [/等待回覆/, /即將到來/]) {
     const tab = page.getByRole('tab', { name: tabName });
     await expect(tab).toBeVisible({ timeout: 20_000 });
     await tab.click();
@@ -501,7 +501,7 @@ export async function menteeCancelReservation(
   }
 
   throw new Error(
-    'menteeCancelReservation: no cancellable reservation found in 等待回復 or 即將到來'
+    'menteeCancelReservation: no cancellable reservation found in 等待回覆 or 即將到來'
   );
 }
 
@@ -515,7 +515,7 @@ export async function cleanupStaleMenteeReservations(
   const MAX_CARDS_PER_TAB = 20;
   await page.goto('/reservation/mentee');
 
-  for (const tabName of [/等待回復/, /即將到來/]) {
+  for (const tabName of [/等待回覆/, /即將到來/]) {
     const tab = page.getByRole('tab', { name: tabName });
     await expect(tab).toBeVisible({ timeout: 20_000 });
     await tab.click();
@@ -551,7 +551,7 @@ export async function cleanupStaleMenteeReservations(
 }
 
 /**
- * Mentor: reject every existing pending reservation (待您回復) before a canary
+ * Mentor: reject every existing pending reservation (待您回覆) before a canary
  * run starts.
  */
 export async function cleanupStaleMentorReservations(
@@ -560,7 +560,7 @@ export async function cleanupStaleMentorReservations(
   const MAX_CARDS_PER_TAB = 20;
   await page.goto('/reservation/mentor');
 
-  const pendingTab = page.getByRole('tab', { name: /待您回復/ });
+  const pendingTab = page.getByRole('tab', { name: /待您回覆/ });
   await expect(pendingTab).toBeVisible({ timeout: 20_000 });
   await pendingTab.click();
 

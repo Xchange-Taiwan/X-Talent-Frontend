@@ -294,3 +294,43 @@ test('click 上一步 on Step 3 → returns to Step 2, previously entered Step 2
     '1 年以下'
   );
 });
+
+test('Step 1 頭像預覽 URL 已含 query string 時以 &cb= 附加快取參數而非重複 ?cb= (#857)', async ({
+  page,
+}) => {
+  const versionedAvatarUrl =
+    'https://x-career-multimedia.s3.ap-northeast-1.amazonaws.com/avatars/1/cropped-avatar.png?v=1700000000';
+
+  await setFakeSessionCookie(page);
+  await setupPageMocks(page);
+
+  await page.route(/\/api\/auth\/session/, (route) => {
+    if (route.request().method() === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...MOCK_CLIENT_SESSION,
+          user: {
+            ...MOCK_CLIENT_SESSION.user,
+            avatar: versionedAvatarUrl,
+            avatarUpdatedAt: 1700000456,
+          },
+        }),
+      });
+    }
+    return route.continue();
+  });
+
+  await page.goto('/auth/onboarding');
+
+  const avatarImg = page.getByRole('img', { name: 'Avatar Preview' });
+  await expect(avatarImg).toBeVisible();
+
+  const srcAttr = (await avatarImg.getAttribute('src')) ?? '';
+  const decodedSrc = decodeURIComponent(srcAttr);
+  expect(decodedSrc).toContain(
+    'https://x-career-multimedia.s3.ap-northeast-1.amazonaws.com/avatars/1/cropped-avatar.png?v=1700000000&cb=1700000456'
+  );
+  expect(decodedSrc).not.toContain('?v=1700000000?cb=');
+});

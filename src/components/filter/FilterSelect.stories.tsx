@@ -67,3 +67,13 @@ export const Industry: Story = {
     />
   ),
 };
+
+export const LongOptionsScrollable: Story = {
+  render: () => (
+    <FilterSelectDemo
+      name="技能"
+      initialValue="react_nextjs"
+      options={REAL_FILTER_OPTIONS.filter_skills.options}
+    />
+  ),
+};

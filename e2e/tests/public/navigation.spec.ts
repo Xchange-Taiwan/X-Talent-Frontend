@@ -31,6 +31,33 @@ test('home page loads', async ({ page }) => {
   await expect(page.locator('body')).toBeVisible();
 });
 
+test('locks light mode rendering via darkreader-lock meta and color-scheme: light under OS dark mode (#861)', async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.goto('/');
+
+  await expect(page.locator('head meta[name="darkreader-lock"]')).toHaveCount(
+    1
+  );
+  await expect(page.locator('head meta[name="color-scheme"]')).toHaveAttribute(
+    'content',
+    'light'
+  );
+
+  const computedStyles = await page.evaluate(() => {
+    const htmlStyle = window.getComputedStyle(document.documentElement);
+    const bodyStyle = window.getComputedStyle(document.body);
+    return {
+      htmlColorScheme: htmlStyle.colorScheme,
+      bodyBackgroundColor: bodyStyle.backgroundColor,
+    };
+  });
+
+  expect(computedStyles.htmlColorScheme).toBe('light');
+  expect(computedStyles.bodyBackgroundColor).toBe('rgb(255, 255, 255)');
+});
+
 test.describe('首頁 CTA 按鈕依身分顯示與導向 (#709)', () => {
   test('訪客造訪首頁 → 3 顆 CTA 導向 /auth/signup', async ({ page }) => {
     await page.goto('/');

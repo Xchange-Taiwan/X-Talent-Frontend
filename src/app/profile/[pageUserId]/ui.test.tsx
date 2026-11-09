@@ -371,3 +371,56 @@ describe('ProfilePageUI & ProfilePageSkeleton - desktop two-column breakpoint (#
     expect(mainContainer?.querySelector('.xl\\:w-2\\/5')).toBeInTheDocument();
   });
 });
+
+describe('ProfilePageUI - multiline text whitespace preservation (#857)', () => {
+  it('applies whitespace-pre-line and break-words to about, personal_statement, and work experience description', () => {
+    const multilineAbout = '第一段自我介紹\n1. 產品策略\n2. 系統架構';
+    const multilineStatement = '給導生的話第一行\n1. 請先準備問題\n2. 歡迎交流';
+    const multilineJobDesc = '負責核心系統研發\n1. 帶領團隊重構\n2. 提升效能';
+
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            about: multilineAbout,
+            personal_statement: multilineStatement,
+            workExperiences: [
+              {
+                job: 'Senior Engineer',
+                company: 'XChange',
+                job_period_start: '2022',
+                job_period_end: '2025',
+                job_location: 'TWN',
+                industry: 'TECH',
+                is_primary: true,
+                description: multilineJobDesc,
+              },
+            ],
+          }),
+          isIdentityResolved: true,
+        })}
+      />
+    );
+
+    const aboutHeading = screen.getByText('關於我');
+    const aboutParagraph = aboutHeading.nextElementSibling;
+    expect(aboutParagraph).toHaveClass('whitespace-pre-line', 'break-words');
+    expect(aboutParagraph?.textContent).toBe(multilineAbout);
+
+    const statementHeading = screen.getByText('給導生的話');
+    const statementParagraph = statementHeading.nextElementSibling;
+    expect(statementParagraph).toHaveClass(
+      'whitespace-pre-line',
+      'break-words'
+    );
+    expect(statementParagraph?.textContent).toBe(multilineStatement);
+
+    const jobTitleHeading = screen.getByRole('heading', {
+      name: 'Senior Engineer',
+    });
+    const jobDescParagraph = jobTitleHeading.nextElementSibling;
+    expect(jobDescParagraph).toHaveClass('whitespace-pre-line', 'break-words');
+    expect(jobDescParagraph?.textContent).toBe(multilineJobDesc);
+  });
+});

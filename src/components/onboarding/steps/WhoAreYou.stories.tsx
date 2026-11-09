@@ -58,3 +58,29 @@ export const MenteeSelected: Story = {
     </OnboardingStoryWrapper>
   ),
 };
+
+export const GoogleOAuthAvatar: Story = {
+  render: () => (
+    <OnboardingStoryWrapper
+      schema={step1Schema}
+      defaultValues={{
+        name: '許詮 (Google OAuth)',
+        avatar: 'https://lh3.googleusercontent.com/a/default-user=s512-c',
+        avatarFile: undefined,
+        language: 'zh_TW',
+      }}
+      session={{
+        user: {
+          id: 'user-google-456',
+          name: '許詮 (Google OAuth)',
+          avatar: 'https://lh3.googleusercontent.com/a/default-user=s512-c',
+          avatarUpdatedAt: 987654321,
+          isMentor: false,
+        },
+        expires: '2027-01-01T00:00:00.000Z',
+      }}
+    >
+      {(form) => <WhoAreYou form={form} />}
+    </OnboardingStoryWrapper>
+  ),
+};
