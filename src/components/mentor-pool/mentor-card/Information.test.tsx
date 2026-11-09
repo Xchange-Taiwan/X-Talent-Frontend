@@ -86,9 +86,14 @@ describe('Information Component', () => {
     expect(screen.getByText('Jane Doe')).toBeInTheDocument();
     expect(screen.getByText(/Software Engineer/)).toBeInTheDocument();
     expect(screen.getByText(/Tech Corp/)).toBeInTheDocument();
-    expect(
-      screen.getByText('Passionate developer with 5 years of experience.')
-    ).toBeInTheDocument();
+    const aboutEl = screen.getByText(
+      'Passionate developer with 5 years of experience.'
+    );
+    expect(aboutEl).toBeInTheDocument();
+    expect(aboutEl).toHaveClass('min-h-[40px]');
+    expect(screen.getByTestId('display-container').parentElement).toHaveClass(
+      'mt-auto'
+    );
   });
 
   it('renders "at" company separator when both title and company are provided', () => {

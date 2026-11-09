@@ -65,3 +65,13 @@ export const LongCompanyAndManyTags: Story = {
     ],
   },
 };
+
+export const MissingRoleAndShortAbout: Story = {
+  args: {
+    name: mockMentors[0].name,
+    job_title: '',
+    company: '',
+    about: '單行簡短自介。',
+    haveTopicLabels: ['UI/UX 設計', 'Figma', 'Prototyping'],
+  },
+};

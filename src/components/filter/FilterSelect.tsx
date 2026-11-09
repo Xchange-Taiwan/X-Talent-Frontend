@@ -31,7 +31,11 @@ function FilterSelect({
           <SelectValue placeholder={`請選擇${name}`} />
         </SelectTrigger>
 
-        <SelectContent className="z-[60]">
+        <SelectContent
+          position="popper"
+          side="bottom"
+          className="z-[60] max-h-60"
+        >
           <SelectGroup>
             <SelectLabel>{name}</SelectLabel>
             {options.map((option) => (

@@ -40,7 +40,7 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
       <article
         ref={ref}
         className={cn(
-          'border-background-border bg-background-white relative w-[334px] overflow-hidden rounded-lg border transition-shadow xl:h-[480px] xl:w-[413px]',
+          'border-background-border bg-background-white relative flex h-full w-[334px] flex-col overflow-hidden rounded-lg border transition-shadow xl:h-[480px] xl:w-[413px]',
           HOVER_CLICKABLE_CARD_CLASSES,
           FOCUS_WITHIN_RING_CLASSES
         )}
@@ -56,7 +56,7 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
           name={name}
           priority={priority}
         />
-        <div className="px-4 pt-4 pb-6">
+        <div className="flex flex-1 flex-col px-4 pt-4 pb-6">
           <Information
             name={name}
             job_title={job_title}

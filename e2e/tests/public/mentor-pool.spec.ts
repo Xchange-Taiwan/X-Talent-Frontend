@@ -80,23 +80,39 @@ const MOCK_TAG_CATALOG = {
   },
 };
 
-function makeMentor(id: number) {
+function makeMentor(
+  id: number,
+  overrides: Partial<{
+    job_title: string;
+    company: string;
+    about: string;
+    skills: string[];
+    topics: string[];
+    have_skill: string[];
+    have_topic: string[];
+  }> = {}
+) {
   return {
     user_id: id,
     name: `Mentor ${id}`,
     avatar: '',
-    job_title: 'Software Engineer',
-    company: `Company ${id}`,
+    job_title: overrides.job_title ?? 'Software Engineer',
+    company: overrides.company ?? `Company ${id}`,
     years_of_experience: 'THREE_TO_FIVE_YEARS',
     location: 'TWN',
     linkedin_profile: '',
     interested_positions: [],
-    skills: [],
-    topics: [],
+    skills: overrides.skills ?? [],
+    topics: overrides.topics ?? [],
+    want_position: [],
+    want_skill: [],
+    want_topic: [],
+    have_skill: overrides.have_skill ?? overrides.skills ?? [],
+    have_topic: overrides.have_topic ?? overrides.topics ?? [],
     industry: 'Technology',
     language: 'zh_TW',
     personal_statement: `Personal statement ${id}`,
-    about: '',
+    about: overrides.about ?? '',
     seniority_level: 'JUNIOR',
     expertises: [],
     experiences: [],
@@ -417,4 +433,87 @@ test('點擊 PopularPositionChips 熱門職位標籤 → 觸發篩選並更新�
   await expect(page.locator('article')).toHaveCount(2);
   await expect(page.getByText('找到 2 位導師')).toBeVisible();
   expect(chipFetchCount).toBe(1);
+});
+
+test('篩選下拉選單向下展開不遮擋觸發器、導師卡片同列等高對齊、合併主題與技能標籤並將命中篩選置頂去重 (#859)', async ({
+  page,
+}) => {
+  await page.route(/\/v1\/mentors/, (route, request) => {
+    const skill = new URL(request.url()).searchParams.get('filter_skills');
+    const data = [
+      makeMentor(1, {
+        job_title: 'Senior Frontend Engineer',
+        company: 'Company A',
+        about:
+          '擁有多年前端架構與跨國團隊帶領經驗，專注於效能優化、設計系統與工程文化建立。',
+        have_topic: ['職涯規劃'],
+        have_skill: ['職涯規劃', '前端開發'],
+      }),
+      makeMentor(2, {
+        job_title: '',
+        company: '',
+        about: '簡短自介。',
+        have_topic: ['職涯規劃'],
+        have_skill: skill ? [skill] : ['前端開發'],
+      }),
+    ];
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(mentorResponse(data)),
+    });
+  });
+
+  await page.goto('/mentor-pool?q=initial');
+  const cards = page.locator('article');
+  await expect(cards).toHaveCount(2);
+
+  // 1. 驗證同列卡片高度一致（即使第二張卡片無職稱/公司且自介僅一行）
+  const box1 = await cards.nth(0).boundingBox();
+  const box2 = await cards.nth(1).boundingBox();
+  expect(box1).not.toBeNull();
+  expect(box2).not.toBeNull();
+  expect(Math.abs(box1!.height - box2!.height)).toBeLessThanOrEqual(1);
+
+  // 2. 驗證卡片同時渲染主題與技能標籤，且重複標籤已去重
+  const firstCardDisplayTags = cards
+    .nth(0)
+    .getByTestId('display-container')
+    .locator('> div');
+  await expect(firstCardDisplayTags).toHaveText(['職涯規劃', '前端開發']);
+
+  // 3. 驗證篩選選單使用 popper 向下展開，不遮擋觸發器本身
+  await page.getByRole('button', { name: /篩選/ }).click();
+  const firstCombobox = page.getByRole('combobox').first();
+  await firstCombobox.click();
+
+  const listbox = page.getByRole('listbox');
+  await expect(listbox).toBeVisible();
+  await expect(listbox).toHaveAttribute('data-side', 'bottom');
+
+  const triggerBox = await firstCombobox.boundingBox();
+  const listboxBox = await listbox.boundingBox();
+  expect(triggerBox).not.toBeNull();
+  expect(listboxBox).not.toBeNull();
+  expect(listboxBox!.y).toBeGreaterThanOrEqual(
+    triggerBox!.y + triggerBox!.height - 2
+  );
+
+  // 4. 選擇技能篩選並套用後，命中的技能標籤置頂顯示
+  const firstOption = page.getByRole('option').first();
+  const selectedLabel = (await firstOption.textContent())?.trim() ?? '';
+  await firstOption.click();
+
+  const responsePromise = page.waitForResponse(/\/v1\/mentors/);
+  await page.getByRole('button', { name: '套用' }).click();
+  await responsePromise;
+
+  const secondCardFirstTag = cards
+    .nth(1)
+    .getByTestId('display-container')
+    .locator('> div')
+    .first();
+  if (selectedLabel) {
+    await expect(secondCardFirstTag).toHaveText(selectedLabel);
+  }
 });
