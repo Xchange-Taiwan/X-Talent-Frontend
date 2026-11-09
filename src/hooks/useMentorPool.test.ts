@@ -343,6 +343,10 @@ describe('useMentorPool', () => {
       result.current.mentors.find((m) => m.user_id === 21)?.have_topic
     ).toEqual(['Localized Topic B']);
     expect(result.current.mentorCount).toBe(PAGE_LIMIT + 1);
+    expect(mockFetchMentors).toHaveBeenCalledWith(
+      expect.objectContaining({ cursor: 'opaque-next-cursor' }),
+      expect.any(AbortSignal)
+    );
   });
 
   it('retains infinite scroll retry availability (hasMore) when scroll fetch fails', async () => {
