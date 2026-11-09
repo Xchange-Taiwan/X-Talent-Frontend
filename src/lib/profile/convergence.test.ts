@@ -4,8 +4,15 @@ vi.mock('@/services/profile/user', () => ({
   fetchUserById: vi.fn(),
 }));
 
+const { mentorFetchSpy } = vi.hoisted(() => ({ mentorFetchSpy: vi.fn() }));
+
 vi.mock('@/services/search-mentor/mentors', () => ({
-  fetchMentors: vi.fn(),
+  fetchMentors: async (...args: unknown[]) => {
+    const result = await mentorFetchSpy(...args);
+    return Array.isArray(result)
+      ? { mentors: result, nextCursor: null }
+      : result;
+  },
 }));
 
 vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
@@ -15,7 +22,6 @@ import { fromAny, fromPartial } from '@total-typescript/shoehorn';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { defaultValues } from '@/schemas/profileSchema';
 import { fetchUserById } from '@/services/profile/user';
-import { fetchMentors } from '@/services/search-mentor/mentors';
 import type { MentorType } from '@/types/mentor';
 import type { MentorProfileVO } from '@/types/user';
 
@@ -27,7 +33,7 @@ import {
 } from './convergence';
 
 const mockFetchUserById = vi.mocked(fetchUserById);
-const mockFetchMentors = vi.mocked(fetchMentors);
+const mockFetchMentors = mentorFetchSpy;
 const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 
 const makeMentor = (
@@ -222,7 +228,6 @@ describe('SearchIndexSyncAdapter', () => {
     expect(mockFetchMentors).toHaveBeenCalledWith({
       search_pattern: 'Jane Doe',
       limit: 20,
-      cursor: '',
     });
   });
 
@@ -316,7 +321,6 @@ describe('SearchIndexDeleteAdapter', () => {
     expect(mockFetchMentors).toHaveBeenCalledWith({
       search_pattern: 'Jane',
       limit: 20,
-      cursor: '',
     });
   });
 

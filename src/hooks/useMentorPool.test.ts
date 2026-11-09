@@ -13,14 +13,20 @@ vi.mock('@/components/ui/use-toast', async () => {
   return useToastMockFactory();
 });
 
+const { mentorFetchSpy } = vi.hoisted(() => ({ mentorFetchSpy: vi.fn() }));
+
 vi.mock('@/services/search-mentor/mentors', () => ({
-  fetchMentors: vi.fn(),
+  fetchMentors: async (...args: unknown[]) => {
+    const result = await mentorFetchSpy(...args);
+    return Array.isArray(result)
+      ? { mentors: result, nextCursor: null }
+      : result;
+  },
 }));
 
 import { PAGE_LIMIT } from '@/app/mentor-pool/constants';
 import avatarImage from '@/assets/default-avatar.png';
 import { mentorPoolReadManager } from '@/lib/cache/mentorPoolCache';
-import { fetchMentors } from '@/services/search-mentor/mentors';
 import { mockSearchParams } from '@/test/mocks/navigation';
 import { mockToast } from '@/test/mocks/useToast';
 import type { MentorType } from '@/types/mentor';
@@ -31,7 +37,7 @@ import {
   useMentorPool,
 } from './useMentorPool';
 
-const mockFetchMentors = vi.mocked(fetchMentors);
+const mockFetchMentors = mentorFetchSpy;
 
 const mockInitialMentors: MentorType[] = [
   {
@@ -51,7 +57,7 @@ const mockInitialMentors: MentorType[] = [
     want_topic: [],
     have_skill: ['skill_a'],
     have_topic: ['topic_a'],
-    updated_at: 100,
+    updated_at: '2026-11-09T00:00:00Z',
   },
 ];
 
@@ -65,6 +71,7 @@ const testLabelMap = new Map<string, string>([
 describe('useMentorPool', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mentorFetchSpy.mockReset();
     mentorPoolReadManager.clear();
     mockSearchParams.toString.mockReturnValue('');
     mockSearchParams.get.mockReturnValue(null);
@@ -113,7 +120,7 @@ describe('useMentorPool', () => {
         want_topic: [],
         have_skill: [],
         have_topic: ['topic_b'],
-        updated_at: 200,
+        updated_at: '2026-11-09T00:00:01Z',
       },
     ];
 
@@ -310,11 +317,15 @@ describe('useMentorPool', () => {
       },
     ];
 
-    mockFetchMentors.mockResolvedValue(paginatedMentors);
+    mockFetchMentors.mockResolvedValue({
+      mentors: paginatedMentors,
+      nextCursor: null,
+    });
 
     const { result } = renderHook(() =>
       useMentorPool({
         initialMentors: largeInitialMentors,
+        initialNextCursor: 'opaque-next-cursor',
         initialMentorCount: PAGE_LIMIT,
         params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
@@ -331,7 +342,7 @@ describe('useMentorPool', () => {
     expect(
       result.current.mentors.find((m) => m.user_id === 21)?.have_topic
     ).toEqual(['Localized Topic B']);
-    expect(result.current.mentorCount).toBe(PAGE_LIMIT + 1); // Deduplicated unique mentor count
+    expect(result.current.mentorCount).toBe(PAGE_LIMIT + 1);
   });
 
   it('retains infinite scroll retry availability (hasMore) when scroll fetch fails', async () => {
@@ -348,6 +359,7 @@ describe('useMentorPool', () => {
     const { result } = renderHook(() =>
       useMentorPool({
         initialMentors: largeInitialMentors,
+        initialNextCursor: 'opaque-next-cursor',
         initialMentorCount: PAGE_LIMIT,
         params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
@@ -683,6 +695,7 @@ describe('useMentorPool', () => {
     const { result } = renderHook(() =>
       useMentorPool({
         initialMentors: largeInitialMentors,
+        initialNextCursor: 'opaque-next-cursor',
         initialMentorCount: PAGE_LIMIT,
         params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
@@ -936,6 +949,7 @@ describe('useMentorPool', () => {
     const { result } = renderHook(() =>
       useMentorPool({
         initialMentors: largeInitialMentors,
+        initialNextCursor: 'opaque-next-cursor',
         initialMentorCount: PAGE_LIMIT,
         params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
@@ -1030,13 +1044,17 @@ describe('useMentorPool', () => {
         capturedSignal = signal;
         return loadMorePromise;
       })
-      .mockResolvedValueOnce([
-        { ...mockInitialMentors[0], user_id: 301, name: 'Filtered Mentor' },
-      ]);
+      .mockResolvedValueOnce({
+        mentors: [
+          { ...mockInitialMentors[0], user_id: 301, name: 'Filtered Mentor' },
+        ],
+        nextCursor: null,
+      });
 
     const { result, rerender } = renderHook(() =>
       useMentorPool({
         initialMentors: largeInitialMentors,
+        initialNextCursor: 'opaque-next-cursor',
         initialMentorCount: PAGE_LIMIT,
         params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
@@ -1081,14 +1099,14 @@ describe('useMentorPool', () => {
       ...mockInitialMentors[0],
       user_id: 400 + i,
       name: `Multi Page 1 #${i}`,
-      updated_at: 1000 + i,
+      updated_at: `2026-11-09T00:00:${String(i).padStart(2, '0')}Z`,
     }));
     const page2 = [
       {
         ...mockInitialMentors[0],
         user_id: 500,
         name: 'Multi Page 2 #0',
-        updated_at: 2000,
+        updated_at: '2026-11-09T00:01:00Z',
       },
     ];
     const otherFilterPage = [
@@ -1096,14 +1114,14 @@ describe('useMentorPool', () => {
         ...mockInitialMentors[0],
         user_id: 600,
         name: 'Other Filter Mentor',
-        updated_at: 3000,
+        updated_at: '2026-11-09T00:02:00Z',
       },
     ];
 
     mockFetchMentors
-      .mockResolvedValueOnce(page1)
-      .mockResolvedValueOnce(page2)
-      .mockResolvedValueOnce(otherFilterPage);
+      .mockResolvedValueOnce({ mentors: page1, nextCursor: 'opaque-page-2' })
+      .mockResolvedValueOnce({ mentors: page2, nextCursor: null })
+      .mockResolvedValueOnce({ mentors: otherFilterPage, nextCursor: null });
 
     const { result, rerender } = renderHook(() =>
       useMentorPool({
@@ -1148,7 +1166,10 @@ describe('useMentorPool', () => {
   });
 
   it('falls back to client-side fetchMentors when SSR initialMentors is empty without initialError', async () => {
-    mockFetchMentors.mockResolvedValueOnce(mockInitialMentors);
+    mockFetchMentors.mockResolvedValueOnce({
+      mentors: mockInitialMentors,
+      nextCursor: null,
+    });
 
     const { result } = renderHook(() =>
       useMentorPool({
@@ -1194,7 +1215,7 @@ describe('applyMentorPage', () => {
     want_topic: [],
     have_skill: [],
     have_topic: [],
-    updated_at: 1000,
+    updated_at: '2026-11-09T00:00:00Z',
   };
 
   it('handles replace action with non-empty page', () => {
@@ -1261,7 +1282,11 @@ describe('applyMentorPage', () => {
     };
 
     const duplicateMentor = { ...sampleMentor };
-    const newMentor = { ...sampleMentor, user_id: 11, updated_at: 1100 };
+    const newMentor = {
+      ...sampleMentor,
+      user_id: 11,
+      updated_at: '2026-11-09T00:00:01Z',
+    };
 
     const action = {
       type: 'append' as const,

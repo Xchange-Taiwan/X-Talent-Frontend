@@ -32,7 +32,7 @@ const mockFetchTagCatalogServer = vi.mocked(fetchTagCatalogServer);
 describe('MentorPoolWithData', () => {
   it('calls fetchMentorsServer and passes correct props on success', async () => {
     const mockMentors = [
-      { user_id: 1, updated_at: 123 },
+      { user_id: 1, updated_at: '2026-11-09T00:00:00Z' },
     ] as unknown as MentorType[];
     const mockTagCatalog = {
       industry: [],
@@ -40,13 +40,19 @@ describe('MentorPoolWithData', () => {
       have_topic: [],
     } as unknown as TagCatalogsByBucket;
 
-    mockFetchMentorsServer.mockResolvedValueOnce(mockMentors);
+    mockFetchMentorsServer.mockResolvedValueOnce({
+      mentors: mockMentors,
+      nextCursor: 'opaque-next-cursor',
+    });
     mockFetchTagCatalogServer.mockResolvedValueOnce(mockTagCatalog);
 
     const jsx = await MentorPoolWithData();
 
     // Verify container received the fetched mentors and initialError is false
-    expect(jsx.props.initialMentors).toEqual([{ user_id: 1, updated_at: 123 }]);
+    expect(jsx.props.initialMentors).toEqual([
+      { user_id: 1, updated_at: '2026-11-09T00:00:00Z' },
+    ]);
+    expect(jsx.props.initialNextCursor).toBe('opaque-next-cursor');
     expect(jsx.props.initialError).toBe(false);
     expect(mockUnstableNoStore).not.toHaveBeenCalled();
   });

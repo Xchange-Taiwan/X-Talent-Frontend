@@ -1,6 +1,6 @@
 import { apiClient, BASE_URL } from '@/lib/apiClient';
 import type { components } from '@/types/api';
-import type { MentorPageResult, MentorRequest } from '@/types/mentor';
+import type { MentorPage, MentorRequest } from '@/types/mentor';
 
 import { mapMentor, type RawMentor } from './mapMentor';
 
@@ -25,7 +25,7 @@ function hasMentorRequestConditions(param: MentorRequest): boolean {
 
 export async function fetchMentorsServer(
   param: MentorRequest
-): Promise<MentorPageResult> {
+): Promise<MentorPage> {
   // BASE_URL may be unset at build time (no .env.production* / .env.local).
   // Skip silently — the SSR-empty result lets the client take over at runtime
   // with the proper env, instead of throwing a noisy "Invalid URL" during

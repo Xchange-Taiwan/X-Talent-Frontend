@@ -22,7 +22,7 @@ import {
 } from '@/lib/cache/mentorPoolCache';
 import { isAbortError } from '@/lib/errorUtils';
 import { fetchMentors } from '@/services/search-mentor/mentors';
-import { asMentorPage, type MentorType } from '@/types/mentor';
+import type { MentorType } from '@/types/mentor';
 
 export { applyMentorPage, type MentorPageAction, type MentorPoolPageState };
 
@@ -197,7 +197,7 @@ export function useMentorPool({
     if (!rtnList) return;
     if (latestKeyRef.current === currentKey) {
       setLoadMoreErrorKey(null);
-      mentorPoolStore.appendPage(currentKey, pageState, asMentorPage(rtnList));
+      mentorPoolStore.appendPage(currentKey, pageState, rtnList);
     }
   }, [activeKey, params, pageState, runLoadMore, showErrorToast]);
 

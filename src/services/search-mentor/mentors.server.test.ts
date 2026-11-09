@@ -28,13 +28,13 @@ describe('fetchMentorsServer', () => {
     mockBaseUrl.value = 'https://api.example.com';
   });
 
-  it('returns empty array and does not fetch if BASE_URL is empty', async () => {
+  it('returns an empty page and does not fetch if BASE_URL is empty', async () => {
     mockBaseUrl.value = '';
     const params = fromPartial<MentorRequest>({ limit: 10 });
 
     const result = await fetchMentorsServer(params);
 
-    expect(result).toEqual([]);
+    expect(result).toEqual({ mentors: [], nextCursor: null });
     expect(mockGetUnwrapped).not.toHaveBeenCalled();
   });
 
@@ -63,8 +63,6 @@ describe('fetchMentorsServer', () => {
         params,
       })
     );
-    expect(Array.isArray(result)).toBe(false);
-    if (Array.isArray(result)) throw new Error('Expected a mentor page');
     expect(result.mentors).toHaveLength(1);
     expect(result.mentors[0].user_id).toBe(1);
     expect(result.mentors[0].name).toBe('Alice Smith');
@@ -78,7 +76,7 @@ describe('fetchMentorsServer', () => {
     const params = fromPartial<MentorRequest>({ limit: 10 });
     const result = await fetchMentorsServer(params);
 
-    expect(result).toEqual([]);
+    expect(result).toEqual({ mentors: [], nextCursor: null });
   });
 
   it('propagates API errors to the caller', async () => {

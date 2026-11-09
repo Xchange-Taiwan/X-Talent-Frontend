@@ -1,6 +1,6 @@
 import { apiClient } from '@/lib/apiClient';
 import type { components } from '@/types/api';
-import type { MentorPageResult, MentorRequest } from '@/types/mentor';
+import type { MentorPage, MentorRequest } from '@/types/mentor';
 
 import { mapMentor, type RawMentor } from './mapMentor';
 
@@ -15,7 +15,7 @@ type MentorListWireResponse = Omit<
 export async function fetchMentors(
   param: MentorRequest,
   signal?: AbortSignal
-): Promise<MentorPageResult> {
+): Promise<MentorPage> {
   const data = await apiClient.getUnwrapped<MentorListWireResponse>(
     '/v1/mentors',
     {

@@ -2,10 +2,7 @@ import avatarImage from '@/assets/default-avatar.png';
 import type { components } from '@/types/api';
 import type { MentorType } from '@/types/mentor';
 
-type GeneratedRawMentor = components['schemas']['SearchMentorProfileVO'];
-export type RawMentor = Omit<GeneratedRawMentor, 'updated_at'> & {
-  updated_at?: string | number | null;
-};
+export type RawMentor = components['schemas']['SearchMentorProfileVO'];
 
 function readCodes(codes: ReadonlyArray<string> | null | undefined): string[] {
   if (!codes) return [];

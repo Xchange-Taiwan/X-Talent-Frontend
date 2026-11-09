@@ -70,7 +70,7 @@ describe('mapMentor', () => {
       want_topic: ['react'],
       have_skill: ['nodejs'],
       have_topic: ['topic_a', 'topic_b'],
-      updated_at: 1610000000,
+      updated_at: '2021-01-07T06:13:20Z',
     });
 
     const mapped = mapMentor(raw);
@@ -78,7 +78,7 @@ describe('mapMentor', () => {
     expect(mapped).toEqual({
       user_id: 123,
       name: 'John Doe',
-      avatar: 'https://example.com/avatar.jpg?cb=1610000000',
+      avatar: 'https://example.com/avatar.jpg?cb=2021-01-07T06%3A13%3A20Z',
       job_title: 'Software Engineer',
       company: 'Tech Corp',
       years_of_experience: '3_5',
@@ -92,7 +92,7 @@ describe('mapMentor', () => {
       want_topic: ['react'],
       have_skill: ['nodejs'],
       have_topic: ['topic_a', 'topic_b'],
-      updated_at: 1610000000,
+      updated_at: '2021-01-07T06:13:20Z',
     });
   });
 
@@ -143,11 +143,11 @@ describe('mapMentor', () => {
     const rawWithUpdated = createRawMentor({
       user_id: 999,
       avatar: 'https://example.com/avatar.jpg',
-      updated_at: 1620000000,
+      updated_at: '2021-05-03T00:00:00Z',
     });
     const mappedWithUpdated = mapMentor(rawWithUpdated);
     expect(mappedWithUpdated.avatar).toBe(
-      'https://example.com/avatar.jpg?cb=1620000000'
+      'https://example.com/avatar.jpg?cb=2021-05-03T00%3A00%3A00Z'
     );
   });
 });
@@ -170,13 +170,13 @@ describe('resolveMentorAvatar', () => {
     want_topic: ['react'],
     have_skill: ['nodejs'],
     have_topic: ['topic_a', 'topic_b'],
-    updated_at: 1610000000,
+    updated_at: '2021-01-07T06:13:20Z',
   };
 
   it('applies avatar cache-busting when updated_at is present', () => {
     const resolved = resolveMentorAvatar(baseMentor);
     expect(resolved.avatar).toBe(
-      'https://example.com/avatar.jpg?cb=1610000000'
+      'https://example.com/avatar.jpg?cb=2021-01-07T06%3A13%3A20Z'
     );
   });
 
