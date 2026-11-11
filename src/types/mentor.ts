@@ -10,6 +10,7 @@ export interface MentorStats {
 
 export interface RawMentorStats {
   completed_meeting_count?: number | null;
+  total_rating_count?: number | null;
   rating_count?: number | null;
   rating_average?: number | null;
 }
@@ -21,6 +22,7 @@ export type RawMentor = Omit<
   updated_at?: string | number | null;
   stats?: RawMentorStats | null;
   completed_meeting_count?: number | null;
+  total_rating_count?: number | null;
   rating_count?: number | null;
   rating_average?: number | null;
 };

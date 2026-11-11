@@ -26,10 +26,12 @@ export function mapMentorStats(raw: RawMentor): MentorStats | null {
   const source: RawMentorStats | null =
     raw.stats ??
     (raw.completed_meeting_count !== undefined ||
+    raw.total_rating_count !== undefined ||
     raw.rating_count !== undefined ||
     raw.rating_average !== undefined
       ? {
           completed_meeting_count: raw.completed_meeting_count,
+          total_rating_count: raw.total_rating_count,
           rating_count: raw.rating_count,
           rating_average: raw.rating_average,
         }
@@ -42,10 +44,11 @@ export function mapMentorStats(raw: RawMentor): MentorStats | null {
   const completedMeetingCount = toNonNegativeInt(
     source.completed_meeting_count
   );
-  const ratingCount = toNonNegativeInt(source.rating_count);
+  const rawRatingCount = source.total_rating_count ?? source.rating_count;
+  const ratingCount = toNonNegativeInt(rawRatingCount);
   const hasZeroRatingCount =
-    source.rating_count !== undefined &&
-    source.rating_count !== null &&
+    rawRatingCount !== undefined &&
+    rawRatingCount !== null &&
     ratingCount === 0;
   const rawRatingAverage = source.rating_average;
   const ratingAverage =

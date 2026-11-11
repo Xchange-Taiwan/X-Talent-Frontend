@@ -94,6 +94,7 @@ function makeMentor(
     have_topic: string[];
     stats: {
       completed_meeting_count?: number | null;
+      total_rating_count?: number | null;
       rating_count?: number | null;
       rating_average?: number | null;
     } | null;
@@ -553,7 +554,7 @@ test('搜尋導師後卡片依方案 B 顯示純數字平均分與已完成場�
       have_skill: ['產品策略', '履歷健檢'],
       stats: {
         completed_meeting_count: 18,
-        rating_count: 12,
+        total_rating_count: 12,
         rating_average: 9.8,
       },
     }),
@@ -567,7 +568,7 @@ test('搜尋導師後卡片依方案 B 顯示純數字平均分與已完成場�
       have_skill: ['前端開發'],
       stats: {
         completed_meeting_count: 5,
-        rating_count: 0,
+        total_rating_count: 0,
         rating_average: null,
       },
     }),
@@ -580,7 +581,7 @@ test('搜尋導師後卡片依方案 B 顯示純數字平均分與已完成場�
       have_skill: ['前端開發'],
       stats: {
         completed_meeting_count: 0,
-        rating_count: 0,
+        total_rating_count: 0,
         rating_average: null,
       },
     }),
