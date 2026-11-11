@@ -131,6 +131,19 @@ function queryIssueState(org, repoName, issueNumber) {
   }
 }
 
+export function deriveBranchNameFromIssue(issueNumber, rawTitle = '') {
+  const title = String(rawTitle ?? '');
+  const prefix = /\[bug\]|修復|異常|破版/i.test(title) ? 'fix' : 'feat';
+  const withoutTags = title.replace(/^(\[[^\]]+\]\s*)+/, '');
+  const asciiWords = withoutTags
+    .toLowerCase()
+    .match(/[a-z0-9]+/g)
+    ?.slice(0, 5)
+    ?.join('-');
+  const slug = asciiWords || 'impl';
+  return `${prefix}/${issueNumber}-${slug}`;
+}
+
 export function linkTicketBranch(argv = process.argv.slice(2)) {
   const cfg = loadConfig();
   const org = cfg.org;
@@ -159,7 +172,7 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
   const currentBranch = runGit(['branch', '--show-current'], {
     allowFail: true,
   });
-  const targetBranch = positional[1] || currentBranch;
+  let targetBranch = positional[1] || currentBranch;
 
   let issueRepo = trackerRepo;
   let issueNumber = 0;
@@ -189,12 +202,6 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
     return;
   }
 
-  if (!targetBranch || targetBranch === 'develop' || targetBranch === 'main') {
-    throw new Error(
-      `ERROR: Please provide a feature/fix branch name (e.g. feat/${issueNumber}-short-slug).`
-    );
-  }
-
   let issueObj = queryIssueState(org, issueRepo, issueNumber);
   if (!issueObj?.id && issueRepo !== frontendRepo) {
     issueRepo = frontendRepo;
@@ -203,6 +210,17 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
   if (!issueObj?.id) {
     throw new Error(
       `ERROR: Could not find issue #${issueNumber} in ${org}/${trackerRepo} or ${org}/${frontendRepo}.`
+    );
+  }
+
+  if (!targetBranch || targetBranch === 'develop' || targetBranch === 'main') {
+    const preLinked = (issueObj.linkedBranches?.nodes || [])
+      .map((n) => n?.ref?.name)
+      .find((b) => b && b !== 'develop' && b !== 'main');
+    targetBranch =
+      preLinked || deriveBranchNameFromIssue(issueNumber, issueObj.title);
+    console.log(
+      `ℹ️ Auto-selected target branch '${targetBranch}' for #${issueNumber}.`
     );
   }
 
