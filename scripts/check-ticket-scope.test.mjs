@@ -201,5 +201,16 @@ describe('check-ticket-scope', () => {
 
       expect(res.actionableInFrontendRepo).toBe(true);
     });
+
+    it('fails open without calling classifier when both title and body are empty (e.g. transient GitHub API read failure)', async () => {
+      const spyClassifier = vi.fn();
+      const res = await evaluateTicketScope(
+        { title: '', body: '', state: 'OPEN' },
+        { callClassifier: spyClassifier }
+      );
+
+      expect(res.actionableInFrontendRepo).toBe(true);
+      expect(spyClassifier).not.toHaveBeenCalled();
+    });
   });
 });

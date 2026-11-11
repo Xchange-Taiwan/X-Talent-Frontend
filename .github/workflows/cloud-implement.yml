@@ -141,15 +141,16 @@ jobs:
             --out=.agents/tmp/ticket-scope.json \
             --guidance-out=.agents/tmp/scope-guidance.md
 
-          ACTIONABLE=$(jq -r '.actionableInFrontendRepo // true' .agents/tmp/ticket-scope.json 2>/dev/null || echo "true")
-          SCOPE_REASON=$(jq -r '.reason // ""' .agents/tmp/ticket-scope.json 2>/dev/null || echo "")
+          ACTIONABLE=$(jq -r 'if .actionableInFrontendRepo == false then "false" else "true" end' .agents/tmp/ticket-scope.json 2>/dev/null || echo "true")
+          SCOPE_REASON=$(jq -r '.reason // ""' .agents/tmp/ticket-scope.json 2>/dev/null | tr '\r\n' ' ' || echo "")
 
           if [ "$ACTIONABLE" = "false" ]; then
             echo "SCOPE_SKIPPED=true" >> "$GITHUB_ENV"
+            EOF_MARKER="EOF_$(openssl rand -hex 16)"
             {
-              echo "SCOPE_SKIP_REASON<<EOF_SCOPE_REASON"
+              echo "SCOPE_SKIP_REASON<<${EOF_MARKER}"
               echo "$SCOPE_REASON"
-              echo "EOF_SCOPE_REASON"
+              echo "${EOF_MARKER}"
             } >> "$GITHUB_ENV"
             echo "::notice::Skipping frontend Cloud AI VM for #${TICKET_NUMBER}: ${SCOPE_REASON}"
           else

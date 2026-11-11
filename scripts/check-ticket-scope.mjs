@@ -195,6 +195,13 @@ function buildScopeClassifierPrompt({ title, body }) {
   ].join('\n');
 }
 
+function sanitizeSingleLine(value) {
+  return String(value ?? '')
+    .replace(/[\r\n`$]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export async function evaluateTicketScope(
   ticket = {},
   { branchName = '', callClassifier } = {}
@@ -206,7 +213,7 @@ export async function evaluateTicketScope(
       actionableInFrontendRepo: true,
       frontendTasksSummary: '',
       outOfRepoItems: [],
-      reason: `已指定既有推廣分支 ${cleanBranch}，直接放行進入實作與收斂流程。`,
+      reason: `已指定既有推廣分支 ${sanitizeSingleLine(cleanBranch)}，直接放行進入實作與收斂流程。`,
     };
   }
 
@@ -217,7 +224,20 @@ export async function evaluateTicketScope(
       actionableInFrontendRepo: det.actionableInFrontendRepo,
       frontendTasksSummary: det.frontendTasksSummary,
       outOfRepoItems: det.outOfRepoItems,
-      reason: det.reason,
+      reason: sanitizeSingleLine(det.reason),
+    };
+  }
+
+  if (
+    !String(ticket?.title ?? '').trim() &&
+    !String(ticket?.body ?? '').trim()
+  ) {
+    return {
+      scope: 'frontend_only',
+      actionableInFrontendRepo: true,
+      frontendTasksSummary: '',
+      outOfRepoItems: [],
+      reason: '預檢階段未讀到規格內容，預設放行交由後續階段重試讀取。',
     };
   }
 
@@ -237,13 +257,13 @@ export async function evaluateTicketScope(
         return {
           scope: validScope,
           actionableInFrontendRepo: llmRes.actionableInFrontendRepo,
-          frontendTasksSummary: String(
-            llmRes.frontendTasksSummary ?? ''
-          ).trim(),
+          frontendTasksSummary: sanitizeSingleLine(llmRes.frontendTasksSummary),
           outOfRepoItems: Array.isArray(llmRes.outOfRepoItems)
-            ? llmRes.outOfRepoItems.map((x) => String(x).trim()).filter(Boolean)
+            ? llmRes.outOfRepoItems
+                .map((x) => sanitizeSingleLine(x))
+                .filter(Boolean)
             : [],
-          reason: String(llmRes.reason ?? '').trim(),
+          reason: sanitizeSingleLine(llmRes.reason),
         };
       }
     } catch (err) {
