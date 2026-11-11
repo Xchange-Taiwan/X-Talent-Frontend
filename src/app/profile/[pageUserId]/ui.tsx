@@ -1,19 +1,26 @@
 'use client';
 
 import Image, { type StaticImageData } from 'next/image';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 
 import {
   EducationSection,
   WorkExperienceSection,
 } from '@/components/profile/experience-section/ExperienceSection';
+import {
+  MentorFeedbackSection,
+  MentorStatsSummary,
+} from '@/components/profile/feedback';
 import { ProfileBanner } from '@/components/profile/profile-banner';
 import { BookingForm } from '@/components/profile/reservation/BookingForm';
 import { ScheduleCalendar } from '@/components/profile/reservation/ScheduleCalendar';
 import { platformLabelMap } from '@/components/profile/social-links/platformLabelMap';
 import { ProfileBadgeSection } from '@/components/profile/view/ProfileBadgeSection';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import type { MentorFeedbackReader } from '@/hooks/user/feedback/useMentorFeedback';
 import { UserType } from '@/hooks/user/user-data/useUserData';
+import { resolveMentorDisplayStats } from '@/lib/mentor/mentorStats';
 import {
   BookingCalendarReader,
   BookingSlot,
@@ -29,6 +36,24 @@ import {
   ProfileHeaderSkeleton,
   ScheduleSkeleton,
 } from './skeleton';
+
+const DEFAULT_FEEDBACK_READER: MentorFeedbackReader = {
+  items: [],
+  totalRatingCount: 0,
+  page: 1,
+  pageSize: 10,
+  totalPages: 0,
+  ratingAverage: null,
+  completedMeetingCount: null,
+  isFallback: true,
+  isLoading: false,
+  hasError: false,
+  setPage: () => {},
+  retry: () => {},
+};
+
+const PROFILE_TAB_TRIGGER_CLASSES =
+  'text-text-tertiary hover:text-text-primary data-[state=active]:border-brand-600 data-[state=active]:text-brand-700 -mb-px rounded-none border-b-2 border-transparent bg-transparent px-1 pt-1 pb-3 text-base font-semibold shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none';
 
 interface Props {
   userData: UserType | null;
@@ -49,6 +74,8 @@ interface Props {
   isSubmitting: boolean;
   onConfirmReservation: (question?: string) => Promise<boolean>;
   editorDialog?: React.ReactNode;
+  feedback?: MentorFeedbackReader;
+  defaultActiveTab?: 'about' | 'reviews';
 }
 
 export default function ProfilePageUI({
@@ -70,7 +97,12 @@ export default function ProfilePageUI({
   isSubmitting,
   onConfirmReservation,
   editorDialog,
+  feedback = DEFAULT_FEEDBACK_READER,
+  defaultActiveTab = 'about',
 }: Props) {
+  const [activeTab, setActiveTab] = useState<'about' | 'reviews'>(
+    defaultActiveTab
+  );
   const { selectedDate, setSelectedDate, getDayBookingStatus } = schedule;
   const resolvedAllowedDates = allowedDates ?? schedule.allowedDates;
   const resolvedSelectedSlot = selectedSlot ?? schedule.selectedSlot ?? null;
@@ -98,6 +130,106 @@ export default function ProfilePageUI({
     [isOwnMentorProfile, getDayBookingStatus]
   );
 
+  const displayStats = resolveMentorDisplayStats({
+    profileStats: userData?.stats,
+    feedbackPage: {
+      items: feedback.items,
+      totalRatingCount: feedback.totalRatingCount,
+      page: feedback.page,
+      pageSize: feedback.pageSize,
+      totalPages: feedback.totalPages,
+      ratingAverage: feedback.ratingAverage,
+      completedMeetingCount: feedback.completedMeetingCount,
+      isFallback: feedback.isFallback,
+    },
+    hasFeedbackError: feedback.hasError,
+  });
+
+  const renderProfileBioContent = (data: UserType) => (
+    <>
+      {data.about && (
+        <div>
+          <p className="mb-4 text-xl font-bold">關於我</p>
+          <p className="text-text-tertiary text-sm break-words whitespace-pre-line">
+            {data.about}
+          </p>
+        </div>
+      )}
+
+      {data.personal_statement && (
+        <div className={data.about ? 'mt-10' : undefined}>
+          <p className="mb-4 text-xl font-bold">給導生的話</p>
+          <p className="text-text-tertiary text-sm break-words whitespace-pre-line">
+            {data.personal_statement}
+          </p>
+        </div>
+      )}
+
+      <ProfileBadgeSection
+        title="經驗"
+        items={
+          data.years_of_experience
+            ? [
+                {
+                  subject_group: 'years_of_experience',
+                  subject: data.years_of_experience,
+                },
+              ]
+            : []
+        }
+      />
+
+      <ProfileBadgeSection
+        title="產業"
+        items={
+          data.industry
+            ? [
+                {
+                  subject_group: 'industry',
+                  subject: data.industry,
+                },
+              ]
+            : []
+        }
+      />
+
+      {data.is_mentor && (
+        <>
+          <ProfileBadgeSection title="專業能力" items={data.have_skill} />
+          <ProfileBadgeSection title="我能提供的服務" items={data.have_topic} />
+        </>
+      )}
+
+      {data.is_mentor === false && (
+        <>
+          <ProfileBadgeSection
+            title="有興趣多了解的職位"
+            items={data.want_position}
+          />
+          <ProfileBadgeSection
+            title="想多了解、加強的技能"
+            items={data.want_skill}
+          />
+          <ProfileBadgeSection title="想多了解的主題" items={data.want_topic} />
+        </>
+      )}
+
+      {!!data.workExperiences?.length && (
+        <div className="mt-10">
+          <p className="mb-4 text-xl font-bold">工作經驗</p>
+          <WorkExperienceSection workExperiences={data.workExperiences} />
+        </div>
+      )}
+
+      {!!data.educations?.length && (
+        <div className="mt-10">
+          <p className="mb-4 text-xl font-bold">教育</p>
+          <EducationSection educations={data.educations} />
+        </div>
+      )}
+    </>
+  );
+
   return (
     <div>
       <ProfileBanner />
@@ -106,7 +238,10 @@ export default function ProfilePageUI({
         {userLoading ? (
           <ProfileHeaderSkeleton />
         ) : userData ? (
-          <div className="flex h-auto -translate-y-10 flex-col sm:flex-row sm:items-start">
+          <div
+            data-testid="profile-header-block"
+            className="flex h-auto -translate-y-10 flex-col sm:flex-row sm:items-start"
+          >
             <div className="bg-background-white relative mx-auto h-[160px] w-[160px] flex-shrink-0 overflow-hidden rounded-full sm:mx-0">
               <Image
                 src={avatarSrc}
@@ -183,104 +318,66 @@ export default function ProfilePageUI({
           </div>
         ) : null}
 
+        {!userLoading && userData?.is_mentor && (
+          <MentorStatsSummary
+            ratingAverage={displayStats.ratingAverage}
+            totalRatingCount={displayStats.totalRatingCount}
+            completedMeetingCount={displayStats.completedMeetingCount}
+            isOwnMentorProfile={isOwnMentorProfile}
+            isLoading={
+              !isIdentityResolved || (!userData.stats && feedback.isLoading)
+            }
+          />
+        )}
+
         <div className="flex flex-col gap-8 xl:flex-row xl:gap-12">
           <div className="w-full xl:w-3/5">
             {userLoading ? (
               <ProfileContentSkeleton />
             ) : userData ? (
-              <>
-                {userData.about && (
-                  <div>
-                    <p className="mb-4 text-xl font-bold">關於我</p>
-                    <p className="text-text-tertiary text-sm break-words whitespace-pre-line">
-                      {userData.about}
-                    </p>
-                  </div>
-                )}
-
-                {userData.personal_statement && (
-                  <div className={userData.about ? 'mt-10' : undefined}>
-                    <p className="mb-4 text-xl font-bold">給導生的話</p>
-                    <p className="text-text-tertiary text-sm break-words whitespace-pre-line">
-                      {userData.personal_statement}
-                    </p>
-                  </div>
-                )}
-
-                <ProfileBadgeSection
-                  title="經驗"
-                  items={
-                    userData.years_of_experience
-                      ? [
-                          {
-                            subject_group: 'years_of_experience',
-                            subject: userData.years_of_experience,
-                          },
-                        ]
-                      : []
+              userData.is_mentor ? (
+                <Tabs
+                  value={activeTab}
+                  onValueChange={(value) =>
+                    setActiveTab(value === 'reviews' ? 'reviews' : 'about')
                   }
-                />
+                >
+                  <TabsList className="border-background-border mb-6 flex h-auto justify-start gap-6 rounded-none border-b bg-transparent p-0">
+                    <TabsTrigger
+                      value="about"
+                      className={PROFILE_TAB_TRIGGER_CLASSES}
+                    >
+                      簡介
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="reviews"
+                      className={PROFILE_TAB_TRIGGER_CLASSES}
+                    >
+                      {`評價 ${displayStats.totalRatingCount}`}
+                    </TabsTrigger>
+                  </TabsList>
 
-                <ProfileBadgeSection
-                  title="產業"
-                  items={
-                    userData.industry
-                      ? [
-                          {
-                            subject_group: 'industry',
-                            subject: userData.industry,
-                          },
-                        ]
-                      : []
-                  }
-                />
+                  <TabsContent value="about" className="mt-0">
+                    {renderProfileBioContent(userData)}
+                  </TabsContent>
 
-                {userData.is_mentor && (
-                  <>
-                    <ProfileBadgeSection
-                      title="專業能力"
-                      items={userData.have_skill}
+                  <TabsContent value="reviews" className="mt-0">
+                    <MentorFeedbackSection
+                      items={feedback.items}
+                      totalRatingCount={displayStats.totalRatingCount}
+                      ratingAverage={displayStats.ratingAverage}
+                      page={feedback.page}
+                      totalPages={feedback.totalPages}
+                      isLoading={feedback.isLoading}
+                      hasError={feedback.hasError}
+                      onPageChange={feedback.setPage}
+                      onRetry={feedback.retry}
                     />
-                    <ProfileBadgeSection
-                      title="我能提供的服務"
-                      items={userData.have_topic}
-                    />
-                  </>
-                )}
-
-                {userData.is_mentor === false && (
-                  <>
-                    <ProfileBadgeSection
-                      title="有興趣多了解的職位"
-                      items={userData.want_position}
-                    />
-                    <ProfileBadgeSection
-                      title="想多了解、加強的技能"
-                      items={userData.want_skill}
-                    />
-                    <ProfileBadgeSection
-                      title="想多了解的主題"
-                      items={userData.want_topic}
-                    />
-                  </>
-                )}
-
-                {!!userData.workExperiences?.length && (
-                  <div className="mt-10">
-                    <p className="mb-4 text-xl font-bold">工作經驗</p>
-                    <WorkExperienceSection
-                      workExperiences={userData.workExperiences}
-                    />
-                  </div>
-                )}
-
-                {!!userData.educations?.length && (
-                  <div className="mt-10">
-                    <p className="mb-4 text-xl font-bold">教育</p>
-                    <EducationSection educations={userData.educations} />
-                  </div>
-                )}
-              </>
+                  </TabsContent>
+                </Tabs>
+              ) : (
+                renderProfileBioContent(userData)
+              )
             ) : null}
           </div>
 

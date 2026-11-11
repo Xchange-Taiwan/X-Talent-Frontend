@@ -40,6 +40,24 @@ vi.mock('@/hooks/user/user-data/useUserData', () => ({
   default: (...args: unknown[]) => mockUseUserData(...args),
 }));
 
+const mockUseMentorFeedback = vi.fn((..._args: unknown[]) => ({
+  items: [],
+  totalRatingCount: 0,
+  page: 1,
+  pageSize: 10,
+  totalPages: 0,
+  ratingAverage: null,
+  completedMeetingCount: null,
+  isFallback: true,
+  isLoading: false,
+  hasError: false,
+  setPage: vi.fn(),
+  retry: vi.fn(),
+}));
+vi.mock('@/hooks/user/feedback/useMentorFeedback', () => ({
+  useMentorFeedback: (...args: unknown[]) => mockUseMentorFeedback(...args),
+}));
+
 vi.mock('@/hooks/user/user-data/useUserProfileDto', () => ({
   primeUserProfileDtoCacheIfEmpty: vi.fn(),
 }));

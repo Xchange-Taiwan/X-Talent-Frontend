@@ -18,6 +18,12 @@ import * as userAvatarStories from '@/components/layout/Header/UserAvatar.storie
 import * as mentorCardStories from '@/components/mentor-pool/mentor-card/index.stories';
 import { Information } from '@/components/mentor-pool/mentor-card/Information';
 import * as informationStories from '@/components/mentor-pool/mentor-card/Information.stories';
+import {
+  MentorFeedbackSection,
+  MentorStatsSummary,
+} from '@/components/profile/feedback';
+import * as mentorFeedbackSectionStories from '@/components/profile/feedback/MentorFeedbackSection.stories';
+import * as mentorStatsSummaryStories from '@/components/profile/feedback/MentorStatsSummary.stories';
 import * as confirmedReservationDialogStories from '@/components/profile/reservation/ConfirmedReservationDialog.stories';
 import * as menteeBookingFormStories from '@/components/profile/reservation/MenteeBookingForm.stories';
 import * as quickReplyDialogStories from '@/components/profile/reservation/QuickReplyDialog.stories';
@@ -275,5 +281,48 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
     );
     expect(screen.getByText('9.8 / 10')).toBeInTheDocument();
     expect(screen.getByText('已完成 18 場 1-on-1')).toBeInTheDocument();
+  });
+
+  it('exposes and renders MentorStatsSummary and MentorFeedbackSection stories (#736)', () => {
+    expect(mentorStatsSummaryStories.default.title).toBe(
+      '業務模組元件/個人檔案(Profile)/MentorStatsSummary'
+    );
+    expect(mentorStatsSummaryStories.DefaultWithStats).toBeDefined();
+    expect(
+      mentorStatsSummaryStories.CompletedMeetingsWithoutRating
+    ).toBeDefined();
+    expect(mentorStatsSummaryStories.NewMentorEmptyState).toBeDefined();
+
+    const summaryArgs = mentorStatsSummaryStories.DefaultWithStats.args!;
+    render(
+      <MentorStatsSummary
+        ratingAverage={summaryArgs.ratingAverage!}
+        totalRatingCount={summaryArgs.totalRatingCount!}
+        completedMeetingCount={summaryArgs.completedMeetingCount!}
+      />
+    );
+    expect(screen.getByText('128')).toBeInTheDocument();
+
+    expect(mentorFeedbackSectionStories.default.title).toBe(
+      '業務模組元件/個人檔案(Profile)/MentorFeedbackSection'
+    );
+    expect(mentorFeedbackSectionStories.DefaultWithReviews).toBeDefined();
+    expect(mentorFeedbackSectionStories.EmptyReviews).toBeDefined();
+    expect(mentorFeedbackSectionStories.Loading).toBeDefined();
+    expect(mentorFeedbackSectionStories.ErrorState).toBeDefined();
+
+    const feedbackArgs = mentorFeedbackSectionStories.DefaultWithReviews.args!;
+    render(
+      <MentorFeedbackSection
+        items={feedbackArgs.items!}
+        totalRatingCount={feedbackArgs.totalRatingCount!}
+        ratingAverage={feedbackArgs.ratingAverage!}
+        page={feedbackArgs.page!}
+        totalPages={feedbackArgs.totalPages!}
+        isLoading={feedbackArgs.isLoading!}
+        onPageChange={feedbackArgs.onPageChange!}
+      />
+    );
+    expect(screen.getByText('12 則會談評價')).toBeInTheDocument();
   });
 });

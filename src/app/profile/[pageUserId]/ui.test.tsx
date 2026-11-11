@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { UserType } from '@/hooks/user/user-data/useUserData';
@@ -422,5 +423,271 @@ describe('ProfilePageUI - multiline text whitespace preservation (#857)', () => 
     const jobDescParagraph = jobTitleHeading.nextElementSibling;
     expect(jobDescParagraph).toHaveClass('whitespace-pre-line', 'break-words');
     expect(jobDescParagraph?.textContent).toBe(multilineJobDesc);
+  });
+});
+
+describe('ProfilePageUI - mentor stats summary & reviews tab (#736)', () => {
+  it('renders summary stats and switches between 簡介 and 評價 N tabs while keeping summary fixed', async () => {
+    const user = userEvent.setup();
+    const setPage = vi.fn();
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            about: '導師自我介紹內容',
+            stats: {
+              completed_meeting_count: 128,
+              rating_count: 12,
+              rating_average: 8.5,
+            },
+          }),
+          isIdentityResolved: true,
+          feedback: {
+            items: [
+              {
+                id: 'fb-1',
+                authorName: '陳**',
+                authorInitial: '陳',
+                rating: 9,
+                content: '分享了很具體的建議，也幫助我釐清下一步的方向。',
+                createdAt: '2026-10-28T12:00:00Z',
+                formattedDate: '2026/10/28',
+              },
+            ],
+            totalRatingCount: 12,
+            page: 1,
+            pageSize: 10,
+            totalPages: 2,
+            ratingAverage: 8.5,
+            completedMeetingCount: 128,
+            isFallback: false,
+            isLoading: false,
+            hasError: false,
+            setPage,
+            retry: vi.fn(),
+          },
+        })}
+      />
+    );
+
+    // Summary bar shows rating and completed sessions
+    const summarySection = screen.getByRole('region', { name: '導師會談摘要' });
+    expect(summarySection).toHaveTextContent('8.5');
+    expect(summarySection).toHaveTextContent('128');
+
+    // Tabs render with space-separated count in title
+    const aboutTab = screen.getByRole('tab', { name: '簡介' });
+    const reviewsTab = screen.getByRole('tab', { name: '評價 12' });
+    expect(aboutTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('導師自我介紹內容')).toBeInTheDocument();
+
+    await user.click(reviewsTab);
+    expect(reviewsTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('12 則會談評價')).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', { name: '導師會談摘要' })
+    ).toBeInTheDocument();
+  });
+
+  it('displays review items and pagination when defaultActiveTab is reviews, and neutral empty state when 0 reviews', () => {
+    const setPage = vi.fn();
+    const { rerender } = render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            stats: {
+              completed_meeting_count: 128,
+              rating_count: 12,
+              rating_average: 8.5,
+            },
+          }),
+          defaultActiveTab: 'reviews',
+          feedback: {
+            items: [
+              {
+                id: 'fb-1',
+                authorName: '陳**',
+                authorInitial: '陳',
+                rating: 9,
+                content: '分享了很具體的建議',
+                createdAt: '2026-10-28',
+                formattedDate: '2026/10/28',
+              },
+            ],
+            totalRatingCount: 12,
+            page: 1,
+            pageSize: 10,
+            totalPages: 2,
+            ratingAverage: 8.5,
+            completedMeetingCount: 128,
+            isFallback: false,
+            isLoading: false,
+            hasError: false,
+            setPage,
+            retry: vi.fn(),
+          },
+        })}
+      />
+    );
+
+    expect(screen.getByText('12 則會談評價')).toBeInTheDocument();
+    expect(screen.getByText('陳**')).toBeInTheDocument();
+    screen.getByRole('button', { name: '下一頁' }).click();
+    expect(setPage).toHaveBeenCalledWith(2);
+
+    rerender(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            stats: {
+              completed_meeting_count: 0,
+              rating_count: 0,
+              rating_average: null,
+            },
+          }),
+          defaultActiveTab: 'reviews',
+          feedback: {
+            items: [],
+            totalRatingCount: 0,
+            page: 1,
+            pageSize: 10,
+            totalPages: 0,
+            ratingAverage: null,
+            completedMeetingCount: 0,
+            isFallback: false,
+            isLoading: false,
+            hasError: false,
+            setPage,
+            retry: vi.fn(),
+          },
+        })}
+      />
+    );
+
+    expect(screen.getByRole('tab', { name: '評價 0' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', { name: '導師會談摘要' })
+    ).toBeInTheDocument();
+    expect(screen.getByText('目前還沒有評價')).toBeInTheDocument();
+    expect(
+      screen.getByText('完成會談後，學員的評價會顯示在這裡。')
+    ).toBeInTheDocument();
+  });
+
+  it('keeps summary bar fixed across tabs when 0 sessions and 0 reviews, and avoids mentee-only copy on MentorOwnerView', async () => {
+    const user = userEvent.setup();
+    const zeroFeedback = {
+      items: [],
+      totalRatingCount: 0,
+      page: 1,
+      pageSize: 10,
+      totalPages: 0,
+      ratingAverage: null,
+      completedMeetingCount: 0,
+      isFallback: false,
+      isLoading: false,
+      hasError: false,
+      setPage: vi.fn(),
+      retry: vi.fn(),
+    };
+
+    const { rerender } = render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            stats: {
+              completed_meeting_count: 0,
+              rating_count: 0,
+              rating_average: null,
+            },
+          }),
+          isIdentityResolved: false,
+          canShowOwnerControls: false,
+          feedback: zeroFeedback,
+        })}
+      />
+    );
+
+    // While identity is unsettled, withhold role-specific empty copy to prevent flash
+    expect(
+      screen.getByRole('region', { name: '導師會談摘要' })
+    ).toHaveAttribute('aria-busy', 'true');
+    expect(
+      screen.queryByText(/您可以成為第一個預約的 Mentee/)
+    ).not.toBeInTheDocument();
+
+    // Settled visitor sees the mentee booking prompt across tab switches
+    rerender(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            stats: {
+              completed_meeting_count: 0,
+              rating_count: 0,
+              rating_average: null,
+            },
+          }),
+          isIdentityResolved: true,
+          canShowOwnerControls: false,
+          feedback: zeroFeedback,
+        })}
+      />
+    );
+
+    expect(
+      screen.getByText('尚未有任何評價，您可以成為第一個預約的 Mentee！')
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: '評價 0' }));
+    expect(
+      screen.getByRole('region', { name: '導師會談摘要' })
+    ).toBeInTheDocument();
+    expect(screen.getByText('目前還沒有評價')).toBeInTheDocument();
+
+    rerender(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            stats: {
+              completed_meeting_count: 0,
+              rating_count: 0,
+              rating_average: null,
+            },
+          }),
+          isIdentityResolved: true,
+          canShowOwnerControls: true,
+          feedback: zeroFeedback,
+        })}
+      />
+    );
+
+    expect(
+      screen.queryByText(/您可以成為第一個預約的 Mentee/)
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText('目前尚無已完成會談與評價紀錄')
+    ).toBeInTheDocument();
+    expect(screen.getByText('目前還沒有評價')).toBeInTheDocument();
+  });
+
+  it('does not render mentor summary bar or review tabs on mentee profiles', () => {
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({ is_mentor: false }),
+        })}
+      />
+    );
+
+    expect(
+      screen.queryByRole('region', { name: '導師會談摘要' })
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /評價/ })).not.toBeInTheDocument();
   });
 });

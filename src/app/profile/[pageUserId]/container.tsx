@@ -9,6 +9,7 @@ import MentorScheduleDialog from '@/components/profile/reservation/MentorSchedul
 import { Button } from '@/components/ui/button';
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
+import { useMentorFeedback } from '@/hooks/user/feedback/useMentorFeedback';
 import { useBookingConfirmation } from '@/hooks/user/reservation/useBookingConfirmation';
 import { primeTagCatalogCacheIfEmpty } from '@/hooks/user/tags/useTagCatalog';
 import useUserData from '@/hooks/user/user-data/useUserData';
@@ -87,6 +88,11 @@ export default function ProfilePageContainer({
     error,
     refetch,
   } = useUserData(pageUserIdNumber, 'zh_TW', _initialDto);
+
+  const feedback = useMentorFeedback({
+    userId: pageUserIdNumber,
+    enabled: Boolean(userData?.is_mentor),
+  });
 
   // Single source of truth for "should owner-only controls (edit button,
   // become-mentor button, schedule-management dialog) render" so ui.tsx
@@ -169,6 +175,7 @@ export default function ProfilePageContainer({
       isIdentityResolved={isIdentityResolved}
       canShowOwnerControls={canShowOwnerControls}
       avatarSrc={avatarSrc}
+      feedback={feedback}
       onReservation={reservationHandler}
       onScheduleMonthChange={handleScheduleMonthChange}
       isSubmitting={isSubmitting}

@@ -1,5 +1,6 @@
 import { TotalWorkSpanEnum } from '@/constant/seniority';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
+import { normalizeMentorStats } from '@/lib/mentor/mentorStats';
 import {
   decode,
   type EducationExperienceMetadata,
@@ -9,6 +10,7 @@ import {
 } from '@/lib/profile/experienceCodec';
 import { readIndustryTag } from '@/lib/profile/readIndustryTag';
 import { buildTagLabelMap } from '@/lib/profile/tagLabelMap';
+import type { MentorStats } from '@/types/mentor';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
 
@@ -49,6 +51,7 @@ export interface UserType {
   workExperiences?: WorkExperienceMetadata[];
   educations?: EducationExperienceMetadata[];
   personalLinks?: PersonalLinkMetadata[];
+  stats?: MentorStats | null;
 }
 
 // Subject_group codes shipped by the BFF round-trip directly back to writes,
@@ -105,6 +108,7 @@ function parseUserDtoToUserType(
     workExperiences,
     educations,
     personalLinks,
+    stats: normalizeMentorStats(userDto),
   };
 }
 

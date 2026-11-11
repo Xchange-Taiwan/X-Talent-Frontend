@@ -315,4 +315,28 @@ describe('useUserData caching', () => {
     );
     unmount();
   });
+
+  it('normalizes stats from MentorProfileVO including total_rating_count (#736)', () => {
+    const userId = 4301;
+    const ssrDto: MentorProfileVO = {
+      ...makeUserDto(userId),
+      is_mentor: true,
+      stats: {
+        completed_meeting_count: 128,
+        total_rating_count: 12,
+        rating_average: 8.5,
+      },
+    };
+
+    const { result, unmount } = renderHook(() =>
+      useUserData(userId, 'en', ssrDto)
+    );
+
+    expect(result.current.userData?.stats).toEqual({
+      completed_meeting_count: 128,
+      rating_count: 12,
+      rating_average: 8.5,
+    });
+    unmount();
+  });
 });

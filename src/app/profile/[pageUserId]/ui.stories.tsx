@@ -3,6 +3,7 @@ import dayjs from 'dayjs';
 
 import defaultAvatar from '@/assets/default-avatar.png';
 import { mockBookingSlots } from '@/components/profile/reservation/__mocks__/reservationStories.mock';
+import type { MentorFeedbackReader } from '@/hooks/user/feedback/useMentorFeedback';
 import type { UserType } from '@/hooks/user/user-data/useUserData';
 import type { BookingCalendarReader } from '@/lib/profile/bookingAvailability';
 
@@ -85,6 +86,54 @@ const mockMentorUserData: UserType = {
     { platform: 'linkedin', url: 'https://www.linkedin.com/in/jane-chen' },
     { platform: 'website', url: 'https://janechen.design' },
   ],
+  stats: {
+    completed_meeting_count: 128,
+    rating_count: 12,
+    rating_average: 8.5,
+  },
+};
+
+const mockMentorFeedbackReader: MentorFeedbackReader = {
+  items: [
+    {
+      id: 'review-1',
+      authorName: '陳**',
+      authorInitial: '陳',
+      rating: 9,
+      content: '分享了很具體的建議，也幫助我釐清下一步的方向。',
+      createdAt: '2026-10-28T12:00:00Z',
+      formattedDate: '2026/10/28',
+    },
+    {
+      id: 'review-2',
+      authorName: '林**',
+      authorInitial: '林',
+      rating: 8,
+      content: '從作品集的架構到研究故事，都給了我可以實際執行的修改方向。',
+      createdAt: '2026-10-27T12:00:00Z',
+      formattedDate: '2026/10/27',
+    },
+    {
+      id: 'review-3',
+      authorName: '王**',
+      authorInitial: '王',
+      rating: 9,
+      content: '很有耐心地回答問題，會談前也有先了解我的需求。',
+      createdAt: '2026-10-26T12:00:00Z',
+      formattedDate: '2026/10/26',
+    },
+  ],
+  totalRatingCount: 12,
+  page: 1,
+  pageSize: 10,
+  totalPages: 2,
+  ratingAverage: 8.5,
+  completedMeetingCount: 128,
+  isFallback: false,
+  isLoading: false,
+  hasError: false,
+  setPage: () => {},
+  retry: () => {},
 };
 
 const mockMenteeUserData: UserType = {
@@ -168,6 +217,7 @@ export const MentorOwnerView: Story = {
     isIdentityResolved: true,
     canShowOwnerControls: true,
     avatarSrc: defaultAvatar,
+    feedback: mockMentorFeedbackReader,
     allowedDates: [tomorrowStr, nextWeekStr],
     onReservation: () => {},
     onEditProfile: () => {},
@@ -196,6 +246,7 @@ export const MentorVisitorView: Story = {
     isIdentityResolved: true,
     canShowOwnerControls: false,
     avatarSrc: defaultAvatar,
+    feedback: mockMentorFeedbackReader,
     allowedDates: [tomorrowStr, nextWeekStr],
     onReservation: () => {},
     onEditProfile: () => {},
@@ -204,6 +255,36 @@ export const MentorVisitorView: Story = {
     setSelectedSlot: () => {},
     isSubmitting: false,
     onConfirmReservation: async () => true,
+  },
+};
+
+export const MentorReviewsTabView: Story = {
+  args: {
+    ...MentorVisitorView.args,
+    defaultActiveTab: 'reviews',
+  },
+};
+
+export const MentorEmptyReviewsView: Story = {
+  args: {
+    ...MentorVisitorView.args,
+    userData: {
+      ...mockMentorUserData,
+      stats: {
+        completed_meeting_count: 0,
+        rating_count: 0,
+        rating_average: null,
+      },
+    },
+    feedback: {
+      ...mockMentorFeedbackReader,
+      items: [],
+      totalRatingCount: 0,
+      totalPages: 0,
+      ratingAverage: null,
+      completedMeetingCount: 0,
+    },
+    defaultActiveTab: 'reviews',
   },
 };
 
