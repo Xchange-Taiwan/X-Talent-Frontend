@@ -5,7 +5,7 @@
  * Allows an engineer who finished coding or prompting locally to push their
  * current feature branch and immediately trigger `cloud-implement.yml` on
  * GitHub Actions to run:
- *   - Up to 20 rounds of free Gemini (`gemini-4-argon`) 7-Agent AI Review
+ *   - Up to 20 rounds of free Gemini (`gemini-4-carbon`) 7-Agent AI Review
  *   - Playwright E2E (`pnpm test:e2e:mock` + changed specs) self-healing
  *   - UI evidence capture & Pull Request creation / board status sync
  */

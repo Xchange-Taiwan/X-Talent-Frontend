@@ -43,7 +43,7 @@ permissions:
   issues: write
 
 env:
-  GEMINI_MODEL: gemini-4-argon
+  GEMINI_MODEL: gemini-4-carbon
   GEMINI_CLI_TRUST_WORKSPACE: 'true'
   WORKER_CALLBACK_URL: 'https://x-talent-discord-mention-notify.x-talent.workers.dev/__cloud-callback'
 

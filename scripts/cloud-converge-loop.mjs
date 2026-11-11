@@ -62,7 +62,7 @@ export function parseConvergeArgs(argv = [], env = process.env) {
     getArg('--summary-out=') ||
     env.CONVERGE_SUMMARY_OUT ||
     '.agents/tmp/cloud-converge-summary.md';
-  const geminiModel = env.GEMINI_MODEL || 'gemini-4-argon';
+  const geminiModel = env.GEMINI_MODEL || 'gemini-4-carbon';
 
   return {
     maxRounds,
@@ -419,7 +419,7 @@ export async function runConvergeLoop(
     baseRef: rawOptions.baseRef || 'origin/develop',
     summaryOut:
       rawOptions.summaryOut || '.agents/tmp/cloud-converge-summary.md',
-    geminiModel: rawOptions.geminiModel || 'gemini-4-argon',
+    geminiModel: rawOptions.geminiModel || 'gemini-4-carbon',
   };
 
   let previousFingerprint = '';

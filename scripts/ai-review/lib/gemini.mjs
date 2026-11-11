@@ -1,4 +1,4 @@
-const DEFAULT_MODEL = 'gemini-4-argon';
+const DEFAULT_MODEL = 'gemini-4-carbon';
 const DEFAULT_MAX_OUTPUT_TOKENS = 16384;
 const MAX_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 1500;
