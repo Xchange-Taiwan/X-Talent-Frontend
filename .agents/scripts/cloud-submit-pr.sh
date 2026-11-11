@@ -142,9 +142,17 @@ if [ -z "$EXISTING_PR" ]; then
   EXISTING_PR=$(gh pr list --head "$CURRENT_BRANCH" --state open --json number --jq '.[0].number // empty' 2>/dev/null || echo "")
 fi
 
+EXISTING_BASE_REF="develop"
 if [ -n "$EXISTING_PR" ]; then
-  gh pr view "$EXISTING_PR" --json body --jq '.body // ""' > "$TMP_EXISTING_BODY" 2>/dev/null || true
+  PR_META=$(gh pr view "$EXISTING_PR" --json title,body,baseRefName 2>/dev/null || echo "{}")
+  printf '%s' "$PR_META" | jq -r '.body // ""' > "$TMP_EXISTING_BODY" 2>/dev/null || true
+  EXISTING_BASE_REF=$(printf '%s' "$PR_META" | jq -r '.baseRefName // "develop"' 2>/dev/null || echo "develop")
+  if [ -z "$CLEAN_TICKET" ]; then
+    CLEAN_TICKET=$(printf '%s' "$PR_META" | jq -r '(.title // "") + "\n" + (.body // "")' | grep -oE 'X-Talent-Tracker/issues/[0-9]+|#[0-9]+' | head -n 1 | tr -cd '0-9' || echo "")
+  fi
 fi
+
+git fetch origin "$EXISTING_BASE_REF" --quiet 2>/dev/null || true
 
 node scripts/generate-pr-description.mjs \
   --ticket="$CLEAN_TICKET" \
@@ -154,17 +162,21 @@ node scripts/generate-pr-description.mjs \
   --summary-file="$TMP_SUMMARY" \
   --evidence-file="$TMP_EVIDENCE_URLS" \
   --existing-body-file="$TMP_EXISTING_BODY" \
-  --base-ref="origin/develop" \
+  --base-ref="origin/${EXISTING_BASE_REF}" \
   --title-out="$TMP_PR_TITLE" \
   --body-out="$TMP_PR_BODY"
 
 PR_TITLE=$(cat "$TMP_PR_TITLE")
 if [ -z "$EXISTING_PR" ]; then
   if [ "$MODE" = "implement" ]; then
-    gh pr create --base develop --head "$CURRENT_BRANCH" --title "$PR_TITLE" --body-file "$TMP_PR_BODY"
+    gh pr create --base "$EXISTING_BASE_REF" --head "$CURRENT_BRANCH" --title "$PR_TITLE" --body-file "$TMP_PR_BODY"
   fi
 else
-  gh pr edit "$EXISTING_PR" --title "$PR_TITLE" --body-file "$TMP_PR_BODY" || true
+  if [ "$MODE" = "implement" ]; then
+    gh pr edit "$EXISTING_PR" --title "$PR_TITLE" --body-file "$TMP_PR_BODY" || true
+  else
+    gh pr edit "$EXISTING_PR" --body-file "$TMP_PR_BODY" || true
+  fi
 fi
 
 if [ "$MODE" = "implement" ]; then

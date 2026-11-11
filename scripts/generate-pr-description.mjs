@@ -25,19 +25,32 @@ export function stripArchKbFromSpec(rawSpec = '') {
 }
 
 export function extractExistingEvidenceUrls(markdown = '') {
+  const text = String(markdown ?? '');
+  const screenshotMatch = text.match(
+    /##\s*Screenshot\b([\s\S]*?)(?=\n##\s+|\nRef:\s+|$)/i
+  );
+  const scope = screenshotMatch ? screenshotMatch[1] : text;
+
   const urls = [];
   const seen = new Set();
-  const regex =
-    /!\[[^\]]*\]\((https:\/\/raw\.githubusercontent\.com\/[^)\s]+)\)/g;
+  const urlRegex =
+    /https:\/\/(?:raw\.githubusercontent\.com|github\.com\/user-attachments\/assets|(?:private-)?user-images\.githubusercontent\.com)\/[^\s)"'>]+/gi;
   let match;
-  while ((match = regex.exec(String(markdown ?? ''))) !== null) {
-    const url = match[1].trim();
+  while ((match = urlRegex.exec(scope)) !== null) {
+    const url = match[0].trim();
     if (!seen.has(url)) {
       seen.add(url);
       urls.push(url);
     }
   }
   return urls;
+}
+
+export function sanitizeImageAlt(text = '') {
+  return String(text ?? '')
+    .replace(/[\[\]\r\n]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 export function humanizeEvidenceSlug(url = '', index = 0) {
@@ -261,8 +274,11 @@ export function renderPrMarkdown({
   if (evidenceUrls.length > 0) {
     evidenceUrls.forEach((url, idx) => {
       const caption =
-        String(captions[idx] || '').trim() || humanizeEvidenceSlug(url, idx);
-      whatParts.push(`### ${idx + 1}. ${caption}`, `![${caption}](${url})`, '');
+        String(captions[idx] || '')
+          .replace(/[\r\n]+/g, ' ')
+          .trim() || humanizeEvidenceSlug(url, idx);
+      const safeAlt = sanitizeImageAlt(caption) || `evidence-${idx + 1}`;
+      whatParts.push(`### ${idx + 1}. ${caption}`, `![${safeAlt}](${url})`, '');
     });
   } else {
     whatParts.push('N/A (Automated by CI PR Preview)', '');
@@ -338,12 +354,19 @@ export async function runGeneratePrDescription(opts = {}) {
           .filter(Boolean)
       : [];
 
-  if (
-    evidenceUrls.length === 0 &&
-    existingBodyFile &&
-    fs.existsSync(existingBodyFile)
-  ) {
-    const existingBody = fs.readFileSync(existingBodyFile, 'utf8');
+  let resolvedTicket = ticket;
+  let existingBody = '';
+  if (existingBodyFile && fs.existsSync(existingBodyFile)) {
+    existingBody = fs.readFileSync(existingBodyFile, 'utf8');
+    if (!resolvedTicket) {
+      const ticketMatch = existingBody.match(
+        /X-Talent-Tracker\/issues\/(\d+)|\(X-Tracker\s*#(\d+)\)/i
+      );
+      resolvedTicket = ticketMatch?.[1] || ticketMatch?.[2] || '';
+    }
+  }
+
+  if (evidenceUrls.length === 0 && existingBody) {
     evidenceUrls = extractExistingEvidenceUrls(existingBody);
   }
 
@@ -373,7 +396,7 @@ export async function runGeneratePrDescription(opts = {}) {
   if (process.env.GEMINI_API_KEY && (diffText || specExcerpt)) {
     try {
       const prompt = buildPrDescriptionPrompt({
-        ticket,
+        ticket: resolvedTicket,
         branch,
         specExcerpt,
         diffFiles,
@@ -389,9 +412,13 @@ export async function runGeneratePrDescription(opts = {}) {
   }
 
   const rawTitleCandidate = generated?.prTitle || lastSubject;
-  const finalTitle = ensurePrTitleTag(rawTitleCandidate, branch, ticket);
+  const finalTitle = ensurePrTitleTag(
+    rawTitleCandidate,
+    branch,
+    resolvedTicket
+  );
   const finalBody = renderPrMarkdown({
-    ticket,
+    ticket: resolvedTicket,
     branch,
     generated,
     diffFiles,
