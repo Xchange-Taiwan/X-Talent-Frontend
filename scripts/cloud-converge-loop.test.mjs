@@ -553,5 +553,87 @@ describe('cloud-converge-loop', () => {
       expect(res.converged).toBe(true);
       expect(res.roundsRun).toBe(2);
     });
+
+    it('converges immediately when overallRisk is low and all tests/E2E/ACs pass even with minor advisory notes', () => {
+      const evalRes = evaluateRoundConvergence({
+        deterministicPassed: true,
+        e2ePassed: true,
+        reviewResult: {
+          overallRisk: { level: 'low', reason: 'Minor advisory style note' },
+          requirementCoverage: [{ criterion: 'AC 1', covered: true }],
+          findings: {
+            architecture: [
+              {
+                file: 'src/ui.tsx',
+                line: 20,
+                issue: 'Optional helper extraction',
+                why: 'Readability',
+                fix: 'Extract helper if desired',
+              },
+            ],
+          },
+        },
+      });
+      expect(evalRes.converged).toBe(true);
+    });
+
+    it('fast-fails static type-check errors without running full unit suite, and restores snapshot on Gemini timeout', async () => {
+      let roundNum = 0;
+      const restored = [];
+      const calls = [];
+
+      const execStep = vi.fn((cmd, args) => {
+        calls.push(`${cmd}:${args[0]}`);
+        if (cmd === 'git' && args[0] === 'diff') {
+          return { ok: true, stdout: 'src/foo.ts\n', stderr: '' };
+        }
+        if (cmd === 'pnpm' && args[0] === 'type-check') {
+          roundNum += 1;
+          if (roundNum === 1) {
+            return {
+              ok: false,
+              stderr: 'TS2322: Type error',
+              combined: 'TS2322',
+            };
+          }
+          return { ok: true, stdout: '', stderr: '' };
+        }
+        if (cmd === 'npx' && args[0] === 'gemini') {
+          if (roundNum === 1) {
+            return { ok: false, timedOut: true, stderr: 'Command timed out' };
+          }
+          return { ok: true, stdout: '', stderr: '' };
+        }
+        if (cmd === 'node' && args[0]?.includes('run-local.mjs')) {
+          return {
+            ok: true,
+            stdout: JSON.stringify({
+              overallRisk: { level: 'low', reason: 'Clean' },
+              requirementCoverage: [],
+              findings: {},
+            }),
+          };
+        }
+        return { ok: true, stdout: '', stderr: '' };
+      });
+
+      const res = await runConvergeLoop(
+        { maxRounds: 5, ticketNumber: '736', runE2e: false },
+        {
+          execStep,
+          writeFile: () => {},
+          log: () => {},
+          saveSnapshot: () => 'deadbeef1234',
+          restoreSnapshot: (sha) => restored.push(sha),
+        }
+      );
+
+      expect(restored).toEqual(['deadbeef1234']);
+      expect(res.converged).toBe(true);
+      expect(res.roundsRun).toBe(2);
+      // Round 2 used fast `npx:vitest` related check and then ran final `pnpm:test` gate once!
+      expect(calls).toContain('npx:vitest');
+      expect(calls.filter((c) => c === 'pnpm:test')).toHaveLength(1);
+    });
   });
 });

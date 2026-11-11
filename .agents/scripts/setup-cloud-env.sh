@@ -45,10 +45,21 @@ if [ -f .gitignore ]; then
   git update-index --skip-worktree .gitignore 2>/dev/null || true
 fi
 
-# Strip external npx genable-mcp startup overhead and allow reading .agents/tmp
-# in headless Cloud CI runs (supports both Gemini CLI v1 and v2 context schema).
+# Install static ripgrep (rg) if missing on Linux runners so Gemini CLI never
+# falls back to slow single-threaded JS GrepTool across the repository.
+if ! command -v rg >/dev/null 2>&1 && [ "$(uname -s 2>/dev/null || echo '')" = "Linux" ]; then
+  mkdir -p ~/.local/bin
+  curl -fsSL --retry 2 "https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz" \
+    | tar -xz -C ~/.local/bin --strip-components=1 ripgrep-14.1.1-x86_64-unknown-linux-musl/rg 2>/dev/null || true
+  if [ -x ~/.local/bin/rg ]; then
+    sudo ln -sf "$HOME/.local/bin/rg" /usr/local/bin/rg 2>/dev/null || true
+  fi
+fi
+
+# Strip external npx genable-mcp startup overhead, redundant AfterAgent hooks,
+# and allow reading .agents/tmp in headless Cloud CI runs.
 if [ -f .gemini/settings.json ] && command -v jq >/dev/null 2>&1; then
-  jq 'del(.mcpServers) | .fileFiltering = ((.fileFiltering // {}) + {"respectGitIgnore": false, "respectGeminiIgnore": false}) | .context = ((.context // {}) + {"fileFiltering": {"respectGitIgnore": false, "respectGeminiIgnore": false}})' .gemini/settings.json > .gemini/settings.json.tmp && mv .gemini/settings.json.tmp .gemini/settings.json || true
+  jq 'del(.mcpServers, .hooks) | .fileFiltering = ((.fileFiltering // {}) + {"respectGitIgnore": false, "respectGeminiIgnore": false}) | .context = ((.context // {}) + {"fileFiltering": {"respectGitIgnore": false, "respectGeminiIgnore": false}})' .gemini/settings.json > .gemini/settings.json.tmp && mv .gemini/settings.json.tmp .gemini/settings.json || true
   git update-index --skip-worktree .gemini/settings.json 2>/dev/null || true
 fi
 
