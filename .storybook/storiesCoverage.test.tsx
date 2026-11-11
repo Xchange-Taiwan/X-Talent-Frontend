@@ -15,6 +15,9 @@ import * as guestActionButtonsStories from '@/components/layout/Header/GuestActi
 import * as notificationBellStories from '@/components/layout/Header/NotificationBell.stories';
 import { UserAvatar } from '@/components/layout/Header/UserAvatar';
 import * as userAvatarStories from '@/components/layout/Header/UserAvatar.stories';
+import * as mentorCardStories from '@/components/mentor-pool/mentor-card/index.stories';
+import { Information } from '@/components/mentor-pool/mentor-card/Information';
+import * as informationStories from '@/components/mentor-pool/mentor-card/Information.stories';
 import * as confirmedReservationDialogStories from '@/components/profile/reservation/ConfirmedReservationDialog.stories';
 import * as menteeBookingFormStories from '@/components/profile/reservation/MenteeBookingForm.stories';
 import * as quickReplyDialogStories from '@/components/profile/reservation/QuickReplyDialog.stories';
@@ -229,5 +232,48 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
     expect(screen.getByAltText('林學員 (Mentee) 的頭像')).toBeInTheDocument();
 
     expect(sliderStories.Default).toBeDefined();
+  });
+
+  it('exposes and renders MentorCard and Information Option B rating stories (#737)', () => {
+    expect(mentorCardStories.default.title).toBe(
+      '業務模組元件/導師池(MentorPool)/MentorCard'
+    );
+    expect(mentorCardStories.Default.args?.ratingAverage).toBe(9.8);
+    expect(mentorCardStories.Default.args?.completedMeetingCount).toBe(18);
+    expect(
+      mentorCardStories.StaffProductManager.args?.ratingAverage
+    ).toBeNull();
+    expect(
+      mentorCardStories.StaffProductManager.args?.completedMeetingCount
+    ).toBe(5);
+    expect(
+      mentorCardStories.NoRatingsOrSessions.args?.ratingAverage
+    ).toBeNull();
+    expect(
+      mentorCardStories.NoRatingsOrSessions.args?.completedMeetingCount
+    ).toBe(0);
+    expect(mentorCardStories.LongNameWithRating).toBeDefined();
+
+    expect(informationStories.default.title).toBe(
+      '業務模組元件/導師池(MentorPool)/Information'
+    );
+    expect(informationStories.CompletedSessionsWithoutRating).toBeDefined();
+    expect(informationStories.NoRatingsAndNoSessions).toBeDefined();
+    expect(informationStories.MobileLongNameTruncation).toBeDefined();
+
+    const defaultInfoArgs = informationStories.Default.args!;
+    render(
+      <Information
+        name={defaultInfoArgs.name!}
+        job_title={defaultInfoArgs.job_title!}
+        company={defaultInfoArgs.company!}
+        about={defaultInfoArgs.about!}
+        haveTopicLabels={defaultInfoArgs.haveTopicLabels!}
+        ratingAverage={defaultInfoArgs.ratingAverage}
+        completedMeetingCount={defaultInfoArgs.completedMeetingCount}
+      />
+    );
+    expect(screen.getByText('9.8 / 10')).toBeInTheDocument();
+    expect(screen.getByText('已完成 18 場 1-on-1')).toBeInTheDocument();
   });
 });

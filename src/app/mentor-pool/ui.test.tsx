@@ -233,4 +233,57 @@ describe('MentorCardList tag merging, deduplication, and filter prioritization (
     const article = screen.getByRole('article');
     expect(article).toHaveClass('flex', 'h-full', 'flex-col');
   });
+
+  it('forwards mentor.stats to MentorCard Option B layout and hides zero/missing stats (#737)', () => {
+    render(
+      <MentorPoolUI
+        {...defaultProps}
+        mentors={[
+          {
+            ...mockMentors[0],
+            user_id: 101,
+            name: '陳宥廷 Austin',
+            stats: {
+              completed_meeting_count: 18,
+              rating_count: 12,
+              rating_average: 9.8,
+            },
+          },
+          {
+            ...mockMentors[1],
+            user_id: 102,
+            name: '林建宏 Alex',
+            stats: {
+              completed_meeting_count: 5,
+              rating_count: 0,
+              rating_average: null,
+            },
+          },
+          {
+            ...mockMentors[3],
+            user_id: 103,
+            name: '黃雅婷 Emily',
+            stats: null,
+          },
+        ]}
+        mentorCount={3}
+        listStatus="success"
+      />
+    );
+
+    const articles = screen.getAllByRole('article');
+    expect(articles).toHaveLength(3);
+
+    expect(articles[0]).toHaveTextContent('9.8 / 10');
+    expect(articles[0]).toHaveTextContent('已完成 18 場 1-on-1');
+    expect(articles[0]).not.toHaveTextContent('12 則');
+    expect(articles[0]).not.toHaveTextContent('★');
+    expect(articles[0]).not.toHaveTextContent('⭐');
+
+    expect(articles[1]).not.toHaveTextContent('/ 10');
+    expect(articles[1]).toHaveTextContent('已完成 5 場 1-on-1');
+
+    expect(articles[2]).not.toHaveTextContent('/ 10');
+    expect(articles[2]).not.toHaveTextContent('已完成');
+  });
 });

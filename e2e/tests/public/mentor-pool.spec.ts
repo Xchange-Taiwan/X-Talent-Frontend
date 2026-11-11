@@ -1,5 +1,6 @@
 import { expect, Locator, Page, test } from '@playwright/test';
 
+import { captureEvidence } from '../../helpers/evidence';
 import { blockUnmockedExternalApi } from '../../helpers/route';
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
@@ -83,6 +84,7 @@ const MOCK_TAG_CATALOG = {
 function makeMentor(
   id: number,
   overrides: Partial<{
+    name: string;
     job_title: string;
     company: string;
     about: string;
@@ -90,11 +92,16 @@ function makeMentor(
     topics: string[];
     have_skill: string[];
     have_topic: string[];
+    stats: {
+      completed_meeting_count?: number | null;
+      rating_count?: number | null;
+      rating_average?: number | null;
+    } | null;
   }> = {}
 ) {
   return {
     user_id: id,
-    name: `Mentor ${id}`,
+    name: overrides.name ?? `Mentor ${id}`,
     avatar: '',
     job_title: overrides.job_title ?? 'Software Engineer',
     company: overrides.company ?? `Company ${id}`,
@@ -118,6 +125,7 @@ function makeMentor(
     experiences: [],
     created_at: '2024-01-01T00:00:00Z',
     updated_at: `2024-01-${String(id).padStart(2, '0')}T00:00:00Z`,
+    ...(overrides.stats !== undefined ? { stats: overrides.stats } : {}),
   };
 }
 
@@ -528,4 +536,194 @@ test('篩選下拉選單向下展開不遮擋觸發器、導師卡片同列等�
   if (selectedLabel) {
     await expect(secondCardFirstTag).toHaveText(selectedLabel);
   }
+});
+
+test('搜尋導師後卡片依方案 B 顯示純數字平均分與已完成場次、0 則隱藏、同列等高且手機版長名字截斷分數不換行 (#737)', async ({
+  page,
+}) => {
+  const initialMentors = [makeMentor(1)];
+  const ratedMentors = [
+    makeMentor(101, {
+      name: '陳宥廷 Austin',
+      job_title: 'Senior Product Manager',
+      company: 'Google',
+      about:
+        '擁有跨國科技產品策略與職涯輔導實務經驗，協助學員釐清職涯方向與產品思維。',
+      have_topic: ['職涯規劃'],
+      have_skill: ['產品策略', '履歷健檢'],
+      stats: {
+        completed_meeting_count: 18,
+        rating_count: 12,
+        rating_average: 9.8,
+      },
+    }),
+    makeMentor(102, {
+      name: '林佳穎 Claire',
+      job_title: 'Staff UX Designer',
+      company: 'Appier',
+      about:
+        '專注於大型產品設計系統與跨部門協作，陪伴設計師準備作品集檢視與面試演練。',
+      have_topic: ['職涯規劃'],
+      have_skill: ['前端開發'],
+      stats: {
+        completed_meeting_count: 5,
+        rating_count: 0,
+        rating_average: null,
+      },
+    }),
+    makeMentor(103, {
+      name: '李明哲 Ming-Zhe Lee',
+      job_title: 'Backend Tech Lead',
+      company: 'Shopee',
+      about: '專精於高併發分散式系統架構與後端工程團隊帶領。',
+      have_topic: ['職涯規劃'],
+      have_skill: ['前端開發'],
+      stats: {
+        completed_meeting_count: 0,
+        rating_count: 0,
+        rating_average: null,
+      },
+    }),
+    makeMentor(104, {
+      name: '張哲瑋 Christopher Alexander Chang-Williams',
+      job_title: 'Senior UX Designer',
+      company: 'CreativeUX Design Studio',
+      about:
+        '協助設計師從使用者研究到產品落地建立完整影響力，熟悉跨文化設計團隊合作。',
+      have_topic: ['職涯規劃'],
+      have_skill: ['前端開發'],
+      stats: {
+        completed_meeting_count: 12,
+        rating_count: 8,
+        rating_average: 9.6,
+      },
+    }),
+  ];
+
+  await page.route(/\/v1\/mentors/, (route, request) => {
+    const keyword = new URL(request.url()).searchParams.get('search_pattern');
+    const data = keyword === '設計' ? ratedMentors : initialMentors;
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(mentorResponse(data)),
+    });
+  });
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/mentor-pool?q=initial');
+  await expect(page.locator('article')).toHaveCount(1);
+
+  const searchResponsePromise = page.waitForResponse(
+    (res) =>
+      /\/v1\/mentors/.test(res.url()) &&
+      new URL(res.url()).searchParams.get('search_pattern') === '設計'
+  );
+  await page.fill(
+    'input[placeholder="搜尋有興趣職位、公司或是想精進的領域"]',
+    '設計'
+  );
+  await page.getByRole('button', { name: '搜尋' }).click();
+  await searchResponsePromise;
+
+  const cards = page.locator('article');
+  await expect(cards).toHaveCount(4);
+
+  // 1. 方案 B 三行結構：姓名左 + 純數字平均分右（無星星與則數）→ 職稱滿寬 → 已完成場次靠左對齊職稱下方
+  const firstCard = cards.nth(0);
+  const firstName = firstCard.getByRole('heading', { name: '陳宥廷 Austin' });
+  const firstRating = firstCard.getByText('9.8 / 10');
+  const firstJobRow = firstCard
+    .locator('div', {
+      hasText: 'Senior Product Manager',
+    })
+    .last();
+  const firstSessions = firstCard.getByText('已完成 18 場 1-on-1');
+
+  await expect(firstName).toBeVisible();
+  await expect(firstRating).toBeVisible();
+  await expect(firstSessions).toBeVisible();
+  await expect(firstCard).not.toContainText('12 則');
+  await expect(firstCard).not.toContainText('★');
+  await expect(firstCard).not.toContainText('⭐');
+
+  const nameBox = await firstName.boundingBox();
+  const ratingBox = await firstRating.boundingBox();
+  const jobBox = await firstJobRow.boundingBox();
+  const sessionsBox = await firstSessions.boundingBox();
+  expect(nameBox).not.toBeNull();
+  expect(ratingBox).not.toBeNull();
+  expect(jobBox).not.toBeNull();
+  expect(sessionsBox).not.toBeNull();
+  expect(Math.abs(nameBox!.y - ratingBox!.y)).toBeLessThan(8);
+  expect(ratingBox!.x).toBeGreaterThan(nameBox!.x + nameBox!.width);
+  expect(jobBox!.y).toBeGreaterThan(nameBox!.y);
+  expect(sessionsBox!.y).toBeGreaterThan(jobBox!.y);
+  expect(Math.abs(jobBox!.x - sessionsBox!.x)).toBeLessThanOrEqual(2);
+
+  // 2. 0 則評價隱藏評分、0 場隱藏已完成場次，且同列卡片維持等高
+  const secondCard = cards.nth(1);
+  await expect(secondCard.getByText('已完成 5 場 1-on-1')).toBeVisible();
+  await expect(secondCard).not.toContainText('/ 10');
+
+  const thirdCard = cards.nth(2);
+  await expect(thirdCard).not.toContainText('/ 10');
+  await expect(thirdCard).not.toContainText('已完成');
+
+  const firstCardBox = await firstCard.boundingBox();
+  const thirdCardBox = await thirdCard.boundingBox();
+  expect(firstCardBox).not.toBeNull();
+  expect(thirdCardBox).not.toBeNull();
+  expect(
+    Math.abs(firstCardBox!.height - thirdCardBox!.height)
+  ).toBeLessThanOrEqual(1);
+
+  await firstCard.evaluate((el) => {
+    const top = el.getBoundingClientRect().top + window.scrollY - 96;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'instant' });
+  });
+  await expect(firstRating).toBeVisible();
+  await expect(firstSessions).toBeVisible();
+  await captureEvidence(page, 'mentor-pool-card-rating-desktop');
+
+  // 3. 手機版 RWD (AC 7.f)：長名字與分數同列，名字單行 Ellipsis 截斷、分數不換行
+  await page.setViewportSize({ width: 375, height: 812 });
+  const longNameCard = cards.nth(3);
+  await longNameCard.evaluate((el) => {
+    const top = el.getBoundingClientRect().top + window.scrollY - 88;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'instant' });
+  });
+
+  const longNameHeading = longNameCard.getByRole('heading', {
+    name: '張哲瑋 Christopher Alexander Chang-Williams',
+  });
+  const longNameScore = longNameCard.getByText('9.6 / 10');
+  const longNameSessions = longNameCard.getByText('已完成 12 場 1-on-1');
+
+  await expect(longNameHeading).toBeVisible();
+  await expect(longNameScore).toBeVisible();
+  await expect(longNameSessions).toBeVisible();
+
+  const mobileMetrics = await longNameHeading.evaluate((el) => {
+    const style = window.getComputedStyle(el);
+    return {
+      overflow: style.overflow,
+      textOverflow: style.textOverflow,
+      whiteSpace: style.whiteSpace,
+      isTruncated: el.scrollWidth > el.clientWidth,
+    };
+  });
+  expect(mobileMetrics.overflow).toBe('hidden');
+  expect(mobileMetrics.textOverflow).toBe('ellipsis');
+  expect(mobileMetrics.whiteSpace).toBe('nowrap');
+  expect(mobileMetrics.isTruncated).toBe(true);
+
+  const mobileNameBox = await longNameHeading.boundingBox();
+  const mobileScoreBox = await longNameScore.boundingBox();
+  expect(mobileNameBox).not.toBeNull();
+  expect(mobileScoreBox).not.toBeNull();
+  expect(Math.abs(mobileNameBox!.y - mobileScoreBox!.y)).toBeLessThan(8);
+  expect(mobileScoreBox!.height).toBeLessThanOrEqual(28);
+
+  await captureEvidence(page, 'mentor-pool-card-rating-mobile');
 });

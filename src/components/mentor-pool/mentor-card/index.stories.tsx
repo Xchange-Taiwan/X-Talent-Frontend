@@ -17,6 +17,9 @@ const meta: Meta<typeof MentorCard> = {
     company: mockMentors[0].company,
     about: mockMentors[0].about,
     haveTopicLabels: buildMentorCardTags(mockMentors[0]),
+    ratingAverage: mockMentors[0].stats?.rating_average ?? null,
+    completedMeetingCount:
+      mockMentors[0].stats?.completed_meeting_count ?? null,
     priority: false,
   },
   argTypes: {
@@ -46,6 +49,8 @@ export const Default: Story = {
     company: mockMentors[0].company,
     about: mockMentors[0].about,
     haveTopicLabels: buildMentorCardTags(mockMentors[0]),
+    ratingAverage: 9.8,
+    completedMeetingCount: 18,
   },
 };
 
@@ -59,6 +64,8 @@ export const FrontendEngineer: Story = {
     company: mockMentors[1].company,
     about: mockMentors[1].about,
     haveTopicLabels: buildMentorCardTags(mockMentors[1]),
+    ratingAverage: 9.6,
+    completedMeetingCount: 12,
   },
 };
 
@@ -72,6 +79,38 @@ export const StaffProductManager: Story = {
     company: mockMentors[2].company,
     about: mockMentors[2].about,
     haveTopicLabels: buildMentorCardTags(mockMentors[2]),
+    ratingAverage: null,
+    completedMeetingCount: 5,
+  },
+};
+
+export const NoRatingsOrSessions: Story = {
+  args: {
+    id: mockMentors[3].user_id,
+    avatar: mockMentors[3].avatar,
+    years: mockMentors[3].years_of_experience,
+    name: mockMentors[3].name,
+    job_title: mockMentors[3].job_title,
+    company: mockMentors[3].company,
+    about: mockMentors[3].about,
+    haveTopicLabels: buildMentorCardTags(mockMentors[3]),
+    ratingAverage: null,
+    completedMeetingCount: 0,
+  },
+};
+
+export const LongNameWithRating: Story = {
+  args: {
+    id: mockMentors[0].user_id,
+    avatar: mockMentors[0].avatar,
+    years: mockMentors[0].years_of_experience,
+    name: '張哲瑋 Christopher Alexander Chang-Williams',
+    job_title: 'Senior UX Designer',
+    company: 'CreativeUX Design Studio',
+    about: mockMentors[0].about,
+    haveTopicLabels: buildMentorCardTags(mockMentors[0]),
+    ratingAverage: 9.8,
+    completedMeetingCount: 12,
   },
 };
 

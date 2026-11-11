@@ -21,6 +21,9 @@ const meta: Meta<typeof Information> = {
     company: mockMentors[0].company,
     about: mockMentors[0].about,
     haveTopicLabels: mockMentors[0].have_topic,
+    ratingAverage: mockMentors[0].stats?.rating_average ?? null,
+    completedMeetingCount:
+      mockMentors[0].stats?.completed_meeting_count ?? null,
   },
 };
 
@@ -34,6 +37,51 @@ export const Default: Story = {
     company: mockMentors[0].company,
     about: mockMentors[0].about,
     haveTopicLabels: mockMentors[0].have_topic,
+    ratingAverage: 9.8,
+    completedMeetingCount: 18,
+  },
+};
+
+export const CompletedSessionsWithoutRating: Story = {
+  args: {
+    name: mockMentors[2].name,
+    job_title: mockMentors[2].job_title,
+    company: mockMentors[2].company,
+    about: mockMentors[2].about,
+    haveTopicLabels: mockMentors[2].have_topic,
+    ratingAverage: null,
+    completedMeetingCount: 5,
+  },
+};
+
+export const NoRatingsAndNoSessions: Story = {
+  args: {
+    name: mockMentors[3].name,
+    job_title: mockMentors[3].job_title,
+    company: mockMentors[3].company,
+    about: mockMentors[3].about,
+    haveTopicLabels: mockMentors[3].have_topic,
+    ratingAverage: null,
+    completedMeetingCount: 0,
+  },
+};
+
+export const MobileLongNameTruncation: Story = {
+  decorators: [
+    (Story) => (
+      <div className="border-background-border bg-background-white w-[334px] rounded-lg border p-4">
+        <Story />
+      </div>
+    ),
+  ],
+  args: {
+    name: '張哲瑋 Christopher Alexander Chang-Williams',
+    job_title: 'Senior UX Designer',
+    company: 'CreativeUX Design Studio',
+    about: mockMentors[0].about,
+    haveTopicLabels: mockMentors[0].have_topic,
+    ratingAverage: 9.8,
+    completedMeetingCount: 12,
   },
 };
 

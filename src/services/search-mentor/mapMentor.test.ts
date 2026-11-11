@@ -6,6 +6,7 @@ import type { MentorType } from '@/types/mentor';
 import {
   mapMentor,
   mapMentorPage,
+  mapMentorStats,
   type RawMentor,
   resolveMentorAvatar,
 } from './mapMentor';
@@ -51,6 +52,10 @@ function createRawMentor(
     updated_at:
       overrides.updated_at !== undefined ? overrides.updated_at : null,
     views: overrides.views !== undefined ? overrides.views : 0,
+    stats: overrides.stats,
+    completed_meeting_count: overrides.completed_meeting_count,
+    rating_count: overrides.rating_count,
+    rating_average: overrides.rating_average,
   };
 }
 
@@ -95,6 +100,7 @@ describe('mapMentor', () => {
       have_skill: ['nodejs'],
       have_topic: ['topic_a', 'topic_b'],
       updated_at: '2021-01-07T06:13:20Z',
+      stats: null,
     });
   });
 
@@ -123,6 +129,79 @@ describe('mapMentor', () => {
       have_skill: [],
       have_topic: [],
       updated_at: null,
+      stats: null,
+    });
+  });
+
+  it('maps optional stats (rating_average and completed_meeting_count) and gracefully handles 0 ratings (#737)', () => {
+    const withRating = mapMentor(
+      createRawMentor({
+        user_id: 501,
+        stats: {
+          completed_meeting_count: 12,
+          rating_count: 8,
+          rating_average: 9.8,
+        },
+      })
+    );
+    expect(withRating.stats).toEqual({
+      completed_meeting_count: 12,
+      rating_count: 8,
+      rating_average: 9.8,
+    });
+
+    const zeroRatings = mapMentor(
+      createRawMentor({
+        user_id: 502,
+        stats: {
+          completed_meeting_count: 3,
+          rating_count: 0,
+          rating_average: 9.5,
+        },
+      })
+    );
+    expect(zeroRatings.stats).toEqual({
+      completed_meeting_count: 3,
+      rating_count: 0,
+      rating_average: null,
+    });
+  });
+
+  it('normalizes invalid or flat top-level stats fields safely in mapMentorStats', () => {
+    expect(mapMentorStats(createRawMentor({ user_id: 601, stats: null }))).toBe(
+      null
+    );
+
+    expect(
+      mapMentorStats(
+        createRawMentor({
+          user_id: 602,
+          stats: {
+            completed_meeting_count: -4,
+            rating_count: Number.NaN,
+            rating_average: 0,
+          },
+        })
+      )
+    ).toEqual({
+      completed_meeting_count: 0,
+      rating_count: 0,
+      rating_average: null,
+    });
+
+    expect(
+      mapMentorStats(
+        createRawMentor({
+          user_id: 603,
+          completed_meeting_count: 15,
+          rating_count: 10,
+          rating_average: 9.6,
+        })
+      )
+    ).toEqual({
+      completed_meeting_count: 15,
+      rating_count: 10,
+      rating_average: 9.6,
     });
   });
 

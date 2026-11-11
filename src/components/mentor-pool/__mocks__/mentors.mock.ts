@@ -28,6 +28,11 @@ export const mockMentors: MentorType[] = [
       '求職履歷優化',
     ],
     updated_at: '2024-07-29T08:00:00Z',
+    stats: {
+      completed_meeting_count: 18,
+      rating_count: 12,
+      rating_average: 9.8,
+    },
   },
   {
     user_id: 2,
@@ -55,6 +60,11 @@ export const mockMentors: MentorType[] = [
     ],
     have_topic: ['Frontend', 'React', 'TypeScript', 'Performance Optimization'],
     updated_at: '2024-07-29T08:16:40Z',
+    stats: {
+      completed_meeting_count: 12,
+      rating_count: 8,
+      rating_average: 9.6,
+    },
   },
   {
     user_id: 3,
@@ -89,6 +99,11 @@ export const mockMentors: MentorType[] = [
       'Career Coaching',
     ],
     updated_at: '2024-07-29T08:33:20Z',
+    stats: {
+      completed_meeting_count: 5,
+      rating_count: 0,
+      rating_average: null,
+    },
   },
   {
     user_id: 4,
