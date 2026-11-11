@@ -359,6 +359,8 @@ export function evaluateRoundConvergence({
   };
 }
 
+const MAX_FINDINGS_PER_ROUND = 4;
+
 export function buildRoundFixPrompt({
   round,
   maxRounds,
@@ -369,38 +371,47 @@ export function buildRoundFixPrompt({
 }) {
   const sections = [
     `你正在執行雲端 Pre-PR 自動收斂迴圈（第 ${round}/${maxRounds} 輪）${ticketNumber ? `，對應 Ticket #${ticketNumber}` : ''}。`,
-    '請直接修改工作目錄中的程式碼或測試檔案以修復以下所有問題（請勿執行 git commit 或 git push，也嚴禁修改或 stage 任何 .env* 檔案）：',
+    '請直接使用檔案讀寫工具（`read_file` / `replace` / `write_file`）修改工作目錄中的程式碼或測試檔案以修復以下問題（嚴禁修改 `.env*` 或 `.agents/tmp*`）：',
   ];
 
   if (deterministicErrors.length > 0) {
     sections.push(
-      `### 1. 靜態檢查 / 單元測試失敗 (Lint / Type-check / Vitest)\n\`\`\`\n${deterministicErrors.join('\n\n').slice(0, 6000)}\n\`\`\``
+      `### 1. 靜態檢查 / 單元測試失敗 (Lint / Type-check / Vitest)\n\`\`\`\n${deterministicErrors.join('\n\n').slice(0, 5000)}\n\`\`\``
     );
   }
 
   if (e2eErrors.length > 0) {
     sections.push(
-      `### 2. Playwright E2E 端對端測試失敗\n\`\`\`\n${e2eErrors.join('\n\n').slice(0, 6000)}\n\`\`\``
+      `### 2. Playwright E2E 端對端測試失敗\n\`\`\`\n${e2eErrors.join('\n\n').slice(0, 5000)}\n\`\`\``
     );
   }
 
   if (evaluation?.uncoveredCriteria?.length > 0) {
-    const acLines = evaluation.uncoveredCriteria.map(
+    const acSlice = evaluation.uncoveredCriteria.slice(
+      0,
+      MAX_FINDINGS_PER_ROUND
+    );
+    const acLines = acSlice.map(
       (item, idx) =>
         `${idx + 1}. 驗收條件未滿足：「${item.criterion}」— 原因：${item.note || '未實作或缺少驗證'}`
     );
     sections.push(
-      `### 3. Ticket 驗收條件缺口 (Requirement Coverage)\n${acLines.join('\n')}`
+      `### 3. Ticket 驗收條件缺口 (本輪優先處理前 ${acSlice.length} 項)\n${acLines.join('\n')}`
     );
   }
 
+  const remainingSlots = Math.max(
+    1,
+    MAX_FINDINGS_PER_ROUND - (evaluation?.uncoveredCriteria?.length ?? 0)
+  );
   if (evaluation?.flatFindings?.length > 0) {
-    const findingLines = evaluation.flatFindings.map(
+    const prioritized = evaluation.flatFindings.slice(0, remainingSlots);
+    const findingLines = prioritized.map(
       (f, idx) =>
         `${idx + 1}. [${f.category}] ${f.file}${f.line ? `:${f.line}` : ''}\n   - 問題：${f.issue}\n   - 原因：${f.why}\n   - 建議修法：${f.fix}`
     );
     sections.push(
-      `### 4. AI Review 審查發現 (Overall Risk: ${evaluation.riskLevel})\n${findingLines.join('\n\n')}`
+      `### 4. AI Review 審查發現 (Overall Risk: ${evaluation.riskLevel}，本輪聚焦前 ${prioritized.length}/${evaluation.flatFindings.length} 項)\n${findingLines.join('\n\n')}`
     );
   } else if (evaluation && evaluation.riskLevel !== 'low') {
     sections.push(
@@ -409,7 +420,7 @@ export function buildRoundFixPrompt({
   }
 
   sections.push(
-    "修復完成後，請僅執行快速的 `pnpm type-check` 與針對變更檔案的 `npx vitest related $(git diff --name-only origin/develop | tr '\\n' ' ') --run` 確認通過；請勿在此修復步驟內自行執行全量 `pnpm test`、`pnpm test:e2e`、`npx playwright test` 或啟動 `pnpm dev`，收斂迴圈進入下一輪時會自動重新執行全量單元測試與 E2E 驗證。"
+    '極速收斂規則：檔案修改儲存完畢後請**立即結束回覆**！嚴禁在此步驟呼叫 `run_shell_command` 執行 `pnpm test`、`vitest`、`playwright`、`pnpm build`、`pnpm dev` 或 `git`，因為外層收斂迴圈會在你結束後 1 秒內自動執行平行 `lint`、`type-check`、`vitest related` 與 Turbopack E2E 驗證。'
   );
 
   return sections.join('\n\n');
@@ -553,24 +564,39 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         .filter((f) => /\.(png|jpe?g|webp)$/i.test(f));
     });
 
+  const fileExists = deps.fileExists || ((p) => fs.existsSync(p));
+
   const saveSnapshot =
     deps.saveSnapshot ||
     (() => {
+      const tmpIdx = path.join(
+        process.env.RUNNER_TEMP || '/tmp',
+        `converge-idx-${process.pid}-${Date.now()}`
+      );
       try {
-        execFileSync('git', ['add', '-A'], { stdio: 'ignore' });
+        const snapEnv = { ...process.env, GIT_INDEX_FILE: tmpIdx };
+        execFileSync('git', ['read-tree', 'HEAD'], {
+          env: snapEnv,
+          stdio: 'ignore',
+        });
+        execFileSync('git', ['add', '-A'], { env: snapEnv, stdio: 'ignore' });
         execFileSync(
           'git',
-          ['reset', 'HEAD', '--', '.env*', '*/.env*', '.agents/tmp*'],
-          { stdio: 'ignore' }
+          ['reset', '--', '.env*', '*/.env*', '.agents/tmp*'],
+          { env: snapEnv, stdio: 'ignore' }
         );
         const treeSha = execFileSync('git', ['write-tree'], {
+          env: snapEnv,
           encoding: 'utf8',
           stdio: ['ignore', 'pipe', 'ignore'],
         }).trim();
-        execFileSync('git', ['reset', '--quiet'], { stdio: 'ignore' });
         return treeSha;
       } catch {
         return '';
+      } finally {
+        try {
+          fs.rmSync(tmpIdx, { force: true });
+        } catch {}
       }
     });
 
@@ -614,6 +640,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
 
   let previousFingerprint = '';
   let consecutiveSameFingerprint = 0;
+  let timeoutResetsUsed = 0;
   let lastEvaluation = null;
   let lastE2ePassed = true;
   let lastChangedSpecs = [];
@@ -657,12 +684,21 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
     let ranFullUnitSuiteThisRound = false;
     if (deterministicErrors.length === 0) {
       const relatedCandidates = diffFiles.filter(
-        (f) => /\.(ts|tsx|js|jsx|mjs)$/.test(f) && !f.startsWith('e2e/')
+        (f) =>
+          /\.(ts|tsx|js|jsx|mjs)$/.test(f) &&
+          !f.startsWith('e2e/') &&
+          fileExists(f)
       );
       if (round > 1 && relatedCandidates.length > 0) {
         const relRes = execStep(
           'npx',
-          ['vitest', 'related', ...relatedCandidates, '--run'],
+          [
+            'vitest',
+            'related',
+            ...relatedCandidates,
+            '--run',
+            '--passWithNoTests',
+          ],
           { env: testEnv }
         );
         if (!relRes.ok) {
@@ -968,12 +1004,21 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       fixPrompt,
     ]);
     if (geminiRes.timedOut && snapshotSha) {
-      log(
-        `[cloud-converge] Gemini CLI timed out in round ${round}; restoring clean pre-round snapshot (${snapshotSha.slice(0, 8)}) to prevent corrupted half-edits.`
-      );
-      restoreSnapshot(snapshotSha);
-      // Reset fingerprint counter once so a transient network hang gets one clean retry
-      if (consecutiveSameFingerprint > 0) {
+      // Only roll back if partial edits broke TypeScript compilation; if partial
+      // edits compile cleanly, keep that progress so the next round builds on it!
+      const tcCheck = execStep('pnpm', ['type-check']);
+      if (!tcCheck.ok) {
+        log(
+          `[cloud-converge] Gemini CLI timed out with broken type-check in round ${round}; restoring clean pre-round snapshot (${snapshotSha.slice(0, 8)}).`
+        );
+        restoreSnapshot(snapshotSha);
+      } else {
+        log(
+          `[cloud-converge] Gemini CLI timed out in round ${round}, but partial edits pass type-check; retaining valid progress.`
+        );
+      }
+      if (timeoutResetsUsed < 1 && consecutiveSameFingerprint > 0) {
+        timeoutResetsUsed += 1;
         previousFingerprint = '';
         consecutiveSameFingerprint = 0;
       }

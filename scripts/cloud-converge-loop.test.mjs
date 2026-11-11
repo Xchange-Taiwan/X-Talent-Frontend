@@ -589,7 +589,7 @@ describe('cloud-converge-loop', () => {
         }
         if (cmd === 'pnpm' && args[0] === 'type-check') {
           roundNum += 1;
-          if (roundNum === 1) {
+          if (roundNum <= 2) {
             return {
               ok: false,
               stderr: 'TS2322: Type error',
@@ -599,7 +599,7 @@ describe('cloud-converge-loop', () => {
           return { ok: true, stdout: '', stderr: '' };
         }
         if (cmd === 'npx' && args[0] === 'gemini') {
-          if (roundNum === 1) {
+          if (roundNum <= 2) {
             return { ok: false, timedOut: true, stderr: 'Command timed out' };
           }
           return { ok: true, stdout: '', stderr: '' };
@@ -625,6 +625,7 @@ describe('cloud-converge-loop', () => {
           log: () => {},
           saveSnapshot: () => 'deadbeef1234',
           restoreSnapshot: (sha) => restored.push(sha),
+          fileExists: () => true,
         }
       );
 
