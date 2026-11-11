@@ -401,6 +401,14 @@ export function formatConvergenceSummaryMarkdown({
   return `${lines.join('\n')}\n`;
 }
 
+const STEP_TIMEOUT_MS = {
+  static: 3 * 60 * 1000,
+  unitTest: 8 * 60 * 1000,
+  e2e: 10 * 60 * 1000,
+  review: 5 * 60 * 1000,
+  geminiFix: 12 * 60 * 1000,
+};
+
 function defaultExecStep(cmd, args, options = {}) {
   const isWin = process.platform === 'win32';
   const resolvedCmd =
@@ -409,15 +417,20 @@ function defaultExecStep(cmd, args, options = {}) {
     const stdout = execFileSync(resolvedCmd, args, {
       encoding: 'utf8',
       maxBuffer: 15 * 1024 * 1024,
+      timeout: STEP_TIMEOUT_MS.geminiFix,
       stdio: ['ignore', 'pipe', 'pipe'],
       ...options,
     });
     return { ok: true, stdout, stderr: '' };
   } catch (err) {
+    const timedOut = err?.code === 'ETIMEDOUT' || err?.signal === 'SIGTERM';
     const stdout = String(err.stdout ?? '');
-    const stderr = String(err.stderr ?? err.message ?? '');
+    const stderr = String(
+      err.stderr ?? (timedOut ? 'Command timed out' : err.message) ?? ''
+    );
     return {
       ok: false,
+      timedOut,
       stdout,
       stderr,
       combined: `${stdout}\n${stderr}`.trim(),
@@ -480,12 +493,11 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       `\n[cloud-converge] === Round ${round}/${config.maxRounds} starting ===`
     );
 
-    // 1. Deterministic checks: format/lint, type-check, unit tests
+    // 1. Deterministic checks: fast-fail on lint/type-check before running full unit suite
     const deterministicErrors = [];
     for (const [label, args] of [
       ['pnpm lint', ['lint']],
       ['pnpm type-check', ['type-check']],
-      ['pnpm test', ['test']],
     ]) {
       const res = execStep('pnpm', args);
       if (!res.ok) {
@@ -493,13 +505,31 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         deterministicErrors.push(`[${label}]\n${res.combined || res.stderr}`);
       }
     }
+
+    if (deterministicErrors.length === 0) {
+      const testRes = execStep('pnpm', ['test']);
+      if (!testRes.ok) {
+        log(`[cloud-converge] pnpm test failed in round ${round}`);
+        deterministicErrors.push(
+          `[pnpm test]\n${testRes.combined || testRes.stderr}`
+        );
+      }
+    } else {
+      log(
+        `[cloud-converge] Static check failed in round ${round}; fast-failing to Gemini fix without running slow unit/E2E suites.`
+      );
+    }
     const deterministicPassed = deterministicErrors.length === 0;
 
-    // 2. Playwright E2E verification
+    // 2. Playwright E2E verification (only when static + unit tests pass)
     const e2eErrors = [];
     let e2eReportForReviewer = '未執行 E2E (--run-e2e=false)';
 
-    if (config.runE2e) {
+    if (config.runE2e && !deterministicPassed) {
+      lastE2ePassed = false;
+    }
+
+    if (config.runE2e && deterministicPassed) {
       const diffFilesRes = execStep('git', [
         'diff',
         '--name-only',
@@ -627,38 +657,50 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         : `Playwright E2E 測試失敗：\n${e2eErrors.join('\n').slice(0, 1500)}`;
     }
 
-    // 3. 7-Agent Parallel Gemini AI Review (run-local.mjs)
-    const reviewArgs = [
-      'scripts/ai-review/run-local.mjs',
-      `--base-ref=${config.baseRef}`,
-    ];
-    if (config.ticketNumber) {
-      reviewArgs.push(`--ticket=${config.ticketNumber}`);
-    }
-
-    const reviewRes = execStep('node', reviewArgs, {
-      env: {
-        ...process.env,
-        TICKET_NUMBER: config.ticketNumber,
-        E2E_VERIFICATION_REPORT: e2eReportForReviewer,
-        GEMINI_MAX_OUTPUT_TOKENS: '32768',
-      },
-    });
-
+    // 3. 7-Agent Parallel Gemini AI Review (run-local.mjs — only when code compiles & unit tests pass)
     let reviewJson = {
       overallRisk: { level: 'low', reason: 'Fallback' },
       requirementCoverage: [],
       findings: {},
     };
-    if (reviewRes.ok && reviewRes.stdout.trim()) {
-      const parsedJson = extractJsonObject(reviewRes.stdout);
-      if (parsedJson) {
-        reviewJson = parsedJson;
-      } else {
-        log(
-          `[cloud-converge] Warning: could not parse run-local.mjs output in round ${round}`
-        );
+
+    if (deterministicPassed) {
+      const reviewArgs = [
+        'scripts/ai-review/run-local.mjs',
+        `--base-ref=${config.baseRef}`,
+      ];
+      if (config.ticketNumber) {
+        reviewArgs.push(`--ticket=${config.ticketNumber}`);
       }
+
+      const reviewRes = execStep('node', reviewArgs, {
+        env: {
+          ...process.env,
+          TICKET_NUMBER: config.ticketNumber,
+          E2E_VERIFICATION_REPORT: e2eReportForReviewer,
+          GEMINI_MAX_OUTPUT_TOKENS: '32768',
+        },
+      });
+
+      if (reviewRes.ok && reviewRes.stdout.trim()) {
+        const parsedJson = extractJsonObject(reviewRes.stdout);
+        if (parsedJson) {
+          reviewJson = parsedJson;
+        } else {
+          log(
+            `[cloud-converge] Warning: could not parse run-local.mjs output in round ${round}`
+          );
+        }
+      }
+    } else {
+      reviewJson = {
+        overallRisk: {
+          level: 'medium',
+          reason: 'Deferred AI Review until lint/type-check/unit tests pass.',
+        },
+        requirementCoverage: [],
+        findings: {},
+      };
     }
 
     lastEvaluation = evaluateRoundConvergence({

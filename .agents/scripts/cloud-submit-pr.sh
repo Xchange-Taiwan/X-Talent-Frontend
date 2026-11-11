@@ -143,12 +143,15 @@ if [ -z "$EXISTING_PR" ]; then
 fi
 
 EXISTING_BASE_REF="develop"
+META_LOADED="false"
 if [ -n "$EXISTING_PR" ]; then
-  PR_META=$(gh pr view "$EXISTING_PR" --json title,body,baseRefName 2>/dev/null || echo "{}")
-  printf '%s' "$PR_META" | jq -r '.body // ""' > "$TMP_EXISTING_BODY" 2>/dev/null || true
-  EXISTING_BASE_REF=$(printf '%s' "$PR_META" | jq -r '.baseRefName // "develop"' 2>/dev/null || echo "develop")
-  if [ -z "$CLEAN_TICKET" ]; then
-    CLEAN_TICKET=$(printf '%s' "$PR_META" | jq -r '(.title // "") + "\n" + (.body // "")' | grep -oE 'X-Talent-Tracker/issues/[0-9]+|#[0-9]+' | head -n 1 | tr -cd '0-9' || echo "")
+  if PR_META=$(gh pr view "$EXISTING_PR" --json title,body,baseRefName 2>/dev/null) && [ -n "$PR_META" ]; then
+    META_LOADED="true"
+    printf '%s' "$PR_META" | jq -r '.body // ""' > "$TMP_EXISTING_BODY" 2>/dev/null || true
+    EXISTING_BASE_REF=$(printf '%s' "$PR_META" | jq -r '.baseRefName // "develop"' 2>/dev/null || echo "develop")
+    if [ -z "$CLEAN_TICKET" ]; then
+      CLEAN_TICKET=$(printf '%s' "$PR_META" | jq -r '(.title // "") + "\n" + (.body // "")' | grep -oEi 'X-Talent-Tracker/issues/[0-9]+|\(X-Tracker[[:space:]]*#[0-9]+\)' | head -n 1 | tr -cd '0-9' || echo "")
+    fi
   fi
 fi
 
@@ -174,7 +177,7 @@ if [ -z "$EXISTING_PR" ]; then
 else
   if [ "$MODE" = "implement" ]; then
     gh pr edit "$EXISTING_PR" --title "$PR_TITLE" --body-file "$TMP_PR_BODY" || true
-  else
+  elif [ "$META_LOADED" = "true" ]; then
     gh pr edit "$EXISTING_PR" --body-file "$TMP_PR_BODY" || true
   fi
 fi
