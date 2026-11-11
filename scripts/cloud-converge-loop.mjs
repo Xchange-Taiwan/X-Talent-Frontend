@@ -230,6 +230,59 @@ export function detectChangedE2eSpecs(
   };
 }
 
+const FRONTEND_CRITERION_KEYWORDS =
+  /(點擊|點選|打開|開啟|展開|彈窗|視窗|modal|dialog|popover|頁面|畫面|導向|導回|導頁|路由|卡片|按鈕|列表|顯示|隱藏|欄位|滑桿|表單|tab|分頁|登入後|未登入|前端|瀏覽器|元件|storybook|gtag|page_view|scroll_depth|dataLayer|樣式|版面|rwd|手機版|桌機)/i;
+
+const PURE_BACKEND_OR_EXTERNAL_CRITERION_PATTERNS = [
+  /收到站內通知與\s*email/i,
+  /(?:收到|寄送|發送).*(?:通知信|email|信件)/i,
+  /不會再通知/,
+  /同一場只會收到一次/,
+  /不會重複發送/,
+  /通知發送失敗時[，,].*仍正常儲存/,
+  /資料離開系統前完成/,
+  /BigQuery\s*每日自動匯出/i,
+  /GA4\s*後台.*註冊/i,
+];
+
+/**
+ * Determines whether a requirementCoverage entry applies to `X-Talent-Frontend`.
+ * Exempts criteria explicitly tagged `scope: "out_of_repo" | "backend" | "external"`
+ * (or `applicableToFrontend: false`), as well as pure backend email/cron/DB
+ * delivery criteria that contain zero frontend UI/routing responsibilities.
+ */
+export function isFrontendApplicableCriterion(item) {
+  if (!item || typeof item !== 'object') {
+    return false;
+  }
+  const scope = String(item.scope ?? '')
+    .toLowerCase()
+    .trim();
+  if (
+    scope === 'out_of_repo' ||
+    scope === 'backend' ||
+    scope === 'external' ||
+    item.applicableToFrontend === false
+  ) {
+    return false;
+  }
+
+  const text = String(item.criterion ?? '').trim();
+  if (!text) {
+    return false;
+  }
+
+  if (FRONTEND_CRITERION_KEYWORDS.test(text)) {
+    return true;
+  }
+
+  if (PURE_BACKEND_OR_EXTERNAL_CRITERION_PATTERNS.some((re) => re.test(text))) {
+    return false;
+  }
+
+  return true;
+}
+
 /**
  * Evaluates whether the current round has fully converged and produces a
  * deterministic fingerprint for stall/oscillation detection.
@@ -262,8 +315,12 @@ export function evaluateRoundConvergence({
   const requirementCoverage = Array.isArray(reviewResult?.requirementCoverage)
     ? reviewResult.requirementCoverage
     : [];
+  const exemptedCriteria = requirementCoverage.filter(
+    (item) => item && !isFrontendApplicableCriterion(item)
+  );
   const uncoveredCriteria = requirementCoverage.filter(
-    (item) => item && item.covered === false
+    (item) =>
+      item && item.covered === false && isFrontendApplicableCriterion(item)
   );
 
   const riskLevel = String(reviewResult?.overallRisk?.level ?? 'low')
@@ -298,6 +355,7 @@ export function evaluateRoundConvergence({
     flatFindings,
     findingsByCategory,
     uncoveredCriteria,
+    exemptedCriteria,
     fingerprint: fingerprintParts.join('|'),
   };
 }
@@ -380,12 +438,17 @@ export function formatConvergenceSummaryMarkdown({
       ? `通過 (pnpm test:e2e:mock${changedSpecs.length > 0 ? ` + ${changedSpecs.length} 個變更 Spec` : ''})`
       : '未完全通過';
 
+  const exemptedNote =
+    evaluation?.exemptedCriteria?.length > 0
+      ? `；已自動豁免 ${evaluation.exemptedCriteria.length} 項後端／外部系統 AC`
+      : '';
+
   const lines = [
     '## Cloud Pre-PR AI Review & E2E Convergence Summary',
     '',
     `- **收斂狀態**：${statusText}`,
     `- **執行輪數**：${roundsRun} / ${maxRounds} 輪`,
-    `- **AI Review 最終風險**：\`${evaluation?.riskLevel ?? 'low'}\`（剩餘 Findings：${evaluation?.totalFindings ?? 0} 筆）`,
+    `- **AI Review 最終風險**：\`${evaluation?.riskLevel ?? 'low'}\`（剩餘 Findings：${evaluation?.totalFindings ?? 0} 筆${exemptedNote}）`,
     `- **Playwright E2E 驗證**：${e2eText}`,
   ];
 

@@ -335,4 +335,50 @@ describe('formatComment', () => {
     expect(comment).toContain('這次變更把 X 功能拆成三層。');
     expect(comment).not.toContain('建議閱讀順序');
   });
+
+  it('renders out_of_repo criteria as exempted (⏭️) instead of missing warnings (⚠️)', () => {
+    const comment = formatComment({
+      plan: {
+        ...basePlan,
+        outOfRepoCriteria: [
+          '會談結束後 15 分鐘內，mentee 收到站內通知與 email',
+        ],
+      },
+      security: noFindings,
+      correctness: noFindings,
+      performance: noFindings,
+      testing: noFindings,
+      architecture: noFindings,
+      summary: {
+        overallRisk: { level: 'low', reason: '前端範圍皆已覆蓋' },
+        mergeRecommendation: '可合併',
+        requirementCoverage: [
+          {
+            criterion:
+              '點擊通知或 email 連結，會到歷史紀錄頁並自動開啟回饋彈窗',
+            scope: 'frontend',
+            covered: true,
+            note: '已實作路由與 query 參數處理',
+          },
+          {
+            criterion: '同一場只會收到一次；已填寫、已取消的預約不會收到',
+            scope: 'out_of_repo',
+            covered: false,
+            note: '屬後端排程去重邏輯，前端 PR 豁免檢查',
+          },
+        ],
+      },
+    });
+
+    expect(comment).toContain(
+      '- ✅ 點擊通知或 email 連結，會到歷史紀錄頁並自動開啟回饋彈窗 — 已實作路由與 query 參數處理'
+    );
+    expect(comment).toContain(
+      '- ⏭️ 同一場只會收到一次；已填寫、已取消的預約不會收到 — 屬後端排程去重邏輯，前端 PR 豁免檢查'
+    );
+    expect(comment).toContain(
+      '- ⏭️ 會談結束後 15 分鐘內，mentee 收到站內通知與 email — 屬後端或外部系統範圍，本前端 PR 豁免檢查'
+    );
+    expect(comment).not.toContain('- ⚠️');
+  });
 });

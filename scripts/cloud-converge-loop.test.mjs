@@ -8,6 +8,7 @@ import {
   evaluateRoundConvergence,
   extractJsonObject,
   formatConvergenceSummaryMarkdown,
+  isFrontendApplicableCriterion,
   parseConvergeArgs,
   runConvergeLoop,
 } from './cloud-converge-loop.mjs';
@@ -178,6 +179,102 @@ describe('cloud-converge-loop', () => {
       expect(evalRes.converged).toBe(false);
       expect(evalRes.totalFindings).toBe(1);
       expect(evalRes.uncoveredCriteria).toHaveLength(1);
+    });
+
+    it('exempts out_of_repo / backend acceptance criteria (#733 & #734 email/cron rules) while still enforcing frontend routing criteria', () => {
+      expect(
+        isFrontendApplicableCriterion({
+          criterion: '會談結束後 15 分鐘內，mentee 收到站內通知與 email',
+          scope: 'out_of_repo',
+          covered: false,
+        })
+      ).toBe(false);
+
+      // Even if LLM omitted scope, pure backend email/cron/dedup ACs are auto-exempted
+      expect(
+        isFrontendApplicableCriterion({
+          criterion: '會談結束後 15 分鐘內，mentee 收到站內通知與 email',
+          covered: false,
+        })
+      ).toBe(false);
+      expect(
+        isFrontendApplicableCriterion({
+          criterion: 'Mentee 第一次送出回饋後，mentor 立即收到站內通知與 email',
+          covered: false,
+        })
+      ).toBe(false);
+      expect(
+        isFrontendApplicableCriterion({
+          criterion: '同一場只會收到一次；已填寫、已取消的預約不會收到',
+          covered: false,
+        })
+      ).toBe(false);
+      expect(
+        isFrontendApplicableCriterion({
+          criterion: '編輯不會再通知 mentor',
+          covered: false,
+        })
+      ).toBe(false);
+      expect(
+        isFrontendApplicableCriterion({
+          criterion: '通知發送失敗時，回饋仍正常儲存',
+          covered: false,
+        })
+      ).toBe(false);
+
+      // Mixed or frontend ACs touching click/route/page/modal/login redirect MUST remain enforced!
+      expect(
+        isFrontendApplicableCriterion({
+          criterion:
+            '點擊通知或 email 連結，會到歷史紀錄頁並自動開啟該場的回饋彈窗／回答入口',
+          covered: false,
+        })
+      ).toBe(true);
+      expect(
+        isFrontendApplicableCriterion({
+          criterion: '未登入時點擊連結，登入後回到該場',
+          covered: false,
+        })
+      ).toBe(true);
+      expect(
+        isFrontendApplicableCriterion({
+          criterion: '點擊通知或 email 連結，會到 mentor 歷史紀錄的該場卡片',
+          covered: false,
+        })
+      ).toBe(true);
+
+      // Convergence passes when all frontend ACs are covered and only backend ACs are uncovered
+      const evalMixedCovered = evaluateRoundConvergence({
+        deterministicPassed: true,
+        e2ePassed: true,
+        reviewResult: {
+          overallRisk: { level: 'low', reason: 'Frontend slice complete' },
+          requirementCoverage: [
+            {
+              criterion:
+                '點擊通知或 email 連結，會到歷史紀錄頁並自動開啟該場的回饋彈窗／回答入口',
+              scope: 'frontend',
+              covered: true,
+            },
+            {
+              criterion: '會談結束後 15 分鐘內，mentee 收到站內通知與 email',
+              scope: 'out_of_repo',
+              covered: false,
+              note: '屬後端排程寄信範圍',
+            },
+            {
+              criterion:
+                'Mentee 第一次送出回饋後，mentor 立即收到站內通知與 email',
+              covered: false,
+              note: '後端負責寄送通知信',
+            },
+          ],
+          findings: {},
+        },
+      });
+      expect(evalMixedCovered.converged).toBe(true);
+      expect(evalMixedCovered.uncoveredCriteria).toHaveLength(0);
+      expect(evalMixedCovered.exemptedCriteria).toHaveLength(2);
     });
   });
 

@@ -23,15 +23,57 @@ function renderFindingsSection(title, result) {
   return `### ${title}\n${result.summary}\n\n${rows}`;
 }
 
+function isOutOfRepoCriterion(entry) {
+  const scope = String(entry?.scope ?? '')
+    .toLowerCase()
+    .trim();
+  return (
+    scope === 'out_of_repo' ||
+    scope === 'backend' ||
+    scope === 'external' ||
+    entry?.applicableToFrontend === false
+  );
+}
+
 function renderRequirementCoverage(plan, summary) {
-  if (summary?.requirementCoverage?.length) {
-    return summary.requirementCoverage
-      .map(
-        (c) =>
-          `- ${c.covered ? '✅' : '⚠️'} ${c.criterion}${c.note ? ` — ${c.note}` : ''}`
-      )
-      .join('\n');
+  const coverageList = Array.isArray(summary?.requirementCoverage)
+    ? summary.requirementCoverage
+    : [];
+  const planOutOfRepo = Array.isArray(plan?.outOfRepoCriteria)
+    ? plan.outOfRepoCriteria
+    : [];
+
+  if (coverageList.length > 0 || planOutOfRepo.length > 0) {
+    const seen = new Set();
+    const rows = [];
+
+    for (const c of coverageList) {
+      const crit = String(c?.criterion ?? '').trim();
+      if (!crit) continue;
+      seen.add(crit);
+      if (isOutOfRepoCriterion(c)) {
+        rows.push(
+          `- ⏭️ ${crit} — ${c.note || '屬後端或外部系統範圍，本前端 PR 豁免檢查'}`
+        );
+      } else {
+        rows.push(
+          `- ${c.covered ? '✅' : '⚠️'} ${crit}${c.note ? ` — ${c.note}` : ''}`
+        );
+      }
+    }
+
+    for (const rawCrit of planOutOfRepo) {
+      const crit = String(rawCrit ?? '').trim();
+      if (!crit || seen.has(crit)) continue;
+      seen.add(crit);
+      rows.push(`- ⏭️ ${crit} — 屬後端或外部系統範圍，本前端 PR 豁免檢查`);
+    }
+
+    if (rows.length > 0) {
+      return rows.join('\n');
+    }
   }
+
   return plan?.ticketFound
     ? '_（無法判斷）_'
     : '_（此 PR 找不到對應 ticket，無 acceptance criteria 可比對）_';
