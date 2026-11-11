@@ -143,13 +143,17 @@ async function main() {
   const plan = await callGemini(planPrompt, { images: visualAssets.images });
   const planJson = JSON.stringify(plan, null, 2);
 
-  const runStage = async (promptFile, stageImages = []) => {
+  const runStage = async (
+    promptFile,
+    stageImages = [],
+    stageVisualNote = ''
+  ) => {
     const hasStageImages = Array.isArray(stageImages) && stageImages.length > 0;
     const p = buildPrompt(new URL(`./prompts/${promptFile}`, import.meta.url), {
       PLAN_JSON: planJson,
       DIFF: safeDiff,
       TRUNCATED_NOTE: truncated ? '（注意：diff 過大，內容已截斷）' : '',
-      VISUAL_CONTEXT: hasStageImages ? visualNote : '',
+      VISUAL_CONTEXT: hasStageImages ? stageVisualNote : '',
     });
     return callGemini(p, {
       images: hasStageImages ? stageImages : [],
@@ -166,9 +170,13 @@ async function main() {
   ] = await Promise.all([
     runStage('security.md'),
     runStage('correctness.md'),
-    runStage('business-logic.md', visualAssets.images),
+    runStage('business-logic.md', visualAssets.images, visualNote),
     runStage('performance.md'),
-    runStage('testing.md', visualAssets.evidenceImages),
+    runStage(
+      'testing.md',
+      visualAssets.evidenceImages,
+      visualAssets.evidenceContextMarkdown
+    ),
     runStage('architecture.md'),
   ]);
 

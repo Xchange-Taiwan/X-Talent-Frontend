@@ -88,26 +88,38 @@ export function loadReviewVisualAssets({
   const hasRef = selectedRefs.length > 0;
   const hasEvidence = selectedEvidence.length > 0;
 
-  const noteLines = [];
-  if (hasRef || hasEvidence) {
-    noteLines.push(
-      '',
-      '## 多模態視覺審查附件說明（Multimodal Visual Attachments）'
-    );
-    if (hasRef) {
-      noteLines.push(
-        `- 已附上 ${selectedRefs.length} 張 Ticket／Design Hub 原始設計參考圖（標記為 \`Ticket/DesignHub 設計參考圖\`），請直接以視覺比對實作欄位、排版與文案是否對齊設計圖。`
-      );
-    }
-    if (hasEvidence) {
-      noteLines.push(
+  const refNoteLines = hasRef
+    ? [
+        `- 已附上 ${selectedRefs.length} 張 Ticket／Design Hub 原始設計參考圖（標記為 \`Ticket/DesignHub 設計參考圖\`），請直接以視覺比對實作欄位、排版與文案是否對齊設計圖。`,
+      ]
+    : [];
+
+  const evidenceNoteLines = hasEvidence
+    ? [
         `- 已附上 ${selectedEvidence.length} 張本輪 Playwright 實際擷取的 UI 證據截圖（標記為 \`實作後 Playwright 實際截圖證據\`）：`,
         '  1. 請檢查截圖是否**真正打開並呈現本次修改的目標元件／狀態**（例如：改通知彈窗就必須點開通知鈴鐺拍出彈窗內容，絕不可只拍未點開的首頁；改評價 Tab 就必須拍出切換至該 Tab 的畫面）。',
         '  2. 請檢查截圖是否**已完成頁面初始化**（不可停留在 Skeleton 骨架屏、`載入中...`、破圖或 `□□□□` 中文字體方塊亂碼）。',
-        '  3. 若截圖未打開目標功能或尚未載入完成，請回報明確 Finding 要求在對應 E2E `.spec.ts` 補齊互動點擊與等待後再呼叫 `captureEvidence(...)`。'
-      );
-    }
-  }
+        '  3. 若截圖未打開目標功能或尚未載入完成，請回報明確 Finding 要求在對應 E2E `.spec.ts` 補齊互動點擊與等待後再呼叫 `captureEvidence(...)`。',
+      ]
+    : [];
+
+  const fullContextMarkdown =
+    hasRef || hasEvidence
+      ? [
+          '',
+          '## 多模態視覺審查附件說明（Multimodal Visual Attachments）',
+          ...refNoteLines,
+          ...evidenceNoteLines,
+        ].join('\n')
+      : '';
+
+  const evidenceContextMarkdown = hasEvidence
+    ? [
+        '',
+        '## 多模態視覺審查附件說明（Multimodal Visual Attachments）',
+        ...evidenceNoteLines,
+      ].join('\n')
+    : '';
 
   return {
     images: selectedImages,
@@ -115,6 +127,7 @@ export function loadReviewVisualAssets({
     evidenceImages: selectedEvidence,
     refCount: selectedRefs.length,
     evidenceCount: selectedEvidence.length,
-    visualContextMarkdown: noteLines.join('\n'),
+    visualContextMarkdown: fullContextMarkdown,
+    evidenceContextMarkdown,
   };
 }
