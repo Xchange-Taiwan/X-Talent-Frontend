@@ -118,7 +118,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ env.SAFE_PR_NUMBER }}
-        run: gh pr checkout "$PR_NUMBER"
+        run: |
+          gh pr checkout "$PR_NUMBER"
+          git config user.name "x-talent-cloud-agent[bot]"
+          git config user.email "x-talent-cloud-agent[bot]@users.noreply.github.com"
+          git fetch origin develop --quiet || true
+          git merge origin/develop --no-edit || git merge --abort || true
 
       - name: Set up PNPM
         uses: pnpm/action-setup@v6
@@ -214,6 +219,7 @@ jobs:
 
       - name: Commit and push converged fixes to PR branch (Phase 3)
         env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}

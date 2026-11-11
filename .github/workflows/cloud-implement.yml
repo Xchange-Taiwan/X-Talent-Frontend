@@ -50,7 +50,7 @@ env:
 jobs:
   implement:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     name: 'Cloud AI Implement #${{ inputs.ticket_number }}'
     steps:
       - name: Validate inputs and notify Discord Worker (implement_started)
@@ -221,6 +221,7 @@ jobs:
 
       - name: Submit Pull Request and sync Project Board (Phase 3)
         env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}

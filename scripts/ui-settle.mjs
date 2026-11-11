@@ -35,6 +35,13 @@ export async function lockLightModeAndReducedMotion(page) {
       if (document.documentElement) {
         document.documentElement.style.colorScheme = 'light';
       }
+      if (!document.querySelector('style[data-clean-dev-overlay]')) {
+        const cleanStyle = document.createElement('style');
+        cleanStyle.setAttribute('data-clean-dev-overlay', 'true');
+        cleanStyle.textContent =
+          'nextjs-portal, #__next-build-watcher, [data-nextjs-toast] { display: none !important; }';
+        document.head?.appendChild(cleanStyle);
+      }
     });
   } catch {
     // Ignore if navigation is still in progress
