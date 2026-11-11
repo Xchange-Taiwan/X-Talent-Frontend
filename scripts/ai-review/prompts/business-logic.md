@@ -14,6 +14,8 @@
 {{PLAN_JSON}}
 ```
 
+{{VISUAL_CONTEXT}}
+
 ## PR Diff{{TRUNCATED_NOTE}}
 
 ```diff

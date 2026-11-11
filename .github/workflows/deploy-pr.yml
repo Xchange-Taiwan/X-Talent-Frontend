@@ -110,9 +110,19 @@ jobs:
         continue-on-error: true
         env:
           PREVIEW_URL: ${{ steps.vercel_preview.outputs.url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           touch .evidence-markdown.txt
           if [ -z "$PREVIEW_URL" ]; then exit 0; fi
+
+          # Skip blind visitor fallback capture if the PR body already embeds
+          # interactive Playwright E2E screenshots published to pr-evidence.
+          EXISTING_BODY=$(gh pr view "$PR_NUMBER" --json body --jq '.body // ""' 2>/dev/null || echo "")
+          if printf '%s' "$EXISTING_BODY" | grep -q 'pr-evidence'; then
+            echo "PR already embeds interactive pr-evidence screenshots; skipping visitor fallback capture."
+            exit 0
+          fi
 
           git fetch origin "${{ github.event.pull_request.base.ref }}" --depth=20 || true
           CHANGED_UI=$(git diff --name-only "origin/${{ github.event.pull_request.base.ref }}...HEAD" -- 'src/app/' 'src/components/' 'src/styles/' | grep -vE '\.(test|spec|stories)\.(ts|tsx)$' || true)
@@ -126,6 +136,7 @@ jobs:
           if [ -z "$ROUTES" ]; then ROUTES="/"; fi
 
           echo "Capturing UI evidence on $PREVIEW_URL for routes: $ROUTES"
+          sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends fonts-noto-cjk fontconfig >/dev/null && fc-cache -f || true
           npx playwright install chromium
           mkdir -p .agents/tmp/evidence
           node scripts/capture-ui-evidence.mjs --base-url "$PREVIEW_URL" --routes "$ROUTES" --role visitor --viewport desktop || true
@@ -189,9 +200,12 @@ jobs:
                   repo: context.repo.repo,
                   pull_number: context.issue.number,
                 });
-                if (pr.body && /## Screenshot\s+N\/A/i.test(pr.body)) {
+                if (
+                  pr.body &&
+                  /## Screenshot\s+N\/A(?:\s*\([^)]*\))?/i.test(pr.body)
+                ) {
                   const updatedPrBody = pr.body.replace(
-                    /## Screenshot\s+N\/A/i,
+                    /## Screenshot\s+N\/A(?:\s*\([^)]*\))?/i,
                     `## Screenshot\n\n${evidenceMd}`
                   );
                   await github.rest.pulls.update({

@@ -1,9 +1,12 @@
 import fs from 'fs';
 import path from 'path';
+import { pathToFileURL } from 'url';
 import { chromium } from '@playwright/test';
 import { config } from 'dotenv';
 
-config({ path: path.resolve('.env.development.local') });
+import { waitForUiSettled } from './ui-settle.mjs';
+
+config({ path: path.resolve('.env.development.local'), quiet: true });
 
 const VIEWPORTS = {
   desktop: { width: 1280, height: 800 },
@@ -30,15 +33,22 @@ const FLAGS_WITH_VALUE = [
   '--viewport',
   '--out',
   '--base-url',
+  '--click',
+  '--wait-for',
+  '--label',
 ];
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const parsed = {
     routes: [],
     role: 'visitor',
     viewport: 'desktop',
     outDir: '.agents/tmp/evidence',
     baseUrl: 'http://localhost:3000',
+    clicks: [],
+    waitFor: '',
+    viewportOnly: false,
+    label: '',
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -48,7 +58,10 @@ function parseArgs(argv) {
     }
     switch (flag) {
       case '--routes':
-        parsed.routes = argv[++i].split(',').map((r) => r.trim());
+        parsed.routes = argv[++i]
+          .split(',')
+          .map((r) => r.trim())
+          .filter(Boolean);
         break;
       case '--role':
         parsed.role = argv[++i];
@@ -62,6 +75,18 @@ function parseArgs(argv) {
       case '--base-url':
         parsed.baseUrl = argv[++i];
         break;
+      case '--click':
+        parsed.clicks.push(argv[++i]);
+        break;
+      case '--wait-for':
+        parsed.waitFor = argv[++i];
+        break;
+      case '--label':
+        parsed.label = argv[++i];
+        break;
+      case '--viewport-only':
+        parsed.viewportOnly = true;
+        break;
       default:
         throw new Error(`Unknown argument: ${flag}`);
     }
@@ -69,7 +94,7 @@ function parseArgs(argv) {
 
   if (parsed.routes.length === 0) {
     throw new Error(
-      'Usage: node scripts/capture-ui-evidence.mjs --routes /a,/b --role visitor|mentee|mentor [--viewport desktop|mobile] [--out dir] [--base-url url]'
+      'Usage: node scripts/capture-ui-evidence.mjs --routes /a,/b --role visitor|mentee|mentor [--viewport desktop|mobile] [--click selector] [--wait-for selector] [--viewport-only] [--label name] [--out dir] [--base-url url]'
     );
   }
   if (!VIEWPORTS[parsed.viewport]) {
@@ -129,27 +154,39 @@ async function signIn(page, email, password) {
   throw lastError;
 }
 
-function fileNameFor(role, viewport, route) {
+export function fileNameFor(role, viewport, route, customLabel = '') {
   // Routes can carry a query string (e.g. /profile?tab=settings); `?`, `=`,
   // and friends are illegal in Windows filenames, so collapse anything that
   // isn't alphanumeric/dash/underscore instead of just swapping slashes.
-  const slug =
-    route === '/'
+  const rawSlug = customLabel
+    ? customLabel
+    : route === '/'
       ? 'root'
-      : route.replace(/^\/|\/$/g, '').replace(/[^a-zA-Z0-9-_]+/g, '_');
+      : route.replace(/^\/|\/$/g, '');
+  const slug = rawSlug.replace(/[^a-zA-Z0-9-_]+/g, '_') || 'page';
   return `${role}-${viewport}-${slug}.png`;
 }
 
 async function main() {
-  const { routes, role, viewport, outDir, baseUrl } = parseArgs(
-    process.argv.slice(2)
-  );
+  const {
+    routes,
+    role,
+    viewport,
+    outDir,
+    baseUrl,
+    clicks,
+    waitFor,
+    viewportOnly,
+    label,
+  } = parseArgs(process.argv.slice(2));
   fs.mkdirSync(outDir, { recursive: true });
 
   const browser = await chromium.launch();
   const context = await browser.newContext({
     viewport: VIEWPORTS[viewport],
     baseURL: baseUrl,
+    colorScheme: 'light',
+    reducedMotion: 'reduce',
   });
   const page = await context.newPage();
 
@@ -172,10 +209,30 @@ async function main() {
     }
 
     for (const route of routes) {
-      await page.goto(route);
-      await page.waitForLoadState('networkidle');
-      const filePath = path.join(outDir, fileNameFor(role, viewport, route));
-      await page.screenshot({ path: filePath, fullPage: true });
+      await page.goto(route, { waitUntil: 'domcontentloaded' });
+      await waitForUiSettled(page);
+
+      for (const selector of clicks) {
+        const target = page.locator(selector).first();
+        await target.waitFor({ state: 'visible', timeout: 12_000 });
+        await target.click();
+        await waitForUiSettled(page, { settleDelayMs: 300 });
+      }
+
+      if (waitFor) {
+        await waitForUiSettled(page, {
+          waitForSelector: waitFor,
+          settleDelayMs: 300,
+        });
+      }
+
+      const customSlug = routes.length === 1 ? label : '';
+      const filePath = path.join(
+        outDir,
+        fileNameFor(role, viewport, route, customSlug)
+      );
+      const useFullPage = !viewportOnly && clicks.length === 0;
+      await page.screenshot({ path: filePath, fullPage: useFullPage });
       console.log(filePath);
     }
   } finally {
@@ -183,7 +240,13 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error(err.message ?? err);
-  process.exit(1);
-});
+const isMainModule =
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+
+if (isMainModule) {
+  main().catch((err) => {
+    console.error(err.message ?? err);
+    process.exit(1);
+  });
+}

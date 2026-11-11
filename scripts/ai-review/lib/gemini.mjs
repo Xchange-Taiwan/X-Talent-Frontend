@@ -51,7 +51,31 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function callGeminiOnce(promptText, { model, maxOutputTokens, apiKey }) {
+export function buildGeminiParts(promptText, images = []) {
+  const parts = [{ text: promptText }];
+  if (Array.isArray(images)) {
+    for (const img of images) {
+      if (img?.mimeType && img?.base64Data) {
+        if (img.label) {
+          parts.push({ text: `[視覺附件：${img.label}]` });
+        }
+        parts.push({
+          inlineData: {
+            mimeType: img.mimeType,
+            data: img.base64Data,
+          },
+        });
+      }
+    }
+  }
+  return parts;
+}
+
+async function callGeminiOnce(
+  promptText,
+  { model, maxOutputTokens, apiKey, images = [] }
+) {
+  const parts = buildGeminiParts(promptText, images);
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
@@ -61,7 +85,7 @@ async function callGeminiOnce(promptText, { model, maxOutputTokens, apiKey }) {
         'x-goog-api-key': apiKey,
       },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: promptText }] }],
+        contents: [{ parts }],
         generationConfig: {
           responseMimeType: 'application/json',
           maxOutputTokens,
@@ -137,14 +161,16 @@ async function callGeminiOnce(promptText, { model, maxOutputTokens, apiKey }) {
  * since these have empirically been "fails once, succeeds on the next
  * identical call" — not worth failing an entire pipeline run over.
  */
-export async function callGemini(promptText) {
+export async function callGemini(promptText, options = {}) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY is not set');
   }
-  const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
+  const model = options.model || process.env.GEMINI_MODEL || DEFAULT_MODEL;
   const maxOutputTokens =
-    Number(process.env.GEMINI_MAX_OUTPUT_TOKENS) || DEFAULT_MAX_OUTPUT_TOKENS;
+    Number(options.maxOutputTokens || process.env.GEMINI_MAX_OUTPUT_TOKENS) ||
+    DEFAULT_MAX_OUTPUT_TOKENS;
+  const images = Array.isArray(options.images) ? options.images : [];
 
   let lastErr;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -153,6 +179,7 @@ export async function callGemini(promptText) {
         model,
         maxOutputTokens,
         apiKey,
+        images,
       });
     } catch (err) {
       lastErr = err;
