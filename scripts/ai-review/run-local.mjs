@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Runs the AI Review pipeline locally or in the Cloud Pre-PR convergence loop
- * using the FREE Gemini model (`gemini-4-argon`) configured in
+ * using the FREE Gemini model (`gemini-4-carbon`) configured in
  * `.env.development.local` or environment variables (`GEMINI_API_KEY`),
  * consuming ZERO Claude Code / Aside sub-agent tokens.
  *

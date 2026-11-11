@@ -24,7 +24,7 @@ afterEach(() => {
 });
 
 describe('callGemini', () => {
-  it('parses a clean JSON response and targets gemini-4-argon by default', async () => {
+  it('parses a clean JSON response and targets gemini-4-carbon by default', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(candidateResponse('{"ok":true}'));
@@ -32,7 +32,7 @@ describe('callGemini', () => {
 
     await expect(callGemini('prompt')).resolves.toEqual({ ok: true });
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('models/gemini-4-argon:generateContent'),
+      expect.stringContaining('models/gemini-4-carbon:generateContent'),
       expect.any(Object)
     );
   });

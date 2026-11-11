@@ -25,7 +25,7 @@ describe('cloud-converge-loop', () => {
     it('parses CLI flags and environment variables accurately', () => {
       const parsed = parseConvergeArgs(
         ['--max-rounds=15', '--ticket=#822', '--run-e2e=true'],
-        { GEMINI_MODEL: 'gemini-4-argon' }
+        { GEMINI_MODEL: 'gemini-4-carbon' }
       );
       expect(parsed).toEqual({
         maxRounds: 15,
@@ -33,7 +33,7 @@ describe('cloud-converge-loop', () => {
         runE2e: true,
         baseRef: 'origin/develop',
         summaryOut: '.agents/tmp/cloud-converge-summary.md',
-        geminiModel: 'gemini-4-argon',
+        geminiModel: 'gemini-4-carbon',
       });
     });
 
