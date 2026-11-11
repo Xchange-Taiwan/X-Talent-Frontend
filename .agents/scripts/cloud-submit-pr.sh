@@ -16,12 +16,13 @@ CLEAN_PR=$(printf '%s' "${PR_NUMBER:-}" | tr -cd '0-9')
 TMP_SUMMARY=$(mktemp)
 TMP_SPEC=$(mktemp)
 TMP_EVIDENCE_URLS=$(mktemp)
+TMP_EXISTING_BODY=$(mktemp)
 TMP_COMMIT_MSG=$(mktemp)
 TMP_PR_TITLE=$(mktemp)
 TMP_PR_BODY=$(mktemp)
 
 cleanup() {
-  rm -f "$TMP_SUMMARY" "$TMP_SPEC" "$TMP_EVIDENCE_URLS" "$TMP_COMMIT_MSG" "$TMP_PR_TITLE" "$TMP_PR_BODY"
+  rm -f "$TMP_SUMMARY" "$TMP_SPEC" "$TMP_EVIDENCE_URLS" "$TMP_EXISTING_BODY" "$TMP_COMMIT_MSG" "$TMP_PR_TITLE" "$TMP_PR_BODY"
   rm -f .env.development.local .env.e2e.local
 }
 trap cleanup EXIT
@@ -134,68 +135,38 @@ fi
 # 5. Push branch to origin
 git push -u origin "$CURRENT_BRANCH"
 
-# 6. Create or update Pull Request (in implement mode) and sync Project #7 board status
-if [ "$MODE" = "implement" ]; then
-  DIFF_FILES=$(git diff --name-only origin/develop...HEAD 2>/dev/null || echo "")
-  LAST_SUBJECT=$(git log -1 --format=%s 2>/dev/null || echo "")
-
-  node - "$CLEAN_TICKET" "$CURRENT_BRANCH" "$LAST_SUBJECT" "$TMP_SPEC" "$TMP_SUMMARY" "$TMP_EVIDENCE_URLS" "$DIFF_FILES" "$TMP_PR_TITLE" "$TMP_PR_BODY" <<'EOF'
-const fs = require('fs');
-const [ticket, branch, lastSubject, specPath, summaryPath, evidencePath, diffRaw, titleOut, bodyOut] = process.argv.slice(2);
-const specText = fs.existsSync(specPath) ? fs.readFileSync(specPath, 'utf8') : '';
-const summaryText = fs.existsSync(summaryPath) ? fs.readFileSync(summaryPath, 'utf8').trim() : '';
-const evidenceUrls = fs.existsSync(evidencePath)
-  ? fs.readFileSync(evidencePath, 'utf8').split(/\r?\n/).map(s => s.trim()).filter(Boolean)
-  : [];
-const diffFiles = String(diffRaw || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-
-let prTitle = String(lastSubject || '').trim();
-if (!prTitle) {
-  const titleMatch = specText.match(/^title:\s*(.+)$/m);
-  const rawIssueTitle = titleMatch ? titleMatch[1].trim() : branch;
-  prTitle = `feat: ${rawIssueTitle}`;
-}
-if (ticket && !prTitle.includes(`#${ticket}`)) {
-  prTitle = `${prTitle} (X-Tracker #${ticket})`;
-}
-
-const fileListMd = diffFiles.length > 0
-  ? diffFiles.slice(0, 35).map(f => `- \`${f}\``).join('\n')
-  : `- Branch \`${branch}\``;
-
-const screenshotMd = evidenceUrls.length > 0
-  ? evidenceUrls.map((u, i) => `![evidence-${i + 1}](${u})`).join('\n\n')
-  : 'N/A (Automated by CI PR Preview)';
-
-const bodyParts = [
-  '## What Does This PR Do?',
-  '',
-  fileListMd,
-  '',
-  '## Screenshot',
-  '',
-  screenshotMd,
-];
-
-if (summaryText) {
-  bodyParts.push('', summaryText);
-}
-
-if (ticket) {
-  bodyParts.push('', `Ref: https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/${ticket}`);
-}
-
-fs.writeFileSync(titleOut, prTitle, 'utf8');
-fs.writeFileSync(bodyOut, `${bodyParts.join('\n')}\n`, 'utf8');
-EOF
-
+# 6. Create or update Pull Request with rich AI-synthesized Traditional Chinese description
+LAST_SUBJECT=$(git log -1 --format=%s 2>/dev/null || echo "")
+EXISTING_PR="$CLEAN_PR"
+if [ -z "$EXISTING_PR" ]; then
   EXISTING_PR=$(gh pr list --head "$CURRENT_BRANCH" --state open --json number --jq '.[0].number // empty' 2>/dev/null || echo "")
-  if [ -z "$EXISTING_PR" ]; then
-    PR_TITLE=$(cat "$TMP_PR_TITLE")
-    gh pr create --base develop --head "$CURRENT_BRANCH" --title "$PR_TITLE" --body-file "$TMP_PR_BODY"
-  else
-    gh pr edit "$EXISTING_PR" --body-file "$TMP_PR_BODY" || true
-  fi
+fi
 
+if [ -n "$EXISTING_PR" ]; then
+  gh pr view "$EXISTING_PR" --json body --jq '.body // ""' > "$TMP_EXISTING_BODY" 2>/dev/null || true
+fi
+
+node scripts/generate-pr-description.mjs \
+  --ticket="$CLEAN_TICKET" \
+  --branch="$CURRENT_BRANCH" \
+  --last-subject="$LAST_SUBJECT" \
+  --spec-file="$TMP_SPEC" \
+  --summary-file="$TMP_SUMMARY" \
+  --evidence-file="$TMP_EVIDENCE_URLS" \
+  --existing-body-file="$TMP_EXISTING_BODY" \
+  --base-ref="origin/develop" \
+  --title-out="$TMP_PR_TITLE" \
+  --body-out="$TMP_PR_BODY"
+
+PR_TITLE=$(cat "$TMP_PR_TITLE")
+if [ -z "$EXISTING_PR" ]; then
+  if [ "$MODE" = "implement" ]; then
+    gh pr create --base develop --head "$CURRENT_BRANCH" --title "$PR_TITLE" --body-file "$TMP_PR_BODY"
+  fi
+else
+  gh pr edit "$EXISTING_PR" --title "$PR_TITLE" --body-file "$TMP_PR_BODY" || true
+fi
+
+if [ "$MODE" = "implement" ]; then
   node .agents/scripts/hooks/gemini-verify-board-status.mjs --claude || true
 fi
