@@ -45,14 +45,19 @@ if [ -f .gitignore ]; then
   git update-index --skip-worktree .gitignore 2>/dev/null || true
 fi
 
-# Strip external npx genable-mcp startup overhead in headless Cloud CI runs.
+# Strip external npx genable-mcp startup overhead and allow reading .agents/tmp
+# in headless Cloud CI runs (supports both Gemini CLI v1 and v2 context schema).
 if [ -f .gemini/settings.json ] && command -v jq >/dev/null 2>&1; then
-  jq 'del(.mcpServers) | .fileFiltering = ((.fileFiltering // {}) + {"respectGitIgnore": false})' .gemini/settings.json > .gemini/settings.json.tmp && mv .gemini/settings.json.tmp .gemini/settings.json || true
+  jq 'del(.mcpServers) | .fileFiltering = ((.fileFiltering // {}) + {"respectGitIgnore": false, "respectGeminiIgnore": false}) | .context = ((.context // {}) + {"fileFiltering": {"respectGitIgnore": false, "respectGeminiIgnore": false}})' .gemini/settings.json > .gemini/settings.json.tmp && mv .gemini/settings.json.tmp .gemini/settings.json || true
   git update-index --skip-worktree .gemini/settings.json 2>/dev/null || true
 fi
 
 mkdir -p .git/info .git/hooks
-printf '\n.env.development.local\n.env.e2e.local\n.env*.local\n.agents/tmp/\n' >> .git/info/exclude
+# Note: Do NOT add .agents/tmp/ to .git/info/exclude here because Gemini CLI's
+# read_file checks git check-ignore (which reads .git/info/exclude) and would
+# block reading .agents/tmp/ticket-spec.md and .agents/tmp/ticket-images/*.png!
+# Instead, pre-commit hook + cloud-submit-pr.sh prevent .agents/tmp from ever being committed.
+printf '\n.env.development.local\n.env.e2e.local\n.env*.local\n' >> .git/info/exclude
 cat <<'HOOK' > .git/hooks/pre-commit
 #!/usr/bin/env bash
 if git diff --cached --name-only | grep -qE '(^|/)\.env(\..+)?$'; then

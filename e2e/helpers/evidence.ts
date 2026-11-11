@@ -64,6 +64,13 @@ export async function waitForPageSettled(
       if (document.documentElement) {
         document.documentElement.style.colorScheme = 'light';
       }
+      if (!document.querySelector('style[data-clean-dev-overlay]')) {
+        const cleanStyle = document.createElement('style');
+        cleanStyle.setAttribute('data-clean-dev-overlay', 'true');
+        cleanStyle.textContent =
+          'nextjs-portal, #__next-build-watcher, [data-nextjs-toast] { display: none !important; }';
+        document.head?.appendChild(cleanStyle);
+      }
     });
   } catch {
     // Ignore transient navigation context errors
@@ -220,6 +227,7 @@ export async function captureEvidence(
 
   if (options.locator) {
     await options.locator.waitFor({ state: 'visible', timeout: 10_000 });
+    await options.locator.scrollIntoViewIfNeeded().catch(() => undefined);
   }
 
   await waitForPageSettled(page, {
