@@ -553,19 +553,30 @@ async function capturePrototypesWithPlaywright(urls, outDir, rawSpecText = '') {
           const tabKw = interactiveTabLabels[tIdx];
           try {
             const clicked = await page.evaluate((kw) => {
-              const els = Array.from(
-                document.querySelectorAll('button, [role="tab"], a')
-              );
-              const target = els.find((el) => {
+              const candidates = Array.from(
+                document.querySelectorAll('[role="tab"], button')
+              ).filter((el) => {
+                if (!(el instanceof HTMLElement)) return false;
+                if (el.dataset.prefetchClicked === '1') return false;
+                if (el.getClientRects().length === 0) return false;
                 const txt = (el.textContent || '').trim();
-                return txt.includes(kw) && txt.length <= 16;
+                if (!txt || txt.length > 18 || !txt.includes(kw)) return false;
+                if (kw === '評價' && /(?:尚無評價|沒有評價|無評價)/.test(txt)) {
+                  return false;
+                }
+                return true;
               });
+              // Prefer explicit ARIA tabs over toolbar buttons
+              candidates.sort((a, b) => {
+                const aTab = a.getAttribute('role') === 'tab' ? 0 : 1;
+                const bTab = b.getAttribute('role') === 'tab' ? 0 : 1;
+                return aTab - bTab;
+              });
+              const target = candidates[0];
               if (target instanceof HTMLElement) {
+                target.dataset.prefetchClicked = '1';
                 target.click();
-                return txtSummary(target);
-              }
-              function txtSummary(el) {
-                return (el.textContent || '').trim();
+                return (target.textContent || '').trim();
               }
               return '';
             }, tabKw);

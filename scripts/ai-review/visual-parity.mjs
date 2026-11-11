@@ -9,6 +9,10 @@
  * and invokes multimodal `gemini-4-carbon` to detect layout/alignment/styling drift.
  */
 
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
 import { extractExistingEvidenceUrls } from '../generate-pr-description.mjs';
 import {
   downloadVerifiedImage,
@@ -23,7 +27,12 @@ import {
 import { getDiff } from './lib/diff.mjs';
 import { callGemini } from './lib/gemini.mjs';
 import { buildPrompt } from './lib/prompt.mjs';
-import { extractTicketNumber, fetchRawArchitectureKb } from './lib/ticket.mjs';
+import {
+  extractTicketNumber,
+  fetchRawArchitectureKb,
+  isUiReviewFile,
+  resolveDesignSpecsFromKb,
+} from './lib/ticket.mjs';
 
 const TRACKER_OWNER = 'Xchange-Taiwan';
 const TRACKER_REPO = 'X-Talent-Tracker';
@@ -33,40 +42,67 @@ const MAX_REF_IMAGES = 4;
 const MAX_EVIDENCE_IMAGES = 4;
 const MAX_SINGLE_IMAGE_BYTES = 5 * 1024 * 1024;
 
-function isUiFile(filePath = '') {
-  const f = String(filePath).replace(/\\/g, '/').trim();
-  if (!f) return false;
-  if (/\.(test|spec|stories)\.(ts|tsx|js|jsx)$/.test(f)) return false;
-  if (f.startsWith('src/app/api/')) return false;
-  return (
-    (f.startsWith('src/app/') ||
-      f.startsWith('src/components/') ||
-      f.startsWith('src/styles/')) &&
-    /\.(tsx|jsx|css)$/.test(f)
+export { isUiReviewFile };
+
+export function shouldSkipVisualParity({
+  hasUiChanges,
+  refImagesCount = 0,
+  prImagesCount = 0,
+  designSpecsObj = null,
+}) {
+  if (!hasUiChanges) {
+    return {
+      skip: true,
+      summary: '本次 PR 未修改前端 UI 畫面元件，略過視覺設計對齊審查',
+    };
+  }
+  if (refImagesCount === 0 && prImagesCount === 0 && !designSpecsObj) {
+    return {
+      skip: true,
+      summary: '此 Ticket 無附設計圖與 Design Hub 對照規格，略過視覺比對',
+    };
+  }
+  return { skip: false, summary: '' };
+}
+
+function ghApiJson(
+  apiPath,
+  token,
+  acceptHeader = 'application/vnd.github+json'
+) {
+  const out = execFileSync(
+    'gh',
+    ['api', apiPath, '-H', `Accept: ${acceptHeader}`],
+    {
+      encoding: 'utf8',
+      maxBuffer: 10 * 1024 * 1024,
+      timeout: 15000,
+      env: { ...process.env, ...(token ? { GH_TOKEN: token } : {}) },
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }
   );
+  return JSON.parse(out);
 }
 
 async function fetchIssueHtmlBlocks(ticketNumber, token) {
   if (!ticketNumber || !token) return [];
-  const headers = {
-    Authorization: `Bearer ${token}`,
-    Accept: 'application/vnd.github.full+json',
-  };
-  const baseUrl = `https://api.github.com/repos/${TRACKER_OWNER}/${TRACKER_REPO}/issues/${ticketNumber}`;
+  const basePath = `repos/${TRACKER_OWNER}/${TRACKER_REPO}/issues/${ticketNumber}`;
   try {
-    const issueRes = await fetch(baseUrl, {
-      headers,
-      signal: AbortSignal.timeout(12000),
-    });
-    if (!issueRes.ok) return [];
-    const issue = await issueRes.json();
-
-    const commentsRes = await fetch(`${baseUrl}/comments?per_page=50`, {
-      headers,
-      signal: AbortSignal.timeout(12000),
-    });
-    const comments = commentsRes.ok ? await commentsRes.json() : [];
-    return [issue, ...(Array.isArray(comments) ? comments : [])];
+    const issue = ghApiJson(
+      basePath,
+      token,
+      'application/vnd.github.full+json'
+    );
+    let comments = [];
+    try {
+      const c = ghApiJson(
+        `${basePath}/comments?per_page=50`,
+        token,
+        'application/vnd.github.full+json'
+      );
+      if (Array.isArray(c)) comments = c;
+    } catch {}
+    return [issue, ...comments];
   } catch {
     return [];
   }
@@ -74,17 +110,11 @@ async function fetchIssueHtmlBlocks(ticketNumber, token) {
 
 async function fetchPrScreenshots(prNumber, githubToken) {
   if (!prNumber) return [];
-  const headers = {
-    Accept: 'application/vnd.github+json',
-    ...(githubToken ? { Authorization: `Bearer ${githubToken}` } : {}),
-  };
   try {
-    const prRes = await fetch(
-      `https://api.github.com/repos/${FRONTEND_OWNER}/${FRONTEND_REPO}/pulls/${prNumber}`,
-      { headers, signal: AbortSignal.timeout(10000) }
+    const pr = ghApiJson(
+      `repos/${FRONTEND_OWNER}/${FRONTEND_REPO}/pulls/${prNumber}`,
+      githubToken
     );
-    if (!prRes.ok) return [];
-    const pr = await prRes.json();
     const urls = extractExistingEvidenceUrls(pr?.body || '').slice(
       0,
       MAX_EVIDENCE_IMAGES
@@ -136,12 +166,16 @@ async function main() {
   const touchedFiles = Array.isArray(plan.filesTouched)
     ? plan.filesTouched
     : [];
-  const hasUiChanges = touchedFiles.some(isUiFile);
+  const hasUiChanges = touchedFiles.some(isUiReviewFile);
 
-  if (!hasUiChanges) {
+  const preCheck = shouldSkipVisualParity({
+    hasUiChanges,
+    refImagesCount: 1,
+  });
+  if (preCheck.skip) {
     const skipped = {
       hasFindings: false,
-      summary: '本次 PR 未修改前端 UI 畫面元件，略過視覺設計對齊審查',
+      summary: preCheck.summary,
       findings: [],
     };
     writeGithubOutput('findings', encodeContext(skipped));
@@ -180,22 +214,23 @@ async function main() {
     }
   }
 
-  const designSpecsObj =
-    kb?.matchedDesignSpecs || kb?.matchedDomains?.design_hub || null;
+  const designSpecsObj = resolveDesignSpecsFromKb(kb);
   const designSpecsMarkdown = designSpecsObj
     ? '```json\n' +
       JSON.stringify(designSpecsObj, null, 2).slice(0, 10000) +
       '\n```'
     : '（Cloudflare KV 無對應此票號之 Design Hub 記錄，請依據 Ticket 設計參考圖與規格審查）';
 
-  if (
-    refImages.length === 0 &&
-    prImages.length === 0 &&
-    !kb?.matchedDesignSpecs
-  ) {
+  const postCheck = shouldSkipVisualParity({
+    hasUiChanges,
+    refImagesCount: refImages.length,
+    prImagesCount: prImages.length,
+    designSpecsObj,
+  });
+  if (postCheck.skip) {
     const noRef = {
       hasFindings: false,
-      summary: '此 Ticket 無附設計圖與 Design Hub 對照規格，略過視覺比對',
+      summary: postCheck.summary,
       findings: [],
     };
     writeGithubOutput('findings', encodeContext(noRef));
@@ -226,12 +261,18 @@ async function main() {
   writeGithubOutput('findings', encodeContext(result));
 }
 
-main().catch((err) => {
-  console.warn(`[visual-parity] Non-fatal error: ${err.message}`);
-  const fallback = {
-    hasFindings: false,
-    summary: `視覺審查略過（${err.message}）`,
-    findings: [],
-  };
-  writeGithubOutput('findings', encodeContext(fallback));
-});
+const isMainModule =
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+
+if (isMainModule) {
+  main().catch((err) => {
+    console.warn(`[visual-parity] Non-fatal error: ${err.message}`);
+    const fallback = {
+      hasFindings: false,
+      summary: `視覺審查略過（${err.message}）`,
+      findings: [],
+    };
+    writeGithubOutput('findings', encodeContext(fallback));
+  });
+}
