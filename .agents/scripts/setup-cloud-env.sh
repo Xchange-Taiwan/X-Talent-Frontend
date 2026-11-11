@@ -45,15 +45,20 @@ if [ -f .gitignore ]; then
   git update-index --skip-worktree .gitignore 2>/dev/null || true
 fi
 
-# Install static ripgrep (rg) if missing on Linux runners so Gemini CLI never
-# falls back to slow single-threaded JS GrepTool across the repository.
-if ! command -v rg >/dev/null 2>&1 && [ "$(uname -s 2>/dev/null || echo '')" = "Linux" ]; then
-  mkdir -p ~/.local/bin
-  curl -fsSL --retry 2 "https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz" \
-    | tar -xz -C ~/.local/bin --strip-components=1 ripgrep-14.1.1-x86_64-unknown-linux-musl/rg 2>/dev/null || true
-  if [ -x ~/.local/bin/rg ]; then
-    sudo ln -sf "$HOME/.local/bin/rg" /usr/local/bin/rg 2>/dev/null || true
+# Install static ripgrep (rg) with verified SHA-256 checksum on x86_64 Linux runners
+# so Gemini CLI never falls back to slow single-threaded JS GrepTool.
+if ! command -v rg >/dev/null 2>&1 && [ "$(uname -s 2>/dev/null || echo '')" = "Linux" ] && [ "$(uname -m 2>/dev/null || echo '')" = "x86_64" ]; then
+  RG_TMP_TAR=$(mktemp)
+  RG_TMP_DIR=$(mktemp -d)
+  if curl -fsSL --retry 2 "https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz" -o "$RG_TMP_TAR" 2>/dev/null; then
+    if echo "4cf9f2741e6c465ffdb7c26f38056a59e2a2544b51f7cc128ef28337eeae4d8e  $RG_TMP_TAR" | sha256sum -c - >/dev/null 2>&1; then
+      tar -xzf "$RG_TMP_TAR" -C "$RG_TMP_DIR" --strip-components=1 ripgrep-14.1.1-x86_64-unknown-linux-musl/rg 2>/dev/null || true
+      if [ -x "$RG_TMP_DIR/rg" ]; then
+        sudo install -m 0755 "$RG_TMP_DIR/rg" /usr/local/bin/rg 2>/dev/null || true
+      fi
+    fi
   fi
+  rm -rf "$RG_TMP_TAR" "$RG_TMP_DIR"
 fi
 
 # Strip external npx genable-mcp startup overhead, redundant AfterAgent hooks,
