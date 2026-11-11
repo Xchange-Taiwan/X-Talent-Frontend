@@ -186,7 +186,7 @@ jobs:
             PROMPT="我們正在處理從本地 Promote 上雲端的分支 ${BRANCH_NAME}，對應 https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/${TICKET_NUMBER}（完整 Issue 規格、留言與視覺清單已預先下載至 .agents/tmp/ticket-spec.md）。
             請依序執行：
             1. 直接讀取 .agents/tmp/ticket-spec.md（請勿讀取 .git/config 或重新執行 gh auth）；若規格末段列有預先下載至 .agents/tmp/ticket-images/ 的附圖（.png/.jpg/.webp）或 Design Hub 原型截圖與 -dom.md 樣式摘要，請務必先用 read_file 逐一檢視圖片細節與 CSS 數值，並對照 git diff origin/develop 與所有驗收條件（Acceptance Criteria）。
-            2. 若有尚未實作完畢的需求、缺少的 Vitest 單元測試、對應的 Playwright E2E (.spec.ts) 測試檔案，或當修改/新增 src/components/**/*.tsx 下元件時尚未同步更新的 Storybook (.stories.tsx) 檔案，請直接在同一分支補齊程式碼、測試與 .stories.tsx。
+            2. 若有尚未實作完畢的需求、缺少的 Vitest 單元測試、對應的 Playwright E2E (.spec.ts) 測試檔案，或當修改/新增 src/components/**/*.tsx 下元件時尚未同步更新的 Storybook (.stories.tsx) 檔案，請直接在同一分支補齊程式碼、測試與 .stories.tsx（嚴禁手動修改自動產生的 src/types/api.ts，否則 CI OpenAPI Types Check 會失敗；若後端尚未部署對應欄位或路由，請在 src/types/ 下獨立型別檔擴充選填欄位並對 404/空值做 graceful fallback）。
             3. 互動式 UI 證據截圖要求：只要本次變更涉及前端畫面或 UI 元件（src/app/** 或 src/components/**），請務必在對應的 Playwright E2E (.spec.ts) 中引入 captureEvidence（import { captureEvidence } from '../../helpers/evidence'），並在「實際執行互動打開目標功能狀態（例如點擊通知鈴鐺展開通知清單、切換至評價 Tab、開啟彈窗 Dialog）且 expect(...).toBeVisible() 斷言通過之後」呼叫 await captureEvidence(page, '<描述性狀態名稱>')，切勿只截未點開的首頁！
             4. 僅執行快速的 pnpm type-check 與針對變更檔案的單元測試（npx vitest related \$(git diff --name-only origin/develop | tr '\n' ' ') --run）確保通過；請勿在此階段執行全量 pnpm test、pnpm test:e2e、npx playwright test、pnpm build 或啟動 pnpm dev，也請勿執行 gh pr create，因為下一步 Phase 2 (scripts/cloud-converge-loop.mjs) 會自動執行全量單元測試、Playwright E2E 互動截圖驗證與最多 20 輪多模態 AI Review 自癒收斂迴圈。
             ${EXTRA_PROMPT}"
@@ -194,7 +194,7 @@ jobs:
             bash .agents/scripts/link-ticket-branch.sh "$TICKET_NUMBER" || true
             PROMPT="請針對 https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/${TICKET_NUMBER} 執行第一階段程式碼與測試實作：
             1. Issue #${TICKET_NUMBER} 的完整規格、留言與視覺參考圖清單已預先下載至 .agents/tmp/ticket-spec.md，且 Linked Branch 已預先建立並切換完成，請直接讀取 .agents/tmp/ticket-spec.md（請勿讀取 .git/config 或重新執行 gh auth）。若規格末段列有 .agents/tmp/ticket-images/ 下的設計參考圖或 Design Hub 原型截圖與 -dom.md 樣式摘要，動手寫 UI 前請務必先用 read_file 逐一檢視圖片，確保排版、字級與狀態 1:1 對齊。
-            2. 根據 Issue #${TICKET_NUMBER} 需求完成程式碼、Vitest 單元測試與對應的 Playwright E2E (.spec.ts) 測試檔案撰寫；若涉及新增或修改 src/components/**/*.tsx 下的 UI 元件，必須同步在同一 PR 新增或更新對應的 Storybook (.stories.tsx) 檔案。
+            2. 根據 Issue #${TICKET_NUMBER} 需求完成程式碼、Vitest 單元測試與對應的 Playwright E2E (.spec.ts) 測試檔案撰寫；若涉及新增或修改 src/components/**/*.tsx 下的 UI 元件，必須同步在同一 PR 新增或更新對應的 Storybook (.stories.tsx) 檔案（嚴禁手動修改自動產生的 src/types/api.ts，否則 CI OpenAPI Types Check 會失敗；若後端尚未部署對應欄位或路由，請在 src/types/ 下獨立型別檔擴充選填欄位並對 404/空值做 graceful fallback）。
             3. 互動式 UI 證據截圖要求：只要本次變更涉及前端畫面或 UI 元件（src/app/** 或 src/components/**），請務必在對應的 Playwright E2E (.spec.ts) 中引入 captureEvidence（import { captureEvidence } from '../../helpers/evidence'），並在「實際執行互動打開目標功能狀態（例如點擊通知鈴鐺展開通知清單、切換至評價 Tab、開啟彈窗 Dialog）且 expect(...).toBeVisible() 斷言通過之後」呼叫 await captureEvidence(page, '<描述性狀態名稱>')，切勿只截未點開的首頁！
             4. 僅執行快速的 pnpm type-check 與針對變更檔案的單元測試（npx vitest related \$(git diff --name-only origin/develop | tr '\n' ' ') --run）確保通過；此階段嚴禁自行執行全量 pnpm test、pnpm test:e2e、npx playwright test、pnpm build 或啟動 pnpm dev，也請勿執行 gh pr create，因為下一步 Phase 2 (scripts/cloud-converge-loop.mjs) 會自動執行全量單元測試、Playwright E2E 互動截圖與最多 20 輪多模態 AI Review 自癒收斂迴圈，收斂完成後由 Phase 3 自動提交與開立 PR。
             ${EXTRA_PROMPT}"

@@ -281,16 +281,27 @@ export function extractDesignUrlsFromTexts(
       const screenTickets = Array.isArray(screen?.tickets)
         ? screen.tickets.map((t) => String(t).replace(/^#/, ''))
         : [];
-      const pathStr = String(screen?.path || screen?.url || '');
+      const candidateUrls = [
+        screen?.hubUrl,
+        screen?.sourceUrl,
+        screen?.path,
+        screen?.url,
+      ]
+        .map((v) => String(v || '').trim())
+        .filter(Boolean);
       const matchesTicket =
-        screenTickets.includes(cleanNum) || pathStr.includes(cleanNum);
-      if (matchesTicket && pathStr) {
-        const fullUrl = pathStr.startsWith('http')
-          ? pathStr
-          : `${DESIGN_HUB_BASE_URL}/${pathStr.replace(/^\/+/, '')}`;
-        if (isAllowedPrototypeUrl(fullUrl) && !seenProto.has(fullUrl)) {
-          seenProto.add(fullUrl);
-          prototypeUrls.push(fullUrl);
+        screenTickets.includes(cleanNum) ||
+        String(screen?.id || '').includes(cleanNum) ||
+        candidateUrls.some((u) => u.includes(cleanNum));
+      if (matchesTicket) {
+        for (const rawCandidate of candidateUrls) {
+          const fullUrl = rawCandidate.startsWith('http')
+            ? rawCandidate
+            : `${DESIGN_HUB_BASE_URL}/${rawCandidate.replace(/^\/+/, '')}`;
+          if (isAllowedPrototypeUrl(fullUrl) && !seenProto.has(fullUrl)) {
+            seenProto.add(fullUrl);
+            prototypeUrls.push(fullUrl);
+          }
         }
       }
     }

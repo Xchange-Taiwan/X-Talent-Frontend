@@ -115,9 +115,10 @@ describe('prefetch-ticket-visuals', () => {
       const mockKb = {
         screens: [
           {
-            id: '737',
+            id: 'mentor-card-737',
             module: 'standalone',
-            path: 'pages/mentor-card-737.html',
+            hubUrl:
+              'https://x-talent-design-hub.x-talent.workers.dev/screens/mentor-card-737.html',
             tickets: ['737'],
           },
           {
@@ -132,7 +133,7 @@ describe('prefetch-ticket-visuals', () => {
       const res = extractDesignUrlsFromTexts(texts, '737', mockKb);
       expect(res.prototypeUrls).toEqual([
         'https://xtalent-chat-654.bonny80.chatgpt.site/',
-        'https://x-talent-design-hub.x-talent.workers.dev/pages/mentor-card-737.html',
+        'https://x-talent-design-hub.x-talent.workers.dev/screens/mentor-card-737.html',
       ]);
       expect(res.skippedProtectedUrls).toHaveLength(2);
     });
