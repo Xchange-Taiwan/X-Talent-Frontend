@@ -134,12 +134,13 @@ jobs:
           BRANCH_NAME: ${{ env.SAFE_BRANCH_NAME }}
         run: |
           mkdir -p .agents/tmp
+          rm -f .agents/tmp/ticket-scope.json .agents/tmp/scope-guidance.md
           GH_TOKEN="${TRACKER_READ_TOKEN:-$GH_TOKEN}" gh issue view "$TICKET_NUMBER" --repo Xchange-Taiwan/X-Talent-Tracker --comments > .agents/tmp/ticket-spec.md 2>/dev/null || true
           node scripts/check-ticket-scope.mjs \
             --spec-file=.agents/tmp/ticket-spec.md \
             --branch="$BRANCH_NAME" \
             --out=.agents/tmp/ticket-scope.json \
-            --guidance-out=.agents/tmp/scope-guidance.md
+            --guidance-out=.agents/tmp/scope-guidance.md || true
 
           ACTIONABLE=$(jq -r 'if .actionableInFrontendRepo == false then "false" else "true" end' .agents/tmp/ticket-scope.json 2>/dev/null || echo "true")
           SCOPE_REASON=$(jq -r '.reason // ""' .agents/tmp/ticket-scope.json 2>/dev/null | tr '\r\n' ' ' || echo "")

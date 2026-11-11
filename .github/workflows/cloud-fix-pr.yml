@@ -184,15 +184,16 @@ jobs:
           FIX_INSTRUCTIONS: ${{ inputs.fix_instructions }}
         run: |
           mkdir -p .agents/tmp
+          rm -f .agents/tmp/scope-guidance.md
           GH_TOKEN="${TRACKER_READ_TOKEN:-$GH_TOKEN}" gh issue view "$TICKET_NUMBER" --repo Xchange-Taiwan/X-Talent-Tracker --comments > .agents/tmp/ticket-spec.md 2>/dev/null || true
-          ARCH_QUERY="#${TICKET_NUMBER} $(head -n 25 .agents/tmp/ticket-spec.md 2>/dev/null | tr '\n' ' ' || echo '')"
-          jq -n --arg q "$ARCH_QUERY" '{query: $q}' | curl -sS -X POST "https://x-talent-discord-mention-notify.x-talent.workers.dev/__arch-kb" -H "Content-Type: application/json" -d @- | jq -r 'if .kb then "\n\n## X-Talent 跨專案架構知識庫 (Cloudflare KV Architecture KB)\n```json\n" + (.kb | tojson) + "\n```" else "" end' >> .agents/tmp/ticket-spec.md 2>/dev/null || true
-          node scripts/prefetch-ticket-visuals.mjs --ticket="$TICKET_NUMBER" || true
           node scripts/check-ticket-scope.mjs --spec-file=.agents/tmp/ticket-spec.md --guidance-out=.agents/tmp/scope-guidance.md >/dev/null 2>&1 || true
           SCOPE_GUIDANCE=""
           if [ -s .agents/tmp/scope-guidance.md ]; then
             SCOPE_GUIDANCE=$(cat .agents/tmp/scope-guidance.md)
           fi
+          ARCH_QUERY="#${TICKET_NUMBER} $(head -n 25 .agents/tmp/ticket-spec.md 2>/dev/null | tr '\n' ' ' || echo '')"
+          jq -n --arg q "$ARCH_QUERY" '{query: $q}' | curl -sS -X POST "https://x-talent-discord-mention-notify.x-talent.workers.dev/__arch-kb" -H "Content-Type: application/json" -d @- | jq -r 'if .kb then "\n\n## X-Talent 跨專案架構知識庫 (Cloudflare KV Architecture KB)\n```json\n" + (.kb | tojson) + "\n```" else "" end' >> .agents/tmp/ticket-spec.md 2>/dev/null || true
+          node scripts/prefetch-ticket-visuals.mjs --ticket="$TICKET_NUMBER" || true
 
           if [ -n "$FIX_INSTRUCTIONS" ]; then
             PROMPT="我們正在處理 PR #${PR_NUMBER}（對應 Ticket #${TICKET_NUMBER}，規格與視覺參考圖清單位於 .agents/tmp/ticket-spec.md）。

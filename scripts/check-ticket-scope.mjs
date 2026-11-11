@@ -298,7 +298,7 @@ export function buildScopedImplementationGuidance(scopeResult) {
   const lines = [
     '',
     '【跨前後端混合票實作邊界防護】',
-    '本票為跨前後端／跨系統混合票，請嚴格只實作屬於 `X-Talent-Frontend` 前端儲存庫的範圍：',
+    '本票為跨前後端／跨系統混合票，請嚴格只實作屬於 X-Talent-Frontend 前端儲存庫的範圍：',
   ];
 
   if (scopeResult.frontendTasksSummary) {
@@ -306,7 +306,7 @@ export function buildScopedImplementationGuidance(scopeResult) {
   }
   if (hasOutItems) {
     lines.push(
-      '- 以下項目屬於後端（`X-Talent-Backend`）或外部系統職責，請勿在前端偽造後端排程／寄信邏輯，也切勿因此卡住：'
+      '- 以下項目屬於後端（X-Talent-Backend）或外部系統職責，請勿在前端偽造後端排程／寄信邏輯，也切勿因此卡住：'
     );
     for (const item of scopeResult.outOfRepoItems) {
       lines.push(`  * [非前端豁免] ${item}`);
@@ -377,6 +377,18 @@ if (isMain) {
         outOfRepoItems: [],
         reason: 'Fallback on unexpected error',
       };
+      if (outFile) {
+        try {
+          fs.mkdirSync(path.dirname(outFile), { recursive: true });
+          fs.writeFileSync(outFile, JSON.stringify(fallback, null, 2), 'utf8');
+        } catch {}
+      }
+      if (guidanceOutFile) {
+        try {
+          fs.mkdirSync(path.dirname(guidanceOutFile), { recursive: true });
+          fs.writeFileSync(guidanceOutFile, '', 'utf8');
+        } catch {}
+      }
       console.log(JSON.stringify(fallback, null, 2));
       process.exit(0);
     });
