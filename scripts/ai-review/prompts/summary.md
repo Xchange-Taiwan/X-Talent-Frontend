@@ -48,8 +48,8 @@
 
 ## 你的任務
 
-1. **Requirement coverage**：對照 Planner 整理的 `acceptanceCriteria`，逐條判斷這次 diff 有沒有覆蓋到。若 Planner 的 `ticketFound` 為 false 或 `acceptanceCriteria` 為空陣列，回傳空陣列即可
-2. **Overall risk**：綜合以上 6 個 Reviewer 全部的 findings，給一個整體風險等級（`low` / `medium` / `high`）與一句話理由。判斷原則：只要有任何一個 agent 回報了 `hasFindings: true` 且問題看起來嚴重（例如安全性問題、會導致流程中斷的錯誤處理缺漏、Business Logic Reviewer 回報的業務規則違反或做在錯誤流程），風險就不該是 `low`；若某個 agent 的結果標記為「未執行」或缺失，也要在理由中提及，因為代表這次審查不完整
+1. **Requirement coverage**：對照 Planner 整理的 `acceptanceCriteria`，逐條判斷這次前端 diff 有沒有覆蓋到（標記 `"scope": "frontend"`）。若某條條件其實屬於後端 `X-Talent-Backend`（如排程發送 Email、後端去重、DB 儲存／遮罩運算）或外部系統設定，無法在 `X-Talent-Frontend` 內實作，請將該條標記為 `"scope": "out_of_repo"`、`"covered": true`，並在 `note` 註明「屬後端或外部系統範圍，本前端 PR 豁免檢查」（Planner 的 `outOfRepoCriteria` 亦可一併以 `"scope": "out_of_repo"` 列出供人類參考）。若 Planner 的 `ticketFound` 為 false 或無任何條件，回傳空陣列即可
+2. **Overall risk**：綜合以上 6 個 Reviewer 全部的 findings，給一個整體風險等級（`low` / `medium` / `high`）與一句話理由。判斷原則：只要有任何一個 agent 回報了 `hasFindings: true` 且問題看起來嚴重（例如安全性問題、會導致流程中斷的錯誤處理缺漏、Business Logic Reviewer 回報的業務規則違反或做在錯誤流程），風險就不該是 `low`；屬於 `out_of_repo` 的後端／外部系統驗收條件**絕不可**提高風險等級；若某個 agent 的結果標記為「未執行」或缺失，也要在理由中提及，因為代表這次審查不完整
 3. **Merge recommendation**：給審查者一句話建議（例如「可合併」「建議先補測試」「建議人工複查安全性問題」）。這只是給人看的參考意見，不代表任何強制的 merge gate
 
 請只回傳以下 JSON 格式，不要加任何其他文字或 markdown 標記：
@@ -59,6 +59,7 @@
   "requirementCoverage": [
     {
       "criterion": "acceptance criterion 原文",
+      "scope": "frontend | out_of_repo",
       "covered": boolean,
       "note": "簡短說明判斷依據"
     }

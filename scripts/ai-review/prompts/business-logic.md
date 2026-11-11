@@ -28,7 +28,7 @@
 
 - **違反已知業務規則**：diff 是否新增了違反上面「平台業務規則」清單的邏輯（例如在規則明說不可能出現某角色/某狀態的流程裡，加了針對該角色/狀態的分支）。`category` 標成 `"Business Rule Violation"`
 - **Dead / unreachable 邏輯**：因為業務規則保證某個條件永遠不成立（角色、狀態機階段等），導致新增的分支永遠不會被執行，屬於白做工。`category` 標成 `"Unreachable Logic"`
-- **需求範圍錯誤**：對照 Planner 的 `requirementSummary` / `acceptanceCriteria`，這次實作是否做在錯誤的流程/頁面/角色上——功能本身沒錯，但放錯地方，導致沒有真正滿足需求，或做了需求沒要求的事。`category` 標成 `"Misplaced Implementation"`
+- **需求範圍錯誤**：對照 Planner 的 `requirementSummary` / `acceptanceCriteria`，這次實作是否做在錯誤的流程/頁面/角色上——功能本身沒錯，但放錯地方，導致沒有真正滿足需求，或做了需求沒要求的事。`category` 標成 `"Misplaced Implementation"`（注意：若 Planner 的 `outOfRepoCriteria` 列有屬於後端寄信、排程、DB 儲存或外部後台設定的項目，前端 PR 不實作那些後端項目是完全正常的，嚴禁將後端職責回報為前端缺漏）
 
 不要重複其他 agent 的工作：不評論程式碼風格、效能、測試覆蓋、一般架構慣例（layer 分層、apiClient 用法等）；只把關「這段邏輯有沒有業務上的存在理由、放在對的地方」。「平台業務規則」清單沒有涵蓋到、且 Planner 的 ticket 資訊也看不出依據的情況，不要用猜測硬套規則——找不到明確違反的規則就不要回報。
 
