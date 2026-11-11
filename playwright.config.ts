@@ -168,9 +168,13 @@ export default defineConfig({
   webServer: isRemote
     ? undefined
     : {
-        command: 'pnpm dev',
+        command:
+          process.env.PLAYWRIGHT_USE_TURBO === '1'
+            ? 'pnpm dev-turbo'
+            : 'pnpm dev',
         url: 'http://localhost:3000',
-        reuseExistingServer: !process.env.CI,
+        reuseExistingServer:
+          process.env.PLAYWRIGHT_REUSE_SERVER === '1' || !process.env.CI,
         timeout: 120_000,
       },
 });

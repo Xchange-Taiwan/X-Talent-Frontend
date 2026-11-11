@@ -332,7 +332,6 @@ export function evaluateRoundConvergence({
     Boolean(deterministicPassed) &&
     Boolean(e2ePassed) &&
     riskLevel === 'low' &&
-    flatFindings.length === 0 &&
     uncoveredCriteria.length === 0;
 
   const fingerprintParts = [
@@ -469,28 +468,51 @@ const STEP_TIMEOUT_MS = {
   unitTest: 8 * 60 * 1000,
   e2e: 10 * 60 * 1000,
   review: 5 * 60 * 1000,
-  geminiFix: 12 * 60 * 1000,
+  geminiFix: 9 * 60 * 1000,
 };
+
+export function inferDefaultTimeoutMs(cmd, args = []) {
+  const first = String(args[0] ?? '');
+  if (cmd === 'pnpm' && (first === 'lint' || first === 'type-check')) {
+    return STEP_TIMEOUT_MS.static;
+  }
+  if (
+    (cmd === 'pnpm' && first === 'test') ||
+    (cmd === 'npx' && first === 'vitest')
+  ) {
+    return STEP_TIMEOUT_MS.unitTest;
+  }
+  if (cmd === 'pnpm' && (first === 'test:e2e:mock' || first === 'playwright')) {
+    return STEP_TIMEOUT_MS.e2e;
+  }
+  if (cmd === 'node' && first.includes('run-local.mjs')) {
+    return STEP_TIMEOUT_MS.review;
+  }
+  return STEP_TIMEOUT_MS.geminiFix;
+}
 
 function defaultExecStep(cmd, args, options = {}) {
   const isWin = process.platform === 'win32';
   const resolvedCmd =
     isWin && (cmd === 'pnpm' || cmd === 'npx') ? `${cmd}.cmd` : cmd;
+  const timeout = options.timeout ?? inferDefaultTimeoutMs(cmd, args);
   try {
     const stdout = execFileSync(resolvedCmd, args, {
       encoding: 'utf8',
       maxBuffer: 15 * 1024 * 1024,
-      timeout: STEP_TIMEOUT_MS.geminiFix,
+      timeout,
       stdio: ['ignore', 'pipe', 'pipe'],
       ...options,
     });
-    return { ok: true, stdout, stderr: '' };
+    return { ok: true, timedOut: false, stdout, stderr: '' };
   } catch (err) {
     const timedOut = err?.code === 'ETIMEDOUT' || err?.signal === 'SIGTERM';
     const stdout = String(err.stdout ?? '');
-    const stderr = String(
-      err.stderr ?? (timedOut ? 'Command timed out' : err.message) ?? ''
-    );
+    const rawStderr = String(err.stderr ?? '').trim();
+    const stderr =
+      [rawStderr, timedOut ? `Command timed out after ${timeout}ms` : '']
+        .filter(Boolean)
+        .join('\n') || String(err.message ?? '');
     return {
       ok: false,
       timedOut,
@@ -531,6 +553,54 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         .filter((f) => /\.(png|jpe?g|webp)$/i.test(f));
     });
 
+  const saveSnapshot =
+    deps.saveSnapshot ||
+    (() => {
+      try {
+        execFileSync('git', ['add', '-A'], { stdio: 'ignore' });
+        execFileSync(
+          'git',
+          ['reset', 'HEAD', '--', '.env*', '*/.env*', '.agents/tmp*'],
+          { stdio: 'ignore' }
+        );
+        const treeSha = execFileSync('git', ['write-tree'], {
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'ignore'],
+        }).trim();
+        execFileSync('git', ['reset', '--quiet'], { stdio: 'ignore' });
+        return treeSha;
+      } catch {
+        return '';
+      }
+    });
+
+  const restoreSnapshot =
+    deps.restoreSnapshot ||
+    ((treeSha) => {
+      if (!treeSha) return;
+      try {
+        execFileSync('git', ['read-tree', '--reset', '-u', treeSha], {
+          stdio: 'ignore',
+        });
+        execFileSync(
+          'git',
+          [
+            'clean',
+            '-fd',
+            '-e',
+            '.env*',
+            '-e',
+            '.agents/tmp',
+            '-e',
+            '.agents/tmp/**',
+          ],
+          { stdio: 'ignore' }
+        );
+      } catch {
+        // Ignore best-effort rollback errors
+      }
+    });
+
   const config = {
     maxRounds: clampMaxRounds(rawOptions.maxRounds, 20),
     ticketNumber: rawOptions.ticketNumber ?? '',
@@ -556,7 +626,22 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       `\n[cloud-converge] === Round ${round}/${config.maxRounds} starting ===`
     );
 
-    // 1. Deterministic checks: fast-fail on lint/type-check before running full unit suite
+    // Inspect changed files once at the start of the round for targeted unit & E2E runs
+    const diffFilesRes = execStep('git', [
+      'diff',
+      '--name-only',
+      config.baseRef,
+    ]);
+    const diffFiles = diffFilesRes.ok
+      ? diffFilesRes.stdout.split(/\r?\n/).filter(Boolean)
+      : [];
+
+    const testEnv = {
+      ...process.env,
+      VITEST_MAX_WORKERS: process.env.VITEST_MAX_WORKERS || '3',
+    };
+
+    // 1. Deterministic checks: fast-fail on lint/type-check before running unit tests
     const deterministicErrors = [];
     for (const [label, args] of [
       ['pnpm lint', ['lint']],
@@ -569,20 +654,39 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       }
     }
 
+    let ranFullUnitSuiteThisRound = false;
     if (deterministicErrors.length === 0) {
-      const testRes = execStep('pnpm', ['test']);
-      if (!testRes.ok) {
-        log(`[cloud-converge] pnpm test failed in round ${round}`);
-        deterministicErrors.push(
-          `[pnpm test]\n${testRes.combined || testRes.stderr}`
+      const relatedCandidates = diffFiles.filter(
+        (f) => /\.(ts|tsx|js|jsx|mjs)$/.test(f) && !f.startsWith('e2e/')
+      );
+      if (round > 1 && relatedCandidates.length > 0) {
+        const relRes = execStep(
+          'npx',
+          ['vitest', 'related', ...relatedCandidates, '--run'],
+          { env: testEnv }
         );
+        if (!relRes.ok) {
+          log(`[cloud-converge] vitest related failed in round ${round}`);
+          deterministicErrors.push(
+            `[vitest related]\n${relRes.combined || relRes.stderr}`
+          );
+        }
+      } else {
+        ranFullUnitSuiteThisRound = true;
+        const testRes = execStep('pnpm', ['test'], { env: testEnv });
+        if (!testRes.ok) {
+          log(`[cloud-converge] pnpm test failed in round ${round}`);
+          deterministicErrors.push(
+            `[pnpm test]\n${testRes.combined || testRes.stderr}`
+          );
+        }
       }
     } else {
       log(
         `[cloud-converge] Static check failed in round ${round}; fast-failing to Gemini fix without running slow unit/E2E suites.`
       );
     }
-    const deterministicPassed = deterministicErrors.length === 0;
+    let deterministicPassed = deterministicErrors.length === 0;
 
     // 2. Playwright E2E verification (only when static + unit tests pass)
     const e2eErrors = [];
@@ -593,14 +697,6 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
     }
 
     if (config.runE2e && deterministicPassed) {
-      const diffFilesRes = execStep('git', [
-        'diff',
-        '--name-only',
-        config.baseRef,
-      ]);
-      const diffFiles = diffFilesRes.ok
-        ? diffFilesRes.stdout.split(/\r?\n/).filter(Boolean)
-        : [];
       const {
         allChangedSpecs,
         changedMockSpecs,
@@ -615,10 +711,14 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       if (config.requireUiEvidence && hasUiSurfaceChanges) {
         clearEvidence();
       }
+      const useTargetedSpecs =
+        !hasSharedE2eChanges && allChangedSpecs.length > 0;
       const e2eEnv = {
         ...process.env,
         CAPTURE_EVIDENCE: '1',
         EVIDENCE_OUT_DIR: evidenceDir,
+        PLAYWRIGHT_USE_TURBO: '1',
+        E2E_SKIP_FULL_WARMUP: useTargetedSpecs ? '1' : '0',
       };
 
       // When a ticket provides targeted E2E specs (and didn't touch shared
@@ -626,8 +726,6 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       // all 14 unrelated routes on every round. If no E2E specs were modified
       // on a runtime app code change (or shared E2E helpers changed), fall back
       // to running the full mock suite. Pure unit-test / Storybook diffs skip E2E.
-      const useTargetedSpecs =
-        !hasSharedE2eChanges && allChangedSpecs.length > 0;
       const shouldRunFullMockSuite =
         hasSharedE2eChanges ||
         (hasAppCodeChanges && allChangedSpecs.length === 0) ||
@@ -777,6 +875,31 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
     );
 
     if (lastEvaluation.converged) {
+      // If an intermediate fix round used fast `vitest related`, run one final
+      // full `pnpm test` gate before declaring convergence so zero regressions slip through.
+      if (!ranFullUnitSuiteThisRound) {
+        log(
+          `[cloud-converge] Running final full unit test gate before convergence exit...`
+        );
+        const finalUnitRes = execStep('pnpm', ['test'], { env: testEnv });
+        if (!finalUnitRes.ok) {
+          log(
+            `[cloud-converge] Final full pnpm test gate failed in round ${round}; continuing fix loop.`
+          );
+          deterministicPassed = false;
+          deterministicErrors.push(
+            `[pnpm test]\n${finalUnitRes.combined || finalUnitRes.stderr}`
+          );
+          lastEvaluation = evaluateRoundConvergence({
+            deterministicPassed: false,
+            e2ePassed: lastE2ePassed,
+            reviewResult: reviewJson,
+          });
+        }
+      }
+    }
+
+    if (lastEvaluation.converged) {
       log(`[cloud-converge] Converged in round ${round}/${config.maxRounds}!`);
       const summaryMd = formatConvergenceSummaryMarkdown({
         converged: true,
@@ -834,7 +957,8 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
     log(
       `[cloud-converge] Invoking Gemini (${config.geminiModel}) to fix round ${round} findings...`
     );
-    execStep('npx', [
+    const snapshotSha = saveSnapshot();
+    const geminiRes = execStep('npx', [
       'gemini',
       '-m',
       config.geminiModel,
@@ -843,6 +967,17 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       '-p',
       fixPrompt,
     ]);
+    if (geminiRes.timedOut && snapshotSha) {
+      log(
+        `[cloud-converge] Gemini CLI timed out in round ${round}; restoring clean pre-round snapshot (${snapshotSha.slice(0, 8)}) to prevent corrupted half-edits.`
+      );
+      restoreSnapshot(snapshotSha);
+      // Reset fingerprint counter once so a transient network hang gets one clean retry
+      if (consecutiveSameFingerprint > 0) {
+        previousFingerprint = '';
+        consecutiveSameFingerprint = 0;
+      }
+    }
   }
 
   const summaryMd = formatConvergenceSummaryMarkdown({

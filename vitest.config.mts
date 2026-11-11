@@ -20,10 +20,13 @@ export default defineConfig({
       NEXT_PUBLIC_API_URL: '',
     },
     setupFiles: ['./src/test/setup.ts'],
-    // maxWorkers: 1 alone already serializes test files in CI (fileParallelism's
-    // effect); the previous poolOptions.forks.singleFork block was a no-op since
-    // singleFork's default is already false, so it added nothing and is dropped.
-    maxWorkers: process.env.CI ? 1 : undefined,
+    // Allow Cloud AI VMs (4-vCPU ubuntu-latest) to opt into parallel workers via
+    // VITEST_MAX_WORKERS while defaulting standard CI to 2 workers instead of 1-core serial.
+    maxWorkers: process.env.VITEST_MAX_WORKERS
+      ? Number(process.env.VITEST_MAX_WORKERS)
+      : process.env.CI
+        ? 2
+        : undefined,
     server: {
       deps: {
         inline: [/@storybook\/nextjs/],

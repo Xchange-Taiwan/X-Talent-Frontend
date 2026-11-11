@@ -33,11 +33,14 @@ config({ path: path.resolve(__dirname, '../.env.development.local') });
  * which immediately hits /api/auth/session. Including it here ensures the
  * NextAuth route handler is compiled before any test runs.
  */
-const PAGES_TO_WARM = [
-  // Next.js API routes
+const AUTH_API_ROUTES_TO_WARM = [
   '/api/auth/session',
   '/api/auth/providers',
   '/api/auth/csrf',
+];
+
+const PAGES_TO_WARM = [
+  ...AUTH_API_ROUTES_TO_WARM,
   // App pages
   '/',
   '/about',
@@ -58,19 +61,25 @@ const PAGES_TO_WARM = [
 ];
 
 export default async function globalSetup(): Promise<void> {
-  const tasks: Promise<unknown>[] = [
-    // Wake the X-Career-Auth Lambda so auth.setup.ts doesn't pay cold-start
-    // latency. Bogus credentials are intentional — a 400/401 still spins up the
-    // function, which is all we need.
-    warmAuthLambda(),
-  ];
+  const skipFullWarmup = process.env.E2E_SKIP_FULL_WARMUP === '1';
+  const tasks: Promise<unknown>[] = skipFullWarmup
+    ? []
+    : [
+        // Wake the X-Career-Auth Lambda so auth.setup.ts doesn't pay cold-start
+        // latency. Bogus credentials are intentional — a 400/401 still spins up the
+        // function, which is all we need.
+        warmAuthLambda(),
+      ];
 
   if (!isRemote) {
+    const routesToWarm = skipFullWarmup
+      ? AUTH_API_ROUTES_TO_WARM
+      : PAGES_TO_WARM;
     const context = await request.newContext({ baseURL: BASE_URL });
     tasks.push(
-      ...PAGES_TO_WARM.map((path) =>
+      ...routesToWarm.map((routePath) =>
         context
-          .get(path, { timeout: 60_000 })
+          .get(routePath, { timeout: 60_000 })
           .catch(() => {
             // Ignore errors (e.g. redirect, 401) — we only need compilation to start.
           })
