@@ -11,6 +11,7 @@ const REVIEW_CATEGORIES = [
   'security',
   'correctness',
   'businessLogic',
+  'visualParity',
   'performance',
   'testing',
   'architecture',

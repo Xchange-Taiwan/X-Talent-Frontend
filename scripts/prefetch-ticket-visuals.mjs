@@ -420,7 +420,7 @@ async function fetchDesignHubKb(fetchImpl = fetch) {
   }
 }
 
-async function capturePrototypesWithPlaywright(urls, outDir) {
+async function capturePrototypesWithPlaywright(urls, outDir, rawSpecText = '') {
   if (!urls || urls.length === 0) return [];
   let chromium;
   try {
@@ -428,6 +428,14 @@ async function capturePrototypesWithPlaywright(urls, outDir) {
     chromium = pw.chromium;
   } catch {
     return [];
+  }
+
+  const interactiveTabLabels = [];
+  if (/(?:評價|評論|回饋)/i.test(rawSpecText)) {
+    interactiveTabLabels.push('評價');
+  }
+  if (/(?:尚無評價|空狀態|沒有評價)/i.test(rawSpecText)) {
+    interactiveTabLabels.push('尚無評價');
   }
 
   const captured = [];
@@ -538,6 +546,52 @@ async function capturePrototypesWithPlaywright(urls, outDir) {
           domSpecPath: domPath.replace(/\\/g, '/'),
           mimeType: 'image/png',
         });
+
+        // If the ticket targets specific tabs/states (e.g. '評價', '尚無評價'),
+        // click them inside the prototype so Gemini sees the exact active tab UI!
+        for (let tIdx = 0; tIdx < interactiveTabLabels.length; tIdx++) {
+          const tabKw = interactiveTabLabels[tIdx];
+          try {
+            const clicked = await page.evaluate((kw) => {
+              const els = Array.from(
+                document.querySelectorAll('button, [role="tab"], a')
+              );
+              const target = els.find((el) => {
+                const txt = (el.textContent || '').trim();
+                return txt.includes(kw) && txt.length <= 16;
+              });
+              if (target instanceof HTMLElement) {
+                target.click();
+                return txtSummary(target);
+              }
+              function txtSummary(el) {
+                return (el.textContent || '').trim();
+              }
+              return '';
+            }, tabKw);
+
+            if (clicked) {
+              await waitForUiSettled(page, { settleDelayMs: 250 });
+              const tabImgPath = path.join(
+                outDir,
+                `${baseName}-tab-${tIdx + 1}.png`
+              );
+              await page.screenshot({
+                path: tabImgPath,
+                clip: { x: 0, y: 0, width: 1280, height: 900 },
+              });
+              captured.push({
+                url: `${url} (切換狀態: ${clicked})`,
+                title: `${pageSummary.title} - ${clicked}`,
+                imagePath: tabImgPath.replace(/\\/g, '/'),
+                domSpecPath: domPath.replace(/\\/g, '/'),
+                mimeType: 'image/png',
+              });
+            }
+          } catch {
+            // Ignore optional tab click errors
+          }
+        }
       } catch {
         // Non-fatal: skip unreachable prototype URL
       }
@@ -691,7 +745,11 @@ export async function runPrefetchVisuals(options = {}) {
 
   const capturedPrototypes = skipPrototypes
     ? []
-    : await capturePrototypesWithPlaywright(prototypeUrls, outDir);
+    : await capturePrototypesWithPlaywright(
+        prototypeUrls,
+        outDir,
+        rawTexts.join('\n')
+      );
 
   const manifest = {
     ticketNumber: Number(ticketNumber),

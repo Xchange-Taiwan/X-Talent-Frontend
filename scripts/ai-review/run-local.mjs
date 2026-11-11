@@ -47,6 +47,7 @@ import { callGemini } from './lib/gemini.mjs';
 import { buildPrompt } from './lib/prompt.mjs';
 import {
   fetchArchitectureKnowledgeBase,
+  fetchRawArchitectureKb,
   fetchTicketContext,
 } from './lib/ticket.mjs';
 import { loadReviewVisualAssets } from './lib/visuals.mjs';
@@ -121,9 +122,21 @@ async function main() {
     ? `\n\n## 雲端 Playwright E2E 驗證狀態\n${e2eReport}`
     : '';
 
-  const archKbSection = await fetchArchitectureKnowledgeBase(
-    ticket.ticketFound ? `#${ticket.number} ${ticket.title} ${branch}` : branch
-  );
+  const kbQuery = ticket.ticketFound
+    ? `#${ticket.number} ${ticket.title} ${branch}`
+    : branch;
+  const [archKbSection, rawKb] = await Promise.all([
+    fetchArchitectureKnowledgeBase(kbQuery),
+    fetchRawArchitectureKb(kbQuery),
+  ]);
+
+  const designSpecsObj =
+    rawKb?.matchedDesignSpecs || rawKb?.matchedDomains?.design_hub || null;
+  const designSpecsMd = designSpecsObj
+    ? '```json\n' +
+      JSON.stringify(designSpecsObj, null, 2).slice(0, 9000) +
+      '\n```'
+    : '（無對應 Design Hub 記錄，請依據 Ticket 附圖與正文規格審查）';
 
   const visualAssets = loadReviewVisualAssets();
   const visualNote = visualAssets.visualContextMarkdown || '';
@@ -146,7 +159,8 @@ async function main() {
   const runStage = async (
     promptFile,
     stageImages = [],
-    stageVisualNote = ''
+    stageVisualNote = '',
+    extraVars = {}
   ) => {
     const hasStageImages = Array.isArray(stageImages) && stageImages.length > 0;
     const p = buildPrompt(new URL(`./prompts/${promptFile}`, import.meta.url), {
@@ -154,16 +168,29 @@ async function main() {
       DIFF: safeDiff,
       TRUNCATED_NOTE: truncated ? '（注意：diff 過大，內容已截斷）' : '',
       VISUAL_CONTEXT: hasStageImages ? stageVisualNote : '',
+      ...extraVars,
     });
     return callGemini(p, {
       images: hasStageImages ? stageImages : [],
     });
   };
 
+  const hasUiDiff =
+    Array.isArray(plan?.filesTouched) &&
+    plan.filesTouched.some(
+      (f) =>
+        typeof f === 'string' &&
+        (f.startsWith('src/app/') ||
+          f.startsWith('src/components/') ||
+          f.startsWith('src/styles/')) &&
+        !/\.(test|spec|stories)\./.test(f)
+    );
+
   const [
     security,
     correctness,
     businessLogic,
+    visualParity,
     performance,
     testing,
     architecture,
@@ -171,6 +198,15 @@ async function main() {
     runStage('security.md'),
     runStage('correctness.md'),
     runStage('business-logic.md', visualAssets.images, visualNote),
+    hasUiDiff && (visualAssets.images.length > 0 || designSpecsObj)
+      ? runStage('visual-parity.md', visualAssets.images, visualNote, {
+          DESIGN_HUB_SPECS: designSpecsMd,
+        })
+      : Promise.resolve({
+          hasFindings: false,
+          summary: '無視覺變更或無設計圖可比對',
+          findings: [],
+        }),
     runStage('performance.md'),
     runStage(
       'testing.md',
@@ -187,6 +223,7 @@ async function main() {
       SECURITY_FINDINGS_JSON: JSON.stringify(security, null, 2),
       CORRECTNESS_FINDINGS_JSON: JSON.stringify(correctness, null, 2),
       BUSINESS_LOGIC_FINDINGS_JSON: JSON.stringify(businessLogic, null, 2),
+      VISUAL_PARITY_FINDINGS_JSON: JSON.stringify(visualParity, null, 2),
       PERFORMANCE_FINDINGS_JSON: JSON.stringify(performance, null, 2),
       TESTING_FINDINGS_JSON: JSON.stringify(testing, null, 2),
       ARCHITECTURE_FINDINGS_JSON: JSON.stringify(architecture, null, 2),
@@ -210,6 +247,7 @@ async function main() {
           security: security?.findings ?? [],
           correctness: correctness?.findings ?? [],
           businessLogic: businessLogic?.findings ?? [],
+          visualParity: visualParity?.findings ?? [],
           performance: performance?.findings ?? [],
           testing: testing?.findings ?? [],
           architecture: architecture?.findings ?? [],

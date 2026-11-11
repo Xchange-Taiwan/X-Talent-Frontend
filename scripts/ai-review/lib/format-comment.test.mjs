@@ -404,4 +404,33 @@ describe('formatComment', () => {
       '- ⏭️ 會談結束後 15 分鐘內收到 email — 屬後端或外部系統範圍，本前端 PR 豁免檢查'
     );
   });
+
+  it('renders Visual / Design Parity findings section when visualParity is provided', () => {
+    const comment = formatComment({
+      plan: basePlan,
+      businessLogic: noFindings,
+      visualParity: {
+        hasFindings: true,
+        summary: '發現 1 處與 Design Hub 設計圖不符的版面落差',
+        findings: [
+          {
+            file: 'src/app/profile/[pageUserId]/ui.tsx',
+            line: 120,
+            category: 'Visual Drift - Missing or Partial Layout',
+            issue: '頂部摘要列僅顯示 2 格，漏掉經驗、地點與產業列',
+            why: '設計圖為滿寬 4 格摘要列加上產業膠囊列，目前右側大片留白',
+            fix: '將經驗、地點併入滿寬 4 欄摘要列並於下方固定顯示產業標籤列',
+          },
+        ],
+      },
+      security: noFindings,
+      correctness: noFindings,
+      performance: noFindings,
+      testing: noFindings,
+      architecture: noFindings,
+    });
+
+    expect(comment).toContain('### 🎨 Visual / Design Parity');
+    expect(comment).toContain('Visual Drift - Missing or Partial Layout');
+  });
 });

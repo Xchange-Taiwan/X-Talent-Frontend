@@ -140,6 +140,7 @@ export function formatComment({
   security,
   correctness,
   businessLogic,
+  visualParity,
   performance,
   testing,
   architecture,
@@ -147,6 +148,9 @@ export function formatComment({
 }) {
   const sections = [
     renderFindingsSection('🧭 Business Logic / Requirements', businessLogic),
+    ...(visualParity !== undefined
+      ? [renderFindingsSection('🎨 Visual / Design Parity', visualParity)]
+      : []),
     renderFindingsSection('🔒 Security', security),
     renderFindingsSection('🧩 Correctness / Regression', correctness),
     renderFindingsSection('⚡ Performance', performance),
