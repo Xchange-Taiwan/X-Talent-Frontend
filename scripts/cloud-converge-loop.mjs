@@ -57,6 +57,16 @@ export function parseConvergeArgs(argv = [], env = process.env) {
     .trim();
   const runE2e = rawRunE2e !== 'false' && rawRunE2e !== '0';
 
+  const rawRequireEvidence = (
+    getArg('--require-ui-evidence=') ??
+    env.REQUIRE_UI_EVIDENCE ??
+    'false'
+  )
+    .toLowerCase()
+    .trim();
+  const requireUiEvidence =
+    rawRequireEvidence === 'true' || rawRequireEvidence === '1';
+
   const baseRef = getArg('--base-ref=') || env.BASE_REF || 'origin/develop';
   const summaryOut =
     getArg('--summary-out=') ||
@@ -68,6 +78,7 @@ export function parseConvergeArgs(argv = [], env = process.env) {
     maxRounds,
     ticketNumber,
     runE2e,
+    requireUiEvidence,
     baseRef,
     summaryOut,
     geminiModel,
@@ -140,6 +151,7 @@ export function detectChangedE2eSpecs(
   const changedReadonlySpecs = [];
   const extraNonMockSpecs = [];
   let hasAppCodeChanges = false;
+  let hasUiSurfaceChanges = false;
   let hasSharedE2eChanges = false;
 
   for (const rawFile of changedFiles) {
@@ -154,6 +166,17 @@ export function detectChangedE2eSpecs(
       normalized.endsWith('.test.tsx') ||
       normalized.endsWith('.stories.ts') ||
       normalized.endsWith('.stories.tsx');
+
+    if (
+      !isUnitOrStoryFile &&
+      (normalized.startsWith('src/app/') ||
+        normalized.startsWith('src/components/') ||
+        normalized.startsWith('src/styles/')) &&
+      (normalized.endsWith('.tsx') || normalized.endsWith('.css')) &&
+      !normalized.startsWith('src/app/api/')
+    ) {
+      hasUiSurfaceChanges = true;
+    }
 
     if (
       normalized === 'playwright.config.ts' ||
@@ -202,6 +225,7 @@ export function detectChangedE2eSpecs(
     changedReadonlySpecs,
     extraNonMockSpecs,
     hasAppCodeChanges,
+    hasUiSurfaceChanges,
     hasSharedE2eChanges,
   };
 }
@@ -401,21 +425,41 @@ function defaultExecStep(cmd, args, options = {}) {
   }
 }
 
-export async function runConvergeLoop(
-  rawOptions = {},
-  deps = {
-    execStep: defaultExecStep,
-    writeFile: (filePath, content) => {
+export async function runConvergeLoop(rawOptions = {}, deps = {}) {
+  const execStep = deps.execStep || defaultExecStep;
+  const writeFile =
+    deps.writeFile ||
+    ((filePath, content) => {
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
       fs.writeFileSync(filePath, content, 'utf8');
-    },
-    log: (msg) => console.log(msg),
-  }
-) {
+    });
+  const log = deps.log || ((msg) => console.log(msg));
+  const evidenceDir = rawOptions.evidenceDir || '.agents/tmp/evidence';
+  const clearEvidence =
+    deps.clearEvidence ||
+    (() => {
+      if (fs.existsSync(evidenceDir)) {
+        for (const f of fs.readdirSync(evidenceDir)) {
+          if (/\.(png|jpe?g|webp)$/i.test(f)) {
+            fs.rmSync(path.join(evidenceDir, f), { force: true });
+          }
+        }
+      }
+    });
+  const listEvidence =
+    deps.listEvidence ||
+    (() => {
+      if (!fs.existsSync(evidenceDir)) return [];
+      return fs
+        .readdirSync(evidenceDir)
+        .filter((f) => /\.(png|jpe?g|webp)$/i.test(f));
+    });
+
   const config = {
     maxRounds: clampMaxRounds(rawOptions.maxRounds, 20),
     ticketNumber: rawOptions.ticketNumber ?? '',
     runE2e: rawOptions.runE2e !== false,
+    requireUiEvidence: Boolean(rawOptions.requireUiEvidence),
     baseRef: rawOptions.baseRef || 'origin/develop',
     summaryOut:
       rawOptions.summaryOut || '.agents/tmp/cloud-converge-summary.md',
@@ -432,7 +476,7 @@ export async function runConvergeLoop(
 
   for (let round = 1; round <= config.maxRounds; round++) {
     roundsRun = round;
-    deps.log(
+    log(
       `\n[cloud-converge] === Round ${round}/${config.maxRounds} starting ===`
     );
 
@@ -443,9 +487,9 @@ export async function runConvergeLoop(
       ['pnpm type-check', ['type-check']],
       ['pnpm test', ['test']],
     ]) {
-      const res = deps.execStep('pnpm', args);
+      const res = execStep('pnpm', args);
       if (!res.ok) {
-        deps.log(`[cloud-converge] ${label} failed in round ${round}`);
+        log(`[cloud-converge] ${label} failed in round ${round}`);
         deterministicErrors.push(`[${label}]\n${res.combined || res.stderr}`);
       }
     }
@@ -456,7 +500,7 @@ export async function runConvergeLoop(
     let e2eReportForReviewer = '未執行 E2E (--run-e2e=false)';
 
     if (config.runE2e) {
-      const diffFilesRes = deps.execStep('git', [
+      const diffFilesRes = execStep('git', [
         'diff',
         '--name-only',
         config.baseRef,
@@ -470,9 +514,19 @@ export async function runConvergeLoop(
         changedReadonlySpecs,
         extraNonMockSpecs,
         hasAppCodeChanges,
+        hasUiSurfaceChanges,
         hasSharedE2eChanges,
       } = detectChangedE2eSpecs(diffFiles);
       lastChangedSpecs = allChangedSpecs;
+
+      if (config.requireUiEvidence && hasUiSurfaceChanges) {
+        clearEvidence();
+      }
+      const e2eEnv = {
+        ...process.env,
+        CAPTURE_EVIDENCE: '1',
+        EVIDENCE_OUT_DIR: evidenceDir,
+      };
 
       // When a ticket provides targeted E2E specs (and didn't touch shared
       // E2E helpers/config), run only those changed specs so we don't compile
@@ -496,11 +550,9 @@ export async function runConvergeLoop(
                 ...changedMockSpecs,
               ]
             : ['test:e2e:mock', '--workers=4', '--retries=1'];
-        const mockE2eRes = deps.execStep('pnpm', mockArgs);
+        const mockE2eRes = execStep('pnpm', mockArgs, { env: e2eEnv });
         if (!mockE2eRes.ok) {
-          deps.log(
-            `[cloud-converge] pnpm test:e2e:mock failed in round ${round}`
-          );
+          log(`[cloud-converge] pnpm test:e2e:mock failed in round ${round}`);
           e2eErrors.push(
             `[pnpm test:e2e:mock]\n${mockE2eRes.combined || mockE2eRes.stderr}`
           );
@@ -508,15 +560,19 @@ export async function runConvergeLoop(
       }
 
       if (changedReadonlySpecs.length > 0) {
-        const readonlyRes = deps.execStep('pnpm', [
-          'playwright',
-          'test',
-          '--project=chromium-backend-readonly',
-          '--retries=1',
-          ...changedReadonlySpecs,
-        ]);
+        const readonlyRes = execStep(
+          'pnpm',
+          [
+            'playwright',
+            'test',
+            '--project=chromium-backend-readonly',
+            '--retries=1',
+            ...changedReadonlySpecs,
+          ],
+          { env: e2eEnv }
+        );
         if (!readonlyRes.ok) {
-          deps.log(
+          log(
             `[cloud-converge] backend-readonly E2E specs failed in round ${round}`
           );
           e2eErrors.push(
@@ -526,26 +582,48 @@ export async function runConvergeLoop(
       }
 
       if (extraNonMockSpecs.length > 0) {
-        const extraRes = deps.execStep('pnpm', [
-          'playwright',
-          'test',
-          '--project=chromium-onboarding',
-          '--retries=1',
-          ...extraNonMockSpecs,
-        ]);
+        const extraRes = execStep(
+          'pnpm',
+          [
+            'playwright',
+            'test',
+            '--project=chromium-onboarding',
+            '--retries=1',
+            ...extraNonMockSpecs,
+          ],
+          { env: e2eEnv }
+        );
         if (!extraRes.ok) {
-          deps.log(
-            `[cloud-converge] onboarding E2E specs failed in round ${round}`
-          );
+          log(`[cloud-converge] onboarding E2E specs failed in round ${round}`);
           e2eErrors.push(
             `[playwright onboarding specs]\n${extraRes.combined || extraRes.stderr}`
           );
         }
       }
 
+      if (
+        config.requireUiEvidence &&
+        hasUiSurfaceChanges &&
+        e2eErrors.length === 0
+      ) {
+        const capturedShots = listEvidence();
+        if (capturedShots.length === 0) {
+          log(
+            `[cloud-converge] Missing interactive UI evidence screenshots in round ${round}`
+          );
+          e2eErrors.push(
+            '[UI Evidence Gate] 本次變更修改了前端 UI 頁面或元件（src/app 或 src/components），但執行 E2E 後 `.agents/tmp/evidence/` 為空！請在對應的 Playwright E2E (`.spec.ts`) 測試中引入 `import { captureEvidence } from "../../helpers/evidence"`（依相對路徑調整），並在**實際互動點開本次修改的目標畫面狀態**（例如：點擊通知鈴鐺展開通知清單、切換至評價 Tab、打開彈窗 Dialog，並完成 `expect(...).toBeVisible()` 斷言）之後呼叫 `await captureEvidence(page, "<功能與狀態名稱>")`，切勿只截未展開的首頁！'
+          );
+        }
+      }
+
       lastE2ePassed = e2eErrors.length === 0;
+      const evidenceNote =
+        config.requireUiEvidence && hasUiSurfaceChanges
+          ? `（已擷取 ${listEvidence().length} 張互動 UI 證據截圖）`
+          : '';
       e2eReportForReviewer = lastE2ePassed
-        ? `Playwright E2E 測試已通過（已執行 E2E 驗證${allChangedSpecs.length > 0 ? `，涵蓋變更 Spec：${allChangedSpecs.join(', ')}` : ''}）。`
+        ? `Playwright E2E 測試已通過（已執行 E2E 驗證${allChangedSpecs.length > 0 ? `，涵蓋變更 Spec：${allChangedSpecs.join(', ')}` : ''}${evidenceNote}）。`
         : `Playwright E2E 測試失敗：\n${e2eErrors.join('\n').slice(0, 1500)}`;
     }
 
@@ -558,7 +636,7 @@ export async function runConvergeLoop(
       reviewArgs.push(`--ticket=${config.ticketNumber}`);
     }
 
-    const reviewRes = deps.execStep('node', reviewArgs, {
+    const reviewRes = execStep('node', reviewArgs, {
       env: {
         ...process.env,
         TICKET_NUMBER: config.ticketNumber,
@@ -577,7 +655,7 @@ export async function runConvergeLoop(
       if (parsedJson) {
         reviewJson = parsedJson;
       } else {
-        deps.log(
+        log(
           `[cloud-converge] Warning: could not parse run-local.mjs output in round ${round}`
         );
       }
@@ -589,14 +667,12 @@ export async function runConvergeLoop(
       reviewResult: reviewJson,
     });
 
-    deps.log(
+    log(
       `[cloud-converge] Round ${round} result: risk=${lastEvaluation.riskLevel}, findings=${lastEvaluation.totalFindings}, uncoveredAC=${lastEvaluation.uncoveredCriteria.length}, detPassed=${deterministicPassed}, e2ePassed=${lastE2ePassed}`
     );
 
     if (lastEvaluation.converged) {
-      deps.log(
-        `[cloud-converge] Converged in round ${round}/${config.maxRounds}!`
-      );
+      log(`[cloud-converge] Converged in round ${round}/${config.maxRounds}!`);
       const summaryMd = formatConvergenceSummaryMarkdown({
         converged: true,
         stalled: false,
@@ -607,7 +683,7 @@ export async function runConvergeLoop(
         changedSpecs: lastChangedSpecs,
         evaluation: lastEvaluation,
       });
-      deps.writeFile(config.summaryOut, summaryMd);
+      writeFile(config.summaryOut, summaryMd);
       return {
         converged: true,
         stalled: false,
@@ -626,7 +702,7 @@ export async function runConvergeLoop(
     }
 
     if (consecutiveSameFingerprint >= 2) {
-      deps.log(
+      log(
         `[cloud-converge] Identical findings fingerprint repeated ${consecutiveSameFingerprint} times in round ${round}. Breaking loop via Stall Guard.`
       );
       stalled = true;
@@ -634,7 +710,7 @@ export async function runConvergeLoop(
     }
 
     if (round >= config.maxRounds) {
-      deps.log(
+      log(
         `[cloud-converge] Reached max rounds (${config.maxRounds}). Finishing loop.`
       );
       break;
@@ -650,10 +726,10 @@ export async function runConvergeLoop(
       evaluation: lastEvaluation,
     });
 
-    deps.log(
+    log(
       `[cloud-converge] Invoking Gemini (${config.geminiModel}) to fix round ${round} findings...`
     );
-    deps.execStep('npx', [
+    execStep('npx', [
       'gemini',
       '-m',
       config.geminiModel,
@@ -674,7 +750,7 @@ export async function runConvergeLoop(
     changedSpecs: lastChangedSpecs,
     evaluation: lastEvaluation,
   });
-  deps.writeFile(config.summaryOut, summaryMd);
+  writeFile(config.summaryOut, summaryMd);
 
   return {
     converged: false,

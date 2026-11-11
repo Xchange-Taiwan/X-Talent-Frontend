@@ -31,6 +31,7 @@ describe('cloud-converge-loop', () => {
         maxRounds: 15,
         ticketNumber: '822',
         runE2e: true,
+        requireUiEvidence: false,
         baseRef: 'origin/develop',
         summaryOut: '.agents/tmp/cloud-converge-summary.md',
         geminiModel: 'gemini-4-carbon',
@@ -402,6 +403,58 @@ describe('cloud-converge-loop', () => {
       });
       expect(md).toContain('Stall Guard');
       expect(md).toContain('src/sec.ts:1');
+    });
+
+    it('enforces UI Evidence Gate when requireUiEvidence=true and UI components changed without screenshots', async () => {
+      let currentEvidence = [];
+      let fixCalled = false;
+
+      const execStep = vi.fn((cmd, args) => {
+        if (cmd === 'git' && args[0] === 'diff') {
+          return {
+            ok: true,
+            stdout:
+              'src/components/layout/Header/NotificationBell.tsx\ne2e/tests/notification/notification-center.spec.ts\n',
+            stderr: '',
+          };
+        }
+        if (cmd === 'npx' && args[0] === 'gemini') {
+          fixCalled = true;
+          currentEvidence = ['desktop-notification-popover-open.png'];
+          return { ok: true, stdout: '', stderr: '' };
+        }
+        if (cmd === 'node' && args[0]?.includes('run-local.mjs')) {
+          return {
+            ok: true,
+            stdout: JSON.stringify({
+              overallRisk: { level: 'low', reason: 'Clean' },
+              requirementCoverage: [],
+              findings: {},
+            }),
+          };
+        }
+        return { ok: true, stdout: '', stderr: '' };
+      });
+
+      const res = await runConvergeLoop(
+        {
+          maxRounds: 5,
+          ticketNumber: '858',
+          runE2e: true,
+          requireUiEvidence: true,
+        },
+        {
+          execStep,
+          writeFile: () => {},
+          log: () => {},
+          clearEvidence: () => {},
+          listEvidence: () => currentEvidence,
+        }
+      );
+
+      expect(fixCalled).toBe(true);
+      expect(res.converged).toBe(true);
+      expect(res.roundsRun).toBe(2);
     });
   });
 });

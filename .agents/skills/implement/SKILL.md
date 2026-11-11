@@ -33,9 +33,10 @@ If the workspace is an `X-Frontend` project (e.g., `X-Talent-Frontend` or simila
      - Whenever you create or modify a UI component under `src/components/**/*.tsx`, you **MUST** create or update its companion Storybook story file (`.stories.tsx` in the same directory) within the **same commit/PR** so all new props, states, and variants are covered in the GitHub repository's `.stories.tsx` files (used directly by Design Hub / Codex and Cloudflare Storybook static deployments).
      - Never trigger extra Vercel deployments for Storybook — committing `.stories.tsx` alongside the feature PR consumes **0 extra Vercel deployment quota**.
    - Run deterministic checks (`pnpm lint`, `pnpm type-check`, `pnpm test`).
-   - **UI Screenshot Evidence (Delegated to CI Pipeline by Default)**:
-     - Do **NOT** waste local tokens or time starting `pnpm dev` and debugging local Playwright screenshot scripts before opening the PR — the GitHub Actions CI pipeline (`deploy-pr.yml`) or Cloud VM Phase 3 automatically captures and attaches UI screenshots.
-     - Only run `node scripts/capture-ui-evidence.mjs` locally if the user explicitly asks for local screenshots before opening a PR.
+   - **UI Screenshot Evidence (Interactive E2E `captureEvidence` in Cloud VMs)**:
+     - Whenever modifying UI pages or components (`src/app/**` or `src/components/**`), call `await captureEvidence(page, '<feature-open-state>')` (from `e2e/helpers/evidence`) inside the ticket's Playwright E2E `.spec.ts` **right after clicking/opening the target UI state** (e.g., after opening the Notification Popover, switching to the Reviews Tab, or opening a Dialog, and asserting `expect(...).toBeVisible()`). Never rely on static unauthenticated `/` screenshots for interactive components!
+     - `captureEvidence` is a zero-cost no-op during ordinary local runs unless `CAPTURE_EVIDENCE=1` is set; in Cloud VM sessions (`cloud-implement.yml`), Phase 2 sets `CAPTURE_EVIDENCE=1`, captures pure Light Mode settled screenshots into `.agents/tmp/evidence/*.png`, verifies them multimodally with Gemini, and Phase 3 (`cloud-submit-pr.sh`) publishes them to `pr-evidence`.
+     - Do **NOT** waste local tokens or time starting `pnpm dev` locally unless the user explicitly asks for local screenshots before opening a PR.
 
 3. **Pre-PR Verification (Dual-Track: Local Lightweight vs. Cloud 20-Round + E2E Convergence):**
    - **Track A — Local Session (Zero Sub-Agent Overhead)**:

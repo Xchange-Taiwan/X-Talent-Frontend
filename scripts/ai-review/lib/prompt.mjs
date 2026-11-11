@@ -38,6 +38,7 @@ export function buildPrompt(templateUrl, replacements = {}) {
     REVIEW_DISCIPLINE: reviewDiscipline,
     BUSINESS_RULES: businessRules,
     CODE_SMELL_BASELINE: codeSmellBaseline,
+    VISUAL_CONTEXT: '',
     ...replacements,
   };
   for (const [key, value] of Object.entries(all)) {

@@ -145,6 +145,12 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm playwright install chromium
 
+      - name: Install Noto CJK fonts for crisp Traditional Chinese rendering
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk fontconfig >/dev/null
+          fc-cache -f
+
       - name: Configure Git and local environment for UI evidence and E2E
         env:
           BFF_OPENAPI_URL: ${{ secrets.BFF_OPENAPI_URL || vars.BFF_OPENAPI_URL }}
@@ -174,17 +180,18 @@ jobs:
           GH_TOKEN="${TRACKER_READ_TOKEN:-$GH_TOKEN}" gh issue view "$TICKET_NUMBER" --repo Xchange-Taiwan/X-Talent-Tracker --comments > .agents/tmp/ticket-spec.md 2>/dev/null || true
           ARCH_QUERY="#${TICKET_NUMBER} $(head -n 25 .agents/tmp/ticket-spec.md 2>/dev/null | tr '\n' ' ' || echo '')"
           jq -n --arg q "$ARCH_QUERY" '{query: $q}' | curl -sS -X POST "https://x-talent-discord-mention-notify.x-talent.workers.dev/__arch-kb" -H "Content-Type: application/json" -d @- | jq -r 'if .kb then "\n\n## X-Talent 跨專案架構知識庫 (Cloudflare KV Architecture KB)\n```json\n" + (.kb | tojson) + "\n```" else "" end' >> .agents/tmp/ticket-spec.md 2>/dev/null || true
+          node scripts/prefetch-ticket-visuals.mjs --ticket="$TICKET_NUMBER" || true
 
           if [ -n "$FIX_INSTRUCTIONS" ]; then
-            PROMPT="我們正在處理 PR #${PR_NUMBER}（對應 Ticket #${TICKET_NUMBER}，規格位於 .agents/tmp/ticket-spec.md）。
+            PROMPT="我們正在處理 PR #${PR_NUMBER}（對應 Ticket #${TICKET_NUMBER}，規格與視覺參考圖清單位於 .agents/tmp/ticket-spec.md）。
             工程師從 Discord 下達了以下具體修改指示：
             「${FIX_INSTRUCTIONS}」
             請依序執行：
-            1. 優先針對上述修改指示完成程式碼與測試調整。
+            1. 先讀取 .agents/tmp/ticket-spec.md；若列有 .agents/tmp/ticket-images/ 下的設計圖或 Design Hub 原型截圖與 -dom.md 樣式摘要，請先用 read_file 檢視圖片細節，並優先針對上述修改指示完成程式碼、測試與互動式 E2E 截圖（captureEvidence）調整。
             2. 同時檢查 PR #${PR_NUMBER} 的失敗 CI Checks 與 AI Review 留言並一併修復。
-            3. 僅執行快速的 pnpm type-check 與針對變更檔案的單元測試（npx vitest related \$(git diff --name-only origin/develop | tr '\n' ' ') --run）確認通過（此階段嚴禁自行執行全量 pnpm test、pnpm test:e2e、npx playwright test 或 git push，下一步 Phase 2 將自動執行全量單元測試、多輪 AI Review 與 E2E 收斂迴圈）。"
+            3. 僅執行快速的 pnpm type-check 與針對變更檔案的單元測試（npx vitest related \$(git diff --name-only origin/develop | tr '\n' ' ') --run）確認通過（此階段嚴禁自行執行全量 pnpm test、pnpm test:e2e、npx playwright test 或 git push，下一步 Phase 2 將自動執行全量單元測試、多輪多模態 AI Review 與 E2E 收斂迴圈）。"
           else
-            PROMPT="請針對 PR #${PR_NUMBER}（對應 Ticket #${TICKET_NUMBER}，規格位於 .agents/tmp/ticket-spec.md）檢查所有失敗的 CI Checks 與 AI Review 留言，完成程式碼與測試修復並僅執行快速的 pnpm type-check 與針對變更檔案的單元測試（npx vitest related \$(git diff --name-only origin/develop | tr '\n' ' ') --run）確認通過（此階段嚴禁自行執行全量 pnpm test、pnpm test:e2e、npx playwright test 或 git push，下一步 Phase 2 將自動執行全量單元測試、多輪 AI Review 與 E2E 收斂迴圈）。"
+            PROMPT="請針對 PR #${PR_NUMBER}（對應 Ticket #${TICKET_NUMBER}，規格與視覺參考圖清單位於 .agents/tmp/ticket-spec.md；若有 .agents/tmp/ticket-images/ 圖檔請用 read_file 檢視）檢查所有失敗的 CI Checks 與 AI Review 留言，完成程式碼、測試與互動式 E2E 截圖（captureEvidence）修復，並僅執行快速的 pnpm type-check 與針對變更檔案的單元測試（npx vitest related \$(git diff --name-only origin/develop | tr '\n' ' ') --run）確認通過（此階段嚴禁自行執行全量 pnpm test、pnpm test:e2e、npx playwright test 或 git push，下一步 Phase 2 將自動執行全量單元測試、多輪多模態 AI Review 與 E2E 收斂迴圈）。"
           fi
           npx gemini -m "$GEMINI_MODEL" --approval-mode=yolo --skip-trust -p "$PROMPT"
 

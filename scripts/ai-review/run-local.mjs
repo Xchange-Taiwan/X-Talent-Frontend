@@ -49,6 +49,7 @@ import {
   fetchArchitectureKnowledgeBase,
   fetchTicketContext,
 } from './lib/ticket.mjs';
+import { loadReviewVisualAssets } from './lib/visuals.mjs';
 
 function parseCliOption(prefix) {
   const arg = process.argv.slice(2).find((item) => item.startsWith(prefix));
@@ -124,9 +125,12 @@ async function main() {
     ticket.ticketFound ? `#${ticket.number} ${ticket.title} ${branch}` : branch
   );
 
+  const visualAssets = loadReviewVisualAssets();
+  const visualNote = visualAssets.visualContextMarkdown || '';
+
   const ticketSection = ticket.ticketFound
-    ? `## 對應 Ticket\n**#${ticket.number} ${ticket.title}**\n\n${ticket.body}${e2eSection}${archKbSection}`
-    : `## 對應 Ticket\n（僅根據 diff 進行分析）${e2eSection}${archKbSection}`;
+    ? `## 對應 Ticket\n**#${ticket.number} ${ticket.title}**\n\n${ticket.body}${visualNote}${e2eSection}${archKbSection}`
+    : `## 對應 Ticket\n（僅根據 diff 進行分析）${visualNote}${e2eSection}${archKbSection}`;
 
   const planPrompt = buildPrompt(
     new URL('./prompts/planner.md', import.meta.url),
@@ -136,16 +140,19 @@ async function main() {
       TRUNCATED_NOTE: truncated ? '（注意：diff 過大，內容已截斷）' : '',
     }
   );
-  const plan = await callGemini(planPrompt);
+  const plan = await callGemini(planPrompt, { images: visualAssets.images });
   const planJson = JSON.stringify(plan, null, 2);
 
-  const runStage = async (promptFile) => {
+  const runStage = async (promptFile, passImages = false) => {
     const p = buildPrompt(new URL(`./prompts/${promptFile}`, import.meta.url), {
       PLAN_JSON: planJson,
       DIFF: safeDiff,
       TRUNCATED_NOTE: truncated ? '（注意：diff 過大，內容已截斷）' : '',
+      VISUAL_CONTEXT: passImages ? visualNote : '',
     });
-    return callGemini(p);
+    return callGemini(p, {
+      images: passImages ? visualAssets.images : [],
+    });
   };
 
   const [
@@ -156,12 +163,12 @@ async function main() {
     testing,
     architecture,
   ] = await Promise.all([
-    runStage('security.md'),
-    runStage('correctness.md'),
-    runStage('business-logic.md'),
-    runStage('performance.md'),
-    runStage('testing.md'),
-    runStage('architecture.md'),
+    runStage('security.md', false),
+    runStage('correctness.md', false),
+    runStage('business-logic.md', visualAssets.images.length > 0),
+    runStage('performance.md', false),
+    runStage('testing.md', visualAssets.evidenceCount > 0),
+    runStage('architecture.md', false),
   ]);
 
   const summaryPrompt = buildPrompt(
