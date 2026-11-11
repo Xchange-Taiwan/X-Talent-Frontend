@@ -1,19 +1,26 @@
 'use client';
 
 import Image, { type StaticImageData } from 'next/image';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import {
   EducationSection,
   WorkExperienceSection,
 } from '@/components/profile/experience-section/ExperienceSection';
+import {
+  MentorFeedbackSection,
+  MentorSummaryBar,
+} from '@/components/profile/feedback';
 import { ProfileBanner } from '@/components/profile/profile-banner';
 import { BookingForm } from '@/components/profile/reservation/BookingForm';
 import { ScheduleCalendar } from '@/components/profile/reservation/ScheduleCalendar';
 import { platformLabelMap } from '@/components/profile/social-links/platformLabelMap';
 import { ProfileBadgeSection } from '@/components/profile/view/ProfileBadgeSection';
 import { Button } from '@/components/ui/button';
-import { UserType } from '@/hooks/user/user-data/useUserData';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import type { MentorFeedbackState } from '@/hooks/user/feedback/useMentorFeedback';
+import { TagDisplay, UserType } from '@/hooks/user/user-data/useUserData';
+import { resolveLocationLabel } from '@/lib/mentor/mentorStats';
 import {
   BookingCalendarReader,
   BookingSlot,
@@ -30,11 +37,63 @@ import {
   ScheduleSkeleton,
 } from './skeleton';
 
+export type ProfileTabKey = 'about' | 'feedback';
+
+interface ProfileIntroSectionsProps {
+  userData: UserType;
+  badgeSections: React.ReactNode;
+}
+
+function ProfileIntroSections({
+  userData,
+  badgeSections,
+}: ProfileIntroSectionsProps) {
+  return (
+    <>
+      {userData.about && (
+        <div>
+          <p className="mb-4 text-xl font-bold">關於我</p>
+          <p className="text-text-tertiary text-sm break-words whitespace-pre-line">
+            {userData.about}
+          </p>
+        </div>
+      )}
+
+      {userData.personal_statement && (
+        <div className={userData.about ? 'mt-10' : undefined}>
+          <p className="mb-4 text-xl font-bold">給導生的話</p>
+          <p className="text-text-tertiary text-sm break-words whitespace-pre-line">
+            {userData.personal_statement}
+          </p>
+        </div>
+      )}
+
+      {badgeSections}
+
+      {!!userData.workExperiences?.length && (
+        <div className="mt-10">
+          <p className="mb-4 text-xl font-bold">工作經驗</p>
+          <WorkExperienceSection workExperiences={userData.workExperiences} />
+        </div>
+      )}
+
+      {!!userData.educations?.length && (
+        <div className="mt-10">
+          <p className="mb-4 text-xl font-bold">教育</p>
+          <EducationSection educations={userData.educations} />
+        </div>
+      )}
+    </>
+  );
+}
+
 interface Props {
   userData: UserType | null;
   userLoading: boolean;
   schedule: BookingCalendarReader;
   scheduleLoaded: boolean;
+  feedback?: Partial<MentorFeedbackState>;
+  defaultTab?: ProfileTabKey;
   loginUserId: string;
   isIdentityResolved: boolean;
   canShowOwnerControls: boolean;
@@ -56,6 +115,8 @@ export default function ProfilePageUI({
   userLoading,
   schedule,
   scheduleLoaded,
+  feedback,
+  defaultTab = 'about',
   loginUserId,
   isIdentityResolved,
   canShowOwnerControls,
@@ -98,6 +159,49 @@ export default function ProfilePageUI({
     [isOwnMentorProfile, getDayBookingStatus]
   );
 
+  const hasFreshFeedback = Boolean(
+    feedback?.hasLoaded && !feedback.isFallbackEmpty
+  );
+
+  const effectiveRatingCount = hasFreshFeedback
+    ? (feedback?.totalRatingCount ?? userData?.stats?.rating_count ?? 0)
+    : (userData?.stats?.rating_count ?? feedback?.totalRatingCount ?? 0);
+
+  const effectiveRatingAverage =
+    effectiveRatingCount > 0
+      ? hasFreshFeedback
+        ? (feedback?.ratingAverage ?? userData?.stats?.rating_average ?? null)
+        : (userData?.stats?.rating_average ?? feedback?.ratingAverage ?? null)
+      : null;
+
+  const effectiveCompletedMeetings = hasFreshFeedback
+    ? (feedback?.completedMeetingCount ??
+      userData?.stats?.completed_meeting_count ??
+      0)
+    : (userData?.stats?.completed_meeting_count ??
+      feedback?.completedMeetingCount ??
+      0);
+
+  const resolvedLocation = useMemo(() => {
+    if (!userData) return undefined;
+    if (userData.location) return userData.location;
+    const fallbackJobLocation =
+      userData.workExperiences?.find((exp) => exp.is_primary)?.job_location ||
+      userData.workExperiences?.[0]?.job_location;
+    return resolveLocationLabel(fallbackJobLocation, 'zh_TW');
+  }, [userData]);
+
+  const resolvedIndustries = useMemo<TagDisplay[]>(() => {
+    if (!userData) return [];
+    if (userData.industries && userData.industries.length > 0) {
+      return userData.industries;
+    }
+    if (userData.industry) {
+      return [{ subject_group: 'industry', subject: userData.industry }];
+    }
+    return [];
+  }, [userData]);
+
   return (
     <div>
       <ProfileBanner />
@@ -106,81 +210,96 @@ export default function ProfilePageUI({
         {userLoading ? (
           <ProfileHeaderSkeleton />
         ) : userData ? (
-          <div className="flex h-auto -translate-y-10 flex-col sm:flex-row sm:items-start">
-            <div className="bg-background-white relative mx-auto h-[160px] w-[160px] flex-shrink-0 overflow-hidden rounded-full sm:mx-0">
-              <Image
-                src={avatarSrc}
-                alt={'Avatar of ' + userData.name}
-                fill
-                sizes="160px"
-                className="object-contain"
-                priority
-              />
-            </div>
+          <>
+            <div className="-mt-10 mb-6 flex h-auto flex-col sm:flex-row sm:items-start">
+              <div className="border-background-white bg-background-white relative mx-auto h-[160px] w-[160px] flex-shrink-0 overflow-hidden rounded-full border-4 shadow-sm sm:mx-0">
+                <Image
+                  src={avatarSrc}
+                  alt={'Avatar of ' + userData.name}
+                  fill
+                  sizes="160px"
+                  className="object-cover"
+                  priority
+                />
+              </div>
 
-            <div className="flex min-w-0 flex-col items-center sm:mt-10 sm:ml-6 sm:items-start">
-              <div className="mb-2 flex flex-col items-center gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
-                <p className="text-2xl font-semibold break-words">
-                  {userData.name}
-                </p>
-                {!!userData.personalLinks?.length && (
-                  <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-                    {userData.personalLinks
-                      .filter((link) => isSafeUrl(link.url))
-                      .map((link) => (
-                        <a
-                          key={link.platform}
-                          href={link.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-text-secondary hover:text-brand-500"
-                          title={
-                            platformLabelMap[link.platform]?.label ||
-                            link.platform
-                          }
-                        >
-                          {platformLabelMap[link.platform]?.icon}
-                        </a>
-                      ))}
+              <div className="mt-4 flex min-w-0 flex-col items-center sm:mt-14 sm:ml-6 sm:items-start">
+                <div className="mb-2 flex flex-col items-center gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+                  <p className="text-2xl font-semibold break-words">
+                    {userData.name}
+                  </p>
+                  {!!userData.personalLinks?.length && (
+                    <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+                      {userData.personalLinks
+                        .filter((link) => isSafeUrl(link.url))
+                        .map((link) => (
+                          <a
+                            key={link.platform}
+                            href={link.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-text-secondary hover:text-brand-500"
+                            title={
+                              platformLabelMap[link.platform]?.label ||
+                              link.platform
+                            }
+                          >
+                            {platformLabelMap[link.platform]?.icon}
+                          </a>
+                        ))}
+                    </div>
+                  )}
+                </div>
+                {(userData.job_title || userData.company) && (
+                  <p className="text-text-secondary text-sm">
+                    {userData.job_title}
+                    {userData.job_title && userData.company && (
+                      <span className="text-text-tertiary"> · </span>
+                    )}
+                    {userData.company}
+                  </p>
+                )}
+                {(canShowOwnerControls || !userData.is_mentor) && (
+                  <div className="mt-4 flex items-center justify-center gap-4 sm:justify-start">
+                    {/* canShowOwnerControls gates these: until useSession() settles,
+                        we don't yet know if this is the viewer's own profile, so
+                        withhold the buttons entirely rather than flash a guest
+                        view before correcting to the owner view (or vice versa). */}
+                    {canShowOwnerControls && (
+                      <Button
+                        variant="outline"
+                        className="grow rounded-full px-6 py-3 sm:grow-0"
+                        onClick={onEditProfile}
+                      >
+                        編輯個人資訊
+                      </Button>
+                    )}
+
+                    {canShowOwnerControls && !userData.is_mentor && (
+                      <Button
+                        variant="default"
+                        className="grow rounded-full px-6 py-3 sm:grow-0"
+                        onClick={onBecomeMentor}
+                      >
+                        成為導師
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
-              {(userData.job_title || userData.company) && (
-                <p className="text-sm">
-                  {userData.job_title}
-                  {userData.job_title && userData.company && (
-                    <span className="text-text-tertiary"> at </span>
-                  )}
-                  {userData.company}
-                </p>
-              )}
-              <div className="mt-4 flex items-center justify-center gap-4 sm:justify-start">
-                {/* canShowOwnerControls gates these: until useSession() settles,
-                    we don't yet know if this is the viewer's own profile, so
-                    withhold the buttons entirely rather than flash a guest
-                    view before correcting to the owner view (or vice versa). */}
-                {canShowOwnerControls && (
-                  <Button
-                    variant="outline"
-                    className="grow rounded-full px-6 py-3 sm:grow-0"
-                    onClick={onEditProfile}
-                  >
-                    編輯個人資訊
-                  </Button>
-                )}
-
-                {canShowOwnerControls && !userData.is_mentor && (
-                  <Button
-                    variant="default"
-                    className="grow rounded-full px-6 py-3 sm:grow-0"
-                    onClick={onBecomeMentor}
-                  >
-                    成為導師
-                  </Button>
-                )}
-              </div>
             </div>
-          </div>
+
+            {userData.is_mentor && (
+              <MentorSummaryBar
+                ratingAverage={effectiveRatingAverage}
+                ratingCount={effectiveRatingCount}
+                completedMeetingCount={effectiveCompletedMeetings}
+                yearsOfExperience={userData.years_of_experience}
+                location={resolvedLocation}
+                industries={resolvedIndustries}
+              />
+            )}
+          </>
         ) : null}
 
         <div className="flex flex-col gap-8 xl:flex-row xl:gap-12">
@@ -188,99 +307,112 @@ export default function ProfilePageUI({
             {userLoading ? (
               <ProfileContentSkeleton />
             ) : userData ? (
-              <>
-                {userData.about && (
-                  <div>
-                    <p className="mb-4 text-xl font-bold">關於我</p>
-                    <p className="text-text-tertiary text-sm break-words whitespace-pre-line">
-                      {userData.about}
-                    </p>
-                  </div>
-                )}
+              userData.is_mentor ? (
+                <Tabs defaultValue={defaultTab}>
+                  <TabsList
+                    aria-label="導師頁面分頁"
+                    className="border-background-border flex h-auto justify-start gap-8 rounded-none border-b bg-transparent p-0"
+                  >
+                    <TabsTrigger
+                      value="about"
+                      className="text-text-secondary hover:text-text-primary data-[state=active]:border-brand-700 data-[state=active]:text-brand-700 -mb-px rounded-none border-b-2 border-transparent bg-transparent px-1 pt-2 pb-3 text-base font-medium shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                    >
+                      簡介
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="feedback"
+                      className="group text-text-secondary hover:text-text-primary data-[state=active]:border-brand-700 data-[state=active]:text-brand-700 -mb-px inline-flex items-baseline gap-1.5 rounded-none border-b-2 border-transparent bg-transparent px-1 pt-2 pb-3 text-base font-medium shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                    >
+                      <span>評價</span>
+                      <span className="text-text-tertiary group-data-[state=active]:text-brand-700 text-xs font-normal tabular-nums">
+                        {effectiveRatingCount}
+                      </span>
+                    </TabsTrigger>
+                  </TabsList>
 
-                {userData.personal_statement && (
-                  <div className={userData.about ? 'mt-10' : undefined}>
-                    <p className="mb-4 text-xl font-bold">給導生的話</p>
-                    <p className="text-text-tertiary text-sm break-words whitespace-pre-line">
-                      {userData.personal_statement}
-                    </p>
-                  </div>
-                )}
+                  <TabsContent value="about" className="mt-6">
+                    <ProfileIntroSections
+                      userData={userData}
+                      badgeSections={
+                        <>
+                          <ProfileBadgeSection
+                            title="專業能力"
+                            items={userData.have_skill}
+                          />
+                          <ProfileBadgeSection
+                            title="我能提供的服務"
+                            items={userData.have_topic}
+                          />
+                        </>
+                      }
+                    />
+                  </TabsContent>
 
-                <ProfileBadgeSection
-                  title="經驗"
-                  items={
-                    userData.years_of_experience
-                      ? [
-                          {
-                            subject_group: 'years_of_experience',
-                            subject: userData.years_of_experience,
-                          },
-                        ]
-                      : []
+                  <TabsContent value="feedback" className="mt-0">
+                    <MentorFeedbackSection
+                      items={feedback?.items ?? []}
+                      totalRatingCount={effectiveRatingCount}
+                      ratingAverage={effectiveRatingAverage}
+                      page={feedback?.page}
+                      pageSize={feedback?.pageSize}
+                      sortBy={feedback?.sortBy}
+                      isLoading={Boolean(feedback?.isLoading)}
+                      error={feedback?.error ?? null}
+                      onPageChange={feedback?.setPage}
+                      onSortChange={feedback?.setSortBy}
+                      onRetry={feedback?.reload}
+                    />
+                  </TabsContent>
+                </Tabs>
+              ) : (
+                <ProfileIntroSections
+                  userData={userData}
+                  badgeSections={
+                    <>
+                      <ProfileBadgeSection
+                        title="經驗"
+                        items={
+                          userData.years_of_experience
+                            ? [
+                                {
+                                  subject_group: 'years_of_experience',
+                                  subject: userData.years_of_experience,
+                                },
+                              ]
+                            : []
+                        }
+                      />
+
+                      <ProfileBadgeSection
+                        title="產業"
+                        items={
+                          userData.industry
+                            ? [
+                                {
+                                  subject_group: 'industry',
+                                  subject: userData.industry,
+                                },
+                              ]
+                            : []
+                        }
+                      />
+
+                      <ProfileBadgeSection
+                        title="有興趣多了解的職位"
+                        items={userData.want_position}
+                      />
+                      <ProfileBadgeSection
+                        title="想多了解、加強的技能"
+                        items={userData.want_skill}
+                      />
+                      <ProfileBadgeSection
+                        title="想多了解的主題"
+                        items={userData.want_topic}
+                      />
+                    </>
                   }
                 />
-
-                <ProfileBadgeSection
-                  title="產業"
-                  items={
-                    userData.industry
-                      ? [
-                          {
-                            subject_group: 'industry',
-                            subject: userData.industry,
-                          },
-                        ]
-                      : []
-                  }
-                />
-
-                {userData.is_mentor && (
-                  <>
-                    <ProfileBadgeSection
-                      title="專業能力"
-                      items={userData.have_skill}
-                    />
-                    <ProfileBadgeSection
-                      title="我能提供的服務"
-                      items={userData.have_topic}
-                    />
-                  </>
-                )}
-
-                {userData.is_mentor === false && (
-                  <>
-                    <ProfileBadgeSection
-                      title="有興趣多了解的職位"
-                      items={userData.want_position}
-                    />
-                    <ProfileBadgeSection
-                      title="想多了解、加強的技能"
-                      items={userData.want_skill}
-                    />
-                    <ProfileBadgeSection
-                      title="想多了解的主題"
-                      items={userData.want_topic}
-                    />
-                  </>
-                )}
-
-                {!!userData.workExperiences?.length && (
-                  <div className="mt-10">
-                    <p className="mb-4 text-xl font-bold">工作經驗</p>
-                    <WorkExperienceSection
-                      workExperiences={userData.workExperiences}
-                    />
-                  </div>
-                )}
-
-                {!!userData.educations?.length && (
-                  <div className="mt-10">
-                    <p className="mb-4 text-xl font-bold">教育</p>
-                    <EducationSection educations={userData.educations} />
-                  </div>
-                )}
-              </>
+              )
             ) : null}
           </div>
 

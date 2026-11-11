@@ -1,6 +1,10 @@
 import { TotalWorkSpanEnum } from '@/constant/seniority';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import {
+  normalizeMentorStats,
+  resolveLocationLabel,
+} from '@/lib/mentor/mentorStats';
+import {
   decode,
   type EducationExperienceMetadata,
   type MentorExperiencePayload,
@@ -9,6 +13,7 @@ import {
 } from '@/lib/profile/experienceCodec';
 import { readIndustryTag } from '@/lib/profile/readIndustryTag';
 import { buildTagLabelMap } from '@/lib/profile/tagLabelMap';
+import type { MentorStats } from '@/types/mentor';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
 
@@ -40,7 +45,10 @@ export interface UserType {
   about?: string;
   personal_statement?: string;
   years_of_experience?: string;
+  location?: string;
   industry?: string;
+  industries?: TagDisplay[];
+  stats?: MentorStats | null;
   want_position: TagDisplay[];
   want_skill: TagDisplay[];
   want_topic: TagDisplay[];
@@ -68,9 +76,42 @@ function toTagDisplay(
     }));
 }
 
+function collectIndustries(
+  primaryIndustrySubject: string | undefined,
+  primaryIndustryCode: string | null | undefined,
+  workExperiences: WorkExperienceMetadata[],
+  labelMap: Map<string, string>
+): TagDisplay[] {
+  const seenSubjects = new Set<string>();
+  const result: TagDisplay[] = [];
+
+  if (primaryIndustrySubject) {
+    seenSubjects.add(primaryIndustrySubject);
+    result.push({
+      subject_group: primaryIndustryCode || primaryIndustrySubject,
+      subject: primaryIndustrySubject,
+    });
+  }
+
+  for (const exp of workExperiences) {
+    const rawCode = exp.industry?.trim();
+    if (!rawCode) continue;
+    const resolved = labelMap.get(rawCode) ?? rawCode;
+    if (seenSubjects.has(resolved)) continue;
+    seenSubjects.add(resolved);
+    result.push({
+      subject_group: rawCode,
+      subject: resolved,
+    });
+  }
+
+  return result;
+}
+
 function parseUserDtoToUserType(
   userDto: MentorProfileVO,
-  catalogs: TagCatalogsByBucket
+  catalogs: TagCatalogsByBucket,
+  language: string
 ): UserType {
   const labelMap = buildTagLabelMap(catalogs);
 
@@ -81,6 +122,25 @@ function parseUserDtoToUserType(
   // BFF emits industry enriched (TagVO-shaped); OpenAPI types it as
   // `Record<string, never>`. Pull subject through the local TagVO type.
   const industryTag = readIndustryTag(userDto.industry);
+  const industrySubject =
+    industryTag?.subject ||
+    (industryTag?.subject_group
+      ? (labelMap.get(industryTag.subject_group) ?? industryTag.subject_group)
+      : undefined);
+
+  const primaryWorkLocation =
+    workExperiences.find((exp) => exp.is_primary)?.job_location ||
+    workExperiences[0]?.job_location;
+  const location = resolveLocationLabel(
+    userDto.location || primaryWorkLocation,
+    language
+  );
+  const industries = collectIndustries(
+    industrySubject,
+    industryTag?.subject_group,
+    workExperiences,
+    labelMap
+  );
 
   return {
     user_id: userDto.user_id,
@@ -96,7 +156,10 @@ function parseUserDtoToUserType(
           userDto.years_of_experience as keyof typeof TotalWorkSpanEnum
         ] ?? userDto.years_of_experience)
       : undefined,
-    industry: industryTag?.subject ?? undefined,
+    location,
+    industry: industrySubject,
+    industries,
+    stats: normalizeMentorStats(userDto),
     want_position: toTagDisplay(userDto.want_position, labelMap),
     want_skill: toTagDisplay(userDto.want_skill, labelMap),
     want_topic: toTagDisplay(userDto.want_topic, labelMap),
@@ -133,7 +196,7 @@ function useUserData(
   const tagCatalog = useTagCatalog(language, initialCatalogs);
 
   const userData: UserType | null = userDto
-    ? parseUserDtoToUserType(userDto, tagCatalog)
+    ? parseUserDtoToUserType(userDto, tagCatalog, language)
     : null;
 
   return { userData, isLoading: dtoLoading, error, refetch };

@@ -5,6 +5,7 @@ import defaultAvatar from '@/assets/default-avatar.png';
 import { mockBookingSlots } from '@/components/profile/reservation/__mocks__/reservationStories.mock';
 import type { UserType } from '@/hooks/user/user-data/useUserData';
 import type { BookingCalendarReader } from '@/lib/profile/bookingAvailability';
+import type { MentorFeedbackItem } from '@/types/feedback';
 
 import ProfilePageUI from './ui';
 
@@ -24,6 +25,30 @@ const today = dayjs();
 const tomorrowStr = today.add(1, 'day').format('YYYY-MM-DD');
 const nextWeekStr = today.add(7, 'day').format('YYYY-MM-DD');
 
+const mockFeedbackItems: MentorFeedbackItem[] = [
+  {
+    id: 'fb-1',
+    authorName: '陳**',
+    rating: 9,
+    content: '分享了很具體的建議，也幫助我釐清下一步的方向。',
+    createdAt: '2026-10-28T10:00:00Z',
+  },
+  {
+    id: 'fb-2',
+    authorName: '林**',
+    rating: 8,
+    content: '從作品集的架構到研究故事，都給了我可以實際執行的修改方向。',
+    createdAt: '2026-10-27T14:30:00Z',
+  },
+  {
+    id: 'fb-3',
+    authorName: '王**',
+    rating: 9,
+    content: '很有耐心地回答問題，會談前也有先了解我的需求。',
+    createdAt: '2026-10-26T09:15:00Z',
+  },
+];
+
 const mockMentorUserData: UserType = {
   user_id: 101,
   name: '陳怡君 (Jane Chen)',
@@ -31,12 +56,27 @@ const mockMentorUserData: UserType = {
   job_title: 'Senior Product Designer',
   company: 'Google',
   is_mentor: true,
-  about:
-    '擁有 8 年以上跨國數位產品設計經驗，曾主導多個大型 B2B 與 B2C 產品的設計系統與互動體驗優化。\n\n擅長領域包含：\n1. 跨國產品設計與體驗策略\n2. 設計系統 (Design System) 架構與落地\n3. 作品集健檢與跨國職涯規劃',
-  personal_statement:
-    '歡迎預約一對一諮詢！\n1. 請事先準備想討論的問題清單\n2. 若需作品集健檢，請於預約留言附上連結',
+  about: `擁有 8 年以上跨國數位產品設計經驗，曾主導多個大型 B2B 與 B2C 產品的設計系統與互動體驗優化。
+
+擅長領域包含：
+1. 跨國產品設計與體驗策略
+2. 設計系統 (Design System) 架構與落地
+3. 作品集健檢與跨國職涯規劃`,
+  personal_statement: `歡迎預約一對一諮詢！
+1. 請事先準備想討論的問題清單
+2. 若需作品集健檢，請於預約留言附上連結`,
   years_of_experience: '5~10 年',
-  industry: '網際網路 / 軟體',
+  location: '台灣',
+  industry: '軟體及網路相關業',
+  industries: [
+    { subject_group: 'software', subject: '軟體及網路相關業' },
+    { subject_group: 'design', subject: '設計及創意相關業' },
+  ],
+  stats: {
+    completed_meeting_count: 128,
+    rating_count: 12,
+    rating_average: 8.5,
+  },
   want_position: [],
   want_skill: [],
   want_topic: [],
@@ -58,8 +98,9 @@ const mockMentorUserData: UserType = {
       job_period_end: '至今',
       industry: 'Software',
       job_location: 'TWN',
-      description:
-        '負責 Cloud Console 核心工作流設計與跨產品 Design System 演進。\n1. 主導 5 個產品線的設計系統元件收斂\n2. 與跨時區工程與產品團隊協作推動無障礙設計規範',
+      description: `負責 Cloud Console 核心工作流設計與跨產品 Design System 演進。
+1. 主導 5 個產品線的設計系統元件收斂
+2. 與跨時區工程與產品團隊協作推動無障礙設計規範`,
       is_primary: true,
     },
     {
@@ -164,6 +205,13 @@ export const MentorOwnerView: Story = {
     userLoading: false,
     schedule: baseScheduleReader,
     scheduleLoaded: true,
+    feedback: {
+      items: mockFeedbackItems,
+      totalRatingCount: 12,
+      ratingAverage: 8.5,
+      hasLoaded: true,
+      isLoading: false,
+    },
     loginUserId: '101',
     isIdentityResolved: true,
     canShowOwnerControls: true,
@@ -192,6 +240,13 @@ export const MentorVisitorView: Story = {
       },
     },
     scheduleLoaded: true,
+    feedback: {
+      items: mockFeedbackItems,
+      totalRatingCount: 12,
+      ratingAverage: 8.5,
+      hasLoaded: true,
+      isLoading: false,
+    },
     loginUserId: '202',
     isIdentityResolved: true,
     canShowOwnerControls: false,
@@ -204,6 +259,35 @@ export const MentorVisitorView: Story = {
     setSelectedSlot: () => {},
     isSubmitting: false,
     onConfirmReservation: async () => true,
+  },
+};
+
+export const MentorFeedbackTabActive: Story = {
+  args: {
+    ...MentorVisitorView.args,
+    defaultTab: 'feedback',
+  },
+};
+
+export const MentorZeroReviewsEmptyState: Story = {
+  args: {
+    ...MentorVisitorView.args,
+    userData: {
+      ...mockMentorUserData,
+      stats: {
+        completed_meeting_count: 128,
+        rating_count: 0,
+        rating_average: null,
+      },
+    },
+    feedback: {
+      items: [],
+      totalRatingCount: 0,
+      ratingAverage: null,
+      hasLoaded: true,
+      isLoading: false,
+    },
+    defaultTab: 'feedback',
   },
 };
 

@@ -1,4 +1,5 @@
 import avatarImage from '@/assets/default-avatar.png';
+import { normalizeMentorStats } from '@/lib/mentor/mentorStats';
 import type {
   MentorListWireResponse,
   MentorPage,
@@ -8,62 +9,15 @@ import type {
   RawMentorStats,
 } from '@/types/mentor';
 
-export type { MentorListWireResponse, MentorStats, RawMentor };
+export type { MentorListWireResponse, MentorStats, RawMentor, RawMentorStats };
 
 function readCodes(codes: ReadonlyArray<string> | null | undefined): string[] {
   if (!codes) return [];
   return codes.filter((c): c is string => Boolean(c));
 }
 
-function toNonNegativeInt(value: number | null | undefined): number {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
-    return 0;
-  }
-  return Math.floor(value);
-}
-
 export function mapMentorStats(raw: RawMentor): MentorStats | null {
-  const source: RawMentorStats | null =
-    raw.stats ??
-    (raw.completed_meeting_count !== undefined ||
-    raw.total_rating_count !== undefined ||
-    raw.rating_count !== undefined ||
-    raw.rating_average !== undefined
-      ? {
-          completed_meeting_count: raw.completed_meeting_count,
-          total_rating_count: raw.total_rating_count,
-          rating_count: raw.rating_count,
-          rating_average: raw.rating_average,
-        }
-      : null);
-
-  if (!source) {
-    return null;
-  }
-
-  const completedMeetingCount = toNonNegativeInt(
-    source.completed_meeting_count
-  );
-  const rawRatingCount = source.total_rating_count ?? source.rating_count;
-  const ratingCount = toNonNegativeInt(rawRatingCount);
-  const hasZeroRatingCount =
-    rawRatingCount !== undefined &&
-    rawRatingCount !== null &&
-    ratingCount === 0;
-  const rawRatingAverage = source.rating_average;
-  const ratingAverage =
-    !hasZeroRatingCount &&
-    typeof rawRatingAverage === 'number' &&
-    Number.isFinite(rawRatingAverage) &&
-    rawRatingAverage > 0
-      ? rawRatingAverage
-      : null;
-
-  return {
-    completed_meeting_count: completedMeetingCount,
-    rating_count: ratingCount,
-    rating_average: ratingAverage,
-  };
+  return normalizeMentorStats(raw);
 }
 
 export function mapMentor(raw: RawMentor): MentorType {

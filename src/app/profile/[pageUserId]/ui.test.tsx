@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { UserType } from '@/hooks/user/user-data/useUserData';
@@ -422,5 +423,141 @@ describe('ProfilePageUI - multiline text whitespace preservation (#857)', () => 
     const jobDescParagraph = jobTitleHeading.nextElementSibling;
     expect(jobDescParagraph).toHaveClass('whitespace-pre-line', 'break-words');
     expect(jobDescParagraph?.textContent).toBe(multilineJobDesc);
+  });
+});
+
+describe('ProfilePageUI - mentor summary bar and feedback tabs (#736)', () => {
+  it('renders full-width summary bar and switches between 簡介 and 評價 N tabs while keeping booking panel visible (#736)', async () => {
+    const user = userEvent.setup();
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            about: '關於導師的介紹文字',
+            years_of_experience: '5~10 年',
+            location: '台灣',
+            industries: [
+              { subject_group: 'software', subject: '軟體及網路相關業' },
+            ],
+            stats: {
+              completed_meeting_count: 128,
+              rating_count: 12,
+              rating_average: 8.5,
+            },
+          }),
+          feedback: {
+            items: [
+              {
+                id: 'fb-1',
+                authorName: '陳**',
+                rating: 9,
+                content: '分享了很具體的建議，也幫助我釐清下一步的方向。',
+                createdAt: '2026-10-28T10:00:00Z',
+              },
+            ],
+            totalRatingCount: 12,
+            ratingAverage: 8.5,
+            page: 1,
+            pageSize: 10,
+            sortBy: 'newest',
+            hasLoaded: true,
+            isLoading: false,
+            error: null,
+          },
+          isIdentityResolved: true,
+        })}
+      />
+    );
+
+    expect(
+      screen.getByRole('region', { name: '導師摘要資訊' })
+    ).toBeInTheDocument();
+    expect(screen.getByText('軟體及網路相關業')).toBeInTheDocument();
+    const aboutPanel = screen.getByRole('tabpanel', { name: '簡介' });
+    expect(aboutPanel).toHaveTextContent('關於導師的介紹文字');
+    expect(aboutPanel).not.toHaveTextContent('經驗');
+    expect(aboutPanel).not.toHaveTextContent('產業');
+    expect(screen.getByText('可預約日期')).toBeInTheDocument();
+
+    const feedbackTab = screen.getByRole('tab', { name: /評價\s*12/ });
+    await user.click(feedbackTab);
+
+    expect(screen.getByText('12 則會談評價')).toBeInTheDocument();
+    expect(
+      screen.getByText('分享了很具體的建議，也幫助我釐清下一步的方向。')
+    ).toBeInTheDocument();
+    expect(screen.getByText('可預約日期')).toBeInTheDocument();
+    expect(screen.getByTestId('schedule-calendar')).toBeInTheDocument();
+  });
+
+  it('hides rating cell in summary bar and shows empty state in 評價 0 tab when mentor has 0 reviews (#736)', async () => {
+    const user = userEvent.setup();
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            years_of_experience: '5~10 年',
+            location: '台灣',
+            stats: {
+              completed_meeting_count: 0,
+              rating_count: 0,
+              rating_average: null,
+            },
+          }),
+          feedback: {
+            items: [],
+            totalRatingCount: 0,
+            ratingAverage: null,
+            hasLoaded: true,
+            isLoading: false,
+            error: null,
+          },
+          isIdentityResolved: true,
+        })}
+      />
+    );
+
+    expect(screen.queryByText('評分')).not.toBeInTheDocument();
+    const feedbackTab = screen.getByRole('tab', { name: /評價\s*0/ });
+    await user.click(feedbackTab);
+
+    expect(screen.getByText('目前還沒有評價')).toBeInTheDocument();
+    expect(
+      screen.getByText('完成會談後，學員的評價會顯示在這裡。')
+    ).toBeInTheDocument();
+  });
+
+  it('preserves SSR userData.stats when feedback endpoint returns 404 fallback empty state (#736)', () => {
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            stats: {
+              completed_meeting_count: 64,
+              rating_count: 8,
+              rating_average: 9.2,
+            },
+          }),
+          feedback: {
+            items: [],
+            totalRatingCount: 0,
+            ratingAverage: null,
+            completedMeetingCount: null,
+            hasLoaded: true,
+            isFallbackEmpty: true,
+            isLoading: false,
+            error: null,
+          },
+          isIdentityResolved: true,
+        })}
+      />
+    );
+
+    expect(screen.getByText('9.2')).toBeInTheDocument();
+    expect(screen.getByText('64')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /評價\s*8/ })).toBeInTheDocument();
   });
 });
