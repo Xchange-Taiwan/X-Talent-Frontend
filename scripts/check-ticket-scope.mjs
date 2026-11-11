@@ -207,25 +207,27 @@ export async function evaluateTicketScope(
   { branchName = '', callClassifier } = {}
 ) {
   const cleanBranch = String(branchName ?? '').trim();
-  if (cleanBranch) {
+  const applyPromotedBranchOverride = (res) => {
+    if (!cleanBranch || res.actionableInFrontendRepo) {
+      return res;
+    }
     return {
-      scope: 'frontend_only',
+      ...res,
+      scope: res.scope === 'mixed_fe_be' ? 'mixed_fe_be' : 'frontend_only',
       actionableInFrontendRepo: true,
-      frontendTasksSummary: '',
-      outOfRepoItems: [],
-      reason: `已指定既有推廣分支 ${sanitizeSingleLine(cleanBranch)}，直接放行進入實作與收斂流程。`,
+      reason: `已指定既有推廣分支 ${sanitizeSingleLine(cleanBranch)}，強制放行進入實作與收斂流程。`,
     };
-  }
+  };
 
   const det = classifyTicketScopeDeterministic(ticket);
   if (det.decided) {
-    return {
+    return applyPromotedBranchOverride({
       scope: det.scope,
       actionableInFrontendRepo: det.actionableInFrontendRepo,
       frontendTasksSummary: det.frontendTasksSummary,
       outOfRepoItems: det.outOfRepoItems,
       reason: sanitizeSingleLine(det.reason),
-    };
+    });
   }
 
   if (
@@ -254,7 +256,7 @@ export async function evaluateTicketScope(
           : llmRes.actionableInFrontendRepo
             ? 'frontend_only'
             : 'non_frontend';
-        return {
+        return applyPromotedBranchOverride({
           scope: validScope,
           actionableInFrontendRepo: llmRes.actionableInFrontendRepo,
           frontendTasksSummary: sanitizeSingleLine(llmRes.frontendTasksSummary),
@@ -264,7 +266,7 @@ export async function evaluateTicketScope(
                 .filter(Boolean)
             : [],
           reason: sanitizeSingleLine(llmRes.reason),
-        };
+        });
       }
     } catch (err) {
       console.warn(
@@ -328,8 +330,7 @@ if (isMain) {
   const argv = process.argv.slice(2);
   const specFile =
     parseCliOption(argv, '--spec-file=') || '.agents/tmp/ticket-spec.md';
-  const branchName =
-    parseCliOption(argv, '--branch=') || process.env.BRANCH_NAME || '';
+  const branchName = parseCliOption(argv, '--branch=');
   const outFile = parseCliOption(argv, '--out=');
   const guidanceOutFile = parseCliOption(argv, '--guidance-out=');
 

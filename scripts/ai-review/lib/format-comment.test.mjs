@@ -381,4 +381,27 @@ describe('formatComment', () => {
     );
     expect(comment).not.toContain('- ⚠️');
   });
+
+  it('surfaces unjudged frontend acceptanceCriteria when summary fails on a mixed ticket with outOfRepoCriteria', () => {
+    const comment = formatComment({
+      plan: {
+        ...basePlan,
+        acceptanceCriteria: ['點擊通知連結導向歷史紀錄頁'],
+        outOfRepoCriteria: ['會談結束後 15 分鐘內收到 email'],
+      },
+      security: noFindings,
+      correctness: noFindings,
+      performance: noFindings,
+      testing: noFindings,
+      architecture: noFindings,
+      summary: undefined,
+    });
+
+    expect(comment).toContain(
+      '- ⚠️ 點擊通知連結導向歷史紀錄頁 — 無法判斷（Summary 未回傳覆蓋結果）'
+    );
+    expect(comment).toContain(
+      '- ⏭️ 會談結束後 15 分鐘內收到 email — 屬後端或外部系統範圍，本前端 PR 豁免檢查'
+    );
+  });
 });

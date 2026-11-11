@@ -189,8 +189,8 @@ describe('check-ticket-scope', () => {
       expect(res.actionableInFrontendRepo).toBe(true);
     });
 
-    it('always allows promoted local branches to proceed even without blocking at pre-flight', async () => {
-      const res = await evaluateTicketScope(
+    it('always allows promoted local branches to proceed while still preserving mixed_fe_be guidance', async () => {
+      const resNonFe = await evaluateTicketScope(
         {
           title: '[Task][BE] 特殊跨端支援分支',
           body: '',
@@ -198,8 +198,31 @@ describe('check-ticket-scope', () => {
         },
         { branchName: 'feat/760-fe-types-sync' }
       );
+      expect(resNonFe.actionableInFrontendRepo).toBe(true);
 
-      expect(res.actionableInFrontendRepo).toBe(true);
+      const mockClassifier = vi.fn().mockResolvedValue({
+        scope: 'mixed_fe_be',
+        actionableInFrontendRepo: true,
+        frontendTasksSummary: '實作前端路由導頁',
+        outOfRepoItems: ['後端 15 分鐘排程寄信'],
+        reason: '混合票',
+      });
+      const resMixed = await evaluateTicketScope(
+        {
+          title: '[Feature] 回饋：會談結束後提醒 Mentee 填寫回饋',
+          body: '內容',
+          state: 'OPEN',
+        },
+        {
+          branchName: 'feat/733-feedback-reminder-route',
+          callClassifier: mockClassifier,
+        }
+      );
+      expect(resMixed.actionableInFrontendRepo).toBe(true);
+      expect(resMixed.scope).toBe('mixed_fe_be');
+      expect(buildScopedImplementationGuidance(resMixed)).toContain(
+        '後端 15 分鐘排程寄信'
+      );
     });
 
     it('fails open without calling classifier when both title and body are empty (e.g. transient GitHub API read failure)', async () => {

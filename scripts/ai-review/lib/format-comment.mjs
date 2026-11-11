@@ -39,6 +39,9 @@ function renderRequirementCoverage(plan, summary) {
   const coverageList = Array.isArray(summary?.requirementCoverage)
     ? summary.requirementCoverage
     : [];
+  const planFrontendCriteria = Array.isArray(plan?.acceptanceCriteria)
+    ? plan.acceptanceCriteria
+    : [];
   const planOutOfRepo = Array.isArray(plan?.outOfRepoCriteria)
     ? plan.outOfRepoCriteria
     : [];
@@ -46,6 +49,15 @@ function renderRequirementCoverage(plan, summary) {
   if (coverageList.length > 0 || planOutOfRepo.length > 0) {
     const seen = new Set();
     const rows = [];
+
+    if (coverageList.length === 0 && planFrontendCriteria.length > 0) {
+      for (const rawCrit of planFrontendCriteria) {
+        const crit = String(rawCrit ?? '').trim();
+        if (!crit || seen.has(crit)) continue;
+        seen.add(crit);
+        rows.push(`- ⚠️ ${crit} — 無法判斷（Summary 未回傳覆蓋結果）`);
+      }
+    }
 
     for (const c of coverageList) {
       const crit = String(c?.criterion ?? '').trim();
