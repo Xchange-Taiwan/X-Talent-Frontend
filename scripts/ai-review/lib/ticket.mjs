@@ -73,7 +73,7 @@ const ARCH_KB_ENDPOINT =
  * and Figma Route Mappings) from the Cloudflare KV Worker endpoint.
  * Fails gracefully (returns '') if offline or unreachable.
  */
-export async function fetchArchitectureKnowledgeBase(queryText) {
+export async function fetchRawArchitectureKb(queryText) {
   try {
     const res = await fetch(ARCH_KB_ENDPOINT, {
       method: 'POST',
@@ -81,15 +81,40 @@ export async function fetchArchitectureKnowledgeBase(queryText) {
       body: JSON.stringify({ query: String(queryText || '').slice(0, 1000) }),
       signal: AbortSignal.timeout(5000),
     });
-    if (!res.ok) return '';
+    if (!res.ok) return null;
     const data = await res.json();
-    if (!data?.kb) return '';
-    return (
-      '\n\n## X-Talent 跨專案架構知識庫 (Cloudflare KV Architecture KB)\n```json\n' +
-      JSON.stringify(data.kb, null, 2).slice(0, 12000) +
-      '\n```'
-    );
+    return data?.kb ?? null;
   } catch {
-    return '';
+    return null;
   }
+}
+
+/**
+ * Fetches the pre-indexed X-Talent Architecture Knowledge Base (putting
+ * `matchedDesignSpecs` and `matchedDomains` first so Design Hub rules and
+ * domain schemas are never truncated by large ticket pools).
+ */
+export async function fetchArchitectureKnowledgeBase(queryText) {
+  const kb = await fetchRawArchitectureKb(queryText);
+  if (!kb) return '';
+
+  const parts = [
+    '\n\n## X-Talent 跨專案架構知識庫 (Cloudflare KV Architecture KB)',
+  ];
+  if (kb.matchedDesignSpecs) {
+    parts.push(
+      '### Design Hub 定案畫面與元件規格 (Single Source of Truth)\n```json\n' +
+        JSON.stringify(kb.matchedDesignSpecs, null, 2).slice(0, 8000) +
+        '\n```'
+    );
+  }
+  const restKb = {
+    matchedDomains: kb.matchedDomains,
+    globalMap: kb.globalMap,
+    ticketsPool: kb.ticketsPool,
+  };
+  parts.push(
+    '```json\n' + JSON.stringify(restKb, null, 2).slice(0, 14000) + '\n```'
+  );
+  return parts.join('\n\n');
 }

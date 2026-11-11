@@ -218,6 +218,38 @@ jobs:
           PLAN_B64: ${{ needs.planner.outputs.plan }}
         run: node scripts/ai-review/architecture.mjs
 
+  visual_parity:
+    needs: planner
+    runs-on: ubuntu-latest
+    name: 'AI Review: Visual / Design Parity'
+    outputs:
+      findings: ${{ steps.run.outputs.findings }}
+    steps:
+      - name: Checkout base branch (trusted scripts)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - name: Set up AI review agent
+        uses: ./.github/actions/setup-ai-agent
+        with:
+          base-ref: ${{ github.event.pull_request.base.ref }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
+
+      - name: Run visual & Design Hub parity agent
+        id: run
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PLAN_B64: ${{ needs.planner.outputs.plan }}
+        run: node scripts/ai-review/visual-parity.mjs
+
   review_guide:
     needs: planner
     runs-on: ubuntu-latest
@@ -253,6 +285,7 @@ jobs:
         security,
         correctness,
         business_logic,
+        visual_parity,
         performance,
         testing,
         architecture,
@@ -280,6 +313,7 @@ jobs:
           SECURITY_FINDINGS_B64: ${{ needs.security.outputs.findings }}
           CORRECTNESS_FINDINGS_B64: ${{ needs.correctness.outputs.findings }}
           BUSINESS_LOGIC_FINDINGS_B64: ${{ needs.business_logic.outputs.findings }}
+          VISUAL_PARITY_FINDINGS_B64: ${{ needs.visual_parity.outputs.findings }}
           PERFORMANCE_FINDINGS_B64: ${{ needs.performance.outputs.findings }}
           TESTING_FINDINGS_B64: ${{ needs.testing.outputs.findings }}
           ARCHITECTURE_FINDINGS_B64: ${{ needs.architecture.outputs.findings }}

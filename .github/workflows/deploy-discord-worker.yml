@@ -1,0 +1,36 @@
+name: Deploy Discord & KV Architecture Worker
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-discord-worker
+  cancel-in-progress: false
+
+jobs:
+  deploy-worker:
+    runs-on: ubuntu-latest
+    name: Deploy x-talent-discord-mention-notify Worker
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Checkout X-Talent-Tracker (Worker source)
+        uses: actions/checkout@v7
+        with:
+          repository: Xchange-Taiwan/X-Talent-Tracker
+          ref: main
+          token: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Run Worker unit tests
+        run: node --test --experimental-strip-types test/discord-mention-worker.test.ts
+
+      - name: Deploy Worker to Cloudflare & Sync Design Hub KV
+        run: |
+          npx --yes wrangler@4 deploy --config ./wrangler.jsonc
+          curl -sS -X POST "https://x-talent-discord-mention-notify.x-talent.workers.dev/__sync-design-hub" -H "Content-Type: application/json" -d "{}" || true

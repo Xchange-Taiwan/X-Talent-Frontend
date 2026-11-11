@@ -27,6 +27,9 @@ const businessLogic = decodeUpstream(
   'businessLogic',
   'BUSINESS_LOGIC_FINDINGS_B64'
 );
+const visualParity = process.env.VISUAL_PARITY_FINDINGS_B64
+  ? decodeUpstream('visualParity', 'VISUAL_PARITY_FINDINGS_B64')
+  : undefined;
 const performance = decodeUpstream('performance', 'PERFORMANCE_FINDINGS_B64');
 const testing = decodeUpstream('testing', 'TESTING_FINDINGS_B64');
 const architecture = decodeUpstream(
@@ -46,6 +49,7 @@ try {
       null,
       2
     ),
+    VISUAL_PARITY_FINDINGS_JSON: JSON.stringify(visualParity ?? null, null, 2),
     PERFORMANCE_FINDINGS_JSON: JSON.stringify(performance ?? null, null, 2),
     TESTING_FINDINGS_JSON: JSON.stringify(testing ?? null, null, 2),
     ARCHITECTURE_FINDINGS_JSON: JSON.stringify(architecture ?? null, null, 2),
@@ -67,6 +71,7 @@ const comment = formatComment({
   security,
   correctness,
   businessLogic,
+  visualParity,
   performance,
   testing,
   architecture,

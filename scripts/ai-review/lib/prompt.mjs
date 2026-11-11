@@ -39,6 +39,8 @@ export function buildPrompt(templateUrl, replacements = {}) {
     BUSINESS_RULES: businessRules,
     CODE_SMELL_BASELINE: codeSmellBaseline,
     VISUAL_CONTEXT: '',
+    DESIGN_HUB_SPECS: '（無對應 Design Hub 規格）',
+    VISUAL_PARITY_FINDINGS_JSON: 'null',
     ...replacements,
   };
   for (const [key, value] of Object.entries(all)) {
