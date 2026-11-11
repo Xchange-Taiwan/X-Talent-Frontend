@@ -99,6 +99,10 @@ const MentorCardListBase = ({
             company={mentor.company}
             about={mentor.about}
             haveTopicLabels={buildMentorCardTags(mentor, prioritizedLabels)}
+            ratingAverage={mentor.stats?.rating_average ?? null}
+            completedMeetingCount={
+              mentor.stats?.completed_meeting_count ?? null
+            }
             priority={index === 0}
           />
         ))}

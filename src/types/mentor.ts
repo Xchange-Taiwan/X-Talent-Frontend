@@ -2,11 +2,29 @@ import type { StaticImageData } from 'next/image';
 
 import type { components } from '@/types/api';
 
+export interface MentorStats {
+  completed_meeting_count: number;
+  rating_count: number;
+  rating_average: number | null;
+}
+
+export interface RawMentorStats {
+  completed_meeting_count?: number | null;
+  total_rating_count?: number | null;
+  rating_count?: number | null;
+  rating_average?: number | null;
+}
+
 export type RawMentor = Omit<
   components['schemas']['SearchMentorProfileVO'],
   'updated_at'
 > & {
   updated_at?: string | number | null;
+  stats?: RawMentorStats | null;
+  completed_meeting_count?: number | null;
+  total_rating_count?: number | null;
+  rating_count?: number | null;
+  rating_average?: number | null;
 };
 
 export type MentorListWireResponse = Omit<
@@ -35,6 +53,7 @@ export interface MentorType {
   have_skill: string[];
   have_topic: string[];
   updated_at: string | null;
+  stats?: MentorStats | null;
 }
 
 export interface MentorPage {

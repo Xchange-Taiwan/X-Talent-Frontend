@@ -1,4 +1,5 @@
 import { act, render, screen } from '@testing-library/react';
+import { fromPartial } from '@total-typescript/shoehorn';
 import React from 'react';
 import {
   afterAll,
@@ -11,7 +12,11 @@ import {
   vi,
 } from 'vitest';
 
-import { Information } from './Information';
+import {
+  formatCompletedMeetings,
+  formatMentorRating,
+  Information,
+} from './Information';
 
 // Global variable to hold the registered ResizeObserver callback
 let resizeCallback: ResizeObserverCallback | null = null;
@@ -41,23 +46,23 @@ describe('Information Component', () => {
       .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
       .mockImplementation(function (this: HTMLElement) {
         if (this.getAttribute('data-testid') === 'display-container') {
-          return {
+          return fromPartial<DOMRect>({
             width: displayWidth,
             height: 40,
             top: 0,
             left: 0,
             bottom: 0,
             right: 0,
-          } as DOMRect;
+          });
         }
-        return {
+        return fromPartial<DOMRect>({
           width: 40,
           height: 20,
           top: 0,
           left: 0,
           bottom: 0,
           right: 0,
-        } as DOMRect;
+        });
       });
   };
 
@@ -159,10 +164,13 @@ describe('Information Component', () => {
     expect(resizeCallback).not.toBeNull();
 
     act(() => {
-      // Cast the mocked entry and observer using type-safe unknown casting
       resizeCallback!(
-        [{ contentRect: { width: 100 } } as unknown as ResizeObserverEntry],
-        {} as unknown as ResizeObserver
+        [
+          fromPartial<ResizeObserverEntry>({
+            contentRect: fromPartial({ width: 100 }),
+          }),
+        ],
+        fromPartial<ResizeObserver>({})
       );
     });
 
@@ -171,5 +179,70 @@ describe('Information Component', () => {
     expect(screen.getByText('+2')).toBeInTheDocument();
     expect(screen.getAllByText('TypeScript')).toHaveLength(1);
     expect(screen.getAllByText('Node.js')).toHaveLength(1);
+  });
+
+  it('renders Option B numeric rating on name row right without star or review count, and completed 1-on-1 count below job title (#737)', () => {
+    render(
+      <Information
+        {...defaultProps}
+        ratingAverage={9.8}
+        completedMeetingCount={12}
+      />
+    );
+
+    const ratingEl = screen.getByText('9.8 / 10');
+    expect(ratingEl).toBeInTheDocument();
+    expect(ratingEl).toHaveAttribute('aria-label', '平均評分 9.8 / 10');
+    expect(ratingEl).toHaveClass('shrink-0', 'whitespace-nowrap');
+
+    const nameHeading = screen.getByRole('heading', { name: 'Jane Doe' });
+    expect(nameHeading).toHaveClass('min-w-0', 'truncate');
+    expect(nameHeading.parentElement).toContainElement(ratingEl);
+
+    expect(screen.getByText('已完成 12 場 1-on-1')).toBeInTheDocument();
+    expect(screen.queryByText(/則/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/[★⭐]/)).not.toBeInTheDocument();
+  });
+
+  it('hides rating block completely when ratingAverage is null, undefined, or 0, and hides completed sessions when 0 (#737)', () => {
+    const { rerender } = render(
+      <Information
+        {...defaultProps}
+        ratingAverage={null}
+        completedMeetingCount={0}
+      />
+    );
+
+    expect(screen.queryByText(/\/ 10/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/已完成/)).not.toBeInTheDocument();
+
+    rerender(
+      <Information
+        {...defaultProps}
+        ratingAverage={0}
+        completedMeetingCount={5}
+      />
+    );
+    expect(screen.queryByText(/\/ 10/)).not.toBeInTheDocument();
+    expect(screen.getByText('已完成 5 場 1-on-1')).toBeInTheDocument();
+  });
+
+  it('formats mentor rating to 1 decimal place and validates completed meeting counts', () => {
+    expect(formatMentorRating(9)).toBe('9.0 / 10');
+    expect(formatMentorRating(8.55)).toBe('8.6 / 10');
+    expect(formatMentorRating(10)).toBe('10.0 / 10');
+    expect(formatMentorRating(0)).toBeNull();
+    expect(formatMentorRating(-2)).toBeNull();
+    expect(formatMentorRating(null)).toBeNull();
+    expect(formatMentorRating(undefined)).toBeNull();
+    expect(formatMentorRating(Number.NaN)).toBeNull();
+
+    expect(formatCompletedMeetings(12)).toBe('已完成 12 場 1-on-1');
+    expect(formatCompletedMeetings(12.9)).toBe('已完成 12 場 1-on-1');
+    expect(formatCompletedMeetings(0.4)).toBeNull();
+    expect(formatCompletedMeetings(0)).toBeNull();
+    expect(formatCompletedMeetings(-1)).toBeNull();
+    expect(formatCompletedMeetings(null)).toBeNull();
+    expect(formatCompletedMeetings(undefined)).toBeNull();
   });
 });

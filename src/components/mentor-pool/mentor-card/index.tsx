@@ -18,6 +18,8 @@ export interface MentorCardProps {
   company: string;
   about: string;
   haveTopicLabels: string[];
+  ratingAverage?: number | null;
+  completedMeetingCount?: number | null;
   priority?: boolean;
 }
 
@@ -32,6 +34,8 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
       company,
       about,
       haveTopicLabels,
+      ratingAverage = null,
+      completedMeetingCount = null,
       priority = false,
     }: MentorCardProps,
     ref
@@ -40,7 +44,7 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
       <article
         ref={ref}
         className={cn(
-          'border-background-border bg-background-white relative flex h-full w-[334px] flex-col overflow-hidden rounded-lg border transition-shadow xl:h-[480px] xl:w-[413px]',
+          'border-background-border bg-background-white relative flex h-full w-[334px] flex-col overflow-hidden rounded-lg border transition-shadow xl:min-h-[480px] xl:w-[413px]',
           HOVER_CLICKABLE_CARD_CLASSES,
           FOCUS_WITHIN_RING_CLASSES
         )}
@@ -63,6 +67,8 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
             company={company}
             about={about}
             haveTopicLabels={haveTopicLabels}
+            ratingAverage={ratingAverage}
+            completedMeetingCount={completedMeetingCount}
           />
         </div>
       </article>

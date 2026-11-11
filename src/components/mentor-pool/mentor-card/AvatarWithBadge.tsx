@@ -20,7 +20,7 @@ export const AvatarWithBadge = ({
     TotalWorkSpanEnum[years as keyof typeof TotalWorkSpanEnum] ?? years;
 
   return (
-    <figure className="relative h-[348px] w-full overflow-hidden xl:h-[292px]">
+    <figure className="relative h-[348px] w-full shrink-0 overflow-hidden xl:h-[292px]">
       <Image
         src={avatar}
         alt={`${name} 的頭像`}
