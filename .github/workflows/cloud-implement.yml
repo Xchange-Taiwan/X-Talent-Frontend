@@ -50,7 +50,7 @@ env:
 jobs:
   implement:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     name: 'Cloud AI Implement #${{ inputs.ticket_number }}'
     steps:
       - name: Validate inputs and notify Discord Worker (implement_started)
