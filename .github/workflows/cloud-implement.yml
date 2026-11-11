@@ -142,10 +142,12 @@ jobs:
         run: pnpm playwright install chromium
 
       - name: Install Noto CJK fonts for crisp Traditional Chinese rendering
+        continue-on-error: true
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends fonts-noto-cjk fontconfig >/dev/null
-          fc-cache -f
+          mkdir -p ~/.local/share/fonts
+          curl -fsSL --retry 3 "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf" -o ~/.local/share/fonts/NotoSansTC.ttf || true
+          curl -fsSL --retry 3 "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/TraditionalChinese/NotoSansCJKtc-Regular.otf" -o ~/.local/share/fonts/NotoSansCJKtc-Regular.otf || true
+          fc-cache -f ~/.local/share/fonts || true
 
       - name: Configure Git and local environment for UI evidence and E2E
         env:
