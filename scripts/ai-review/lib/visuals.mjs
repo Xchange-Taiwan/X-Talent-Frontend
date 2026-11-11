@@ -3,9 +3,27 @@ import path from 'node:path';
 
 import { sniffImageMimeType } from '../../prefetch-ticket-visuals.mjs';
 
-const MAX_INLINE_TOTAL_BYTES = 10 * 1024 * 1024; // 10 MB total base64 budget
+const MAX_REF_BASE64_CHARS = 6 * 1024 * 1024; // 6 MB base64 budget for design refs
+const MAX_EVIDENCE_BASE64_CHARS = 6 * 1024 * 1024; // 6 MB dedicated base64 budget for E2E screenshots
 const MAX_REF_IMAGES = 4;
 const MAX_EVIDENCE_IMAGES = 4;
+
+function selectWithinBase64Budget(candidates, maxBase64Chars) {
+  const selected = [];
+  let usedChars = 0;
+  for (const img of candidates) {
+    const len = img.base64Data.length;
+    if (usedChars + len > maxBase64Chars) continue;
+    usedChars += len;
+    selected.push({
+      mimeType: img.mimeType,
+      base64Data: img.base64Data,
+      label: img.label,
+      path: img.path,
+    });
+  }
+  return selected;
+}
 
 function readVerifiedImagesFromDir(dirPath, maxCount, labelPrefix) {
   if (!dirPath || !fs.existsSync(dirPath)) return [];
@@ -57,22 +75,18 @@ export function loadReviewVisualAssets({
     '實作後 Playwright 實際截圖證據'
   );
 
-  const selectedImages = [];
-  let usedBytes = 0;
+  const selectedRefs = selectWithinBase64Budget(
+    refCandidates,
+    MAX_REF_BASE64_CHARS
+  );
+  const selectedEvidence = selectWithinBase64Budget(
+    evidenceCandidates,
+    MAX_EVIDENCE_BASE64_CHARS
+  );
+  const selectedImages = [...selectedRefs, ...selectedEvidence];
 
-  for (const img of [...refCandidates, ...evidenceCandidates]) {
-    if (usedBytes + img.bytes > MAX_INLINE_TOTAL_BYTES) continue;
-    usedBytes += img.bytes;
-    selectedImages.push({
-      mimeType: img.mimeType,
-      base64Data: img.base64Data,
-      label: img.label,
-      path: img.path,
-    });
-  }
-
-  const hasRef = refCandidates.length > 0;
-  const hasEvidence = evidenceCandidates.length > 0;
+  const hasRef = selectedRefs.length > 0;
+  const hasEvidence = selectedEvidence.length > 0;
 
   const noteLines = [];
   if (hasRef || hasEvidence) {
@@ -82,12 +96,12 @@ export function loadReviewVisualAssets({
     );
     if (hasRef) {
       noteLines.push(
-        `- 已附上 ${refCandidates.length} 張 Ticket／Design Hub 原始設計參考圖（標記為 \`Ticket/DesignHub 設計參考圖\`），請直接以視覺比對實作欄位、排版與文案是否對齊設計圖。`
+        `- 已附上 ${selectedRefs.length} 張 Ticket／Design Hub 原始設計參考圖（標記為 \`Ticket/DesignHub 設計參考圖\`），請直接以視覺比對實作欄位、排版與文案是否對齊設計圖。`
       );
     }
     if (hasEvidence) {
       noteLines.push(
-        `- 已附上 ${evidenceCandidates.length} 張本輪 Playwright 實際擷取的 UI 證據截圖（標記為 \`實作後 Playwright 實際截圖證據\`）：`,
+        `- 已附上 ${selectedEvidence.length} 張本輪 Playwright 實際擷取的 UI 證據截圖（標記為 \`實作後 Playwright 實際截圖證據\`）：`,
         '  1. 請檢查截圖是否**真正打開並呈現本次修改的目標元件／狀態**（例如：改通知彈窗就必須點開通知鈴鐺拍出彈窗內容，絕不可只拍未點開的首頁；改評價 Tab 就必須拍出切換至該 Tab 的畫面）。',
         '  2. 請檢查截圖是否**已完成頁面初始化**（不可停留在 Skeleton 骨架屏、`載入中...`、破圖或 `□□□□` 中文字體方塊亂碼）。',
         '  3. 若截圖未打開目標功能或尚未載入完成，請回報明確 Finding 要求在對應 E2E `.spec.ts` 補齊互動點擊與等待後再呼叫 `captureEvidence(...)`。'
@@ -97,8 +111,10 @@ export function loadReviewVisualAssets({
 
   return {
     images: selectedImages,
-    refCount: refCandidates.length,
-    evidenceCount: evidenceCandidates.length,
+    refImages: selectedRefs,
+    evidenceImages: selectedEvidence,
+    refCount: selectedRefs.length,
+    evidenceCount: selectedEvidence.length,
     visualContextMarkdown: noteLines.join('\n'),
   };
 }

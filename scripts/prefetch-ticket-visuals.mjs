@@ -157,11 +157,22 @@ export function getAssetDedupKey(rawUrl) {
 
 function decodeHtmlEntities(str) {
   return String(str ?? '')
-    .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>');
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
+function isSignedUserImageHost(rawUrl) {
+  try {
+    return (
+      new URL(rawUrl).hostname.toLowerCase() ===
+      'private-user-images.githubusercontent.com'
+    );
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -175,7 +186,7 @@ export function extractTicketImageCandidates(blocks = []) {
     const url = decodeHtmlEntities(rawUrl).trim();
     if (!isAllowedTicketImageUrl(url)) return;
     const key = getAssetDedupKey(url);
-    const isSigned = url.includes('private-user-images.githubusercontent.com');
+    const isSigned = isSignedUserImageHost(url);
     const existing = byKey.get(key);
     if (!existing || (isSigned && !existing.isSigned)) {
       byKey.set(key, {

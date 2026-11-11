@@ -218,6 +218,10 @@ export async function captureEvidence(
     options.outDir || process.env.EVIDENCE_OUT_DIR || '.agents/tmp/evidence';
   fs.mkdirSync(outDir, { recursive: true });
 
+  if (options.locator) {
+    await options.locator.waitFor({ state: 'visible', timeout: 10_000 });
+  }
+
   await waitForPageSettled(page, {
     waitForSelector: options.waitForSelector,
     settleDelayMs: options.settleDelayMs,
@@ -233,7 +237,6 @@ export async function captureEvidence(
   const filePath = path.join(outDir, fileName);
 
   if (options.locator) {
-    await options.locator.waitFor({ state: 'visible', timeout: 10_000 });
     await options.locator.screenshot({ path: filePath });
   } else {
     await page.screenshot({
