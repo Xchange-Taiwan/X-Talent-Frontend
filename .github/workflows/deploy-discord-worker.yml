@@ -20,7 +20,7 @@ jobs:
         with:
           repository: Xchange-Taiwan/X-Talent-Tracker
           ref: main
-          token: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT }}
+          token: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v7

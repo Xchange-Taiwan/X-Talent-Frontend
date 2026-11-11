@@ -89,19 +89,39 @@ export async function fetchRawArchitectureKb(queryText) {
   }
 }
 
-/**
- * Fetches the pre-indexed X-Talent Architecture Knowledge Base (putting
- * `matchedDesignSpecs` and `matchedDomains` first so Design Hub rules and
- * domain schemas are never truncated by large ticket pools).
- */
-export async function fetchArchitectureKnowledgeBase(queryText) {
-  const kb = await fetchRawArchitectureKb(queryText);
-  if (!kb) return '';
+export function isUiReviewFile(filePath = '') {
+  const f = String(filePath).replace(/\\/g, '/').trim();
+  if (!f) return false;
+  if (/\.(test|spec|stories)\.(ts|tsx|js|jsx)$/.test(f)) return false;
+  if (f.startsWith('src/app/api/')) return false;
+  return (
+    (f.startsWith('src/app/') ||
+      f.startsWith('src/components/') ||
+      f.startsWith('src/styles/')) &&
+    /\.(tsx|jsx|css)$/.test(f)
+  );
+}
 
+export function resolveDesignSpecsFromKb(kb) {
+  const isNonEmpty = (val) => {
+    if (!val || typeof val !== 'object') return false;
+    if (Array.isArray(val)) return val.length > 0;
+    return Object.keys(val).length > 0;
+  };
+  if (isNonEmpty(kb?.matchedDesignSpecs)) return kb.matchedDesignSpecs;
+  if (isNonEmpty(kb?.matchedDomains?.design_hub)) {
+    return kb.matchedDomains.design_hub;
+  }
+  return null;
+}
+
+export function formatArchitectureKnowledgeBase(kb) {
+  if (!kb) return '';
+  const designSpecs = resolveDesignSpecsFromKb(kb);
   const parts = [
     '\n\n## X-Talent 跨專案架構知識庫 (Cloudflare KV Architecture KB)',
   ];
-  if (kb.matchedDesignSpecs) {
+  if (kb.matchedDesignSpecs && designSpecs === kb.matchedDesignSpecs) {
     parts.push(
       '### Design Hub 定案畫面與元件規格 (Single Source of Truth)\n```json\n' +
         JSON.stringify(kb.matchedDesignSpecs, null, 2).slice(0, 8000) +
@@ -117,4 +137,14 @@ export async function fetchArchitectureKnowledgeBase(queryText) {
     '```json\n' + JSON.stringify(restKb, null, 2).slice(0, 14000) + '\n```'
   );
   return parts.join('\n\n');
+}
+
+/**
+ * Fetches the pre-indexed X-Talent Architecture Knowledge Base (putting
+ * `matchedDesignSpecs` and `matchedDomains` first so Design Hub rules and
+ * domain schemas are never truncated by large ticket pools).
+ */
+export async function fetchArchitectureKnowledgeBase(queryText) {
+  const kb = await fetchRawArchitectureKb(queryText);
+  return formatArchitectureKnowledgeBase(kb);
 }

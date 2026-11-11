@@ -46,9 +46,11 @@ if (!process.env.GEMINI_API_KEY) {
 import { callGemini } from './lib/gemini.mjs';
 import { buildPrompt } from './lib/prompt.mjs';
 import {
-  fetchArchitectureKnowledgeBase,
   fetchRawArchitectureKb,
   fetchTicketContext,
+  formatArchitectureKnowledgeBase,
+  isUiReviewFile,
+  resolveDesignSpecsFromKb,
 } from './lib/ticket.mjs';
 import { loadReviewVisualAssets } from './lib/visuals.mjs';
 
@@ -125,13 +127,10 @@ async function main() {
   const kbQuery = ticket.ticketFound
     ? `#${ticket.number} ${ticket.title} ${branch}`
     : branch;
-  const [archKbSection, rawKb] = await Promise.all([
-    fetchArchitectureKnowledgeBase(kbQuery),
-    fetchRawArchitectureKb(kbQuery),
-  ]);
+  const rawKb = await fetchRawArchitectureKb(kbQuery);
+  const archKbSection = formatArchitectureKnowledgeBase(rawKb);
 
-  const designSpecsObj =
-    rawKb?.matchedDesignSpecs || rawKb?.matchedDomains?.design_hub || null;
+  const designSpecsObj = resolveDesignSpecsFromKb(rawKb);
   const designSpecsMd = designSpecsObj
     ? '```json\n' +
       JSON.stringify(designSpecsObj, null, 2).slice(0, 9000) +
@@ -176,15 +175,7 @@ async function main() {
   };
 
   const hasUiDiff =
-    Array.isArray(plan?.filesTouched) &&
-    plan.filesTouched.some(
-      (f) =>
-        typeof f === 'string' &&
-        (f.startsWith('src/app/') ||
-          f.startsWith('src/components/') ||
-          f.startsWith('src/styles/')) &&
-        !/\.(test|spec|stories)\./.test(f)
-    );
+    Array.isArray(plan?.filesTouched) && plan.filesTouched.some(isUiReviewFile);
 
   const [
     security,
