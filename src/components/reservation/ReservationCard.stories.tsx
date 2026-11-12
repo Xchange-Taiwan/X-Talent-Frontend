@@ -3,7 +3,10 @@ import React from 'react';
 
 import MeetingFeedbackDialog from '@/components/reservation/MeetingFeedbackDialog';
 import ReservationConversationDialog from '@/components/reservation/ReservationConversationDialog';
-import { ReservationFeedbackBlock } from '@/components/reservation/ReservationFeedbackBlock';
+import {
+  ReservationFeedbackBlock,
+  ReservationFeedbackHeaderToggle,
+} from '@/components/reservation/ReservationFeedbackBlock';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { UNPUBLICIZED_FEEDBACK_NOTICE } from '@/lib/reservation/resolveHistoryFeedbackState';
@@ -94,7 +97,7 @@ export const Reject: Story = {
       dtend: Math.floor(Date.now() / 1000) - 2 * 24 * 3600 + 3600,
       cancelledBy: 'MENTOR',
     },
-    actions: (
+    headerAction: (
       <Badge variant="secondary" className="px-2 py-1 text-xs">
         已由導師取消
       </Badge>
@@ -113,7 +116,7 @@ export const SystemAutoCancelled: Story = {
       dtend: Math.floor(Date.now() / 1000) - 23 * 3600,
       cancelledBy: 'SYSTEM',
     },
-    actions: (
+    headerAction: (
       <Badge variant="secondary" role="status">
         系統自動取消
       </Badge>
@@ -177,7 +180,7 @@ export const HistoryCompleted: Story = {
   },
 };
 
-// 6. Mentee History - Needs Feedback (1.h swap: top-right 填寫回饋 button, bottom-right 已結束 badge)
+// 6. Mentee History - Needs Feedback (#730 Design Hub: top-right 填寫回饋 button)
 export const HistoryMenteeNeedsFeedback: Story = {
   args: {
     variant: 'history',
@@ -196,11 +199,6 @@ export const HistoryMenteeNeedsFeedback: Story = {
         onSubmitFeedback={async () => {}}
       />
     ),
-    actions: (
-      <Badge variant="secondary" role="status">
-        已結束
-      </Badge>
-    ),
     footer: (
       <ReservationConversationDialog
         reservation={mockReservation}
@@ -210,7 +208,7 @@ export const HistoryMenteeNeedsFeedback: Story = {
   },
 };
 
-// 7. Mentee History - Public Rating Submitted (已填寫 + score & comment)
+// 7. Mentee History - Public Rating Submitted (查看回饋 ⌄ collapsible toggle + 編輯)
 export const HistoryMenteeRatedPublic: Story = {
   args: {
     variant: 'history',
@@ -231,9 +229,11 @@ export const HistoryMenteeRatedPublic: Story = {
       },
     },
     headerAction: (
-      <Badge variant="secondary" role="status">
-        已填寫
-      </Badge>
+      <ReservationFeedbackHeaderToggle
+        action={{ kind: 'feedback-toggle', label: '查看回饋' }}
+        isExpanded={true}
+        onToggle={() => {}}
+      />
     ),
     feedbackContent: (
       <ReservationFeedbackBlock
@@ -270,7 +270,7 @@ export const HistoryMenteeRatedPublic: Story = {
   },
 };
 
-// 8. Mentee History - Unpublicized Rating (is_public === false -> 評價未公開 + notice + 編輯)
+// 8. Mentee History - Unpublicized Rating (#734 warm-yellow 評價未公開 + chevron tooltip + expandable notice + #731 編輯)
 export const HistoryMenteeRatedUnpublicized: Story = {
   args: {
     variant: 'history',
@@ -291,9 +291,16 @@ export const HistoryMenteeRatedUnpublicized: Story = {
       },
     },
     headerAction: (
-      <Badge variant="secondary" role="status">
-        評價未公開
-      </Badge>
+      <ReservationFeedbackHeaderToggle
+        action={{
+          kind: 'unpublicized-toggle',
+          badgeLabel: '評價未公開',
+          expandTooltip: '展開評價未公開說明',
+          collapseTooltip: '收合評價未公開說明',
+        }}
+        isExpanded={true}
+        onToggle={() => {}}
+      />
     ),
     feedbackContent: (
       <ReservationFeedbackBlock

@@ -47,7 +47,7 @@ describe('resolveHistoryFeedbackState', () => {
     });
   });
 
-  it('swaps 填寫回饋 to top-right and 已結束 to bottom-right when mentee nextStep is ANSWER (#730 1.h)', () => {
+  it('places 填寫回饋 CTA in top-right without duplicating status badge inside card (#730 Design Hub)', () => {
     const state = resolveHistoryFeedbackState({
       reservation: makeReservation({
         feedback: {
@@ -61,12 +61,11 @@ describe('resolveHistoryFeedbackState', () => {
 
     expect(state).toEqual({
       headerAction: { kind: 'answer-button' },
-      bottomStatusLabel: '已結束',
       feedbackBlock: null,
     });
   });
 
-  it('shows 已填寫 and public rating when mentee submitted rating with isPublic=true (no 尚未公開)', () => {
+  it('shows collapsible 查看回饋 toggle and editable public rating when mentee submitted rating with isPublic=true (no 尚未公開)', () => {
     const state = resolveHistoryFeedbackState({
       reservation: makeReservation({
         feedback: {
@@ -86,7 +85,7 @@ describe('resolveHistoryFeedbackState', () => {
     });
 
     expect(state).toEqual({
-      headerAction: { kind: 'badge', label: '已填寫' },
+      headerAction: { kind: 'feedback-toggle', label: '查看回饋' },
       feedbackBlock: {
         kind: 'public-rating',
         label: '我的評價',
@@ -97,7 +96,7 @@ describe('resolveHistoryFeedbackState', () => {
     });
   });
 
-  it('shows 評價未公開 (not 已填寫) and explanation notice when rating.isPublic === false (2026-11-11 decision)', () => {
+  it('shows warm-yellow 評價未公開 collapsible toggle with tooltips and explanation notice when rating.isPublic === false (#734)', () => {
     const state = resolveHistoryFeedbackState({
       reservation: makeReservation({
         feedback: {
@@ -117,7 +116,12 @@ describe('resolveHistoryFeedbackState', () => {
     });
 
     expect(state).toEqual({
-      headerAction: { kind: 'badge', label: '評價未公開' },
+      headerAction: {
+        kind: 'unpublicized-toggle',
+        badgeLabel: '評價未公開',
+        expandTooltip: '展開評價未公開說明',
+        collapseTooltip: '收合評價未公開說明',
+      },
       feedbackBlock: {
         kind: 'unpublicized',
         rating: 8,
@@ -158,7 +162,7 @@ describe('resolveHistoryFeedbackState', () => {
     });
   });
 
-  it('renders public mentee review on mentor history card and hides unpublicized reviews', () => {
+  it('renders collapsible 查看回饋 public mentee review on mentor history card and hides unpublicized reviews', () => {
     const publicMentorState = resolveHistoryFeedbackState({
       reservation: makeReservation({
         feedback: {
@@ -178,7 +182,7 @@ describe('resolveHistoryFeedbackState', () => {
     });
 
     expect(publicMentorState).toEqual({
-      headerAction: { kind: 'badge', label: '已結束' },
+      headerAction: { kind: 'feedback-toggle', label: '查看回饋' },
       feedbackBlock: {
         kind: 'public-rating',
         label: '學員評價',

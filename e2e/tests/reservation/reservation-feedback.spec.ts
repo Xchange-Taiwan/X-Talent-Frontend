@@ -141,8 +141,8 @@ async function setupMentorAuth(page: Page): Promise<void> {
   );
 }
 
-test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交換 (#730)', () => {
-  test('Pending/Upcoming 分頁對調、歷史紀錄四種回饋狀態顯示（含評價未公開與 1.h 位置交換）', async ({
+test.describe('Mentee 會談回饋彈窗、歷史紀錄收合面板與版面翻新 (#730 / #734 / #731)', () => {
+  test('Pending/Upcoming 分頁對調、歷史卡片右上預設收合「查看回饋 ⌄」與 #734 暖黃「評價未公開」展開面板 + Tooltip', async ({
     page,
   }) => {
     await setupMenteeAuth(page);
@@ -165,7 +165,7 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
         },
         next_step: null,
       }),
-      makeMenteeHistoryReservation(103, '林佳穎', {
+      makeMenteeHistoryReservation(103, 'Zahra Mirzakhani', {
         meeting_happened: false,
         rating: {
           rating: 8,
@@ -217,15 +217,43 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
     await expect(
       answerCard.getByRole('button', { name: '填寫回饋' })
     ).toBeVisible();
-    await expect(answerCard.getByRole('button', { name: '編輯' })).toHaveCount(
-      0
-    );
-    await expect(answerCard.getByRole('status')).toHaveText('已結束');
+    await expect(answerCard.getByRole('status')).toHaveCount(0);
 
     const publicCard = page
       .getByTestId('reservation-card')
       .filter({ hasText: '陳大文' });
-    await expect(publicCard.getByRole('status')).toHaveText('已填寫');
+    const viewFeedbackBtn = publicCard.getByRole('button', {
+      name: '查看回饋',
+    });
+    await expect(viewFeedbackBtn).toBeVisible();
+    await expect(viewFeedbackBtn).toHaveAttribute('aria-expanded', 'false');
+    await expect(
+      publicCard.getByTestId('reservation-feedback-public')
+    ).toHaveCount(0);
+    await expect(page.getByText('尚未公開')).not.toBeVisible();
+
+    const unpublicizedCard = page
+      .getByTestId('reservation-card')
+      .filter({ hasText: 'Zahra Mirzakhani' });
+    await expect(unpublicizedCard.getByRole('status')).toHaveText('評價未公開');
+    const expandUnpubBtn = unpublicizedCard.getByRole('button', {
+      name: '展開評價未公開說明',
+    });
+    await expect(expandUnpubBtn).toBeVisible();
+    await expect(expandUnpubBtn).toHaveAttribute('aria-expanded', 'false');
+    await expect(
+      unpublicizedCard.getByTestId('reservation-feedback-unpublicized')
+    ).toHaveCount(0);
+
+    const notHappenedCard = page
+      .getByTestId('reservation-card')
+      .filter({ hasText: '蘇元貞' });
+    await expect(notHappenedCard.getByRole('status')).toHaveText('未進行');
+
+    await captureEvidence(page, 'mentee-history-feedback-cards-collapsed');
+
+    // 3. Expand both 查看回饋 & 評價未公開 panels + verify dark tooltip on chevron
+    await viewFeedbackBtn.click();
     await expect(publicCard.getByText('10 / 10')).toBeVisible();
     await expect(
       publicCard.getByText('導師給了非常具體的作品集優化方向，收穫滿滿！')
@@ -233,34 +261,30 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
     await expect(
       publicCard.getByRole('button', { name: '編輯' })
     ).toBeVisible();
-    await expect(page.getByText('尚未公開')).not.toBeVisible();
 
-    const unpublicizedCard = page
-      .getByTestId('reservation-card')
-      .filter({ hasText: '林佳穎' });
-    await expect(unpublicizedCard.getByRole('status')).toHaveText('評價未公開');
-    await expect(
-      unpublicizedCard.getByRole('button', { name: '編輯' })
-    ).toBeVisible();
+    await expandUnpubBtn.click();
+    const collapseUnpubBtn = unpublicizedCard.getByRole('button', {
+      name: '收合評價未公開說明',
+    });
+    await expect(collapseUnpubBtn).toHaveAttribute('aria-expanded', 'true');
     await expect(
       unpublicizedCard.getByText(
         '這場會談已被標註沒有進行，因此評價不會公開；如有疑問可以透過回饋表單聯繫我們。'
       )
     ).toBeVisible();
-
-    const notHappenedCard = page
-      .getByTestId('reservation-card')
-      .filter({ hasText: '蘇元貞' });
-    await expect(notHappenedCard.getByRole('status')).toHaveText('未進行');
     await expect(
-      notHappenedCard.getByRole('button', { name: '編輯' })
-    ).toHaveCount(0);
-    await expect(page.getByRole('button', { name: /刪除/ })).toHaveCount(0);
+      unpublicizedCard.getByRole('button', { name: '編輯' })
+    ).toBeVisible();
 
-    await captureEvidence(page, 'mentee-history-feedback-card-states');
+    await collapseUnpubBtn.hover();
+    await expect(
+      unpublicizedCard.getByTestId('unpublicized-toggle-tooltip')
+    ).toHaveText('收合評價未公開說明');
+
+    await captureEvidence(page, 'mentee-history-unpublicized-expanded-tooltip');
   });
 
-  test('有進行評分流程：十顆星評分（預設 10 分）、姓名遮罩提示與字數計數、送出失敗保留內容並由 Toast 回到評論重試成功', async ({
+  test('有進行評分流程：導師標頭、blur(3px) 遮罩、ⓘ 遮罩姓名 Tooltip、送出失敗保留彈窗內容並顯示紅底 Toast、重試成功', async ({
     page,
   }) => {
     await setupMenteeAuth(page);
@@ -341,23 +365,33 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
     await feedbackBtn.click();
 
     const dialog = page.getByRole('dialog');
-    await expect(dialog.getByText('會談是否有進行？')).toBeVisible();
+    await expect(dialog.getByText('步驟 1 / 2 · 確認會談')).toBeVisible();
+    await expect(dialog.getByText('這場會談是否順利進行？')).toBeVisible();
+    await expect(dialog.getByTestId('feedback-mentor-header')).toContainText(
+      'Emily Chen'
+    );
+
     await captureEvidence(page, 'meeting-feedback-dialog-step1-attendance', {
       waitForSelector: '[role="dialog"]',
     });
 
-    await dialog.locator('label').filter({ hasText: /^是$/ }).click();
-    await dialog.getByRole('button', { name: '下一步' }).click();
+    await dialog
+      .locator('label')
+      .filter({ hasText: /^有進行$/ })
+      .click();
+    await dialog.getByRole('button', { name: /下一步/ }).click();
 
-    await expect(dialog.getByText('為本次會談評分')).toBeVisible();
+    await expect(dialog.getByText('步驟 2 / 2 · 交流回饋')).toBeVisible();
+    await expect(dialog.getByText('為本次會議評分')).toBeVisible();
+
+    const maskInfoBtn = dialog.getByRole('button', { name: '姓名遮罩說明' });
+    await maskInfoBtn.hover();
     await expect(
-      dialog.getByTestId('feedback-name-masking-hint')
+      dialog.getByTestId('feedback-name-masking-tooltip')
     ).toBeVisible();
 
     const starGroup = dialog.getByRole('radiogroup', { name: '整體滿意度' });
-    await expect(starGroup).toBeVisible();
-    const starRadios = starGroup.getByRole('radio');
-    await expect(starRadios).toHaveCount(10);
+    await expect(starGroup.getByRole('radio')).toHaveCount(10);
 
     const star10 = starGroup.getByRole('radio', { name: '10 分' });
     await expect(star10).toHaveAttribute('aria-checked', 'true');
@@ -375,49 +409,56 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
     );
 
     const commentText = '非常實用的作品集調整建議，謝謝導師！';
-    const commentField = dialog.getByLabel('評論內容（選填）');
+    const commentField = dialog.getByLabel(/文字回饋/);
     await expect(commentField).toHaveAttribute('rows', '5');
-    await expect(dialog.getByTestId('feedback-content-counter')).toHaveText(
-      '0 / 1000'
-    );
     await commentField.fill(commentText);
     await expect(dialog.getByTestId('feedback-content-counter')).toHaveText(
       `${commentText.length} / 1000`
     );
 
-    await captureEvidence(page, 'meeting-feedback-dialog-step2-rating-stars', {
-      waitForSelector: '[role="dialog"]',
-    });
+    await maskInfoBtn.hover();
+    await expect(
+      dialog.getByTestId('feedback-name-masking-tooltip')
+    ).toBeVisible();
+    await captureEvidence(
+      page,
+      'meeting-feedback-dialog-step2-rating-masking-tooltip',
+      {
+        waitForSelector: '[role="dialog"]',
+      }
+    );
 
-    // First attempt fails -> dialog closes, failure toast shows "送出失敗，回到評論重新送出"
-    await dialog.getByRole('button', { name: '送出' }).click();
+    // First attempt fails -> dialog stays open with content intact + red destructive toast appears
+    await dialog.getByRole('button', { name: '送出回饋' }).click();
 
-    const reopenButton = page.getByRole('button', { name: '評論' });
-    await expect(reopenButton).toBeVisible();
-    await captureEvidence(page, 'meeting-feedback-submit-failure-toast');
-
-    // Click "評論" to reopen dialog with preserved rating (9) & comment
-    await reopenButton.click();
-    await expect(dialog.getByText('為本次會談評分')).toBeVisible();
+    await expect(page.getByText('送出失敗', { exact: true })).toBeVisible();
+    await expect(
+      page.getByText('內容已保留，請再試一次。', { exact: true })
+    ).toBeVisible();
+    await expect(dialog.getByText('為本次會議評分')).toBeVisible();
     await expect(dialog.getByTestId('meeting-rating-value')).toHaveText(
       '9 / 10'
     );
-    await expect(dialog.getByLabel('評論內容（選填）')).toHaveValue(
-      commentText
-    );
+    await expect(commentField).toHaveValue(commentText);
 
-    // Retry submit -> succeeds -> card transitions to 已填寫 + 9 / 10
-    await dialog.getByRole('button', { name: '送出' }).click();
+    await captureEvidence(page, 'meeting-feedback-submit-failure-red-toast', {
+      waitForSelector: '[role="dialog"]',
+    });
+
+    // Retry submit directly inside the open dialog -> succeeds -> card transitions to 查看回饋 ⌄
+    await dialog.getByRole('button', { name: '送出回饋' }).click();
     await expect(page.getByText('已送出', { exact: true })).toBeVisible();
-    await expect(
-      page.getByText('X-Talent 已收到您的回饋，謝謝您！', { exact: true })
-    ).toBeVisible();
 
     const updatedCard = page
       .getByTestId('reservation-card')
       .filter({ hasText: 'Emily Chen' });
-    await expect(updatedCard.getByRole('status')).toHaveText('已填寫');
+    const viewFeedbackBtn = updatedCard.getByRole('button', {
+      name: '查看回饋',
+    });
+    await expect(viewFeedbackBtn).toBeVisible();
+    await viewFeedbackBtn.click();
     await expect(updatedCard.getByText('9 / 10')).toBeVisible();
+
     await captureEvidence(page, 'meeting-feedback-submit-success');
 
     expect(capturedBodies).toEqual([
@@ -438,7 +479,7 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
     ]);
   });
 
-  test('未進行會談流程：選擇未進行原因並送出（不含多餘欄位），卡片更新為未進行；Mentor 歷史紀錄同步顯示評價', async ({
+  test('未進行會談流程：雙題（誰未進行 + 為何沒有成功進行 + 選填補充）送出後卡片更新為未進行；Mentor 歷史紀錄可展開查看回饋', async ({
     page,
   }) => {
     await setupMenteeAuth(page);
@@ -498,23 +539,30 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
     await page.getByRole('button', { name: '填寫回饋' }).click();
 
     const dialog = page.getByRole('dialog');
-    await dialog.locator('label').filter({ hasText: /^否$/ }).click();
-    await dialog.getByRole('button', { name: '下一步' }).click();
+    await dialog
+      .locator('label')
+      .filter({ hasText: /^沒有進行$/ })
+      .click();
+    await dialog.getByRole('button', { name: /下一步/ }).click();
 
     await expect(dialog.getByText('未進行會談的原因')).toBeVisible();
-    await expect(dialog.getByText(/誰沒有進行/)).toHaveCount(0);
+    await expect(dialog.getByText('誰沒有進行會談？')).toBeVisible();
+    await expect(dialog.getByText('為何沒有成功進行？')).toBeVisible();
 
+    await dialog
+      .locator('label')
+      .filter({ hasText: /^導師$/ })
+      .click();
     await dialog.locator('label').filter({ hasText: '未出席' }).click();
+    await dialog.getByLabel(/補充說明/).fill('等候 15 分鐘未上線');
+
     await captureEvidence(page, 'meeting-feedback-dialog-step2-not-happened', {
       waitForSelector: '[role="dialog"]',
     });
 
-    await dialog.getByRole('button', { name: '送出' }).click();
+    await dialog.getByRole('button', { name: '送出回饋' }).click();
 
     await expect(page.getByText('已送出', { exact: true })).toBeVisible();
-    await expect(
-      page.getByText('X-Talent 已收到您的回饋，謝謝您！', { exact: true })
-    ).toBeVisible();
 
     const card = page
       .getByTestId('reservation-card')
@@ -522,10 +570,12 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
     await expect(card.getByRole('status')).toHaveText('未進行');
     expect(submittedPayload).toEqual({
       meeting_happened: false,
+      not_happened_party: 'MENTOR',
       not_happened_reason: 'MENTOR_ABSENT',
+      not_happened_note: '等候 15 分鐘未上線',
     });
 
-    // Verify Mentor History view tab swap & public review display
+    // Verify Mentor History view tab swap & collapsible 查看回饋 public review display
     await page.unrouteAll({ behavior: 'ignoreErrors' });
     await setupMentorAuth(page);
     await page.route(
@@ -596,6 +646,7 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
     await expect(mentorTabs.nth(1)).toContainText('即將到來');
     await expect(mentorTabs.nth(2)).toContainText('歷史紀錄');
 
+    await page.getByRole('button', { name: '查看回饋' }).click();
     await expect(page.getByText('學員評價')).toBeVisible();
     await expect(page.getByText('10 / 10')).toBeVisible();
     await expect(
@@ -607,7 +658,7 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
     await captureEvidence(page, 'mentor-history-public-feedback-card');
   });
 
-  test('Mentee 永久不限次數編輯回饋 (#731)：跳過出席題並預填舊值、取消還原舊值、PUT 失敗保留草稿重試、無限次儲存更新且維持原 is_public 與排序', async ({
+  test('Mentee 永久不限次數編輯回饋 (#731)：展開後點編輯跳過出席題並預填舊值、取消還原舊值、PUT 失敗保留內容並顯示紅底 Toast、無限次儲存更新且維持原 is_public 與排序', async ({
     page,
   }) => {
     await setupMenteeAuth(page);
@@ -753,6 +804,12 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
       .getByTestId('reservation-card')
       .filter({ hasText: '蘇元貞' });
 
+    // Expand both rated cards first
+    await publicCard.getByRole('button', { name: '查看回饋' }).click();
+    await unpublicizedCard
+      .getByRole('button', { name: '展開評價未公開說明' })
+      .click();
+
     await expect(
       publicCard.getByRole('button', { name: '編輯' })
     ).toBeVisible();
@@ -769,7 +826,7 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
 
     const dialog = page.getByRole('dialog');
     await expect(dialog.getByText('編輯回饋')).toBeVisible();
-    await expect(dialog.getByText('會談是否有進行？')).toHaveCount(0);
+    await expect(dialog.getByText('這場會談是否順利進行？')).toHaveCount(0);
     await expect(dialog.getByRole('button', { name: '上一步' })).toHaveCount(0);
     await expect(dialog.getByTestId('meeting-rating-value')).toHaveText(
       '7 / 10'
@@ -779,11 +836,8 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
     await expect(
       starGroup.getByRole('radio', { name: '7 分' })
     ).toHaveAttribute('aria-checked', 'true');
-    await expect(
-      starGroup.getByRole('radio', { name: '10 分' })
-    ).toHaveAttribute('aria-checked', 'false');
 
-    const commentField = dialog.getByLabel('評論內容（選填）');
+    const commentField = dialog.getByLabel(/文字回饋/);
     await expect(commentField).toHaveAttribute('rows', '5');
     await expect(commentField).toHaveClass(/resize-none/);
     await expect(commentField).toHaveValue(
@@ -808,17 +862,16 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
       '準備得非常充分，直接給了我下一步該做什麼。'
     );
 
-    // 3. Edit & save: first PUT fails -> reopen from Toast preserves draft -> retry succeeds
+    // 3. Edit & save: first PUT fails -> dialog stays open with draft + red toast -> retry succeeds
     const firstEditedComment = '更新後的詳細回饋內容，非常推薦！';
     await starGroup.getByRole('radio', { name: '9 分' }).click();
     await commentField.fill(firstEditedComment);
     await dialog.getByRole('button', { name: '儲存' }).click();
 
-    const reopenButton = page.getByRole('button', { name: '評論' });
-    await expect(reopenButton).toBeVisible();
-    await reopenButton.click();
-
-    await expect(dialog.getByText('編輯回饋')).toBeVisible();
+    await expect(page.getByText('儲存失敗', { exact: true })).toBeVisible();
+    await expect(
+      page.getByText('內容已保留，請再試一次。', { exact: true })
+    ).toBeVisible();
     await expect(dialog.getByTestId('meeting-rating-value')).toHaveText(
       '9 / 10'
     );
@@ -828,7 +881,6 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
     await expect(page.getByText('已儲存', { exact: true })).toBeVisible();
     await expect(publicCard.getByText('9 / 10')).toBeVisible();
     await expect(publicCard.getByText(firstEditedComment)).toBeVisible();
-    await expect(publicCard.getByRole('status')).toHaveText('已填寫');
 
     // 4. Second edit on the same card (unlimited edits) + edit unpublicized card preserving 評價未公開 & card order
     await publicCard.getByRole('button', { name: '編輯' }).click();

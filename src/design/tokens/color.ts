@@ -52,6 +52,9 @@ module.exports = {
     warning: {
       default: 'hsl(var(--color-status-warning-default) / <alpha-value>)',
       active: 'hsl(var(--color-status-warning-active) / <alpha-value>)',
+      surface: 'hsl(var(--color-status-warning-surface) / <alpha-value>)',
+      border: 'hsl(var(--color-status-warning-border) / <alpha-value>)',
+      text: 'hsl(var(--color-status-warning-text) / <alpha-value>)',
     },
     info: {
       default: 'hsl(var(--color-status-info-default) / <alpha-value>)',

@@ -316,6 +316,7 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
     expect(meetingFeedbackDialogStories.StepRatingStarsOpen).toBeDefined();
     expect(meetingFeedbackDialogStories.StepRatingSliderOpen).toBeDefined();
     expect(meetingFeedbackDialogStories.StepNotHappenedOpen).toBeDefined();
+    expect(meetingFeedbackDialogStories.MultiSessionQueueOpen).toBeDefined();
     expect(meetingFeedbackDialogStories.EditTriggerClosed).toBeDefined();
     expect(meetingFeedbackDialogStories.EditModePrefilledOpen).toBeDefined();
 
@@ -326,6 +327,9 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
     expect(reservationFeedbackBlockStories.MentorPublicRating).toBeDefined();
     expect(
       reservationFeedbackBlockStories.MenteeUnpublicizedRating
+    ).toBeDefined();
+    expect(
+      reservationFeedbackBlockStories.CollapsibleUnpublicizedToggleDemo
     ).toBeDefined();
 
     expect(reservationCardStories.HistoryMenteeNeedsFeedback).toBeDefined();

@@ -1,8 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
+import React from 'react';
 
 import { UNPUBLICIZED_FEEDBACK_NOTICE } from '@/lib/reservation/resolveHistoryFeedbackState';
 
-import { ReservationFeedbackBlock } from './ReservationFeedbackBlock';
+import {
+  ReservationFeedbackBlock,
+  ReservationFeedbackHeaderToggle,
+} from './ReservationFeedbackBlock';
 
 const meta: Meta<typeof ReservationFeedbackBlock> = {
   title: '業務模組元件/預約管理(Reservation)/ReservationFeedbackBlock',
@@ -47,4 +51,42 @@ export const MenteeUnpublicizedRating: Story = {
       canEdit: true,
     },
   },
+};
+
+function CollapsibleUnpublicizedDemo() {
+  const [expanded, setExpanded] = React.useState(true);
+  return (
+    <div className="border-background-border bg-background-white max-w-xl rounded-xl border p-5 pt-10">
+      <div className="flex items-center justify-between">
+        <span className="text-text-primary text-base font-medium">
+          Zahra Mirzakhani
+        </span>
+        <ReservationFeedbackHeaderToggle
+          action={{
+            kind: 'unpublicized-toggle',
+            badgeLabel: '評價未公開',
+            expandTooltip: '展開評價未公開說明',
+            collapseTooltip: '收合評價未公開說明',
+          }}
+          isExpanded={expanded}
+          onToggle={() => setExpanded((prev) => !prev)}
+        />
+      </div>
+      {expanded ? (
+        <ReservationFeedbackBlock
+          model={{
+            kind: 'unpublicized',
+            rating: 8,
+            content: '感謝導師分享職涯規劃建議。',
+            notice: UNPUBLICIZED_FEEDBACK_NOTICE,
+            canEdit: true,
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+export const CollapsibleUnpublicizedToggleDemo: Story = {
+  render: () => <CollapsibleUnpublicizedDemo />,
 };

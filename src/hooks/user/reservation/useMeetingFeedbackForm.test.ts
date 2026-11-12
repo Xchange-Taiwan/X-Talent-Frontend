@@ -7,7 +7,7 @@ import {
 } from './useMeetingFeedbackForm';
 
 describe('useMeetingFeedbackForm', () => {
-  it('initializes with null attendance, default rating 10, empty content, and null reason', () => {
+  it('initializes with null attendance, default rating 10, empty content, and empty not-happened fields', () => {
     const { result } = renderHook(() => useMeetingFeedbackForm());
 
     expect(result.current.getValues()).toEqual(
@@ -31,7 +31,9 @@ describe('useMeetingFeedbackForm', () => {
       meetingHappened: true,
       rating: 8,
       content: '收穫滿滿',
+      notHappenedParty: null,
       notHappenedReason: null,
+      notHappenedNote: '',
     });
   });
 
@@ -41,7 +43,9 @@ describe('useMeetingFeedbackForm', () => {
         meetingHappened: true,
         rating: 7,
         content: '原本已送出的評論',
+        notHappenedParty: null,
         notHappenedReason: null,
+        notHappenedNote: '',
       })
     );
 
@@ -49,7 +53,9 @@ describe('useMeetingFeedbackForm', () => {
       meetingHappened: true,
       rating: 7,
       content: '原本已送出的評論',
+      notHappenedParty: null,
       notHappenedReason: null,
+      notHappenedNote: '',
     });
   });
 });

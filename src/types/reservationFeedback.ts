@@ -1,3 +1,12 @@
+export const NOT_HAPPENED_PARTIES = ['MENTOR', 'MENTEE'] as const;
+
+export type NotHappenedParty = (typeof NOT_HAPPENED_PARTIES)[number];
+
+export const NOT_HAPPENED_PARTY_LABELS: Record<NotHappenedParty, string> = {
+  MENTOR: '導師',
+  MENTEE: '自己',
+};
+
 export const NOT_HAPPENED_REASONS = [
   'SCHEDULE_CONFLICT',
   'MENTOR_ABSENT',
@@ -58,7 +67,9 @@ export type SubmitReservationFeedbackRequest =
     }
   | {
       meeting_happened: false;
+      not_happened_party?: NotHappenedParty;
       not_happened_reason: NotHappenedReason;
+      not_happened_note?: string;
     };
 
 export interface UpdateReservationFeedbackRequest {

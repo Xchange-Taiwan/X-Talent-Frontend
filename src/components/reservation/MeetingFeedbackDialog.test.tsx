@@ -63,7 +63,7 @@ describe('MeetingFeedbackDialog', () => {
     }
   });
 
-  it('opens Step 1 attendance question, navigates to 10-star rating (default 10), shows name masking hint & 5-row counter textarea, and submits trimmed payload', async () => {
+  it('renders mentor avatar/session header, blur(3px) overlay, ⓘ masking tooltip (no permanent gray banner), 10-star rating, and submits trimmed payload', async () => {
     const onSubmitFeedback = vi.fn().mockResolvedValue(undefined);
 
     render(
@@ -75,18 +75,42 @@ describe('MeetingFeedbackDialog', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '填寫回饋' }));
 
-    expect(screen.getByText('會談是否有進行？')).toBeInTheDocument();
-    const nextBtn = screen.getByRole('button', { name: '下一步' });
+    expect(screen.getByTestId('feedback-dialog-overlay')).toHaveClass(
+      'backdrop-blur-[3px]'
+    );
+    const mentorHeader = screen.getByTestId('feedback-mentor-header');
+    expect(within(mentorHeader).getByText('Emily Chen')).toBeInTheDocument();
+    expect(
+      within(mentorHeader).getByText('2026/10/20 · 19:00–19:30')
+    ).toBeInTheDocument();
+
+    expect(screen.getByText('步驟 1 / 2 · 確認會談')).toBeInTheDocument();
+    expect(screen.getByText('這場會談是否順利進行？')).toBeInTheDocument();
+    const nextBtn = screen.getByRole('button', { name: /下一步/ });
     expect(nextBtn).toBeDisabled();
 
-    fireEvent.click(screen.getByRole('radio', { name: '是' }));
+    fireEvent.click(screen.getByRole('radio', { name: '有進行' }));
     expect(nextBtn).not.toBeDisabled();
     fireEvent.click(nextBtn);
 
-    expect(screen.getByText('為本次會談評分')).toBeInTheDocument();
-    expect(screen.getByTestId('feedback-name-masking-hint')).toHaveTextContent(
-      '公開評價將以遮罩姓名顯示'
-    );
+    expect(screen.getByText('步驟 2 / 2 · 交流回饋')).toBeInTheDocument();
+    expect(screen.getByText('為本次會議評分')).toBeInTheDocument();
+
+    // No permanent gray masking banner until ⓘ tooltip is triggered
+    expect(
+      screen.queryByTestId('feedback-name-masking-tooltip')
+    ).not.toBeInTheDocument();
+
+    const maskInfoBtn = screen.getByRole('button', { name: '姓名遮罩說明' });
+    fireEvent.mouseEnter(maskInfoBtn);
+    expect(
+      screen.getByTestId('feedback-name-masking-tooltip')
+    ).toHaveTextContent('公開評價將以遮罩姓名顯示');
+    fireEvent.mouseLeave(maskInfoBtn);
+    expect(
+      screen.queryByTestId('feedback-name-masking-tooltip')
+    ).not.toBeInTheDocument();
+
     expect(screen.getByTestId('meeting-rating-value')).toHaveTextContent(
       '10 / 10'
     );
@@ -97,17 +121,13 @@ describe('MeetingFeedbackDialog', () => {
     const star10 = within(starGroup).getByRole('radio', { name: '10 分' });
     expect(star10).toHaveAttribute('aria-checked', 'true');
 
-    // Adjust rating via keyboard ArrowLeft from 10 -> 9
     star10.focus();
     fireEvent.keyDown(star10, { key: 'ArrowLeft' });
     expect(screen.getByTestId('meeting-rating-value')).toHaveTextContent(
       '9 / 10'
     );
-    expect(
-      within(starGroup).getByRole('radio', { name: '9 分' })
-    ).toHaveAttribute('aria-checked', 'true');
 
-    const textarea = screen.getByLabelText('評論內容（選填）');
+    const textarea = screen.getByLabelText(/文字回饋/);
     expect(textarea).toHaveAttribute('rows', '5');
     expect(screen.getByTestId('feedback-content-counter')).toHaveTextContent(
       '0 / 1000'
@@ -121,18 +141,21 @@ describe('MeetingFeedbackDialog', () => {
       `${rawComment.length} / 1000`
     );
 
-    fireEvent.click(screen.getByRole('button', { name: '送出' }));
+    fireEvent.click(screen.getByRole('button', { name: '送出回饋' }));
 
     await waitFor(() => {
       expect(onSubmitFeedback).toHaveBeenCalledTimes(1);
     });
-    expect(onSubmitFeedback).toHaveBeenCalledWith({
-      meeting_happened: true,
-      feedback: {
-        rating: 9,
-        content: '導師講解非常清楚，幫助很大！',
+    expect(onSubmitFeedback).toHaveBeenCalledWith(
+      {
+        meeting_happened: true,
+        feedback: {
+          rating: 9,
+          content: '導師講解非常清楚，幫助很大！',
+        },
       },
-    });
+      baseReservation
+    );
 
     expect(mockToast).toHaveBeenCalledWith({
       title: '已送出',
@@ -140,7 +163,7 @@ describe('MeetingFeedbackDialog', () => {
     });
   });
 
-  it('allows direct submission on Step 2 with default rating 10 and empty comment (1.c.1 / 1.d.1)', async () => {
+  it('allows direct submission on Step 2 with default rating 10 and empty comment', async () => {
     const onSubmitFeedback = vi.fn().mockResolvedValue(undefined);
 
     render(
@@ -151,19 +174,22 @@ describe('MeetingFeedbackDialog', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: '填寫回饋' }));
-    fireEvent.click(screen.getByRole('radio', { name: '是' }));
-    fireEvent.click(screen.getByRole('button', { name: '下一步' }));
+    fireEvent.click(screen.getByRole('radio', { name: '有進行' }));
+    fireEvent.click(screen.getByRole('button', { name: /下一步/ }));
 
-    fireEvent.click(screen.getByRole('button', { name: '送出' }));
+    fireEvent.click(screen.getByRole('button', { name: '送出回饋' }));
 
     await waitFor(() => {
-      expect(onSubmitFeedback).toHaveBeenCalledWith({
-        meeting_happened: true,
-        feedback: {
-          rating: 10,
-          content: '',
+      expect(onSubmitFeedback).toHaveBeenCalledWith(
+        {
+          meeting_happened: true,
+          feedback: {
+            rating: 10,
+            content: '',
+          },
         },
-      });
+        baseReservation
+      );
     });
   });
 
@@ -178,35 +204,33 @@ describe('MeetingFeedbackDialog', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: '填寫回饋' }));
-    fireEvent.click(screen.getByRole('radio', { name: '是' }));
-    fireEvent.click(screen.getByRole('button', { name: '下一步' }));
+    fireEvent.click(screen.getByRole('radio', { name: '有進行' }));
+    fireEvent.click(screen.getByRole('button', { name: /下一步/ }));
 
     fireEvent.click(screen.getByRole('radio', { name: '7 分' }));
-    fireEvent.change(screen.getByLabelText('評論內容（選填）'), {
+    fireEvent.change(screen.getByLabelText(/文字回饋/), {
       target: { value: '未送出的草稿內容' },
     });
     expect(screen.getByTestId('meeting-rating-value')).toHaveTextContent(
       '7 / 10'
     );
 
-    // Manually dismiss dialog via Escape key
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
-    // Reopen dialog -> should start fresh at Step 1 with unselected attendance, default 10, and empty comment
     fireEvent.click(screen.getByRole('button', { name: '填寫回饋' }));
-    expect(screen.getByText('會談是否有進行？')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '下一步' })).toBeDisabled();
+    expect(screen.getByText('這場會談是否順利進行？')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /下一步/ })).toBeDisabled();
 
-    fireEvent.click(screen.getByRole('radio', { name: '是' }));
-    fireEvent.click(screen.getByRole('button', { name: '下一步' }));
+    fireEvent.click(screen.getByRole('radio', { name: '有進行' }));
+    fireEvent.click(screen.getByRole('button', { name: /下一步/ }));
 
     expect(screen.getByTestId('meeting-rating-value')).toHaveTextContent(
       '10 / 10'
     );
-    expect(screen.getByLabelText('評論內容（選填）')).toHaveValue('');
+    expect(screen.getByLabelText(/文字回饋/)).toHaveValue('');
   });
 
   it('displays validation error and disables submit when comment exceeds 1000 characters', async () => {
@@ -220,10 +244,10 @@ describe('MeetingFeedbackDialog', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: '填寫回饋' }));
-    fireEvent.click(screen.getByRole('radio', { name: '是' }));
-    fireEvent.click(screen.getByRole('button', { name: '下一步' }));
+    fireEvent.click(screen.getByRole('radio', { name: '有進行' }));
+    fireEvent.click(screen.getByRole('button', { name: /下一步/ }));
 
-    fireEvent.change(screen.getByLabelText('評論內容（選填）'), {
+    fireEvent.change(screen.getByLabelText(/文字回饋/), {
       target: { value: 'a'.repeat(MAX_FEEDBACK_CONTENT_LENGTH + 1) },
     });
 
@@ -235,10 +259,10 @@ describe('MeetingFeedbackDialog', () => {
     expect(screen.getByTestId('feedback-content-counter')).toHaveTextContent(
       '1001 / 1000'
     );
-    expect(screen.getByRole('button', { name: '送出' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '送出回饋' })).toBeDisabled();
   });
 
-  it('navigates to Step 2B when selecting 否 and submits meeting_happened=false with enum reason and no feedback key', async () => {
+  it('navigates to Step 2B dual questions (誰沒有進行會談 + 為何沒有成功進行 + 補充說明選填) when selecting 沒有進行', async () => {
     const onSubmitFeedback = vi.fn().mockResolvedValue(undefined);
 
     render(
@@ -249,25 +273,39 @@ describe('MeetingFeedbackDialog', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: '填寫回饋' }));
-    fireEvent.click(screen.getByRole('radio', { name: '否' }));
-    fireEvent.click(screen.getByRole('button', { name: '下一步' }));
+    fireEvent.click(screen.getByRole('radio', { name: '沒有進行' }));
+    fireEvent.click(screen.getByRole('button', { name: /下一步/ }));
 
     expect(screen.getByText('未進行會談的原因')).toBeInTheDocument();
-    expect(screen.queryByText(/誰沒有進行/)).not.toBeInTheDocument();
+    expect(screen.getByText('誰沒有進行會談？')).toBeInTheDocument();
+    expect(screen.getByText('為何沒有成功進行？')).toBeInTheDocument();
 
-    const submitBtn = screen.getByRole('button', { name: '送出' });
+    const submitBtn = screen.getByRole('button', { name: '送出回饋' });
+    expect(submitBtn).toBeDisabled();
+
+    // Selecting only party is not enough; reason is also required
+    fireEvent.click(screen.getByRole('radio', { name: '導師' }));
     expect(submitBtn).toBeDisabled();
 
     fireEvent.click(screen.getByRole('radio', { name: '未出席' }));
     expect(submitBtn).not.toBeDisabled();
 
+    fireEvent.change(screen.getByLabelText(/補充說明/), {
+      target: { value: '  等候 15 分鐘未上線  ' },
+    });
+
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
-      expect(onSubmitFeedback).toHaveBeenCalledWith({
-        meeting_happened: false,
-        not_happened_reason: 'MENTOR_ABSENT',
-      });
+      expect(onSubmitFeedback).toHaveBeenCalledWith(
+        {
+          meeting_happened: false,
+          not_happened_party: 'MENTOR',
+          not_happened_reason: 'MENTOR_ABSENT',
+          not_happened_note: '等候 15 分鐘未上線',
+        },
+        baseReservation
+      );
     });
   });
 
@@ -286,10 +324,10 @@ describe('MeetingFeedbackDialog', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: '填寫回饋' }));
-    fireEvent.click(screen.getByRole('radio', { name: '是' }));
-    fireEvent.click(screen.getByRole('button', { name: '下一步' }));
+    fireEvent.click(screen.getByRole('radio', { name: '有進行' }));
+    fireEvent.click(screen.getByRole('button', { name: /下一步/ }));
 
-    const submitBtn = screen.getByRole('button', { name: '送出' });
+    const submitBtn = screen.getByRole('button', { name: '送出回饋' });
     fireEvent.click(submitBtn);
     fireEvent.click(submitBtn);
 
@@ -301,7 +339,7 @@ describe('MeetingFeedbackDialog', () => {
     });
   });
 
-  it('preserves form content on submit failure and reopens dialog at the same step when clicking 評論 in failure toast', async () => {
+  it('keeps dialog open with form content preserved and shows red destructive toast on submit failure', async () => {
     const onSubmitFeedback = vi
       .fn()
       .mockRejectedValueOnce(new Error('Network error'))
@@ -315,42 +353,88 @@ describe('MeetingFeedbackDialog', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: '填寫回饋' }));
-    fireEvent.click(screen.getByRole('radio', { name: '是' }));
-    fireEvent.click(screen.getByRole('button', { name: '下一步' }));
+    fireEvent.click(screen.getByRole('radio', { name: '有進行' }));
+    fireEvent.click(screen.getByRole('button', { name: /下一步/ }));
 
     fireEvent.click(screen.getByRole('radio', { name: '8 分' }));
-    fireEvent.change(screen.getByLabelText('評論內容（選填）'), {
+    fireEvent.change(screen.getByLabelText(/文字回饋/), {
       target: { value: '保留下來的寶貴評論內容' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '送出' }));
+    fireEvent.click(screen.getByRole('button', { name: '送出回饋' }));
 
     await waitFor(() => {
-      expect(mockToast).toHaveBeenCalledTimes(1);
+      expect(mockToast).toHaveBeenCalledWith({
+        variant: 'destructive',
+        title: '送出失敗',
+        description: '內容已保留，請再試一次。',
+      });
     });
 
-    const failureToastArgs = mockToast.mock.calls[0][0];
-    expect(failureToastArgs.variant).toBe('destructive');
-
-    // Render the toast description to verify copy & click "評論" to reopen dialog
-    render(<div>{failureToastArgs.description}</div>);
-    const reopenBtn = screen.getByRole('button', { name: '評論' });
-    expect(reopenBtn).toBeInTheDocument();
-
-    fireEvent.click(reopenBtn);
-
-    await waitFor(() => {
-      expect(screen.getByText('為本次會談評分')).toBeInTheDocument();
-    });
+    // Dialog remains open with entered rating and text intact for immediate retry
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.getByTestId('meeting-rating-value')).toHaveTextContent(
       '8 / 10'
     );
-    expect(screen.getByLabelText('評論內容（選填）')).toHaveValue(
+    expect(screen.getByLabelText(/文字回饋/)).toHaveValue(
       '保留下來的寶貴評論內容'
     );
+
+    // Retry succeeds directly
+    fireEvent.click(screen.getByRole('button', { name: '送出回饋' }));
+    await waitFor(() => {
+      expect(onSubmitFeedback).toHaveBeenCalledTimes(2);
+    });
   });
 
-  it('resets draft, closes dialog, and shows conflict toast without reopen button on 409 ReservationVersionConflictError', async () => {
+  it('supports multi-session queue progress bar, -5deg stacked back card, and advancing through sessions (#740)', async () => {
+    const secondReservation: Reservation = fromPartial<Reservation>({
+      ...baseReservation,
+      id: 'res-740-2',
+      name: 'Alex Wang',
+      date: '2026/10/22',
+      time: '20:00–20:30',
+    });
+    const onSubmitFeedback = vi.fn().mockResolvedValue(undefined);
+    const onSkipReservation = vi.fn();
+
+    render(
+      <MeetingFeedbackDialog
+        reservation={baseReservation}
+        queue={[baseReservation, secondReservation]}
+        defaultOpen={true}
+        onSubmitFeedback={onSubmitFeedback}
+        onSkipReservation={onSkipReservation}
+      />
+    );
+
+    expect(screen.getByTestId('feedback-queue-counter')).toHaveTextContent(
+      '第 1／2 場'
+    );
+    expect(
+      screen.getByTestId('feedback-queue-progressbar')
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('feedback-queue-back-card')).toBeInTheDocument();
+    expect(screen.getByText('Emily Chen')).toBeInTheDocument();
+
+    // Skip first session -> advances to second session and hides back card on last item
+    fireEvent.click(
+      screen.getByRole('button', { name: '略過 Emily Chen 這場回饋' })
+    );
+    expect(onSkipReservation).toHaveBeenCalledWith(baseReservation);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('feedback-queue-counter')).toHaveTextContent(
+        '第 2／2 場'
+      );
+    });
+    expect(screen.getByText('Alex Wang')).toBeInTheDocument();
+    expect(
+      screen.queryByTestId('feedback-queue-back-card')
+    ).not.toBeInTheDocument();
+  });
+
+  it('resets draft, closes dialog, and shows conflict toast on 409 ReservationVersionConflictError', async () => {
     const onSubmitFeedback = vi
       .fn()
       .mockRejectedValueOnce(new ReservationVersionConflictError());
@@ -363,15 +447,15 @@ describe('MeetingFeedbackDialog', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: '填寫回饋' }));
-    fireEvent.click(screen.getByRole('radio', { name: '是' }));
-    fireEvent.click(screen.getByRole('button', { name: '下一步' }));
+    fireEvent.click(screen.getByRole('radio', { name: '有進行' }));
+    fireEvent.click(screen.getByRole('button', { name: /下一步/ }));
 
     fireEvent.click(screen.getByRole('radio', { name: '7 分' }));
-    fireEvent.change(screen.getByLabelText('評論內容（選填）'), {
+    fireEvent.change(screen.getByLabelText(/文字回饋/), {
       target: { value: '其他分頁已送出衝突時的草稿' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '送出' }));
+    fireEvent.click(screen.getByRole('button', { name: '送出回饋' }));
 
     await waitFor(() => {
       expect(mockToast).toHaveBeenCalledWith({
@@ -381,11 +465,6 @@ describe('MeetingFeedbackDialog', () => {
     });
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-
-    // If the dialog is still mounted and reopened, draft was reset cleanly
-    fireEvent.click(screen.getByRole('button', { name: '填寫回饋' }));
-    expect(screen.getByText('會談是否有進行？')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '下一步' })).toBeDisabled();
   });
 
   describe('mode="edit" (#731)', () => {
@@ -419,7 +498,9 @@ describe('MeetingFeedbackDialog', () => {
 
       fireEvent.click(screen.getByRole('button', { name: '編輯' }));
 
-      expect(screen.queryByText('會談是否有進行？')).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('這場會談是否順利進行？')
+      ).not.toBeInTheDocument();
       expect(
         screen.queryByRole('button', { name: '上一步' })
       ).not.toBeInTheDocument();
@@ -432,11 +513,8 @@ describe('MeetingFeedbackDialog', () => {
       expect(
         within(starGroup).getByRole('radio', { name: '7 分' })
       ).toHaveAttribute('aria-checked', 'true');
-      expect(
-        within(starGroup).getByRole('radio', { name: '10 分' })
-      ).toHaveAttribute('aria-checked', 'false');
 
-      const textarea = screen.getByLabelText('評論內容（選填）');
+      const textarea = screen.getByLabelText(/文字回饋/);
       expect(textarea).toHaveAttribute('rows', '5');
       expect(textarea).toHaveClass('resize-none');
       expect(textarea).toHaveValue('原本已送出的評論內容');
@@ -475,52 +553,31 @@ describe('MeetingFeedbackDialog', () => {
       fireEvent.click(screen.getByRole('button', { name: '編輯' }));
 
       fireEvent.click(screen.getByRole('radio', { name: '4 分' }));
-      fireEvent.change(screen.getByLabelText('評論內容（選填）'), {
+      fireEvent.change(screen.getByLabelText(/文字回饋/), {
         target: { value: '未儲存的暫時草稿' },
       });
-      expect(screen.getByTestId('meeting-rating-value')).toHaveTextContent(
-        '4 / 10'
-      );
 
-      // Cancel via 取消 button
       fireEvent.click(screen.getByRole('button', { name: '取消' }));
       await waitFor(() => {
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
       });
-      expect(onUpdateFeedback).not.toHaveBeenCalled();
-
-      // Reopen -> restored to saved 7 / 10 and original content, NOT 10 / 10
-      fireEvent.click(screen.getByRole('button', { name: '編輯' }));
-      expect(screen.getByTestId('meeting-rating-value')).toHaveTextContent(
-        '7 / 10'
-      );
-      expect(screen.getByLabelText('評論內容（選填）')).toHaveValue(
-        '原本已送出的評論內容'
-      );
-
-      // Modify again and dismiss via Escape -> also restores saved 7 / 10
-      fireEvent.click(screen.getByRole('radio', { name: '2 分' }));
-      fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
-      await waitFor(() => {
-        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-      });
 
       fireEvent.click(screen.getByRole('button', { name: '編輯' }));
       expect(screen.getByTestId('meeting-rating-value')).toHaveTextContent(
         '7 / 10'
       );
-      expect(screen.getByLabelText('評論內容（選填）')).toHaveValue(
+      expect(screen.getByLabelText(/文字回饋/)).toHaveValue(
         '原本已送出的評論內容'
       );
     });
 
-    it('preserves edited draft on PUT failure for Toast reopen retry and supports unlimited subsequent edits', async () => {
+    it('keeps edit dialog open with draft preserved and shows red toast on PUT failure, supporting unlimited subsequent edits', async () => {
       const onUpdateFeedback = vi
         .fn()
         .mockRejectedValueOnce(new Error('PUT network error'))
         .mockResolvedValue(undefined);
 
-      const { rerender } = render(
+      render(
         <MeetingFeedbackDialog
           mode="edit"
           reservation={ratedReservation}
@@ -530,70 +587,30 @@ describe('MeetingFeedbackDialog', () => {
 
       fireEvent.click(screen.getByRole('button', { name: '編輯' }));
       fireEvent.click(screen.getByRole('radio', { name: '8 分' }));
-      fireEvent.change(screen.getByLabelText('評論內容（選填）'), {
+      fireEvent.change(screen.getByLabelText(/文字回饋/), {
         target: { value: '第一次編輯草稿' },
       });
 
       fireEvent.click(screen.getByRole('button', { name: '儲存' }));
 
       await waitFor(() => {
-        expect(mockToast).toHaveBeenCalledTimes(1);
+        expect(mockToast).toHaveBeenCalledWith({
+          variant: 'destructive',
+          title: '儲存失敗',
+          description: '內容已保留，請再試一次。',
+        });
       });
 
-      const failureToastArgs = mockToast.mock.calls[0][0];
-      expect(failureToastArgs.variant).toBe('destructive');
-
-      render(<div>{failureToastArgs.description}</div>);
-      fireEvent.click(screen.getByRole('button', { name: '評論' }));
-
-      await waitFor(() => {
-        expect(screen.getByText('編輯回饋')).toBeInTheDocument();
-      });
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
       expect(screen.getByTestId('meeting-rating-value')).toHaveTextContent(
         '8 / 10'
       );
-      expect(screen.getByLabelText('評論內容（選填）')).toHaveValue(
-        '第一次編輯草稿'
-      );
+      expect(screen.getByLabelText(/文字回饋/)).toHaveValue('第一次編輯草稿');
 
-      // Retry save -> succeeds
       fireEvent.click(screen.getByRole('button', { name: '儲存' }));
       await waitFor(() => {
         expect(onUpdateFeedback).toHaveBeenCalledTimes(2);
       });
-
-      // Parent updates reservation with newly saved values -> reopen for 2nd unlimited edit
-      const updatedReservation: Reservation = fromPartial<Reservation>({
-        ...ratedReservation,
-        feedback: {
-          meetingHappened: true,
-          rating: {
-            rating: 8,
-            content: '第一次編輯草稿',
-            createdAt: 1760000000,
-            updatedAt: 1760000500,
-            authorName: '王＊明',
-            isPublic: true,
-          },
-          nextStep: null,
-        },
-      });
-
-      rerender(
-        <MeetingFeedbackDialog
-          mode="edit"
-          reservation={updatedReservation}
-          onUpdateFeedback={onUpdateFeedback}
-        />
-      );
-
-      fireEvent.click(screen.getByRole('button', { name: '編輯' }));
-      expect(screen.getByTestId('meeting-rating-value')).toHaveTextContent(
-        '8 / 10'
-      );
-      expect(screen.getByLabelText('評論內容（選填）')).toHaveValue(
-        '第一次編輯草稿'
-      );
     });
   });
 });

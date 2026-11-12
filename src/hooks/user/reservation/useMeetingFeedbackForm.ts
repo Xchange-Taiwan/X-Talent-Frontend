@@ -13,7 +13,9 @@ export const DEFAULT_MEETING_FEEDBACK_FORM_VALUES: MeetingFeedbackFormValues = {
   meetingHappened: null,
   rating: DEFAULT_MEETING_RATING,
   content: '',
+  notHappenedParty: null,
   notHappenedReason: null,
+  notHappenedNote: '',
 };
 
 export function useMeetingFeedbackForm(

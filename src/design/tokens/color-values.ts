@@ -39,6 +39,9 @@ export const rawColors = {
   'status-error-active': '11 87% 59%', // #F15D3C
   'status-warning-default': '47 87% 50%', // #EEBE11
   'status-warning-active': '47 87% 59%', // #F1CA3C
+  'status-warning-surface': '39 100% 95%', // #FFF7E6
+  'status-warning-border': '39 82% 84%', // #F6DFB5
+  'status-warning-text': '39 100% 27%', // #8A5A00
   'status-info-default': '29 87% 50%', // #EE7C11
   'status-info-active': '29 87% 59%', // #F1943C
   'blue-default': '190 100% 68%', // #5DE5FF

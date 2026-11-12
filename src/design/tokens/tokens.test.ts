@@ -51,6 +51,21 @@ describe('Design Tokens Configuration', () => {
         'hsl(var(--color-mentor-hero-gradient-4) / <alpha-value>)'
       );
     });
+
+    it('should expose warm-yellow status warning surface, border, and text tokens (#734)', () => {
+      expect(rawColors['status-warning-surface']).toBe('39 100% 95%');
+      expect(rawColors['status-warning-border']).toBe('39 82% 84%');
+      expect(rawColors['status-warning-text']).toBe('39 100% 27%');
+      expect(colors.status.warning.surface).toBe(
+        'hsl(var(--color-status-warning-surface) / <alpha-value>)'
+      );
+      expect(colors.status.warning.border).toBe(
+        'hsl(var(--color-status-warning-border) / <alpha-value>)'
+      );
+      expect(colors.status.warning.text).toBe(
+        'hsl(var(--color-status-warning-text) / <alpha-value>)'
+      );
+    });
   });
 
   describe('Shadow values', () => {

@@ -59,11 +59,46 @@ export const theme = {
         '0%, 50%': { opacity: '0' },
         '100%': { opacity: '1' },
       },
+      'feedback-overlay-in': {
+        from: { opacity: '0' },
+        to: { opacity: '1' },
+      },
+      'feedback-dialog-in': {
+        from: { opacity: '0', transform: 'translateY(4px) scale(0.985)' },
+        to: { opacity: '1', transform: 'translateY(0) scale(1)' },
+      },
+      'feedback-step-in': {
+        from: { opacity: '0', transform: 'translateY(5px)' },
+        to: { opacity: '1', transform: 'translateY(0)' },
+      },
+      'feedback-card-out': {
+        from: { opacity: '1', transform: 'translateX(0) rotate(0deg)' },
+        to: { opacity: '0', transform: 'translateX(-100px) rotate(-8deg)' },
+      },
+      'feedback-card-promote': {
+        from: {
+          opacity: '0.65',
+          transform: 'translateY(12px) rotate(-5deg) scale(0.96)',
+        },
+        to: {
+          opacity: '1',
+          transform: 'translateY(0) rotate(0deg) scale(1)',
+        },
+      },
     },
     animation: {
       'accordion-down': 'accordion-down 0.2s ease-out',
       'accordion-up': 'accordion-up 0.2s ease-out',
       'delayed-fade-in': 'delayed-fade-in 0.3s ease-in forwards',
+      'feedback-overlay-in': 'feedback-overlay-in 160ms ease-out',
+      'feedback-dialog-in':
+        'feedback-dialog-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1)',
+      'feedback-step-in':
+        'feedback-step-in 240ms cubic-bezier(0.22, 0.75, 0.25, 1) both',
+      'feedback-card-out':
+        'feedback-card-out 260ms cubic-bezier(0.22, 0.75, 0.25, 1) forwards',
+      'feedback-card-promote':
+        'feedback-card-promote 360ms cubic-bezier(0.22, 0.75, 0.25, 1) both',
     },
   },
 };

@@ -1,6 +1,7 @@
 import * as z from 'zod';
 
 import {
+  NOT_HAPPENED_PARTIES,
   NOT_HAPPENED_REASONS,
   type SubmitReservationFeedbackRequest,
   type UpdateReservationFeedbackRequest,
@@ -24,7 +25,14 @@ export const meetingFeedbackFormSchema = z.object({
       MAX_FEEDBACK_CONTENT_LENGTH,
       `評論內容不可超過 ${MAX_FEEDBACK_CONTENT_LENGTH} 字`
     ),
+  notHappenedParty: z.enum(NOT_HAPPENED_PARTIES).nullable(),
   notHappenedReason: z.enum(NOT_HAPPENED_REASONS).nullable(),
+  notHappenedNote: z
+    .string()
+    .max(
+      MAX_FEEDBACK_CONTENT_LENGTH,
+      `補充說明不可超過 ${MAX_FEEDBACK_CONTENT_LENGTH} 字`
+    ),
 });
 
 const happenedBranchSchema = meetingFeedbackFormSchema.pick({
@@ -34,7 +42,9 @@ const happenedBranchSchema = meetingFeedbackFormSchema.pick({
 
 export const updateMeetingFeedbackSchema = happenedBranchSchema;
 
+const notHappenedPartySchema = z.enum(NOT_HAPPENED_PARTIES);
 const notHappenedReasonSchema = z.enum(NOT_HAPPENED_REASONS);
+const notHappenedNoteSchema = meetingFeedbackFormSchema.shape.notHappenedNote;
 
 export type MeetingFeedbackFormValues = z.infer<
   typeof meetingFeedbackFormSchema
@@ -71,15 +81,23 @@ export function toSubmitFeedbackPayload(
   }
 
   if (values.meetingHappened === false) {
+    const partyParsed = notHappenedPartySchema.safeParse(
+      values.notHappenedParty
+    );
     const reasonParsed = notHappenedReasonSchema.safeParse(
       values.notHappenedReason
     );
-    if (!reasonParsed.success) {
+    const noteParsed = notHappenedNoteSchema.safeParse(values.notHappenedNote);
+    if (!partyParsed.success || !reasonParsed.success || !noteParsed.success) {
       return null;
     }
+
+    const trimmedNote = noteParsed.data.trim();
     return {
       meeting_happened: false,
+      not_happened_party: partyParsed.data,
       not_happened_reason: reasonParsed.data,
+      ...(trimmedNote.length > 0 ? { not_happened_note: trimmedNote } : {}),
     };
   }
 

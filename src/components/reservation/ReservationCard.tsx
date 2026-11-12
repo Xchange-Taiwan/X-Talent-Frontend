@@ -24,7 +24,7 @@ export function ReservationCard({
   sourceRole,
 }: {
   item: Reservation;
-  // Optional slot rendered in the top-right header next to the name (e.g. History 填寫回饋 button or status badge).
+  // Optional slot rendered in the top-right header next to the name (e.g. History 填寫回饋 button, 查看回饋 toggle, or status badge).
   headerAction?: React.ReactNode;
   // Optional slot rendered below the message preview for post-meeting rating/unpublicized feedback display.
   feedbackContent?: React.ReactNode;
@@ -47,6 +47,81 @@ export function ReservationCard({
 }) {
   const isUpcoming = variant === 'upcoming';
   const isHistory = variant === 'history';
+
+  const systemCancelBanner =
+    item.cancelledBy === 'SYSTEM' ? (
+      <div
+        role="note"
+        className="border-status-warning-default/40 bg-status-warning-active/15 text-text-primary mt-3 flex items-start gap-2 rounded-lg border p-2.5 text-xs sm:text-sm"
+      >
+        <AlertCircle
+          className="text-status-info-default mt-0.5 size-4 shrink-0"
+          aria-hidden
+        />
+        <span>
+          {sourceRole === 'mentor'
+            ? '因您未於預約開始前 24 小時前確認，系統已自動取消此預約。'
+            : '因導師未於預約開始前 24 小時前確認，系統已自動取消此預約。'}
+        </span>
+      </div>
+    ) : null;
+
+  if (isHistory) {
+    return (
+      <Card
+        className="border-background-border/60 transition-shadow hover:shadow-sm"
+        data-testid="reservation-card"
+      >
+        <CardContent className="p-4 sm:p-5">
+          <ReservationIdentityHeader
+            reservation={item}
+            profileHref={profileHref}
+            onProfileLinkClick={onProfileClick}
+            disabled={disabled}
+            showStatusBadge={false}
+            headerAction={headerAction}
+            variant="card"
+          />
+
+          {/* Full-card-width divider & body (#730 Design Hub parity: expanded panel aligns with full card width) */}
+          <div className="bg-background-border my-3.5 h-px w-full" />
+
+          <div className="text-text-primary flex flex-wrap items-center gap-x-4 gap-y-2 text-xs sm:text-sm">
+            <div className="flex items-center gap-1.5">
+              <CalendarDays
+                className="text-text-secondary size-4"
+                aria-hidden
+              />
+              <span className="truncate tabular-nums">{item.date}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Clock className="text-text-secondary size-4" aria-hidden />
+              <span className="truncate tabular-nums">{item.time}</span>
+            </div>
+          </div>
+
+          <ReservationMessagePreview
+            reservation={item}
+            sourceRole={sourceRole}
+            variant="card"
+          />
+
+          {systemCancelBanner}
+
+          {feedbackContent}
+
+          {footer || actions ? (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <div>{footer}</div>
+              {actions ? (
+                <div className="ml-auto flex items-center gap-2">{actions}</div>
+              ) : null}
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card
@@ -86,64 +161,33 @@ export function ReservationCard({
             variant="card"
           />
 
-          {item.cancelledBy === 'SYSTEM' ? (
-            <div
-              role="note"
-              className="border-status-warning-default/40 bg-status-warning-active/15 text-text-primary mt-3 flex items-start gap-2 rounded-lg border p-2.5 text-xs sm:text-sm"
-            >
-              <AlertCircle
-                className="text-status-info-default mt-0.5 size-4 shrink-0"
-                aria-hidden
-              />
-              <span>
-                {sourceRole === 'mentor'
-                  ? '因您未於預約開始前 24 小時前確認，系統已自動取消此預約。'
-                  : '因導師未於預約開始前 24 小時前確認，系統已自動取消此預約。'}
-              </span>
-            </div>
-          ) : null}
+          {systemCancelBanner}
 
           {feedbackContent}
 
-          {isHistory ? (
-            footer || actions ? (
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                <div>{footer}</div>
-                {actions ? (
-                  <div className="ml-auto flex items-center gap-2">
-                    {actions}
-                  </div>
-                ) : null}
-              </div>
-            ) : null
-          ) : (
-            <>
-              {footer ? <div className="mt-3">{footer}</div> : null}
+          {footer ? <div className="mt-3">{footer}</div> : null}
 
-              {isUpcoming ? (
-                <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-                  <div className="flex w-full items-center gap-2 sm:w-auto">
-                    {/* Actions (such as cancel button) grouped with Meet button on all screen sizes */}
-                    {actions ? (
-                      <div className="flex-1 sm:flex-none">{actions}</div>
-                    ) : null}
-                    <div className="flex-1 sm:flex-none">
-                      <UpcomingJoinMeetButton
-                        reservationId={item.id}
-                        myUserId={myUserId}
-                        sourceRole={sourceRole}
-                      />
-                    </div>
-                  </div>
+          {isUpcoming ? (
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+              <div className="flex w-full items-center gap-2 sm:w-auto">
+                {/* Actions (such as cancel button) grouped with Meet button on all screen sizes */}
+                {actions ? (
+                  <div className="flex-1 sm:flex-none">{actions}</div>
+                ) : null}
+                <div className="flex-1 sm:flex-none">
+                  <UpcomingJoinMeetButton
+                    reservationId={item.id}
+                    myUserId={myUserId}
+                    sourceRole={sourceRole}
+                  />
                 </div>
-              ) : /* If not upcoming (e.g. pending), show actions at the bottom on all screen sizes */
-              actions ? (
-                <div className="mt-3 flex w-full items-center justify-end gap-2">
-                  {actions}
-                </div>
-              ) : null}
-            </>
-          )}
+              </div>
+            </div>
+          ) : actions ? (
+            <div className="mt-3 flex w-full items-center justify-end gap-2">
+              {actions}
+            </div>
+          ) : null}
         </ReservationIdentityHeader>
       </CardContent>
     </Card>
