@@ -7,7 +7,11 @@ import * as z from 'zod';
 import { AuthFormProps } from '@/components/auth/types';
 import useAsyncAction from '@/hooks/useAsyncAction';
 import { validateSignIn } from '@/lib/actions/signIn';
-import { trackEvent } from '@/lib/analytics';
+import {
+  resolveAnalyticsUserRole,
+  setAnalyticsUserContext,
+  trackEvent,
+} from '@/lib/analytics';
 import { SignInSchema } from '@/schemas/auth';
 
 type SignInValues = z.infer<typeof SignInSchema>;
@@ -76,7 +80,19 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
           );
         }
 
-        trackEvent({ name: 'sign_in_succeeded', feature: 'auth' });
+        const userRole = resolveAnalyticsUserRole(session.user);
+        setAnalyticsUserContext({
+          userId: session.user?.id ?? null,
+          userRole,
+        });
+        trackEvent({
+          name: 'login',
+          feature: 'auth',
+          metadata: {
+            method: 'Email',
+            user_role: userRole,
+          },
+        });
 
         if (session.user.onBoarding === false) {
           router.push('/auth/onboarding');

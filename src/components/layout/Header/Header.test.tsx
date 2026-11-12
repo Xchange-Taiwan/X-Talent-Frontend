@@ -28,9 +28,13 @@ vi.mock('next/navigation', async () => {
 });
 
 const trackEvent = vi.fn();
-vi.mock('@/lib/analytics', () => ({
-  trackEvent: (...args: unknown[]) => trackEvent(...args),
-}));
+vi.mock('@/lib/analytics', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/analytics')>();
+  return {
+    ...actual,
+    trackEvent: (...args: unknown[]) => trackEvent(...args),
+  };
+});
 
 // Uses src/services/notifications/__mocks__/notificationService.ts
 vi.mock('@/services/notifications/notificationService');

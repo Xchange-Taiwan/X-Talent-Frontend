@@ -1,14 +1,27 @@
-import { fireEvent, render } from '@testing-library/react';
+import { act, fireEvent, render } from '@testing-library/react';
+import { fromPartial } from '@total-typescript/shoehorn';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { type SessionContextValue, useSession } from 'next-auth/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import PageViewTracker from './PageViewTracker';
+import { resetAnalyticsUserState } from '@/lib/analytics';
+
+import AnalyticsUserSync from './AnalyticsUserSync';
+import PageViewTracker, {
+  INITIAL_SESSION_RESOLVE_TIMEOUT_MS,
+} from './PageViewTracker';
 
 vi.mock('next/navigation', () => ({
   usePathname: vi.fn(),
 }));
+
+vi.mock('next-auth/react', () => ({
+  useSession: vi.fn(),
+}));
+
+const mockUseSession = vi.mocked(useSession);
 
 describe('PageViewTracker', () => {
   let mockGtag: ReturnType<typeof vi.fn<(...args: unknown[]) => void>>;
@@ -47,6 +60,7 @@ describe('PageViewTracker', () => {
   }
 
   beforeEach(() => {
+    resetAnalyticsUserState();
     mockGtag = vi.fn<(...args: unknown[]) => void>();
     window.gtag = mockGtag;
     window.dataLayer = [];
@@ -63,15 +77,130 @@ describe('PageViewTracker', () => {
       rafCallbacks.delete(id);
     });
 
+    mockUseSession.mockReturnValue(
+      fromPartial<SessionContextValue>({
+        data: null,
+        status: 'unauthenticated',
+      })
+    );
     vi.mocked(usePathname).mockReturnValue('/');
     document.title = 'X-Talent 首頁';
   });
 
   afterEach(() => {
+    vi.useRealTimers();
+    resetAnalyticsUserState();
     delete window.gtag;
     delete window.dataLayer;
     window.history.replaceState({}, '', '/');
     vi.restoreAllMocks();
+  });
+
+  it('defers initial page_view while session status is loading so authenticated user_id and user_role attach to the first page_view (#866)', () => {
+    window.history.replaceState({}, '', '/mentor-pool');
+    document.title = '尋找導師 | XChange Talent Pool';
+    vi.mocked(usePathname).mockReturnValue('/mentor-pool');
+    mockUseSession.mockReturnValue(
+      fromPartial<SessionContextValue>({
+        data: null,
+        status: 'loading',
+      })
+    );
+
+    const { rerender } = render(
+      <>
+        <AnalyticsUserSync gaId="G-TEST866001" />
+        <PageViewTracker />
+      </>
+    );
+
+    // Neither guest config nor premature page_view should fire while NextAuth resolves /api/auth/session
+    expect(mockGtag).not.toHaveBeenCalled();
+
+    // Session resolves to authenticated mentor -> AnalyticsUserSync runs first, then PageViewTracker
+    mockUseSession.mockReturnValue(
+      fromPartial<SessionContextValue>({
+        data: {
+          accessToken: 'secret-jwt-token',
+          user: {
+            id: '999998',
+            email: 'mentor@example.com',
+            name: 'Alice Chen',
+            isMentor: true,
+          },
+        },
+        status: 'authenticated',
+      })
+    );
+
+    rerender(
+      <>
+        <AnalyticsUserSync gaId="G-TEST866001" />
+        <PageViewTracker />
+      </>
+    );
+
+    expect(mockGtag).toHaveBeenCalledTimes(2);
+    expect(mockGtag).toHaveBeenNthCalledWith(1, 'config', 'G-TEST866001', {
+      send_page_view: false,
+      user_id: '999998',
+      user_role: 'mentor',
+    });
+    expect(mockGtag).toHaveBeenNthCalledWith(
+      2,
+      'event',
+      'page_view',
+      expect.objectContaining({
+        page_path: '/mentor-pool',
+        page_title: '尋找導師 | XChange Talent Pool',
+        user_id: '999998',
+        user_role: 'mentor',
+      })
+    );
+    const serialized = JSON.stringify(mockGtag.mock.calls);
+    expect(serialized).not.toContain('mentor@example.com');
+    expect(serialized).not.toContain('Alice Chen');
+    expect(serialized).not.toContain('secret-jwt-token');
+  });
+
+  it('emits initial page_view after timeout fallback if /api/auth/session hangs in loading state without duplicating later (#866)', () => {
+    vi.useFakeTimers();
+    mockUseSession.mockReturnValue(
+      fromPartial<SessionContextValue>({
+        data: null,
+        status: 'loading',
+      })
+    );
+
+    const { rerender } = render(<PageViewTracker />);
+
+    act(() => {
+      vi.advanceTimersByTime(INITIAL_SESSION_RESOLVE_TIMEOUT_MS - 1);
+    });
+    expect(mockGtag).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(mockGtag).toHaveBeenCalledTimes(1);
+    expect(mockGtag).toHaveBeenCalledWith(
+      'event',
+      'page_view',
+      expect.objectContaining({
+        page_path: '/',
+        page_title: 'X-Talent 首頁',
+      })
+    );
+
+    // Subsequent transition to unauthenticated on the same route must not emit a duplicate page_view
+    mockUseSession.mockReturnValue(
+      fromPartial<SessionContextValue>({
+        data: null,
+        status: 'unauthenticated',
+      })
+    );
+    rerender(<PageViewTracker />);
+    expect(mockGtag).toHaveBeenCalledTimes(1);
   });
 
   it('tracks initial page_view once even under React.StrictMode and tracks SPA route changes', () => {

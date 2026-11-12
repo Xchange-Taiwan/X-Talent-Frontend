@@ -112,6 +112,63 @@ describe('getDiff', () => {
     );
   });
 
+  it('includes untracked working-tree text files in getWorkingTreeDiff while excluding .env*, .agents/tmp*, lockfiles, and binaries', () => {
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      if (Array.isArray(args) && args[0] === 'diff') {
+        return 'diff --git a/src/components/Providers.tsx b/src/components/Providers.tsx\n+<AnalyticsUserSync />\n';
+      }
+      if (Array.isArray(args) && args[0] === 'ls-files') {
+        return [
+          'e2e/tests/public/ga4-user-identity.spec.ts',
+          'src/components/AnalyticsUserSync.tsx',
+          '.env.e2e.local',
+          '.agents/tmp/ticket-spec.md',
+          'public/banner.png',
+          'src/binary.bin',
+        ].join('\n');
+      }
+      return '';
+    });
+
+    const virtualFiles = new Map([
+      [
+        'src/components/AnalyticsUserSync.tsx',
+        Buffer.from(
+          'export default function AnalyticsUserSync() { return null; }\n'
+        ),
+      ],
+      [
+        'e2e/tests/public/ga4-user-identity.spec.ts',
+        Buffer.from("test('ga4 identity', async () => {});\n"),
+      ],
+      ['src/binary.bin', Buffer.from([0x89, 0x50, 0x00, 0x47])],
+    ]);
+
+    const res = getWorkingTreeDiff('origin/develop', {
+      existsSync: (p) => virtualFiles.has(p),
+      statSync: () => ({ isFile: () => true }),
+      readFileSync: (p) => virtualFiles.get(p),
+    });
+
+    expect(res.truncated).toBe(false);
+    expect(res.diff).toContain(
+      'diff --git a/src/components/AnalyticsUserSync.tsx b/src/components/AnalyticsUserSync.tsx\nnew file mode 100644'
+    );
+    expect(res.diff).toContain(
+      'diff --git a/e2e/tests/public/ga4-user-identity.spec.ts b/e2e/tests/public/ga4-user-identity.spec.ts\nnew file mode 100644'
+    );
+    // Core src/** untracked file must be prioritized ahead of e2e/**
+    expect(
+      res.diff.indexOf('src/components/AnalyticsUserSync.tsx')
+    ).toBeLessThan(
+      res.diff.indexOf('e2e/tests/public/ga4-user-identity.spec.ts')
+    );
+    expect(res.diff).not.toContain('.env.e2e.local');
+    expect(res.diff).not.toContain('.agents/tmp/ticket-spec.md');
+    expect(res.diff).not.toContain('public/banner.png');
+    expect(res.diff).not.toContain('src/binary.bin');
+  });
+
   it('invokes git diff between the given base ref and head ref with the lockfile/asset exclude pathspecs', () => {
     vi.mocked(execFileSync).mockReturnValue('');
 

@@ -2,20 +2,42 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   ANALYTICS_FEATURES,
+  clearAnalyticsUser,
   getAnalyticsClickPayloadFromElement,
+  getAnalyticsUserContext,
   initGa4,
   isAllowedAnalyticsUrl,
   isValidGaMeasurementId,
+  resetAnalyticsUserState,
+  resolveAnalyticsUserRole,
   resolveSafePageTitle,
   sanitizeAnalyticsMetadata,
+  sanitizeAnalyticsUserId,
   sanitizeUrlForAnalytics,
   SCROLL_DEPTH_THRESHOLDS,
   setAnalyticsTag,
+  setAnalyticsUserContext,
   trackButtonClick,
   trackEvent,
   trackPageView,
   trackScrollDepth,
 } from './analytics';
+
+function isArrayLikeEntry(val: unknown): val is ArrayLike<unknown> {
+  return (
+    typeof val === 'object' &&
+    val !== null &&
+    'length' in val &&
+    typeof val.length === 'number'
+  );
+}
+
+function toDataLayerTuple(entry: unknown): unknown[] {
+  if (!isArrayLikeEntry(entry)) {
+    throw new Error('Expected dataLayer entry to be array-like');
+  }
+  return Array.from(entry);
+}
 
 describe('analytics', () => {
   let mockGtag: ReturnType<typeof vi.fn<(...args: unknown[]) => void>>;
@@ -23,6 +45,7 @@ describe('analytics', () => {
 
   beforeEach(() => {
     vi.unstubAllGlobals();
+    resetAnalyticsUserState();
     mockGtag = vi.fn<(...args: unknown[]) => void>();
     mockClarity = vi.fn<(...args: unknown[]) => void>();
     if (typeof window !== 'undefined') {
@@ -40,6 +63,7 @@ describe('analytics', () => {
     // Unstub globals BEFORE touching window so SSR tests that stub window=undefined
     // never throw inside afterEach or poison subsequent test cases.
     vi.unstubAllGlobals();
+    resetAnalyticsUserState();
     vi.restoreAllMocks();
     if (typeof window !== 'undefined') {
       delete window.gtag;
@@ -78,12 +102,11 @@ describe('analytics', () => {
       expect(Object.prototype.toString.call(window.dataLayer?.[0])).toBe(
         '[object Arguments]'
       );
-      expect(
-        Array.from(window.dataLayer?.[0] as unknown as IArguments)
-      ).toEqual(['js', expect.any(Date)]);
-      expect(
-        Array.from(window.dataLayer?.[1] as unknown as IArguments)
-      ).toEqual([
+      expect(toDataLayerTuple(window.dataLayer?.[0])).toEqual([
+        'js',
+        expect.any(Date),
+      ]);
+      expect(toDataLayerTuple(window.dataLayer?.[1])).toEqual([
         'config',
         'G-TEST123456',
         {
@@ -99,9 +122,7 @@ describe('analytics', () => {
 
       // Chaining trackPageView pushes a queued ['event', 'page_view', payload] command
       trackPageView('/mentor-pool?token=secret123&filter_skills=frontend');
-      expect(
-        Array.from(window.dataLayer?.[2] as unknown as IArguments)
-      ).toEqual([
+      expect(toDataLayerTuple(window.dataLayer?.[2])).toEqual([
         'event',
         'page_view',
         {
@@ -383,25 +404,195 @@ describe('analytics', () => {
       expect(ANALYTICS_FEATURES).toContain('mentor_pool');
 
       trackEvent({
-        name: 'sign_in_succeeded',
+        name: 'login',
         feature: 'auth',
-        metadata: { method: 'google', email: 'leak@example.com' },
+        metadata: {
+          method: 'Google',
+          user_role: 'mentee',
+          email: 'leak@example.com',
+        },
       });
 
-      expect(mockGtag).toHaveBeenCalledWith('event', 'sign_in_succeeded', {
+      expect(mockGtag).toHaveBeenCalledWith('event', 'login', {
         feature: 'auth',
-        method: 'google',
+        method: 'Google',
+        user_role: 'mentee',
         page_location: `${window.location.origin}/`,
         page_title: 'X-Talent | 站在前輩的肩膀上',
       });
-      expect(mockClarity).toHaveBeenCalledWith('event', 'sign_in_succeeded');
+      expect(mockClarity).toHaveBeenCalledWith('event', 'login');
       expect(mockClarity).toHaveBeenCalledWith('set', 'feature', 'auth');
-      expect(mockClarity).toHaveBeenCalledWith('set', 'method', 'google');
+      expect(mockClarity).toHaveBeenCalledWith('set', 'method', 'Google');
+      expect(mockClarity).toHaveBeenCalledWith('set', 'user_role', 'mentee');
       expect(mockClarity).not.toHaveBeenCalledWith(
         'set',
         'email',
         expect.anything()
       );
+    });
+
+    it('binds internal user_id & user_role via gtag config on login, attaches them to events, and clears with null on logout (#866)', () => {
+      delete window.gtag;
+      window.dataLayer = [];
+      expect(initGa4('G-TEST123456')).toBe(true);
+
+      // Login as mentor -> dispatches gtag('config', gaId, { send_page_view: false, user_id, user_role })
+      setAnalyticsUserContext({ userId: '999998', userRole: 'mentor' });
+      expect(getAnalyticsUserContext()).toEqual({
+        userId: '999998',
+        userRole: 'mentor',
+      });
+      expect(toDataLayerTuple(window.dataLayer?.[2])).toEqual([
+        'config',
+        'G-TEST123456',
+        {
+          send_page_view: false,
+          user_id: '999998',
+          user_role: 'mentor',
+        },
+      ]);
+
+      // Subsequent events automatically carry user_id & user_role
+      trackPageView('/mentor-pool', { title: '尋找導師' });
+      expect(toDataLayerTuple(window.dataLayer?.[3])).toEqual([
+        'event',
+        'page_view',
+        {
+          page_path: '/mentor-pool',
+          page_location: `${window.location.origin}/mentor-pool`,
+          page_title: '尋找導師',
+          user_id: '999998',
+          user_role: 'mentor',
+        },
+      ]);
+
+      // Logout -> clears GA4 user_id with null and resets user_role to guest
+      clearAnalyticsUser();
+      expect(getAnalyticsUserContext()).toEqual({
+        userId: null,
+        userRole: 'guest',
+      });
+      expect(toDataLayerTuple(window.dataLayer?.[4])).toEqual([
+        'config',
+        'G-TEST123456',
+        {
+          send_page_view: false,
+          user_id: null,
+          user_role: 'guest',
+        },
+      ]);
+
+      // Post-logout events omit user_id and attach user_role: 'guest'
+      trackPageView('/', { title: 'X-Talent 首頁' });
+      expect(toDataLayerTuple(window.dataLayer?.[5])).toEqual([
+        'event',
+        'page_view',
+        {
+          page_path: '/',
+          page_location: `${window.location.origin}/`,
+          page_title: 'X-Talent 首頁',
+          user_role: 'guest',
+        },
+      ]);
+    });
+
+    it('falls back to pushing config/set commands into window.dataLayer when window.gtag is unavailable and rejects PII user_id values (#866)', () => {
+      delete window.gtag;
+      window.dataLayer = [];
+
+      expect(sanitizeAnalyticsUserId(7482008160728084)).toBe(
+        '7482008160728084'
+      );
+      expect(sanitizeAnalyticsUserId('user-1')).toBe('user-1');
+      expect(sanitizeAnalyticsUserId(null)).toBeNull();
+      expect(sanitizeAnalyticsUserId(undefined)).toBeNull();
+      expect(sanitizeAnalyticsUserId(-1)).toBeNull();
+      expect(sanitizeAnalyticsUserId(0)).toBeNull();
+      expect(sanitizeAnalyticsUserId(1.5)).toBeNull();
+      expect(sanitizeAnalyticsUserId(Number.MAX_SAFE_INTEGER + 1)).toBeNull();
+      expect(sanitizeAnalyticsUserId('0')).toBeNull();
+      expect(sanitizeAnalyticsUserId('undefined')).toBeNull();
+      expect(sanitizeAnalyticsUserId('null')).toBeNull();
+      expect(sanitizeAnalyticsUserId('---')).toBeNull();
+      expect(sanitizeAnalyticsUserId('a'.repeat(65))).toBeNull();
+      expect(sanitizeAnalyticsUserId('private@example.com')).toBeNull();
+      expect(sanitizeAnalyticsUserId('user%40example.com')).toBeNull();
+      expect(sanitizeAnalyticsUserId('Alice Chen')).toBeNull();
+      expect(sanitizeAnalyticsUserId('王小明')).toBeNull();
+      expect(
+        sanitizeAnalyticsUserId('eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.sig')
+      ).toBeNull();
+      expect(sanitizeAnalyticsUserId('mock-access-token')).toBeNull();
+
+      expect(resolveAnalyticsUserRole(null)).toBe('guest');
+      expect(resolveAnalyticsUserRole(undefined)).toBe('guest');
+      expect(
+        resolveAnalyticsUserRole({ id: 'leak@example.com', isMentor: true })
+      ).toBe('guest');
+      expect(resolveAnalyticsUserRole({ id: '123', isMentor: false })).toBe(
+        'mentee'
+      );
+      expect(resolveAnalyticsUserRole({ user_id: 456, is_mentor: true })).toBe(
+        'mentor'
+      );
+
+      setAnalyticsUserContext(
+        { userId: '888', userRole: 'mentee' },
+        { gaId: 'G-FALLBACK866' }
+      );
+      clearAnalyticsUser({ gaId: 'G-FALLBACK866' });
+      setAnalyticsUserContext({ userId: '889', userRole: 'mentor' });
+
+      expect(window.dataLayer).toHaveLength(3);
+      expect(Object.prototype.toString.call(window.dataLayer?.[0])).toBe(
+        '[object Arguments]'
+      );
+      expect(Object.prototype.toString.call(window.dataLayer?.[1])).toBe(
+        '[object Arguments]'
+      );
+      expect(Object.prototype.toString.call(window.dataLayer?.[2])).toBe(
+        '[object Arguments]'
+      );
+      expect(toDataLayerTuple(window.dataLayer?.[0])).toEqual([
+        'config',
+        'G-FALLBACK866',
+        { send_page_view: false, user_id: '888', user_role: 'mentee' },
+      ]);
+      expect(toDataLayerTuple(window.dataLayer?.[1])).toEqual([
+        'config',
+        'G-FALLBACK866',
+        { send_page_view: false, user_id: null, user_role: 'guest' },
+      ]);
+      expect(toDataLayerTuple(window.dataLayer?.[2])).toEqual([
+        'set',
+        { user_id: '889', user_role: 'mentor' },
+      ]);
+
+      expect(
+        sanitizeAnalyticsMetadata({
+          user_id: 'leak@example.com',
+          user_role: 'invalid_role',
+          method: 'Email',
+        })
+      ).toEqual({
+        method: 'Email',
+      });
+
+      // Reusing the same window.gtag function after resetAnalyticsUserState re-emits config
+      window.gtag = mockGtag;
+      setAnalyticsUserContext(
+        { userId: null, userRole: 'guest' },
+        { gaId: 'G-FALLBACK866' }
+      );
+      expect(mockGtag).toHaveBeenCalledTimes(1);
+
+      mockGtag.mockClear();
+      resetAnalyticsUserState();
+      setAnalyticsUserContext(
+        { userId: null, userRole: 'guest' },
+        { gaId: 'G-FALLBACK866' }
+      );
+      expect(mockGtag).toHaveBeenCalledTimes(1);
     });
 
     it('overrides page_location and page_title on non-page_view events so gtag never reads raw URL secrets or profile names', () => {

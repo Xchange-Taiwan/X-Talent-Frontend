@@ -24,9 +24,17 @@ vi.mock('@/lib/monitoring', () => ({
   captureFlowFailure: vi.fn(),
   sanitize: (val: string) => val,
 }));
-vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn() }));
+vi.mock('@/lib/analytics', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/analytics')>();
+  return {
+    ...actual,
+    setAnalyticsUserContext: vi.fn(),
+    trackEvent: vi.fn(),
+  };
+});
 
 import { validateSignIn } from '@/lib/actions/signIn';
+import { setAnalyticsUserContext, trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockGetSession, mockSession, mockSignIn } from '@/test/mocks/nextAuth';
@@ -36,6 +44,8 @@ import useSignInForm from './useSignInForm';
 
 const mockValidateSignIn = vi.mocked(validateSignIn);
 const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
+const mockSetAnalyticsUserContext = vi.mocked(setAnalyticsUserContext);
+const mockTrackEvent = vi.mocked(trackEvent);
 
 const validValues = { email: 'user@example.com', password: 'Password1!' };
 
@@ -108,10 +118,10 @@ describe('useSignInForm', () => {
     expect(mockRouter.push).not.toHaveBeenCalled();
   });
 
-  it('success + onBoarding === false → router.push("/auth/onboarding")', async () => {
+  it('success + onBoarding === false → syncs user_id and tracks login (method: Email, user_role: mentee) then redirects to /auth/onboarding', async () => {
     mockGetSession.mockResolvedValueOnce({
       ...mockSession,
-      user: { ...mockSession.user, onBoarding: false },
+      user: { ...mockSession.user, onBoarding: false, isMentor: false },
     });
 
     const { result } = renderHook(() => useSignInForm());
@@ -120,14 +130,26 @@ describe('useSignInForm', () => {
       await result.current.onSubmit(validValues);
     });
 
+    expect(mockSetAnalyticsUserContext).toHaveBeenCalledWith({
+      userId: 'test-user-id',
+      userRole: 'mentee',
+    });
+    expect(mockTrackEvent).toHaveBeenCalledWith({
+      name: 'login',
+      feature: 'auth',
+      metadata: {
+        method: 'Email',
+        user_role: 'mentee',
+      },
+    });
     expect(mockRouter.push).toHaveBeenCalledWith('/auth/onboarding');
     expect(mockToast).not.toHaveBeenCalled();
   });
 
-  it('success + onBoarding === true → router.push("/mentor-pool")', async () => {
+  it('success + onBoarding === true + isMentor → syncs mentor role and router.push("/mentor-pool")', async () => {
     mockGetSession.mockResolvedValueOnce({
       ...mockSession,
-      user: { ...mockSession.user, onBoarding: true },
+      user: { ...mockSession.user, onBoarding: true, isMentor: true },
     });
 
     const { result } = renderHook(() => useSignInForm());
@@ -136,6 +158,18 @@ describe('useSignInForm', () => {
       await result.current.onSubmit(validValues);
     });
 
+    expect(mockSetAnalyticsUserContext).toHaveBeenCalledWith({
+      userId: 'test-user-id',
+      userRole: 'mentor',
+    });
+    expect(mockTrackEvent).toHaveBeenCalledWith({
+      name: 'login',
+      feature: 'auth',
+      metadata: {
+        method: 'Email',
+        user_role: 'mentor',
+      },
+    });
     expect(mockRouter.push).toHaveBeenCalledWith('/mentor-pool');
     expect(mockToast).not.toHaveBeenCalled();
   });

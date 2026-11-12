@@ -691,15 +691,36 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       `\n[cloud-converge] === Round ${round}/${config.maxRounds} starting ===`
     );
 
-    // Inspect changed files once at the start of the round for targeted unit & E2E runs
+    // Inspect changed + untracked files once at the start of the round for targeted unit & E2E runs
     const diffFilesRes = execStep('git', [
       'diff',
       '--name-only',
       config.baseRef,
     ]);
-    const diffFiles = diffFilesRes.ok
+    const untrackedFilesRes = execStep('git', [
+      'ls-files',
+      '--others',
+      '--exclude-standard',
+    ]);
+    const trackedDiffFiles = diffFilesRes.ok
       ? diffFilesRes.stdout.split(/\r?\n/).filter(Boolean)
       : [];
+    const untrackedDiffFiles = untrackedFilesRes.ok
+      ? untrackedFilesRes.stdout
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(
+            (relPath) =>
+              relPath &&
+              !relPath.startsWith('.env') &&
+              !relPath.includes('/.env') &&
+              relPath !== '.agents/tmp' &&
+              !relPath.startsWith('.agents/tmp/')
+          )
+      : [];
+    const diffFiles = [
+      ...new Set([...trackedDiffFiles, ...untrackedDiffFiles]),
+    ];
 
     const testEnv = {
       ...process.env,

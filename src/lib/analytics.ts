@@ -24,11 +24,29 @@ export const ANALYTICS_FEATURES = [
 
 export type AnalyticsFeature = (typeof ANALYTICS_FEATURES)[number];
 
+export const ANALYTICS_USER_ROLES = ['mentee', 'mentor', 'guest'] as const;
+export type AnalyticsUserRole = (typeof ANALYTICS_USER_ROLES)[number];
+
+export const ANALYTICS_AUTH_METHODS = ['Google', 'Email'] as const;
+export type AnalyticsAuthMethod = (typeof ANALYTICS_AUTH_METHODS)[number];
+
+export interface AnalyticsUserContext {
+  /** Internal opaque User ID from NextAuth session.user.id (NEVER email, name, or token); null clears GA4 user_id */
+  userId: string | number | null | undefined;
+  /** Resolved platform role attached to GA4 config & events */
+  userRole?: AnalyticsUserRole | null;
+}
+
+export interface SetAnalyticsUserContextOptions {
+  /** Explicit GA4 Measurement ID override (defaults to active Ga4Bootstrap ID or NEXT_PUBLIC_GA_ID) */
+  gaId?: string;
+}
+
 export const SCROLL_DEPTH_THRESHOLDS = [25, 50, 75, 100] as const;
 export type ScrollDepthThreshold = (typeof SCROLL_DEPTH_THRESHOLDS)[number];
 
 export interface AnalyticsEvent {
-  /** Snake_case event name, e.g. 'sign_up_succeeded', 'reservation_booking_confirmed' */
+  /** Snake_case event name, e.g. 'login', 'sign_up', 'reservation_booking_confirmed' */
   name: string;
   /** Feature domain for grouping */
   feature?: AnalyticsFeature;
@@ -68,10 +86,16 @@ type ClarityFn = (...args: unknown[]) => void;
 const VALID_ANALYTICS_FEATURES: ReadonlySet<string> = new Set<string>(
   ANALYTICS_FEATURES
 );
+const VALID_ANALYTICS_USER_ROLES: ReadonlySet<string> = new Set<string>(
+  ANALYTICS_USER_ROLES
+);
 
 const GA_MEASUREMENT_ID_PATTERN = /^G-[A-Z0-9]+$/i;
 const VALID_EVENT_NAME_PATTERN = /^[a-z][a-z0-9_]{1,48}$/;
 const VALID_PARAM_KEY_PATTERN = /^[a-z][a-z0-9_]{0,39}$/;
+const SAFE_INTERNAL_USER_ID_PATTERN = /^(?=.*[A-Za-z0-9])[A-Za-z0-9_-]{1,64}$/;
+const FORBIDDEN_USER_ID_VALUE_PATTERN =
+  /^(?:0+|null|undefined|nan|true|false|none|guest|anonymous|eyJ[A-Za-z0-9_-]{8,}|.*(?:access[_-]?token|refresh[_-]?token|id[_-]?token|session[_-]?token|csrf[_-]?token|bearer|secret|password).*)$/i;
 
 const PII_KEY_PATTERN =
   /^(?:e[-_]?mail|user[-_]?email|password|passwd|pwd|.*token.*|secret|authorization|auth[-_]?code|code|state|cookie|phone|mobile|tel|name|user[-_]?name|full[-_]?name|first[-_]?name|last[-_]?name|real[-_]?name|display[-_]?name|q|query|search|search[-_]?pattern|keyword)$/i;
@@ -97,7 +121,12 @@ const BACKSLASH_CHAR = String.fromCharCode(92);
 const MAX_NESTED_URL_SANITIZE_DEPTH = 3;
 const MAX_URI_DECODE_PASSES = 3;
 
-const configuredGaTargetsByFn = new WeakMap<object, Set<string>>();
+let configuredGaTargetsByFn = new WeakMap<object, Set<string>>();
+let lastSyncedUserKeyByTarget = new WeakMap<object, Map<string, string>>();
+
+let activeGaMeasurementId: string | null = null;
+let currentAnalyticsUserId: string | null = null;
+let currentAnalyticsUserRole: AnalyticsUserRole | null = null;
 
 function safeDecodeURIComponent(value: string): string {
   try {
@@ -201,6 +230,61 @@ export function containsSensitiveValue(value: string): boolean {
   );
 }
 
+export function isAnalyticsUserRole(
+  value: unknown
+): value is AnalyticsUserRole {
+  return typeof value === 'string' && VALID_ANALYTICS_USER_ROLES.has(value);
+}
+
+/**
+ * Validates and normalizes an internal opaque User ID for GA4 `user_id`.
+ * Rejects emails, real names (spaces / non-ASCII), JWTs, tokens, URI schemes, or empty values.
+ */
+export function sanitizeAnalyticsUserId(
+  rawUserId: string | number | null | undefined
+): string | null {
+  if (typeof rawUserId === 'number') {
+    if (!Number.isSafeInteger(rawUserId) || rawUserId <= 0) return null;
+    return String(rawUserId);
+  }
+  if (typeof rawUserId !== 'string') return null;
+
+  const trimmed = rawUserId.trim();
+  if (!trimmed) return null;
+
+  const fullyDecoded = unwrapPercentEncoding(trimmed);
+  if (
+    !SAFE_INTERNAL_USER_ID_PATTERN.test(trimmed) ||
+    FORBIDDEN_USER_ID_VALUE_PATTERN.test(trimmed) ||
+    FORBIDDEN_USER_ID_VALUE_PATTERN.test(fullyDecoded) ||
+    containsSensitiveValue(trimmed) ||
+    containsSensitiveValue(fullyDecoded)
+  ) {
+    return null;
+  }
+
+  return trimmed;
+}
+
+/**
+ * Resolves the canonical `AnalyticsUserRole` (`'mentor' | 'mentee' | 'guest'`)
+ * from a NextAuth session user or backend profile summary.
+ */
+export function resolveAnalyticsUserRole(
+  user?: {
+    id?: string | number | null;
+    user_id?: string | number | null;
+    isMentor?: boolean | null;
+    is_mentor?: boolean | null;
+  } | null
+): AnalyticsUserRole {
+  if (!user) return 'guest';
+  const safeId =
+    sanitizeAnalyticsUserId(user.id) ?? sanitizeAnalyticsUserId(user.user_id);
+  if (!safeId) return 'guest';
+  return (user.isMentor ?? user.is_mentor) ? 'mentor' : 'mentee';
+}
+
 /**
  * Strips any PII keys (email, name, token, password, phone, free-text query, OAuth code/state)
  * and drops string values that match email, JWT, Bearer token, or disallowed URI scheme patterns.
@@ -214,6 +298,23 @@ export function sanitizeAnalyticsMetadata(
   for (const [key, value] of Object.entries(metadata)) {
     const trimmedKey = key.trim();
     if (!trimmedKey || PII_KEY_PATTERN.test(trimmedKey)) {
+      continue;
+    }
+    const lowerKey = trimmedKey.toLowerCase();
+    if (lowerKey === 'user_id') {
+      const safeUid =
+        typeof value === 'string' || typeof value === 'number'
+          ? sanitizeAnalyticsUserId(value)
+          : null;
+      if (safeUid) {
+        clean[trimmedKey] = safeUid;
+      }
+      continue;
+    }
+    if (lowerKey === 'user_role') {
+      if (isAnalyticsUserRole(value)) {
+        clean[trimmedKey] = value;
+      }
       continue;
     }
     if (typeof value === 'string') {
@@ -369,6 +470,20 @@ function resolveDefaultGaPageContext(): {
   };
 }
 
+function resolveConfiguredGaId(explicitGaId?: string): string | null {
+  if (isValidGaMeasurementId(explicitGaId)) {
+    return explicitGaId.trim();
+  }
+  if (activeGaMeasurementId && isValidGaMeasurementId(activeGaMeasurementId)) {
+    return activeGaMeasurementId;
+  }
+  const envGaId = process.env.NEXT_PUBLIC_GA_ID?.trim();
+  if (isValidGaMeasurementId(envGaId)) {
+    return envGaId;
+  }
+  return null;
+}
+
 /**
  * Initializes the client-side `window.dataLayer` and `window.gtag` command queue
  * without inline `<script>` string concatenation, disabling automatic `page_view`
@@ -378,6 +493,8 @@ export function initGa4(gaId: string): boolean {
   if (typeof window === 'undefined') return false;
   const trimmedId = gaId.trim();
   if (!isValidGaMeasurementId(trimmedId)) return false;
+
+  activeGaMeasurementId = trimmedId;
 
   if (!Array.isArray(window.dataLayer)) {
     window.dataLayer = [];
@@ -402,6 +519,10 @@ export function initGa4(gaId: string): boolean {
     window.gtag('config', trimmedId, {
       send_page_view: false,
       ...defaultContext,
+      ...(currentAnalyticsUserId ? { user_id: currentAnalyticsUserId } : {}),
+      ...(currentAnalyticsUserRole
+        ? { user_role: currentAnalyticsUserRole }
+        : {}),
     });
   }
 
@@ -414,6 +535,145 @@ function getClarity(): ClarityFn | undefined {
   return typeof fn === 'function' ? fn : undefined;
 }
 
+function pushGtagArguments(
+  command: 'config',
+  targetId: string,
+  configParams: Record<string, unknown>
+): void;
+function pushGtagArguments(
+  command: 'set',
+  setParams: Record<string, unknown>
+): void;
+function pushGtagArguments(): void {
+  if (!Array.isArray(window.dataLayer)) {
+    window.dataLayer = [];
+  }
+  // gtag.js processes command tuples queued in `window.dataLayer` only when pushed
+  // as `IArguments` (`arguments`), ignoring plain Array literals.
+  // eslint-disable-next-line prefer-rest-params
+  window.dataLayer.push(arguments);
+}
+
+function hasAlreadySyncedTarget(
+  target: object,
+  gaTargetKey: string,
+  syncValue: string
+): boolean {
+  let perGaMap = lastSyncedUserKeyByTarget.get(target);
+  if (!perGaMap) {
+    perGaMap = new Map<string, string>();
+    lastSyncedUserKeyByTarget.set(target, perGaMap);
+  }
+  if (perGaMap.get(gaTargetKey) === syncValue) {
+    return true;
+  }
+  perGaMap.set(gaTargetKey, syncValue);
+  return false;
+}
+
+/**
+ * Synchronizes the authenticated (or guest/logged-out) user identity and role with GA4:
+ * - On login: sets `gtag('config', gaId, { send_page_view: false, user_id, user_role })`
+ *   and attaches `user_id` + `user_role` to all subsequent events.
+ * - On logout (`userId: null`): dispatches `user_id: null` and `user_role: 'guest'`
+ *   to clear GA4's active User-ID and prevents stale `user_id` from attaching to events.
+ */
+export function setAnalyticsUserContext(
+  context: AnalyticsUserContext,
+  options?: SetAnalyticsUserContextOptions
+): void {
+  const safeUserId = sanitizeAnalyticsUserId(context.userId);
+  const resolvedRole: AnalyticsUserRole | null = safeUserId
+    ? isAnalyticsUserRole(context.userRole) && context.userRole !== 'guest'
+      ? context.userRole
+      : 'mentee'
+    : context.userRole === null
+      ? null
+      : 'guest';
+
+  currentAnalyticsUserId = safeUserId;
+  currentAnalyticsUserRole = resolvedRole;
+
+  if (typeof window === 'undefined') return;
+
+  const gaId = resolveConfiguredGaId(options?.gaId);
+  const gaTargetKey = gaId ?? 'default';
+  const syncValue = `${safeUserId ?? 'null'}|${resolvedRole ?? 'null'}`;
+
+  if (typeof window.gtag === 'function') {
+    if (!hasAlreadySyncedTarget(window.gtag, gaTargetKey, syncValue)) {
+      if (gaId) {
+        window.gtag('config', gaId, {
+          send_page_view: false,
+          user_id: safeUserId,
+          ...(resolvedRole ? { user_role: resolvedRole } : {}),
+        });
+      } else {
+        window.gtag('set', {
+          user_id: safeUserId,
+          ...(resolvedRole ? { user_role: resolvedRole } : {}),
+        });
+      }
+    }
+  } else {
+    if (!Array.isArray(window.dataLayer)) {
+      window.dataLayer = [];
+    }
+    if (!hasAlreadySyncedTarget(window.dataLayer, gaTargetKey, syncValue)) {
+      if (gaId) {
+        pushGtagArguments('config', gaId, {
+          send_page_view: false,
+          user_id: safeUserId,
+          ...(resolvedRole ? { user_role: resolvedRole } : {}),
+        });
+      } else {
+        pushGtagArguments('set', {
+          user_id: safeUserId,
+          ...(resolvedRole ? { user_role: resolvedRole } : {}),
+        });
+      }
+    }
+  }
+
+  if (resolvedRole) {
+    setAnalyticsTag('user_role', resolvedRole);
+  }
+}
+
+/**
+ * Explicitly clears GA4 `user_id` (`null`) and resets `user_role` to `'guest'`.
+ * Call right before `signOut()` so GA4 receives the null clearance before navigation.
+ */
+export function clearAnalyticsUser(
+  options?: SetAnalyticsUserContextOptions
+): void {
+  setAnalyticsUserContext({ userId: null, userRole: 'guest' }, options);
+}
+
+/**
+ * Returns a snapshot of the currently active analytics user context.
+ */
+export function getAnalyticsUserContext(): {
+  userId: string | null;
+  userRole: AnalyticsUserRole | null;
+} {
+  return {
+    userId: currentAnalyticsUserId,
+    userRole: currentAnalyticsUserRole,
+  };
+}
+
+/**
+ * Resets internal module state (intended for test suite isolation).
+ */
+export function resetAnalyticsUserState(): void {
+  activeGaMeasurementId = null;
+  currentAnalyticsUserId = null;
+  currentAnalyticsUserRole = null;
+  configuredGaTargetsByFn = new WeakMap<object, Set<string>>();
+  lastSyncedUserKeyByTarget = new WeakMap<object, Map<string, string>>();
+}
+
 function dispatchGa4Event(
   eventName: string,
   params: Record<string, string | number | boolean>
@@ -422,6 +682,10 @@ function dispatchGa4Event(
 
   const payload: Record<string, string | number | boolean> = {
     ...resolveDefaultGaPageContext(),
+    ...(currentAnalyticsUserId ? { user_id: currentAnalyticsUserId } : {}),
+    ...(currentAnalyticsUserRole
+      ? { user_role: currentAnalyticsUserRole }
+      : {}),
     ...params,
   };
 
@@ -491,6 +755,7 @@ export function trackEvent(
         setAnalyticsTag('feature', event.feature);
       }
       for (const [key, value] of Object.entries(safeMetadata)) {
+        if (key.toLowerCase() === 'user_id') continue;
         setAnalyticsTag(key, String(value));
       }
     }

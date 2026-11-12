@@ -39,7 +39,14 @@ export default function useSignUpForm(): AuthFormProps<SignUpValues> {
 
     try {
       await signUp(values);
-      trackEvent({ name: 'sign_up_succeeded', feature: 'auth' });
+      trackEvent({
+        name: 'sign_up',
+        feature: 'auth',
+        metadata: {
+          method: 'Email',
+          user_role: 'guest',
+        },
+      });
       sessionStorage.setItem('email', values.email);
       router.push('/auth/email-verify');
     } catch (error) {

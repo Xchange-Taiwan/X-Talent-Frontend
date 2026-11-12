@@ -86,8 +86,12 @@ describe('useSignUpForm', () => {
 
     expect(mockSignUp).toHaveBeenCalledWith(validValues);
     expect(mockTrackEvent).toHaveBeenCalledWith({
-      name: 'sign_up_succeeded',
+      name: 'sign_up',
       feature: 'auth',
+      metadata: {
+        method: 'Email',
+        user_role: 'guest',
+      },
     });
     expect(sessionStorage.getItem('email')).toBe(validValues.email);
     expect(mockRouter.push).toHaveBeenCalledWith('/auth/email-verify');

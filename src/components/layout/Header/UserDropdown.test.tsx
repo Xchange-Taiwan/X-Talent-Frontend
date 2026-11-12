@@ -36,9 +36,13 @@ vi.mock('next/navigation', async () => {
 });
 
 const trackEvent = vi.fn();
-vi.mock('@/lib/analytics', () => ({
-  trackEvent: (...args: unknown[]) => trackEvent(...args),
-}));
+vi.mock('@/lib/analytics', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/analytics')>();
+  return {
+    ...actual,
+    trackEvent: (...args: unknown[]) => trackEvent(...args),
+  };
+});
 
 import { authenticatedIdentity, GUEST_IDENTITY } from '@/test/mocks/identity';
 import { mockSession } from '@/test/mocks/nextAuth';
