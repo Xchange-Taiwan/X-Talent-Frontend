@@ -242,13 +242,35 @@ export const HistoryMenteeRatedPublic: Story = {
           label: '我的評價',
           rating: 10,
           content: '導師給了非常具體的架構重構建議，收穫滿滿！',
+          canEdit: true,
         }}
+        editAction={
+          <MeetingFeedbackDialog
+            mode="edit"
+            reservation={{
+              ...mockReservation,
+              feedback: {
+                meetingHappened: true,
+                rating: {
+                  rating: 10,
+                  content: '導師給了非常具體的架構重構建議，收穫滿滿！',
+                  createdAt: 1760000000,
+                  updatedAt: 1760000000,
+                  authorName: '王＊明',
+                  isPublic: true,
+                },
+                nextStep: null,
+              },
+            }}
+            onUpdateFeedback={async () => {}}
+          />
+        }
       />
     ),
   },
 };
 
-// 8. Mentee History - Unpublicized Rating (is_public === false -> 評價未公開 + notice)
+// 8. Mentee History - Unpublicized Rating (is_public === false -> 評價未公開 + notice + 編輯)
 export const HistoryMenteeRatedUnpublicized: Story = {
   args: {
     variant: 'history',
@@ -280,7 +302,29 @@ export const HistoryMenteeRatedUnpublicized: Story = {
           rating: 9,
           content: '感謝導師分享。',
           notice: UNPUBLICIZED_FEEDBACK_NOTICE,
+          canEdit: true,
         }}
+        editAction={
+          <MeetingFeedbackDialog
+            mode="edit"
+            reservation={{
+              ...mockReservation,
+              feedback: {
+                meetingHappened: false,
+                rating: {
+                  rating: 9,
+                  content: '感謝導師分享。',
+                  createdAt: 1760000000,
+                  updatedAt: 1760000000,
+                  authorName: '王＊明',
+                  isPublic: false,
+                },
+                nextStep: null,
+              },
+            }}
+            onUpdateFeedback={async () => {}}
+          />
+        }
       />
     ),
   },

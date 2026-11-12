@@ -34,4 +34,22 @@ describe('useMeetingFeedbackForm', () => {
       notHappenedReason: null,
     });
   });
+
+  it('initializes with prefilled rating and content when provided for edit mode (#731)', () => {
+    const { result } = renderHook(() =>
+      useMeetingFeedbackForm({
+        meetingHappened: true,
+        rating: 7,
+        content: '原本已送出的評論',
+        notHappenedReason: null,
+      })
+    );
+
+    expect(result.current.getValues()).toEqual({
+      meetingHappened: true,
+      rating: 7,
+      content: '原本已送出的評論',
+      notHappenedReason: null,
+    });
+  });
 });

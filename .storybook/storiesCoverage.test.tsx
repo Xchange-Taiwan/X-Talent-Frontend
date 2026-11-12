@@ -308,6 +308,8 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
     expect(meetingFeedbackDialogStories.StepRatingStarsOpen).toBeDefined();
     expect(meetingFeedbackDialogStories.StepRatingSliderOpen).toBeDefined();
     expect(meetingFeedbackDialogStories.StepNotHappenedOpen).toBeDefined();
+    expect(meetingFeedbackDialogStories.EditTriggerClosed).toBeDefined();
+    expect(meetingFeedbackDialogStories.EditModePrefilledOpen).toBeDefined();
 
     expect(reservationFeedbackBlockStories.default.title).toBe(
       '業務模組元件/預約管理(Reservation)/ReservationFeedbackBlock'

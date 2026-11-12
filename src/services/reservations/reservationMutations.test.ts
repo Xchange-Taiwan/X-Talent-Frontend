@@ -10,6 +10,7 @@ vi.mock('@/lib/apiClient', async (importActual) => {
   return {
     ...actual,
     apiClient: {
+      getUnwrapped: vi.fn(),
       putUnwrapped: vi.fn(),
       postUnwrapped: vi.fn(),
     },
@@ -38,6 +39,7 @@ import { mentorPoolReadManager } from '@/lib/cache/mentorPoolCache';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
+import { subscribeMentorFeedbackInvalidation } from '@/services/profile/feedback';
 import {
   acceptReservation,
   getReservationErrorMessage,
@@ -45,9 +47,11 @@ import {
   RESERVATION_CONFLICT_MESSAGE,
   ReservationVersionConflictError,
   submitReservationFeedback,
+  updateReservationFeedback,
 } from '@/services/reservations';
 import type { Reservation } from '@/types/reservation';
 
+const mockGet = vi.mocked(apiClient.getUnwrapped);
 const mockPut = vi.mocked(apiClient.putUnwrapped);
 const mockPost = vi.mocked(apiClient.postUnwrapped);
 const mockCaptureFailure = vi.mocked(captureFlowFailure);
@@ -74,6 +78,7 @@ const makeMockReservation = (
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockGet.mockReturnValue(new Promise(() => {}));
   reservationReadModel.clear();
 });
 
@@ -787,5 +792,251 @@ describe('submitReservationFeedback (#730)', () => {
       message: 'Feedback submit failed',
     });
     expect(clearPoolSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('updateReservationFeedback (#731)', () => {
+  let clearPoolSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGet.mockReturnValue(new Promise(() => {}));
+    reservationReadModel.clear();
+    clearPoolSpy = vi
+      .spyOn(mentorPoolReadManager, 'clear')
+      .mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    clearPoolSpy.mockRestore();
+  });
+
+  it('calls PUT /feedback with { rating, content }, preserves createdAt, isPublic=true, and item order, and clears mentor pool + history caches', async () => {
+    mockPut.mockResolvedValueOnce({});
+
+    const targetRes = makeMockReservation({
+      id: 'res-edit-1',
+      senderUserId: '10',
+      participantUserId: '20',
+      feedback: {
+        meetingHappened: true,
+        rating: {
+          rating: 7,
+          content: '原本的評論',
+          createdAt: 1700001000,
+          updatedAt: 1700001000,
+          authorName: '王＊明',
+          isPublic: true,
+        },
+        nextStep: null,
+      },
+    });
+    const otherRes = makeMockReservation({
+      id: 'res-other',
+      senderUserId: '10',
+      participantUserId: '30',
+    });
+
+    const menteeHistoryKey = {
+      userId: '10',
+      state: 'MENTEE_HISTORY',
+    } as const;
+    const mentorHistoryKey = {
+      userId: '20',
+      state: 'MENTOR_HISTORY',
+    } as const;
+
+    reservationReadModel.set(menteeHistoryKey, {
+      items: [otherRes, targetRes],
+      next_dtend: 0,
+    });
+    reservationReadModel.set(mentorHistoryKey, emptyPage);
+
+    const invalidatedMentorIds: Array<number | undefined> = [];
+    const unsubscribeFeedback = subscribeMentorFeedbackInvalidation(
+      (mentorId) => {
+        invalidatedMentorIds.push(mentorId);
+      }
+    );
+    const unsubscribe = reservationReadModel.subscribe(
+      menteeHistoryKey,
+      () => new Promise(() => {}),
+      () => {}
+    );
+
+    try {
+      await updateReservationFeedback({
+        reservation: targetRes,
+        myUserId: '10',
+        myRole: 'mentee',
+        payload: {
+          rating: 9,
+          content: '修改後的評論內容',
+        },
+      });
+
+      expect(mockPut).toHaveBeenCalledWith(
+        '/v1/users/10/reservations/res-edit-1/feedback',
+        {
+          rating: 9,
+          content: '修改後的評論內容',
+        }
+      );
+
+      const optimisticPage = reservationReadModel.get(menteeHistoryKey);
+      expect(optimisticPage).toBeDefined();
+      expect(optimisticPage?.items.map((item) => item.id)).toEqual([
+        'res-other',
+        'res-edit-1',
+      ]);
+      expect(optimisticPage?.items[1]?.feedback).toEqual({
+        meetingHappened: true,
+        rating: {
+          rating: 9,
+          content: '修改後的評論內容',
+          createdAt: 1700001000,
+          updatedAt: expect.any(Number),
+          authorName: '王＊明',
+          isPublic: true,
+        },
+        nextStep: null,
+      });
+
+      expect(mockGet).toHaveBeenCalledWith(
+        '/v1/users/10/reservations',
+        expect.objectContaining({
+          params: expect.objectContaining({ state: 'MENTEE_HISTORY' }),
+        })
+      );
+      expect(reservationReadModel.get(mentorHistoryKey)).toBeUndefined();
+      expect(clearPoolSpy).toHaveBeenCalledTimes(1);
+      expect(invalidatedMentorIds).toEqual([20]);
+    } finally {
+      unsubscribe();
+      unsubscribeFeedback();
+    }
+  });
+
+  it('preserves isPublic=false and meetingHappened=false when editing an unpublicized feedback item', async () => {
+    mockPut.mockResolvedValueOnce({});
+
+    const unpublicizedRes = makeMockReservation({
+      id: 'res-unpub',
+      senderUserId: '10',
+      participantUserId: '20',
+      feedback: {
+        meetingHappened: false,
+        rating: {
+          rating: 8,
+          content: '未公開的舊評論',
+          createdAt: 1700002000,
+          updatedAt: 1700002000,
+          authorName: '王＊明',
+          isPublic: false,
+        },
+        nextStep: null,
+      },
+    });
+
+    const menteeHistoryKey = {
+      userId: '10',
+      state: 'MENTEE_HISTORY',
+    } as const;
+    reservationReadModel.set(menteeHistoryKey, {
+      items: [unpublicizedRes],
+      next_dtend: 0,
+    });
+
+    const unsubscribe = reservationReadModel.subscribe(
+      menteeHistoryKey,
+      () => new Promise(() => {}),
+      () => {}
+    );
+
+    try {
+      await updateReservationFeedback({
+        reservation: unpublicizedRes,
+        myUserId: '10',
+        myRole: 'mentee',
+        payload: {
+          rating: 6,
+          content: '未公開評論修改版',
+        },
+      });
+
+      const updatedFeedback =
+        reservationReadModel.get(menteeHistoryKey)?.items[0]?.feedback;
+      expect(updatedFeedback).toEqual({
+        meetingHappened: false,
+        rating: {
+          rating: 6,
+          content: '未公開評論修改版',
+          createdAt: 1700002000,
+          updatedAt: expect.any(Number),
+          authorName: '王＊明',
+          isPublic: false,
+        },
+        nextStep: null,
+      });
+      expect(clearPoolSpy).not.toHaveBeenCalled();
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it('throws error and skips API call when myUserId is missing', async () => {
+    const reservation = makeMockReservation({ id: 'res-edit-no-user' });
+
+    await expect(
+      updateReservationFeedback({
+        reservation,
+        myUserId: '',
+        myRole: 'mentee',
+        payload: { rating: 8, content: '缺少使用者' },
+      })
+    ).rejects.toThrow('[reservationMutations] missing current user id');
+
+    expect(mockPut).not.toHaveBeenCalled();
+    expect(clearPoolSpy).not.toHaveBeenCalled();
+  });
+
+  it('invalidates history keys on 409 conflict and captures Sentry flow failure on generic error', async () => {
+    const reservation = makeMockReservation({ id: 'res-edit-err' });
+    mockPut.mockRejectedValueOnce(new ApiError(409, 'Conflict', '409'));
+
+    const menteeHistoryKey = {
+      userId: '10',
+      state: 'MENTEE_HISTORY',
+    } as const;
+    reservationReadModel.set(menteeHistoryKey, emptyPage);
+
+    await expect(
+      updateReservationFeedback({
+        reservation,
+        myUserId: '10',
+        myRole: 'mentee',
+        payload: { rating: 8, content: '衝突測試' },
+      })
+    ).rejects.toBeInstanceOf(ReservationVersionConflictError);
+
+    expect(reservationReadModel.get(menteeHistoryKey)).toBeUndefined();
+    expect(mockCaptureFailure).not.toHaveBeenCalled();
+
+    mockPut.mockRejectedValueOnce(new Error('Update feedback failed'));
+
+    await expect(
+      updateReservationFeedback({
+        reservation,
+        myUserId: '10',
+        myRole: 'mentee',
+        payload: { rating: 8, content: '失敗測試' },
+      })
+    ).rejects.toThrow('Update feedback failed');
+
+    expect(mockCaptureFailure).toHaveBeenCalledWith({
+      flow: 'reservation_feedback_edit',
+      step: 'put_feedback',
+      message: 'Update feedback failed',
+    });
   });
 });

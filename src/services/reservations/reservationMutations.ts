@@ -10,12 +10,17 @@ import {
   reservationReadModel,
 } from '@/lib/reservation/reservationReadModel';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
+import { invalidateMentorFeedback } from '@/services/profile/feedback';
 import { Reservation } from '@/types/reservation';
-import type { SubmitReservationFeedbackRequest } from '@/types/reservationFeedback';
+import type {
+  SubmitReservationFeedbackRequest,
+  UpdateReservationFeedbackRequest,
+} from '@/types/reservationFeedback';
 
 import {
   invalidateReservationRead,
   postReservationFeedback,
+  putReservationFeedback,
   type ReservationState,
   updateReservationStatus,
 } from './reservationService';
@@ -253,6 +258,23 @@ export async function rejectOrCancelReservation({
   ]).forEach(invalidateReservationRead);
 }
 
+function extractBackendIsPublic(responseData: unknown): boolean | undefined {
+  if (
+    !responseData ||
+    typeof responseData !== 'object' ||
+    !('feedback' in responseData)
+  ) {
+    return undefined;
+  }
+  const { feedback } = responseData;
+  if (!feedback || typeof feedback !== 'object' || !('is_public' in feedback)) {
+    return undefined;
+  }
+  return typeof feedback.is_public === 'boolean'
+    ? feedback.is_public
+    : undefined;
+}
+
 export interface SubmitFeedbackParams {
   reservation: Reservation;
   myUserId: string | undefined;
@@ -274,12 +296,12 @@ export async function submitReservationFeedback({
     if (!myUserId) {
       throw new Error('[reservationMutations] missing current user id');
     }
-    const responseData = (await postReservationFeedback({
+    const responseData = await postReservationFeedback({
       userId: myUserId,
       reservationId: reservation.id,
       body: payload,
-    })) as { feedback?: { is_public?: boolean } | null } | undefined;
-    if (responseData?.feedback?.is_public === false) {
+    });
+    if (extractBackendIsPublic(responseData) === false) {
       resolvedIsPublic = false;
     }
   } catch (err) {
@@ -353,5 +375,116 @@ export async function submitReservationFeedback({
 
   if (payload.meeting_happened) {
     mentorPoolReadManager.clear();
+    const counterpartyId = Number(resolveCounterpartyId(reservation, myUserId));
+    invalidateMentorFeedback(
+      Number.isFinite(counterpartyId) && counterpartyId > 0
+        ? counterpartyId
+        : undefined
+    );
+  }
+}
+
+export interface UpdateFeedbackParams {
+  reservation: Reservation;
+  myUserId: string | undefined;
+  myRole: 'mentee' | 'mentor';
+  payload: UpdateReservationFeedbackRequest;
+}
+
+/**
+ * Update an existing post-meeting feedback / rating (#731).
+ * Preserves the original `isPublic` status, `meetingHappened` lock, and `createdAt` sort position.
+ */
+export async function updateReservationFeedback({
+  reservation,
+  myUserId,
+  myRole,
+  payload,
+}: UpdateFeedbackParams): Promise<void> {
+  let backendIsPublic: boolean | undefined;
+  try {
+    if (!myUserId) {
+      throw new Error('[reservationMutations] missing current user id');
+    }
+    const responseData = await putReservationFeedback({
+      userId: myUserId,
+      reservationId: reservation.id,
+      body: payload,
+    });
+    backendIsPublic = extractBackendIsPublic(responseData);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 409) {
+      if (myUserId) {
+        affectedKeys(reservation, myUserId, myRole, ['history']).forEach(
+          invalidateReservationRead
+        );
+      }
+      throw new ReservationVersionConflictError();
+    }
+    captureFlowFailure({
+      flow: 'reservation_feedback_edit',
+      step: 'put_feedback',
+      message:
+        err instanceof Error
+          ? err.message
+          : 'Failed to update reservation feedback',
+    });
+    throw err;
+  }
+
+  if (!myUserId) return;
+
+  const nowUnixSeconds = Math.floor(Date.now() / 1000);
+  const fallbackIsPublic =
+    backendIsPublic ?? reservation.feedback?.rating?.isPublic ?? true;
+  const myHistoryKey: ReservationReadKey = {
+    userId: myUserId,
+    state: statesForRole(myRole).history,
+  };
+
+  for (const targetKey of reservationReadModel.getMatchingKeys(myHistoryKey)) {
+    reservationReadModel.update(targetKey, (current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        items: current.items.map((item) => {
+          if (item.id !== reservation.id) return item;
+          const existingFeedback = item.feedback ?? reservation.feedback;
+          const existingRating = existingFeedback?.rating;
+          const preservedIsPublic =
+            backendIsPublic ?? existingRating?.isPublic ?? fallbackIsPublic;
+
+          return {
+            ...item,
+            feedback: {
+              meetingHappened: existingFeedback?.meetingHappened ?? true,
+              rating: {
+                rating: payload.rating,
+                content: payload.content,
+                createdAt: existingRating?.createdAt ?? nowUnixSeconds,
+                updatedAt: nowUnixSeconds,
+                authorName: existingRating?.authorName ?? null,
+                isPublic: preservedIsPublic,
+              },
+              nextStep: null,
+            },
+          };
+        }),
+      };
+    });
+  }
+
+  affectedKeys(reservation, myUserId, myRole, ['history']).forEach(
+    invalidateReservationRead
+  );
+
+  if (fallbackIsPublic !== false) {
+    mentorPoolReadManager.clear();
+    const counterpartyId = Number(resolveCounterpartyId(reservation, myUserId));
+    invalidateMentorFeedback(
+      Number.isFinite(counterpartyId) && counterpartyId > 0
+        ? counterpartyId
+        : undefined
+    );
   }
 }

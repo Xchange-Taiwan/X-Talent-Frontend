@@ -85,7 +85,7 @@ function ReservationItem({
   sourceRole: SourceRole;
   myUserId: string | undefined;
 }) {
-  const { accept, rejectOrCancel, submitFeedback, isMutating } =
+  const { accept, rejectOrCancel, submitFeedback, updateFeedback, isMutating } =
     useReservationActions({
       myUserId,
       variant,
@@ -154,7 +154,21 @@ function ReservationItem({
       }
       feedbackContent={
         historyState?.feedbackBlock ? (
-          <ReservationFeedbackBlock model={historyState.feedbackBlock} />
+          <ReservationFeedbackBlock
+            model={historyState.feedbackBlock}
+            editAction={
+              historyState.feedbackBlock.canEdit ? (
+                <MeetingFeedbackDialog
+                  mode="edit"
+                  reservation={reservation}
+                  disabled={isMutating}
+                  onUpdateFeedback={(payload) =>
+                    updateFeedback(reservation, payload)
+                  }
+                />
+              ) : null
+            }
+          />
         ) : null
       }
       actions={

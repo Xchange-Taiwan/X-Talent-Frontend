@@ -3,6 +3,7 @@ import * as z from 'zod';
 import {
   NOT_HAPPENED_REASONS,
   type SubmitReservationFeedbackRequest,
+  type UpdateReservationFeedbackRequest,
 } from '@/types/reservationFeedback';
 
 export const DEFAULT_MEETING_RATING = 10;
@@ -31,11 +32,26 @@ const happenedBranchSchema = meetingFeedbackFormSchema.pick({
   content: true,
 });
 
+export const updateMeetingFeedbackSchema = happenedBranchSchema;
+
 const notHappenedReasonSchema = z.enum(NOT_HAPPENED_REASONS);
 
 export type MeetingFeedbackFormValues = z.infer<
   typeof meetingFeedbackFormSchema
 >;
+
+export function toUpdateFeedbackPayload(
+  values: Pick<MeetingFeedbackFormValues, 'rating' | 'content'>
+): UpdateReservationFeedbackRequest | null {
+  const parsed = updateMeetingFeedbackSchema.safeParse(values);
+  if (!parsed.success) {
+    return null;
+  }
+  return {
+    rating: parsed.data.rating,
+    content: parsed.data.content.trim(),
+  };
+}
 
 export function toSubmitFeedbackPayload(
   values: MeetingFeedbackFormValues

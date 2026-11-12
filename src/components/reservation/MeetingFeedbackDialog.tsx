@@ -26,41 +26,80 @@ import {
 } from '@/lib/reservation/reservationConflictError';
 import { cn } from '@/lib/utils';
 import {
+  DEFAULT_MEETING_RATING,
   MAX_FEEDBACK_CONTENT_LENGTH,
+  type MeetingFeedbackFormValues,
   toSubmitFeedbackPayload,
+  toUpdateFeedbackPayload,
 } from '@/schemas/meetingFeedbackSchema';
 import type { Reservation } from '@/types/reservation';
 import {
   NOT_HAPPENED_REASON_LABELS,
   NOT_HAPPENED_REASONS,
   type SubmitReservationFeedbackRequest,
+  type UpdateReservationFeedbackRequest,
 } from '@/types/reservationFeedback';
 
+export type MeetingFeedbackMode = 'create' | 'edit';
 export type MeetingFeedbackStep = 'attendance' | 'rating' | 'not-happened';
 
 export interface MeetingFeedbackDialogProps {
   reservation: Reservation;
+  mode?: MeetingFeedbackMode;
   disabled?: boolean;
   defaultOpen?: boolean;
   initialStep?: MeetingFeedbackStep;
-  onSubmitFeedback: (
+  initialRating?: number;
+  initialContent?: string;
+  onSubmitFeedback?: (
     payload: SubmitReservationFeedbackRequest
+  ) => Promise<void>;
+  onUpdateFeedback?: (
+    payload: UpdateReservationFeedbackRequest
   ) => Promise<void>;
   className?: string;
 }
 
 export default function MeetingFeedbackDialog({
   reservation,
+  mode = 'create',
   disabled = false,
   defaultOpen = false,
   initialStep = 'attendance',
+  initialRating,
+  initialContent,
   onSubmitFeedback,
+  onUpdateFeedback,
   className,
 }: MeetingFeedbackDialogProps) {
+  const isEditMode = mode === 'edit';
+  const savedRating =
+    initialRating ??
+    reservation.feedback?.rating?.rating ??
+    DEFAULT_MEETING_RATING;
+  const savedContent =
+    initialContent ?? reservation.feedback?.rating?.content ?? '';
+
+  const baseFormValues = React.useMemo<MeetingFeedbackFormValues>(
+    () =>
+      isEditMode
+        ? {
+            meetingHappened: true,
+            rating: savedRating,
+            content: savedContent,
+            notHappenedReason: null,
+          }
+        : DEFAULT_MEETING_FEEDBACK_FORM_VALUES,
+    [isEditMode, savedRating, savedContent]
+  );
+
   const [open, setOpen] = React.useState(defaultOpen);
-  const [step, setStep] = React.useState<MeetingFeedbackStep>(initialStep);
+  const [step, setStep] = React.useState<MeetingFeedbackStep>(
+    isEditMode ? 'rating' : initialStep
+  );
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const inFlightRef = React.useRef(false);
+  const hasFailedDraftRef = React.useRef(false);
   const contentFieldId = React.useId();
 
   const { toast, dismiss } = useToast();
@@ -70,22 +109,35 @@ export default function MeetingFeedbackDialog({
     setValue,
     reset,
     formState: { errors },
-  } = useMeetingFeedbackForm();
+  } = useMeetingFeedbackForm(baseFormValues);
 
   const meetingHappened = watch('meetingHappened');
   const rating = watch('rating');
   const content = watch('content');
   const notHappenedReason = watch('notHappenedReason');
 
-  const resetDraft = React.useCallback(() => {
-    reset(DEFAULT_MEETING_FEEDBACK_FORM_VALUES);
-    setStep(initialStep);
-  }, [initialStep, reset]);
+  React.useEffect(() => {
+    if (!open && !hasFailedDraftRef.current) {
+      reset(baseFormValues);
+    }
+  }, [baseFormValues, open, reset]);
+
+  const resetDraft = React.useCallback(
+    (overrideValues?: MeetingFeedbackFormValues) => {
+      hasFailedDraftRef.current = false;
+      reset(overrideValues ?? baseFormValues);
+      setStep(isEditMode ? 'rating' : initialStep);
+    },
+    [baseFormValues, initialStep, isEditMode, reset]
+  );
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (isSubmitting || inFlightRef.current) return;
     if (!nextOpen) {
       resetDraft();
+    } else if (!hasFailedDraftRef.current) {
+      reset(baseFormValues);
+      setStep(isEditMode ? 'rating' : initialStep);
     }
     setOpen(nextOpen);
   };
@@ -102,13 +154,72 @@ export default function MeetingFeedbackDialog({
     e.preventDefault();
     if (inFlightRef.current || isSubmitting) return;
 
+    if (isEditMode) {
+      const editPayload = toUpdateFeedbackPayload({ rating, content });
+      if (!editPayload || !onUpdateFeedback) return;
+
+      inFlightRef.current = true;
+      setIsSubmitting(true);
+
+      try {
+        await onUpdateFeedback(editPayload);
+        resetDraft({
+          meetingHappened: true,
+          rating: editPayload.rating,
+          content: editPayload.content,
+          notHappenedReason: null,
+        });
+        setOpen(false);
+        toast({
+          title: '已儲存',
+          description: '您的回饋已更新！',
+        });
+      } catch (err) {
+        if (err instanceof ReservationVersionConflictError) {
+          resetDraft();
+          setOpen(false);
+          toast({
+            variant: 'destructive',
+            description: RESERVATION_CONFLICT_MESSAGE,
+          });
+        } else {
+          hasFailedDraftRef.current = true;
+          setOpen(false);
+          const toastHandle = toast({
+            variant: 'destructive',
+            description: (
+              <span>
+                儲存失敗，回到
+                <button
+                  type="button"
+                  onClick={() => {
+                    toastHandle?.dismiss?.();
+                    dismiss?.();
+                    setOpen(true);
+                  }}
+                  className="mx-1 font-semibold underline underline-offset-4 hover:opacity-80"
+                >
+                  評論
+                </button>
+                重新儲存
+              </span>
+            ),
+          });
+        }
+      } finally {
+        inFlightRef.current = false;
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
     const payload = toSubmitFeedbackPayload({
       meetingHappened,
       rating,
       content,
       notHappenedReason,
     });
-    if (!payload) return;
+    if (!payload || !onSubmitFeedback) return;
 
     inFlightRef.current = true;
     setIsSubmitting(true);
@@ -132,6 +243,7 @@ export default function MeetingFeedbackDialog({
       } else {
         // Close dialog via setOpen(false) directly (bypassing handleOpenChange)
         // so step & form values stay intact for reopening from the failure toast.
+        hasFailedDraftRef.current = true;
         setOpen(false);
         const toastHandle = toast({
           variant: 'destructive',
@@ -160,22 +272,37 @@ export default function MeetingFeedbackDialog({
     }
   };
 
+  const effectiveStep: MeetingFeedbackStep = isEditMode ? 'rating' : step;
   const isContentOverLimit = content.length > MAX_FEEDBACK_CONTENT_LENGTH;
   const hasContentError = Boolean(errors.content) || isContentOverLimit;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button
-          size="sm"
-          disabled={disabled || isSubmitting}
-          className={cn(
-            'h-8 rounded-lg px-3.5 text-xs font-medium sm:h-9 sm:text-sm',
-            className
-          )}
-        >
-          填寫回饋
-        </Button>
+        {isEditMode ? (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={disabled || isSubmitting}
+            className={cn(
+              'border-background-border bg-background-white text-text-primary hover:bg-background-hover h-7 rounded-lg px-2.5 text-xs font-medium sm:h-8 sm:px-3',
+              className
+            )}
+          >
+            編輯
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            disabled={disabled || isSubmitting}
+            className={cn(
+              'h-8 rounded-lg px-3.5 text-xs font-medium sm:h-9 sm:text-sm',
+              className
+            )}
+          >
+            填寫回饋
+          </Button>
+        )}
       </DialogTrigger>
 
       <DialogContent
@@ -188,7 +315,7 @@ export default function MeetingFeedbackDialog({
         }}
       >
         <form onSubmit={handleSubmit} className="space-y-5">
-          {step === 'attendance' ? (
+          {effectiveStep === 'attendance' ? (
             <>
               <DialogHeader className="space-y-1.5 text-left">
                 <DialogTitle className="text-text-primary text-xl font-semibold">
@@ -263,11 +390,11 @@ export default function MeetingFeedbackDialog({
                 </Button>
               </DialogFooter>
             </>
-          ) : step === 'rating' ? (
+          ) : effectiveStep === 'rating' ? (
             <>
               <DialogHeader className="space-y-1.5 text-left">
                 <DialogTitle className="text-text-primary text-xl font-semibold">
-                  為本次會談評分
+                  {isEditMode ? '編輯回饋' : '為本次會談評分'}
                 </DialogTitle>
                 <DialogDescription className="text-text-secondary text-sm">
                   您的回饋能幫助我們持續改善
@@ -347,14 +474,25 @@ export default function MeetingFeedbackDialog({
               </div>
 
               <DialogFooter className="grid grid-cols-2 gap-3 pt-1 sm:space-x-0">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={isSubmitting}
-                  onClick={() => setStep('attendance')}
-                >
-                  上一步
-                </Button>
+                {isEditMode ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isSubmitting}
+                    onClick={() => handleOpenChange(false)}
+                  >
+                    取消
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isSubmitting}
+                    onClick={() => setStep('attendance')}
+                  >
+                    上一步
+                  </Button>
+                )}
                 <Button
                   type="submit"
                   disabled={isSubmitting || hasContentError}
@@ -362,8 +500,10 @@ export default function MeetingFeedbackDialog({
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 size-4 animate-spin" />
-                      送出中...
+                      {isEditMode ? '儲存中...' : '送出中...'}
                     </>
+                  ) : isEditMode ? (
+                    '儲存'
                   ) : (
                     '送出'
                   )}

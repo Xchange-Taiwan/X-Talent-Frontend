@@ -24,6 +24,7 @@ vi.mock('@/services/reservations', async (importOriginal) => {
     acceptReservation: vi.fn(),
     rejectOrCancelReservation: vi.fn(),
     submitReservationFeedback: vi.fn(),
+    updateReservationFeedback: vi.fn(),
   };
 });
 
@@ -32,6 +33,7 @@ import {
   rejectOrCancelReservation,
   ReservationVersionConflictError,
   submitReservationFeedback,
+  updateReservationFeedback,
 } from '@/services/reservations';
 import type { Reservation } from '@/types/reservation';
 
@@ -40,6 +42,7 @@ import { useReservationActions } from './useReservationActions';
 const mockAcceptService = vi.mocked(acceptReservation);
 const mockRejectService = vi.mocked(rejectOrCancelReservation);
 const mockSubmitFeedbackService = vi.mocked(submitReservationFeedback);
+const mockUpdateFeedbackService = vi.mocked(updateReservationFeedback);
 
 const mockReservation: Reservation = {
   id: 'res-abc',
@@ -430,6 +433,43 @@ describe('useReservationActions', () => {
         name: 'reservation_feedback_submitted',
         feature: 'reservation',
         metadata: { meeting_happened: true },
+      });
+      expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc');
+    });
+  });
+
+  describe('updateFeedback (#731)', () => {
+    it('calls updateReservationFeedback, tracks reservation_feedback_updated without PII, and triggers onMutationSuccess', async () => {
+      mockUpdateFeedbackService.mockResolvedValueOnce();
+
+      const { result } = renderHook(() =>
+        useReservationActions({
+          myUserId: 'user-123',
+          variant: 'history',
+          myRole: 'mentee',
+          onMutationSuccess: mockOnMutationSuccess,
+        })
+      );
+
+      await act(async () => {
+        await result.current.updateFeedback(mockReservation, {
+          rating: 8,
+          content: '更新後的回饋內容',
+        });
+      });
+
+      expect(mockUpdateFeedbackService).toHaveBeenCalledWith({
+        reservation: mockReservation,
+        myUserId: 'user-123',
+        myRole: 'mentee',
+        payload: {
+          rating: 8,
+          content: '更新後的回饋內容',
+        },
+      });
+      expect(mockTrackEvent).toHaveBeenCalledWith({
+        name: 'reservation_feedback_updated',
+        feature: 'reservation',
       });
       expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc');
     });

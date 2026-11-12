@@ -60,3 +60,8 @@ export type SubmitReservationFeedbackRequest =
       meeting_happened: false;
       not_happened_reason: NotHappenedReason;
     };
+
+export interface UpdateReservationFeedbackRequest {
+  rating: number;
+  content: string;
+}

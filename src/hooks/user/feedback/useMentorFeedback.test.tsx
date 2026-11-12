@@ -1,11 +1,19 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/services/profile/feedback', () => ({
-  fetchMentorFeedback: vi.fn(),
-}));
+vi.mock('@/services/profile/feedback', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/services/profile/feedback')>();
+  return {
+    ...actual,
+    fetchMentorFeedback: vi.fn(),
+  };
+});
 
-import { fetchMentorFeedback } from '@/services/profile/feedback';
+import {
+  fetchMentorFeedback,
+  invalidateMentorFeedback,
+} from '@/services/profile/feedback';
 import type { MentorFeedbackPage } from '@/types/feedback';
 
 import { useMentorFeedback } from './useMentorFeedback';
@@ -108,5 +116,46 @@ describe('useMentorFeedback hook (#736)', () => {
 
     await waitFor(() => expect(result.current.error).toBeNull());
     expect(result.current.totalRatingCount).toBe(12);
+  });
+
+  it('reloads automatically when invalidateMentorFeedback is emitted for the active mentor (#731)', async () => {
+    mockFetchMentorFeedback.mockResolvedValueOnce(makePage());
+
+    const { result } = renderHook(() =>
+      useMentorFeedback({ mentorId: 101, enabled: true })
+    );
+
+    await waitFor(() => expect(result.current.hasLoaded).toBe(true));
+    expect(mockFetchMentorFeedback).toHaveBeenCalledTimes(1);
+
+    // Unrelated mentor id should not trigger refetch
+    await act(async () => {
+      invalidateMentorFeedback(999);
+    });
+    expect(mockFetchMentorFeedback).toHaveBeenCalledTimes(1);
+
+    mockFetchMentorFeedback.mockResolvedValueOnce(
+      makePage({
+        items: [
+          {
+            id: '1',
+            authorName: '陳**',
+            rating: 10,
+            content: '編輯後的評論內容',
+            createdAt: '2026-10-28T10:00:00Z',
+          },
+        ],
+        ratingAverage: 10,
+      })
+    );
+
+    await act(async () => {
+      invalidateMentorFeedback(101);
+    });
+
+    await waitFor(() =>
+      expect(mockFetchMentorFeedback).toHaveBeenCalledTimes(2)
+    );
+    expect(result.current.items[0]?.content).toBe('編輯後的評論內容');
   });
 });

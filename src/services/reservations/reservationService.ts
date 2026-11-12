@@ -15,6 +15,7 @@ import type {
   RawReservationFeedback,
   ReservationFeedback,
   SubmitReservationFeedbackRequest,
+  UpdateReservationFeedbackRequest,
 } from '@/types/reservationFeedback';
 
 export type ReservationState =
@@ -466,4 +467,27 @@ export async function postReservationFeedback(opts: {
 
   const path = `/v1/users/${encodeURIComponent(userId)}/reservations/${encodeURIComponent(reservationId)}/feedback`;
   return apiClient.postUnwrapped<unknown>(path, body);
+}
+
+/* ================================
+ * PUT: Update meeting feedback (#731)
+ * ================================ */
+
+export async function putReservationFeedback(opts: {
+  userId: string | number;
+  reservationId: string | number;
+  body: UpdateReservationFeedbackRequest;
+  debug?: boolean;
+}): Promise<unknown> {
+  const { userId, reservationId, body, debug } = opts;
+
+  if (debug) {
+    console.debug('[reservations] PUT Feedback request', {
+      userId,
+      reservationId,
+    });
+  }
+
+  const path = `/v1/users/${encodeURIComponent(userId)}/reservations/${encodeURIComponent(reservationId)}/feedback`;
+  return apiClient.putUnwrapped<unknown>(path, body);
 }

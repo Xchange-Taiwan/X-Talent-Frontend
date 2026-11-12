@@ -55,3 +55,57 @@ export const StepNotHappenedOpen: Story = {
     initialStep: 'not-happened',
   },
 };
+
+export const EditTriggerClosed: Story = {
+  args: {
+    mode: 'edit',
+    defaultOpen: false,
+    reservation: {
+      ...mockReservation,
+      name: '陳大文',
+      roleLine: '資深產品經理 · 5–10 年工作經驗',
+      date: '2026/08/06',
+      time: '19:00–20:00',
+      feedback: {
+        meetingHappened: true,
+        rating: {
+          rating: 8,
+          content: '準備得非常充分，直接給了我下一步該做什麼。',
+          createdAt: 1760000000,
+          updatedAt: 1760000000,
+          authorName: '王＊明',
+          isPublic: true,
+        },
+        nextStep: null,
+      },
+    },
+    onUpdateFeedback: async () => {},
+  },
+};
+
+export const EditModePrefilledOpen: Story = {
+  args: {
+    mode: 'edit',
+    defaultOpen: true,
+    reservation: {
+      ...mockReservation,
+      name: '陳大文',
+      roleLine: '資深產品經理 · 5–10 年工作經驗',
+      date: '2026/08/06',
+      time: '19:00–20:00',
+      feedback: {
+        meetingHappened: true,
+        rating: {
+          rating: 8,
+          content: '準備得非常充分，直接給了我下一步該做什麼。',
+          createdAt: 1760000000,
+          updatedAt: 1760000000,
+          authorName: '王＊明',
+          isPublic: true,
+        },
+        nextStep: null,
+      },
+    },
+    onUpdateFeedback: async () => {},
+  },
+};

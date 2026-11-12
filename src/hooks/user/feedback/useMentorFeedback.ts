@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { toFeedbackTimestampMs } from '@/lib/mentor/mentorStats';
-import { fetchMentorFeedback } from '@/services/profile/feedback';
+import {
+  fetchMentorFeedback,
+  subscribeMentorFeedbackInvalidation,
+} from '@/services/profile/feedback';
 import {
   DEFAULT_FEEDBACK_PAGE_SIZE,
   type MentorFeedbackItem,
@@ -83,6 +86,18 @@ export function useMentorFeedback({
   }, []);
 
   const canFetch = enabled && Number.isFinite(mentorId) && mentorId > 0;
+
+  useEffect(() => {
+    if (!canFetch) return;
+    return subscribeMentorFeedbackInvalidation((invalidatedMentorId) => {
+      if (
+        invalidatedMentorId === undefined ||
+        invalidatedMentorId === mentorId
+      ) {
+        setReloadTick((prev) => prev + 1);
+      }
+    });
+  }, [canFetch, mentorId]);
 
   useEffect(() => {
     if (!canFetch) {
