@@ -3,7 +3,7 @@
 // Coordinates GA4 / Clarity behavioral tracking across the application via
 // three focused internal hooks:
 //   1. `usePageViewTracking` — initial load + SPA route-change `page_view`
-//      with async `/profile/[id]` title observation so user names never leak
+//      with sync + async `/profile/[id]` title observation so user names never leak
 //   2. `useScrollDepthTracking` — rAF-throttled `scroll_depth` milestones
 //      (25/50/75/100) that emit every crossed threshold in ascending order
 //      and detach once 100% is reached
@@ -41,37 +41,41 @@ function computeScrollPercent(): number | null {
 function usePageViewTracking(pathname: string | null): void {
   const lastTrackedPathRef = useRef<string | null>(null);
   const lastProfileDocTitleRef = useRef<string | null>(null);
+  const lastNonProfileDocTitleRef = useRef<string | null>(null);
 
-  // Track async `<title>` streaming updates while the viewer is on `/profile/[id]`
-  // so subsequent SPA navigations away from a profile page can reliably detect
-  // and redact stale real-name titles before Next.js commits the next `<title>`.
+  // Track both synchronous and asynchronous `<title>` updates across profile and
+  // non-profile routes so SPA transitions away from `/profile/[id]` (including
+  // prefetched/cached routes and profile-to-profile hops) never leak real names.
   useEffect(() => {
-    if (
-      !pathname ||
-      !isUserProfilePath(pathname) ||
-      typeof document === 'undefined'
-    ) {
+    if (!pathname || typeof document === 'undefined') {
       return;
     }
 
-    const entryTitle = document.title;
+    const onProfileRoute = isUserProfilePath(pathname);
 
-    const syncProfileTitle = () => {
-      if (
-        typeof window !== 'undefined' &&
-        !isUserProfilePath(window.location.pathname)
-      ) {
-        return;
-      }
+    const syncDocTitle = () => {
+      const livePathname =
+        typeof window !== 'undefined' && window.location?.pathname
+          ? window.location.pathname
+          : pathname;
+      const liveIsProfile = isUserProfilePath(livePathname);
       const nextTitle = document.title;
-      if (nextTitle && nextTitle !== entryTitle) {
-        lastProfileDocTitleRef.current = nextTitle;
+      if (!nextTitle) return;
+
+      if (liveIsProfile) {
+        if (nextTitle !== lastNonProfileDocTitleRef.current) {
+          lastProfileDocTitleRef.current = nextTitle;
+        }
+      } else if (nextTitle !== lastProfileDocTitleRef.current) {
+        lastNonProfileDocTitleRef.current = nextTitle;
       }
     };
 
+    syncDocTitle();
+
     const observer =
       typeof MutationObserver !== 'undefined' && document.head
-        ? new MutationObserver(syncProfileTitle)
+        ? new MutationObserver(syncDocTitle)
         : null;
 
     observer?.observe(document.head, {
@@ -83,9 +87,9 @@ function usePageViewTracking(pathname: string | null): void {
     return () => {
       observer?.disconnect();
       if (
-        lastProfileDocTitleRef.current === null &&
+        onProfileRoute &&
         document.title &&
-        document.title !== entryTitle
+        document.title !== lastNonProfileDocTitleRef.current
       ) {
         lastProfileDocTitleRef.current = document.title;
       }
@@ -106,11 +110,16 @@ function usePageViewTracking(pathname: string | null): void {
       : false;
 
     if (isNowProfile) {
-      // On initial hard-load directly onto `/profile/[id]`, capture the SSR title immediately;
-      // on SPA entry from another route, wait for the async `<title>` observer above so we
-      // don't mistake the previous page's title for a profile name title.
-      lastProfileDocTitleRef.current =
-        previousPath === null ? currentDocTitle || null : null;
+      if (
+        previousPath === null ||
+        (currentDocTitle &&
+          currentDocTitle !== lastNonProfileDocTitleRef.current)
+      ) {
+        lastProfileDocTitleRef.current =
+          currentDocTitle || lastProfileDocTitleRef.current;
+      } else if (!wasPrevProfile) {
+        lastProfileDocTitleRef.current = null;
+      }
     }
 
     const hasStaleProfileTitle =
@@ -120,6 +129,9 @@ function usePageViewTracking(pathname: string | null): void {
       currentDocTitle === lastProfileDocTitleRef.current;
 
     if (!isNowProfile) {
+      if (!hasStaleProfileTitle && currentDocTitle) {
+        lastNonProfileDocTitleRef.current = currentDocTitle;
+      }
       lastProfileDocTitleRef.current = null;
     }
 

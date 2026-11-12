@@ -408,4 +408,37 @@ describe('PageViewTracker', () => {
       })
     );
   });
+
+  it('redacts real user names even when <title> updates synchronously during SPA commit onto /profile/[id] or across consecutive profile hops', () => {
+    window.history.replaceState({}, '', '/mentor-pool');
+    document.title = '尋找導師 | XChange Talent Pool';
+    vi.mocked(usePathname).mockReturnValue('/mentor-pool');
+
+    const { rerender } = render(<PageViewTracker />);
+
+    // Synchronous commit: <title> already updated to user name before useEffect runs
+    mockGtag.mockClear();
+    window.history.replaceState({}, '', '/profile/7482008160728084');
+    document.title = '陳小華 | XChange Talent Pool';
+    vi.mocked(usePathname).mockReturnValue('/profile/7482008160728084');
+    rerender(<PageViewTracker />);
+
+    // Hop to a second profile page and then leave to /about before /about updates <title>
+    window.history.replaceState({}, '', '/profile/7482008160728085');
+    vi.mocked(usePathname).mockReturnValue('/profile/7482008160728085');
+    rerender(<PageViewTracker />);
+
+    mockGtag.mockClear();
+    window.history.replaceState({}, '', '/about');
+    vi.mocked(usePathname).mockReturnValue('/about');
+    rerender(<PageViewTracker />);
+
+    expect(mockGtag).toHaveBeenCalledTimes(1);
+    const [, , params] = mockGtag.mock.calls[0]!;
+    expect(params).toMatchObject({
+      page_path: '/about',
+      page_title: 'X-Talent',
+    });
+    expect(JSON.stringify(params)).not.toContain('陳小華');
+  });
 });
