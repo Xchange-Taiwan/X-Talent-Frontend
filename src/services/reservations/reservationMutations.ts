@@ -269,15 +269,19 @@ export async function submitReservationFeedback({
   myRole,
   payload,
 }: SubmitFeedbackParams): Promise<void> {
+  let resolvedIsPublic = true;
   try {
     if (!myUserId) {
       throw new Error('[reservationMutations] missing current user id');
     }
-    await postReservationFeedback({
+    const responseData = (await postReservationFeedback({
       userId: myUserId,
       reservationId: reservation.id,
       body: payload,
-    });
+    })) as { feedback?: { is_public?: boolean } | null } | undefined;
+    if (responseData?.feedback?.is_public === false) {
+      resolvedIsPublic = false;
+    }
   } catch (err) {
     if (err instanceof ApiError && err.status === 409) {
       if (myUserId) {
@@ -324,7 +328,7 @@ export async function submitReservationFeedback({
                   createdAt: nowUnixSeconds,
                   updatedAt: nowUnixSeconds,
                   authorName: item.feedback?.rating?.authorName ?? null,
-                  isPublic: true,
+                  isPublic: resolvedIsPublic,
                 },
                 nextStep: null,
               },
