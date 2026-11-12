@@ -16,6 +16,7 @@ vi.mock('@/services/auth/googleAuthorize', () => ({
   getGoogleAuthorizeSignupUrl: vi.fn(),
 }));
 
+import { PENDING_AUTH_CALLBACK_URL_KEY } from '@/lib/auth/callbackUrl';
 import {
   getGoogleAuthorizeLoginUrl,
   getGoogleAuthorizeSignupUrl,
@@ -31,6 +32,7 @@ const mockGetGoogleAuthorizeSignupUrl = vi.mocked(getGoogleAuthorizeSignupUrl);
 describe('useGoogleAuth', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.sessionStorage.clear();
   });
 
   it('should redirect to login authorize URL on success when isSignIn is true', async () => {
@@ -141,10 +143,64 @@ describe('useGoogleAuth', () => {
       await result.current.handleGoogleAuth(true);
     });
 
-    expect(window.sessionStorage.getItem('pending_auth_callback_url')).toBe(
+    expect(window.sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)).toBe(
       '/reservation/mentee?tab=history&reservationId=101'
     );
 
     window.history.replaceState({}, '', originalUrl);
+  });
+
+  it('clears residual pending_auth_callback_url from sessionStorage when initiating Google sign-up via handleGoogleAuth(false) (#733)', async () => {
+    const originalUrl = window.location.href;
+    window.sessionStorage.setItem(
+      PENDING_AUTH_CALLBACK_URL_KEY,
+      '/reservation/mentee?tab=history&reservationId=101'
+    );
+    window.history.replaceState(
+      {},
+      '',
+      '/auth/signup?callbackUrl=%2Freservation%2Fmentee%3Ftab%3Dhistory%26reservationId%3D101'
+    );
+
+    mockGetGoogleAuthorizeSignupUrl.mockResolvedValueOnce({
+      authorization_url: 'https://google.com/auth/signup',
+      state: 'mock-state',
+    });
+
+    const { result } = renderHook(() => useGoogleAuth());
+
+    await act(async () => {
+      await result.current.handleGoogleAuth(false);
+    });
+
+    expect(
+      window.sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+    ).toBeNull();
+    expect(mockRouter.push).toHaveBeenCalledWith(
+      'https://google.com/auth/signup'
+    );
+
+    window.history.replaceState({}, '', originalUrl);
+  });
+
+  it('clears residual pending_auth_callback_url from sessionStorage when Google authorize request fails (#733)', async () => {
+    window.sessionStorage.setItem(
+      PENDING_AUTH_CALLBACK_URL_KEY,
+      '/reservation/mentee?tab=history&reservationId=101'
+    );
+    mockGetGoogleAuthorizeLoginUrl.mockRejectedValueOnce(
+      new Error('API error')
+    );
+
+    const { result } = renderHook(() => useGoogleAuth());
+
+    await act(async () => {
+      await result.current.handleGoogleAuth(true);
+    });
+
+    expect(
+      window.sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+    ).toBeNull();
+    expect(result.current.isPending).toBe(false);
   });
 });

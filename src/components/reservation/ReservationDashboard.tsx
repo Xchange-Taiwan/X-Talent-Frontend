@@ -175,6 +175,14 @@ export function ReservationDashboardView({
       ? 'history'
       : (tabParam && TAB_MAPPING[tabParam]) || pendingTabValue;
 
+  // Load history automatically whenever History is active (via ?tab=history,
+  // ?feedback=queue, or a reservationId deep link without ?tab=history).
+  useEffect(() => {
+    if (activeTab === 'history' && !isHistoryLoaded && !isLoadingHistory) {
+      onLoadHistory();
+    }
+  }, [activeTab, isHistoryLoaded, isLoadingHistory, onLoadHistory]);
+
   const lastCountsRef = useRef<{
     role: ReservationRole;
     upcoming: number;
@@ -229,13 +237,6 @@ export function ReservationDashboardView({
     lastCountsRef.current.hasHistoryLoadedOnce
       ? lastCountsRef.current.history
       : history.length;
-
-  // Load history automatically if activeTab starts as history and is not loaded
-  useEffect(() => {
-    if (activeTab === 'history' && !isHistoryLoaded && !isLoadingHistory) {
-      onLoadHistory();
-    }
-  }, [activeTab, isHistoryLoaded, isLoadingHistory, onLoadHistory]);
 
   const triggerClass =
     'group shrink-0 rounded-full border border-background-border px-3 py-1.5 text-sm ' +

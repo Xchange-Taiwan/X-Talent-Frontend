@@ -554,6 +554,76 @@ describe('ReservationDashboard', () => {
     expect(latestHistoryCall?.[0].highlightedReservationId).toBe('101');
   });
 
+  it.each(['reservationId', 'reservation_id', 'feedbackReservationId'])(
+    'triggers initial loadHistory on mount when deep link has %s without tab=history and resolves target once loaded (#733)',
+    (paramKey) => {
+      mockPathname.mockReturnValue('/reservation/mentee');
+      mockGet.mockImplementation((key: string) => {
+        if (key === paramKey) return '101';
+        return null;
+      });
+      mockToString.mockReturnValue(`${paramKey}=101`);
+
+      // 1. Initial mount before history is loaded: must switch to history tab AND call loadHistory()
+      vi.mocked(useReservationData).mockReturnValue(
+        fromPartial({
+          ...baseHookReturnValue,
+          data: {
+            upcoming: [],
+            pending: [],
+            history: [],
+            nextTokens: { upcoming: 0, pending: 0, history: 0 },
+          },
+          isHistoryLoaded: false,
+          isLoadingHistory: false,
+        })
+      );
+
+      const { rerender } = render(<ReservationDashboard userRole="mentee" />);
+      expect(screen.getByTestId('tabs')).toHaveAttribute(
+        'data-default-value',
+        'history'
+      );
+      expect(mockLoadHistory).toHaveBeenCalledTimes(1);
+
+      // 2. Once history finishes loading, deepLinkDialogReservation and highlightedReservationId resolve
+      vi.mocked(useReservationData).mockReturnValue(
+        fromPartial({
+          ...baseHookReturnValue,
+          data: {
+            upcoming: [],
+            pending: [],
+            history: [
+              {
+                id: '101',
+                dtstart: 5000,
+                dtend: 6000,
+                feedback: {
+                  meetingHappened: null,
+                  rating: null,
+                  nextStep: 'ANSWER',
+                },
+              },
+            ],
+            nextTokens: { upcoming: 0, pending: 0, history: 0 },
+          },
+          isHistoryLoaded: true,
+          isLoadingHistory: false,
+        })
+      );
+
+      rerender(<ReservationDashboard userRole="mentee" />);
+      const historyCalls = vi
+        .mocked(ReservationList)
+        .mock.calls.filter(([props]) => props.variant === 'history');
+      const latestHistoryCall = historyCalls[historyCalls.length - 1];
+      expect(latestHistoryCall?.[0].deepLinkDialogReservation).toEqual(
+        expect.objectContaining({ id: '101' })
+      );
+      expect(latestHistoryCall?.[0].highlightedReservationId).toBe('101');
+    }
+  );
+
   it('suppresses feedbackQueueItems to null and prioritizes deepLinkDialogReservation when ?tab=history&feedback=queue&reservationId=101 coexist (#733)', () => {
     mockPathname.mockReturnValue('/reservation/mentee');
     mockGet.mockImplementation((key: string) => {

@@ -34,6 +34,7 @@ export function useGoogleAuth() {
       }
       router.push(authorization_url);
     } catch {
+      clearPendingCallbackUrl();
       toast({
         variant: 'destructive',
         title: isSignIn ? '登入失敗' : '註冊失敗',

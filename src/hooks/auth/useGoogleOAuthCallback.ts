@@ -138,6 +138,7 @@ export function useGoogleOAuthCallback() {
     ) => {
       // Safe clearance of sessionStorage at the absolute top of execution to prevent zombie states
       clearPendingDeleteAccountEmail();
+      clearPendingCallbackUrl();
 
       const { id_token, auth, user } = data;
 
