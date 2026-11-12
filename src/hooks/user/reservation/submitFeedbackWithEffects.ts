@@ -1,5 +1,6 @@
 import { clearUserProfileDtoCache } from '@/hooks/user/user-data/userProfileDtoCache';
 import { trackEvent } from '@/lib/analytics';
+import { markSessionReservationSubmitted } from '@/lib/reservation/pendingFeedbackGuard';
 import { resolveTargetMentorId } from '@/lib/reservation/resolveCounterparty';
 import type { Reservation } from '@/types/reservation';
 import type {
@@ -20,9 +21,10 @@ export interface SubmitFeedbackWithEffectsParams extends SubmitFeedbackServicePa
 
 /**
  * Coordinates reservation feedback submission alongside mentor profile DTO cache
- * invalidation (`zh_TW` / `en_US`) and GA4 analytics tracking so both
- * `useReservationActions` and `usePendingFeedbackQueue` share identical behavior
- * without statically pulling `@/services/reservations` into global root bundles.
+ * invalidation (`zh_TW` / `en_US`), per-login pending-feedback session state, and
+ * GA4 analytics tracking so both `useReservationActions` and `usePendingFeedbackQueue`
+ * share identical behavior without statically pulling `@/services/reservations` into
+ * global root bundles.
  */
 export async function submitFeedbackWithEffects({
   reservation,
@@ -41,6 +43,10 @@ export async function submitFeedbackWithEffects({
     myRole,
     payload,
   });
+
+  if (myUserId) {
+    markSessionReservationSubmitted(String(myUserId), reservation.id);
+  }
 
   if ((payload.meeting_happened || myRole === 'mentor') && myUserId) {
     const targetMentorId = resolveTargetMentorId(reservation, myUserId, myRole);

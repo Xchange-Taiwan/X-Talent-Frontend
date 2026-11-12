@@ -38,6 +38,7 @@ import {
 import { mockSession, mockUseSession } from '@/test/mocks/nextAuth';
 import type { Reservation } from '@/types/reservation';
 
+import { submitFeedbackWithEffects } from './submitFeedbackWithEffects';
 import { usePendingFeedbackQueue } from './usePendingFeedbackQueue';
 
 const mockFetchPending = vi.mocked(fetchPendingFeedbackReservations);
@@ -607,5 +608,62 @@ describe('usePendingFeedbackQueue (#740)', () => {
       expect(result.current.queueItems).toEqual([user2Item]);
     });
     expect(mockFetchPending).toHaveBeenCalledTimes(2);
+  });
+
+  it('prunes reservations submitted via submitFeedbackWithEffects on a suppressed route so returning to an eligible route never re-prompts', async () => {
+    const item1 = makeItem('701', 1760000000, 'MENTEE');
+    const item2 = makeItem('702', 1761000000, 'MENTEE');
+    mockFetchPending.mockResolvedValueOnce([item1, item2]);
+    mockSubmitFeedback.mockResolvedValue(undefined);
+
+    const { result, rerender } = renderHook(() => usePendingFeedbackQueue());
+
+    await waitFor(() => {
+      expect(result.current.queueItems).toEqual([item1, item2]);
+    });
+
+    // Navigate to suppressed reservation history page -> modal yields
+    mockUsePathname.mockReturnValue('/reservation/mentee');
+    rerender();
+    expect(result.current.queueItems).toBeNull();
+
+    // User submits item1 from the reservation history card while suppressed
+    await act(async () => {
+      await submitFeedbackWithEffects({
+        reservation: item1,
+        myUserId: '1',
+        myRole: 'mentee',
+        payload: {
+          meeting_happened: true,
+          feedback: { rating: 10, content: 'Great session!' },
+        },
+      });
+    });
+
+    // Returning to /mentor-pool surfaces only item2 on the very first render
+    mockUsePathname.mockReturnValue('/mentor-pool');
+    rerender();
+    expect(result.current.queueItems).toEqual([item2]);
+
+    // Yield again and submit final remaining item2 from reservation history
+    mockUsePathname.mockReturnValue('/reservation/mentee');
+    rerender();
+    await act(async () => {
+      await submitFeedbackWithEffects({
+        reservation: item2,
+        myUserId: '1',
+        myRole: 'mentee',
+        payload: {
+          meeting_happened: true,
+          feedback: { rating: 9, content: 'Thank you!' },
+        },
+      });
+    });
+
+    // Returning to /mentor-pool keeps queueItems null and marks queueEmpty in sessionStorage
+    mockUsePathname.mockReturnValue('/mentor-pool');
+    rerender();
+    expect(result.current.queueItems).toBeNull();
+    expect(getSessionPendingFeedbackState('1').queueEmpty).toBe(true);
   });
 });

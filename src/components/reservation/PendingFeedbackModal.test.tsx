@@ -28,10 +28,8 @@ import {
 } from '@/hooks/user/reservation/useFeedbackQueueMotion';
 import type { Reservation } from '@/types/reservation';
 
-import {
-  PendingFeedbackModal,
-  PendingFeedbackQueueLauncher,
-} from './PendingFeedbackModal';
+import { PendingFeedbackModal } from './PendingFeedbackModal';
+import { PendingFeedbackQueueLauncher } from './PendingFeedbackQueueLauncher';
 
 afterEach(() => {
   vi.useRealTimers();

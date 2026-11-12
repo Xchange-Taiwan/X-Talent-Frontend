@@ -185,21 +185,37 @@ export function markSessionPendingFeedbackChecked(
   });
 }
 
+const sessionSubmittedListeners = new Set<
+  (userId: string, reservationId: string) => void
+>();
+
+export function subscribeSessionReservationSubmitted(
+  listener: (userId: string, reservationId: string) => void
+): () => void {
+  sessionSubmittedListeners.add(listener);
+  return () => {
+    sessionSubmittedListeners.delete(listener);
+  };
+}
+
 export function markSessionReservationSubmitted(
   userId: string,
   reservationId: string,
   isQueueNowEmpty = false
 ): void {
-  if (!reservationId) return;
+  if (!userId || !reservationId) return;
   const prev = getSessionPendingFeedbackState(userId);
   const nextSubmitted = prev.submittedIds.includes(reservationId)
     ? prev.submittedIds
     : [...prev.submittedIds, reservationId];
   writeSessionPendingFeedbackState(userId, {
     ...prev,
-    checked: true,
+    checked: prev.checked || isQueueNowEmpty,
     queueEmpty: prev.queueEmpty || isQueueNowEmpty,
     submittedIds: nextSubmitted,
+  });
+  sessionSubmittedListeners.forEach((listener) => {
+    listener(userId, reservationId);
   });
 }
 

@@ -9,8 +9,6 @@ import type {
   SubmitReservationFeedbackRequest,
 } from '@/types/reservationFeedback';
 
-export { PendingFeedbackQueueLauncher } from './PendingFeedbackQueueLauncher';
-
 export interface PendingFeedbackModalProps {
   queueItems: Reservation[] | null;
   viewerRole?: FeedbackViewerRole;

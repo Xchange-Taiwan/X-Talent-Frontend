@@ -11,8 +11,8 @@ import {
   markSessionPendingFeedbackChecked,
   markSessionPendingFeedbackDismissed,
   markSessionReservationSkipped,
-  markSessionReservationSubmitted,
   shouldSuppressPendingFeedbackPopup,
+  subscribeSessionReservationSubmitted,
 } from '@/lib/reservation/pendingFeedbackGuard';
 import {
   normalizeReservationViewerRole,
@@ -53,6 +53,57 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
     pathname,
     searchParams,
   });
+  const isSuppressedRef = useRef(isSuppressed);
+  isSuppressedRef.current = isSuppressed;
+
+  const pruneCompletedAndSkippedItems = useCallback((userId: string) => {
+    setQueueItems((prev) => {
+      if (!prev || prev.length === 0) {
+        return prev;
+      }
+      const persisted = getSessionPendingFeedbackState(userId);
+      const excludedIds = new Set([
+        ...persisted.skippedIds,
+        ...persisted.submittedIds,
+        ...Array.from(submittedIdsRef.current),
+      ]);
+      const remaining = prev.filter((item) => !excludedIds.has(item.id));
+      activeQueueIdsRef.current = remaining.map((item) => item.id);
+      if (remaining.length === 0) {
+        markSessionPendingFeedbackChecked(userId, false);
+        return null;
+      }
+      return remaining;
+    });
+  }, []);
+
+  // Keep queue state synchronized when feedback is submitted from any UI surface
+  // (either inside the login queue modal or on /reservation/* while suppressed).
+  useEffect(() => {
+    if (!rawUserId) {
+      return;
+    }
+
+    return subscribeSessionReservationSubmitted(
+      (submittedUserId, reservationId) => {
+        if (submittedUserId !== rawUserId) {
+          return;
+        }
+        submittedIdsRef.current.add(reservationId);
+        const wasInActiveQueue =
+          activeQueueIdsRef.current.includes(reservationId);
+        activeQueueIdsRef.current = activeQueueIdsRef.current.filter(
+          (id) => id !== reservationId
+        );
+        if (wasInActiveQueue && activeQueueIdsRef.current.length === 0) {
+          markSessionPendingFeedbackChecked(rawUserId, false);
+        }
+        if (isSuppressedRef.current) {
+          pruneCompletedAndSkippedItems(rawUserId);
+        }
+      }
+    );
+  }, [rawUserId, pruneCompletedAndSkippedItems]);
 
   // When temporarily yielding to a suppressed route mid-queue, prune any items
   // already submitted or skipped while the modal was open so returning to an
@@ -62,21 +113,8 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
       return;
     }
 
-    setQueueItems((prev) => {
-      if (!prev || prev.length === 0) {
-        return prev;
-      }
-      const persisted = getSessionPendingFeedbackState(rawUserId);
-      const excludedIds = new Set([
-        ...persisted.skippedIds,
-        ...persisted.submittedIds,
-        ...Array.from(submittedIdsRef.current),
-      ]);
-      const remaining = prev.filter((item) => !excludedIds.has(item.id));
-      activeQueueIdsRef.current = remaining.map((item) => item.id);
-      return remaining.length > 0 ? remaining : null;
-    });
-  }, [isSuppressed, rawUserId]);
+    pruneCompletedAndSkippedItems(rawUserId);
+  }, [isSuppressed, rawUserId, pruneCompletedAndSkippedItems]);
 
   // Clear per-login skip state whenever user logs out, switches account, or enters /auth/* sign-in flow.
   useEffect(() => {
@@ -218,16 +256,6 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
         myRole: roleForReservation,
         payload,
       });
-
-      submittedIdsRef.current.add(targetReservation.id);
-      activeQueueIdsRef.current = activeQueueIdsRef.current.filter(
-        (id) => id !== targetReservation.id
-      );
-      markSessionReservationSubmitted(
-        rawUserId,
-        targetReservation.id,
-        activeQueueIdsRef.current.length === 0
-      );
     },
     [rawUserId, isMentorSession]
   );
