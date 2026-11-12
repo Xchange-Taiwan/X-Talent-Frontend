@@ -192,7 +192,9 @@ describe('prefetch-ticket-visuals', () => {
       expect(motion.transitionsAndTransforms.join('\n')).not.toContain(
         'animation: none'
       );
-      expect(motion.transitionsAndTransforms.join('\n')).not.toContain('from {');
+      expect(motion.transitionsAndTransforms.join('\n')).not.toContain(
+        'from {'
+      );
       expect(motion.webAnimations).toHaveLength(1);
       expect(motion.webAnimations[0]).toContain('rotate(-8deg)');
     });
