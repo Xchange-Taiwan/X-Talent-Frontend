@@ -2,6 +2,7 @@
 
 import { getSession, SessionProvider } from 'next-auth/react';
 
+import AnalyticsUserSync from '@/components/AnalyticsUserSync';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import GlobalErrorMonitor from '@/components/GlobalErrorMonitor';
 import PageViewTracker from '@/components/PageViewTracker';
@@ -13,6 +14,7 @@ setSessionGetter(getSession);
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
+      <AnalyticsUserSync />
       <GlobalErrorMonitor />
       <PageViewTracker />
       <WebVitalsReporter />

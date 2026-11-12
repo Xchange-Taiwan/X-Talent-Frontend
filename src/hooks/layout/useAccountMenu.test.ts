@@ -17,6 +17,15 @@ vi.mock('@/services/auth/backendLogout', () => ({
   postBackendLogout: () => mockPostBackendLogout(),
 }));
 
+vi.mock('@/lib/analytics', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/analytics')>();
+  return {
+    ...actual,
+    clearAnalyticsUser: vi.fn(),
+  };
+});
+
+import { clearAnalyticsUser } from '@/lib/analytics';
 import {
   DOM_AUTH_AVATAR_ATTR,
   DOM_AUTH_STATE_ATTR,
@@ -371,6 +380,7 @@ describe('useAccountMenu', () => {
       });
 
       expect(closeMenu).toHaveBeenCalledOnce();
+      expect(clearAnalyticsUser).toHaveBeenCalledOnce();
       expect(mockPostBackendLogout).toHaveBeenCalledOnce();
       expect(mockSignOut).toHaveBeenCalledOnce();
 
@@ -402,8 +412,14 @@ describe('useAccountMenu', () => {
         await result.current.handleLogout();
       });
 
+      expect(clearAnalyticsUser).toHaveBeenCalledOnce();
       expect(mockPostBackendLogout).toHaveBeenCalledOnce();
       expect(mockSignOut).toHaveBeenCalledOnce();
+
+      const clearOrder =
+        vi.mocked(clearAnalyticsUser).mock.invocationCallOrder[0]!;
+      const signOutOrder = mockSignOut.mock.invocationCallOrder[0]!;
+      expect(clearOrder).toBeLessThan(signOutOrder);
     });
   });
 

@@ -1,7 +1,8 @@
 import { expect, type Page, test } from '@playwright/test';
 
 import { captureEvidence } from '../../helpers/evidence';
-import { blockUnmockedExternalApi } from '../../helpers/route';
+import { blockUnmockedExternalApi, mockApiRoute } from '../../helpers/route';
+import { setSignedSessionCookie } from '../../helpers/session';
 
 interface NormalizedGaEvent {
   name: string;
@@ -186,7 +187,7 @@ test.describe('GA4 事件追蹤：page_view、scroll_depth [25,50,75,100]、核�
       'onboarding'
     );
 
-    // 1. 初次進站：window.dataLayer 收到單筆首頁 page_view
+    // 1. 初次進站：window.dataLayer 收到單筆首頁 page_view，且訪客附帶 user_role: 'guest'、不含 user_id
     await expect
       .poll(async () => {
         const events = await getDataLayerEvents(page);
@@ -195,6 +196,12 @@ test.describe('GA4 事件追蹤：page_view、scroll_depth [25,50,75,100]、核�
         ).length;
       })
       .toBe(1);
+
+    const initialHomePageView = (await getDataLayerEvents(page)).find(
+      (e) => e.name === 'page_view' && e.params.page_path === '/'
+    );
+    expect(initialHomePageView?.params.user_role).toBe('guest');
+    expect(initialHomePageView?.params.user_id).toBeUndefined();
 
     // 2. 滾動深度：先滾動至約 35% 可捲動高度，觸發 scroll_depth (percent_scrolled: 25)
     await page.evaluate(() => {
@@ -420,5 +427,96 @@ test.describe('GA4 事件追蹤：page_view、scroll_depth [25,50,75,100]、核�
     expect(serialized).not.toContain('private.user@example.com');
     expect(serialized).not.toContain('secretSignature');
     expect(serialized).not.toContain('nestedSecret');
+  });
+
+  test('已登入會員初次進站 page_view 等待 Session 解析附帶內部 user_id 與 user_role，且登出後恢復 guest (#866)', async ({
+    page,
+  }) => {
+    await mockApiRoute(page, /\/v1\/users\/.*\/notifications\/unread-count/, {
+      body: { code: '0', msg: 'ok', data: { unread_count: 0 } },
+    });
+    await page.route(/\/api\/auth\/backend-logout/, async (route) => {
+      if (route.request().method() === 'POST') {
+        return route.fulfill({ status: 204, body: '' });
+      }
+      return route.continue();
+    });
+
+    await setSignedSessionCookie(page, {
+      id: '999998',
+      name: 'Alice Chen',
+      onBoarding: true,
+      isMentor: true,
+      jobTitle: 'Staff Engineer',
+      company: 'XChange',
+      token: 'mock-secret-access-token',
+    });
+
+    await page.goto('/mentor-pool');
+    await expect(
+      page.locator('a[data-analytics-click="mentor_card"]').first()
+    ).toBeVisible({ timeout: 15_000 });
+
+    await expect
+      .poll(async () => {
+        const events = await getDataLayerEvents(page);
+        return events.find(
+          (e) => e.name === 'page_view' && e.params.page_path === '/mentor-pool'
+        );
+      })
+      .toMatchObject({
+        name: 'page_view',
+        params: {
+          page_path: '/mentor-pool',
+          user_id: '999998',
+          user_role: 'mentor',
+        },
+      });
+
+    const menuTrigger = page.getByRole('button', { name: '開啟用戶選單' });
+    await expect(menuTrigger).toBeVisible({ timeout: 15_000 });
+    await menuTrigger.click();
+
+    const logoutMenuItem = page.getByRole('menuitem', { name: '登出' });
+    await expect(logoutMenuItem).toBeVisible();
+    await captureEvidence(page, 'ga4-user-id-bound-account-menu');
+
+    const serializedLoggedIn = JSON.stringify(await getDataLayerEvents(page));
+    expect(serializedLoggedIn).not.toContain('Alice Chen');
+    expect(serializedLoggedIn).not.toContain('mock-secret-access-token');
+
+    await logoutMenuItem.click();
+    await expect(menuTrigger).toBeHidden({ timeout: 15_000 });
+
+    const signInHeaderLink = page
+      .getByTestId('desktop-header-right')
+      .getByRole('link', { name: '登入' });
+    await expect(signInHeaderLink).toBeVisible({ timeout: 15_000 });
+
+    const aboutNavLink = page
+      .getByRole('link', { name: '關於 X-Talent' })
+      .first();
+    await aboutNavLink.click();
+    await expect(page).toHaveURL('/about');
+
+    await expect
+      .poll(async () => {
+        const events = await getDataLayerEvents(page);
+        return events.find(
+          (e) => e.name === 'page_view' && e.params.page_path === '/about'
+        );
+      })
+      .toMatchObject({
+        name: 'page_view',
+        params: {
+          page_path: '/about',
+          user_role: 'guest',
+        },
+      });
+
+    const aboutPageView = (await getDataLayerEvents(page)).find(
+      (e) => e.name === 'page_view' && e.params.page_path === '/about'
+    );
+    expect(aboutPageView?.params.user_id).toBeUndefined();
   });
 });

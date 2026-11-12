@@ -33,11 +33,16 @@ vi.mock('@/lib/monitoring', () => ({
   sanitize: (val: string) => val,
 }));
 
-vi.mock('@/lib/analytics', () => ({
-  trackEvent: vi.fn(),
-}));
+vi.mock('@/lib/analytics', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/analytics')>();
+  return {
+    ...actual,
+    clearAnalyticsUser: vi.fn(),
+    trackEvent: vi.fn(),
+  };
+});
 
-import { trackEvent } from '@/lib/analytics';
+import { clearAnalyticsUser, trackEvent } from '@/lib/analytics';
 import { dispatchDeleteAccountRevalidate } from '@/lib/auth/dispatchDeleteAccountRevalidate';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { deleteAccount } from '@/services/auth/deleteAccount';
@@ -55,6 +60,7 @@ import useDeleteAccountForm from './useDeleteAccountForm';
 const mockDeleteAccount = vi.mocked(deleteAccount);
 const mockGetGoogleAuthorizeLoginUrl = vi.mocked(getGoogleAuthorizeLoginUrl);
 const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
+const mockClearAnalyticsUser = vi.mocked(clearAnalyticsUser);
 const mockTrackEvent = vi.mocked(trackEvent);
 const mockDispatchDeleteAccountRevalidate = vi.mocked(
   dispatchDeleteAccountRevalidate
@@ -148,18 +154,21 @@ describe('useDeleteAccountForm', () => {
       name: 'delete_account_succeeded',
       feature: 'auth',
     });
+    expect(mockClearAnalyticsUser).toHaveBeenCalledTimes(1);
     // id/name are no longer passed from the client — the server action
     // derives them from the caller's own session (see actions.ts).
     expect(mockDispatchDeleteAccountRevalidate).toHaveBeenCalledWith();
     expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: '/' });
 
-    // Must resolve before signOut, but dispatchDeleteAccountRevalidate
-    // never throws and the underlying action returns immediately (the
-    // poll-until-synced wait runs server-side, after the response — see
-    // actions.ts), so this never delays sign-out.
+    // Must resolve before signOut, and clearAnalyticsUser must run after
+    // delete_account_succeeded and before signOut so GA4 clears User-ID cleanly.
+    const trackOrder = mockTrackEvent.mock.invocationCallOrder[0];
+    const clearOrder = mockClearAnalyticsUser.mock.invocationCallOrder[0];
     const dispatchOrder =
       mockDispatchDeleteAccountRevalidate.mock.invocationCallOrder[0];
     const signOutOrder = mockSignOut.mock.invocationCallOrder[0];
+    expect(trackOrder).toBeLessThan(clearOrder);
+    expect(clearOrder).toBeLessThan(signOutOrder);
     expect(dispatchOrder).toBeLessThan(signOutOrder);
   });
 
@@ -180,6 +189,7 @@ describe('useDeleteAccountForm', () => {
     });
 
     expect(result.current.blockedByReservations).toBe(true);
+    expect(mockClearAnalyticsUser).not.toHaveBeenCalled();
     expect(mockSignOut).not.toHaveBeenCalled();
   });
 
@@ -204,6 +214,7 @@ describe('useDeleteAccountForm', () => {
       message: 'invalid password',
       level: 'info',
     });
+    expect(mockClearAnalyticsUser).not.toHaveBeenCalled();
     expect(mockToast).toHaveBeenCalledWith({
       variant: 'destructive',
       description: 'invalid password',

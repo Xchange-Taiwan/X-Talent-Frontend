@@ -1,7 +1,11 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { trackEvent } from '@/lib/analytics';
+import {
+  clearAnalyticsUser,
+  setAnalyticsUserContext,
+  trackEvent,
+} from '@/lib/analytics';
 import { dispatchDeleteAccountRevalidate } from '@/lib/auth/dispatchDeleteAccountRevalidate';
 import {
   clearPendingDeleteAccountEmail,
@@ -51,9 +55,15 @@ vi.mock('next-auth/react', () => ({
 }));
 
 // Mock actions and services
-vi.mock('@/lib/analytics', () => ({
-  trackEvent: vi.fn(),
-}));
+vi.mock('@/lib/analytics', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/analytics')>();
+  return {
+    ...actual,
+    clearAnalyticsUser: vi.fn(),
+    setAnalyticsUserContext: vi.fn(),
+    trackEvent: vi.fn(),
+  };
+});
 
 vi.mock('@/lib/auth/dispatchDeleteAccountRevalidate', () => ({
   dispatchDeleteAccountRevalidate: vi.fn(),
@@ -78,6 +88,8 @@ const mockDeleteAccount = vi.mocked(deleteAccount);
 const mockDispatchDeleteAccountRevalidate = vi.mocked(
   dispatchDeleteAccountRevalidate
 );
+const mockClearAnalyticsUser = vi.mocked(clearAnalyticsUser);
+const mockSetAnalyticsUserContext = vi.mocked(setAnalyticsUserContext);
 const mockTrackEvent = vi.mocked(trackEvent);
 
 describe('GoogleOAuthRedirectPage Component', () => {
@@ -193,7 +205,7 @@ describe('GoogleOAuthRedirectPage Component', () => {
   });
 
   describe('Signup Outcome', () => {
-    it('stores email in sessionStorage and redirects to email-verify', async () => {
+    it('tracks sign_up (method: Google, user_role: guest), stores email in sessionStorage, and redirects to email-verify', async () => {
       const mockData = {
         auth_type: 'SIGNUP' as const,
         auth: { token: 'tok_1', email: 'signup@example.com' },
@@ -208,6 +220,14 @@ describe('GoogleOAuthRedirectPage Component', () => {
       render(<GoogleOAuthRedirectPage />);
 
       await waitFor(() => {
+        expect(mockTrackEvent).toHaveBeenCalledWith({
+          name: 'sign_up',
+          feature: 'auth',
+          metadata: {
+            method: 'Google',
+            user_role: 'guest',
+          },
+        });
         expect(sessionStorage.getItem('email')).toBe('signup@example.com');
         expect(pushMock).toHaveBeenCalledWith('/auth/email-verify');
       });
@@ -215,7 +235,7 @@ describe('GoogleOAuthRedirectPage Component', () => {
   });
 
   describe('Login Outcome', () => {
-    it('redirects to onboarding if session onBoarding is false', async () => {
+    it('syncs user_id, tracks login (method: Google), and redirects to onboarding if session onBoarding is false', async () => {
       const mockData = {
         auth_type: 'LOGIN' as const,
         auth: { token: 'tok_2', email: 'user@example.com' },
@@ -239,6 +259,18 @@ describe('GoogleOAuthRedirectPage Component', () => {
           'user@example.com',
           { user_id: 456 } as unknown as Record<string, unknown>
         );
+        expect(mockSetAnalyticsUserContext).toHaveBeenCalledWith({
+          userId: '456',
+          userRole: 'mentee',
+        });
+        expect(mockTrackEvent).toHaveBeenCalledWith({
+          name: 'login',
+          feature: 'auth',
+          metadata: {
+            method: 'Google',
+            user_role: 'mentee',
+          },
+        });
         expect(pushMock).toHaveBeenCalledWith('/auth/onboarding');
       });
     });
@@ -367,6 +399,7 @@ describe('GoogleOAuthRedirectPage Component', () => {
           name: 'delete_account_succeeded',
           feature: 'auth',
         });
+        expect(mockClearAnalyticsUser).toHaveBeenCalledTimes(1);
         // id/name are no longer passed from the client — the server action
         // derives them from the caller's own session (see actions.ts).
         expect(mockDispatchDeleteAccountRevalidate).toHaveBeenCalledWith();

@@ -5,6 +5,7 @@ import type { Session } from 'next-auth';
 import { signOut } from 'next-auth/react';
 import * as React from 'react';
 
+import { clearAnalyticsUser } from '@/lib/analytics';
 import { clearSessionHint, ResolvedIdentity } from '@/lib/auth/sessionHint';
 import { getMentorOnboardingUrl } from '@/lib/routes';
 import { postBackendLogout } from '@/services/auth/backendLogout';
@@ -105,6 +106,7 @@ export function useAccountMenu({
   const handleLogout = React.useCallback(async (): Promise<void> => {
     closeMenu();
     clearSessionHint();
+    clearAnalyticsUser();
     try {
       await postBackendLogout();
     } catch {

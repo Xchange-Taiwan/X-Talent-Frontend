@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
 
 const EXCLUDE_PATHSPECS = [
   ':(exclude)pnpm-lock.yaml',
@@ -105,16 +106,119 @@ export function getDiff(baseRef, headRef) {
   return formatCappedDiff(raw);
 }
 
+export function isExcludedUntrackedPath(relPath = '') {
+  const normalized = String(relPath).replace(/\\/g, '/').replace(/^\/+/, '');
+  if (
+    !normalized ||
+    normalized.includes('\n') ||
+    normalized.startsWith('diff --git ') ||
+    normalized.startsWith('+') ||
+    normalized.startsWith('-')
+  ) {
+    return true;
+  }
+  const baseName = normalized.split('/').pop() ?? '';
+  return (
+    baseName === '.env' ||
+    baseName.startsWith('.env.') ||
+    normalized === '.agents/tmp' ||
+    normalized.startsWith('.agents/tmp/') ||
+    normalized.startsWith('public/') ||
+    normalized.startsWith('test-results/') ||
+    normalized.startsWith('playwright-report/') ||
+    normalized === 'pnpm-lock.yaml' ||
+    normalized === 'package-lock.json' ||
+    normalized === 'yarn.lock' ||
+    normalized.endsWith('.snap')
+  );
+}
+
+export function formatUntrackedUnifiedDiff(relPath, content) {
+  const normalizedPath = String(relPath)
+    .replace(/\\/g, '/')
+    .replace(/^\/+/, '');
+  if (content.length === 0) {
+    return `diff --git a/${normalizedPath} b/${normalizedPath}\nnew file mode 100644\n--- /dev/null\n+++ b/${normalizedPath}\n`;
+  }
+  const normalizedNewlines = content.replace(/\r\n/g, '\n');
+  const hasTrailingNewline = normalizedNewlines.endsWith('\n');
+  const body = hasTrailingNewline
+    ? normalizedNewlines.slice(0, -1)
+    : normalizedNewlines;
+  const lines = body.split('\n');
+  const addedLines = lines.map((line) => `+${line}`).join('\n');
+  const eofMarker = hasTrailingNewline ? '' : '\n\\ No newline at end of file';
+  return [
+    `diff --git a/${normalizedPath} b/${normalizedPath}`,
+    'new file mode 100644',
+    '--- /dev/null',
+    `+++ b/${normalizedPath}`,
+    `@@ -0,0 +1,${lines.length} @@`,
+    `${addedLines}${eofMarker}`,
+    '',
+  ].join('\n');
+}
+
 /**
- * Returns the working-tree unified diff against `baseRef` using the exact same
- * pathspec exclusions, priority ordering, and `MAX_DIFF_CHARS` budget as PR CI.
+ * Returns the working-tree unified diff against `baseRef` (including untracked
+ * non-ignored text files) using the exact same pathspec exclusions, priority
+ * ordering, and `MAX_DIFF_CHARS` budget as PR CI.
  */
-export function getWorkingTreeDiff(baseRef = 'origin/develop') {
+export function getWorkingTreeDiff(baseRef = 'origin/develop', deps = {}) {
   const args = ['diff', baseRef, '--', '.', ...EXCLUDE_PATHSPECS];
   const raw = execFileSync('git', args, {
     maxBuffer: 1024 * 1024 * 50,
     encoding: 'utf-8',
   });
 
-  return formatCappedDiff(raw);
+  let untrackedDiff = '';
+  try {
+    const untrackedStdout = execFileSync(
+      'git',
+      [
+        'ls-files',
+        '--others',
+        '--exclude-standard',
+        '--',
+        '.',
+        ...EXCLUDE_PATHSPECS,
+      ],
+      {
+        maxBuffer: 1024 * 1024 * 10,
+        encoding: 'utf-8',
+      }
+    );
+    const untrackedPaths = String(untrackedStdout ?? '')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((relPath) => relPath && !isExcludedUntrackedPath(relPath));
+
+    const existsSync = deps.existsSync || fs.existsSync;
+    const statSync = deps.statSync || fs.statSync;
+    const readFileSync = deps.readFileSync || fs.readFileSync;
+
+    const chunks = [];
+    for (const relPath of untrackedPaths) {
+      try {
+        if (!existsSync(relPath) || !statSync(relPath).isFile()) {
+          continue;
+        }
+        const buf = readFileSync(relPath);
+        if (buf.includes(0)) {
+          continue;
+        }
+        chunks.push(
+          formatUntrackedUnifiedDiff(relPath, buf.toString('utf-8'))
+        );
+      } catch {
+        // Ignore transient or unreadable files in working tree
+      }
+    }
+    untrackedDiff = chunks.join('');
+  } catch {
+    untrackedDiff = '';
+  }
+
+  const separator = raw && !raw.endsWith('\n') && untrackedDiff ? '\n' : '';
+  return formatCappedDiff(`${raw}${separator}${untrackedDiff}`);
 }

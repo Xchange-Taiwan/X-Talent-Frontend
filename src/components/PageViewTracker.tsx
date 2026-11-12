@@ -11,7 +11,8 @@
 //      delegation across the document
 
 import { usePathname } from 'next/navigation';
-import { useEffect, useRef } from 'react';
+import { useSession } from 'next-auth/react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   getAnalyticsClickPayloadFromElement,
@@ -21,6 +22,8 @@ import {
   trackPageView,
   trackScrollDepth,
 } from '@/lib/analytics';
+
+export const INITIAL_SESSION_RESOLVE_TIMEOUT_MS = 1500;
 
 const MAX_SCROLL_THRESHOLD =
   SCROLL_DEPTH_THRESHOLDS[SCROLL_DEPTH_THRESHOLDS.length - 1];
@@ -38,7 +41,10 @@ function computeScrollPercent(): number | null {
   return Math.min(100, Math.round((scrollTop / scrollableHeight) * 100));
 }
 
-function usePageViewTracking(pathname: string | null): void {
+function usePageViewTracking(
+  pathname: string | null,
+  isSessionReady: boolean
+): void {
   const lastTrackedPathRef = useRef<string | null>(null);
   const lastProfileDocTitleRef = useRef<string | null>(null);
   const lastNonProfileDocTitleRef = useRef<string | null>(null);
@@ -97,7 +103,13 @@ function usePageViewTracking(pathname: string | null): void {
   }, [pathname]);
 
   useEffect(() => {
-    if (!pathname || lastTrackedPathRef.current === pathname) return;
+    if (
+      !pathname ||
+      !isSessionReady ||
+      lastTrackedPathRef.current === pathname
+    ) {
+      return;
+    }
 
     const previousPath = lastTrackedPathRef.current;
     lastTrackedPathRef.current = pathname;
@@ -141,7 +153,7 @@ function usePageViewTracking(pathname: string | null): void {
       `${pathname}${rawSearch}`,
       hasStaleProfileTitle ? { title: '' } : undefined
     );
-  }, [pathname]);
+  }, [isSessionReady, pathname]);
 }
 
 function useScrollDepthTracking(pathname: string | null): void {
@@ -228,8 +240,30 @@ function useAnalyticsClickDelegation(): void {
 
 export default function PageViewTracker(): null {
   const pathname = usePathname();
+  const { status: sessionStatus } = useSession();
+  const [sessionTimedOut, setSessionTimedOut] = useState(false);
 
-  usePageViewTracking(pathname);
+  useEffect(() => {
+    if (
+      sessionStatus !== 'loading' ||
+      sessionTimedOut ||
+      typeof window === 'undefined'
+    ) {
+      return;
+    }
+
+    const timerId = window.setTimeout(() => {
+      setSessionTimedOut(true);
+    }, INITIAL_SESSION_RESOLVE_TIMEOUT_MS);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [sessionStatus, sessionTimedOut]);
+
+  const isSessionReady = sessionStatus !== 'loading' || sessionTimedOut;
+
+  usePageViewTracking(pathname, isSessionReady);
   useScrollDepthTracking(pathname);
   useAnalyticsClickDelegation();
 

@@ -3,7 +3,12 @@ import { getSession, signOut } from 'next-auth/react';
 import { useEffect, useRef, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
-import { trackEvent } from '@/lib/analytics';
+import {
+  clearAnalyticsUser,
+  resolveAnalyticsUserRole,
+  setAnalyticsUserContext,
+  trackEvent,
+} from '@/lib/analytics';
 import { dispatchDeleteAccountRevalidate } from '@/lib/auth/dispatchDeleteAccountRevalidate';
 import {
   clearPendingDeleteAccountEmail,
@@ -56,6 +61,14 @@ export function useGoogleOAuthCallback() {
     };
 
     const executeSignup = (data: GoogleCallbackVO) => {
+      trackEvent({
+        name: 'sign_up',
+        feature: 'auth',
+        metadata: {
+          method: 'Google',
+          user_role: 'guest',
+        },
+      });
       sessionStorage.setItem('email', data.auth.email ?? '');
       router.push('/auth/email-verify');
     };
@@ -78,6 +91,28 @@ export function useGoogleOAuthCallback() {
       );
 
       const session = await getSession();
+      const resolvedUserId =
+        session?.user?.id ??
+        (data.user.user_id !== undefined ? String(data.user.user_id) : null);
+      const resolvedIsMentor =
+        session?.user?.isMentor ?? Boolean(data.user.is_mentor);
+      const userRole = resolveAnalyticsUserRole({
+        id: resolvedUserId,
+        isMentor: resolvedIsMentor,
+      });
+
+      setAnalyticsUserContext({
+        userId: resolvedUserId,
+        userRole,
+      });
+      trackEvent({
+        name: 'login',
+        feature: 'auth',
+        metadata: {
+          method: 'Google',
+          user_role: userRole,
+        },
+      });
 
       if (session?.user?.onBoarding === false) {
         router.push('/auth/onboarding');
@@ -111,6 +146,7 @@ export function useGoogleOAuthCallback() {
 
       if (result.status === 'success') {
         trackEvent({ name: 'delete_account_succeeded', feature: 'auth' });
+        clearAnalyticsUser();
         // dispatchDeleteAccountRevalidate never throws, so this can't fall
         // through to the outer catch below (which would show a misleading
         // "Login failed" toast instead of just continuing to sign out).
