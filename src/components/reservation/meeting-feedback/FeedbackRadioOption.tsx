@@ -30,7 +30,7 @@ export function FeedbackRadioOption({
         density === 'compact' ? 'py-2' : 'py-3',
         disabled && 'pointer-events-none opacity-60',
         checked
-          ? 'border-text-primary bg-background-white text-text-primary ring-text-primary font-medium ring-1'
+          ? 'border-brand-700 bg-brand-50 text-text-primary font-medium'
           : 'border-background-border bg-background-white text-text-primary hover:bg-background-hover'
       )}
     >
@@ -46,13 +46,11 @@ export function FeedbackRadioOption({
       <span
         aria-hidden="true"
         className={cn(
-          'flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors',
-          checked ? 'border-text-primary border-2' : 'border-text-tertiary'
+          'bg-background-white flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors',
+          checked ? 'border-brand-700 border-2' : 'border-text-tertiary'
         )}
       >
-        {checked ? (
-          <span className="bg-text-primary size-2 rounded-full" />
-        ) : null}
+        {checked ? <span className="bg-brand-700 size-2 rounded-full" /> : null}
       </span>
       <span>{label}</span>
     </label>

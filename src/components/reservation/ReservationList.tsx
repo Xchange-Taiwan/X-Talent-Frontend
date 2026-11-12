@@ -20,7 +20,10 @@ import { useProfileLinkClick } from '@/hooks/reservation/useProfileLinkClick';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { trackEvent } from '@/lib/analytics';
 import { resolveReservationViewer } from '@/lib/reservation/reservationViewerModel';
-import { resolveHistoryFeedbackState } from '@/lib/reservation/resolveHistoryFeedbackState';
+import {
+  filterPendingFeedbackQueueItems,
+  resolveHistoryFeedbackState,
+} from '@/lib/reservation/resolveHistoryFeedbackState';
 import type { Reservation } from '@/types/reservation';
 
 import {
@@ -261,10 +264,7 @@ function MenteePendingFeedbackQueueDialog({
   });
 
   const livePendingItems = React.useMemo(
-    () =>
-      items.filter(
-        (item) => !item.cancelledBy && item.feedback?.nextStep === 'ANSWER'
-      ),
+    () => filterPendingFeedbackQueueItems(items),
     [items]
   );
 

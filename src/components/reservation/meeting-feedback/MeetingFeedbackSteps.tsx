@@ -20,11 +20,8 @@ import {
   MAX_NOT_HAPPENED_NOTE_LENGTH,
 } from '@/schemas/meetingFeedbackSchema';
 import {
-  NOT_HAPPENED_PARTIES,
-  NOT_HAPPENED_PARTY_LABELS,
   NOT_HAPPENED_REASON_LABELS,
   NOT_HAPPENED_REASONS,
-  type NotHappenedParty,
   type NotHappenedReason,
 } from '@/types/reservationFeedback';
 
@@ -88,7 +85,6 @@ export interface RatingStepContentProps {
   contentFieldId: string;
   isSubmitting: boolean;
   contentRegistration: UseFormRegisterReturn;
-  portalContainer: HTMLElement | null;
   tooltipDismissSignal: number;
   onMaskTooltipOpenChange: (open: boolean) => void;
   onRatingChange: (value: number) => void;
@@ -102,7 +98,6 @@ export function RatingStepContent({
   contentFieldId,
   isSubmitting,
   contentRegistration,
-  portalContainer,
   tooltipDismissSignal,
   onMaskTooltipOpenChange,
   onRatingChange,
@@ -111,7 +106,7 @@ export function RatingStepContent({
 
   return (
     <>
-      <DialogHeader className="space-y-1 text-left">
+      <DialogHeader className="relative z-20 space-y-1 text-left">
         <p className="text-brand-700 text-xs font-medium">
           {isEditMode ? '已送出回饋 · 不限次數編輯' : '步驟 2 / 2 · 交流回饋'}
         </p>
@@ -122,15 +117,14 @@ export function RatingStepContent({
           </DialogTitle>
 
           <Tooltip
-            content="公開評價將以遮罩姓名顯示（例如：王＊明），不會公開您的完整姓名。"
-            side="top"
-            align="center"
+            content="顯示時不會完整公開姓名與個人資料"
+            side="bottom"
+            align={isEditMode ? 'start' : 'center'}
             pinOnClick
-            portalContainer={portalContainer}
             dismissSignal={tooltipDismissSignal}
             onOpenChange={onMaskTooltipOpenChange}
             testId="feedback-name-masking-tooltip"
-            contentClassName="w-60"
+            contentClassName="w-max max-w-60 px-2.5 py-1.5"
           >
             <button
               type="button"
@@ -209,132 +203,121 @@ export function RatingStepContent({
 }
 
 export interface NotHappenedStepContentProps {
-  notHappenedParty: NotHappenedParty | null;
   notHappenedReason: NotHappenedReason | null;
   notHappenedNote: string;
   noteError?: string;
   noteFieldId: string;
   isSubmitting: boolean;
   noteRegistration: UseFormRegisterReturn;
-  onSelectParty: (party: NotHappenedParty) => void;
   onSelectReason: (reason: NotHappenedReason) => void;
 }
 
 export function NotHappenedStepContent({
-  notHappenedParty,
   notHappenedReason,
   notHappenedNote,
   noteError,
   noteFieldId,
   isSubmitting,
   noteRegistration,
-  onSelectParty,
   onSelectReason,
 }: NotHappenedStepContentProps) {
-  const hasNoteError = Boolean(noteError);
+  const showNoteField = notHappenedReason === 'OTHER';
+  const visibleNoteError = showNoteField ? noteError : undefined;
+  const hasNoteError = Boolean(visibleNoteError);
 
   return (
     <>
       <DialogHeader className="space-y-1 text-left">
         <p className="text-brand-700 text-xs font-medium">
-          步驟 2 / 2 · 未進行回報
+          步驟 2 / 2 · 會談狀況
         </p>
         <DialogTitle className="text-text-primary text-18 font-semibold">
           未進行會談的原因
         </DialogTitle>
-        <DialogDescription className="text-text-secondary text-sm">
-          請協助說明未進行的對象與原因，不會影響公開評價。
+        <DialogDescription className="sr-only">
+          請選擇未進行會談的原因。
         </DialogDescription>
       </DialogHeader>
 
-      <div className="space-y-1.5">
-        <p className="text-text-primary text-sm font-medium">
-          誰沒有進行會談？
-        </p>
-        <div
-          role="radiogroup"
-          aria-label="誰沒有進行會談"
-          className="grid grid-cols-2 gap-2.5"
-        >
-          {NOT_HAPPENED_PARTIES.map((party) => (
-            <FeedbackRadioOption
-              key={party}
-              name="notHappenedParty"
-              value={party}
-              label={NOT_HAPPENED_PARTY_LABELS[party]}
-              checked={notHappenedParty === party}
-              disabled={isSubmitting}
-              density="compact"
-              onSelect={() => onSelectParty(party)}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <p className="text-text-primary text-sm font-medium">
-          為何沒有成功進行？
-        </p>
-        <div
-          role="radiogroup"
-          aria-label="為何沒有成功進行"
-          className="space-y-1.5"
-        >
-          {NOT_HAPPENED_REASONS.map((reason) => (
-            <FeedbackRadioOption
-              key={reason}
-              name="notHappenedReason"
-              value={reason}
-              label={NOT_HAPPENED_REASON_LABELS[reason]}
-              checked={notHappenedReason === reason}
-              disabled={isSubmitting}
-              density="compact"
-              onSelect={() => onSelectReason(reason)}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <label
-          htmlFor={noteFieldId}
-          className="text-text-primary block text-sm font-medium"
-        >
-          補充說明{' '}
-          <span className="text-text-secondary font-normal">（選填）</span>
-        </label>
-        <Textarea
-          id={noteFieldId}
-          rows={2}
-          placeholder={
-            notHappenedReason === 'OTHER'
-              ? '請補充說明其他未進行原因（選填）⋯'
-              : '若有其他想補充的狀況，可在此填寫（選填）⋯'
-          }
-          aria-invalid={hasNoteError}
-          disabled={isSubmitting}
-          className="resize-none overflow-y-auto text-sm font-normal"
-          {...noteRegistration}
-        />
-        <div className="flex items-center justify-between gap-2 text-xs">
-          {noteError ? (
-            <p role="alert" className="text-status-error-default">
-              {noteError}
-            </p>
-          ) : (
-            <span />
-          )}
-          <span
-            data-testid="feedback-note-counter"
-            className={cn(
-              'tabular-nums',
-              hasNoteError
-                ? 'text-status-error-default font-medium'
-                : 'text-text-secondary'
-            )}
+      <div>
+        <div className="space-y-1.5">
+          <p className="text-text-primary text-sm font-medium">
+            為何沒有成功進行？
+          </p>
+          <div
+            role="radiogroup"
+            aria-label="為何沒有成功進行"
+            className="space-y-1.5"
           >
-            {notHappenedNote.length} / {MAX_NOT_HAPPENED_NOTE_LENGTH}
-          </span>
+            {NOT_HAPPENED_REASONS.map((reason) => (
+              <FeedbackRadioOption
+                key={reason}
+                name="notHappenedReason"
+                value={reason}
+                label={NOT_HAPPENED_REASON_LABELS[reason]}
+                checked={notHappenedReason === reason}
+                disabled={isSubmitting}
+                density="compact"
+                onSelect={() => onSelectReason(reason)}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div
+          data-testid="not-happened-note-collapse"
+          data-expanded={showNoteField ? 'true' : 'false'}
+          aria-hidden={!showNoteField}
+          className={cn(
+            'grid transition-all duration-200 ease-out motion-reduce:transition-none',
+            showNoteField
+              ? 'visible mt-3 grid-rows-[1fr] opacity-100'
+              : 'pointer-events-none invisible mt-0 grid-rows-[0fr] opacity-0'
+          )}
+        >
+          <div className="min-h-0 overflow-hidden">
+            <div className="space-y-1.5 px-1 pt-0.5 pb-0.5">
+              <label
+                htmlFor={noteFieldId}
+                className="text-text-primary block text-sm font-medium"
+              >
+                補充說明{' '}
+                <span className="text-text-secondary font-normal">
+                  （選填）
+                </span>
+              </label>
+              <Textarea
+                id={noteFieldId}
+                rows={2}
+                placeholder="說說發生了什麼事…"
+                aria-invalid={hasNoteError}
+                tabIndex={showNoteField ? undefined : -1}
+                className="min-h-14 resize-none overflow-y-auto py-1.5 text-sm font-normal"
+                {...noteRegistration}
+                disabled={isSubmitting || !showNoteField}
+              />
+              <div className="flex items-center justify-between gap-2 text-xs">
+                {visibleNoteError ? (
+                  <p role="alert" className="text-status-error-default">
+                    {visibleNoteError}
+                  </p>
+                ) : (
+                  <span />
+                )}
+                <span
+                  data-testid="feedback-note-counter"
+                  className={cn(
+                    'tabular-nums',
+                    hasNoteError
+                      ? 'text-status-error-default font-medium'
+                      : 'text-text-secondary'
+                  )}
+                >
+                  {notHappenedNote.length} / {MAX_NOT_HAPPENED_NOTE_LENGTH}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </>
@@ -348,6 +331,7 @@ export interface MeetingFeedbackFooterProps {
   isTransitioningCard: boolean;
   canProceedAttendance: boolean;
   canSubmitStep2: boolean;
+  hasRemainingQueueCard?: boolean;
   onNextFromAttendance: () => void;
   onBackToAttendance: () => void;
   onCancelEdit: () => void;
@@ -360,6 +344,7 @@ export function MeetingFeedbackFooter({
   isTransitioningCard,
   canProceedAttendance,
   canSubmitStep2,
+  hasRemainingQueueCard = false,
   onNextFromAttendance,
   onBackToAttendance,
   onCancelEdit,
@@ -385,7 +370,7 @@ export function MeetingFeedbackFooter({
       className={cn(
         'bg-background-white flex shrink-0 flex-row items-center justify-between gap-3 px-5 sm:justify-between sm:space-x-0 sm:px-6',
         effectiveStep === 'not-happened'
-          ? 'border-background-border/70 border-t py-3.5 sm:py-4'
+          ? 'border-background-border/70 border-t py-3 sm:py-3.5'
           : 'pt-1 pb-5 sm:pb-6'
       )}
     >
@@ -423,6 +408,8 @@ export function MeetingFeedbackFooter({
           </>
         ) : isEditMode ? (
           '儲存'
+        ) : hasRemainingQueueCard ? (
+          '送出並填下一場'
         ) : (
           '送出回饋'
         )}

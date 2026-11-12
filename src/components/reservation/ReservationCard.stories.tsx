@@ -239,7 +239,7 @@ export const HistoryMenteeRatedPublic: Story = {
       <ReservationFeedbackBlock
         model={{
           kind: 'public-rating',
-          label: '我的評價',
+          label: '我的回饋',
           rating: 10,
           content: '導師給了非常具體的架構重構建議，收穫滿滿！',
           canEdit: true,

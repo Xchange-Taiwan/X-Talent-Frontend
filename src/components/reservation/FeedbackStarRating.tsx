@@ -102,12 +102,7 @@ export function FeedbackStarRating({
               if (!disabled) onChange(score);
             }}
             onKeyDown={handleKeyDown}
-            className={cn(
-              'focus-visible:ring-brand-500 flex h-9 w-full items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50',
-              isSelected
-                ? 'bg-brand-50 ring-brand-700 ring-1'
-                : 'hover:bg-background-bottom'
-            )}
+            className="hover:bg-background-bottom focus-visible:ring-brand-700 flex h-9 w-full items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
           >
             <Star
               strokeWidth={1.75}

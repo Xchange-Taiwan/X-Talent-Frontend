@@ -17,7 +17,7 @@ export type HistoryHeaderAction =
 export type HistoryFeedbackBlockModel =
   | {
       kind: 'public-rating';
-      label: '我的評價' | '學員評價';
+      label: '我的回饋' | '學員評價';
       rating: number;
       content: string;
       canEdit?: boolean;
@@ -34,6 +34,14 @@ export interface HistoryFeedbackState {
   headerAction: HistoryHeaderAction;
   bottomStatusLabel?: string;
   feedbackBlock: HistoryFeedbackBlockModel | null;
+}
+
+export function filterPendingFeedbackQueueItems(
+  items: readonly Reservation[]
+): Reservation[] {
+  return items.filter(
+    (item) => !item.cancelledBy && item.feedback?.nextStep === 'ANSWER'
+  );
 }
 
 export function resolveHistoryFeedbackState(opts: {
@@ -83,7 +91,7 @@ export function resolveHistoryFeedbackState(opts: {
         headerAction: { kind: 'feedback-toggle', label: '查看回饋' },
         feedbackBlock: {
           kind: 'public-rating',
-          label: '我的評價',
+          label: '我的回饋',
           rating: feedback.rating.rating,
           content: feedback.rating.content,
           canEdit: true,

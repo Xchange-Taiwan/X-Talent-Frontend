@@ -31,7 +31,6 @@ describe('useMeetingFeedbackForm', () => {
       meetingHappened: true,
       rating: 8,
       content: '收穫滿滿',
-      notHappenedParty: null,
       notHappenedReason: null,
       notHappenedNote: '',
     });
@@ -43,7 +42,6 @@ describe('useMeetingFeedbackForm', () => {
         meetingHappened: true,
         rating: 7,
         content: '原本已送出的評論',
-        notHappenedParty: null,
         notHappenedReason: null,
         notHappenedNote: '',
       })
@@ -53,7 +51,6 @@ describe('useMeetingFeedbackForm', () => {
       meetingHappened: true,
       rating: 7,
       content: '原本已送出的評論',
-      notHappenedParty: null,
       notHappenedReason: null,
       notHappenedNote: '',
     });

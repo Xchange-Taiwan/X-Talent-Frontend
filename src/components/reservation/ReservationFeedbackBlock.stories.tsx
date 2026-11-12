@@ -21,9 +21,21 @@ export const MenteePublicRating: Story = {
   args: {
     model: {
       kind: 'public-rating',
-      label: '我的評價',
+      label: '我的回饋',
       rating: 10,
       content: '導師給了非常具體的作品集優化方向，讓我對轉職準備更有信心！',
+      canEdit: true,
+    },
+  },
+};
+
+export const MenteeEmptyCommentFallback: Story = {
+  args: {
+    model: {
+      kind: 'public-rating',
+      label: '我的回饋',
+      rating: 10,
+      content: '',
       canEdit: true,
     },
   },

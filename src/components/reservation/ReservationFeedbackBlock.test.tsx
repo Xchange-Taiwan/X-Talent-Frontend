@@ -6,17 +6,18 @@ import { FEEDBACK_FORM_URL } from '@/constant/externalLinks';
 import { UNPUBLICIZED_FEEDBACK_NOTICE } from '@/lib/reservation/resolveHistoryFeedbackState';
 
 import {
+  EMPTY_FEEDBACK_CONTENT_TEXT,
   ReservationFeedbackBlock,
   ReservationFeedbackHeaderToggle,
 } from './ReservationFeedbackBlock';
 
 describe('ReservationFeedbackBlock & HeaderToggle', () => {
-  it('renders public rating score and comment cleanly', () => {
+  it('renders public rating score, 我的回饋 title, and comment cleanly', () => {
     render(
       <ReservationFeedbackBlock
         model={{
           kind: 'public-rating',
-          label: '我的評價',
+          label: '我的回饋',
           rating: 9,
           content: '導師針對履歷提供了非常具體的建議！',
         }}
@@ -26,11 +27,40 @@ describe('ReservationFeedbackBlock & HeaderToggle', () => {
     expect(
       screen.getByTestId('reservation-feedback-public')
     ).toBeInTheDocument();
-    expect(screen.getByText('我的評價')).toBeInTheDocument();
+    expect(screen.getByText('我的回饋')).toBeInTheDocument();
     expect(screen.getByText('9 / 10')).toBeInTheDocument();
     expect(
       screen.getByText('導師針對履歷提供了非常具體的建議！')
     ).toBeInTheDocument();
+  });
+
+  it('displays 沒有留下文字回饋。 when comment content is empty or whitespace-only', () => {
+    const { rerender } = render(
+      <ReservationFeedbackBlock
+        model={{
+          kind: 'public-rating',
+          label: '我的回饋',
+          rating: 10,
+          content: '',
+        }}
+      />
+    );
+
+    expect(screen.getByText(EMPTY_FEEDBACK_CONTENT_TEXT)).toBeInTheDocument();
+
+    rerender(
+      <ReservationFeedbackBlock
+        model={{
+          kind: 'unpublicized',
+          rating: 8,
+          content: '   ',
+          notice: UNPUBLICIZED_FEEDBACK_NOTICE,
+        }}
+      />
+    );
+
+    expect(screen.getByText('我的回饋')).toBeInTheDocument();
+    expect(screen.getByText(EMPTY_FEEDBACK_CONTENT_TEXT)).toBeInTheDocument();
   });
 
   it('renders warm-yellow #734 unpublicized notice and feedback form link when kind is unpublicized', () => {
@@ -48,6 +78,7 @@ describe('ReservationFeedbackBlock & HeaderToggle', () => {
     const block = screen.getByTestId('reservation-feedback-unpublicized');
     expect(block).toBeInTheDocument();
     expect(block.textContent).toContain('評價未公開');
+    expect(block.textContent).toContain('我的回饋');
     expect(block.textContent).toContain(UNPUBLICIZED_FEEDBACK_NOTICE);
 
     const formLink = screen.getByRole('link', { name: '回饋表單' });
@@ -108,7 +139,7 @@ describe('ReservationFeedbackBlock & HeaderToggle', () => {
       <ReservationFeedbackBlock
         model={{
           kind: 'public-rating',
-          label: '我的評價',
+          label: '我的回饋',
           rating: 9,
           content: '公開評論',
           canEdit: true,

@@ -254,6 +254,7 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄收合面板與版面翻�
 
     // 3. Expand both 查看回饋 & 評價未公開 panels + verify dark tooltip on chevron
     await viewFeedbackBtn.click();
+    await expect(publicCard.getByText('我的回饋')).toBeVisible();
     await expect(publicCard.getByText('10 / 10')).toBeVisible();
     await expect(
       publicCard.getByText('導師給了非常具體的作品集優化方向，收穫滿滿！')
@@ -267,6 +268,7 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄收合面板與版面翻�
       name: '收合評價未公開說明',
     });
     await expect(collapseUnpubBtn).toHaveAttribute('aria-expanded', 'true');
+    await expect(unpublicizedCard.getByText('我的回饋')).toBeVisible();
     await expect(
       unpublicizedCard.getByText(
         '這場會談已被標註沒有進行，因此評價不會公開；如有疑問可以透過回饋表單聯繫我們。'
@@ -386,9 +388,17 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄收合面板與版面翻�
 
     const maskInfoBtn = dialog.getByRole('button', { name: '姓名遮罩說明' });
     await maskInfoBtn.hover();
-    await expect(
-      dialog.getByTestId('feedback-name-masking-tooltip')
-    ).toBeVisible();
+    const maskTooltip = dialog.getByTestId('feedback-name-masking-tooltip');
+    await expect(maskTooltip).toBeVisible();
+    await expect(maskTooltip).toHaveText('顯示時不會完整公開姓名與個人資料');
+    const maskBtnBox = await maskInfoBtn.boundingBox();
+    const maskTooltipBox = await maskTooltip.boundingBox();
+    if (!maskBtnBox || !maskTooltipBox) {
+      throw new Error('Expected masking button and tooltip boundingBoxes');
+    }
+    expect(maskTooltipBox.y).toBeGreaterThanOrEqual(
+      maskBtnBox.y + maskBtnBox.height
+    );
 
     const starGroup = dialog.getByRole('radiogroup', { name: '整體滿意度' });
     await expect(starGroup.getByRole('radio')).toHaveCount(10);
@@ -479,7 +489,7 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄收合面板與版面翻�
     ]);
   });
 
-  test('未進行會談流程：雙題（誰未進行 + 為何沒有成功進行 + 選填補充）送出後卡片更新為未進行；Mentor 歷史紀錄可展開查看回饋', async ({
+  test('未進行會談流程：原因單選（選其他展開 1000 字補充說明、改選非其他自動收合）送出後卡片更新為未進行；Mentor 歷史紀錄可展開查看回饋', async ({
     page,
   }) => {
     await setupMenteeAuth(page);
@@ -545,30 +555,61 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄收合面板與版面翻�
       .click();
     await dialog.getByRole('button', { name: /下一步/ }).click();
 
+    await expect(dialog.getByText('步驟 2 / 2 · 會談狀況')).toBeVisible();
     await expect(dialog.getByText('未進行會談的原因')).toBeVisible();
-    await expect(dialog.getByText('誰沒有進行會談？')).toBeVisible();
+    await expect(dialog.getByText('誰沒有進行會談？')).toHaveCount(0);
     await expect(dialog.getByText('為何沒有成功進行？')).toBeVisible();
+
+    await dialog.locator('label').filter({ hasText: '未出席' }).click();
+    await expect(
+      dialog.getByTestId('not-happened-note-collapse')
+    ).toHaveAttribute('data-expanded', 'false');
 
     await dialog
       .locator('label')
-      .filter({ hasText: /^導師$/ })
+      .filter({ hasText: /^其他$/ })
       .click();
-    await dialog.locator('label').filter({ hasText: '未出席' }).click();
-    await dialog.getByLabel(/補充說明/).fill('等候 15 分鐘未上線');
-    await expect(dialog.getByTestId('feedback-note-counter')).toHaveText(
-      '11 / 300'
-    );
+    await expect(
+      dialog.getByTestId('not-happened-note-collapse')
+    ).toHaveAttribute('data-expanded', 'true');
 
-    // Sticky footer buttons ("上一步" & "送出回饋") must stay completely within the 720p viewport
+    const noteTextarea = dialog.getByLabel(/補充說明/);
+    await expect(noteTextarea).toBeVisible();
+    await expect(noteTextarea).toHaveAttribute(
+      'placeholder',
+      '說說發生了什麼事…'
+    );
+    await noteTextarea.fill('等候 15 分鐘未上線');
+    const noteCounter = dialog.getByTestId('feedback-note-counter');
+    await expect(noteCounter).toHaveText('11 / 1000');
+
+    // Switching to non-OTHER reason collapses note input; switching back to 其他 re-expands with draft preserved
+    await dialog.locator('label').filter({ hasText: '未出席' }).click();
+    await expect(
+      dialog.getByTestId('not-happened-note-collapse')
+    ).toHaveAttribute('data-expanded', 'false');
+    await dialog
+      .locator('label')
+      .filter({ hasText: /^其他$/ })
+      .click();
+    await expect(
+      dialog.getByTestId('not-happened-note-collapse')
+    ).toHaveAttribute('data-expanded', 'true');
+
+    // Note textarea, 1000-char counter, and sticky footer buttons ("上一步" & "送出回饋") must stay completely unclipped within the 720p viewport
     const viewport = page.viewportSize() ?? { width: 1280, height: 720 };
     const submitButton = dialog.getByRole('button', { name: '送出回饋' });
     const backButton = dialog.getByRole('button', { name: '上一步' });
     await expect(submitButton).toBeVisible();
     await expect(backButton).toBeVisible();
     const submitBox = await submitButton.boundingBox();
-    if (!submitBox) {
-      throw new Error('Expected submit button boundingBox to be non-null');
+    const counterBox = await noteCounter.boundingBox();
+    if (!submitBox || !counterBox) {
+      throw new Error(
+        'Expected submit button and note counter boundingBoxes to be non-null'
+      );
     }
+    expect(counterBox.y + counterBox.height).toBeLessThanOrEqual(submitBox.y);
     expect(submitBox.y + submitBox.height).toBeLessThanOrEqual(viewport.height);
 
     await captureEvidence(page, 'meeting-feedback-dialog-step2-not-happened', {
@@ -585,8 +626,7 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄收合面板與版面翻�
     await expect(card.getByRole('status')).toHaveText('未進行');
     expect(submittedPayload).toEqual({
       meeting_happened: false,
-      not_happened_party: 'MENTOR',
-      not_happened_reason: 'MENTOR_ABSENT',
+      not_happened_reason: 'OTHER',
       not_happened_note: '等候 15 分鐘未上線',
     });
 
@@ -1071,7 +1111,7 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄收合面板與版面翻�
     await expect(skipTooltip).not.toBeVisible();
     await expect(dialog).toBeVisible();
 
-    // Submit Session 1 (Emily Chen) -> parent MENTEE_HISTORY refetches and shrinks pending list -> must advance to Session 2 (Alex Wang) without skipping
+    // Submit Session 1 (Emily Chen) -> non-final button shows 送出並填下一場 -> parent MENTEE_HISTORY refetches and shrinks pending list -> must advance to Session 2 (Alex Wang) without skipping
     await dialog
       .locator('label')
       .filter({ hasText: /^有進行$/ })
@@ -1079,11 +1119,14 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄收合面板與版面翻�
     await dialog.getByRole('button', { name: /下一步/ }).click();
     await dialog.getByRole('radio', { name: '9 分' }).click();
     await dialog.getByLabel(/文字回饋/).fill('收穫良多！');
-    await dialog.getByRole('button', { name: '送出回饋' }).click();
+    await dialog.getByRole('button', { name: '送出並填下一場' }).click();
 
     await expect(dialog.getByTestId('feedback-queue-counter')).toHaveText(
       '第 2／3 場'
     );
+    await expect(
+      dialog.getByTestId('feedback-queue-progressbar').locator('span').nth(0)
+    ).toHaveAttribute('data-state', 'completed');
     await expect(dialog.getByTestId('feedback-mentor-header')).toContainText(
       'Alex Wang'
     );

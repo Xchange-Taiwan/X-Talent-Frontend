@@ -12,6 +12,8 @@ import type {
 } from '@/lib/reservation/resolveHistoryFeedbackState';
 import { cn } from '@/lib/utils';
 
+export const EMPTY_FEEDBACK_CONTENT_TEXT = '沒有留下文字回饋。';
+
 export type CollapsibleFeedbackHeaderAction = Extract<
   HistoryHeaderAction,
   { kind: 'feedback-toggle' | 'unpublicized-toggle' }
@@ -139,6 +141,9 @@ export function ReservationFeedbackBlock({
   editAction,
   onEdit,
 }: ReservationFeedbackBlockProps) {
+  const trimmedContent = model.content.trim();
+  const hasContent = trimmedContent.length > 0;
+
   const editControl = model.canEdit
     ? (editAction ?? (
         <Button
@@ -175,7 +180,7 @@ export function ReservationFeedbackBlock({
         <div className="border-background-border/70 bg-background-bottom-secondary rounded-lg border px-3.5 py-3">
           <div className="flex items-center justify-between gap-2">
             <span className="text-text-secondary text-xs font-medium">
-              我的評價
+              我的回饋
             </span>
             <div className="flex items-center gap-2.5">
               <span className="text-text-secondary inline-flex items-center gap-1 text-xs font-semibold tabular-nums sm:text-sm">
@@ -189,11 +194,15 @@ export function ReservationFeedbackBlock({
             </div>
           </div>
 
-          {model.content ? (
+          {hasContent ? (
             <p className="text-text-secondary mt-1.5 text-xs leading-relaxed whitespace-pre-line sm:text-sm">
-              {model.content}
+              {trimmedContent}
             </p>
-          ) : null}
+          ) : (
+            <p className="text-text-tertiary mt-1.5 text-xs leading-relaxed sm:text-sm">
+              {EMPTY_FEEDBACK_CONTENT_TEXT}
+            </p>
+          )}
         </div>
       </div>
     );
@@ -221,11 +230,15 @@ export function ReservationFeedbackBlock({
         </div>
       </div>
 
-      {model.content ? (
+      {hasContent ? (
         <p className="text-text-primary mt-1.5 text-xs leading-relaxed whitespace-pre-line sm:text-sm">
-          {model.content}
+          {trimmedContent}
         </p>
-      ) : null}
+      ) : (
+        <p className="text-text-tertiary mt-1.5 text-xs leading-relaxed sm:text-sm">
+          {EMPTY_FEEDBACK_CONTENT_TEXT}
+        </p>
+      )}
     </div>
   );
 }

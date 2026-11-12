@@ -29,8 +29,8 @@ import {
 import { cn } from '@/lib/utils';
 import {
   DEFAULT_MEETING_RATING,
-  getFeedbackContentError,
-  getNotHappenedNoteError,
+  MAX_FEEDBACK_CONTENT_LENGTH,
+  MAX_NOT_HAPPENED_NOTE_LENGTH,
   type MeetingFeedbackFormValues,
   toSubmitFeedbackPayload,
   toUpdateFeedbackPayload,
@@ -90,7 +90,6 @@ function buildEditBaseValues(
       reservation.feedback?.rating?.rating ??
       DEFAULT_MEETING_RATING,
     content: initialContent ?? reservation.feedback?.rating?.content ?? '',
-    notHappenedParty: null,
     notHappenedReason: null,
     notHappenedNote: '',
   };
@@ -140,8 +139,6 @@ export default function MeetingFeedbackDialog({
   const [step, setStep] =
     React.useState<MeetingFeedbackStep>(resolvedInitialStep);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [dialogFrameEl, setDialogFrameEl] =
-    React.useState<HTMLDivElement | null>(null);
   const [isMaskTooltipOpen, setIsMaskTooltipOpen] = React.useState(false);
   const [isSkipTooltipOpen, setIsSkipTooltipOpen] = React.useState(false);
   const [tooltipDismissSignal, setTooltipDismissSignal] = React.useState(0);
@@ -173,9 +170,10 @@ export default function MeetingFeedbackDialog({
   const {
     watch,
     setValue,
+    trigger: triggerFieldValidation,
     register,
     reset,
-    getValues,
+    handleSubmit: submitWithValidation,
     formState: { errors },
   } = form;
 
@@ -254,7 +252,6 @@ export default function MeetingFeedbackDialog({
   const meetingHappened = watch('meetingHappened');
   const rating = watch('rating');
   const content = watch('content');
-  const notHappenedParty = watch('notHappenedParty');
   const notHappenedReason = watch('notHappenedReason');
   const notHappenedNote = watch('notHappenedNote');
 
@@ -324,11 +321,10 @@ export default function MeetingFeedbackDialog({
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleValidSubmit = async (
+    currentValues: MeetingFeedbackFormValues
+  ) => {
     if (inFlightRef.current || isTransitioningCard) return;
-
-    const currentValues = getValues();
 
     if (isEditMode) {
       const updatePayload = toUpdateFeedbackPayload(currentValues);
@@ -343,7 +339,6 @@ export default function MeetingFeedbackDialog({
           meetingHappened: true,
           rating: updatePayload.rating,
           content: updatePayload.content,
-          notHappenedParty: null,
           notHappenedReason: null,
           notHappenedNote: '',
         });
@@ -414,19 +409,19 @@ export default function MeetingFeedbackDialog({
     }
   };
 
-  const contentError = getFeedbackContentError(
-    content,
-    errors.content?.message
-  );
-  const noteError = getNotHappenedNoteError(
-    notHappenedNote,
-    errors.notHappenedNote?.message
-  );
+  const contentError = errors.content?.message;
+  const isOtherReason = notHappenedReason === 'OTHER';
+  const noteError = isOtherReason ? errors.notHappenedNote?.message : undefined;
 
   const canSubmitStep2 =
     effectiveStep === 'rating'
-      ? !contentError
-      : Boolean(notHappenedParty && notHappenedReason && !noteError);
+      ? !contentError && content.length <= MAX_FEEDBACK_CONTENT_LENGTH
+      : Boolean(
+          notHappenedReason &&
+          (!isOtherReason ||
+            (!noteError &&
+              notHappenedNote.length <= MAX_NOT_HAPPENED_NOTE_LENGTH))
+        );
 
   const guardToastOutsideEvent = (event: {
     target: EventTarget | null;
@@ -483,7 +478,6 @@ export default function MeetingFeedbackDialog({
         />
 
         <DialogContentFrame
-          ref={setDialogFrameEl}
           onEscapeKeyDown={(e) => {
             if (isSubmitting || isTransitioningCard) {
               e.preventDefault();
@@ -511,7 +505,7 @@ export default function MeetingFeedbackDialog({
             data-testid="feedback-dialog-surface"
             data-queue-motion={queueMotionState}
             className={cn(
-              'border-background-border bg-background-white text-text-primary relative flex max-h-[88dvh] flex-col overflow-hidden rounded-lg border shadow-lg',
+              'border-background-border bg-background-white text-text-primary relative flex max-h-[90dvh] flex-col overflow-hidden rounded-lg border shadow-lg sm:max-h-[92dvh]',
               queueMotionState === 'swiping-out' &&
                 'motion-safe:animate-feedback-card-out',
               queueMotionState === 'promoting' &&
@@ -519,7 +513,7 @@ export default function MeetingFeedbackDialog({
             )}
           >
             {/* Fixed Top Header: Queue Progress + Mentor Session Info */}
-            <div className="shrink-0 px-5 pt-5 sm:px-6 sm:pt-6">
+            <div className="relative z-20 shrink-0 px-5 pt-5 sm:px-6 sm:pt-6">
               {isQueueMode ? (
                 <div className="mb-4">
                   <div className="flex items-center justify-between gap-3">
@@ -537,9 +531,8 @@ export default function MeetingFeedbackDialog({
 
                     <Tooltip
                       content="略過這場，下次登入再提醒；也可到歷史紀錄填寫。"
-                      side="top"
+                      side="bottom"
                       align="end"
-                      portalContainer={dialogFrameEl}
                       dismissSignal={tooltipDismissSignal}
                       onOpenChange={setIsSkipTooltipOpen}
                       testId="feedback-skip-tooltip"
@@ -566,18 +559,30 @@ export default function MeetingFeedbackDialog({
                     data-testid="feedback-queue-progressbar"
                     className="mt-3 flex gap-1.5"
                   >
-                    {queueItems.map((item, idx) => (
-                      <span
-                        key={item.id}
-                        data-active={idx <= queueIndex ? 'true' : 'false'}
-                        className={cn(
-                          'h-1 flex-1 rounded-full transition-colors duration-300',
-                          idx <= queueIndex
-                            ? 'bg-brand-700'
-                            : 'bg-background-border'
-                        )}
-                      />
-                    ))}
+                    {queueItems.map((item, idx) => {
+                      const segmentState =
+                        idx < queueIndex
+                          ? 'completed'
+                          : idx === queueIndex
+                            ? 'current'
+                            : 'upcoming';
+
+                      return (
+                        <span
+                          key={item.id}
+                          data-state={segmentState}
+                          data-active={idx <= queueIndex ? 'true' : 'false'}
+                          className={cn(
+                            'h-1 flex-1 rounded-full transition-colors duration-300',
+                            segmentState === 'current'
+                              ? 'bg-brand-700'
+                              : segmentState === 'completed'
+                                ? 'bg-brand-200'
+                                : 'bg-background-border'
+                          )}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
               ) : null}
@@ -629,14 +634,22 @@ export default function MeetingFeedbackDialog({
 
             {/* Scrollable Step Body + Sticky Bottom Footer */}
             <form
-              onSubmit={handleSubmit}
+              onSubmit={submitWithValidation(handleValidSubmit)}
               noValidate
               className="flex min-h-0 flex-1 flex-col"
             >
-              <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">
+              <div
+                className={cn(
+                  'min-h-0 flex-1 overflow-y-auto px-5 sm:px-6',
+                  effectiveStep === 'not-happened' ? 'py-3.5' : 'py-4'
+                )}
+              >
                 <div
                   key={`${activeReservation.id}-${effectiveStep}`}
-                  className="motion-safe:animate-feedback-step-in space-y-4"
+                  className={cn(
+                    'motion-safe:animate-feedback-step-in',
+                    effectiveStep === 'not-happened' ? 'space-y-3' : 'space-y-4'
+                  )}
                 >
                   {effectiveStep === 'attendance' ? (
                     <AttendanceStepContent
@@ -657,7 +670,6 @@ export default function MeetingFeedbackDialog({
                       contentFieldId={contentFieldId}
                       isSubmitting={isSubmitting}
                       contentRegistration={register('content')}
-                      portalContainer={dialogFrameEl}
                       tooltipDismissSignal={tooltipDismissSignal}
                       onMaskTooltipOpenChange={setIsMaskTooltipOpen}
                       onRatingChange={(nextValue) =>
@@ -668,23 +680,18 @@ export default function MeetingFeedbackDialog({
                     />
                   ) : (
                     <NotHappenedStepContent
-                      notHappenedParty={notHappenedParty}
                       notHappenedReason={notHappenedReason}
                       notHappenedNote={notHappenedNote}
                       noteError={noteError}
                       noteFieldId={noteFieldId}
                       isSubmitting={isSubmitting}
                       noteRegistration={register('notHappenedNote')}
-                      onSelectParty={(party) =>
-                        setValue('notHappenedParty', party, {
-                          shouldValidate: true,
-                        })
-                      }
-                      onSelectReason={(reason) =>
+                      onSelectReason={(reason) => {
                         setValue('notHappenedReason', reason, {
                           shouldValidate: true,
-                        })
-                      }
+                        });
+                        void triggerFieldValidation('notHappenedNote');
+                      }}
                     />
                   )}
                 </div>
@@ -697,6 +704,7 @@ export default function MeetingFeedbackDialog({
                 isTransitioningCard={isTransitioningCard}
                 canProceedAttendance={meetingHappened !== null}
                 canSubmitStep2={canSubmitStep2}
+                hasRemainingQueueCard={hasRemainingQueueCard}
                 onNextFromAttendance={handleNextFromAttendance}
                 onBackToAttendance={() => transitionToStep('attendance')}
                 onCancelEdit={() => handleOpenChange(false)}

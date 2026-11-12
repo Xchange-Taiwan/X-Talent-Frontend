@@ -2,7 +2,11 @@ import type { Meta, StoryObj } from '@storybook/nextjs';
 import React from 'react';
 
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { useMeetingFeedbackForm } from '@/hooks/user/reservation/useMeetingFeedbackForm';
+import {
+  DEFAULT_MEETING_FEEDBACK_FORM_VALUES,
+  useMeetingFeedbackForm,
+} from '@/hooks/user/reservation/useMeetingFeedbackForm';
+import type { NotHappenedReason } from '@/types/reservationFeedback';
 
 import {
   AttendanceStepContent,
@@ -24,23 +28,28 @@ function AttendancePreview() {
   );
 }
 
-function NotHappenedPreview() {
-  const form = useMeetingFeedbackForm();
-  const party = form.watch('notHappenedParty');
+function NotHappenedPreview({
+  initialReason = null,
+}: {
+  initialReason?: NotHappenedReason | null;
+}) {
+  const form = useMeetingFeedbackForm({
+    ...DEFAULT_MEETING_FEEDBACK_FORM_VALUES,
+    meetingHappened: false,
+    notHappenedReason: initialReason,
+  });
   const reason = form.watch('notHappenedReason');
   const note = form.watch('notHappenedNote');
 
   return (
     <Dialog open>
-      <DialogContent className="max-w-[468px] space-y-4">
+      <DialogContent className="max-w-[468px] space-y-3">
         <NotHappenedStepContent
-          notHappenedParty={party}
           notHappenedReason={reason}
           notHappenedNote={note}
           noteFieldId="story-note"
           isSubmitting={false}
           noteRegistration={form.register('notHappenedNote')}
-          onSelectParty={(next) => form.setValue('notHappenedParty', next)}
           onSelectReason={(next) => form.setValue('notHappenedReason', next)}
         />
       </DialogContent>
@@ -63,7 +72,6 @@ function RatingPreview() {
           contentFieldId="story-content"
           isSubmitting={false}
           contentRegistration={form.register('content')}
-          portalContainer={null}
           tooltipDismissSignal={0}
           onMaskTooltipOpenChange={() => {}}
           onRatingChange={(next) => form.setValue('rating', next)}
@@ -95,4 +103,8 @@ export const Step2Rating: Story = {
 
 export const Step2NotHappened: Story = {
   render: () => <NotHappenedPreview />,
+};
+
+export const Step2NotHappenedOtherExpanded: Story = {
+  render: () => <NotHappenedPreview initialReason="OTHER" />,
 };

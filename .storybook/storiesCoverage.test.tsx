@@ -327,6 +327,9 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
       '業務模組元件/預約管理(Reservation)/ReservationFeedbackBlock'
     );
     expect(reservationFeedbackBlockStories.MenteePublicRating).toBeDefined();
+    expect(
+      reservationFeedbackBlockStories.MenteeEmptyCommentFallback
+    ).toBeDefined();
     expect(reservationFeedbackBlockStories.MentorPublicRating).toBeDefined();
     expect(
       reservationFeedbackBlockStories.MenteeUnpublicizedRating
@@ -347,6 +350,9 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
     expect(meetingFeedbackStepsStories.Step1Attendance).toBeDefined();
     expect(meetingFeedbackStepsStories.Step2Rating).toBeDefined();
     expect(meetingFeedbackStepsStories.Step2NotHappened).toBeDefined();
+    expect(
+      meetingFeedbackStepsStories.Step2NotHappenedOtherExpanded
+    ).toBeDefined();
 
     render(
       <ReservationFeedbackBlock

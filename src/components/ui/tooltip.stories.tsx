@@ -33,11 +33,11 @@ export const DefaultHover: Story = {
 
 export const ClickToPin: Story = {
   args: {
-    content: '公開評價將以遮罩姓名顯示（例如：王＊明），不會公開您的完整姓名。',
-    side: 'top',
+    content: '顯示時不會完整公開姓名與個人資料',
+    side: 'bottom',
     align: 'center',
     pinOnClick: true,
-    contentClassName: 'w-60',
+    contentClassName: 'w-max max-w-60 px-2.5 py-1.5',
     children: (
       <button
         type="button"

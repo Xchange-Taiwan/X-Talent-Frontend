@@ -2,23 +2,27 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_MEETING_RATING,
+  happenedFeedbackFieldsSchema,
   MAX_FEEDBACK_CONTENT_LENGTH,
   MAX_NOT_HAPPENED_NOTE_LENGTH,
   meetingFeedbackFormSchema,
+  type MeetingFeedbackFormValues,
+  notHappenedFeedbackFieldsSchema,
   toSubmitFeedbackPayload,
   toUpdateFeedbackPayload,
+  updateMeetingFeedbackSchema,
 } from './meetingFeedbackSchema';
 
 describe('meetingFeedbackSchema', () => {
   it('defaults rating to 10 and accepts integer values 1 through 10', () => {
     expect(DEFAULT_MEETING_RATING).toBe(10);
+    expect(updateMeetingFeedbackSchema).toBe(happenedFeedbackFieldsSchema);
 
     for (let score = 1; score <= 10; score += 1) {
       const parsed = meetingFeedbackFormSchema.safeParse({
         meetingHappened: true,
         rating: score,
         content: '',
-        notHappenedParty: null,
         notHappenedReason: null,
         notHappenedNote: '',
       });
@@ -32,7 +36,6 @@ describe('meetingFeedbackSchema', () => {
         meetingHappened: true,
         rating: 0,
         content: '',
-        notHappenedParty: null,
         notHappenedReason: null,
         notHappenedNote: '',
       }).success
@@ -43,7 +46,6 @@ describe('meetingFeedbackSchema', () => {
         meetingHappened: true,
         rating: 11,
         content: '',
-        notHappenedParty: null,
         notHappenedReason: null,
         notHappenedNote: '',
       }).success
@@ -54,23 +56,28 @@ describe('meetingFeedbackSchema', () => {
         meetingHappened: true,
         rating: 8.5,
         content: '',
-        notHappenedParty: null,
         notHappenedReason: null,
         notHappenedNote: '',
       }).success
     ).toBe(false);
   });
 
-  it('enforces 1000-char limit on content and 300-char limit on notHappenedNote', () => {
+  it('enforces 1000-char limit on both content and OTHER notHappenedNote via shared sub-schemas', () => {
     expect(MAX_FEEDBACK_CONTENT_LENGTH).toBe(1000);
-    expect(MAX_NOT_HAPPENED_NOTE_LENGTH).toBe(300);
+    expect(MAX_NOT_HAPPENED_NOTE_LENGTH).toBe(1000);
+
+    expect(
+      notHappenedFeedbackFieldsSchema.safeParse({
+        notHappenedReason: 'OTHER',
+        notHappenedNote: 'a'.repeat(MAX_NOT_HAPPENED_NOTE_LENGTH),
+      }).success
+    ).toBe(true);
 
     expect(
       meetingFeedbackFormSchema.safeParse({
         meetingHappened: true,
         rating: 10,
         content: 'a'.repeat(MAX_FEEDBACK_CONTENT_LENGTH + 1),
-        notHappenedParty: null,
         notHappenedReason: null,
         notHappenedNote: '',
       }).success
@@ -81,7 +88,6 @@ describe('meetingFeedbackSchema', () => {
         meetingHappened: false,
         rating: 10,
         content: '',
-        notHappenedParty: 'MENTOR',
         notHappenedReason: 'OTHER',
         notHappenedNote: 'a'.repeat(MAX_NOT_HAPPENED_NOTE_LENGTH),
       }).success
@@ -91,7 +97,6 @@ describe('meetingFeedbackSchema', () => {
       meetingHappened: false,
       rating: 10,
       content: '',
-      notHappenedParty: 'MENTOR',
       notHappenedReason: 'OTHER',
       notHappenedNote: 'a'.repeat(MAX_NOT_HAPPENED_NOTE_LENGTH + 1),
     });
@@ -102,7 +107,6 @@ describe('meetingFeedbackSchema', () => {
         meetingHappened: false,
         rating: 10,
         content: '',
-        notHappenedParty: 'MENTOR',
         notHappenedReason: 'OTHER',
         notHappenedNote: 'a'.repeat(MAX_NOT_HAPPENED_NOTE_LENGTH + 1),
       })
@@ -114,7 +118,6 @@ describe('meetingFeedbackSchema', () => {
       meetingHappened: true,
       rating: 9,
       content: '  非常感謝導師的職涯建議！  ',
-      notHappenedParty: 'MENTOR',
       notHappenedReason: 'OTHER',
       notHappenedNote: 'ignored',
     });
@@ -128,47 +131,59 @@ describe('meetingFeedbackSchema', () => {
     });
   });
 
-  it('builds meeting_happened=false payload with party, reason, optional trimmed note, and no feedback field', () => {
+  it('builds meeting_happened=false payload with reason only (no not_happened_party) and attaches trimmed note exclusively for OTHER', () => {
     const withoutNote = toSubmitFeedbackPayload({
       meetingHappened: false,
       rating: 10,
       content: 'ignored text',
-      notHappenedParty: 'MENTOR',
       notHappenedReason: 'MENTOR_ABSENT',
       notHappenedNote: '   ',
     });
 
     expect(withoutNote).toEqual({
       meeting_happened: false,
-      not_happened_party: 'MENTOR',
       not_happened_reason: 'MENTOR_ABSENT',
     });
     expect(withoutNote && 'feedback' in withoutNote).toBe(false);
+    expect(withoutNote && 'not_happened_party' in withoutNote).toBe(false);
 
-    const withNote = toSubmitFeedbackPayload({
+    const withOtherNote = toSubmitFeedbackPayload({
       meetingHappened: false,
       rating: 10,
       content: '',
-      notHappenedParty: 'MENTEE',
       notHappenedReason: 'OTHER',
       notHappenedNote: '  臨時身體不適已私訊說明  ',
     });
 
-    expect(withNote).toEqual({
+    expect(withOtherNote).toEqual({
       meeting_happened: false,
-      not_happened_party: 'MENTEE',
       not_happened_reason: 'OTHER',
       not_happened_note: '臨時身體不適已私訊說明',
     });
+
+    // Draft note entered under OTHER must not block or leak into non-OTHER payload
+    const nonOtherWithDraftValues: MeetingFeedbackFormValues = {
+      meetingHappened: false,
+      rating: 10,
+      content: '',
+      notHappenedReason: 'SCHEDULE_CONFLICT',
+      notHappenedNote: 'a'.repeat(MAX_NOT_HAPPENED_NOTE_LENGTH + 5),
+    };
+    expect(
+      meetingFeedbackFormSchema.safeParse(nonOtherWithDraftValues).success
+    ).toBe(true);
+    expect(toSubmitFeedbackPayload(nonOtherWithDraftValues)).toEqual({
+      meeting_happened: false,
+      not_happened_reason: 'SCHEDULE_CONFLICT',
+    });
   });
 
-  it('returns null when attendance, party, or reason is incomplete', () => {
+  it('returns null when attendance or reason is incomplete', () => {
     expect(
       toSubmitFeedbackPayload({
         meetingHappened: null,
         rating: 10,
         content: '',
-        notHappenedParty: null,
         notHappenedReason: null,
         notHappenedNote: '',
       })
@@ -179,18 +194,6 @@ describe('meetingFeedbackSchema', () => {
         meetingHappened: false,
         rating: 10,
         content: '',
-        notHappenedParty: null,
-        notHappenedReason: 'MENTOR_ABSENT',
-        notHappenedNote: '',
-      })
-    ).toBeNull();
-
-    expect(
-      toSubmitFeedbackPayload({
-        meetingHappened: false,
-        rating: 10,
-        content: '',
-        notHappenedParty: 'MENTOR',
         notHappenedReason: null,
         notHappenedNote: '',
       })
@@ -198,18 +201,17 @@ describe('meetingFeedbackSchema', () => {
   });
 
   it('ignores over-limit content from the rating step when user switches to meetingHappened=false', () => {
-    expect(
-      toSubmitFeedbackPayload({
-        meetingHappened: false,
-        rating: 10,
-        content: 'a'.repeat(1005),
-        notHappenedParty: 'MENTOR',
-        notHappenedReason: 'MENTOR_ABSENT',
-        notHappenedNote: '',
-      })
-    ).toEqual({
+    const values: MeetingFeedbackFormValues = {
+      meetingHappened: false,
+      rating: 10,
+      content: 'a'.repeat(1005),
+      notHappenedReason: 'MENTOR_ABSENT',
+      notHappenedNote: '',
+    };
+
+    expect(meetingFeedbackFormSchema.safeParse(values).success).toBe(true);
+    expect(toSubmitFeedbackPayload(values)).toEqual({
       meeting_happened: false,
-      not_happened_party: 'MENTOR',
       not_happened_reason: 'MENTOR_ABSENT',
     });
   });

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { Reservation } from '@/types/reservation';
 
 import {
+  filterPendingFeedbackQueueItems,
   resolveHistoryFeedbackState,
   UNPUBLICIZED_FEEDBACK_NOTICE,
 } from './resolveHistoryFeedbackState';
@@ -88,7 +89,7 @@ describe('resolveHistoryFeedbackState', () => {
       headerAction: { kind: 'feedback-toggle', label: '查看回饋' },
       feedbackBlock: {
         kind: 'public-rating',
-        label: '我的評價',
+        label: '我的回饋',
         rating: 10,
         content: '非常棒的交流！',
         canEdit: true,
@@ -214,5 +215,48 @@ describe('resolveHistoryFeedbackState', () => {
       headerAction: { kind: 'badge', label: '未進行' },
       feedbackBlock: null,
     });
+  });
+
+  it('filters only uncancelled history items with nextStep === "ANSWER" for pending feedback queue', () => {
+    const answerItem = makeReservation({
+      id: 'res-answer',
+      feedback: {
+        meetingHappened: null,
+        rating: null,
+        nextStep: 'ANSWER',
+      },
+    });
+    const cancelledAnswerItem = makeReservation({
+      id: 'res-cancelled',
+      cancelledBy: 'MENTOR',
+      feedback: {
+        meetingHappened: null,
+        rating: null,
+        nextStep: 'ANSWER',
+      },
+    });
+    const ratedItem = makeReservation({
+      id: 'res-rated',
+      feedback: {
+        meetingHappened: true,
+        rating: {
+          rating: 10,
+          content: '好評',
+          createdAt: 1760002000,
+          updatedAt: 1760002000,
+          authorName: '王＊明',
+          isPublic: true,
+        },
+        nextStep: null,
+      },
+    });
+
+    expect(
+      filterPendingFeedbackQueueItems([
+        answerItem,
+        cancelledAnswerItem,
+        ratedItem,
+      ])
+    ).toEqual([answerItem]);
   });
 });
