@@ -340,18 +340,24 @@ export async function submitReservationFeedback({
         items: current.items.map((item) => {
           if (item.id !== reservation.id) return item;
           if (payload.meeting_happened) {
-            return {
-              ...item,
-              feedback: {
-                meetingHappened: true,
-                rating: {
+            const nextMeetingHappened =
+              item.feedback?.meetingHappened === false ? false : true;
+            const nextRating = payload.feedback
+              ? {
                   rating: payload.feedback.rating,
                   content: payload.feedback.content,
                   createdAt: nowUnixSeconds,
                   updatedAt: nowUnixSeconds,
                   authorName: item.feedback?.rating?.authorName ?? null,
                   isPublic: resolvedIsPublic,
-                },
+                }
+              : (item.feedback?.rating ?? null);
+
+            return {
+              ...item,
+              feedback: {
+                meetingHappened: nextMeetingHappened,
+                rating: nextRating,
                 nextStep: null,
               },
             };
@@ -360,7 +366,13 @@ export async function submitReservationFeedback({
             ...item,
             feedback: {
               meetingHappened: false,
-              rating: null,
+              rating:
+                myRole === 'mentor' && item.feedback?.rating
+                  ? {
+                      ...item.feedback.rating,
+                      isPublic: false,
+                    }
+                  : null,
               nextStep: null,
             },
           };
@@ -373,12 +385,15 @@ export async function submitReservationFeedback({
     invalidateReservationRead
   );
 
-  if (payload.meeting_happened) {
+  if (payload.meeting_happened || myRole === 'mentor') {
     mentorPoolReadManager.clear();
-    const counterpartyId = Number(resolveCounterpartyId(reservation, myUserId));
+    const targetMentorId =
+      myRole === 'mentor'
+        ? Number(myUserId)
+        : Number(resolveCounterpartyId(reservation, myUserId));
     invalidateMentorFeedback(
-      Number.isFinite(counterpartyId) && counterpartyId > 0
-        ? counterpartyId
+      Number.isFinite(targetMentorId) && targetMentorId > 0
+        ? targetMentorId
         : undefined
     );
   }

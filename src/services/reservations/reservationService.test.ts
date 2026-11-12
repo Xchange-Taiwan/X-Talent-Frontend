@@ -25,6 +25,7 @@ import { components } from '@/types/api';
 import {
   createReservation,
   fetchAllReservationsForState,
+  fetchPendingFeedbackReservations,
   fetchReservationMeetLink,
   fetchReservations,
   invalidateReservationRead,
@@ -539,6 +540,85 @@ describe('reservationService API Error Handling', () => {
           content: '更新後的回饋內容',
         }
       );
+    });
+
+    it('fetches GET /v1/users/:userId/reservations/pending-feedback, filters answered/cancelled items, and sorts oldest-first (#740)', async () => {
+      mockGet.mockResolvedValueOnce({
+        reservations: [
+          {
+            ...makeApiReservation({
+              id: 303,
+              dtstart: 1762000000,
+              dtend: 1762001800,
+            }),
+            feedback: {
+              meeting_happened: null,
+              rating: null,
+              next_step: 'ANSWER',
+            },
+          },
+          {
+            id: 101,
+            dtstart: 1760000000,
+            dtend: 1760001800,
+            viewer_role: 'MENTOR',
+            counterparty: {
+              user_id: 88,
+              name: 'Emily Chen',
+              job_title: 'UI/UX 設計師',
+              years_of_experience: 'FIVE_TO_TEN',
+            },
+          },
+          {
+            ...makeApiReservation({
+              id: 202,
+              dtstart: 1761000000,
+              dtend: 1761001800,
+            }),
+            cancelled_by: 'SYSTEM',
+          },
+          {
+            ...makeApiReservation({
+              id: 404,
+              dtstart: 1761500000,
+              dtend: 1761501800,
+            }),
+            feedback: {
+              meeting_happened: true,
+              rating: null,
+              next_step: null,
+            },
+          },
+        ],
+      });
+
+      const items = await fetchPendingFeedbackReservations({ userId: '1' });
+
+      expect(mockGet).toHaveBeenCalledWith(
+        '/v1/users/1/reservations/pending-feedback',
+        { signal: undefined }
+      );
+      expect(items.map((it) => it.id)).toEqual(['101', '303']);
+      expect(items[0]).toMatchObject({
+        id: '101',
+        name: 'Emily Chen',
+        viewerRole: 'MENTOR',
+      });
+      expect(items[1]).toMatchObject({
+        id: '303',
+        viewerRole: 'MENTEE',
+      });
+    });
+
+    it('gracefully falls back to [] when pending-feedback endpoint returns 404 or null (#740)', async () => {
+      mockGet.mockRejectedValueOnce(new ApiError(404, 'Not Found', '404'));
+      const on404 = await fetchPendingFeedbackReservations({ userId: '1' });
+      expect(on404).toEqual([]);
+      expect(mockCaptureFlowFailure).not.toHaveBeenCalled();
+
+      mockGet.mockResolvedValueOnce(null);
+      const onEmpty = await fetchPendingFeedbackReservations({ userId: '1' });
+      expect(onEmpty).toEqual([]);
     });
   });
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, Info, Loader2 } from 'lucide-react';
+import { Info, Loader2 } from 'lucide-react';
 import * as React from 'react';
 import type { UseFormRegisterReturn } from 'react-hook-form';
 
@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import {
   MAX_FEEDBACK_CONTENT_LENGTH,
   MAX_NOT_HAPPENED_NOTE_LENGTH,
+  MENTOR_NOT_HAPPENED_WARNING_TEXT,
 } from '@/schemas/meetingFeedbackSchema';
 import {
   NOT_HAPPENED_REASON_LABELS,
@@ -208,6 +209,7 @@ export interface NotHappenedStepContentProps {
   noteError?: string;
   noteFieldId: string;
   isSubmitting: boolean;
+  isMentor?: boolean;
   noteRegistration: UseFormRegisterReturn;
   onSelectReason: (reason: NotHappenedReason) => void;
 }
@@ -218,6 +220,7 @@ export function NotHappenedStepContent({
   noteError,
   noteFieldId,
   isSubmitting,
+  isMentor = false,
   noteRegistration,
   onSelectReason,
 }: NotHappenedStepContentProps) {
@@ -319,6 +322,20 @@ export function NotHappenedStepContent({
             </div>
           </div>
         </div>
+
+        {isMentor ? (
+          <div
+            role="note"
+            data-testid="mentor-not-happened-warning"
+            className="border-status-warning-border bg-status-warning-surface text-status-warning-text mt-3 flex items-start gap-2 rounded-lg border px-3.5 py-2.5 text-xs leading-relaxed"
+          >
+            <Info
+              className="text-status-warning-text mt-0.5 size-4 shrink-0"
+              aria-hidden="true"
+            />
+            <p>{MENTOR_NOT_HAPPENED_WARNING_TEXT}</p>
+          </div>
+        ) : null}
       </div>
     </>
   );
@@ -327,6 +344,8 @@ export function NotHappenedStepContent({
 export interface MeetingFeedbackFooterProps {
   effectiveStep: 'attendance' | 'rating' | 'not-happened';
   isEditMode: boolean;
+  isMentor?: boolean;
+  meetingHappened?: boolean | null;
   isSubmitting: boolean;
   isTransitioningCard: boolean;
   canProceedAttendance: boolean;
@@ -340,6 +359,8 @@ export interface MeetingFeedbackFooterProps {
 export function MeetingFeedbackFooter({
   effectiveStep,
   isEditMode,
+  isMentor = false,
+  meetingHappened = null,
   isSubmitting,
   isTransitioningCard,
   canProceedAttendance,
@@ -350,16 +371,57 @@ export function MeetingFeedbackFooter({
   onCancelEdit,
 }: MeetingFeedbackFooterProps) {
   if (effectiveStep === 'attendance') {
+    if (isMentor && meetingHappened !== false) {
+      if (meetingHappened === true) {
+        return (
+          <DialogFooter className="bg-background-white flex shrink-0 flex-row justify-end px-5 pt-2 pb-5 sm:space-x-0 sm:px-6 sm:pb-6">
+            <Button
+              key="mentor-submit-happened"
+              type="submit"
+              disabled={
+                !canProceedAttendance || isSubmitting || isTransitioningCard
+              }
+              className="bg-brand-500 text-text-primary hover:bg-brand-400 rounded-md px-4 disabled:opacity-45"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-1.5 size-4 animate-spin" />
+                  送出中...
+                </>
+              ) : (
+                '確定送出'
+              )}
+            </Button>
+          </DialogFooter>
+        );
+      }
+
+      return (
+        <DialogFooter className="bg-background-white flex shrink-0 flex-row justify-end px-5 pt-2 pb-5 sm:space-x-0 sm:px-6 sm:pb-6">
+          <Button
+            key="mentor-submit-unselected"
+            type="button"
+            disabled
+            className="bg-brand-500 text-text-primary hover:bg-brand-400 rounded-md px-4 disabled:opacity-45"
+          >
+            確定送出
+          </Button>
+        </DialogFooter>
+      );
+    }
+
     return (
       <DialogFooter className="bg-background-white flex shrink-0 flex-row justify-end px-5 pt-2 pb-5 sm:space-x-0 sm:px-6 sm:pb-6">
         <Button
+          key="attendance-next"
           type="button"
-          disabled={!canProceedAttendance || isTransitioningCard}
+          disabled={
+            !canProceedAttendance || isSubmitting || isTransitioningCard
+          }
           onClick={onNextFromAttendance}
           className="bg-brand-500 text-text-primary hover:bg-brand-400 rounded-md px-4 disabled:opacity-45"
         >
           <span>下一步</span>
-          <ArrowRight className="ml-1.5 size-4" aria-hidden="true" />
         </Button>
       </DialogFooter>
     );

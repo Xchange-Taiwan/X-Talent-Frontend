@@ -1,13 +1,15 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import * as React from 'react';
 import { useForm } from 'react-hook-form';
 
 import {
+  createMeetingFeedbackFormSchema,
   DEFAULT_MEETING_RATING,
-  meetingFeedbackFormSchema,
   type MeetingFeedbackFormValues,
 } from '@/schemas/meetingFeedbackSchema';
+import type { FeedbackViewerRole } from '@/types/reservationFeedback';
 
 export const DEFAULT_MEETING_FEEDBACK_FORM_VALUES: MeetingFeedbackFormValues = {
   meetingHappened: null,
@@ -18,10 +20,16 @@ export const DEFAULT_MEETING_FEEDBACK_FORM_VALUES: MeetingFeedbackFormValues = {
 };
 
 export function useMeetingFeedbackForm(
-  defaultValues: MeetingFeedbackFormValues = DEFAULT_MEETING_FEEDBACK_FORM_VALUES
+  defaultValues: MeetingFeedbackFormValues = DEFAULT_MEETING_FEEDBACK_FORM_VALUES,
+  role: FeedbackViewerRole = 'mentee'
 ) {
+  const schema = React.useMemo(
+    () => createMeetingFeedbackFormSchema(role),
+    [role]
+  );
+
   return useForm<MeetingFeedbackFormValues>({
-    resolver: zodResolver(meetingFeedbackFormSchema),
+    resolver: zodResolver(schema),
     defaultValues,
     mode: 'onChange',
   });

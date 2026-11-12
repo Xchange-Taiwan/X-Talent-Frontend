@@ -1039,4 +1039,99 @@ describe('updateReservationFeedback (#731)', () => {
       message: 'Update feedback failed',
     });
   });
+
+  it('supports Mentor Option A { meeting_happened: true } without payload.feedback and { meeting_happened: false } unpublishing (#740)', async () => {
+    const clearPoolSpy = vi.spyOn(mentorPoolReadManager, 'clear');
+    const feedbackInvalidatedIds: Array<number | undefined> = [];
+    const unsubscribeFeedback = subscribeMentorFeedbackInvalidation((id) => {
+      feedbackInvalidatedIds.push(id);
+    });
+
+    const mentorRes = makeMockReservation({
+      id: 'res-mentor-740',
+      senderUserId: 99,
+      participantUserId: 20,
+      viewerRole: 'MENTOR',
+      feedback: {
+        meetingHappened: null,
+        rating: {
+          rating: 9,
+          content: '導師建議很具體',
+          createdAt: 1700001000,
+          updatedAt: 1700001000,
+          authorName: '林＊華',
+          isPublic: true,
+        },
+        nextStep: 'ANSWER',
+      },
+    });
+
+    const mentorHistoryKey = {
+      userId: '20',
+      state: 'MENTOR_HISTORY',
+    } as const;
+    reservationReadModel.set(mentorHistoryKey, {
+      items: [mentorRes],
+      next_dtend: 0,
+    });
+    const unsubHistory = reservationReadModel.subscribe(
+      mentorHistoryKey,
+      () => new Promise(() => {}),
+      () => {}
+    );
+
+    try {
+      mockPost.mockResolvedValueOnce({ code: '0', msg: 'ok', data: {} });
+
+      await submitReservationFeedback({
+        reservation: mentorRes,
+        myUserId: '20',
+        myRole: 'mentor',
+        payload: { meeting_happened: true },
+      });
+
+      expect(mockPost).toHaveBeenCalledWith(
+        '/v1/users/20/reservations/res-mentor-740/feedback',
+        { meeting_happened: true }
+      );
+      expect(clearPoolSpy).toHaveBeenCalledTimes(1);
+      expect(feedbackInvalidatedIds).toContain(20);
+
+      mockPost.mockResolvedValueOnce({ code: '0', msg: 'ok', data: {} });
+      reservationReadModel.set(mentorHistoryKey, {
+        items: [mentorRes],
+        next_dtend: 0,
+      });
+
+      await submitReservationFeedback({
+        reservation: mentorRes,
+        myUserId: '20',
+        myRole: 'mentor',
+        payload: {
+          meeting_happened: false,
+          not_happened_reason: 'MENTOR_ABSENT',
+        },
+      });
+
+      const afterNotHappened =
+        reservationReadModel.get(mentorHistoryKey)?.items[0]?.feedback;
+      expect(afterNotHappened).toEqual({
+        meetingHappened: false,
+        rating: {
+          rating: 9,
+          content: '導師建議很具體',
+          createdAt: 1700001000,
+          updatedAt: 1700001000,
+          authorName: '林＊華',
+          isPublic: false,
+        },
+        nextStep: null,
+      });
+      expect(clearPoolSpy).toHaveBeenCalledTimes(2);
+    } finally {
+      unsubHistory();
+      unsubscribeFeedback();
+      clearPoolSpy.mockRestore();
+    }
+  });
 });

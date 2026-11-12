@@ -28,6 +28,8 @@ import * as joinMeetButtonStories from '@/components/reservation/JoinMeetButton.
 import * as feedbackRadioOptionStories from '@/components/reservation/meeting-feedback/FeedbackRadioOption.stories';
 import * as meetingFeedbackStepsStories from '@/components/reservation/meeting-feedback/MeetingFeedbackSteps.stories';
 import * as meetingFeedbackDialogStories from '@/components/reservation/MeetingFeedbackDialog.stories';
+import { PendingFeedbackModal } from '@/components/reservation/PendingFeedbackModal';
+import * as pendingFeedbackModalStories from '@/components/reservation/PendingFeedbackModal.stories';
 import { ReplyMessageField } from '@/components/reservation/ReplyMessageField';
 import * as replyMessageFieldStories from '@/components/reservation/ReplyMessageField.stories';
 import * as reservationCardStories from '@/components/reservation/ReservationCard.stories';
@@ -353,6 +355,37 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
     expect(
       meetingFeedbackStepsStories.Step2NotHappenedOtherExpanded
     ).toBeDefined();
+    expect(meetingFeedbackStepsStories.MentorStep1Unselected).toBeDefined();
+    expect(meetingFeedbackStepsStories.MentorStep1Happened).toBeDefined();
+    expect(meetingFeedbackStepsStories.MentorStep1NotHappened).toBeDefined();
+    expect(
+      meetingFeedbackStepsStories.MentorStep2NotHappenedWithWarning
+    ).toBeDefined();
+    expect(meetingFeedbackDialogStories.MentorStepAttendanceOpen).toBeDefined();
+    expect(
+      meetingFeedbackDialogStories.MentorStepNotHappenedOpen
+    ).toBeDefined();
+    expect(
+      meetingFeedbackDialogStories.MentorMultiSessionQueueOpen
+    ).toBeDefined();
+
+    expect(pendingFeedbackModalStories.default.title).toBe(
+      '業務模組元件/預約管理(Reservation)/PendingFeedbackModal'
+    );
+    expect(pendingFeedbackModalStories.EmptyNoPopup).toBeDefined();
+    expect(pendingFeedbackModalStories.MenteeSingleSession).toBeDefined();
+    expect(pendingFeedbackModalStories.MenteeThreeSessionQueue).toBeDefined();
+    expect(pendingFeedbackModalStories.MentorThreeSessionQueue).toBeDefined();
+
+    const { container: emptyModalContainer } = render(
+      <PendingFeedbackModal
+        queueItems={
+          pendingFeedbackModalStories.EmptyNoPopup.args?.queueItems ?? null
+        }
+        onSubmitFeedback={async () => {}}
+      />
+    );
+    expect(emptyModalContainer).toBeEmptyDOMElement();
 
     render(
       <ReservationFeedbackBlock

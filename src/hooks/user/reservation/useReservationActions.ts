@@ -116,13 +116,14 @@ export function useReservationActions({
           myRole,
           payload,
         });
-        if (payload.meeting_happened && myUserId) {
-          const counterpartyId = Number(
-            resolveCounterpartyId(reservation, myUserId)
-          );
-          if (Number.isFinite(counterpartyId) && counterpartyId > 0) {
-            clearUserProfileDtoCache(counterpartyId, 'zh_TW');
-            clearUserProfileDtoCache(counterpartyId, 'en_US');
+        if ((payload.meeting_happened || myRole === 'mentor') && myUserId) {
+          const targetMentorId =
+            myRole === 'mentor'
+              ? Number(myUserId)
+              : Number(resolveCounterpartyId(reservation, myUserId));
+          if (Number.isFinite(targetMentorId) && targetMentorId > 0) {
+            clearUserProfileDtoCache(targetMentorId, 'zh_TW');
+            clearUserProfileDtoCache(targetMentorId, 'en_US');
           }
         }
         trackEvent({
