@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 /**
- * Pre-fetches visual design references for Cloud AI VM workflows
- * (`cloud-implement.yml` and `cloud-fix-pr.yml`) so headless Gemini CLI and
- * Pre-PR AI Review have real multimodal vision:
+ * Pre-fetches visual design & motion/micro-interaction references for Cloud AI VM
+ * workflows (`cloud-implement.yml` and `cloud-fix-pr.yml`) so headless Gemini CLI
+ * and Pre-PR AI Review have real multimodal vision AND exact CSS/JS animation specs:
  *
  * 1. Downloads private GitHub Issue & Comment images from `X-Talent-Tracker`
+ *    (prioritizing Top Issue Description first, then newest comments first)
  *    using `Accept: application/vnd.github.full+json` (`body_html` signed JWT URLs),
  *    validating image magic bytes so HTML login redirects are never saved as PNGs.
- * 2. Captures live Light Mode Playwright screenshots + computed DOM/CSS summaries
- *    for public Design Hub (`*.workers.dev`) and interactive prototype (`*.chatgpt.site`) URLs.
+ * 2. Captures live Light Mode Playwright screenshots (unwrapping `#hub-frame`
+ *    iframes on Design Hub and waiting for scenario boot) + computed DOM/CSS
+ *    summaries + `@keyframes` / `transition` / `transform` / `animate()` motion
+ *    rules for public Design Hub (`*.workers.dev`) and prototype (`*.chatgpt.site`) URLs.
  * 3. Appends a structured local file manifest to `.agents/tmp/ticket-spec.md`
  *    and writes `.agents/tmp/visual-manifest.json`.
  */
@@ -26,7 +29,7 @@ const DESIGN_HUB_KB_URL =
 const DESIGN_HUB_BASE_URL = 'https://x-talent-design-hub.x-talent.workers.dev';
 
 const MAX_TICKET_IMAGES = 8;
-const MAX_PROTOTYPE_URLS = 3;
+const MAX_PROTOTYPE_URLS = 6;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
 
 const ALLOWED_IMAGE_HOSTS = new Set([
@@ -176,22 +179,47 @@ function isSignedUserImageHost(rawUrl) {
 }
 
 /**
+ * Orders issue + comment blocks so Top Issue Description (Single Source of Truth)
+ * comes first, followed by comments in reverse-chronological order (newest first),
+ * ensuring recent design updates are never crowded out by old historical mockups.
+ */
+export function prioritizeIssueAndCommentBlocks(issue, comments = []) {
+  const ordered = [];
+  if (issue) {
+    ordered.push({ ...issue, _fromComment: false });
+  }
+  if (Array.isArray(comments) && comments.length > 0) {
+    for (let i = comments.length - 1; i >= 0; i--) {
+      if (comments[i]) {
+        ordered.push({ ...comments[i], _fromComment: true });
+      }
+    }
+  }
+  return ordered;
+}
+
+/**
  * Extracts allowed ticket image URLs from GitHub API `body_html` + `body` blocks,
  * prioritizing signed `private-user-images.githubusercontent.com` JWT URLs.
  */
 export function extractTicketImageCandidates(blocks = []) {
   const byKey = new Map();
 
-  const recordCandidate = (rawUrl, altText = '') => {
+  const recordCandidate = (rawUrl, altText = '', fromComment = false) => {
     const url = decodeHtmlEntities(rawUrl).trim();
     if (!isAllowedTicketImageUrl(url)) return;
     const key = getAssetDedupKey(url);
     const isSigned = isSignedUserImageHost(url);
     const existing = byKey.get(key);
+    const cleanAlt = altText.trim();
+    const decoratedAlt = fromComment
+      ? existing?.alt ||
+        `${cleanAlt ? `${cleanAlt} ` : ''}(留言附圖，若與頂部最新規格衝突請以頂部規格與 Design Hub 為準)`.trim()
+      : cleanAlt || existing?.alt || '';
     if (!existing || (isSigned && !existing.isSigned)) {
       byKey.set(key, {
         url,
-        alt: altText.trim() || existing?.alt || '',
+        alt: decoratedAlt,
         isSigned,
       });
     }
@@ -200,6 +228,7 @@ export function extractTicketImageCandidates(blocks = []) {
   for (const block of blocks) {
     const html = String(block?.body_html ?? '');
     const md = String(block?.body ?? '');
+    const fromComment = Boolean(block?._fromComment);
 
     // 1. HTML <img> tags from body_html (contains signed JWT URLs for private repos)
     const imgTagRegex = /<img\b[^>]*>/gi;
@@ -209,7 +238,7 @@ export function extractTicketImageCandidates(blocks = []) {
       const srcMatch = tag.match(/\bsrc=["']([^"']+)["']/i);
       const altMatch = tag.match(/\balt=["']([^"']*)["']/i);
       if (srcMatch?.[1]) {
-        recordCandidate(srcMatch[1], altMatch?.[1] ?? '');
+        recordCandidate(srcMatch[1], altMatch?.[1] ?? '', fromComment);
       }
     }
 
@@ -217,14 +246,14 @@ export function extractTicketImageCandidates(blocks = []) {
     const mdImgRegex = /!\[([^\]]*)\]\((https:\/\/[^)\s]+)\)/g;
     let mdMatch;
     while ((mdMatch = mdImgRegex.exec(md)) !== null) {
-      recordCandidate(mdMatch[2], mdMatch[1]);
+      recordCandidate(mdMatch[2], mdMatch[1], fromComment);
     }
     while ((tagMatch = imgTagRegex.exec(md)) !== null) {
       const tag = tagMatch[0];
       const srcMatch = tag.match(/\bsrc=["']([^"']+)["']/i);
       const altMatch = tag.match(/\balt=["']([^"']*)["']/i);
       if (srcMatch?.[1]) {
-        recordCandidate(srcMatch[1], altMatch?.[1] ?? '');
+        recordCandidate(srcMatch[1], altMatch?.[1] ?? '', fromComment);
       }
     }
   }
@@ -270,7 +299,7 @@ export function extractDesignUrlsFromTexts(
     }
   }
 
-  // Also check Design Hub KB for standalone module HTML pages matching this ticket
+  // Also check Design Hub KB for standalone module HTML pages & scenarios matching this ticket
   if (designHubKb && ticketNumber) {
     const cleanNum = String(ticketNumber).replace(/^#/, '').trim();
     const screens = Array.isArray(designHubKb.screens)
@@ -303,6 +332,17 @@ export function extractDesignUrlsFromTexts(
             prototypeUrls.push(fullUrl);
           }
         }
+        // Expand key Design Hub interactive scenarios (e.g. form, rating, failure) when present
+        if (screen?.id && Array.isArray(screen?.scenarios)) {
+          for (const sc of screen.scenarios.slice(0, 4)) {
+            if (!sc?.id) continue;
+            const scUrl = `${DESIGN_HUB_BASE_URL}/?view=screens&screen=${encodeURIComponent(screen.id)}&device=desktop&scenario=${encodeURIComponent(sc.id)}&mode=play`;
+            if (isAllowedPrototypeUrl(scUrl) && !seenProto.has(scUrl)) {
+              seenProto.add(scUrl);
+              prototypeUrls.push(scUrl);
+            }
+          }
+        }
       }
     }
   }
@@ -310,6 +350,90 @@ export function extractDesignUrlsFromTexts(
   return {
     prototypeUrls: prototypeUrls.slice(0, MAX_PROTOTYPE_URLS),
     skippedProtectedUrls,
+  };
+}
+
+/**
+ * Extracts CSS @keyframes, transition, transform, backdrop-filter, and JS
+ * Web Animations API (`animate([...])`) rules from raw stylesheet/script text
+ * so headless AI agents can faithfully reproduce motion & micro-interactions.
+ */
+export function extractMotionRulesFromCode(cssTexts = [], jsTexts = []) {
+  const keyframes = [];
+  const transitionsAndTransforms = [];
+  const webAnimations = [];
+
+  for (const rawCss of cssTexts) {
+    const withoutComments = String(rawCss ?? '')
+      .replace(/\/\*[\s\S]*?\*\//g, ' ')
+      .replace(/data:image\/[^"')\s]+/g, 'DATA_IMAGE');
+    const kfRegex =
+      /@keyframes\s+[a-zA-Z0-9_-]+\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g;
+    let kfMatch;
+    while (
+      (kfMatch = kfRegex.exec(withoutComments)) !== null &&
+      keyframes.length < 15
+    ) {
+      keyframes.push(kfMatch[0].trim());
+    }
+
+    // Strip @keyframes and @media (...prefers-reduced-motion...) blocks before rule scanning
+    const cleanedRulesCss = withoutComments
+      .replace(kfRegex, ' ')
+      .replace(
+        /@media[^{]*prefers-reduced-motion[^{]*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/gi,
+        ' '
+      );
+
+    const ruleRegex = /([^{}@]+)\{([^{}]+)\}/g;
+    let ruleMatch;
+    while (
+      (ruleMatch = ruleRegex.exec(cleanedRulesCss)) !== null &&
+      transitionsAndTransforms.length < 30
+    ) {
+      const sel = ruleMatch[1].trim().replace(/\s+/g, ' ');
+      const decls = ruleMatch[2].trim();
+      if (
+        /(?:transition|animation|transform|backdrop-filter)\s*:/i.test(decls) &&
+        !/!\s*important\b/i.test(decls) &&
+        sel.length > 0 &&
+        sel.length < 140
+      ) {
+        const relevantProps = decls
+          .split(';')
+          .map((d) => d.trim())
+          .filter((d) =>
+            /^(?:transition|animation|transform|backdrop-filter|opacity|inset|z-index|background|border|color|box-shadow)\b/i.test(
+              d
+            )
+          )
+          .join('; ');
+        if (relevantProps) {
+          transitionsAndTransforms.push(`${sel} { ${relevantProps}; }`);
+        }
+      }
+    }
+  }
+
+  for (const rawJs of jsTexts) {
+    const js = String(rawJs ?? '').replace(
+      /data:image\/[^"')\s]+/g,
+      'DATA_IMAGE'
+    );
+    const animRegex = /(?:\.\s*animate|\bmotion)\s*\([^;]{10,360}\)/g;
+    let animMatch;
+    while (
+      (animMatch = animRegex.exec(js)) !== null &&
+      webAnimations.length < 12
+    ) {
+      webAnimations.push(animMatch[0].trim());
+    }
+  }
+
+  return {
+    keyframes: [...new Set(keyframes)],
+    transitionsAndTransforms: [...new Set(transitionsAndTransforms)],
+    webAnimations: [...new Set(webAnimations)],
   };
 }
 
@@ -454,11 +578,49 @@ async function capturePrototypesWithPlaywright(urls, outDir, rawSpecText = '') {
         await waitForUiSettled(page, {
           networkIdleTimeoutMs: 4000,
           skeletonTimeoutMs: 5000,
-          settleDelayMs: 300,
+          settleDelayMs: 400,
         });
 
+        // If Design Hub wraps a screen inside an iframe (#hub-frame), allow extra
+        // boot time so scenario auto-actions (opening modal / step 2 / toast) settle.
+        const hasIframe = await page
+          .locator('iframe')
+          .count()
+          .catch(() => 0);
+        if (hasIframe > 0) {
+          await page.waitForTimeout(1200);
+        }
+
         const pageSummary = await page.evaluate(() => {
-          const bodyText = (document.body?.innerText || '').trim();
+          const iframeEl = document.querySelector('iframe');
+          let targetDoc = document;
+          let targetWin = window;
+          let iframeClip = null;
+          if (iframeEl) {
+            const rect = iframeEl.getBoundingClientRect();
+            if (rect.width >= 360 && rect.height >= 360) {
+              iframeClip = {
+                x: Math.max(0, Math.round(rect.left)),
+                y: Math.max(0, Math.round(rect.top)),
+                width: Math.round(rect.width),
+                height: Math.min(900, Math.round(rect.height)),
+              };
+            }
+            try {
+              if (
+                iframeEl.contentDocument?.body &&
+                (iframeEl.contentDocument.body.innerText || '').trim().length >
+                  15
+              ) {
+                targetDoc = iframeEl.contentDocument;
+                targetWin = iframeEl.contentWindow || window;
+              }
+            } catch {
+              // Cross-origin iframe fallback to outer document
+            }
+          }
+
+          const bodyText = (targetDoc.body?.innerText || '').trim();
           if (
             bodyText.length < 15 ||
             bodyText === '載入中...' ||
@@ -468,10 +630,12 @@ async function capturePrototypesWithPlaywright(urls, outDir, rawSpecText = '') {
           }
 
           const pickStyle = (el) => {
-            const cs = window.getComputedStyle(el);
+            const cs = targetWin.getComputedStyle(el);
             return {
               tag: el.tagName.toLowerCase(),
               role: el.getAttribute('role') || undefined,
+              ariaLabel: el.getAttribute('aria-label') || undefined,
+              tooltip: el.getAttribute('data-tooltip') || undefined,
               text: (el.innerText || '')
                 .trim()
                 .replace(/\s+/g, ' ')
@@ -484,26 +648,41 @@ async function capturePrototypesWithPlaywright(urls, outDir, rawSpecText = '') {
                   ? cs.backgroundColor
                   : undefined,
               radius: cs.borderRadius !== '0px' ? cs.borderRadius : undefined,
+              transform: cs.transform !== 'none' ? cs.transform : undefined,
+              transition:
+                cs.transition && cs.transition !== 'all 0s ease 0s'
+                  ? cs.transition.slice(0, 120)
+                  : undefined,
             };
           };
 
           const nodes = Array.from(
-            document.querySelectorAll(
-              'h1, h2, h3, [role="tab"], button, nav a, [class*="card" i], [class*="badge" i], [class*="summary" i]'
+            targetDoc.querySelectorAll(
+              'h1, h2, h3, [role="dialog"], [role="tab"], [role="tooltip"], button, label, nav a, [class*="card" i], [class*="dialog" i], [class*="badge" i], [class*="back" i], [class*="toast" i], [class*="summary" i]'
             )
           )
             .filter((el) => {
               const r = el.getBoundingClientRect();
               return r.width > 0 && r.height > 0 && r.top < 1800;
             })
-            .slice(0, 35)
+            .slice(0, 45)
             .map(pickStyle);
+
+          const styleTexts = Array.from(
+            targetDoc.querySelectorAll('style')
+          ).map((s) => s.textContent || '');
+          const scriptTexts = Array.from(
+            targetDoc.querySelectorAll('script:not([src])')
+          ).map((s) => s.textContent || '');
 
           return {
             usable: true,
-            title: document.title || '',
-            textPreview: bodyText.slice(0, 1200),
+            title: targetDoc.title || document.title || '',
+            textPreview: bodyText.slice(0, 1400),
             elements: nodes,
+            styleTexts,
+            scriptTexts,
+            iframeClip,
           };
         });
 
@@ -511,17 +690,28 @@ async function capturePrototypesWithPlaywright(urls, outDir, rawSpecText = '') {
           continue;
         }
 
+        const motionRules = extractMotionRulesFromCode(
+          pageSummary.styleTexts,
+          pageSummary.scriptTexts
+        );
+
         const baseName = `prototype-${String(idx + 1).padStart(2, '0')}`;
         const imgPath = path.join(outDir, `${baseName}.png`);
         const domPath = path.join(outDir, `${baseName}-dom.md`);
 
+        const clipRegion = pageSummary.iframeClip || {
+          x: 0,
+          y: 0,
+          width: 1280,
+          height: 900,
+        };
         await page.screenshot({
           path: imgPath,
-          clip: { x: 0, y: 0, width: 1280, height: 900 },
+          clip: clipRegion,
         });
 
         const domLines = [
-          `# 互動原型視覺與樣式摘要 (${url})`,
+          `# 互動原型視覺、微互動與動態樣式摘要 (${url})`,
           '',
           `- 頁面標題：${pageSummary.title || '(無)'}`,
           `- 對應截圖：\`${imgPath.replace(/\\/g, '/')}\``,
@@ -531,12 +721,31 @@ async function capturePrototypesWithPlaywright(urls, outDir, rawSpecText = '') {
           pageSummary.textPreview,
           '```',
           '',
-          '## 關鍵元件 Computed Style 抽樣',
+          '## 關鍵元件 Computed Style 抽樣（含 transform / transition / tooltip）',
           '```json',
           JSON.stringify(pageSummary.elements, null, 2),
           '```',
           '',
         ];
+
+        if (
+          motionRules.keyframes.length > 0 ||
+          motionRules.transitionsAndTransforms.length > 0 ||
+          motionRules.webAnimations.length > 0
+        ) {
+          domLines.push(
+            '## 動態過渡與微互動 CSS/JS 規則 (@keyframes / transition / transform / animate)',
+            '```css',
+            ...motionRules.keyframes,
+            ...motionRules.transitionsAndTransforms,
+            '```'
+          );
+          if (motionRules.webAnimations.length > 0) {
+            domLines.push('```js', ...motionRules.webAnimations, '```');
+          }
+          domLines.push('');
+        }
+
         fs.writeFileSync(domPath, domLines.join('\n'), 'utf8');
 
         captured.push({
@@ -553,10 +762,19 @@ async function capturePrototypesWithPlaywright(urls, outDir, rawSpecText = '') {
           const tabKw = interactiveTabLabels[tIdx];
           try {
             const clicked = await page.evaluate((kw) => {
+              const iframeEl = document.querySelector('iframe');
+              let doc = document;
+              try {
+                if (iframeEl?.contentDocument?.body) {
+                  doc = iframeEl.contentDocument;
+                }
+              } catch {
+                // ignore cross-origin
+              }
               const candidates = Array.from(
-                document.querySelectorAll('[role="tab"], button')
+                doc.querySelectorAll('[role="tab"], button')
               ).filter((el) => {
-                if (!(el instanceof HTMLElement)) return false;
+                if (!(el instanceof doc.defaultView.HTMLElement)) return false;
                 if (el.dataset.prefetchClicked === '1') return false;
                 if (el.getClientRects().length === 0) return false;
                 const txt = (el.textContent || '').trim();
@@ -566,14 +784,13 @@ async function capturePrototypesWithPlaywright(urls, outDir, rawSpecText = '') {
                 }
                 return true;
               });
-              // Prefer explicit ARIA tabs over toolbar buttons
               candidates.sort((a, b) => {
                 const aTab = a.getAttribute('role') === 'tab' ? 0 : 1;
                 const bTab = b.getAttribute('role') === 'tab' ? 0 : 1;
                 return aTab - bTab;
               });
               const target = candidates[0];
-              if (target instanceof HTMLElement) {
+              if (target) {
                 target.dataset.prefetchClicked = '1';
                 target.click();
                 return (target.textContent || '').trim();
@@ -582,14 +799,14 @@ async function capturePrototypesWithPlaywright(urls, outDir, rawSpecText = '') {
             }, tabKw);
 
             if (clicked) {
-              await waitForUiSettled(page, { settleDelayMs: 250 });
+              await waitForUiSettled(page, { settleDelayMs: 300 });
               const tabImgPath = path.join(
                 outDir,
                 `${baseName}-tab-${tIdx + 1}.png`
               );
               await page.screenshot({
                 path: tabImgPath,
-                clip: { x: 0, y: 0, width: 1280, height: 900 },
+                clip: clipRegion,
               });
               captured.push({
                 url: `${url} (切換狀態: ${clicked})`,
@@ -628,14 +845,14 @@ export function formatVisualManifestMarkdown({
 
   const lines = [
     '',
-    '## Ticket 視覺參考圖檔與 Design Hub 原型快照（已預先下載至本地）',
+    '## Ticket 視覺參考圖檔、微互動與 Design Hub 原型快照（已預先下載至本地）',
     '',
-    '> **重要視覺對齊指示**：動手寫 UI 元件前，**請務必先使用 `read_file` 工具逐一檢視下方列出的本地 `.png` / `.jpg` / `.webp` 圖檔與 `-dom.md` 樣式摘要**，確保排版結構、欄位順序、字級顏色、圓角間距與空狀態 1:1 對齊設計稿，切勿僅憑文字猜測排版！',
+    '> **重要視覺與動態對齊指示**：動手寫 UI 元件前，**請務必先使用 `read_file` 工具逐一檢視下方列出的本地 `.png` / `.jpg` / `.webp` 圖檔與 `-dom.md` 樣式／動畫摘要**，確保排版結構、欄位順序、字級顏色、收合展開互動、Tooltip、彈窗進場與步驟切換過渡動畫、以及多張卡片傾斜疊放動態 1:1 對齊設計稿，切勿僅憑文字猜測排版或省略動畫！',
     '',
   ];
 
   if (downloadedImages.length > 0) {
-    lines.push('### 1. Ticket 與留言附圖');
+    lines.push('### 1. Ticket 與留言附圖（依頂部最新規格優先排序）');
     for (const img of downloadedImages) {
       lines.push(
         `- \`${img.path}\`${img.alt ? ` — 說明：${img.alt}` : ''} (${img.mimeType})`
@@ -645,11 +862,13 @@ export function formatVisualManifestMarkdown({
   }
 
   if (capturedPrototypes.length > 0) {
-    lines.push('### 2. Design Hub / 互動原型即時截圖與 Computed CSS 結構');
+    lines.push(
+      '### 2. Design Hub / 互動原型即時截圖、Computed CSS 與 `@keyframes` 動態規則'
+    );
     for (const proto of capturedPrototypes) {
       lines.push(
         `- 原型截圖：\`${proto.imagePath}\`（來源：${proto.url}）`,
-        `  - 對應 DOM 與 CSS 數值摘要：\`${proto.domSpecPath}\``
+        `  - 對應 DOM、CSS 數值與動態過渡規則摘要：\`${proto.domSpecPath}\``
       );
     }
     lines.push('');
@@ -715,7 +934,7 @@ export async function runPrefetchVisuals(options = {}) {
   let rawTexts = [];
   try {
     const { issue, comments } = await fetchIssueWithHtml(ticketNumber, ghToken);
-    blocks = [issue, ...comments];
+    blocks = prioritizeIssueAndCommentBlocks(issue, comments);
     rawTexts = blocks.map((b) => b?.body ?? '');
   } catch (err) {
     console.warn(`[prefetch-visuals] GitHub API fetch skipped: ${err.message}`);

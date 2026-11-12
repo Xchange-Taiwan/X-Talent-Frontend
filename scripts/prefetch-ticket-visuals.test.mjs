@@ -4,11 +4,13 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   downloadVerifiedImage,
   extractDesignUrlsFromTexts,
+  extractMotionRulesFromCode,
   extractTicketImageCandidates,
   formatVisualManifestMarkdown,
   isAllowedPrototypeUrl,
   isAllowedTicketImageUrl,
   parsePrefetchArgs,
+  prioritizeIssueAndCommentBlocks,
   sniffImageMimeType,
 } from './prefetch-ticket-visuals.mjs';
 
@@ -87,7 +89,7 @@ describe('prefetch-ticket-visuals', () => {
     });
   });
 
-  describe('extractTicketImageCandidates', () => {
+  describe('prioritizeIssueAndCommentBlocks & extractTicketImageCandidates', () => {
     it('deduplicates UUIDs across body and body_html while preferring signed JWT URLs', () => {
       const uuid = '433313a3-030e-4866-bf40-3a53b283d26c';
       const blocks = [
@@ -105,10 +107,40 @@ describe('prefetch-ticket-visuals', () => {
         isSigned: true,
       });
     });
+
+    it('orders top issue description first, decorates comment-only image alt, and upgrades unsigned top URL with signed comment URL without losing top alt', () => {
+      const sharedUuid = '11111111-2222-3333-4444-555555555555';
+      const commentOnlyUuid = '99999999-8888-7777-6666-555555555555';
+      const ordered = prioritizeIssueAndCommentBlocks(
+        {
+          body: `<img alt="頂部定案設計圖" src="https://github.com/user-attachments/assets/${sharedUuid}" />`,
+          body_html: '',
+        },
+        [
+          { body: 'old-oct-comment', body_html: '' },
+          {
+            body: '',
+            body_html: `<img alt="留言簽章版" src="https://private-user-images.githubusercontent.com/1/${sharedUuid}.png?jwt=sig1"><img alt="補充情境" src="https://private-user-images.githubusercontent.com/1/${commentOnlyUuid}.png?jwt=sig2">`,
+          },
+        ]
+      );
+      expect(ordered[0]._fromComment).toBe(false);
+      expect(ordered[1]._fromComment).toBe(true);
+
+      const candidates = extractTicketImageCandidates(ordered);
+      expect(candidates).toHaveLength(2);
+      expect(candidates[0]).toEqual({
+        url: `https://private-user-images.githubusercontent.com/1/${sharedUuid}.png?jwt=sig1`,
+        alt: '頂部定案設計圖',
+        isSigned: true,
+      });
+      expect(candidates[1].alt).toContain('補充情境');
+      expect(candidates[1].alt).toContain('留言附圖');
+    });
   });
 
-  describe('extractDesignUrlsFromTexts', () => {
-    it('extracts public prototype URLs, resolves Design Hub KB screens, and notes Figma/Claude links', () => {
+  describe('extractDesignUrlsFromTexts & extractMotionRulesFromCode', () => {
+    it('extracts public prototype URLs, resolves Design Hub KB screens + scenarios, and notes Figma/Claude links', () => {
       const texts = [
         '互動原型：https://xtalent-chat-654.bonny80.chatgpt.site/ 參考 Figma: https://www.figma.com/design/abc/X-talent?node-id=1-2 與 https://claude.ai/artifact/46EiPvwQhkbodzfGm6jvwT#D-1',
       ];
@@ -120,6 +152,7 @@ describe('prefetch-ticket-visuals', () => {
             hubUrl:
               'https://x-talent-design-hub.x-talent.workers.dev/screens/mentor-card-737.html',
             tickets: ['737'],
+            scenarios: [{ id: 'default' }, { id: 'rating' }],
           },
           {
             id: 'fe-broken',
@@ -134,8 +167,36 @@ describe('prefetch-ticket-visuals', () => {
       expect(res.prototypeUrls).toEqual([
         'https://xtalent-chat-654.bonny80.chatgpt.site/',
         'https://x-talent-design-hub.x-talent.workers.dev/screens/mentor-card-737.html',
+        'https://x-talent-design-hub.x-talent.workers.dev/?view=screens&screen=mentor-card-737&device=desktop&scenario=default&mode=play',
+        'https://x-talent-design-hub.x-talent.workers.dev/?view=screens&screen=mentor-card-737&device=desktop&scenario=rating&mode=play',
       ]);
       expect(res.skippedProtectedUrls).toHaveLength(2);
+    });
+
+    it('extracts @keyframes, transition/transform rules, and Web Animations API calls while stripping CSS comments and prefers-reduced-motion blocks', () => {
+      const css = [
+        '/* header comment */ @keyframes xt-enter { from { opacity: 0; transform: translateY(4px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }',
+        '@media (prefers-reduced-motion: reduce) { .xt-dialog { animation: none !important; transition: none !important; } }',
+        '.xt-back { transform: rotate(-5deg); border-radius: 8px; }',
+        '.xt-dialog { animation: xt-enter 180ms cubic-bezier(.2,.8,.2,1); }',
+      ];
+      const js = [
+        "await motion(card,[{transform:'translateX(0) rotate(0deg)',opacity:1},{transform:'translateX(-100px) rotate(-8deg)',opacity:0}],260);",
+      ];
+      const motion = extractMotionRulesFromCode(css, js);
+      expect(motion.keyframes).toHaveLength(1);
+      expect(motion.keyframes[0]).toContain('@keyframes xt-enter');
+      expect(motion.transitionsAndTransforms.join('\n')).toContain(
+        'rotate(-5deg)'
+      );
+      expect(motion.transitionsAndTransforms.join('\n')).not.toContain(
+        'animation: none'
+      );
+      expect(motion.transitionsAndTransforms.join('\n')).not.toContain(
+        'from {'
+      );
+      expect(motion.webAnimations).toHaveLength(1);
+      expect(motion.webAnimations[0]).toContain('rotate(-8deg)');
     });
   });
 
