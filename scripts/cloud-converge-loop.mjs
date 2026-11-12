@@ -320,11 +320,18 @@ export function ensurePhase2GeminiToolExclusions(
 ) {
   if (!fsImpl.existsSync(settingsPath)) return false;
   try {
-    const raw = JSON.parse(fsImpl.readFileSync(settingsPath, 'utf8'));
-    const existing = Array.isArray(raw?.tools?.exclude)
-      ? raw.tools.exclude
+    const parsed = JSON.parse(fsImpl.readFileSync(settingsPath, 'utf8'));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return false;
+    }
+    const nextConfig = { ...parsed };
+    delete nextConfig.mcpServers;
+    delete nextConfig.hooks;
+
+    const existing = Array.isArray(nextConfig?.tools?.exclude)
+      ? nextConfig.tools.exclude
       : [];
-    const merged = [
+    const mergedExclude = [
       ...new Set([
         ...existing,
         'run_shell_command',
@@ -332,11 +339,40 @@ export function ensurePhase2GeminiToolExclusions(
         'google_web_search',
       ]),
     ];
+
+    const prevFiltering =
+      nextConfig.fileFiltering && typeof nextConfig.fileFiltering === 'object'
+        ? nextConfig.fileFiltering
+        : {};
+    const prevContext =
+      nextConfig.context && typeof nextConfig.context === 'object'
+        ? nextConfig.context
+        : {};
+    const prevCtxFiltering =
+      prevContext.fileFiltering && typeof prevContext.fileFiltering === 'object'
+        ? prevContext.fileFiltering
+        : {};
+
     const updated = {
-      ...raw,
+      ...nextConfig,
       tools: {
-        ...(raw.tools && typeof raw.tools === 'object' ? raw.tools : {}),
-        exclude: merged,
+        ...(nextConfig.tools && typeof nextConfig.tools === 'object'
+          ? nextConfig.tools
+          : {}),
+        exclude: mergedExclude,
+      },
+      fileFiltering: {
+        ...prevFiltering,
+        respectGitIgnore: false,
+        respectGeminiIgnore: false,
+      },
+      context: {
+        ...prevContext,
+        fileFiltering: {
+          ...prevCtxFiltering,
+          respectGitIgnore: false,
+          respectGeminiIgnore: false,
+        },
       },
     };
     fsImpl.writeFileSync(
@@ -348,6 +384,81 @@ export function ensurePhase2GeminiToolExclusions(
   } catch {
     return false;
   }
+}
+
+export function applyPhase2HeadlessWorkspaceLocks({
+  cwd = process.cwd(),
+  fsImpl = fs,
+  execGit = execFileSync,
+} = {}) {
+  const gitignorePath = path.join(cwd, '.gitignore');
+  if (fsImpl.existsSync(gitignorePath)) {
+    try {
+      const giRaw = fsImpl.readFileSync(gitignorePath, 'utf8');
+      const giFiltered = giRaw
+        .split(/\r?\n/)
+        .filter((line) => line.trim() !== '/.agents/tmp/')
+        .join('\n');
+      if (giFiltered !== giRaw) {
+        fsImpl.writeFileSync(gitignorePath, giFiltered, 'utf8');
+      }
+      execGit('git', ['update-index', '--skip-worktree', '.gitignore'], {
+        cwd,
+        stdio: 'ignore',
+      });
+    } catch {}
+  }
+
+  const settingsPath = path.join(cwd, '.gemini', 'settings.json');
+  if (ensurePhase2GeminiToolExclusions(settingsPath, fsImpl)) {
+    try {
+      execGit(
+        'git',
+        ['update-index', '--skip-worktree', '.gemini/settings.json'],
+        {
+          cwd,
+          stdio: 'ignore',
+        }
+      );
+    } catch {}
+  }
+}
+
+export function createSnapshotRestorer({
+  cwd = process.cwd(),
+  fsImpl = fs,
+  execGit = execFileSync,
+} = {}) {
+  return (treeSha) => {
+    if (!treeSha) return;
+    try {
+      execGit('git', ['read-tree', '--reset', '-u', treeSha], {
+        cwd,
+        stdio: 'ignore',
+      });
+      execGit('git', ['checkout-index', '-f', '-a'], {
+        cwd,
+        stdio: 'ignore',
+      });
+      execGit(
+        'git',
+        [
+          'clean',
+          '-fd',
+          '-e',
+          '.env*',
+          '-e',
+          '.agents/tmp',
+          '-e',
+          '.agents/tmp/**',
+        ],
+        { cwd, stdio: 'ignore' }
+      );
+      applyPhase2HeadlessWorkspaceLocks({ cwd, fsImpl, execGit });
+    } catch {
+      // Ignore best-effort rollback errors
+    }
+  };
 }
 
 /**
@@ -674,35 +785,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       }
     });
 
-  const restoreSnapshot =
-    deps.restoreSnapshot ||
-    ((treeSha) => {
-      if (!treeSha) return;
-      try {
-        execFileSync('git', ['read-tree', '--reset', '-u', treeSha], {
-          stdio: 'ignore',
-        });
-        execFileSync('git', ['checkout-index', '-f', '-a'], {
-          stdio: 'ignore',
-        });
-        execFileSync(
-          'git',
-          [
-            'clean',
-            '-fd',
-            '-e',
-            '.env*',
-            '-e',
-            '.agents/tmp',
-            '-e',
-            '.agents/tmp/**',
-          ],
-          { stdio: 'ignore' }
-        );
-      } catch {
-        // Ignore best-effort rollback errors
-      }
-    });
+  const restoreSnapshot = deps.restoreSnapshot || createSnapshotRestorer();
 
   const config = {
     maxRounds: clampMaxRounds(rawOptions.maxRounds, 20),
@@ -1175,17 +1258,7 @@ const isMain =
     path.resolve(fileURLToPath(import.meta.url));
 
 if (isMain) {
-  if (ensurePhase2GeminiToolExclusions()) {
-    try {
-      execFileSync(
-        'git',
-        ['update-index', '--skip-worktree', '.gemini/settings.json'],
-        {
-          stdio: 'ignore',
-        }
-      );
-    } catch {}
-  }
+  applyPhase2HeadlessWorkspaceLocks();
   const options = parseConvergeArgs(process.argv.slice(2), process.env);
   runConvergeLoop(options)
     .then((res) => {
