@@ -108,18 +108,34 @@ describe('prefetch-ticket-visuals', () => {
       });
     });
 
-    it('orders top issue description first, then newest comments before old comments', () => {
-      const ordered = prioritizeIssueAndCommentBlocks({ body: 'issue-top' }, [
-        { body: 'old-oct-comment' },
-        { body: 'new-nov-comment' },
-      ]);
-      expect(ordered.map((b) => b.body)).toEqual([
-        'issue-top',
-        'new-nov-comment',
-        'old-oct-comment',
-      ]);
+    it('orders top issue description first, decorates comment-only image alt, and upgrades unsigned top URL with signed comment URL without losing top alt', () => {
+      const sharedUuid = '11111111-2222-3333-4444-555555555555';
+      const commentOnlyUuid = '99999999-8888-7777-6666-555555555555';
+      const ordered = prioritizeIssueAndCommentBlocks(
+        {
+          body: `<img alt="頂部定案設計圖" src="https://github.com/user-attachments/assets/${sharedUuid}" />`,
+          body_html: '',
+        },
+        [
+          { body: 'old-oct-comment', body_html: '' },
+          {
+            body: '',
+            body_html: `<img alt="留言簽章版" src="https://private-user-images.githubusercontent.com/1/${sharedUuid}.png?jwt=sig1"><img alt="補充情境" src="https://private-user-images.githubusercontent.com/1/${commentOnlyUuid}.png?jwt=sig2">`,
+          },
+        ]
+      );
       expect(ordered[0]._fromComment).toBe(false);
       expect(ordered[1]._fromComment).toBe(true);
+
+      const candidates = extractTicketImageCandidates(ordered);
+      expect(candidates).toHaveLength(2);
+      expect(candidates[0]).toEqual({
+        url: `https://private-user-images.githubusercontent.com/1/${sharedUuid}.png?jwt=sig1`,
+        alt: '頂部定案設計圖',
+        isSigned: true,
+      });
+      expect(candidates[1].alt).toContain('補充情境');
+      expect(candidates[1].alt).toContain('留言附圖');
     });
   });
 
@@ -157,9 +173,10 @@ describe('prefetch-ticket-visuals', () => {
       expect(res.skippedProtectedUrls).toHaveLength(2);
     });
 
-    it('extracts @keyframes, transition/transform rules, and Web Animations API calls', () => {
+    it('extracts @keyframes, transition/transform rules, and Web Animations API calls while stripping CSS comments and prefers-reduced-motion blocks', () => {
       const css = [
-        '@keyframes xt-enter { from { opacity: 0; transform: translateY(4px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }',
+        '/* header comment */ @keyframes xt-enter { from { opacity: 0; transform: translateY(4px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }',
+        '@media (prefers-reduced-motion: reduce) { .xt-dialog { animation: none !important; transition: none !important; } }',
         '.xt-back { transform: rotate(-5deg); border-radius: 8px; }',
         '.xt-dialog { animation: xt-enter 180ms cubic-bezier(.2,.8,.2,1); }',
       ];
@@ -172,6 +189,10 @@ describe('prefetch-ticket-visuals', () => {
       expect(motion.transitionsAndTransforms.join('\n')).toContain(
         'rotate(-5deg)'
       );
+      expect(motion.transitionsAndTransforms.join('\n')).not.toContain(
+        'animation: none'
+      );
+      expect(motion.transitionsAndTransforms.join('\n')).not.toContain('from {');
       expect(motion.webAnimations).toHaveLength(1);
       expect(motion.webAnimations[0]).toContain('rotate(-8deg)');
     });

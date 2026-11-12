@@ -212,10 +212,10 @@ export function extractTicketImageCandidates(blocks = []) {
     const isSigned = isSignedUserImageHost(url);
     const existing = byKey.get(key);
     const cleanAlt = altText.trim();
-    const decoratedAlt =
-      fromComment && !existing
-        ? `${cleanAlt ? `${cleanAlt} ` : ''}(留言附圖，若與頂部最新規格衝突請以頂部規格與 Design Hub 為準)`.trim()
-        : cleanAlt || existing?.alt || '';
+    const decoratedAlt = fromComment
+      ? existing?.alt ||
+        `${cleanAlt ? `${cleanAlt} ` : ''}(留言附圖，若與頂部最新規格衝突請以頂部規格與 Design Hub 為準)`.trim()
+      : cleanAlt || existing?.alt || '';
     if (!existing || (isSigned && !existing.isSigned)) {
       byKey.set(key, {
         url,
@@ -364,28 +364,39 @@ export function extractMotionRulesFromCode(cssTexts = [], jsTexts = []) {
   const webAnimations = [];
 
   for (const rawCss of cssTexts) {
-    const css = String(rawCss ?? '').replace(
-      /data:image\/[^"')\s]+/g,
-      'DATA_IMAGE'
-    );
+    const withoutComments = String(rawCss ?? '')
+      .replace(/\/\*[\s\S]*?\*\//g, ' ')
+      .replace(/data:image\/[^"')\s]+/g, 'DATA_IMAGE');
     const kfRegex =
       /@keyframes\s+[a-zA-Z0-9_-]+\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g;
     let kfMatch;
-    while ((kfMatch = kfRegex.exec(css)) !== null && keyframes.length < 15) {
+    while (
+      (kfMatch = kfRegex.exec(withoutComments)) !== null &&
+      keyframes.length < 15
+    ) {
       keyframes.push(kfMatch[0].trim());
     }
+
+    // Strip @keyframes and @media (...prefers-reduced-motion...) blocks before rule scanning
+    const cleanedRulesCss = withoutComments
+      .replace(kfRegex, ' ')
+      .replace(
+        /@media[^{]*prefers-reduced-motion[^{]*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/gi,
+        ' '
+      );
 
     const ruleRegex = /([^{}@]+)\{([^{}]+)\}/g;
     let ruleMatch;
     while (
-      (ruleMatch = ruleRegex.exec(css)) !== null &&
+      (ruleMatch = ruleRegex.exec(cleanedRulesCss)) !== null &&
       transitionsAndTransforms.length < 30
     ) {
       const sel = ruleMatch[1].trim().replace(/\s+/g, ' ');
       const decls = ruleMatch[2].trim();
       if (
         /(?:transition|animation|transform|backdrop-filter)\s*:/i.test(decls) &&
-        !/prefers-reduced-motion/i.test(sel) &&
+        !/!\s*important\b/i.test(decls) &&
+        sel.length > 0 &&
         sel.length < 140
       ) {
         const relevantProps = decls
@@ -657,9 +668,9 @@ async function capturePrototypesWithPlaywright(urls, outDir, rawSpecText = '') {
             .slice(0, 45)
             .map(pickStyle);
 
-          const styleTexts = Array.from(
-            targetDoc.querySelectorAll('style')
-          ).map((s) => s.textContent || '');
+          const styleTexts = Array.from(targetDoc.querySelectorAll('style')).map(
+            (s) => s.textContent || ''
+          );
           const scriptTexts = Array.from(
             targetDoc.querySelectorAll('script:not([src])')
           ).map((s) => s.textContent || '');
@@ -730,7 +741,11 @@ async function capturePrototypesWithPlaywright(urls, outDir, rawSpecText = '') {
             '```'
           );
           if (motionRules.webAnimations.length > 0) {
-            domLines.push('```js', ...motionRules.webAnimations, '```');
+            domLines.push(
+              '```js',
+              ...motionRules.webAnimations,
+              '```'
+            );
           }
           domLines.push('');
         }
