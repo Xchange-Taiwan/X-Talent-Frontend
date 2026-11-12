@@ -2,14 +2,20 @@ import { useCallback } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
+import { clearUserProfileDtoCache } from '@/hooks/user/user-data/userProfileDtoCache';
 import { trackEvent } from '@/lib/analytics';
+import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import {
   acceptReservation,
   rejectOrCancelReservation,
   submitReservationFeedback,
+  updateReservationFeedback,
 } from '@/services/reservations';
 import { Reservation } from '@/types/reservation';
-import type { SubmitReservationFeedbackRequest } from '@/types/reservationFeedback';
+import type {
+  SubmitReservationFeedbackRequest,
+  UpdateReservationFeedbackRequest,
+} from '@/types/reservationFeedback';
 
 export type Variant =
   'upcoming' | 'pending-mentee' | 'pending-mentor' | 'history';
@@ -34,6 +40,10 @@ interface UseReservationActionsReturn {
   submitFeedback: (
     reservation: Reservation,
     payload: SubmitReservationFeedbackRequest
+  ) => Promise<void>;
+  updateFeedback: (
+    reservation: Reservation,
+    payload: UpdateReservationFeedbackRequest
   ) => Promise<void>;
   isMutating: boolean;
 }
@@ -106,6 +116,15 @@ export function useReservationActions({
           myRole,
           payload,
         });
+        if (payload.meeting_happened && myUserId) {
+          const counterpartyId = Number(
+            resolveCounterpartyId(reservation, myUserId)
+          );
+          if (Number.isFinite(counterpartyId) && counterpartyId > 0) {
+            clearUserProfileDtoCache(counterpartyId, 'zh_TW');
+            clearUserProfileDtoCache(counterpartyId, 'en_US');
+          }
+        }
         trackEvent({
           name: 'reservation_feedback_submitted',
           feature: 'reservation',
@@ -117,10 +136,42 @@ export function useReservationActions({
     [run, myUserId, myRole, onMutationSuccess]
   );
 
+  const updateFeedback = useCallback(
+    async (
+      reservation: Reservation,
+      payload: UpdateReservationFeedbackRequest
+    ) => {
+      await run(async () => {
+        await updateReservationFeedback({
+          reservation,
+          myUserId,
+          myRole,
+          payload,
+        });
+        if (myUserId && reservation.feedback?.rating?.isPublic !== false) {
+          const counterpartyId = Number(
+            resolveCounterpartyId(reservation, myUserId)
+          );
+          if (Number.isFinite(counterpartyId) && counterpartyId > 0) {
+            clearUserProfileDtoCache(counterpartyId, 'zh_TW');
+            clearUserProfileDtoCache(counterpartyId, 'en_US');
+          }
+        }
+        trackEvent({
+          name: 'reservation_feedback_updated',
+          feature: 'reservation',
+        });
+        await onMutationSuccess?.(reservation.id);
+      });
+    },
+    [run, myUserId, myRole, onMutationSuccess]
+  );
+
   return {
     accept,
     rejectOrCancel,
     submitFeedback,
+    updateFeedback,
     isMutating,
   };
 }

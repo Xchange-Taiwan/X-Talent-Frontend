@@ -5,6 +5,7 @@ import {
   MAX_FEEDBACK_CONTENT_LENGTH,
   meetingFeedbackFormSchema,
   toSubmitFeedbackPayload,
+  toUpdateFeedbackPayload,
 } from './meetingFeedbackSchema';
 
 describe('meetingFeedbackSchema', () => {
@@ -125,5 +126,34 @@ describe('meetingFeedbackSchema', () => {
       meeting_happened: false,
       not_happened_reason: 'MENTOR_ABSENT',
     });
+  });
+
+  it('builds PUT edit payload with only { rating, content } and trimmed content (#731)', () => {
+    const payload = toUpdateFeedbackPayload({
+      rating: 7,
+      content: '  更新後的評價內容  ',
+    });
+
+    expect(payload).toEqual({
+      rating: 7,
+      content: '更新後的評價內容',
+    });
+    expect(Object.keys(payload ?? {})).toEqual(['rating', 'content']);
+  });
+
+  it('returns null in toUpdateFeedbackPayload when rating or content is invalid (#731)', () => {
+    expect(
+      toUpdateFeedbackPayload({
+        rating: 0,
+        content: '無效評分',
+      })
+    ).toBeNull();
+
+    expect(
+      toUpdateFeedbackPayload({
+        rating: 8,
+        content: 'a'.repeat(MAX_FEEDBACK_CONTENT_LENGTH + 1),
+      })
+    ).toBeNull();
   });
 });

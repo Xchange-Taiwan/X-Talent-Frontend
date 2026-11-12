@@ -30,6 +30,7 @@ import {
   invalidateReservationRead,
   mapToReservation,
   postReservationFeedback,
+  putReservationFeedback,
   updateReservationStatus,
 } from './reservationService';
 
@@ -515,6 +516,27 @@ describe('reservationService API Error Handling', () => {
         {
           meeting_happened: true,
           feedback: { rating: 10, content: '非常棒！' },
+        }
+      );
+    });
+
+    it('calls PUT /v1/users/:userId/reservations/:reservationId/feedback with { rating, content } via apiClient.putUnwrapped (#731)', async () => {
+      mockPut.mockResolvedValueOnce({ ok: true });
+
+      await putReservationFeedback({
+        userId: '1',
+        reservationId: '42',
+        body: {
+          rating: 8,
+          content: '更新後的回饋內容',
+        },
+      });
+
+      expect(mockPut).toHaveBeenCalledWith(
+        '/v1/users/1/reservations/42/feedback',
+        {
+          rating: 8,
+          content: '更新後的回饋內容',
         }
       );
     });

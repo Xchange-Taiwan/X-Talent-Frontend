@@ -92,6 +92,7 @@ describe('resolveHistoryFeedbackState', () => {
         label: '我的評價',
         rating: 10,
         content: '非常棒的交流！',
+        canEdit: true,
       },
     });
   });
@@ -122,6 +123,7 @@ describe('resolveHistoryFeedbackState', () => {
         rating: 8,
         content: '謝謝分享',
         notice: UNPUBLICIZED_FEEDBACK_NOTICE,
+        canEdit: true,
       },
     });
   });
@@ -182,6 +184,7 @@ describe('resolveHistoryFeedbackState', () => {
         label: '學員評價',
         rating: 9,
         content: '收穫良多！',
+        canEdit: false,
       },
     });
 

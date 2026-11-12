@@ -517,6 +517,48 @@ describe('ReservationList', () => {
       );
 
       expect(screen.getByText('未進行')).toBeInTheDocument();
+
+      // #731: Both rated cards (public 已填寫 and unpublicized 評價未公開) show 編輯, absent card does not, and 刪除 never exists
+      expect(screen.getAllByRole('button', { name: '編輯' })).toHaveLength(2);
+      expect(
+        screen.queryByRole('button', { name: /刪除/ })
+      ).not.toBeInTheDocument();
+    });
+
+    it('never renders 編輯 or 刪除 buttons on Mentor history cards (#731)', () => {
+      render(
+        <ReservationList
+          items={[
+            {
+              ...mockReservation,
+              id: 'hist-mentor-public',
+              feedback: {
+                meetingHappened: true,
+                rating: {
+                  rating: 10,
+                  content: '學員公開評價',
+                  createdAt: 1760000000,
+                  updatedAt: 1760000000,
+                  authorName: '王＊明',
+                  isPublic: true,
+                },
+                nextStep: null,
+              },
+            },
+          ]}
+          variant="history"
+          sourceRole="mentor"
+          myUserId="user-456"
+        />
+      );
+
+      expect(screen.getByText('學員評價')).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: '編輯' })
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: /刪除/ })
+      ).not.toBeInTheDocument();
     });
   });
 });

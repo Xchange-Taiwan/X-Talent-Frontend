@@ -16,10 +16,12 @@ export const DEFAULT_MEETING_FEEDBACK_FORM_VALUES: MeetingFeedbackFormValues = {
   notHappenedReason: null,
 };
 
-export function useMeetingFeedbackForm() {
+export function useMeetingFeedbackForm(
+  defaultValues: MeetingFeedbackFormValues = DEFAULT_MEETING_FEEDBACK_FORM_VALUES
+) {
   return useForm<MeetingFeedbackFormValues>({
     resolver: zodResolver(meetingFeedbackFormSchema),
-    defaultValues: DEFAULT_MEETING_FEEDBACK_FORM_VALUES,
+    defaultValues,
     mode: 'onChange',
   });
 }

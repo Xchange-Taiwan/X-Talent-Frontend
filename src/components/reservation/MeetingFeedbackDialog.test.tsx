@@ -387,4 +387,213 @@ describe('MeetingFeedbackDialog', () => {
     expect(screen.getByText('會談是否有進行？')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '下一步' })).toBeDisabled();
   });
+
+  describe('mode="edit" (#731)', () => {
+    const ratedReservation: Reservation = fromPartial<Reservation>({
+      ...baseReservation,
+      id: 'res-731',
+      feedback: {
+        meetingHappened: true,
+        rating: {
+          rating: 7,
+          content: '原本已送出的評論內容',
+          createdAt: 1760000000,
+          updatedAt: 1760000000,
+          authorName: '王＊明',
+          isPublic: true,
+        },
+        nextStep: null,
+      },
+    });
+
+    it('skips Step 1 attendance question, prefills existing rating (7, not 10) and 5-row resize-none content, and submits { rating, content } via onUpdateFeedback', async () => {
+      const onUpdateFeedback = vi.fn().mockResolvedValue(undefined);
+
+      render(
+        <MeetingFeedbackDialog
+          mode="edit"
+          reservation={ratedReservation}
+          onUpdateFeedback={onUpdateFeedback}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: '編輯' }));
+
+      expect(screen.queryByText('會談是否有進行？')).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: '上一步' })
+      ).not.toBeInTheDocument();
+      expect(screen.getByText('編輯回饋')).toBeInTheDocument();
+      expect(screen.getByTestId('meeting-rating-value')).toHaveTextContent(
+        '7 / 10'
+      );
+
+      const starGroup = screen.getByRole('radiogroup', { name: '整體滿意度' });
+      expect(
+        within(starGroup).getByRole('radio', { name: '7 分' })
+      ).toHaveAttribute('aria-checked', 'true');
+      expect(
+        within(starGroup).getByRole('radio', { name: '10 分' })
+      ).toHaveAttribute('aria-checked', 'false');
+
+      const textarea = screen.getByLabelText('評論內容（選填）');
+      expect(textarea).toHaveAttribute('rows', '5');
+      expect(textarea).toHaveClass('resize-none');
+      expect(textarea).toHaveValue('原本已送出的評論內容');
+
+      fireEvent.click(within(starGroup).getByRole('radio', { name: '9 分' }));
+      fireEvent.change(textarea, {
+        target: { value: '  修改後的回饋內容，幫助很大！  ' },
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: '儲存' }));
+
+      await waitFor(() => {
+        expect(onUpdateFeedback).toHaveBeenCalledTimes(1);
+      });
+      expect(onUpdateFeedback).toHaveBeenCalledWith({
+        rating: 9,
+        content: '修改後的回饋內容，幫助很大！',
+      });
+      expect(mockToast).toHaveBeenCalledWith({
+        title: '已儲存',
+        description: '您的回饋已更新！',
+      });
+    });
+
+    it('restores saved rating & content (never resetting to 10) when manually closed via 取消 or Escape', async () => {
+      const onUpdateFeedback = vi.fn().mockResolvedValue(undefined);
+
+      render(
+        <MeetingFeedbackDialog
+          mode="edit"
+          reservation={ratedReservation}
+          onUpdateFeedback={onUpdateFeedback}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: '編輯' }));
+
+      fireEvent.click(screen.getByRole('radio', { name: '4 分' }));
+      fireEvent.change(screen.getByLabelText('評論內容（選填）'), {
+        target: { value: '未儲存的暫時草稿' },
+      });
+      expect(screen.getByTestId('meeting-rating-value')).toHaveTextContent(
+        '4 / 10'
+      );
+
+      // Cancel via 取消 button
+      fireEvent.click(screen.getByRole('button', { name: '取消' }));
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      });
+      expect(onUpdateFeedback).not.toHaveBeenCalled();
+
+      // Reopen -> restored to saved 7 / 10 and original content, NOT 10 / 10
+      fireEvent.click(screen.getByRole('button', { name: '編輯' }));
+      expect(screen.getByTestId('meeting-rating-value')).toHaveTextContent(
+        '7 / 10'
+      );
+      expect(screen.getByLabelText('評論內容（選填）')).toHaveValue(
+        '原本已送出的評論內容'
+      );
+
+      // Modify again and dismiss via Escape -> also restores saved 7 / 10
+      fireEvent.click(screen.getByRole('radio', { name: '2 分' }));
+      fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: '編輯' }));
+      expect(screen.getByTestId('meeting-rating-value')).toHaveTextContent(
+        '7 / 10'
+      );
+      expect(screen.getByLabelText('評論內容（選填）')).toHaveValue(
+        '原本已送出的評論內容'
+      );
+    });
+
+    it('preserves edited draft on PUT failure for Toast reopen retry and supports unlimited subsequent edits', async () => {
+      const onUpdateFeedback = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('PUT network error'))
+        .mockResolvedValue(undefined);
+
+      const { rerender } = render(
+        <MeetingFeedbackDialog
+          mode="edit"
+          reservation={ratedReservation}
+          onUpdateFeedback={onUpdateFeedback}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: '編輯' }));
+      fireEvent.click(screen.getByRole('radio', { name: '8 分' }));
+      fireEvent.change(screen.getByLabelText('評論內容（選填）'), {
+        target: { value: '第一次編輯草稿' },
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: '儲存' }));
+
+      await waitFor(() => {
+        expect(mockToast).toHaveBeenCalledTimes(1);
+      });
+
+      const failureToastArgs = mockToast.mock.calls[0][0];
+      expect(failureToastArgs.variant).toBe('destructive');
+
+      render(<div>{failureToastArgs.description}</div>);
+      fireEvent.click(screen.getByRole('button', { name: '評論' }));
+
+      await waitFor(() => {
+        expect(screen.getByText('編輯回饋')).toBeInTheDocument();
+      });
+      expect(screen.getByTestId('meeting-rating-value')).toHaveTextContent(
+        '8 / 10'
+      );
+      expect(screen.getByLabelText('評論內容（選填）')).toHaveValue(
+        '第一次編輯草稿'
+      );
+
+      // Retry save -> succeeds
+      fireEvent.click(screen.getByRole('button', { name: '儲存' }));
+      await waitFor(() => {
+        expect(onUpdateFeedback).toHaveBeenCalledTimes(2);
+      });
+
+      // Parent updates reservation with newly saved values -> reopen for 2nd unlimited edit
+      const updatedReservation: Reservation = fromPartial<Reservation>({
+        ...ratedReservation,
+        feedback: {
+          meetingHappened: true,
+          rating: {
+            rating: 8,
+            content: '第一次編輯草稿',
+            createdAt: 1760000000,
+            updatedAt: 1760000500,
+            authorName: '王＊明',
+            isPublic: true,
+          },
+          nextStep: null,
+        },
+      });
+
+      rerender(
+        <MeetingFeedbackDialog
+          mode="edit"
+          reservation={updatedReservation}
+          onUpdateFeedback={onUpdateFeedback}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: '編輯' }));
+      expect(screen.getByTestId('meeting-rating-value')).toHaveTextContent(
+        '8 / 10'
+      );
+      expect(screen.getByLabelText('評論內容（選填）')).toHaveValue(
+        '第一次編輯草稿'
+      );
+    });
+  });
 });

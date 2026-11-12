@@ -1,11 +1,18 @@
 import { AlertCircle, Star } from 'lucide-react';
 import * as React from 'react';
 
+import { Button } from '@/components/ui/button';
 import { FEEDBACK_FORM_URL } from '@/constant/externalLinks';
 import type { HistoryFeedbackBlockModel } from '@/lib/reservation/resolveHistoryFeedbackState';
 
 export interface ReservationFeedbackBlockProps {
   model: HistoryFeedbackBlockModel;
+  /**
+   * Optional custom edit trigger element (e.g. `MeetingFeedbackDialog` in `mode="edit"`).
+   * Only rendered when `model.canEdit` is true.
+   */
+  editAction?: React.ReactNode;
+  onEdit?: () => void;
 }
 
 const FEEDBACK_LINK_LABEL = '回饋表單';
@@ -37,7 +44,23 @@ function renderNoticeWithFeedbackLink(notice: string): React.ReactNode {
 
 export function ReservationFeedbackBlock({
   model,
+  editAction,
+  onEdit,
 }: ReservationFeedbackBlockProps) {
+  const editControl = model.canEdit
+    ? (editAction ?? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onEdit}
+          className="border-background-border bg-background-white text-text-primary hover:bg-background-hover h-7 rounded-lg px-2.5 text-xs font-medium sm:h-8 sm:px-3"
+        >
+          編輯
+        </Button>
+      ))
+    : null;
+
   if (model.kind === 'unpublicized') {
     return (
       <div
@@ -48,13 +71,16 @@ export function ReservationFeedbackBlock({
           <span className="text-text-secondary text-xs font-medium">
             我的評價
           </span>
-          <span className="text-text-secondary inline-flex items-center gap-1 text-xs font-semibold tabular-nums sm:text-sm">
-            <Star
-              className="fill-text-tertiary text-text-tertiary size-3.5"
-              aria-hidden="true"
-            />
-            <span>{model.rating} / 10</span>
-          </span>
+          <div className="flex items-center gap-2.5">
+            <span className="text-text-secondary inline-flex items-center gap-1 text-xs font-semibold tabular-nums sm:text-sm">
+              <Star
+                className="fill-text-tertiary text-text-tertiary size-3.5"
+                aria-hidden="true"
+              />
+              <span>{model.rating} / 10</span>
+            </span>
+            {editControl}
+          </div>
         </div>
 
         {model.content ? (
@@ -86,13 +112,16 @@ export function ReservationFeedbackBlock({
         <span className="text-text-secondary text-xs font-medium">
           {model.label}
         </span>
-        <span className="text-brand-700 inline-flex items-center gap-1 text-xs font-semibold tabular-nums sm:text-sm">
-          <Star
-            className="fill-brand-700 text-brand-700 size-3.5"
-            aria-hidden="true"
-          />
-          <span>{model.rating} / 10</span>
-        </span>
+        <div className="flex items-center gap-2.5">
+          <span className="text-brand-700 inline-flex items-center gap-1 text-xs font-semibold tabular-nums sm:text-sm">
+            <Star
+              className="fill-brand-700 text-brand-700 size-3.5"
+              aria-hidden="true"
+            />
+            <span>{model.rating} / 10</span>
+          </span>
+          {editControl}
+        </div>
       </div>
 
       {model.content ? (

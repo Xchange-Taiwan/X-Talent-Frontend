@@ -181,3 +181,22 @@ export async function fetchMentorFeedback({
     throw error;
   }
 }
+
+type MentorFeedbackInvalidationListener = (mentorId?: number) => void;
+const mentorFeedbackInvalidationListeners =
+  new Set<MentorFeedbackInvalidationListener>();
+
+export function subscribeMentorFeedbackInvalidation(
+  listener: MentorFeedbackInvalidationListener
+): () => void {
+  mentorFeedbackInvalidationListeners.add(listener);
+  return () => {
+    mentorFeedbackInvalidationListeners.delete(listener);
+  };
+}
+
+export function invalidateMentorFeedback(mentorId?: number): void {
+  mentorFeedbackInvalidationListeners.forEach((listener) => {
+    listener(mentorId);
+  });
+}

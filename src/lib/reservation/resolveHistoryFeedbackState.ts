@@ -12,12 +12,14 @@ export type HistoryFeedbackBlockModel =
       label: '我的評價' | '學員評價';
       rating: number;
       content: string;
+      canEdit?: boolean;
     }
   | {
       kind: 'unpublicized';
       rating: number;
       content: string;
       notice: string;
+      canEdit?: boolean;
     };
 
 export interface HistoryFeedbackState {
@@ -64,6 +66,7 @@ export function resolveHistoryFeedbackState(opts: {
             rating: feedback.rating.rating,
             content: feedback.rating.content,
             notice: UNPUBLICIZED_FEEDBACK_NOTICE,
+            canEdit: true,
           },
         };
       }
@@ -75,6 +78,7 @@ export function resolveHistoryFeedbackState(opts: {
           label: '我的評價',
           rating: feedback.rating.rating,
           content: feedback.rating.content,
+          canEdit: true,
         },
       };
     }
@@ -108,6 +112,7 @@ export function resolveHistoryFeedbackState(opts: {
         label: '學員評價',
         rating: feedback.rating.rating,
         content: feedback.rating.content,
+        canEdit: false,
       },
     };
   }
