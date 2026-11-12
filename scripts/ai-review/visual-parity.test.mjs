@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 
+import { loadReviewVisualAssets, MAX_EVIDENCE_IMAGES as LOCAL_MAX_EVIDENCE } from './lib/visuals.mjs';
 import {
   formatArchitectureKnowledgeBase,
   isUiReviewFile,
@@ -10,7 +11,6 @@ import {
   MAX_EVIDENCE_IMAGES,
   shouldSkipVisualParity,
 } from './visual-parity.mjs';
-import { loadReviewVisualAssets } from './lib/visuals.mjs';
 
 describe('visual-parity & Design Hub KB helpers', () => {
   it('identifies genuine UI files while excluding API routes, tests, and stories', () => {
@@ -82,5 +82,12 @@ describe('visual-parity & Design Hub KB helpers', () => {
       }).skip
     ).toBe(false);
     expect(MAX_EVIDENCE_IMAGES).toBe(8);
+    expect(LOCAL_MAX_EVIDENCE).toBe(8);
+    expect(
+      loadReviewVisualAssets({
+        ticketImagesDir: '__non_existent_refs__',
+        evidenceDir: '__non_existent_ev__',
+      }).evidenceCount
+    ).toBe(0);
   });
 });
