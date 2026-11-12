@@ -21,10 +21,14 @@ export function useStepHeightMorph(stepKey: string) {
   React.useEffect(() => {
     return () => {
       animRef.current?.cancel();
+      animRef.current = null;
     };
   }, []);
 
   React.useLayoutEffect(() => {
+    animRef.current?.cancel();
+    animRef.current = null;
+
     const el = containerRef.current;
     const prevHeight = prevHeightRef.current;
     prevHeightRef.current = null;
@@ -43,7 +47,6 @@ export function useStepHeightMorph(stepKey: string) {
       return;
     }
 
-    animRef.current?.cancel();
     const anim = el.animate(
       [{ height: `${prevHeight}px` }, { height: `${nextHeight}px` }],
       {

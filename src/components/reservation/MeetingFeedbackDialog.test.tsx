@@ -70,7 +70,7 @@ describe('MeetingFeedbackDialog', () => {
     }
   });
 
-  it('renders mentor avatar/session header, teal radio selected styling, downward ⓘ masking tooltip without inline style, 10-star rating, and submits trimmed payload', async () => {
+  it('renders mentor avatar/session header, teal radio selected styling, right-side ⓘ masking tooltip without inline style, 10-star rating, and submits trimmed payload', async () => {
     const onSubmitFeedback = vi.fn().mockResolvedValue(undefined);
 
     render(
@@ -117,7 +117,12 @@ describe('MeetingFeedbackDialog', () => {
     fireEvent.mouseEnter(maskInfoBtn);
     const maskTooltip = screen.getByTestId('feedback-name-masking-tooltip');
     expect(maskTooltip).toHaveTextContent('顯示時不會完整公開姓名與個人資料');
-    expect(maskTooltip).toHaveClass('top-full');
+    expect(maskTooltip).toHaveClass(
+      'left-full',
+      'ml-2',
+      'top-1/2',
+      '-translate-y-1/2'
+    );
     expect(maskTooltip).not.toHaveAttribute('style');
     fireEvent.mouseLeave(maskInfoBtn);
     expect(
@@ -301,8 +306,18 @@ describe('MeetingFeedbackDialog', () => {
     const submitBtn = screen.getByRole('button', { name: '送出回饋' });
     expect(submitBtn).toBeDisabled();
 
+    for (const label of [
+      '雙方時間無法配合',
+      '對方未出席',
+      '未收到或錯過會議通知',
+      '技術／連線問題',
+      '其他',
+    ]) {
+      expect(screen.getByRole('radio', { name: label })).toBeInTheDocument();
+    }
+
     // Selecting a non-OTHER reason enables submit and keeps 補充說明 collapsed
-    fireEvent.click(screen.getByRole('radio', { name: '未出席' }));
+    fireEvent.click(screen.getByRole('radio', { name: '對方未出席' }));
     expect(submitBtn).not.toBeDisabled();
     expect(noteCollapse).toHaveAttribute('data-expanded', 'false');
 
@@ -317,7 +332,7 @@ describe('MeetingFeedbackDialog', () => {
     });
 
     // Switching away from 其他 collapses 補充說明 even when draft has text, and omits note on submit
-    fireEvent.click(screen.getByRole('radio', { name: '未出席' }));
+    fireEvent.click(screen.getByRole('radio', { name: '對方未出席' }));
     expect(noteCollapse).toHaveAttribute('data-expanded', 'false');
 
     fireEvent.click(submitBtn);

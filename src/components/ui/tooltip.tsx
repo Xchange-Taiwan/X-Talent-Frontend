@@ -4,7 +4,7 @@ import * as React from 'react';
 
 import { cn } from '@/lib/utils';
 
-export type TooltipSide = 'top' | 'bottom';
+export type TooltipSide = 'top' | 'bottom' | 'left' | 'right';
 export type TooltipAlign = 'start' | 'center' | 'end';
 
 export interface TooltipProps {
@@ -133,11 +133,23 @@ export function Tooltip({
     },
   });
 
+  const isHorizontalSide = side === 'left' || side === 'right';
   const placementClasses = cn(
-    side === 'top' ? 'bottom-full mb-2' : 'top-full mt-2',
-    align === 'start' && 'left-0',
-    align === 'center' && 'left-1/2 -translate-x-1/2',
-    align === 'end' && 'right-0'
+    side === 'top' && 'bottom-full mb-2',
+    side === 'bottom' && 'top-full mt-2',
+    side === 'left' && 'right-full mr-2',
+    side === 'right' && 'left-full ml-2',
+    isHorizontalSide
+      ? [
+          align === 'start' && 'top-0',
+          align === 'center' && 'top-1/2 -translate-y-1/2',
+          align === 'end' && 'bottom-0',
+        ]
+      : [
+          align === 'start' && 'left-0',
+          align === 'center' && 'left-1/2 -translate-x-1/2',
+          align === 'end' && 'right-0',
+        ]
   );
 
   return (

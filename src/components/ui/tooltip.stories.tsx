@@ -34,7 +34,7 @@ export const DefaultHover: Story = {
 export const ClickToPin: Story = {
   args: {
     content: '顯示時不會完整公開姓名與個人資料',
-    side: 'bottom',
+    side: 'right',
     align: 'center',
     pinOnClick: true,
     contentClassName: 'w-max max-w-60 px-2.5 py-1.5',

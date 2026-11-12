@@ -3,6 +3,7 @@ import { fromPartial } from '@total-typescript/shoehorn';
 import * as React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ReservationList } from '@/components/reservation/ReservationList';
 import { useReservationData } from '@/hooks/user/reservation/useReservationData';
 
 import { ReservationDashboard } from './ReservationDashboard';
@@ -497,5 +498,11 @@ describe('ReservationDashboard', () => {
 
     render(<ReservationDashboard userRole="mentee" />);
     expect(mockReplace).not.toHaveBeenCalled();
+    const historyCall = vi
+      .mocked(ReservationList)
+      .mock.calls.find(([props]) => props.variant === 'history');
+    expect(historyCall?.[0].feedbackQueueItems).toEqual([
+      expect.objectContaining({ id: 'hist-pending-answer' }),
+    ]);
   });
 });

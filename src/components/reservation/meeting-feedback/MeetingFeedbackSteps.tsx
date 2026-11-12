@@ -118,13 +118,13 @@ export function RatingStepContent({
 
           <Tooltip
             content="顯示時不會完整公開姓名與個人資料"
-            side="bottom"
-            align={isEditMode ? 'start' : 'center'}
+            side="right"
+            align="center"
             pinOnClick
             dismissSignal={tooltipDismissSignal}
             onOpenChange={onMaskTooltipOpenChange}
             testId="feedback-name-masking-tooltip"
-            contentClassName="w-max max-w-60 px-2.5 py-1.5"
+            contentClassName="w-max max-w-[calc(100vw-15rem)] px-2.5 py-1.5 sm:max-w-60"
           >
             <button
               type="button"

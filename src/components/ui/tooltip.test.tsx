@@ -127,4 +127,42 @@ describe('Tooltip', () => {
     fireEvent.click(screen.getByRole('button', { name: '強制關閉提示' }));
     expect(screen.queryByTestId('dismissable-tooltip')).not.toBeInTheDocument();
   });
+
+  it('positions horizontal right/left tooltips with vertical alignment classes and no inline styles', () => {
+    render(
+      <div>
+        <Tooltip
+          content="右側置中提示"
+          side="right"
+          align="center"
+          testId="right-tooltip"
+        >
+          <button type="button">右側觸發</button>
+        </Tooltip>
+        <Tooltip
+          content="左側靠上提示"
+          side="left"
+          align="start"
+          testId="left-tooltip"
+        >
+          <button type="button">左側觸發</button>
+        </Tooltip>
+      </div>
+    );
+
+    fireEvent.mouseEnter(screen.getByRole('button', { name: '右側觸發' }));
+    const rightBubble = screen.getByTestId('right-tooltip');
+    expect(rightBubble).toHaveClass(
+      'left-full',
+      'ml-2',
+      'top-1/2',
+      '-translate-y-1/2'
+    );
+    expect(rightBubble).not.toHaveAttribute('style');
+
+    fireEvent.mouseEnter(screen.getByRole('button', { name: '左側觸發' }));
+    const leftBubble = screen.getByTestId('left-tooltip');
+    expect(leftBubble).toHaveClass('right-full', 'mr-2', 'top-0');
+    expect(leftBubble).not.toHaveAttribute('style');
+  });
 });

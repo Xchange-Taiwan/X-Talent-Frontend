@@ -393,12 +393,23 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄收合面板與版面翻�
     await expect(maskTooltip).toHaveText('顯示時不會完整公開姓名與個人資料');
     const maskBtnBox = await maskInfoBtn.boundingBox();
     const maskTooltipBox = await maskTooltip.boundingBox();
-    if (!maskBtnBox || !maskTooltipBox) {
-      throw new Error('Expected masking button and tooltip boundingBoxes');
+    const ratingValueBox = await dialog
+      .getByTestId('meeting-rating-value')
+      .boundingBox();
+    if (!maskBtnBox || !maskTooltipBox || !ratingValueBox) {
+      throw new Error(
+        'Expected masking button, tooltip, and rating value boundingBoxes'
+      );
     }
-    expect(maskTooltipBox.y).toBeGreaterThanOrEqual(
-      maskBtnBox.y + maskBtnBox.height
+    expect(maskTooltipBox.x).toBeGreaterThanOrEqual(
+      maskBtnBox.x + maskBtnBox.width
     );
+    const overlapsRatingValue =
+      maskTooltipBox.x < ratingValueBox.x + ratingValueBox.width &&
+      maskTooltipBox.x + maskTooltipBox.width > ratingValueBox.x &&
+      maskTooltipBox.y < ratingValueBox.y + ratingValueBox.height &&
+      maskTooltipBox.y + maskTooltipBox.height > ratingValueBox.y;
+    expect(overlapsRatingValue).toBe(false);
 
     const starGroup = dialog.getByRole('radiogroup', { name: '整體滿意度' });
     await expect(starGroup.getByRole('radio')).toHaveCount(10);
@@ -556,11 +567,30 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄收合面板與版面翻�
     await dialog.getByRole('button', { name: /下一步/ }).click();
 
     await expect(dialog.getByText('步驟 2 / 2 · 會談狀況')).toBeVisible();
-    await expect(dialog.getByText('未進行會談的原因')).toBeVisible();
+    await expect(
+      dialog.getByRole('heading', { name: '未進行會談的原因' })
+    ).toBeVisible();
     await expect(dialog.getByText('誰沒有進行會談？')).toHaveCount(0);
     await expect(dialog.getByText('為何沒有成功進行？')).toBeVisible();
 
-    await dialog.locator('label').filter({ hasText: '未出席' }).click();
+    for (const reasonLabel of [
+      '雙方時間無法配合',
+      '對方未出席',
+      '未收到或錯過會議通知',
+      '技術／連線問題',
+      '其他',
+    ]) {
+      await expect(
+        dialog
+          .locator('label')
+          .filter({ hasText: new RegExp(`^${reasonLabel}$`) })
+      ).toBeVisible();
+    }
+
+    await dialog
+      .locator('label')
+      .filter({ hasText: /^對方未出席$/ })
+      .click();
     await expect(
       dialog.getByTestId('not-happened-note-collapse')
     ).toHaveAttribute('data-expanded', 'false');
@@ -584,7 +614,10 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄收合面板與版面翻�
     await expect(noteCounter).toHaveText('11 / 1000');
 
     // Switching to non-OTHER reason collapses note input; switching back to 其他 re-expands with draft preserved
-    await dialog.locator('label').filter({ hasText: '未出席' }).click();
+    await dialog
+      .locator('label')
+      .filter({ hasText: /^對方未出席$/ })
+      .click();
     await expect(
       dialog.getByTestId('not-happened-note-collapse')
     ).toHaveAttribute('data-expanded', 'false');
@@ -602,15 +635,17 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄收合面板與版面翻�
     const backButton = dialog.getByRole('button', { name: '上一步' });
     await expect(submitButton).toBeVisible();
     await expect(backButton).toBeVisible();
-    const submitBox = await submitButton.boundingBox();
-    const counterBox = await noteCounter.boundingBox();
-    if (!submitBox || !counterBox) {
-      throw new Error(
-        'Expected submit button and note counter boundingBoxes to be non-null'
-      );
-    }
-    expect(counterBox.y + counterBox.height).toBeLessThanOrEqual(submitBox.y);
-    expect(submitBox.y + submitBox.height).toBeLessThanOrEqual(viewport.height);
+    await expect
+      .poll(async () => {
+        const submitBox = await submitButton.boundingBox();
+        const counterBox = await noteCounter.boundingBox();
+        if (!submitBox || !counterBox) return false;
+        return (
+          counterBox.y + counterBox.height <= submitBox.y &&
+          submitBox.y + submitBox.height <= viewport.height
+        );
+      })
+      .toBe(true);
 
     await captureEvidence(page, 'meeting-feedback-dialog-step2-not-happened', {
       waitForSelector: '[role="dialog"]',

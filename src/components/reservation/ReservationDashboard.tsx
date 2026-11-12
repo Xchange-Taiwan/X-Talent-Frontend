@@ -1,16 +1,16 @@
 'use client';
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useMemo, useRef } from 'react';
+import { Suspense, useCallback, useEffect, useRef } from 'react';
 
 import { ReservationListSkeleton } from '@/app/reservation/skeleton';
 import { ReservationList } from '@/components/reservation/ReservationList';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useFeedbackQueueParam } from '@/hooks/user/reservation/useFeedbackQueueParam';
 import {
   type ReservationRole,
   useReservationData,
 } from '@/hooks/user/reservation/useReservationData';
-import { filterPendingFeedbackQueueItems } from '@/lib/reservation/resolveHistoryFeedbackState';
 import type { Reservation } from '@/types/reservation';
 
 export interface ReservationDashboardProps {
@@ -139,61 +139,20 @@ export function ReservationDashboardView({
   const router = useRouter();
   const pathname = usePathname();
 
+  const { isFeedbackQueueRequested, feedbackQueueItems, dismissFeedbackQueue } =
+    useFeedbackQueueParam({
+      isMentee,
+      history,
+      isHistoryLoaded,
+      isLoadingHistory,
+      isLoadingUpcoming,
+      isLoadingPending,
+    });
+
   const tabParam = searchParams.get('tab');
-  const hasFeedbackQueueParam = searchParams.get('feedback') === 'queue';
-  const isFeedbackQueueRequested = isMentee && hasFeedbackQueueParam;
   const activeTab = isFeedbackQueueRequested
     ? 'history'
     : (tabParam && TAB_MAPPING[tabParam]) || pendingTabValue;
-
-  const handleFeedbackQueueClose = useCallback(() => {
-    if (searchParams.get('feedback') === null) return;
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete('feedback');
-    const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, {
-      scroll: false,
-    });
-  }, [pathname, router, searchParams]);
-
-  const pendingFeedbackCount = useMemo(
-    () => filterPendingFeedbackQueueItems(history).length,
-    [history]
-  );
-  const isHistoryReadyForQueueCheck =
-    isHistoryLoaded &&
-    !isLoadingHistory &&
-    !(isLoadingUpcoming && isLoadingPending);
-
-  const hasLatchedQueueForRequestRef = useRef(false);
-  if (!isFeedbackQueueRequested) {
-    hasLatchedQueueForRequestRef.current = false;
-  } else if (isHistoryReadyForQueueCheck && pendingFeedbackCount > 0) {
-    hasLatchedQueueForRequestRef.current = true;
-  }
-
-  useEffect(() => {
-    if (!hasFeedbackQueueParam) {
-      return;
-    }
-    if (!isMentee) {
-      handleFeedbackQueueClose();
-      return;
-    }
-    if (
-      isHistoryReadyForQueueCheck &&
-      pendingFeedbackCount === 0 &&
-      !hasLatchedQueueForRequestRef.current
-    ) {
-      handleFeedbackQueueClose();
-    }
-  }, [
-    handleFeedbackQueueClose,
-    hasFeedbackQueueParam,
-    isHistoryReadyForQueueCheck,
-    isMentee,
-    pendingFeedbackCount,
-  ]);
 
   const lastCountsRef = useRef<{
     role: ReservationRole;
@@ -379,8 +338,8 @@ export function ReservationDashboardView({
                     hasMore={nextTokens.history !== 0}
                     onLoadMore={onLoadMoreHistory}
                     isLoadingMore={loadingMoreStates.history}
-                    autoOpenFeedbackQueue={isFeedbackQueueRequested}
-                    onFeedbackQueueClose={handleFeedbackQueueClose}
+                    feedbackQueueItems={feedbackQueueItems}
+                    onFeedbackQueueClose={dismissFeedbackQueue}
                   />
                 )}
               </TabsContent>

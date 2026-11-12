@@ -20,10 +20,7 @@ import { useProfileLinkClick } from '@/hooks/reservation/useProfileLinkClick';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { trackEvent } from '@/lib/analytics';
 import { resolveReservationViewer } from '@/lib/reservation/reservationViewerModel';
-import {
-  filterPendingFeedbackQueueItems,
-  resolveHistoryFeedbackState,
-} from '@/lib/reservation/resolveHistoryFeedbackState';
+import { resolveHistoryFeedbackState } from '@/lib/reservation/resolveHistoryFeedbackState';
 import type { Reservation } from '@/types/reservation';
 
 import {
@@ -249,11 +246,11 @@ function ReservationItem({
 }
 
 function MenteePendingFeedbackQueueDialog({
-  items,
+  queueItems,
   myUserId,
   onClose,
 }: {
-  items: Reservation[];
+  queueItems: Reservation[];
   myUserId: string | undefined;
   onClose?: () => void;
 }) {
@@ -263,38 +260,15 @@ function MenteePendingFeedbackQueueDialog({
     myRole: 'mentee',
   });
 
-  const livePendingItems = React.useMemo(
-    () => filterPendingFeedbackQueueItems(items),
-    [items]
-  );
-
-  const [latchedQueue, setLatchedQueue] = React.useState<Reservation[] | null>(
-    () => (livePendingItems.length > 0 ? livePendingItems : null)
-  );
-  const [dismissed, setDismissed] = React.useState(false);
-
-  React.useEffect(() => {
-    if (!latchedQueue && livePendingItems.length > 0 && !dismissed) {
-      setLatchedQueue(livePendingItems);
-    }
-  }, [dismissed, latchedQueue, livePendingItems]);
-
-  if (dismissed || !latchedQueue || latchedQueue.length === 0) {
-    return null;
-  }
-
   return (
     <MeetingFeedbackDialog
       defaultOpen
-      reservation={latchedQueue[0]}
-      queue={livePendingItems.length > 0 ? livePendingItems : latchedQueue}
+      reservation={queueItems[0]}
+      queue={queueItems}
       disabled={isMutating}
       trigger={<span className="sr-only">待填會談回饋佇列</span>}
       onSubmitFeedback={(payload, target) => submitFeedback(target, payload)}
-      onClose={() => {
-        setDismissed(true);
-        onClose?.();
-      }}
+      onClose={onClose}
     />
   );
 }
@@ -307,7 +281,7 @@ export function ReservationList({
   hasMore = false,
   onLoadMore,
   isLoadingMore = false,
-  autoOpenFeedbackQueue = false,
+  feedbackQueueItems = null,
   onFeedbackQueueClose,
 }: {
   items: Reservation[];
@@ -317,18 +291,19 @@ export function ReservationList({
   hasMore?: boolean;
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
-  autoOpenFeedbackQueue?: boolean;
+  feedbackQueueItems?: Reservation[] | null;
   onFeedbackQueueClose?: () => void;
 }) {
   const emptyState = resolveEmptyStateContent(sourceRole, variant, myUserId);
 
   return (
     <div className="space-y-3 sm:space-y-4">
-      {autoOpenFeedbackQueue &&
+      {feedbackQueueItems &&
+      feedbackQueueItems.length > 0 &&
       variant === 'history' &&
       sourceRole === 'mentee' ? (
         <MenteePendingFeedbackQueueDialog
-          items={items}
+          queueItems={feedbackQueueItems}
           myUserId={myUserId}
           onClose={onFeedbackQueueClose}
         />
