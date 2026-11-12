@@ -94,6 +94,33 @@ const NOTIFICATION_CONFIG: Record<
         ? '/reservation/mentor?tab=upcoming'
         : '/reservation/mentee?tab=upcoming',
   },
+  reservation_feedback_requested: {
+    getContent: (item) => {
+      const isMentor = getMentorContext(item);
+      if (isMentor) {
+        const menteeName = item.menteeName || item.mentorName || '學員';
+        return {
+          title: '留下您的會談紀錄',
+          body: `您與 ${menteeName} 的會談已結束，前往留下紀錄。`,
+        };
+      }
+      const mentorName = item.mentorName || item.menteeName || '導師';
+      return {
+        title: '留下您的會談回饋',
+        body: `您與 ${mentorName} 的會談已結束，前往留下回饋。`,
+      };
+    },
+    getHref: (item, isMentorContext) => {
+      if (item.reservationId) {
+        const encodedId = encodeURIComponent(item.reservationId);
+        const baseHref = `/reservation/history?reservation_id=${encodedId}`;
+        return isMentorContext ? `${baseHref}&role=mentor` : baseHref;
+      }
+      return isMentorContext
+        ? '/reservation/mentor?tab=history'
+        : '/reservation/history';
+    },
+  },
 };
 
 const DEFAULT_CONTENT: NotificationContent = {

@@ -12,6 +12,7 @@ import {
   getMaintenanceBypassToken,
   getMaintenanceMode,
 } from '@/lib/globalConfig';
+import { extractSafeCallbackUrl } from '@/lib/url/resolveSafeCallbackUrl';
 import { apiAuthPrefix, DEFAULT_LOGIN, publicRoutes } from '@/routes';
 
 // Convert Next.js dynamic route → express style (:id)
@@ -178,6 +179,12 @@ export async function middleware(req: NextRequest) {
   // -------- 4. Redirect unauthenticated users away from protected routes --------
   if (!isPublicRoute && !isLoggedIn) {
     const redirectUrl = new URL(DEFAULT_LOGIN, nextUrl);
+    const safeCallbackUrl = extractSafeCallbackUrl(
+      `${nextUrl.pathname}${nextUrl.search}`
+    );
+    if (safeCallbackUrl) {
+      redirectUrl.searchParams.set('callbackUrl', safeCallbackUrl);
+    }
     const response = NextResponse.redirect(redirectUrl);
 
     // Stale cookie would make middleware re-evaluate the same error on every

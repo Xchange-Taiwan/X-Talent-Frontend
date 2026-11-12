@@ -2,7 +2,7 @@
 
 import { CalendarX2 } from 'lucide-react';
 import Link from 'next/link';
-import type * as React from 'react';
+import * as React from 'react';
 
 import AcceptReservationDialog from '@/components/reservation/AcceptReservationDialog';
 import CancelReservationDialog from '@/components/reservation/CancelReservationDialog';
@@ -79,12 +79,28 @@ function ReservationItem({
   variant,
   sourceRole,
   myUserId,
+  isTargetReservation = false,
+  shouldAutoOpenFeedback = false,
 }: {
   reservation: Reservation;
   variant: Variant;
   sourceRole: SourceRole;
   myUserId: string | undefined;
+  isTargetReservation?: boolean;
+  shouldAutoOpenFeedback?: boolean;
 }) {
+  const itemRef = React.useRef<HTMLDivElement>(null);
+  const hasScrolledRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!isTargetReservation || hasScrolledRef.current) return;
+    hasScrolledRef.current = true;
+    const el = itemRef.current;
+    if (el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [isTargetReservation]);
+
   const { accept, rejectOrCancel, submitFeedback, updateFeedback, isMutating } =
     useReservationActions({
       myUserId,
@@ -127,97 +143,100 @@ function ReservationItem({
   };
 
   return (
-    <ReservationCard
-      item={reservation}
-      myUserId={myUserId}
-      variant={cardVariantOf(variant)}
-      profileHref={viewer.profileHref}
-      onProfileClick={handleProfileClick}
-      disabled={isMutating}
-      sourceRole={sourceRole}
-      headerAction={
-        historyState ? (
-          historyState.headerAction.kind === 'answer-button' ? (
-            <MeetingFeedbackDialog
-              reservation={reservation}
-              disabled={isMutating}
-              onSubmitFeedback={(payload) =>
-                submitFeedback(reservation, payload)
-              }
-            />
-          ) : (
-            <Badge variant="secondary" role="status">
-              {historyState.headerAction.label}
-            </Badge>
-          )
-        ) : null
-      }
-      feedbackContent={
-        historyState?.feedbackBlock ? (
-          <ReservationFeedbackBlock
-            model={historyState.feedbackBlock}
-            editAction={
-              historyState.feedbackBlock.canEdit ? (
-                <MeetingFeedbackDialog
-                  mode="edit"
-                  reservation={reservation}
-                  disabled={isMutating}
-                  onUpdateFeedback={(payload) =>
-                    updateFeedback(reservation, payload)
-                  }
-                />
-              ) : null
-            }
-          />
-        ) : null
-      }
-      actions={
-        variant === 'history' ? (
-          historyState?.bottomStatusLabel ? (
-            <Badge variant="secondary" role="status">
-              {historyState.bottomStatusLabel}
-            </Badge>
+    <div ref={itemRef} data-reservation-id={reservation.id}>
+      <ReservationCard
+        item={reservation}
+        myUserId={myUserId}
+        variant={cardVariantOf(variant)}
+        profileHref={viewer.profileHref}
+        onProfileClick={handleProfileClick}
+        disabled={isMutating}
+        sourceRole={sourceRole}
+        headerAction={
+          historyState ? (
+            historyState.headerAction.kind === 'answer-button' ? (
+              <MeetingFeedbackDialog
+                reservation={reservation}
+                disabled={isMutating}
+                defaultOpen={shouldAutoOpenFeedback}
+                onSubmitFeedback={(payload) =>
+                  submitFeedback(reservation, payload)
+                }
+              />
+            ) : (
+              <Badge variant="secondary" role="status">
+                {historyState.headerAction.label}
+              </Badge>
+            )
           ) : null
-        ) : variant === 'pending-mentor' ? (
-          <div className="flex justify-end gap-2">
-            <RejectReservationDialog
-              reservation={reservation}
-              disabled={isMutating}
-              className="text-xs sm:text-sm"
-              onReject={async ({ reason }) =>
-                rejectOrCancel(reservation, reason, 'reject')
+        }
+        feedbackContent={
+          historyState?.feedbackBlock ? (
+            <ReservationFeedbackBlock
+              model={historyState.feedbackBlock}
+              editAction={
+                historyState.feedbackBlock.canEdit ? (
+                  <MeetingFeedbackDialog
+                    mode="edit"
+                    reservation={reservation}
+                    disabled={isMutating}
+                    onUpdateFeedback={(payload) =>
+                      updateFeedback(reservation, payload)
+                    }
+                  />
+                ) : null
               }
             />
-            <AcceptReservationDialog
+          ) : null
+        }
+        actions={
+          variant === 'history' ? (
+            historyState?.bottomStatusLabel ? (
+              <Badge variant="secondary" role="status">
+                {historyState.bottomStatusLabel}
+              </Badge>
+            ) : null
+          ) : variant === 'pending-mentor' ? (
+            <div className="flex justify-end gap-2">
+              <RejectReservationDialog
+                reservation={reservation}
+                disabled={isMutating}
+                className="text-xs sm:text-sm"
+                onReject={async ({ reason }) =>
+                  rejectOrCancel(reservation, reason, 'reject')
+                }
+              />
+              <AcceptReservationDialog
+                reservation={reservation}
+                myUserId={myUserId}
+                disabled={isMutating}
+                className="text-xs sm:text-sm"
+                onAccept={async ({ message }) => accept(reservation, message)}
+              />
+            </div>
+          ) : (
+            <CancelReservationDialog
               reservation={reservation}
-              myUserId={myUserId}
               disabled={isMutating}
-              className="text-xs sm:text-sm"
-              onAccept={async ({ message }) => accept(reservation, message)}
+              className="w-full text-xs sm:w-auto sm:text-sm"
+              onConfirmCancel={async ({ reason }) =>
+                rejectOrCancel(reservation, reason, 'cancel')
+              }
             />
-          </div>
-        ) : (
-          <CancelReservationDialog
-            reservation={reservation}
-            disabled={isMutating}
-            className="w-full text-xs sm:w-auto sm:text-sm"
-            onConfirmCancel={async ({ reason }) =>
-              rejectOrCancel(reservation, reason, 'cancel')
-            }
-          />
-        )
-      }
-      footer={
-        variant === 'history' &&
-        (reservation.messages.length > 0 ||
-          reservation.cancelledBy === 'SYSTEM') ? (
-          <ReservationConversationDialog
-            reservation={reservation}
-            sourceRole={sourceRole}
-          />
-        ) : null
-      }
-    />
+          )
+        }
+        footer={
+          variant === 'history' &&
+          (reservation.messages.length > 0 ||
+            reservation.cancelledBy === 'SYSTEM') ? (
+            <ReservationConversationDialog
+              reservation={reservation}
+              sourceRole={sourceRole}
+            />
+          ) : null
+        }
+      />
+    </div>
   );
 }
 
@@ -229,6 +248,8 @@ export function ReservationList({
   hasMore = false,
   onLoadMore,
   isLoadingMore = false,
+  targetReservationId = null,
+  autoOpenReservationId = null,
 }: {
   items: Reservation[];
   variant: Variant;
@@ -237,6 +258,8 @@ export function ReservationList({
   hasMore?: boolean;
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
+  targetReservationId?: string | null;
+  autoOpenReservationId?: string | null;
 }) {
   const emptyState = resolveEmptyStateContent(sourceRole, variant, myUserId);
 
@@ -249,6 +272,14 @@ export function ReservationList({
           variant={variant}
           sourceRole={sourceRole}
           myUserId={myUserId}
+          isTargetReservation={
+            variant === 'history' &&
+            Boolean(targetReservationId && it.id === targetReservationId)
+          }
+          shouldAutoOpenFeedback={
+            variant === 'history' &&
+            Boolean(autoOpenReservationId && it.id === autoOpenReservationId)
+          }
         />
       ))}
 

@@ -114,4 +114,45 @@ describe('mapNotificationVOToItem', () => {
     expect(item.dtstart).toBe(1755000000);
     expect(item.dtend).toBe(1755001800);
   });
+
+  it('maps reservation_feedback_requested and normalizes metadata.reservation_id (#733)', () => {
+    const menteeItem = mapNotificationVOToItem({
+      ...baseApiItem,
+      type: 'reservation_feedback_requested',
+      metadata: {
+        role: 'mentee',
+        counterparty_name: 'Emily Chen',
+        reservation_id: 101,
+      },
+    });
+    expect(menteeItem.type).toBe('reservation_feedback_requested');
+    expect(menteeItem.role).toBe('mentee');
+    expect(menteeItem.mentorName).toBe('Emily Chen');
+    expect(menteeItem.reservationId).toBe('101');
+
+    const mentorItem = mapNotificationVOToItem({
+      ...baseApiItem,
+      type: 'reservation_feedback_requested',
+      metadata: {
+        role: 'mentor',
+        counterparty_name: '王小明',
+        reservation_id: ' 202 ',
+      },
+    });
+    expect(mentorItem.type).toBe('reservation_feedback_requested');
+    expect(mentorItem.role).toBe('mentor');
+    expect(mentorItem.menteeName).toBe('王小明');
+    expect(mentorItem.reservationId).toBe('202');
+
+    const missingIdItem = mapNotificationVOToItem({
+      ...baseApiItem,
+      type: 'reservation_feedback_requested',
+      metadata: {
+        role: 'mentee',
+        counterparty_name: 'Emily Chen',
+        reservation_id: '   ',
+      },
+    });
+    expect(missingIdItem.reservationId).toBeUndefined();
+  });
 });

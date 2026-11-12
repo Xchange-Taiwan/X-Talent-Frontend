@@ -65,3 +65,18 @@ export interface UpdateReservationFeedbackRequest {
   rating: number;
   content: string;
 }
+
+export interface RawSingleReservationFeedbackResponse {
+  reservation_id?: number | string | null;
+  role?: 'MENTEE' | 'MENTOR' | 'mentee' | 'mentor' | null;
+  viewer_role?: 'MENTEE' | 'MENTOR' | 'mentee' | 'mentor' | null;
+  meeting_happened?: boolean | null;
+  rating?: RawReservationRating | null;
+  next_step?: FeedbackNextStep;
+  feedback?: RawReservationFeedback | null;
+}
+
+export interface SingleReservationFeedbackResult {
+  feedback: ReservationFeedback;
+  viewerRole?: 'mentee' | 'mentor';
+}

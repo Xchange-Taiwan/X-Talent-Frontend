@@ -228,3 +228,25 @@ export const MenteeHistoryFeedbackStates: Story = {
     myUserId: 'user-mentee-jay',
   },
 };
+
+// 9. Mentee History Auto-Open Target Feedback Dialog (#733)
+export const MenteeHistoryAutoOpenFeedback: Story = {
+  args: {
+    items: [
+      {
+        ...mockReservations[6],
+        id: 'res-auto-open-733',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+    ],
+    variant: 'history',
+    sourceRole: 'mentee',
+    myUserId: 'user-mentee-jay',
+    targetReservationId: 'res-auto-open-733',
+    autoOpenReservationId: 'res-auto-open-733',
+  },
+};

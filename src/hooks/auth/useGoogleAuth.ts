@@ -3,6 +3,10 @@ import { useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
 import {
+  consumePostLoginCallbackUrl,
+  savePostLoginCallbackUrl,
+} from '@/lib/url/resolveSafeCallbackUrl';
+import {
   getGoogleAuthorizeLoginUrl,
   getGoogleAuthorizeSignupUrl,
 } from '@/services/auth/googleAuthorize';
@@ -15,11 +19,20 @@ export function useGoogleAuth() {
   const handleGoogleAuth = async (isSignIn: boolean) => {
     setIsPending(true);
     try {
+      if (typeof window !== 'undefined') {
+        if (isSignIn) {
+          const currentParams = new URLSearchParams(window.location.search);
+          savePostLoginCallbackUrl(currentParams.get('callbackUrl'));
+        } else {
+          consumePostLoginCallbackUrl();
+        }
+      }
       const { authorization_url } = isSignIn
         ? await getGoogleAuthorizeLoginUrl()
         : await getGoogleAuthorizeSignupUrl();
       router.push(authorization_url);
     } catch {
+      consumePostLoginCallbackUrl();
       toast({
         variant: 'destructive',
         title: isSignIn ? '登入失敗' : '註冊失敗',

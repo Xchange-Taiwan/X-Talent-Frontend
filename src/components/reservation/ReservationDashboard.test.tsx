@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { fromPartial } from '@total-typescript/shoehorn';
 import * as React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -10,6 +10,8 @@ import { ReservationDashboard } from './ReservationDashboard';
 // Mock next/navigation
 const mockReplace = vi.fn();
 const mockGet = vi.fn().mockReturnValue(null);
+const mockFetchReservationFeedback = vi.fn().mockResolvedValue(null);
+const mockFetchAllReservationsForState = vi.fn().mockResolvedValue([]);
 
 vi.mock('next/navigation', () => ({
   useSearchParams: () => ({
@@ -22,6 +24,13 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/reservation/mentor',
 }));
 
+vi.mock('@/services/reservations', () => ({
+  fetchAllReservationsForState: (...args: unknown[]) =>
+    mockFetchAllReservationsForState(...args),
+  fetchReservationFeedback: (...args: unknown[]) =>
+    mockFetchReservationFeedback(...args),
+}));
+
 // Mock the hook
 vi.mock('@/hooks/user/reservation/useReservationData', () => ({
   useReservationData: vi.fn(),
@@ -29,14 +38,27 @@ vi.mock('@/hooks/user/reservation/useReservationData', () => ({
 
 // Mock ReservationList to isolate the dashboard test
 vi.mock('@/components/reservation/ReservationList', () => ({
-  ReservationList: vi.fn(({ items, variant, sourceRole, onLoadMore }) => (
-    <div data-testid={`reservation-list-${variant}-${sourceRole}`}>
-      Mock List: {items.length} items
-      <button data-testid={`load-more-${variant}`} onClick={onLoadMore}>
-        Load More
-      </button>
-    </div>
-  )),
+  ReservationList: vi.fn(
+    ({
+      items,
+      variant,
+      sourceRole,
+      onLoadMore,
+      targetReservationId,
+      autoOpenReservationId,
+    }) => (
+      <div
+        data-testid={`reservation-list-${variant}-${sourceRole}`}
+        data-target-id={targetReservationId ?? ''}
+        data-auto-open-id={autoOpenReservationId ?? ''}
+      >
+        Mock List: {items.length} items
+        <button data-testid={`load-more-${variant}`} onClick={onLoadMore}>
+          Load More
+        </button>
+      </div>
+    )
+  ),
 }));
 
 // Mock the Skeleton to make it easily assertable
@@ -132,6 +154,8 @@ describe('ReservationDashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGet.mockReturnValue(null);
+    mockFetchReservationFeedback.mockResolvedValue(null);
+    mockFetchAllReservationsForState.mockResolvedValue([]);
   });
 
   it('renders correctly for role "mentee"', () => {
@@ -409,5 +433,281 @@ describe('ReservationDashboard', () => {
       'trigger-upcoming-mentor',
       'trigger-history',
     ]);
+  });
+
+  it('automatically triggers loadHistory then loadMoreHistory across pages when reservation_id is not in page 1 until the target item is found (#733)', async () => {
+    mockGet.mockImplementation((key: string) =>
+      key === 'reservation_id' ? '202' : null
+    );
+    mockFetchReservationFeedback.mockResolvedValue({
+      feedback: {
+        meetingHappened: null,
+        rating: null,
+        nextStep: 'ANSWER',
+      },
+      viewerRole: 'mentor',
+    });
+
+    vi.mocked(useReservationData).mockReturnValue(
+      fromPartial({
+        ...baseHookReturnValue,
+        isHistoryLoaded: false,
+        isLoadingHistory: false,
+        data: {
+          ...baseHookReturnValue.data,
+          history: [],
+          nextTokens: { upcoming: 0, pending: 0, history: 0 },
+        },
+      })
+    );
+
+    const { rerender } = render(<ReservationDashboard userRole="mentor" />);
+
+    await waitFor(() => {
+      expect(mockLoadHistory).toHaveBeenCalledTimes(1);
+    });
+    expect(mockLoadMore).not.toHaveBeenCalled();
+
+    vi.mocked(useReservationData).mockReturnValue(
+      fromPartial({
+        ...baseHookReturnValue,
+        isHistoryLoaded: true,
+        data: {
+          ...baseHookReturnValue.data,
+          history: [{ id: '201', dtstart: 5000, dtend: 6000 }],
+          nextTokens: { upcoming: 0, pending: 0, history: 5000 },
+        },
+      })
+    );
+
+    rerender(<ReservationDashboard userRole="mentor" />);
+
+    await waitFor(() => {
+      expect(mockLoadMore).toHaveBeenCalledWith('history');
+    });
+    expect(mockLoadMore).toHaveBeenCalledTimes(1);
+
+    vi.mocked(useReservationData).mockReturnValue(
+      fromPartial({
+        ...baseHookReturnValue,
+        isHistoryLoaded: true,
+        data: {
+          ...baseHookReturnValue.data,
+          history: [
+            { id: '201', dtstart: 5000, dtend: 6000 },
+            {
+              id: '202',
+              dtstart: 4000,
+              dtend: 4900,
+              feedback: {
+                meetingHappened: null,
+                rating: null,
+                nextStep: 'ANSWER',
+              },
+            },
+          ],
+          nextTokens: { upcoming: 0, pending: 0, history: 3900 },
+        },
+      })
+    );
+
+    rerender(<ReservationDashboard userRole="mentor" />);
+
+    await waitFor(() => {
+      const historyList = screen.getByTestId('reservation-list-history-mentor');
+      expect(historyList).toHaveAttribute('data-target-id', '202');
+      expect(historyList).toHaveAttribute('data-auto-open-id', '202');
+    });
+    expect(mockLoadMore).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops auto-paginating and marks history exhausted when nextTokens.history does not advance after loadMore (#733)', async () => {
+    mockGet.mockImplementation((key: string) =>
+      key === 'reservation_id' ? '999' : null
+    );
+    mockFetchReservationFeedback.mockResolvedValue(null);
+    mockFetchAllReservationsForState.mockResolvedValue([]);
+
+    vi.mocked(useReservationData).mockReturnValue(
+      fromPartial({
+        ...baseHookReturnValue,
+        isMentor: true,
+        isHistoryLoaded: true,
+        loadingMoreStates: { upcoming: false, pending: false, history: false },
+        data: {
+          ...baseHookReturnValue.data,
+          history: [{ id: '101', dtstart: 5000, dtend: 6000 }],
+          nextTokens: { upcoming: 0, pending: 0, history: 5000 },
+        },
+      })
+    );
+
+    const { rerender } = render(<ReservationDashboard userRole="mentee" />);
+
+    await waitFor(() => {
+      expect(mockLoadMore).toHaveBeenCalledWith('history');
+    });
+    expect(mockLoadMore).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('reservation-skeleton')).toBeInTheDocument();
+
+    // Simulate in-flight loadMore
+    vi.mocked(useReservationData).mockReturnValue(
+      fromPartial({
+        ...baseHookReturnValue,
+        isMentor: true,
+        isHistoryLoaded: true,
+        loadingMoreStates: { upcoming: false, pending: false, history: true },
+        data: {
+          ...baseHookReturnValue.data,
+          history: [{ id: '101', dtstart: 5000, dtend: 6000 }],
+          nextTokens: { upcoming: 0, pending: 0, history: 5000 },
+        },
+      })
+    );
+    rerender(<ReservationDashboard userRole="mentee" />);
+
+    // Simulate loadMore completing with the exact same stuck cursor (5000)
+    vi.mocked(useReservationData).mockReturnValue(
+      fromPartial({
+        ...baseHookReturnValue,
+        isMentor: true,
+        isHistoryLoaded: true,
+        loadingMoreStates: { upcoming: false, pending: false, history: false },
+        data: {
+          ...baseHookReturnValue.data,
+          history: [{ id: '101', dtstart: 5000, dtend: 6000 }],
+          nextTokens: { upcoming: 0, pending: 0, history: 5000 },
+        },
+      })
+    );
+    rerender(<ReservationDashboard userRole="mentee" />);
+
+    await waitFor(() => {
+      expect(mockFetchAllReservationsForState).toHaveBeenCalledTimes(1);
+      expect(screen.getByText('預約導師')).toBeInTheDocument();
+    });
+    expect(mockLoadMore).toHaveBeenCalledTimes(1);
+  });
+
+  it('caps automatic history pagination at 50 pages when target reservation is never found (#733)', async () => {
+    mockGet.mockImplementation((key: string) =>
+      key === 'reservation_id' ? '999' : null
+    );
+    mockFetchReservationFeedback.mockResolvedValue({
+      feedback: {
+        meetingHappened: null,
+        rating: null,
+        nextStep: 'ANSWER',
+      },
+      viewerRole: 'mentee',
+    });
+
+    vi.mocked(useReservationData).mockReturnValue(
+      fromPartial({
+        ...baseHookReturnValue,
+        isHistoryLoaded: true,
+        data: {
+          ...baseHookReturnValue.data,
+          history: [{ id: '101', dtstart: 5000, dtend: 6000 }],
+          nextTokens: { upcoming: 0, pending: 0, history: 1001 },
+        },
+      })
+    );
+
+    const { rerender } = render(<ReservationDashboard userRole="mentee" />);
+
+    for (let cursor = 1002; cursor <= 1055; cursor += 1) {
+      vi.mocked(useReservationData).mockReturnValue(
+        fromPartial({
+          ...baseHookReturnValue,
+          isHistoryLoaded: true,
+          data: {
+            ...baseHookReturnValue.data,
+            history: [{ id: '101', dtstart: 5000, dtend: 6000 }],
+            nextTokens: { upcoming: 0, pending: 0, history: cursor },
+          },
+        })
+      );
+      rerender(<ReservationDashboard userRole="mentee" />);
+    }
+
+    await waitFor(() => {
+      expect(mockLoadMore).toHaveBeenCalledTimes(50);
+    });
+  });
+
+  it('renders skeleton instead of Mentee dashboard while resolving Mentor role for an external reservation_id link (#733)', async () => {
+    mockGet.mockImplementation((key: string) =>
+      key === 'reservation_id' ? '202' : null
+    );
+    mockFetchReservationFeedback.mockReturnValue(new Promise(() => {}));
+
+    vi.mocked(useReservationData).mockReturnValue(
+      fromPartial({
+        ...baseHookReturnValue,
+        isMentor: true,
+        isHistoryLoaded: false,
+      })
+    );
+
+    render(<ReservationDashboard userRole="mentee" />);
+
+    expect(screen.getByTestId('reservation-skeleton')).toBeInTheDocument();
+    expect(screen.queryByText('預約導師')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('tabs')).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('reservation-list-history-mentee')
+    ).not.toBeInTheDocument();
+    expect(mockLoadHistory).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not retry loadHistory in an infinite loop and unblocks role resolution when initial history load fails (#733)', async () => {
+    mockGet.mockImplementation((key: string) =>
+      key === 'reservation_id' ? '202' : null
+    );
+    mockFetchReservationFeedback.mockResolvedValue(null);
+    mockFetchAllReservationsForState.mockResolvedValue([]);
+
+    vi.mocked(useReservationData).mockReturnValue(
+      fromPartial({
+        ...baseHookReturnValue,
+        isMentor: true,
+        isHistoryLoaded: false,
+        isLoadingHistory: false,
+      })
+    );
+
+    const { rerender } = render(<ReservationDashboard userRole="mentee" />);
+
+    expect(mockLoadHistory).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('reservation-skeleton')).toBeInTheDocument();
+
+    // Simulate loadHistory in-flight
+    vi.mocked(useReservationData).mockReturnValue(
+      fromPartial({
+        ...baseHookReturnValue,
+        isMentor: true,
+        isHistoryLoaded: false,
+        isLoadingHistory: true,
+      })
+    );
+    rerender(<ReservationDashboard userRole="mentee" />);
+
+    // Simulate loadHistory failing (isLoadingHistory resets to false while isHistoryLoaded remains false)
+    vi.mocked(useReservationData).mockReturnValue(
+      fromPartial({
+        ...baseHookReturnValue,
+        isMentor: true,
+        isHistoryLoaded: false,
+        isLoadingHistory: false,
+      })
+    );
+    rerender(<ReservationDashboard userRole="mentee" />);
+
+    await waitFor(() => {
+      expect(mockFetchAllReservationsForState).toHaveBeenCalledTimes(1);
+      expect(screen.getByText('預約導師')).toBeInTheDocument();
+    });
+    expect(mockLoadHistory).toHaveBeenCalledTimes(1);
   });
 });

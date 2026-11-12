@@ -205,4 +205,56 @@ describe('notificationUtils', () => {
       '/reservation/mentor?tab=history'
     );
   });
+
+  it('renders reservation_feedback_requested copy and /reservation/history?reservation_id={id} link for mentee and mentor (#733)', () => {
+    const menteeItem = buildItem({
+      type: 'reservation_feedback_requested',
+      role: 'mentee',
+      mentorName: 'Emily Chen',
+      reservationId: '101',
+    });
+    expect(getNotificationContent(menteeItem)).toEqual({
+      title: '留下您的會談回饋',
+      body: '您與 Emily Chen 的會談已結束，前往留下回饋。',
+    });
+    expect(getNotificationHref(menteeItem)).toBe(
+      '/reservation/history?reservation_id=101'
+    );
+
+    const mentorItem = buildItem({
+      type: 'reservation_feedback_requested',
+      role: 'mentor',
+      menteeName: '王小明',
+      reservationId: '202',
+    });
+    expect(getNotificationContent(mentorItem)).toEqual({
+      title: '留下您的會談紀錄',
+      body: '您與 王小明 的會談已結束，前往留下紀錄。',
+    });
+    expect(getNotificationHref(mentorItem)).toBe(
+      '/reservation/history?reservation_id=202&role=mentor'
+    );
+
+    const inferredMentorItem = buildItem({
+      type: 'reservation_feedback_requested',
+      role: undefined,
+      menteeName: '李小華',
+      reservationId: '303',
+    });
+    expect(getNotificationHref(inferredMentorItem)).toBe(
+      '/reservation/history?reservation_id=303&role=mentor'
+    );
+
+    const fallbackMenteeItem = buildItem({
+      type: 'reservation_feedback_requested',
+      role: 'mentee',
+    });
+    expect(getNotificationContent(fallbackMenteeItem)).toEqual({
+      title: '留下您的會談回饋',
+      body: '您與 導師 的會談已結束，前往留下回饋。',
+    });
+    expect(getNotificationHref(fallbackMenteeItem)).toBe(
+      '/reservation/history'
+    );
+  });
 });

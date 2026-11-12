@@ -16,6 +16,7 @@ vi.mock('@/services/auth/googleAuthorize', () => ({
   getGoogleAuthorizeSignupUrl: vi.fn(),
 }));
 
+import { POST_LOGIN_CALLBACK_URL_KEY } from '@/lib/url/resolveSafeCallbackUrl';
 import {
   getGoogleAuthorizeLoginUrl,
   getGoogleAuthorizeSignupUrl,
@@ -31,6 +32,8 @@ const mockGetGoogleAuthorizeSignupUrl = vi.mocked(getGoogleAuthorizeSignupUrl);
 describe('useGoogleAuth', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.sessionStorage.clear();
+    window.history.replaceState({}, '', '/auth/signin');
   });
 
   it('should redirect to login authorize URL on success when isSignIn is true', async () => {
@@ -119,5 +122,91 @@ describe('useGoogleAuth', () => {
       })
     );
     expect(result.current.isPending).toBe(false);
+  });
+
+  it('saves safe internal callbackUrl from window.location.search when initiating Google sign-in (#733)', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/auth/signin?callbackUrl=%2Freservation%2Fhistory%3Freservation_id%3D101'
+    );
+    mockGetGoogleAuthorizeLoginUrl.mockResolvedValueOnce({
+      authorization_url: 'https://google.com/auth/login',
+      state: 'mock-state',
+    });
+
+    const { result } = renderHook(() => useGoogleAuth());
+
+    await act(async () => {
+      await result.current.handleGoogleAuth(true);
+    });
+
+    expect(window.sessionStorage.getItem(POST_LOGIN_CALLBACK_URL_KEY)).toBe(
+      '/reservation/history?reservation_id=101'
+    );
+  });
+
+  it('rejects unsafe external callbackUrl and clears stale sessionStorage entry during Google sign-in (#733)', async () => {
+    window.sessionStorage.setItem(
+      POST_LOGIN_CALLBACK_URL_KEY,
+      '/reservation/history?reservation_id=88'
+    );
+    window.history.replaceState(
+      {},
+      '',
+      '/auth/signin?callbackUrl=https%3A%2F%2Fevil.example%2Fphish'
+    );
+    mockGetGoogleAuthorizeLoginUrl.mockResolvedValueOnce({
+      authorization_url: 'https://google.com/auth/login',
+      state: 'mock-state',
+    });
+
+    const { result } = renderHook(() => useGoogleAuth());
+
+    await act(async () => {
+      await result.current.handleGoogleAuth(true);
+    });
+
+    expect(
+      window.sessionStorage.getItem(POST_LOGIN_CALLBACK_URL_KEY)
+    ).toBeNull();
+  });
+
+  it('clears saved callbackUrl when getGoogleAuthorizeLoginUrl throws or when initiating signup (#733)', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/auth/signin?callbackUrl=%2Freservation%2Fhistory%3Freservation_id%3D101'
+    );
+    mockGetGoogleAuthorizeLoginUrl.mockRejectedValueOnce(
+      new Error('API error')
+    );
+
+    const { result } = renderHook(() => useGoogleAuth());
+
+    await act(async () => {
+      await result.current.handleGoogleAuth(true);
+    });
+
+    expect(
+      window.sessionStorage.getItem(POST_LOGIN_CALLBACK_URL_KEY)
+    ).toBeNull();
+
+    window.sessionStorage.setItem(
+      POST_LOGIN_CALLBACK_URL_KEY,
+      '/reservation/history?reservation_id=101'
+    );
+    mockGetGoogleAuthorizeSignupUrl.mockResolvedValueOnce({
+      authorization_url: 'https://google.com/auth/signup',
+      state: 'mock-state',
+    });
+
+    await act(async () => {
+      await result.current.handleGoogleAuth(false);
+    });
+
+    expect(
+      window.sessionStorage.getItem(POST_LOGIN_CALLBACK_URL_KEY)
+    ).toBeNull();
   });
 });

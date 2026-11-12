@@ -16,6 +16,10 @@ import {
   resolveOAuthOutcome,
   signInWithGoogleToken,
 } from '@/lib/auth/oauthOutcome';
+import {
+  consumePostLoginCallbackUrl,
+  resolveSafeCallbackUrl,
+} from '@/lib/url/resolveSafeCallbackUrl';
 import { deleteAccount } from '@/services/auth/deleteAccount';
 import type { components } from '@/types/api';
 
@@ -37,6 +41,7 @@ export function useGoogleOAuthCallback() {
     ) => {
       // Clear the delete email marker on any invalid path to prevent zombie landmine states
       clearPendingDeleteAccountEmail();
+      consumePostLoginCallbackUrl();
 
       const description =
         errorType === 'MISSING_PARAMS'
@@ -61,6 +66,7 @@ export function useGoogleOAuthCallback() {
     };
 
     const executeSignup = (data: GoogleCallbackVO) => {
+      consumePostLoginCallbackUrl();
       trackEvent({
         name: 'sign_up',
         feature: 'auth',
@@ -74,6 +80,8 @@ export function useGoogleOAuthCallback() {
     };
 
     const executeLogin = async (data: GoogleCallbackVO) => {
+      const storedCallbackUrl = consumePostLoginCallbackUrl();
+
       if (!data.user || !data.auth.token) {
         toast({
           variant: 'destructive',
@@ -117,7 +125,7 @@ export function useGoogleOAuthCallback() {
       if (session?.user?.onBoarding === false) {
         router.push('/auth/onboarding');
       } else {
-        router.push('/mentor-pool');
+        router.push(resolveSafeCallbackUrl(storedCallbackUrl, '/mentor-pool'));
       }
     };
 
@@ -127,6 +135,7 @@ export function useGoogleOAuthCallback() {
     ) => {
       // Safe clearance of sessionStorage at the absolute top of execution to prevent zombie states
       clearPendingDeleteAccountEmail();
+      consumePostLoginCallbackUrl();
 
       const { id_token, auth, user } = data;
 
@@ -198,6 +207,7 @@ export function useGoogleOAuthCallback() {
             break;
         }
       } catch {
+        consumePostLoginCallbackUrl();
         toast({
           variant: 'destructive',
           title: 'Login failed',

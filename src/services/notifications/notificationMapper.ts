@@ -21,14 +21,27 @@ export function mapNotificationVOToItem(
     role?: 'mentor' | 'mentee';
     actor_role?: 'mentor' | 'mentee' | 'system';
     counterparty_name?: string;
+    reservation_id?: number | string | null;
     dtstart?: number;
     dtend?: number;
   };
-  const { role, actor_role, counterparty_name, dtstart, dtend } = metadata;
+  const {
+    role,
+    actor_role,
+    counterparty_name,
+    reservation_id,
+    dtstart,
+    dtend,
+  } = metadata;
 
   // Map role and counterparty_name to menteeName/mentorName for frontend compatibility
   const menteeName = role === 'mentor' ? counterparty_name : undefined;
   const mentorName = role === 'mentee' ? counterparty_name : undefined;
+  const normalizedReservationId =
+    (typeof reservation_id === 'number' && Number.isFinite(reservation_id)) ||
+    (typeof reservation_id === 'string' && reservation_id.trim().length > 0)
+      ? String(reservation_id).trim()
+      : undefined;
   const normalizedDtstart =
     typeof dtstart === 'number' && Number.isFinite(dtstart)
       ? dtstart
@@ -52,6 +65,9 @@ export function mapNotificationVOToItem(
     actorRole: actor_role,
     menteeName,
     mentorName,
+    ...(normalizedReservationId !== undefined
+      ? { reservationId: normalizedReservationId }
+      : {}),
     ...(normalizedDtstart !== undefined ? { dtstart: normalizedDtstart } : {}),
     ...(normalizedDtend !== undefined ? { dtend: normalizedDtend } : {}),
   };

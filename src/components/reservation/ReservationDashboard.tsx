@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useRef } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
 import { ReservationListSkeleton } from '@/app/reservation/skeleton';
 import { ReservationList } from '@/components/reservation/ReservationList';
@@ -10,10 +10,261 @@ import {
   type ReservationRole,
   useReservationData,
 } from '@/hooks/user/reservation/useReservationData';
+import { useTargetReservationFeedback } from '@/hooks/user/reservation/useTargetReservationFeedback';
 import type { Reservation } from '@/types/reservation';
+
+const MAX_AUTO_HISTORY_PAGES = 50;
 
 export interface ReservationDashboardProps {
   userRole: ReservationRole;
+}
+
+function ReservationDashboardPageSkeleton() {
+  return (
+    <div className="flex min-h-[calc(100vh-70px)] justify-center pb-12">
+      <div className="w-full max-w-[90%] rounded-2xl md:max-w-[800px]">
+        <ReservationListSkeleton />
+      </div>
+    </div>
+  );
+}
+
+function ReservationDashboardContent({
+  isMentor,
+  isSessionLoading,
+  ...props
+}: Omit<
+  ReservationDashboardViewProps,
+  'targetReservationId' | 'autoOpenReservationId' | 'disableAutoLoadHistory'
+> & {
+  isMentor?: boolean;
+  isSessionLoading?: boolean;
+}) {
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const reservationIdParam = searchParams.get('reservation_id');
+  const normalizedReservationId = reservationIdParam?.trim() || null;
+
+  const {
+    history,
+    isHistoryLoaded,
+    isLoadingHistory,
+    loadingMoreStates,
+    myUserId,
+    nextTokens,
+    onLoadHistory,
+    onLoadMoreHistory,
+    userRole,
+  } = props;
+
+  const hasTargetInHistory = Boolean(
+    normalizedReservationId &&
+    history.some((item) => item.id === normalizedReservationId)
+  );
+
+  const shouldAutoLoadHistory =
+    tabParam === 'history' || Boolean(normalizedReservationId);
+  const autoLoadScopeKey = shouldAutoLoadHistory
+    ? [
+        userRole,
+        myUserId ?? '',
+        tabParam === 'history' ? 'history' : '',
+        normalizedReservationId ?? '',
+      ].join(':')
+    : null;
+
+  const autoLoadTrackerRef = useRef<{
+    scopeKey: string | null;
+    requested: boolean;
+    wasLoading: boolean;
+  }>({
+    scopeKey: null,
+    requested: false,
+    wasLoading: false,
+  });
+
+  const [failedHistoryScopeKey, setFailedHistoryScopeKey] = useState<
+    string | null
+  >(null);
+
+  if (autoLoadTrackerRef.current.scopeKey !== autoLoadScopeKey) {
+    autoLoadTrackerRef.current = {
+      scopeKey: autoLoadScopeKey,
+      requested: false,
+      wasLoading: false,
+    };
+  }
+
+  const autoPageScopeKey = normalizedReservationId
+    ? `${userRole}:${normalizedReservationId}`
+    : null;
+
+  const autoPageTrackerRef = useRef<{
+    scopeKey: string | null;
+    requestedCursors: Set<number>;
+    lastRequestedCursor: number | null;
+    wasLoadingMore: boolean;
+  }>({
+    scopeKey: null,
+    requestedCursors: new Set(),
+    lastRequestedCursor: null,
+    wasLoadingMore: false,
+  });
+
+  const [exhaustedCursorKey, setExhaustedCursorKey] = useState<string | null>(
+    null
+  );
+
+  if (autoPageTrackerRef.current.scopeKey !== autoPageScopeKey) {
+    autoPageTrackerRef.current = {
+      scopeKey: autoPageScopeKey,
+      requestedCursors: new Set(),
+      lastRequestedCursor: null,
+      wasLoadingMore: false,
+    };
+  }
+
+  const currentCursorKey =
+    autoPageScopeKey && nextTokens.history !== 0
+      ? `${autoPageScopeKey}:${nextTokens.history}`
+      : null;
+
+  useEffect(() => {
+    const tracker = autoPageTrackerRef.current;
+    if (loadingMoreStates.history) {
+      tracker.wasLoadingMore = true;
+      return;
+    }
+    if (tracker.wasLoadingMore) {
+      tracker.wasLoadingMore = false;
+      if (
+        currentCursorKey &&
+        tracker.lastRequestedCursor !== null &&
+        nextTokens.history === tracker.lastRequestedCursor
+      ) {
+        setExhaustedCursorKey(currentCursorKey);
+      }
+    }
+  }, [currentCursorKey, loadingMoreStates.history, nextTokens.history]);
+
+  const hasMoreHistory =
+    nextTokens.history !== 0 &&
+    exhaustedCursorKey !== currentCursorKey &&
+    (loadingMoreStates.history ||
+      autoPageTrackerRef.current.requestedCursors.size <
+        MAX_AUTO_HISTORY_PAGES);
+
+  useEffect(() => {
+    const tracker = autoLoadTrackerRef.current;
+
+    if (!autoLoadScopeKey) {
+      if (failedHistoryScopeKey !== null) {
+        setFailedHistoryScopeKey(null);
+      }
+      return;
+    }
+
+    if (isHistoryLoaded) {
+      tracker.requested = false;
+      tracker.wasLoading = false;
+      if (failedHistoryScopeKey !== null) {
+        setFailedHistoryScopeKey(null);
+      }
+      return;
+    }
+
+    if (isLoadingHistory) {
+      tracker.wasLoading = true;
+      if (failedHistoryScopeKey !== null) {
+        setFailedHistoryScopeKey(null);
+      }
+      return;
+    }
+
+    if (tracker.wasLoading) {
+      tracker.wasLoading = false;
+      tracker.requested = true;
+      setFailedHistoryScopeKey(autoLoadScopeKey);
+      return;
+    }
+
+    if (shouldAutoLoadHistory && !tracker.requested) {
+      tracker.requested = true;
+      onLoadHistory();
+    }
+  }, [
+    autoLoadScopeKey,
+    failedHistoryScopeKey,
+    isHistoryLoaded,
+    isLoadingHistory,
+    onLoadHistory,
+    shouldAutoLoadHistory,
+  ]);
+
+  const hasHistoryLoadFailed = Boolean(
+    autoLoadScopeKey && failedHistoryScopeKey === autoLoadScopeKey
+  );
+
+  useEffect(() => {
+    if (
+      !normalizedReservationId ||
+      !isHistoryLoaded ||
+      hasTargetInHistory ||
+      loadingMoreStates.history ||
+      nextTokens.history === 0
+    ) {
+      return;
+    }
+
+    const tracker = autoPageTrackerRef.current;
+    if (
+      tracker.requestedCursors.has(nextTokens.history) ||
+      tracker.requestedCursors.size >= MAX_AUTO_HISTORY_PAGES
+    ) {
+      return;
+    }
+
+    tracker.requestedCursors.add(nextTokens.history);
+    tracker.lastRequestedCursor = nextTokens.history;
+    onLoadMoreHistory();
+  }, [
+    hasTargetInHistory,
+    isHistoryLoaded,
+    loadingMoreStates.history,
+    nextTokens.history,
+    normalizedReservationId,
+    onLoadMoreHistory,
+  ]);
+
+  const {
+    historyWithTargetFeedback,
+    targetReservationId,
+    autoOpenReservationId,
+    isResolvingRole,
+  } = useTargetReservationFeedback({
+    userId: myUserId,
+    userRole,
+    isMentor,
+    isSessionLoading,
+    reservationId: reservationIdParam,
+    history,
+    isHistoryLoaded: isHistoryLoaded || hasHistoryLoadFailed,
+    hasMoreHistory: !hasHistoryLoadFailed && hasMoreHistory,
+  });
+
+  if (isResolvingRole) {
+    return <ReservationDashboardPageSkeleton />;
+  }
+
+  return (
+    <ReservationDashboardView
+      {...props}
+      history={historyWithTargetFeedback}
+      targetReservationId={targetReservationId}
+      autoOpenReservationId={autoOpenReservationId}
+      disableAutoLoadHistory
+    />
+  );
 }
 
 export function ReservationDashboard({ userRole }: ReservationDashboardProps) {
@@ -24,6 +275,8 @@ export function ReservationDashboard({ userRole }: ReservationDashboardProps) {
     isLoadingHistory,
     isHistoryLoaded,
     myUserId,
+    isMentor,
+    isSessionLoading,
     loadMore,
     loadHistory,
   } = useReservationData({ role: userRole });
@@ -45,18 +298,12 @@ export function ReservationDashboard({ userRole }: ReservationDashboardProps) {
   const isLoadingPending = initialState.pending === 'loading';
 
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-[calc(100vh-70px)] justify-center pb-12">
-          <div className="w-full max-w-[90%] rounded-2xl md:max-w-[800px]">
-            <ReservationListSkeleton />
-          </div>
-        </div>
-      }
-    >
-      <ReservationDashboardView
+    <Suspense fallback={<ReservationDashboardPageSkeleton />}>
+      <ReservationDashboardContent
         userRole={userRole}
         myUserId={myUserId}
+        isMentor={isMentor}
+        isSessionLoading={isSessionLoading}
         upcoming={upcoming}
         pending={pending}
         history={history}
@@ -99,6 +346,9 @@ export interface ReservationDashboardViewProps {
   onLoadMorePending: () => void;
   onLoadMoreHistory: () => void;
   onLoadHistory: () => void;
+  targetReservationId?: string | null;
+  autoOpenReservationId?: string | null;
+  disableAutoLoadHistory?: boolean;
 }
 
 export function ReservationDashboardView({
@@ -117,6 +367,9 @@ export function ReservationDashboardView({
   onLoadMorePending,
   onLoadMoreHistory,
   onLoadHistory,
+  targetReservationId,
+  autoOpenReservationId,
+  disableAutoLoadHistory = false,
 }: ReservationDashboardViewProps) {
   const isMentee = userRole === 'mentee';
   const upcomingTabValue = isMentee ? 'upcoming-mentee' : 'upcoming-mentor';
@@ -139,7 +392,27 @@ export function ReservationDashboardView({
   const pathname = usePathname();
 
   const tabParam = searchParams.get('tab');
-  const activeTab = (tabParam && TAB_MAPPING[tabParam]) || pendingTabValue;
+  const reservationIdParam = searchParams.get('reservation_id')?.trim() || null;
+  const activeTab =
+    (tabParam && TAB_MAPPING[tabParam]) ||
+    (reservationIdParam ? 'history' : pendingTabValue);
+
+  const effectiveTargetReservationId =
+    targetReservationId !== undefined
+      ? targetReservationId
+      : reservationIdParam;
+  const effectiveAutoOpenReservationId =
+    autoOpenReservationId !== undefined
+      ? autoOpenReservationId
+      : effectiveTargetReservationId &&
+          history.some(
+            (it) =>
+              it.id === effectiveTargetReservationId &&
+              !it.cancelledBy &&
+              it.feedback?.nextStep === 'ANSWER'
+          )
+        ? effectiveTargetReservationId
+        : null;
 
   const lastCountsRef = useRef<{
     role: ReservationRole;
@@ -198,10 +471,21 @@ export function ReservationDashboardView({
 
   // Load history automatically if activeTab starts as history and is not loaded
   useEffect(() => {
-    if (activeTab === 'history' && !isHistoryLoaded && !isLoadingHistory) {
+    if (
+      !disableAutoLoadHistory &&
+      activeTab === 'history' &&
+      !isHistoryLoaded &&
+      !isLoadingHistory
+    ) {
       onLoadHistory();
     }
-  }, [activeTab, isHistoryLoaded, isLoadingHistory, onLoadHistory]);
+  }, [
+    activeTab,
+    disableAutoLoadHistory,
+    isHistoryLoaded,
+    isLoadingHistory,
+    onLoadHistory,
+  ]);
 
   const triggerClass =
     'group shrink-0 rounded-full border border-background-border px-3 py-1.5 text-sm ' +
@@ -220,6 +504,9 @@ export function ReservationDashboardView({
     const paramValue = URL_PARAM_MAPPING[value];
     if (paramValue) {
       params.set('tab', paramValue);
+    }
+    if (value !== 'history') {
+      params.delete('reservation_id');
     }
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
@@ -324,6 +611,8 @@ export function ReservationDashboardView({
                     hasMore={nextTokens.history !== 0}
                     onLoadMore={onLoadMoreHistory}
                     isLoadingMore={loadingMoreStates.history}
+                    targetReservationId={effectiveTargetReservationId}
+                    autoOpenReservationId={effectiveAutoOpenReservationId}
                   />
                 )}
               </TabsContent>

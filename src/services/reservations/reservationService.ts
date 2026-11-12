@@ -1,6 +1,7 @@
 import dayjs from 'dayjs';
 
-import { apiClient } from '@/lib/apiClient';
+import { apiClient, ApiError } from '@/lib/apiClient';
+import { isAbortError } from '@/lib/errorUtils';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   MENTOR_SCHEDULE_RESERVATIONS_TTL_MS,
@@ -13,7 +14,9 @@ import { components } from '@/types/api';
 import { Reservation, ReservationMessage } from '@/types/reservation';
 import type {
   RawReservationFeedback,
+  RawSingleReservationFeedbackResponse,
   ReservationFeedback,
+  SingleReservationFeedbackResult,
   SubmitReservationFeedbackRequest,
   UpdateReservationFeedbackRequest,
 } from '@/types/reservationFeedback';
@@ -218,20 +221,57 @@ export async function fetchReservations(
 // endOfMonthUnix, which would otherwise page indefinitely.
 const MAX_PAGES = 50;
 
+export type FetchAllReservationsOptions = {
+  userId: string;
+  state: ReservationState;
+  endOfMonthUnix?: number;
+  signal?: AbortSignal;
+  shouldStop?: (pageItems: Reservation[]) => boolean;
+};
+
 /**
- * Fetch every reservation for `state` up to (but not including) `endOfMonthUnix`,
+ * Fetch every reservation for `state` (optionally up to `endOfMonthUnix`),
  * paging via `next_dtend` until the backend signals no more pages (`next_dtend
- * === 0`), the returned cursor moves past the end of the target month, the
- * cursor repeats (a stuck-cursor guard against an infinite loop), or
- * MAX_PAGES is reached. Fetch failures are reported via captureFlowFailure
- * and swallowed, returning whatever pages were already collected rather than
- * throwing.
+ * === 0`), the returned cursor moves past `endOfMonthUnix`, `shouldStop`
+ * matches a page, the cursor repeats (a stuck-cursor guard against an infinite
+ * loop), or MAX_PAGES is reached. Fetch failures are reported via
+ * captureFlowFailure and swallowed, returning whatever pages were already
+ * collected rather than throwing.
  */
+export async function fetchAllReservationsForState(
+  opts: FetchAllReservationsOptions
+): Promise<Reservation[]>;
 export async function fetchAllReservationsForState(
   userId: string,
   state: ReservationState,
-  endOfMonthUnix: number
+  endOfMonthUnix?: number
+): Promise<Reservation[]>;
+export async function fetchAllReservationsForState(
+  userIdOrOpts: string | FetchAllReservationsOptions,
+  stateArg?: ReservationState,
+  endOfMonthUnixArg?: number
 ): Promise<Reservation[]> {
+  let userId: string;
+  let state: ReservationState;
+  let endOfMonthUnix: number | undefined;
+  let signal: AbortSignal | undefined;
+  let shouldStop: ((pageItems: Reservation[]) => boolean) | undefined;
+
+  if (typeof userIdOrOpts === 'string') {
+    if (!stateArg) {
+      return [];
+    }
+    userId = userIdOrOpts;
+    state = stateArg;
+    endOfMonthUnix = endOfMonthUnixArg;
+  } else {
+    userId = userIdOrOpts.userId;
+    state = userIdOrOpts.state;
+    endOfMonthUnix = userIdOrOpts.endOfMonthUnix;
+    signal = userIdOrOpts.signal;
+    shouldStop = userIdOrOpts.shouldStop;
+  }
+
   let allItems: Reservation[] = [];
   let nextDtend: number | undefined = undefined;
   try {
@@ -241,13 +281,15 @@ export async function fetchAllReservationsForState(
         state,
         nextDtend,
         batch: 20,
+        ...(signal ? { signal } : {}),
       });
       allItems = [...allItems, ...res.items];
       if (
         res.items.length === 0 ||
         res.next_dtend === 0 ||
-        res.next_dtend >= endOfMonthUnix ||
-        res.next_dtend === nextDtend
+        (endOfMonthUnix !== undefined && res.next_dtend >= endOfMonthUnix) ||
+        res.next_dtend === nextDtend ||
+        Boolean(shouldStop?.(res.items))
       ) {
         break;
       }
@@ -261,6 +303,9 @@ export async function fetchAllReservationsForState(
       }
     }
   } catch (err) {
+    if (isAbortError(err, signal)) {
+      return allItems;
+    }
     captureFlowFailure({
       flow: 'mentor_schedule_reservations_fetch',
       step: `fetch_${state}`,
@@ -444,6 +489,82 @@ export async function fetchReservationMeetLink(opts: {
   }
 
   return data;
+}
+
+/* ================================
+ * GET: Get single reservation feedback (#733)
+ * ================================ */
+
+function normalizeFeedbackViewerRole(
+  rawRole: string | null | undefined
+): 'mentee' | 'mentor' | undefined {
+  if (!rawRole) return undefined;
+  const upper = rawRole.toUpperCase();
+  if (upper === 'MENTEE') return 'mentee';
+  if (upper === 'MENTOR') return 'mentor';
+  return undefined;
+}
+
+export async function fetchReservationFeedback(opts: {
+  userId: string | number;
+  reservationId: string | number;
+  signal?: AbortSignal;
+  debug?: boolean;
+}): Promise<SingleReservationFeedbackResult | null> {
+  const { userId, reservationId, signal, debug } = opts;
+
+  if (debug) {
+    console.debug('[reservations] GET Feedback request', {
+      userId,
+      reservationId,
+    });
+  }
+
+  const path = `/v1/users/${encodeURIComponent(userId)}/reservations/${encodeURIComponent(reservationId)}/feedback`;
+
+  try {
+    const data =
+      await apiClient.getUnwrapped<RawSingleReservationFeedbackResponse>(path, {
+        ...(signal ? { signal } : {}),
+      });
+
+    if (!data || typeof data !== 'object') {
+      return null;
+    }
+
+    const rawFeedbackCandidate: RawReservationFeedback | undefined =
+      data.feedback && typeof data.feedback === 'object'
+        ? data.feedback
+        : 'next_step' in data || 'meeting_happened' in data || 'rating' in data
+          ? {
+              meeting_happened: data.meeting_happened ?? null,
+              rating: data.rating ?? null,
+              next_step: data.next_step ?? null,
+            }
+          : undefined;
+
+    const feedback = mapReservationFeedback(rawFeedbackCandidate);
+    if (!feedback) {
+      return null;
+    }
+
+    const viewerRole = normalizeFeedbackViewerRole(
+      data.viewer_role ?? data.role
+    );
+
+    return {
+      feedback,
+      ...(viewerRole ? { viewerRole } : {}),
+    };
+  } catch (error) {
+    if (
+      error instanceof ApiError &&
+      (error.status === 404 || error.status === 405 || error.status === 501)
+    ) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 /* ================================

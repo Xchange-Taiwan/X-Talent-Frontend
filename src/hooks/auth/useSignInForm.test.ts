@@ -36,7 +36,7 @@ vi.mock('@/lib/analytics', async (importOriginal) => {
 import { validateSignIn } from '@/lib/actions/signIn';
 import { setAnalyticsUserContext, trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
-import { mockRouter } from '@/test/mocks/navigation';
+import { mockRouter, mockSearchParams } from '@/test/mocks/navigation';
 import { mockGetSession, mockSession, mockSignIn } from '@/test/mocks/nextAuth';
 import { mockToast } from '@/test/mocks/useToast';
 
@@ -172,6 +172,46 @@ describe('useSignInForm', () => {
     });
     expect(mockRouter.push).toHaveBeenCalledWith('/mentor-pool');
     expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it('redirects to safe callbackUrl with query params after sign-in (#733)', async () => {
+    mockSearchParams.get.mockImplementation((key: string) =>
+      key === 'callbackUrl' ? '/reservation/history?reservation_id=101' : null
+    );
+    mockGetSession.mockResolvedValueOnce({
+      ...mockSession,
+      user: { ...mockSession.user, onBoarding: true, isMentor: false },
+    });
+
+    const { result } = renderHook(() => useSignInForm());
+
+    await act(async () => {
+      await result.current.onSubmit(validValues);
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith(
+      '/reservation/history?reservation_id=101'
+    );
+    mockSearchParams.get.mockReturnValue(null);
+  });
+
+  it('falls back to /mentor-pool when callbackUrl is an unsafe external URL (#733)', async () => {
+    mockSearchParams.get.mockImplementation((key: string) =>
+      key === 'callbackUrl' ? 'https://evil.example/phish' : null
+    );
+    mockGetSession.mockResolvedValueOnce({
+      ...mockSession,
+      user: { ...mockSession.user, onBoarding: true, isMentor: false },
+    });
+
+    const { result } = renderHook(() => useSignInForm());
+
+    await act(async () => {
+      await result.current.onSubmit(validValues);
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/mentor-pool');
+    mockSearchParams.get.mockReturnValue(null);
   });
 
   it('unexpected error is thrown → toast shows "Something went wrong!"', async () => {

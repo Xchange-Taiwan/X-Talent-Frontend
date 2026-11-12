@@ -74,6 +74,8 @@ export interface UseReservationDataReturn {
   isLoadingHistory: boolean;
   isHistoryLoaded: boolean;
   myUserId: string;
+  isMentor?: boolean;
+  isSessionLoading?: boolean;
   loadMore: (tab: ListKey) => Promise<void>;
   loadHistory: () => Promise<void>;
 }
@@ -231,7 +233,7 @@ export function useReservationData({
 
   const data = useMemo<ReservationData | null>(() => {
     if (!myUserId) return null;
-    if (!upcomingResult && !pendingResult) return null;
+    if (!upcomingResult && !pendingResult && !historyResult) return null;
 
     return {
       upcoming: upcomingSorted,
@@ -343,6 +345,8 @@ export function useReservationData({
     isLoadingHistory: isHistoryLoading,
     isHistoryLoaded,
     myUserId,
+    isMentor: Boolean(session?.user?.isMentor),
+    isSessionLoading: status === 'loading' && !myUserId,
     loadMore,
     loadHistory,
   };

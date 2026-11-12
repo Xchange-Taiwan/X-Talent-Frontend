@@ -126,3 +126,29 @@ export const LongText: Story = {
     ],
   },
 };
+
+export const FeedbackRequestedNotifications: Story = {
+  args: {
+    initialStatus: 'success',
+    initialNotifications: [
+      {
+        id: 'feedback-mentee-1',
+        type: 'reservation_feedback_requested',
+        mentorName: 'Emily Chen',
+        reservationId: '101',
+        role: 'mentee',
+        createdAt: new Date().toISOString(),
+        unread: true,
+      },
+      {
+        id: 'feedback-mentor-2',
+        type: 'reservation_feedback_requested',
+        menteeName: '王小明',
+        reservationId: '202',
+        role: 'mentor',
+        createdAt: new Date(Date.now() - 1800 * 1000).toISOString(),
+        unread: true,
+      },
+    ],
+  },
+};

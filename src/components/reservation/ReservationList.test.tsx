@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -559,6 +560,83 @@ describe('ReservationList', () => {
       expect(
         screen.queryByRole('button', { name: /刪除/ })
       ).not.toBeInTheDocument();
+    });
+
+    it('scrolls to targetReservationId and auto-opens MeetingFeedbackDialog when autoOpenReservationId matches an ANSWER card (#733)', () => {
+      const scrollSpy = vi.fn();
+      const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+      Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+        configurable: true,
+        value: scrollSpy,
+      });
+
+      const items: Reservation[] = [
+        {
+          ...mockReservation,
+          id: 'hist-other',
+          name: 'Other Mentor',
+          feedback: {
+            meetingHappened: null,
+            rating: null,
+            nextStep: 'ANSWER',
+          },
+        },
+        {
+          ...mockReservation,
+          id: 'hist-target-733',
+          name: 'Target Mentor',
+          feedback: {
+            meetingHappened: null,
+            rating: null,
+            nextStep: 'ANSWER',
+          },
+        },
+      ];
+
+      try {
+        const { rerender } = render(
+          <ReservationList
+            items={items}
+            variant="history"
+            sourceRole="mentee"
+            myUserId="user-123"
+            targetReservationId="hist-target-733"
+            autoOpenReservationId={null}
+          />
+        );
+
+        // Scrolls to target card once even while autoOpenReservationId is still resolving
+        expect(scrollSpy).toHaveBeenCalledTimes(1);
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+        // Once single-feedback lookup resolves autoOpenReservationId, opens Target Mentor's dialog
+        rerender(
+          <ReservationList
+            items={items}
+            variant="history"
+            sourceRole="mentee"
+            myUserId="user-123"
+            targetReservationId="hist-target-733"
+            autoOpenReservationId="hist-target-733"
+          />
+        );
+
+        expect(scrollSpy).toHaveBeenCalledTimes(1);
+        const dialog = screen.getByRole('dialog');
+        expect(dialog).toBeInTheDocument();
+        expect(
+          within(dialog).getByText('會談是否有進行？')
+        ).toBeInTheDocument();
+        expect(within(dialog).getByText(/Target Mentor/)).toBeInTheDocument();
+        expect(
+          within(dialog).queryByText(/Other Mentor/)
+        ).not.toBeInTheDocument();
+      } finally {
+        Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+          configurable: true,
+          value: originalScrollIntoView,
+        });
+      }
     });
   });
 });

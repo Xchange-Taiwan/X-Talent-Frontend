@@ -131,6 +131,15 @@ export default function MeetingFeedbackDialog({
     [baseFormValues, initialStep, isEditMode, reset]
   );
 
+  const prevDefaultOpenRef = React.useRef(defaultOpen);
+  React.useEffect(() => {
+    if (defaultOpen && !prevDefaultOpenRef.current && !open) {
+      resetDraft();
+      setOpen(true);
+    }
+    prevDefaultOpenRef.current = defaultOpen;
+  }, [defaultOpen, open, resetDraft]);
+
   const handleOpenChange = (nextOpen: boolean) => {
     if (isSubmitting || inFlightRef.current) return;
     if (!nextOpen) {

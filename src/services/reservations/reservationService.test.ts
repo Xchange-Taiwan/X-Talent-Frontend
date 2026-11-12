@@ -1,3 +1,4 @@
+import { fromPartial } from '@total-typescript/shoehorn';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/apiClient', async (importActual) => {
@@ -25,6 +26,7 @@ import { components } from '@/types/api';
 import {
   createReservation,
   fetchAllReservationsForState,
+  fetchReservationFeedback,
   fetchReservationMeetLink,
   fetchReservations,
   invalidateReservationRead,
@@ -73,7 +75,7 @@ function makeApiReservation(
 
 describe('reservationService API Error Handling', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     reservationReadModel.clear();
   });
 
@@ -84,41 +86,44 @@ describe('reservationService API Error Handling', () => {
       await expect(
         createReservation({
           userId: 123,
-          body: {} as unknown as components['schemas']['ReservationDTO'],
+          body: fromPartial<components['schemas']['ReservationDTO']>({}),
         })
       ).rejects.toThrow(ApiError);
 
       try {
         await createReservation({
           userId: 123,
-          body: {} as unknown as components['schemas']['ReservationDTO'],
+          body: fromPartial<components['schemas']['ReservationDTO']>({}),
         });
       } catch (err) {
         expect(err).toBeInstanceOf(ApiError);
-        const apiError = err as ApiError;
-        expect(apiError.status).toBe(409);
-        expect(apiError.message).toContain('Conflict booking');
+        if (err instanceof ApiError) {
+          expect(err.status).toBe(409);
+          expect(err.message).toContain('Conflict booking');
+        }
       }
     });
 
     it('should return data successfully if code is 0', async () => {
-      const mockResult = {
+      const mockResult = fromPartial<components['schemas']['ReservationVO']>({
         id: 789,
-      } as unknown as components['schemas']['ReservationVO'];
+      });
       mockPost.mockResolvedValue(mockResult);
 
       const res = await createReservation({
         userId: 123,
-        body: {} as unknown as components['schemas']['ReservationDTO'],
+        body: fromPartial<components['schemas']['ReservationDTO']>({}),
       });
 
       expect(res).toEqual(mockResult);
     });
 
     it('invalidates the booking mentee and target mentor PENDING reads on success (X-Tracker #651)', async () => {
-      mockPost.mockResolvedValue({
-        id: 789,
-      } as unknown as components['schemas']['ReservationVO']);
+      mockPost.mockResolvedValue(
+        fromPartial<components['schemas']['ReservationVO']>({
+          id: 789,
+        })
+      );
       reservationReadModel.set(
         { userId: '123', state: 'MENTEE_PENDING' },
         { items: [], next_dtend: 0 }
@@ -130,9 +135,9 @@ describe('reservationService API Error Handling', () => {
 
       await createReservation({
         userId: 123,
-        body: {
+        body: fromPartial<components['schemas']['ReservationDTO']>({
           user_id: 456,
-        } as unknown as components['schemas']['ReservationDTO'],
+        }),
       });
 
       expect(
@@ -239,7 +244,7 @@ describe('reservationService API Error Handling', () => {
         updateReservationStatus({
           userId: 123,
           reservationId: 456,
-          body: {} as unknown as components['schemas']['UpdateReservationDTO'],
+          body: fromPartial<components['schemas']['UpdateReservationDTO']>({}),
         })
       ).rejects.toThrow(ApiError);
 
@@ -247,13 +252,14 @@ describe('reservationService API Error Handling', () => {
         await updateReservationStatus({
           userId: 123,
           reservationId: 456,
-          body: {} as unknown as components['schemas']['UpdateReservationDTO'],
+          body: fromPartial<components['schemas']['UpdateReservationDTO']>({}),
         });
       } catch (err) {
         expect(err).toBeInstanceOf(ApiError);
-        const apiError = err as ApiError;
-        expect(apiError.status).toBe(500);
-        expect(apiError.message).toContain('Internal Server Error');
+        if (err instanceof ApiError) {
+          expect(err.status).toBe(500);
+          expect(err.message).toContain('Internal Server Error');
+        }
       }
     });
   });
@@ -276,9 +282,10 @@ describe('reservationService API Error Handling', () => {
         });
       } catch (err) {
         expect(err).toBeInstanceOf(ApiError);
-        const apiError = err as ApiError;
-        expect(apiError.status).toBe(400);
-        expect(apiError.message).toContain('Bad Request');
+        if (err instanceof ApiError) {
+          expect(err.status).toBe(400);
+          expect(err.message).toContain('Bad Request');
+        }
       }
     });
   });
@@ -301,9 +308,10 @@ describe('reservationService API Error Handling', () => {
         });
       } catch (err) {
         expect(err).toBeInstanceOf(ApiError);
-        const apiError = err as ApiError;
-        expect(apiError.status).toBe(404);
-        expect(apiError.message).toContain('meet link not found');
+        if (err instanceof ApiError) {
+          expect(err.status).toBe(404);
+          expect(err.message).toContain('meet link not found');
+        }
       }
     });
 
@@ -429,9 +437,7 @@ describe('reservationService API Error Handling', () => {
       // Cursor inches forward by 1 every page, never repeats, and never
       // reaches endOfMonthUnix — only the page-count ceiling can end this.
       mockGet.mockImplementation(async (_path, options) => {
-        const nextDtend =
-          (options as { params: { next_dtend?: number } }).params.next_dtend ??
-          0;
+        const nextDtend = Number(options?.params?.next_dtend ?? 0);
         return {
           reservations: [
             makeApiReservation({
@@ -458,6 +464,63 @@ describe('reservationService API Error Handling', () => {
           step: 'fetch_MENTOR_UPCOMING_max_pages_exceeded',
         })
       );
+    });
+
+    it('supports options object without endOfMonthUnix and stops early when shouldStop matches (#733)', async () => {
+      mockGet
+        .mockResolvedValueOnce({
+          reservations: [
+            makeApiReservation({ id: 201, dtstart: 1000, dtend: 2000 }),
+          ],
+          next_dtend: 900,
+        })
+        .mockResolvedValueOnce({
+          reservations: [
+            makeApiReservation({ id: 202, dtstart: 800, dtend: 900 }),
+          ],
+          next_dtend: 700,
+        })
+        .mockResolvedValueOnce({
+          reservations: [
+            makeApiReservation({ id: 203, dtstart: 600, dtend: 700 }),
+          ],
+          next_dtend: 0,
+        });
+
+      const controller = new AbortController();
+      const result = await fetchAllReservationsForState({
+        userId: '123',
+        state: 'MENTOR_HISTORY',
+        signal: controller.signal,
+        shouldStop: (items) => items.some((it) => it.id === '202'),
+      });
+
+      expect(result.map((it) => it.id)).toEqual(['201', '202']);
+      expect(mockGet).toHaveBeenCalledTimes(2);
+    });
+
+    it('returns items collected so far without reporting failure when aborted via signal (#733)', async () => {
+      const controller = new AbortController();
+      mockGet
+        .mockResolvedValueOnce({
+          reservations: [
+            makeApiReservation({ id: 201, dtstart: 1000, dtend: 2000 }),
+          ],
+          next_dtend: 900,
+        })
+        .mockImplementationOnce(async () => {
+          controller.abort();
+          throw new DOMException('Aborted', 'AbortError');
+        });
+
+      const result = await fetchAllReservationsForState({
+        userId: '123',
+        state: 'MENTOR_HISTORY',
+        signal: controller.signal,
+      });
+
+      expect(result.map((it) => it.id)).toEqual(['201']);
+      expect(mockCaptureFlowFailure).not.toHaveBeenCalled();
     });
   });
 
@@ -539,6 +602,91 @@ describe('reservationService API Error Handling', () => {
           content: '更新後的回饋內容',
         }
       );
+    });
+
+    it('fetches single reservation feedback via GET /v1/users/:userId/reservations/:reservationId/feedback (#733)', async () => {
+      mockGet.mockResolvedValueOnce({
+        meeting_happened: null,
+        rating: null,
+        next_step: 'ANSWER',
+        role: 'MENTEE',
+      });
+
+      const result = await fetchReservationFeedback({
+        userId: '1',
+        reservationId: '101',
+      });
+
+      expect(mockGet).toHaveBeenCalledWith(
+        '/v1/users/1/reservations/101/feedback',
+        {}
+      );
+      expect(result).toEqual({
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+        viewerRole: 'mentee',
+      });
+    });
+
+    it('supports nested feedback payload, viewer_role normalization, and AbortSignal forwarding (#733)', async () => {
+      const controller = new AbortController();
+      mockGet.mockResolvedValueOnce({
+        viewer_role: 'MENTOR',
+        feedback: {
+          meeting_happened: true,
+          rating: null,
+          next_step: null,
+        },
+      });
+
+      const result = await fetchReservationFeedback({
+        userId: '99',
+        reservationId: '202',
+        signal: controller.signal,
+      });
+
+      expect(mockGet).toHaveBeenCalledWith(
+        '/v1/users/99/reservations/202/feedback',
+        { signal: controller.signal }
+      );
+      expect(result).toEqual({
+        feedback: {
+          meetingHappened: true,
+          rating: null,
+          nextStep: null,
+        },
+        viewerRole: 'mentor',
+      });
+    });
+
+    it('returns null gracefully for 404/405/501 or empty payloads and rethrows 500 errors (#733)', async () => {
+      mockGet.mockRejectedValueOnce(new ApiError(404, 'Not Found'));
+      await expect(
+        fetchReservationFeedback({ userId: '1', reservationId: '101' })
+      ).resolves.toBeNull();
+
+      mockGet.mockRejectedValueOnce(new ApiError(405, 'Method Not Allowed'));
+      await expect(
+        fetchReservationFeedback({ userId: '1', reservationId: '101' })
+      ).resolves.toBeNull();
+
+      mockGet.mockRejectedValueOnce(new ApiError(501, 'Not Implemented'));
+      await expect(
+        fetchReservationFeedback({ userId: '1', reservationId: '101' })
+      ).resolves.toBeNull();
+
+      mockGet.mockResolvedValueOnce({});
+      await expect(
+        fetchReservationFeedback({ userId: '1', reservationId: '101' })
+      ).resolves.toBeNull();
+
+      mockGet.mockRejectedValueOnce(new ApiError(500, 'Internal Server Error'));
+      await expect(
+        fetchReservationFeedback({ userId: '1', reservationId: '101' })
+      ).rejects.toThrow('Internal Server Error');
     });
   });
 });

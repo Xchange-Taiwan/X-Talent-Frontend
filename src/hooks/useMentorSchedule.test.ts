@@ -2178,9 +2178,9 @@ describe('useMentorSchedule', () => {
       });
 
       mockFetchAllReservationsForState.mockImplementation(
-        async (userId, state, endOfMonthUnix) => {
+        async (_userId, _state, endOfMonthUnix) => {
           // Return slow promise for month 7, resolve immediately to [] for month 8
-          if (endOfMonthUnix < 1786000000) {
+          if (endOfMonthUnix !== undefined && endOfMonthUnix < 1786000000) {
             return resPromise;
           }
           return [];
