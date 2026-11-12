@@ -291,6 +291,29 @@ export const MentorZeroReviewsEmptyState: Story = {
   },
 };
 
+export const MentorNewZeroSessionsAndZeroReviews: Story = {
+  args: {
+    ...MentorVisitorView.args,
+    userData: {
+      ...mockMentorUserData,
+      stats: {
+        completed_meeting_count: 0,
+        rating_count: 0,
+        rating_average: null,
+      },
+    },
+    feedback: {
+      items: [],
+      totalRatingCount: 0,
+      ratingAverage: null,
+      completedMeetingCount: 0,
+      hasLoaded: true,
+      isLoading: false,
+    },
+    defaultTab: 'feedback',
+  },
+};
+
 export const MenteeProfileView: Story = {
   args: {
     userData: mockMenteeUserData,

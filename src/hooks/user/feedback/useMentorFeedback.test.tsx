@@ -18,18 +18,18 @@ function makePage(
   return {
     items: [
       {
-        id: '1',
-        authorName: '陳**',
-        rating: 8,
-        content: '收穫滿滿',
-        createdAt: '2026-10-28T10:00:00Z',
-      },
-      {
         id: '2',
         authorName: '林**',
         rating: 10,
         content: '非常推薦',
         createdAt: '2026-10-27T10:00:00Z',
+      },
+      {
+        id: '1',
+        authorName: '陳**',
+        rating: 8,
+        content: '收穫滿滿',
+        createdAt: '2026-10-28T10:00:00Z',
       },
     ],
     totalRatingCount: 12,
@@ -56,7 +56,7 @@ describe('useMentorFeedback hook (#736)', () => {
     expect(result.current.items).toEqual([]);
   });
 
-  it('fetches page 1 on mount and supports pagination and deterministic sorting', async () => {
+  it('fetches page 1 on mount, sorts items newest-first by createdAt, and supports pagination', async () => {
     mockFetchMentorFeedback.mockResolvedValue(makePage());
 
     const { result } = renderHook(() =>
@@ -64,13 +64,12 @@ describe('useMentorFeedback hook (#736)', () => {
     );
 
     await waitFor(() => expect(result.current.hasLoaded).toBe(true));
-    expect(mockFetchMentorFeedback).toHaveBeenCalledWith(
-      expect.objectContaining({
-        mentorId: 101,
-        page: 1,
-        sortBy: 'newest',
-      })
-    );
+    expect(mockFetchMentorFeedback).toHaveBeenCalledWith({
+      mentorId: 101,
+      page: 1,
+      pageSize: 10,
+      signal: expect.any(AbortSignal),
+    });
     expect(result.current.items.map((i) => i.authorName)).toEqual([
       '陳**',
       '林**',
@@ -81,29 +80,13 @@ describe('useMentorFeedback hook (#736)', () => {
     });
 
     await waitFor(() =>
-      expect(mockFetchMentorFeedback).toHaveBeenCalledWith(
-        expect.objectContaining({
-          mentorId: 101,
-          page: 2,
-          sortBy: 'newest',
-        })
-      )
+      expect(mockFetchMentorFeedback).toHaveBeenCalledWith({
+        mentorId: 101,
+        page: 2,
+        pageSize: 10,
+        signal: expect.any(AbortSignal),
+      })
     );
-
-    await act(async () => {
-      result.current.setSortBy('rating_desc');
-    });
-
-    await waitFor(() =>
-      expect(mockFetchMentorFeedback).toHaveBeenCalledWith(
-        expect.objectContaining({
-          mentorId: 101,
-          page: 1,
-          sortBy: 'rating_desc',
-        })
-      )
-    );
-    expect(result.current.items.map((i) => i.rating)).toEqual([10, 8]);
   });
 
   it('surfaces error message on failure and recovers via reload()', async () => {

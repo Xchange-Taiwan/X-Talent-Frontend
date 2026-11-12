@@ -77,6 +77,15 @@ export const EmptyZeroReviews: Story = {
   },
 };
 
+export const FallbackUnavailableWithStats: Story = {
+  args: {
+    items: [],
+    totalRatingCount: 12,
+    ratingAverage: 9.2,
+    onRetry: () => {},
+  },
+};
+
 export const LoadingState: Story = {
   args: {
     items: [],

@@ -333,7 +333,7 @@ describe('useUserData caching', () => {
       }),
       stats: {
         completed_meeting_count: 128,
-        total_rating_count: 12,
+        rating_count: 12,
         rating_average: 8.5,
       },
     });

@@ -65,11 +65,11 @@ describe('fetchMentorFeedback service (#736 / #760)', () => {
     });
   });
 
-  it('supports legacy/compatible response keys (total, items, author_masked_name) and forwards sort_by', async () => {
+  it('supports legacy/compatible response keys (total, items, author_masked_name) and forwards custom page_size', async () => {
     mockGetUnwrapped.mockResolvedValueOnce({
       total: 2,
       page: 2,
-      page_size: 10,
+      page_size: 5,
       items: [
         {
           reservation_id: 55,
@@ -84,16 +84,17 @@ describe('fetchMentorFeedback service (#736 / #760)', () => {
     const result = await fetchMentorFeedback({
       mentorId: 888,
       page: 2,
-      sortBy: 'rating_desc',
+      pageSize: 5,
     });
 
     expect(mockGetUnwrapped).toHaveBeenCalledWith('/v1/mentors/888/feedback', {
       auth: false,
-      params: { page: 2, sort_by: 'rating_desc' },
+      params: { page: 2, page_size: 5 },
       signal: undefined,
     });
     expect(result.totalRatingCount).toBe(2);
     expect(result.page).toBe(2);
+    expect(result.pageSize).toBe(5);
     expect(result.items[0]).toMatchObject({
       id: '55',
       authorName: '林**',

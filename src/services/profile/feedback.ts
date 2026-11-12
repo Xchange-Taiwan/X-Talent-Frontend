@@ -142,14 +142,12 @@ export async function fetchMentorFeedback({
   mentorId,
   page = 1,
   pageSize = DEFAULT_FEEDBACK_PAGE_SIZE,
-  sortBy = 'newest',
   signal,
 }: FetchMentorFeedbackParams): Promise<MentorFeedbackPage> {
   const safePage = Math.max(1, Math.floor(page));
   const params: Record<string, string | number | undefined> = {
     page: safePage,
     ...(pageSize !== DEFAULT_FEEDBACK_PAGE_SIZE ? { page_size: pageSize } : {}),
-    ...(sortBy !== 'newest' ? { sort_by: sortBy } : {}),
   };
 
   try {

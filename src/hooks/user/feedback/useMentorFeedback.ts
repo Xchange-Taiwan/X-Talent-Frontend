@@ -8,7 +8,6 @@ import {
   DEFAULT_FEEDBACK_PAGE_SIZE,
   type MentorFeedbackItem,
   type MentorFeedbackPage,
-  type MentorFeedbackSortBy,
 } from '@/types/feedback';
 
 export interface UseMentorFeedbackOptions {
@@ -24,13 +23,11 @@ export interface MentorFeedbackState {
   completedMeetingCount: number | null;
   page: number;
   pageSize: number;
-  sortBy: MentorFeedbackSortBy;
   isLoading: boolean;
   hasLoaded: boolean;
   isFallbackEmpty: boolean;
   error: string | null;
   setPage: (page: number) => void;
-  setSortBy: (sortBy: MentorFeedbackSortBy) => void;
   reload: () => void;
 }
 
@@ -39,32 +36,13 @@ function isAbortError(error: unknown): boolean {
 }
 
 export function sortFeedbackItems(
-  items: ReadonlyArray<MentorFeedbackItem>,
-  sortBy: MentorFeedbackSortBy
+  items: ReadonlyArray<MentorFeedbackItem>
 ): MentorFeedbackItem[] {
   if (items.length <= 1) {
     return [...items];
   }
 
   const copy = [...items];
-  if (sortBy === 'rating_desc') {
-    copy.sort(
-      (a, b) =>
-        b.rating - a.rating ||
-        toFeedbackTimestampMs(b.createdAt) - toFeedbackTimestampMs(a.createdAt)
-    );
-    return copy;
-  }
-
-  if (sortBy === 'rating_asc') {
-    copy.sort(
-      (a, b) =>
-        a.rating - b.rating ||
-        toFeedbackTimestampMs(b.createdAt) - toFeedbackTimestampMs(a.createdAt)
-    );
-    return copy;
-  }
-
   const allHaveValidDates = copy.every(
     (item) => toFeedbackTimestampMs(item.createdAt) > 0
   );
@@ -83,7 +61,6 @@ export function useMentorFeedback({
   pageSize = DEFAULT_FEEDBACK_PAGE_SIZE,
 }: UseMentorFeedbackOptions): MentorFeedbackState {
   const [page, setPageState] = useState(1);
-  const [sortBy, setSortByState] = useState<MentorFeedbackSortBy>('newest');
   const [data, setData] = useState<MentorFeedbackPage | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -92,7 +69,6 @@ export function useMentorFeedback({
 
   useEffect(() => {
     setPageState(1);
-    setSortByState('newest');
     setData(null);
     setHasLoaded(false);
     setError(null);
@@ -100,11 +76,6 @@ export function useMentorFeedback({
 
   const setPage = useCallback((nextPage: number) => {
     setPageState(Math.max(1, Math.floor(nextPage)));
-  }, []);
-
-  const setSortBy = useCallback((nextSort: MentorFeedbackSortBy) => {
-    setSortByState(nextSort);
-    setPageState(1);
   }, []);
 
   const reload = useCallback(() => {
@@ -127,7 +98,6 @@ export function useMentorFeedback({
       mentorId,
       page,
       pageSize,
-      sortBy,
       signal: controller.signal,
     })
       .then((result) => {
@@ -147,12 +117,14 @@ export function useMentorFeedback({
     return () => {
       controller.abort();
     };
-  }, [canFetch, mentorId, page, pageSize, sortBy, reloadTick]);
+  }, [canFetch, mentorId, page, pageSize, reloadTick]);
 
   const sortedItems = useMemo(
-    () => sortFeedbackItems(data?.items ?? [], sortBy),
-    [data?.items, sortBy]
+    () => sortFeedbackItems(data?.items ?? []),
+    [data?.items]
   );
+
+  const effectiveIsLoading = isLoading || (canFetch && !hasLoaded && !error);
 
   return {
     items: sortedItems,
@@ -161,13 +133,11 @@ export function useMentorFeedback({
     completedMeetingCount: data?.completedMeetingCount ?? null,
     page: data?.page ?? page,
     pageSize: data?.pageSize ?? pageSize,
-    sortBy,
-    isLoading,
+    isLoading: effectiveIsLoading,
     hasLoaded,
     isFallbackEmpty: Boolean(data?.isFallbackEmpty),
     error,
     setPage,
-    setSortBy,
     reload,
   };
 }

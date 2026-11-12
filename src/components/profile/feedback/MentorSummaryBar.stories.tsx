@@ -42,6 +42,17 @@ export const ThreeColumnsZeroRatings: Story = {
   },
 };
 
+export const ThreeColumnsZeroSessions: Story = {
+  args: {
+    ratingAverage: 8.8,
+    ratingCount: 5,
+    completedMeetingCount: 0,
+    yearsOfExperience: '5~10 年',
+    location: '台灣',
+    industries: [{ subject_group: 'software', subject: '軟體及網路相關業' }],
+  },
+};
+
 export const NewMentorZeroSessionsAndZeroRatings: Story = {
   args: {
     ratingAverage: null,

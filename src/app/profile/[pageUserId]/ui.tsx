@@ -355,11 +355,9 @@ export default function ProfilePageUI({
                       ratingAverage={effectiveRatingAverage}
                       page={feedback?.page}
                       pageSize={feedback?.pageSize}
-                      sortBy={feedback?.sortBy}
                       isLoading={Boolean(feedback?.isLoading)}
                       error={feedback?.error ?? null}
                       onPageChange={feedback?.setPage}
-                      onSortChange={feedback?.setSortBy}
                       onRetry={feedback?.reload}
                     />
                   </TabsContent>

@@ -13,7 +13,31 @@ const SLOT_1_END = 1794915000;
 const SLOT_2_START = 1794916800;
 const SLOT_2_END = 1794918600;
 
-function makeMentorProfilePayload(withRatings: boolean) {
+const SCHEDULE_ROUTE_RE = new RegExp(
+  String.raw`/v1/mentors/${REAL_MENTOR_ID}/schedule/y/\d+/m/\d+`
+);
+const FEEDBACK_ROUTE_RE = new RegExp(
+  String.raw`/v1/mentors/${REAL_MENTOR_ID}/feedback(\?|$)`
+);
+const RIGHT_SCHEDULE_CARD_SELECTOR = String.raw`main .xl\:w-2\/5 .rounded-2xl`;
+
+interface MentorMockOptions {
+  isMentor?: boolean;
+  ratingCount?: number;
+  ratingAverage?: number | null;
+  completedMeetingCount?: number;
+  feedbackMode?: 'ok' | 'not-found';
+  clockIso?: string;
+}
+
+function makeMentorProfilePayload(options: MentorMockOptions = {}) {
+  const {
+    isMentor = true,
+    ratingCount = 12,
+    ratingAverage = ratingCount > 0 ? 8.5 : null,
+    completedMeetingCount = 128,
+  } = options;
+
   return {
     code: '0',
     msg: 'ok',
@@ -22,7 +46,7 @@ function makeMentorProfilePayload(withRatings: boolean) {
       name: 'Zahra Mirzakhani',
       avatar: '',
       onboarding: true,
-      is_mentor: true,
+      is_mentor: isMentor,
       job_title: 'Senior UX Designer',
       company: 'CreativeUX Design Studio',
       years_of_experience: 'FIVE_TO_TEN',
@@ -32,11 +56,13 @@ function makeMentorProfilePayload(withRatings: boolean) {
       about:
         '累積超過七年的數位產品設計經驗，喜歡從使用者研究出發，和跨職能夥伴一起將複雜問題轉化為清楚實用的產品體驗。',
       language: 'zh_TW',
-      stats: {
-        completed_meeting_count: 128,
-        total_rating_count: withRatings ? 12 : 0,
-        rating_average: withRatings ? 8.5 : null,
-      },
+      stats: isMentor
+        ? {
+            completed_meeting_count: completedMeetingCount,
+            rating_count: ratingCount,
+            rating_average: ratingCount > 0 ? ratingAverage : null,
+          }
+        : null,
       industry: {
         id: 1,
         subject_group: 'SOFTWARE',
@@ -163,9 +189,18 @@ const ALL_REVIEWS = [
 
 async function setupBaseMentorMocks(
   page: Page,
-  options: { withRatings: boolean }
+  options: MentorMockOptions = {}
 ) {
-  await page.clock.setFixedTime(new Date('2026-11-11T10:00:00+08:00'));
+  const {
+    isMentor = true,
+    ratingCount = 12,
+    ratingAverage = ratingCount > 0 ? 8.5 : null,
+    completedMeetingCount = 128,
+    feedbackMode = 'ok',
+    clockIso = '2026-11-11T10:00:00+08:00',
+  } = options;
+
+  await page.clock.setFixedTime(new Date(clockIso));
 
   await setSignedSessionCookie(page, {
     id: '9001',
@@ -198,7 +233,14 @@ async function setupBaseMentorMocks(
   await mockApiRoute(
     page,
     new RegExp(`/v1/(?:mentors|users)/${REAL_MENTOR_ID}/zh_TW/profile`),
-    { body: makeMentorProfilePayload(options.withRatings) }
+    {
+      body: makeMentorProfilePayload({
+        isMentor,
+        ratingCount,
+        ratingAverage,
+        completedMeetingCount,
+      }),
+    }
   );
 
   await mockApiRoute(page, /\/v1\/users\/zh_TW\/tags\/catalog/, {
@@ -231,77 +273,51 @@ async function setupBaseMentorMocks(
     },
   });
 
-  await mockApiRoute(
-    page,
-    new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule/y/\\d+/m/\\d+`),
-    {
-      body: {
-        code: '0',
-        msg: 'ok',
-        data: {
-          segments: [
-            {
-              id: 301,
-              user_id: Number(REAL_MENTOR_ID),
-              dt_type: 'ALLOW',
-              dt_year: 2026,
-              dt_month: 11,
-              dtstart: SLOT_1_START,
-              dtend: SLOT_1_END,
-              timezone: 'UTC',
-            },
-            {
-              id: 302,
-              user_id: Number(REAL_MENTOR_ID),
-              dt_type: 'ALLOW',
-              dt_year: 2026,
-              dt_month: 11,
-              dtstart: SLOT_2_START,
-              dtend: SLOT_2_END,
-              timezone: 'UTC',
-            },
-          ],
-        },
+  await mockApiRoute(page, SCHEDULE_ROUTE_RE, {
+    body: {
+      code: '0',
+      msg: 'ok',
+      data: {
+        segments: [
+          {
+            id: 301,
+            user_id: Number(REAL_MENTOR_ID),
+            dt_type: 'ALLOW',
+            dt_year: 2026,
+            dt_month: 11,
+            dtstart: SLOT_1_START,
+            dtend: SLOT_1_END,
+            timezone: 'UTC',
+          },
+          {
+            id: 302,
+            user_id: Number(REAL_MENTOR_ID),
+            dt_type: 'ALLOW',
+            dt_year: 2026,
+            dt_month: 11,
+            dtstart: SLOT_2_START,
+            dtend: SLOT_2_END,
+            timezone: 'UTC',
+          },
+        ],
       },
+    },
+  });
+
+  await page.route(FEEDBACK_ROUTE_RE, (route) => {
+    if (feedbackMode === 'not-found') {
+      return route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: '404',
+          msg: 'Not Found',
+          data: null,
+        }),
+      });
     }
-  );
 
-  await page.route(
-    new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/feedback(\\?|$)`),
-    (route) => {
-      if (!options.withRatings) {
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            code: '0',
-            msg: 'ok',
-            data: {
-              total_rating_count: 0,
-              completed_meeting_count: 128,
-              rating_average: null,
-              page: 1,
-              page_size: 10,
-              feedbacks: [],
-            },
-          }),
-        });
-      }
-
-      const url = new URL(route.request().url());
-      const pageNum = Math.max(1, Number(url.searchParams.get('page') ?? '1'));
-      const sortBy = url.searchParams.get('sort_by') ?? 'newest';
-      const sorted = [...ALL_REVIEWS];
-
-      if (sortBy === 'rating_desc') {
-        sorted.sort((a, b) => b.rating - a.rating);
-      } else if (sortBy === 'rating_asc') {
-        sorted.sort((a, b) => a.rating - b.rating);
-      }
-
-      const start = (pageNum - 1) * 10;
-      const pageSlice = sorted.slice(start, start + 10);
-
+    if (ratingCount <= 0) {
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -309,24 +325,87 @@ async function setupBaseMentorMocks(
           code: '0',
           msg: 'ok',
           data: {
-            total_rating_count: ALL_REVIEWS.length,
-            completed_meeting_count: 128,
-            rating_average: 8.5,
-            page: pageNum,
+            total_rating_count: 0,
+            completed_meeting_count: completedMeetingCount,
+            rating_average: null,
+            page: 1,
             page_size: 10,
-            feedbacks: pageSlice,
+            feedbacks: [],
           },
         }),
       });
     }
-  );
+
+    const url = new URL(route.request().url());
+    const pageNum = Math.max(1, Number(url.searchParams.get('page') ?? '1'));
+    const activePool = ALL_REVIEWS.slice(0, ratingCount);
+
+    const start = (pageNum - 1) * 10;
+    const pageSlice = activePool.slice(start, start + 10);
+
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        code: '0',
+        msg: 'ok',
+        data: {
+          total_rating_count: ratingCount,
+          completed_meeting_count: completedMeetingCount,
+          rating_average: ratingAverage,
+          page: pageNum,
+          page_size: 10,
+          feedbacks: pageSlice,
+        },
+      }),
+    });
+  });
+}
+
+async function assertEqualWidthSummaryColumns(
+  page: Page,
+  expectedCount: number
+) {
+  const summaryBar = page.getByRole('region', { name: '導師摘要資訊' });
+  const summaryGrid = summaryBar.getByTestId('mentor-summary-grid');
+  const cells = summaryGrid.locator('> div');
+
+  await expect(cells).toHaveCount(expectedCount);
+
+  const barBox = await summaryBar.boundingBox();
+  const gridBox = await summaryGrid.boundingBox();
+  expect(barBox).not.toBeNull();
+  expect(gridBox).not.toBeNull();
+  expect(Math.abs(gridBox!.width - barBox!.width)).toBeLessThanOrEqual(2);
+
+  const expectedColWidth = gridBox!.width / expectedCount;
+  for (let i = 0; i < expectedCount; i += 1) {
+    const cellBox = await cells.nth(i).boundingBox();
+    expect(cellBox).not.toBeNull();
+    expect(Math.abs(cellBox!.width - expectedColWidth)).toBeLessThanOrEqual(2);
+  }
+}
+
+async function revalidateClientProfileViaSpa(
+  page: Page,
+  nextClockIso: string
+): Promise<void> {
+  await page.clock.setFixedTime(new Date(nextClockIso));
+  await page.getByRole('link', { name: 'Go to homepage' }).click();
+  await expect(page).toHaveURL('/');
+  await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`/profile/${REAL_MENTOR_ID}$`));
 }
 
 test.describe('導師個人頁評價區塊與 RWD 排版 (#736)', () => {
-  test('有評價狀態：滿寬 4 格摘要列、雙欄頂部水平對齊、切換評價 Tab、分頁與排序、Desktop / Tablet / Mobile RWD', async ({
+  test('有評價狀態：滿寬 4 格摘要列、雙欄頂部水平對齊、切換評價 Tab、分頁與 Desktop / Tablet / Mobile RWD', async ({
     page,
   }) => {
-    await setupBaseMentorMocks(page, { withRatings: true });
+    await setupBaseMentorMocks(page, {
+      ratingCount: 12,
+      ratingAverage: 8.5,
+      completedMeetingCount: 128,
+    });
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto(`/profile/${REAL_MENTOR_ID}`);
 
@@ -342,6 +421,7 @@ test.describe('導師個人頁評價區塊與 RWD 排版 (#736)', () => {
     await expect(summaryBar.getByText('經驗', { exact: true })).toBeVisible();
     await expect(summaryBar.getByText('地點', { exact: true })).toBeVisible();
     await expect(summaryBar.getByText('產業', { exact: true })).toBeVisible();
+    await assertEqualWidthSummaryColumns(page, 4);
 
     // 驗證預設「簡介」分頁渲染完成，且不重複堆疊經驗／地點／產業標題
     const aboutPanel = page.getByRole('tabpanel', { name: '簡介' });
@@ -354,7 +434,7 @@ test.describe('導師個人頁評價區塊與 RWD 排版 (#736)', () => {
     // 驗證左欄「簡介｜評價 12」Tabs 頂端與右欄「可預約日期」卡片頂端水平齊平
     const tabList = page.getByRole('tablist', { name: '導師頁面分頁' });
     const rightScheduleCard = page
-      .locator('main .xl\\:w-2\\/5 .rounded-2xl')
+      .locator(RIGHT_SCHEDULE_CARD_SELECTOR)
       .first();
     await expect(tabList).toBeVisible();
     await expect(rightScheduleCard).toBeVisible();
@@ -399,7 +479,11 @@ test.describe('導師個人頁評價區塊與 RWD 排版 (#736)', () => {
       fullPage: true,
     });
 
-    // 分頁互動：點擊第 2 頁顯示第 11~12 筆評價
+    await expect(
+      feedbackSection.getByRole('combobox', { name: '評價排序' })
+    ).toHaveCount(0);
+
+    // 分頁互動：點擊第 2 頁顯示第 11~12 筆評價，再切回第 1 頁對齊預設時間由新到舊畫面
     const page2Btn = page.getByRole('button', { name: '第 2 頁' });
     await expect(page2Btn).toBeVisible();
     await page2Btn.click();
@@ -412,12 +496,9 @@ test.describe('導師個人頁評價區塊與 RWD 排版 (#736)', () => {
       )
     ).toBeVisible();
 
-    // 排序互動：切換為「評分由高到低」自動回到第 1 頁並以最高分排序
-    await page.getByRole('combobox', { name: '評價排序' }).click();
-    await page.getByRole('option', { name: '評分由高到低' }).click();
+    await page.getByRole('button', { name: '上一頁' }).click();
     const firstReviewItem = feedbackSection.locator('ul > li').first();
-    await expect(firstReviewItem).toContainText('張**');
-    await expect(firstReviewItem).toContainText('10 / 10');
+    await expect(firstReviewItem).toContainText('陳**');
 
     // Tablet (768x1024) RWD 驗證：單欄排列且行事曆移至下方
     await page.setViewportSize({ width: 768, height: 1024 });
@@ -490,7 +571,11 @@ test.describe('導師個人頁評價區塊與 RWD 排版 (#736)', () => {
   test('尚無評價狀態：頂部摘要列隱藏評分並滿寬 3 格均分，切換至「評價 0」顯示空狀態', async ({
     page,
   }) => {
-    await setupBaseMentorMocks(page, { withRatings: false });
+    await setupBaseMentorMocks(page, {
+      ratingCount: 0,
+      ratingAverage: null,
+      completedMeetingCount: 128,
+    });
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto(`/profile/${REAL_MENTOR_ID}`);
 
@@ -503,9 +588,10 @@ test.describe('導師個人頁評價區塊與 RWD 排版 (#736)', () => {
     await expect(summaryBar.getByText('地點', { exact: true })).toBeVisible();
     await expect(summaryBar.getByText('產業', { exact: true })).toBeVisible();
     await expect(summaryBar.getByText('評分', { exact: true })).toHaveCount(0);
+    await assertEqualWidthSummaryColumns(page, 3);
 
     const rightScheduleCard = page
-      .locator('main .xl\\:w-2\\/5 .rounded-2xl')
+      .locator(RIGHT_SCHEDULE_CARD_SELECTOR)
       .first();
     await expect(rightScheduleCard).toBeVisible();
 
@@ -526,5 +612,117 @@ test.describe('導師個人頁評價區塊與 RWD 排版 (#736)', () => {
 
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
     await captureEvidence(page, 'mentor-profile-feedback-empty-desktop');
+  });
+
+  test('/profile stats.rating_count Fallback（/feedback 404）、0 場次隱藏「已完成 1-on-1」等寬均分與學員個人頁角色隔離', async ({
+    page,
+  }) => {
+    // 1. 當 /v1/mentors/{id}/feedback 回傳 404 時，從 /profile 的 stats (rating_count / rating_average / completed_meeting_count) 正確 Fallback
+    await setupBaseMentorMocks(page, {
+      ratingCount: 8,
+      ratingAverage: 9.2,
+      completedMeetingCount: 64,
+      feedbackMode: 'not-found',
+      clockIso: '2026-11-11T10:00:00+08:00',
+    });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`/profile/${REAL_MENTOR_ID}`);
+    // 推進超過 60s DTO 快取 TTL 並經 SPA 往返，確保瀏覽器端實際透過 /profile 回傳的 stats.rating_count 進行映射（不被 SSR initialDto 繞過）
+    await revalidateClientProfileViaSpa(page, '2026-11-11T10:02:00+08:00');
+
+    const summaryBar = page.getByRole('region', { name: '導師摘要資訊' });
+    await expect(summaryBar).toBeVisible();
+    await expect(summaryBar.getByText('9.2', { exact: true })).toBeVisible();
+    await expect(summaryBar.getByText('64', { exact: true })).toBeVisible();
+    const fallbackFeedbackTab = page.getByRole('tab', { name: /評價\s*8/ });
+    await expect(fallbackFeedbackTab).toBeVisible();
+    await assertEqualWidthSummaryColumns(page, 4);
+
+    await fallbackFeedbackTab.click();
+    const fallbackSection = page.getByTestId('mentor-feedback-section');
+    await expect(fallbackSection).toBeVisible();
+    await expect(
+      fallbackSection.getByText('9.2', { exact: true })
+    ).toBeVisible();
+    await expect(
+      fallbackSection.getByText('8 則會談評價', { exact: true })
+    ).toBeVisible();
+    await expect(page.getByTestId('mentor-feedback-list-empty')).toBeVisible();
+    await expect(
+      fallbackSection.getByRole('list', { name: '會談評價列表' })
+    ).toHaveCount(0);
+    await expect(
+      fallbackSection.getByRole('navigation', { name: '評價分頁' })
+    ).toHaveCount(0);
+
+    // 2. completed_meeting_count = 0 且有評價：隱藏「已完成 1-on-1」格，剩餘 3 格（評分、經驗、地點）等寬均分滿寬
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await setupBaseMentorMocks(page, {
+      ratingCount: 5,
+      ratingAverage: 8.8,
+      completedMeetingCount: 0,
+      clockIso: '2026-11-11T10:02:00+08:00',
+    });
+    await revalidateClientProfileViaSpa(page, '2026-11-11T10:04:00+08:00');
+
+    await expect(summaryBar.getByText('評分', { exact: true })).toBeVisible();
+    await expect(summaryBar.getByText('8.8', { exact: true })).toBeVisible();
+    await expect(
+      summaryBar.getByText('已完成 1-on-1', { exact: true })
+    ).toHaveCount(0);
+    await expect(summaryBar.getByText('經驗', { exact: true })).toBeVisible();
+    await expect(summaryBar.getByText('地點', { exact: true })).toBeVisible();
+    await assertEqualWidthSummaryColumns(page, 3);
+
+    // 3. 新導師 0 則評價且 0 場次：同時隱藏「評分」與「已完成 1-on-1」，剩餘 2 格（經驗、地點）等寬均分滿寬
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await setupBaseMentorMocks(page, {
+      ratingCount: 0,
+      ratingAverage: null,
+      completedMeetingCount: 0,
+      clockIso: '2026-11-11T10:04:00+08:00',
+    });
+    await revalidateClientProfileViaSpa(page, '2026-11-11T10:06:00+08:00');
+
+    await expect(summaryBar.getByText('評分', { exact: true })).toHaveCount(0);
+    await expect(
+      summaryBar.getByText('已完成 1-on-1', { exact: true })
+    ).toHaveCount(0);
+    await expect(summaryBar.getByText('經驗', { exact: true })).toBeVisible();
+    await expect(summaryBar.getByText('地點', { exact: true })).toBeVisible();
+    await assertEqualWidthSummaryColumns(page, 2);
+
+    // 4. 學員個人頁（is_mentor: false）：不渲染導師摘要列與評價分頁，且學員狀態掛載期間不發送 /feedback 請求
+    let menteeFeedbackCalls = 0;
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await setupBaseMentorMocks(page, {
+      isMentor: false,
+      ratingCount: 0,
+      completedMeetingCount: 0,
+      clockIso: '2026-11-11T10:06:00+08:00',
+    });
+    await revalidateClientProfileViaSpa(page, '2026-11-11T10:08:00+08:00');
+
+    await expect(
+      page.getByRole('region', { name: '導師摘要資訊' })
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole('tablist', { name: '導師頁面分頁' })
+    ).toHaveCount(0);
+
+    await page.route(FEEDBACK_ROUTE_RE, (route) => {
+      menteeFeedbackCalls += 1;
+      return route.fulfill({ status: 200, body: '{}' });
+    });
+    await revalidateClientProfileViaSpa(page, '2026-11-11T10:10:00+08:00');
+
+    await expect(page.getByText('關於我', { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('region', { name: '導師摘要資訊' })
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole('tablist', { name: '導師頁面分頁' })
+    ).toHaveCount(0);
+    expect(menteeFeedbackCalls).toBe(0);
   });
 });

@@ -1,5 +1,3 @@
-export type MentorFeedbackSortBy = 'newest' | 'rating_desc' | 'rating_asc';
-
 export const DEFAULT_FEEDBACK_PAGE_SIZE = 10;
 
 export interface RawMentorFeedbackItem {
@@ -49,6 +47,5 @@ export interface FetchMentorFeedbackParams {
   mentorId: number;
   page?: number;
   pageSize?: number;
-  sortBy?: MentorFeedbackSortBy;
   signal?: AbortSignal;
 }

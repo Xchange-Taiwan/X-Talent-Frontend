@@ -1,5 +1,4 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { MentorFeedbackItem } from '@/types/feedback';
@@ -26,7 +25,7 @@ const sampleReviews: MentorFeedbackItem[] = [
 ];
 
 describe('MentorFeedbackSection (#736)', () => {
-  it('renders rating summary header, initial avatar, masked author, score, date, and multiline content', () => {
+  it('renders rating summary header, initial avatar, masked author, score, date, and multiline content without sort dropdown', () => {
     render(
       <MentorFeedbackSection
         items={sampleReviews}
@@ -44,7 +43,22 @@ describe('MentorFeedbackSection (#736)', () => {
 
     const multilineComment = screen.getByText(/第一行回饋/);
     expect(multilineComment).toHaveClass('whitespace-pre-line', 'break-words');
+    expect(screen.queryByRole('combobox', { name: '評價排序' })).toBeNull();
     expect(screen.queryByRole('navigation', { name: '評價分頁' })).toBeNull();
+  });
+
+  it('sorts items newest-first by createdAt by default', () => {
+    render(
+      <MentorFeedbackSection
+        items={[sampleReviews[1], sampleReviews[0]]}
+        totalRatingCount={2}
+        ratingAverage={8.0}
+      />
+    );
+
+    const listItems = screen.getAllByRole('listitem');
+    expect(listItems[0]).toHaveTextContent('陳**');
+    expect(listItems[1]).toHaveTextContent('林**');
   });
 
   it('renders neutral empty state when totalRatingCount is 0', () => {
@@ -54,7 +68,31 @@ describe('MentorFeedbackSection (#736)', () => {
     expect(
       screen.getByText('完成會談後，學員的評價會顯示在這裡。')
     ).toBeInTheDocument();
-    expect(screen.queryByLabelText('評價排序')).toBeNull();
+    expect(screen.queryByRole('combobox', { name: '評價排序' })).toBeNull();
+  });
+
+  it('shows unavailable prompt and hides empty list and pagination when totalRatingCount > 0 but items is empty (e.g. 404 fallback)', () => {
+    const onRetry = vi.fn();
+    render(
+      <MentorFeedbackSection
+        items={[]}
+        totalRatingCount={12}
+        ratingAverage={9.2}
+        onRetry={onRetry}
+      />
+    );
+
+    expect(screen.getByText('9.2')).toBeInTheDocument();
+    expect(screen.getByText('12 則會談評價')).toBeInTheDocument();
+    expect(
+      screen.getByText('目前暫無法顯示評價內容，請稍後再試。')
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: '會談評價列表' })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: '評價分頁' })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: '評價排序' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: '重新載入' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
   it('shows pagination only when totalRatingCount exceeds pageSize (10) and triggers onPageChange', () => {
@@ -79,25 +117,6 @@ describe('MentorFeedbackSection (#736)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '下一頁' }));
     expect(onPageChange).toHaveBeenCalledWith(2);
-  });
-
-  it('allows changing sort option via Select control', async () => {
-    const user = userEvent.setup();
-    const onSortChange = vi.fn();
-    render(
-      <MentorFeedbackSection
-        items={sampleReviews}
-        totalRatingCount={2}
-        ratingAverage={8.0}
-        sortBy="newest"
-        onSortChange={onSortChange}
-      />
-    );
-
-    await user.click(screen.getByRole('combobox', { name: '評價排序' }));
-    await user.click(screen.getByRole('option', { name: '評分由低到高' }));
-
-    expect(onSortChange).toHaveBeenCalledWith('rating_asc');
   });
 
   it('renders skeleton while loading initial page and retry button on error', () => {
@@ -126,5 +145,8 @@ describe('MentorFeedbackSection (#736)', () => {
     expect(stories.default.component).toBe(MentorFeedbackSection);
     expect(stories.WithPaginationOverTen.args?.totalRatingCount).toBe(12);
     expect(stories.EmptyZeroReviews.args?.totalRatingCount).toBe(0);
+    expect(stories.FallbackUnavailableWithStats.args?.totalRatingCount).toBe(
+      12
+    );
   });
 });
