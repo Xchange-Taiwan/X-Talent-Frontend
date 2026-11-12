@@ -368,7 +368,8 @@ export function extractMotionRulesFromCode(cssTexts = [], jsTexts = []) {
       /data:image\/[^"')\s]+/g,
       'DATA_IMAGE'
     );
-    const kfRegex = /@keyframes\s+[a-zA-Z0-9_-]+\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g;
+    const kfRegex =
+      /@keyframes\s+[a-zA-Z0-9_-]+\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g;
     let kfMatch;
     while ((kfMatch = kfRegex.exec(css)) !== null && keyframes.length < 15) {
       keyframes.push(kfMatch[0].trim());
@@ -656,9 +657,9 @@ async function capturePrototypesWithPlaywright(urls, outDir, rawSpecText = '') {
             .slice(0, 45)
             .map(pickStyle);
 
-          const styleTexts = Array.from(targetDoc.querySelectorAll('style')).map(
-            (s) => s.textContent || ''
-          );
+          const styleTexts = Array.from(
+            targetDoc.querySelectorAll('style')
+          ).map((s) => s.textContent || '');
           const scriptTexts = Array.from(
             targetDoc.querySelectorAll('script:not([src])')
           ).map((s) => s.textContent || '');
@@ -729,11 +730,7 @@ async function capturePrototypesWithPlaywright(urls, outDir, rawSpecText = '') {
             '```'
           );
           if (motionRules.webAnimations.length > 0) {
-            domLines.push(
-              '```js',
-              ...motionRules.webAnimations,
-              '```'
-            );
+            domLines.push('```js', ...motionRules.webAnimations, '```');
           }
           domLines.push('');
         }
