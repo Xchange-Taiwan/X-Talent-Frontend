@@ -109,10 +109,10 @@ describe('prefetch-ticket-visuals', () => {
     });
 
     it('orders top issue description first, then newest comments before old comments', () => {
-      const ordered = prioritizeIssueAndCommentBlocks({ body: 'issue-top' }, [
-        { body: 'old-oct-comment' },
-        { body: 'new-nov-comment' },
-      ]);
+      const ordered = prioritizeIssueAndCommentBlocks(
+        { body: 'issue-top' },
+        [{ body: 'old-oct-comment' }, { body: 'new-nov-comment' }]
+      );
       expect(ordered.map((b) => b.body)).toEqual([
         'issue-top',
         'new-nov-comment',
