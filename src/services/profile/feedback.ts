@@ -91,17 +91,24 @@ export function mapMentorFeedbackResponse(
       ? Math.floor(raw.page_size)
       : safeRequestedPageSize;
 
-  const items = rawItems.map((item, idx) =>
-    mapFeedbackItem(item, idx, resolvedPage)
-  );
+  const items = rawItems
+    .filter((item) => item?.is_public !== false)
+    .map((item, idx) => mapFeedbackItem(item, idx, resolvedPage));
 
+  const filteredOutCount = rawItems.length - items.length;
   const rawTotal = Array.isArray(raw)
-    ? items.length
+    ? undefined
     : (raw.total_rating_count ?? raw.total ?? raw.rating_count);
-  const totalRatingCount =
+  const parsedBackendTotal =
     rawTotal !== undefined && rawTotal !== null
       ? toNonNegativeInt(rawTotal)
-      : items.length;
+      : null;
+  const totalRatingCount =
+    parsedBackendTotal === null
+      ? items.length
+      : filteredOutCount > 0 && parsedBackendTotal >= rawItems.length
+        ? Math.max(items.length, parsedBackendTotal - filteredOutCount)
+        : Math.max(items.length, parsedBackendTotal);
 
   let ratingAverage: number | null = null;
   if (

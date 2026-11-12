@@ -21,13 +21,18 @@ import * as informationStories from '@/components/mentor-pool/mentor-card/Inform
 import * as confirmedReservationDialogStories from '@/components/profile/reservation/ConfirmedReservationDialog.stories';
 import * as menteeBookingFormStories from '@/components/profile/reservation/MenteeBookingForm.stories';
 import * as quickReplyDialogStories from '@/components/profile/reservation/QuickReplyDialog.stories';
+import { FeedbackStarRating } from '@/components/reservation/FeedbackStarRating';
+import * as feedbackStarRatingStories from '@/components/reservation/FeedbackStarRating.stories';
 import { JoinMeetButton } from '@/components/reservation/JoinMeetButton';
 import * as joinMeetButtonStories from '@/components/reservation/JoinMeetButton.stories';
+import * as meetingFeedbackDialogStories from '@/components/reservation/MeetingFeedbackDialog.stories';
 import { ReplyMessageField } from '@/components/reservation/ReplyMessageField';
 import * as replyMessageFieldStories from '@/components/reservation/ReplyMessageField.stories';
 import * as reservationCardStories from '@/components/reservation/ReservationCard.stories';
 import * as reservationConversationDialogStories from '@/components/reservation/ReservationConversationDialog.stories';
 import * as reservationDashboardStories from '@/components/reservation/ReservationDashboard.stories';
+import { ReservationFeedbackBlock } from '@/components/reservation/ReservationFeedbackBlock';
+import * as reservationFeedbackBlockStories from '@/components/reservation/ReservationFeedbackBlock.stories';
 import * as reservationListStories from '@/components/reservation/ReservationList.stories';
 import * as reservationMessagePreviewStories from '@/components/reservation/ReservationMessagePreview.stories';
 import * as sliderStories from '@/components/ui/slider.stories';
@@ -283,5 +288,59 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
     );
     expect(screen.getByText('9.8 / 10')).toBeInTheDocument();
     expect(screen.getByText('已完成 18 場 1-on-1')).toBeInTheDocument();
+  });
+
+  it('exposes and renders MeetingFeedbackDialog and ReservationFeedbackBlock stories (#730)', () => {
+    expect(feedbackStarRatingStories.default.title).toBe(
+      '業務模組元件/預約管理(Reservation)/FeedbackStarRating'
+    );
+    expect(feedbackStarRatingStories.DefaultFullScore).toBeDefined();
+    expect(feedbackStarRatingStories.PartialScoreEight).toBeDefined();
+    expect(feedbackStarRatingStories.DisabledState).toBeDefined();
+
+    render(
+      <FeedbackStarRating
+        value={feedbackStarRatingStories.DefaultFullScore.args!.value!}
+        onChange={() => {}}
+      />
+    );
+    expect(
+      screen.getByRole('radiogroup', { name: '整體滿意度' })
+    ).toBeInTheDocument();
+
+    expect(meetingFeedbackDialogStories.default.title).toBe(
+      '業務模組元件/預約管理(Reservation)/MeetingFeedbackDialog'
+    );
+    expect(meetingFeedbackDialogStories.ClosedTrigger).toBeDefined();
+    expect(meetingFeedbackDialogStories.StepAttendanceOpen).toBeDefined();
+    expect(meetingFeedbackDialogStories.StepRatingStarsOpen).toBeDefined();
+    expect(meetingFeedbackDialogStories.StepRatingSliderOpen).toBeDefined();
+    expect(meetingFeedbackDialogStories.StepNotHappenedOpen).toBeDefined();
+
+    expect(reservationFeedbackBlockStories.default.title).toBe(
+      '業務模組元件/預約管理(Reservation)/ReservationFeedbackBlock'
+    );
+    expect(reservationFeedbackBlockStories.MenteePublicRating).toBeDefined();
+    expect(reservationFeedbackBlockStories.MentorPublicRating).toBeDefined();
+    expect(
+      reservationFeedbackBlockStories.MenteeUnpublicizedRating
+    ).toBeDefined();
+
+    expect(reservationCardStories.HistoryMenteeNeedsFeedback).toBeDefined();
+    expect(reservationCardStories.HistoryMenteeRatedPublic).toBeDefined();
+    expect(reservationCardStories.HistoryMenteeRatedUnpublicized).toBeDefined();
+    expect(reservationCardStories.HistoryMenteeNotHappened).toBeDefined();
+    expect(reservationListStories.MenteeHistoryFeedbackStates).toBeDefined();
+
+    render(
+      <ReservationFeedbackBlock
+        model={
+          reservationFeedbackBlockStories.MenteeUnpublicizedRating.args!.model!
+        }
+      />
+    );
+    expect(
+      screen.getByTestId('reservation-feedback-unpublicized')
+    ).toBeInTheDocument();
   });
 });

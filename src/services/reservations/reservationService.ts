@@ -11,6 +11,11 @@ import { resolveCounterpartyProfile } from '@/lib/reservation/resolveCounterpart
 import { classifyReservationMessages } from '@/lib/reservation/resolveReservationMessages';
 import { components } from '@/types/api';
 import { Reservation, ReservationMessage } from '@/types/reservation';
+import type {
+  RawReservationFeedback,
+  ReservationFeedback,
+  SubmitReservationFeedbackRequest,
+} from '@/types/reservationFeedback';
 
 export type ReservationState =
   | 'MENTOR_UPCOMING'
@@ -29,14 +34,14 @@ export type FetchOptions = {
   signal?: AbortSignal;
 };
 
-// `version` (optimistic-lock field, X-Talent-Backend PR #44) is not yet part
-// of the generated OpenAPI schema in src/types/api.ts — that file is
-// auto-generated and regenerates once the backend ships the field. Extend
-// the generated types locally in the meantime rather than hand-editing api.ts.
+// `version` (optimistic-lock field, X-Talent-Backend PR #44) and `feedback`
+// (post-meeting feedback contract, X-Tracker #730 / #760) are extended locally
+// rather than hand-editing the auto-generated src/types/api.ts.
 type ReservationInfoVOWithVersion =
   components['schemas']['ReservationInfoVO'] & {
     version?: number;
     cancelled_by?: 'MENTEE' | 'MENTOR' | 'SYSTEM' | null;
+    feedback?: RawReservationFeedback | null;
   };
 type UpdateReservationDTOWithVersion =
   components['schemas']['UpdateReservationDTO'] & {
@@ -77,6 +82,47 @@ function classifyMessageRole(
   return undefined;
 }
 
+function mapReservationFeedback(
+  raw: RawReservationFeedback | null | undefined
+): ReservationFeedback | undefined {
+  if (!raw || typeof raw !== 'object') {
+    return undefined;
+  }
+
+  const meetingHappened =
+    typeof raw.meeting_happened === 'boolean' ? raw.meeting_happened : null;
+
+  const rawRating = raw.rating;
+  const rating =
+    rawRating &&
+    typeof rawRating === 'object' &&
+    typeof rawRating.rating === 'number' &&
+    Number.isFinite(rawRating.rating)
+      ? {
+          rating: rawRating.rating,
+          content:
+            typeof rawRating.content === 'string' ? rawRating.content : '',
+          createdAt:
+            typeof rawRating.created_at === 'number' ? rawRating.created_at : 0,
+          updatedAt:
+            typeof rawRating.updated_at === 'number' ? rawRating.updated_at : 0,
+          authorName:
+            typeof rawRating.author_name === 'string'
+              ? rawRating.author_name
+              : null,
+          isPublic: rawRating.is_public !== false,
+        }
+      : null;
+
+  const nextStep = raw.next_step === 'ANSWER' ? 'ANSWER' : null;
+
+  return {
+    meetingHappened,
+    rating,
+    nextStep,
+  };
+}
+
 export function mapToReservation(
   reservation: ReservationInfoVOWithVersion,
   myUserId?: string | number | null
@@ -84,6 +130,7 @@ export function mapToReservation(
   const { name, avatar, roleLine, cancelledBy, viewerRole } =
     resolveCounterpartyProfile(reservation, myUserId);
   const { date, time } = formatDateTime(reservation.dtstart, reservation.dtend);
+  const feedback = mapReservationFeedback(reservation.feedback);
 
   // Preserve the full conversation in API order so the detail view can render
   // the entire thread, while also tracking the latest message per side for the
@@ -131,6 +178,7 @@ export function mapToReservation(
     cancelledBy,
     viewerRole,
     version: reservation.version ?? 0,
+    ...(feedback ? { feedback } : {}),
   };
 }
 
@@ -395,4 +443,27 @@ export async function fetchReservationMeetLink(opts: {
   }
 
   return data;
+}
+
+/* ================================
+ * POST: Submit meeting feedback
+ * ================================ */
+
+export async function postReservationFeedback(opts: {
+  userId: string | number;
+  reservationId: string | number;
+  body: SubmitReservationFeedbackRequest;
+  debug?: boolean;
+}): Promise<unknown> {
+  const { userId, reservationId, body, debug } = opts;
+
+  if (debug) {
+    console.debug('[reservations] POST Feedback request', {
+      userId,
+      reservationId,
+    });
+  }
+
+  const path = `/v1/users/${encodeURIComponent(userId)}/reservations/${encodeURIComponent(reservationId)}/feedback`;
+  return apiClient.postUnwrapped<unknown>(path, body);
 }

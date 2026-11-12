@@ -1,14 +1,21 @@
 import { ApiError } from '@/lib/apiClient';
+import { mentorPoolReadManager } from '@/lib/cache/mentorPoolCache';
 import { captureFlowFailure } from '@/lib/monitoring';
+import {
+  RESERVATION_CONFLICT_MESSAGE,
+  ReservationVersionConflictError,
+} from '@/lib/reservation/reservationConflictError';
 import {
   type ReservationReadKey,
   reservationReadModel,
 } from '@/lib/reservation/reservationReadModel';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import { Reservation } from '@/types/reservation';
+import type { SubmitReservationFeedbackRequest } from '@/types/reservationFeedback';
 
 import {
   invalidateReservationRead,
+  postReservationFeedback,
   type ReservationState,
   updateReservationStatus,
 } from './reservationService';
@@ -60,21 +67,7 @@ function affectedKeys(
   ]);
 }
 
-export const RESERVATION_CONFLICT_MESSAGE =
-  '資料已被更新，請重新確認後再試一次';
-
-/**
- * Thrown when the backend rejects a status update with 409 (optimistic-lock
- * version mismatch) — the reservation was changed elsewhere since it was
- * read. Distinguishable via `instanceof` so callers can refetch + show a
- * specific message instead of the generic failure toast.
- */
-export class ReservationVersionConflictError extends Error {
-  constructor() {
-    super('Reservation version conflict (409)');
-    this.name = 'ReservationVersionConflictError';
-  }
-}
+export { RESERVATION_CONFLICT_MESSAGE, ReservationVersionConflictError };
 
 /**
  * Resolve the user-facing error message for a reservation status-update
@@ -258,4 +251,107 @@ export async function rejectOrCancelReservation({
     'upcoming',
     'history',
   ]).forEach(invalidateReservationRead);
+}
+
+export interface SubmitFeedbackParams {
+  reservation: Reservation;
+  myUserId: string | undefined;
+  myRole: 'mentee' | 'mentor';
+  payload: SubmitReservationFeedbackRequest;
+}
+
+/**
+ * Submit post-meeting feedback / rating for a completed reservation (#730).
+ */
+export async function submitReservationFeedback({
+  reservation,
+  myUserId,
+  myRole,
+  payload,
+}: SubmitFeedbackParams): Promise<void> {
+  let resolvedIsPublic = true;
+  try {
+    if (!myUserId) {
+      throw new Error('[reservationMutations] missing current user id');
+    }
+    const responseData = (await postReservationFeedback({
+      userId: myUserId,
+      reservationId: reservation.id,
+      body: payload,
+    })) as { feedback?: { is_public?: boolean } | null } | undefined;
+    if (responseData?.feedback?.is_public === false) {
+      resolvedIsPublic = false;
+    }
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 409) {
+      if (myUserId) {
+        affectedKeys(reservation, myUserId, myRole, ['history']).forEach(
+          invalidateReservationRead
+        );
+      }
+      throw new ReservationVersionConflictError();
+    }
+    captureFlowFailure({
+      flow: 'reservation_feedback_submit',
+      step: 'post_feedback',
+      message:
+        err instanceof Error
+          ? err.message
+          : 'Failed to submit reservation feedback',
+    });
+    throw err;
+  }
+
+  if (!myUserId) return;
+
+  const nowUnixSeconds = Math.floor(Date.now() / 1000);
+  const myHistoryKey: ReservationReadKey = {
+    userId: myUserId,
+    state: statesForRole(myRole).history,
+  };
+
+  for (const targetKey of reservationReadModel.getMatchingKeys(myHistoryKey)) {
+    reservationReadModel.update(targetKey, (current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        items: current.items.map((item) => {
+          if (item.id !== reservation.id) return item;
+          if (payload.meeting_happened) {
+            return {
+              ...item,
+              feedback: {
+                meetingHappened: true,
+                rating: {
+                  rating: payload.feedback.rating,
+                  content: payload.feedback.content,
+                  createdAt: nowUnixSeconds,
+                  updatedAt: nowUnixSeconds,
+                  authorName: item.feedback?.rating?.authorName ?? null,
+                  isPublic: resolvedIsPublic,
+                },
+                nextStep: null,
+              },
+            };
+          }
+          return {
+            ...item,
+            feedback: {
+              meetingHappened: false,
+              rating: null,
+              nextStep: null,
+            },
+          };
+        }),
+      };
+    });
+  }
+
+  affectedKeys(reservation, myUserId, myRole, ['history']).forEach(
+    invalidateReservationRead
+  );
+
+  if (payload.meeting_happened) {
+    mentorPoolReadManager.clear();
+  }
 }

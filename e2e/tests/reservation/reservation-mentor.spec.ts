@@ -608,7 +608,7 @@ test.describe('歷史紀錄 Tab 測試', () => {
 });
 
 test.describe('導師端空狀態情境文案與 CTA 導向測試', () => {
-  test('驗證三個 Tab（「即將到來」、「待您回覆」、「歷史紀錄」）空狀態情境文案，且點擊「管理可預約時段」導向 /profile/:userId', async ({
+  test('驗證三個 Tab（「待您回覆」、「即將到來」、「歷史紀錄」）空狀態情境文案，且點擊「管理可預約時段」導向 /profile/:userId', async ({
     page,
   }) => {
     await setSignedSessionCookie(page, {
@@ -623,26 +623,26 @@ test.describe('導師端空狀態情境文案與 CTA 導向測試', () => {
 
     await page.goto(PAGE_URL);
 
-    // 1. 即將到來 Tab 空狀態
-    await expect(page.getByRole('tab', { name: /即將到來/ })).toBeVisible({
+    // 1. 待您回覆 Tab 空狀態（預設選中第一個分頁）
+    await expect(page.getByRole('tab', { name: /待您回覆/ })).toBeVisible({
       timeout: 15_000,
     });
     await expect(page.getByText('目前尚無資料')).toBeVisible();
     await expect(
       page.getByText(
-        '目前還沒有即將到來的預約，前往個人頁面確認或新增可預約時段，讓學員更容易找到你！'
+        '目前還沒有待您回覆的預約申請，前往個人頁面管理可預約時段以提升預約率！'
       )
     ).toBeVisible();
     await expect(
       page.getByRole('link', { name: '管理可預約時段' })
     ).toHaveAttribute('href', `/profile/${USER_ID}`);
 
-    // 2. 待您回覆 Tab 空狀態
-    await page.getByRole('tab', { name: /待您回覆/ }).click();
+    // 2. 即將到來 Tab 空狀態
+    await page.getByRole('tab', { name: /即將到來/ }).click();
     await expect(page.getByText('目前尚無資料')).toBeVisible();
     await expect(
       page.getByText(
-        '目前還沒有待您回覆的預約申請，前往個人頁面管理可預約時段以提升預約率！'
+        '目前還沒有即將到來的預約，前往個人頁面確認或新增可預約時段，讓學員更容易找到你！'
       )
     ).toBeVisible();
     await expect(

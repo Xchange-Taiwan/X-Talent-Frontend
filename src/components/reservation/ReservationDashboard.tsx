@@ -139,7 +139,7 @@ export function ReservationDashboardView({
   const pathname = usePathname();
 
   const tabParam = searchParams.get('tab');
-  const activeTab = (tabParam && TAB_MAPPING[tabParam]) || upcomingTabValue;
+  const activeTab = (tabParam && TAB_MAPPING[tabParam]) || pendingTabValue;
 
   const lastCountsRef = useRef<{
     role: ReservationRole;
@@ -250,19 +250,19 @@ export function ReservationDashboardView({
                   <div className="flex justify-center">
                     <TabsList className="inline-flex w-max items-center gap-2 bg-transparent px-0">
                       <TabsTrigger
-                        value={upcomingTabValue}
-                        className={triggerClass}
-                      >
-                        即將到來
-                        <span className={countClass}>{upcomingBadgeCount}</span>
-                      </TabsTrigger>
-
-                      <TabsTrigger
                         value={pendingTabValue}
                         className={triggerClass}
                       >
                         {pendingLabel}
                         <span className={countClass}>{pendingBadgeCount}</span>
+                      </TabsTrigger>
+
+                      <TabsTrigger
+                        value={upcomingTabValue}
+                        className={triggerClass}
+                      >
+                        即將到來
+                        <span className={countClass}>{upcomingBadgeCount}</span>
                       </TabsTrigger>
 
                       <TabsTrigger value="history" className={triggerClass}>
@@ -280,22 +280,6 @@ export function ReservationDashboardView({
             </div>
 
             <div className="px-3 pt-2 sm:px-0">
-              <TabsContent value={upcomingTabValue} className="mt-4 sm:mt-6">
-                {isLoadingUpcoming ? (
-                  <ReservationListSkeleton />
-                ) : (
-                  <ReservationList
-                    items={upcoming}
-                    variant="upcoming"
-                    sourceRole={userRole}
-                    myUserId={myUserId}
-                    hasMore={nextTokens.upcoming !== 0}
-                    onLoadMore={onLoadMoreUpcoming}
-                    isLoadingMore={loadingMoreStates.upcoming}
-                  />
-                )}
-              </TabsContent>
-
               <TabsContent value={pendingTabValue} className="mt-4 sm:mt-6">
                 {isLoadingPending ? (
                   <ReservationListSkeleton />
@@ -308,6 +292,22 @@ export function ReservationDashboardView({
                     hasMore={nextTokens.pending !== 0}
                     onLoadMore={onLoadMorePending}
                     isLoadingMore={loadingMoreStates.pending}
+                  />
+                )}
+              </TabsContent>
+
+              <TabsContent value={upcomingTabValue} className="mt-4 sm:mt-6">
+                {isLoadingUpcoming ? (
+                  <ReservationListSkeleton />
+                ) : (
+                  <ReservationList
+                    items={upcoming}
+                    variant="upcoming"
+                    sourceRole={userRole}
+                    myUserId={myUserId}
+                    hasMore={nextTokens.upcoming !== 0}
+                    onLoadMore={onLoadMoreUpcoming}
+                    isLoadingMore={loadingMoreStates.upcoming}
                   />
                 )}
               </TabsContent>

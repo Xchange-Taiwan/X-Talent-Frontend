@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next-auth/react', async () => {
   const { nextAuthMockFactory } = await import('@/test/mocks/nextAuth');
@@ -11,6 +11,7 @@ vi.mock('@/lib/apiClient', async (importActual) => {
     ...actual,
     apiClient: {
       putUnwrapped: vi.fn(),
+      postUnwrapped: vi.fn(),
     },
   };
 });
@@ -33,6 +34,7 @@ vi.mock('@/lib/analytics', async (importActual) => {
 });
 
 import { apiClient, ApiError } from '@/lib/apiClient';
+import { mentorPoolReadManager } from '@/lib/cache/mentorPoolCache';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
@@ -42,10 +44,12 @@ import {
   rejectOrCancelReservation,
   RESERVATION_CONFLICT_MESSAGE,
   ReservationVersionConflictError,
+  submitReservationFeedback,
 } from '@/services/reservations';
 import type { Reservation } from '@/types/reservation';
 
 const mockPut = vi.mocked(apiClient.putUnwrapped);
+const mockPost = vi.mocked(apiClient.postUnwrapped);
 const mockCaptureFailure = vi.mocked(captureFlowFailure);
 
 const emptyPage = { items: [], next_dtend: 0 };
@@ -532,5 +536,256 @@ describe('rejectOrCancelReservation', () => {
     expect(
       reservationReadModel.get({ userId: '10', state: 'MENTOR_PENDING' })
     ).toEqual(emptyPage);
+  });
+});
+
+describe('submitReservationFeedback (#730)', () => {
+  let clearPoolSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    reservationReadModel.clear();
+    mentorPoolReadManager.clear();
+    clearPoolSpy = vi.spyOn(mentorPoolReadManager, 'clear');
+  });
+
+  afterEach(() => {
+    clearPoolSpy.mockRestore();
+  });
+
+  it('posts meeting_happened=true feedback, invalidates both parties HISTORY slices, and clears mentorPoolReadManager', async () => {
+    const reservation = makeMockReservation({
+      id: 'res-730',
+      senderUserId: '10',
+      participantUserId: '20',
+      feedback: {
+        meetingHappened: null,
+        rating: null,
+        nextStep: 'ANSWER',
+      },
+    });
+    mockPost.mockResolvedValueOnce({ ok: true });
+
+    reservationReadModel.set(
+      { userId: '10', state: 'MENTEE_HISTORY' },
+      { items: [reservation], next_dtend: 0 }
+    );
+    reservationReadModel.set(
+      { userId: '20', state: 'MENTOR_HISTORY' },
+      { items: [reservation], next_dtend: 0 }
+    );
+
+    await submitReservationFeedback({
+      reservation,
+      myUserId: '10',
+      myRole: 'mentee',
+      payload: {
+        meeting_happened: true,
+        feedback: { rating: 10, content: '收穫良多！' },
+      },
+    });
+
+    expect(mockPost).toHaveBeenCalledWith(
+      '/v1/users/10/reservations/res-730/feedback',
+      {
+        meeting_happened: true,
+        feedback: { rating: 10, content: '收穫良多！' },
+      }
+    );
+    expect(
+      reservationReadModel.get({ userId: '10', state: 'MENTEE_HISTORY' })
+    ).toBeUndefined();
+    expect(
+      reservationReadModel.get({ userId: '20', state: 'MENTOR_HISTORY' })
+    ).toBeUndefined();
+    expect(clearPoolSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('posts meeting_happened=false with not_happened_reason, invalidates both parties HISTORY slices, and does not clear mentorPoolReadManager', async () => {
+    const reservation = makeMockReservation({
+      id: 'res-730-absent',
+      senderUserId: '10',
+      participantUserId: '20',
+      feedback: {
+        meetingHappened: null,
+        rating: null,
+        nextStep: 'ANSWER',
+      },
+    });
+    mockPost.mockResolvedValueOnce({ ok: true });
+
+    reservationReadModel.set(
+      { userId: '10', state: 'MENTEE_HISTORY' },
+      { items: [reservation], next_dtend: 0 }
+    );
+    reservationReadModel.set(
+      { userId: '20', state: 'MENTOR_HISTORY' },
+      { items: [reservation], next_dtend: 0 }
+    );
+
+    await submitReservationFeedback({
+      reservation,
+      myUserId: '10',
+      myRole: 'mentee',
+      payload: {
+        meeting_happened: false,
+        not_happened_reason: 'MENTOR_ABSENT',
+      },
+    });
+
+    expect(mockPost).toHaveBeenCalledWith(
+      '/v1/users/10/reservations/res-730-absent/feedback',
+      {
+        meeting_happened: false,
+        not_happened_reason: 'MENTOR_ABSENT',
+      }
+    );
+    expect(
+      reservationReadModel.get({ userId: '10', state: 'MENTEE_HISTORY' })
+    ).toBeUndefined();
+    expect(
+      reservationReadModel.get({ userId: '20', state: 'MENTOR_HISTORY' })
+    ).toBeUndefined();
+    expect(clearPoolSpy).not.toHaveBeenCalled();
+  });
+
+  it('optimistically updates subscribed MENTEE_HISTORY slice in place before background refresh settles', async () => {
+    const reservation = makeMockReservation({
+      id: 'res-730-live',
+      senderUserId: '10',
+      participantUserId: '20',
+      feedback: {
+        meetingHappened: null,
+        rating: null,
+        nextStep: 'ANSWER',
+      },
+    });
+    const untouched = makeMockReservation({
+      id: 'res-other',
+      senderUserId: '10',
+      participantUserId: '30',
+    });
+    mockPost.mockResolvedValueOnce({ ok: true });
+
+    const subscribedHistory = {
+      userId: '10',
+      state: 'MENTEE_HISTORY',
+    } as const;
+    reservationReadModel.set(subscribedHistory, {
+      items: [reservation, untouched],
+      next_dtend: 0,
+    });
+    const unsubscribe = reservationReadModel.subscribe(
+      subscribedHistory,
+      () => new Promise(() => {}),
+      () => {}
+    );
+
+    try {
+      await submitReservationFeedback({
+        reservation,
+        myUserId: '10',
+        myRole: 'mentee',
+        payload: {
+          meeting_happened: true,
+          feedback: { rating: 9, content: '非常實用！' },
+        },
+      });
+
+      const updatedItems = reservationReadModel.get(subscribedHistory)?.items;
+      expect(updatedItems?.[0]?.feedback).toMatchObject({
+        meetingHappened: true,
+        rating: {
+          rating: 9,
+          content: '非常實用！',
+          isPublic: true,
+        },
+        nextStep: null,
+      });
+      expect(updatedItems?.[1]).toEqual(untouched);
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it('throws error and skips API call when myUserId is missing', async () => {
+    const reservation = makeMockReservation({ id: 'res-730-no-user' });
+
+    await expect(
+      submitReservationFeedback({
+        reservation,
+        myUserId: '',
+        myRole: 'mentee',
+        payload: {
+          meeting_happened: true,
+          feedback: { rating: 10, content: '' },
+        },
+      })
+    ).rejects.toThrow('[reservationMutations] missing current user id');
+
+    expect(mockPost).not.toHaveBeenCalled();
+    expect(clearPoolSpy).not.toHaveBeenCalled();
+  });
+
+  it('throws ReservationVersionConflictError, skips Sentry capture, and invalidates HISTORY slices on 409', async () => {
+    const reservation = makeMockReservation({
+      id: 'res-730-conflict',
+      senderUserId: '10',
+      participantUserId: '20',
+    });
+    mockPost.mockRejectedValueOnce(new ApiError(409, 'already submitted'));
+
+    const unscopedHistory = {
+      userId: '10',
+      state: 'MENTEE_HISTORY',
+    } as const;
+    const scopedHistory = {
+      userId: '10',
+      state: 'MENTEE_HISTORY',
+      endOfMonthUnix: 1706745599,
+    } as const;
+    reservationReadModel.set(unscopedHistory, emptyPage);
+    reservationReadModel.set(scopedHistory, emptyPage);
+
+    await expect(
+      submitReservationFeedback({
+        reservation,
+        myUserId: '10',
+        myRole: 'mentee',
+        payload: {
+          meeting_happened: true,
+          feedback: { rating: 10, content: '重複送出' },
+        },
+      })
+    ).rejects.toBeInstanceOf(ReservationVersionConflictError);
+
+    expect(mockCaptureFailure).not.toHaveBeenCalled();
+    expect(reservationReadModel.get(unscopedHistory)).toBeUndefined();
+    expect(reservationReadModel.get(scopedHistory)).toBeUndefined();
+    expect(clearPoolSpy).not.toHaveBeenCalled();
+  });
+
+  it('posts meeting_happened=false with not_happened_reason and reports Sentry failure when API throws', async () => {
+    const reservation = makeMockReservation({ id: 'res-731' });
+    mockPost.mockRejectedValueOnce(new Error('Feedback submit failed'));
+
+    await expect(
+      submitReservationFeedback({
+        reservation,
+        myUserId: '10',
+        myRole: 'mentee',
+        payload: {
+          meeting_happened: false,
+          not_happened_reason: 'SCHEDULE_CONFLICT',
+        },
+      })
+    ).rejects.toThrow('Feedback submit failed');
+
+    expect(mockCaptureFailure).toHaveBeenCalledWith({
+      flow: 'reservation_feedback_submit',
+      step: 'post_feedback',
+      message: 'Feedback submit failed',
+    });
+    expect(clearPoolSpy).not.toHaveBeenCalled();
   });
 });

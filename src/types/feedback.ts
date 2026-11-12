@@ -9,6 +9,7 @@ export interface RawMentorFeedbackItem {
   rating?: number | null;
   content?: string | null;
   created_at?: string | number | null;
+  is_public?: boolean | null;
 }
 
 export interface RawMentorFeedbackResponse {

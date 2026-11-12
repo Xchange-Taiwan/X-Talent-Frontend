@@ -3,7 +3,7 @@ import { expect, Page, test } from '@playwright/test';
 import { setSignedSessionCookie } from '../../helpers/session';
 
 const USER_ID = '1';
-const PAGE_URL = '/reservation/mentee';
+const PAGE_URL = '/reservation/mentee?tab=upcoming';
 const RESERVATION_ID = 301;
 
 function makeSession() {
