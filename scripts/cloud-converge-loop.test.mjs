@@ -5,6 +5,7 @@ import {
   buildRoundFixPrompt,
   clampMaxRounds,
   detectChangedE2eSpecs,
+  ensurePhase2GeminiToolExclusions,
   evaluateRoundConvergence,
   extractJsonObject,
   formatConvergenceSummaryMarkdown,
@@ -732,6 +733,71 @@ describe('cloud-converge-loop', () => {
       expect(res.converged).toBe(false);
       expect(res.stalled).toBe(true);
       expect(res.roundsRun).toBe(3);
+    });
+
+    it('excludes run_shell_command in Phase 2 settings and exits cleanly on soft wall-clock budget so Phase 3 can open PR', async () => {
+      let savedJson = '';
+      const updated = ensurePhase2GeminiToolExclusions(
+        '.gemini/settings.json',
+        {
+          existsSync: () => true,
+          readFileSync: () =>
+            JSON.stringify({
+              model: { name: 'gemini-4-carbon' },
+              tools: { exclude: ['web_fetch'] },
+            }),
+          writeFileSync: (_p, content) => {
+            savedJson = content;
+          },
+        }
+      );
+      expect(updated).toBe(true);
+      expect(JSON.parse(savedJson).tools.exclude).toEqual([
+        'web_fetch',
+        'run_shell_command',
+        'google_web_search',
+      ]);
+
+      let clockMs = 1000;
+      let geminiInvocations = 0;
+      const execStep = vi.fn((cmd, args) => {
+        if (cmd === 'git' && args[0] === 'diff') {
+          return { ok: true, stdout: 'src/a.ts\n', stderr: '' };
+        }
+        if (cmd === 'pnpm' && args[0] === 'lint') {
+          clockMs += 40 * 60 * 1000;
+          return {
+            ok: false,
+            stderr: `lint error at ${clockMs}`,
+            combined: `lint error at ${clockMs}`,
+          };
+        }
+        if (cmd === 'npx' && args[0] === 'gemini') {
+          geminiInvocations += 1;
+        }
+        return { ok: true, stdout: '', stderr: '' };
+      });
+
+      const res = await runConvergeLoop(
+        {
+          maxRounds: 20,
+          ticketNumber: '733',
+          runE2e: false,
+          maxDurationMs: 70 * 60 * 1000,
+        },
+        {
+          execStep,
+          writeFile: () => {},
+          log: () => {},
+          fileExists: () => true,
+          now: () => clockMs,
+        }
+      );
+
+      expect(geminiInvocations).toBe(1);
+      expect(res.converged).toBe(false);
+      expect(res.stalled).toBe(false);
+      expect(res.roundsRun).toBe(2);
     });
   });
 });

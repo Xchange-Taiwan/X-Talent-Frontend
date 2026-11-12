@@ -314,6 +314,42 @@ export function normalizeErrorSignatures(errors = []) {
     .sort();
 }
 
+export function ensurePhase2GeminiToolExclusions(
+  settingsPath = '.gemini/settings.json',
+  fsImpl = fs
+) {
+  if (!fsImpl.existsSync(settingsPath)) return false;
+  try {
+    const raw = JSON.parse(fsImpl.readFileSync(settingsPath, 'utf8'));
+    const existing = Array.isArray(raw?.tools?.exclude)
+      ? raw.tools.exclude
+      : [];
+    const merged = [
+      ...new Set([
+        ...existing,
+        'run_shell_command',
+        'web_fetch',
+        'google_web_search',
+      ]),
+    ];
+    const updated = {
+      ...raw,
+      tools: {
+        ...(raw.tools && typeof raw.tools === 'object' ? raw.tools : {}),
+        exclude: merged,
+      },
+    };
+    fsImpl.writeFileSync(
+      settingsPath,
+      `${JSON.stringify(updated, null, 2)}\n`,
+      'utf8'
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Evaluates whether the current round has fully converged and produces a
  * deterministic fingerprint for stall/oscillation detection.
@@ -646,6 +682,9 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         execFileSync('git', ['read-tree', '--reset', '-u', treeSha], {
           stdio: 'ignore',
         });
+        execFileSync('git', ['checkout-index', '-f', '-a'], {
+          stdio: 'ignore',
+        });
         execFileSync(
           'git',
           [
@@ -675,6 +714,19 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       rawOptions.summaryOut || '.agents/tmp/cloud-converge-summary.md',
     geminiModel: rawOptions.geminiModel || 'gemini-4-carbon',
   };
+
+  const now = deps.now || (() => Date.now());
+  const envBudgetMs = Number.parseInt(
+    String(process.env.CONVERGE_MAX_DURATION_MS || ''),
+    10
+  );
+  const maxDurationMs =
+    typeof rawOptions.maxDurationMs === 'number' && rawOptions.maxDurationMs > 0
+      ? rawOptions.maxDurationMs
+      : Number.isFinite(envBudgetMs) && envBudgetMs > 0
+        ? envBudgetMs
+        : 72 * 60 * 1000;
+  const loopStartMs = now();
 
   let previousFingerprint = '';
   let consecutiveSameFingerprint = 0;
@@ -1044,6 +1096,13 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       break;
     }
 
+    if (now() - loopStartMs >= maxDurationMs) {
+      log(
+        `[cloud-converge] Soft wall-clock budget (${Math.round(maxDurationMs / 60000)}m) reached in round ${round}; exiting cleanly so Phase 3 can push and open PR.`
+      );
+      break;
+    }
+
     // 4. Invoke Gemini CLI to self-heal all findings and test failures
     const fixPrompt = buildRoundFixPrompt({
       round,
@@ -1116,6 +1175,13 @@ const isMain =
     path.resolve(fileURLToPath(import.meta.url));
 
 if (isMain) {
+  if (ensurePhase2GeminiToolExclusions()) {
+    try {
+      execFileSync('git', ['update-index', '--skip-worktree', '.gemini/settings.json'], {
+        stdio: 'ignore',
+      });
+    } catch {}
+  }
   const options = parseConvergeArgs(process.argv.slice(2), process.env);
   runConvergeLoop(options)
     .then((res) => {
