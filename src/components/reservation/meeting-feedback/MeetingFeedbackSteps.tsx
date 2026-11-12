@@ -1,0 +1,432 @@
+'use client';
+
+import { ArrowRight, Info, Loader2 } from 'lucide-react';
+import * as React from 'react';
+import type { UseFormRegisterReturn } from 'react-hook-form';
+
+import { FeedbackStarRating } from '@/components/reservation/FeedbackStarRating';
+import { Button } from '@/components/ui/button';
+import {
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Tooltip } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
+import {
+  MAX_FEEDBACK_CONTENT_LENGTH,
+  MAX_NOT_HAPPENED_NOTE_LENGTH,
+} from '@/schemas/meetingFeedbackSchema';
+import {
+  NOT_HAPPENED_PARTIES,
+  NOT_HAPPENED_PARTY_LABELS,
+  NOT_HAPPENED_REASON_LABELS,
+  NOT_HAPPENED_REASONS,
+  type NotHappenedParty,
+  type NotHappenedReason,
+} from '@/types/reservationFeedback';
+
+import { FeedbackRadioOption } from './FeedbackRadioOption';
+
+export interface AttendanceStepContentProps {
+  meetingHappened: boolean | null;
+  disabled?: boolean;
+  onSelectMeetingHappened: (value: boolean) => void;
+}
+
+export function AttendanceStepContent({
+  meetingHappened,
+  disabled = false,
+  onSelectMeetingHappened,
+}: AttendanceStepContentProps) {
+  return (
+    <>
+      <DialogHeader className="space-y-1 text-left">
+        <p className="text-brand-700 text-xs font-medium">
+          步驟 1 / 2 · 確認會談
+        </p>
+        <DialogTitle className="text-text-primary text-18 font-semibold">
+          這場會談是否順利進行？
+        </DialogTitle>
+        <DialogDescription className="text-text-secondary text-sm">
+          先告訴我們這次會談的狀況。
+        </DialogDescription>
+      </DialogHeader>
+
+      <div
+        role="radiogroup"
+        aria-label="這場會談是否順利進行"
+        className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3"
+      >
+        {(
+          [
+            { label: '有進行', value: true },
+            { label: '沒有進行', value: false },
+          ] as const
+        ).map((option) => (
+          <FeedbackRadioOption
+            key={option.label}
+            name="meetingHappened"
+            label={option.label}
+            checked={meetingHappened === option.value}
+            disabled={disabled}
+            onSelect={() => onSelectMeetingHappened(option.value)}
+          />
+        ))}
+      </div>
+    </>
+  );
+}
+
+export interface RatingStepContentProps {
+  isEditMode: boolean;
+  rating: number;
+  content: string;
+  contentError?: string;
+  contentFieldId: string;
+  isSubmitting: boolean;
+  contentRegistration: UseFormRegisterReturn;
+  portalContainer: HTMLElement | null;
+  tooltipDismissSignal: number;
+  onMaskTooltipOpenChange: (open: boolean) => void;
+  onRatingChange: (value: number) => void;
+}
+
+export function RatingStepContent({
+  isEditMode,
+  rating,
+  content,
+  contentError,
+  contentFieldId,
+  isSubmitting,
+  contentRegistration,
+  portalContainer,
+  tooltipDismissSignal,
+  onMaskTooltipOpenChange,
+  onRatingChange,
+}: RatingStepContentProps) {
+  const hasContentError = Boolean(contentError);
+
+  return (
+    <>
+      <DialogHeader className="space-y-1 text-left">
+        <p className="text-brand-700 text-xs font-medium">
+          {isEditMode ? '已送出回饋 · 不限次數編輯' : '步驟 2 / 2 · 交流回饋'}
+        </p>
+
+        <div className="flex items-center gap-1.5">
+          <DialogTitle className="text-text-primary text-18 font-semibold">
+            {isEditMode ? '編輯回饋' : '為本次會議評分'}
+          </DialogTitle>
+
+          <Tooltip
+            content="公開評價將以遮罩姓名顯示（例如：王＊明），不會公開您的完整姓名。"
+            side="top"
+            align="center"
+            pinOnClick
+            portalContainer={portalContainer}
+            dismissSignal={tooltipDismissSignal}
+            onOpenChange={onMaskTooltipOpenChange}
+            testId="feedback-name-masking-tooltip"
+            contentClassName="w-60"
+          >
+            <button
+              type="button"
+              aria-label="姓名遮罩說明"
+              className="text-text-secondary hover:bg-background-bottom hover:text-text-primary focus-visible:ring-brand-500 inline-flex size-6 items-center justify-center rounded-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            >
+              <Info className="size-4" aria-hidden="true" />
+            </button>
+          </Tooltip>
+        </div>
+
+        <DialogDescription className="sr-only">
+          請選擇 1 至 10 分並填寫選填文字回饋。
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="space-y-2.5">
+        <div className="flex items-baseline gap-2">
+          <span className="text-text-primary text-sm font-medium">評分</span>
+          <span data-testid="meeting-rating-value" className="tabular-nums">
+            <span className="text-brand-700 text-lg font-semibold">
+              {rating}
+            </span>
+            <span className="text-text-secondary text-xs"> / 10</span>
+          </span>
+        </div>
+
+        <FeedbackStarRating
+          value={rating}
+          disabled={isSubmitting}
+          ariaLabel="整體滿意度"
+          onChange={onRatingChange}
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <label
+          htmlFor={contentFieldId}
+          className="text-text-primary block text-sm font-medium"
+        >
+          文字回饋{' '}
+          <span className="text-text-secondary font-normal">（選填）</span>
+        </label>
+        <Textarea
+          id={contentFieldId}
+          placeholder="分享這次交流的收穫，或給導師一些建議⋯"
+          rows={5}
+          aria-invalid={hasContentError}
+          disabled={isSubmitting}
+          className="resize-none overflow-y-auto text-sm font-normal"
+          {...contentRegistration}
+        />
+        <div className="flex items-center justify-between gap-2 text-xs">
+          {contentError ? (
+            <p role="alert" className="text-status-error-default">
+              {contentError}
+            </p>
+          ) : (
+            <span />
+          )}
+          <span
+            data-testid="feedback-content-counter"
+            className={cn(
+              'tabular-nums',
+              hasContentError
+                ? 'text-status-error-default font-medium'
+                : 'text-text-secondary'
+            )}
+          >
+            {content.length} / {MAX_FEEDBACK_CONTENT_LENGTH}
+          </span>
+        </div>
+      </div>
+    </>
+  );
+}
+
+export interface NotHappenedStepContentProps {
+  notHappenedParty: NotHappenedParty | null;
+  notHappenedReason: NotHappenedReason | null;
+  notHappenedNote: string;
+  noteError?: string;
+  noteFieldId: string;
+  isSubmitting: boolean;
+  noteRegistration: UseFormRegisterReturn;
+  onSelectParty: (party: NotHappenedParty) => void;
+  onSelectReason: (reason: NotHappenedReason) => void;
+}
+
+export function NotHappenedStepContent({
+  notHappenedParty,
+  notHappenedReason,
+  notHappenedNote,
+  noteError,
+  noteFieldId,
+  isSubmitting,
+  noteRegistration,
+  onSelectParty,
+  onSelectReason,
+}: NotHappenedStepContentProps) {
+  const hasNoteError = Boolean(noteError);
+
+  return (
+    <>
+      <DialogHeader className="space-y-1 text-left">
+        <p className="text-brand-700 text-xs font-medium">
+          步驟 2 / 2 · 未進行回報
+        </p>
+        <DialogTitle className="text-text-primary text-18 font-semibold">
+          未進行會談的原因
+        </DialogTitle>
+        <DialogDescription className="text-text-secondary text-sm">
+          請協助說明未進行的對象與原因，不會影響公開評價。
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="space-y-1.5">
+        <p className="text-text-primary text-sm font-medium">
+          誰沒有進行會談？
+        </p>
+        <div
+          role="radiogroup"
+          aria-label="誰沒有進行會談"
+          className="grid grid-cols-2 gap-2.5"
+        >
+          {NOT_HAPPENED_PARTIES.map((party) => (
+            <FeedbackRadioOption
+              key={party}
+              name="notHappenedParty"
+              value={party}
+              label={NOT_HAPPENED_PARTY_LABELS[party]}
+              checked={notHappenedParty === party}
+              disabled={isSubmitting}
+              density="compact"
+              onSelect={() => onSelectParty(party)}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <p className="text-text-primary text-sm font-medium">
+          為何沒有成功進行？
+        </p>
+        <div
+          role="radiogroup"
+          aria-label="為何沒有成功進行"
+          className="space-y-1.5"
+        >
+          {NOT_HAPPENED_REASONS.map((reason) => (
+            <FeedbackRadioOption
+              key={reason}
+              name="notHappenedReason"
+              value={reason}
+              label={NOT_HAPPENED_REASON_LABELS[reason]}
+              checked={notHappenedReason === reason}
+              disabled={isSubmitting}
+              density="compact"
+              onSelect={() => onSelectReason(reason)}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <label
+          htmlFor={noteFieldId}
+          className="text-text-primary block text-sm font-medium"
+        >
+          補充說明{' '}
+          <span className="text-text-secondary font-normal">（選填）</span>
+        </label>
+        <Textarea
+          id={noteFieldId}
+          rows={2}
+          placeholder={
+            notHappenedReason === 'OTHER'
+              ? '請補充說明其他未進行原因（選填）⋯'
+              : '若有其他想補充的狀況，可在此填寫（選填）⋯'
+          }
+          aria-invalid={hasNoteError}
+          disabled={isSubmitting}
+          className="resize-none overflow-y-auto text-sm font-normal"
+          {...noteRegistration}
+        />
+        <div className="flex items-center justify-between gap-2 text-xs">
+          {noteError ? (
+            <p role="alert" className="text-status-error-default">
+              {noteError}
+            </p>
+          ) : (
+            <span />
+          )}
+          <span
+            data-testid="feedback-note-counter"
+            className={cn(
+              'tabular-nums',
+              hasNoteError
+                ? 'text-status-error-default font-medium'
+                : 'text-text-secondary'
+            )}
+          >
+            {notHappenedNote.length} / {MAX_NOT_HAPPENED_NOTE_LENGTH}
+          </span>
+        </div>
+      </div>
+    </>
+  );
+}
+
+export interface MeetingFeedbackFooterProps {
+  effectiveStep: 'attendance' | 'rating' | 'not-happened';
+  isEditMode: boolean;
+  isSubmitting: boolean;
+  isTransitioningCard: boolean;
+  canProceedAttendance: boolean;
+  canSubmitStep2: boolean;
+  onNextFromAttendance: () => void;
+  onBackToAttendance: () => void;
+  onCancelEdit: () => void;
+}
+
+export function MeetingFeedbackFooter({
+  effectiveStep,
+  isEditMode,
+  isSubmitting,
+  isTransitioningCard,
+  canProceedAttendance,
+  canSubmitStep2,
+  onNextFromAttendance,
+  onBackToAttendance,
+  onCancelEdit,
+}: MeetingFeedbackFooterProps) {
+  if (effectiveStep === 'attendance') {
+    return (
+      <DialogFooter className="bg-background-white flex shrink-0 flex-row justify-end px-5 pt-2 pb-5 sm:space-x-0 sm:px-6 sm:pb-6">
+        <Button
+          type="button"
+          disabled={!canProceedAttendance || isTransitioningCard}
+          onClick={onNextFromAttendance}
+          className="bg-brand-500 text-text-primary hover:bg-brand-400 rounded-md px-4 disabled:opacity-45"
+        >
+          <span>下一步</span>
+          <ArrowRight className="ml-1.5 size-4" aria-hidden="true" />
+        </Button>
+      </DialogFooter>
+    );
+  }
+
+  return (
+    <DialogFooter
+      className={cn(
+        'bg-background-white flex shrink-0 flex-row items-center justify-between gap-3 px-5 sm:justify-between sm:space-x-0 sm:px-6',
+        effectiveStep === 'not-happened'
+          ? 'border-background-border/70 border-t py-3.5 sm:py-4'
+          : 'pt-1 pb-5 sm:pb-6'
+      )}
+    >
+      {isEditMode ? (
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={isSubmitting}
+          onClick={onCancelEdit}
+          className="text-text-secondary hover:bg-background-bottom hover:text-text-primary rounded-md px-2.5"
+        >
+          取消
+        </Button>
+      ) : (
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={isSubmitting}
+          onClick={onBackToAttendance}
+          className="text-text-secondary hover:bg-background-bottom hover:text-text-primary rounded-md px-2.5"
+        >
+          上一步
+        </Button>
+      )}
+
+      <Button
+        type="submit"
+        disabled={!canSubmitStep2 || isSubmitting || isTransitioningCard}
+        className="bg-brand-500 text-text-primary hover:bg-brand-400 rounded-md px-4"
+      >
+        {isSubmitting ? (
+          <>
+            <Loader2 className="mr-1.5 size-4 animate-spin" />
+            {isEditMode ? '儲存中...' : '送出中...'}
+          </>
+        ) : isEditMode ? (
+          '儲存'
+        ) : (
+          '送出回饋'
+        )}
+      </Button>
+    </DialogFooter>
+  );
+}

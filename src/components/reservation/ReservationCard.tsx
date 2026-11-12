@@ -4,8 +4,10 @@ import * as React from 'react';
 import { JoinMeetButton } from '@/components/reservation/JoinMeetButton';
 import { ReservationIdentityHeader } from '@/components/reservation/ReservationIdentity';
 import { ReservationMessagePreview } from '@/components/reservation/ReservationMessagePreview';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { useReservationMeetLink } from '@/hooks/user/reservation/useReservationMeetLink';
+import { resolveReservationViewer } from '@/lib/reservation/reservationViewerModel';
 import type { Reservation } from '@/types/reservation';
 
 export type ReservationCardVariant = 'upcoming' | 'pending' | 'history';
@@ -67,6 +69,22 @@ export function ReservationCard({
     ) : null;
 
   if (isHistory) {
+    const { cancelledByLabel } = resolveReservationViewer({
+      reservation: item,
+      myUserId,
+    });
+    const resolvedHistoryHeaderAction =
+      headerAction ??
+      (cancelledByLabel ? (
+        <Badge
+          variant="secondary"
+          role="status"
+          className="text-text-secondary rounded-md font-normal"
+        >
+          {cancelledByLabel}
+        </Badge>
+      ) : undefined);
+
     return (
       <Card
         className="border-background-border/60 transition-shadow hover:shadow-sm"
@@ -78,8 +96,8 @@ export function ReservationCard({
             profileHref={profileHref}
             onProfileLinkClick={onProfileClick}
             disabled={disabled}
-            showStatusBadge={false}
-            headerAction={headerAction}
+            showStatusBadge={!resolvedHistoryHeaderAction}
+            headerAction={resolvedHistoryHeaderAction}
             variant="card"
           />
 

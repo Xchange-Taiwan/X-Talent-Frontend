@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_MEETING_RATING,
   MAX_FEEDBACK_CONTENT_LENGTH,
+  MAX_NOT_HAPPENED_NOTE_LENGTH,
   meetingFeedbackFormSchema,
   toSubmitFeedbackPayload,
   toUpdateFeedbackPayload,
@@ -60,7 +61,10 @@ describe('meetingFeedbackSchema', () => {
     ).toBe(false);
   });
 
-  it('rejects content or notHappenedNote exceeding MAX_FEEDBACK_CONTENT_LENGTH', () => {
+  it('enforces 1000-char limit on content and 300-char limit on notHappenedNote', () => {
+    expect(MAX_FEEDBACK_CONTENT_LENGTH).toBe(1000);
+    expect(MAX_NOT_HAPPENED_NOTE_LENGTH).toBe(300);
+
     expect(
       meetingFeedbackFormSchema.safeParse({
         meetingHappened: true,
@@ -79,9 +83,30 @@ describe('meetingFeedbackSchema', () => {
         content: '',
         notHappenedParty: 'MENTOR',
         notHappenedReason: 'OTHER',
-        notHappenedNote: 'a'.repeat(MAX_FEEDBACK_CONTENT_LENGTH + 1),
+        notHappenedNote: 'a'.repeat(MAX_NOT_HAPPENED_NOTE_LENGTH),
       }).success
-    ).toBe(false);
+    ).toBe(true);
+
+    const overLimitNoteParsed = meetingFeedbackFormSchema.safeParse({
+      meetingHappened: false,
+      rating: 10,
+      content: '',
+      notHappenedParty: 'MENTOR',
+      notHappenedReason: 'OTHER',
+      notHappenedNote: 'a'.repeat(MAX_NOT_HAPPENED_NOTE_LENGTH + 1),
+    });
+    expect(overLimitNoteParsed.success).toBe(false);
+
+    expect(
+      toSubmitFeedbackPayload({
+        meetingHappened: false,
+        rating: 10,
+        content: '',
+        notHappenedParty: 'MENTOR',
+        notHappenedReason: 'OTHER',
+        notHappenedNote: 'a'.repeat(MAX_NOT_HAPPENED_NOTE_LENGTH + 1),
+      })
+    ).toBeNull();
   });
 
   it('builds meeting_happened=true payload with trimmed content', () => {

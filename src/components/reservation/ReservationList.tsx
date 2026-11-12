@@ -245,6 +245,60 @@ function ReservationItem({
   );
 }
 
+function MenteePendingFeedbackQueueDialog({
+  items,
+  myUserId,
+  onClose,
+}: {
+  items: Reservation[];
+  myUserId: string | undefined;
+  onClose?: () => void;
+}) {
+  const { submitFeedback, isMutating } = useReservationActions({
+    myUserId,
+    variant: 'history',
+    myRole: 'mentee',
+  });
+
+  const livePendingItems = React.useMemo(
+    () =>
+      items.filter(
+        (item) => !item.cancelledBy && item.feedback?.nextStep === 'ANSWER'
+      ),
+    [items]
+  );
+
+  const [latchedQueue, setLatchedQueue] = React.useState<Reservation[] | null>(
+    () => (livePendingItems.length > 0 ? livePendingItems : null)
+  );
+  const [dismissed, setDismissed] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!latchedQueue && livePendingItems.length > 0 && !dismissed) {
+      setLatchedQueue(livePendingItems);
+    }
+  }, [dismissed, latchedQueue, livePendingItems]);
+
+  if (dismissed || !latchedQueue || latchedQueue.length === 0) {
+    return null;
+  }
+
+  return (
+    <MeetingFeedbackDialog
+      defaultOpen
+      reservation={latchedQueue[0]}
+      queue={livePendingItems.length > 0 ? livePendingItems : latchedQueue}
+      disabled={isMutating}
+      trigger={<span className="sr-only">待填會談回饋佇列</span>}
+      onSubmitFeedback={(payload, target) => submitFeedback(target, payload)}
+      onClose={() => {
+        setDismissed(true);
+        onClose?.();
+      }}
+    />
+  );
+}
+
 export function ReservationList({
   items,
   variant,
@@ -253,6 +307,8 @@ export function ReservationList({
   hasMore = false,
   onLoadMore,
   isLoadingMore = false,
+  autoOpenFeedbackQueue = false,
+  onFeedbackQueueClose,
 }: {
   items: Reservation[];
   variant: Variant;
@@ -261,11 +317,23 @@ export function ReservationList({
   hasMore?: boolean;
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
+  autoOpenFeedbackQueue?: boolean;
+  onFeedbackQueueClose?: () => void;
 }) {
   const emptyState = resolveEmptyStateContent(sourceRole, variant, myUserId);
 
   return (
     <div className="space-y-3 sm:space-y-4">
+      {autoOpenFeedbackQueue &&
+      variant === 'history' &&
+      sourceRole === 'mentee' ? (
+        <MenteePendingFeedbackQueueDialog
+          items={items}
+          myUserId={myUserId}
+          onClose={onFeedbackQueueClose}
+        />
+      ) : null}
+
       {items.map((it) => (
         <ReservationItem
           key={it.id}

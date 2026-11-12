@@ -555,6 +555,21 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄收合面板與版面翻�
       .click();
     await dialog.locator('label').filter({ hasText: '未出席' }).click();
     await dialog.getByLabel(/補充說明/).fill('等候 15 分鐘未上線');
+    await expect(dialog.getByTestId('feedback-note-counter')).toHaveText(
+      '11 / 300'
+    );
+
+    // Sticky footer buttons ("上一步" & "送出回饋") must stay completely within the 720p viewport
+    const viewport = page.viewportSize() ?? { width: 1280, height: 720 };
+    const submitButton = dialog.getByRole('button', { name: '送出回饋' });
+    const backButton = dialog.getByRole('button', { name: '上一步' });
+    await expect(submitButton).toBeVisible();
+    await expect(backButton).toBeVisible();
+    const submitBox = await submitButton.boundingBox();
+    if (!submitBox) {
+      throw new Error('Expected submit button boundingBox to be non-null');
+    }
+    expect(submitBox.y + submitBox.height).toBeLessThanOrEqual(viewport.height);
 
     await captureEvidence(page, 'meeting-feedback-dialog-step2-not-happened', {
       waitForSelector: '[role="dialog"]',
@@ -938,5 +953,140 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄收合面板與版面翻�
         body: { rating: 6, content: '更新後的未公開回饋內容。' },
       },
     ]);
+  });
+
+  test('#740 多場待填佇列：分段進度條、-5deg 傾斜底卡、略過 X Tooltip 無裁切，且送出後父層清單更新不跳場', async ({
+    page,
+  }) => {
+    await setupMenteeAuth(page);
+
+    const submittedIds = new Set<number>();
+
+    await page.route(
+      new RegExp(`/v1/users/${USER_ID}/reservations([?]|$)`),
+      (route) => {
+        const url = new URL(route.request().url());
+        const state = url.searchParams.get('state');
+        if (state === 'MENTEE_HISTORY') {
+          const queueCandidates = [
+            { id: 601, name: 'Emily Chen' },
+            { id: 602, name: 'Alex Wang' },
+            { id: 603, name: 'Zahra Mirzakhani' },
+          ].map((entry) =>
+            makeMenteeHistoryReservation(
+              entry.id,
+              entry.name,
+              submittedIds.has(entry.id)
+                ? {
+                    meeting_happened: true,
+                    rating: {
+                      rating: 9,
+                      content: '收穫良多！',
+                      created_at: 1760950000,
+                      updated_at: 1760950000,
+                      author_name: '王＊明',
+                      is_public: true,
+                    },
+                    next_step: null,
+                  }
+                : {
+                    meeting_happened: null,
+                    rating: null,
+                    next_step: 'ANSWER',
+                  }
+            )
+          );
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(makeReservationResponse(queueCandidates)),
+          });
+        }
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(makeReservationResponse([])),
+        });
+      }
+    );
+
+    await page.route(
+      new RegExp(`/v1/users/${USER_ID}/reservations/(601|602|603)/feedback$`),
+      async (route) => {
+        const match = route
+          .request()
+          .url()
+          .match(/reservations\/(\d+)\/feedback$/);
+        if (match) {
+          submittedIds.add(Number(match[1]));
+        }
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ code: '0', msg: 'ok', data: {} }),
+        });
+      }
+    );
+
+    await page.goto(`${MENTEE_PAGE_URL}?tab=history&feedback=queue`);
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByTestId('feedback-queue-counter')).toHaveText(
+      '第 1／3 場'
+    );
+    await expect(
+      dialog.getByTestId('feedback-queue-progressbar')
+    ).toBeVisible();
+    await expect(dialog.getByTestId('feedback-queue-back-card')).toBeVisible();
+    await expect(dialog.getByTestId('feedback-mentor-header')).toContainText(
+      'Emily Chen'
+    );
+
+    // Hover skip button -> verify tooltip renders cleanly inside viewport without clipping
+    const skipBtn = dialog.getByRole('button', {
+      name: '略過 Emily Chen 這場回饋',
+    });
+    await skipBtn.hover();
+    const skipTooltip = dialog.getByTestId('feedback-skip-tooltip');
+    await expect(skipTooltip).toBeVisible();
+    await expect(skipTooltip).toContainText(
+      '略過這場，下次登入再提醒；也可到歷史紀錄填寫。'
+    );
+    const tooltipBox = await skipTooltip.boundingBox();
+    const viewport = page.viewportSize() ?? { width: 1280, height: 720 };
+    if (!tooltipBox) {
+      throw new Error('Expected skip tooltip boundingBox to be non-null');
+    }
+    expect(tooltipBox.x).toBeGreaterThanOrEqual(0);
+    expect(tooltipBox.y).toBeGreaterThanOrEqual(0);
+    expect(tooltipBox.x + tooltipBox.width).toBeLessThanOrEqual(viewport.width);
+
+    await captureEvidence(page, 'meeting-feedback-dialog-multi-session-queue', {
+      waitForSelector: '[role="dialog"]',
+    });
+
+    // Pressing Escape while tooltip is open dismisses ONLY the tooltip without closing dialog
+    await page.keyboard.press('Escape');
+    await expect(skipTooltip).not.toBeVisible();
+    await expect(dialog).toBeVisible();
+
+    // Submit Session 1 (Emily Chen) -> parent MENTEE_HISTORY refetches and shrinks pending list -> must advance to Session 2 (Alex Wang) without skipping
+    await dialog
+      .locator('label')
+      .filter({ hasText: /^有進行$/ })
+      .click();
+    await dialog.getByRole('button', { name: /下一步/ }).click();
+    await dialog.getByRole('radio', { name: '9 分' }).click();
+    await dialog.getByLabel(/文字回饋/).fill('收穫良多！');
+    await dialog.getByRole('button', { name: '送出回饋' }).click();
+
+    await expect(dialog.getByTestId('feedback-queue-counter')).toHaveText(
+      '第 2／3 場'
+    );
+    await expect(dialog.getByTestId('feedback-mentor-header')).toContainText(
+      'Alex Wang'
+    );
+    await expect(dialog.getByText('步驟 1 / 2 · 確認會談')).toBeVisible();
   });
 });

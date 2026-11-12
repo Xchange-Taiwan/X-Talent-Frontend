@@ -25,6 +25,8 @@ import { FeedbackStarRating } from '@/components/reservation/FeedbackStarRating'
 import * as feedbackStarRatingStories from '@/components/reservation/FeedbackStarRating.stories';
 import { JoinMeetButton } from '@/components/reservation/JoinMeetButton';
 import * as joinMeetButtonStories from '@/components/reservation/JoinMeetButton.stories';
+import * as feedbackRadioOptionStories from '@/components/reservation/meeting-feedback/FeedbackRadioOption.stories';
+import * as meetingFeedbackStepsStories from '@/components/reservation/meeting-feedback/MeetingFeedbackSteps.stories';
 import * as meetingFeedbackDialogStories from '@/components/reservation/MeetingFeedbackDialog.stories';
 import { ReplyMessageField } from '@/components/reservation/ReplyMessageField';
 import * as replyMessageFieldStories from '@/components/reservation/ReplyMessageField.stories';
@@ -36,6 +38,7 @@ import * as reservationFeedbackBlockStories from '@/components/reservation/Reser
 import * as reservationListStories from '@/components/reservation/ReservationList.stories';
 import * as reservationMessagePreviewStories from '@/components/reservation/ReservationMessagePreview.stories';
 import * as sliderStories from '@/components/ui/slider.stories';
+import * as tooltipStories from '@/components/ui/tooltip.stories';
 
 describe('Storybook stories coverage for recent commits (#849)', () => {
   it('exposes all identity states for HomePageCtaButton and FeatureItem stories (#709)', () => {
@@ -337,6 +340,13 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
     expect(reservationCardStories.HistoryMenteeRatedUnpublicized).toBeDefined();
     expect(reservationCardStories.HistoryMenteeNotHappened).toBeDefined();
     expect(reservationListStories.MenteeHistoryFeedbackStates).toBeDefined();
+    expect(tooltipStories.DefaultHover).toBeDefined();
+    expect(tooltipStories.ClickToPin).toBeDefined();
+    expect(feedbackRadioOptionStories.Unselected).toBeDefined();
+    expect(feedbackRadioOptionStories.Selected).toBeDefined();
+    expect(meetingFeedbackStepsStories.Step1Attendance).toBeDefined();
+    expect(meetingFeedbackStepsStories.Step2Rating).toBeDefined();
+    expect(meetingFeedbackStepsStories.Step2NotHappened).toBeDefined();
 
     render(
       <ReservationFeedbackBlock

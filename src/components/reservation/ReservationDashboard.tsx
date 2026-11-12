@@ -139,7 +139,21 @@ export function ReservationDashboardView({
   const pathname = usePathname();
 
   const tabParam = searchParams.get('tab');
-  const activeTab = (tabParam && TAB_MAPPING[tabParam]) || pendingTabValue;
+  const isFeedbackQueueRequested =
+    isMentee && searchParams.get('feedback') === 'queue';
+  const activeTab = isFeedbackQueueRequested
+    ? 'history'
+    : (tabParam && TAB_MAPPING[tabParam]) || pendingTabValue;
+
+  const handleFeedbackQueueClose = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (!params.has('feedback')) return;
+    params.delete('feedback');
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
+  }, [pathname, router, searchParams]);
 
   const lastCountsRef = useRef<{
     role: ReservationRole;
@@ -324,6 +338,8 @@ export function ReservationDashboardView({
                     hasMore={nextTokens.history !== 0}
                     onLoadMore={onLoadMoreHistory}
                     isLoadingMore={loadingMoreStates.history}
+                    autoOpenFeedbackQueue={isFeedbackQueueRequested}
+                    onFeedbackQueueClose={handleFeedbackQueueClose}
                   />
                 )}
               </TabsContent>

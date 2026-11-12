@@ -23,10 +23,17 @@ vi.mock('@/components/ui/use-toast', () => ({
 }));
 
 import {
+  QUEUE_PROMOTE_MS,
+  QUEUE_SWIPE_OUT_MS,
+} from '@/hooks/user/reservation/useFeedbackQueueMotion';
+import {
   RESERVATION_CONFLICT_MESSAGE,
   ReservationVersionConflictError,
 } from '@/lib/reservation/reservationConflictError';
-import { MAX_FEEDBACK_CONTENT_LENGTH } from '@/schemas/meetingFeedbackSchema';
+import {
+  MAX_FEEDBACK_CONTENT_LENGTH,
+  MAX_NOT_HAPPENED_NOTE_LENGTH,
+} from '@/schemas/meetingFeedbackSchema';
 import type { Reservation } from '@/types/reservation';
 
 import MeetingFeedbackDialog from './MeetingFeedbackDialog';
@@ -465,6 +472,319 @@ describe('MeetingFeedbackDialog', () => {
     });
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('enforces 300-char limit on Step 2B 補充說明, omits whitespace-only note, and maps 自己 (MENTEE) party accurately', async () => {
+    const onSubmitFeedback = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <MeetingFeedbackDialog
+        reservation={baseReservation}
+        onSubmitFeedback={onSubmitFeedback}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '填寫回饋' }));
+    fireEvent.click(screen.getByRole('radio', { name: '沒有進行' }));
+    fireEvent.click(screen.getByRole('button', { name: /下一步/ }));
+
+    fireEvent.click(screen.getByRole('radio', { name: '自己' }));
+    fireEvent.click(screen.getByRole('radio', { name: '雙方時間無法配合' }));
+
+    const noteField = screen.getByLabelText(/補充說明/);
+    fireEvent.change(noteField, {
+      target: { value: 'x'.repeat(MAX_NOT_HAPPENED_NOTE_LENGTH + 1) },
+    });
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      `補充說明不可超過 ${MAX_NOT_HAPPENED_NOTE_LENGTH} 字`
+    );
+    expect(screen.getByTestId('feedback-note-counter')).toHaveTextContent(
+      '301 / 300'
+    );
+    const submitBtn = screen.getByRole('button', { name: '送出回饋' });
+    expect(submitBtn).toBeDisabled();
+
+    // Whitespace-only note clears error, enables submit, and omits `not_happened_note`
+    fireEvent.change(noteField, { target: { value: '    ' } });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(submitBtn).not.toBeDisabled();
+
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(onSubmitFeedback).toHaveBeenCalledWith(
+        {
+          meeting_happened: false,
+          not_happened_party: 'MENTEE',
+          not_happened_reason: 'SCHEDULE_CONFLICT',
+        },
+        baseReservation
+      );
+    });
+  });
+
+  it('pins ⓘ tooltip on click after hover and dismisses only the tooltip (preserving draft) on Escape', async () => {
+    const onSubmitFeedback = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <MeetingFeedbackDialog
+        reservation={baseReservation}
+        onSubmitFeedback={onSubmitFeedback}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '填寫回饋' }));
+    fireEvent.click(screen.getByRole('radio', { name: '有進行' }));
+    fireEvent.click(screen.getByRole('button', { name: /下一步/ }));
+
+    fireEvent.click(screen.getByRole('radio', { name: '7 分' }));
+    fireEvent.change(screen.getByLabelText(/文字回饋/), {
+      target: { value: '不能被誤清的評論草稿' },
+    });
+
+    const maskInfoBtn = screen.getByRole('button', { name: '姓名遮罩說明' });
+    // Hover opens tooltip -> first click pins it instead of closing -> mouseLeave keeps it open
+    fireEvent.mouseEnter(maskInfoBtn);
+    expect(
+      screen.getByTestId('feedback-name-masking-tooltip')
+    ).toBeInTheDocument();
+    fireEvent.click(maskInfoBtn);
+    fireEvent.mouseLeave(maskInfoBtn);
+    expect(
+      screen.getByTestId('feedback-name-masking-tooltip')
+    ).toBeInTheDocument();
+
+    // First Escape dismisses ONLY the tooltip while keeping dialog open and preserving draft
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId('feedback-name-masking-tooltip')
+      ).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByTestId('meeting-rating-value')).toHaveTextContent(
+      '7 / 10'
+    );
+    expect(screen.getByLabelText(/文字回饋/)).toHaveValue(
+      '不能被誤清的評論草稿'
+    );
+  });
+
+  it('ignores outside pointerDown on Radix toast viewport/close button after failed submit so draft stays open', async () => {
+    const onSubmitFeedback = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Submit failed'));
+
+    const toastViewport = document.createElement('div');
+    toastViewport.setAttribute('data-radix-toast-viewport', '');
+    const toastCloseBtn = document.createElement('button');
+    toastCloseBtn.setAttribute('toast-close', '');
+    toastViewport.appendChild(toastCloseBtn);
+    document.body.appendChild(toastViewport);
+
+    try {
+      render(
+        <MeetingFeedbackDialog
+          reservation={baseReservation}
+          onSubmitFeedback={onSubmitFeedback}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: '填寫回饋' }));
+      fireEvent.click(screen.getByRole('radio', { name: '有進行' }));
+      fireEvent.click(screen.getByRole('button', { name: /下一步/ }));
+
+      fireEvent.click(screen.getByRole('radio', { name: '8 分' }));
+      fireEvent.change(screen.getByLabelText(/文字回饋/), {
+        target: { value: '失敗後點擊 Toast 關閉仍須保留的內容' },
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: '送出回饋' }));
+
+      await waitFor(() => {
+        expect(mockToast).toHaveBeenCalledWith({
+          variant: 'destructive',
+          title: '送出失敗',
+          description: '內容已保留，請再試一次。',
+        });
+      });
+
+      fireEvent.pointerDown(toastCloseBtn);
+      fireEvent.click(toastCloseBtn);
+
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByTestId('meeting-rating-value')).toHaveTextContent(
+        '8 / 10'
+      );
+      expect(screen.getByLabelText(/文字回饋/)).toHaveValue(
+        '失敗後點擊 Toast 關閉仍須保留的內容'
+      );
+    } finally {
+      toastViewport.remove();
+    }
+  });
+
+  it('advances queue on submit without skipping items when parent shrinks queue prop, resets form per session, and blocks actions during card transition (#740)', async () => {
+    vi.useFakeTimers();
+
+    const firstReservation = baseReservation;
+    const secondReservation: Reservation = fromPartial<Reservation>({
+      ...baseReservation,
+      id: 'res-740-2',
+      name: 'Alex Wang',
+      date: '2026/10/22',
+      time: '20:00–20:30',
+    });
+    const thirdReservation: Reservation = fromPartial<Reservation>({
+      ...baseReservation,
+      id: 'res-740-3',
+      name: 'Sarah Lin',
+      date: '2026/10/25',
+      time: '21:00–21:30',
+    });
+
+    const submittedCalls: Array<{
+      payload: unknown;
+      targetId: string;
+    }> = [];
+    const skippedIds: string[] = [];
+
+    function QueueParentHarness() {
+      const [items, setItems] = React.useState<Reservation[]>([
+        firstReservation,
+        secondReservation,
+        thirdReservation,
+      ]);
+
+      return (
+        <MeetingFeedbackDialog
+          defaultOpen
+          reservation={items[0] ?? firstReservation}
+          queue={items}
+          onSubmitFeedback={async (payload, target) => {
+            submittedCalls.push({ payload, targetId: target.id });
+            // Simulate React Query cache removing the submitted item from `queue` immediately!
+            setItems((prev) => prev.filter((item) => item.id !== target.id));
+          }}
+          onSkipReservation={(skipped) => {
+            skippedIds.push(skipped.id);
+            setItems((prev) => prev.filter((item) => item.id !== skipped.id));
+          }}
+        />
+      );
+    }
+
+    try {
+      render(<QueueParentHarness />);
+
+      expect(screen.getByTestId('feedback-queue-counter')).toHaveTextContent(
+        '第 1／3 場'
+      );
+      expect(screen.getByText('Emily Chen')).toBeInTheDocument();
+
+      // Complete Session 1
+      fireEvent.click(screen.getByRole('radio', { name: '有進行' }));
+      fireEvent.click(screen.getByRole('button', { name: /下一步/ }));
+      fireEvent.click(screen.getByRole('radio', { name: '8 分' }));
+      fireEvent.change(screen.getByLabelText(/文字回饋/), {
+        target: { value: '第一場收穫滿滿' },
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: '送出回饋' }));
+      });
+
+      expect(submittedCalls).toEqual([
+        {
+          payload: {
+            meeting_happened: true,
+            feedback: { rating: 8, content: '第一場收穫滿滿' },
+          },
+          targetId: 'res-730',
+        },
+      ]);
+
+      // Enters swiping-out transition; interacting during transition must be ignored
+      expect(screen.getByTestId('feedback-dialog-surface')).toHaveAttribute(
+        'data-queue-motion',
+        'swiping-out'
+      );
+      fireEvent.click(
+        screen.getByRole('button', { name: '略過 Emily Chen 這場回饋' })
+      );
+      fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+      expect(skippedIds).toHaveLength(0);
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+      // Complete swipe-out -> must land on Session 2 (Alex Wang), NOT skip to Sarah Lin, and keep denominator / 3
+      await act(async () => {
+        vi.advanceTimersByTime(QUEUE_SWIPE_OUT_MS);
+      });
+
+      expect(screen.getByTestId('feedback-queue-counter')).toHaveTextContent(
+        '第 2／3 場'
+      );
+      expect(screen.getByText('Alex Wang')).toBeInTheDocument();
+      expect(screen.getByText('步驟 1 / 2 · 確認會談')).toBeInTheDocument();
+
+      // While promoting, skip/Escape are still locked
+      expect(screen.getByTestId('feedback-dialog-surface')).toHaveAttribute(
+        'data-queue-motion',
+        'promoting'
+      );
+      fireEvent.click(
+        screen.getByRole('button', { name: '略過 Alex Wang 這場回饋' })
+      );
+      expect(skippedIds).toHaveLength(0);
+
+      await act(async () => {
+        vi.advanceTimersByTime(QUEUE_PROMOTE_MS);
+      });
+      expect(screen.getByTestId('feedback-dialog-surface')).toHaveAttribute(
+        'data-queue-motion',
+        'idle'
+      );
+
+      // Verify form values were reset to defaults (10 / 10 and empty comment) for Session 2
+      fireEvent.click(screen.getByRole('radio', { name: '有進行' }));
+      fireEvent.click(screen.getByRole('button', { name: /下一步/ }));
+      expect(screen.getByTestId('meeting-rating-value')).toHaveTextContent(
+        '10 / 10'
+      );
+      expect(screen.getByLabelText(/文字回饋/)).toHaveValue('');
+
+      // Skip Session 2 -> advances to Session 3 (Sarah Lin)
+      fireEvent.click(
+        screen.getByRole('button', { name: '略過 Alex Wang 這場回饋' })
+      );
+      expect(skippedIds).toEqual(['res-740-2']);
+
+      await act(async () => {
+        vi.advanceTimersByTime(QUEUE_SWIPE_OUT_MS + QUEUE_PROMOTE_MS);
+      });
+
+      expect(screen.getByTestId('feedback-queue-counter')).toHaveTextContent(
+        '第 3／3 場'
+      );
+      expect(screen.getByText('Sarah Lin')).toBeInTheDocument();
+      expect(
+        screen.queryByTestId('feedback-queue-back-card')
+      ).not.toBeInTheDocument();
+
+      // Submit Session 3 -> closes dialog cleanly
+      fireEvent.click(screen.getByRole('radio', { name: '有進行' }));
+      fireEvent.click(screen.getByRole('button', { name: /下一步/ }));
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: '送出回饋' }));
+      });
+
+      expect(submittedCalls).toHaveLength(2);
+      expect(submittedCalls[1]?.targetId).toBe('res-740-3');
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   describe('mode="edit" (#731)', () => {

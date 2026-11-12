@@ -4,6 +4,7 @@ import { ChevronDown, Star } from 'lucide-react';
 import * as React from 'react';
 
 import { Button } from '@/components/ui/button';
+import { Tooltip } from '@/components/ui/tooltip';
 import { FEEDBACK_FORM_URL } from '@/constant/externalLinks';
 import type {
   HistoryFeedbackBlockModel,
@@ -29,9 +30,6 @@ export function ReservationFeedbackHeaderToggle({
   onToggle,
   panelId,
 }: ReservationFeedbackHeaderToggleProps) {
-  const [isTooltipOpen, setIsTooltipOpen] = React.useState(false);
-  const tooltipId = React.useId();
-
   if (action.kind === 'feedback-toggle') {
     return (
       <button
@@ -66,17 +64,18 @@ export function ReservationFeedbackHeaderToggle({
         {action.badgeLabel}
       </span>
 
-      <div className="relative inline-flex items-center">
+      <Tooltip
+        content={tooltipLabel}
+        side="top"
+        align="end"
+        testId="unpublicized-toggle-tooltip"
+        contentClassName="mb-1.5 px-2.5 py-1.5 font-medium whitespace-nowrap"
+      >
         <button
           type="button"
           aria-label={tooltipLabel}
           aria-expanded={isExpanded}
           aria-controls={panelId}
-          aria-describedby={isTooltipOpen ? tooltipId : undefined}
-          onMouseEnter={() => setIsTooltipOpen(true)}
-          onMouseLeave={() => setIsTooltipOpen(false)}
-          onFocus={() => setIsTooltipOpen(true)}
-          onBlur={() => setIsTooltipOpen(false)}
           onClick={onToggle}
           className={cn(
             'text-text-secondary hover:bg-background-bottom hover:text-text-primary focus-visible:ring-brand-500 inline-flex size-7 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none',
@@ -91,18 +90,7 @@ export function ReservationFeedbackHeaderToggle({
             )}
           />
         </button>
-
-        {isTooltipOpen ? (
-          <div
-            id={tooltipId}
-            role="tooltip"
-            data-testid="unpublicized-toggle-tooltip"
-            className="bg-text-primary text-text-white pointer-events-none absolute right-0 bottom-full z-20 mb-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium whitespace-nowrap shadow-md"
-          >
-            {tooltipLabel}
-          </div>
-        ) : null}
-      </div>
+      </Tooltip>
     </div>
   );
 }
