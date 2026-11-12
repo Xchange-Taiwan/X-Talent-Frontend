@@ -62,9 +62,10 @@ if ! command -v rg >/dev/null 2>&1 && [ "$(uname -s 2>/dev/null || echo '')" = "
 fi
 
 # Strip external npx genable-mcp startup overhead, redundant AfterAgent hooks,
+# exclude slow/unnecessary web_fetch & google_web_search in headless Cloud CI,
 # and allow reading .agents/tmp in headless Cloud CI runs.
 if [ -f .gemini/settings.json ] && command -v jq >/dev/null 2>&1; then
-  jq 'del(.mcpServers, .hooks) | .fileFiltering = ((.fileFiltering // {}) + {"respectGitIgnore": false, "respectGeminiIgnore": false}) | .context = ((.context // {}) + {"fileFiltering": {"respectGitIgnore": false, "respectGeminiIgnore": false}})' .gemini/settings.json > .gemini/settings.json.tmp && mv .gemini/settings.json.tmp .gemini/settings.json || true
+  jq 'del(.mcpServers, .hooks) | .tools = ((.tools // {}) + {"exclude": ["web_fetch", "google_web_search"]}) | .fileFiltering = ((.fileFiltering // {}) + {"respectGitIgnore": false, "respectGeminiIgnore": false}) | .context = ((.context // {}) + {"fileFiltering": {"respectGitIgnore": false, "respectGeminiIgnore": false}})' .gemini/settings.json > .gemini/settings.json.tmp && mv .gemini/settings.json.tmp .gemini/settings.json || true
   git update-index --skip-worktree .gemini/settings.json 2>/dev/null || true
 fi
 

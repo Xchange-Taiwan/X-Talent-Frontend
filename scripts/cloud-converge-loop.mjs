@@ -284,6 +284,36 @@ export function isFrontendApplicableCriterion(item) {
   return true;
 }
 
+export function normalizeErrorSignatures(errors = []) {
+  if (!Array.isArray(errors) || errors.length === 0) return [];
+  return errors
+    .map((raw) => {
+      const cleaned = String(raw ?? '')
+        .replace(/\u001b\[[0-9;]*m/g, '')
+        .replace(/\b\d+(?:\.\d+)?\s*(?:ms|s)\b/g, '<time>')
+        .replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/g, '<ts>');
+      const lines = cleaned
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(
+          (l) =>
+            l.length > 0 &&
+            (l.startsWith('[') ||
+              /(error|fail|expected|unable to find|ts\d{4}|typeerror|assertionerror|referenceerror|syntaxerror)/i.test(
+                l
+              ) ||
+              /\.(?:ts|tsx|js|jsx|mjs):\d+/.test(l))
+        )
+        .slice(0, 12);
+      const summary = (lines.length > 0 ? lines.join(' ;; ') : cleaned.trim())
+        .replace(/\s+/g, ' ')
+        .slice(0, 500);
+      return summary;
+    })
+    .filter(Boolean)
+    .sort();
+}
+
 /**
  * Evaluates whether the current round has fully converged and produces a
  * deterministic fingerprint for stall/oscillation detection.
@@ -291,6 +321,8 @@ export function isFrontendApplicableCriterion(item) {
 export function evaluateRoundConvergence({
   deterministicPassed,
   e2ePassed,
+  deterministicErrors = [],
+  e2eErrors = [],
   reviewResult,
 }) {
   const findingsByCategory = {};
@@ -335,10 +367,15 @@ export function evaluateRoundConvergence({
     riskLevel === 'low' &&
     uncoveredCriteria.length === 0;
 
+  const detSignatures = normalizeErrorSignatures(deterministicErrors);
+  const e2eSignatures = normalizeErrorSignatures(e2eErrors);
+
   const fingerprintParts = [
     `det:${Boolean(deterministicPassed)}`,
     `e2e:${Boolean(e2ePassed)}`,
     `risk:${riskLevel}`,
+    ...detSignatures.map((sig) => `detErr:${sig}`),
+    ...e2eSignatures.map((sig) => `e2eErr:${sig}`),
     ...flatFindings
       .map((f) => `${f.category}:${f.file}:${f.line ?? ''}:${f.issue.trim()}`)
       .sort(),
@@ -690,7 +727,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
           !f.startsWith('e2e/') &&
           fileExists(f)
       );
-      if (round > 1 && relatedCandidates.length > 0) {
+      if (relatedCandidates.length > 0) {
         const relRes = execStep(
           'npx',
           [
@@ -904,6 +941,8 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
     lastEvaluation = evaluateRoundConvergence({
       deterministicPassed,
       e2ePassed: lastE2ePassed,
+      deterministicErrors,
+      e2eErrors,
       reviewResult: reviewJson,
     });
 
@@ -930,6 +969,8 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
           lastEvaluation = evaluateRoundConvergence({
             deterministicPassed: false,
             e2ePassed: lastE2ePassed,
+            deterministicErrors,
+            e2eErrors,
             reviewResult: reviewJson,
           });
         }
@@ -966,7 +1007,8 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       consecutiveSameFingerprint = 1;
     }
 
-    if (consecutiveSameFingerprint >= 2) {
+    const stallThreshold = !deterministicPassed || !lastE2ePassed ? 3 : 2;
+    if (consecutiveSameFingerprint >= stallThreshold) {
       log(
         `[cloud-converge] Identical findings fingerprint repeated ${consecutiveSameFingerprint} times in round ${round}. Breaking loop via Stall Guard.`
       );
