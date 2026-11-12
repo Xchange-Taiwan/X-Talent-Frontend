@@ -194,6 +194,31 @@ jobs:
           ARCH_QUERY="#${TICKET_NUMBER} $(head -n 25 .agents/tmp/ticket-spec.md 2>/dev/null | tr '\n' ' ' || echo '')"
           jq -n --arg q "$ARCH_QUERY" '{query: $q}' | curl -sS -X POST "https://x-talent-discord-mention-notify.x-talent.workers.dev/__arch-kb" -H "Content-Type: application/json" -d @- | jq -r 'if .kb then "\n\n## X-Talent 跨專案架構知識庫 (Cloudflare KV Architecture KB)\n```json\n" + (.kb | tojson) + "\n```" else "" end' >> .agents/tmp/ticket-spec.md 2>/dev/null || true
           gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments?per_page=30" --jq '[.[] | select(.body | contains("ai-review-pipeline"))] | last | if . then "\n\n## 目前 PR 線上 AI Review 審查意見（含 Visual / Design Parity 視覺比對）\n" + .body else "" end' >> .agents/tmp/ticket-spec.md 2>/dev/null || true
+          PR_HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq '.headRefOid // empty' 2>/dev/null || echo "")
+          if [ -n "$PR_HEAD_SHA" ]; then
+            node -e '
+              const { execFileSync } = require("node:child_process");
+              const [repo, sha] = process.argv.slice(1);
+              try {
+                const raw = execFileSync("gh", ["api", `repos/${repo}/commits/${sha}/check-runs?per_page=50`], { encoding: "utf8" });
+                const runs = (JSON.parse(raw).check_runs || []).filter(c => c.conclusion === "failure" && !/Vercel/i.test(c.name || ""));
+                if (!runs.length) process.exit(0);
+                const out = ["\n\n## 目前 PR 失敗的 CI Checks 與 CodeQL 註記（請一併修復）"];
+                for (const r of runs) {
+                  out.push(`\n### ${r.name}`);
+                  if (r.output?.title) out.push(`- 摘要：${r.output.title}`);
+                  try {
+                    const annRaw = execFileSync("gh", ["api", `repos/${repo}/check-runs/${r.id}/annotations`], { encoding: "utf8" });
+                    const anns = JSON.parse(annRaw) || [];
+                    for (const a of anns.filter(x => x.path && x.path !== ".github").slice(0, 15)) {
+                      out.push(`- \`${a.path}:${a.start_line || 1}\` [${a.annotation_level}] ${a.title ? a.title + ": " : ""}${String(a.message || "").trim().slice(0, 400)}`);
+                    }
+                  } catch {}
+                }
+                console.log(out.join("\n"));
+              } catch {}
+            ' "${{ github.repository }}" "$PR_HEAD_SHA" >> .agents/tmp/ticket-spec.md 2>/dev/null || true
+          fi
           node scripts/prefetch-ticket-visuals.mjs --ticket="$TICKET_NUMBER" || true
 
           if [ -n "$FIX_INSTRUCTIONS" ]; then
