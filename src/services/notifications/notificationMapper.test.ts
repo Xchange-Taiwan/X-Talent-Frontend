@@ -114,4 +114,44 @@ describe('mapNotificationVOToItem', () => {
     expect(item.dtstart).toBe(1755000000);
     expect(item.dtend).toBe(1755001800);
   });
+
+  it('maps feedback_reminder notifications and normalizes metadata.reservation_id for Mentor and Mentee (#733)', () => {
+    const mentorItem = mapNotificationVOToItem({
+      ...baseApiItem,
+      type: 'feedback_reminder',
+      metadata: {
+        role: 'mentor',
+        counterparty_name: '林學員',
+        reservation_id: 201,
+      },
+    });
+    expect(mentorItem.type).toBe('feedback_reminder');
+    expect(mentorItem.role).toBe('mentor');
+    expect(mentorItem.menteeName).toBe('林學員');
+    expect(mentorItem.reservationId).toBe('201');
+
+    const menteeStringIdItem = mapNotificationVOToItem({
+      ...baseApiItem,
+      type: 'reservation_feedback_reminder',
+      metadata: {
+        role: 'mentee',
+        counterparty_name: 'Emily Chen',
+        reservation_id: ' 101 ',
+      },
+    });
+    expect(menteeStringIdItem.type).toBe('reservation_feedback_reminder');
+    expect(menteeStringIdItem.mentorName).toBe('Emily Chen');
+    expect(menteeStringIdItem.reservationId).toBe('101');
+
+    const missingReservationIdItem = mapNotificationVOToItem({
+      ...baseApiItem,
+      type: 'feedback_reminder',
+      metadata: {
+        role: 'mentee',
+        counterparty_name: 'Emily Chen',
+        reservation_id: '',
+      },
+    });
+    expect(missingReservationIdItem.reservationId).toBeUndefined();
+  });
 });
