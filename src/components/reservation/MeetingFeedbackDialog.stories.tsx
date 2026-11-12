@@ -40,12 +40,14 @@ export const StepAttendanceOpen: Story = {
   },
 };
 
-export const StepRatingSliderOpen: Story = {
+export const StepRatingStarsOpen: Story = {
   args: {
     defaultOpen: true,
     initialStep: 'rating',
   },
 };
+
+export const StepRatingSliderOpen: Story = StepRatingStarsOpen;
 
 export const StepNotHappenedOpen: Story = {
   args: {

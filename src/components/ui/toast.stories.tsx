@@ -31,7 +31,7 @@ export const Default: Story = {
         </div>
         <ToastClose />
       </Toast>
-      <ToastViewport className="relative max-w-sm rounded border p-4" />
+      <ToastViewport className="relative top-0 right-0 max-w-sm rounded border p-4 sm:right-0" />
     </ToastProvider>
   ),
 };
@@ -53,7 +53,7 @@ export const Destructive: Story = {
         </ToastAction>
         <ToastClose />
       </Toast>
-      <ToastViewport className="relative max-w-sm rounded border p-4" />
+      <ToastViewport className="relative top-0 right-0 max-w-sm rounded border p-4 sm:right-0" />
     </ToastProvider>
   ),
 };

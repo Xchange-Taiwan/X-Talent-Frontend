@@ -16,7 +16,7 @@ const ToastProvider = ToastPrimitives.Provider;
 /**
  * ToastViewport 吐司通知元件的顯示區域（視窗）。
  *
- * 定位在畫面中特定的角落（預設為右下角/右上角），所有 Toast 都會被渲染在此 Viewport 之中。
+ * 預設以浮層定位於頁首導覽列（Top Bar）下方右側，不推移頁面版面，所有 Toast 都會被渲染在此 Viewport 之中。
  */
 const ToastViewport = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Viewport>,
@@ -25,7 +25,7 @@ const ToastViewport = React.forwardRef<
   <ToastPrimitives.Viewport
     ref={ref}
     className={cn(
-      'fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:top-auto sm:right-0 sm:bottom-0 sm:flex-col md:max-w-[420px]',
+      'fixed top-[calc(70px_+_var(--banner-height,0px))] right-0 z-[100] flex max-h-[calc(100vh_-_70px_-_var(--banner-height,0px))] w-full flex-col gap-2 p-4 sm:right-2 md:max-w-[420px]',
       className
     )}
     {...props}
@@ -34,7 +34,7 @@ const ToastViewport = React.forwardRef<
 ToastViewport.displayName = ToastPrimitives.Viewport.displayName;
 
 const toastVariants = cva(
-  'group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all data-[state=closed]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:animate-in data-[state=open]:slide-in-from-top-full data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=end]:animate-out data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none data-[state=open]:sm:slide-in-from-bottom-full',
+  'group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all data-[state=closed]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:animate-in data-[state=open]:slide-in-from-top-full data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=end]:animate-out data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none',
   {
     variants: {
       variant: {
@@ -144,7 +144,7 @@ const ToastClose = React.forwardRef<
   <ToastPrimitives.Close
     ref={ref}
     className={cn(
-      'text-text-primary/50 group-[.destructive]:text-status-error-active hover:text-text-primary group-[.destructive]:hover:text-text-white group-[.destructive]:focus-visible:ring-status-error-active group-[.destructive]:focus-visible:ring-offset-status-error-default absolute top-2 right-2 rounded-md p-1 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 focus-visible:ring-2 focus-visible:outline-none',
+      'text-text-primary/70 group-[.destructive]:text-text-white/80 hover:text-text-primary group-[.destructive]:hover:text-text-white group-[.destructive]:focus-visible:ring-status-error-active group-[.destructive]:focus-visible:ring-offset-status-error-default absolute top-2 right-2 rounded-md p-1 opacity-80 transition-opacity group-hover:opacity-100 hover:opacity-100 focus:opacity-100 focus-visible:ring-2 focus-visible:outline-none',
       className
     )}
     toast-close=""

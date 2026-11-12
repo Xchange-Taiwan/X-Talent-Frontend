@@ -139,7 +139,7 @@ export function ReservationDashboardView({
   const pathname = usePathname();
 
   const tabParam = searchParams.get('tab');
-  const activeTab = (tabParam && TAB_MAPPING[tabParam]) || upcomingTabValue;
+  const activeTab = (tabParam && TAB_MAPPING[tabParam]) || pendingTabValue;
 
   const lastCountsRef = useRef<{
     role: ReservationRole;

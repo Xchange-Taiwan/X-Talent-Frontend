@@ -21,6 +21,8 @@ import * as informationStories from '@/components/mentor-pool/mentor-card/Inform
 import * as confirmedReservationDialogStories from '@/components/profile/reservation/ConfirmedReservationDialog.stories';
 import * as menteeBookingFormStories from '@/components/profile/reservation/MenteeBookingForm.stories';
 import * as quickReplyDialogStories from '@/components/profile/reservation/QuickReplyDialog.stories';
+import { FeedbackStarRating } from '@/components/reservation/FeedbackStarRating';
+import * as feedbackStarRatingStories from '@/components/reservation/FeedbackStarRating.stories';
 import { JoinMeetButton } from '@/components/reservation/JoinMeetButton';
 import * as joinMeetButtonStories from '@/components/reservation/JoinMeetButton.stories';
 import * as meetingFeedbackDialogStories from '@/components/reservation/MeetingFeedbackDialog.stories';
@@ -281,11 +283,29 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
   });
 
   it('exposes and renders MeetingFeedbackDialog and ReservationFeedbackBlock stories (#730)', () => {
+    expect(feedbackStarRatingStories.default.title).toBe(
+      '業務模組元件/預約管理(Reservation)/FeedbackStarRating'
+    );
+    expect(feedbackStarRatingStories.DefaultFullScore).toBeDefined();
+    expect(feedbackStarRatingStories.PartialScoreEight).toBeDefined();
+    expect(feedbackStarRatingStories.DisabledState).toBeDefined();
+
+    render(
+      <FeedbackStarRating
+        value={feedbackStarRatingStories.DefaultFullScore.args!.value!}
+        onChange={() => {}}
+      />
+    );
+    expect(
+      screen.getByRole('radiogroup', { name: '整體滿意度' })
+    ).toBeInTheDocument();
+
     expect(meetingFeedbackDialogStories.default.title).toBe(
       '業務模組元件/預約管理(Reservation)/MeetingFeedbackDialog'
     );
     expect(meetingFeedbackDialogStories.ClosedTrigger).toBeDefined();
     expect(meetingFeedbackDialogStories.StepAttendanceOpen).toBeDefined();
+    expect(meetingFeedbackDialogStories.StepRatingStarsOpen).toBeDefined();
     expect(meetingFeedbackDialogStories.StepRatingSliderOpen).toBeDefined();
     expect(meetingFeedbackDialogStories.StepNotHappenedOpen).toBeDefined();
 

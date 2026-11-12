@@ -3,6 +3,7 @@
 import { Loader2 } from 'lucide-react';
 import * as React from 'react';
 
+import { FeedbackStarRating } from '@/components/reservation/FeedbackStarRating';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -13,18 +14,19 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 import {
   DEFAULT_MEETING_FEEDBACK_FORM_VALUES,
   useMeetingFeedbackForm,
 } from '@/hooks/user/reservation/useMeetingFeedbackForm';
+import {
+  RESERVATION_CONFLICT_MESSAGE,
+  ReservationVersionConflictError,
+} from '@/lib/reservation/reservationConflictError';
 import { cn } from '@/lib/utils';
 import {
   MAX_FEEDBACK_CONTENT_LENGTH,
-  MAX_MEETING_RATING,
-  MIN_MEETING_RATING,
   toSubmitFeedbackPayload,
 } from '@/schemas/meetingFeedbackSchema';
 import type { Reservation } from '@/types/reservation';
@@ -75,8 +77,16 @@ export default function MeetingFeedbackDialog({
   const content = watch('content');
   const notHappenedReason = watch('notHappenedReason');
 
+  const resetDraft = React.useCallback(() => {
+    reset(DEFAULT_MEETING_FEEDBACK_FORM_VALUES);
+    setStep(initialStep);
+  }, [initialStep, reset]);
+
   const handleOpenChange = (nextOpen: boolean) => {
     if (isSubmitting || inFlightRef.current) return;
+    if (!nextOpen) {
+      resetDraft();
+    }
     setOpen(nextOpen);
   };
 
@@ -105,42 +115,53 @@ export default function MeetingFeedbackDialog({
 
     try {
       await onSubmitFeedback(payload);
-      reset(DEFAULT_MEETING_FEEDBACK_FORM_VALUES);
-      setStep('attendance');
+      resetDraft();
       setOpen(false);
       toast({
         title: '已送出',
         description: 'X-Talent 已收到您的回饋，謝謝您！',
       });
-    } catch {
-      // Keep step & form values intact so clicking "評論" in the toast (or
-      // clicking "填寫回饋" on the card) reopens the dialog with preserved input.
-      setOpen(false);
-      const toastHandle = toast({
-        variant: 'destructive',
-        description: (
-          <span>
-            送出失敗，回到
-            <button
-              type="button"
-              onClick={() => {
-                toastHandle?.dismiss?.();
-                dismiss?.();
-                setOpen(true);
-              }}
-              className="mx-1 font-semibold underline underline-offset-4 hover:opacity-80"
-            >
-              評論
-            </button>
-            重新送出
-          </span>
-        ),
-      });
+    } catch (err) {
+      if (err instanceof ReservationVersionConflictError) {
+        resetDraft();
+        setOpen(false);
+        toast({
+          variant: 'destructive',
+          description: RESERVATION_CONFLICT_MESSAGE,
+        });
+      } else {
+        // Close dialog via setOpen(false) directly (bypassing handleOpenChange)
+        // so step & form values stay intact for reopening from the failure toast.
+        setOpen(false);
+        const toastHandle = toast({
+          variant: 'destructive',
+          description: (
+            <span>
+              送出失敗，回到
+              <button
+                type="button"
+                onClick={() => {
+                  toastHandle?.dismiss?.();
+                  dismiss?.();
+                  setOpen(true);
+                }}
+                className="mx-1 font-semibold underline underline-offset-4 hover:opacity-80"
+              >
+                評論
+              </button>
+              重新送出
+            </span>
+          ),
+        });
+      }
     } finally {
       inFlightRef.current = false;
       setIsSubmitting(false);
     }
   };
+
+  const isContentOverLimit = content.length > MAX_FEEDBACK_CONTENT_LENGTH;
+  const hasContentError = Boolean(errors.content) || isContentOverLimit;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -253,15 +274,22 @@ export default function MeetingFeedbackDialog({
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="space-y-5">
-                <div className="space-y-3">
+              <div className="space-y-4">
+                <p
+                  data-testid="feedback-name-masking-hint"
+                  className="bg-background-bottom text-text-secondary rounded-xl px-3.5 py-2.5 text-xs leading-relaxed"
+                >
+                  公開評價將以遮罩姓名顯示（例如：王**），不會公開您的完整姓名。
+                </p>
+
+                <div className="space-y-2.5">
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="text-text-primary text-sm font-medium">
                       整體滿意度
                     </span>
                     <span
                       data-testid="meeting-rating-value"
-                      className="text-brand-700 text-lg font-bold tabular-nums"
+                      className="text-brand-700 text-sm font-semibold tabular-nums"
                     >
                       {rating}{' '}
                       <span className="text-text-tertiary text-xs font-normal">
@@ -270,28 +298,13 @@ export default function MeetingFeedbackDialog({
                     </span>
                   </div>
 
-                  <Slider
-                    min={MIN_MEETING_RATING}
-                    max={MAX_MEETING_RATING}
-                    step={1}
-                    value={[rating]}
-                    onValueChange={(vals) => {
-                      if (vals[0] !== undefined) {
-                        setValue('rating', vals[0], { shouldValidate: true });
-                      }
-                    }}
-                    aria-label="整體滿意度"
+                  <FeedbackStarRating
+                    value={rating}
+                    onChange={(nextRating) =>
+                      setValue('rating', nextRating, { shouldValidate: true })
+                    }
                     disabled={isSubmitting}
-                    className="py-2"
                   />
-
-                  <div
-                    aria-hidden="true"
-                    className="text-text-tertiary flex items-center justify-between text-xs"
-                  >
-                    <span>1 分</span>
-                    <span>10 分</span>
-                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -304,16 +317,32 @@ export default function MeetingFeedbackDialog({
                   <Textarea
                     id={contentFieldId}
                     placeholder="分享您對本次會談的想法⋯"
-                    rows={4}
-                    maxLength={MAX_FEEDBACK_CONTENT_LENGTH}
+                    rows={5}
+                    aria-invalid={hasContentError}
                     disabled={isSubmitting}
+                    className="resize-y overflow-y-auto"
                     {...register('content')}
                   />
-                  {errors.content?.message ? (
-                    <p className="text-status-error-default text-xs">
-                      {errors.content.message}
-                    </p>
-                  ) : null}
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    {errors.content?.message ? (
+                      <p role="alert" className="text-status-error-default">
+                        {errors.content.message}
+                      </p>
+                    ) : (
+                      <span />
+                    )}
+                    <span
+                      data-testid="feedback-content-counter"
+                      className={cn(
+                        'ml-auto tabular-nums',
+                        hasContentError
+                          ? 'text-status-error-default font-medium'
+                          : 'text-text-tertiary'
+                      )}
+                    >
+                      {content.length} / {MAX_FEEDBACK_CONTENT_LENGTH}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -326,7 +355,10 @@ export default function MeetingFeedbackDialog({
                 >
                   上一步
                 </Button>
-                <Button type="submit" disabled={isSubmitting}>
+                <Button
+                  type="submit"
+                  disabled={isSubmitting || hasContentError}
+                >
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 size-4 animate-spin" />

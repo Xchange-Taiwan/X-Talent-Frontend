@@ -149,11 +149,17 @@ vi.mock('@/lib/analytics', async (importOriginal) => {
 // Mock ReservationCard for fully isolated testing
 vi.mock('./ReservationCard', () => ({
   ReservationCard: ({
+    headerAction,
+    feedbackContent,
     actions,
+    footer,
     item,
     profileHref,
   }: {
+    headerAction?: React.ReactNode;
+    feedbackContent?: React.ReactNode;
     actions?: React.ReactNode;
+    footer?: React.ReactNode;
     item: { id: string; name: string };
     profileHref?: string;
   }) => (
@@ -161,8 +167,11 @@ vi.mock('./ReservationCard', () => ({
       data-testid={`reservation-card-${item.id}`}
       data-profile-href={profileHref}
     >
+      <div data-testid={`header-action-${item.id}`}>{headerAction}</div>
       {item.name}
-      {actions}
+      {feedbackContent}
+      {footer}
+      <div data-testid={`bottom-actions-${item.id}`}>{actions}</div>
     </div>
   ),
 }));

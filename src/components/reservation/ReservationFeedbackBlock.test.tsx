@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import * as React from 'react';
 import { describe, expect, it } from 'vitest';
 
-import { FEEDBACK_FORM_URL } from '@/components/layout/Header/constants';
+import { FEEDBACK_FORM_URL } from '@/constant/externalLinks';
 import { UNPUBLICIZED_FEEDBACK_NOTICE } from '@/lib/reservation/resolveHistoryFeedbackState';
 
 import { ReservationFeedbackBlock } from './ReservationFeedbackBlock';

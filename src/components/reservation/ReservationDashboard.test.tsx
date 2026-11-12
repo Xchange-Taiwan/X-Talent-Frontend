@@ -131,6 +131,7 @@ describe('ReservationDashboard', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGet.mockReturnValue(null);
   });
 
   it('renders correctly for role "mentee"', () => {
@@ -142,6 +143,12 @@ describe('ReservationDashboard', () => {
 
     // Check heading
     expect(screen.getByText('預約導師')).toBeInTheDocument();
+
+    // Pending tab is selected by default when URL has no ?tab= param
+    expect(screen.getByTestId('tabs')).toHaveAttribute(
+      'data-default-value',
+      'pending-mentee'
+    );
 
     // Check tabs are rendered with correct counts
     expect(screen.getByText(/即將到來/)).toBeInTheDocument();
@@ -167,6 +174,12 @@ describe('ReservationDashboard', () => {
 
     // Check heading
     expect(screen.getByText('擔任導師')).toBeInTheDocument();
+
+    // Pending tab is selected by default when URL has no ?tab= param
+    expect(screen.getByTestId('tabs')).toHaveAttribute(
+      'data-default-value',
+      'pending-mentor'
+    );
 
     // Check tabs are rendered with correct counts
     expect(screen.getByText(/即將到來/)).toBeInTheDocument();
@@ -195,7 +208,7 @@ describe('ReservationDashboard', () => {
 
     render(<ReservationDashboard userRole="mentee" />);
 
-    // The active tab is upcoming by default, so it should render the skeleton
+    // The active tab is pending by default, so it should render the skeleton
     expect(
       screen.getAllByTestId('reservation-skeleton')[0]
     ).toBeInTheDocument();
@@ -283,9 +296,17 @@ describe('ReservationDashboard', () => {
       })
     );
 
+    // Test with tab=upcoming
+    mockGet.mockReturnValue('upcoming');
+    const { rerender } = render(<ReservationDashboard userRole="mentor" />);
+    expect(screen.getByTestId('tabs')).toHaveAttribute(
+      'data-default-value',
+      'upcoming-mentor'
+    );
+
     // Test with tab=pending
     mockGet.mockReturnValue('pending');
-    const { rerender } = render(<ReservationDashboard userRole="mentor" />);
+    rerender(<ReservationDashboard userRole="mentor" />);
     expect(screen.getByTestId('tabs')).toHaveAttribute(
       'data-default-value',
       'pending-mentor'

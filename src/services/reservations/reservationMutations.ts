@@ -2,6 +2,10 @@ import { ApiError } from '@/lib/apiClient';
 import { mentorPoolReadManager } from '@/lib/cache/mentorPoolCache';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
+  RESERVATION_CONFLICT_MESSAGE,
+  ReservationVersionConflictError,
+} from '@/lib/reservation/reservationConflictError';
+import {
   type ReservationReadKey,
   reservationReadModel,
 } from '@/lib/reservation/reservationReadModel';
@@ -63,21 +67,7 @@ function affectedKeys(
   ]);
 }
 
-export const RESERVATION_CONFLICT_MESSAGE =
-  '資料已被更新，請重新確認後再試一次';
-
-/**
- * Thrown when the backend rejects a status update with 409 (optimistic-lock
- * version mismatch) — the reservation was changed elsewhere since it was
- * read. Distinguishable via `instanceof` so callers can refetch + show a
- * specific message instead of the generic failure toast.
- */
-export class ReservationVersionConflictError extends Error {
-  constructor() {
-    super('Reservation version conflict (409)');
-    this.name = 'ReservationVersionConflictError';
-  }
-}
+export { RESERVATION_CONFLICT_MESSAGE, ReservationVersionConflictError };
 
 /**
  * Resolve the user-facing error message for a reservation status-update
@@ -289,6 +279,14 @@ export async function submitReservationFeedback({
       body: payload,
     });
   } catch (err) {
+    if (err instanceof ApiError && err.status === 409) {
+      if (myUserId) {
+        affectedKeys(reservation, myUserId, myRole, ['history']).forEach(
+          invalidateReservationRead
+        );
+      }
+      throw new ReservationVersionConflictError();
+    }
     captureFlowFailure({
       flow: 'reservation_feedback_submit',
       step: 'post_feedback',

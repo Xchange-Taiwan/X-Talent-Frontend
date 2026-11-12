@@ -185,7 +185,7 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
     ];
 
     await page.route(
-      new RegExp(`/v1/users/${USER_ID}/reservations(\?|$)`),
+      new RegExp(`/v1/users/${USER_ID}/reservations([?]|$)`),
       (route) => {
         const url = new URL(route.request().url());
         const state = url.searchParams.get('state');
@@ -200,10 +200,11 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
 
     await page.goto(MENTEE_PAGE_URL);
 
-    // 1. Verify Pending & Upcoming tabs swapped: [等待回覆, 即將到來, 歷史紀錄]
+    // 1. Verify Pending & Upcoming tabs swapped and Pending is selected by default: [等待回覆, 即將到來, 歷史紀錄]
     const tabs = page.getByRole('tab');
     await expect(tabs).toHaveCount(3);
     await expect(tabs.nth(0)).toContainText('等待回覆');
+    await expect(tabs.nth(0)).toHaveAttribute('aria-selected', 'true');
     await expect(tabs.nth(1)).toContainText('即將到來');
     await expect(tabs.nth(2)).toContainText('歷史紀錄');
 
@@ -246,7 +247,7 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
     await captureEvidence(page, 'mentee-history-feedback-card-states');
   });
 
-  test('有進行評分流程：1–10 整數滑桿（預設 10 分）、送出失敗保留內容並由 Toast 回到評論重試成功', async ({
+  test('有進行評分流程：十顆星評分（預設 10 分）、姓名遮罩提示與字數計數、送出失敗保留內容並由 Toast 回到評論重試成功', async ({
     page,
   }) => {
     await setupMenteeAuth(page);
@@ -256,7 +257,7 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
     const capturedBodies: unknown[] = [];
 
     await page.route(
-      new RegExp(`/v1/users/${USER_ID}/reservations(\?|$)`),
+      new RegExp(`/v1/users/${USER_ID}/reservations([?]|$)`),
       (route) => {
         const url = new URL(route.request().url());
         const state = url.searchParams.get('state');
@@ -328,31 +329,52 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
 
     const dialog = page.getByRole('dialog');
     await expect(dialog.getByText('會談是否有進行？')).toBeVisible();
-    await captureEvidence(page, 'meeting-feedback-dialog-step1-attendance');
+    await captureEvidence(page, 'meeting-feedback-dialog-step1-attendance', {
+      waitForSelector: '[role="dialog"]',
+    });
 
     await dialog.locator('label').filter({ hasText: /^是$/ }).click();
     await dialog.getByRole('button', { name: '下一步' }).click();
 
     await expect(dialog.getByText('為本次會談評分')).toBeVisible();
-    const slider = dialog.getByRole('slider', { name: '整體滿意度' });
-    await expect(slider).toBeVisible();
-    await expect(slider).toHaveAttribute('aria-valuenow', '10');
+    await expect(
+      dialog.getByTestId('feedback-name-masking-hint')
+    ).toBeVisible();
+
+    const starGroup = dialog.getByRole('radiogroup', { name: '整體滿意度' });
+    await expect(starGroup).toBeVisible();
+    const starRadios = starGroup.getByRole('radio');
+    await expect(starRadios).toHaveCount(10);
+
+    const star10 = starGroup.getByRole('radio', { name: '10 分' });
+    await expect(star10).toHaveAttribute('aria-checked', 'true');
     await expect(dialog.getByTestId('meeting-rating-value')).toHaveText(
       '10 / 10'
     );
 
-    await slider.focus();
+    await star10.focus();
     await page.keyboard.press('ArrowLeft');
-    await expect(slider).toHaveAttribute('aria-valuenow', '9');
+    await expect(
+      starGroup.getByRole('radio', { name: '9 分' })
+    ).toHaveAttribute('aria-checked', 'true');
     await expect(dialog.getByTestId('meeting-rating-value')).toHaveText(
       '9 / 10'
     );
 
-    await dialog
-      .getByLabel('評論內容（選填）')
-      .fill('非常實用的作品集調整建議，謝謝導師！');
+    const commentText = '非常實用的作品集調整建議，謝謝導師！';
+    const commentField = dialog.getByLabel('評論內容（選填）');
+    await expect(commentField).toHaveAttribute('rows', '5');
+    await expect(dialog.getByTestId('feedback-content-counter')).toHaveText(
+      '0 / 1000'
+    );
+    await commentField.fill(commentText);
+    await expect(dialog.getByTestId('feedback-content-counter')).toHaveText(
+      `${commentText.length} / 1000`
+    );
 
-    await captureEvidence(page, 'meeting-feedback-dialog-step2-rating-slider');
+    await captureEvidence(page, 'meeting-feedback-dialog-step2-rating-stars', {
+      waitForSelector: '[role="dialog"]',
+    });
 
     // First attempt fails -> dialog closes, failure toast shows "送出失敗，回到評論重新送出"
     await dialog.getByRole('button', { name: '送出' }).click();
@@ -368,14 +390,14 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
       '9 / 10'
     );
     await expect(dialog.getByLabel('評論內容（選填）')).toHaveValue(
-      '非常實用的作品集調整建議，謝謝導師！'
+      commentText
     );
 
     // Retry submit -> succeeds -> card transitions to 已填寫 + 9 / 10
     await dialog.getByRole('button', { name: '送出' }).click();
-    await expect(page.getByText('已送出')).toBeVisible();
+    await expect(page.getByText('已送出', { exact: true })).toBeVisible();
     await expect(
-      page.getByText('X-Talent 已收到您的回饋，謝謝您！')
+      page.getByText('X-Talent 已收到您的回饋，謝謝您！', { exact: true })
     ).toBeVisible();
 
     const updatedCard = page
@@ -383,20 +405,21 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
       .filter({ hasText: 'Emily Chen' });
     await expect(updatedCard.getByRole('status')).toHaveText('已填寫');
     await expect(updatedCard.getByText('9 / 10')).toBeVisible();
+    await captureEvidence(page, 'meeting-feedback-submit-success');
 
     expect(capturedBodies).toEqual([
       {
         meeting_happened: true,
         feedback: {
           rating: 9,
-          content: '非常實用的作品集調整建議，謝謝導師！',
+          content: commentText,
         },
       },
       {
         meeting_happened: true,
         feedback: {
           rating: 9,
-          content: '非常實用的作品集調整建議，謝謝導師！',
+          content: commentText,
         },
       },
     ]);
@@ -411,7 +434,7 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
     let submittedPayload: unknown = null;
 
     await page.route(
-      new RegExp(`/v1/users/${USER_ID}/reservations(\?|$)`),
+      new RegExp(`/v1/users/${USER_ID}/reservations([?]|$)`),
       (route) => {
         const url = new URL(route.request().url());
         const state = url.searchParams.get('state');
@@ -468,13 +491,16 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
     await expect(dialog.getByText('未進行會談的原因')).toBeVisible();
     await expect(dialog.getByText(/誰沒有進行/)).toHaveCount(0);
 
-    await dialog.locator('label').filter({ hasText: '對方未出席' }).click();
-    await captureEvidence(page, 'meeting-feedback-dialog-step2-not-happened');
+    await dialog.locator('label').filter({ hasText: '未出席' }).click();
+    await captureEvidence(page, 'meeting-feedback-dialog-step2-not-happened', {
+      waitForSelector: '[role="dialog"]',
+    });
 
     await dialog.getByRole('button', { name: '送出' }).click();
 
+    await expect(page.getByText('已送出', { exact: true })).toBeVisible();
     await expect(
-      page.getByText('X-Talent 已收到您的回饋，謝謝您！')
+      page.getByText('X-Talent 已收到您的回饋，謝謝您！', { exact: true })
     ).toBeVisible();
 
     const card = page
@@ -490,7 +516,7 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
     await page.unrouteAll({ behavior: 'ignoreErrors' });
     await setupMentorAuth(page);
     await page.route(
-      new RegExp(`/v1/users/${USER_ID}/reservations(\?|$)`),
+      new RegExp(`/v1/users/${USER_ID}/reservations([?]|$)`),
       (route) => {
         const url = new URL(route.request().url());
         const state = url.searchParams.get('state');

@@ -1,11 +1,38 @@
 import { AlertCircle, Star } from 'lucide-react';
 import * as React from 'react';
 
-import { FEEDBACK_FORM_URL } from '@/components/layout/Header/constants';
+import { FEEDBACK_FORM_URL } from '@/constant/externalLinks';
 import type { HistoryFeedbackBlockModel } from '@/lib/reservation/resolveHistoryFeedbackState';
 
 export interface ReservationFeedbackBlockProps {
   model: HistoryFeedbackBlockModel;
+}
+
+const FEEDBACK_LINK_LABEL = '回饋表單';
+
+function renderNoticeWithFeedbackLink(notice: string): React.ReactNode {
+  const idx = notice.indexOf(FEEDBACK_LINK_LABEL);
+  if (idx === -1) {
+    return notice;
+  }
+
+  const before = notice.slice(0, idx);
+  const after = notice.slice(idx + FEEDBACK_LINK_LABEL.length);
+
+  return (
+    <>
+      {before}
+      <a
+        href={FEEDBACK_FORM_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-brand-700 font-medium underline underline-offset-2 hover:opacity-80"
+      >
+        {FEEDBACK_LINK_LABEL}
+      </a>
+      {after}
+    </>
+  );
 }
 
 export function ReservationFeedbackBlock({
@@ -44,18 +71,7 @@ export function ReservationFeedbackBlock({
             className="text-text-tertiary mt-0.5 size-4 shrink-0"
             aria-hidden="true"
           />
-          <p>
-            這場會談已被標註沒有進行，因此評價不會公開；如有疑問可以透過
-            <a
-              href={FEEDBACK_FORM_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-brand-700 font-medium underline underline-offset-2 hover:opacity-80"
-            >
-              回饋表單
-            </a>
-            聯繫我們。
-          </p>
+          <p>{renderNoticeWithFeedbackLink(model.notice)}</p>
         </div>
       </div>
     );
