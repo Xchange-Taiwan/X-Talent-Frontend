@@ -305,9 +305,7 @@ export function normalizeErrorSignatures(errors = []) {
               /\.(?:ts|tsx|js|jsx|mjs):\d+/.test(l))
         )
         .slice(0, 12);
-      const summary = (
-        lines.length > 0 ? lines.join(' ;; ') : cleaned.trim()
-      )
+      const summary = (lines.length > 0 ? lines.join(' ;; ') : cleaned.trim())
         .replace(/\s+/g, ' ')
         .slice(0, 500);
       return summary;
