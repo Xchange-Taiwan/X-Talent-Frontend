@@ -698,5 +698,40 @@ describe('cloud-converge-loop', () => {
       expect(res.converged).toBe(true);
       expect(res.roundsRun).toBe(3);
     });
+it('allows 2 fix retries (stallThreshold = 3) before triggering Stall Guard when identical test/E2E errors repeat with varying timestamps', async () => {
+      let roundIdx = 0;
+      const execStep = vi.fn((cmd, args) => {
+        if (cmd === 'git' && args[0] === 'diff') {
+          return { ok: true, stdout: 'src/lib/analytics.ts\n', stderr: '' };
+        }
+        if (cmd === 'npx' && args[0] === 'vitest') {
+          roundIdx += 1;
+          const ts = `2026-11-12T01:0${roundIdx}:00.123Z`;
+          const dur = `${roundIdx * 35}ms`;
+          const out = `${ts}\nAssertionError: expected 1 to be 2 at src/lib/analytics.test.ts:30:5\nDuration ${dur}`;
+          return { ok: false, stderr: out, combined: out };
+        }
+        return { ok: true, stdout: '', stderr: '' };
+      });
+
+      const res = await runConvergeLoop(
+        { maxRounds: 10, ticketNumber: '865', runE2e: false },
+        {
+          execStep,
+          writeFile: () => {},
+          log: () => {},
+          fileExists: () => true,
+        }
+      );
+
+      expect(
+        normalizeErrorSignatures([
+          '2026-11-12T01:01:00.123Z\nPlain custom failure text in 1.5s',
+        ])
+      ).toEqual(['<ts> Plain custom failure text in <time>']);
+      expect(res.converged).toBe(false);
+      expect(res.stalled).toBe(true);
+      expect(res.roundsRun).toBe(3);
+    });
   });
 });
