@@ -91,9 +91,9 @@ export function mapMentorFeedbackResponse(
       ? Math.floor(raw.page_size)
       : safeRequestedPageSize;
 
-  const items = rawItems.map((item, idx) =>
-    mapFeedbackItem(item, idx, resolvedPage)
-  );
+  const items = rawItems
+    .filter((item) => item?.is_public !== false)
+    .map((item, idx) => mapFeedbackItem(item, idx, resolvedPage));
 
   const rawTotal = Array.isArray(raw)
     ? items.length

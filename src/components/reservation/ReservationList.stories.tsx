@@ -164,3 +164,67 @@ export const CancelledHistoryWithReason: Story = {
     myUserId: 'user-mentee-jolin',
   },
 };
+
+// 8. Mentee History Feedback States (#730: Needs Feedback, Public Rating, Unpublicized Rating, Not Happened)
+export const MenteeHistoryFeedbackStates: Story = {
+  args: {
+    items: [
+      {
+        ...mockReservations[6],
+        id: 'res-feedback-answer',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+      {
+        ...mockReservations[6],
+        id: 'res-feedback-public',
+        name: '陳大文 (David Chen)',
+        feedback: {
+          meetingHappened: true,
+          rating: {
+            rating: 10,
+            content: '非常實用的職涯與系統設計建議，收穫良多！',
+            createdAt: 1760000000,
+            updatedAt: 1760000000,
+            authorName: 'Jay',
+            isPublic: true,
+          },
+          nextStep: null,
+        },
+      },
+      {
+        ...mockReservations[6],
+        id: 'res-feedback-unpublicized',
+        name: '林佳穎 (Emily Lin)',
+        feedback: {
+          meetingHappened: false,
+          rating: {
+            rating: 8,
+            content: '謝謝分享。',
+            createdAt: 1760000000,
+            updatedAt: 1760000000,
+            authorName: 'Jay',
+            isPublic: false,
+          },
+          nextStep: null,
+        },
+      },
+      {
+        ...mockReservations[6],
+        id: 'res-feedback-not-happened',
+        name: '蘇元貞 (Julie Su)',
+        feedback: {
+          meetingHappened: false,
+          rating: null,
+          nextStep: null,
+        },
+      },
+    ],
+    variant: 'history',
+    sourceRole: 'mentee',
+    myUserId: 'user-mentee-jay',
+  },
+};

@@ -1,4 +1,5 @@
 import { ApiError } from '@/lib/apiClient';
+import { mentorPoolReadManager } from '@/lib/cache/mentorPoolCache';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   type ReservationReadKey,
@@ -6,9 +7,11 @@ import {
 } from '@/lib/reservation/reservationReadModel';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import { Reservation } from '@/types/reservation';
+import type { SubmitReservationFeedbackRequest } from '@/types/reservationFeedback';
 
 import {
   invalidateReservationRead,
+  postReservationFeedback,
   type ReservationState,
   updateReservationStatus,
 } from './reservationService';
@@ -258,4 +261,95 @@ export async function rejectOrCancelReservation({
     'upcoming',
     'history',
   ]).forEach(invalidateReservationRead);
+}
+
+export interface SubmitFeedbackParams {
+  reservation: Reservation;
+  myUserId: string | undefined;
+  myRole: 'mentee' | 'mentor';
+  payload: SubmitReservationFeedbackRequest;
+}
+
+/**
+ * Submit post-meeting feedback / rating for a completed reservation (#730).
+ */
+export async function submitReservationFeedback({
+  reservation,
+  myUserId,
+  myRole,
+  payload,
+}: SubmitFeedbackParams): Promise<void> {
+  try {
+    if (!myUserId) {
+      throw new Error('[reservationMutations] missing current user id');
+    }
+    await postReservationFeedback({
+      userId: myUserId,
+      reservationId: reservation.id,
+      body: payload,
+    });
+  } catch (err) {
+    captureFlowFailure({
+      flow: 'reservation_feedback_submit',
+      step: 'post_feedback',
+      message:
+        err instanceof Error
+          ? err.message
+          : 'Failed to submit reservation feedback',
+    });
+    throw err;
+  }
+
+  if (!myUserId) return;
+
+  const nowUnixSeconds = Math.floor(Date.now() / 1000);
+  const myHistoryKey: ReservationReadKey = {
+    userId: myUserId,
+    state: statesForRole(myRole).history,
+  };
+
+  for (const targetKey of reservationReadModel.getMatchingKeys(myHistoryKey)) {
+    reservationReadModel.update(targetKey, (current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        items: current.items.map((item) => {
+          if (item.id !== reservation.id) return item;
+          if (payload.meeting_happened) {
+            return {
+              ...item,
+              feedback: {
+                meetingHappened: true,
+                rating: {
+                  rating: payload.feedback.rating,
+                  content: payload.feedback.content,
+                  createdAt: nowUnixSeconds,
+                  updatedAt: nowUnixSeconds,
+                  authorName: item.feedback?.rating?.authorName ?? null,
+                  isPublic: true,
+                },
+                nextStep: null,
+              },
+            };
+          }
+          return {
+            ...item,
+            feedback: {
+              meetingHappened: false,
+              rating: null,
+              nextStep: null,
+            },
+          };
+        }),
+      };
+    });
+  }
+
+  affectedKeys(reservation, myUserId, myRole, ['history']).forEach(
+    invalidateReservationRead
+  );
+
+  if (payload.meeting_happened) {
+    mentorPoolReadManager.clear();
+  }
 }

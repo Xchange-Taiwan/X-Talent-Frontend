@@ -356,4 +356,37 @@ describe('ReservationDashboard', () => {
       '等待回覆1'
     );
   });
+
+  it('places Pending tab before Upcoming tab for both mentee and mentor views (#730 1.h)', () => {
+    vi.mocked(useReservationData).mockReturnValue(
+      fromPartial(baseHookReturnValue)
+    );
+
+    const { unmount } = render(<ReservationDashboard userRole="mentee" />);
+    const menteeTabsList = screen.getByTestId('tabs-list');
+    const menteeTriggers = Array.from(
+      menteeTabsList.querySelectorAll('button')
+    );
+    expect(
+      menteeTriggers.map((btn) => btn.getAttribute('data-testid'))
+    ).toEqual([
+      'trigger-pending-mentee',
+      'trigger-upcoming-mentee',
+      'trigger-history',
+    ]);
+    unmount();
+
+    render(<ReservationDashboard userRole="mentor" />);
+    const mentorTabsList = screen.getByTestId('tabs-list');
+    const mentorTriggers = Array.from(
+      mentorTabsList.querySelectorAll('button')
+    );
+    expect(
+      mentorTriggers.map((btn) => btn.getAttribute('data-testid'))
+    ).toEqual([
+      'trigger-pending-mentor',
+      'trigger-upcoming-mentor',
+      'trigger-history',
+    ]);
+  });
 });

@@ -20,11 +20,13 @@ vi.mock('@/components/ui/use-toast', async () => {
 
 const mockAccept = vi.fn();
 const mockRejectOrCancel = vi.fn();
+const mockSubmitFeedback = vi.fn();
 
 vi.mock('@/hooks/user/reservation/useReservationActions', () => ({
   useReservationActions: vi.fn(() => ({
     accept: mockAccept,
     rejectOrCancel: mockRejectOrCancel,
+    submitFeedback: mockSubmitFeedback,
     isMutating: false,
   })),
 }));
@@ -83,6 +85,7 @@ describe('QuickReplyDialog', () => {
     vi.mocked(useReservationActions).mockReturnValue({
       accept: mockAccept,
       rejectOrCancel: mockRejectOrCancel,
+      submitFeedback: mockSubmitFeedback,
       isMutating: false,
     });
   });
@@ -134,6 +137,7 @@ describe('QuickReplyDialog', () => {
         state.successCallback?.('res-103');
       }),
       rejectOrCancel: mockRejectOrCancel,
+      submitFeedback: mockSubmitFeedback,
       isMutating: false,
     });
 
@@ -166,6 +170,7 @@ describe('QuickReplyDialog', () => {
     vi.mocked(useReservationActions).mockReturnValue({
       accept,
       rejectOrCancel: mockRejectOrCancel,
+      submitFeedback: mockSubmitFeedback,
       isMutating: false,
     });
 
@@ -252,6 +257,7 @@ describe('QuickReplyDialog', () => {
       rejectOrCancel: vi.fn().mockImplementation(() => {
         state.successCallback?.('res-103');
       }),
+      submitFeedback: mockSubmitFeedback,
       isMutating: false,
     });
 
@@ -283,6 +289,7 @@ describe('QuickReplyDialog', () => {
     vi.mocked(useReservationActions).mockReturnValue({
       accept: vi.fn().mockRejectedValue(new Error('accept failed')),
       rejectOrCancel: mockRejectOrCancel,
+      submitFeedback: mockSubmitFeedback,
       isMutating: false,
     });
 
@@ -314,6 +321,7 @@ describe('QuickReplyDialog', () => {
     vi.mocked(useReservationActions).mockReturnValue({
       accept: vi.fn().mockRejectedValue(new ReservationVersionConflictError()),
       rejectOrCancel: mockRejectOrCancel,
+      submitFeedback: mockSubmitFeedback,
       isMutating: false,
     });
 
@@ -364,6 +372,7 @@ describe('QuickReplyDialog', () => {
     vi.mocked(useReservationActions).mockReturnValue({
       accept: mockAccept,
       rejectOrCancel: vi.fn().mockRejectedValue(new Error('reject failed')),
+      submitFeedback: mockSubmitFeedback,
       isMutating: false,
     });
 
@@ -389,6 +398,7 @@ describe('QuickReplyDialog', () => {
     vi.mocked(useReservationActions).mockReturnValue({
       accept: mockAccept,
       rejectOrCancel: mockRejectOrCancel,
+      submitFeedback: mockSubmitFeedback,
       isMutating: true,
     });
     const onOpenChange = vi.fn();
@@ -405,6 +415,7 @@ describe('QuickReplyDialog', () => {
     vi.mocked(useReservationActions).mockReturnValue({
       accept: mockAccept,
       rejectOrCancel: mockRejectOrCancel,
+      submitFeedback: mockSubmitFeedback,
       isMutating: false,
     });
     const onOpenChange = vi.fn();
@@ -421,6 +432,7 @@ describe('QuickReplyDialog', () => {
     vi.mocked(useReservationActions).mockReturnValue({
       accept: mockAccept,
       rejectOrCancel: mockRejectOrCancel,
+      submitFeedback: mockSubmitFeedback,
       isMutating: true,
     });
 

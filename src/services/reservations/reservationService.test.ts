@@ -28,6 +28,8 @@ import {
   fetchReservationMeetLink,
   fetchReservations,
   invalidateReservationRead,
+  mapToReservation,
+  postReservationFeedback,
   updateReservationStatus,
 } from './reservationService';
 
@@ -454,6 +456,66 @@ describe('reservationService API Error Handling', () => {
           flow: 'mentor_schedule_reservations_fetch',
           step: 'fetch_MENTOR_UPCOMING_max_pages_exceeded',
         })
+      );
+    });
+  });
+
+  describe('feedback mapping & postReservationFeedback (#730)', () => {
+    it('maps feedback with rating, is_public, and next_step when present and omits feedback gracefully when absent', () => {
+      const withoutFeedback = mapToReservation(makeApiReservation(), 1);
+      expect(withoutFeedback.feedback).toBeUndefined();
+
+      const withUnpublicizedFeedback = mapToReservation(
+        {
+          ...makeApiReservation(),
+          feedback: {
+            meeting_happened: false,
+            rating: {
+              rating: 8,
+              content: '感謝分享',
+              created_at: 1760000000,
+              updated_at: 1760000500,
+              author_name: '王＊明',
+              is_public: false,
+            },
+            next_step: null,
+          },
+        },
+        1
+      );
+
+      expect(withUnpublicizedFeedback.feedback).toEqual({
+        meetingHappened: false,
+        rating: {
+          rating: 8,
+          content: '感謝分享',
+          createdAt: 1760000000,
+          updatedAt: 1760000500,
+          authorName: '王＊明',
+          isPublic: false,
+        },
+        nextStep: null,
+      });
+    });
+
+    it('calls POST /v1/users/:userId/reservations/:reservationId/feedback via apiClient.postUnwrapped', async () => {
+      mockPost.mockResolvedValueOnce({ ok: true });
+
+      await postReservationFeedback({
+        userId: '1',
+        reservationId: '42',
+        body: {
+          meeting_happened: true,
+          feedback: { rating: 10, content: '非常棒！' },
+        },
+      });
+
+      expect(mockPost).toHaveBeenCalledWith(
+        '/v1/users/1/reservations/42/feedback',
+        {
+          meeting_happened: true,
+          feedback: { rating: 10, content: '非常棒！' },
+        }
       );
     });
   });

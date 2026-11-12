@@ -6,8 +6,10 @@ import { trackEvent } from '@/lib/analytics';
 import {
   acceptReservation,
   rejectOrCancelReservation,
+  submitReservationFeedback,
 } from '@/services/reservations';
 import { Reservation } from '@/types/reservation';
+import type { SubmitReservationFeedbackRequest } from '@/types/reservationFeedback';
 
 export type Variant =
   'upcoming' | 'pending-mentee' | 'pending-mentor' | 'history';
@@ -28,6 +30,10 @@ interface UseReservationActionsReturn {
     reservation: Reservation,
     text: string,
     action: 'reject' | 'cancel'
+  ) => Promise<void>;
+  submitFeedback: (
+    reservation: Reservation,
+    payload: SubmitReservationFeedbackRequest
   ) => Promise<void>;
   isMutating: boolean;
 }
@@ -88,9 +94,33 @@ export function useReservationActions({
     [run, myUserId, myRole, toast, onMutationSuccess]
   );
 
+  const submitFeedback = useCallback(
+    async (
+      reservation: Reservation,
+      payload: SubmitReservationFeedbackRequest
+    ) => {
+      await run(async () => {
+        await submitReservationFeedback({
+          reservation,
+          myUserId,
+          myRole,
+          payload,
+        });
+        trackEvent({
+          name: 'reservation_feedback_submitted',
+          feature: 'reservation',
+          metadata: { meeting_happened: payload.meeting_happened },
+        });
+        await onMutationSuccess?.(reservation.id);
+      });
+    },
+    [run, myUserId, myRole, onMutationSuccess]
+  );
+
   return {
     accept,
     rejectOrCancel,
+    submitFeedback,
     isMutating,
   };
 }
