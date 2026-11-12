@@ -698,7 +698,7 @@ describe('cloud-converge-loop', () => {
       expect(res.converged).toBe(true);
       expect(res.roundsRun).toBe(3);
     });
-it('allows 2 fix retries (stallThreshold = 3) before triggering Stall Guard when identical test/E2E errors repeat with varying timestamps', async () => {
+    it('allows 2 fix retries (stallThreshold = 3) before triggering Stall Guard when identical test/E2E errors repeat with varying timestamps', async () => {
       let roundIdx = 0;
       const execStep = vi.fn((cmd, args) => {
         if (cmd === 'git' && args[0] === 'diff') {
