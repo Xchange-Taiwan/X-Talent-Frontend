@@ -9,6 +9,7 @@ import {
   extractJsonObject,
   formatConvergenceSummaryMarkdown,
   isFrontendApplicableCriterion,
+  normalizeErrorSignatures,
   parseConvergeArgs,
   runConvergeLoop,
 } from './cloud-converge-loop.mjs';
@@ -635,6 +636,102 @@ describe('cloud-converge-loop', () => {
       // Round 2 used fast `npx:vitest` related check and then ran final `pnpm:test` gate once!
       expect(calls).toContain('npx:vitest');
       expect(calls.filter((c) => c === 'pnpm:test')).toHaveLength(1);
+    });
+
+    it('does NOT prematurely trigger Stall Guard on Round 2 when Round 1 fails lint and Round 2 fails vitest', async () => {
+      let roundNum = 0;
+
+      const execStep = vi.fn((cmd, args) => {
+        if (cmd === 'git' && args[0] === 'diff') {
+          return { ok: true, stdout: 'src/lib/analytics.ts\n', stderr: '' };
+        }
+        if (cmd === 'pnpm' && args[0] === 'lint') {
+          roundNum += 1;
+          if (roundNum === 1) {
+            return {
+              ok: false,
+              stderr: 'src/lib/analytics.ts:10:5 error Unused var',
+              combined: 'src/lib/analytics.ts:10:5 error Unused var',
+            };
+          }
+          return { ok: true, stdout: '', stderr: '' };
+        }
+        if (cmd === 'npx' && args[0] === 'vitest') {
+          if (roundNum === 2) {
+            return {
+              ok: false,
+              stderr:
+                'AssertionError: expected 1 to be 2 at src/lib/analytics.test.ts:30:5',
+              combined:
+                'AssertionError: expected 1 to be 2 at src/lib/analytics.test.ts:30:5',
+            };
+          }
+          return { ok: true, stdout: '', stderr: '' };
+        }
+        if (cmd === 'node' && args[0]?.includes('run-local.mjs')) {
+          return {
+            ok: true,
+            stdout: JSON.stringify({
+              overallRisk: { level: 'low', reason: 'Clean' },
+              requirementCoverage: [],
+              findings: {},
+            }),
+          };
+        }
+        return { ok: true, stdout: '', stderr: '' };
+      });
+
+      const res = await runConvergeLoop(
+        { maxRounds: 10, ticketNumber: '865', runE2e: false },
+        {
+          execStep,
+          writeFile: () => {},
+          log: () => {},
+          fileExists: () => true,
+        }
+      );
+
+      expect(
+        normalizeErrorSignatures(['\u001b[31mError in 42ms\u001b[39m'])
+      ).toEqual(['Error in <time>']);
+      expect(res.stalled).toBe(false);
+      expect(res.converged).toBe(true);
+      expect(res.roundsRun).toBe(3);
+    });
+    it('allows 2 fix retries (stallThreshold = 3) before triggering Stall Guard when identical test/E2E errors repeat with varying timestamps', async () => {
+      let roundIdx = 0;
+      const execStep = vi.fn((cmd, args) => {
+        if (cmd === 'git' && args[0] === 'diff') {
+          return { ok: true, stdout: 'src/lib/analytics.ts\n', stderr: '' };
+        }
+        if (cmd === 'npx' && args[0] === 'vitest') {
+          roundIdx += 1;
+          const ts = `2026-11-12T01:0${roundIdx}:00.123Z`;
+          const dur = `${roundIdx * 35}ms`;
+          const out = `${ts}\nAssertionError: expected 1 to be 2 at src/lib/analytics.test.ts:30:5\nDuration ${dur}`;
+          return { ok: false, stderr: out, combined: out };
+        }
+        return { ok: true, stdout: '', stderr: '' };
+      });
+
+      const res = await runConvergeLoop(
+        { maxRounds: 10, ticketNumber: '865', runE2e: false },
+        {
+          execStep,
+          writeFile: () => {},
+          log: () => {},
+          fileExists: () => true,
+        }
+      );
+
+      expect(
+        normalizeErrorSignatures([
+          '2026-11-12T01:01:00.123Z\nPlain custom failure text in 1.5s',
+        ])
+      ).toEqual(['<ts> Plain custom failure text in <time>']);
+      expect(res.converged).toBe(false);
+      expect(res.stalled).toBe(true);
+      expect(res.roundsRun).toBe(3);
     });
   });
 });
