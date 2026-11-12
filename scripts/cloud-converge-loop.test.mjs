@@ -728,7 +728,7 @@ describe('cloud-converge-loop', () => {
         normalizeErrorSignatures([
           '2026-11-12T01:01:00.123Z\nPlain custom failure text in 1.5s',
         ])
-      ).toEqual(['<ts> Plain custom failure text in <time>']);
+      ).toEqual(['Plain custom failure text in <time>']);
       expect(res.converged).toBe(false);
       expect(res.stalled).toBe(true);
       expect(res.roundsRun).toBe(3);
