@@ -427,7 +427,7 @@ describe('ProfilePageUI - multiline text whitespace preservation (#857)', () => 
 });
 
 describe('ProfilePageUI - mentor summary bar and feedback tabs (#736)', () => {
-  it('renders full-width summary bar and switches between 簡介 and 評價 N tabs while keeping booking panel visible (#736)', async () => {
+  it('renders full-width 4-cell summary bar without industry row, renders #hashtag under 關於我 above self-intro, and switches between 簡介 and 評價 N tabs while keeping booking panel visible (#736)', async () => {
     const user = userEvent.setup();
     render(
       <ProfilePageUI
@@ -437,8 +437,9 @@ describe('ProfilePageUI - mentor summary bar and feedback tabs (#736)', () => {
             about: '關於導師的介紹文字',
             years_of_experience: '5~10 年',
             location: '台灣',
+            industry: '設計及創意相關業',
             industries: [
-              { subject_group: 'software', subject: '軟體及網路相關業' },
+              { subject_group: 'design', subject: '設計及創意相關業' },
             ],
             stats: {
               completed_meeting_count: 128,
@@ -469,14 +470,30 @@ describe('ProfilePageUI - mentor summary bar and feedback tabs (#736)', () => {
       />
     );
 
+    const summaryRegion = screen.getByRole('region', { name: '導師摘要資訊' });
+    expect(summaryRegion).toBeInTheDocument();
+    expect(within(summaryRegion).queryByText('產業')).not.toBeInTheDocument();
     expect(
-      screen.getByRole('region', { name: '導師摘要資訊' })
-    ).toBeInTheDocument();
-    expect(screen.getByText('軟體及網路相關業')).toBeInTheDocument();
+      within(summaryRegion).queryByText(/設計及創意相關業/)
+    ).not.toBeInTheDocument();
+
     const aboutPanel = screen.getByRole('tabpanel', { name: '簡介' });
-    expect(aboutPanel).toHaveTextContent('關於導師的介紹文字');
+    const aboutHeading = within(aboutPanel).getByText('關於我');
+    const hashtagEl = within(aboutPanel).getByTestId('mentor-industry-hashtag');
+    const aboutBody = within(aboutPanel).getByText('關於導師的介紹文字');
+
+    expect(aboutHeading).toHaveClass('mb-3', 'text-xl', 'font-bold');
+    expect(hashtagEl).toHaveTextContent('#設計及創意相關業');
+    expect(hashtagEl).toHaveClass(
+      'text-brand-700',
+      'text-sm',
+      'font-medium',
+      'mb-3'
+    );
+    expect(aboutHeading.nextElementSibling).toBe(hashtagEl);
+    expect(hashtagEl.nextElementSibling).toBe(aboutBody);
     expect(aboutPanel).not.toHaveTextContent('經驗');
-    expect(aboutPanel).not.toHaveTextContent('產業');
+    expect(within(aboutPanel).queryByText('產業')).not.toBeInTheDocument();
     expect(screen.getByText('可預約日期')).toBeInTheDocument();
 
     const feedbackTab = screen.getByRole('tab', { name: /評價\s*12/ });
@@ -488,6 +505,93 @@ describe('ProfilePageUI - mentor summary bar and feedback tabs (#736)', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('可預約日期')).toBeInTheDocument();
     expect(screen.getByTestId('schedule-calendar')).toBeInTheDocument();
+  });
+
+  it('normalizes leading # in mentor industry and falls back to industries[0] when industry string is empty (#736)', () => {
+    const { rerender } = render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            about: '自我介紹',
+            industry: '##軟體及網路相關業',
+          }),
+          isIdentityResolved: true,
+        })}
+      />
+    );
+
+    expect(screen.getByTestId('mentor-industry-hashtag')).toHaveTextContent(
+      '#軟體及網路相關業'
+    );
+
+    rerender(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            about: '自我介紹',
+            industry: '',
+            industries: [
+              { subject_group: 'design', subject: '設計及創意相關業' },
+            ],
+          }),
+          isIdentityResolved: true,
+        })}
+      />
+    );
+
+    expect(screen.getByTestId('mentor-industry-hashtag')).toHaveTextContent(
+      '#設計及創意相關業'
+    );
+  });
+
+  it('renders 關於我 with #hashtag (without empty bio paragraph) and keeps mt-10 on 給導生的話 when mentor about is empty, and hides 關於我 when industry contains only # and whitespace (#736)', () => {
+    const { rerender } = render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            about: '',
+            industry: '設計及創意相關業',
+            personal_statement: '歡迎帶著作品集來交流',
+          }),
+          isIdentityResolved: true,
+        })}
+      />
+    );
+
+    const aboutPanel = screen.getByRole('tabpanel', { name: '簡介' });
+    const aboutHeading = within(aboutPanel).getByText('關於我');
+    const hashtagEl = within(aboutPanel).getByTestId('mentor-industry-hashtag');
+    expect(aboutHeading).toBeInTheDocument();
+    expect(hashtagEl).toHaveTextContent('#設計及創意相關業');
+    expect(hashtagEl).not.toHaveClass('mb-3');
+    expect(hashtagEl.nextElementSibling).toBeNull();
+
+    const statementHeading = within(aboutPanel).getByText('給導生的話');
+    expect(statementHeading.parentElement).toHaveClass('mt-10');
+
+    rerender(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            about: '',
+            industry: '###   ',
+            personal_statement: '歡迎帶著作品集來交流',
+          }),
+          isIdentityResolved: true,
+        })}
+      />
+    );
+
+    expect(
+      within(aboutPanel).queryByTestId('mentor-industry-hashtag')
+    ).not.toBeInTheDocument();
+    expect(within(aboutPanel).queryByText('關於我')).not.toBeInTheDocument();
+    const updatedStatementHeading = within(aboutPanel).getByText('給導生的話');
+    expect(updatedStatementHeading.parentElement).not.toHaveClass('mt-10');
   });
 
   it('hides both rating and completed 1-on-1 cells when both are 0 and shows empty state in 評價 0 tab (#736)', async () => {
@@ -637,6 +741,10 @@ describe('ProfilePageUI - mentor summary bar and feedback tabs (#736)', () => {
     expect(
       screen.queryByTestId('mentor-feedback-section')
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('mentor-industry-hashtag')
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('產業')).toBeInTheDocument();
     expect(screen.getByText('學員自我介紹')).toBeInTheDocument();
   });
 

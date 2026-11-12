@@ -5,7 +5,7 @@ import { MentorSummaryBar } from './MentorSummaryBar';
 import * as stories from './MentorSummaryBar.stories';
 
 describe('MentorSummaryBar (#736)', () => {
-  it('renders 4 equal-width metric columns and fixed industry pills when mentor has ratings and completed sessions', () => {
+  it('renders 4 equal-width metric columns without standalone industry row when mentor has ratings and completed sessions', () => {
     render(
       <MentorSummaryBar
         ratingAverage={8.5}
@@ -13,10 +13,6 @@ describe('MentorSummaryBar (#736)', () => {
         completedMeetingCount={128}
         yearsOfExperience="5~10 年"
         location="台灣"
-        industries={[
-          { subject_group: 'software', subject: '軟體及網路相關業' },
-          { subject_group: 'design', subject: '設計及創意相關業' },
-        ]}
       />
     );
 
@@ -29,9 +25,7 @@ describe('MentorSummaryBar (#736)', () => {
     expect(screen.getByText('5–10')).toBeInTheDocument();
     expect(screen.getByText('地點')).toBeInTheDocument();
     expect(screen.getByText('台灣')).toBeInTheDocument();
-    expect(screen.getByText('產業')).toBeInTheDocument();
-    expect(screen.getByText('軟體及網路相關業')).toBeInTheDocument();
-    expect(screen.getByText('設計及創意相關業')).toBeInTheDocument();
+    expect(screen.queryByText('產業')).not.toBeInTheDocument();
 
     const grid = screen.getByTestId('mentor-summary-grid');
     expect(grid).toHaveClass('md:grid-cols-4');
@@ -46,9 +40,6 @@ describe('MentorSummaryBar (#736)', () => {
         completedMeetingCount={128}
         yearsOfExperience="5~10 年"
         location="台灣"
-        industries={[
-          { subject_group: 'software', subject: '軟體及網路相關業' },
-        ]}
       />
     );
 
@@ -72,9 +63,6 @@ describe('MentorSummaryBar (#736)', () => {
         completedMeetingCount={0}
         yearsOfExperience="5~10 年"
         location="台灣"
-        industries={[
-          { subject_group: 'software', subject: '軟體及網路相關業' },
-        ]}
       />
     );
 
@@ -89,7 +77,7 @@ describe('MentorSummaryBar (#736)', () => {
     expect(grid.children).toHaveLength(3);
   });
 
-  it('hides both rating and completed 1-on-1 cells when both are 0 and omits industry row when empty', () => {
+  it('hides both rating and completed 1-on-1 cells when both are 0 in a 2-column grid', () => {
     render(
       <MentorSummaryBar
         ratingAverage={null}
@@ -97,7 +85,6 @@ describe('MentorSummaryBar (#736)', () => {
         completedMeetingCount={0}
         yearsOfExperience="3~5 年"
         location="台灣"
-        industries={[]}
       />
     );
 

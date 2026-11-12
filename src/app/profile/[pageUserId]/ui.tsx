@@ -19,7 +19,7 @@ import { ProfileBadgeSection } from '@/components/profile/view/ProfileBadgeSecti
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { MentorFeedbackState } from '@/hooks/user/feedback/useMentorFeedback';
-import { TagDisplay, UserType } from '@/hooks/user/user-data/useUserData';
+import { UserType } from '@/hooks/user/user-data/useUserData';
 import { resolveLocationLabel } from '@/lib/mentor/mentorStats';
 import {
   BookingCalendarReader,
@@ -30,6 +30,7 @@ import {
   toDateKey,
 } from '@/lib/profile/scheduleFormatters';
 import { isSafeUrl } from '@/lib/url/isSafeUrl';
+import { cn } from '@/lib/utils';
 
 import {
   ProfileContentSkeleton,
@@ -41,26 +42,50 @@ export type ProfileTabKey = 'about' | 'feedback';
 
 interface ProfileIntroSectionsProps {
   userData: UserType;
+  industryHashtag?: string | null;
   badgeSections: React.ReactNode;
 }
 
 function ProfileIntroSections({
   userData,
+  industryHashtag,
   badgeSections,
 }: ProfileIntroSectionsProps) {
+  const hasAboutSection = Boolean(userData.about || industryHashtag);
+
   return (
     <>
-      {userData.about && (
+      {hasAboutSection && (
         <div>
-          <p className="mb-4 text-xl font-bold">關於我</p>
-          <p className="text-text-tertiary text-sm break-words whitespace-pre-line">
-            {userData.about}
+          <p
+            className={cn(
+              industryHashtag ? 'mb-3' : 'mb-4',
+              'text-xl font-bold'
+            )}
+          >
+            關於我
           </p>
+          {industryHashtag && (
+            <p
+              data-testid="mentor-industry-hashtag"
+              className={cn(
+                'text-brand-700 text-sm font-medium break-words',
+                userData.about && 'mb-3'
+              )}
+            >
+              {industryHashtag}
+            </p>
+          )}
+          {userData.about && (
+            <p className="text-text-tertiary text-sm break-words whitespace-pre-line">
+              {userData.about}
+            </p>
+          )}
         </div>
       )}
 
       {userData.personal_statement && (
-        <div className={userData.about ? 'mt-10' : undefined}>
+        <div className={hasAboutSection ? 'mt-10' : undefined}>
           <p className="mb-4 text-xl font-bold">給導生的話</p>
           <p className="text-text-tertiary text-sm break-words whitespace-pre-line">
             {userData.personal_statement}
@@ -191,15 +216,14 @@ export default function ProfilePageUI({
     return resolveLocationLabel(fallbackJobLocation, 'zh_TW');
   }, [userData]);
 
-  const resolvedIndustries = useMemo<TagDisplay[]>(() => {
-    if (!userData) return [];
-    if (userData.industries && userData.industries.length > 0) {
-      return userData.industries;
-    }
-    if (userData.industry) {
-      return [{ subject_group: 'industry', subject: userData.industry }];
-    }
-    return [];
+  const mentorIndustryHashtag = useMemo<string | null>(() => {
+    if (!userData?.is_mentor) return null;
+    const rawIndustry =
+      userData.industry?.trim() ||
+      userData.industries?.[0]?.subject?.trim() ||
+      '';
+    const normalized = rawIndustry.replace(/^#+/, '').trim();
+    return normalized ? `#${normalized}` : null;
   }, [userData]);
 
   return (
@@ -311,7 +335,6 @@ export default function ProfilePageUI({
                 completedMeetingCount={effectiveCompletedMeetings}
                 yearsOfExperience={userData.years_of_experience}
                 location={resolvedLocation}
-                industries={resolvedIndustries}
               />
             )}
           </>
@@ -360,6 +383,7 @@ export default function ProfilePageUI({
                   <TabsContent value="about" className="mt-6">
                     <ProfileIntroSections
                       userData={userData}
+                      industryHashtag={mentorIndustryHashtag}
                       badgeSections={
                         <>
                           <ProfileBadgeSection

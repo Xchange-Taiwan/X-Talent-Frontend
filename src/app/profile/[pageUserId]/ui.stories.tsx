@@ -67,11 +67,8 @@ const mockMentorUserData: UserType = {
 2. 若需作品集健檢，請於預約留言附上連結`,
   years_of_experience: '5~10 年',
   location: '台灣',
-  industry: '軟體及網路相關業',
-  industries: [
-    { subject_group: 'software', subject: '軟體及網路相關業' },
-    { subject_group: 'design', subject: '設計及創意相關業' },
-  ],
+  industry: '設計及創意相關業',
+  industries: [{ subject_group: 'design', subject: '設計及創意相關業' }],
   stats: {
     completed_meeting_count: 128,
     rating_count: 12,
