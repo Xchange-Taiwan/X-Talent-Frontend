@@ -36,7 +36,7 @@ vi.mock('@/lib/analytics', async (importOriginal) => {
 import { validateSignIn } from '@/lib/actions/signIn';
 import { setAnalyticsUserContext, trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
-import { mockRouter } from '@/test/mocks/navigation';
+import { mockRouter, mockSearchParams } from '@/test/mocks/navigation';
 import { mockGetSession, mockSession, mockSignIn } from '@/test/mocks/nextAuth';
 import { mockToast } from '@/test/mocks/useToast';
 
@@ -52,6 +52,7 @@ const validValues = { email: 'user@example.com', password: 'Password1!' };
 describe('useSignInForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSearchParams.get.mockReturnValue(null);
     mockValidateSignIn.mockResolvedValue({
       success: true,
       email: validValues.email,
@@ -172,6 +173,46 @@ describe('useSignInForm', () => {
     });
     expect(mockRouter.push).toHaveBeenCalledWith('/mentor-pool');
     expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it('success + valid callbackUrl query param → redirects to callbackUrl preserving query params (#734)', async () => {
+    mockSearchParams.get.mockImplementation((key: string) =>
+      key === 'callbackUrl'
+        ? '/reservation/mentor?tab=history&reservationId=401'
+        : null
+    );
+    mockGetSession.mockResolvedValueOnce({
+      ...mockSession,
+      user: { ...mockSession.user, onBoarding: true, isMentor: true },
+    });
+
+    const { result } = renderHook(() => useSignInForm());
+
+    await act(async () => {
+      await result.current.onSubmit(validValues);
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith(
+      '/reservation/mentor?tab=history&reservationId=401'
+    );
+  });
+
+  it('success + unsafe external callbackUrl → falls back to /mentor-pool (#734)', async () => {
+    mockSearchParams.get.mockImplementation((key: string) =>
+      key === 'callbackUrl' ? 'https://evil.example/phish' : null
+    );
+    mockGetSession.mockResolvedValueOnce({
+      ...mockSession,
+      user: { ...mockSession.user, onBoarding: true, isMentor: true },
+    });
+
+    const { result } = renderHook(() => useSignInForm());
+
+    await act(async () => {
+      await result.current.onSubmit(validValues);
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/mentor-pool');
   });
 
   it('unexpected error is thrown → toast shows "Something went wrong!"', async () => {

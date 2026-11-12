@@ -505,4 +505,28 @@ describe('ReservationDashboard', () => {
       expect.objectContaining({ id: 'hist-pending-answer' }),
     ]);
   });
+
+  it('forwards reservationId search param as highlightedReservationId to history ReservationList and strips it on tab switch (#734)', () => {
+    mockPathname.mockReturnValue('/reservation/mentor');
+    mockGet.mockImplementation((key: string) => {
+      if (key === 'tab') return 'history';
+      if (key === 'reservationId') return '401';
+      return null;
+    });
+    mockToString.mockReturnValue('tab=history&reservationId=401');
+
+    vi.mocked(useReservationData).mockReturnValue(
+      fromPartial(baseHookReturnValue)
+    );
+
+    render(<ReservationDashboard userRole="mentor" />);
+
+    const historyCall = vi
+      .mocked(ReservationList)
+      .mock.calls.find(([props]) => props.variant === 'history');
+    expect(historyCall?.[0].highlightedReservationId).toBe('401');
+
+    fireEvent.click(screen.getByTestId('trigger-pending-mentor'));
+    expect(mockReplace).toHaveBeenCalledWith('/reservation/mentor?tab=pending');
+  });
 });

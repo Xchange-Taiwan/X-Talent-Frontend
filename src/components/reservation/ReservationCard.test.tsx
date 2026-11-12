@@ -516,5 +516,38 @@ describe('ReservationCard', () => {
       ).toBeInTheDocument();
       expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
+
+    it('renders data-reservation-id, data-highlighted, and brand highlight tokens when isHighlighted is true (#734)', () => {
+      const { rerender } = render(
+        <ReservationCard
+          item={mockReservation}
+          variant="history"
+          sourceRole="mentor"
+          isHighlighted={false}
+        />
+      );
+
+      const card = screen.getByTestId('reservation-card');
+      expect(card).toHaveAttribute(
+        'data-reservation-id',
+        String(mockReservation.id)
+      );
+      expect(card).toHaveAttribute('data-highlighted', 'false');
+      expect(card.className).not.toContain('border-brand-500');
+
+      rerender(
+        <ReservationCard
+          item={mockReservation}
+          variant="history"
+          sourceRole="mentor"
+          isHighlighted={true}
+        />
+      );
+
+      expect(card).toHaveAttribute('data-highlighted', 'true');
+      expect(card.className).toContain('border-brand-500');
+      expect(card.className).toContain('bg-brand-50/40');
+      expect(card.className).toContain('ring-2');
+    });
   });
 });

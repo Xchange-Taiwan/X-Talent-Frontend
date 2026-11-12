@@ -9,6 +9,10 @@ import {
   setAnalyticsUserContext,
   trackEvent,
 } from '@/lib/analytics';
+import {
+  clearPendingSignInCallbackUrl,
+  consumePendingSignInCallbackUrl,
+} from '@/lib/auth/callbackUrl';
 import { dispatchDeleteAccountRevalidate } from '@/lib/auth/dispatchDeleteAccountRevalidate';
 import {
   clearPendingDeleteAccountEmail,
@@ -37,6 +41,7 @@ export function useGoogleOAuthCallback() {
     ) => {
       // Clear the delete email marker on any invalid path to prevent zombie landmine states
       clearPendingDeleteAccountEmail();
+      clearPendingSignInCallbackUrl();
 
       const description =
         errorType === 'MISSING_PARAMS'
@@ -61,6 +66,7 @@ export function useGoogleOAuthCallback() {
     };
 
     const executeSignup = (data: GoogleCallbackVO) => {
+      clearPendingSignInCallbackUrl();
       trackEvent({
         name: 'sign_up',
         feature: 'auth',
@@ -75,6 +81,7 @@ export function useGoogleOAuthCallback() {
 
     const executeLogin = async (data: GoogleCallbackVO) => {
       if (!data.user || !data.auth.token) {
+        clearPendingSignInCallbackUrl();
         toast({
           variant: 'destructive',
           title: 'Missing login data',
@@ -114,10 +121,12 @@ export function useGoogleOAuthCallback() {
         },
       });
 
+      const destination = consumePendingSignInCallbackUrl('/mentor-pool');
+
       if (session?.user?.onBoarding === false) {
         router.push('/auth/onboarding');
       } else {
-        router.push('/mentor-pool');
+        router.push(destination);
       }
     };
 
@@ -127,6 +136,7 @@ export function useGoogleOAuthCallback() {
     ) => {
       // Safe clearance of sessionStorage at the absolute top of execution to prevent zombie states
       clearPendingDeleteAccountEmail();
+      clearPendingSignInCallbackUrl();
 
       const { id_token, auth, user } = data;
 
@@ -198,6 +208,7 @@ export function useGoogleOAuthCallback() {
             break;
         }
       } catch {
+        clearPendingSignInCallbackUrl();
         toast({
           variant: 'destructive',
           title: 'Login failed',

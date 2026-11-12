@@ -14,7 +14,9 @@ type NotificationConfigEntry = {
 
 function getMentorContext(item: NotificationItem): boolean {
   return (
-    item.role === 'mentor' || (item.role === undefined && !!item.menteeName)
+    item.role === 'mentor' ||
+    item.type === 'feedback_received' ||
+    (item.role === undefined && !!item.menteeName)
   );
 }
 
@@ -93,6 +95,20 @@ const NOTIFICATION_CONFIG: Record<
       isMentorContext
         ? '/reservation/mentor?tab=upcoming'
         : '/reservation/mentee?tab=upcoming',
+  },
+  feedback_received: {
+    getContent: (item) => ({
+      title: '您收到新的回饋',
+      body: `${item.menteeName?.trim() || 'Mentee'} 為您留下了一則會談回饋，前往查看。`,
+    }),
+    getHref: (item) => {
+      const trimmedId = item.reservationId?.trim();
+      if (!trimmedId) {
+        return '/reservation/mentor?tab=history';
+      }
+      const encodedId = encodeURIComponent(trimmedId);
+      return `/reservation/mentor?tab=history&reservationId=${encodedId}`;
+    },
   },
 };
 

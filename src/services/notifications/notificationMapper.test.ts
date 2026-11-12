@@ -114,4 +114,67 @@ describe('mapNotificationVOToItem', () => {
     expect(item.dtstart).toBe(1755000000);
     expect(item.dtend).toBe(1755001800);
   });
+
+  it('maps Mentor feedback-received notifications with full mentee name and reservationId (#734)', () => {
+    const item = mapNotificationVOToItem({
+      ...baseApiItem,
+      id: 734,
+      type: 'feedback_received',
+      metadata: {
+        role: 'mentor',
+        counterparty_name: '王小明',
+        reservation_id: 401,
+      },
+    });
+
+    expect(item.type).toBe('feedback_received');
+    expect(item.role).toBe('mentor');
+    expect(item.menteeName).toBe('王小明');
+    expect(item.mentorName).toBeUndefined();
+    expect(item.reservationId).toBe('401');
+  });
+
+  it('normalizes reservation_feedback_received and meeting_feedback_received aliases to feedback_received and infers mentor role (#734)', () => {
+    const reservationPrefixed = mapNotificationVOToItem({
+      ...baseApiItem,
+      type: 'reservation_feedback_received',
+      metadata: {
+        counterparty_name: '林怡君',
+        reservation_id: '512',
+      },
+    });
+    expect(reservationPrefixed.type).toBe('feedback_received');
+    expect(reservationPrefixed.role).toBe('mentor');
+    expect(reservationPrefixed.menteeName).toBe('林怡君');
+    expect(reservationPrefixed.reservationId).toBe('512');
+
+    const meetingPrefixed = mapNotificationVOToItem({
+      ...baseApiItem,
+      type: 'meeting_feedback_received',
+      metadata: {
+        mentee_name: '張大文',
+        session_link:
+          'https://xtalent.xchange.com.tw/reservation/mentor?tab=history&reservationId=608',
+      },
+    });
+    expect(meetingPrefixed.type).toBe('feedback_received');
+    expect(meetingPrefixed.role).toBe('mentor');
+    expect(meetingPrefixed.menteeName).toBe('張大文');
+    expect(meetingPrefixed.reservationId).toBe('608');
+  });
+
+  it('gracefully omits reservationId when reservation_id and session_link are missing or invalid (#734)', () => {
+    const item = mapNotificationVOToItem({
+      ...baseApiItem,
+      type: 'feedback_received',
+      metadata: {
+        role: 'mentor',
+        counterparty_name: '王小明',
+        reservation_id: null,
+        session_link: '   ',
+      },
+    });
+
+    expect(item.reservationId).toBeUndefined();
+  });
 });

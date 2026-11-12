@@ -86,6 +86,32 @@ export const CanceledReservationByRole: Story = {
   },
 };
 
+export const MentorFeedbackReceived: Story = {
+  args: {
+    initialStatus: 'success',
+    initialNotifications: [
+      {
+        id: 'feedback-received-unread-1',
+        type: 'feedback_received',
+        menteeName: '王小明',
+        role: 'mentor',
+        reservationId: '401',
+        createdAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+        unread: true,
+      },
+      {
+        id: 'feedback-received-read-2',
+        type: 'feedback_received',
+        menteeName: '陳怡君',
+        role: 'mentor',
+        reservationId: '398',
+        createdAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
+        unread: false,
+      },
+    ],
+  },
+};
+
 export const LoadingState: Story = {
   args: {
     initialStatus: 'loading',

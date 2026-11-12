@@ -228,3 +228,33 @@ export const MenteeHistoryFeedbackStates: Story = {
     myUserId: 'user-mentee-jay',
   },
 };
+
+// 9. Mentor History Highlighted & Auto-Expanded Feedback Card (#734)
+export const MentorHistoryHighlighted: Story = {
+  args: {
+    items: [
+      mockReservations[6],
+      {
+        ...mockReservations[6],
+        id: '401',
+        name: '王小明 (Ming Wang)',
+        feedback: {
+          meetingHappened: true,
+          rating: {
+            rating: 10,
+            content: '謝謝導師清楚剖析設計系統架構與職涯方向！',
+            createdAt: 1760000000,
+            updatedAt: 1760000000,
+            authorName: '王＊明',
+            isPublic: true,
+          },
+          nextStep: null,
+        },
+      },
+    ],
+    variant: 'history',
+    sourceRole: 'mentor',
+    myUserId: 'user-mentor-current',
+    highlightedReservationId: '401',
+  },
+};

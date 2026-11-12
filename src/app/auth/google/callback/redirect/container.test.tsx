@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
+import { fromPartial } from '@total-typescript/shoehorn';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -239,7 +240,7 @@ describe('GoogleOAuthRedirectPage Component', () => {
       const mockData = {
         auth_type: 'LOGIN' as const,
         auth: { token: 'tok_2', email: 'user@example.com' },
-        user: { user_id: 456 } as unknown as ProfileVO,
+        user: fromPartial<ProfileVO>({ user_id: 456 }),
       };
 
       mockResolveOAuthOutcome.mockResolvedValue({
@@ -257,7 +258,7 @@ describe('GoogleOAuthRedirectPage Component', () => {
         expect(mockSignInWithGoogleToken).toHaveBeenCalledWith(
           'tok_2',
           'user@example.com',
-          { user_id: 456 } as unknown as Record<string, unknown>
+          { user_id: 456 }
         );
         expect(mockSetAnalyticsUserContext).toHaveBeenCalledWith({
           userId: '456',
@@ -279,7 +280,7 @@ describe('GoogleOAuthRedirectPage Component', () => {
       const mockData = {
         auth_type: 'LOGIN' as const,
         auth: { token: 'tok_2', email: 'user@example.com' },
-        user: { user_id: 456 } as unknown as ProfileVO,
+        user: fromPartial<ProfileVO>({ user_id: 456 }),
       };
 
       mockResolveOAuthOutcome.mockResolvedValue({
@@ -298,11 +299,76 @@ describe('GoogleOAuthRedirectPage Component', () => {
       });
     });
 
+    it('redirects to stored pending callbackUrl if session onBoarding is true (#734)', async () => {
+      sessionStorage.setItem(
+        'pending_signin_callback_url',
+        '/reservation/mentor?tab=history&reservationId=401'
+      );
+
+      const mockData = {
+        auth_type: 'LOGIN' as const,
+        auth: { token: 'tok_2', email: 'user@example.com' },
+        user: fromPartial<ProfileVO>({ user_id: 456 }),
+      };
+
+      mockResolveOAuthOutcome.mockResolvedValue({
+        type: 'LOGIN',
+        data: mockData,
+      });
+
+      mockGetSession.mockResolvedValue({
+        user: { onBoarding: true },
+      });
+
+      render(<GoogleOAuthRedirectPage />);
+
+      await waitFor(() => {
+        expect(pushMock).toHaveBeenCalledWith(
+          '/reservation/mentor?tab=history&reservationId=401'
+        );
+      });
+      expect(sessionStorage.getItem('pending_signin_callback_url')).toBeNull();
+    });
+
+    it('falls back to /mentor-pool and clears storage when stored pending callbackUrl is unsafe (#734)', async () => {
+      sessionStorage.setItem(
+        'pending_signin_callback_url',
+        '//evil.example/phish'
+      );
+
+      const mockData = {
+        auth_type: 'LOGIN' as const,
+        auth: { token: 'tok_2', email: 'user@example.com' },
+        user: fromPartial<ProfileVO>({ user_id: 456 }),
+      };
+
+      mockResolveOAuthOutcome.mockResolvedValue({
+        type: 'LOGIN',
+        data: mockData,
+      });
+
+      mockGetSession.mockResolvedValue({
+        user: { onBoarding: true },
+      });
+
+      render(<GoogleOAuthRedirectPage />);
+
+      await waitFor(() => {
+        expect(pushMock).toHaveBeenCalledWith('/mentor-pool');
+      });
+      expect(sessionStorage.getItem('pending_signin_callback_url')).toBeNull();
+    });
+
     it('intercepts missing user or auth token during login execution', async () => {
+      sessionStorage.setItem(
+        'pending_signin_callback_url',
+        '/reservation/mentor?tab=history&reservationId=401'
+      );
+
       const mockDataMissingToken = {
         auth_type: 'LOGIN' as const,
         auth: { token: null, email: 'user@example.com' },
-        user: { user_id: 456 } as unknown as ProfileVO,
+        user: fromPartial<ProfileVO>({ user_id: 456 }),
       };
 
       mockResolveOAuthOutcome.mockResolvedValue({
@@ -321,13 +387,19 @@ describe('GoogleOAuthRedirectPage Component', () => {
         expect(pushMock).toHaveBeenCalledWith('/auth/signin');
         expect(mockSignInWithGoogleToken).not.toHaveBeenCalled();
       });
+      expect(sessionStorage.getItem('pending_signin_callback_url')).toBeNull();
     });
 
     it('handles unexpected async exceptions during login and resets loading', async () => {
+      sessionStorage.setItem(
+        'pending_signin_callback_url',
+        '/reservation/mentor?tab=history&reservationId=401'
+      );
+
       const mockData = {
         auth_type: 'LOGIN' as const,
         auth: { token: 'tok_2', email: 'user@example.com' },
-        user: { user_id: 456 } as unknown as ProfileVO,
+        user: fromPartial<ProfileVO>({ user_id: 456 }),
       };
 
       mockResolveOAuthOutcome.mockResolvedValue({
@@ -350,6 +422,7 @@ describe('GoogleOAuthRedirectPage Component', () => {
         // Spinner is hidden, displaying "Redirecting..." instead of "Signing you in with Google..."
         expect(screen.getByText('Redirecting...')).toBeInTheDocument();
       });
+      expect(sessionStorage.getItem('pending_signin_callback_url')).toBeNull();
     });
   });
 
@@ -357,7 +430,7 @@ describe('GoogleOAuthRedirectPage Component', () => {
     const mockData = {
       auth_type: 'LOGIN' as const,
       auth: { token: 'tok_3', email: 'user@example.com' },
-      user: { user_id: 789, name: 'Delete Me' } as unknown as ProfileVO,
+      user: fromPartial<ProfileVO>({ user_id: 789, name: 'Delete Me' }),
       id_token: 'id_token_123',
     };
 
@@ -382,10 +455,7 @@ describe('GoogleOAuthRedirectPage Component', () => {
         expect(mockSignInWithGoogleToken).toHaveBeenCalledWith(
           'tok_3',
           'user@example.com',
-          { user_id: 789, name: 'Delete Me' } as unknown as Record<
-            string,
-            unknown
-          >
+          { user_id: 789, name: 'Delete Me' }
         );
 
         // Calls delete account API
@@ -472,7 +542,7 @@ describe('GoogleOAuthRedirectPage Component', () => {
       const mockDataMissingIdToken = {
         auth_type: 'LOGIN' as const,
         auth: { token: 'tok_3', email: 'user@example.com' },
-        user: { user_id: 789 } as unknown as ProfileVO,
+        user: fromPartial<ProfileVO>({ user_id: 789 }),
         id_token: null, // missing id_token
       };
 

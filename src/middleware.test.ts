@@ -829,7 +829,7 @@ describe('middleware public routes', () => {
     }
   );
 
-  it('redirects unauthenticated users to signin for protected api routes', async () => {
+  it('redirects unauthenticated users to signin for protected api routes without callbackUrl', async () => {
     mockGetToken.mockResolvedValue(null);
 
     const response = await middleware(
@@ -837,6 +837,25 @@ describe('middleware public routes', () => {
     );
 
     expect(response.status).toBe(307);
-    expect(response.headers.get('location')).toContain('/auth/signin');
+    expect(response.headers.get('location')).toBe(
+      'https://example.com/auth/signin'
+    );
+  });
+
+  it('preserves full pathname and query parameters in callbackUrl when redirecting unauthenticated users from protected pages (#734)', async () => {
+    mockGetToken.mockResolvedValue(null);
+
+    const response = await middleware(
+      makeRequest('/reservation/mentor?tab=history&reservationId=401')
+    );
+
+    expect(response.status).toBe(307);
+    const location = response.headers.get('location');
+    expect(location).not.toBeNull();
+    const parsed = new URL(location!);
+    expect(parsed.pathname).toBe('/auth/signin');
+    expect(parsed.searchParams.get('callbackUrl')).toBe(
+      '/reservation/mentor?tab=history&reservationId=401'
+    );
   });
 });

@@ -155,6 +155,8 @@ vi.mock('./ReservationCard', () => ({
     footer,
     item,
     profileHref,
+    isHighlighted = false,
+    cardRef,
   }: {
     headerAction?: React.ReactNode;
     feedbackContent?: React.ReactNode;
@@ -162,9 +164,14 @@ vi.mock('./ReservationCard', () => ({
     footer?: React.ReactNode;
     item: { id: string; name: string };
     profileHref?: string;
+    isHighlighted?: boolean;
+    cardRef?: React.Ref<HTMLDivElement>;
   }) => (
     <div
+      ref={cardRef}
       data-testid={`reservation-card-${item.id}`}
+      data-reservation-id={String(item.id)}
+      data-highlighted={isHighlighted ? 'true' : 'false'}
       data-profile-href={profileHref}
     >
       <div data-testid={`header-action-${item.id}`}>{headerAction}</div>
@@ -579,6 +586,163 @@ describe('ReservationList', () => {
       expect(
         screen.queryByRole('button', { name: /刪除/ })
       ).not.toBeInTheDocument();
+    });
+
+    it('highlights, scrolls into view, and auto-expands feedback only for the matching highlightedReservationId card (#734)', () => {
+      const scrollSpy = vi.fn();
+      const originalScrollIntoView = Element.prototype.scrollIntoView;
+      Element.prototype.scrollIntoView = scrollSpy;
+
+      try {
+        render(
+          <ReservationList
+            items={[
+              {
+                ...mockReservation,
+                id: '400',
+                name: '林雅婷',
+                feedback: {
+                  meetingHappened: true,
+                  rating: null,
+                  nextStep: null,
+                },
+              },
+              {
+                ...mockReservation,
+                id: '401',
+                name: '王小明',
+                feedback: {
+                  meetingHappened: true,
+                  rating: {
+                    rating: 10,
+                    content: '謝謝導師清楚剖析設計系統架構與職涯方向！',
+                    createdAt: 1760000000,
+                    updatedAt: 1760000000,
+                    authorName: '王＊明',
+                    isPublic: true,
+                  },
+                  nextStep: null,
+                },
+              },
+            ]}
+            variant="history"
+            sourceRole="mentor"
+            myUserId="user-456"
+            highlightedReservationId="401"
+          />
+        );
+
+        const nonTargetCard = screen.getByTestId('reservation-card-400');
+        const targetCard = screen.getByTestId('reservation-card-401');
+        expect(nonTargetCard).toHaveAttribute('data-reservation-id', '400');
+        expect(nonTargetCard).toHaveAttribute('data-highlighted', 'false');
+        expect(targetCard).toHaveAttribute('data-reservation-id', '401');
+        expect(targetCard).toHaveAttribute('data-highlighted', 'true');
+
+        const toggleBtn = screen.getByRole('button', { name: '查看回饋' });
+        expect(toggleBtn).toHaveAttribute('aria-expanded', 'true');
+        expect(
+          screen.getByText('謝謝導師清楚剖析設計系統架構與職涯方向！')
+        ).toBeInTheDocument();
+        expect(scrollSpy).toHaveBeenCalledTimes(1);
+        expect(scrollSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ behavior: 'smooth', block: 'center' })
+        );
+
+        // User can still collapse the auto-expanded feedback without re-scrolling
+        fireEvent.click(toggleBtn);
+        expect(toggleBtn).toHaveAttribute('aria-expanded', 'false');
+        expect(scrollSpy).toHaveBeenCalledTimes(1);
+      } finally {
+        Element.prototype.scrollIntoView = originalScrollIntoView;
+      }
+    });
+
+    it('respects reduced motion and dynamic highlight updates (#734)', () => {
+      const scrollSpy = vi.fn(() => {
+        expect(screen.getByText('動態展開評價內容')).toBeInTheDocument();
+      });
+      const originalScrollIntoView = Element.prototype.scrollIntoView;
+      const originalMatchMedia = window.matchMedia;
+      Element.prototype.scrollIntoView = scrollSpy;
+      Object.defineProperty(window, 'matchMedia', {
+        writable: true,
+        configurable: true,
+        value: vi.fn().mockImplementation((query: string) => ({
+          matches: query === '(prefers-reduced-motion: reduce)',
+          media: query,
+          onchange: null,
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          dispatchEvent: vi.fn(),
+        })),
+      });
+
+      const items: Reservation[] = [
+        {
+          ...mockReservation,
+          id: '401',
+          name: '王小明',
+          feedback: {
+            meetingHappened: true,
+            rating: {
+              rating: 10,
+              content: '動態展開評價內容',
+              createdAt: 1760000000,
+              updatedAt: 1760000000,
+              authorName: '王＊明',
+              isPublic: true,
+            },
+            nextStep: null,
+          },
+        },
+      ];
+
+      try {
+        const { rerender } = render(
+          <ReservationList
+            items={items}
+            variant="history"
+            sourceRole="mentor"
+            myUserId="user-456"
+            highlightedReservationId="   "
+          />
+        );
+
+        const card = screen.getByTestId('reservation-card-401');
+        const toggleBtn = screen.getByRole('button', { name: '查看回饋' });
+        expect(card).toHaveAttribute('data-highlighted', 'false');
+        expect(toggleBtn).toHaveAttribute('aria-expanded', 'false');
+        expect(scrollSpy).not.toHaveBeenCalled();
+
+        rerender(
+          <ReservationList
+            items={items}
+            variant="history"
+            sourceRole="mentor"
+            myUserId="user-456"
+            highlightedReservationId=" 401 "
+          />
+        );
+
+        expect(card).toHaveAttribute('data-highlighted', 'true');
+        expect(toggleBtn).toHaveAttribute('aria-expanded', 'true');
+        expect(screen.getByText('動態展開評價內容')).toBeInTheDocument();
+        expect(scrollSpy).toHaveBeenCalledTimes(1);
+        expect(scrollSpy).toHaveBeenCalledWith({
+          behavior: 'auto',
+          block: 'center',
+        });
+      } finally {
+        Element.prototype.scrollIntoView = originalScrollIntoView;
+        Object.defineProperty(window, 'matchMedia', {
+          writable: true,
+          configurable: true,
+          value: originalMatchMedia,
+        });
+      }
     });
   });
 });

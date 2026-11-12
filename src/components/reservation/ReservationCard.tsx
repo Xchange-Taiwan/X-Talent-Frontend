@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { useReservationMeetLink } from '@/hooks/user/reservation/useReservationMeetLink';
 import { resolveReservationViewer } from '@/lib/reservation/reservationViewerModel';
+import { cn } from '@/lib/utils';
 import type { Reservation } from '@/types/reservation';
 
 export type ReservationCardVariant = 'upcoming' | 'pending' | 'history';
@@ -24,6 +25,8 @@ export function ReservationCard({
   variant,
   myUserId,
   sourceRole,
+  isHighlighted = false,
+  cardRef,
 }: {
   item: Reservation;
   // Optional slot rendered in the top-right header next to the name (e.g. History 填寫回饋 button, 查看回饋 toggle, or status badge).
@@ -46,6 +49,8 @@ export function ReservationCard({
   // conversation" analytics - ReservationList always passes this explicitly
   // for both its mentor and mentee surfaces.
   sourceRole: 'mentor' | 'mentee';
+  isHighlighted?: boolean;
+  cardRef?: React.Ref<HTMLDivElement>;
 }) {
   const isUpcoming = variant === 'upcoming';
   const isHistory = variant === 'history';
@@ -87,8 +92,15 @@ export function ReservationCard({
 
     return (
       <Card
-        className="border-background-border/60 transition-shadow hover:shadow-sm"
+        ref={cardRef}
+        className={cn(
+          'border-background-border/60 transition-shadow hover:shadow-sm',
+          isHighlighted &&
+            'border-brand-500 bg-brand-50/40 ring-brand-500/30 scroll-mt-24 shadow-md ring-2 transition-all'
+        )}
         data-testid="reservation-card"
+        data-reservation-id={String(item.id)}
+        data-highlighted={isHighlighted ? 'true' : 'false'}
       >
         <CardContent className="p-4 sm:p-5">
           <ReservationIdentityHeader
@@ -143,8 +155,15 @@ export function ReservationCard({
 
   return (
     <Card
-      className="border-background-border/40 transition-shadow hover:shadow-sm"
+      ref={cardRef}
+      className={cn(
+        'border-background-border/40 transition-shadow hover:shadow-sm',
+        isHighlighted &&
+          'border-brand-500 bg-brand-50/40 ring-brand-500/30 scroll-mt-24 shadow-md ring-2 transition-all'
+      )}
       data-testid="reservation-card"
+      data-reservation-id={String(item.id)}
+      data-highlighted={isHighlighted ? 'true' : 'false'}
     >
       <CardContent className="p-3 sm:p-4">
         <ReservationIdentityHeader

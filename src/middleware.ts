@@ -178,6 +178,12 @@ export async function middleware(req: NextRequest) {
   // -------- 4. Redirect unauthenticated users away from protected routes --------
   if (!isPublicRoute && !isLoggedIn) {
     const redirectUrl = new URL(DEFAULT_LOGIN, nextUrl);
+    if (!pathname.startsWith('/api/')) {
+      const callbackPath = `${pathname}${nextUrl.search}`;
+      if (callbackPath && callbackPath !== '/') {
+        redirectUrl.searchParams.set('callbackUrl', callbackPath);
+      }
+    }
     const response = NextResponse.redirect(redirectUrl);
 
     // Stale cookie would make middleware re-evaluate the same error on every

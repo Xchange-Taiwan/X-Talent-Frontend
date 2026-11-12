@@ -342,7 +342,14 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
     expect(reservationCardStories.HistoryMenteeRatedPublic).toBeDefined();
     expect(reservationCardStories.HistoryMenteeRatedUnpublicized).toBeDefined();
     expect(reservationCardStories.HistoryMenteeNotHappened).toBeDefined();
+    expect(
+      reservationCardStories.HistoryMentorHighlighted.args?.isHighlighted
+    ).toBe(true);
     expect(reservationListStories.MenteeHistoryFeedbackStates).toBeDefined();
+    expect(
+      reservationListStories.MentorHistoryHighlighted.args
+        ?.highlightedReservationId
+    ).toBe('401');
     expect(tooltipStories.DefaultHover).toBeDefined();
     expect(tooltipStories.ClickToPin).toBeDefined();
     expect(feedbackRadioOptionStories.Unselected).toBeDefined();

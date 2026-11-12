@@ -150,6 +150,9 @@ export function ReservationDashboardView({
     });
 
   const tabParam = searchParams.get('tab');
+  const rawReservationId = searchParams.get('reservationId')?.trim() ?? '';
+  const highlightedReservationId =
+    rawReservationId.length > 0 ? rawReservationId : undefined;
   const activeTab = isFeedbackQueueRequested
     ? 'history'
     : (tabParam && TAB_MAPPING[tabParam]) || pendingTabValue;
@@ -231,6 +234,7 @@ export function ReservationDashboardView({
 
     const params = new URLSearchParams(searchParams.toString());
     params.delete('feedback');
+    params.delete('reservationId');
     const paramValue = URL_PARAM_MAPPING[value];
     if (paramValue) {
       params.set('tab', paramValue);
@@ -306,6 +310,7 @@ export function ReservationDashboardView({
                     hasMore={nextTokens.pending !== 0}
                     onLoadMore={onLoadMorePending}
                     isLoadingMore={loadingMoreStates.pending}
+                    highlightedReservationId={highlightedReservationId}
                   />
                 )}
               </TabsContent>
@@ -322,6 +327,7 @@ export function ReservationDashboardView({
                     hasMore={nextTokens.upcoming !== 0}
                     onLoadMore={onLoadMoreUpcoming}
                     isLoadingMore={loadingMoreStates.upcoming}
+                    highlightedReservationId={highlightedReservationId}
                   />
                 )}
               </TabsContent>
@@ -340,6 +346,7 @@ export function ReservationDashboardView({
                     isLoadingMore={loadingMoreStates.history}
                     feedbackQueueItems={feedbackQueueItems}
                     onFeedbackQueueClose={dismissFeedbackQueue}
+                    highlightedReservationId={highlightedReservationId}
                   />
                 )}
               </TabsContent>

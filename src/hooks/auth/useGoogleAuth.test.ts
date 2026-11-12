@@ -31,6 +31,8 @@ const mockGetGoogleAuthorizeSignupUrl = vi.mocked(getGoogleAuthorizeSignupUrl);
 describe('useGoogleAuth', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
+    window.history.replaceState({}, '', '/');
   });
 
   it('should redirect to login authorize URL on success when isSignIn is true', async () => {
@@ -119,5 +121,74 @@ describe('useGoogleAuth', () => {
       })
     );
     expect(result.current.isPending).toBe(false);
+  });
+
+  it('stores valid callbackUrl in sessionStorage when isSignIn is true (#734)', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/auth/signin?callbackUrl=%2Freservation%2Fmentor%3Ftab%3Dhistory%26reservationId%3D401'
+    );
+    mockGetGoogleAuthorizeLoginUrl.mockResolvedValueOnce({
+      authorization_url: 'https://google.com/auth/login',
+      state: 'mock-state',
+    });
+
+    const { result } = renderHook(() => useGoogleAuth());
+
+    await act(async () => {
+      await result.current.handleGoogleAuth(true);
+    });
+
+    const stored = sessionStorage.getItem('pending_signin_callback_url');
+    expect(stored).toBe('/reservation/mentor?tab=history&reservationId=401');
+  });
+
+  it('clears stale pending_signin_callback_url when callbackUrl is unsafe on sign-in (#734)', async () => {
+    sessionStorage.setItem(
+      'pending_signin_callback_url',
+      '/reservation/mentor?tab=history'
+    );
+    window.history.replaceState(
+      {},
+      '',
+      '/auth/signin?callbackUrl=%2F.%2F%2Fevil.com'
+    );
+    mockGetGoogleAuthorizeLoginUrl.mockResolvedValueOnce({
+      authorization_url: 'https://google.com/auth/login',
+      state: 'mock-state',
+    });
+
+    const { result } = renderHook(() => useGoogleAuth());
+
+    await act(async () => {
+      await result.current.handleGoogleAuth(true);
+    });
+
+    expect(sessionStorage.getItem('pending_signin_callback_url')).toBeNull();
+  });
+
+  it('clears stale pending_signin_callback_url when isSignIn is false (#734)', async () => {
+    sessionStorage.setItem(
+      'pending_signin_callback_url',
+      '/reservation/mentor?tab=history&reservationId=401'
+    );
+    window.history.replaceState(
+      {},
+      '',
+      '/auth/signup?callbackUrl=%2Freservation%2Fmentor%3Ftab%3Dhistory'
+    );
+    mockGetGoogleAuthorizeSignupUrl.mockResolvedValueOnce({
+      authorization_url: 'https://google.com/auth/signup',
+      state: 'mock-state',
+    });
+
+    const { result } = renderHook(() => useGoogleAuth());
+
+    await act(async () => {
+      await result.current.handleGoogleAuth(false);
+    });
+
+    expect(sessionStorage.getItem('pending_signin_callback_url')).toBeNull();
   });
 });

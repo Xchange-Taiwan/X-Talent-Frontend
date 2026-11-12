@@ -82,13 +82,19 @@ function ReservationItem({
   variant,
   sourceRole,
   myUserId,
+  isHighlighted = false,
 }: {
   reservation: Reservation;
   variant: Variant;
   sourceRole: SourceRole;
   myUserId: string | undefined;
+  isHighlighted?: boolean;
 }) {
-  const [isFeedbackExpanded, setIsFeedbackExpanded] = React.useState(false);
+  const [isFeedbackExpanded, setIsFeedbackExpanded] = React.useState(
+    Boolean(isHighlighted)
+  );
+  const cardRef = React.useRef<HTMLDivElement | null>(null);
+  const handledHighlightKeyRef = React.useRef<string | null>(null);
   const feedbackPanelId = React.useId();
 
   const { accept, rejectOrCancel, submitFeedback, updateFeedback, isMutating } =
@@ -111,6 +117,43 @@ function ReservationItem({
           cancelledByLabel: viewer.cancelledByLabel,
         })
       : null;
+
+  React.useEffect(() => {
+    if (!isHighlighted) {
+      handledHighlightKeyRef.current = null;
+      return;
+    }
+    setIsFeedbackExpanded(true);
+  }, [isHighlighted, reservation.id]);
+
+  React.useEffect(() => {
+    if (!isHighlighted) {
+      return;
+    }
+
+    const highlightKey = `${variant}:${String(reservation.id)}`;
+    if (handledHighlightKeyRef.current === highlightKey) {
+      return;
+    }
+
+    if (!isFeedbackExpanded) {
+      return;
+    }
+
+    handledHighlightKeyRef.current = highlightKey;
+
+    const el = cardRef.current;
+    if (el && typeof el.scrollIntoView === 'function') {
+      const prefersReducedMotion =
+        typeof window !== 'undefined' &&
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      el.scrollIntoView({
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        block: 'center',
+      });
+    }
+  }, [isFeedbackExpanded, isHighlighted, reservation.id, variant]);
 
   const handleProfileLinkInvalidation = useProfileLinkClick({
     disabled: isMutating,
@@ -167,6 +210,8 @@ function ReservationItem({
 
   return (
     <ReservationCard
+      cardRef={cardRef}
+      isHighlighted={isHighlighted}
       item={reservation}
       myUserId={myUserId}
       variant={cardVariantOf(variant)}
@@ -283,6 +328,7 @@ export function ReservationList({
   isLoadingMore = false,
   feedbackQueueItems = null,
   onFeedbackQueueClose,
+  highlightedReservationId = null,
 }: {
   items: Reservation[];
   variant: Variant;
@@ -293,8 +339,10 @@ export function ReservationList({
   isLoadingMore?: boolean;
   feedbackQueueItems?: Reservation[] | null;
   onFeedbackQueueClose?: () => void;
+  highlightedReservationId?: string | null;
 }) {
   const emptyState = resolveEmptyStateContent(sourceRole, variant, myUserId);
+  const normalizedHighlightedId = highlightedReservationId?.trim() || null;
 
   return (
     <div className="space-y-3 sm:space-y-4">
@@ -316,6 +364,10 @@ export function ReservationList({
           variant={variant}
           sourceRole={sourceRole}
           myUserId={myUserId}
+          isHighlighted={
+            normalizedHighlightedId !== null &&
+            String(it.id) === normalizedHighlightedId
+          }
         />
       ))}
 

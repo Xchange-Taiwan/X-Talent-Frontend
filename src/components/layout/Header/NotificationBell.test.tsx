@@ -637,6 +637,45 @@ describe('NotificationBell', () => {
       );
     });
 
+    it('renders Mentor feedback-received notification with full mentee name and reservationId history href (#734)', async () => {
+      const onMarkReadMock = vi.fn().mockResolvedValue(undefined);
+
+      renderBell({
+        initialStatus: 'success',
+        onMarkRead: onMarkReadMock,
+        initialNotifications: [
+          {
+            id: 'feedback-734',
+            type: 'feedback_received',
+            role: 'mentor',
+            menteeName: '王小明',
+            reservationId: '401',
+            createdAt: new Date().toISOString(),
+            unread: true,
+          },
+        ],
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: '開啟通知選單' }));
+
+      const titleEl = screen.getByText('您收到新的回饋');
+      expect(titleEl).toBeInTheDocument();
+      expect(
+        screen.getByText('王小明 為您留下了一則會談回饋，前往查看。')
+      ).toBeInTheDocument();
+
+      const linkEl = titleEl.closest('a');
+      expect(linkEl).toHaveAttribute(
+        'href',
+        '/reservation/mentor?tab=history&reservationId=401'
+      );
+
+      fireEvent.click(linkEl!);
+      await waitFor(() => {
+        expect(onMarkReadMock).toHaveBeenCalledWith('feedback-734');
+      });
+    });
+
     it('marks clicked notification as read, triggers onMarkRead, and closes popover on click', async () => {
       const onMarkReadMock = vi.fn().mockResolvedValue(undefined);
 

@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { getSession, signIn as clientSignIn } from 'next-auth/react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -12,6 +12,10 @@ import {
   setAnalyticsUserContext,
   trackEvent,
 } from '@/lib/analytics';
+import {
+  clearPendingSignInCallbackUrl,
+  sanitizeCallbackUrl,
+} from '@/lib/auth/callbackUrl';
 import { SignInSchema } from '@/schemas/auth';
 
 type SignInValues = z.infer<typeof SignInSchema>;
@@ -32,6 +36,7 @@ class SignInError extends Error {
 export default function useSignInForm(): AuthFormProps<SignInValues> {
   const { run, isPending: isSubmitting } = useAsyncAction();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const form = useForm<SignInValues>({
     resolver: zodResolver(SignInSchema),
@@ -94,10 +99,17 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
           },
         });
 
+        clearPendingSignInCallbackUrl();
+
         if (session.user.onBoarding === false) {
           router.push('/auth/onboarding');
         } else {
-          router.push('/mentor-pool');
+          router.push(
+            sanitizeCallbackUrl(
+              searchParams?.get('callbackUrl'),
+              '/mentor-pool'
+            )
+          );
         }
       },
       {
