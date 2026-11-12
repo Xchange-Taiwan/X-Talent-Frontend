@@ -78,11 +78,12 @@ describe('analytics', () => {
       expect(Object.prototype.toString.call(window.dataLayer?.[0])).toBe(
         '[object Arguments]'
       );
-      expect(Array.from(window.dataLayer?.[0] as unknown as IArguments)).toEqual([
-        'js',
-        expect.any(Date),
-      ]);
-      expect(Array.from(window.dataLayer?.[1] as unknown as IArguments)).toEqual([
+      expect(
+        Array.from(window.dataLayer?.[0] as unknown as IArguments)
+      ).toEqual(['js', expect.any(Date)]);
+      expect(
+        Array.from(window.dataLayer?.[1] as unknown as IArguments)
+      ).toEqual([
         'config',
         'G-TEST123456',
         {
@@ -98,7 +99,9 @@ describe('analytics', () => {
 
       // Chaining trackPageView pushes a queued ['event', 'page_view', payload] command
       trackPageView('/mentor-pool?token=secret123&filter_skills=frontend');
-      expect(Array.from(window.dataLayer?.[2] as unknown as IArguments)).toEqual([
+      expect(
+        Array.from(window.dataLayer?.[2] as unknown as IArguments)
+      ).toEqual([
         'event',
         'page_view',
         {
