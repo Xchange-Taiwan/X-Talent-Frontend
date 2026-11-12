@@ -21,10 +21,6 @@ export const FourColumnsWithRatings: Story = {
     completedMeetingCount: 128,
     yearsOfExperience: '5~10 年',
     location: '台灣',
-    industries: [
-      { subject_group: 'software', subject: '軟體及網路相關業' },
-      { subject_group: 'design', subject: '設計及創意相關業' },
-    ],
   },
 };
 
@@ -35,10 +31,6 @@ export const ThreeColumnsZeroRatings: Story = {
     completedMeetingCount: 128,
     yearsOfExperience: '5~10 年',
     location: '台灣',
-    industries: [
-      { subject_group: 'software', subject: '軟體及網路相關業' },
-      { subject_group: 'design', subject: '設計及創意相關業' },
-    ],
   },
 };
 
@@ -49,7 +41,6 @@ export const ThreeColumnsZeroSessions: Story = {
     completedMeetingCount: 0,
     yearsOfExperience: '5~10 年',
     location: '台灣',
-    industries: [{ subject_group: 'software', subject: '軟體及網路相關業' }],
   },
 };
 
@@ -60,6 +51,5 @@ export const NewMentorZeroSessionsAndZeroRatings: Story = {
     completedMeetingCount: 0,
     yearsOfExperience: '3~5 年',
     location: '台灣',
-    industries: [{ subject_group: 'software', subject: '軟體及網路相關業' }],
   },
 };

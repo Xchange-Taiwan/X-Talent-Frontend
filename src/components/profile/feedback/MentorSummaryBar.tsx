@@ -3,7 +3,6 @@
 import { Briefcase, MapPin, Star, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-import type { TagDisplay } from '@/hooks/user/user-data/useUserData';
 import {
   formatRatingScoreValue,
   splitExperienceDisplay,
@@ -17,7 +16,6 @@ export interface MentorSummaryBarProps {
   completedMeetingCount?: number | null;
   yearsOfExperience?: string;
   location?: string;
-  industries?: TagDisplay[];
   className?: string;
 }
 
@@ -68,7 +66,6 @@ export function MentorSummaryBar({
   completedMeetingCount = 0,
   yearsOfExperience,
   location,
-  industries = [],
   className,
 }: MentorSummaryBarProps) {
   const safeRatingCount = toNonNegativeInt(ratingCount);
@@ -184,22 +181,6 @@ export function MentorSummaryBar({
           </div>
         ))}
       </div>
-
-      {industries.length > 0 && (
-        <div className="border-background-border flex flex-wrap items-center gap-2.5 border-b py-3.5">
-          <span className="text-text-tertiary mr-1 shrink-0 text-xs font-medium">
-            產業
-          </span>
-          {industries.map((item) => (
-            <span
-              key={item.subject_group}
-              className="border-background-border bg-background-bottom text-text-secondary inline-flex items-center rounded-full border px-3.5 py-1 text-xs font-medium"
-            >
-              {item.subject}
-            </span>
-          ))}
-        </div>
-      )}
     </section>
   );
 }
