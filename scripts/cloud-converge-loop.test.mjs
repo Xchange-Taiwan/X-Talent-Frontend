@@ -687,7 +687,6 @@ describe('cloud-converge-loop', () => {
           execStep,
           writeFile: () => {},
           log: () => {},
-          saveSnapshot: () => '',
           fileExists: () => true,
         }
       );
@@ -699,7 +698,6 @@ describe('cloud-converge-loop', () => {
       expect(res.converged).toBe(true);
       expect(res.roundsRun).toBe(3);
     });
-
     it('allows 2 fix retries (stallThreshold = 3) before triggering Stall Guard when identical test/E2E errors repeat with varying timestamps', async () => {
       let roundIdx = 0;
       const execStep = vi.fn((cmd, args) => {
@@ -722,16 +720,15 @@ describe('cloud-converge-loop', () => {
           execStep,
           writeFile: () => {},
           log: () => {},
-          saveSnapshot: () => '',
           fileExists: () => true,
         }
       );
 
       expect(
         normalizeErrorSignatures([
-          '2026-11-12T01:01:00.123Z\nPlain custom output text in 1.5s',
+          '2026-11-12T01:01:00.123Z\nPlain custom failure text in 1.5s',
         ])
-      ).toEqual(['<ts> Plain custom output text in <time>']);
+      ).toEqual(['Plain custom failure text in <time>']);
       expect(res.converged).toBe(false);
       expect(res.stalled).toBe(true);
       expect(res.roundsRun).toBe(3);
