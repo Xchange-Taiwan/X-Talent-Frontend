@@ -718,7 +718,9 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
               !relPath.startsWith('.agents/tmp/')
           )
       : [];
-    const diffFiles = [...new Set([...trackedDiffFiles, ...untrackedDiffFiles])];
+    const diffFiles = [
+      ...new Set([...trackedDiffFiles, ...untrackedDiffFiles]),
+    ];
 
     const testEnv = {
       ...process.env,

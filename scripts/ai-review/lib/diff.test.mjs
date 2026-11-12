@@ -133,7 +133,9 @@ describe('getDiff', () => {
     const virtualFiles = new Map([
       [
         'src/components/AnalyticsUserSync.tsx',
-        Buffer.from('export default function AnalyticsUserSync() { return null; }\n'),
+        Buffer.from(
+          'export default function AnalyticsUserSync() { return null; }\n'
+        ),
       ],
       [
         'e2e/tests/public/ga4-user-identity.spec.ts',

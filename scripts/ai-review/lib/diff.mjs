@@ -207,9 +207,7 @@ export function getWorkingTreeDiff(baseRef = 'origin/develop', deps = {}) {
         if (buf.includes(0)) {
           continue;
         }
-        chunks.push(
-          formatUntrackedUnifiedDiff(relPath, buf.toString('utf-8'))
-        );
+        chunks.push(formatUntrackedUnifiedDiff(relPath, buf.toString('utf-8')));
       } catch {
         // Ignore transient or unreadable files in working tree
       }
