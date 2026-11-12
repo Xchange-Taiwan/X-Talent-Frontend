@@ -1,7 +1,10 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 
-import { loadReviewVisualAssets, MAX_EVIDENCE_IMAGES as LOCAL_MAX_EVIDENCE } from './lib/visuals.mjs';
+import {
+  loadReviewVisualAssets,
+  MAX_EVIDENCE_IMAGES as LOCAL_MAX_EVIDENCE,
+} from './lib/visuals.mjs';
 import {
   formatArchitectureKnowledgeBase,
   isUiReviewFile,
