@@ -18,6 +18,7 @@ import type { BookingFormValues } from '@/schemas/bookingSchema';
 import { BOOKED_SLOT_CLASSES, ScheduleSlotList } from './ScheduleSlotList';
 
 interface MenteeBookingFormProps {
+  mentorId?: number | string;
   slots: BookingSlot[];
   monthLoaded: boolean;
   selectedSlot: BookingSlot | null;
@@ -29,6 +30,7 @@ interface MenteeBookingFormProps {
 }
 
 export function MenteeBookingForm({
+  mentorId,
   slots,
   monthLoaded,
   selectedSlot,
@@ -38,6 +40,11 @@ export function MenteeBookingForm({
   onConfirmReservation,
   isAuthenticated,
 }: MenteeBookingFormProps) {
+  const normalizedMentorId =
+    mentorId !== undefined && String(mentorId).trim() !== ''
+      ? String(mentorId).trim()
+      : undefined;
+
   const {
     register,
     handleSubmit,
@@ -70,6 +77,9 @@ export function MenteeBookingForm({
             data-analytics-click="profile_booking_slot_select"
             data-analytics-feature="reservation"
             data-analytics-location="profile_booking_card"
+            {...(normalizedMentorId
+              ? { 'data-analytics-param-mentor-id': normalizedMentorId }
+              : {})}
             className={`h-10 w-full text-sm ${
               taken ? BOOKED_SLOT_CLASSES : ''
             }`}
@@ -101,6 +111,9 @@ export function MenteeBookingForm({
                   trackEvent({
                     name: 'reservation_signin_prompt_click',
                     feature: 'reservation',
+                    ...(normalizedMentorId
+                      ? { metadata: { mentor_id: normalizedMentorId } }
+                      : {}),
                   })
                 }
               >
@@ -154,6 +167,9 @@ export function MenteeBookingForm({
         data-analytics-click="profile_booking_submit_click"
         data-analytics-feature="reservation"
         data-analytics-location="profile_booking_card"
+        {...(normalizedMentorId
+          ? { 'data-analytics-param-mentor-id': normalizedMentorId }
+          : {})}
         className="disabled:bg-background-border disabled:text-text-disable w-full rounded-full px-6 py-3 disabled:opacity-100"
         disabled={isButtonDisabled}
       >

@@ -37,8 +37,18 @@ function HeaderComponent(): JSX.Element {
   // `userId` only ever comes from the real session, never the hint — while
   // the state is hint-only these hrefs are unused (the link is disabled).
   const leftSecondNav = identity.isMentor
-    ? { label: '我的導師頁面', href: getProfileHref(identity.userId) }
-    : { label: '成為導師', href: getBecomeMentorHref(identity.userId) };
+    ? {
+        label: '我的導師頁面',
+        href: getProfileHref(identity.userId),
+        analyticsId: 'header_nav_my_mentor_page',
+        analyticsFeature: 'navigation' as const,
+      }
+    : {
+        label: '成為導師',
+        href: getBecomeMentorHref(identity.userId),
+        analyticsId: 'header_nav_become_mentor',
+        analyticsFeature: 'onboarding' as const,
+      };
 
   const dynamicHoverClass = isHintOnly ? '' : NAV_LINK_HOVER_CLASSES;
 
@@ -51,6 +61,7 @@ function HeaderComponent(): JSX.Element {
             aria-label="Go to homepage"
             data-analytics-click="header_logo"
             data-analytics-location="header"
+            data-analytics-feature="navigation"
             className={cn('rounded-sm', FOCUS_RING_CLASSES)}
           >
             <Image src={LogoImgUrl} alt="logo" />
@@ -61,6 +72,7 @@ function HeaderComponent(): JSX.Element {
               href={FIND_MENTOR_HREF}
               data-analytics-click="header_nav_mentor_pool"
               data-analytics-location="header"
+              data-analytics-feature="navigation"
               className={cn(NAV_LINK_CLASSES, NAV_LINK_HOVER_CLASSES)}
             >
               尋找導師
@@ -72,6 +84,9 @@ function HeaderComponent(): JSX.Element {
                 <DisabledAwareLink
                   href={getProfileHref(identity.userId)}
                   disabled={isHintOnly}
+                  data-analytics-click="header_nav_my_mentor_page"
+                  data-analytics-location="header"
+                  data-analytics-feature="navigation"
                   className={cn(
                     NAV_LINK_CLASSES,
                     dynamicHoverClass,
@@ -83,6 +98,9 @@ function HeaderComponent(): JSX.Element {
                 <DisabledAwareLink
                   href={getBecomeMentorHref(identity.userId)}
                   disabled={isHintOnly}
+                  data-analytics-click="header_nav_become_mentor"
+                  data-analytics-location="header"
+                  data-analytics-feature="onboarding"
                   className={cn(
                     NAV_LINK_CLASSES,
                     dynamicHoverClass,
@@ -96,6 +114,9 @@ function HeaderComponent(): JSX.Element {
               <DisabledAwareLink
                 href={leftSecondNav.href}
                 disabled={isHintOnly}
+                data-analytics-click={leftSecondNav.analyticsId}
+                data-analytics-location="header"
+                data-analytics-feature={leftSecondNav.analyticsFeature}
                 className={cn(NAV_LINK_CLASSES, dynamicHoverClass)}
               >
                 {leftSecondNav.label}
@@ -106,6 +127,7 @@ function HeaderComponent(): JSX.Element {
               href="/about"
               data-analytics-click="header_nav_about"
               data-analytics-location="header"
+              data-analytics-feature="navigation"
               className={cn(NAV_LINK_CLASSES, NAV_LINK_HOVER_CLASSES)}
             >
               關於 X-Talent

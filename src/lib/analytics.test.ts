@@ -3,10 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ANALYTICS_FEATURES,
   getAnalyticsClickPayloadFromElement,
+  initGa4,
   isAllowedAnalyticsUrl,
+  isValidGaMeasurementId,
   resolveSafePageTitle,
   sanitizeAnalyticsMetadata,
   sanitizeUrlForAnalytics,
+  SCROLL_DEPTH_THRESHOLDS,
   setAnalyticsTag,
   trackButtonClick,
   trackEvent,
@@ -19,13 +22,18 @@ describe('analytics', () => {
   let mockClarity: ReturnType<typeof vi.fn<(...args: unknown[]) => void>>;
 
   beforeEach(() => {
+    vi.unstubAllGlobals();
     mockGtag = vi.fn<(...args: unknown[]) => void>();
     mockClarity = vi.fn<(...args: unknown[]) => void>();
-    window.gtag = mockGtag;
-    window.clarity = mockClarity;
-    window.dataLayer = [];
-    window.history.replaceState({}, '', '/');
-    document.title = 'X-Talent | 站在前輩的肩膀上';
+    if (typeof window !== 'undefined') {
+      window.gtag = mockGtag;
+      window.clarity = mockClarity;
+      window.dataLayer = [];
+      window.history.replaceState({}, '', '/');
+    }
+    if (typeof document !== 'undefined') {
+      document.title = 'X-Talent | 站在前輩的肩膀上';
+    }
   });
 
   afterEach(() => {
@@ -39,6 +47,61 @@ describe('analytics', () => {
       delete window.dataLayer;
       window.history.replaceState({}, '', '/');
     }
+  });
+
+  describe('initGa4 & configuration', () => {
+    it('aligns SCROLL_DEPTH_THRESHOLDS to [25, 50, 75, 100]', () => {
+      expect(SCROLL_DEPTH_THRESHOLDS).toEqual([25, 50, 75, 100]);
+    });
+
+    it('initializes window.dataLayer and window.gtag queue without inline scripts when GA ID is valid', () => {
+      delete window.gtag;
+      delete window.dataLayer;
+      window.history.replaceState(
+        {},
+        '',
+        '/mentor-pool?token=secret123&filter_skills=frontend'
+      );
+      document.title = '尋找導師 | XChange Talent Pool';
+
+      expect(isValidGaMeasurementId('G-TEST123456')).toBe(true);
+      expect(isValidGaMeasurementId('invalid"><script>alert(1)</script>')).toBe(
+        false
+      );
+
+      expect(initGa4('invalid-id')).toBe(false);
+      expect(window.gtag).toBeUndefined();
+
+      expect(initGa4('G-TEST123456')).toBe(true);
+      expect(typeof window.gtag).toBe('function');
+      expect(window.dataLayer).toHaveLength(2);
+      expect(window.dataLayer?.[0]).toEqual(['js', expect.any(Date)]);
+      expect(window.dataLayer?.[1]).toEqual([
+        'config',
+        'G-TEST123456',
+        {
+          send_page_view: false,
+          page_location: `${window.location.origin}/mentor-pool?filter_skills=frontend`,
+          page_title: '尋找導師 | XChange Talent Pool',
+        },
+      ]);
+
+      // Subsequent initGa4 with the same measurement ID is idempotent
+      expect(initGa4('G-TEST123456')).toBe(true);
+      expect(window.dataLayer).toHaveLength(2);
+
+      // Chaining trackPageView pushes a queued ['event', 'page_view', payload] command
+      trackPageView('/mentor-pool?token=secret123&filter_skills=frontend');
+      expect(window.dataLayer?.[2]).toEqual([
+        'event',
+        'page_view',
+        {
+          page_path: '/mentor-pool?filter_skills=frontend',
+          page_location: `${window.location.origin}/mentor-pool?filter_skills=frontend`,
+          page_title: '尋找導師 | XChange Talent Pool',
+        },
+      ]);
+    });
   });
 
   describe('trackPageView', () => {
@@ -110,12 +173,14 @@ describe('analytics', () => {
 
   describe('trackScrollDepth', () => {
     it('dispatches single unified scroll_depth event with percent_scrolled and skips Clarity', () => {
-      trackScrollDepth(50, '/mentor-pool');
+      trackScrollDepth(100, '/mentor-pool');
 
       expect(mockGtag).toHaveBeenCalledWith('event', 'scroll_depth', {
         feature: 'engagement',
-        percent_scrolled: 50,
+        percent_scrolled: 100,
         page_path: '/mentor-pool',
+        page_location: `${window.location.origin}/`,
+        page_title: 'X-Talent | 站在前輩的肩膀上',
       });
       expect(mockClarity).not.toHaveBeenCalled();
     });
@@ -145,11 +210,19 @@ describe('analytics', () => {
         button_location: 'header',
         link_url: '/auth/signin?callbackUrl=%2Fmentor-pool',
         page_path: '/',
+        page_location: `${window.location.origin}/`,
+        page_title: 'X-Talent | 站在前輩的肩膀上',
       });
       expect(mockClarity).toHaveBeenCalledWith('event', 'button_click');
+      expect(mockClarity).toHaveBeenCalledWith('set', 'feature', 'auth');
+      expect(mockClarity).toHaveBeenCalledWith(
+        'set',
+        'button_id',
+        'header_signin'
+      );
     });
 
-    it('extracts click payload from nested child inside [data-analytics-click] link and ignores disabled elements', () => {
+    it('extracts click payload from nested child inside [data-analytics-click] link and ignores both inner and outer disabled ancestors', () => {
       const container = document.createElement('div');
       container.innerHTML = `
         <a href="/about?email=leak@example.com&ref=nav" data-analytics-click="header_nav_about" data-analytics-location="header" data-analytics-feature="navigation">
@@ -159,6 +232,12 @@ describe('analytics', () => {
         <a id="aria-disabled-link" href="/mentor-pool" aria-disabled="true" data-analytics-click="disabled_link">Disabled Link</a>
         <div data-analytics-click="outer_wrapper">
           <button id="nested-disabled-btn" disabled><span id="nested-disabled-span">Inner</span></button>
+        </div>
+        <fieldset disabled>
+          <button id="fieldset-disabled-btn" data-analytics-click="fieldset_action">Fieldset Disabled</button>
+        </fieldset>
+        <div aria-disabled="true">
+          <span id="parent-aria-disabled-item" data-analytics-click="menu_item">Disabled Menu Item</span>
         </div>
       `;
 
@@ -170,18 +249,17 @@ describe('analytics', () => {
         feature: 'navigation',
       });
 
-      const disabledBtn = container.querySelector('#disabled-btn');
-      expect(getAnalyticsClickPayloadFromElement(disabledBtn)).toBeNull();
-
-      const ariaDisabledLink = container.querySelector('#aria-disabled-link');
-      expect(getAnalyticsClickPayloadFromElement(ariaDisabledLink)).toBeNull();
-
-      const nestedDisabledSpan = container.querySelector(
-        '#nested-disabled-span'
-      );
-      expect(
-        getAnalyticsClickPayloadFromElement(nestedDisabledSpan)
-      ).toBeNull();
+      for (const selector of [
+        '#disabled-btn',
+        '#aria-disabled-link',
+        '#nested-disabled-span',
+        '#fieldset-disabled-btn',
+        '#parent-aria-disabled-item',
+      ]) {
+        expect(
+          getAnalyticsClickPayloadFromElement(container.querySelector(selector))
+        ).toBeNull();
+      }
     });
 
     it('supports custom snake_case eventName, safe data-analytics-param-* attributes, and destination omission', () => {
@@ -232,6 +310,8 @@ describe('analytics', () => {
         button_location: 'mentor_pool_list',
         link_url: '/profile/7482008160728084',
         page_path: '/',
+        page_location: `${window.location.origin}/`,
+        page_title: 'X-Talent | 站在前輩的肩膀上',
       });
 
       const socialPayload = getAnalyticsClickPayloadFromElement(
@@ -256,6 +336,7 @@ describe('analytics', () => {
         <a id="tel-link" href="tel:+886912345678" data-analytics-click="contact_phone">Phone</a>
         <a id="js-link" href="JavaScript:void(0)" data-analytics-click="noop_js">JS</a>
         <a id="data-link" href="data:text/html,<script>alert(1)</script>" data-analytics-click="noop_data">Data</a>
+        <a id="vbs-link" href="vbscript:msgbox(1)" data-analytics-click="noop_vbs">VBS</a>
       `;
 
       for (const selector of [
@@ -263,6 +344,7 @@ describe('analytics', () => {
         '#tel-link',
         '#js-link',
         '#data-link',
+        '#vbs-link',
       ]) {
         const payload = getAnalyticsClickPayloadFromElement(
           container.querySelector(selector)
@@ -276,7 +358,11 @@ describe('analytics', () => {
       expect(isAllowedAnalyticsUrl('data:text/plain,hello')).toBe(false);
       expect(isAllowedAnalyticsUrl('vbscript:msgbox(1)')).toBe(false);
       expect(isAllowedAnalyticsUrl('//evil.example.com/path')).toBe(false);
+      expect(
+        isAllowedAnalyticsUrl(`/${String.fromCharCode(92)}evil.example.com`)
+      ).toBe(false);
       expect(isAllowedAnalyticsUrl('/mentor-pool')).toBe(true);
+      expect(isAllowedAnalyticsUrl('http://localhost:3000/about')).toBe(true);
       expect(
         isAllowedAnalyticsUrl('https://xtalent.xchange.com.tw/about')
       ).toBe(true);
@@ -284,7 +370,7 @@ describe('analytics', () => {
   });
 
   describe('trackEvent & setAnalyticsTag', () => {
-    it('sends standard events to GA4 and sets scrubbed session tags in Clarity', () => {
+    it('sends standard events to GA4 with sanitized page context and sets scrubbed session tags in Clarity', () => {
       expect(ANALYTICS_FEATURES).toContain('mentor_pool');
 
       trackEvent({
@@ -296,6 +382,8 @@ describe('analytics', () => {
       expect(mockGtag).toHaveBeenCalledWith('event', 'sign_in_succeeded', {
         feature: 'auth',
         method: 'google',
+        page_location: `${window.location.origin}/`,
+        page_title: 'X-Talent | 站在前輩的肩膀上',
       });
       expect(mockClarity).toHaveBeenCalledWith('event', 'sign_in_succeeded');
       expect(mockClarity).toHaveBeenCalledWith('set', 'feature', 'auth');
@@ -305,6 +393,29 @@ describe('analytics', () => {
         'email',
         expect.anything()
       );
+    });
+
+    it('overrides page_location and page_title on non-page_view events so gtag never reads raw URL secrets or profile names', () => {
+      window.history.replaceState(
+        {},
+        '',
+        '/profile/7482008160728084?token=secret123&q=%E7%8E%8B%E5%B0%8F%E6%98%8E'
+      );
+      document.title = '王小明 - 導師專業背景 | XChange Talent Pool';
+
+      trackEvent({
+        name: 'profile_tab_click',
+        feature: 'profile',
+        metadata: { tab_name: 'feedback', mentor_id: '7482008160728084' },
+      });
+
+      expect(mockGtag).toHaveBeenCalledWith('event', 'profile_tab_click', {
+        feature: 'profile',
+        tab_name: 'feedback',
+        mentor_id: '7482008160728084',
+        page_location: `${window.location.origin}/profile/7482008160728084`,
+        page_title: 'User Profile',
+      });
     });
 
     it('bypasses Microsoft Clarity when skipClarity is true', () => {
@@ -324,6 +435,8 @@ describe('analytics', () => {
           feature: 'performance',
           raw_value: 2500,
           rating: 'good',
+          page_location: `${window.location.origin}/`,
+          page_title: 'X-Talent | 站在前輩的肩膀上',
         }
       );
       expect(mockClarity).not.toHaveBeenCalled();
@@ -340,14 +453,18 @@ describe('analytics', () => {
 
     it('no-ops safely during SSR when window is undefined', () => {
       vi.stubGlobal('window', undefined);
-
-      expect(() => {
-        trackPageView('/');
-        trackScrollDepth(50, '/');
-        trackButtonClick({ buttonId: 'cta_hero' });
-        trackEvent({ name: 'sign_up_started', feature: 'auth' });
-        setAnalyticsTag('role', 'mentee');
-      }).not.toThrow();
+      try {
+        expect(() => {
+          expect(initGa4('G-TEST123456')).toBe(false);
+          trackPageView('/');
+          trackScrollDepth(50, '/');
+          trackButtonClick({ buttonId: 'cta_hero' });
+          trackEvent({ name: 'sign_up_started', feature: 'auth' });
+          setAnalyticsTag('role', 'mentee');
+        }).not.toThrow();
+      } finally {
+        vi.unstubAllGlobals();
+      }
     });
   });
 
@@ -371,6 +488,8 @@ describe('analytics', () => {
         leaked_email_in_note: 'reach me at leak@example.com',
         leaked_mailto: 'mailto:leak@example.com',
         leaked_tel: 'tel:+886912345678',
+        leaked_data_uri: 'data:text/html,<script>alert(1)</script>',
+        leaked_vbscript: 'vbscript:msgbox(1)',
         leaked_jwt:
           'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c',
         leaked_bearer: 'Bearer sk_live_1234567890abcdef',
@@ -407,6 +526,25 @@ describe('analytics', () => {
         '/auth/signin?callbackUrl=%2Fauth%2Femail-verify%3Fsource%3Dbanner'
       );
 
+      // Double-encoded nested callbackUrl is also decoded and scrubbed
+      expect(
+        sanitizeUrlForAnalytics(
+          '/auth/signin?callbackUrl=%252Fauth%252Femail-verify%253Ftoken%253Dsecret123%2526source%253Dbanner'
+        )
+      ).toBe(
+        '/auth/signin?callbackUrl=%2Fauth%2Femail-verify%3Fsource%3Dbanner'
+      );
+
+      // Overly deep nested callbackUrl (> 3 levels) fails closed and drops the deepest callbackUrl
+      const level4 = encodeURIComponent('/final?token=deepSecret&ok=1');
+      const level3 = encodeURIComponent(`/step3?callbackUrl=${level4}`);
+      const level2 = encodeURIComponent(`/step2?callbackUrl=${level3}`);
+      const level1 = encodeURIComponent(`/step1?callbackUrl=${level2}`);
+      const deepSanitized = sanitizeUrlForAnalytics(
+        `/auth/signin?callbackUrl=${level1}`
+      );
+      expect(deepSanitized).not.toContain('deepSecret');
+
       // Free-text search query ?q= stripped while structured catalog filter codes stay intact
       expect(
         sanitizeUrlForAnalytics(
@@ -425,6 +563,11 @@ describe('analytics', () => {
       // Non-HTTP URI schemes return safe fallback '/'
       expect(sanitizeUrlForAnalytics('mailto:user@example.com')).toBe('/');
       expect(sanitizeUrlForAnalytics('tel:+886912345678')).toBe('/');
+      expect(sanitizeUrlForAnalytics('javascript:alert(1)')).toBe('/');
+      expect(
+        sanitizeUrlForAnalytics('data:text/html,<script>alert(1)</script>')
+      ).toBe('/');
+      expect(sanitizeUrlForAnalytics('vbscript:msgbox(1)')).toBe('/');
     });
   });
 });

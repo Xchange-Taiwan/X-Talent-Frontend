@@ -1,8 +1,14 @@
 'use client';
 
-// Tracks initial page load + SPA route-change page_view events, per-page
-// scroll_depth milestones (25/50/75/90), and declarative [data-analytics-click]
-// interactions across the entire application.
+// Coordinates GA4 / Clarity behavioral tracking across the application via
+// three focused internal hooks:
+//   1. `usePageViewTracking` — initial load + SPA route-change `page_view`
+//      with async `/profile/[id]` title observation so user names never leak
+//   2. `useScrollDepthTracking` — rAF-throttled `scroll_depth` milestones
+//      (25/50/75/100) that emit every crossed threshold in ascending order
+//      and detach once 100% is reached
+//   3. `useAnalyticsClickDelegation` — capture-phase `[data-analytics-click]`
+//      delegation across the document
 
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef } from 'react';
@@ -32,16 +38,60 @@ function computeScrollPercent(): number | null {
   return Math.min(100, Math.round((scrollTop / scrollableHeight) * 100));
 }
 
-export default function PageViewTracker() {
-  const pathname = usePathname();
+function usePageViewTracking(pathname: string | null): void {
   const lastTrackedPathRef = useRef<string | null>(null);
   const lastProfileDocTitleRef = useRef<string | null>(null);
-  const reachedThresholdsRef = useRef<Set<number>>(new Set());
 
-  // 1. Initial load & SPA route-change page_view tracking (deduplicated against
-  // React Strict Mode double-effect invocations on the same pathname).
-  // Guards against stale dynamic /profile/[id] document.title leaking user names
-  // when SPA-transitioning away before Next.js commits the next route's <title>.
+  // Track async `<title>` streaming updates while the viewer is on `/profile/[id]`
+  // so subsequent SPA navigations away from a profile page can reliably detect
+  // and redact stale real-name titles before Next.js commits the next `<title>`.
+  useEffect(() => {
+    if (
+      !pathname ||
+      !isUserProfilePath(pathname) ||
+      typeof document === 'undefined'
+    ) {
+      return;
+    }
+
+    const entryTitle = document.title;
+
+    const syncProfileTitle = () => {
+      if (
+        typeof window !== 'undefined' &&
+        !isUserProfilePath(window.location.pathname)
+      ) {
+        return;
+      }
+      const nextTitle = document.title;
+      if (nextTitle && nextTitle !== entryTitle) {
+        lastProfileDocTitleRef.current = nextTitle;
+      }
+    };
+
+    const observer =
+      typeof MutationObserver !== 'undefined' && document.head
+        ? new MutationObserver(syncProfileTitle)
+        : null;
+
+    observer?.observe(document.head, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+
+    return () => {
+      observer?.disconnect();
+      if (
+        lastProfileDocTitleRef.current === null &&
+        document.title &&
+        document.title !== entryTitle
+      ) {
+        lastProfileDocTitleRef.current = document.title;
+      }
+    };
+  }, [pathname]);
+
   useEffect(() => {
     if (!pathname || lastTrackedPathRef.current === pathname) return;
 
@@ -56,7 +106,11 @@ export default function PageViewTracker() {
       : false;
 
     if (isNowProfile) {
-      lastProfileDocTitleRef.current = currentDocTitle || null;
+      // On initial hard-load directly onto `/profile/[id]`, capture the SSR title immediately;
+      // on SPA entry from another route, wait for the async `<title>` observer above so we
+      // don't mistake the previous page's title for a profile name title.
+      lastProfileDocTitleRef.current =
+        previousPath === null ? currentDocTitle || null : null;
     }
 
     const hasStaleProfileTitle =
@@ -76,10 +130,11 @@ export default function PageViewTracker() {
       hasStaleProfileTitle ? { title: '' } : undefined
     );
   }, [pathname]);
+}
 
-  // 2. Per-page scroll_depth observer: throttled via requestAnimationFrame,
-  // emits unified `scroll_depth` events in ascending order for all newly crossed
-  // milestones (25/50/75/90), detaches once 90% is reached, and resets on SPA navigation.
+function useScrollDepthTracking(pathname: string | null): void {
+  const reachedThresholdsRef = useRef<Set<number>>(new Set());
+
   useEffect(() => {
     if (!pathname || typeof window === 'undefined') return;
 
@@ -134,10 +189,9 @@ export default function PageViewTracker() {
       detachScrollListener();
     };
   }, [pathname]);
+}
 
-  // 3. Low-intrusiveness declarative click delegation via `data-analytics-click`
-  // in capture phase so Radix Sheet/Popover/DropdownMenu items are captured before
-  // portal close handlers mutate or unmount the DOM.
+function useAnalyticsClickDelegation(): void {
   useEffect(() => {
     if (typeof document === 'undefined') return;
 
@@ -158,6 +212,14 @@ export default function PageViewTracker() {
       });
     };
   }, []);
+}
+
+export default function PageViewTracker(): null {
+  const pathname = usePathname();
+
+  usePageViewTracking(pathname);
+  useScrollDepthTracking(pathname);
+  useAnalyticsClickDelegation();
 
   return null;
 }

@@ -13,6 +13,12 @@ const meta: Meta<typeof MobileUserMenu> = {
     nextjs: {
       appDirectory: true,
     },
+    docs: {
+      description: {
+        component:
+          '行動版已登入會員側欄選單，導覽與個人帳務操作項目皆具備與桌機版對齊之 `data-analytics-click`（`location="mobile_user_menu"`），且嚴格不攜帶任何 PII。',
+      },
+    },
   },
   decorators: [
     (Story) => (

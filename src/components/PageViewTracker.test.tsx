@@ -120,7 +120,7 @@ describe('PageViewTracker', () => {
     );
   });
 
-  it('prevents stale /profile/[id] document.title containing real user names from leaking on SPA transition', () => {
+  it('prevents stale /profile/[id] document.title containing real user names from leaking on initial hard-load + SPA transition', () => {
     window.history.replaceState({}, '', '/profile/7482008160728084');
     document.title = '王小明 | XChange Talent Pool';
     vi.mocked(usePathname).mockReturnValue('/profile/7482008160728084');
@@ -151,6 +151,47 @@ describe('PageViewTracker', () => {
     expect(JSON.stringify(sentParams)).not.toContain('王小明');
   });
 
+  it('tracks async document.title streaming during multi-hop SPA route (/mentor-pool -> /profile/[id] -> /about) and redacts stale user names', async () => {
+    window.history.replaceState({}, '', '/mentor-pool');
+    document.title = '尋找導師 | XChange Talent Pool';
+    vi.mocked(usePathname).mockReturnValue('/mentor-pool');
+
+    const { rerender } = render(<PageViewTracker />);
+
+    // Step 1: SPA navigate into /profile/7482008160728084 while document.title is still the previous page's title
+    mockGtag.mockClear();
+    window.history.replaceState({}, '', '/profile/7482008160728084');
+    vi.mocked(usePathname).mockReturnValue('/profile/7482008160728084');
+    rerender(<PageViewTracker />);
+
+    expect(mockGtag).toHaveBeenCalledWith(
+      'event',
+      'page_view',
+      expect.objectContaining({
+        page_path: '/profile/7482008160728084',
+        page_title: 'User Profile',
+      })
+    );
+
+    // Step 2: Simulate Next.js asynchronously streaming the user's real-name title onto <title>
+    document.title = '王小明 | XChange Talent Pool';
+    await Promise.resolve();
+
+    // Step 3: SPA navigate away to /about BEFORE Next.js commits /about's new <title>
+    mockGtag.mockClear();
+    window.history.replaceState({}, '', '/about');
+    vi.mocked(usePathname).mockReturnValue('/about');
+    rerender(<PageViewTracker />);
+
+    expect(mockGtag).toHaveBeenCalledTimes(1);
+    const [, , sentParams] = mockGtag.mock.calls[0]!;
+    expect(sentParams).toMatchObject({
+      page_path: '/about',
+      page_title: 'X-Talent',
+    });
+    expect(JSON.stringify(sentParams)).not.toContain('王小明');
+  });
+
   it('preserves safe query parameters while stripping PII query parameters on page_view', () => {
     window.history.replaceState(
       {},
@@ -170,9 +211,13 @@ describe('PageViewTracker', () => {
     );
   });
 
-  it('coalesces same-frame scrolls via rAF, emits all newly crossed milestones in order, detaches at 90%, and resets on SPA navigation', () => {
+  it('coalesces same-frame scrolls via rAF, emits all newly crossed milestones [25, 50, 75, 100] in order, detaches at 100%, and resets on SPA navigation', () => {
     const removeSpy = vi.spyOn(window, 'removeEventListener');
-    const { rerender } = render(<PageViewTracker />);
+    const { rerender } = render(
+      <React.StrictMode>
+        <PageViewTracker />
+      </React.StrictMode>
+    );
     mockGtag.mockClear();
 
     // Non-scrollable page (scrollHeight <= innerHeight) emits nothing
@@ -194,16 +239,26 @@ describe('PageViewTracker', () => {
     flushAnimationFrames();
 
     expect(mockGtag).toHaveBeenCalledTimes(2);
-    expect(mockGtag).toHaveBeenNthCalledWith(1, 'event', 'scroll_depth', {
-      feature: 'engagement',
-      percent_scrolled: 25,
-      page_path: '/',
-    });
-    expect(mockGtag).toHaveBeenNthCalledWith(2, 'event', 'scroll_depth', {
-      feature: 'engagement',
-      percent_scrolled: 50,
-      page_path: '/',
-    });
+    expect(mockGtag).toHaveBeenNthCalledWith(
+      1,
+      'event',
+      'scroll_depth',
+      expect.objectContaining({
+        feature: 'engagement',
+        percent_scrolled: 25,
+        page_path: '/',
+      })
+    );
+    expect(mockGtag).toHaveBeenNthCalledWith(
+      2,
+      'event',
+      'scroll_depth',
+      expect.objectContaining({
+        feature: 'engagement',
+        percent_scrolled: 50,
+        page_path: '/',
+      })
+    );
 
     // Scrolling back up to 30% (already crossed) must not re-fire
     setScrollMetrics({ scrollHeight: 2000, innerHeight: 1000, scrollY: 300 });
@@ -211,29 +266,43 @@ describe('PageViewTracker', () => {
     flushAnimationFrames();
     expect(mockGtag).toHaveBeenCalledTimes(2);
 
-    // Scrolling down to 92% emits 75 and 90 in ascending order and detaches scroll listener
+    // Scrolling down to 100% emits 75 and 100 in ascending order and detaches scroll listener
     removeSpy.mockClear();
-    setScrollMetrics({ scrollHeight: 2000, innerHeight: 1000, scrollY: 920 });
+    setScrollMetrics({ scrollHeight: 2000, innerHeight: 1000, scrollY: 1000 });
     fireEvent.scroll(window);
     flushAnimationFrames();
 
     expect(mockGtag).toHaveBeenCalledTimes(4);
-    expect(mockGtag).toHaveBeenNthCalledWith(3, 'event', 'scroll_depth', {
-      feature: 'engagement',
-      percent_scrolled: 75,
-      page_path: '/',
-    });
-    expect(mockGtag).toHaveBeenNthCalledWith(4, 'event', 'scroll_depth', {
-      feature: 'engagement',
-      percent_scrolled: 90,
-      page_path: '/',
-    });
+    expect(mockGtag).toHaveBeenNthCalledWith(
+      3,
+      'event',
+      'scroll_depth',
+      expect.objectContaining({
+        feature: 'engagement',
+        percent_scrolled: 75,
+        page_path: '/',
+      })
+    );
+    expect(mockGtag).toHaveBeenNthCalledWith(
+      4,
+      'event',
+      'scroll_depth',
+      expect.objectContaining({
+        feature: 'engagement',
+        percent_scrolled: 100,
+        page_path: '/',
+      })
+    );
     expect(removeSpy).toHaveBeenCalledWith('scroll', expect.any(Function));
 
     // Navigating to /about resets scroll milestones for the new page
     window.history.replaceState({}, '', '/about');
     vi.mocked(usePathname).mockReturnValue('/about');
-    rerender(<PageViewTracker />);
+    rerender(
+      <React.StrictMode>
+        <PageViewTracker />
+      </React.StrictMode>
+    );
     mockGtag.mockClear();
 
     setScrollMetrics({ scrollHeight: 2000, innerHeight: 1000, scrollY: 260 });
@@ -241,11 +310,15 @@ describe('PageViewTracker', () => {
     flushAnimationFrames();
 
     expect(mockGtag).toHaveBeenCalledTimes(1);
-    expect(mockGtag).toHaveBeenCalledWith('event', 'scroll_depth', {
-      feature: 'engagement',
-      percent_scrolled: 25,
-      page_path: '/about',
-    });
+    expect(mockGtag).toHaveBeenCalledWith(
+      'event',
+      'scroll_depth',
+      expect.objectContaining({
+        feature: 'engagement',
+        percent_scrolled: 25,
+        page_path: '/about',
+      })
+    );
   });
 
   it('cancels pending rAF and detaches global click/scroll listeners on unmount', () => {

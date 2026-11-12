@@ -8,6 +8,14 @@ const meta: Meta<typeof MentorCard> = {
   title: '業務模組元件/導師池(MentorPool)/MentorCard',
   component: MentorCard,
   tags: ['autodocs'],
+  parameters: {
+    docs: {
+      description: {
+        component:
+          '導師池列表卡片，外層連結內建 `mentor_card_click` 宣告式埋點並附帶數值字串 `mentor_id`（嚴格不傳送導師真實姓名）。',
+      },
+    },
+  },
   args: {
     id: mockMentors[0].user_id,
     avatar: mockMentors[0].avatar,

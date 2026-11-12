@@ -4,11 +4,13 @@ import * as Sentry from '@sentry/nextjs';
 import type { Metadata } from 'next';
 import Script from 'next/script';
 
+import Ga4Bootstrap from '@/components/Ga4Bootstrap';
 import { AnnouncementBanner } from '@/components/layout/AnnouncementBanner';
 import { Footer } from '@/components/layout/Footer';
 import { Header } from '@/components/layout/Header';
 import Providers from '@/components/Providers';
 import { Toaster } from '@/components/ui/toaster';
+import { isValidGaMeasurementId } from '@/lib/analytics';
 import { SESSION_HINT_INLINE_SCRIPT } from '@/lib/auth/sessionHint';
 import { getSiteUrl } from '@/lib/site-url';
 
@@ -17,8 +19,6 @@ import { notoSansTC } from './font';
 const SITE_URL = getSiteUrl();
 const SITE_DESCRIPTION =
   'XChange Talent Pool 是連結業界導師與職涯探索者的 mentorship 平台，協助你在轉職、升遷、跨界探索時，找到對的人聊對的事。';
-const GA4_INIT_INLINE_SCRIPT =
-  "window.dataLayer=window.dataLayer||[];function gtag(){window.dataLayer.push(arguments);}window.gtag=window.gtag||gtag;gtag('js',new Date());var gaEl=document.getElementById('ga4-init');var gaId=gaEl&&gaEl.getAttribute('data-ga-id');if(gaId){gtag('config',gaId,{send_page_view:false});}";
 
 export function generateMetadata(): Metadata {
   return {
@@ -57,7 +57,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   const rawGaId = process.env.NEXT_PUBLIC_GA_ID?.trim() ?? '';
-  const gaMeasurementId = /^G-[A-Z0-9]+$/i.test(rawGaId) ? rawGaId : null;
+  const gaMeasurementId = isValidGaMeasurementId(rawGaId) ? rawGaId : null;
 
   return (
     <html lang="zh-TW" className={`${notoSansTC.className} group/auth-state`}>
@@ -75,20 +75,11 @@ export default function RootLayout({
             is required so the warmed connection is reused for the actual
             (CORS-credentialed) script fetch. */}
         {gaMeasurementId && (
-          <>
-            <link
-              rel="preconnect"
-              href="https://www.googletagmanager.com"
-              crossOrigin="anonymous"
-            />
-            <script
-              id="ga4-init"
-              data-ga-id={gaMeasurementId}
-              dangerouslySetInnerHTML={{
-                __html: GA4_INIT_INLINE_SCRIPT,
-              }}
-            />
-          </>
+          <link
+            rel="preconnect"
+            href="https://www.googletagmanager.com"
+            crossOrigin="anonymous"
+          />
         )}
         {process.env.NEXT_PUBLIC_CLARITY_ID && (
           <>
@@ -119,14 +110,17 @@ export default function RootLayout({
         >
           跳至主要內容
         </a>
-        {/* Google Analytics 4 — external gtag.js loads non-blockingly via
-            afterInteractive; queue stub in <head> + PageViewTracker guarantee
-            initial load and SPA route changes both record page_view. */}
+        {/* Google Analytics 4 — Ga4Bootstrap initializes the typed dataLayer/gtag
+            queue in a client module (no inline script), and external gtag.js loads
+            non-blockingly via afterInteractive. */}
         {gaMeasurementId && (
-          <Script
-            src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`}
-            strategy="afterInteractive"
-          />
+          <>
+            <Ga4Bootstrap gaId={gaMeasurementId} />
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(gaMeasurementId)}`}
+              strategy="afterInteractive"
+            />
+          </>
         )}
 
         {/* Microsoft Clarity — behavior tracking for testing phase.

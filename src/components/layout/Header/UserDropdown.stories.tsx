@@ -13,6 +13,12 @@ const meta: Meta<typeof UserDropdown> = {
     nextjs: {
       appDirectory: true,
     },
+    docs: {
+      description: {
+        component:
+          '桌機版已登入會員選單，個人頁面、分享名片、導師預約管理／成為導師、我的預約與登出皆具備 `data-analytics-click`（`location="user_dropdown"`），且嚴格不攜帶 `userId`、姓名或 Email。',
+      },
+    },
   },
   decorators: [
     (Story) => (

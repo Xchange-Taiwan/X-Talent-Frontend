@@ -292,4 +292,49 @@ describe('BookingForm', () => {
     );
     expect(container.firstElementChild).not.toHaveClass('2xl:max-w-[414px]');
   });
+
+  it('attaches mentor_id analytics attributes to slot select, sign-in prompt, and booking submit when mentorId is provided (#865)', () => {
+    const { rerender } = render(
+      <BookingForm
+        {...defaultProps}
+        mentorId={7482008160728084}
+        selectedSlot={mockSlots[0]}
+      />
+    );
+
+    const slotBtn = screen.getByRole('button', { name: /10:00/i });
+    expect(slotBtn).toHaveAttribute(
+      'data-analytics-click',
+      'profile_booking_slot_select'
+    );
+    expect(slotBtn).toHaveAttribute(
+      'data-analytics-param-mentor-id',
+      '7482008160728084'
+    );
+
+    const submitBtn = screen.getByRole('button', { name: '預約時間' });
+    expect(submitBtn).toHaveAttribute(
+      'data-analytics-click',
+      'profile_booking_submit_click'
+    );
+    expect(submitBtn).toHaveAttribute(
+      'data-analytics-param-mentor-id',
+      '7482008160728084'
+    );
+
+    rerender(
+      <BookingForm
+        {...defaultProps}
+        mentorId={7482008160728084}
+        isAuthenticated={false}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('link', { name: '前往登入' }));
+    expect(trackEvent).toHaveBeenCalledWith({
+      name: 'reservation_signin_prompt_click',
+      feature: 'reservation',
+      metadata: { mentor_id: '7482008160728084' },
+    });
+  });
 });

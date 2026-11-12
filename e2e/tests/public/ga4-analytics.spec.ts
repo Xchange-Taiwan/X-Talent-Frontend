@@ -1,11 +1,85 @@
 import { expect, type Page, test } from '@playwright/test';
 
 import { captureEvidence } from '../../helpers/evidence';
+import { blockUnmockedExternalApi } from '../../helpers/route';
 
 interface NormalizedGaEvent {
   name: string;
   params: Record<string, unknown>;
 }
+
+const MOCK_INTERESTS = {
+  code: '0',
+  msg: 'ok',
+  data: { interests: [], language: 'zh_TW' },
+};
+
+const MOCK_TAG_CATALOG = {
+  code: '0',
+  msg: 'ok',
+  data: {
+    catalogs: {
+      skill: {
+        groups: [
+          {
+            subject_group: 'SKILL_GROUP',
+            subject: '技術能力',
+            language: 'zh_TW',
+            leaves: [
+              {
+                tag_id: 1,
+                subject_group: 'FRONTEND',
+                subject: '前端開發',
+                language: 'zh_TW',
+              },
+            ],
+          },
+        ],
+      },
+      topic: { groups: [] },
+      position: { groups: [] },
+      industry: { groups: [] },
+    },
+  },
+};
+
+const MOCK_MENTORS_RESPONSE = {
+  code: '0',
+  msg: 'ok',
+  data: {
+    mentors: [
+      {
+        user_id: 7482008160728084,
+        name: '王小明',
+        avatar: '',
+        job_title: 'Senior Frontend Engineer',
+        company: 'XChange',
+        years_of_experience: 'THREE_TO_FIVE_YEARS',
+        location: 'TWN',
+        linkedin_profile: '',
+        interested_positions: [],
+        skills: ['FRONTEND'],
+        topics: [],
+        want_position: [],
+        want_skill: [],
+        want_topic: [],
+        have_skill: ['FRONTEND'],
+        have_topic: [],
+        industry: 'Technology',
+        language: 'zh_TW',
+        personal_statement: '專注於大型前端架構與職涯發展分享。',
+        about: '專注於大型前端架構與職涯發展分享。',
+        seniority_level: 'SENIOR',
+        expertises: [],
+        experiences: [],
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-02T00:00:00Z',
+      },
+    ],
+    next_id: 0,
+    next_cursor: null,
+  },
+};
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -57,8 +131,9 @@ async function getDataLayerEvents(page: Page): Promise<NormalizedGaEvent[]> {
   return normalized;
 }
 
-test.describe('GA4 基礎事件追蹤：初次進站 page_view、SPA 換頁、scroll_depth 與個資防護 (#865)', () => {
+test.describe('GA4 事件追蹤：page_view、scroll_depth [25,50,75,100]、核心業務埋點與個資防護 (#865)', () => {
   test.beforeEach(async ({ page }) => {
+    await blockUnmockedExternalApi(page);
     await page.route('https://www.googletagmanager.com/**', (route) =>
       route.fulfill({
         status: 204,
@@ -73,13 +148,43 @@ test.describe('GA4 基礎事件追蹤：初次進站 page_view、SPA 換頁、sc
         body: '',
       })
     );
+    await page.route(/\/v1\/users\/zh_TW\/interests/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(MOCK_INTERESTS),
+      })
+    );
+    await page.route(/\/v1\/users\/zh_TW\/tags\/catalog/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(MOCK_TAG_CATALOG),
+      })
+    );
+    await page.route(/\/v1\/mentors/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(MOCK_MENTORS_RESPONSE),
+      })
+    );
   });
 
-  test('驗證初次進站與 SPA 換頁 page_view、分段滾動單一 scroll_depth (percent_scrolled) 與導覽點擊埋點', async ({
+  test('驗證初次進站與 SPA 換頁 page_view、分段滾動單一 scroll_depth [25,50,75,100] 與桌機導覽埋點', async ({
     page,
   }) => {
     await page.goto('/');
     await expect(page.getByTestId('homepage-cta-hero')).toBeVisible();
+
+    // 確認桌機版 Header「成為導師」連結具備宣告式埋點屬性
+    const becomeMentorNavLink = page
+      .locator('header nav a[data-analytics-click="header_nav_become_mentor"]')
+      .last();
+    await expect(becomeMentorNavLink).toHaveAttribute(
+      'data-analytics-feature',
+      'onboarding'
+    );
 
     // 1. 初次進站：window.dataLayer 收到單筆首頁 page_view
     await expect
@@ -107,7 +212,7 @@ test.describe('GA4 基礎事件追蹤：初次進站 page_view、SPA 換頁、sc
       })
       .toEqual([25]);
 
-    // 快速滾動跨越至約 80% 可捲動高度：依序補齊 50 與 75 門檻（單一事件名稱 scroll_depth）
+    // 快速滾動跨越至約 80% 可捲動高度：依序補齊 50 與 75 門檻
     await page.evaluate(() => {
       const scrollable =
         document.documentElement.scrollHeight - window.innerHeight;
@@ -123,7 +228,23 @@ test.describe('GA4 基礎事件追蹤：初次進站 page_view、SPA 換頁、sc
       })
       .toEqual([25, 50, 75]);
 
-    // 往回微幅滾動不會重複送出已達標的 scroll_depth（等待兩個動畫幀確保節流回呼已執行）
+    // 滾動到底部 100%：觸發 100 門檻並自動解除 scroll 監聽器
+    await page.evaluate(() => {
+      const scrollable =
+        document.documentElement.scrollHeight - window.innerHeight;
+      window.scrollTo(0, scrollable);
+    });
+
+    await expect
+      .poll(async () => {
+        const events = await getDataLayerEvents(page);
+        return events
+          .filter((e) => e.name === 'scroll_depth')
+          .map((e) => e.params.percent_scrolled);
+      })
+      .toEqual([25, 50, 75, 100]);
+
+    // 往回微幅滾動不會重複送出已達標的 scroll_depth
     await page.evaluate(
       () =>
         new Promise<void>((resolve) => {
@@ -139,7 +260,7 @@ test.describe('GA4 基礎事件追蹤：初次進站 page_view、SPA 換頁、sc
     const scrollEventsAfterRescroll = (await getDataLayerEvents(page)).filter(
       (e) => e.name === 'scroll_depth'
     );
-    expect(scrollEventsAfterRescroll).toHaveLength(3);
+    expect(scrollEventsAfterRescroll).toHaveLength(4);
 
     // 3. 點擊 Header 導覽連結進行 SPA 換頁至 /about：同時驗證低侵入式按鈕埋點與 SPA page_view
     const aboutNavLink = page
@@ -184,6 +305,91 @@ test.describe('GA4 基礎事件追蹤：初次進站 page_view、SPA 換頁、sc
     expect(serializedDataLayer).not.toContain('password');
 
     await captureEvidence(page, 'ga4-analytics-verified');
+  });
+
+  test('驗證導師池篩選標籤、導師卡片 mentor_id 與行動版導覽選單埋點及截圖證據', async ({
+    page,
+  }) => {
+    await page.goto('/mentor-pool');
+
+    // 1. 驗證導師卡片具備 mentor_card_click 與純數值 mentor_id，點擊後不外洩導師姓名
+    const firstMentorCardLink = page
+      .locator('a[data-analytics-click="mentor_card"]')
+      .first();
+    await expect(firstMentorCardLink).toBeVisible({ timeout: 15_000 });
+    const cardMentorId = await firstMentorCardLink.getAttribute(
+      'data-analytics-param-mentor-id'
+    );
+    expect(cardMentorId).toMatch(/^\d+$/);
+
+    // 攔截連結預設跳轉以留在當前頁繼續驗證篩選標籤，同時讓 document Capture-phase 委派正常觸發
+    await firstMentorCardLink.evaluate((el) => {
+      el.addEventListener('click', (e) => e.preventDefault(), { once: true });
+    });
+    await firstMentorCardLink.click();
+
+    await expect
+      .poll(async () => {
+        const events = await getDataLayerEvents(page);
+        return events.find((e) => e.name === 'mentor_card_click');
+      })
+      .toMatchObject({
+        name: 'mentor_card_click',
+        params: {
+          feature: 'mentor_pool',
+          mentor_id: cardMentorId,
+          button_id: 'mentor_card',
+          button_location: 'mentor_pool_list',
+        },
+      });
+
+    // 2. 點擊熱門職位快篩標籤：驗證 mentor_pool_filter_apply 攜帶 filter_type 與 filter_value，且 ?q= 不外洩進 page_path
+    const firstChip = page
+      .locator('[data-analytics-click="mentor_pool_popular_chip"]')
+      .first();
+    await expect(firstChip).toBeVisible({ timeout: 15_000 });
+    const chipLabel = (await firstChip.textContent())?.trim() ?? '';
+    await firstChip.click();
+
+    await expect
+      .poll(async () => {
+        const events = await getDataLayerEvents(page);
+        return events.find((e) => e.name === 'mentor_pool_filter_apply');
+      })
+      .toMatchObject({
+        name: 'mentor_pool_filter_apply',
+        params: {
+          feature: 'mentor_pool',
+          filter_type: 'popular_position',
+          filter_value: chipLabel,
+          button_id: 'mentor_pool_popular_chip',
+          button_location: 'popular_positions',
+        },
+      });
+
+    await captureEvidence(page, 'ga4-analytics-mentor-pool-desktop');
+
+    // 3. 切換至行動版視窗開啟漢堡選單：驗證 mobile_menu_open 與行動版導覽埋點屬性
+    await page.setViewportSize({ width: 390, height: 844 });
+    const hamburgerBtn = page.getByRole('button', { name: '開啟導航選單' });
+    await expect(hamburgerBtn).toBeVisible();
+    await hamburgerBtn.click();
+
+    await expect(
+      page.locator('[data-analytics-click="mobile_nav_become_mentor"]')
+    ).toBeVisible();
+    await expect
+      .poll(async () => {
+        const events = await getDataLayerEvents(page);
+        return events.some(
+          (e) =>
+            e.name === 'button_click' &&
+            e.params.button_id === 'mobile_menu_open'
+        );
+      })
+      .toBe(true);
+
+    await captureEvidence(page, 'ga4-analytics-mobile-menu');
   });
 
   test('URL 帶有敏感參數或巢狀 callbackUrl 時自動過濾，不寫入 window.dataLayer', async ({

@@ -12,6 +12,12 @@ const meta: Meta<typeof HamburgerMenu> = {
     nextjs: {
       appDirectory: true,
     },
+    docs: {
+      description: {
+        component:
+          '行動版訪客漢堡選單，展開按鈕與各導覽／登入／註冊／意見回饋項目皆附帶 `data-analytics-click` 與 `data-analytics-location="mobile_menu"` 宣告式埋點。',
+      },
+    },
   },
   args: {
     identity: GUEST_IDENTITY,
