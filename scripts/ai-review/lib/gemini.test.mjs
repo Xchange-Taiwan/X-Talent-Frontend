@@ -173,6 +173,7 @@ describe('callGemini', () => {
     expect(computeRetryDelayMs(4, () => 0)).toBe(16000);
     expect(computeRetryDelayMs(5, () => 0)).toBe(25000);
 
+    const sleepSpy = vi.fn().mockResolvedValue(undefined);
     const unavailable = {
       ok: false,
       status: 503,
@@ -188,10 +189,13 @@ describe('callGemini', () => {
       .mockResolvedValueOnce(candidateResponse('{"ok":"from-fallback"}'));
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(callGemini('prompt')).resolves.toEqual({
+    await expect(callGemini('prompt', { sleepFn: sleepSpy })).resolves.toEqual({
       ok: 'from-fallback',
     });
     expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(sleepSpy).toHaveBeenCalledTimes(4);
+    expect(sleepSpy.mock.calls[0][0]).toBeGreaterThanOrEqual(2000);
+    expect(sleepSpy.mock.calls[3][0]).toBeGreaterThanOrEqual(16000);
     expect(fetchMock.mock.calls[0][0]).toContain(
       'models/gemini-4-carbon:generateContent'
     );
@@ -201,6 +205,7 @@ describe('callGemini', () => {
   });
 
   it('rethrows primary error when fallback model also fails and skips fallback when disabled or identical', async () => {
+    const noopSleep = vi.fn().mockResolvedValue(undefined);
     const unavailable = {
       ok: false,
       status: 503,
@@ -209,7 +214,7 @@ describe('callGemini', () => {
     const fetchBothFail = vi.fn().mockResolvedValue(unavailable);
     vi.stubGlobal('fetch', fetchBothFail);
 
-    await expect(callGemini('prompt')).rejects.toThrow(
+    await expect(callGemini('prompt', { sleepFn: noopSleep })).rejects.toThrow(
       'Gemini API error (503)'
     );
     expect(fetchBothFail).toHaveBeenCalledTimes(6);
@@ -217,16 +222,16 @@ describe('callGemini', () => {
     const fetchDisabledFallback = vi.fn().mockResolvedValue(unavailable);
     vi.stubGlobal('fetch', fetchDisabledFallback);
 
-    await expect(callGemini('prompt', { fallbackModel: null })).rejects.toThrow(
-      'Gemini API error (503)'
-    );
+    await expect(
+      callGemini('prompt', { fallbackModel: null, sleepFn: noopSleep })
+    ).rejects.toThrow('Gemini API error (503)');
     expect(fetchDisabledFallback).toHaveBeenCalledTimes(5);
 
     const fetchSameModel = vi.fn().mockResolvedValue(unavailable);
     vi.stubGlobal('fetch', fetchSameModel);
 
     await expect(
-      callGemini('prompt', { model: 'gemini-2.5-flash' })
+      callGemini('prompt', { model: 'gemini-2.5-flash', sleepFn: noopSleep })
     ).rejects.toThrow('Gemini API error (503)');
     expect(fetchSameModel).toHaveBeenCalledTimes(5);
   });

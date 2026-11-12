@@ -183,6 +183,8 @@ export async function callGemini(promptText, options = {}) {
     Number(options.maxOutputTokens || process.env.GEMINI_MAX_OUTPUT_TOKENS) ||
     DEFAULT_MAX_OUTPUT_TOKENS;
   const images = Array.isArray(options.images) ? options.images : [];
+  const sleepFn =
+    typeof options.sleepFn === 'function' ? options.sleepFn : sleep;
 
   let lastErr;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -204,7 +206,7 @@ export async function callGemini(promptText, options = {}) {
         `[gemini] attempt ${attempt}/${MAX_ATTEMPTS} (${model}) failed: ${err.message}${canRetry ? ' — retrying' : ''}`
       );
       if (!canRetry) break;
-      await sleep(computeRetryDelayMs(attempt));
+      await sleepFn(computeRetryDelayMs(attempt));
     }
   }
 
