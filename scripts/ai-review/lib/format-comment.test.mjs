@@ -1,6 +1,7 @@
 // @vitest-environment node
-import { describe, it, expect } from 'vitest';
-import { formatComment, AI_REVIEW_COMMENT_MARKER } from './format-comment.mjs';
+import { describe, expect, it } from 'vitest';
+
+import { AI_REVIEW_COMMENT_MARKER, formatComment } from './format-comment.mjs';
 
 const noFindings = {
   hasFindings: false,
@@ -100,6 +101,27 @@ describe('formatComment', () => {
       architecture: noFindings,
     });
     expect(comment).toContain('### 🧩 Correctness / Regression\n_（未執行）_');
+  });
+
+  it('renders a warning icon instead of a green check when a stage skipped due to transient API error', () => {
+    const comment = formatComment({
+      plan: basePlan,
+      security: noFindings,
+      correctness: noFindings,
+      visualParity: {
+        hasFindings: false,
+        skippedDueToError: true,
+        summary: '視覺審查因暫時性錯誤略過（Gemini API error 503）',
+        findings: [],
+      },
+      performance: noFindings,
+      testing: noFindings,
+      architecture: noFindings,
+    });
+    expect(comment).toContain(
+      '### 🎨 Visual / Design Parity\n⚠️ 視覺審查因暫時性錯誤略過（Gemini API error 503）'
+    );
+    expect(comment).not.toContain('✅ 視覺審查因暫時性錯誤略過');
   });
 
   it('handles a completely empty context object without throwing', () => {

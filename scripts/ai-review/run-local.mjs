@@ -43,6 +43,7 @@ if (!process.env.GEMINI_API_KEY) {
   process.exit(0);
 }
 
+import { getWorkingTreeDiff } from './lib/diff.mjs';
 import { callGemini } from './lib/gemini.mjs';
 import { buildPrompt } from './lib/prompt.mjs';
 import {
@@ -69,12 +70,9 @@ async function main() {
   const branch = execFileSync('git', ['branch', '--show-current'], {
     encoding: 'utf8',
   }).trim();
-  const diff = execFileSync('git', ['diff', baseRef], {
-    encoding: 'utf8',
-    maxBuffer: 10 * 1024 * 1024,
-  });
+  const { diff: safeDiff, truncated } = getWorkingTreeDiff(baseRef);
 
-  if (!diff.trim()) {
+  if (!safeDiff.trim()) {
     console.log(
       JSON.stringify(
         {
@@ -98,10 +96,6 @@ async function main() {
     );
     return;
   }
-
-  const MAX_DIFF = 80000;
-  const truncated = diff.length > MAX_DIFF;
-  const safeDiff = truncated ? diff.slice(0, MAX_DIFF) : diff;
 
   let ghToken =
     process.env.TRACKER_READ_TOKEN || process.env.GITHUB_TOKEN || '';
