@@ -1,7 +1,19 @@
 const DEFAULT_MODEL = 'gemini-4-carbon';
+const DEFAULT_FALLBACK_MODEL = 'gemini-2.5-flash';
 const DEFAULT_MAX_OUTPUT_TOKENS = 16384;
-const MAX_ATTEMPTS = 3;
-const RETRY_DELAY_MS = 1500;
+export const MAX_ATTEMPTS = 5;
+const BASE_RETRY_DELAY_MS = 2000;
+const MAX_RETRY_DELAY_MS = 25000;
+const RETRY_JITTER_MS = 1500;
+
+export function computeRetryDelayMs(attempt, randomFn = Math.random) {
+  const expDelay = Math.min(
+    MAX_RETRY_DELAY_MS,
+    BASE_RETRY_DELAY_MS * 2 ** Math.max(0, attempt - 1)
+  );
+  const jitter = Math.floor(Math.max(0, randomFn()) * RETRY_JITTER_MS);
+  return expDelay + jitter;
+}
 
 /**
  * Scans from the first `{` and returns the substring up to its matching
@@ -189,11 +201,42 @@ export async function callGemini(promptText, options = {}) {
       // the deliberately-non-retryable ones (e.g. MAX_TOKENS) above.
       const canRetry = err.retryable !== false && attempt < MAX_ATTEMPTS;
       console.warn(
-        `[gemini] attempt ${attempt}/${MAX_ATTEMPTS} failed: ${err.message}${canRetry ? ' — retrying' : ''}`
+        `[gemini] attempt ${attempt}/${MAX_ATTEMPTS} (${model}) failed: ${err.message}${canRetry ? ' — retrying' : ''}`
       );
       if (!canRetry) break;
-      await sleep(RETRY_DELAY_MS * attempt);
+      await sleep(computeRetryDelayMs(attempt));
     }
   }
+
+  const fallbackModel =
+    options.fallbackModel === null
+      ? null
+      : options.fallbackModel ||
+        process.env.GEMINI_FALLBACK_MODEL ||
+        DEFAULT_FALLBACK_MODEL;
+
+  if (
+    lastErr &&
+    lastErr.retryable !== false &&
+    fallbackModel &&
+    fallbackModel !== model
+  ) {
+    console.warn(
+      `[gemini] primary model ${model} exhausted ${MAX_ATTEMPTS} attempts; falling back to ${fallbackModel}`
+    );
+    try {
+      return await callGeminiOnce(promptText, {
+        model: fallbackModel,
+        maxOutputTokens,
+        apiKey,
+        images,
+      });
+    } catch (fallbackErr) {
+      console.warn(
+        `[gemini] fallback model ${fallbackModel} also failed: ${fallbackErr.message}`
+      );
+    }
+  }
+
   throw lastErr;
 }

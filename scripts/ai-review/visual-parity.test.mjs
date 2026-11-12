@@ -6,7 +6,11 @@ import {
   isUiReviewFile,
   resolveDesignSpecsFromKb,
 } from './lib/ticket.mjs';
-import { shouldSkipVisualParity } from './visual-parity.mjs';
+import {
+  MAX_EVIDENCE_IMAGES,
+  shouldSkipVisualParity,
+} from './visual-parity.mjs';
+import { loadReviewVisualAssets } from './lib/visuals.mjs';
 
 describe('visual-parity & Design Hub KB helpers', () => {
   it('identifies genuine UI files while excluding API routes, tests, and stories', () => {
@@ -77,5 +81,6 @@ describe('visual-parity & Design Hub KB helpers', () => {
         designSpecsObj: { screens: [{ id: 'public-profile' }] },
       }).skip
     ).toBe(false);
+    expect(MAX_EVIDENCE_IMAGES).toBe(8);
   });
 });

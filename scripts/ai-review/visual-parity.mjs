@@ -39,7 +39,7 @@ const TRACKER_REPO = 'X-Talent-Tracker';
 const FRONTEND_OWNER = 'Xchange-Taiwan';
 const FRONTEND_REPO = 'X-Talent-Frontend';
 const MAX_REF_IMAGES = 4;
-const MAX_EVIDENCE_IMAGES = 4;
+export const MAX_EVIDENCE_IMAGES = 8;
 const MAX_SINGLE_IMAGE_BYTES = 5 * 1024 * 1024;
 
 export { isUiReviewFile };
@@ -270,7 +270,8 @@ if (isMainModule) {
     console.warn(`[visual-parity] Non-fatal error: ${err.message}`);
     const fallback = {
       hasFindings: false,
-      summary: `視覺審查略過（${err.message}）`,
+      skippedDueToError: true,
+      summary: `視覺審查因暫時性錯誤略過（${err.message}）`,
       findings: [],
     };
     writeGithubOutput('findings', encodeContext(fallback));

@@ -102,6 +102,27 @@ describe('formatComment', () => {
     expect(comment).toContain('### 🧩 Correctness / Regression\n_（未執行）_');
   });
 
+  it('renders a warning icon instead of a green check when a stage skipped due to transient API error', () => {
+    const comment = formatComment({
+      plan: basePlan,
+      security: noFindings,
+      correctness: noFindings,
+      visualParity: {
+        hasFindings: false,
+        skippedDueToError: true,
+        summary: '視覺審查因暫時性錯誤略過（Gemini API error 503）',
+        findings: [],
+      },
+      performance: noFindings,
+      testing: noFindings,
+      architecture: noFindings,
+    });
+    expect(comment).toContain(
+      '### 🎨 Visual / Design Parity\n⚠️ 視覺審查因暫時性錯誤略過（Gemini API error 503）'
+    );
+    expect(comment).not.toContain('✅ 視覺審查因暫時性錯誤略過');
+  });
+
   it('handles a completely empty context object without throwing', () => {
     expect(() => formatComment({})).not.toThrow();
     const comment = formatComment({});

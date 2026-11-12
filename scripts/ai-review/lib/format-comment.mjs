@@ -4,6 +4,9 @@ function renderFindingsSection(title, result) {
   if (!result) {
     return `### ${title}\n_（未執行）_`;
   }
+  if (result.skippedDueToError) {
+    return `### ${title}\n⚠️ ${result.summary || '審查因暫時性錯誤略過'}`;
+  }
   if (!result.hasFindings || !result.findings?.length) {
     return `### ${title}\n✅ ${result.summary || '未發現需要人工關注的問題'}`;
   }
