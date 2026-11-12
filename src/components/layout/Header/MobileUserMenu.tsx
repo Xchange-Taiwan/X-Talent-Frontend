@@ -96,6 +96,9 @@ export function MobileUserMenu({
               type="button"
               onClick={handleGoProfile}
               data-testid="profile-header-button"
+              data-analytics-click="mobile_user_menu_profile"
+              data-analytics-location="mobile_user_menu"
+              data-analytics-feature="navigation"
               className="group flex items-center gap-4 pt-4 pb-6 text-left focus-visible:outline-none"
             >
               <UserAvatar
@@ -122,6 +125,9 @@ export function MobileUserMenu({
               className="mb-6 h-12 w-full rounded-2xl text-base font-semibold"
               onClick={handleShareProfile}
               disabled={!userId}
+              data-analytics-click="mobile_user_menu_share_profile"
+              data-analytics-location="mobile_user_menu"
+              data-analytics-feature="profile"
             >
               分享個人頁面
             </Button>
@@ -134,6 +140,13 @@ export function MobileUserMenu({
                 type="button"
                 onClick={handleAsMentor}
                 disabled={!userId}
+                data-analytics-click={
+                  isMentor
+                    ? 'mobile_user_menu_mentor_reservations'
+                    : 'mobile_user_menu_become_mentor'
+                }
+                data-analytics-location="mobile_user_menu"
+                data-analytics-feature={isMentor ? 'reservation' : 'onboarding'}
                 className="text-text-primary py-4 text-left text-xl disabled:opacity-50"
               >
                 {isMentor ? '導師預約管理' : '成為導師'}
@@ -141,6 +154,9 @@ export function MobileUserMenu({
               <button
                 type="button"
                 onClick={handleMyReservation}
+                data-analytics-click="mobile_user_menu_my_reservations"
+                data-analytics-location="mobile_user_menu"
+                data-analytics-feature="reservation"
                 className="text-text-primary py-4 text-left text-xl"
               >
                 我的預約
@@ -149,6 +165,9 @@ export function MobileUserMenu({
               <Link
                 href={FIND_MENTOR_HREF}
                 onClick={closeMenu}
+                data-analytics-click="mobile_nav_mentor_pool"
+                data-analytics-location="mobile_user_menu"
+                data-analytics-feature="navigation"
                 className="text-text-primary py-4 text-left text-xl"
               >
                 尋找導師
@@ -156,6 +175,9 @@ export function MobileUserMenu({
               <Link
                 href="/about"
                 onClick={closeMenu}
+                data-analytics-click="mobile_nav_about"
+                data-analytics-location="mobile_user_menu"
+                data-analytics-feature="navigation"
                 className="text-text-primary py-4 text-left text-xl"
               >
                 關於 X-Talent
@@ -179,6 +201,9 @@ export function MobileUserMenu({
                 type="button"
                 className="text-text-primary py-4 text-left text-xl"
                 onClick={handleLogout}
+                data-analytics-click="mobile_user_menu_logout"
+                data-analytics-location="mobile_user_menu"
+                data-analytics-feature="auth"
               >
                 登出
               </button>

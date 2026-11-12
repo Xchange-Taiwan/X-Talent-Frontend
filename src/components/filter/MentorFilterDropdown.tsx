@@ -54,10 +54,28 @@ const MentorFilterDropdown = ({
     setPendingFilters(selectOptions);
   }, [selectOptions]);
 
+  const activeEntries = Object.entries(pendingFilters || {}).filter(
+    ([, item]) => Boolean(item?.value)
+  );
+  const activeFilterTypes =
+    activeEntries.length > 0
+      ? activeEntries.map(([key]) => key).join(',')
+      : 'none';
+  const activeFilterValues =
+    activeEntries.length > 0
+      ? activeEntries.map(([, item]) => item.value).join(',')
+      : 'cleared';
+
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <Button variant="outline" className="w-full gap-2 font-normal">
+        <Button
+          variant="outline"
+          className="w-full gap-2 font-normal"
+          data-analytics-click="mentor_pool_filter_dropdown_open"
+          data-analytics-feature="mentor_pool"
+          data-analytics-location="filter_bar"
+        >
           <div className="flex items-center gap-1">
             <ListFilter className="size-5" />
             <span>篩選</span>
@@ -88,10 +106,26 @@ const MentorFilterDropdown = ({
             ))}
           </div>
           <div className="border-background-border flex gap-2 border-t p-4 pt-3">
-            <Button className="w-full" onClick={applyFilters}>
+            <Button
+              className="w-full"
+              onClick={applyFilters}
+              data-analytics-click="mentor_pool_filter_apply"
+              data-analytics-event="mentor_pool_filter_apply"
+              data-analytics-feature="mentor_pool"
+              data-analytics-location="filter_dropdown"
+              data-analytics-param-filter-type={activeFilterTypes}
+              data-analytics-param-filter-value={activeFilterValues}
+            >
               套用
             </Button>
-            <Button className="w-full" variant="outline" onClick={clearFilters}>
+            <Button
+              className="w-full"
+              variant="outline"
+              onClick={clearFilters}
+              data-analytics-click="mentor_pool_dropdown_clear_all"
+              data-analytics-feature="mentor_pool"
+              data-analytics-location="filter_dropdown"
+            >
               清除全部
             </Button>
           </div>

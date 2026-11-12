@@ -149,6 +149,14 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
     expect(confirmedReservationDialogStories.Default).toBeDefined();
     expect(quickReplyDialogStories.Default).toBeDefined();
     expect(joinMeetButtonStories.Default).toBeDefined();
+    expect(joinMeetButtonStories.MentorReservationCard.args).toMatchObject({
+      sourceRole: 'mentor',
+      analyticsLocation: 'reservation_card',
+    });
+    expect(joinMeetButtonStories.MenteeConfirmedDialog.args).toMatchObject({
+      sourceRole: 'mentee',
+      analyticsLocation: 'confirmed_reservation_dialog',
+    });
     expect(joinMeetButtonStories.PendingState.args?.isPending).toBe(true);
 
     render(

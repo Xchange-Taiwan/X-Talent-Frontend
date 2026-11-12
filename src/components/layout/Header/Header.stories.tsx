@@ -13,6 +13,12 @@ const meta: Meta<typeof Header> = {
     nextjs: {
       appDirectory: true,
     },
+    docs: {
+      description: {
+        component:
+          '全站頂部導覽列，支援預渲染身分提示與導覽連結低侵入式 `data-analytics-click` GA4 點擊埋點。',
+      },
+    },
   },
   decorators: [
     (Story) => (

@@ -4,11 +4,13 @@ import * as Sentry from '@sentry/nextjs';
 import type { Metadata } from 'next';
 import Script from 'next/script';
 
+import Ga4Bootstrap from '@/components/Ga4Bootstrap';
 import { AnnouncementBanner } from '@/components/layout/AnnouncementBanner';
 import { Footer } from '@/components/layout/Footer';
 import { Header } from '@/components/layout/Header';
 import Providers from '@/components/Providers';
 import { Toaster } from '@/components/ui/toaster';
+import { isValidGaMeasurementId } from '@/lib/analytics';
 import { SESSION_HINT_INLINE_SCRIPT } from '@/lib/auth/sessionHint';
 import { getSiteUrl } from '@/lib/site-url';
 
@@ -54,6 +56,9 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const rawGaId = process.env.NEXT_PUBLIC_GA_ID?.trim() ?? '';
+  const gaMeasurementId = isValidGaMeasurementId(rawGaId) ? rawGaId : null;
+
   return (
     <html lang="zh-TW" className={`${notoSansTC.className} group/auth-state`}>
       <head>
@@ -69,6 +74,13 @@ export default function RootLayout({
             HTML parse instead of blocking the first script byte. crossOrigin
             is required so the warmed connection is reused for the actual
             (CORS-credentialed) script fetch. */}
+        {gaMeasurementId && (
+          <link
+            rel="preconnect"
+            href="https://www.googletagmanager.com"
+            crossOrigin="anonymous"
+          />
+        )}
         {process.env.NEXT_PUBLIC_CLARITY_ID && (
           <>
             <link
@@ -98,26 +110,15 @@ export default function RootLayout({
         >
           跳至主要內容
         </a>
-        {/* Google Analytics 4 — only loads when NEXT_PUBLIC_GA_ID is set.
-            strategy="afterInteractive" ensures it never blocks page render.
-            Page views are tracked by PageViewTracker on route changes. */}
-        {process.env.NEXT_PUBLIC_GA_ID && (
+        {/* Google Analytics 4 — Ga4Bootstrap initializes the typed dataLayer/gtag
+            queue in a client module (no inline script), and external gtag.js loads
+            non-blockingly via afterInteractive. */}
+        {gaMeasurementId && (
           <>
+            <Ga4Bootstrap gaId={gaMeasurementId} />
             <Script
-              src={`https://www.googletagmanager.com/gtag/js?id=${process.env.NEXT_PUBLIC_GA_ID}`}
+              src={`https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(gaMeasurementId)}`}
               strategy="afterInteractive"
-            />
-            <Script
-              id="google-analytics"
-              strategy="afterInteractive"
-              dangerouslySetInnerHTML={{
-                __html: `
-                  window.dataLayer = window.dataLayer || [];
-                  function gtag(){dataLayer.push(arguments);}
-                  gtag('js', new Date());
-                  gtag('config', '${process.env.NEXT_PUBLIC_GA_ID}', { send_page_view: false });
-                `,
-              }}
             />
           </>
         )}

@@ -7,6 +7,14 @@ const meta: Meta<typeof GuestActionButtons> = {
   title: '佈局元件/Header/GuestActionButtons',
   component: GuestActionButtons,
   tags: ['autodocs'],
+  parameters: {
+    docs: {
+      description: {
+        component:
+          '未登入訪客於桌機版 Header 顯示之「註冊 / 登入」行動呼籲按鈕，內建低侵入式 `data-analytics-click` 屬性供 GA4 事件委派追蹤。',
+      },
+    },
+  },
   decorators: [
     (Story) => (
       <div className="bg-background-white flex items-center gap-3 p-4">

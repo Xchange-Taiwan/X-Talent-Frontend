@@ -27,10 +27,24 @@ export function GuestActionButtons({
         variant="outline"
         className="border-brand-500 text-brand-500 hover:text-brand-500"
       >
-        <Link href="/auth/signup">註冊</Link>
+        <Link
+          href="/auth/signup"
+          data-analytics-click="header_signup"
+          data-analytics-location="header"
+          data-analytics-feature="auth"
+        >
+          註冊
+        </Link>
       </Button>
       <Button asChild className="bg-brand-500 hover:bg-brand-500">
-        <Link href="/auth/signin">登入</Link>
+        <Link
+          href="/auth/signin"
+          data-analytics-click="header_signin"
+          data-analytics-location="header"
+          data-analytics-feature="auth"
+        >
+          登入
+        </Link>
       </Button>
     </>
   );

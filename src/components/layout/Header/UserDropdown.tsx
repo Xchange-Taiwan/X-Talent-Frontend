@@ -103,6 +103,9 @@ export const UserDropdown = React.memo(function UserDropdown({
               onClick={handleGoProfile}
               aria-current={isOnProfile ? 'page' : undefined}
               data-testid="profile-header-button"
+              data-analytics-click="user_menu_profile"
+              data-analytics-location="user_dropdown"
+              data-analytics-feature="navigation"
               className="group flex w-full items-center gap-4 px-6 pt-6 pb-4 text-left focus-visible:outline-none"
             >
               <UserAvatar
@@ -132,6 +135,9 @@ export const UserDropdown = React.memo(function UserDropdown({
                 className="h-14 w-full rounded-2xl text-2xl font-semibold"
                 onClick={handleShareProfileClick}
                 disabled={!userId}
+                data-analytics-click="user_menu_share_profile"
+                data-analytics-location="user_dropdown"
+                data-analytics-feature="profile"
               >
                 分享個人頁面
               </Button>
@@ -148,6 +154,13 @@ export const UserDropdown = React.memo(function UserDropdown({
               aria-current={
                 isMentor && isOnMentorReservation ? 'page' : undefined
               }
+              data-analytics-click={
+                isMentor
+                  ? 'user_menu_mentor_reservations'
+                  : 'user_menu_become_mentor'
+              }
+              data-analytics-location="user_dropdown"
+              data-analytics-feature={isMentor ? 'reservation' : 'onboarding'}
             >
               {isMentor ? '導師預約管理' : '成為導師'}
             </DropdownMenuItem>
@@ -156,6 +169,9 @@ export const UserDropdown = React.memo(function UserDropdown({
               className="px-4 py-3 text-2xl"
               onClick={handleMyReservation}
               aria-current={isOnMenteeReservation ? 'page' : undefined}
+              data-analytics-click="user_menu_my_reservations"
+              data-analytics-location="user_dropdown"
+              data-analytics-feature="reservation"
             >
               我的預約
             </DropdownMenuItem>
@@ -163,6 +179,9 @@ export const UserDropdown = React.memo(function UserDropdown({
             <DropdownMenuItem
               className="px-4 py-3 text-2xl"
               onClick={handleLogout}
+              data-analytics-click="user_menu_logout"
+              data-analytics-location="user_dropdown"
+              data-analytics-feature="auth"
             >
               登出
             </DropdownMenuItem>

@@ -131,6 +131,7 @@ export function ReservationCard({
                       <UpcomingJoinMeetButton
                         reservationId={item.id}
                         myUserId={myUserId}
+                        sourceRole={sourceRole}
                       />
                     </div>
                   </div>
@@ -152,9 +153,11 @@ export function ReservationCard({
 function UpcomingJoinMeetButton({
   reservationId,
   myUserId,
+  sourceRole,
 }: {
   reservationId: string;
   myUserId?: string | number;
+  sourceRole: 'mentor' | 'mentee';
 }) {
   const { joinMeet, isPending } = useReservationMeetLink({ myUserId });
 
@@ -163,6 +166,8 @@ function UpcomingJoinMeetButton({
       onClick={() => joinMeet(reservationId)}
       isPending={isPending}
       size="sm"
+      sourceRole={sourceRole}
+      analyticsLocation="reservation_card"
       className="h-9 w-full rounded-lg px-4 text-xs font-medium sm:w-auto sm:text-sm"
     />
   );

@@ -8,6 +8,14 @@ const meta: Meta<typeof MentorFilterDropdown> = {
   title: '業務模組元件/篩選器(Filter)/MentorFilterDropdown',
   component: MentorFilterDropdown,
   tags: ['autodocs'],
+  parameters: {
+    docs: {
+      description: {
+        component:
+          '導師池進階篩選下拉選單，開啟選單、套用篩選（`mentor_pool_filter_apply`，動態附帶 `filter_type` 與 `filter_value`）與清除全部皆具備宣告式 GA4 埋點。',
+      },
+    },
+  },
 };
 
 export default meta;

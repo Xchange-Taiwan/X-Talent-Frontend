@@ -446,5 +446,53 @@ describe('Header', () => {
       expect(link).not.toHaveClass('after:bg-brand-500');
       expect(link).not.toHaveClass('hover:after:scale-x-100');
     });
+
+    it('attaches declarative GA4 analytics attributes to desktop navigation links (#865)', () => {
+      mockUseSession.mockReturnValue({
+        data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
+        status: 'authenticated',
+      });
+      mockUseResolvedIdentity.mockReturnValue(AUTHENTICATED_MATCHING_IDENTITY);
+
+      const { unmount } = render(<Header />);
+
+      const becomeMentorLink = screen.getByRole('link', { name: '成為導師' });
+      expect(becomeMentorLink).toHaveAttribute(
+        'data-analytics-click',
+        'header_nav_become_mentor'
+      );
+      expect(becomeMentorLink).toHaveAttribute(
+        'data-analytics-location',
+        'header'
+      );
+      expect(becomeMentorLink).toHaveAttribute(
+        'data-analytics-feature',
+        'onboarding'
+      );
+
+      // Header is wrapped in React.memo() with zero props, so unmount before
+      // remounting with a new mocked useResolvedIdentity return value.
+      unmount();
+      mockUseResolvedIdentity.mockReturnValue(
+        authenticatedIdentity('mentor-999', { isMentor: true })
+      );
+      render(<Header />);
+
+      const myMentorPageLink = screen.getByRole('link', {
+        name: '我的導師頁面',
+      });
+      expect(myMentorPageLink).toHaveAttribute(
+        'data-analytics-click',
+        'header_nav_my_mentor_page'
+      );
+      expect(myMentorPageLink).toHaveAttribute(
+        'data-analytics-location',
+        'header'
+      );
+      expect(myMentorPageLink).toHaveAttribute(
+        'data-analytics-feature',
+        'navigation'
+      );
+    });
   });
 });

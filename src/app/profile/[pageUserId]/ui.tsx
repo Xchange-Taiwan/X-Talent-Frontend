@@ -238,6 +238,15 @@ export default function ProfilePageUI({
                             href={link.url}
                             target="_blank"
                             rel="noopener noreferrer"
+                            data-analytics-click="profile_social_link"
+                            data-analytics-event="profile_social_link_click"
+                            data-analytics-feature="profile"
+                            data-analytics-location="profile_header"
+                            data-analytics-omit-destination="true"
+                            data-analytics-param-platform={link.platform}
+                            data-analytics-param-mentor-id={String(
+                              userData.user_id
+                            )}
                             className="text-text-secondary hover:text-brand-500"
                             title={
                               platformLabelMap[link.platform]?.label ||
@@ -270,6 +279,9 @@ export default function ProfilePageUI({
                         variant="outline"
                         className="grow rounded-full px-6 py-3 sm:grow-0"
                         onClick={onEditProfile}
+                        data-analytics-click="profile_edit_click"
+                        data-analytics-feature="profile"
+                        data-analytics-location="profile_header"
                       >
                         編輯個人資訊
                       </Button>
@@ -280,6 +292,9 @@ export default function ProfilePageUI({
                         variant="default"
                         className="grow rounded-full px-6 py-3 sm:grow-0"
                         onClick={onBecomeMentor}
+                        data-analytics-click="profile_become_mentor_click"
+                        data-analytics-feature="onboarding"
+                        data-analytics-location="profile_header"
                       >
                         成為導師
                       </Button>
@@ -315,12 +330,24 @@ export default function ProfilePageUI({
                   >
                     <TabsTrigger
                       value="about"
+                      data-analytics-click="profile_tab_about"
+                      data-analytics-event="profile_tab_click"
+                      data-analytics-feature="profile"
+                      data-analytics-location="profile_tabs"
+                      data-analytics-param-tab-name="about"
+                      data-analytics-param-mentor-id={String(userData.user_id)}
                       className="text-text-secondary hover:text-text-primary data-[state=active]:border-brand-700 data-[state=active]:text-brand-700 -mb-px rounded-none border-b-2 border-transparent bg-transparent px-1 pt-2 pb-3 text-base font-medium shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
                     >
                       簡介
                     </TabsTrigger>
                     <TabsTrigger
                       value="feedback"
+                      data-analytics-click="profile_tab_feedback"
+                      data-analytics-event="profile_tab_click"
+                      data-analytics-feature="profile"
+                      data-analytics-location="profile_tabs"
+                      data-analytics-param-tab-name="feedback"
+                      data-analytics-param-mentor-id={String(userData.user_id)}
                       className="group text-text-secondary hover:text-text-primary data-[state=active]:border-brand-700 data-[state=active]:text-brand-700 -mb-px inline-flex items-baseline gap-1.5 rounded-none border-b-2 border-transparent bg-transparent px-1 pt-2 pb-3 text-base font-medium shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
                     >
                       <span>評價</span>
@@ -462,6 +489,7 @@ export default function ProfilePageUI({
                       isOwnMentorProfile={isOwnMentorProfile}
                       isUserDataLoading={userLoading || !isIdentityResolved}
                       isAuthenticated={!!loginUserId}
+                      mentorId={userData?.user_id}
                       slotsSnapshot={schedule.slotsSnapshot}
                       selectedSlot={resolvedSelectedSlot}
                       setSelectedSlot={resolvedSetSelectedSlot}

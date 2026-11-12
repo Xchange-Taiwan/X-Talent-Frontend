@@ -33,8 +33,7 @@ describe('GuestActionButtons', () => {
     );
 
     // The wrapper div should have the required classes
-    const wrapper = container.firstChild as HTMLElement;
-    expect(wrapper).toHaveClass(
+    expect(container.firstElementChild).toHaveClass(
       'hidden',
       'items-center',
       'gap-3',
@@ -52,10 +51,17 @@ describe('GuestActionButtons', () => {
     );
 
     // The wrapper should NOT be there (no hidden class)
-    const firstChild = container.firstChild as HTMLElement;
-    expect(firstChild).not.toHaveClass('hidden');
+    expect(container.firstElementChild).not.toHaveClass('hidden');
 
     expect(screen.getByRole('link', { name: '註冊' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '登入' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '註冊' })).toHaveAttribute(
+      'data-analytics-click',
+      'header_signup'
+    );
+    expect(screen.getByRole('link', { name: '登入' })).toHaveAttribute(
+      'data-analytics-click',
+      'header_signin'
+    );
   });
 });

@@ -45,7 +45,13 @@ export function HamburgerMenu({
   const content = (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="ghost" aria-label="開啟導航選單">
+        <Button
+          variant="ghost"
+          aria-label="開啟導航選單"
+          data-analytics-click="mobile_menu_open"
+          data-analytics-location="mobile_menu"
+          data-analytics-feature="navigation"
+        >
           <HamburgerMenuIcon className="size-6" aria-hidden="true" />
         </Button>
       </SheetTrigger>
@@ -66,6 +72,9 @@ export function HamburgerMenu({
             <Link
               href={FIND_MENTOR_HREF}
               onClick={close}
+              data-analytics-click="mobile_nav_mentor_pool"
+              data-analytics-location="mobile_menu"
+              data-analytics-feature="navigation"
               className="text-text-primary"
             >
               尋找導師
@@ -75,12 +84,22 @@ export function HamburgerMenu({
               href={becomeMentorPath}
               onClick={close}
               disabled={isHintOnlyState(identity.state)}
+              data-analytics-click="mobile_nav_become_mentor"
+              data-analytics-location="mobile_menu"
+              data-analytics-feature="onboarding"
               className="text-text-primary"
             >
               成為導師
             </DisabledAwareLink>
 
-            <Link href="/about" onClick={close} className="text-text-primary">
+            <Link
+              href="/about"
+              onClick={close}
+              data-analytics-click="mobile_nav_about"
+              data-analytics-location="mobile_menu"
+              data-analytics-feature="navigation"
+              className="text-text-primary"
+            >
               關於 X-Talent
             </Link>
 
@@ -102,7 +121,13 @@ export function HamburgerMenu({
           {isGuestOrUnknownState(identity.state) && (
             <div className="mt-auto flex flex-col items-center gap-6 pb-6">
               <Button asChild className="bg-brand-500 hover:bg-brand-500 w-40">
-                <Link href="/auth/signin" onClick={close}>
+                <Link
+                  href="/auth/signin"
+                  onClick={close}
+                  data-analytics-click="mobile_signin"
+                  data-analytics-location="mobile_menu"
+                  data-analytics-feature="auth"
+                >
                   登入
                 </Link>
               </Button>
@@ -111,7 +136,13 @@ export function HamburgerMenu({
                 variant="outline"
                 className="border-brand-500 text-brand-500 hover:text-brand-500 w-40"
               >
-                <Link href="/auth/signup" onClick={close}>
+                <Link
+                  href="/auth/signup"
+                  onClick={close}
+                  data-analytics-click="mobile_signup"
+                  data-analytics-location="mobile_menu"
+                  data-analytics-feature="auth"
+                >
                   註冊
                 </Link>
               </Button>

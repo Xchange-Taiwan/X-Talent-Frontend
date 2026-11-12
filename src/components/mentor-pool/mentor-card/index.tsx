@@ -52,6 +52,11 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
         <Link
           href={`/profile/${id}`}
           aria-label={`前往 ${name} 的個人頁面`}
+          data-analytics-click="mentor_card"
+          data-analytics-event="mentor_card_click"
+          data-analytics-feature="mentor_pool"
+          data-analytics-location="mentor_pool_list"
+          data-analytics-param-mentor-id={String(id)}
           className="absolute inset-0 z-10"
         ></Link>
         <AvatarWithBadge
