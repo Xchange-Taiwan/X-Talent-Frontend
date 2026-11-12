@@ -149,11 +149,17 @@ vi.mock('@/lib/analytics', async (importOriginal) => {
 // Mock ReservationCard for fully isolated testing
 vi.mock('./ReservationCard', () => ({
   ReservationCard: ({
+    headerAction,
+    feedbackContent,
     actions,
+    footer,
     item,
     profileHref,
   }: {
+    headerAction?: React.ReactNode;
+    feedbackContent?: React.ReactNode;
     actions?: React.ReactNode;
+    footer?: React.ReactNode;
     item: { id: string; name: string };
     profileHref?: string;
   }) => (
@@ -161,8 +167,11 @@ vi.mock('./ReservationCard', () => ({
       data-testid={`reservation-card-${item.id}`}
       data-profile-href={profileHref}
     >
+      <div data-testid={`header-action-${item.id}`}>{headerAction}</div>
       {item.name}
-      {actions}
+      {feedbackContent}
+      {footer}
+      <div data-testid={`bottom-actions-${item.id}`}>{actions}</div>
     </div>
   ),
 }));
@@ -399,6 +408,115 @@ describe('ReservationList', () => {
       expect(
         screen.queryByRole('link', { name: '管理可預約時段' })
       ).not.toBeInTheDocument();
+    });
+  });
+
+  describe('history feedback card states & 1.h swap (#730)', () => {
+    it('renders 填寫回饋 button and swapped 已結束 status badge only when nextStep === "ANSWER"', () => {
+      const answerItem: Reservation = {
+        ...mockReservation,
+        id: 'hist-answer',
+        senderUserId: 'user-123',
+        participantUserId: 'mentor-99',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      };
+      const noFeedbackItem: Reservation = {
+        ...mockReservation,
+        id: 'hist-fallback',
+        name: 'Fallback Mentor',
+        senderUserId: 'user-123',
+        participantUserId: 'mentor-98',
+      };
+
+      render(
+        <ReservationList
+          items={[answerItem, noFeedbackItem]}
+          variant="history"
+          sourceRole="mentee"
+          myUserId="user-123"
+        />
+      );
+
+      expect(screen.getAllByRole('button', { name: '填寫回饋' })).toHaveLength(
+        1
+      );
+      expect(screen.getAllByText('已結束')).toHaveLength(2);
+    });
+
+    it('renders 已填寫 for public rating, 評價未公開 (not 已填寫) for isPublic=false, and 未進行 for meetingHappened=false', () => {
+      const items: Reservation[] = [
+        {
+          ...mockReservation,
+          id: 'hist-public',
+          name: 'Public Mentor',
+          feedback: {
+            meetingHappened: true,
+            rating: {
+              rating: 10,
+              content: '公開好評內容',
+              createdAt: 1760000000,
+              updatedAt: 1760000000,
+              authorName: '王＊明',
+              isPublic: true,
+            },
+            nextStep: null,
+          },
+        },
+        {
+          ...mockReservation,
+          id: 'hist-private',
+          name: 'Unpublicized Mentor',
+          feedback: {
+            meetingHappened: false,
+            rating: {
+              rating: 8,
+              content: '未公開評論',
+              createdAt: 1760000000,
+              updatedAt: 1760000000,
+              authorName: '王＊明',
+              isPublic: false,
+            },
+            nextStep: null,
+          },
+        },
+        {
+          ...mockReservation,
+          id: 'hist-not-happened',
+          name: 'Absent Mentor',
+          feedback: {
+            meetingHappened: false,
+            rating: null,
+            nextStep: null,
+          },
+        },
+      ];
+
+      render(
+        <ReservationList
+          items={items}
+          variant="history"
+          sourceRole="mentee"
+          myUserId="user-123"
+        />
+      );
+
+      expect(screen.getByText('已填寫')).toBeInTheDocument();
+      expect(screen.getByText('10 / 10')).toBeInTheDocument();
+      expect(screen.getByText('公開好評內容')).toBeInTheDocument();
+      expect(screen.queryByText('尚未公開')).not.toBeInTheDocument();
+
+      expect(screen.getByText('評價未公開')).toBeInTheDocument();
+      expect(
+        screen.getByTestId('reservation-feedback-unpublicized').textContent
+      ).toContain(
+        '這場會談已被標註沒有進行，因此評價不會公開；如有疑問可以透過回饋表單聯繫我們。'
+      );
+
+      expect(screen.getByText('未進行')).toBeInTheDocument();
     });
   });
 });

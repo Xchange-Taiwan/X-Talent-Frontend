@@ -6,8 +6,10 @@ import type * as React from 'react';
 
 import AcceptReservationDialog from '@/components/reservation/AcceptReservationDialog';
 import CancelReservationDialog from '@/components/reservation/CancelReservationDialog';
+import MeetingFeedbackDialog from '@/components/reservation/MeetingFeedbackDialog';
 import RejectReservationDialog from '@/components/reservation/RejectReservationDialog';
 import ReservationConversationDialog from '@/components/reservation/ReservationConversationDialog';
+import { ReservationFeedbackBlock } from '@/components/reservation/ReservationFeedbackBlock';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -15,6 +17,7 @@ import { useProfileLinkClick } from '@/hooks/reservation/useProfileLinkClick';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { trackEvent } from '@/lib/analytics';
 import { resolveReservationViewer } from '@/lib/reservation/reservationViewerModel';
+import { resolveHistoryFeedbackState } from '@/lib/reservation/resolveHistoryFeedbackState';
 import type { Reservation } from '@/types/reservation';
 
 import {
@@ -82,16 +85,26 @@ function ReservationItem({
   sourceRole: SourceRole;
   myUserId: string | undefined;
 }) {
-  const { accept, rejectOrCancel, isMutating } = useReservationActions({
-    myUserId,
-    variant,
-    myRole: sourceRole,
-  });
+  const { accept, rejectOrCancel, submitFeedback, isMutating } =
+    useReservationActions({
+      myUserId,
+      variant,
+      myRole: sourceRole,
+    });
 
   const viewer = resolveReservationViewer({
     reservation,
     myUserId,
   });
+
+  const historyState =
+    variant === 'history'
+      ? resolveHistoryFeedbackState({
+          reservation,
+          sourceRole,
+          cancelledByLabel: viewer.cancelledByLabel,
+        })
+      : null;
 
   const handleProfileLinkInvalidation = useProfileLinkClick({
     disabled: isMutating,
@@ -122,11 +135,33 @@ function ReservationItem({
       onProfileClick={handleProfileClick}
       disabled={isMutating}
       sourceRole={sourceRole}
+      headerAction={
+        historyState ? (
+          historyState.headerAction.kind === 'answer-button' ? (
+            <MeetingFeedbackDialog
+              reservation={reservation}
+              disabled={isMutating}
+              onSubmitFeedback={(payload) =>
+                submitFeedback(reservation, payload)
+              }
+            />
+          ) : (
+            <Badge variant="secondary" role="status">
+              {historyState.headerAction.label}
+            </Badge>
+          )
+        ) : null
+      }
+      feedbackContent={
+        historyState?.feedbackBlock ? (
+          <ReservationFeedbackBlock model={historyState.feedbackBlock} />
+        ) : null
+      }
       actions={
         variant === 'history' ? (
-          viewer.cancelledByLabel ? (
+          historyState?.bottomStatusLabel ? (
             <Badge variant="secondary" role="status">
-              {viewer.cancelledByLabel}
+              {historyState.bottomStatusLabel}
             </Badge>
           ) : null
         ) : variant === 'pending-mentor' ? (

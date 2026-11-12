@@ -128,4 +128,55 @@ describe('fetchMentorFeedback service (#736 / #760)', () => {
       fetchMentorFeedback({ mentorId: 999, page: 1 })
     ).rejects.toThrow('Internal Server Error');
   });
+
+  it('filters out unpublicized feedback items where is_public === false and adjusts totalRatingCount consistently (#730)', () => {
+    const mapped = mapMentorFeedbackResponse({
+      total_rating_count: 2,
+      rating_average: 10,
+      completed_meeting_count: 1,
+      items: [
+        {
+          id: 'pub-1',
+          author_name: '王小明',
+          rating: 10,
+          content: '公開評價內容',
+          created_at: 1760000000,
+          is_public: true,
+        },
+        {
+          id: 'priv-2',
+          author_name: '陳大文',
+          rating: 8,
+          content: '未公開評價內容',
+          created_at: 1760000100,
+          is_public: false,
+        },
+      ],
+    });
+
+    expect(mapped.items).toHaveLength(1);
+    expect(mapped.items[0].id).toBe('pub-1');
+    expect(mapped.items[0].content).toBe('公開評價內容');
+    expect(mapped.totalRatingCount).toBe(1);
+
+    const allPrivate = mapMentorFeedbackResponse({
+      total_rating_count: 1,
+      rating_average: 8,
+      completed_meeting_count: 0,
+      items: [
+        {
+          id: 'priv-only',
+          author_name: '陳大文',
+          rating: 8,
+          content: '未公開評價內容',
+          created_at: 1760000100,
+          is_public: false,
+        },
+      ],
+    });
+
+    expect(allPrivate.items).toHaveLength(0);
+    expect(allPrivate.totalRatingCount).toBe(0);
+    expect(allPrivate.ratingAverage).toBeNull();
+  });
 });

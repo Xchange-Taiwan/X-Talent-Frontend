@@ -77,4 +77,19 @@ describe('Toast', () => {
 
     expect(onOpenChange).not.toHaveBeenCalled();
   });
+
+  it('positions ToastViewport as a fixed floating layer below the top bar instead of bottom-right', () => {
+    render(
+      <ToastProvider>
+        <ToastViewport data-testid="toast-viewport" />
+      </ToastProvider>
+    );
+
+    const viewport = screen.getByTestId('toast-viewport');
+    expect(viewport.className).toContain('fixed');
+    expect(viewport.className).toContain(
+      'top-[calc(70px_+_var(--banner-height,0px))]'
+    );
+    expect(viewport.className).not.toContain('sm:bottom-0');
+  });
 });

@@ -455,7 +455,7 @@ test.describe('歷史紀錄 Tab 測試', () => {
 });
 
 test.describe('學員端空狀態情境文案與 CTA 導向測試', () => {
-  test('驗證三個 Tab（「即將到來」、「等待回覆」、「歷史紀錄」）空狀態情境文案，且點擊「前往尋找導師」導向 /mentor-pool', async ({
+  test('驗證三個 Tab（「等待回覆」、「即將到來」、「歷史紀錄」）空狀態情境文案，且點擊「前往尋找導師」導向 /mentor-pool', async ({
     page,
   }) => {
     await setSignedSessionCookie(page);
@@ -464,26 +464,26 @@ test.describe('學員端空狀態情境文案與 CTA 導向測試', () => {
 
     await page.goto(PAGE_URL);
 
-    // 1. 即將到來 Tab 空狀態
-    await expect(page.getByRole('tab', { name: /即將到來/ })).toBeVisible({
+    // 1. 等待回覆 Tab 空狀態（預設選中第一個分頁）
+    await expect(page.getByRole('tab', { name: /等待回覆/ })).toBeVisible({
       timeout: 15_000,
     });
     await expect(page.getByText('目前尚無資料')).toBeVisible();
     await expect(
       page.getByText(
-        '目前還沒有即將到來的預約，立即前往導師池尋找適合的導師吧！'
+        '目前還沒有等待回覆的預約，前往導師池探索並向導師提出預約申請吧！'
       )
     ).toBeVisible();
     await expect(
       page.getByRole('link', { name: '前往尋找導師' })
     ).toHaveAttribute('href', '/mentor-pool');
 
-    // 2. 等待回覆 Tab 空狀態
-    await page.getByRole('tab', { name: /等待回覆/ }).click();
+    // 2. 即將到來 Tab 空狀態
+    await page.getByRole('tab', { name: /即將到來/ }).click();
     await expect(page.getByText('目前尚無資料')).toBeVisible();
     await expect(
       page.getByText(
-        '目前還沒有等待回覆的預約，前往導師池探索並向導師提出預約申請吧！'
+        '目前還沒有即將到來的預約，立即前往導師池尋找適合的導師吧！'
       )
     ).toBeVisible();
     await expect(
@@ -520,6 +520,7 @@ test.describe('學員取消預約與即將到來 Tab 測試', () => {
     await expect(page.getByRole('tab', { name: /即將到來/ })).toBeVisible({
       timeout: 15_000,
     });
+    await page.getByRole('tab', { name: /即將到來/ }).click();
 
     // 驗證卡片內容
     await expect(page.getByText('Mentor Wang')).toBeVisible();
@@ -647,10 +648,11 @@ test.describe('學員取消預約與即將到來 Tab 測試', () => {
 
     await page.goto(PAGE_URL);
 
-    // 驗證「即將到來」tab
+    // 切換並驗證「即將到來」tab
     await expect(page.getByRole('tab', { name: /即將到來/ })).toBeVisible({
       timeout: 15_000,
     });
+    await page.getByRole('tab', { name: /即將到來/ }).click();
     await expect(page.getByText('Mentor Chen')).toBeVisible({
       timeout: 10_000,
     });

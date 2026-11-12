@@ -1,9 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import React from 'react';
 
+import MeetingFeedbackDialog from '@/components/reservation/MeetingFeedbackDialog';
 import ReservationConversationDialog from '@/components/reservation/ReservationConversationDialog';
+import { ReservationFeedbackBlock } from '@/components/reservation/ReservationFeedbackBlock';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { UNPUBLICIZED_FEEDBACK_NOTICE } from '@/lib/reservation/resolveHistoryFeedbackState';
 
 import { mockReservation } from './mocks';
 import { ReservationCard } from './ReservationCard';
@@ -170,6 +173,136 @@ export const HistoryCompleted: Story = {
         }}
         sourceRole="mentor"
       />
+    ),
+  },
+};
+
+// 6. Mentee History - Needs Feedback (1.h swap: top-right 填寫回饋 button, bottom-right 已結束 badge)
+export const HistoryMenteeNeedsFeedback: Story = {
+  args: {
+    variant: 'history',
+    sourceRole: 'mentee',
+    item: {
+      ...mockReservation,
+      feedback: {
+        meetingHappened: null,
+        rating: null,
+        nextStep: 'ANSWER',
+      },
+    },
+    headerAction: (
+      <MeetingFeedbackDialog
+        reservation={mockReservation}
+        onSubmitFeedback={async () => {}}
+      />
+    ),
+    actions: (
+      <Badge variant="secondary" role="status">
+        已結束
+      </Badge>
+    ),
+    footer: (
+      <ReservationConversationDialog
+        reservation={mockReservation}
+        sourceRole="mentee"
+      />
+    ),
+  },
+};
+
+// 7. Mentee History - Public Rating Submitted (已填寫 + score & comment)
+export const HistoryMenteeRatedPublic: Story = {
+  args: {
+    variant: 'history',
+    sourceRole: 'mentee',
+    item: {
+      ...mockReservation,
+      feedback: {
+        meetingHappened: true,
+        rating: {
+          rating: 10,
+          content: '導師給了非常具體的架構重構建議，收穫滿滿！',
+          createdAt: 1760000000,
+          updatedAt: 1760000000,
+          authorName: '王＊明',
+          isPublic: true,
+        },
+        nextStep: null,
+      },
+    },
+    headerAction: (
+      <Badge variant="secondary" role="status">
+        已填寫
+      </Badge>
+    ),
+    feedbackContent: (
+      <ReservationFeedbackBlock
+        model={{
+          kind: 'public-rating',
+          label: '我的評價',
+          rating: 10,
+          content: '導師給了非常具體的架構重構建議，收穫滿滿！',
+        }}
+      />
+    ),
+  },
+};
+
+// 8. Mentee History - Unpublicized Rating (is_public === false -> 評價未公開 + notice)
+export const HistoryMenteeRatedUnpublicized: Story = {
+  args: {
+    variant: 'history',
+    sourceRole: 'mentee',
+    item: {
+      ...mockReservation,
+      feedback: {
+        meetingHappened: false,
+        rating: {
+          rating: 9,
+          content: '感謝導師分享。',
+          createdAt: 1760000000,
+          updatedAt: 1760000000,
+          authorName: '王＊明',
+          isPublic: false,
+        },
+        nextStep: null,
+      },
+    },
+    headerAction: (
+      <Badge variant="secondary" role="status">
+        評價未公開
+      </Badge>
+    ),
+    feedbackContent: (
+      <ReservationFeedbackBlock
+        model={{
+          kind: 'unpublicized',
+          rating: 9,
+          content: '感謝導師分享。',
+          notice: UNPUBLICIZED_FEEDBACK_NOTICE,
+        }}
+      />
+    ),
+  },
+};
+
+// 9. Mentee History - Meeting Not Happened (未進行)
+export const HistoryMenteeNotHappened: Story = {
+  args: {
+    variant: 'history',
+    sourceRole: 'mentee',
+    item: {
+      ...mockReservation,
+      feedback: {
+        meetingHappened: false,
+        rating: null,
+        nextStep: null,
+      },
+    },
+    headerAction: (
+      <Badge variant="secondary" role="status">
+        未進行
+      </Badge>
     ),
   },
 };
