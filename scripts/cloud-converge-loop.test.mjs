@@ -1,10 +1,18 @@
 // @vitest-environment node
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  applyPhase2HeadlessWorkspaceLocks,
   buildRoundFixPrompt,
   clampMaxRounds,
+  createSnapshotRestorer,
   detectChangedE2eSpecs,
+  ensurePhase2GeminiToolExclusions,
   evaluateRoundConvergence,
   extractJsonObject,
   formatConvergenceSummaryMarkdown,
@@ -732,6 +740,276 @@ describe('cloud-converge-loop', () => {
       expect(res.converged).toBe(false);
       expect(res.stalled).toBe(true);
       expect(res.roundsRun).toBe(3);
+    });
+
+    it('excludes run_shell_command in Phase 2 settings and exits cleanly on soft wall-clock budget so Phase 3 can open PR', async () => {
+      let savedJson = '';
+      const updated = ensurePhase2GeminiToolExclusions(
+        '.gemini/settings.json',
+        {
+          existsSync: () => true,
+          readFileSync: () =>
+            JSON.stringify({
+              model: { name: 'gemini-4-carbon' },
+              tools: { exclude: ['web_fetch'] },
+            }),
+          writeFileSync: (_p, content) => {
+            savedJson = content;
+          },
+        }
+      );
+      expect(updated).toBe(true);
+      expect(JSON.parse(savedJson).tools.exclude).toEqual([
+        'web_fetch',
+        'run_shell_command',
+        'google_web_search',
+      ]);
+
+      let clockMs = 1000;
+      let geminiInvocations = 0;
+      const execStep = vi.fn((cmd, args) => {
+        if (cmd === 'git' && args[0] === 'diff') {
+          return { ok: true, stdout: 'src/a.ts\n', stderr: '' };
+        }
+        if (cmd === 'pnpm' && args[0] === 'lint') {
+          clockMs += 40 * 60 * 1000;
+          return {
+            ok: false,
+            stderr: `lint error at ${clockMs}`,
+            combined: `lint error at ${clockMs}`,
+          };
+        }
+        if (cmd === 'npx' && args[0] === 'gemini') {
+          geminiInvocations += 1;
+        }
+        return { ok: true, stdout: '', stderr: '' };
+      });
+
+      const res = await runConvergeLoop(
+        {
+          maxRounds: 20,
+          ticketNumber: '733',
+          runE2e: false,
+          maxDurationMs: 70 * 60 * 1000,
+        },
+        {
+          execStep,
+          writeFile: () => {},
+          log: () => {},
+          fileExists: () => true,
+          now: () => clockMs,
+        }
+      );
+
+      expect(geminiInvocations).toBe(1);
+      expect(res.converged).toBe(false);
+      expect(res.stalled).toBe(false);
+      expect(res.roundsRun).toBe(2);
+    });
+    it('defensively handles missing, null, malformed, and tool-less settings.json files and CONVERGE_MAX_DURATION_MS fallbacks', async () => {
+      expect(
+        ensurePhase2GeminiToolExclusions('missing.json', {
+          existsSync: () => false,
+        })
+      ).toBe(false);
+      expect(
+        ensurePhase2GeminiToolExclusions('null.json', {
+          existsSync: () => true,
+          readFileSync: () => 'null',
+        })
+      ).toBe(false);
+      expect(
+        ensurePhase2GeminiToolExclusions('bad.json', {
+          existsSync: () => true,
+          readFileSync: () => '{broken',
+        })
+      ).toBe(false);
+
+      let written = '';
+      expect(
+        ensurePhase2GeminiToolExclusions('bare.json', {
+          existsSync: () => true,
+          readFileSync: () =>
+            JSON.stringify({
+              model: { name: 'gemini-4-carbon' },
+              mcpServers: { genable: {} },
+              hooks: { AfterAgent: [] },
+            }),
+          writeFileSync: (_p, c) => {
+            written = c;
+          },
+        })
+      ).toBe(true);
+      const parsedBare = JSON.parse(written);
+      expect(parsedBare.mcpServers).toBeUndefined();
+      expect(parsedBare.hooks).toBeUndefined();
+      expect(parsedBare.tools.exclude).toEqual([
+        'run_shell_command',
+        'web_fetch',
+        'google_web_search',
+      ]);
+      expect(parsedBare.fileFiltering.respectGitIgnore).toBe(false);
+
+      // Verify CONVERGE_MAX_DURATION_MS env parsing & invalid fallback
+      const prevEnv = process.env.CONVERGE_MAX_DURATION_MS;
+      try {
+        process.env.CONVERGE_MAX_DURATION_MS = '120000';
+        let clock = 0;
+        const resEnv = await runConvergeLoop(
+          { maxRounds: 10, ticketNumber: '733', runE2e: false },
+          {
+            execStep: (cmd, args) => {
+              if (cmd === 'git' && args[0] === 'diff') {
+                return { ok: true, stdout: 'src/a.ts\n', stderr: '' };
+              }
+              if (cmd === 'pnpm' && args[0] === 'lint') {
+                clock += 130000;
+                return {
+                  ok: false,
+                  stderr: `err ${clock}`,
+                  combined: `err ${clock}`,
+                };
+              }
+              return { ok: true, stdout: '', stderr: '' };
+            },
+            writeFile: () => {},
+            log: () => {},
+            fileExists: () => true,
+            now: () => clock,
+          }
+        );
+        expect(resEnv.roundsRun).toBe(1);
+
+        for (const invalidVal of ['0', '-5', 'invalid']) {
+          process.env.CONVERGE_MAX_DURATION_MS = invalidVal;
+          let fallbackClock = 0;
+          const resFallback = await runConvergeLoop(
+            { maxRounds: 10, ticketNumber: '733', runE2e: false },
+            {
+              execStep: (cmd, args) => {
+                if (cmd === 'git' && args[0] === 'diff') {
+                  return { ok: true, stdout: 'src/a.ts\n', stderr: '' };
+                }
+                if (cmd === 'pnpm' && args[0] === 'lint') {
+                  fallbackClock += 40 * 60 * 1000;
+                  return {
+                    ok: false,
+                    stderr: `err ${fallbackClock}`,
+                    combined: `err ${fallbackClock}`,
+                  };
+                }
+                return { ok: true, stdout: '', stderr: '' };
+              },
+              writeFile: () => {},
+              log: () => {},
+              fileExists: () => true,
+              now: () => fallbackClock,
+            }
+          );
+          expect(resFallback.roundsRun).toBe(2);
+        }
+      } finally {
+        if (prevEnv === undefined) {
+          delete process.env.CONVERGE_MAX_DURATION_MS;
+        } else {
+          process.env.CONVERGE_MAX_DURATION_MS = prevEnv;
+        }
+      }
+    });
+
+    it('preserves Phase 2 tool exclusions and --skip-worktree across real Git snapshot rollbacks', () => {
+      const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'converge-snap-'));
+      try {
+        execFileSync('git', ['init'], { cwd: tmpRepo, stdio: 'ignore' });
+        execFileSync('git', ['config', 'user.email', 'test@example.com'], {
+          cwd: tmpRepo,
+          stdio: 'ignore',
+        });
+        execFileSync('git', ['config', 'user.name', 'Test'], {
+          cwd: tmpRepo,
+          stdio: 'ignore',
+        });
+
+        fs.mkdirSync(path.join(tmpRepo, '.gemini'), { recursive: true });
+        fs.mkdirSync(path.join(tmpRepo, 'src'), { recursive: true });
+        fs.writeFileSync(
+          path.join(tmpRepo, '.gitignore'),
+          'node_modules/\n/.agents/tmp/\n',
+          'utf8'
+        );
+        fs.writeFileSync(
+          path.join(tmpRepo, '.gemini', 'settings.json'),
+          JSON.stringify({
+            model: { name: 'gemini-4-carbon' },
+            mcpServers: { genable: { command: 'npx' } },
+          }),
+          'utf8'
+        );
+        fs.writeFileSync(
+          path.join(tmpRepo, 'src', 'app.ts'),
+          'export const x = 1;\n',
+          'utf8'
+        );
+
+        execFileSync('git', ['add', '-A'], { cwd: tmpRepo, stdio: 'ignore' });
+        execFileSync('git', ['commit', '-m', 'init'], {
+          cwd: tmpRepo,
+          stdio: 'ignore',
+        });
+
+        applyPhase2HeadlessWorkspaceLocks({ cwd: tmpRepo });
+
+        const treeSha = execFileSync('git', ['write-tree'], {
+          cwd: tmpRepo,
+          encoding: 'utf8',
+        }).trim();
+
+        // Simulate broken timed-out edits to tracked HEAD file + untracked file
+        fs.writeFileSync(
+          path.join(tmpRepo, 'src', 'app.ts'),
+          'BROKEN SYNTAX {{{',
+          'utf8'
+        );
+        fs.writeFileSync(
+          path.join(tmpRepo, 'src', 'stray.ts'),
+          'broken',
+          'utf8'
+        );
+
+        const restore = createSnapshotRestorer({ cwd: tmpRepo });
+        restore(treeSha);
+
+        expect(
+          fs.readFileSync(path.join(tmpRepo, 'src', 'app.ts'), 'utf8')
+        ).toBe('export const x = 1;\n');
+        expect(fs.existsSync(path.join(tmpRepo, 'src', 'stray.ts'))).toBe(
+          false
+        );
+
+        const restoredSettings = JSON.parse(
+          fs.readFileSync(
+            path.join(tmpRepo, '.gemini', 'settings.json'),
+            'utf8'
+          )
+        );
+        expect(restoredSettings.mcpServers).toBeUndefined();
+        expect(restoredSettings.tools.exclude).toEqual([
+          'run_shell_command',
+          'web_fetch',
+          'google_web_search',
+        ]);
+        expect(
+          fs.readFileSync(path.join(tmpRepo, '.gitignore'), 'utf8')
+        ).not.toContain('/.agents/tmp/');
+
+        const statusOut = execFileSync('git', ['status', '--porcelain'], {
+          cwd: tmpRepo,
+          encoding: 'utf8',
+        }).trim();
+        expect(statusOut).toBe('');
+      } finally {
+        fs.rmSync(tmpRepo, { recursive: true, force: true });
+      }
     });
   });
 });
