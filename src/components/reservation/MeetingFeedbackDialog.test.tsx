@@ -308,7 +308,7 @@ describe('MeetingFeedbackDialog', () => {
 
     for (const label of [
       '雙方時間無法配合',
-      '未出席',
+      '對方未出席',
       '未收到或錯過會議通知',
       '技術／連線問題',
       '其他',
@@ -317,7 +317,7 @@ describe('MeetingFeedbackDialog', () => {
     }
 
     // Selecting a non-OTHER reason enables submit and keeps 補充說明 collapsed
-    fireEvent.click(screen.getByRole('radio', { name: '未出席' }));
+    fireEvent.click(screen.getByRole('radio', { name: '對方未出席' }));
     expect(submitBtn).not.toBeDisabled();
     expect(noteCollapse).toHaveAttribute('data-expanded', 'false');
 
@@ -332,7 +332,7 @@ describe('MeetingFeedbackDialog', () => {
     });
 
     // Switching away from 其他 collapses 補充說明 even when draft has text, and omits note on submit
-    fireEvent.click(screen.getByRole('radio', { name: '未出席' }));
+    fireEvent.click(screen.getByRole('radio', { name: '對方未出席' }));
     expect(noteCollapse).toHaveAttribute('data-expanded', 'false');
 
     fireEvent.click(submitBtn);
@@ -1097,7 +1097,10 @@ describe('MeetingFeedbackDialog', () => {
         '送出後不能修改。這場會談不會計入已完成場次，學員的評價也不會公開。'
       );
 
-      const submitBtn = screen.getByRole('button', { name: '送出回饋' });
+      expect(
+        screen.queryByRole('button', { name: '送出回饋' })
+      ).not.toBeInTheDocument();
+      const submitBtn = screen.getByRole('button', { name: '送出' });
       expect(submitBtn).toBeDisabled();
 
       fireEvent.click(screen.getByRole('radio', { name: '其他' }));
@@ -1322,8 +1325,11 @@ describe('MeetingFeedbackDialog', () => {
         expect(
           screen.getByTestId('mentor-not-happened-warning')
         ).toBeInTheDocument();
-        fireEvent.click(screen.getByRole('radio', { name: '未出席' }));
-        fireEvent.click(screen.getByRole('button', { name: '送出回饋' }));
+        expect(
+          screen.queryByRole('button', { name: '送出回饋' })
+        ).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('radio', { name: '對方未出席' }));
+        fireEvent.click(screen.getByRole('button', { name: '送出' }));
 
         await waitFor(() => {
           expect(onSubmitFeedback).toHaveBeenNthCalledWith(

@@ -78,6 +78,19 @@ function NotHappenedPreview({
           noteRegistration={form.register('notHappenedNote')}
           onSelectReason={(next) => form.setValue('notHappenedReason', next)}
         />
+        <MeetingFeedbackFooter
+          effectiveStep="not-happened"
+          isEditMode={false}
+          isMentor={isMentor}
+          meetingHappened={false}
+          isSubmitting={false}
+          isTransitioningCard={false}
+          canProceedAttendance={true}
+          canSubmitStep2={reason !== null}
+          onNextFromAttendance={() => {}}
+          onBackToAttendance={() => {}}
+          onCancelEdit={() => {}}
+        />
       </DialogContent>
     </Dialog>
   );

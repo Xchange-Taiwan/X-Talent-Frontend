@@ -575,7 +575,7 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄收合面板與版面翻�
 
     for (const reasonLabel of [
       '雙方時間無法配合',
-      '未出席',
+      '對方未出席',
       '未收到或錯過會議通知',
       '技術／連線問題',
       '其他',
@@ -589,7 +589,7 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄收合面板與版面翻�
 
     await dialog
       .locator('label')
-      .filter({ hasText: /^未出席$/ })
+      .filter({ hasText: /^對方未出席$/ })
       .click();
     await expect(
       dialog.getByTestId('not-happened-note-collapse')
@@ -616,7 +616,7 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄收合面板與版面翻�
     // Switching to non-OTHER reason collapses note input; switching back to 其他 re-expands with draft preserved
     await dialog
       .locator('label')
-      .filter({ hasText: /^未出席$/ })
+      .filter({ hasText: /^對方未出席$/ })
       .click();
     await expect(
       dialog.getByTestId('not-happened-note-collapse')

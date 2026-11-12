@@ -33,6 +33,8 @@ export function PendingFeedbackModal({
     return null;
   }
 
+  // Top-right X in multi-item mode skips the current session and advances to the next;
+  // pressing ESC (or closing the final session) skips remaining unaddressed items and invokes onClose (`dismissQueue`).
   return (
     <MeetingFeedbackDialog
       defaultOpen

@@ -491,6 +491,8 @@ export function MeetingFeedbackFooter({
           '儲存'
         ) : hasRemainingQueueCard ? (
           '送出並填下一場'
+        ) : isMentor ? (
+          '送出'
         ) : (
           '送出回饋'
         )}

@@ -144,6 +144,63 @@ describe('PendingFeedbackModal (#740)', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('marks all remaining unaddressed queue items as skipped and calls onClose once when Escape is pressed mid-queue', () => {
+    vi.useFakeTimers();
+    const onSkip = vi.fn();
+    const onClose = vi.fn();
+    const item1 = fromPartial<Reservation>({
+      id: 'esc-multi-1',
+      name: 'Emily Chen',
+      date: '2026/10/12',
+      time: '19:00–19:30',
+      viewerRole: 'MENTOR',
+    });
+    const item2 = fromPartial<Reservation>({
+      id: 'esc-multi-2',
+      name: 'Alex Wang',
+      date: '2026/10/18',
+      time: '20:00–20:30',
+      viewerRole: 'MENTEE',
+    });
+    const item3 = fromPartial<Reservation>({
+      id: 'esc-multi-3',
+      name: 'Zahra Mirzakhani',
+      date: '2026/10/25',
+      time: '21:00–21:30',
+      viewerRole: 'MENTOR',
+    });
+
+    render(
+      <PendingFeedbackModal
+        queueItems={[item1, item2, item3]}
+        onSubmitFeedback={vi.fn()}
+        onSkipReservation={onSkip}
+        onClose={onClose}
+      />
+    );
+
+    // Skip item1 via top-right X to reach item2 (第 2／3 場)
+    fireEvent.click(
+      screen.getByRole('button', { name: '略過 Emily Chen 這場回饋' })
+    );
+    act(() => {
+      vi.advanceTimersByTime(QUEUE_SWIPE_OUT_MS + QUEUE_PROMOTE_MS);
+    });
+    expect(screen.getByTestId('feedback-queue-counter')).toHaveTextContent(
+      '第 2／3 場'
+    );
+    expect(onSkip).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+
+    // Press Escape mid-queue on item2 -> skips remaining [item2, item3], closes dialog, and calls onClose (`dismissQueue`) strictly once
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(onSkip).toHaveBeenCalledTimes(3);
+    expect(onSkip).toHaveBeenNthCalledWith(2, item2);
+    expect(onSkip).toHaveBeenNthCalledWith(3, item3);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('mounts PendingFeedbackQueueLauncher without rendering modal when queue is empty and opens modal when items exist', () => {
     mockUsePendingFeedbackQueue.mockReturnValueOnce({
       queueItems: null,

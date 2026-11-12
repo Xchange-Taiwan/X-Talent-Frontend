@@ -133,6 +133,113 @@ describe('usePendingFeedbackQueue (#740)', () => {
     expect(mockFetchPending).toHaveBeenCalledTimes(1);
   });
 
+  it('suppresses fetch when onBoarding is false/undefined or session.error exists, fetches once onBoarding becomes true, and resets sessionStorage on /auth/signin', async () => {
+    const item1 = makeItem('105', 1760000000);
+    mockFetchPending.mockResolvedValue([item1]);
+
+    // 1. onBoarding: false on an eligible route -> does NOT fetch
+    mockUseSession.mockReturnValue({
+      data: {
+        ...mockSession,
+        user: {
+          ...mockSession.user,
+          id: '1',
+          onBoarding: false,
+          isMentor: false,
+        },
+      },
+      status: 'authenticated',
+      update: vi.fn(),
+    });
+    const { result, rerender } = renderHook(() => usePendingFeedbackQueue());
+    expect(result.current.queueItems).toBeNull();
+    expect(mockFetchPending).not.toHaveBeenCalled();
+
+    // 2. onBoarding: undefined (unresolved session state) -> still does NOT fetch
+    mockUseSession.mockReturnValue({
+      data: {
+        ...mockSession,
+        user: {
+          ...mockSession.user,
+          id: '1',
+          onBoarding: undefined,
+          isMentor: false,
+        },
+      },
+      status: 'authenticated',
+      update: vi.fn(),
+    });
+    rerender();
+    expect(result.current.queueItems).toBeNull();
+    expect(mockFetchPending).not.toHaveBeenCalled();
+
+    // 3. session.error present even with onBoarding: true -> skips fetch
+    mockUseSession.mockReturnValue({
+      data: {
+        ...mockSession,
+        error: 'RefreshTokenError',
+        user: {
+          ...mockSession.user,
+          id: '1',
+          onBoarding: true,
+          isMentor: false,
+        },
+      },
+      status: 'authenticated',
+      update: vi.fn(),
+    });
+    rerender();
+    expect(result.current.queueItems).toBeNull();
+    expect(mockFetchPending).not.toHaveBeenCalled();
+
+    // 4. Error cleared and onBoarding === true -> fetches and surfaces item1
+    mockUseSession.mockReturnValue({
+      data: {
+        ...mockSession,
+        user: {
+          ...mockSession.user,
+          id: '1',
+          onBoarding: true,
+          isMentor: false,
+        },
+      },
+      status: 'authenticated',
+      update: vi.fn(),
+    });
+    rerender();
+    await waitFor(() => {
+      expect(result.current.queueItems).toEqual([item1]);
+    });
+    expect(mockFetchPending).toHaveBeenCalledTimes(1);
+
+    // Dismiss queue -> persists dismissed/skippedIds in sessionStorage
+    act(() => {
+      result.current.dismissQueue();
+    });
+    expect(getSessionPendingFeedbackState('1').dismissed).toBe(true);
+    expect(getSessionPendingFeedbackState('1').skippedIds).toEqual(['105']);
+
+    // 5. Navigating to /auth/signin resets per-login sessionStorage state
+    mockUsePathname.mockReturnValue('/auth/signin');
+    rerender();
+    expect(result.current.queueItems).toBeNull();
+    expect(getSessionPendingFeedbackState('1')).toEqual({
+      checked: false,
+      dismissed: false,
+      queueEmpty: false,
+      submittedIds: [],
+      skippedIds: [],
+    });
+
+    // Returning to /mentor-pool after auth flow re-fetches and pops item1 again
+    mockUsePathname.mockReturnValue('/mentor-pool');
+    rerender();
+    await waitFor(() => {
+      expect(result.current.queueItems).toEqual([item1]);
+    });
+    expect(mockFetchPending).toHaveBeenCalledTimes(2);
+  });
+
   it('remembers X skip/dismiss only for the current login session and re-pops unanswered items after logout + re-login', async () => {
     const item1 = makeItem('101', 1760000000, 'MENTOR');
     const item2 = makeItem('102', 1761000000, 'MENTEE');
@@ -246,6 +353,31 @@ describe('usePendingFeedbackQueue (#740)', () => {
     });
     expect(mockClearDtoCache).toHaveBeenCalledWith(303, 'zh_TW');
     expect(mockClearDtoCache).toHaveBeenCalledWith(303, 'en_US');
+
+    // Mentor reporting meeting_happened: false MUST also invalidate Mentor's own zh_TW & en_US DTO caches
+    // so any previously published review / session count is evicted immediately
+    mockClearDtoCache.mockClear();
+    const mentorItem = makeItem('202', 1761000000, 'MENTOR');
+    await act(async () => {
+      await result.current.submitFeedbackItem(
+        {
+          meeting_happened: false,
+          not_happened_reason: 'MENTOR_ABSENT',
+        },
+        mentorItem
+      );
+    });
+    expect(mockSubmitFeedback).toHaveBeenCalledWith({
+      reservation: mentorItem,
+      myUserId: '1',
+      myRole: 'mentor',
+      payload: {
+        meeting_happened: false,
+        not_happened_reason: 'MENTOR_ABSENT',
+      },
+    });
+    expect(mockClearDtoCache).toHaveBeenCalledWith(1, 'zh_TW');
+    expect(mockClearDtoCache).toHaveBeenCalledWith(1, 'en_US');
 
     mockUseSession.mockReturnValue({
       data: null,

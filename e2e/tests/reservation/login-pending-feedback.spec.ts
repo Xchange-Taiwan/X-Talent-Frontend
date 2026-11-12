@@ -269,7 +269,7 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
 
     for (const reasonLabel of [
       '雙方時間無法配合',
-      '未出席',
+      '對方未出席',
       '未收到或錯過會議通知',
       '技術／連線問題',
       '其他',
@@ -289,7 +289,7 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
 
     await dialog
       .locator('label')
-      .filter({ hasText: /^未出席$/ })
+      .filter({ hasText: /^對方未出席$/ })
       .click();
     await captureEvidence(
       page,
@@ -348,6 +348,25 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
       'Zahra Mirzakhani'
     );
 
+    // Final Mentor card (!hasRemainingQueueCard): Step 2 submit button displays '送出'
+    await dialog
+      .locator('label')
+      .filter({ hasText: /^沒有進行$/ })
+      .click();
+    await dialog.getByRole('button', { name: '下一步' }).click();
+    await expect(
+      dialog.getByRole('button', { name: '送出', exact: true })
+    ).toBeDisabled();
+    await expect(dialog.getByRole('button', { name: '送出回饋' })).toHaveCount(
+      0
+    );
+    await dialog
+      .locator('label')
+      .filter({ hasText: /^對方未出席$/ })
+      .click();
+    await dialog.getByRole('button', { name: '送出', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+
     expect(submittedPayloads).toEqual([
       { id: 701, body: { meeting_happened: true } },
       {
@@ -356,6 +375,13 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
           meeting_happened: false,
           not_happened_reason: 'OTHER',
           not_happened_note: '學員臨時有事已在聊聊通知改期',
+        },
+      },
+      {
+        id: 703,
+        body: {
+          meeting_happened: false,
+          not_happened_reason: 'MENTOR_ABSENT',
         },
       },
     ]);

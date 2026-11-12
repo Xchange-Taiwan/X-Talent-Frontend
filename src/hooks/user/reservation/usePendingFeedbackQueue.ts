@@ -46,7 +46,7 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
 
   const rawUserId = session?.user?.id ? String(session.user.id) : '';
   const isMentorSession = Boolean(session?.user?.isMentor);
-  const isOnboardingIncomplete = session?.user?.onBoarding === false;
+  const isOnboardingComplete = session?.user?.onBoarding === true;
   const hasSessionError = Boolean(session?.error);
 
   const isSuppressed = shouldSuppressPendingFeedbackPopup({
@@ -112,7 +112,7 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
     if (
       status !== 'authenticated' ||
       !rawUserId ||
-      isOnboardingIncomplete ||
+      !isOnboardingComplete ||
       hasSessionError ||
       isSuppressed
     ) {
@@ -193,7 +193,7 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
     status,
     rawUserId,
     isMentorSession,
-    isOnboardingIncomplete,
+    isOnboardingComplete,
     hasSessionError,
     isSuppressed,
   ]);

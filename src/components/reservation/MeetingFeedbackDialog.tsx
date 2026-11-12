@@ -307,7 +307,7 @@ export default function MeetingFeedbackDialog({
   }, [reset, baseFormValues, resolvedInitialStep, dismissTooltips]);
 
   const handleOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen && inFlightRef.current) {
+    if (!nextOpen && (inFlightRef.current || isTransitioningCard)) {
       return;
     }
 
@@ -321,6 +321,15 @@ export default function MeetingFeedbackDialog({
       }
       setOpen(true);
       return;
+    }
+
+    // When manually closing the dialog (e.g. ESC key, outside click, or single-item X),
+    // mark any remaining unaddressed reservation(s) in the active queue as skipped
+    // before resetting state and invoking onClose (`dismissQueue`).
+    if (!isEditMode && onSkipReservation) {
+      for (const item of queueItems.slice(queueIndex)) {
+        onSkipReservation(item);
+      }
     }
 
     // Manual close resets draft cleanly (1.b.3 & #731).
@@ -337,7 +346,6 @@ export default function MeetingFeedbackDialog({
       advanceOrCloseQueue(true);
       return;
     }
-    onSkipReservation?.(activeReservation);
     handleOpenChange(false);
   };
 
