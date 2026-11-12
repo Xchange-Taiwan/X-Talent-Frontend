@@ -482,7 +482,14 @@ describe('ProfilePageUI - mentor summary bar and feedback tabs (#736)', () => {
     const hashtagEl = within(aboutPanel).getByTestId('mentor-industry-hashtag');
     const aboutBody = within(aboutPanel).getByText('關於導師的介紹文字');
 
+    expect(aboutHeading).toHaveClass('mb-3', 'text-xl', 'font-bold');
     expect(hashtagEl).toHaveTextContent('#設計及創意相關業');
+    expect(hashtagEl).toHaveClass(
+      'text-brand-700',
+      'text-sm',
+      'font-medium',
+      'mb-3'
+    );
     expect(aboutHeading.nextElementSibling).toBe(hashtagEl);
     expect(hashtagEl.nextElementSibling).toBe(aboutBody);
     expect(aboutPanel).not.toHaveTextContent('經驗');

@@ -54,7 +54,7 @@ function makeMentorProfilePayload(options: MentorMockOptions = {}) {
       personal_statement:
         '歡迎帶著作品集或職涯問題來交流，我們可以一起拆解可落地的下一步。',
       about:
-        '累積超過七年的數位產品設計經驗，喜歡從使用者研究出發，和跨職能夥伴一起將複雜問題轉化為清楚實用的產品體驗。',
+        '你好，我是 Zahra，目前在 CreativeUX Design Studio 擔任 Senior UX Designer，累積超過七年的數位產品設計經驗，喜歡從使用者研究出發，和跨職能夥伴一起將複雜問題轉化為清楚實用的產品體驗。\n\n從平面設計走向 UX 的過程中，我也曾經面對轉職的不確定與作品集整理的挑戰。如果你正在準備轉職、整理專案故事，或希望更有信心地面對面試，我很樂意陪你梳理想法，一起規劃能實際前進的下一步。',
       language: 'zh_TW',
       stats: isMentor
         ? {
@@ -390,18 +390,34 @@ async function revalidateClientProfileViaSpa(
   page: Page,
   nextClockIso: string
 ): Promise<void> {
+  // 先等待初始 /profile 頁面的動態 UI 與 useAsyncRead initialDto 快取寫入完成，
+  // 確保舊時間戳已寫入快取後才推進時鐘，避免返回時快取未過期而不發送 /profile 請求
+  await expect(page.locator('main img[alt^="Avatar of "]').first()).toBeVisible(
+    { timeout: 30_000 }
+  );
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      )
+  );
+
   await page.clock.setFixedTime(new Date(nextClockIso));
   await page.getByRole('link', { name: 'Go to homepage' }).click();
-  await expect(page).toHaveURL('/');
+  await expect(page).toHaveURL('/', { timeout: 30_000 });
+
   const profileResponse = page.waitForResponse(
-    new RegExp(`/v1/(?:mentors|users)/${REAL_MENTOR_ID}/zh_TW/profile`)
+    new RegExp(`/v1/(?:mentors|users)/${REAL_MENTOR_ID}/zh_TW/profile`),
+    { timeout: 30_000 }
   );
   await page.goBack();
-  await expect(page).toHaveURL(new RegExp(`/profile/${REAL_MENTOR_ID}$`));
+  await expect(page).toHaveURL(new RegExp(`/profile/${REAL_MENTOR_ID}$`), {
+    timeout: 30_000,
+  });
   await profileResponse;
   await expect(
     page.getByRole('main').getByText('Zahra Mirzakhani', { exact: true })
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
 }
 
 test.describe('導師個人頁評價區塊與 RWD 排版 (#736)', () => {
@@ -448,6 +464,25 @@ test.describe('導師個人頁評價區塊與 RWD 排版 (#736)', () => {
     await expect(aboutPanel.getByText('地點', { exact: true })).toHaveCount(0);
     await expect(aboutPanel.getByText('產業', { exact: true })).toHaveCount(0);
 
+    // 驗證「關於我」與 #hashtag 的字色（text-brand-700）、字重（font-medium）與上下間距（mb-3 = 12px）對齊設計稿
+    const hashtagStyles = await industryHashtag.evaluate((el) => {
+      const style = window.getComputedStyle(el);
+      return {
+        color: style.color,
+        fontSize: style.fontSize,
+        fontWeight: style.fontWeight,
+        marginBottom: style.marginBottom,
+      };
+    });
+    const headingMarginBottom = await aboutHeading.evaluate(
+      (el) => window.getComputedStyle(el).marginBottom
+    );
+    expect(headingMarginBottom).toBe('12px');
+    expect(hashtagStyles.color).toBe('rgb(26, 122, 122)');
+    expect(hashtagStyles.fontSize).toBe('14px');
+    expect(hashtagStyles.fontWeight).toBe('500');
+    expect(hashtagStyles.marginBottom).toBe('12px');
+
     const aboutHeadingBox = await aboutHeading.boundingBox();
     const hashtagBox = await industryHashtag.boundingBox();
     const aboutBodyBox = await aboutBody.boundingBox();
@@ -477,7 +512,9 @@ test.describe('導師個人頁評價區塊與 RWD 排版 (#736)', () => {
     expect(Math.abs(tabListBox!.y - rightCardBox!.y)).toBeLessThan(6);
 
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
-    await captureEvidence(page, 'mentor-profile-about-tab-desktop');
+    await captureEvidence(page, 'mentor-profile-about-hashtag-desktop', {
+      waitForSelector: '[data-testid="mentor-industry-hashtag"]',
+    });
 
     // 點擊切換至「評價 12」Tab，確認評價總分卡、遮罩姓氏首字卡片與分頁器渲染且右欄行事曆固定不動
     const feedbackTab = page.getByRole('tab', { name: /評價\s*12/ });
@@ -506,6 +543,7 @@ test.describe('導師個人頁評價區塊與 RWD 排版 (#736)', () => {
 
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
     await captureEvidence(page, 'mentor-profile-feedback-tab-desktop', {
+      waitForSelector: '[data-testid="mentor-feedback-section"]',
       fullPage: true,
     });
 
@@ -594,6 +632,7 @@ test.describe('導師個人頁評價區塊與 RWD 排版 (#736)', () => {
     );
 
     await captureEvidence(page, 'mentor-profile-feedback-tab-mobile', {
+      waitForSelector: '[data-testid="mentor-feedback-section"]',
       fullPage: true,
     });
   });
@@ -649,7 +688,9 @@ test.describe('導師個人頁評價區塊與 RWD 排版 (#736)', () => {
     ).toBeVisible();
 
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
-    await captureEvidence(page, 'mentor-profile-feedback-empty-desktop');
+    await captureEvidence(page, 'mentor-profile-feedback-empty-desktop', {
+      waitForSelector: '[data-testid="mentor-feedback-empty"]',
+    });
   });
 
   test('/profile stats.rating_count Fallback（/feedback 404）、0 場次隱藏「已完成 1-on-1」等寬均分與學員個人頁角色隔離', async ({
