@@ -33,16 +33,15 @@ import {
   isUiReviewFile,
   resolveDesignSpecsFromKb,
 } from './lib/ticket.mjs';
+import { MAX_EVIDENCE_IMAGES, MAX_REF_IMAGES } from './lib/visuals.mjs';
 
 const TRACKER_OWNER = 'Xchange-Taiwan';
 const TRACKER_REPO = 'X-Talent-Tracker';
 const FRONTEND_OWNER = 'Xchange-Taiwan';
 const FRONTEND_REPO = 'X-Talent-Frontend';
-const MAX_REF_IMAGES = 4;
-export const MAX_EVIDENCE_IMAGES = 8;
 const MAX_SINGLE_IMAGE_BYTES = 5 * 1024 * 1024;
 
-export { isUiReviewFile };
+export { isUiReviewFile, MAX_EVIDENCE_IMAGES, MAX_REF_IMAGES };
 
 export function shouldSkipVisualParity({
   hasUiChanges,

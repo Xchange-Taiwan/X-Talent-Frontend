@@ -1,6 +1,7 @@
 // @vitest-environment node
-import { describe, it, expect } from 'vitest';
-import { formatComment, AI_REVIEW_COMMENT_MARKER } from './format-comment.mjs';
+import { describe, expect, it } from 'vitest';
+
+import { AI_REVIEW_COMMENT_MARKER, formatComment } from './format-comment.mjs';
 
 const noFindings = {
   hasFindings: false,

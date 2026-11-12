@@ -5,7 +5,7 @@ import { sniffImageMimeType } from '../../prefetch-ticket-visuals.mjs';
 
 const MAX_REF_BASE64_CHARS = 6 * 1024 * 1024; // 6 MB base64 budget for design refs
 const MAX_EVIDENCE_BASE64_CHARS = 10 * 1024 * 1024; // 10 MB dedicated base64 budget for E2E screenshots
-const MAX_REF_IMAGES = 4;
+export const MAX_REF_IMAGES = 4;
 export const MAX_EVIDENCE_IMAGES = 8;
 
 function selectWithinBase64Budget(candidates, maxBase64Chars) {

@@ -1,5 +1,6 @@
 // @vitest-environment node
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { callGemini, computeRetryDelayMs } from './gemini.mjs';
 
 function candidateResponse(text, { finishReason = 'STOP', status = 200 } = {}) {
@@ -170,6 +171,7 @@ describe('callGemini', () => {
     expect(computeRetryDelayMs(2, () => 0.5)).toBe(4750);
     expect(computeRetryDelayMs(3, () => 0)).toBe(8000);
     expect(computeRetryDelayMs(4, () => 0)).toBe(16000);
+    expect(computeRetryDelayMs(5, () => 0)).toBe(25000);
 
     const unavailable = {
       ok: false,
@@ -196,5 +198,36 @@ describe('callGemini', () => {
     expect(fetchMock.mock.calls[5][0]).toContain(
       'models/gemini-2.5-flash:generateContent'
     );
+  });
+
+  it('rethrows primary error when fallback model also fails and skips fallback when disabled or identical', async () => {
+    const unavailable = {
+      ok: false,
+      status: 503,
+      text: async () => 'UNAVAILABLE',
+    };
+    const fetchBothFail = vi.fn().mockResolvedValue(unavailable);
+    vi.stubGlobal('fetch', fetchBothFail);
+
+    await expect(callGemini('prompt')).rejects.toThrow(
+      'Gemini API error (503)'
+    );
+    expect(fetchBothFail).toHaveBeenCalledTimes(6);
+
+    const fetchDisabledFallback = vi.fn().mockResolvedValue(unavailable);
+    vi.stubGlobal('fetch', fetchDisabledFallback);
+
+    await expect(callGemini('prompt', { fallbackModel: null })).rejects.toThrow(
+      'Gemini API error (503)'
+    );
+    expect(fetchDisabledFallback).toHaveBeenCalledTimes(5);
+
+    const fetchSameModel = vi.fn().mockResolvedValue(unavailable);
+    vi.stubGlobal('fetch', fetchSameModel);
+
+    await expect(
+      callGemini('prompt', { model: 'gemini-2.5-flash' })
+    ).rejects.toThrow('Gemini API error (503)');
+    expect(fetchSameModel).toHaveBeenCalledTimes(5);
   });
 });

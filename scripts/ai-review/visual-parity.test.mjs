@@ -2,14 +2,14 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  loadReviewVisualAssets,
-  MAX_EVIDENCE_IMAGES as LOCAL_MAX_EVIDENCE,
-} from './lib/visuals.mjs';
-import {
   formatArchitectureKnowledgeBase,
   isUiReviewFile,
   resolveDesignSpecsFromKb,
 } from './lib/ticket.mjs';
+import {
+  loadReviewVisualAssets,
+  MAX_EVIDENCE_IMAGES as LOCAL_MAX_EVIDENCE,
+} from './lib/visuals.mjs';
 import {
   MAX_EVIDENCE_IMAGES,
   shouldSkipVisualParity,
