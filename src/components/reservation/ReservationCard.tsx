@@ -12,6 +12,8 @@ export type ReservationCardVariant = 'upcoming' | 'pending' | 'history';
 
 export function ReservationCard({
   item,
+  headerAction,
+  feedbackContent,
   actions,
   footer,
   profileHref,
@@ -22,6 +24,10 @@ export function ReservationCard({
   sourceRole,
 }: {
   item: Reservation;
+  // Optional slot rendered in the top-right header next to the name (e.g. History 填寫回饋 button or status badge).
+  headerAction?: React.ReactNode;
+  // Optional slot rendered below the message preview for post-meeting rating/unpublicized feedback display.
+  feedbackContent?: React.ReactNode;
   actions?: React.ReactNode;
   // Optional slot rendered below the message preview. Used by HISTORY tabs to
   // mount the "view full conversation" entry without coupling the card to it.
@@ -40,6 +46,7 @@ export function ReservationCard({
   sourceRole: 'mentor' | 'mentee';
 }) {
   const isUpcoming = variant === 'upcoming';
+  const isHistory = variant === 'history';
 
   return (
     <Card
@@ -53,6 +60,7 @@ export function ReservationCard({
           onProfileLinkClick={onProfileClick}
           disabled={disabled}
           showStatusBadge={isUpcoming}
+          headerAction={headerAction}
           variant="card"
         >
           {/* Divider only on >=sm to match Figma feel */}
@@ -95,30 +103,47 @@ export function ReservationCard({
             </div>
           ) : null}
 
-          {footer ? <div className="mt-3">{footer}</div> : null}
+          {feedbackContent}
 
-          {isUpcoming ? (
-            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-              <div className="flex w-full items-center gap-2 sm:w-auto">
-                {/* Actions (such as cancel button) grouped with Meet button on all screen sizes */}
+          {isHistory ? (
+            footer || actions ? (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                <div>{footer}</div>
                 {actions ? (
-                  <div className="flex-1 sm:flex-none">{actions}</div>
+                  <div className="ml-auto flex items-center gap-2">
+                    {actions}
+                  </div>
                 ) : null}
-                <div className="flex-1 sm:flex-none">
-                  <UpcomingJoinMeetButton
-                    reservationId={item.id}
-                    myUserId={myUserId}
-                    sourceRole={sourceRole}
-                  />
-                </div>
               </div>
-            </div>
-          ) : /* If not upcoming (e.g. pending), show actions at the bottom on all screen sizes */
-          actions ? (
-            <div className="mt-3 flex w-full items-center justify-end gap-2">
-              {actions}
-            </div>
-          ) : null}
+            ) : null
+          ) : (
+            <>
+              {footer ? <div className="mt-3">{footer}</div> : null}
+
+              {isUpcoming ? (
+                <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+                  <div className="flex w-full items-center gap-2 sm:w-auto">
+                    {/* Actions (such as cancel button) grouped with Meet button on all screen sizes */}
+                    {actions ? (
+                      <div className="flex-1 sm:flex-none">{actions}</div>
+                    ) : null}
+                    <div className="flex-1 sm:flex-none">
+                      <UpcomingJoinMeetButton
+                        reservationId={item.id}
+                        myUserId={myUserId}
+                        sourceRole={sourceRole}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : /* If not upcoming (e.g. pending), show actions at the bottom on all screen sizes */
+              actions ? (
+                <div className="mt-3 flex w-full items-center justify-end gap-2">
+                  {actions}
+                </div>
+              ) : null}
+            </>
+          )}
         </ReservationIdentityHeader>
       </CardContent>
     </Card>
