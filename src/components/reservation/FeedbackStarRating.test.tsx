@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { FeedbackStarRating } from './FeedbackStarRating';
 
 describe('FeedbackStarRating', () => {
-  it('renders 10 accessible radio star buttons with filled state up to value', () => {
+  it('renders 10 accessible radio star buttons with filled state up to value and focus-visible-only outline', () => {
     render(<FeedbackStarRating value={8} onChange={() => {}} />);
 
     const group = screen.getByRole('radiogroup', { name: '整體滿意度' });
@@ -13,14 +13,14 @@ describe('FeedbackStarRating', () => {
 
     const stars = screen.getAllByRole('radio');
     expect(stars).toHaveLength(10);
-    expect(screen.getByRole('radio', { name: '8 分' })).toHaveAttribute(
-      'aria-checked',
-      'true'
-    );
-    expect(screen.getByRole('radio', { name: '8 分' })).toHaveAttribute(
-      'data-filled',
-      'true'
-    );
+
+    const star8 = screen.getByRole('radio', { name: '8 分' });
+    expect(star8).toHaveAttribute('aria-checked', 'true');
+    expect(star8).toHaveAttribute('data-filled', 'true');
+    expect(star8).toHaveClass('focus-visible:ring-2');
+    expect(star8).not.toHaveClass('ring-1');
+    expect(star8).not.toHaveClass('bg-brand-50');
+
     expect(screen.getByRole('radio', { name: '9 分' })).toHaveAttribute(
       'data-filled',
       'false'

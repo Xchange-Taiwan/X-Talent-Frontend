@@ -10,43 +10,125 @@ export const DEFAULT_MEETING_RATING = 10;
 export const MIN_MEETING_RATING = 1;
 export const MAX_MEETING_RATING = 10;
 export const MAX_FEEDBACK_CONTENT_LENGTH = 1000;
+export const MAX_NOT_HAPPENED_NOTE_LENGTH = 1000;
 
-export const meetingFeedbackFormSchema = z.object({
-  meetingHappened: z.boolean().nullable(),
-  rating: z
-    .number()
-    .int('評分須為整數')
-    .min(MIN_MEETING_RATING, '評分最低為 1 分')
-    .max(MAX_MEETING_RATING, '評分最高為 10 分'),
-  content: z
-    .string()
-    .max(
-      MAX_FEEDBACK_CONTENT_LENGTH,
-      `評論內容不可超過 ${MAX_FEEDBACK_CONTENT_LENGTH} 字`
-    ),
-  notHappenedReason: z.enum(NOT_HAPPENED_REASONS).nullable(),
+export const FEEDBACK_CONTENT_MAX_ERROR = `評論內容不可超過 ${MAX_FEEDBACK_CONTENT_LENGTH} 字`;
+export const NOT_HAPPENED_NOTE_MAX_ERROR = `補充說明不可超過 ${MAX_NOT_HAPPENED_NOTE_LENGTH} 字`;
+
+export const meetingRatingFieldSchema = z
+  .number()
+  .int('評分須為整數')
+  .min(MIN_MEETING_RATING, `評分最低為 ${MIN_MEETING_RATING} 分`)
+  .max(MAX_MEETING_RATING, `評分最高為 ${MAX_MEETING_RATING} 分`);
+
+export const feedbackContentFieldSchema = z
+  .string()
+  .max(MAX_FEEDBACK_CONTENT_LENGTH, FEEDBACK_CONTENT_MAX_ERROR);
+
+export const notHappenedNoteFieldSchema = z
+  .string()
+  .max(MAX_NOT_HAPPENED_NOTE_LENGTH, NOT_HAPPENED_NOTE_MAX_ERROR);
+
+export const notHappenedReasonFieldSchema = z.enum(NOT_HAPPENED_REASONS);
+
+export const happenedFeedbackFieldsSchema = z.object({
+  rating: meetingRatingFieldSchema,
+  content: feedbackContentFieldSchema,
 });
 
-const happenedBranchSchema = meetingFeedbackFormSchema.pick({
-  rating: true,
-  content: true,
-});
+export const notHappenedFeedbackFieldsSchema = z
+  .object({
+    notHappenedReason: notHappenedReasonFieldSchema,
+    notHappenedNote: z.string(),
+  })
+  .superRefine((values, ctx) => {
+    if (values.notHappenedReason === 'OTHER') {
+      const noteResult = notHappenedNoteFieldSchema.safeParse(
+        values.notHappenedNote
+      );
+      if (!noteResult.success) {
+        for (const issue of noteResult.error.issues) {
+          ctx.addIssue({
+            ...issue,
+            path: ['notHappenedNote'],
+          });
+        }
+      }
+    }
+  });
 
-export const updateMeetingFeedbackSchema = happenedBranchSchema;
+export const updateMeetingFeedbackSchema = happenedFeedbackFieldsSchema;
 
-const notHappenedReasonSchema = z.enum(NOT_HAPPENED_REASONS);
+export const meetingFeedbackFormSchema = z
+  .object({
+    meetingHappened: z.boolean().nullable(),
+    rating: meetingRatingFieldSchema,
+    content: z.string(),
+    notHappenedReason: notHappenedReasonFieldSchema.nullable(),
+    notHappenedNote: z.string(),
+  })
+  .superRefine((values, ctx) => {
+    if (values.meetingHappened === null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['meetingHappened'],
+        message: '請選擇本次會談是否順利進行',
+      });
+      return;
+    }
+
+    if (values.meetingHappened === true) {
+      const contentResult = feedbackContentFieldSchema.safeParse(
+        values.content
+      );
+      if (!contentResult.success) {
+        for (const issue of contentResult.error.issues) {
+          ctx.addIssue({
+            ...issue,
+            path: ['content'],
+          });
+        }
+      }
+      return;
+    }
+
+    if (!values.notHappenedReason) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['notHappenedReason'],
+        message: '請選擇為何沒有成功進行',
+      });
+      return;
+    }
+
+    if (values.notHappenedReason === 'OTHER') {
+      const noteResult = notHappenedNoteFieldSchema.safeParse(
+        values.notHappenedNote
+      );
+      if (!noteResult.success) {
+        for (const issue of noteResult.error.issues) {
+          ctx.addIssue({
+            ...issue,
+            path: ['notHappenedNote'],
+          });
+        }
+      }
+    }
+  });
 
 export type MeetingFeedbackFormValues = z.infer<
   typeof meetingFeedbackFormSchema
 >;
 
-export function toUpdateFeedbackPayload(
-  values: Pick<MeetingFeedbackFormValues, 'rating' | 'content'>
-): UpdateReservationFeedbackRequest | null {
+export function toUpdateFeedbackPayload(values: {
+  rating: number;
+  content: string;
+}): UpdateReservationFeedbackRequest | null {
   const parsed = updateMeetingFeedbackSchema.safeParse(values);
   if (!parsed.success) {
     return null;
   }
+
   return {
     rating: parsed.data.rating,
     content: parsed.data.content.trim(),
@@ -57,7 +139,10 @@ export function toSubmitFeedbackPayload(
   values: MeetingFeedbackFormValues
 ): SubmitReservationFeedbackRequest | null {
   if (values.meetingHappened === true) {
-    const parsed = happenedBranchSchema.safeParse(values);
+    const parsed = happenedFeedbackFieldsSchema.safeParse({
+      rating: values.rating,
+      content: values.content,
+    });
     if (!parsed.success) {
       return null;
     }
@@ -71,15 +156,23 @@ export function toSubmitFeedbackPayload(
   }
 
   if (values.meetingHappened === false) {
-    const reasonParsed = notHappenedReasonSchema.safeParse(
-      values.notHappenedReason
-    );
-    if (!reasonParsed.success) {
+    const parsed = notHappenedFeedbackFieldsSchema.safeParse({
+      notHappenedReason: values.notHappenedReason,
+      notHappenedNote: values.notHappenedNote,
+    });
+    if (!parsed.success) {
       return null;
     }
+
+    const trimmedNote =
+      parsed.data.notHappenedReason === 'OTHER'
+        ? parsed.data.notHappenedNote.trim()
+        : '';
+
     return {
       meeting_happened: false,
-      not_happened_reason: reasonParsed.data,
+      not_happened_reason: parsed.data.notHappenedReason,
+      ...(trimmedNote.length > 0 ? { not_happened_note: trimmedNote } : {}),
     };
   }
 

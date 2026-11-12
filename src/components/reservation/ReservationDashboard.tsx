@@ -6,6 +6,7 @@ import { Suspense, useCallback, useEffect, useRef } from 'react';
 import { ReservationListSkeleton } from '@/app/reservation/skeleton';
 import { ReservationList } from '@/components/reservation/ReservationList';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useFeedbackQueueParam } from '@/hooks/user/reservation/useFeedbackQueueParam';
 import {
   type ReservationRole,
   useReservationData,
@@ -138,8 +139,20 @@ export function ReservationDashboardView({
   const router = useRouter();
   const pathname = usePathname();
 
+  const { isFeedbackQueueRequested, feedbackQueueItems, dismissFeedbackQueue } =
+    useFeedbackQueueParam({
+      isMentee,
+      history,
+      isHistoryLoaded,
+      isLoadingHistory,
+      isLoadingUpcoming,
+      isLoadingPending,
+    });
+
   const tabParam = searchParams.get('tab');
-  const activeTab = (tabParam && TAB_MAPPING[tabParam]) || pendingTabValue;
+  const activeTab = isFeedbackQueueRequested
+    ? 'history'
+    : (tabParam && TAB_MAPPING[tabParam]) || pendingTabValue;
 
   const lastCountsRef = useRef<{
     role: ReservationRole;
@@ -217,6 +230,7 @@ export function ReservationDashboardView({
     }
 
     const params = new URLSearchParams(searchParams.toString());
+    params.delete('feedback');
     const paramValue = URL_PARAM_MAPPING[value];
     if (paramValue) {
       params.set('tab', paramValue);
@@ -324,6 +338,8 @@ export function ReservationDashboardView({
                     hasMore={nextTokens.history !== 0}
                     onLoadMore={onLoadMoreHistory}
                     isLoadingMore={loadingMoreStates.history}
+                    feedbackQueueItems={feedbackQueueItems}
+                    onFeedbackQueueClose={dismissFeedbackQueue}
                   />
                 )}
               </TabsContent>

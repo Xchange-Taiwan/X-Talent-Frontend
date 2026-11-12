@@ -459,4 +459,62 @@ describe('ReservationCard', () => {
     expect(mobileSpan).toBeInTheDocument();
     expect(mobileSpan?.textContent).toBe('加入會議');
   });
+
+  describe('history status badge and headerAction behavior (#730)', () => {
+    it('renders cancelled/rejected status badges when headerAction is omitted on history cards', () => {
+      const { rerender } = render(
+        <ReservationCard
+          item={{ ...mockReservation, cancelledBy: 'MENTOR' }}
+          variant="history"
+          sourceRole="mentee"
+        />
+      );
+      expect(screen.getByRole('status')).toHaveTextContent('已由導師取消');
+
+      rerender(
+        <ReservationCard
+          item={{ ...mockReservation, cancelledBy: 'MENTEE' }}
+          variant="history"
+          sourceRole="mentor"
+        />
+      );
+      expect(screen.getByRole('status')).toHaveTextContent('已由學員取消');
+
+      rerender(
+        <ReservationCard
+          item={{ ...mockReservation, cancelledBy: 'SYSTEM' }}
+          variant="history"
+          sourceRole="mentee"
+        />
+      );
+      expect(screen.getByRole('status')).toHaveTextContent('已自動取消');
+      expect(screen.getByRole('note')).toHaveTextContent(
+        '因導師未於預約開始前 24 小時前確認，系統已自動取消此預約。'
+      );
+    });
+
+    it('falls back to ReservationStatusBadge (已結束) when history card has neither headerAction nor cancelledBy, and hides fallback badge when headerAction is provided', () => {
+      const { rerender } = render(
+        <ReservationCard
+          item={mockReservation}
+          variant="history"
+          sourceRole="mentor"
+        />
+      );
+      expect(screen.getByRole('status')).toHaveTextContent('已結束');
+
+      rerender(
+        <ReservationCard
+          item={mockReservation}
+          variant="history"
+          sourceRole="mentee"
+          headerAction={<button type="button">填寫回饋</button>}
+        />
+      );
+      expect(
+        screen.getByRole('button', { name: '填寫回饋' })
+      ).toBeInTheDocument();
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    });
+  });
 });

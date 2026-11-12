@@ -56,6 +56,54 @@ export const StepNotHappenedOpen: Story = {
   },
 };
 
+export const MultiSessionQueueOpen: Story = {
+  args: {
+    defaultOpen: true,
+    initialStep: 'attendance',
+    queue: [
+      {
+        ...mockReservation,
+        id: 'queue-1',
+        name: 'Emily Chen',
+        roleLine: 'UI/UX 設計師 · 5–10 年工作經驗',
+        date: '2026/10/12',
+        time: '19:00–19:30',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+      {
+        ...mockReservation,
+        id: 'queue-2',
+        name: 'Alex Wang',
+        roleLine: '後端工程師 · 5–10 年工作經驗',
+        date: '2026/10/15',
+        time: '20:00–20:30',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+      {
+        ...mockReservation,
+        id: 'queue-3',
+        name: 'Zahra Mirzakhani',
+        roleLine: 'Senior UX Designer · 5–10 年工作經驗',
+        date: '2026/10/18',
+        time: '21:00–21:30',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+    ],
+  },
+};
+
 export const EditTriggerClosed: Story = {
   args: {
     mode: 'edit',

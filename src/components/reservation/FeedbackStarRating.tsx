@@ -102,15 +102,15 @@ export function FeedbackStarRating({
               if (!disabled) onChange(score);
             }}
             onKeyDown={handleKeyDown}
-            className="focus-visible:ring-brand-500 flex h-9 w-full items-center justify-center rounded-lg transition-transform hover:scale-110 focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+            className="hover:bg-background-bottom focus-visible:ring-brand-700 flex h-9 w-full items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
           >
             <Star
               strokeWidth={1.75}
               aria-hidden="true"
               className={cn(
-                'size-5 transition-colors sm:size-6',
+                'size-5 transition-colors duration-150 sm:size-6',
                 isFilled
-                  ? 'fill-brand-600 text-brand-600'
+                  ? 'fill-brand-700 text-brand-700'
                   : 'text-text-tertiary fill-transparent'
               )}
             />

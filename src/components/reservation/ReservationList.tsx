@@ -2,14 +2,17 @@
 
 import { CalendarX2 } from 'lucide-react';
 import Link from 'next/link';
-import type * as React from 'react';
+import * as React from 'react';
 
 import AcceptReservationDialog from '@/components/reservation/AcceptReservationDialog';
 import CancelReservationDialog from '@/components/reservation/CancelReservationDialog';
 import MeetingFeedbackDialog from '@/components/reservation/MeetingFeedbackDialog';
 import RejectReservationDialog from '@/components/reservation/RejectReservationDialog';
 import ReservationConversationDialog from '@/components/reservation/ReservationConversationDialog';
-import { ReservationFeedbackBlock } from '@/components/reservation/ReservationFeedbackBlock';
+import {
+  ReservationFeedbackBlock,
+  ReservationFeedbackHeaderToggle,
+} from '@/components/reservation/ReservationFeedbackBlock';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -72,7 +75,7 @@ function resolveEmptyStateContent(
 }
 
 /**
- * Individual Reservation List Item holding its own independent loading and action state.
+ * Individual Reservation List Item holding its own independent loading, action, and collapsible feedback state.
  */
 function ReservationItem({
   reservation,
@@ -85,6 +88,9 @@ function ReservationItem({
   sourceRole: SourceRole;
   myUserId: string | undefined;
 }) {
+  const [isFeedbackExpanded, setIsFeedbackExpanded] = React.useState(false);
+  const feedbackPanelId = React.useId();
+
   const { accept, rejectOrCancel, submitFeedback, updateFeedback, isMutating } =
     useReservationActions({
       myUserId,
@@ -110,11 +116,6 @@ function ReservationItem({
     disabled: isMutating,
   });
 
-  // Tracked unconditionally on every non-disabled click, including a
-  // modifier-key/middle click that opens a new tab - the click-invalidation
-  // above only governs whether the link navigates in this render, not
-  // whether the view was attempted. Matches this list's pre-model behavior,
-  // which tracked every click with no modifier check at all.
   const handleProfileClick = (e: React.MouseEvent): void => {
     if (!isMutating) {
       trackEvent({
@@ -126,6 +127,44 @@ function ReservationItem({
     handleProfileLinkInvalidation(e);
   };
 
+  const renderHistoryHeaderAction = (): React.ReactNode => {
+    if (!historyState) return null;
+
+    if (historyState.headerAction.kind === 'answer-button') {
+      return (
+        <MeetingFeedbackDialog
+          reservation={reservation}
+          disabled={isMutating}
+          onSubmitFeedback={(payload) => submitFeedback(reservation, payload)}
+        />
+      );
+    }
+
+    if (
+      historyState.headerAction.kind === 'feedback-toggle' ||
+      historyState.headerAction.kind === 'unpublicized-toggle'
+    ) {
+      return (
+        <ReservationFeedbackHeaderToggle
+          action={historyState.headerAction}
+          isExpanded={isFeedbackExpanded}
+          panelId={feedbackPanelId}
+          onToggle={() => setIsFeedbackExpanded((prev) => !prev)}
+        />
+      );
+    }
+
+    return (
+      <Badge
+        variant="secondary"
+        role="status"
+        className="text-text-secondary rounded-md font-normal"
+      >
+        {historyState.headerAction.label}
+      </Badge>
+    );
+  };
+
   return (
     <ReservationCard
       item={reservation}
@@ -135,26 +174,11 @@ function ReservationItem({
       onProfileClick={handleProfileClick}
       disabled={isMutating}
       sourceRole={sourceRole}
-      headerAction={
-        historyState ? (
-          historyState.headerAction.kind === 'answer-button' ? (
-            <MeetingFeedbackDialog
-              reservation={reservation}
-              disabled={isMutating}
-              onSubmitFeedback={(payload) =>
-                submitFeedback(reservation, payload)
-              }
-            />
-          ) : (
-            <Badge variant="secondary" role="status">
-              {historyState.headerAction.label}
-            </Badge>
-          )
-        ) : null
-      }
+      headerAction={renderHistoryHeaderAction()}
       feedbackContent={
-        historyState?.feedbackBlock ? (
+        historyState?.feedbackBlock && isFeedbackExpanded ? (
           <ReservationFeedbackBlock
+            id={feedbackPanelId}
             model={historyState.feedbackBlock}
             editAction={
               historyState.feedbackBlock.canEdit ? (
@@ -221,6 +245,34 @@ function ReservationItem({
   );
 }
 
+function MenteePendingFeedbackQueueDialog({
+  queueItems,
+  myUserId,
+  onClose,
+}: {
+  queueItems: Reservation[];
+  myUserId: string | undefined;
+  onClose?: () => void;
+}) {
+  const { submitFeedback, isMutating } = useReservationActions({
+    myUserId,
+    variant: 'history',
+    myRole: 'mentee',
+  });
+
+  return (
+    <MeetingFeedbackDialog
+      defaultOpen
+      reservation={queueItems[0]}
+      queue={queueItems}
+      disabled={isMutating}
+      trigger={<span className="sr-only">待填會談回饋佇列</span>}
+      onSubmitFeedback={(payload, target) => submitFeedback(target, payload)}
+      onClose={onClose}
+    />
+  );
+}
+
 export function ReservationList({
   items,
   variant,
@@ -229,6 +281,8 @@ export function ReservationList({
   hasMore = false,
   onLoadMore,
   isLoadingMore = false,
+  feedbackQueueItems = null,
+  onFeedbackQueueClose,
 }: {
   items: Reservation[];
   variant: Variant;
@@ -237,11 +291,24 @@ export function ReservationList({
   hasMore?: boolean;
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
+  feedbackQueueItems?: Reservation[] | null;
+  onFeedbackQueueClose?: () => void;
 }) {
   const emptyState = resolveEmptyStateContent(sourceRole, variant, myUserId);
 
   return (
     <div className="space-y-3 sm:space-y-4">
+      {feedbackQueueItems &&
+      feedbackQueueItems.length > 0 &&
+      variant === 'history' &&
+      sourceRole === 'mentee' ? (
+        <MenteePendingFeedbackQueueDialog
+          queueItems={feedbackQueueItems}
+          myUserId={myUserId}
+          onClose={onFeedbackQueueClose}
+        />
+      ) : null}
+
       {items.map((it) => (
         <ReservationItem
           key={it.id}

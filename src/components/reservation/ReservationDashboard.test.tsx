@@ -3,6 +3,7 @@ import { fromPartial } from '@total-typescript/shoehorn';
 import * as React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ReservationList } from '@/components/reservation/ReservationList';
 import { useReservationData } from '@/hooks/user/reservation/useReservationData';
 
 import { ReservationDashboard } from './ReservationDashboard';
@@ -10,16 +11,18 @@ import { ReservationDashboard } from './ReservationDashboard';
 // Mock next/navigation
 const mockReplace = vi.fn();
 const mockGet = vi.fn().mockReturnValue(null);
+const mockToString = vi.fn().mockReturnValue('');
+const mockPathname = vi.fn().mockReturnValue('/reservation/mentor');
 
 vi.mock('next/navigation', () => ({
   useSearchParams: () => ({
     get: (key: string) => mockGet(key),
-    toString: () => '',
+    toString: () => mockToString(),
   }),
   useRouter: () => ({
     replace: (url: string) => mockReplace(url),
   }),
-  usePathname: () => '/reservation/mentor',
+  usePathname: () => mockPathname(),
 }));
 
 // Mock the hook
@@ -132,6 +135,8 @@ describe('ReservationDashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGet.mockReturnValue(null);
+    mockToString.mockReturnValue('');
+    mockPathname.mockReturnValue('/reservation/mentor');
   });
 
   it('renders correctly for role "mentee"', () => {
@@ -408,6 +413,96 @@ describe('ReservationDashboard', () => {
       'trigger-pending-mentor',
       'trigger-upcoming-mentor',
       'trigger-history',
+    ]);
+  });
+
+  it('clears stale feedback=queue query parameter once mentee history finishes loading with 0 pending feedback items', () => {
+    mockPathname.mockReturnValue('/reservation/mentee');
+    mockGet.mockImplementation((key: string) => {
+      if (key === 'feedback') return 'queue';
+      if (key === 'tab') return 'upcoming';
+      return null;
+    });
+    mockToString.mockReturnValue('tab=upcoming&feedback=queue');
+
+    // 1. While history is still loading, must NOT prematurely strip feedback=queue
+    vi.mocked(useReservationData).mockReturnValue(
+      fromPartial({
+        ...baseHookReturnValue,
+        data: {
+          upcoming: [],
+          pending: [],
+          history: [],
+          nextTokens: { upcoming: 0, pending: 0, history: 0 },
+        },
+        isHistoryLoaded: false,
+        isLoadingHistory: true,
+      })
+    );
+
+    const { rerender } = render(<ReservationDashboard userRole="mentee" />);
+    expect(mockReplace).not.toHaveBeenCalled();
+
+    // 2. Once history is loaded with empty list (0 pending feedback items), strips feedback=queue
+    vi.mocked(useReservationData).mockReturnValue(
+      fromPartial({
+        ...baseHookReturnValue,
+        data: {
+          upcoming: [],
+          pending: [],
+          history: [],
+          nextTokens: { upcoming: 0, pending: 0, history: 0 },
+        },
+        isHistoryLoaded: true,
+        isLoadingHistory: false,
+      })
+    );
+
+    rerender(<ReservationDashboard userRole="mentee" />);
+    expect(mockReplace).toHaveBeenCalledWith(
+      '/reservation/mentee?tab=upcoming'
+    );
+  });
+
+  it('keeps feedback=queue while mentee history has pending ANSWER feedback items', () => {
+    mockPathname.mockReturnValue('/reservation/mentee');
+    mockGet.mockImplementation((key: string) =>
+      key === 'feedback' ? 'queue' : null
+    );
+    mockToString.mockReturnValue('feedback=queue');
+
+    vi.mocked(useReservationData).mockReturnValue(
+      fromPartial({
+        ...baseHookReturnValue,
+        data: {
+          upcoming: [],
+          pending: [],
+          history: [
+            {
+              id: 'hist-pending-answer',
+              dtstart: 5000,
+              dtend: 6000,
+              feedback: {
+                meetingHappened: null,
+                rating: null,
+                nextStep: 'ANSWER',
+              },
+            },
+          ],
+          nextTokens: { upcoming: 0, pending: 0, history: 0 },
+        },
+        isHistoryLoaded: true,
+        isLoadingHistory: false,
+      })
+    );
+
+    render(<ReservationDashboard userRole="mentee" />);
+    expect(mockReplace).not.toHaveBeenCalled();
+    const historyCall = vi
+      .mocked(ReservationList)
+      .mock.calls.find(([props]) => props.variant === 'history');
+    expect(historyCall?.[0].feedbackQueueItems).toEqual([
+      expect.objectContaining({ id: 'hist-pending-answer' }),
     ]);
   });
 });

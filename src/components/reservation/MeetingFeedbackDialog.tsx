@@ -1,25 +1,27 @@
 'use client';
 
-import { Loader2 } from 'lucide-react';
+import { X } from 'lucide-react';
 import * as React from 'react';
 
-import { FeedbackStarRating } from '@/components/reservation/FeedbackStarRating';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  DialogContentFrame,
+  DialogOverlay,
+  DialogPortal,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
+import { Tooltip } from '@/components/ui/tooltip';
 import { useToast } from '@/components/ui/use-toast';
+import { useFeedbackQueueMotion } from '@/hooks/user/reservation/useFeedbackQueueMotion';
 import {
   DEFAULT_MEETING_FEEDBACK_FORM_VALUES,
   useMeetingFeedbackForm,
 } from '@/hooks/user/reservation/useMeetingFeedbackForm';
+import { useStepHeightMorph } from '@/hooks/user/reservation/useStepHeightMorph';
+import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
+import { getInitials } from '@/lib/avatar/getInitials';
 import {
   RESERVATION_CONFLICT_MESSAGE,
   ReservationVersionConflictError,
@@ -28,23 +30,35 @@ import { cn } from '@/lib/utils';
 import {
   DEFAULT_MEETING_RATING,
   MAX_FEEDBACK_CONTENT_LENGTH,
+  MAX_NOT_HAPPENED_NOTE_LENGTH,
   type MeetingFeedbackFormValues,
   toSubmitFeedbackPayload,
   toUpdateFeedbackPayload,
 } from '@/schemas/meetingFeedbackSchema';
 import type { Reservation } from '@/types/reservation';
-import {
-  NOT_HAPPENED_REASON_LABELS,
-  NOT_HAPPENED_REASONS,
-  type SubmitReservationFeedbackRequest,
-  type UpdateReservationFeedbackRequest,
+import type {
+  SubmitReservationFeedbackRequest,
+  UpdateReservationFeedbackRequest,
 } from '@/types/reservationFeedback';
 
-export type MeetingFeedbackMode = 'create' | 'edit';
+import {
+  AttendanceStepContent,
+  MeetingFeedbackFooter,
+  NotHappenedStepContent,
+  RatingStepContent,
+} from './meeting-feedback';
+
 export type MeetingFeedbackStep = 'attendance' | 'rating' | 'not-happened';
+export type MeetingFeedbackMode = 'create' | 'edit';
 
 export interface MeetingFeedbackDialogProps {
   reservation: Reservation;
+  /**
+   * Optional multi-session queue (#740 shared design). When length > 1 in create mode,
+   * renders segmented progress bar, tilted -5deg back card, and -8deg swipe transition.
+   */
+  queue?: Reservation[];
+  initialQueueIndex?: number;
   mode?: MeetingFeedbackMode;
   disabled?: boolean;
   defaultOpen?: boolean;
@@ -52,16 +66,57 @@ export interface MeetingFeedbackDialogProps {
   initialRating?: number;
   initialContent?: string;
   onSubmitFeedback?: (
-    payload: SubmitReservationFeedbackRequest
+    payload: SubmitReservationFeedbackRequest,
+    targetReservation: Reservation
   ) => Promise<void>;
   onUpdateFeedback?: (
     payload: UpdateReservationFeedbackRequest
   ) => Promise<void>;
+  onSkipReservation?: (reservation: Reservation) => void;
+  onClose?: () => void;
+  trigger?: React.ReactNode;
   className?: string;
+}
+
+function buildEditBaseValues(
+  reservation: Reservation,
+  initialRating?: number,
+  initialContent?: string
+): MeetingFeedbackFormValues {
+  return {
+    meetingHappened: true,
+    rating:
+      initialRating ??
+      reservation.feedback?.rating?.rating ??
+      DEFAULT_MEETING_RATING,
+    content: initialContent ?? reservation.feedback?.rating?.content ?? '',
+    notHappenedReason: null,
+    notHappenedNote: '',
+  };
+}
+
+function buildCreateInitialValues(
+  initialStep: MeetingFeedbackStep,
+  initialRating?: number,
+  initialContent?: string
+): MeetingFeedbackFormValues {
+  return {
+    ...DEFAULT_MEETING_FEEDBACK_FORM_VALUES,
+    meetingHappened:
+      initialStep === 'rating'
+        ? true
+        : initialStep === 'not-happened'
+          ? false
+          : null,
+    rating: initialRating ?? DEFAULT_MEETING_RATING,
+    content: initialContent ?? '',
+  };
 }
 
 export default function MeetingFeedbackDialog({
   reservation,
+  queue,
+  initialQueueIndex = 0,
   mode = 'create',
   disabled = false,
   defaultOpen = false,
@@ -70,142 +125,247 @@ export default function MeetingFeedbackDialog({
   initialContent,
   onSubmitFeedback,
   onUpdateFeedback,
+  onSkipReservation,
+  onClose,
+  trigger,
   className,
 }: MeetingFeedbackDialogProps) {
   const isEditMode = mode === 'edit';
-  const savedRating =
-    initialRating ??
-    reservation.feedback?.rating?.rating ??
-    DEFAULT_MEETING_RATING;
-  const savedContent =
-    initialContent ?? reservation.feedback?.rating?.content ?? '';
+  const resolvedInitialStep: MeetingFeedbackStep = isEditMode
+    ? 'rating'
+    : initialStep;
+
+  const [open, setOpen] = React.useState(defaultOpen);
+  const [step, setStep] =
+    React.useState<MeetingFeedbackStep>(resolvedInitialStep);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [isMaskTooltipOpen, setIsMaskTooltipOpen] = React.useState(false);
+  const [isSkipTooltipOpen, setIsSkipTooltipOpen] = React.useState(false);
+  const [tooltipDismissSignal, setTooltipDismissSignal] = React.useState(0);
+
+  const inFlightRef = React.useRef(false);
+  const { toast } = useToast();
+
+  const dismissTooltips = React.useCallback(() => {
+    setIsMaskTooltipOpen(false);
+    setIsSkipTooltipOpen(false);
+    setTooltipDismissSignal((v) => v + 1);
+  }, []);
+
+  const baseCreateValues = React.useMemo(
+    () =>
+      buildCreateInitialValues(
+        resolvedInitialStep,
+        initialRating,
+        initialContent
+      ),
+    [resolvedInitialStep, initialRating, initialContent]
+  );
+
+  const form = useMeetingFeedbackForm(
+    isEditMode
+      ? buildEditBaseValues(reservation, initialRating, initialContent)
+      : baseCreateValues
+  );
+  const {
+    watch,
+    setValue,
+    trigger: triggerFieldValidation,
+    register,
+    reset,
+    handleSubmit: submitWithValidation,
+    formState: { errors },
+  } = form;
+
+  const handleAdvanceQueueItem = React.useCallback(() => {
+    dismissTooltips();
+    reset(DEFAULT_MEETING_FEEDBACK_FORM_VALUES);
+    setStep('attendance');
+  }, [dismissTooltips, reset]);
+
+  const handleFinishQueue = React.useCallback(() => {
+    dismissTooltips();
+    reset(baseCreateValues);
+    setStep(resolvedInitialStep);
+    setOpen(false);
+    onClose?.();
+  }, [baseCreateValues, dismissTooltips, onClose, reset, resolvedInitialStep]);
+
+  const {
+    queueItems,
+    queueIndex,
+    isQueueMode,
+    activeReservation,
+    hasRemainingQueueCard,
+    queueMotionState,
+    isTransitioningCard,
+    prepareOpenSnapshot,
+    resetQueueOnClose,
+    advanceOrCloseQueue,
+  } = useFeedbackQueueMotion({
+    open,
+    isEditMode,
+    reservation,
+    queue,
+    initialQueueIndex,
+    onSkipReservation,
+    onAdvanceItem: handleAdvanceQueueItem,
+    onFinishQueue: handleFinishQueue,
+  });
+
+  const savedRating = activeReservation.feedback?.rating?.rating;
+  const savedContent = activeReservation.feedback?.rating?.content;
 
   const baseFormValues = React.useMemo<MeetingFeedbackFormValues>(
     () =>
       isEditMode
-        ? {
-            meetingHappened: true,
-            rating: savedRating,
-            content: savedContent,
-            notHappenedReason: null,
-          }
-        : DEFAULT_MEETING_FEEDBACK_FORM_VALUES,
-    [isEditMode, savedRating, savedContent]
+        ? buildEditBaseValues(activeReservation, initialRating, initialContent)
+        : baseCreateValues,
+    [
+      isEditMode,
+      activeReservation,
+      initialRating,
+      initialContent,
+      baseCreateValues,
+    ]
   );
 
-  const [open, setOpen] = React.useState(defaultOpen);
-  const [step, setStep] = React.useState<MeetingFeedbackStep>(
-    isEditMode ? 'rating' : initialStep
-  );
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const inFlightRef = React.useRef(false);
-  const hasFailedDraftRef = React.useRef(false);
-  const contentFieldId = React.useId();
-
-  const { toast, dismiss } = useToast();
-  const {
-    register,
-    watch,
-    setValue,
+  // Keep edit form synced with latest saved values whenever dialog is closed
+  // so subsequent unlimited edits (#731) always open with up-to-date values.
+  React.useEffect(() => {
+    if (isEditMode && !open) {
+      reset(
+        buildEditBaseValues(activeReservation, initialRating, initialContent)
+      );
+    }
+  }, [
+    isEditMode,
+    open,
+    savedRating,
+    savedContent,
+    activeReservation,
+    initialRating,
+    initialContent,
     reset,
-    formState: { errors },
-  } = useMeetingFeedbackForm(baseFormValues);
+  ]);
 
   const meetingHappened = watch('meetingHappened');
   const rating = watch('rating');
   const content = watch('content');
   const notHappenedReason = watch('notHappenedReason');
+  const notHappenedNote = watch('notHappenedNote');
 
-  React.useEffect(() => {
-    if (!open && !hasFailedDraftRef.current) {
-      reset(baseFormValues);
-    }
-  }, [baseFormValues, open, reset]);
+  const contentFieldId = React.useId();
+  const noteFieldId = React.useId();
 
-  const resetDraft = React.useCallback(
-    (overrideValues?: MeetingFeedbackFormValues) => {
-      hasFailedDraftRef.current = false;
-      reset(overrideValues ?? baseFormValues);
-      setStep(isEditMode ? 'rating' : initialStep);
-    },
-    [baseFormValues, initialStep, isEditMode, reset]
+  const effectiveStep: MeetingFeedbackStep = isEditMode ? 'rating' : step;
+
+  const { containerRef: surfaceRef, captureCurrentHeight } = useStepHeightMorph(
+    `${activeReservation.id}-${effectiveStep}`
   );
 
+  const transitionToStep = React.useCallback(
+    (nextStep: MeetingFeedbackStep) => {
+      captureCurrentHeight();
+      dismissTooltips();
+      setStep(nextStep);
+    },
+    [captureCurrentHeight, dismissTooltips]
+  );
+
+  const resetDraftToBase = React.useCallback(() => {
+    reset(baseFormValues);
+    setStep(resolvedInitialStep);
+    dismissTooltips();
+  }, [reset, baseFormValues, resolvedInitialStep, dismissTooltips]);
+
   const handleOpenChange = (nextOpen: boolean) => {
-    if (isSubmitting || inFlightRef.current) return;
-    if (!nextOpen) {
-      resetDraft();
-    } else if (!hasFailedDraftRef.current) {
-      reset(baseFormValues);
-      setStep(isEditMode ? 'rating' : initialStep);
+    if (!nextOpen && inFlightRef.current) {
+      return;
     }
-    setOpen(nextOpen);
+
+    if (nextOpen) {
+      prepareOpenSnapshot();
+      if (isEditMode) {
+        reset(
+          buildEditBaseValues(activeReservation, initialRating, initialContent)
+        );
+        setStep('rating');
+      }
+      setOpen(true);
+      return;
+    }
+
+    // Manual close resets draft cleanly (1.b.3 & #731).
+    resetQueueOnClose();
+    resetDraftToBase();
+    setOpen(false);
+    onClose?.();
   };
 
-  const handleNextStep = () => {
+  const handleCloseOrSkipClick = () => {
+    if (inFlightRef.current || isTransitioningCard) return;
+    if (isQueueMode) {
+      dismissTooltips();
+      advanceOrCloseQueue(true);
+      return;
+    }
+    handleOpenChange(false);
+  };
+
+  const handleNextFromAttendance = () => {
     if (meetingHappened === true) {
-      setStep('rating');
+      transitionToStep('rating');
     } else if (meetingHappened === false) {
-      setStep('not-happened');
+      transitionToStep('not-happened');
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (inFlightRef.current || isSubmitting) return;
+  const handleValidSubmit = async (
+    currentValues: MeetingFeedbackFormValues
+  ) => {
+    if (inFlightRef.current || isTransitioningCard) return;
 
     if (isEditMode) {
-      const editPayload = toUpdateFeedbackPayload({ rating, content });
-      if (!editPayload || !onUpdateFeedback) return;
+      const updatePayload = toUpdateFeedbackPayload(currentValues);
+      if (!updatePayload || !onUpdateFeedback) return;
 
       inFlightRef.current = true;
       setIsSubmitting(true);
 
       try {
-        await onUpdateFeedback(editPayload);
-        resetDraft({
+        await onUpdateFeedback(updatePayload);
+        reset({
           meetingHappened: true,
-          rating: editPayload.rating,
-          content: editPayload.content,
+          rating: updatePayload.rating,
+          content: updatePayload.content,
           notHappenedReason: null,
+          notHappenedNote: '',
         });
+        dismissTooltips();
         setOpen(false);
+        onClose?.();
         toast({
           title: '已儲存',
           description: '您的回饋已更新！',
         });
       } catch (err) {
         if (err instanceof ReservationVersionConflictError) {
-          resetDraft();
+          resetDraftToBase();
           setOpen(false);
+          onClose?.();
           toast({
             variant: 'destructive',
             description: RESERVATION_CONFLICT_MESSAGE,
           });
-        } else {
-          hasFailedDraftRef.current = true;
-          setOpen(false);
-          const toastHandle = toast({
-            variant: 'destructive',
-            description: (
-              <span>
-                儲存失敗，回到
-                <button
-                  type="button"
-                  onClick={() => {
-                    toastHandle?.dismiss?.();
-                    dismiss?.();
-                    setOpen(true);
-                  }}
-                  className="mx-1 font-semibold underline underline-offset-4 hover:opacity-80"
-                >
-                  評論
-                </button>
-                重新儲存
-              </span>
-            ),
-          });
+          return;
         }
+
+        toast({
+          variant: 'destructive',
+          title: '儲存失敗',
+          description: '內容已保留，請再試一次。',
+        });
       } finally {
         inFlightRef.current = false;
         setIsSubmitting(false);
@@ -213,390 +373,346 @@ export default function MeetingFeedbackDialog({
       return;
     }
 
-    const payload = toSubmitFeedbackPayload({
-      meetingHappened,
-      rating,
-      content,
-      notHappenedReason,
-    });
+    const payload = toSubmitFeedbackPayload(currentValues);
     if (!payload || !onSubmitFeedback) return;
 
     inFlightRef.current = true;
     setIsSubmitting(true);
 
     try {
-      await onSubmitFeedback(payload);
-      resetDraft();
-      setOpen(false);
+      await onSubmitFeedback(payload, activeReservation);
       toast({
         title: '已送出',
         description: 'X-Talent 已收到您的回饋，謝謝您！',
       });
+      advanceOrCloseQueue(false);
     } catch (err) {
       if (err instanceof ReservationVersionConflictError) {
-        resetDraft();
+        resetDraftToBase();
         setOpen(false);
+        onClose?.();
         toast({
           variant: 'destructive',
           description: RESERVATION_CONFLICT_MESSAGE,
         });
-      } else {
-        // Close dialog via setOpen(false) directly (bypassing handleOpenChange)
-        // so step & form values stay intact for reopening from the failure toast.
-        hasFailedDraftRef.current = true;
-        setOpen(false);
-        const toastHandle = toast({
-          variant: 'destructive',
-          description: (
-            <span>
-              送出失敗，回到
-              <button
-                type="button"
-                onClick={() => {
-                  toastHandle?.dismiss?.();
-                  dismiss?.();
-                  setOpen(true);
-                }}
-                className="mx-1 font-semibold underline underline-offset-4 hover:opacity-80"
-              >
-                評論
-              </button>
-              重新送出
-            </span>
-          ),
-        });
+        return;
       }
+
+      toast({
+        variant: 'destructive',
+        title: '送出失敗',
+        description: '內容已保留，請再試一次。',
+      });
     } finally {
       inFlightRef.current = false;
       setIsSubmitting(false);
     }
   };
 
-  const effectiveStep: MeetingFeedbackStep = isEditMode ? 'rating' : step;
-  const isContentOverLimit = content.length > MAX_FEEDBACK_CONTENT_LENGTH;
-  const hasContentError = Boolean(errors.content) || isContentOverLimit;
+  const contentError = errors.content?.message;
+  const isOtherReason = notHappenedReason === 'OTHER';
+  const noteError = isOtherReason ? errors.notHappenedNote?.message : undefined;
+
+  const canSubmitStep2 =
+    effectiveStep === 'rating'
+      ? !contentError && content.length <= MAX_FEEDBACK_CONTENT_LENGTH
+      : Boolean(
+          notHappenedReason &&
+          (!isOtherReason ||
+            (!noteError &&
+              notHappenedNote.length <= MAX_NOT_HAPPENED_NOTE_LENGTH))
+        );
+
+  const guardToastOutsideEvent = (event: {
+    target: EventTarget | null;
+    preventDefault: () => void;
+  }) => {
+    if (isSubmitting || isTransitioningCard) {
+      event.preventDefault();
+      return;
+    }
+    const target = event.target;
+    if (
+      target instanceof Element &&
+      target.closest('[data-radix-toast-viewport], [toast-close]')
+    ) {
+      event.preventDefault();
+    }
+  };
+
+  const defaultTrigger = isEditMode ? (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      disabled={disabled}
+      className={cn(
+        'border-background-border bg-background-white text-text-primary hover:bg-background-hover h-7 rounded-lg px-2.5 text-xs font-medium sm:h-8 sm:px-3',
+        className
+      )}
+    >
+      編輯
+    </Button>
+  ) : (
+    <Button
+      type="button"
+      size="sm"
+      disabled={disabled}
+      className={cn(
+        'bg-brand-500 text-text-primary hover:bg-brand-400 h-8 rounded-md px-3.5 text-xs font-medium sm:h-9 sm:px-4 sm:text-sm',
+        className
+      )}
+    >
+      填寫回饋
+    </Button>
+  );
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        {isEditMode ? (
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={disabled || isSubmitting}
-            className={cn(
-              'border-background-border bg-background-white text-text-primary hover:bg-background-hover h-7 rounded-lg px-2.5 text-xs font-medium sm:h-8 sm:px-3',
-              className
-            )}
-          >
-            編輯
-          </Button>
-        ) : (
-          <Button
-            size="sm"
-            disabled={disabled || isSubmitting}
-            className={cn(
-              'h-8 rounded-lg px-3.5 text-xs font-medium sm:h-9 sm:text-sm',
-              className
-            )}
-          >
-            填寫回饋
-          </Button>
-        )}
-      </DialogTrigger>
+      <DialogTrigger asChild>{trigger ?? defaultTrigger}</DialogTrigger>
 
-      <DialogContent
-        className="w-full max-w-[92vw] rounded-2xl p-6 sm:max-w-[440px]"
-        onInteractOutside={(e) => {
-          if (isSubmitting) e.preventDefault();
-        }}
-        onEscapeKeyDown={(e) => {
-          if (isSubmitting) e.preventDefault();
-        }}
-      >
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {effectiveStep === 'attendance' ? (
-            <>
-              <DialogHeader className="space-y-1.5 text-left">
-                <DialogTitle className="text-text-primary text-xl font-semibold">
-                  會談是否有進行？
-                </DialogTitle>
-                <DialogDescription className="text-text-secondary text-sm">
-                  請選擇本次會談的狀態（{reservation.name} · {reservation.date}
-                  ）
-                </DialogDescription>
-              </DialogHeader>
+      <DialogPortal>
+        <DialogOverlay
+          data-testid="feedback-dialog-overlay"
+          className="bg-text-primary/20 motion-safe:animate-feedback-overlay-in backdrop-blur-[3px]"
+        />
+
+        <DialogContentFrame
+          onEscapeKeyDown={(e) => {
+            if (isSubmitting || isTransitioningCard) {
+              e.preventDefault();
+              return;
+            }
+            if (isMaskTooltipOpen || isSkipTooltipOpen) {
+              e.preventDefault();
+              dismissTooltips();
+            }
+          }}
+          onPointerDownOutside={guardToastOutsideEvent}
+          onInteractOutside={guardToastOutsideEvent}
+          className="motion-safe:animate-feedback-dialog-in w-[calc(100%-2rem)] max-w-[468px] gap-0 overflow-visible border-0 bg-transparent p-0 shadow-none sm:rounded-lg"
+        >
+          {hasRemainingQueueCard ? (
+            <div
+              aria-hidden="true"
+              data-testid="feedback-queue-back-card"
+              className="border-background-border bg-background-white pointer-events-none absolute top-1.5 right-1.5 -bottom-1.5 left-1.5 -z-10 rotate-[-5deg] rounded-lg border shadow-sm transition-transform duration-300"
+            />
+          ) : null}
+
+          <div
+            ref={surfaceRef}
+            data-testid="feedback-dialog-surface"
+            data-queue-motion={queueMotionState}
+            className={cn(
+              'border-background-border bg-background-white text-text-primary relative flex max-h-[90dvh] flex-col overflow-hidden rounded-lg border shadow-lg sm:max-h-[92dvh]',
+              queueMotionState === 'swiping-out' &&
+                'motion-safe:animate-feedback-card-out',
+              queueMotionState === 'promoting' &&
+                'motion-safe:animate-feedback-card-promote'
+            )}
+          >
+            {/* Fixed Top Header: Queue Progress + Mentor Session Info */}
+            <div className="relative z-20 shrink-0 px-5 pt-5 sm:px-6 sm:pt-6">
+              {isQueueMode ? (
+                <div className="mb-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-text-primary text-base font-semibold">
+                        會談回饋
+                      </span>
+                      <span
+                        data-testid="feedback-queue-counter"
+                        className="text-text-tertiary text-xs tabular-nums"
+                      >
+                        第 {queueIndex + 1}／{queueItems.length} 場
+                      </span>
+                    </div>
+
+                    <Tooltip
+                      content="略過這場，下次登入再提醒；也可到歷史紀錄填寫。"
+                      side="bottom"
+                      align="end"
+                      dismissSignal={tooltipDismissSignal}
+                      onOpenChange={setIsSkipTooltipOpen}
+                      testId="feedback-skip-tooltip"
+                      contentClassName="w-60"
+                    >
+                      <button
+                        type="button"
+                        aria-label={`略過 ${activeReservation.name} 這場回饋`}
+                        disabled={isSubmitting || isTransitioningCard}
+                        onClick={handleCloseOrSkipClick}
+                        className="text-text-secondary hover:bg-background-bottom hover:text-text-primary focus-visible:ring-brand-500 inline-flex size-7 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-45"
+                      >
+                        <X className="size-4" aria-hidden="true" />
+                      </button>
+                    </Tooltip>
+                  </div>
+
+                  <div
+                    role="progressbar"
+                    aria-label="會談回饋進度"
+                    aria-valuemin={1}
+                    aria-valuemax={queueItems.length}
+                    aria-valuenow={queueIndex + 1}
+                    data-testid="feedback-queue-progressbar"
+                    className="mt-3 flex gap-1.5"
+                  >
+                    {queueItems.map((item, idx) => {
+                      const segmentState =
+                        idx < queueIndex
+                          ? 'completed'
+                          : idx === queueIndex
+                            ? 'current'
+                            : 'upcoming';
+
+                      return (
+                        <span
+                          key={item.id}
+                          data-state={segmentState}
+                          data-active={idx <= queueIndex ? 'true' : 'false'}
+                          className={cn(
+                            'h-1 flex-1 rounded-full transition-colors duration-300',
+                            segmentState === 'current'
+                              ? 'bg-brand-700'
+                              : segmentState === 'completed'
+                                ? 'bg-brand-200'
+                                : 'bg-background-border'
+                          )}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
 
               <div
-                role="radiogroup"
-                aria-label="會談是否有進行"
-                className="grid grid-cols-2 gap-3"
+                data-testid="feedback-mentor-header"
+                className="flex items-center justify-between gap-3"
               >
-                {(
-                  [
-                    { label: '是', value: true },
-                    { label: '否', value: false },
-                  ] as const
-                ).map((option) => {
-                  const isSelected = meetingHappened === option.value;
-                  return (
-                    <label
-                      key={option.label}
-                      className={cn(
-                        'focus-within:ring-brand-500 flex cursor-pointer items-center justify-center gap-2.5 rounded-xl border px-4 py-3.5 text-sm font-medium transition-colors focus-within:ring-2 focus-within:ring-offset-2',
-                        isSelected
-                          ? 'border-brand-500 bg-brand-50 text-text-primary'
-                          : 'border-background-border bg-background-white text-text-primary hover:bg-background-hover'
-                      )}
-                    >
-                      <input
-                        type="radio"
-                        name="meetingHappened"
-                        className="sr-only"
-                        checked={isSelected}
-                        onChange={() =>
-                          setValue('meetingHappened', option.value, {
-                            shouldValidate: true,
-                          })
-                        }
-                      />
-                      <span
-                        aria-hidden="true"
-                        className={cn(
-                          'flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors',
-                          isSelected
-                            ? 'border-brand-600'
-                            : 'border-text-tertiary'
-                        )}
-                      >
-                        {isSelected ? (
-                          <span className="bg-brand-600 size-2 rounded-full" />
-                        ) : null}
-                      </span>
-                      <span>{option.label}</span>
-                    </label>
-                  );
-                })}
-              </div>
+                <div className="flex min-w-0 items-center gap-3">
+                  <Avatar className="border-avatar-border/50 size-10 shrink-0 border">
+                    <AvatarImage
+                      src={
+                        activeReservation.avatar
+                          ? getAvatarThumbUrl(activeReservation.avatar)
+                          : undefined
+                      }
+                      alt={activeReservation.name}
+                    />
+                    <AvatarFallback className="text-text-primary text-xs font-medium">
+                      {getInitials(activeReservation.name)}
+                    </AvatarFallback>
+                  </Avatar>
 
-              <DialogFooter className="pt-1 sm:justify-stretch">
-                <Button
-                  type="button"
-                  className="w-full"
-                  disabled={meetingHappened === null}
-                  onClick={handleNextStep}
-                >
-                  下一步
-                </Button>
-              </DialogFooter>
-            </>
-          ) : effectiveStep === 'rating' ? (
-            <>
-              <DialogHeader className="space-y-1.5 text-left">
-                <DialogTitle className="text-text-primary text-xl font-semibold">
-                  {isEditMode ? '編輯回饋' : '為本次會談評分'}
-                </DialogTitle>
-                <DialogDescription className="text-text-secondary text-sm">
-                  您的回饋能幫助我們持續改善
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="space-y-4">
-                <p
-                  data-testid="feedback-name-masking-hint"
-                  className="bg-background-bottom text-text-secondary rounded-xl px-3.5 py-2.5 text-xs leading-relaxed"
-                >
-                  公開評價將以遮罩姓名顯示（例如：王**），不會公開您的完整姓名。
-                </p>
-
-                <div className="space-y-2.5">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-text-primary text-sm font-medium">
-                      整體滿意度
-                    </span>
-                    <span
-                      data-testid="meeting-rating-value"
-                      className="text-brand-700 text-sm font-semibold tabular-nums"
-                    >
-                      {rating}{' '}
-                      <span className="text-text-tertiary text-xs font-normal">
-                        / 10
-                      </span>
-                    </span>
-                  </div>
-
-                  <FeedbackStarRating
-                    value={rating}
-                    onChange={(nextRating) =>
-                      setValue('rating', nextRating, { shouldValidate: true })
-                    }
-                    disabled={isSubmitting}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label
-                    htmlFor={contentFieldId}
-                    className="text-text-primary block text-sm font-medium"
-                  >
-                    評論內容（選填）
-                  </label>
-                  <Textarea
-                    id={contentFieldId}
-                    placeholder="分享您對本次會談的想法⋯"
-                    rows={5}
-                    aria-invalid={hasContentError}
-                    disabled={isSubmitting}
-                    className="resize-none overflow-y-auto"
-                    {...register('content')}
-                  />
-                  <div className="flex items-center justify-between gap-2 text-xs">
-                    {errors.content?.message ? (
-                      <p role="alert" className="text-status-error-default">
-                        {errors.content.message}
-                      </p>
-                    ) : (
-                      <span />
-                    )}
-                    <span
-                      data-testid="feedback-content-counter"
-                      className={cn(
-                        'ml-auto tabular-nums',
-                        hasContentError
-                          ? 'text-status-error-default font-medium'
-                          : 'text-text-tertiary'
-                      )}
-                    >
-                      {content.length} / {MAX_FEEDBACK_CONTENT_LENGTH}
-                    </span>
+                  <div className="min-w-0">
+                    <p className="text-text-primary truncate text-sm font-semibold">
+                      {activeReservation.name}
+                    </p>
+                    <p className="text-text-secondary truncate text-xs tabular-nums">
+                      {activeReservation.date} · {activeReservation.time}
+                    </p>
                   </div>
                 </div>
+
+                {!isQueueMode ? (
+                  <button
+                    type="button"
+                    aria-label="關閉回饋視窗"
+                    disabled={isSubmitting}
+                    onClick={handleCloseOrSkipClick}
+                    className="text-text-secondary hover:bg-background-bottom hover:text-text-primary focus-visible:ring-brand-500 inline-flex size-7 shrink-0 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-45"
+                  >
+                    <X className="size-4" aria-hidden="true" />
+                  </button>
+                ) : null}
               </div>
 
-              <DialogFooter className="grid grid-cols-2 gap-3 pt-1 sm:space-x-0">
-                {isEditMode ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={isSubmitting}
-                    onClick={() => handleOpenChange(false)}
-                  >
-                    取消
-                  </Button>
-                ) : (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={isSubmitting}
-                    onClick={() => setStep('attendance')}
-                  >
-                    上一步
-                  </Button>
+              <div className="bg-background-border mt-4 h-px w-full" />
+            </div>
+
+            {/* Scrollable Step Body + Sticky Bottom Footer */}
+            <form
+              onSubmit={submitWithValidation(handleValidSubmit)}
+              noValidate
+              className="flex min-h-0 flex-1 flex-col"
+            >
+              <div
+                className={cn(
+                  'min-h-0 flex-1 overflow-y-auto px-5 sm:px-6',
+                  effectiveStep === 'not-happened' ? 'py-3.5' : 'py-4'
                 )}
-                <Button
-                  type="submit"
-                  disabled={isSubmitting || hasContentError}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 size-4 animate-spin" />
-                      {isEditMode ? '儲存中...' : '送出中...'}
-                    </>
-                  ) : isEditMode ? (
-                    '儲存'
-                  ) : (
-                    '送出'
-                  )}
-                </Button>
-              </DialogFooter>
-            </>
-          ) : (
-            <>
-              <DialogHeader className="space-y-1.5 text-left">
-                <DialogTitle className="text-text-primary text-xl font-semibold">
-                  未進行會談的原因
-                </DialogTitle>
-                <DialogDescription className="text-text-secondary text-sm">
-                  為何沒有成功進行？
-                </DialogDescription>
-              </DialogHeader>
-
-              <div
-                role="radiogroup"
-                aria-label="為何沒有成功進行"
-                className="space-y-2.5"
               >
-                {NOT_HAPPENED_REASONS.map((reason) => {
-                  const isSelected = notHappenedReason === reason;
-                  return (
-                    <label
-                      key={reason}
-                      className={cn(
-                        'focus-within:ring-brand-500 flex cursor-pointer items-center gap-3 rounded-xl border px-3.5 py-2.5 text-sm transition-colors focus-within:ring-2 focus-within:ring-offset-2',
-                        isSelected
-                          ? 'border-brand-500 bg-brand-50 text-text-primary font-medium'
-                          : 'border-background-border bg-background-white text-text-primary hover:bg-background-hover'
-                      )}
-                    >
-                      <input
-                        type="radio"
-                        name="notHappenedReason"
-                        value={reason}
-                        className="sr-only"
-                        disabled={isSubmitting}
-                        checked={isSelected}
-                        onChange={() =>
-                          setValue('notHappenedReason', reason, {
-                            shouldValidate: true,
-                          })
-                        }
-                      />
-                      <span
-                        aria-hidden="true"
-                        className={cn(
-                          'flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors',
-                          isSelected
-                            ? 'border-brand-600'
-                            : 'border-text-tertiary'
-                        )}
-                      >
-                        {isSelected ? (
-                          <span className="bg-brand-600 size-2 rounded-full" />
-                        ) : null}
-                      </span>
-                      <span>{NOT_HAPPENED_REASON_LABELS[reason]}</span>
-                    </label>
-                  );
-                })}
+                <div
+                  key={`${activeReservation.id}-${effectiveStep}`}
+                  className={cn(
+                    'motion-safe:animate-feedback-step-in',
+                    effectiveStep === 'not-happened' ? 'space-y-3' : 'space-y-4'
+                  )}
+                >
+                  {effectiveStep === 'attendance' ? (
+                    <AttendanceStepContent
+                      meetingHappened={meetingHappened}
+                      disabled={isTransitioningCard}
+                      onSelectMeetingHappened={(val) =>
+                        setValue('meetingHappened', val, {
+                          shouldValidate: true,
+                        })
+                      }
+                    />
+                  ) : effectiveStep === 'rating' ? (
+                    <RatingStepContent
+                      isEditMode={isEditMode}
+                      rating={rating}
+                      content={content}
+                      contentError={contentError}
+                      contentFieldId={contentFieldId}
+                      isSubmitting={isSubmitting}
+                      contentRegistration={register('content')}
+                      tooltipDismissSignal={tooltipDismissSignal}
+                      onMaskTooltipOpenChange={setIsMaskTooltipOpen}
+                      onRatingChange={(nextValue) =>
+                        setValue('rating', nextValue, {
+                          shouldValidate: true,
+                        })
+                      }
+                    />
+                  ) : (
+                    <NotHappenedStepContent
+                      notHappenedReason={notHappenedReason}
+                      notHappenedNote={notHappenedNote}
+                      noteError={noteError}
+                      noteFieldId={noteFieldId}
+                      isSubmitting={isSubmitting}
+                      noteRegistration={register('notHappenedNote')}
+                      onSelectReason={(reason) => {
+                        setValue('notHappenedReason', reason, {
+                          shouldValidate: true,
+                        });
+                        void triggerFieldValidation('notHappenedNote');
+                      }}
+                    />
+                  )}
+                </div>
               </div>
 
-              <DialogFooter className="grid grid-cols-2 gap-3 pt-1 sm:space-x-0">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={isSubmitting}
-                  onClick={() => setStep('attendance')}
-                >
-                  上一步
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={!notHappenedReason || isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 size-4 animate-spin" />
-                      送出中...
-                    </>
-                  ) : (
-                    '送出'
-                  )}
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </form>
-      </DialogContent>
+              <MeetingFeedbackFooter
+                effectiveStep={effectiveStep}
+                isEditMode={isEditMode}
+                isSubmitting={isSubmitting}
+                isTransitioningCard={isTransitioningCard}
+                canProceedAttendance={meetingHappened !== null}
+                canSubmitStep2={canSubmitStep2}
+                hasRemainingQueueCard={hasRemainingQueueCard}
+                onNextFromAttendance={handleNextFromAttendance}
+                onBackToAttendance={() => transitionToStep('attendance')}
+                onCancelEdit={() => handleOpenChange(false)}
+              />
+            </form>
+          </div>
+        </DialogContentFrame>
+      </DialogPortal>
     </Dialog>
   );
 }

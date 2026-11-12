@@ -411,8 +411,8 @@ describe('ReservationList', () => {
     });
   });
 
-  describe('history feedback card states & 1.h swap (#730)', () => {
-    it('renders 填寫回饋 button and swapped 已結束 status badge only when nextStep === "ANSWER"', () => {
+  describe('history feedback card states & collapsible toggles (#730 / #734 / #731)', () => {
+    it('renders 填寫回饋 button in top-right only when nextStep === "ANSWER" and falls back to 已結束 when feedback is absent', () => {
       const answerItem: Reservation = {
         ...mockReservation,
         id: 'hist-answer',
@@ -444,10 +444,10 @@ describe('ReservationList', () => {
       expect(screen.getAllByRole('button', { name: '填寫回饋' })).toHaveLength(
         1
       );
-      expect(screen.getAllByText('已結束')).toHaveLength(2);
+      expect(screen.getAllByText('已結束')).toHaveLength(1);
     });
 
-    it('renders 已填寫 for public rating, 評價未公開 (not 已填寫) for isPublic=false, and 未進行 for meetingHappened=false', () => {
+    it('defaults rated cards to collapsed 查看回饋 ⌄ and 評價未公開 ⌄, expands on click to show rating/notice & #731 編輯, and shows 未進行 for absent sessions', () => {
       const items: Reservation[] = [
         {
           ...mockReservation,
@@ -504,28 +504,47 @@ describe('ReservationList', () => {
         />
       );
 
-      expect(screen.getByText('已填寫')).toBeInTheDocument();
-      expect(screen.getByText('10 / 10')).toBeInTheDocument();
-      expect(screen.getByText('公開好評內容')).toBeInTheDocument();
+      // Default collapsed
+      const viewFeedbackBtn = screen.getByRole('button', { name: '查看回饋' });
+      expect(viewFeedbackBtn).toHaveAttribute('aria-expanded', 'false');
+      expect(screen.queryByText('公開好評內容')).not.toBeInTheDocument();
       expect(screen.queryByText('尚未公開')).not.toBeInTheDocument();
 
       expect(screen.getByText('評價未公開')).toBeInTheDocument();
+      const expandUnpubBtn = screen.getByRole('button', {
+        name: '展開評價未公開說明',
+      });
+      expect(expandUnpubBtn).toHaveAttribute('aria-expanded', 'false');
+      expect(
+        screen.queryByTestId('reservation-feedback-unpublicized')
+      ).not.toBeInTheDocument();
+
+      expect(screen.getByText('未進行')).toBeInTheDocument();
+
+      // Expand public rating & unpublicized rating
+      fireEvent.click(viewFeedbackBtn);
+      expect(viewFeedbackBtn).toHaveAttribute('aria-expanded', 'true');
+      expect(screen.getByText('10 / 10')).toBeInTheDocument();
+      expect(screen.getByText('公開好評內容')).toBeInTheDocument();
+
+      fireEvent.click(expandUnpubBtn);
+      expect(
+        screen.getByRole('button', { name: '收合評價未公開說明' })
+      ).toHaveAttribute('aria-expanded', 'true');
       expect(
         screen.getByTestId('reservation-feedback-unpublicized').textContent
       ).toContain(
         '這場會談已被標註沒有進行，因此評價不會公開；如有疑問可以透過回饋表單聯繫我們。'
       );
 
-      expect(screen.getByText('未進行')).toBeInTheDocument();
-
-      // #731: Both rated cards (public 已填寫 and unpublicized 評價未公開) show 編輯, absent card does not, and 刪除 never exists
+      // #731: Both rated cards expose 編輯 once expanded, absent card does not, and 刪除 never exists
       expect(screen.getAllByRole('button', { name: '編輯' })).toHaveLength(2);
       expect(
         screen.queryByRole('button', { name: /刪除/ })
       ).not.toBeInTheDocument();
     });
 
-    it('never renders 編輯 or 刪除 buttons on Mentor history cards (#731)', () => {
+    it('never renders 編輯 or 刪除 buttons on Mentor history cards even after expanding 查看回饋 (#731)', () => {
       render(
         <ReservationList
           items={[
@@ -552,6 +571,7 @@ describe('ReservationList', () => {
         />
       );
 
+      fireEvent.click(screen.getByRole('button', { name: '查看回饋' }));
       expect(screen.getByText('學員評價')).toBeInTheDocument();
       expect(
         screen.queryByRole('button', { name: '編輯' })

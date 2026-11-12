@@ -1,11 +1,104 @@
-import { AlertCircle, Star } from 'lucide-react';
+'use client';
+
+import { ChevronDown, Star } from 'lucide-react';
 import * as React from 'react';
 
 import { Button } from '@/components/ui/button';
+import { Tooltip } from '@/components/ui/tooltip';
 import { FEEDBACK_FORM_URL } from '@/constant/externalLinks';
-import type { HistoryFeedbackBlockModel } from '@/lib/reservation/resolveHistoryFeedbackState';
+import type {
+  HistoryFeedbackBlockModel,
+  HistoryHeaderAction,
+} from '@/lib/reservation/resolveHistoryFeedbackState';
+import { cn } from '@/lib/utils';
+
+export const EMPTY_FEEDBACK_CONTENT_TEXT = '沒有留下文字回饋。';
+
+export type CollapsibleFeedbackHeaderAction = Extract<
+  HistoryHeaderAction,
+  { kind: 'feedback-toggle' | 'unpublicized-toggle' }
+>;
+
+export interface ReservationFeedbackHeaderToggleProps {
+  action: CollapsibleFeedbackHeaderAction;
+  isExpanded: boolean;
+  onToggle: () => void;
+  panelId?: string;
+}
+
+export function ReservationFeedbackHeaderToggle({
+  action,
+  isExpanded,
+  onToggle,
+  panelId,
+}: ReservationFeedbackHeaderToggleProps) {
+  if (action.kind === 'feedback-toggle') {
+    return (
+      <button
+        type="button"
+        aria-expanded={isExpanded}
+        aria-controls={panelId}
+        onClick={onToggle}
+        className="text-brand-700 hover:bg-brand-50 focus-visible:ring-brand-500 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none sm:text-sm"
+      >
+        <span>{action.label}</span>
+        <ChevronDown
+          aria-hidden="true"
+          className={cn(
+            'size-4 transition-transform duration-200',
+            isExpanded && 'rotate-180'
+          )}
+        />
+      </button>
+    );
+  }
+
+  const tooltipLabel = isExpanded
+    ? action.collapseTooltip
+    : action.expandTooltip;
+
+  return (
+    <div className="inline-flex items-center gap-1.5">
+      <span
+        role="status"
+        className="bg-status-warning-surface text-status-warning-text inline-flex items-center rounded-md px-2 py-0.5 text-xs font-normal"
+      >
+        {action.badgeLabel}
+      </span>
+
+      <Tooltip
+        content={tooltipLabel}
+        side="top"
+        align="end"
+        testId="unpublicized-toggle-tooltip"
+        contentClassName="mb-1.5 px-2.5 py-1.5 font-medium whitespace-nowrap"
+      >
+        <button
+          type="button"
+          aria-label={tooltipLabel}
+          aria-expanded={isExpanded}
+          aria-controls={panelId}
+          onClick={onToggle}
+          className={cn(
+            'text-text-secondary hover:bg-background-bottom hover:text-text-primary focus-visible:ring-brand-500 inline-flex size-7 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none',
+            isExpanded && 'bg-background-bottom text-text-primary'
+          )}
+        >
+          <ChevronDown
+            aria-hidden="true"
+            className={cn(
+              'size-4 transition-transform duration-200',
+              isExpanded && 'rotate-180'
+            )}
+          />
+        </button>
+      </Tooltip>
+    </div>
+  );
+}
 
 export interface ReservationFeedbackBlockProps {
+  id?: string;
   model: HistoryFeedbackBlockModel;
   /**
    * Optional custom edit trigger element (e.g. `MeetingFeedbackDialog` in `mode="edit"`).
@@ -43,10 +136,14 @@ function renderNoticeWithFeedbackLink(notice: string): React.ReactNode {
 }
 
 export function ReservationFeedbackBlock({
+  id,
   model,
   editAction,
   onEdit,
 }: ReservationFeedbackBlockProps) {
+  const trimmedContent = model.content.trim();
+  const hasContent = trimmedContent.length > 0;
+
   const editControl = model.canEdit
     ? (editAction ?? (
         <Button
@@ -64,40 +161,48 @@ export function ReservationFeedbackBlock({
   if (model.kind === 'unpublicized') {
     return (
       <div
+        id={id}
         data-testid="reservation-feedback-unpublicized"
-        className="border-background-border bg-background-bottom mt-3 space-y-2 rounded-xl border p-3 sm:p-3.5"
+        className="motion-safe:animate-feedback-step-in mt-3 space-y-2.5"
       >
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-text-secondary text-xs font-medium">
-            我的評價
-          </span>
-          <div className="flex items-center gap-2.5">
-            <span className="text-text-secondary inline-flex items-center gap-1 text-xs font-semibold tabular-nums sm:text-sm">
-              <Star
-                className="fill-text-tertiary text-text-tertiary size-3.5"
-                aria-hidden="true"
-              />
-              <span>{model.rating} / 10</span>
-            </span>
-            {editControl}
-          </div>
-        </div>
-
-        {model.content ? (
-          <p className="text-text-secondary text-xs leading-relaxed whitespace-pre-line sm:text-sm">
-            {model.content}
-          </p>
-        ) : null}
-
         <div
           role="note"
-          className="border-background-border bg-background-white text-text-secondary flex items-start gap-2 rounded-lg border p-2.5 text-xs leading-relaxed"
+          className="border-status-warning-border bg-status-warning-surface/70 rounded-lg border px-4 py-3"
         >
-          <AlertCircle
-            className="text-text-tertiary mt-0.5 size-4 shrink-0"
-            aria-hidden="true"
-          />
-          <p>{renderNoticeWithFeedbackLink(model.notice)}</p>
+          <p className="text-text-primary text-xs font-semibold sm:text-sm">
+            評價未公開
+          </p>
+          <p className="text-text-secondary mt-1 text-xs leading-relaxed sm:text-sm">
+            {renderNoticeWithFeedbackLink(model.notice)}
+          </p>
+        </div>
+
+        <div className="border-background-border/70 bg-background-bottom-secondary rounded-lg border px-3.5 py-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-text-secondary text-xs font-medium">
+              我的回饋
+            </span>
+            <div className="flex items-center gap-2.5">
+              <span className="text-text-secondary inline-flex items-center gap-1 text-xs font-semibold tabular-nums sm:text-sm">
+                <Star
+                  className="fill-text-tertiary text-text-tertiary size-3.5"
+                  aria-hidden="true"
+                />
+                <span>{model.rating} / 10</span>
+              </span>
+              {editControl}
+            </div>
+          </div>
+
+          {hasContent ? (
+            <p className="text-text-secondary mt-1.5 text-xs leading-relaxed whitespace-pre-line sm:text-sm">
+              {trimmedContent}
+            </p>
+          ) : (
+            <p className="text-text-tertiary mt-1.5 text-xs leading-relaxed sm:text-sm">
+              {EMPTY_FEEDBACK_CONTENT_TEXT}
+            </p>
+          )}
         </div>
       </div>
     );
@@ -105,8 +210,9 @@ export function ReservationFeedbackBlock({
 
   return (
     <div
+      id={id}
       data-testid="reservation-feedback-public"
-      className="border-background-border/70 bg-background-bottom-secondary mt-3 rounded-xl border p-3 sm:p-3.5"
+      className="border-background-border/70 bg-background-bottom-secondary motion-safe:animate-feedback-step-in mt-3 rounded-lg border px-3.5 py-3 sm:px-4 sm:py-3.5"
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-text-secondary text-xs font-medium">
@@ -124,11 +230,15 @@ export function ReservationFeedbackBlock({
         </div>
       </div>
 
-      {model.content ? (
+      {hasContent ? (
         <p className="text-text-primary mt-1.5 text-xs leading-relaxed whitespace-pre-line sm:text-sm">
-          {model.content}
+          {trimmedContent}
         </p>
-      ) : null}
+      ) : (
+        <p className="text-text-tertiary mt-1.5 text-xs leading-relaxed sm:text-sm">
+          {EMPTY_FEEDBACK_CONTENT_TEXT}
+        </p>
+      )}
     </div>
   );
 }
