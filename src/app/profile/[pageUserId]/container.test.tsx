@@ -340,6 +340,32 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
     );
 
     mockUseUserData.mockReturnValue({
+      userData: null,
+      isLoading: true,
+      error: null,
+      refetch: vi.fn(),
+    });
+    const loadingEmptyRender = renderContainer();
+    expect(mockUseMentorFeedback).toHaveBeenLastCalledWith({
+      mentorId: 123,
+      enabled: false,
+    });
+    loadingEmptyRender.unmount();
+
+    mockUseUserData.mockReturnValue({
+      userData: { user_id: 123, name: 'Cached Mentor', is_mentor: true },
+      isLoading: true,
+      error: null,
+      refetch: vi.fn(),
+    });
+    const loadingCachedMentorRender = renderContainer();
+    expect(mockUseMentorFeedback).toHaveBeenLastCalledWith({
+      mentorId: 123,
+      enabled: false,
+    });
+    loadingCachedMentorRender.unmount();
+
+    mockUseUserData.mockReturnValue({
       userData: { user_id: 123, name: 'Mentee', is_mentor: false },
       isLoading: false,
       error: null,
