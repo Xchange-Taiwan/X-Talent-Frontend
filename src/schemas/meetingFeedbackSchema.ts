@@ -26,6 +26,13 @@ export const meetingFeedbackFormSchema = z.object({
   notHappenedReason: z.enum(NOT_HAPPENED_REASONS).nullable(),
 });
 
+const happenedBranchSchema = meetingFeedbackFormSchema.pick({
+  rating: true,
+  content: true,
+});
+
+const notHappenedReasonSchema = z.enum(NOT_HAPPENED_REASONS);
+
 export type MeetingFeedbackFormValues = z.infer<
   typeof meetingFeedbackFormSchema
 >;
@@ -33,29 +40,30 @@ export type MeetingFeedbackFormValues = z.infer<
 export function toSubmitFeedbackPayload(
   values: MeetingFeedbackFormValues
 ): SubmitReservationFeedbackRequest | null {
-  const parsed = meetingFeedbackFormSchema.safeParse(values);
-  if (!parsed.success) {
-    return null;
-  }
-
-  const data = parsed.data;
-  if (data.meetingHappened === true) {
+  if (values.meetingHappened === true) {
+    const parsed = happenedBranchSchema.safeParse(values);
+    if (!parsed.success) {
+      return null;
+    }
     return {
       meeting_happened: true,
       feedback: {
-        rating: data.rating,
-        content: data.content.trim(),
+        rating: parsed.data.rating,
+        content: parsed.data.content.trim(),
       },
     };
   }
 
-  if (data.meetingHappened === false) {
-    if (!data.notHappenedReason) {
+  if (values.meetingHappened === false) {
+    const reasonParsed = notHappenedReasonSchema.safeParse(
+      values.notHappenedReason
+    );
+    if (!reasonParsed.success) {
       return null;
     }
     return {
       meeting_happened: false,
-      not_happened_reason: data.notHappenedReason,
+      not_happened_reason: reasonParsed.data,
     };
   }
 

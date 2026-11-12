@@ -112,4 +112,18 @@ describe('meetingFeedbackSchema', () => {
       })
     ).toBeNull();
   });
+
+  it('ignores over-limit content from the rating step when user switches to meetingHappened=false', () => {
+    expect(
+      toSubmitFeedbackPayload({
+        meetingHappened: false,
+        rating: 10,
+        content: 'a'.repeat(1005),
+        notHappenedReason: 'MENTOR_ABSENT',
+      })
+    ).toEqual({
+      meeting_happened: false,
+      not_happened_reason: 'MENTOR_ABSENT',
+    });
+  });
 });
