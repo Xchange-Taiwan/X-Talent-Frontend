@@ -11,6 +11,7 @@ import type { NotHappenedReason } from '@/types/reservationFeedback';
 import {
   AttendanceStepContent,
   MeetingFeedbackFooter,
+  MentorNotHappenedWarning,
   NotHappenedStepContent,
   RatingStepContent,
 } from './MeetingFeedbackSteps';
@@ -74,10 +75,10 @@ function NotHappenedPreview({
           notHappenedNote={note}
           noteFieldId="story-note"
           isSubmitting={false}
-          isMentor={isMentor}
           noteRegistration={form.register('notHappenedNote')}
           onSelectReason={(next) => form.setValue('notHappenedReason', next)}
         />
+        {isMentor ? <MentorNotHappenedWarning /> : null}
         <MeetingFeedbackFooter
           effectiveStep="not-happened"
           isEditMode={false}

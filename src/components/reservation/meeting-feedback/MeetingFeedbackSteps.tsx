@@ -234,8 +234,6 @@ export interface NotHappenedStepContentProps {
   noteError?: string;
   noteFieldId: string;
   isSubmitting: boolean;
-  isMentor?: boolean;
-  hideInlineMentorWarning?: boolean;
   noteRegistration: UseFormRegisterReturn;
   onSelectReason: (reason: NotHappenedReason) => void;
 }
@@ -246,8 +244,6 @@ export function NotHappenedStepContent({
   noteError,
   noteFieldId,
   isSubmitting,
-  isMentor = false,
-  hideInlineMentorWarning = false,
   noteRegistration,
   onSelectReason,
 }: NotHappenedStepContentProps) {
@@ -349,10 +345,6 @@ export function NotHappenedStepContent({
             </div>
           </div>
         </div>
-
-        {isMentor && !hideInlineMentorWarning ? (
-          <MentorNotHappenedWarning className="mt-3" />
-        ) : null}
       </div>
     </>
   );

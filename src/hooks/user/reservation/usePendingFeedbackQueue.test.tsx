@@ -30,7 +30,10 @@ vi.mock('@/lib/analytics', () => ({
 
 import { clearUserProfileDtoCache } from '@/hooks/user/user-data/userProfileDtoCache';
 import { trackEvent } from '@/lib/analytics';
-import { getSessionPendingFeedbackState } from '@/lib/reservation/pendingFeedbackGuard';
+import {
+  getSessionPendingFeedbackState,
+  markSessionPendingFeedbackChecked,
+} from '@/lib/reservation/pendingFeedbackGuard';
 import {
   fetchPendingFeedbackReservations,
   submitReservationFeedback,
@@ -665,5 +668,134 @@ describe('usePendingFeedbackQueue (#740)', () => {
     rerender();
     expect(result.current.queueItems).toBeNull();
     expect(getSessionPendingFeedbackState('1').queueEmpty).toBe(true);
+  });
+
+  it('waits until session.user.isMentor resolves to an explicit boolean before fetching or surfacing simplified items omitting viewerRole', async () => {
+    const simplifiedMentorItem = fromPartial<Reservation>({
+      id: '801',
+      name: 'Emily Chen',
+      date: '2026/10/12',
+      time: '19:00–19:30',
+      dtstart: 1760000000,
+      dtend: 1760001800,
+      senderUserId: 202,
+      participantUserId: 1,
+      viewerRole: undefined,
+    });
+    mockFetchPending.mockResolvedValueOnce([simplifiedMentorItem]);
+
+    // 1. session.user.isMentor is undefined (unresolved) -> must NOT fetch or default to MENTEE
+    mockUseSession.mockReturnValue({
+      data: {
+        ...mockSession,
+        user: {
+          ...mockSession.user,
+          id: '1',
+          onBoarding: true,
+          isMentor: undefined,
+        },
+      },
+      status: 'authenticated',
+      update: vi.fn(),
+    });
+
+    const { result, rerender } = renderHook(() => usePendingFeedbackQueue());
+    expect(result.current.queueItems).toBeNull();
+    expect(mockFetchPending).not.toHaveBeenCalled();
+
+    await expect(
+      act(async () => {
+        await result.current.submitFeedbackItem(
+          { meeting_happened: true },
+          simplifiedMentorItem
+        );
+      })
+    ).rejects.toThrow('[usePendingFeedbackQueue] unresolved user role');
+
+    // 2. Once session.user.isMentor resolves to true -> fetches and normalizes viewerRole to 'MENTOR'
+    mockUseSession.mockReturnValue({
+      data: {
+        ...mockSession,
+        user: {
+          ...mockSession.user,
+          id: '1',
+          onBoarding: true,
+          isMentor: true,
+        },
+      },
+      status: 'authenticated',
+      update: vi.fn(),
+    });
+    rerender();
+
+    await waitFor(() => {
+      expect(result.current.queueItems).toHaveLength(1);
+    });
+    expect(mockFetchPending).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: '1',
+        fallbackViewerRole: 'MENTOR',
+      })
+    );
+    expect(result.current.queueItems?.[0].viewerRole).toBe('MENTOR');
+  });
+
+  it('prunes queueItems immediately as items are submitted and keeps sessionStorage.dismissed=false when all items finish normally', async () => {
+    const item1 = makeItem('901', 1760000000, 'MENTOR');
+    const item2 = makeItem('902', 1761000000, 'MENTOR');
+    const laterEndedItem = makeItem('903', 1762000000, 'MENTOR');
+    mockFetchPending
+      .mockResolvedValueOnce([item1, item2])
+      .mockResolvedValueOnce([laterEndedItem]);
+    mockSubmitFeedback.mockResolvedValue(undefined);
+
+    const firstMount = renderHook(() => usePendingFeedbackQueue());
+
+    await waitFor(() => {
+      expect(firstMount.result.current.queueItems).toEqual([item1, item2]);
+    });
+
+    // Submitting item1 immediately prunes queueItems to [item2] even on an eligible route
+    await act(async () => {
+      await firstMount.result.current.submitFeedbackItem(
+        { meeting_happened: true },
+        item1
+      );
+    });
+    expect(firstMount.result.current.queueItems).toEqual([item2]);
+
+    // Submitting final item2 immediately clears queueItems to null before modal onClose fires
+    await act(async () => {
+      await firstMount.result.current.submitFeedbackItem(
+        { meeting_happened: true },
+        item2
+      );
+    });
+    expect(firstMount.result.current.queueItems).toBeNull();
+
+    // When MeetingFeedbackDialog finishes the queue and invokes onClose -> dismissQueue(),
+    // sessionStorage.dismissed MUST stay false because zero items were skipped!
+    act(() => {
+      firstMount.result.current.dismissQueue();
+    });
+    expect(getSessionPendingFeedbackState('1')).toEqual({
+      checked: true,
+      dismissed: false,
+      queueEmpty: true,
+      submittedIds: ['901', '902'],
+      skippedIds: [],
+    });
+
+    firstMount.unmount();
+
+    // If another meeting finishes later in the same login session (marking hasRemainingItems=true)
+    // and the user reloads, the queue is NOT blocked by a false dismissed=true flag
+    markSessionPendingFeedbackChecked('1', true);
+    const secondMount = renderHook(() => usePendingFeedbackQueue());
+
+    await waitFor(() => {
+      expect(secondMount.result.current.queueItems).toEqual([laterEndedItem]);
+    });
+    expect(mockFetchPending).toHaveBeenCalledTimes(2);
   });
 });

@@ -45,7 +45,9 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
   const fetchedUserInRuntimeRef = useRef<string | null>(null);
 
   const rawUserId = session?.user?.id ? String(session.user.id) : '';
-  const isMentorSession = Boolean(session?.user?.isMentor);
+  const rawIsMentor = session?.user?.isMentor;
+  const isRoleResolved = typeof rawIsMentor === 'boolean';
+  const isMentorSession = rawIsMentor === true;
   const isOnboardingComplete = session?.user?.onBoarding === true;
   const hasSessionError = Boolean(session?.error);
 
@@ -53,31 +55,54 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
     pathname,
     searchParams,
   });
-  const isSuppressedRef = useRef(isSuppressed);
-  isSuppressedRef.current = isSuppressed;
 
-  const pruneCompletedAndSkippedItems = useCallback((userId: string) => {
-    setQueueItems((prev) => {
-      if (!prev || prev.length === 0) {
-        return prev;
-      }
+  const syncStorageAfterPrune = useCallback((userId: string) => {
+    if (activeQueueIdsRef.current.length > 0) {
+      return;
+    }
+    const persisted = getSessionPendingFeedbackState(userId);
+    if (persisted.skippedIds.length > 0) {
+      markSessionPendingFeedbackDismissed(userId, []);
+    } else if (
+      persisted.checked ||
+      persisted.submittedIds.length > 0 ||
+      submittedIdsRef.current.size > 0
+    ) {
+      markSessionPendingFeedbackChecked(userId, false);
+    }
+  }, []);
+
+  const pruneCompletedAndSkippedItems = useCallback(
+    (userId: string) => {
       const persisted = getSessionPendingFeedbackState(userId);
       const excludedIds = new Set([
         ...persisted.skippedIds,
         ...persisted.submittedIds,
         ...Array.from(submittedIdsRef.current),
       ]);
-      const remaining = prev.filter((item) => !excludedIds.has(item.id));
-      activeQueueIdsRef.current = remaining.map((item) => item.id);
-      if (remaining.length === 0) {
-        markSessionPendingFeedbackChecked(userId, false);
-        return null;
+      const hadActiveItems = activeQueueIdsRef.current.length > 0;
+      activeQueueIdsRef.current = activeQueueIdsRef.current.filter(
+        (id) => !excludedIds.has(id)
+      );
+      if (hadActiveItems && activeQueueIdsRef.current.length === 0) {
+        syncStorageAfterPrune(userId);
       }
-      return remaining;
-    });
-  }, []);
 
-  // Keep queue state synchronized when feedback is submitted from any UI surface
+      setQueueItems((prev) => {
+        if (!prev || prev.length === 0) {
+          return prev;
+        }
+        const remaining = prev.filter((item) => !excludedIds.has(item.id));
+        if (remaining.length === prev.length) {
+          return prev;
+        }
+        return remaining.length > 0 ? remaining : null;
+      });
+    },
+    [syncStorageAfterPrune]
+  );
+
+  // Keep queue state synchronized whenever feedback is submitted from any UI surface
   // (either inside the login queue modal or on /reservation/* while suppressed).
   useEffect(() => {
     if (!rawUserId) {
@@ -90,17 +115,7 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
           return;
         }
         submittedIdsRef.current.add(reservationId);
-        const wasInActiveQueue =
-          activeQueueIdsRef.current.includes(reservationId);
-        activeQueueIdsRef.current = activeQueueIdsRef.current.filter(
-          (id) => id !== reservationId
-        );
-        if (wasInActiveQueue && activeQueueIdsRef.current.length === 0) {
-          markSessionPendingFeedbackChecked(rawUserId, false);
-        }
-        if (isSuppressedRef.current) {
-          pruneCompletedAndSkippedItems(rawUserId);
-        }
+        pruneCompletedAndSkippedItems(rawUserId);
       }
     );
   }, [rawUserId, pruneCompletedAndSkippedItems]);
@@ -151,6 +166,7 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
       status !== 'authenticated' ||
       !rawUserId ||
       !isOnboardingComplete ||
+      !isRoleResolved ||
       hasSessionError ||
       isSuppressed
     ) {
@@ -230,6 +246,7 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
   }, [
     status,
     rawUserId,
+    isRoleResolved,
     isMentorSession,
     isOnboardingComplete,
     hasSessionError,
@@ -245,6 +262,13 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
         throw new Error('[usePendingFeedbackQueue] missing current user id');
       }
 
+      const hasExplicitViewerRole =
+        targetReservation.viewerRole === 'MENTOR' ||
+        targetReservation.viewerRole === 'MENTEE';
+      if (!hasExplicitViewerRole && !isRoleResolved) {
+        throw new Error('[usePendingFeedbackQueue] unresolved user role');
+      }
+
       const roleForReservation = resolveFeedbackViewerRole(
         targetReservation.viewerRole,
         isMentorSession
@@ -257,7 +281,7 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
         payload,
       });
     },
-    [rawUserId, isMentorSession]
+    [rawUserId, isRoleResolved, isMentorSession]
   );
 
   const skipFeedbackItem = useCallback(
@@ -267,20 +291,49 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
       activeQueueIdsRef.current = activeQueueIdsRef.current.filter(
         (id) => id !== reservation.id
       );
+      setQueueItems((prev) => {
+        if (!prev || prev.length === 0) {
+          return prev;
+        }
+        const remaining = prev.filter((item) => item.id !== reservation.id);
+        if (remaining.length === prev.length) {
+          return prev;
+        }
+        return remaining.length > 0 ? remaining : null;
+      });
     },
     [rawUserId]
   );
 
   const dismissQueue = useCallback(() => {
     if (rawUserId) {
-      markSessionPendingFeedbackDismissed(rawUserId, activeQueueIdsRef.current);
+      const persisted = getSessionPendingFeedbackState(rawUserId);
+      const hasSkippedOrRemaining =
+        activeQueueIdsRef.current.length > 0 || persisted.skippedIds.length > 0;
+
+      if (hasSkippedOrRemaining) {
+        markSessionPendingFeedbackDismissed(
+          rawUserId,
+          activeQueueIdsRef.current
+        );
+      } else {
+        markSessionPendingFeedbackChecked(rawUserId, false);
+      }
     }
     activeQueueIdsRef.current = [];
     setQueueItems(null);
   }, [rawUserId]);
 
+  const canPresentQueue =
+    status === 'authenticated' &&
+    Boolean(rawUserId) &&
+    isOnboardingComplete &&
+    isRoleResolved &&
+    !hasSessionError &&
+    !isSuppressed;
+
   return {
-    queueItems: isSuppressed ? null : queueItems,
+    queueItems: canPresentQueue ? queueItems : null,
     submitFeedbackItem,
     skipFeedbackItem,
     dismissQueue,

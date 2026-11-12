@@ -725,8 +725,6 @@ export default function MeetingFeedbackDialog({
                       noteError={noteError}
                       noteFieldId={noteFieldId}
                       isSubmitting={isSubmitting}
-                      isMentor={isMentor}
-                      hideInlineMentorWarning
                       noteRegistration={register('notHappenedNote')}
                       onSelectReason={(reason) => {
                         setValue('notHappenedReason', reason, {
