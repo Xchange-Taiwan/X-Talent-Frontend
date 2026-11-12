@@ -67,6 +67,9 @@ export function MenteeBookingForm({
             variant={isSelected ? 'default' : 'outline'}
             disabled={taken}
             onClick={() => setSelectedSlot(slot)}
+            data-analytics-click="profile_booking_slot_select"
+            data-analytics-feature="reservation"
+            data-analytics-location="profile_booking_card"
             className={`h-10 w-full text-sm ${
               taken ? BOOKED_SLOT_CLASSES : ''
             }`}
@@ -148,6 +151,9 @@ export function MenteeBookingForm({
       <Button
         type="submit"
         variant="default"
+        data-analytics-click="profile_booking_submit_click"
+        data-analytics-feature="reservation"
+        data-analytics-location="profile_booking_card"
         className="disabled:bg-background-border disabled:text-text-disable w-full rounded-full px-6 py-3 disabled:opacity-100"
         disabled={isButtonDisabled}
       >

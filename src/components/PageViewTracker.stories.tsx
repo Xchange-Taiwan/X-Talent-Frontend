@@ -39,7 +39,8 @@ function AnalyticsInspectorDemo({
         <p className="text-text-secondary text-sm">
           目前路由：<code className="font-mono">{simulatedPathname}</code>
           （點擊下方按鈕將透過低侵入式{' '}
-          <code className="font-mono">data-analytics-click</code> 寫入{' '}
+          <code className="font-mono">data-analytics-click</code> 與{' '}
+          <code className="font-mono">data-analytics-param-*</code> 寫入{' '}
           <code className="font-mono">window.dataLayer</code>）
         </p>
       </div>
@@ -49,7 +50,30 @@ function AnalyticsInspectorDemo({
           data-analytics-click="storybook_cta_primary"
           data-analytics-location="storybook_demo"
         >
-          觸發按鈕埋點
+          觸發導覽按鈕埋點
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          data-analytics-click="mentor_pool_filter_apply"
+          data-analytics-event="mentor_pool_filter_apply"
+          data-analytics-feature="mentor_pool"
+          data-analytics-location="storybook_demo"
+          data-analytics-param-filter-type="filter_skills"
+          data-analytics-param-filter-value="frontend"
+        >
+          觸發導師池篩選埋點
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          data-analytics-click="mentor_card"
+          data-analytics-event="mentor_card_click"
+          data-analytics-feature="mentor_pool"
+          data-analytics-location="storybook_demo"
+          data-analytics-param-mentor-id="7482008160728084"
+        >
+          觸發導師卡片點擊埋點
         </Button>
         <Button
           type="button"

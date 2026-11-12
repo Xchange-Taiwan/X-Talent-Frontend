@@ -79,7 +79,7 @@ export default function MentorPoolUI({
           </div>
         </div>
         <div className="mb-5 flex flex-wrap gap-3">
-          {badges.map(({ key, name, label }) => (
+          {badges.map(({ key, name, value, label }) => (
             <Badge
               key={key}
               variant={'filter'}
@@ -95,6 +95,12 @@ export default function MentorPoolUI({
                   onRemoveFilter(key);
                 }}
                 aria-label={`移除「${name}：${label}」篩選`}
+                data-analytics-click="mentor_pool_filter_remove"
+                data-analytics-event="mentor_pool_filter_remove"
+                data-analytics-feature="mentor_pool"
+                data-analytics-location="active_filter_badges"
+                data-analytics-param-filter-type={key}
+                data-analytics-param-filter-value={value}
                 className="focus-visible:ring-ring inline-flex items-center rounded-sm bg-transparent p-0 hover:opacity-70 focus:outline-none focus-visible:ring-2"
               >
                 <XIcon className="size-4" aria-hidden />

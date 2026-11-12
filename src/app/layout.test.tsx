@@ -49,6 +49,9 @@ describe('RootLayout and global light-mode lock (#861)', () => {
     } else {
       process.env.NEXT_PUBLIC_GA_ID = originalGaId;
     }
+    delete window.gtag;
+    delete window.dataLayer;
+    document.getElementById('ga4-init')?.remove();
   });
 
   it('outputs <meta name="darkreader-lock"> and <meta name="color-scheme" content="light"> in <head>', () => {
@@ -92,7 +95,7 @@ describe('RootLayout and global light-mode lock (#861)', () => {
     );
   });
 
-  it('injects GA4 queue stub with send_page_view:false and afterInteractive gtag.js when NEXT_PUBLIC_GA_ID is valid (#865)', () => {
+  it('injects GA4 queue stub with data-ga-id + send_page_view:false and afterInteractive gtag.js when NEXT_PUBLIC_GA_ID is valid (#865)', () => {
     process.env.NEXT_PUBLIC_GA_ID = 'G-TEST123456';
 
     const html = renderToStaticMarkup(
@@ -107,9 +110,13 @@ describe('RootLayout and global light-mode lock (#861)', () => {
         'link[rel="preconnect"][href="https://www.googletagmanager.com"]'
       )
     ).not.toBeNull();
-    expect(doc.head.innerHTML).toContain(
-      'gtag(\'config\',"G-TEST123456",{send_page_view:false})'
-    );
+
+    const gaInitScript = doc.head.querySelector('script#ga4-init');
+    expect(gaInitScript).not.toBeNull();
+    expect(gaInitScript?.getAttribute('data-ga-id')).toBe('G-TEST123456');
+    expect(gaInitScript?.textContent).toContain('{send_page_view:false}');
+    expect(gaInitScript?.textContent).not.toContain('G-TEST123456');
+
     expect(
       doc.body.querySelector(
         '[data-src="https://www.googletagmanager.com/gtag/js?id=G-TEST123456"]'
@@ -132,6 +139,7 @@ describe('RootLayout and global light-mode lock (#861)', () => {
         'link[rel="preconnect"][href="https://www.googletagmanager.com"]'
       )
     ).toBeNull();
+    expect(doc.head.querySelector('script#ga4-init')).toBeNull();
     expect(doc.body.querySelector('[data-src*="googletagmanager"]')).toBeNull();
   });
 });

@@ -75,7 +75,7 @@ test.describe('GA4 基礎事件追蹤：初次進站 page_view、SPA 換頁、sc
     );
   });
 
-  test('驗證初次進站與 SPA 換頁 page_view、滾動單一 scroll_depth (percent_scrolled) 與導覽點擊埋點', async ({
+  test('驗證初次進站與 SPA 換頁 page_view、分段滾動單一 scroll_depth (percent_scrolled) 與導覽點擊埋點', async ({
     page,
   }) => {
     await page.goto('/');
@@ -91,7 +91,7 @@ test.describe('GA4 基礎事件追蹤：初次進站 page_view、SPA 換頁、sc
       })
       .toBe(1);
 
-    // 2. 滾動深度：滾動至約 35% 可捲動高度，觸發單一 scroll_depth 含 percent_scrolled 參數
+    // 2. 滾動深度：先滾動至約 35% 可捲動高度，觸發 scroll_depth (percent_scrolled: 25)
     await page.evaluate(() => {
       const scrollable =
         document.documentElement.scrollHeight - window.innerHeight;
@@ -101,17 +101,27 @@ test.describe('GA4 基礎事件追蹤：初次進站 page_view、SPA 換頁、sc
     await expect
       .poll(async () => {
         const events = await getDataLayerEvents(page);
-        return events.filter((e) => e.name === 'scroll_depth');
+        return events
+          .filter((e) => e.name === 'scroll_depth')
+          .map((e) => e.params.percent_scrolled);
       })
-      .toEqual([
-        expect.objectContaining({
-          name: 'scroll_depth',
-          params: expect.objectContaining({
-            percent_scrolled: 25,
-            page_path: '/',
-          }),
-        }),
-      ]);
+      .toEqual([25]);
+
+    // 快速滾動跨越至約 80% 可捲動高度：依序補齊 50 與 75 門檻（單一事件名稱 scroll_depth）
+    await page.evaluate(() => {
+      const scrollable =
+        document.documentElement.scrollHeight - window.innerHeight;
+      window.scrollTo(0, Math.ceil(scrollable * 0.8));
+    });
+
+    await expect
+      .poll(async () => {
+        const events = await getDataLayerEvents(page);
+        return events
+          .filter((e) => e.name === 'scroll_depth')
+          .map((e) => e.params.percent_scrolled);
+      })
+      .toEqual([25, 50, 75]);
 
     // 往回微幅滾動不會重複送出已達標的 scroll_depth（等待兩個動畫幀確保節流回呼已執行）
     await page.evaluate(
@@ -129,7 +139,7 @@ test.describe('GA4 基礎事件追蹤：初次進站 page_view、SPA 換頁、sc
     const scrollEventsAfterRescroll = (await getDataLayerEvents(page)).filter(
       (e) => e.name === 'scroll_depth'
     );
-    expect(scrollEventsAfterRescroll).toHaveLength(1);
+    expect(scrollEventsAfterRescroll).toHaveLength(3);
 
     // 3. 點擊 Header 導覽連結進行 SPA 換頁至 /about：同時驗證低侵入式按鈕埋點與 SPA page_view
     const aboutNavLink = page
@@ -176,11 +186,11 @@ test.describe('GA4 基礎事件追蹤：初次進站 page_view、SPA 換頁、sc
     await captureEvidence(page, 'ga4-analytics-verified');
   });
 
-  test('URL 帶有敏感參數（email / token）時自動過濾，不寫入 window.dataLayer', async ({
+  test('URL 帶有敏感參數或巢狀 callbackUrl 時自動過濾，不寫入 window.dataLayer', async ({
     page,
   }) => {
     await page.goto(
-      '/about?token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.secretSignature&email=private.user@example.com&utm_source=digest'
+      '/about?token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.secretSignature&email=private.user@example.com&callbackUrl=%2Fauth%2Fverify%3Ftoken%3DnestedSecret%26source%3Demail&utm_source=digest'
     );
 
     await expect(
@@ -195,12 +205,14 @@ test.describe('GA4 基礎事件追蹤：初次進站 page_view、SPA 換頁、sc
       .toMatchObject({
         name: 'page_view',
         params: {
-          page_path: '/about?utm_source=digest',
+          page_path:
+            '/about?callbackUrl=%2Fauth%2Fverify%3Fsource%3Demail&utm_source=digest',
         },
       });
 
     const serialized = JSON.stringify(await getDataLayerEvents(page));
     expect(serialized).not.toContain('private.user@example.com');
     expect(serialized).not.toContain('secretSignature');
+    expect(serialized).not.toContain('nestedSecret');
   });
 });

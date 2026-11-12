@@ -1,170 +1,181 @@
 # X-Talent Frontend 數據埋點規範與事件總表 (`docs/analytics-events.md`)
 
-本文件為 `X-Talent-Frontend` 前端行為追蹤（Google Analytics 4 與 Microsoft Clarity）之單一規格參考，涵蓋架構設計、基礎事件（`page_view`、`scroll_depth`、`button_click`）、低侵入式按鈕埋點介面、全站業務事件清單，以及個資（PII）安全紅線。
+本文件為 `X-Talent-Frontend` 前端行為追蹤（Google Analytics 4 與 Microsoft Clarity）之單一規格參考，涵蓋架構設計、基礎事件（`page_view`、`scroll_depth`、`button_click`）、宣告式低侵入按鈕與業務漏斗埋點介面、全站業務事件對照表，以及個資（Zero-PII）安全紅線。
 
 ---
 
-## 1. 架構總覽 (Architecture Overview)
+## 1. 架構與載入機制
 
-| 模組路徑                               | 職責說明                                                                                                                                                                                                                                                                                                             |
-| :------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/app/layout.tsx`                   | 當設定有效之 `NEXT_PUBLIC_GA_ID`（格式 `G-XXXXXXXXXX`）時，於 `<head>` 同步初始化輕量 `window.dataLayer` 與 `window.gtag` 佇列並設定 `{ send_page_view: false }`，再透過 Next.js `<Script strategy="afterInteractive" />` 非阻塞載入 `gtag.js`，消除初次進站 `page_view` 的載入競態（race condition）。              |
-| `src/lib/analytics.ts`                 | 統一埋點封裝核心（Deep Module，零 React/Next UI 依賴）。負責雙軌派發（GA4 `gtag` / `window.dataLayer` + Microsoft Clarity）、PII 自動過濾、URL 敏感參數清洗與個人頁標題去識別化。                                                                                                                                    |
-| `src/components/PageViewTracker.tsx`   | 掛載於全域 `Providers` 之單例 Client Component，統一負責：<br>1. **初次進站與 SPA 換頁 `page_view`**（含 React Strict Mode 去重防護）<br>2. **單一 `scroll_depth` 滾動深度追蹤**（`requestAnimationFrame` 節流 + 每頁門檻去重 + 換頁重置）<br>3. **`[data-analytics-click]` 事件委派**（低侵入式按鈕／連結點擊追蹤） |
-| `src/components/WebVitalsReporter.tsx` | 收集 Core Web Vitals（LCP、CLS、INP、FCP、TTFB）並僅發送至 GA4（`skipClarity: true`）。                                                                                                                                                                                                                              |
-
----
-
-## 2. 隱私與個資安全規範 (Zero-PII Policy)
-
-**嚴格禁止**將任何個人識別資訊（PII）或憑證傳送至 GA4、`window.dataLayer` 或 Microsoft Clarity：
-
-1. **禁止傳送之欄位與內容**：
-   - 電子郵件（`email`、`user_email` 或任何含 `@` 信箱格式字串）
-   - 真實姓名／顯示名稱（`name`、`full_name`、`user_name`、`display_name`）
-   - 認證憑證與驗證碼（`token`、`access_token`、`refresh_token`、`id_token`、OAuth `code` / `state`、JWT、Bearer Token、密碼 `password`）
-   - 電話號碼與使用者自由輸入之私密對話文字（如預約提問內容、拒絕原因全文）
-2. **內建自動防禦機制（`src/lib/analytics.ts`）**：
-   - `sanitizeAnalyticsMetadata()`：自動剔除敏感 key，並攔截值內含 Email、JWT 或 Bearer Token 的欄位。
-   - `sanitizeUrlForAnalytics()`：自動剝除 URL hash（`#...`）與敏感 Query Parameters（`token`、`code`、`state`、`email`、`password`、`name` 等），保留安全行銷或狀態參數（如 `utm_source`、`mentor-onboarding`）。
-   - `resolveSafePageTitle()`：針對動態個人檔案路由 `/profile/[pageUserId]` 與 `/profile/[pageUserId]/edit`（其 HTML `<title>` 含導師／學員姓名），自動去識別化為固定字串 `'User Profile'` 與 `'Profile Edit'`，防止姓名外洩至 GA4 `page_title`。
-   - 若需關聯平台實體，僅允許使用平台內部數字／不透明識別碼（且僅在業務分析必要時於獨立事件使用，基礎事件預設不帶使用者 ID）。
+1. **消除初次進站競態（`<head>` 同步佇列 + `afterInteractive` 外部腳本）**
+   - `src/app/layout.tsx` 於 `<head>` 驗證 `NEXT_PUBLIC_GA_ID`（僅接受 `/^G-[A-Z0-9]+$/i`），以靜態常數腳本 `GA4_INIT_INLINE_SCRIPT` 搭配 React 轉義屬性 `data-ga-id` 同步初始化 `window.dataLayer` 與 `window.gtag` 佇列，並執行 `gtag('config', gaId, { send_page_view: false })` 關閉 GA4 預設自動頁面瀏覽。
+   - 外部 `https://www.googletagmanager.com/gtag/js` 透過 Next.js `<Script strategy="afterInteractive" />` 非阻塞載入；在腳本下載完成前，所有由 `PageViewTracker` 或業務元件觸發的事件皆會安全寫入 `window.dataLayer`，腳本就緒後由 `gtag.js` 自動沖刷送出，確保初次進站 `page_view` 100% 記錄且不重複。
+2. **全域追蹤元件（`src/components/PageViewTracker.tsx`）**
+   - **初次進站與 SPA 換頁 `page_view`**：監聽 `usePathname()`，對 React Strict Mode 同路徑重複執行去重；在每次實際路由切換時呼叫 `trackPageView(pathname + search)`。離開 `/profile/[id]` 時若 Next.js 尚未更新 `document.title`，會自動攔截殘留的個人頁動態標題，防止使用者真實姓名外洩至新路由。
+   - **單一事件分段滾動深度 `scroll_depth`**：採用 `window.requestAnimationFrame` 節流與 `{ passive: true }` 監聽器，統一以單一事件名稱 `scroll_depth` 搭配數值參數 `percent_scrolled`（`25`、`50`、`75`、`90`）依序發送該次滾動新跨越的所有門檻；達 `90%` 後自動解除當前頁面的 `scroll` 監聽器以節省長列表效能，並於 SPA 換頁時重置門檻。
+   - **宣告式低侵入點擊委派 `[data-analytics-click]`**：透過單一全域 `document` Capture-phase 被動點擊委派監聽器，自動擷取含 `data-analytics-click`（以及選填 `data-analytics-event`、`data-analytics-location`、`data-analytics-feature`、`data-analytics-omit-destination`、`data-analytics-param-*`）的元素，連 Radix `DropdownMenu` / `Sheet` / `Popover` 關閉卸載前也能穩定攔截。
+3. **雙重分析後端同步（`src/lib/analytics.ts`）**
+   - `trackEvent` 清洗參數後同步送往 GA4 與 Microsoft Clarity（自動呼叫 `clarity('event', name)` 與 `clarity('set', key, value)` 建立已去識別化的 Session Replay 篩選標籤；高頻事件如 `scroll_depth` 與 Web Vitals 可透過 `{ skipClarity: true }` 略過 Clarity）。
 
 ---
 
-## 3. 核心基礎事件規範 (Foundation Events)
+## 2. 低侵入式埋點接入方式
 
-### 3.1 `page_view` — 頁面瀏覽（初次進站 + SPA 換頁）
+### 方式 A：宣告式 HTML Data Attributes（優先推薦，零函式引入、支援 Server & Client Component）
 
-- **觸發時機**：使用者首次載入任意頁面時觸發 1 次；透過 Next.js App Router 進行 Client-side SPA 路由切換（`pathname` 改變）時各觸發 1 次。
-- **GA4 發送方式**：`gtag('event', 'page_view', params)`（無 `window.gtag` 時寫入 `window.dataLayer`）。
-- **事件參數**：
-
-| 參數名稱        | 型別     | 範例值                               | 說明                             |
-| :-------------- | :------- | :----------------------------------- | :------------------------------- |
-| `page_path`     | `string` | `'/'`, `'/mentor-pool'`              | 清洗敏感參數後的路徑             |
-| `page_location` | `string` | `'https://xtalent.vercel.app/about'` | 清洗敏感參數與 hash 後的完整網址 |
-| `page_title`    | `string` | `'關於 X-Talent'`, `'User Profile'`  | 頁面標題（個人頁自動遮罩姓名）   |
-
-### 3.2 `scroll_depth` — 頁面滾動深度
-
-- **設計原則**：採用**單一事件名稱 `scroll_depth`** 搭配數值參數 `percent_scrolled`（避免拆成多個碎片事件名稱，便於 BigQuery 漏斗與分位數聚合）。
-- **門檻定義**：`SCROLL_DEPTH_THRESHOLDS = [25, 50, 75, 90]`。
-- **節流與去重**：
-  - 使用 `{ passive: true }` 滾動監聽搭配 `requestAnimationFrame` 節流，不阻塞主執行緒捲動幀率。
-  - 若頁面無可捲動高度（`scrollHeight <= innerHeight`）則不觸發。
-  - 單一動畫幀內若一次跨越多個門檻（例如快速捲動或錨點跳轉），僅發送當次新跨越之**最高門檻**單筆 `scroll_depth` 事件，並將較低門檻一併標記為已達成。
-  - 同一路由下往回捲動再往下捲動不會重複觸發；SPA 切換至新 `pathname` 時自動重置門檻紀錄。
-  - 設定 `skipClarity: true`（Clarity 原生已具備滾動熱力圖）。
-- **事件參數**：
-
-| 參數名稱           | 型別     | 範例值                       | 說明                     |
-| :----------------- | :------- | :--------------------------- | :----------------------- |
-| `percent_scrolled` | `number` | `25` \| `50` \| `75` \| `90` | 達成之垂直滾動百分比門檻 |
-| `page_path`        | `string` | `'/'`                        | 觸發滾動當下之頁面路徑   |
-| `feature`          | `string` | `'engagement'`               | 功能領域分類             |
-
-### 3.3 `button_click` — 低侵入式按鈕／導覽點擊
-
-提供**宣告式屬性委派**與**命令式函式**兩種精簡接入方式，預設無須將 Server Component 改為 `'use client'`，亦無須在共用 `<Button>` 塞入耦合狀態：
-
-#### 方式 A：宣告式 HTML Data Attributes（優先推薦，零 JS 樣板碼）
-
-於任意 `<Button>`、`<Link>` 或原生 `<button>` / `<a>` 加上 `data-analytics-click`：
+一般導覽按鈕（預設送出 `button_click`）：
 
 ```tsx
 <Link
-  href="/about"
-  data-analytics-click="header_nav_about"
+  href="/mentor-pool"
+  data-analytics-click="header_nav_mentor_pool"
   data-analytics-location="header"
+  data-analytics-feature="navigation"
 >
-  關於 X-Talent
+  尋找導師
 </Link>
 ```
 
-- `PageViewTracker` 透過全域單一 `document` 點擊委派自動擷取最近的 `[data-analytics-click]` 元素。
-- 若元素帶有 `disabled` 或 `aria-disabled="true"`，自動忽略不送出。
-- 若元素本身或外層為 `<a href="...">`，自動清洗並帶入 `link_url`。
+帶結構化業務參數之漏斗互動（使用 `data-analytics-event` 與 `data-analytics-param-*`）：
 
-#### 方式 B：命令式 Helper（適用於複雜業務 Callback 內）
+```tsx
+<Link
+  href={`/profile/${id}`}
+  data-analytics-click="mentor_card"
+  data-analytics-event="mentor_card_click"
+  data-analytics-feature="mentor_pool"
+  data-analytics-location="mentor_pool_list"
+  data-analytics-param-mentor-id={String(id)}
+>
+  ...
+</Link>
+```
+
+- 元素本身或其互動父層處於 `disabled` / `aria-disabled="true"` 時自動忽略，不送出事件。
+- 若外連網址可能包含個人帳號識別碼（例如個人頁 LinkedIn / GitHub URL），加上 `data-analytics-omit-destination="true"` 即可省略 `link_url`，僅保留安全的 `platform` 與數值 `mentor_id`。
+
+### 方式 B：程式化 Helper（適用於表單送出成功、API 回呼或複雜業務狀態）
 
 ```ts
-import { trackButtonClick } from '@/lib/analytics';
+import { trackButtonClick, trackEvent } from '@/lib/analytics';
 
 trackButtonClick({
-  buttonId: 'mentor_filter_apply',
-  location: 'mentor_pool_toolbar',
-  feature: 'mentor_pool',
+  buttonId: 'hero_explore_mentors',
+  location: 'landing_hero',
+  destination: '/mentor-pool',
+  feature: 'navigation',
+});
+
+trackEvent({
+  name: 'reservation_booking_confirmed',
+  feature: 'reservation',
+  metadata: { role: 'mentee' },
 });
 ```
 
-- **事件參數**：
+---
 
-| 參數名稱          | 型別            | 範例值                                  | 說明                                |
-| :---------------- | :-------------- | :-------------------------------------- | :---------------------------------- |
-| `button_id`       | `string`        | `'header_nav_about'`, `'header_signin'` | 穩定之 `snake_case` 按鈕識別碼      |
-| `button_location` | `string` (選填) | `'header'`, `'hero'`, `'footer'`        | 按鈕所在區塊位置                    |
-| `link_url`        | `string` (選填) | `'/about'`, `'/auth/signin'`            | 清洗敏感參數後的導向目標路徑        |
-| `page_path`       | `string`        | `'/'`                                   | 點擊當下所在頁面路徑                |
-| `feature`         | `string`        | `'navigation'` \| `'auth'` ...          | 功能領域分類（預設 `'navigation'`） |
+## 3. 個資安全（Zero-PII）強制防線
+
+`src/lib/analytics.ts` 於資料離開應用層前強制執行以下清洗規則：
+
+1. **禁止傳遞之個資欄位（Key 攔截）**：自動剔除 `email`、`user_email`、`name`、`user_name`、`full_name`、`display_name`、`password`、`*token*`、`secret`、`code`、`state`、`phone`、`mobile`、`tel` 以及自由輸入搜尋字詞 `q`、`query`、`search`、`search_pattern`、`keyword` 等敏感鍵名。
+2. **敏感數值特徵攔截（Value 攔截）**：任何字串值（含 URL 解碼後）若符合 Email 格式、JWT（`eyJ...`）、`Bearer <token>` 或聯絡協定（`mailto:`、`tel:`、`sms:`），該欄位即被自動丟棄。
+3. **URL 白名單協定、路徑個資遮罩與巢狀 Redirect 遞迴清洗（`sanitizeUrlForAnalytics`）**：
+   - 僅允許站內相對路徑（`/path`，拒絕 `//`）與 `http:` / `https:` 網址；拒絕 `javascript:`、`data:`、`vbscript:`、`mailto:`、`tel:` 等非 HTTP 協定。
+   - 路徑區段解碼後若含 Email 或憑證特徵，強制退回安全根路徑 `/`。
+   - 自動移除 Hash Fragment（`#...`）、敏感 Query 參數與自由搜尋字串 `?q=`，並對 `callbackUrl` 等巢狀跳轉網址進行最多 3 層遞迴清洗（例如 `/auth/signin?callbackUrl=%2Fauth%2Fverify%3Ftoken%3Dxxx` 自動淨化內部 `token`）。
+4. **動態個人頁標題去識別化（`resolveSafePageTitle` + SPA 殘留標題防護）**：
+   - `/profile/[userId]` 統一覆寫 `page_title` 為 `'User Profile'`；`/profile/[userId]/edit` 統一覆寫為 `'Profile Edit'`（靜態路由 `/profile/card` 保留原標題）。
+   - 當使用者從 `/profile/[userId]` 透過 SPA 切換至其他頁面且 `document.title` 尚未刷新時，`PageViewTracker` 與 `resolveSafePageTitle` 雙重攔截殘留姓名標題，確保真實姓名絕不外洩至 GA4。
 
 ---
 
-## 4. 全站事件總表 (Complete Event Catalog)
+## 4. 基礎與全站導覽埋點事件總表
 
-### 4.1 基礎與全站導覽 (Foundation & Navigation)
+### 4.1 基礎瀏覽與互動事件
 
-| 事件名稱 (`event`)   | `feature`             | 關鍵參數 (`metadata`)                                   | 觸發位置與時機                                                                                                                                                                  |      Clarity 同步      |
-| :------------------- | :-------------------- | :------------------------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :--------------------: |
-| `page_view`          | —                     | `page_path`, `page_location`, `page_title`              | 初次進站與每次 SPA 路由切換（`PageViewTracker`）                                                                                                                                | 否（Clarity 自動追蹤） |
-| `scroll_depth`       | `engagement`          | `percent_scrolled` (`25`/`50`/`75`/`90`), `page_path`   | 頁面垂直滾動跨越新門檻時（`PageViewTracker`）                                                                                                                                   |   否 (`skipClarity`)   |
-| `button_click`       | `navigation` / `auth` | `button_id`, `button_location`, `link_url`, `page_path` | 點擊標註 `data-analytics-click` 之導覽／行動按鈕（如 `header_logo`、`header_nav_mentor_pool`、`header_nav_about`、`header_signup`、`header_signin`）或呼叫 `trackButtonClick()` |           是           |
-| `homepage_cta_click` | —                     | `cta` (`hero`/`shared`/`closing`), `variant`, `label`   | 點擊首頁 Hero、角色段落或頁尾前導 CTA（`HomePageCtaButton`）                                                                                                                    |           是           |
-| `feedback_open`      | —                     | —                                                       | 點擊桌機／行動版 Header「提供回饋」外部連結                                                                                                                                     |           是           |
-| `ui_dialog_open`     | —                     | `dialog: 'share_profile'`                               | 開啟個人檔案分享彈窗（`ShareProfileDialog`）                                                                                                                                    |           是           |
+| 事件名稱 (`event`) | `feature`                                                        | 觸發時機与位置                                                                      | 關鍵參數 (`params`)                                            | 個資防護說明                                            |
+| :----------------- | :--------------------------------------------------------------- | :---------------------------------------------------------------------------------- | :------------------------------------------------------------- | :------------------------------------------------------ |
+| `page_view`        | — (GA4 標準)                                                     | 初次進站掛載、SPA 路由切換（`PageViewTracker`）                                     | `page_path`, `page_location`, `page_title`                     | URL 遞迴清洗憑證與 `?q=`；個人頁與 SPA 殘留標題去識別化 |
+| `scroll_depth`     | `engagement`                                                     | 頁面垂直滾動跨越 25% / 50% / 75% / 90%（單一事件、依序補齊新門檻、達 90% 自動解綁） | `percent_scrolled` (`25` \| `50` \| `75` \| `90`), `page_path` | 僅含數值百分比與清洗後路徑；`skipClarity: true`         |
+| `button_click`     | `navigation` / `auth` / `onboarding` / `profile` / `reservation` | 點擊含 `data-analytics-click`（未覆寫 `data-analytics-event`）之導覽或 CTA          | `button_id`, `button_location`, `link_url` (選填), `page_path` | `link_url` 僅允許 HTTP(S) 與站內路徑並自動遞迴清洗      |
 
-### 4.2 認證與新手引導 (Auth & Onboarding)
+### 4.2 全站 Header / 行動版漢堡選單 / 會員選單 (`button_id` 對照)
 
-| 事件名稱 (`event`)                                            | `feature`    | 關鍵參數 (`metadata`) | 觸發位置與時機                                                      | Clarity 同步 |
-| :------------------------------------------------------------ | :----------- | :-------------------- | :------------------------------------------------------------------ | :----------: |
-| `sign_up_started`                                             | `auth`       | —                     | 進入註冊表單頁面掛載時（`useSignUpForm`）                           |      是      |
-| `sign_up_succeeded`                                           | `auth`       | —                     | 註冊 API 成功送出後（`useSignUpForm`）                              |      是      |
-| `sign_in_succeeded`                                           | `auth`       | —                     | 帳號密碼登入並取得有效 Session 後（`useSignInForm`）                |      是      |
-| `delete_account_succeeded`                                    | `auth`       | —                     | 帳號刪除成功後（`useDeleteAccountForm` / `useGoogleOAuthCallback`） |      是      |
-| `onboarding_step_viewed`                                      | `onboarding` | `step` (`1`–`5`)      | 檢視 Onboarding 各步驟畫面時（`useOnboardingForm`）                 |      是      |
-| `onboarding_step_1_completed` ~ `onboarding_step_4_completed` | `onboarding` | —                     | 完成 Onboarding 第 1 至第 4 步提交時（`useOnboardingForm`）         |      是      |
-| `onboarding_completed`                                        | `onboarding` | —                     | 完成 Onboarding 第 5 步並成功建立個人檔案後（`useOnboardingForm`）  |      是      |
-
-### 4.3 導師探索、個人檔案與預約流程 (Mentor Pool, Profile & Reservation)
-
-| 事件名稱 (`event`)                    | `feature`     | 關鍵參數 (`metadata`)   | 觸發位置與時機                                                                                | Clarity 同步 |
-| :------------------------------------ | :------------ | :---------------------- | :-------------------------------------------------------------------------------------------- | :----------: |
-| `mentor_pool_clear_all_filters_click` | —             | —                       | 於導師列表點擊「清除所有篩選條件」（`useMentorPoolFilters`）                                  |      是      |
-| `profile_update_submitted`            | `profile`     | —                       | 儲存個人檔案或完成導師身分設定送出成功時（`saveProfile`）                                     |      是      |
-| `reservation_booking_confirmed`       | `reservation` | —                       | Mentee 送出預約申請成功時（`useBookingConfirmation`）                                         |      是      |
-| `reservation_accepted`                | `reservation` | `has_reply` (`boolean`) | Mentor 於快速回覆彈窗接受預約時（`QuickReplyDialog`，僅記錄是否有附言布林值，不傳送文字內容） |      是      |
-| `reservation_rejected`                | `reservation` | —                       | Mentor 拒絕或雙方取消預約成功時（`useReservationActions`）                                    |      是      |
-| `reservation_history_loaded`          | `reservation` | —                       | 切換載入歷史預約列表時（`useReservationData`）                                                |      是      |
-| `reservation_load_more`               | `reservation` | —                       | 於預約列表點擊載入更多分頁時（`useReservationData`）                                          |      是      |
-
-### 4.4 前端效能指標 (Core Web Vitals)
-
-| 事件名稱 (`event`)          | `feature`     | 關鍵參數 (`metadata`) | 觸發位置與時機                         |    Clarity 同步    |
-| :-------------------------- | :------------ | :-------------------- | :------------------------------------- | :----------------: |
-| `performance_lcp_measured`  | `performance` | `raw_value`, `rating` | Next.js `useReportWebVitals` 回報 LCP  | 否 (`skipClarity`) |
-| `performance_cls_measured`  | `performance` | `raw_value`, `rating` | Next.js `useReportWebVitals` 回報 CLS  | 否 (`skipClarity`) |
-| `performance_inp_measured`  | `performance` | `raw_value`, `rating` | Next.js `useReportWebVitals` 回報 INP  | 否 (`skipClarity`) |
-| `performance_fcp_measured`  | `performance` | `raw_value`, `rating` | Next.js `useReportWebVitals` 回報 FCP  | 否 (`skipClarity`) |
-| `performance_ttfb_measured` | `performance` | `raw_value`, `rating` | Next.js `useReportWebVitals` 回報 TTFB | 否 (`skipClarity`) |
+| `button_id`                                                              | 觸發元件与位置 (`button_location`)         | `feature`     | 對應動作                                        |
+| :----------------------------------------------------------------------- | :----------------------------------------- | :------------ | :---------------------------------------------- |
+| `header_logo`                                                            | `Header.tsx` (`header`)                    | `navigation`  | 點擊左上角品牌 Logo 回到首頁                    |
+| `header_nav_mentor_pool`                                                 | `Header.tsx` (`header`)                    | `navigation`  | 桌機導覽列點擊「尋找導師」                      |
+| `header_nav_become_mentor`                                               | `Header.tsx` (`header`)                    | `onboarding`  | 桌機導覽列點擊「成為導師」                      |
+| `header_nav_about`                                                       | `Header.tsx` (`header`)                    | `navigation`  | 桌機導覽列點擊「關於 X-Talent」                 |
+| `header_signup` / `header_signin`                                        | `GuestActionButtons.tsx` (`header`)        | `auth`        | 桌機訪客點擊「註冊」／「登入」                  |
+| `mobile_menu_open`                                                       | `HamburgerMenu.tsx` (`mobile_menu`)        | `navigation`  | 行動版訪客開啟漢堡導覽選單                      |
+| `mobile_nav_mentor_pool`                                                 | `HamburgerMenu.tsx` / `MobileUserMenu.tsx` | `navigation`  | 行動版選單點擊「尋找導師」                      |
+| `mobile_nav_become_mentor`                                               | `HamburgerMenu.tsx` (`mobile_menu`)        | `onboarding`  | 行動版訪客選單點擊「成為導師」                  |
+| `mobile_nav_about`                                                       | `HamburgerMenu.tsx` / `MobileUserMenu.tsx` | `navigation`  | 行動版選單點擊「關於 X-Talent」                 |
+| `mobile_signin` / `mobile_signup`                                        | `HamburgerMenu.tsx` (`mobile_menu`)        | `auth`        | 行動版訪客點擊「登入」／「註冊」                |
+| `user_menu_profile` / `mobile_user_menu_profile`                         | `UserDropdown.tsx` / `MobileUserMenu.tsx`  | `navigation`  | 已登入會員點擊進入個人頁面（不傳姓名與 userId） |
+| `user_menu_share_profile` / `mobile_user_menu_share_profile`             | `UserDropdown.tsx` / `MobileUserMenu.tsx`  | `profile`     | 已登入會員點擊「分享個人頁面」                  |
+| `user_menu_mentor_reservations` / `mobile_user_menu_mentor_reservations` | `UserDropdown.tsx` / `MobileUserMenu.tsx`  | `reservation` | 導師點擊「導師預約管理」                        |
+| `user_menu_become_mentor` / `mobile_user_menu_become_mentor`             | `UserDropdown.tsx` / `MobileUserMenu.tsx`  | `onboarding`  | 學員點擊「成為導師」                            |
+| `user_menu_my_reservations` / `mobile_user_menu_my_reservations`         | `UserDropdown.tsx` / `MobileUserMenu.tsx`  | `reservation` | 已登入會員點擊「我的預約」                      |
+| `user_menu_logout` / `mobile_user_menu_logout`                           | `UserDropdown.tsx` / `MobileUserMenu.tsx`  | `auth`        | 已登入會員點擊「登出」                          |
 
 ---
 
-## 5. 命名慣例與驗證方式 (Naming & Verification)
+## 5. 核心業務漏斗事件總表
 
-1. **命名規則**：
-   - 事件名稱與自訂參數一律採用 `snake_case`，長度不超過 40 字元（對齊 GA4 與 BigQuery 匯出欄位規範）。
-   - 新增業務事件時，請同步更新本文件第 4 節事件總表。
-2. **本地與自動化測試驗證**：
-   - **開發環境 Console 與 `dataLayer`**：未設定 `NEXT_PUBLIC_GA_ID` 時不會載入外部 `gtag.js`，但所有事件皆會寫入瀏覽器 `window.dataLayer` 並在 `NODE_ENV=development` 印出 `[analytics]` 除錯紀錄。
-   - **單元測試**：見 `src/lib/analytics.test.ts` 與 `src/components/PageViewTracker.test.tsx`。
-   - **Playwright E2E**：見 `e2e/tests/public/ga4-analytics.spec.ts`，自動化驗證初次進站 `page_view`、SPA 換頁 `page_view`、滾動單一 `scroll_depth`（含 `percent_scrolled`）與 URL/Payload 無個資防護。
+### 5.1 首頁與探索導師池 (`mentor_pool`)
+
+| 事件名稱 (`event`)                    | `feature`     | 觸發位置                                                                                         | 關鍵參數                                                                                                                                                  | 說明                                                                                               |
+| :------------------------------------ | :------------ | :----------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------- |
+| `landing_cta_click`                   | `navigation`  | `HomePageCtaButton.tsx`                                                                          | `cta`, `role`, `destination`                                                                                                                              | 首頁 Hero、角色切換與頁尾轉換按鈕點擊                                                              |
+| `mentor_pool_filter_apply`            | `mentor_pool` | `PopularPositionChips.tsx` (`popular_positions`), `MentorFilterDropdown.tsx` (`filter_dropdown`) | `filter_type` (`popular_position` \| `filter_skills` \| `filter_topics` \| `filter_industries` \| `none`), `filter_value`, `button_id`, `button_location` | 點擊熱門職位快篩標籤或篩選下拉選單「套用」（僅傳受控目錄代碼或公開熱門職稱，絕不傳自由搜尋關鍵字） |
+| `mentor_pool_filter_remove`           | `mentor_pool` | `src/app/mentor-pool/ui.tsx` (`active_filter_badges`)                                            | `filter_type`, `filter_value`, `button_id`, `button_location`                                                                                             | 點擊已選篩選條件膠囊之移除按鈕                                                                     |
+| `mentor_pool_clear_all_filters_click` | —             | `useMentorPoolFilters.ts`                                                                        | —                                                                                                                                                         | 空狀態點擊「清除所有條件」重置篩選                                                                 |
+| `mentor_card_click`                   | `mentor_pool` | `src/components/mentor-pool/mentor-card/index.tsx` (`mentor_pool_list`)                          | `mentor_id` (純數值字串), `link_url` (`/profile/[id]`), `button_id`                                                                                       | 點擊導師池卡片進入導師個人頁（嚴禁傳遞導師姓名）                                                   |
+
+### 5.2 導師個人頁與檔案管理 (`profile` / `onboarding`)
+
+| 事件名稱 (`event`)                                                              | `feature`                | 觸發位置                                                 | 關鍵參數                                                                      | 說明                                                                                                       |
+| :------------------------------------------------------------------------------ | :----------------------- | :------------------------------------------------------- | :---------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------- |
+| `profile_tab_click`                                                             | `profile`                | `src/app/profile/[pageUserId]/ui.tsx` (`profile_tabs`)   | `tab_name` (`about` \| `feedback`), `mentor_id`, `button_id`                  | 切換導師個人頁「簡介」與「評價」分頁                                                                       |
+| `profile_social_link_click`                                                     | `profile`                | `src/app/profile/[pageUserId]/ui.tsx` (`profile_header`) | `platform` (`linkedin` \| `github` \| `website` 等), `mentor_id`, `button_id` | 點擊導師個人頁外部社群連結（設 `data-analytics-omit-destination="true"` 不送出含個人帳號 slug 之外部網址） |
+| `button_click` (`profile_edit_click` / `profile_become_mentor_click`)           | `profile` / `onboarding` | `src/app/profile/[pageUserId]/ui.tsx` (`profile_header`) | `button_id`, `button_location`, `page_path`                                   | 本人檢視個人頁點擊「編輯個人資訊」或「成為導師」                                                           |
+| `button_click` (`profile_booking_slot_select` / `profile_booking_submit_click`) | `reservation`            | `MenteeBookingForm.tsx` (`profile_booking_card`)         | `button_id`, `button_location`, `page_path`                                   | 學員於導師個人頁點選可預約時段、點擊「預約時間」送出按鈕                                                   |
+| `profile_saved`                                                                 | `profile`                | `saveProfile.ts`                                         | `is_mentor`                                                                   | 個人檔案編輯儲存成功                                                                                       |
+| `share_profile_link_copied`                                                     | `profile`                | `ShareProfileDialog.tsx`                                 | —                                                                             | 複製個人檔案分享連結                                                                                       |
+
+> **註（預留事件規格 — 導師收藏功能）**：目前前端產品介面尚未實作導師收藏／書籤按鈕（Codebase 無對應 UI 元件）。日後實作收藏按鈕時，請統一使用 `data-analytics-event="mentor_bookmark_toggle"`、`data-analytics-feature="mentor_pool"`，並僅攜帶 `mentor_id`（數值 ID）與 `action`（`'add'` \| `'remove'`），不得夾帶導師姓名或使用者識別資訊。
+
+### 5.3 認證與註冊引導 (`auth` / `onboarding`)
+
+| 事件名稱 (`event`)                                     | `feature`    | 觸發位置                                               | 關鍵參數          | 說明                               |
+| :----------------------------------------------------- | :----------- | :----------------------------------------------------- | :---------------- | :--------------------------------- |
+| `sign_up_started` / `sign_up_succeeded`                | `auth`       | `useSignUpForm.ts`                                     | —                 | 註冊流程啟動與完成（不記錄 Email） |
+| `sign_in_succeeded`                                    | `auth`       | `useSignInForm.ts`, `auth/google/callback/redirect`    | `method` (選填)   | 登入成功                           |
+| `delete_account_succeeded`                             | `auth`       | `useDeleteAccountForm.ts`, `useGoogleOAuthCallback.ts` | —                 | 帳號刪除完成                       |
+| `onboarding_step_0_completed` ~ `onboarding_completed` | `onboarding` | `useOnboardingForm.ts`                                 | `role` (部分步驟) | 新手引導各步驟完成與最終完賽       |
+
+### 5.4 預約流程、Google Meet 進入與系統監控 (`reservation` / `feedback` / `performance`)
+
+| 事件名稱 (`event`)                                                        | `feature`     | 觸發位置                                                                                 | 關鍵參數                                                                                                                    | 說明                                                                        |
+| :------------------------------------------------------------------------ | :------------ | :--------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------- |
+| `reservation_signin_prompt_click`                                         | `reservation` | `MenteeBookingForm.tsx`                                                                  | —                                                                                                                           | 未登入訪客於導師頁點擊「前往登入」以進行預約                                |
+| `reservation_booking_confirmed`                                           | `reservation` | `useBookingConfirmation.ts`                                                              | —                                                                                                                           | 學員送出預約申請成功（不含提問內容）                                        |
+| `reservation_join_meet_click`                                             | `reservation` | `JoinMeetButton.tsx`（`ReservationCard` 與 `ConfirmedReservationDialog` 共用）           | `source_role` (`mentor` \| `mentee`), `button_location` (`reservation_card` \| `confirmed_reservation_dialog`), `button_id` | 點擊「加入 Google Meet」按鈕（嚴禁傳遞 Google Meet 會議室代碼或參與者姓名） |
+| `reservation_tab_changed` / `reservation_load_more`                       | `reservation` | `useReservationData.ts`                                                                  | `role`, `tab`                                                                                                               | 預約管理頁籤切換與載入更多                                                  |
+| `reservation_accepted` / `reservation_rejected` / `reservation_cancelled` | `reservation` | `AcceptReservationDialog.tsx`, `useReservationActions.ts`, `CancelReservationDialog.tsx` | `role` (選填)                                                                                                               | 導師接受／婉拒預約、任一方取消預約                                          |
+| `reservation_schedule_saved` / `reservation_quick_reply_sent`             | `reservation` | `MentorScheduleDialog.tsx`, `QuickReplyDialog.tsx`                                       | `slot_count` (排程)                                                                                                         | 導師儲存可預約時段、送出快速回覆                                            |
+| `reservation_profile_viewed` / `reservation_history_conversation_opened`  | `reservation` | `ReservationList.tsx`, `ReservationMessagePreview.tsx`                                   | `source_role`                                                                                                               | 從預約卡片檢視對方檔案或開啟對話紀錄                                        |
+| `feedback_open`                                                           | `feedback`    | `Header.tsx`, `HamburgerMenu.tsx`, `MobileUserMenu.tsx`                                  | —                                                                                                                           | 點擊外部「提供回饋」表單連結                                                |
+| `performance_*_measured`                                                  | `performance` | `WebVitalsReporter.tsx`                                                                  | `raw_value`, `rating`, `navigation_type`                                                                                    | Core Web Vitals 效能指標（`skipClarity: true`）                             |
+
+---
+
+## 6. 驗證與回歸測試方式
+
+1. **瀏覽器本地驗證**：開啟 DevTools Console 檢視 `window.dataLayer`，或在 GA4 DebugView 觀察初次載入 `page_view`、滾動跨越 25/50/75/90% 之 `scroll_depth`、導師池篩選 `mentor_pool_filter_apply`、導師卡片 `mentor_card_click` 及預約頁 `reservation_join_meet_click`。
+2. **自動化測試覆蓋**：
+   - **單元測試**：見 `src/app/layout.test.tsx`、`src/lib/analytics.test.ts`、`src/components/PageViewTracker.test.tsx` 與 `src/components/filter/MentorFilterDropdown.test.tsx`。
+   - **Playwright E2E**：見 `e2e/tests/public/ga4-analytics.spec.ts`，自動化驗證初次進站 `page_view`、分段滾動 `scroll_depth`（`percent_scrolled` 依序遞增且不重複）、SPA 換頁 `page_view` 與巢狀 `callbackUrl`/敏感參數自動清洗。

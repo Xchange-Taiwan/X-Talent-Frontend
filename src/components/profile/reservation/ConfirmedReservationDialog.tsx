@@ -104,6 +104,8 @@ export function ConfirmedReservationDialog({
               onClick={() => joinMeet(reservation.id)}
               isPending={isJoiningMeet}
               disabled={isMutating}
+              sourceRole={viewerRole ?? 'mentor'}
+              analyticsLocation="confirmed_reservation_dialog"
               className="flex-1 font-semibold sm:flex-none"
             />
           </div>

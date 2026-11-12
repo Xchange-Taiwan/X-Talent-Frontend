@@ -17,6 +17,8 @@ import { notoSansTC } from './font';
 const SITE_URL = getSiteUrl();
 const SITE_DESCRIPTION =
   'XChange Talent Pool 是連結業界導師與職涯探索者的 mentorship 平台，協助你在轉職、升遷、跨界探索時，找到對的人聊對的事。';
+const GA4_INIT_INLINE_SCRIPT =
+  "window.dataLayer=window.dataLayer||[];function gtag(){window.dataLayer.push(arguments);}window.gtag=window.gtag||gtag;gtag('js',new Date());var gaEl=document.getElementById('ga4-init');var gaId=gaEl&&gaEl.getAttribute('data-ga-id');if(gaId){gtag('config',gaId,{send_page_view:false});}";
 
 export function generateMetadata(): Metadata {
   return {
@@ -80,8 +82,10 @@ export default function RootLayout({
               crossOrigin="anonymous"
             />
             <script
+              id="ga4-init"
+              data-ga-id={gaMeasurementId}
               dangerouslySetInnerHTML={{
-                __html: `window.dataLayer=window.dataLayer||[];function gtag(){window.dataLayer.push(arguments);}window.gtag=window.gtag||gtag;gtag('js',new Date());gtag('config',${JSON.stringify(gaMeasurementId)},{send_page_view:false});`,
+                __html: GA4_INIT_INLINE_SCRIPT,
               }}
             />
           </>

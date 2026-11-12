@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  ANALYTICS_FEATURES,
   getAnalyticsClickPayloadFromElement,
+  isAllowedAnalyticsUrl,
   resolveSafePageTitle,
   sanitizeAnalyticsMetadata,
   sanitizeUrlForAnalytics,
@@ -27,12 +29,16 @@ describe('analytics', () => {
   });
 
   afterEach(() => {
-    delete window.gtag;
-    delete window.clarity;
-    delete window.dataLayer;
-    window.history.replaceState({}, '', '/');
+    // Unstub globals BEFORE touching window so SSR tests that stub window=undefined
+    // never throw inside afterEach or poison subsequent test cases.
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    if (typeof window !== 'undefined') {
+      delete window.gtag;
+      window.clarity = undefined;
+      delete window.dataLayer;
+      window.history.replaceState({}, '', '/');
+    }
   });
 
   describe('trackPageView', () => {
@@ -63,7 +69,7 @@ describe('analytics', () => {
       ]);
     });
 
-    it('redacts dynamic user names from page_title on /profile/[id] and /profile/[id]/edit routes', () => {
+    it('redacts dynamic user names from page_title on /profile/[id], /profile/[id]/edit, and stale mentor titles', () => {
       document.title = '王小明 - 導師專業背景';
       trackPageView('/profile/7482008160728084', {
         origin: 'https://xtalent.tw',
@@ -86,6 +92,13 @@ describe('analytics', () => {
           'https://xtalent.tw/profile/7482008160728084/edit?mentor-onboarding=true',
         page_title: 'Profile Edit',
       });
+
+      expect(
+        resolveSafePageTitle(
+          '/mentor-pool',
+          '王小明 - 導師專業背景 | XChange Talent Pool'
+        )
+      ).toBe('User Profile');
     });
 
     it('preserves static /profile/card title without treating "card" as a user ID', () => {
@@ -144,6 +157,9 @@ describe('analytics', () => {
         </a>
         <button id="disabled-btn" disabled data-analytics-click="disabled_action">Disabled</button>
         <a id="aria-disabled-link" href="/mentor-pool" aria-disabled="true" data-analytics-click="disabled_link">Disabled Link</a>
+        <div data-analytics-click="outer_wrapper">
+          <button id="nested-disabled-btn" disabled><span id="nested-disabled-span">Inner</span></button>
+        </div>
       `;
 
       const innerSpan = container.querySelector('#inner-label');
@@ -159,15 +175,122 @@ describe('analytics', () => {
 
       const ariaDisabledLink = container.querySelector('#aria-disabled-link');
       expect(getAnalyticsClickPayloadFromElement(ariaDisabledLink)).toBeNull();
+
+      const nestedDisabledSpan = container.querySelector(
+        '#nested-disabled-span'
+      );
+      expect(
+        getAnalyticsClickPayloadFromElement(nestedDisabledSpan)
+      ).toBeNull();
+    });
+
+    it('supports custom snake_case eventName, safe data-analytics-param-* attributes, and destination omission', () => {
+      const container = document.createElement('div');
+      container.innerHTML = `
+        <a
+          id="mentor-card-link"
+          href="/profile/7482008160728084"
+          data-analytics-click="mentor_card"
+          data-analytics-event="mentor_card_click"
+          data-analytics-feature="mentor_pool"
+          data-analytics-location="mentor_pool_list"
+          data-analytics-param-mentor-id="7482008160728084"
+          data-analytics-param-name="王小明"
+          data-analytics-param-email="leak@example.com"
+        >Card</a>
+        <a
+          id="social-link"
+          href="https://www.linkedin.com/in/real-person-slug"
+          data-analytics-click="profile_social_link"
+          data-analytics-event="profile_social_link_click"
+          data-analytics-feature="profile"
+          data-analytics-omit-destination="true"
+          data-analytics-param-platform="linkedin"
+          data-analytics-param-mentor-id="7482008160728084"
+        >LinkedIn</a>
+      `;
+
+      const mentorCardPayload = getAnalyticsClickPayloadFromElement(
+        container.querySelector('#mentor-card-link')
+      );
+      expect(mentorCardPayload).toEqual({
+        buttonId: 'mentor_card',
+        eventName: 'mentor_card_click',
+        location: 'mentor_pool_list',
+        destination: '/profile/7482008160728084',
+        feature: 'mentor_pool',
+        metadata: {
+          mentor_id: '7482008160728084',
+        },
+      });
+
+      trackButtonClick(mentorCardPayload!);
+      expect(mockGtag).toHaveBeenCalledWith('event', 'mentor_card_click', {
+        feature: 'mentor_pool',
+        mentor_id: '7482008160728084',
+        button_id: 'mentor_card',
+        button_location: 'mentor_pool_list',
+        link_url: '/profile/7482008160728084',
+        page_path: '/',
+      });
+
+      const socialPayload = getAnalyticsClickPayloadFromElement(
+        container.querySelector('#social-link')
+      );
+      expect(socialPayload).toEqual({
+        buttonId: 'profile_social_link',
+        eventName: 'profile_social_link_click',
+        feature: 'profile',
+        metadata: {
+          platform: 'linkedin',
+          mentor_id: '7482008160728084',
+        },
+      });
+      expect(socialPayload?.destination).toBeUndefined();
+    });
+
+    it('omits unsafe or contact URI schemes (javascript:, data:, vbscript:, mailto:, tel:) from link destinations', () => {
+      const container = document.createElement('div');
+      container.innerHTML = `
+        <a id="mailto-link" href="mailto:mentor@example.com" data-analytics-click="contact_email">Email</a>
+        <a id="tel-link" href="tel:+886912345678" data-analytics-click="contact_phone">Phone</a>
+        <a id="js-link" href="JavaScript:void(0)" data-analytics-click="noop_js">JS</a>
+        <a id="data-link" href="data:text/html,<script>alert(1)</script>" data-analytics-click="noop_data">Data</a>
+      `;
+
+      for (const selector of [
+        '#mailto-link',
+        '#tel-link',
+        '#js-link',
+        '#data-link',
+      ]) {
+        const payload = getAnalyticsClickPayloadFromElement(
+          container.querySelector(selector)
+        );
+        expect(payload?.destination).toBeUndefined();
+      }
+
+      expect(isAllowedAnalyticsUrl('mailto:user@example.com')).toBe(false);
+      expect(isAllowedAnalyticsUrl('tel:+886912345678')).toBe(false);
+      expect(isAllowedAnalyticsUrl('JavaScript:alert(1)')).toBe(false);
+      expect(isAllowedAnalyticsUrl('data:text/plain,hello')).toBe(false);
+      expect(isAllowedAnalyticsUrl('vbscript:msgbox(1)')).toBe(false);
+      expect(isAllowedAnalyticsUrl('//evil.example.com/path')).toBe(false);
+      expect(isAllowedAnalyticsUrl('/mentor-pool')).toBe(true);
+      expect(
+        isAllowedAnalyticsUrl('https://xtalent.xchange.com.tw/about')
+      ).toBe(true);
     });
   });
 
   describe('trackEvent & setAnalyticsTag', () => {
-    it('sends standard events to both GA4 and Clarity', () => {
+    it('sends standard events to GA4 and sets scrubbed session tags in Clarity', () => {
+      expect(ANALYTICS_FEATURES).toContain('mentor_pool');
+
       trackEvent({
         name: 'sign_in_succeeded',
         feature: 'auth',
-        metadata: { method: 'google' },
+        metadata: { method: 'google', email: 'leak@example.com' },
       });
 
       expect(mockGtag).toHaveBeenCalledWith('event', 'sign_in_succeeded', {
@@ -175,6 +298,13 @@ describe('analytics', () => {
         method: 'google',
       });
       expect(mockClarity).toHaveBeenCalledWith('event', 'sign_in_succeeded');
+      expect(mockClarity).toHaveBeenCalledWith('set', 'feature', 'auth');
+      expect(mockClarity).toHaveBeenCalledWith('set', 'method', 'google');
+      expect(mockClarity).not.toHaveBeenCalledWith(
+        'set',
+        'email',
+        expect.anything()
+      );
     });
 
     it('bypasses Microsoft Clarity when skipClarity is true', () => {
@@ -222,19 +352,25 @@ describe('analytics', () => {
   });
 
   describe('PII redaction guardrails', () => {
-    it('strips email, name, token, password, and sensitive values from metadata', () => {
+    it('strips email, name, token, password, free-text query, and sensitive values from metadata', () => {
       const sanitized = sanitizeAnalyticsMetadata({
         step: 2,
         is_mentor: true,
         cta: 'hero',
+        filter_type: 'filter_skills',
+        filter_value: 'frontend',
         email: 'mentee@example.com',
         user_email: 'mentor@example.com',
         name: '陳大文',
         full_name: 'Chen Da Wen',
+        q: '王小明',
+        search_pattern: '陳大文',
         access_token: 'secret-access-token',
         idToken: 'secret-id-token',
         password: 'hunter2',
         leaked_email_in_note: 'reach me at leak@example.com',
+        leaked_mailto: 'mailto:leak@example.com',
+        leaked_tel: 'tel:+886912345678',
         leaked_jwt:
           'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c',
         leaked_bearer: 'Bearer sk_live_1234567890abcdef',
@@ -244,10 +380,12 @@ describe('analytics', () => {
         step: 2,
         is_mentor: true,
         cta: 'hero',
+        filter_type: 'filter_skills',
+        filter_value: 'frontend',
       });
     });
 
-    it('strips sensitive query params and hash fragments from URLs while keeping safe params', () => {
+    it('recursively scrubs nested callbackUrl params, strips free-text search queries, and redacts PII path segments', () => {
       expect(
         sanitizeUrlForAnalytics(
           'https://xtalent.tw/auth/email-verify?token=abc123&email=user@example.com&source=banner#id_token=xyz'
@@ -259,6 +397,34 @@ describe('analytics', () => {
           '/auth/google/callback/redirect?code=4%2F0AX4XfWh&state=csrf123'
         )
       ).toBe('/auth/google/callback/redirect');
+
+      // Nested callbackUrl carrying token & email must have inner query secrets stripped
+      expect(
+        sanitizeUrlForAnalytics(
+          '/auth/signin?callbackUrl=%2Fauth%2Femail-verify%3Ftoken%3Dsecret123%26email%3Dleak%40example.com%26source%3Dbanner'
+        )
+      ).toBe(
+        '/auth/signin?callbackUrl=%2Fauth%2Femail-verify%3Fsource%3Dbanner'
+      );
+
+      // Free-text search query ?q= stripped while structured catalog filter codes stay intact
+      expect(
+        sanitizeUrlForAnalytics(
+          '/mentor-pool?q=%E7%8E%8B%E5%B0%8F%E6%98%8E&filter_skills=frontend&filter_industries=tech'
+        )
+      ).toBe('/mentor-pool?filter_skills=frontend&filter_industries=tech');
+
+      // Path segment containing email or JWT is redacted to root path
+      expect(
+        sanitizeUrlForAnalytics('/invite/private@example.com/accept')
+      ).toBe('/');
+      expect(
+        sanitizeUrlForAnalytics('https://xtalent.tw/invite/user%40example.com')
+      ).toBe('https://xtalent.tw/');
+
+      // Non-HTTP URI schemes return safe fallback '/'
+      expect(sanitizeUrlForAnalytics('mailto:user@example.com')).toBe('/');
+      expect(sanitizeUrlForAnalytics('tel:+886912345678')).toBe('/');
     });
   });
 });

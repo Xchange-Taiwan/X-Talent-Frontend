@@ -3,23 +3,26 @@
  *
  * Unified analytics layer that dispatches to both:
  *   - Google Analytics 4 (page_view, scroll_depth, button_click, funnel events via gtag / dataLayer)
- *   - Microsoft Clarity  (session replay, heatmaps, custom events)
+ *   - Microsoft Clarity  (session replay, heatmaps, custom events, session tags)
  *
  * Strictly enforces zero-PII guardrails: Email, real names, passwords, OAuth codes,
- * and authentication tokens are stripped from URLs, page titles, and event metadata
- * before leaving the application layer.
+ * phone/mailto URIs, free-text search queries, and authentication tokens are stripped
+ * from URLs, page titles, and event metadata before leaving the application layer.
  */
 
-export type AnalyticsFeature =
-  | 'auth'
-  | 'onboarding'
-  | 'mentor_pool'
-  | 'profile'
-  | 'reservation'
-  | 'feedback'
-  | 'performance'
-  | 'navigation'
-  | 'engagement';
+export const ANALYTICS_FEATURES = [
+  'auth',
+  'onboarding',
+  'mentor_pool',
+  'profile',
+  'reservation',
+  'feedback',
+  'performance',
+  'navigation',
+  'engagement',
+] as const;
+
+export type AnalyticsFeature = (typeof ANALYTICS_FEATURES)[number];
 
 export const SCROLL_DEPTH_THRESHOLDS = [25, 50, 75, 90] as const;
 export type ScrollDepthThreshold = (typeof SCROLL_DEPTH_THRESHOLDS)[number];
@@ -48,6 +51,8 @@ export interface TrackPageViewOptions {
 export interface ButtonClickParams {
   /** Stable snake_case identifier for the clicked button/link, e.g. 'header_signin' */
   buttonId: string;
+  /** Optional custom snake_case GA4 event name (defaults to 'button_click') */
+  eventName?: string;
   /** UI placement/section where the button lives, e.g. 'header', 'hero', 'footer' */
   location?: string;
   /** Optional target URL or pathname for navigation buttons/links */
@@ -60,32 +65,82 @@ export interface ButtonClickParams {
 
 type ClarityFn = (...args: unknown[]) => void;
 
+const VALID_ANALYTICS_FEATURES: ReadonlySet<string> = new Set<string>(
+  ANALYTICS_FEATURES
+);
+
+const VALID_EVENT_NAME_PATTERN = /^[a-z][a-z0-9_]{1,48}$/;
+const VALID_PARAM_KEY_PATTERN = /^[a-z][a-z0-9_]{0,39}$/;
+
 const PII_KEY_PATTERN =
-  /^(?:e[-_]?mail|user[-_]?email|password|passwd|pwd|.*token.*|secret|authorization|auth[-_]?code|code|state|cookie|phone|mobile|tel|name|user[-_]?name|full[-_]?name|first[-_]?name|last[-_]?name|real[-_]?name|display[-_]?name)$/i;
+  /^(?:e[-_]?mail|user[-_]?email|password|passwd|pwd|.*token.*|secret|authorization|auth[-_]?code|code|state|cookie|phone|mobile|tel|name|user[-_]?name|full[-_]?name|first[-_]?name|last[-_]?name|real[-_]?name|display[-_]?name|q|query|search|search[-_]?pattern|keyword)$/i;
 
 const SENSITIVE_QUERY_PARAM_PATTERN =
-  /^(?:e[-_]?mail|password|passwd|pwd|.*token.*|secret|code|state|session|auth|phone|mobile|name|user[-_]?name|full[-_]?name)$/i;
+  /^(?:e[-_]?mail|password|passwd|pwd|.*token.*|secret|code|state|session|auth|phone|mobile|tel|name|user[-_]?name|full[-_]?name|first[-_]?name|last[-_]?name|real[-_]?name|display[-_]?name|q|query|search|search[-_]?pattern|keyword)$/i;
 
 const EMAIL_VALUE_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
 const JWT_VALUE_PATTERN =
   /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/;
 const BEARER_VALUE_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/i;
+const CONTACT_URI_VALUE_PATTERN = /^(?:mailto|tel|sms):/i;
 
 const PROFILE_EDIT_PATH_PATTERN =
   /^\/profile\/(?!card(?:\/|$))[^/]+\/edit(?:\/|$)/;
 const PROFILE_DETAIL_PATH_PATTERN = /^\/profile\/(?!card(?:\/|$))[^/]+(?:\/|$)/;
+const MENTOR_PROFILE_TITLE_PATTERN = /-\s*導師專業背景(?:\s*\|\s*.*)?$/;
+
+const MAX_NESTED_URL_SANITIZE_DEPTH = 3;
+
+function safeDecodeURIComponent(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+/**
+ * Allowlist validation for analytics URLs: accepts only internal root-relative paths
+ * (`/foo`, never protocol-relative `//`) or explicit `http:` / `https:` URLs.
+ * Rejects `javascript:`, `data:`, `vbscript:`, `mailto:`, `tel:`, `#`, and malformed URIs.
+ */
+export function isAllowedAnalyticsUrl(rawUrlOrPath: string): boolean {
+  const trimmed = rawUrlOrPath.trim();
+  if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('//')) {
+    return false;
+  }
+  if (trimmed.startsWith('/')) {
+    return true;
+  }
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+export function isUserProfilePath(pathOrUrl: string): boolean {
+  const pathnameOnly = (pathOrUrl.split('?')[0] ?? '/').split('#')[0] ?? '/';
+  return (
+    PROFILE_EDIT_PATH_PATTERN.test(pathnameOnly) ||
+    PROFILE_DETAIL_PATH_PATTERN.test(pathnameOnly)
+  );
+}
 
 export function containsSensitiveValue(value: string): boolean {
+  const trimmed = value.trim();
   return (
-    EMAIL_VALUE_PATTERN.test(value) ||
-    JWT_VALUE_PATTERN.test(value) ||
-    BEARER_VALUE_PATTERN.test(value)
+    EMAIL_VALUE_PATTERN.test(trimmed) ||
+    JWT_VALUE_PATTERN.test(trimmed) ||
+    BEARER_VALUE_PATTERN.test(trimmed) ||
+    CONTACT_URI_VALUE_PATTERN.test(trimmed)
   );
 }
 
 /**
- * Strips any PII keys (email, name, token, password, phone, OAuth code/state)
- * and drops string values that match email, JWT, or Bearer token patterns.
+ * Strips any PII keys (email, name, token, password, phone, free-text query, OAuth code/state)
+ * and drops string values that match email, JWT, Bearer token, or contact URI patterns.
  */
 export function sanitizeAnalyticsMetadata(
   metadata?: Record<string, string | number | boolean>
@@ -99,7 +154,10 @@ export function sanitizeAnalyticsMetadata(
       continue;
     }
     if (typeof value === 'string') {
-      if (containsSensitiveValue(value)) {
+      if (
+        containsSensitiveValue(value) ||
+        containsSensitiveValue(safeDecodeURIComponent(value))
+      ) {
         continue;
       }
       clean[trimmedKey] = value;
@@ -112,22 +170,55 @@ export function sanitizeAnalyticsMetadata(
   return clean;
 }
 
-/**
- * Sanitizes a URL or path for GA4 reporting by stripping hash fragments and
- * removing query parameters that could contain tokens, OAuth codes, emails, or names.
- */
-export function sanitizeUrlForAnalytics(rawUrlOrPath: string): string {
+function sanitizeUrlInternal(rawUrlOrPath: string, depth: number): string {
   const trimmed = rawUrlOrPath.trim();
-  if (!trimmed) return '/';
+  if (!trimmed || !isAllowedAnalyticsUrl(trimmed)) return '/';
 
   const isAbsolute = /^https?:\/\//i.test(trimmed);
   try {
     const parsed = new URL(trimmed, 'https://xtalent.local');
-    const safeParams = new URLSearchParams();
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return '/';
+    }
 
+    const decodedPathname = safeDecodeURIComponent(parsed.pathname || '/');
+    if (
+      containsSensitiveValue(parsed.pathname) ||
+      containsSensitiveValue(decodedPathname)
+    ) {
+      return isAbsolute ? `${parsed.origin}/` : '/';
+    }
+
+    const safeParams = new URLSearchParams();
     parsed.searchParams.forEach((val, key) => {
       if (SENSITIVE_QUERY_PARAM_PATTERN.test(key)) return;
-      if (containsSensitiveValue(val)) return;
+      const trimmedVal = val.trim();
+      const decodedVal = safeDecodeURIComponent(trimmedVal);
+      if (
+        containsSensitiveValue(trimmedVal) ||
+        containsSensitiveValue(decodedVal)
+      ) {
+        return;
+      }
+
+      // Drop non-HTTP URI schemes embedded as query parameter values (e.g. mailto:, tel:, javascript:)
+      if (
+        (/^[a-z][a-z0-9+.-]*:/i.test(trimmedVal) &&
+          !/^https?:\/\//i.test(trimmedVal)) ||
+        trimmedVal.startsWith('//')
+      ) {
+        return;
+      }
+
+      // Recursively scrub nested redirect/callback URLs (e.g. callbackUrl=/auth/verify?token=...)
+      if (
+        depth < MAX_NESTED_URL_SANITIZE_DEPTH &&
+        /^(?:https?:\/\/|\/(?!\/))/i.test(trimmedVal)
+      ) {
+        safeParams.append(key, sanitizeUrlInternal(trimmedVal, depth + 1));
+        return;
+      }
+
       safeParams.append(key, val);
     });
 
@@ -135,10 +226,17 @@ export function sanitizeUrlForAnalytics(rawUrlOrPath: string): string {
     const pathWithQuery = `${parsed.pathname || '/'}${query ? `?${query}` : ''}`;
     return isAbsolute ? `${parsed.origin}${pathWithQuery}` : pathWithQuery;
   } catch {
-    const withoutHash = trimmed.split('#')[0] ?? '/';
-    const withoutQuery = withoutHash.split('?')[0] ?? '/';
-    return withoutQuery.startsWith('/') ? withoutQuery : '/';
+    return '/';
   }
+}
+
+/**
+ * Sanitizes a URL or path for GA4 reporting by rejecting unsafe/PII URI schemes,
+ * stripping hash fragments, redacting sensitive path segments, and recursively
+ * removing query parameters that could contain tokens, OAuth codes, emails, or names.
+ */
+export function sanitizeUrlForAnalytics(rawUrlOrPath: string): string {
+  return sanitizeUrlInternal(rawUrlOrPath, 0);
 }
 
 /**
@@ -158,6 +256,9 @@ export function resolveSafePageTitle(
   }
 
   const candidate = (rawTitle ?? '').trim();
+  if (MENTOR_PROFILE_TITLE_PATTERN.test(candidate)) {
+    return 'User Profile';
+  }
   if (!candidate || containsSensitiveValue(candidate)) {
     return 'X-Talent';
   }
@@ -214,11 +315,17 @@ export function trackEvent(
 
   dispatchGa4Event(event.name, gaParams);
 
-  // Microsoft Clarity — custom event tag (accepts event name only)
+  // Microsoft Clarity — custom event + scrubbed session tags for session replay filtering
   if (!options?.skipClarity) {
     const clarity = getClarity();
     if (clarity) {
       clarity('event', event.name);
+      if (event.feature) {
+        clarity('set', 'feature', event.feature);
+      }
+      for (const [key, value] of Object.entries(safeMetadata)) {
+        clarity('set', key, String(value));
+      }
     }
   }
 
@@ -243,8 +350,11 @@ export function trackPageView(
     ? sanitizeUrlForAnalytics(`${origin}${cleanPath}`)
     : cleanPath;
   const rawTitle =
-    options?.title ??
-    (typeof document !== 'undefined' ? document.title : undefined);
+    options?.title !== undefined
+      ? options.title
+      : typeof document !== 'undefined'
+        ? document.title
+        : undefined;
   const pageTitle = resolveSafePageTitle(cleanPath, rawTitle);
 
   const payload: Record<string, string | number | boolean> = {
@@ -295,10 +405,11 @@ export function trackScrollDepth(
 
 /**
  * Concise, low-intrusiveness helper for button/CTA click tracking.
- * Emits a standardized `button_click` event without leaking user PII.
+ * Emits `button_click` (or a validated custom `eventName`) without leaking user PII.
  */
 export function trackButtonClick({
   buttonId,
+  eventName,
   location,
   destination,
   feature = 'navigation',
@@ -307,48 +418,64 @@ export function trackButtonClick({
   const cleanButtonId = buttonId.trim();
   if (!cleanButtonId || containsSensitiveValue(cleanButtonId)) return;
 
+  const resolvedEventName =
+    eventName && VALID_EVENT_NAME_PATTERN.test(eventName.trim())
+      ? eventName.trim()
+      : 'button_click';
+
   const currentPath = resolveCurrentPagePath();
   const safeExtra = sanitizeAnalyticsMetadata(metadata);
+  const trimmedDest = destination?.trim() ?? '';
+  const safeLinkUrl =
+    trimmedDest && isAllowedAnalyticsUrl(trimmedDest)
+      ? sanitizeUrlForAnalytics(trimmedDest)
+      : undefined;
 
   const mergedMetadata: Record<string, string | number | boolean> = {
     ...safeExtra,
     button_id: cleanButtonId,
     ...(location?.trim() ? { button_location: location.trim() } : {}),
-    ...(destination?.trim()
-      ? { link_url: sanitizeUrlForAnalytics(destination) }
-      : {}),
+    ...(safeLinkUrl ? { link_url: safeLinkUrl } : {}),
     ...(currentPath ? { page_path: currentPath } : {}),
   };
 
   trackEvent({
-    name: 'button_click',
+    name: resolvedEventName,
     feature,
     metadata: mergedMetadata,
   });
 }
 
-const VALID_ANALYTICS_FEATURES: ReadonlySet<string> = new Set<AnalyticsFeature>(
-  [
-    'auth',
-    'onboarding',
-    'mentor_pool',
-    'profile',
-    'reservation',
-    'feedback',
-    'performance',
-    'navigation',
-    'engagement',
-  ]
-);
-
 function isAnalyticsFeature(value: string): value is AnalyticsFeature {
   return VALID_ANALYTICS_FEATURES.has(value);
 }
 
+function extractDeclarativeParams(
+  element: Element
+): Record<string, string | number | boolean> {
+  const rawParams: Record<string, string | number | boolean> = {};
+  const prefix = 'data-analytics-param-';
+
+  for (const attr of Array.from(element.attributes)) {
+    if (!attr.name.startsWith(prefix)) continue;
+    const rawKey = attr.name
+      .slice(prefix.length)
+      .replace(/-/g, '_')
+      .toLowerCase();
+    const val = attr.value.trim();
+    if (!val || !VALID_PARAM_KEY_PATTERN.test(rawKey)) continue;
+    rawParams[rawKey] = val;
+  }
+
+  return sanitizeAnalyticsMetadata(rawParams);
+}
+
 /**
  * Extracts declarative `ButtonClickParams` from a DOM click target annotated with
- * `data-analytics-click="<button_id>"` (and optional `data-analytics-location` /
- * `data-analytics-feature`). Returns `null` if no active annotated ancestor exists.
+ * `data-analytics-click="<button_id>"` (plus optional `data-analytics-event`,
+ * `data-analytics-location`, `data-analytics-feature`, `data-analytics-omit-destination`,
+ * and `data-analytics-param-*` business attributes).
+ * Returns `null` if no active annotated ancestor exists.
  */
 export function getAnalyticsClickPayloadFromElement(
   target: EventTarget | null
@@ -360,15 +487,23 @@ export function getAnalyticsClickPayloadFromElement(
   const annotated = target.closest('[data-analytics-click]');
   if (!annotated) return null;
 
+  const disabledAncestor = target.closest('[disabled],[aria-disabled="true"]');
   if (
     annotated.hasAttribute('disabled') ||
-    annotated.getAttribute('aria-disabled') === 'true'
+    annotated.getAttribute('aria-disabled') === 'true' ||
+    (disabledAncestor && annotated.contains(disabledAncestor))
   ) {
     return null;
   }
 
   const buttonId = annotated.getAttribute('data-analytics-click')?.trim() ?? '';
-  if (!buttonId) return null;
+  if (!buttonId || containsSensitiveValue(buttonId)) return null;
+
+  const rawEventName =
+    annotated.getAttribute('data-analytics-event')?.trim() ?? '';
+  const eventName = VALID_EVENT_NAME_PATTERN.test(rawEventName)
+    ? rawEventName
+    : undefined;
 
   const location =
     annotated.getAttribute('data-analytics-location')?.trim() || undefined;
@@ -376,19 +511,26 @@ export function getAnalyticsClickPayloadFromElement(
     annotated.getAttribute('data-analytics-feature')?.trim() || '';
   const feature = isAnalyticsFeature(rawFeature) ? rawFeature : undefined;
 
+  const omitDestination =
+    annotated.getAttribute('data-analytics-omit-destination') === 'true';
   const anchor =
     annotated instanceof HTMLAnchorElement ? annotated : annotated.closest('a');
   const rawHref = anchor?.getAttribute('href')?.trim() ?? '';
   const destination =
-    rawHref && rawHref !== '#' && !rawHref.startsWith('javascript:')
+    !omitDestination && isAllowedAnalyticsUrl(rawHref)
       ? sanitizeUrlForAnalytics(rawHref)
       : undefined;
 
+  const metadata = extractDeclarativeParams(annotated);
+  const hasMetadata = Object.keys(metadata).length > 0;
+
   return {
     buttonId,
+    ...(eventName ? { eventName } : {}),
     ...(location ? { location } : {}),
     ...(destination ? { destination } : {}),
     ...(feature ? { feature } : {}),
+    ...(hasMetadata ? { metadata } : {}),
   };
 }
 
@@ -401,7 +543,8 @@ export function setAnalyticsTag(key: string, value: string): void {
   if (
     !trimmedKey ||
     PII_KEY_PATTERN.test(trimmedKey) ||
-    containsSensitiveValue(value)
+    containsSensitiveValue(value) ||
+    containsSensitiveValue(safeDecodeURIComponent(value))
   ) {
     return;
   }
