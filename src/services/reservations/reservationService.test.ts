@@ -497,6 +497,28 @@ describe('reservationService API Error Handling', () => {
         },
         nextStep: null,
       });
+
+      const withTopLevelUnpublicizedFlag = mapToReservation(
+        {
+          ...makeApiReservation(),
+          feedback: {
+            meeting_happened: null,
+            is_public: false,
+            rating: {
+              rating: 7,
+              content: '已下架評價',
+              created_at: 1760000000,
+              updated_at: 1760000500,
+              author_name: '林＊華',
+            },
+            next_step: null,
+          },
+        },
+        1
+      );
+      expect(withTopLevelUnpublicizedFlag.feedback?.rating?.isPublic).toBe(
+        false
+      );
     });
 
     it('calls POST /v1/users/:userId/reservations/:reservationId/feedback via apiClient.postUnwrapped', async () => {

@@ -111,7 +111,7 @@ function mapReservationFeedback(
             typeof rawRating.author_name === 'string'
               ? rawRating.author_name
               : null,
-          isPublic: rawRating.is_public !== false,
+          isPublic: rawRating.is_public !== false && raw.is_public !== false,
         }
       : null;
 

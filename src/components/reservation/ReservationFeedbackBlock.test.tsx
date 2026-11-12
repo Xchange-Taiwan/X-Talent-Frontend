@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import * as React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -30,7 +30,7 @@ describe('ReservationFeedbackBlock', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders unpublicized notice and feedback form link when kind is unpublicized', () => {
+  it('renders amber 評價未公開 badge, expandable/collapsible notice with bold title and feedback form link (no icon), and preserves Mentee rating & comment (#734)', () => {
     render(
       <ReservationFeedbackBlock
         model={{
@@ -38,16 +38,53 @@ describe('ReservationFeedbackBlock', () => {
           rating: 8,
           content: '謝謝分享',
           notice: UNPUBLICIZED_FEEDBACK_NOTICE,
+          canEdit: true,
         }}
       />
     );
 
     const block = screen.getByTestId('reservation-feedback-unpublicized');
     expect(block).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('評價未公開');
+    const notice = screen.getByTestId('unpublicized-feedback-notice');
+    expect(within(notice).getByText('評價未公開')).toBeInTheDocument();
+    expect(notice.querySelector('svg')).toBeNull();
     expect(block.textContent).toContain(UNPUBLICIZED_FEEDBACK_NOTICE);
+    expect(screen.getByText('8 / 10')).toBeInTheDocument();
+    expect(screen.getByText('謝謝分享')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '編輯' })).toBeInTheDocument();
 
     const formLink = screen.getByRole('link', { name: '回饋表單' });
     expect(formLink).toHaveAttribute('href', FEEDBACK_FORM_URL);
+
+    // Collapse the unpublicized explanation notice -> Mentee rating, comment, and 編輯 button remain visible
+    const collapseBtn = screen.getByRole('button', {
+      name: '收合評價未公開說明',
+    });
+    expect(collapseBtn).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(collapseBtn);
+
+    expect(
+      screen.queryByTestId('unpublicized-feedback-notice')
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('8 / 10')).toBeInTheDocument();
+    expect(screen.getByText('謝謝分享')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '編輯' })).toBeInTheDocument();
+
+    // Expand the unpublicized explanation notice back
+    const expandBtn = screen.getByRole('button', {
+      name: '展開評價未公開說明',
+    });
+    expect(expandBtn).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(expandBtn);
+
+    expect(
+      screen.getByTestId('unpublicized-feedback-notice')
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '回饋表單' })).toHaveAttribute(
+      'href',
+      FEEDBACK_FORM_URL
+    );
   });
 
   it('renders 編輯 button (and never 刪除) for Mentee rated blocks when canEdit is true (#731)', () => {

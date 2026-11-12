@@ -3,6 +3,11 @@ import { useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
 import {
+  clearPendingCallbackUrl,
+  readWindowCallbackUrl,
+  savePendingCallbackUrl,
+} from '@/lib/auth/callbackUrl';
+import {
   getGoogleAuthorizeLoginUrl,
   getGoogleAuthorizeSignupUrl,
 } from '@/services/auth/googleAuthorize';
@@ -15,11 +20,17 @@ export function useGoogleAuth() {
   const handleGoogleAuth = async (isSignIn: boolean) => {
     setIsPending(true);
     try {
+      if (isSignIn) {
+        savePendingCallbackUrl(readWindowCallbackUrl());
+      } else {
+        clearPendingCallbackUrl();
+      }
       const { authorization_url } = isSignIn
         ? await getGoogleAuthorizeLoginUrl()
         : await getGoogleAuthorizeSignupUrl();
       router.push(authorization_url);
     } catch {
+      clearPendingCallbackUrl();
       toast({
         variant: 'destructive',
         title: isSignIn ? '登入失敗' : '註冊失敗',

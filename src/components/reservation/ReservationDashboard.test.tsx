@@ -29,14 +29,19 @@ vi.mock('@/hooks/user/reservation/useReservationData', () => ({
 
 // Mock ReservationList to isolate the dashboard test
 vi.mock('@/components/reservation/ReservationList', () => ({
-  ReservationList: vi.fn(({ items, variant, sourceRole, onLoadMore }) => (
-    <div data-testid={`reservation-list-${variant}-${sourceRole}`}>
-      Mock List: {items.length} items
-      <button data-testid={`load-more-${variant}`} onClick={onLoadMore}>
-        Load More
-      </button>
-    </div>
-  )),
+  ReservationList: vi.fn(
+    ({ items, variant, sourceRole, onLoadMore, highlightedReservationId }) => (
+      <div
+        data-testid={`reservation-list-${variant}-${sourceRole}`}
+        data-highlighted-id={highlightedReservationId ?? ''}
+      >
+        Mock List: {items.length} items
+        <button data-testid={`load-more-${variant}`} onClick={onLoadMore}>
+          Load More
+        </button>
+      </div>
+    )
+  ),
 }));
 
 // Mock the Skeleton to make it easily assertable
@@ -409,5 +414,24 @@ describe('ReservationDashboard', () => {
       'trigger-upcoming-mentor',
       'trigger-history',
     ]);
+  });
+
+  it('activates History tab and passes highlightedReservationId when reservation_id query param is present (#734)', () => {
+    mockGet.mockImplementation((key: string) =>
+      key === 'reservation_id' ? '501' : null
+    );
+    vi.mocked(useReservationData).mockReturnValue(
+      fromPartial(baseHookReturnValue)
+    );
+
+    render(<ReservationDashboard userRole="mentor" />);
+
+    expect(screen.getByTestId('tabs')).toHaveAttribute(
+      'data-default-value',
+      'history'
+    );
+    expect(
+      screen.getByTestId('reservation-list-history-mentor')
+    ).toHaveAttribute('data-highlighted-id', '501');
   });
 });

@@ -1,3 +1,5 @@
+'use client';
+
 import { AlertCircle, CalendarDays, Clock } from 'lucide-react';
 import * as React from 'react';
 
@@ -6,6 +8,7 @@ import { ReservationIdentityHeader } from '@/components/reservation/ReservationI
 import { ReservationMessagePreview } from '@/components/reservation/ReservationMessagePreview';
 import { Card, CardContent } from '@/components/ui/card';
 import { useReservationMeetLink } from '@/hooks/user/reservation/useReservationMeetLink';
+import { cn } from '@/lib/utils';
 import type { Reservation } from '@/types/reservation';
 
 export type ReservationCardVariant = 'upcoming' | 'pending' | 'history';
@@ -22,6 +25,7 @@ export function ReservationCard({
   variant,
   myUserId,
   sourceRole,
+  isHighlighted = false,
 }: {
   item: Reservation;
   // Optional slot rendered in the top-right header next to the name (e.g. History 填寫回饋 button or status badge).
@@ -44,13 +48,38 @@ export function ReservationCard({
   // conversation" analytics - ReservationList always passes this explicitly
   // for both its mentor and mentee surfaces.
   sourceRole: 'mentor' | 'mentee';
+  // Highlights and scrolls to the card when deep-linked via reservation_id (#734).
+  isHighlighted?: boolean;
 }) {
   const isUpcoming = variant === 'upcoming';
   const isHistory = variant === 'history';
+  const cardRef = React.useRef<HTMLDivElement>(null);
+  const hasScrolledRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!isHighlighted) {
+      hasScrolledRef.current = false;
+      return;
+    }
+    if (
+      !hasScrolledRef.current &&
+      typeof cardRef.current?.scrollIntoView === 'function'
+    ) {
+      hasScrolledRef.current = true;
+      cardRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [isHighlighted]);
 
   return (
     <Card
-      className="border-background-border/40 transition-shadow hover:shadow-sm"
+      ref={cardRef}
+      id={`reservation-card-${item.id}`}
+      data-reservation-id={String(item.id)}
+      data-highlighted={isHighlighted ? 'true' : undefined}
+      className={cn(
+        'border-background-border/40 transition-shadow hover:shadow-sm',
+        isHighlighted && 'border-brand-500 ring-brand-500/30 ring-2'
+      )}
       data-testid="reservation-card"
     >
       <CardContent className="p-3 sm:p-4">

@@ -126,3 +126,20 @@ export const LongText: Story = {
     ],
   },
 };
+
+export const FeedbackReceivedNotification: Story = {
+  args: {
+    initialStatus: 'success',
+    initialNotifications: [
+      {
+        id: 'feedback-received-1',
+        type: 'reservation_feedback_received',
+        role: 'mentor',
+        menteeName: '王小明',
+        reservationId: '501',
+        createdAt: new Date(Date.now() - 300 * 1000).toISOString(),
+        unread: true,
+      },
+    ],
+  },
+};

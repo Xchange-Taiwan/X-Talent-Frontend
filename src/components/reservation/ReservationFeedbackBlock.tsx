@@ -1,9 +1,46 @@
-import { AlertCircle, Star } from 'lucide-react';
+'use client';
+
+import { ChevronDown, ChevronUp, Star } from 'lucide-react';
 import * as React from 'react';
 
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { FEEDBACK_FORM_URL } from '@/constant/externalLinks';
 import type { HistoryFeedbackBlockModel } from '@/lib/reservation/resolveHistoryFeedbackState';
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
+import { cn } from '@/lib/utils';
+
+export interface UnpublicizedNoticeToggleProps {
+  expanded: boolean;
+  onToggle: () => void;
+  controlsId?: string;
+}
+
+export function UnpublicizedNoticeToggleButton({
+  expanded,
+  onToggle,
+  controlsId,
+}: UnpublicizedNoticeToggleProps) {
+  const label = expanded ? '收合評價未公開說明' : '展開評價未公開說明';
+  const Icon = expanded ? ChevronUp : ChevronDown;
+
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={expanded}
+      aria-controls={controlsId}
+      aria-label={label}
+      title={label}
+      className={cn(
+        'border-background-border/60 bg-background-bottom text-text-secondary hover:bg-background-hover inline-flex size-7 shrink-0 items-center justify-center rounded-lg border transition-colors',
+        FOCUS_RING_CLASSES
+      )}
+    >
+      <Icon className="size-3.5" aria-hidden="true" />
+    </button>
+  );
+}
 
 export interface ReservationFeedbackBlockProps {
   model: HistoryFeedbackBlockModel;
@@ -13,6 +50,16 @@ export interface ReservationFeedbackBlockProps {
    */
   editAction?: React.ReactNode;
   onEdit?: () => void;
+  /**
+   * Controlled expand/collapse state for the unpublicized feedback notice (#734).
+   * When `onToggleNotice` is provided by the parent card header, the amber
+   * `評價未公開` badge and chevron toggle live in the card header slot; when
+   * omitted (standalone rendering), they render inline in this block's header.
+   */
+  isNoticeExpanded?: boolean;
+  defaultNoticeExpanded?: boolean;
+  onToggleNotice?: () => void;
+  noticeId?: string;
 }
 
 const FEEDBACK_LINK_LABEL = '回饋表單';
@@ -46,7 +93,22 @@ export function ReservationFeedbackBlock({
   model,
   editAction,
   onEdit,
+  isNoticeExpanded,
+  defaultNoticeExpanded = true,
+  onToggleNotice,
+  noticeId,
 }: ReservationFeedbackBlockProps) {
+  const generatedNoticeId = React.useId();
+  const resolvedNoticeId = noticeId ?? generatedNoticeId;
+  const [internalExpanded, setInternalExpanded] = React.useState(
+    defaultNoticeExpanded
+  );
+
+  const expanded = isNoticeExpanded ?? internalExpanded;
+  const handleToggleNotice =
+    onToggleNotice ?? (() => setInternalExpanded((prev) => !prev));
+  const showInlineUnpublicizedHeader = !onToggleNotice;
+
   const editControl = model.canEdit
     ? (editAction ?? (
         <Button
@@ -65,39 +127,60 @@ export function ReservationFeedbackBlock({
     return (
       <div
         data-testid="reservation-feedback-unpublicized"
-        className="border-background-border bg-background-bottom mt-3 space-y-2 rounded-xl border p-3 sm:p-3.5"
+        className="mt-3 space-y-2.5"
       >
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-text-secondary text-xs font-medium">
-            我的評價
-          </span>
-          <div className="flex items-center gap-2.5">
-            <span className="text-text-secondary inline-flex items-center gap-1 text-xs font-semibold tabular-nums sm:text-sm">
-              <Star
-                className="fill-text-tertiary text-text-tertiary size-3.5"
-                aria-hidden="true"
-              />
-              <span>{model.rating} / 10</span>
-            </span>
-            {editControl}
+        {expanded ? (
+          <div
+            id={resolvedNoticeId}
+            role="note"
+            data-testid="unpublicized-feedback-notice"
+            className="border-status-warning-default/40 bg-status-warning-active/15 space-y-1 rounded-xl border p-3 sm:p-3.5"
+          >
+            <p className="text-text-primary text-xs font-semibold sm:text-sm">
+              評價未公開
+            </p>
+            <p className="text-text-secondary text-xs leading-relaxed sm:text-sm">
+              {renderNoticeWithFeedbackLink(model.notice)}
+            </p>
           </div>
-        </div>
-
-        {model.content ? (
-          <p className="text-text-secondary text-xs leading-relaxed whitespace-pre-line sm:text-sm">
-            {model.content}
-          </p>
         ) : null}
 
-        <div
-          role="note"
-          className="border-background-border bg-background-white text-text-secondary flex items-start gap-2 rounded-lg border p-2.5 text-xs leading-relaxed"
-        >
-          <AlertCircle
-            className="text-text-tertiary mt-0.5 size-4 shrink-0"
-            aria-hidden="true"
-          />
-          <p>{renderNoticeWithFeedbackLink(model.notice)}</p>
+        <div className="border-background-border bg-background-bottom space-y-2 rounded-xl border p-3 sm:p-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-text-secondary text-xs font-medium">
+                我的評價
+              </span>
+              {showInlineUnpublicizedHeader ? (
+                <div className="flex items-center gap-1.5">
+                  <Badge variant="warning" role="status">
+                    評價未公開
+                  </Badge>
+                  <UnpublicizedNoticeToggleButton
+                    expanded={expanded}
+                    onToggle={handleToggleNotice}
+                    controlsId={resolvedNoticeId}
+                  />
+                </div>
+              ) : null}
+            </div>
+            <div className="flex items-center gap-2.5">
+              <span className="text-text-secondary inline-flex items-center gap-1 text-xs font-semibold tabular-nums sm:text-sm">
+                <Star
+                  className="fill-text-tertiary text-text-tertiary size-3.5"
+                  aria-hidden="true"
+                />
+                <span>{model.rating} / 10</span>
+              </span>
+              {editControl}
+            </div>
+          </div>
+
+          {model.content ? (
+            <p className="text-text-secondary text-xs leading-relaxed whitespace-pre-line sm:text-sm">
+              {model.content}
+            </p>
+          ) : null}
         </div>
       </div>
     );

@@ -224,6 +224,15 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
       ])
     );
 
+    expect(
+      notificationBellStories.FeedbackReceivedNotification.args
+        ?.initialNotifications?.[0]
+    ).toMatchObject({
+      type: 'reservation_feedback_received',
+      menteeName: '王小明',
+      reservationId: '501',
+    });
+
     expect(announcementBannerStories.ActiveMaintenanceNotice).toBeDefined();
     expect(guestActionButtonsStories.ConfirmedGuest).toBeDefined();
     render(
@@ -327,12 +336,19 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
     expect(
       reservationFeedbackBlockStories.MenteeUnpublicizedRating
     ).toBeDefined();
+    expect(
+      reservationFeedbackBlockStories.MenteeUnpublicizedRatingCollapsed
+    ).toBeDefined();
 
     expect(reservationCardStories.HistoryMenteeNeedsFeedback).toBeDefined();
     expect(reservationCardStories.HistoryMenteeRatedPublic).toBeDefined();
     expect(reservationCardStories.HistoryMenteeRatedUnpublicized).toBeDefined();
     expect(reservationCardStories.HistoryMenteeNotHappened).toBeDefined();
+    expect(
+      reservationCardStories.HistoryMentorFeedbackHighlighted
+    ).toBeDefined();
     expect(reservationListStories.MenteeHistoryFeedbackStates).toBeDefined();
+    expect(reservationListStories.MentorHistoryHighlightedCard).toBeDefined();
 
     render(
       <ReservationFeedbackBlock

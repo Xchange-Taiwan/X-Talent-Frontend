@@ -459,4 +459,32 @@ describe('ReservationCard', () => {
     expect(mobileSpan).toBeInTheDocument();
     expect(mobileSpan?.textContent).toBe('加入會議');
   });
+
+  it('marks card as highlighted and scrolls into view when isHighlighted is true (#734)', () => {
+    const originalScrollIntoView = Element.prototype.scrollIntoView;
+    const scrollIntoViewMock = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+    try {
+      render(
+        <ReservationCard
+          item={{ ...mockReservation, id: '501' }}
+          variant="history"
+          sourceRole="mentor"
+          isHighlighted={true}
+        />
+      );
+
+      const card = screen.getByTestId('reservation-card');
+      expect(card).toHaveAttribute('id', 'reservation-card-501');
+      expect(card).toHaveAttribute('data-reservation-id', '501');
+      expect(card).toHaveAttribute('data-highlighted', 'true');
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    } finally {
+      Element.prototype.scrollIntoView = originalScrollIntoView;
+    }
+  });
 });

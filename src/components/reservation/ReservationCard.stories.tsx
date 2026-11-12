@@ -291,7 +291,7 @@ export const HistoryMenteeRatedUnpublicized: Story = {
       },
     },
     headerAction: (
-      <Badge variant="secondary" role="status">
+      <Badge variant="warning" role="status">
         評價未公開
       </Badge>
     ),
@@ -304,6 +304,8 @@ export const HistoryMenteeRatedUnpublicized: Story = {
           notice: UNPUBLICIZED_FEEDBACK_NOTICE,
           canEdit: true,
         }}
+        isNoticeExpanded={true}
+        onToggleNotice={() => {}}
         editAction={
           <MeetingFeedbackDialog
             mode="edit"
@@ -347,6 +349,49 @@ export const HistoryMenteeNotHappened: Story = {
       <Badge variant="secondary" role="status">
         未進行
       </Badge>
+    ),
+  },
+};
+
+// 10. Mentor History - Highlighted Feedback Card from Notification / session_link (#734)
+export const HistoryMentorFeedbackHighlighted: Story = {
+  args: {
+    variant: 'history',
+    sourceRole: 'mentor',
+    isHighlighted: true,
+    item: {
+      ...mockReservation,
+      id: '501',
+      name: '王小明',
+      roleLine: 'Junior Product Designer • 1–3 年工作經驗',
+      feedback: {
+        meetingHappened: true,
+        rating: {
+          rating: 10,
+          content: '非常感謝導師提供具體清晰的作品集調整方向！',
+          createdAt: 1760000000,
+          updatedAt: 1760000000,
+          authorName: '王＊明',
+          isPublic: true,
+        },
+        nextStep: null,
+      },
+    },
+    headerAction: (
+      <Badge variant="secondary" role="status">
+        已結束
+      </Badge>
+    ),
+    feedbackContent: (
+      <ReservationFeedbackBlock
+        model={{
+          kind: 'public-rating',
+          label: '學員評價',
+          rating: 10,
+          content: '非常感謝導師提供具體清晰的作品集調整方向！',
+          canEdit: false,
+        }}
+      />
     ),
   },
 };

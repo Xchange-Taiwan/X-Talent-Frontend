@@ -46,5 +46,19 @@ export const MenteeUnpublicizedRating: Story = {
       notice: UNPUBLICIZED_FEEDBACK_NOTICE,
       canEdit: true,
     },
+    defaultNoticeExpanded: true,
+  },
+};
+
+export const MenteeUnpublicizedRatingCollapsed: Story = {
+  args: {
+    model: {
+      kind: 'unpublicized',
+      rating: 8,
+      content: '感謝導師分享職涯規劃建議。',
+      notice: UNPUBLICIZED_FEEDBACK_NOTICE,
+      canEdit: true,
+    },
+    defaultNoticeExpanded: false,
   },
 };

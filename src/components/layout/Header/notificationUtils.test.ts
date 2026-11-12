@@ -205,4 +205,44 @@ describe('notificationUtils', () => {
       '/reservation/mentor?tab=history'
     );
   });
+
+  it('formats reservation_feedback_received copy and routes to Mentor History with reservation_id or sessionLink (#734)', () => {
+    const withReservationId = buildItem({
+      type: 'reservation_feedback_received',
+      role: 'mentor',
+      menteeName: '王小明',
+      reservationId: '501',
+    });
+
+    expect(getNotificationContent(withReservationId)).toEqual({
+      title: '您收到新的回饋',
+      body: '王小明 為您留下了一則會談回饋，前往查看。',
+    });
+    expect(getNotificationHref(withReservationId)).toBe(
+      '/reservation/mentor?tab=history&reservation_id=501'
+    );
+
+    const withSessionLink = buildItem({
+      type: 'reservation_feedback_received',
+      role: 'mentor',
+      menteeName: '林小華',
+      reservationId: '602',
+      sessionLink: '/reservation/mentor?tab=history&reservation_id=602',
+    });
+    expect(getNotificationHref(withSessionLink)).toBe(
+      '/reservation/mentor?tab=history&reservation_id=602'
+    );
+
+    const withoutReservationId = buildItem({
+      type: 'reservation_feedback_received',
+      role: 'mentor',
+    });
+    expect(getNotificationContent(withoutReservationId)).toEqual({
+      title: '您收到新的回饋',
+      body: '學員 為您留下了一則會談回饋，前往查看。',
+    });
+    expect(getNotificationHref(withoutReservationId)).toBe(
+      '/reservation/mentor?tab=history'
+    );
+  });
 });

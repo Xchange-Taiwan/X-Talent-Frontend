@@ -18,6 +18,20 @@ function getMentorContext(item: NotificationItem): boolean {
   );
 }
 
+function buildMentorHistoryHref(item: NotificationItem): string {
+  if (
+    item.sessionLink &&
+    item.sessionLink.startsWith('/reservation') &&
+    !item.sessionLink.startsWith('//')
+  ) {
+    return item.sessionLink;
+  }
+  if (item.reservationId) {
+    return `/reservation/mentor?tab=history&reservation_id=${encodeURIComponent(item.reservationId)}`;
+  }
+  return '/reservation/mentor?tab=history';
+}
+
 /**
  * Single source of truth for how each notification `type` renders (title,
  * body) and where it links to (href). Keeping both concerns keyed by the
@@ -93,6 +107,13 @@ const NOTIFICATION_CONFIG: Record<
       isMentorContext
         ? '/reservation/mentor?tab=upcoming'
         : '/reservation/mentee?tab=upcoming',
+  },
+  reservation_feedback_received: {
+    getContent: (item) => ({
+      title: '您收到新的回饋',
+      body: `${item.menteeName || '學員'} 為您留下了一則會談回饋，前往查看。`,
+    }),
+    getHref: (item) => buildMentorHistoryHref(item),
   },
 };
 

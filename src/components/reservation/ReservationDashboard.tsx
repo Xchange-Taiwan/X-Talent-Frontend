@@ -139,7 +139,15 @@ export function ReservationDashboardView({
   const pathname = usePathname();
 
   const tabParam = searchParams.get('tab');
-  const activeTab = (tabParam && TAB_MAPPING[tabParam]) || pendingTabValue;
+  const rawHighlightedId =
+    searchParams.get('reservation_id') ?? searchParams.get('reservationId');
+  const highlightedReservationId =
+    rawHighlightedId && rawHighlightedId.trim() !== ''
+      ? rawHighlightedId.trim()
+      : undefined;
+  const activeTab =
+    (tabParam && TAB_MAPPING[tabParam]) ||
+    (highlightedReservationId ? 'history' : pendingTabValue);
 
   const lastCountsRef = useRef<{
     role: ReservationRole;
@@ -220,6 +228,10 @@ export function ReservationDashboardView({
     const paramValue = URL_PARAM_MAPPING[value];
     if (paramValue) {
       params.set('tab', paramValue);
+    }
+    if (value !== 'history') {
+      params.delete('reservation_id');
+      params.delete('reservationId');
     }
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
@@ -324,6 +336,7 @@ export function ReservationDashboardView({
                     hasMore={nextTokens.history !== 0}
                     onLoadMore={onLoadMoreHistory}
                     isLoadingMore={loadingMoreStates.history}
+                    highlightedReservationId={highlightedReservationId}
                   />
                 )}
               </TabsContent>

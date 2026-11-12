@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { decode, getToken } from 'next-auth/jwt';
 import { match } from 'path-to-regexp';
 
+import { sanitizeCallbackUrl } from '@/lib/auth/callbackUrl';
 import {
   encodeSessionHint,
   safeDecodeURIComponent,
@@ -178,6 +179,10 @@ export async function middleware(req: NextRequest) {
   // -------- 4. Redirect unauthenticated users away from protected routes --------
   if (!isPublicRoute && !isLoggedIn) {
     const redirectUrl = new URL(DEFAULT_LOGIN, nextUrl);
+    const safeReturnTo = sanitizeCallbackUrl(`${pathname}${nextUrl.search}`);
+    if (safeReturnTo) {
+      redirectUrl.searchParams.set('callbackUrl', safeReturnTo);
+    }
     const response = NextResponse.redirect(redirectUrl);
 
     // Stale cookie would make middleware re-evaluate the same error on every

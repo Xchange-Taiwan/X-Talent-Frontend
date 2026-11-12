@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -155,6 +156,7 @@ vi.mock('./ReservationCard', () => ({
     footer,
     item,
     profileHref,
+    isHighlighted,
   }: {
     headerAction?: React.ReactNode;
     feedbackContent?: React.ReactNode;
@@ -162,10 +164,12 @@ vi.mock('./ReservationCard', () => ({
     footer?: React.ReactNode;
     item: { id: string; name: string };
     profileHref?: string;
+    isHighlighted?: boolean;
   }) => (
     <div
       data-testid={`reservation-card-${item.id}`}
       data-profile-href={profileHref}
+      data-highlighted={isHighlighted ? 'true' : undefined}
     >
       <div data-testid={`header-action-${item.id}`}>{headerAction}</div>
       {item.name}
@@ -509,7 +513,14 @@ describe('ReservationList', () => {
       expect(screen.getByText('公開好評內容')).toBeInTheDocument();
       expect(screen.queryByText('尚未公開')).not.toBeInTheDocument();
 
-      expect(screen.getByText('評價未公開')).toBeInTheDocument();
+      expect(
+        screen.getAllByRole('status').map((el) => el.textContent)
+      ).toContain('評價未公開');
+      expect(
+        within(screen.getByTestId('unpublicized-feedback-notice')).getByText(
+          '評價未公開'
+        )
+      ).toBeInTheDocument();
       expect(
         screen.getByTestId('reservation-feedback-unpublicized').textContent
       ).toContain(
@@ -558,6 +569,122 @@ describe('ReservationList', () => {
       ).not.toBeInTheDocument();
       expect(
         screen.queryByRole('button', { name: /刪除/ })
+      ).not.toBeInTheDocument();
+    });
+
+    it('toggles unpublicized explanation notice from card header while preserving Mentee rating, comment, and 編輯 button (#734)', () => {
+      render(
+        <ReservationList
+          items={[
+            {
+              ...mockReservation,
+              id: 'hist-unlisted-toggle',
+              name: 'Zahra Mirzakhani',
+              feedback: {
+                meetingHappened: false,
+                rating: {
+                  rating: 8,
+                  content: '未公開評論仍對學員本人顯示',
+                  createdAt: 1760000000,
+                  updatedAt: 1760000000,
+                  authorName: '王＊明',
+                  isPublic: false,
+                },
+                nextStep: null,
+              },
+            },
+          ]}
+          variant="history"
+          sourceRole="mentee"
+          myUserId="user-123"
+        />
+      );
+
+      expect(screen.getByRole('status')).toHaveTextContent('評價未公開');
+      expect(
+        screen.getByTestId('unpublicized-feedback-notice')
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('link', { name: '回饋表單' })
+      ).toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getByRole('button', { name: '收合評價未公開說明' })
+      );
+
+      expect(
+        screen.queryByTestId('unpublicized-feedback-notice')
+      ).not.toBeInTheDocument();
+      expect(screen.getByText('8 / 10')).toBeInTheDocument();
+      expect(
+        screen.getByText('未公開評論仍對學員本人顯示')
+      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '編輯' })).toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getByRole('button', { name: '展開評價未公開說明' })
+      );
+      expect(
+        screen.getByTestId('unpublicized-feedback-notice')
+      ).toBeInTheDocument();
+    });
+
+    it('highlights targeted reservation_id card on Mentor History and hides unpublicized mentee ratings (#734)', () => {
+      render(
+        <ReservationList
+          items={[
+            {
+              ...mockReservation,
+              id: '501',
+              name: '王小明',
+              feedback: {
+                meetingHappened: true,
+                rating: {
+                  rating: 10,
+                  content: '公開學員評價內容',
+                  createdAt: 1760000000,
+                  updatedAt: 1760000000,
+                  authorName: '王＊明',
+                  isPublic: true,
+                },
+                nextStep: null,
+              },
+            },
+            {
+              ...mockReservation,
+              id: '502',
+              name: '林小華',
+              feedback: {
+                meetingHappened: null,
+                rating: {
+                  rating: 6,
+                  content: '已被下架的未公開評論',
+                  createdAt: 1760000000,
+                  updatedAt: 1760000000,
+                  authorName: '林＊華',
+                  isPublic: false,
+                },
+                nextStep: null,
+              },
+            },
+          ]}
+          variant="history"
+          sourceRole="mentor"
+          myUserId="mentor-99"
+          highlightedReservationId="501"
+        />
+      );
+
+      expect(screen.getByTestId('reservation-card-501')).toHaveAttribute(
+        'data-highlighted',
+        'true'
+      );
+      expect(screen.getByTestId('reservation-card-502')).not.toHaveAttribute(
+        'data-highlighted'
+      );
+      expect(screen.getByText('公開學員評價內容')).toBeInTheDocument();
+      expect(
+        screen.queryByText('已被下架的未公開評論')
       ).not.toBeInTheDocument();
     });
   });

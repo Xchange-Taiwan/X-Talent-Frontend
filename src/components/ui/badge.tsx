@@ -13,6 +13,8 @@ const badgeVariants = cva(
           'border-transparent bg-brand-500 text-text-primary hover:bg-brand-500/80',
         secondary:
           'border-transparent bg-background-bottom text-text-primary hover:bg-background-bottom/80',
+        warning:
+          'border-status-warning-default/30 bg-status-warning-active/20 text-status-info-default hover:bg-status-warning-active/30',
         destructive:
           'border-transparent bg-status-error-default text-text-white hover:bg-status-error-default/80',
         outline: 'text-text-primary',
@@ -39,7 +41,13 @@ export interface BadgeProps
    * @default 'default'
    */
   variant?:
-    'default' | 'secondary' | 'destructive' | 'outline' | 'filter' | null;
+    | 'default'
+    | 'secondary'
+    | 'warning'
+    | 'destructive'
+    | 'outline'
+    | 'filter'
+    | null;
 }
 
 /**

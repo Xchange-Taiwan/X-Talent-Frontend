@@ -1336,5 +1336,38 @@ describe('NotificationBell', () => {
 
       listSpy.mockRestore();
     });
+
+    it('renders reservation_feedback_received notification copy and links to Mentor History reservation_id (#734)', async () => {
+      render(
+        <NotificationBell
+          userId="mentor-734"
+          initialStatus="success"
+          initialNotifications={[
+            {
+              id: 'fb-734',
+              type: 'reservation_feedback_received',
+              role: 'mentor',
+              menteeName: '王小明',
+              reservationId: '501',
+              createdAt: new Date().toISOString(),
+              unread: true,
+            },
+          ]}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: '開啟通知選單' }));
+
+      expect(await screen.findByText('您收到新的回饋')).toBeInTheDocument();
+      expect(
+        screen.getByText('王小明 為您留下了一則會談回饋，前往查看。')
+      ).toBeInTheDocument();
+
+      const link = screen.getByRole('link', { name: /您收到新的回饋/ });
+      expect(link).toHaveAttribute(
+        'href',
+        '/reservation/mentor?tab=history&reservation_id=501'
+      );
+    });
   });
 });

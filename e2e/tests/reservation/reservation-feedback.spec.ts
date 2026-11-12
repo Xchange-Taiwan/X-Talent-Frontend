@@ -256,8 +256,6 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
       notHappenedCard.getByRole('button', { name: '編輯' })
     ).toHaveCount(0);
     await expect(page.getByRole('button', { name: /刪除/ })).toHaveCount(0);
-
-    await captureEvidence(page, 'mentee-history-feedback-card-states');
   });
 
   test('有進行評分流程：十顆星評分（預設 10 分）、姓名遮罩提示與字數計數、送出失敗保留內容並由 Toast 回到評論重試成功', async ({
@@ -342,9 +340,6 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
 
     const dialog = page.getByRole('dialog');
     await expect(dialog.getByText('會談是否有進行？')).toBeVisible();
-    await captureEvidence(page, 'meeting-feedback-dialog-step1-attendance', {
-      waitForSelector: '[role="dialog"]',
-    });
 
     await dialog.locator('label').filter({ hasText: /^是$/ }).click();
     await dialog.getByRole('button', { name: '下一步' }).click();
@@ -385,16 +380,11 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
       `${commentText.length} / 1000`
     );
 
-    await captureEvidence(page, 'meeting-feedback-dialog-step2-rating-stars', {
-      waitForSelector: '[role="dialog"]',
-    });
-
     // First attempt fails -> dialog closes, failure toast shows "送出失敗，回到評論重新送出"
     await dialog.getByRole('button', { name: '送出' }).click();
 
     const reopenButton = page.getByRole('button', { name: '評論' });
     await expect(reopenButton).toBeVisible();
-    await captureEvidence(page, 'meeting-feedback-submit-failure-toast');
 
     // Click "評論" to reopen dialog with preserved rating (9) & comment
     await reopenButton.click();
@@ -418,7 +408,6 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
       .filter({ hasText: 'Emily Chen' });
     await expect(updatedCard.getByRole('status')).toHaveText('已填寫');
     await expect(updatedCard.getByText('9 / 10')).toBeVisible();
-    await captureEvidence(page, 'meeting-feedback-submit-success');
 
     expect(capturedBodies).toEqual([
       {
@@ -505,9 +494,6 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
     await expect(dialog.getByText(/誰沒有進行/)).toHaveCount(0);
 
     await dialog.locator('label').filter({ hasText: '未出席' }).click();
-    await captureEvidence(page, 'meeting-feedback-dialog-step2-not-happened', {
-      waitForSelector: '[role="dialog"]',
-    });
 
     await dialog.getByRole('button', { name: '送出' }).click();
 
@@ -603,8 +589,6 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
     ).toBeVisible();
     await expect(page.getByRole('button', { name: '編輯' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /刪除/ })).toHaveCount(0);
-
-    await captureEvidence(page, 'mentor-history-public-feedback-card');
   });
 
   test('Mentee 永久不限次數編輯回饋 (#731)：跳過出席題並預填舊值、取消還原舊值、PUT 失敗保留草稿重試、無限次儲存更新且維持原 is_public 與排序', async ({
@@ -790,10 +774,6 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
       '準備得非常充分，直接給了我下一步該做什麼。'
     );
 
-    await captureEvidence(page, 'meeting-feedback-edit-dialog-prefilled', {
-      waitForSelector: '[role="dialog"]',
-    });
-
     // 2. Manual cancel restores saved values (7 / 10 & original comment) instead of resetting to 10
     await starGroup.getByRole('radio', { name: '4 分' }).click();
     await commentField.fill('暫時修改但點擊取消不儲存');
@@ -862,8 +842,6 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
     await expect(allCards.nth(1)).toContainText('林佳穎');
     await expect(allCards.nth(2)).toContainText('蘇元貞');
 
-    await captureEvidence(page, 'meeting-feedback-edit-updated-cards');
-
     expect(capturedPutRequests).toEqual([
       {
         reservationId: 501,
@@ -886,5 +864,383 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄卡片狀態與版面交�
         body: { rating: 6, content: '更新後的未公開回饋內容。' },
       },
     ]);
+  });
+});
+
+test.describe('收到新的回饋站內通知導向與評價未公開狀態 (#734)', () => {
+  function makeMentorHistoryItems() {
+    return [
+      {
+        id: 701,
+        sender: {
+          user_id: 50,
+          role: 'MENTEE',
+          status: 'ACCEPT',
+          name: '王小明',
+          avatar: '',
+          job_title: 'Junior Product Designer',
+          years_of_experience: 'ONE_TO_THREE',
+        },
+        participant: {
+          user_id: Number(USER_ID),
+          role: 'MENTOR',
+          status: 'ACCEPT',
+          name: 'Emily Chen',
+          avatar: '',
+          job_title: 'Senior UI/UX Designer',
+          years_of_experience: 'FIVE_TO_TEN',
+        },
+        schedule_id: 701,
+        dtstart: 1760958000,
+        dtend: 1760959800,
+        previous_reserve: null,
+        messages: [
+          {
+            id: 7011,
+            user_id: 50,
+            role: 'MENTEE',
+            content: '想請教作品集呈現與設計決策脈絡整理。',
+          },
+        ],
+        feedback: {
+          meeting_happened: true,
+          rating: {
+            rating: 10,
+            content: '導師給了非常具體且能立即執行的建議！',
+            created_at: 1760960000,
+            updated_at: 1760960000,
+            author_name: '王＊明',
+            is_public: true,
+          },
+          next_step: null,
+        },
+      },
+      {
+        id: 702,
+        sender: {
+          user_id: 51,
+          role: 'MENTEE',
+          status: 'ACCEPT',
+          name: '林小華',
+          avatar: '',
+          job_title: '前端工程師',
+          years_of_experience: 'ONE_TO_THREE',
+        },
+        participant: {
+          user_id: Number(USER_ID),
+          role: 'MENTOR',
+          status: 'ACCEPT',
+          name: 'Emily Chen',
+          avatar: '',
+          job_title: 'Senior UI/UX Designer',
+          years_of_experience: 'FIVE_TO_TEN',
+        },
+        schedule_id: 702,
+        dtstart: 1760871600,
+        dtend: 1760873400,
+        previous_reserve: null,
+        messages: [],
+        feedback: {
+          meeting_happened: null,
+          rating: {
+            rating: 7,
+            content: '這則未公開評價不應在導師歷史紀錄顯示。',
+            created_at: 1760874000,
+            updated_at: 1760874000,
+            author_name: '林＊華',
+            is_public: false,
+          },
+          next_step: null,
+        },
+      },
+    ];
+  }
+
+  test('Mentor 點擊「您收到新的回饋」站內通知 → 導向擔任導師歷史紀錄並定位高亮該場 reservation_id 卡片，且不顯示未公開評價', async ({
+    page,
+  }) => {
+    const mentorSession = makeMentorSession();
+    await setSignedSessionCookie(page, {
+      ...mentorSession.user,
+      token: 'mock-access-token',
+    });
+    await page.route(/\/api\/auth\/session/, (route) => {
+      if (route.request().method() === 'GET') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(mentorSession),
+        });
+      }
+      return route.continue();
+    });
+
+    await page.route(/\/v1\/users\/.*\/notifications\/unread-count/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: '0',
+          msg: 'ok',
+          data: { unread_count: 1 },
+        }),
+      })
+    );
+
+    await page.route(/\/v1\/users\/.*\/notifications\/901\/read/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: '0', msg: 'ok', data: {} }),
+      })
+    );
+
+    await page.route(/\/v1\/users\/.*\/notifications(\?|$)/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: '0',
+          msg: 'ok',
+          data: {
+            notifications: [
+              {
+                id: 901,
+                type: 'reservation_feedback_received',
+                read_at: null,
+                created_at: Math.floor(Date.now() / 1000) - 120,
+                metadata: {
+                  role: 'mentor',
+                  counterparty_name: '王小明',
+                  reservation_id: 701,
+                },
+              },
+            ],
+            next_cursor: null,
+          },
+        }),
+      })
+    );
+
+    await page.route(
+      new RegExp(`/v1/users/${USER_ID}/reservations([?]|$)`),
+      (route) => {
+        const url = new URL(route.request().url());
+        const state = url.searchParams.get('state');
+        const list = state === 'MENTOR_HISTORY' ? makeMentorHistoryItems() : [];
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(makeReservationResponse(list)),
+        });
+      }
+    );
+
+    await page.goto('/');
+
+    const bell = page.getByRole('button', { name: '開啟通知選單' });
+    await expect(bell).toBeVisible();
+    await bell.click();
+
+    await expect(page.getByText('您收到新的回饋')).toBeVisible();
+    await expect(
+      page.getByText('王小明 為您留下了一則會談回饋，前往查看。')
+    ).toBeVisible();
+
+    await page.mouse.move(0, 0);
+    await captureEvidence(
+      page,
+      'mentor-feedback-received-notification-popover',
+      {
+        waitForSelector: 'a[href*="reservation_id=701"]',
+        settleDelayMs: 350,
+      }
+    );
+
+    await page.getByRole('link', { name: /您收到新的回饋/ }).click();
+
+    await expect(page).toHaveURL(
+      '/reservation/mentor?tab=history&reservation_id=701',
+      { timeout: 15_000 }
+    );
+
+    const highlightedCard = page
+      .getByTestId('reservation-card')
+      .filter({ hasText: '王小明' });
+    await expect(highlightedCard).toBeVisible();
+    await expect(highlightedCard).toHaveAttribute('data-highlighted', 'true');
+    await expect(highlightedCard.getByText('學員評價')).toBeVisible();
+    await expect(highlightedCard.getByText('10 / 10')).toBeVisible();
+    await expect(
+      highlightedCard.getByText('導師給了非常具體且能立即執行的建議！')
+    ).toBeVisible();
+
+    const delistedCard = page
+      .getByTestId('reservation-card')
+      .filter({ hasText: '林小華' });
+    await expect(delistedCard).toBeVisible();
+    await expect(delistedCard).not.toHaveAttribute('data-highlighted', 'true');
+    await expect(
+      page.getByText('這則未公開評價不應在導師歷史紀錄顯示。')
+    ).toHaveCount(0);
+
+    await page.mouse.move(0, 0);
+    await captureEvidence(page, 'mentor-history-feedback-highlighted-card', {
+      waitForSelector: '[data-highlighted="true"]',
+      settleDelayMs: 400,
+    });
+  });
+
+  test('未登入造訪 session_link → 重導向 /auth/signin 保留 callbackUrl，登入成功後自動導回 Mentor 歷史紀錄並高亮目標卡片', async ({
+    page,
+  }) => {
+    await page.goto('/reservation/mentor?tab=history&reservation_id=701');
+
+    await expect(page).toHaveURL(
+      /\/auth\/signin\?callbackUrl=%2Freservation%2Fmentor%3Ftab%3Dhistory%26reservation_id%3D701/,
+      { timeout: 15_000 }
+    );
+    await expect(page.getByText('登入 X-Talent 帳戶')).toBeVisible();
+
+    const mentorSession = makeMentorSession();
+    await setSignedSessionCookie(page, {
+      ...mentorSession.user,
+      token: 'mock-access-token',
+    });
+
+    await page.route(/\/api\/auth\/session/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mentorSession),
+      })
+    );
+
+    await page.route(/\/api\/auth\/callback\/credentials/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ url: 'http://localhost:3000' }),
+      })
+    );
+
+    await page.route(/\/v1\/users\/.*\/notifications\/unread-count/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: '0',
+          msg: 'ok',
+          data: { unread_count: 0 },
+        }),
+      })
+    );
+
+    await page.route(
+      new RegExp(`/v1/users/${USER_ID}/reservations([?]|$)`),
+      (route) => {
+        const url = new URL(route.request().url());
+        const state = url.searchParams.get('state');
+        const list = state === 'MENTOR_HISTORY' ? makeMentorHistoryItems() : [];
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(makeReservationResponse(list)),
+        });
+      }
+    );
+
+    await page.fill('input[name="email"]', 'mentor@example.com');
+    await page.fill('input[name="password"]', 'Password1234');
+    await page.click('button[type="submit"]');
+
+    await expect(page).toHaveURL(
+      '/reservation/mentor?tab=history&reservation_id=701',
+      { timeout: 15_000 }
+    );
+
+    const highlightedCard = page
+      .getByTestId('reservation-card')
+      .filter({ hasText: '王小明' });
+    await expect(highlightedCard).toBeVisible();
+    await expect(highlightedCard).toHaveAttribute('data-highlighted', 'true');
+  });
+
+  test('Mentee 歷史紀錄 is_public===false 卡片：顯示琥珀色「評價未公開」標籤、可展開收合說明（含回饋表單連結），並照常保留評分、評語與編輯按鈕', async ({
+    page,
+  }) => {
+    await setupMenteeAuth(page);
+
+    const historyItems = [
+      makeMenteeHistoryReservation(801, 'Zahra Mirzakhani', {
+        meeting_happened: false,
+        rating: {
+          rating: 8,
+          content: '感謝導師分享職涯規劃建議。',
+          created_at: 1760960000,
+          updated_at: 1760960500,
+          author_name: '王＊明',
+          is_public: false,
+        },
+        next_step: null,
+      }),
+    ];
+
+    await page.route(
+      new RegExp(`/v1/users/${USER_ID}/reservations([?]|$)`),
+      (route) => {
+        const url = new URL(route.request().url());
+        const state = url.searchParams.get('state');
+        const list = state === 'MENTEE_HISTORY' ? historyItems : [];
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(makeReservationResponse(list)),
+        });
+      }
+    );
+
+    await page.goto(`${MENTEE_PAGE_URL}?tab=history`);
+
+    const card = page
+      .getByTestId('reservation-card')
+      .filter({ hasText: 'Zahra Mirzakhani' });
+    await expect(card).toBeVisible();
+    await expect(card.getByRole('status')).toHaveText('評價未公開');
+    const notice = card.getByTestId('unpublicized-feedback-notice');
+    await expect(notice).toBeVisible();
+    await expect(notice.getByText('評價未公開', { exact: true })).toBeVisible();
+    await expect(notice.locator('svg')).toHaveCount(0);
+    await expect(card.getByRole('link', { name: '回饋表單' })).toBeVisible();
+    await expect(card.getByText('8 / 10')).toBeVisible();
+    await expect(card.getByText('感謝導師分享職涯規劃建議。')).toBeVisible();
+    await expect(card.getByRole('button', { name: '編輯' })).toBeVisible();
+
+    await page.mouse.move(0, 0);
+    await captureEvidence(page, 'mentee-unlisted-feedback-expanded', {
+      waitForSelector: '[data-testid="unpublicized-feedback-notice"]',
+      settleDelayMs: 350,
+    });
+
+    // Collapse the explanation notice -> Mentee rating, comment, and 編輯 button remain visible
+    await card.getByRole('button', { name: '收合評價未公開說明' }).click();
+    await expect(card.getByTestId('unpublicized-feedback-notice')).toHaveCount(
+      0
+    );
+    await expect(card.getByRole('status')).toHaveText('評價未公開');
+    await expect(card.getByText('8 / 10')).toBeVisible();
+    await expect(card.getByText('感謝導師分享職涯規劃建議。')).toBeVisible();
+    await expect(card.getByRole('button', { name: '編輯' })).toBeVisible();
+
+    await page.mouse.move(0, 0);
+    await captureEvidence(page, 'mentee-unlisted-feedback-collapsed', {
+      settleDelayMs: 350,
+    });
+
+    // Re-expand the explanation notice
+    await card.getByRole('button', { name: '展開評價未公開說明' }).click();
+    await expect(
+      card.getByTestId('unpublicized-feedback-notice')
+    ).toBeVisible();
   });
 });

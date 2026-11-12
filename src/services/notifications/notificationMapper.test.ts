@@ -114,4 +114,49 @@ describe('mapNotificationVOToItem', () => {
     expect(item.dtstart).toBe(1755000000);
     expect(item.dtend).toBe(1755001800);
   });
+
+  it('maps reservation_feedback_received metadata (mentee name, reservation_id, and safe session_link) (#734)', () => {
+    const itemWithId = mapNotificationVOToItem({
+      ...baseApiItem,
+      type: 'reservation_feedback_received',
+      metadata: {
+        counterparty_name: '王小明',
+        reservation_id: 501,
+      },
+    });
+    expect(itemWithId.type).toBe('reservation_feedback_received');
+    expect(itemWithId.role).toBe('mentor');
+    expect(itemWithId.menteeName).toBe('王小明');
+    expect(itemWithId.reservationId).toBe('501');
+    expect(itemWithId.sessionLink).toBeUndefined();
+
+    const itemWithFullSessionLink = mapNotificationVOToItem({
+      ...baseApiItem,
+      type: 'reservation_feedback_received',
+      metadata: {
+        author_name: '林小華',
+        reservation_id: 602,
+        session_link:
+          'https://x-talent.tw/reservation/mentor?tab=history&reservation_id=602',
+      },
+    });
+    expect(itemWithFullSessionLink.menteeName).toBe('林小華');
+    expect(itemWithFullSessionLink.reservationId).toBe('602');
+    expect(itemWithFullSessionLink.sessionLink).toBe(
+      '/reservation/mentor?tab=history&reservation_id=602'
+    );
+
+    const itemWithUnsafeSessionLink = mapNotificationVOToItem({
+      ...baseApiItem,
+      type: 'reservation_feedback_received',
+      metadata: {
+        mentee_name: '陳小美',
+        reservation_id: '703',
+        session_link: 'https://evil.com/phishing',
+      },
+    });
+    expect(itemWithUnsafeSessionLink.menteeName).toBe('陳小美');
+    expect(itemWithUnsafeSessionLink.reservationId).toBe('703');
+    expect(itemWithUnsafeSessionLink.sessionLink).toBeUndefined();
+  });
 });

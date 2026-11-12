@@ -11,7 +11,14 @@ const meta: Meta<typeof Badge> = {
   argTypes: {
     variant: {
       control: 'select',
-      options: ['default', 'secondary', 'destructive', 'outline', 'filter'],
+      options: [
+        'default',
+        'secondary',
+        'warning',
+        'destructive',
+        'outline',
+        'filter',
+      ],
       description: '徽章的視覺樣式變體',
     },
   },
@@ -41,6 +48,9 @@ export const AllVariants: Story = {
       <Badge {...args} variant="secondary">
         職涯規劃
       </Badge>
+      <Badge {...args} variant="warning">
+        評價未公開
+      </Badge>
       <Badge {...args} variant="outline">
         TypeScript
       </Badge>
@@ -65,6 +75,9 @@ export const ContentTypes: Story = {
       <Badge {...args} variant="secondary">
         待審核 (5)
       </Badge>
+      <Badge {...args} variant="warning">
+        評價未公開
+      </Badge>
       <Badge {...args} variant="outline">
         設計模式
       </Badge>
@@ -73,4 +86,12 @@ export const ContentTypes: Story = {
       </Badge>
     </div>
   ),
+};
+
+// 4. Amber Warning Status Badge (#734)
+export const Warning: Story = {
+  args: {
+    variant: 'warning',
+    children: '評價未公開',
+  },
 };

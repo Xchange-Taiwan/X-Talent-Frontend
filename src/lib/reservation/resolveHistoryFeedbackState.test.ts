@@ -210,5 +210,28 @@ describe('resolveHistoryFeedbackState', () => {
       headerAction: { kind: 'badge', label: '未進行' },
       feedbackBlock: null,
     });
+
+    const delistedMentorState = resolveHistoryFeedbackState({
+      reservation: makeReservation({
+        feedback: {
+          meetingHappened: null,
+          rating: {
+            rating: 9,
+            content: '不應對導師顯示的已下架內容',
+            createdAt: 1760002000,
+            updatedAt: 1760002000,
+            authorName: '林＊華',
+            isPublic: false,
+          },
+          nextStep: null,
+        },
+      }),
+      sourceRole: 'mentor',
+    });
+
+    expect(delistedMentorState).toEqual({
+      headerAction: { kind: 'badge', label: '已結束' },
+      feedbackBlock: null,
+    });
   });
 });

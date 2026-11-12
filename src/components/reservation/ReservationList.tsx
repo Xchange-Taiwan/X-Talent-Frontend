@@ -2,14 +2,17 @@
 
 import { CalendarX2 } from 'lucide-react';
 import Link from 'next/link';
-import type * as React from 'react';
+import * as React from 'react';
 
 import AcceptReservationDialog from '@/components/reservation/AcceptReservationDialog';
 import CancelReservationDialog from '@/components/reservation/CancelReservationDialog';
 import MeetingFeedbackDialog from '@/components/reservation/MeetingFeedbackDialog';
 import RejectReservationDialog from '@/components/reservation/RejectReservationDialog';
 import ReservationConversationDialog from '@/components/reservation/ReservationConversationDialog';
-import { ReservationFeedbackBlock } from '@/components/reservation/ReservationFeedbackBlock';
+import {
+  ReservationFeedbackBlock,
+  UnpublicizedNoticeToggleButton,
+} from '@/components/reservation/ReservationFeedbackBlock';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -79,12 +82,18 @@ function ReservationItem({
   variant,
   sourceRole,
   myUserId,
+  isHighlighted = false,
 }: {
   reservation: Reservation;
   variant: Variant;
   sourceRole: SourceRole;
   myUserId: string | undefined;
+  isHighlighted?: boolean;
 }) {
+  const [isUnpublicizedNoticeExpanded, setIsUnpublicizedNoticeExpanded] =
+    React.useState(true);
+  const unpublicizedNoticeId = React.useId();
+
   const { accept, rejectOrCancel, submitFeedback, updateFeedback, isMutating } =
     useReservationActions({
       myUserId,
@@ -105,6 +114,12 @@ function ReservationItem({
           cancelledByLabel: viewer.cancelledByLabel,
         })
       : null;
+
+  const isUnpublicizedCard =
+    historyState?.feedbackBlock?.kind === 'unpublicized';
+  const handleToggleUnpublicizedNotice = React.useCallback(() => {
+    setIsUnpublicizedNoticeExpanded((prev) => !prev);
+  }, []);
 
   const handleProfileLinkInvalidation = useProfileLinkClick({
     disabled: isMutating,
@@ -135,6 +150,7 @@ function ReservationItem({
       onProfileClick={handleProfileClick}
       disabled={isMutating}
       sourceRole={sourceRole}
+      isHighlighted={isHighlighted}
       headerAction={
         historyState ? (
           historyState.headerAction.kind === 'answer-button' ? (
@@ -145,6 +161,17 @@ function ReservationItem({
                 submitFeedback(reservation, payload)
               }
             />
+          ) : isUnpublicizedCard ? (
+            <div className="flex items-center gap-1.5">
+              <Badge variant="warning" role="status">
+                {historyState.headerAction.label}
+              </Badge>
+              <UnpublicizedNoticeToggleButton
+                expanded={isUnpublicizedNoticeExpanded}
+                onToggle={handleToggleUnpublicizedNotice}
+                controlsId={unpublicizedNoticeId}
+              />
+            </div>
           ) : (
             <Badge variant="secondary" role="status">
               {historyState.headerAction.label}
@@ -156,6 +183,13 @@ function ReservationItem({
         historyState?.feedbackBlock ? (
           <ReservationFeedbackBlock
             model={historyState.feedbackBlock}
+            isNoticeExpanded={
+              isUnpublicizedCard ? isUnpublicizedNoticeExpanded : undefined
+            }
+            onToggleNotice={
+              isUnpublicizedCard ? handleToggleUnpublicizedNotice : undefined
+            }
+            noticeId={isUnpublicizedCard ? unpublicizedNoticeId : undefined}
             editAction={
               historyState.feedbackBlock.canEdit ? (
                 <MeetingFeedbackDialog
@@ -229,6 +263,7 @@ export function ReservationList({
   hasMore = false,
   onLoadMore,
   isLoadingMore = false,
+  highlightedReservationId,
 }: {
   items: Reservation[];
   variant: Variant;
@@ -237,6 +272,7 @@ export function ReservationList({
   hasMore?: boolean;
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
+  highlightedReservationId?: string;
 }) {
   const emptyState = resolveEmptyStateContent(sourceRole, variant, myUserId);
 
@@ -249,6 +285,10 @@ export function ReservationList({
           variant={variant}
           sourceRole={sourceRole}
           myUserId={myUserId}
+          isHighlighted={
+            highlightedReservationId !== undefined &&
+            String(it.id) === String(highlightedReservationId)
+          }
         />
       ))}
 

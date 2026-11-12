@@ -1,12 +1,14 @@
 'use client';
 
+import { Suspense } from 'react';
+
 import AuthTitle from '@/components/auth/AuthTitle';
 import Divider from '@/components/auth/Divider';
 import GoogleButton from '@/components/auth/GoogleButton';
 import SignInForm from '@/components/auth/signin/SignInForm';
 import useSignInForm from '@/hooks/auth/useSignInForm';
 
-export default function Page() {
+function SignInPageContent() {
   const signInFormProps = useSignInForm();
 
   return (
@@ -22,5 +24,13 @@ export default function Page() {
         />
       </div>
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <SignInPageContent />
+    </Suspense>
   );
 }

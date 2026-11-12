@@ -24,13 +24,14 @@ export interface RawReservationRating {
   created_at: number;
   updated_at: number;
   author_name: string | null;
-  is_public: boolean;
+  is_public?: boolean | null;
 }
 
 export interface RawReservationFeedback {
   meeting_happened: boolean | null;
   rating: RawReservationRating | null;
   next_step: FeedbackNextStep;
+  is_public?: boolean | null;
 }
 
 export interface ReservationRating {

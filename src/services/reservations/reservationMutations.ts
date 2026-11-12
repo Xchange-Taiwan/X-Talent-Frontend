@@ -259,20 +259,35 @@ export async function rejectOrCancelReservation({
 }
 
 function extractBackendIsPublic(responseData: unknown): boolean | undefined {
+  if (!responseData || typeof responseData !== 'object') {
+    return undefined;
+  }
   if (
-    !responseData ||
-    typeof responseData !== 'object' ||
-    !('feedback' in responseData)
+    'is_public' in responseData &&
+    typeof responseData.is_public === 'boolean'
   ) {
+    return responseData.is_public;
+  }
+  if (!('feedback' in responseData)) {
     return undefined;
   }
   const { feedback } = responseData;
-  if (!feedback || typeof feedback !== 'object' || !('is_public' in feedback)) {
+  if (!feedback || typeof feedback !== 'object') {
     return undefined;
   }
-  return typeof feedback.is_public === 'boolean'
-    ? feedback.is_public
-    : undefined;
+  if ('is_public' in feedback && typeof feedback.is_public === 'boolean') {
+    return feedback.is_public;
+  }
+  if (
+    'rating' in feedback &&
+    feedback.rating &&
+    typeof feedback.rating === 'object' &&
+    'is_public' in feedback.rating &&
+    typeof feedback.rating.is_public === 'boolean'
+  ) {
+    return feedback.rating.is_public;
+  }
+  return undefined;
 }
 
 export interface SubmitFeedbackParams {

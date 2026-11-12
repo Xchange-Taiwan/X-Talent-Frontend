@@ -837,6 +837,21 @@ describe('middleware public routes', () => {
     );
 
     expect(response.status).toBe(307);
-    expect(response.headers.get('location')).toContain('/auth/signin');
+    expect(response.headers.get('location')).toBe(
+      'https://example.com/auth/signin'
+    );
+  });
+
+  it('preserves session_link path and query params in callbackUrl when redirecting unauthenticated users to signin (#734)', async () => {
+    mockGetToken.mockResolvedValue(null);
+
+    const response = await middleware(
+      makeRequest('/reservation/mentor?tab=history&reservation_id=501')
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toBe(
+      'https://example.com/auth/signin?callbackUrl=%2Freservation%2Fmentor%3Ftab%3Dhistory%26reservation_id%3D501'
+    );
   });
 });

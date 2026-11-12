@@ -228,3 +228,48 @@ export const MenteeHistoryFeedbackStates: Story = {
     myUserId: 'user-mentee-jay',
   },
 };
+
+export const MentorHistoryHighlightedCard: Story = {
+  args: {
+    items: [
+      {
+        ...mockReservations[6],
+        id: 'hist-mentor-501',
+        name: '王小明',
+        feedback: {
+          meetingHappened: true,
+          rating: {
+            rating: 10,
+            content: '非常感謝導師提供清楚的職涯轉換與作品集建議！',
+            createdAt: 1760000000,
+            updatedAt: 1760000000,
+            authorName: '王＊明',
+            isPublic: true,
+          },
+          nextStep: null,
+        },
+      },
+      {
+        ...mockReservations[6],
+        id: 'hist-mentor-502',
+        name: '林小華',
+        feedback: {
+          meetingHappened: false,
+          rating: {
+            rating: 8,
+            content: '這則未公開評價不應顯示給導師',
+            createdAt: 1760000000,
+            updatedAt: 1760000000,
+            authorName: '林＊華',
+            isPublic: false,
+          },
+          nextStep: null,
+        },
+      },
+    ],
+    variant: 'history',
+    sourceRole: 'mentor',
+    myUserId: 'user-mentor-current',
+    highlightedReservationId: 'hist-mentor-501',
+  },
+};
