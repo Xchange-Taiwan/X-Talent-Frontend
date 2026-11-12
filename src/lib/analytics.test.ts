@@ -75,8 +75,14 @@ describe('analytics', () => {
       expect(initGa4('G-TEST123456')).toBe(true);
       expect(typeof window.gtag).toBe('function');
       expect(window.dataLayer).toHaveLength(2);
-      expect(window.dataLayer?.[0]).toEqual(['js', expect.any(Date)]);
-      expect(window.dataLayer?.[1]).toEqual([
+      expect(Object.prototype.toString.call(window.dataLayer?.[0])).toBe(
+        '[object Arguments]'
+      );
+      expect(Array.from(window.dataLayer?.[0] as IArguments)).toEqual([
+        'js',
+        expect.any(Date),
+      ]);
+      expect(Array.from(window.dataLayer?.[1] as IArguments)).toEqual([
         'config',
         'G-TEST123456',
         {
@@ -92,7 +98,7 @@ describe('analytics', () => {
 
       // Chaining trackPageView pushes a queued ['event', 'page_view', payload] command
       trackPageView('/mentor-pool?token=secret123&filter_skills=frontend');
-      expect(window.dataLayer?.[2]).toEqual([
+      expect(Array.from(window.dataLayer?.[2] as IArguments)).toEqual([
         'event',
         'page_view',
         {
