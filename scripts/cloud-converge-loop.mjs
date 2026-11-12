@@ -1177,9 +1177,13 @@ const isMain =
 if (isMain) {
   if (ensurePhase2GeminiToolExclusions()) {
     try {
-      execFileSync('git', ['update-index', '--skip-worktree', '.gemini/settings.json'], {
-        stdio: 'ignore',
-      });
+      execFileSync(
+        'git',
+        ['update-index', '--skip-worktree', '.gemini/settings.json'],
+        {
+          stdio: 'ignore',
+        }
+      );
     } catch {}
   }
   const options = parseConvergeArgs(process.argv.slice(2), process.env);
