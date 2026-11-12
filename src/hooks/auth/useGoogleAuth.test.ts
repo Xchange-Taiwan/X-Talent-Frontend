@@ -120,4 +120,31 @@ describe('useGoogleAuth', () => {
     );
     expect(result.current.isPending).toBe(false);
   });
+
+  it('persists sanitized callbackUrl to sessionStorage before Google sign-in redirect (#733)', async () => {
+    window.sessionStorage.clear();
+    const originalUrl = window.location.href;
+    window.history.replaceState(
+      {},
+      '',
+      '/auth/signin?callbackUrl=%2Freservation%2Fmentee%3Ftab%3Dhistory%26reservationId%3D101'
+    );
+
+    mockGetGoogleAuthorizeLoginUrl.mockResolvedValueOnce({
+      authorization_url: 'https://google.com/auth/login',
+      state: 'mock-state',
+    });
+
+    const { result } = renderHook(() => useGoogleAuth());
+
+    await act(async () => {
+      await result.current.handleGoogleAuth(true);
+    });
+
+    expect(window.sessionStorage.getItem('pending_auth_callback_url')).toBe(
+      '/reservation/mentee?tab=history&reservationId=101'
+    );
+
+    window.history.replaceState({}, '', originalUrl);
+  });
 });

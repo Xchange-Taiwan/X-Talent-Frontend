@@ -228,3 +228,34 @@ export const MenteeHistoryFeedbackStates: Story = {
     myUserId: 'user-mentee-jay',
   },
 };
+
+// 11. Deep-Link Highlighted & Auto-Expanded History Card (#733)
+export const DeepLinkTargetHighlightedAndAutoExpanded: Story = {
+  args: {
+    items: [
+      {
+        ...mockReservations[6],
+        id: 'res-deeplink-rated',
+        name: '陳大文 (David Chen)',
+        feedback: {
+          meetingHappened: true,
+          rating: {
+            rating: 10,
+            content: '非常實用的職涯與系統設計建議，收穫良多！',
+            createdAt: 1760000000,
+            updatedAt: 1760000000,
+            authorName: 'Jay',
+            isPublic: true,
+          },
+          nextStep: null,
+        },
+      },
+      mockReservations[6],
+    ],
+    variant: 'history',
+    sourceRole: 'mentee',
+    myUserId: 'user-mentee-jay',
+    highlightedReservationId: 'res-deeplink-rated',
+    autoExpandedReservationId: 'res-deeplink-rated',
+  },
+};

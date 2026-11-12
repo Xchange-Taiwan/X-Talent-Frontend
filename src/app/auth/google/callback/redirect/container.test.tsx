@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
+import { fromPartial } from '@total-typescript/shoehorn';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -6,6 +7,7 @@ import {
   setAnalyticsUserContext,
   trackEvent,
 } from '@/lib/analytics';
+import { PENDING_AUTH_CALLBACK_URL_KEY } from '@/lib/auth/callbackUrl';
 import { dispatchDeleteAccountRevalidate } from '@/lib/auth/dispatchDeleteAccountRevalidate';
 import {
   clearPendingDeleteAccountEmail,
@@ -295,6 +297,70 @@ describe('GoogleOAuthRedirectPage Component', () => {
 
       await waitFor(() => {
         expect(pushMock).toHaveBeenCalledWith('/mentor-pool');
+      });
+    });
+
+    it('redirects to sanitized pending_auth_callback_url and clears sessionStorage when onBoarding is true (#733)', async () => {
+      sessionStorage.setItem(
+        PENDING_AUTH_CALLBACK_URL_KEY,
+        '/reservation/mentee?tab=history&reservationId=101'
+      );
+
+      const mockData = {
+        auth_type: 'LOGIN' as const,
+        auth: { token: 'tok_2', email: 'user@example.com' },
+        user: fromPartial<ProfileVO>({ user_id: 456 }),
+      };
+
+      mockResolveOAuthOutcome.mockResolvedValue({
+        type: 'LOGIN',
+        data: mockData,
+      });
+
+      mockGetSession.mockResolvedValue({
+        user: { onBoarding: true },
+      });
+
+      render(<GoogleOAuthRedirectPage />);
+
+      await waitFor(() => {
+        expect(pushMock).toHaveBeenCalledWith(
+          '/reservation/mentee?tab=history&reservationId=101'
+        );
+        expect(
+          sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+        ).toBeNull();
+      });
+    });
+
+    it('falls back to /mentor-pool when pending_auth_callback_url normalizes to a protocol-relative // path (#733)', async () => {
+      sessionStorage.setItem(
+        PENDING_AUTH_CALLBACK_URL_KEY,
+        '/foo/..//evil.example.com/phish'
+      );
+
+      const mockData = {
+        auth_type: 'LOGIN' as const,
+        auth: { token: 'tok_2', email: 'user@example.com' },
+        user: fromPartial<ProfileVO>({ user_id: 456 }),
+      };
+
+      mockResolveOAuthOutcome.mockResolvedValue({
+        type: 'LOGIN',
+        data: mockData,
+      });
+
+      mockGetSession.mockResolvedValue({
+        user: { onBoarding: true },
+      });
+
+      render(<GoogleOAuthRedirectPage />);
+
+      await waitFor(() => {
+        expect(pushMock).toHaveBeenCalledWith('/mentor-pool');
+        expect(
+          sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+        ).toBeNull();
       });
     });
 

@@ -5,9 +5,13 @@ export type NotificationItem = {
     | 'reservation_success'
     | 'reservation_failed'
     | 'reservation_canceled'
-    | 'reservation_upcoming';
+    | 'reservation_upcoming'
+    | 'feedback_reminder'
+    | 'reservation_feedback_reminder'
+    | 'meeting_feedback_reminder';
   menteeName?: string;
   mentorName?: string;
+  reservationId?: string;
   createdAt: string; // ISO string
   unread?: boolean;
   role?: 'mentor' | 'mentee';

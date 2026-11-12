@@ -115,7 +115,10 @@ function mapReservationFeedback(
         }
       : null;
 
-  const nextStep = raw.next_step === 'ANSWER' ? 'ANSWER' : null;
+  const nextStep =
+    raw.next_step === 'ANSWER' || raw.next_step === 'RATE'
+      ? raw.next_step
+      : null;
 
   return {
     meetingHappened,

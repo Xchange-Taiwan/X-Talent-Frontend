@@ -91,8 +91,16 @@ vi.mock('@/components/reservation/ReservationConversationDialog', () => ({
 }));
 
 // Mock the API client
-const { mockUpdateReservationStatus } = vi.hoisted(() => {
-  return { mockUpdateReservationStatus: vi.fn().mockResolvedValue({}) };
+const {
+  mockUpdateReservationStatus,
+  mockSubmitReservationFeedback,
+  mockToast,
+} = vi.hoisted(() => {
+  return {
+    mockUpdateReservationStatus: vi.fn().mockResolvedValue({}),
+    mockSubmitReservationFeedback: vi.fn().mockResolvedValue(undefined),
+    mockToast: vi.fn(),
+  };
 });
 
 vi.mock('@/services/reservations', async (importOriginal) => {
@@ -101,6 +109,7 @@ vi.mock('@/services/reservations', async (importOriginal) => {
   return {
     ...actual,
     updateReservationStatus: mockUpdateReservationStatus,
+    submitReservationFeedback: mockSubmitReservationFeedback,
     acceptReservation: vi
       .fn()
       .mockImplementation(async ({ reservation, myUserId }) => {
@@ -125,7 +134,7 @@ vi.mock('@/services/reservations', async (importOriginal) => {
 // Mock toast and other modules
 vi.mock('@/components/ui/use-toast', () => ({
   useToast: () => ({
-    toast: vi.fn(),
+    toast: mockToast,
   }),
 }));
 
@@ -579,6 +588,262 @@ describe('ReservationList', () => {
       expect(
         screen.queryByRole('button', { name: /刪除/ })
       ).not.toBeInTheDocument();
+    });
+
+    it('highlights target card and auto-expands existing feedback block when highlightedReservationId and autoExpandedReservationId match (#733)', () => {
+      const ratedItem = {
+        ...mockReservation,
+        id: 'hist-deeplink-rated',
+        feedback: {
+          meetingHappened: true,
+          rating: {
+            rating: 9,
+            content: '深連結自動展開的回饋內容',
+            createdAt: 1760000000,
+            updatedAt: 1760000000,
+            authorName: '王＊明',
+            isPublic: true,
+          },
+          nextStep: null,
+        },
+      };
+
+      const { container } = render(
+        <ReservationList
+          items={[ratedItem]}
+          variant="history"
+          sourceRole="mentee"
+          myUserId="user-456"
+          highlightedReservationId="hist-deeplink-rated"
+          autoExpandedReservationId="hist-deeplink-rated"
+        />
+      );
+
+      const wrapper = container.querySelector(
+        '[data-reservation-id="hist-deeplink-rated"]'
+      );
+      expect(wrapper).toHaveAttribute('data-highlighted', 'true');
+      expect(screen.getByText('深連結自動展開的回饋內容')).toBeInTheDocument();
+    });
+
+    it('re-scrolls and re-expands collapsed feedback block when deepLinkTriggerSeq increments for the same card (#733)', () => {
+      const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+      const scrollIntoViewMock = vi.fn();
+      HTMLElement.prototype.scrollIntoView = scrollIntoViewMock;
+
+      try {
+        const ratedItem: Reservation = {
+          ...mockReservation,
+          id: 'hist-deeplink-repeat',
+          feedback: {
+            meetingHappened: true,
+            rating: {
+              rating: 10,
+              content: '重複點擊通知自動重展開內容',
+              createdAt: 1760000000,
+              updatedAt: 1760000000,
+              authorName: '王＊明',
+              isPublic: true,
+            },
+            nextStep: null,
+          },
+        };
+
+        const { rerender } = render(
+          <ReservationList
+            items={[ratedItem]}
+            variant="history"
+            sourceRole="mentee"
+            myUserId="user-456"
+            highlightedReservationId="hist-deeplink-repeat"
+            autoExpandedReservationId="hist-deeplink-repeat"
+            deepLinkTriggerSeq={1}
+          />
+        );
+
+        expect(scrollIntoViewMock).toHaveBeenCalledTimes(1);
+        expect(
+          screen.getByText('重複點擊通知自動重展開內容')
+        ).toBeInTheDocument();
+
+        // User manually collapses feedback block
+        fireEvent.click(screen.getByRole('button', { name: '查看回饋' }));
+        expect(
+          screen.queryByText('重複點擊通知自動重展開內容')
+        ).not.toBeInTheDocument();
+
+        // User clicks the same notification again -> deepLinkTriggerSeq increments
+        rerender(
+          <ReservationList
+            items={[ratedItem]}
+            variant="history"
+            sourceRole="mentee"
+            myUserId="user-456"
+            highlightedReservationId="hist-deeplink-repeat"
+            autoExpandedReservationId="hist-deeplink-repeat"
+            deepLinkTriggerSeq={2}
+          />
+        );
+
+        expect(scrollIntoViewMock).toHaveBeenCalledTimes(2);
+        expect(
+          screen.getByText('重複點擊通知自動重展開內容')
+        ).toBeInTheDocument();
+      } finally {
+        HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+      }
+    });
+
+    it('auto-opens single-session MeetingFeedbackDialog when deepLinkDialogReservation is provided for Mentee history (#733)', () => {
+      const pendingItem = {
+        ...mockReservation,
+        id: 'hist-deeplink-pending',
+        name: 'Emily Chen',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER' as const,
+        },
+      };
+
+      render(
+        <ReservationList
+          items={[pendingItem]}
+          variant="history"
+          sourceRole="mentee"
+          myUserId="user-456"
+          deepLinkDialogReservation={pendingItem}
+          highlightedReservationId="hist-deeplink-pending"
+        />
+      );
+
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByText('這場會談是否順利進行？')).toBeInTheDocument();
+    });
+
+    it('auto-opens single-session MeetingFeedbackDialog on rating step when deepLinkDialogReservation has nextStep === RATE (#733)', () => {
+      const pendingRateItem: Reservation = {
+        ...mockReservation,
+        id: 'hist-deeplink-rate',
+        name: 'Emily Chen',
+        feedback: {
+          meetingHappened: true,
+          rating: null,
+          nextStep: 'RATE',
+        },
+      };
+
+      render(
+        <ReservationList
+          items={[pendingRateItem]}
+          variant="history"
+          sourceRole="mentee"
+          myUserId="user-456"
+          deepLinkDialogReservation={pendingRateItem}
+          highlightedReservationId="hist-deeplink-rate"
+        />
+      );
+
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByText('步驟 2 / 2 · 交流回饋')).toBeInTheDocument();
+      expect(screen.getByText('為本次會議評分')).toBeInTheDocument();
+    });
+
+    it('invokes onDeepLinkDialogClose and closes cleanly without already-rated toast after submitting feedback via MenteeDeepLinkFeedbackDialog (#733)', async () => {
+      const onDeepLinkDialogClose = vi.fn();
+      const pendingItem: Reservation = {
+        ...mockReservation,
+        id: 'hist-deeplink-submit',
+        name: 'Emily Chen',
+        senderUserId: 'user-123',
+        participantUserId: 'user-456',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      };
+
+      const ratedItem: Reservation = {
+        ...pendingItem,
+        feedback: {
+          meetingHappened: true,
+          rating: {
+            rating: 9,
+            content: '深連結回饋送出測試',
+            createdAt: 1760000100,
+            updatedAt: 1760000100,
+            authorName: 'T***',
+            isPublic: true,
+          },
+          nextStep: null,
+        },
+      };
+
+      const { rerender } = render(
+        <ReservationList
+          items={[pendingItem]}
+          variant="history"
+          sourceRole="mentee"
+          myUserId="user-123"
+          deepLinkDialogReservation={pendingItem}
+          onDeepLinkDialogClose={onDeepLinkDialogClose}
+          highlightedReservationId="hist-deeplink-submit"
+        />
+      );
+
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('radio', { name: '有進行' }));
+      fireEvent.click(screen.getByRole('button', { name: /下一步/ }));
+
+      fireEvent.click(screen.getByRole('radio', { name: '9 分' }));
+      fireEvent.change(screen.getByLabelText(/文字回饋/), {
+        target: { value: '深連結回饋送出測試' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: '送出回饋' }));
+
+      await waitFor(() => {
+        expect(mockSubmitReservationFeedback).toHaveBeenCalledWith({
+          reservation: pendingItem,
+          myUserId: 'user-123',
+          myRole: 'mentee',
+          payload: {
+            meeting_happened: true,
+            feedback: {
+              rating: 9,
+              content: '深連結回饋送出測試',
+            },
+          },
+        });
+      });
+
+      await waitFor(() => {
+        expect(onDeepLinkDialogClose).toHaveBeenCalledTimes(1);
+      });
+
+      // Simulate parent clearing deepLinkDialogReservation and refreshing history to rated state
+      rerender(
+        <ReservationList
+          items={[ratedItem]}
+          variant="history"
+          sourceRole="mentee"
+          myUserId="user-123"
+          deepLinkDialogReservation={null}
+          onDeepLinkDialogClose={onDeepLinkDialogClose}
+          highlightedReservationId="hist-deeplink-submit"
+        />
+      );
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(mockToast).toHaveBeenCalledWith({
+        title: '已送出',
+        description: 'X-Talent 已收到您的回饋，謝謝您！',
+      });
+      expect(mockToast).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: '您已填寫過此場會談回饋',
+        })
+      );
     });
   });
 });

@@ -505,4 +505,178 @@ describe('ReservationDashboard', () => {
       expect.objectContaining({ id: 'hist-pending-answer' }),
     ]);
   });
+
+  it('activates History tab and forwards deepLinkDialogReservation & highlightedReservationId when reservationId deep link is present (#733)', () => {
+    mockPathname.mockReturnValue('/reservation/mentee');
+    mockGet.mockImplementation((key: string) => {
+      if (key === 'reservationId') return '101';
+      return null;
+    });
+    mockToString.mockReturnValue('reservationId=101');
+
+    vi.mocked(useReservationData).mockReturnValue(
+      fromPartial({
+        ...baseHookReturnValue,
+        data: {
+          upcoming: [],
+          pending: [],
+          history: [
+            {
+              id: '101',
+              dtstart: 5000,
+              dtend: 6000,
+              feedback: {
+                meetingHappened: null,
+                rating: null,
+                nextStep: 'ANSWER',
+              },
+            },
+          ],
+          nextTokens: { upcoming: 0, pending: 0, history: 0 },
+        },
+        isHistoryLoaded: true,
+        isLoadingHistory: false,
+      })
+    );
+
+    render(<ReservationDashboard userRole="mentee" />);
+    expect(screen.getByTestId('tabs')).toHaveAttribute(
+      'data-default-value',
+      'history'
+    );
+    const historyCalls = vi
+      .mocked(ReservationList)
+      .mock.calls.filter(([props]) => props.variant === 'history');
+    const latestHistoryCall = historyCalls[historyCalls.length - 1];
+    expect(latestHistoryCall?.[0].deepLinkDialogReservation).toEqual(
+      expect.objectContaining({ id: '101' })
+    );
+    expect(latestHistoryCall?.[0].highlightedReservationId).toBe('101');
+  });
+
+  it('suppresses feedbackQueueItems to null and prioritizes deepLinkDialogReservation when ?tab=history&feedback=queue&reservationId=101 coexist (#733)', () => {
+    mockPathname.mockReturnValue('/reservation/mentee');
+    mockGet.mockImplementation((key: string) => {
+      if (key === 'tab') return 'history';
+      if (key === 'feedback') return 'queue';
+      if (key === 'reservationId') return '101';
+      return null;
+    });
+    mockToString.mockReturnValue(
+      'tab=history&feedback=queue&reservationId=101'
+    );
+
+    vi.mocked(useReservationData).mockReturnValue(
+      fromPartial({
+        ...baseHookReturnValue,
+        data: {
+          upcoming: [],
+          pending: [],
+          history: [
+            {
+              id: '101',
+              dtstart: 5000,
+              dtend: 6000,
+              feedback: {
+                meetingHappened: null,
+                rating: null,
+                nextStep: 'ANSWER',
+              },
+            },
+            {
+              id: '102',
+              dtstart: 7000,
+              dtend: 8000,
+              feedback: {
+                meetingHappened: null,
+                rating: null,
+                nextStep: 'ANSWER',
+              },
+            },
+          ],
+          nextTokens: { upcoming: 0, pending: 0, history: 0 },
+        },
+        isHistoryLoaded: true,
+        isLoadingHistory: false,
+      })
+    );
+
+    render(<ReservationDashboard userRole="mentee" />);
+    const historyCalls = vi
+      .mocked(ReservationList)
+      .mock.calls.filter(([props]) => props.variant === 'history');
+    const latestHistoryCall = historyCalls[historyCalls.length - 1];
+    expect(latestHistoryCall?.[0].feedbackQueueItems).toBeNull();
+    expect(latestHistoryCall?.[0].deepLinkDialogReservation).toEqual(
+      expect.objectContaining({ id: '101' })
+    );
+  });
+
+  it('clears highlightedReservationId and autoExpandedReservationId when switching away from the history tab (#733)', () => {
+    mockPathname.mockReturnValue('/reservation/mentee');
+    mockGet.mockImplementation((key: string) => {
+      if (key === 'tab') return 'history';
+      if (key === 'reservationId') return '102';
+      return null;
+    });
+    mockToString.mockReturnValue('tab=history&reservationId=102');
+
+    vi.mocked(useReservationData).mockReturnValue(
+      fromPartial({
+        ...baseHookReturnValue,
+        data: {
+          upcoming: [],
+          pending: [],
+          history: [
+            {
+              id: '102',
+              dtstart: 5000,
+              dtend: 6000,
+              feedback: {
+                meetingHappened: true,
+                rating: {
+                  rating: 10,
+                  content: '既有回饋',
+                  createdAt: 1760000000,
+                  updatedAt: 1760000000,
+                  authorName: 'T***',
+                  isPublic: true,
+                },
+                nextStep: null,
+              },
+            },
+          ],
+          nextTokens: { upcoming: 0, pending: 0, history: 0 },
+        },
+        isHistoryLoaded: true,
+        isLoadingHistory: false,
+      })
+    );
+
+    render(<ReservationDashboard userRole="mentee" />);
+
+    const initialHistoryCalls = vi
+      .mocked(ReservationList)
+      .mock.calls.filter(([props]) => props.variant === 'history');
+    const initialHistoryProps =
+      initialHistoryCalls[initialHistoryCalls.length - 1]?.[0];
+    expect(initialHistoryProps?.highlightedReservationId).toBe('102');
+    expect(initialHistoryProps?.autoExpandedReservationId).toBe('102');
+
+    // Simulate URL having cleaned reservationId, then user switches to Upcoming tab
+    mockGet.mockImplementation((key: string) =>
+      key === 'tab' ? 'history' : null
+    );
+    mockToString.mockReturnValue('tab=history');
+
+    fireEvent.click(screen.getByTestId('trigger-upcoming-mentee'));
+
+    const afterSwitchHistoryCalls = vi
+      .mocked(ReservationList)
+      .mock.calls.filter(([props]) => props.variant === 'history');
+    const afterSwitchHistoryProps =
+      afterSwitchHistoryCalls[afterSwitchHistoryCalls.length - 1]?.[0];
+    expect(afterSwitchHistoryProps?.highlightedReservationId).toBeNull();
+    expect(afterSwitchHistoryProps?.autoExpandedReservationId).toBeNull();
+  });
 });

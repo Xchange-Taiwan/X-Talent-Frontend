@@ -52,6 +52,7 @@ const validValues = { email: 'user@example.com', password: 'Password1!' };
 describe('useSignInForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, '', '/auth/signin');
     mockValidateSignIn.mockResolvedValue({
       success: true,
       email: validValues.email,
@@ -172,6 +173,48 @@ describe('useSignInForm', () => {
     });
     expect(mockRouter.push).toHaveBeenCalledWith('/mentor-pool');
     expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it('success + valid callbackUrl query parameter → redirects to full callbackUrl including query params (#733)', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/auth/signin?callbackUrl=%2Freservation%2Fmentee%3Ftab%3Dhistory%26reservationId%3D101'
+    );
+    mockGetSession.mockResolvedValueOnce({
+      ...mockSession,
+      user: { ...mockSession.user, onBoarding: true, isMentor: false },
+    });
+
+    const { result } = renderHook(() => useSignInForm());
+
+    await act(async () => {
+      await result.current.onSubmit(validValues);
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith(
+      '/reservation/mentee?tab=history&reservationId=101'
+    );
+  });
+
+  it('success + unsafe external callbackUrl → ignores open-redirect attempt and falls back to /mentor-pool (#733)', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/auth/signin?callbackUrl=https%3A%2F%2Fevil.example.com%2Fphish'
+    );
+    mockGetSession.mockResolvedValueOnce({
+      ...mockSession,
+      user: { ...mockSession.user, onBoarding: true, isMentor: false },
+    });
+
+    const { result } = renderHook(() => useSignInForm());
+
+    await act(async () => {
+      await result.current.onSubmit(validValues);
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/mentor-pool');
   });
 
   it('unexpected error is thrown → toast shows "Something went wrong!"', async () => {

@@ -6,11 +6,13 @@ import { Suspense, useCallback, useEffect, useRef } from 'react';
 import { ReservationListSkeleton } from '@/app/reservation/skeleton';
 import { ReservationList } from '@/components/reservation/ReservationList';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useFeedbackDeepLinkParam } from '@/hooks/user/reservation/useFeedbackDeepLinkParam';
 import { useFeedbackQueueParam } from '@/hooks/user/reservation/useFeedbackQueueParam';
 import {
   type ReservationRole,
   useReservationData,
 } from '@/hooks/user/reservation/useReservationData';
+import { FEEDBACK_DEEP_LINK_ID_KEYS } from '@/lib/reservation/feedbackDeepLink';
 import type { Reservation } from '@/types/reservation';
 
 export interface ReservationDashboardProps {
@@ -139,6 +141,24 @@ export function ReservationDashboardView({
   const router = useRouter();
   const pathname = usePathname();
 
+  const {
+    hasDeepLinkTarget,
+    deepLinkDialogReservation,
+    highlightedReservationId,
+    autoExpandedReservationId,
+    deepLinkTriggerSeq,
+    dismissDeepLinkDialog,
+    clearDeepLinkFocus,
+  } = useFeedbackDeepLinkParam({
+    userRole,
+    history,
+    isHistoryLoaded,
+    isLoadingHistory,
+    isLoadingMoreHistory: loadingMoreStates.history,
+    hasMoreHistory: nextTokens.history !== 0,
+    onLoadMoreHistory,
+  });
+
   const { isFeedbackQueueRequested, feedbackQueueItems, dismissFeedbackQueue } =
     useFeedbackQueueParam({
       isMentee,
@@ -150,9 +170,10 @@ export function ReservationDashboardView({
     });
 
   const tabParam = searchParams.get('tab');
-  const activeTab = isFeedbackQueueRequested
-    ? 'history'
-    : (tabParam && TAB_MAPPING[tabParam]) || pendingTabValue;
+  const activeTab =
+    isFeedbackQueueRequested || hasDeepLinkTarget
+      ? 'history'
+      : (tabParam && TAB_MAPPING[tabParam]) || pendingTabValue;
 
   const lastCountsRef = useRef<{
     role: ReservationRole;
@@ -225,12 +246,18 @@ export function ReservationDashboardView({
     'ml-1 text-xs text-text-tertiary group-data-[state=active]:text-text-white/80';
 
   const handleValueChange = (value: string) => {
+    if (value !== 'history') {
+      clearDeepLinkFocus();
+    }
     if (value === 'history' && !isHistoryLoaded && !isLoadingHistory) {
       onLoadHistory();
     }
 
     const params = new URLSearchParams(searchParams.toString());
     params.delete('feedback');
+    for (const key of FEEDBACK_DEEP_LINK_ID_KEYS) {
+      params.delete(key);
+    }
     const paramValue = URL_PARAM_MAPPING[value];
     if (paramValue) {
       params.set('tab', paramValue);
@@ -338,8 +365,17 @@ export function ReservationDashboardView({
                     hasMore={nextTokens.history !== 0}
                     onLoadMore={onLoadMoreHistory}
                     isLoadingMore={loadingMoreStates.history}
-                    feedbackQueueItems={feedbackQueueItems}
+                    feedbackQueueItems={
+                      hasDeepLinkTarget || deepLinkDialogReservation
+                        ? null
+                        : feedbackQueueItems
+                    }
                     onFeedbackQueueClose={dismissFeedbackQueue}
+                    deepLinkDialogReservation={deepLinkDialogReservation}
+                    onDeepLinkDialogClose={dismissDeepLinkDialog}
+                    highlightedReservationId={highlightedReservationId}
+                    autoExpandedReservationId={autoExpandedReservationId}
+                    deepLinkTriggerSeq={deepLinkTriggerSeq}
                   />
                 )}
               </TabsContent>

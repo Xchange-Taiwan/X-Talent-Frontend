@@ -61,7 +61,7 @@ export function resolveHistoryFeedbackState(opts: {
   const feedback = reservation.feedback;
 
   if (sourceRole === 'mentee') {
-    if (feedback?.nextStep === 'ANSWER') {
+    if (feedback?.nextStep === 'ANSWER' || feedback?.nextStep === 'RATE') {
       return {
         headerAction: { kind: 'answer-button' },
         feedbackBlock: null,

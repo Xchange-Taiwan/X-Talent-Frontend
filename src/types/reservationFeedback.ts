@@ -16,7 +16,7 @@ export const NOT_HAPPENED_REASON_LABELS: Record<NotHappenedReason, string> = {
   OTHER: '其他',
 };
 
-export type FeedbackNextStep = 'ANSWER' | null;
+export type FeedbackNextStep = 'ANSWER' | 'RATE' | null;
 
 export interface RawReservationRating {
   rating: number;
