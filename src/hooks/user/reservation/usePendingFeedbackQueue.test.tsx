@@ -740,7 +740,7 @@ describe('usePendingFeedbackQueue (#740)', () => {
     expect(result.current.queueItems?.[0].viewerRole).toBe('MENTOR');
   });
 
-  it('prunes queueItems immediately as items are submitted and keeps sessionStorage.dismissed=false when all items finish normally', async () => {
+  it('keeps queueItems stable while presented on an eligible route until dismissQueue fires, and keeps sessionStorage.dismissed=false when all items finish normally', async () => {
     const item1 = makeItem('901', 1760000000, 'MENTOR');
     const item2 = makeItem('902', 1761000000, 'MENTOR');
     const laterEndedItem = makeItem('903', 1762000000, 'MENTOR');
@@ -755,29 +755,40 @@ describe('usePendingFeedbackQueue (#740)', () => {
       expect(firstMount.result.current.queueItems).toEqual([item1, item2]);
     });
 
-    // Submitting item1 immediately prunes queueItems to [item2] even on an eligible route
+    // Submitting item1 while presented keeps queueItems stable ([item1, item2]) so
+    // MeetingFeedbackDialog's queueIndex increment never double-offsets or drops isQueueMode
     await act(async () => {
       await firstMount.result.current.submitFeedbackItem(
         { meeting_happened: true },
         item1
       );
     });
-    expect(firstMount.result.current.queueItems).toEqual([item2]);
+    expect(firstMount.result.current.queueItems).toEqual([item1, item2]);
+    expect(getSessionPendingFeedbackState('1').submittedIds).toEqual(['901']);
 
-    // Submitting final item2 immediately clears queueItems to null before modal onClose fires
+    // Submitting final item2 updates sessionStorage immediately without prematurely
+    // unmounting the modal before MeetingFeedbackDialog runs toast + onClose -> dismissQueue()
     await act(async () => {
       await firstMount.result.current.submitFeedbackItem(
         { meeting_happened: true },
         item2
       );
     });
-    expect(firstMount.result.current.queueItems).toBeNull();
+    expect(firstMount.result.current.queueItems).toEqual([item1, item2]);
+    expect(getSessionPendingFeedbackState('1')).toEqual({
+      checked: true,
+      dismissed: false,
+      queueEmpty: true,
+      submittedIds: ['901', '902'],
+      skippedIds: [],
+    });
 
     // When MeetingFeedbackDialog finishes the queue and invokes onClose -> dismissQueue(),
-    // sessionStorage.dismissed MUST stay false because zero items were skipped!
+    // queueItems clears to null and sessionStorage.dismissed stays false because zero items were skipped
     act(() => {
       firstMount.result.current.dismissQueue();
     });
+    expect(firstMount.result.current.queueItems).toBeNull();
     expect(getSessionPendingFeedbackState('1')).toEqual({
       checked: true,
       dismissed: false,
@@ -797,5 +808,39 @@ describe('usePendingFeedbackQueue (#740)', () => {
       expect(secondMount.result.current.queueItems).toEqual([laterEndedItem]);
     });
     expect(mockFetchPending).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps queueItems stable on top-right X skipFeedbackItem while presented so multi-session queue never skips over middle sessions', async () => {
+    const item1 = makeItem('951', 1760000000, 'MENTOR');
+    const item2 = makeItem('952', 1761000000, 'MENTEE');
+    const item3 = makeItem('953', 1762000000, 'MENTOR');
+    mockFetchPending.mockResolvedValueOnce([item1, item2, item3]);
+
+    const { result } = renderHook(() => usePendingFeedbackQueue());
+
+    await waitFor(() => {
+      expect(result.current.queueItems).toEqual([item1, item2, item3]);
+    });
+
+    act(() => {
+      result.current.skipFeedbackItem(item1);
+    });
+
+    expect(result.current.queueItems).toEqual([item1, item2, item3]);
+    expect(getSessionPendingFeedbackState('1').skippedIds).toEqual(['951']);
+    expect(getSessionPendingFeedbackState('1').dismissed).toBe(false);
+
+    act(() => {
+      result.current.dismissQueue();
+    });
+
+    expect(result.current.queueItems).toBeNull();
+    expect(getSessionPendingFeedbackState('1')).toEqual({
+      checked: true,
+      dismissed: true,
+      queueEmpty: false,
+      submittedIds: [],
+      skippedIds: ['951', '952', '953'],
+    });
   });
 });

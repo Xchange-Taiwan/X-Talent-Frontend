@@ -56,6 +56,17 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
     searchParams,
   });
 
+  const canPresentQueue =
+    status === 'authenticated' &&
+    Boolean(rawUserId) &&
+    isOnboardingComplete &&
+    isRoleResolved &&
+    !hasSessionError &&
+    !isSuppressed;
+
+  const canPresentQueueRef = useRef(canPresentQueue);
+  canPresentQueueRef.current = canPresentQueue;
+
   const syncStorageAfterPrune = useCallback((userId: string) => {
     if (activeQueueIdsRef.current.length > 0) {
       return;
@@ -73,7 +84,7 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
   }, []);
 
   const pruneCompletedAndSkippedItems = useCallback(
-    (userId: string) => {
+    (userId: string, shouldUpdateQueueState: boolean) => {
       const persisted = getSessionPendingFeedbackState(userId);
       const excludedIds = new Set([
         ...persisted.skippedIds,
@@ -86,6 +97,10 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
       );
       if (hadActiveItems && activeQueueIdsRef.current.length === 0) {
         syncStorageAfterPrune(userId);
+      }
+
+      if (!shouldUpdateQueueState) {
+        return;
       }
 
       setQueueItems((prev) => {
@@ -102,8 +117,11 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
     [syncStorageAfterPrune]
   );
 
-  // Keep queue state synchronized whenever feedback is submitted from any UI surface
-  // (either inside the login queue modal or on /reservation/* while suppressed).
+  // Keep persistent queue tracking synchronized whenever feedback is submitted
+  // from any UI surface. While the modal is actively presented (`canPresentQueueRef.current`),
+  // avoid shrinking `queueItems` React state mid-flow so `MeetingFeedbackDialog`
+  // keeps a stable queue array without double-offsetting `queueIndex` or unmounting
+  // prematurely before `onFinishQueue` / `onClose` (`dismissQueue`).
   useEffect(() => {
     if (!rawUserId) {
       return;
@@ -115,21 +133,21 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
           return;
         }
         submittedIdsRef.current.add(reservationId);
-        pruneCompletedAndSkippedItems(rawUserId);
+        pruneCompletedAndSkippedItems(rawUserId, !canPresentQueueRef.current);
       }
     );
   }, [rawUserId, pruneCompletedAndSkippedItems]);
 
-  // When temporarily yielding to a suppressed route mid-queue, prune any items
-  // already submitted or skipped while the modal was open so returning to an
-  // eligible route only surfaces remaining items.
+  // Whenever the queue is hidden/yielding (`!canPresentQueue`, e.g. navigating to
+  // `/reservation/*`), prune any items already submitted or skipped while the modal
+  // was open so returning to an eligible route only surfaces remaining items.
   useEffect(() => {
-    if (!isSuppressed || !rawUserId) {
+    if (canPresentQueue || !rawUserId) {
       return;
     }
 
-    pruneCompletedAndSkippedItems(rawUserId);
-  }, [isSuppressed, rawUserId, pruneCompletedAndSkippedItems]);
+    pruneCompletedAndSkippedItems(rawUserId, true);
+  }, [canPresentQueue, rawUserId, pruneCompletedAndSkippedItems]);
 
   // Clear per-login skip state whenever user logs out, switches account, or enters /auth/* sign-in flow.
   useEffect(() => {
@@ -288,21 +306,9 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
     (reservation: Reservation) => {
       if (!rawUserId) return;
       markSessionReservationSkipped(rawUserId, reservation.id);
-      activeQueueIdsRef.current = activeQueueIdsRef.current.filter(
-        (id) => id !== reservation.id
-      );
-      setQueueItems((prev) => {
-        if (!prev || prev.length === 0) {
-          return prev;
-        }
-        const remaining = prev.filter((item) => item.id !== reservation.id);
-        if (remaining.length === prev.length) {
-          return prev;
-        }
-        return remaining.length > 0 ? remaining : null;
-      });
+      pruneCompletedAndSkippedItems(rawUserId, !canPresentQueueRef.current);
     },
-    [rawUserId]
+    [rawUserId, pruneCompletedAndSkippedItems]
   );
 
   const dismissQueue = useCallback(() => {
@@ -323,14 +329,6 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
     activeQueueIdsRef.current = [];
     setQueueItems(null);
   }, [rawUserId]);
-
-  const canPresentQueue =
-    status === 'authenticated' &&
-    Boolean(rawUserId) &&
-    isOnboardingComplete &&
-    isRoleResolved &&
-    !hasSessionError &&
-    !isSuppressed;
 
   return {
     queueItems: canPresentQueue ? queueItems : null,
