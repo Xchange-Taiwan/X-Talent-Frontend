@@ -49,6 +49,8 @@ function HeaderComponent(): JSX.Element {
           <Link
             href="/"
             aria-label="Go to homepage"
+            data-analytics-click="header_logo"
+            data-analytics-location="header"
             className={cn('rounded-sm', FOCUS_RING_CLASSES)}
           >
             <Image src={LogoImgUrl} alt="logo" />
@@ -57,6 +59,8 @@ function HeaderComponent(): JSX.Element {
           <nav className="hidden items-center gap-7 lg:flex">
             <Link
               href={FIND_MENTOR_HREF}
+              data-analytics-click="header_nav_mentor_pool"
+              data-analytics-location="header"
               className={cn(NAV_LINK_CLASSES, NAV_LINK_HOVER_CLASSES)}
             >
               尋找導師
@@ -100,6 +104,8 @@ function HeaderComponent(): JSX.Element {
 
             <Link
               href="/about"
+              data-analytics-click="header_nav_about"
+              data-analytics-location="header"
               className={cn(NAV_LINK_CLASSES, NAV_LINK_HOVER_CLASSES)}
             >
               關於 X-Talent

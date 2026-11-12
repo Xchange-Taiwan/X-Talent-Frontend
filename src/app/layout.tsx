@@ -54,6 +54,9 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const rawGaId = process.env.NEXT_PUBLIC_GA_ID?.trim() ?? '';
+  const gaMeasurementId = /^G-[A-Z0-9]+$/i.test(rawGaId) ? rawGaId : null;
+
   return (
     <html lang="zh-TW" className={`${notoSansTC.className} group/auth-state`}>
       <head>
@@ -69,6 +72,20 @@ export default function RootLayout({
             HTML parse instead of blocking the first script byte. crossOrigin
             is required so the warmed connection is reused for the actual
             (CORS-credentialed) script fetch. */}
+        {gaMeasurementId && (
+          <>
+            <link
+              rel="preconnect"
+              href="https://www.googletagmanager.com"
+              crossOrigin="anonymous"
+            />
+            <script
+              dangerouslySetInnerHTML={{
+                __html: `window.dataLayer=window.dataLayer||[];function gtag(){window.dataLayer.push(arguments);}window.gtag=window.gtag||gtag;gtag('js',new Date());gtag('config',${JSON.stringify(gaMeasurementId)},{send_page_view:false});`,
+              }}
+            />
+          </>
+        )}
         {process.env.NEXT_PUBLIC_CLARITY_ID && (
           <>
             <link
@@ -98,28 +115,14 @@ export default function RootLayout({
         >
           跳至主要內容
         </a>
-        {/* Google Analytics 4 — only loads when NEXT_PUBLIC_GA_ID is set.
-            strategy="afterInteractive" ensures it never blocks page render.
-            Page views are tracked by PageViewTracker on route changes. */}
-        {process.env.NEXT_PUBLIC_GA_ID && (
-          <>
-            <Script
-              src={`https://www.googletagmanager.com/gtag/js?id=${process.env.NEXT_PUBLIC_GA_ID}`}
-              strategy="afterInteractive"
-            />
-            <Script
-              id="google-analytics"
-              strategy="afterInteractive"
-              dangerouslySetInnerHTML={{
-                __html: `
-                  window.dataLayer = window.dataLayer || [];
-                  function gtag(){dataLayer.push(arguments);}
-                  gtag('js', new Date());
-                  gtag('config', '${process.env.NEXT_PUBLIC_GA_ID}', { send_page_view: false });
-                `,
-              }}
-            />
-          </>
+        {/* Google Analytics 4 — external gtag.js loads non-blockingly via
+            afterInteractive; queue stub in <head> + PageViewTracker guarantee
+            initial load and SPA route changes both record page_view. */}
+        {gaMeasurementId && (
+          <Script
+            src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`}
+            strategy="afterInteractive"
+          />
         )}
 
         {/* Microsoft Clarity — behavior tracking for testing phase.

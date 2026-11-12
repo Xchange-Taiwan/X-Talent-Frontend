@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@sentry/nextjs', () => ({
   getTraceData: () => ({ 'sentry-trace': 'test-trace' }),
@@ -41,6 +41,16 @@ vi.mock('@/components/ui/toaster', () => ({
 import RootLayout, { generateMetadata } from './layout';
 
 describe('RootLayout and global light-mode lock (#861)', () => {
+  const originalGaId = process.env.NEXT_PUBLIC_GA_ID;
+
+  afterEach(() => {
+    if (originalGaId === undefined) {
+      delete process.env.NEXT_PUBLIC_GA_ID;
+    } else {
+      process.env.NEXT_PUBLIC_GA_ID = originalGaId;
+    }
+  });
+
   it('outputs <meta name="darkreader-lock"> and <meta name="color-scheme" content="light"> in <head>', () => {
     const html = renderToStaticMarkup(
       <RootLayout>
@@ -80,5 +90,48 @@ describe('RootLayout and global light-mode lock (#861)', () => {
         'sentry-trace': 'test-trace',
       })
     );
+  });
+
+  it('injects GA4 queue stub with send_page_view:false and afterInteractive gtag.js when NEXT_PUBLIC_GA_ID is valid (#865)', () => {
+    process.env.NEXT_PUBLIC_GA_ID = 'G-TEST123456';
+
+    const html = renderToStaticMarkup(
+      <RootLayout>
+        <div>Content</div>
+      </RootLayout>
+    );
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+
+    expect(
+      doc.head.querySelector(
+        'link[rel="preconnect"][href="https://www.googletagmanager.com"]'
+      )
+    ).not.toBeNull();
+    expect(doc.head.innerHTML).toContain(
+      'gtag(\'config\',"G-TEST123456",{send_page_view:false})'
+    );
+    expect(
+      doc.body.querySelector(
+        '[data-src="https://www.googletagmanager.com/gtag/js?id=G-TEST123456"]'
+      )
+    ).not.toBeNull();
+  });
+
+  it('omits GA4 scripts when NEXT_PUBLIC_GA_ID is unset or malformed (#865)', () => {
+    process.env.NEXT_PUBLIC_GA_ID = 'invalid"><script>alert(1)</script>';
+
+    const html = renderToStaticMarkup(
+      <RootLayout>
+        <div>Content</div>
+      </RootLayout>
+    );
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+
+    expect(
+      doc.head.querySelector(
+        'link[rel="preconnect"][href="https://www.googletagmanager.com"]'
+      )
+    ).toBeNull();
+    expect(doc.body.querySelector('[data-src*="googletagmanager"]')).toBeNull();
   });
 });
