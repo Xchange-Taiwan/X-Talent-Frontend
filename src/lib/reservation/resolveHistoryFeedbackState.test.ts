@@ -64,6 +64,22 @@ describe('resolveHistoryFeedbackState', () => {
       headerAction: { kind: 'answer-button' },
       feedbackBlock: null,
     });
+
+    const rateStepState = resolveHistoryFeedbackState({
+      reservation: makeReservation({
+        feedback: {
+          meetingHappened: true,
+          rating: null,
+          nextStep: 'RATE',
+        },
+      }),
+      sourceRole: 'mentee',
+    });
+
+    expect(rateStepState).toEqual({
+      headerAction: { kind: 'answer-button' },
+      feedbackBlock: null,
+    });
   });
 
   it('shows collapsible 查看回饋 toggle and editable public rating when mentee submitted rating with isPublic=true (no 尚未公開)', () => {

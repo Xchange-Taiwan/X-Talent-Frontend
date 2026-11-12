@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
+import { fromPartial } from '@total-typescript/shoehorn';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -6,6 +7,7 @@ import {
   setAnalyticsUserContext,
   trackEvent,
 } from '@/lib/analytics';
+import { PENDING_AUTH_CALLBACK_URL_KEY } from '@/lib/auth/callbackUrl';
 import { dispatchDeleteAccountRevalidate } from '@/lib/auth/dispatchDeleteAccountRevalidate';
 import {
   clearPendingDeleteAccountEmail,
@@ -144,6 +146,10 @@ describe('GoogleOAuthRedirectPage Component', () => {
 
   describe('Invalid Outcome', () => {
     it('handles MISSING_PARAMS correctly and clears pending email', async () => {
+      sessionStorage.setItem(
+        PENDING_AUTH_CALLBACK_URL_KEY,
+        '/reservation/mentee?tab=history&reservationId=101'
+      );
       mockResolveOAuthOutcome.mockResolvedValue({
         type: 'INVALID',
         errorType: 'MISSING_PARAMS',
@@ -158,12 +164,19 @@ describe('GoogleOAuthRedirectPage Component', () => {
           description: 'Authorization failed. Please try again.',
         });
         expect(pushMock).toHaveBeenCalledWith('/auth/signin');
-        // Clears pending email for missing params to prevent landmines
+        // Clears pending email and pending callback URL for missing params to prevent landmines
         expect(mockClearPendingDeleteEmail).toHaveBeenCalledTimes(1);
+        expect(
+          sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+        ).toBeNull();
       });
     });
 
     it('handles DELETE_FLOW_INVALID correctly and clears pending email', async () => {
+      sessionStorage.setItem(
+        PENDING_AUTH_CALLBACK_URL_KEY,
+        '/reservation/mentee?tab=history&reservationId=101'
+      );
       mockResolveOAuthOutcome.mockResolvedValue({
         type: 'INVALID',
         errorType: 'DELETE_FLOW_INVALID',
@@ -178,12 +191,19 @@ describe('GoogleOAuthRedirectPage Component', () => {
           description: '無法取得 Google 憑證，請稍後再試',
         });
         expect(pushMock).toHaveBeenCalledWith('/auth/signin');
-        // Clears pending email to prevent landmines
+        // Clears pending email and pending callback URL to prevent landmines
         expect(mockClearPendingDeleteEmail).toHaveBeenCalledTimes(1);
+        expect(
+          sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+        ).toBeNull();
       });
     });
 
     it('handles CALLBACK_FAILED correctly and clears pending email', async () => {
+      sessionStorage.setItem(
+        PENDING_AUTH_CALLBACK_URL_KEY,
+        '/reservation/mentee?tab=history&reservationId=101'
+      );
       mockResolveOAuthOutcome.mockResolvedValue({
         type: 'INVALID',
         errorType: 'CALLBACK_FAILED',
@@ -198,14 +218,21 @@ describe('GoogleOAuthRedirectPage Component', () => {
           description: 'Something went wrong during login.',
         });
         expect(pushMock).toHaveBeenCalledWith('/auth/signin');
-        // Clears pending email to prevent landmines
+        // Clears pending email and pending callback URL to prevent landmines
         expect(mockClearPendingDeleteEmail).toHaveBeenCalledTimes(1);
+        expect(
+          sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+        ).toBeNull();
       });
     });
   });
 
   describe('Signup Outcome', () => {
-    it('tracks sign_up (method: Google, user_role: guest), stores email in sessionStorage, and redirects to email-verify', async () => {
+    it('tracks sign_up (method: Google, user_role: guest), clears stale pending_auth_callback_url, stores email in sessionStorage, and redirects to email-verify', async () => {
+      sessionStorage.setItem(
+        PENDING_AUTH_CALLBACK_URL_KEY,
+        '/reservation/mentee?tab=history&reservationId=101'
+      );
       const mockData = {
         auth_type: 'SIGNUP' as const,
         auth: { token: 'tok_1', email: 'signup@example.com' },
@@ -229,6 +256,9 @@ describe('GoogleOAuthRedirectPage Component', () => {
           },
         });
         expect(sessionStorage.getItem('email')).toBe('signup@example.com');
+        expect(
+          sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+        ).toBeNull();
         expect(pushMock).toHaveBeenCalledWith('/auth/email-verify');
       });
     });
@@ -275,6 +305,40 @@ describe('GoogleOAuthRedirectPage Component', () => {
       });
     });
 
+    it('prioritizes /auth/onboarding over pending_auth_callback_url and clears sessionStorage when onBoarding is false (#733)', async () => {
+      sessionStorage.setItem(
+        PENDING_AUTH_CALLBACK_URL_KEY,
+        '/reservation/mentee?tab=history&reservationId=101'
+      );
+
+      const mockData = {
+        auth_type: 'LOGIN' as const,
+        auth: { token: 'tok_2', email: 'user@example.com' },
+        user: fromPartial<ProfileVO>({ user_id: 456 }),
+      };
+
+      mockResolveOAuthOutcome.mockResolvedValue({
+        type: 'LOGIN',
+        data: mockData,
+      });
+
+      mockGetSession.mockResolvedValue({
+        user: { onBoarding: false },
+      });
+
+      render(<GoogleOAuthRedirectPage />);
+
+      await waitFor(() => {
+        expect(pushMock).toHaveBeenCalledWith('/auth/onboarding');
+        expect(pushMock).not.toHaveBeenCalledWith(
+          '/reservation/mentee?tab=history&reservationId=101'
+        );
+        expect(
+          sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+        ).toBeNull();
+      });
+    });
+
     it('redirects to mentor-pool if session onBoarding is true', async () => {
       const mockData = {
         auth_type: 'LOGIN' as const,
@@ -298,7 +362,75 @@ describe('GoogleOAuthRedirectPage Component', () => {
       });
     });
 
-    it('intercepts missing user or auth token during login execution', async () => {
+    it('redirects to sanitized pending_auth_callback_url and clears sessionStorage when onBoarding is true (#733)', async () => {
+      sessionStorage.setItem(
+        PENDING_AUTH_CALLBACK_URL_KEY,
+        '/reservation/mentee?tab=history&reservationId=101'
+      );
+
+      const mockData = {
+        auth_type: 'LOGIN' as const,
+        auth: { token: 'tok_2', email: 'user@example.com' },
+        user: fromPartial<ProfileVO>({ user_id: 456 }),
+      };
+
+      mockResolveOAuthOutcome.mockResolvedValue({
+        type: 'LOGIN',
+        data: mockData,
+      });
+
+      mockGetSession.mockResolvedValue({
+        user: { onBoarding: true },
+      });
+
+      render(<GoogleOAuthRedirectPage />);
+
+      await waitFor(() => {
+        expect(pushMock).toHaveBeenCalledWith(
+          '/reservation/mentee?tab=history&reservationId=101'
+        );
+        expect(
+          sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+        ).toBeNull();
+      });
+    });
+
+    it('falls back to /mentor-pool when pending_auth_callback_url normalizes to a protocol-relative // path (#733)', async () => {
+      sessionStorage.setItem(
+        PENDING_AUTH_CALLBACK_URL_KEY,
+        '/foo/..//evil.example.com/phish'
+      );
+
+      const mockData = {
+        auth_type: 'LOGIN' as const,
+        auth: { token: 'tok_2', email: 'user@example.com' },
+        user: fromPartial<ProfileVO>({ user_id: 456 }),
+      };
+
+      mockResolveOAuthOutcome.mockResolvedValue({
+        type: 'LOGIN',
+        data: mockData,
+      });
+
+      mockGetSession.mockResolvedValue({
+        user: { onBoarding: true },
+      });
+
+      render(<GoogleOAuthRedirectPage />);
+
+      await waitFor(() => {
+        expect(pushMock).toHaveBeenCalledWith('/mentor-pool');
+        expect(
+          sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+        ).toBeNull();
+      });
+    });
+
+    it('intercepts missing user or auth token during login execution and clears pending_auth_callback_url', async () => {
+      sessionStorage.setItem(
+        PENDING_AUTH_CALLBACK_URL_KEY,
+        '/reservation/mentee?tab=history&reservationId=101'
+      );
       const mockDataMissingToken = {
         auth_type: 'LOGIN' as const,
         auth: { token: null, email: 'user@example.com' },
@@ -320,10 +452,17 @@ describe('GoogleOAuthRedirectPage Component', () => {
         });
         expect(pushMock).toHaveBeenCalledWith('/auth/signin');
         expect(mockSignInWithGoogleToken).not.toHaveBeenCalled();
+        expect(
+          sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+        ).toBeNull();
       });
     });
 
-    it('handles unexpected async exceptions during login and resets loading', async () => {
+    it('handles unexpected async exceptions during login, clears pending_auth_callback_url, and resets loading', async () => {
+      sessionStorage.setItem(
+        PENDING_AUTH_CALLBACK_URL_KEY,
+        '/reservation/mentee?tab=history&reservationId=101'
+      );
       const mockData = {
         auth_type: 'LOGIN' as const,
         auth: { token: 'tok_2', email: 'user@example.com' },
@@ -347,6 +486,9 @@ describe('GoogleOAuthRedirectPage Component', () => {
           description: 'Something went wrong during login.',
         });
         expect(pushMock).toHaveBeenCalledWith('/auth/signin');
+        expect(
+          sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+        ).toBeNull();
         // Spinner is hidden, displaying "Redirecting..." instead of "Signing you in with Google..."
         expect(screen.getByText('Redirecting...')).toBeInTheDocument();
       });
@@ -362,6 +504,10 @@ describe('GoogleOAuthRedirectPage Component', () => {
     };
 
     it('handles successful account deletion flow', async () => {
+      sessionStorage.setItem(
+        PENDING_AUTH_CALLBACK_URL_KEY,
+        '/reservation/mentee?tab=history&reservationId=101'
+      );
       mockResolveOAuthOutcome.mockResolvedValue({
         type: 'RESUME_DELETE_ACCOUNT',
         data: mockData,
@@ -375,8 +521,11 @@ describe('GoogleOAuthRedirectPage Component', () => {
       render(<GoogleOAuthRedirectPage />);
 
       await waitFor(() => {
-        // Must clear pending delete email
+        // Must clear pending delete email and any stale pending callback URL
         expect(mockClearPendingDeleteEmail).toHaveBeenCalledTimes(1);
+        expect(
+          sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+        ).toBeNull();
 
         // Sign in first
         expect(mockSignInWithGoogleToken).toHaveBeenCalledWith(

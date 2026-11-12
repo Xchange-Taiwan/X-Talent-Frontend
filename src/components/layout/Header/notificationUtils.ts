@@ -18,6 +18,38 @@ function getMentorContext(item: NotificationItem): boolean {
   );
 }
 
+function buildHistoryFeedbackHref(
+  basePath: '/reservation/mentor' | '/reservation/mentee',
+  reservationId?: string
+): string {
+  const trimmedId = reservationId?.trim();
+  if (!trimmedId) {
+    return `${basePath}?tab=history`;
+  }
+  return `${basePath}?tab=history&reservationId=${encodeURIComponent(trimmedId)}`;
+}
+
+const FEEDBACK_REMINDER_CONFIG: NotificationConfigEntry = {
+  getContent: (item) => {
+    const isMentor = getMentorContext(item);
+    if (isMentor) {
+      return {
+        title: '留下您的會談紀錄',
+        body: `您與 ${item.menteeName || 'Mentee'} 的會談已結束，前往留下紀錄。`,
+      };
+    }
+    return {
+      title: '留下您的會談回饋',
+      body: `您與 ${item.mentorName || 'Mentor'} 的會談已結束，前往留下回饋。`,
+    };
+  },
+  getHref: (item, isMentorContext) =>
+    buildHistoryFeedbackHref(
+      isMentorContext ? '/reservation/mentor' : '/reservation/mentee',
+      item.reservationId
+    ),
+};
+
 /**
  * Single source of truth for how each notification `type` renders (title,
  * body) and where it links to (href). Keeping both concerns keyed by the
@@ -94,6 +126,9 @@ const NOTIFICATION_CONFIG: Record<
         ? '/reservation/mentor?tab=upcoming'
         : '/reservation/mentee?tab=upcoming',
   },
+  feedback_reminder: FEEDBACK_REMINDER_CONFIG,
+  reservation_feedback_reminder: FEEDBACK_REMINDER_CONFIG,
+  meeting_feedback_reminder: FEEDBACK_REMINDER_CONFIG,
 };
 
 const DEFAULT_CONTENT: NotificationContent = {

@@ -9,6 +9,10 @@ import {
   setAnalyticsUserContext,
   trackEvent,
 } from '@/lib/analytics';
+import {
+  clearPendingCallbackUrl,
+  consumePendingCallbackUrl,
+} from '@/lib/auth/callbackUrl';
 import { dispatchDeleteAccountRevalidate } from '@/lib/auth/dispatchDeleteAccountRevalidate';
 import {
   clearPendingDeleteAccountEmail,
@@ -37,6 +41,7 @@ export function useGoogleOAuthCallback() {
     ) => {
       // Clear the delete email marker on any invalid path to prevent zombie landmine states
       clearPendingDeleteAccountEmail();
+      clearPendingCallbackUrl();
 
       const description =
         errorType === 'MISSING_PARAMS'
@@ -61,6 +66,7 @@ export function useGoogleOAuthCallback() {
     };
 
     const executeSignup = (data: GoogleCallbackVO) => {
+      clearPendingCallbackUrl();
       trackEvent({
         name: 'sign_up',
         feature: 'auth',
@@ -75,6 +81,7 @@ export function useGoogleOAuthCallback() {
 
     const executeLogin = async (data: GoogleCallbackVO) => {
       if (!data.user || !data.auth.token) {
+        clearPendingCallbackUrl();
         toast({
           variant: 'destructive',
           title: 'Missing login data',
@@ -115,9 +122,13 @@ export function useGoogleOAuthCallback() {
       });
 
       if (session?.user?.onBoarding === false) {
+        clearPendingCallbackUrl();
         router.push('/auth/onboarding');
       } else {
-        router.push('/mentor-pool');
+        const pendingCallbackUrl = consumePendingCallbackUrl(
+          typeof window !== 'undefined' ? window.location.origin : undefined
+        );
+        router.push(pendingCallbackUrl ?? '/mentor-pool');
       }
     };
 
@@ -127,6 +138,7 @@ export function useGoogleOAuthCallback() {
     ) => {
       // Safe clearance of sessionStorage at the absolute top of execution to prevent zombie states
       clearPendingDeleteAccountEmail();
+      clearPendingCallbackUrl();
 
       const { id_token, auth, user } = data;
 
@@ -198,6 +210,7 @@ export function useGoogleOAuthCallback() {
             break;
         }
       } catch {
+        clearPendingCallbackUrl();
         toast({
           variant: 'destructive',
           title: 'Login failed',

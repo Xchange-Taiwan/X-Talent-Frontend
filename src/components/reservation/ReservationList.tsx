@@ -82,14 +82,38 @@ function ReservationItem({
   variant,
   sourceRole,
   myUserId,
+  isHighlighted = false,
+  shouldAutoExpandFeedback = false,
+  deepLinkTriggerSeq = 0,
 }: {
   reservation: Reservation;
   variant: Variant;
   sourceRole: SourceRole;
   myUserId: string | undefined;
+  isHighlighted?: boolean;
+  shouldAutoExpandFeedback?: boolean;
+  deepLinkTriggerSeq?: number;
 }) {
-  const [isFeedbackExpanded, setIsFeedbackExpanded] = React.useState(false);
+  const [isFeedbackExpanded, setIsFeedbackExpanded] = React.useState(
+    () => shouldAutoExpandFeedback
+  );
   const feedbackPanelId = React.useId();
+  const cardWrapperRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (shouldAutoExpandFeedback) {
+      setIsFeedbackExpanded(true);
+    }
+  }, [shouldAutoExpandFeedback, deepLinkTriggerSeq]);
+
+  React.useEffect(() => {
+    if (isHighlighted && cardWrapperRef.current) {
+      cardWrapperRef.current.scrollIntoView?.({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+  }, [isHighlighted, deepLinkTriggerSeq]);
 
   const { accept, rejectOrCancel, submitFeedback, updateFeedback, isMutating } =
     useReservationActions({
@@ -133,6 +157,9 @@ function ReservationItem({
     if (historyState.headerAction.kind === 'answer-button') {
       return (
         <MeetingFeedbackDialog
+          initialStep={
+            reservation.feedback?.nextStep === 'RATE' ? 'rating' : 'attendance'
+          }
           reservation={reservation}
           disabled={isMutating}
           onSubmitFeedback={(payload) => submitFeedback(reservation, payload)}
@@ -166,81 +193,123 @@ function ReservationItem({
   };
 
   return (
-    <ReservationCard
-      item={reservation}
-      myUserId={myUserId}
-      variant={cardVariantOf(variant)}
-      profileHref={viewer.profileHref}
-      onProfileClick={handleProfileClick}
-      disabled={isMutating}
-      sourceRole={sourceRole}
-      headerAction={renderHistoryHeaderAction()}
-      feedbackContent={
-        historyState?.feedbackBlock && isFeedbackExpanded ? (
-          <ReservationFeedbackBlock
-            id={feedbackPanelId}
-            model={historyState.feedbackBlock}
-            editAction={
-              historyState.feedbackBlock.canEdit ? (
-                <MeetingFeedbackDialog
-                  mode="edit"
-                  reservation={reservation}
-                  disabled={isMutating}
-                  onUpdateFeedback={(payload) =>
-                    updateFeedback(reservation, payload)
-                  }
-                />
-              ) : null
-            }
-          />
-        ) : null
+    <div
+      ref={cardWrapperRef}
+      id={`reservation-card-${reservation.id}`}
+      data-reservation-id={reservation.id}
+      data-highlighted={isHighlighted ? 'true' : undefined}
+      className={
+        isHighlighted
+          ? 'ring-brand-500/60 rounded-xl ring-2 transition-shadow'
+          : undefined
       }
-      actions={
-        variant === 'history' ? (
-          historyState?.bottomStatusLabel ? (
-            <Badge variant="secondary" role="status">
-              {historyState.bottomStatusLabel}
-            </Badge>
-          ) : null
-        ) : variant === 'pending-mentor' ? (
-          <div className="flex justify-end gap-2">
-            <RejectReservationDialog
-              reservation={reservation}
-              disabled={isMutating}
-              className="text-xs sm:text-sm"
-              onReject={async ({ reason }) =>
-                rejectOrCancel(reservation, reason, 'reject')
+    >
+      <ReservationCard
+        item={reservation}
+        myUserId={myUserId}
+        variant={cardVariantOf(variant)}
+        profileHref={viewer.profileHref}
+        onProfileClick={handleProfileClick}
+        disabled={isMutating}
+        sourceRole={sourceRole}
+        headerAction={renderHistoryHeaderAction()}
+        feedbackContent={
+          historyState?.feedbackBlock && isFeedbackExpanded ? (
+            <ReservationFeedbackBlock
+              id={feedbackPanelId}
+              model={historyState.feedbackBlock}
+              editAction={
+                historyState.feedbackBlock.canEdit ? (
+                  <MeetingFeedbackDialog
+                    mode="edit"
+                    reservation={reservation}
+                    disabled={isMutating}
+                    onUpdateFeedback={(payload) =>
+                      updateFeedback(reservation, payload)
+                    }
+                  />
+                ) : null
               }
             />
-            <AcceptReservationDialog
+          ) : null
+        }
+        actions={
+          variant === 'history' ? (
+            historyState?.bottomStatusLabel ? (
+              <Badge variant="secondary" role="status">
+                {historyState.bottomStatusLabel}
+              </Badge>
+            ) : null
+          ) : variant === 'pending-mentor' ? (
+            <div className="flex justify-end gap-2">
+              <RejectReservationDialog
+                reservation={reservation}
+                disabled={isMutating}
+                className="text-xs sm:text-sm"
+                onReject={async ({ reason }) =>
+                  rejectOrCancel(reservation, reason, 'reject')
+                }
+              />
+              <AcceptReservationDialog
+                reservation={reservation}
+                myUserId={myUserId}
+                disabled={isMutating}
+                className="text-xs sm:text-sm"
+                onAccept={async ({ message }) => accept(reservation, message)}
+              />
+            </div>
+          ) : (
+            <CancelReservationDialog
               reservation={reservation}
-              myUserId={myUserId}
               disabled={isMutating}
-              className="text-xs sm:text-sm"
-              onAccept={async ({ message }) => accept(reservation, message)}
+              className="w-full text-xs sm:w-auto sm:text-sm"
+              onConfirmCancel={async ({ reason }) =>
+                rejectOrCancel(reservation, reason, 'cancel')
+              }
             />
-          </div>
-        ) : (
-          <CancelReservationDialog
-            reservation={reservation}
-            disabled={isMutating}
-            className="w-full text-xs sm:w-auto sm:text-sm"
-            onConfirmCancel={async ({ reason }) =>
-              rejectOrCancel(reservation, reason, 'cancel')
-            }
-          />
-        )
+          )
+        }
+        footer={
+          variant === 'history' &&
+          (reservation.messages.length > 0 ||
+            reservation.cancelledBy === 'SYSTEM') ? (
+            <ReservationConversationDialog
+              reservation={reservation}
+              sourceRole={sourceRole}
+            />
+          ) : null
+        }
+      />
+    </div>
+  );
+}
+
+function MenteeDeepLinkFeedbackDialog({
+  reservation,
+  myUserId,
+  onClose,
+}: {
+  reservation: Reservation;
+  myUserId: string | undefined;
+  onClose?: () => void;
+}) {
+  const { submitFeedback, isMutating } = useReservationActions({
+    myUserId,
+    variant: 'history',
+    myRole: 'mentee',
+  });
+
+  return (
+    <MeetingFeedbackDialog
+      defaultOpen
+      initialStep={
+        reservation.feedback?.nextStep === 'RATE' ? 'rating' : 'attendance'
       }
-      footer={
-        variant === 'history' &&
-        (reservation.messages.length > 0 ||
-          reservation.cancelledBy === 'SYSTEM') ? (
-          <ReservationConversationDialog
-            reservation={reservation}
-            sourceRole={sourceRole}
-          />
-        ) : null
-      }
+      reservation={reservation}
+      disabled={isMutating}
+      trigger={<span className="sr-only">指定會談回饋視窗</span>}
+      onSubmitFeedback={(payload, target) => submitFeedback(target, payload)}
+      onClose={onClose}
     />
   );
 }
@@ -283,6 +352,11 @@ export function ReservationList({
   isLoadingMore = false,
   feedbackQueueItems = null,
   onFeedbackQueueClose,
+  deepLinkDialogReservation = null,
+  onDeepLinkDialogClose,
+  highlightedReservationId = null,
+  autoExpandedReservationId = null,
+  deepLinkTriggerSeq = 0,
 }: {
   items: Reservation[];
   variant: Variant;
@@ -293,15 +367,29 @@ export function ReservationList({
   isLoadingMore?: boolean;
   feedbackQueueItems?: Reservation[] | null;
   onFeedbackQueueClose?: () => void;
+  deepLinkDialogReservation?: Reservation | null;
+  onDeepLinkDialogClose?: () => void;
+  highlightedReservationId?: string | null;
+  autoExpandedReservationId?: string | null;
+  deepLinkTriggerSeq?: number;
 }) {
   const emptyState = resolveEmptyStateContent(sourceRole, variant, myUserId);
 
   return (
     <div className="space-y-3 sm:space-y-4">
-      {feedbackQueueItems &&
-      feedbackQueueItems.length > 0 &&
+      {deepLinkDialogReservation &&
       variant === 'history' &&
       sourceRole === 'mentee' ? (
+        <MenteeDeepLinkFeedbackDialog
+          key={deepLinkDialogReservation.id}
+          reservation={deepLinkDialogReservation}
+          myUserId={myUserId}
+          onClose={onDeepLinkDialogClose}
+        />
+      ) : feedbackQueueItems &&
+        feedbackQueueItems.length > 0 &&
+        variant === 'history' &&
+        sourceRole === 'mentee' ? (
         <MenteePendingFeedbackQueueDialog
           queueItems={feedbackQueueItems}
           myUserId={myUserId}
@@ -316,6 +404,13 @@ export function ReservationList({
           variant={variant}
           sourceRole={sourceRole}
           myUserId={myUserId}
+          isHighlighted={
+            variant === 'history' && highlightedReservationId === it.id
+          }
+          shouldAutoExpandFeedback={
+            variant === 'history' && autoExpandedReservationId === it.id
+          }
+          deepLinkTriggerSeq={variant === 'history' ? deepLinkTriggerSeq : 0}
         />
       ))}
 

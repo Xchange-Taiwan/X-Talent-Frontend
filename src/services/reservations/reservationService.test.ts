@@ -497,6 +497,24 @@ describe('reservationService API Error Handling', () => {
         },
         nextStep: null,
       });
+
+      const withPendingRateStep = mapToReservation(
+        {
+          ...makeApiReservation(),
+          feedback: {
+            meeting_happened: true,
+            rating: null,
+            next_step: 'RATE',
+          },
+        },
+        1
+      );
+
+      expect(withPendingRateStep.feedback).toEqual({
+        meetingHappened: true,
+        rating: null,
+        nextStep: 'RATE',
+      });
     });
 
     it('calls POST /v1/users/:userId/reservations/:reservationId/feedback via apiClient.postUnwrapped', async () => {

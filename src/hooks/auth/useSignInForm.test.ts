@@ -35,6 +35,7 @@ vi.mock('@/lib/analytics', async (importOriginal) => {
 
 import { validateSignIn } from '@/lib/actions/signIn';
 import { setAnalyticsUserContext, trackEvent } from '@/lib/analytics';
+import { PENDING_AUTH_CALLBACK_URL_KEY } from '@/lib/auth/callbackUrl';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockGetSession, mockSession, mockSignIn } from '@/test/mocks/nextAuth';
@@ -52,6 +53,8 @@ const validValues = { email: 'user@example.com', password: 'Password1!' };
 describe('useSignInForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.sessionStorage.clear();
+    window.history.replaceState({}, '', '/auth/signin');
     mockValidateSignIn.mockResolvedValue({
       success: true,
       email: validValues.email,
@@ -172,6 +175,85 @@ describe('useSignInForm', () => {
     });
     expect(mockRouter.push).toHaveBeenCalledWith('/mentor-pool');
     expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it('success + valid callbackUrl query parameter → redirects to full callbackUrl including query params and clears stale pending_auth_callback_url (#733)', async () => {
+    window.sessionStorage.setItem(
+      PENDING_AUTH_CALLBACK_URL_KEY,
+      '/reservation/mentor?tab=history&reservationId=999'
+    );
+    window.history.replaceState(
+      {},
+      '',
+      '/auth/signin?callbackUrl=%2Freservation%2Fmentee%3Ftab%3Dhistory%26reservationId%3D101'
+    );
+    mockGetSession.mockResolvedValueOnce({
+      ...mockSession,
+      user: { ...mockSession.user, onBoarding: true, isMentor: false },
+    });
+
+    const { result } = renderHook(() => useSignInForm());
+
+    await act(async () => {
+      await result.current.onSubmit(validValues);
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith(
+      '/reservation/mentee?tab=history&reservationId=101'
+    );
+    expect(
+      window.sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+    ).toBeNull();
+  });
+
+  it('success + valid callbackUrl + onBoarding === false → prioritizes /auth/onboarding over callbackUrl and clears stale pending_auth_callback_url (#733)', async () => {
+    window.sessionStorage.setItem(
+      PENDING_AUTH_CALLBACK_URL_KEY,
+      '/reservation/mentee?tab=history&reservationId=101'
+    );
+    window.history.replaceState(
+      {},
+      '',
+      '/auth/signin?callbackUrl=%2Freservation%2Fmentee%3Ftab%3Dhistory%26reservationId%3D101'
+    );
+    mockGetSession.mockResolvedValueOnce({
+      ...mockSession,
+      user: { ...mockSession.user, onBoarding: false, isMentor: false },
+    });
+
+    const { result } = renderHook(() => useSignInForm());
+
+    await act(async () => {
+      await result.current.onSubmit(validValues);
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/auth/onboarding');
+    expect(mockRouter.push).not.toHaveBeenCalledWith(
+      '/reservation/mentee?tab=history&reservationId=101'
+    );
+    expect(
+      window.sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+    ).toBeNull();
+  });
+
+  it('success + unsafe external callbackUrl → ignores open-redirect attempt and falls back to /mentor-pool (#733)', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/auth/signin?callbackUrl=https%3A%2F%2Fevil.example.com%2Fphish'
+    );
+    mockGetSession.mockResolvedValueOnce({
+      ...mockSession,
+      user: { ...mockSession.user, onBoarding: true, isMentor: false },
+    });
+
+    const { result } = renderHook(() => useSignInForm());
+
+    await act(async () => {
+      await result.current.onSubmit(validValues);
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/mentor-pool');
   });
 
   it('unexpected error is thrown → toast shows "Something went wrong!"', async () => {

@@ -838,5 +838,23 @@ describe('middleware public routes', () => {
 
     expect(response.status).toBe(307);
     expect(response.headers.get('location')).toContain('/auth/signin');
+    expect(response.headers.get('location')).not.toContain('callbackUrl=');
+  });
+
+  it('preserves full pathname and query parameters in callbackUrl when redirecting unauthenticated users from History deep links (#733)', async () => {
+    mockGetToken.mockResolvedValue(null);
+
+    const response = await middleware(
+      makeRequest('/reservation/mentee?tab=history&reservationId=101')
+    );
+
+    expect(response.status).toBe(307);
+    const location = response.headers.get('location');
+    expect(location).not.toBeNull();
+    const redirectUrl = new URL(location!);
+    expect(redirectUrl.pathname).toBe('/auth/signin');
+    expect(redirectUrl.searchParams.get('callbackUrl')).toBe(
+      '/reservation/mentee?tab=history&reservationId=101'
+    );
   });
 });

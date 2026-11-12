@@ -12,6 +12,10 @@ import {
   setAnalyticsUserContext,
   trackEvent,
 } from '@/lib/analytics';
+import {
+  clearPendingCallbackUrl,
+  sanitizeCallbackUrl,
+} from '@/lib/auth/callbackUrl';
 import { SignInSchema } from '@/schemas/auth';
 
 type SignInValues = z.infer<typeof SignInSchema>;
@@ -94,10 +98,20 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
           },
         });
 
+        clearPendingCallbackUrl();
+        const rawCallbackUrl =
+          typeof window !== 'undefined'
+            ? new URLSearchParams(window.location.search).get('callbackUrl')
+            : null;
+        const safeCallbackUrl = sanitizeCallbackUrl(
+          rawCallbackUrl,
+          typeof window !== 'undefined' ? window.location.origin : undefined
+        );
+
         if (session.user.onBoarding === false) {
           router.push('/auth/onboarding');
         } else {
-          router.push('/mentor-pool');
+          router.push(safeCallbackUrl ?? '/mentor-pool');
         }
       },
       {
