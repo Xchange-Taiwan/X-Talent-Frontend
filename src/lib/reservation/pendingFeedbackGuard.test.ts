@@ -10,6 +10,7 @@ import {
   markSessionPendingFeedbackChecked,
   markSessionPendingFeedbackDismissed,
   markSessionReservationSkipped,
+  markSessionReservationSubmitted,
   shouldSuppressPendingFeedbackPopup,
   sortPendingFeedbackOldestFirst,
 } from './pendingFeedbackGuard';
@@ -158,17 +159,31 @@ describe('pendingFeedbackGuard (#740)', () => {
   });
 
   describe('sessionStorage skip/dismiss lifecycle', () => {
-    it('tracks checked, skipped reservation IDs, dismissed state, and clears cleanly on logout', () => {
+    it('tracks checked, queueEmpty, submittedIds, skippedIds, dismissed state, and clears cleanly on logout', () => {
       expect(getSessionPendingFeedbackState('1')).toEqual({
         checked: false,
         dismissed: false,
+        queueEmpty: false,
+        submittedIds: [],
         skippedIds: [],
       });
 
-      markSessionPendingFeedbackChecked('1');
+      markSessionPendingFeedbackChecked('1', true);
       expect(getSessionPendingFeedbackState('1')).toEqual({
         checked: true,
         dismissed: false,
+        queueEmpty: false,
+        submittedIds: [],
+        skippedIds: [],
+      });
+
+      markSessionReservationSubmitted('1', '100', false);
+      markSessionReservationSubmitted('1', '100', false);
+      expect(getSessionPendingFeedbackState('1')).toEqual({
+        checked: true,
+        dismissed: false,
+        queueEmpty: false,
+        submittedIds: ['100'],
         skippedIds: [],
       });
 
@@ -178,14 +193,27 @@ describe('pendingFeedbackGuard (#740)', () => {
       expect(getSessionPendingFeedbackState('1')).toEqual({
         checked: true,
         dismissed: false,
+        queueEmpty: false,
+        submittedIds: ['100'],
         skippedIds: ['101', '102'],
       });
 
-      markSessionPendingFeedbackDismissed('1', ['103']);
+      markSessionReservationSubmitted('1', '103', true);
+      expect(getSessionPendingFeedbackState('1')).toEqual({
+        checked: true,
+        dismissed: false,
+        queueEmpty: true,
+        submittedIds: ['100', '103'],
+        skippedIds: ['101', '102'],
+      });
+
+      markSessionPendingFeedbackDismissed('1', ['104']);
       expect(getSessionPendingFeedbackState('1')).toEqual({
         checked: true,
         dismissed: true,
-        skippedIds: ['101', '102', '103'],
+        queueEmpty: true,
+        submittedIds: ['100', '103'],
+        skippedIds: ['101', '102', '104'],
       });
 
       window.sessionStorage.setItem('unrelated-key', 'keep');
@@ -194,6 +222,8 @@ describe('pendingFeedbackGuard (#740)', () => {
       expect(getSessionPendingFeedbackState('1')).toEqual({
         checked: false,
         dismissed: false,
+        queueEmpty: false,
+        submittedIds: [],
         skippedIds: [],
       });
       expect(window.sessionStorage.getItem('unrelated-key')).toBe('keep');

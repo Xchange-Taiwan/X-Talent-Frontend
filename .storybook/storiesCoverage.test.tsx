@@ -361,6 +361,9 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
     expect(
       meetingFeedbackStepsStories.MentorStep2NotHappenedWithWarning
     ).toBeDefined();
+    expect(
+      meetingFeedbackStepsStories.MentorStep2NotHappenedOtherExpanded
+    ).toBeDefined();
     expect(meetingFeedbackDialogStories.MentorStepAttendanceOpen).toBeDefined();
     expect(
       meetingFeedbackDialogStories.MentorStepNotHappenedOpen
@@ -376,6 +379,7 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
     expect(pendingFeedbackModalStories.MenteeSingleSession).toBeDefined();
     expect(pendingFeedbackModalStories.MenteeThreeSessionQueue).toBeDefined();
     expect(pendingFeedbackModalStories.MentorThreeSessionQueue).toBeDefined();
+    expect(pendingFeedbackModalStories.MixedRoleQueue).toBeDefined();
 
     const { container: emptyModalContainer } = render(
       <PendingFeedbackModal

@@ -45,6 +45,7 @@ import type {
 import {
   AttendanceStepContent,
   MeetingFeedbackFooter,
+  MentorNotHappenedWarning,
   NotHappenedStepContent,
   RatingStepContent,
 } from './meeting-feedback';
@@ -534,7 +535,7 @@ export default function MeetingFeedbackDialog({
             data-testid="feedback-dialog-surface"
             data-queue-motion={queueMotionState}
             className={cn(
-              'border-background-border bg-background-white text-text-primary relative flex max-h-[90dvh] flex-col overflow-hidden rounded-lg border shadow-lg sm:max-h-[92dvh]',
+              'border-background-border bg-background-white text-text-primary relative flex max-h-[calc(100dvh-1.5rem)] flex-col overflow-hidden rounded-lg border shadow-lg sm:max-h-[calc(100dvh-1.5rem)]',
               queueMotionState === 'swiping-out' &&
                 'motion-safe:animate-feedback-card-out',
               queueMotionState === 'promoting' &&
@@ -542,9 +543,9 @@ export default function MeetingFeedbackDialog({
             )}
           >
             {/* Fixed Top Header: Queue Progress + Counterparty Session Info */}
-            <div className="relative z-20 shrink-0 px-5 pt-5 sm:px-6 sm:pt-6">
+            <div className="relative z-20 shrink-0 px-5 pt-5 sm:px-6 sm:pt-5">
               {isQueueMode ? (
-                <div className="mb-4">
+                <div className="mb-3.5">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-baseline gap-2">
                       <span className="text-text-primary text-base font-semibold">
@@ -586,7 +587,7 @@ export default function MeetingFeedbackDialog({
                     aria-valuemax={queueItems.length}
                     aria-valuenow={queueIndex + 1}
                     data-testid="feedback-queue-progressbar"
-                    className="mt-3 flex gap-1.5"
+                    className="mt-2.5 flex gap-1.5"
                   >
                     {queueItems.map((item, idx) => {
                       const segmentState =
@@ -658,10 +659,10 @@ export default function MeetingFeedbackDialog({
                 ) : null}
               </div>
 
-              <div className="bg-background-border mt-4 h-px w-full" />
+              <div className="bg-background-border mt-3.5 h-px w-full" />
             </div>
 
-            {/* Scrollable Step Body + Sticky Bottom Footer */}
+            {/* Scrollable Step Body + Pinned Mentor Warning + Sticky Bottom Footer */}
             <form
               onSubmit={submitWithValidation(handleValidSubmit)}
               noValidate
@@ -670,14 +671,16 @@ export default function MeetingFeedbackDialog({
               <div
                 className={cn(
                   'min-h-0 flex-1 overflow-y-auto px-5 sm:px-6',
-                  effectiveStep === 'not-happened' ? 'py-3.5' : 'py-4'
+                  effectiveStep === 'not-happened' ? 'pt-3 pb-2' : 'py-4'
                 )}
               >
                 <div
                   key={`${activeReservation.id}-${effectiveStep}`}
                   className={cn(
                     'motion-safe:animate-feedback-step-in',
-                    effectiveStep === 'not-happened' ? 'space-y-3' : 'space-y-4'
+                    effectiveStep === 'not-happened'
+                      ? 'space-y-2.5'
+                      : 'space-y-4'
                   )}
                 >
                   {effectiveStep === 'attendance' ? (
@@ -715,6 +718,7 @@ export default function MeetingFeedbackDialog({
                       noteFieldId={noteFieldId}
                       isSubmitting={isSubmitting}
                       isMentor={isMentor}
+                      hideInlineMentorWarning
                       noteRegistration={register('notHappenedNote')}
                       onSelectReason={(reason) => {
                         setValue('notHappenedReason', reason, {
@@ -726,6 +730,12 @@ export default function MeetingFeedbackDialog({
                   )}
                 </div>
               </div>
+
+              {effectiveStep === 'not-happened' && isMentor ? (
+                <div className="shrink-0 px-5 pt-1 pb-2 sm:px-6">
+                  <MentorNotHappenedWarning />
+                </div>
+              ) : null}
 
               <MeetingFeedbackFooter
                 effectiveStep={effectiveStep}

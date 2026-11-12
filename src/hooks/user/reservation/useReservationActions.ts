@@ -17,6 +17,8 @@ import type {
   UpdateReservationFeedbackRequest,
 } from '@/types/reservationFeedback';
 
+import { submitFeedbackWithEffects } from './submitFeedbackWithEffects';
+
 export type Variant =
   'upcoming' | 'pending-mentee' | 'pending-mentor' | 'history';
 
@@ -110,26 +112,12 @@ export function useReservationActions({
       payload: SubmitReservationFeedbackRequest
     ) => {
       await run(async () => {
-        await submitReservationFeedback({
+        await submitFeedbackWithEffects({
           reservation,
           myUserId,
           myRole,
           payload,
-        });
-        if ((payload.meeting_happened || myRole === 'mentor') && myUserId) {
-          const targetMentorId =
-            myRole === 'mentor'
-              ? Number(myUserId)
-              : Number(resolveCounterpartyId(reservation, myUserId));
-          if (Number.isFinite(targetMentorId) && targetMentorId > 0) {
-            clearUserProfileDtoCache(targetMentorId, 'zh_TW');
-            clearUserProfileDtoCache(targetMentorId, 'en_US');
-          }
-        }
-        trackEvent({
-          name: 'reservation_feedback_submitted',
-          feature: 'reservation',
-          metadata: { meeting_happened: payload.meeting_happened },
+          submitServiceFn: submitReservationFeedback,
         });
         await onMutationSuccess?.(reservation.id);
       });

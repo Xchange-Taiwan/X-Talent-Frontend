@@ -203,6 +203,31 @@ export function RatingStepContent({
   );
 }
 
+export interface MentorNotHappenedWarningProps {
+  className?: string;
+}
+
+export function MentorNotHappenedWarning({
+  className,
+}: MentorNotHappenedWarningProps) {
+  return (
+    <div
+      role="note"
+      data-testid="mentor-not-happened-warning"
+      className={cn(
+        'border-status-warning-border bg-status-warning-surface text-status-warning-text flex items-start gap-2 rounded-lg border px-3.5 py-2 text-xs leading-relaxed',
+        className
+      )}
+    >
+      <Info
+        className="text-status-warning-text mt-0.5 size-4 shrink-0"
+        aria-hidden="true"
+      />
+      <p>{MENTOR_NOT_HAPPENED_WARNING_TEXT}</p>
+    </div>
+  );
+}
+
 export interface NotHappenedStepContentProps {
   notHappenedReason: NotHappenedReason | null;
   notHappenedNote: string;
@@ -210,6 +235,7 @@ export interface NotHappenedStepContentProps {
   noteFieldId: string;
   isSubmitting: boolean;
   isMentor?: boolean;
+  hideInlineMentorWarning?: boolean;
   noteRegistration: UseFormRegisterReturn;
   onSelectReason: (reason: NotHappenedReason) => void;
 }
@@ -221,6 +247,7 @@ export function NotHappenedStepContent({
   noteFieldId,
   isSubmitting,
   isMentor = false,
+  hideInlineMentorWarning = false,
   noteRegistration,
   onSelectReason,
 }: NotHappenedStepContentProps) {
@@ -230,7 +257,7 @@ export function NotHappenedStepContent({
 
   return (
     <>
-      <DialogHeader className="space-y-1 text-left">
+      <DialogHeader className="space-y-0.5 text-left">
         <p className="text-brand-700 text-xs font-medium">
           步驟 2 / 2 · 會談狀況
         </p>
@@ -274,12 +301,12 @@ export function NotHappenedStepContent({
           className={cn(
             'grid transition-all duration-200 ease-out motion-reduce:transition-none',
             showNoteField
-              ? 'visible mt-3 grid-rows-[1fr] opacity-100'
+              ? 'visible mt-2.5 grid-rows-[1fr] opacity-100'
               : 'pointer-events-none invisible mt-0 grid-rows-[0fr] opacity-0'
           )}
         >
           <div className="min-h-0 overflow-hidden">
-            <div className="space-y-1.5 px-1 pt-0.5 pb-0.5">
+            <div className="space-y-1 px-0.5 pt-0.5 pb-0.5">
               <label
                 htmlFor={noteFieldId}
                 className="text-text-primary block text-sm font-medium"
@@ -295,7 +322,7 @@ export function NotHappenedStepContent({
                 placeholder="說說發生了什麼事…"
                 aria-invalid={hasNoteError}
                 tabIndex={showNoteField ? undefined : -1}
-                className="min-h-14 resize-none overflow-y-auto py-1.5 text-sm font-normal"
+                className="min-h-12 resize-none overflow-y-auto py-1.5 text-sm font-normal"
                 {...noteRegistration}
                 disabled={isSubmitting || !showNoteField}
               />
@@ -323,18 +350,8 @@ export function NotHappenedStepContent({
           </div>
         </div>
 
-        {isMentor ? (
-          <div
-            role="note"
-            data-testid="mentor-not-happened-warning"
-            className="border-status-warning-border bg-status-warning-surface text-status-warning-text mt-3 flex items-start gap-2 rounded-lg border px-3.5 py-2.5 text-xs leading-relaxed"
-          >
-            <Info
-              className="text-status-warning-text mt-0.5 size-4 shrink-0"
-              aria-hidden="true"
-            />
-            <p>{MENTOR_NOT_HAPPENED_WARNING_TEXT}</p>
-          </div>
+        {isMentor && !hideInlineMentorWarning ? (
+          <MentorNotHappenedWarning className="mt-3" />
         ) : null}
       </div>
     </>
@@ -432,7 +449,9 @@ export function MeetingFeedbackFooter({
       className={cn(
         'bg-background-white flex shrink-0 flex-row items-center justify-between gap-3 px-5 sm:justify-between sm:space-x-0 sm:px-6',
         effectiveStep === 'not-happened'
-          ? 'border-background-border/70 border-t py-3 sm:py-3.5'
+          ? isMentor
+            ? 'pt-1.5 pb-4 sm:pb-5'
+            : 'border-background-border/70 border-t py-3 sm:py-3.5'
           : 'pt-1 pb-5 sm:pb-6'
       )}
     >

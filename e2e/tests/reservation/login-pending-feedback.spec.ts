@@ -210,6 +210,9 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
     await expect(dialog.getByTestId('feedback-mentor-header')).toContainText(
       'Emily Chen'
     );
+    await expect(dialog.getByTestId('feedback-mentor-header')).toContainText(
+      /\d{4}\/\d{2}\/\d{2} · \d{2}:\d{2}–\d{2}:\d{2}/
+    );
 
     // Unselected Mentor Step 1: 確定送出 is visible and disabled; only X button in top-right
     const submitHappenedBtn = dialog.getByRole('button', { name: '確定送出' });
@@ -266,7 +269,7 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
 
     for (const reasonLabel of [
       '雙方時間無法配合',
-      '對方未出席',
+      '未出席',
       '未收到或錯過會議通知',
       '技術／連線問題',
       '其他',
@@ -286,7 +289,7 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
 
     await dialog
       .locator('label')
-      .filter({ hasText: /^對方未出席$/ })
+      .filter({ hasText: /^未出席$/ })
       .click();
     await captureEvidence(
       page,
@@ -306,6 +309,26 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
     await noteField.fill('學員臨時有事已在聊聊通知改期');
     await expect(dialog.getByTestId('feedback-note-counter')).toHaveText(
       '14 / 1000'
+    );
+
+    // Ensure the warm-yellow Mentor warning box is completely visible and never clipped by scroll or footer
+    const submitNextBtn = dialog.getByRole('button', {
+      name: '送出並填下一場',
+    });
+    const [noteCounterBox, warningRect, submitBtnRect] = await Promise.all([
+      dialog.getByTestId('feedback-note-counter').boundingBox(),
+      warningBox.boundingBox(),
+      submitNextBtn.boundingBox(),
+    ]);
+    expect(noteCounterBox).not.toBeNull();
+    expect(warningRect).not.toBeNull();
+    expect(submitBtnRect).not.toBeNull();
+    expect(warningRect!.height).toBeGreaterThanOrEqual(44);
+    expect(warningRect!.y).toBeGreaterThanOrEqual(
+      noteCounterBox!.y + noteCounterBox!.height - 2
+    );
+    expect(warningRect!.y + warningRect!.height).toBeLessThanOrEqual(
+      submitBtnRect!.y + 2
     );
 
     await captureEvidence(

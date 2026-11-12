@@ -68,6 +68,19 @@ export function formatDateTime(dtstart: number, dtend: number) {
   };
 }
 
+export function formatPendingFeedbackDateTime(dtstart: number, dtend: number) {
+  const start = dayjs.unix(dtstart);
+  const safeDtend =
+    typeof dtend === 'number' && Number.isFinite(dtend) && dtend > 0
+      ? dtend
+      : dtstart;
+  const end = dayjs.unix(safeDtend);
+  return {
+    date: start.format('YYYY/MM/DD'),
+    time: `${start.format('HH:mm')}–${end.format('HH:mm')}`,
+  };
+}
+
 /* ================================
  * Mapping
  * ================================ */
@@ -491,7 +504,8 @@ function extractRawPendingFeedbackList(
 
 function mapPendingFeedbackCandidate(
   candidate: PendingFeedbackCandidate,
-  userId: string | number
+  userId: string | number,
+  fallbackViewerRole?: 'MENTEE' | 'MENTOR'
 ): Reservation | null {
   if (!candidate || typeof candidate !== 'object') {
     return null;
@@ -509,8 +523,14 @@ function mapPendingFeedbackCandidate(
     ) {
       return null;
     }
+    const formattedDateTime =
+      mapped.dtstart > 0
+        ? formatPendingFeedbackDateTime(mapped.dtstart, mapped.dtend)
+        : undefined;
     return {
       ...mapped,
+      ...(formattedDateTime ?? {}),
+      viewerRole: mapped.viewerRole ?? fallbackViewerRole,
       feedback: mapped.feedback ?? {
         meetingHappened: null,
         rating: null,
@@ -543,9 +563,12 @@ function mapPendingFeedbackCandidate(
     typeof candidate.dtend === 'number' && Number.isFinite(candidate.dtend)
       ? candidate.dtend
       : dtstart;
-  const { date, time } = formatDateTime(dtstart, dtend);
+  const { date, time } =
+    dtstart > 0
+      ? formatPendingFeedbackDateTime(dtstart, dtend)
+      : formatDateTime(dtstart, dtend);
 
-  const rawRole = candidate.viewer_role ?? candidate.role;
+  const rawRole = candidate.viewer_role ?? candidate.role ?? fallbackViewerRole;
   const viewerRole: 'MENTEE' | 'MENTOR' | undefined =
     rawRole === 'MENTOR' || rawRole === 'MENTEE' ? rawRole : undefined;
 
@@ -598,10 +621,11 @@ function mapPendingFeedbackCandidate(
 
 export async function fetchPendingFeedbackReservations(opts: {
   userId: string | number;
+  fallbackViewerRole?: 'MENTEE' | 'MENTOR';
   signal?: AbortSignal;
   debug?: boolean;
 }): Promise<Reservation[]> {
-  const { userId, signal, debug } = opts;
+  const { userId, fallbackViewerRole, signal, debug } = opts;
 
   if (!userId) {
     return [];
@@ -623,7 +647,11 @@ export async function fetchPendingFeedbackReservations(opts: {
     const mappedItems: Reservation[] = [];
 
     for (const rawItem of rawList) {
-      const mapped = mapPendingFeedbackCandidate(rawItem, userId);
+      const mapped = mapPendingFeedbackCandidate(
+        rawItem,
+        userId,
+        fallbackViewerRole
+      );
       if (!mapped || seenIds.has(mapped.id)) {
         continue;
       }
@@ -640,11 +668,8 @@ export async function fetchPendingFeedbackReservations(opts: {
       return [];
     }
 
-    // Graceful fallback when backend #760 route is not yet deployed (404) or session expired (401/403).
-    if (
-      err instanceof ApiError &&
-      (err.status === 404 || err.status === 401 || err.status === 403)
-    ) {
+    // Graceful fallback when backend #760 route is not yet deployed (404).
+    if (err instanceof ApiError && err.status === 404) {
       return [];
     }
 
@@ -657,7 +682,7 @@ export async function fetchPendingFeedbackReservations(opts: {
       });
     }
 
-    return [];
+    throw err;
   }
 }
 

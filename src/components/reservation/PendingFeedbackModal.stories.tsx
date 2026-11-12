@@ -96,3 +96,18 @@ export const MentorThreeSessionQueue: Story = {
     })),
   },
 };
+
+export const MixedRoleQueue: Story = {
+  args: {
+    queueItems: [
+      {
+        ...queueFixture[0],
+        viewerRole: 'MENTOR' as const,
+      },
+      {
+        ...queueFixture[1],
+        viewerRole: 'MENTEE' as const,
+      },
+    ],
+  },
+};

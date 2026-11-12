@@ -713,6 +713,60 @@ describe('submitReservationFeedback (#730)', () => {
     }
   });
 
+  it('forces optimistic rating.isPublic=false and meetingHappened=false when Mentor already answered not-happened before Mentee submits happened + rating (#740)', async () => {
+    const peerDisagreedRes = makeMockReservation({
+      id: 'res-740-peer-false',
+      senderUserId: '10',
+      participantUserId: '20',
+      feedback: {
+        meetingHappened: false,
+        rating: null,
+        nextStep: 'ANSWER',
+      },
+    });
+    mockPost.mockResolvedValueOnce({ ok: true });
+
+    const subscribedHistory = {
+      userId: '10',
+      state: 'MENTEE_HISTORY',
+    } as const;
+    reservationReadModel.set(subscribedHistory, {
+      items: [peerDisagreedRes],
+      next_dtend: 0,
+    });
+    const unsubscribe = reservationReadModel.subscribe(
+      subscribedHistory,
+      () => new Promise(() => {}),
+      () => {}
+    );
+
+    try {
+      await submitReservationFeedback({
+        reservation: peerDisagreedRes,
+        myUserId: '10',
+        myRole: 'mentee',
+        payload: {
+          meeting_happened: true,
+          feedback: { rating: 10, content: '我覺得有收穫' },
+        },
+      });
+
+      const updatedFeedback =
+        reservationReadModel.get(subscribedHistory)?.items[0]?.feedback;
+      expect(updatedFeedback).toMatchObject({
+        meetingHappened: false,
+        rating: {
+          rating: 10,
+          content: '我覺得有收穫',
+          isPublic: false,
+        },
+        nextStep: null,
+      });
+    } finally {
+      unsubscribe();
+    }
+  });
+
   it('throws error and skips API call when myUserId is missing', async () => {
     const reservation = makeMockReservation({ id: 'res-730-no-user' });
 

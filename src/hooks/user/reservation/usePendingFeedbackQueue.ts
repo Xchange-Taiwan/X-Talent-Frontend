@@ -4,8 +4,6 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { clearUserProfileDtoCache } from '@/hooks/user/user-data/userProfileDtoCache';
-import { trackEvent } from '@/lib/analytics';
 import {
   clearAllSessionPendingFeedbackState,
   getSessionPendingFeedbackState,
@@ -13,18 +11,17 @@ import {
   markSessionPendingFeedbackChecked,
   markSessionPendingFeedbackDismissed,
   markSessionReservationSkipped,
+  markSessionReservationSubmitted,
   shouldSuppressPendingFeedbackPopup,
 } from '@/lib/reservation/pendingFeedbackGuard';
-import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import {
-  fetchPendingFeedbackReservations,
-  submitReservationFeedback,
-} from '@/services/reservations';
+  normalizeReservationViewerRole,
+  resolveFeedbackViewerRole,
+} from '@/lib/reservation/resolveCounterparty';
 import type { Reservation } from '@/types/reservation';
-import type {
-  FeedbackViewerRole,
-  SubmitReservationFeedbackRequest,
-} from '@/types/reservationFeedback';
+import type { SubmitReservationFeedbackRequest } from '@/types/reservationFeedback';
+
+import { submitFeedbackWithEffects } from './submitFeedbackWithEffects';
 
 export interface UsePendingFeedbackQueueResult {
   queueItems: Reservation[] | null;
@@ -45,6 +42,7 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
   const activeQueueIdsRef = useRef<string[]>([]);
   const submittedIdsRef = useRef<Set<string>>(new Set());
   const prevUserIdRef = useRef<string | null>(null);
+  const fetchedUserInRuntimeRef = useRef<string | null>(null);
 
   const rawUserId = session?.user?.id ? String(session.user.id) : '';
   const isMentorSession = Boolean(session?.user?.isMentor);
@@ -68,13 +66,13 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
       if (!prev || prev.length === 0) {
         return prev;
       }
-      const skippedSet = new Set(
-        getSessionPendingFeedbackState(rawUserId).skippedIds
-      );
-      const remaining = prev.filter(
-        (item) =>
-          !skippedSet.has(item.id) && !submittedIdsRef.current.has(item.id)
-      );
+      const persisted = getSessionPendingFeedbackState(rawUserId);
+      const excludedIds = new Set([
+        ...persisted.skippedIds,
+        ...persisted.submittedIds,
+        ...Array.from(submittedIdsRef.current),
+      ]);
+      const remaining = prev.filter((item) => !excludedIds.has(item.id));
       activeQueueIdsRef.current = remaining.map((item) => item.id);
       return remaining.length > 0 ? remaining : null;
     });
@@ -85,6 +83,7 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
     if (status === 'unauthenticated' || isAuthResetRoute(pathname)) {
       clearAllSessionPendingFeedbackState();
       prevUserIdRef.current = null;
+      fetchedUserInRuntimeRef.current = null;
       submittedIdsRef.current.clear();
       activeQueueIdsRef.current = [];
       setQueueItems(null);
@@ -98,6 +97,7 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
       prevUserIdRef.current !== rawUserId
     ) {
       clearAllSessionPendingFeedbackState();
+      fetchedUserInRuntimeRef.current = null;
       submittedIdsRef.current.clear();
       activeQueueIdsRef.current = [];
       setQueueItems(null);
@@ -124,8 +124,14 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
       return;
     }
 
-    // Once fetched in the current login session, do not re-fetch on SPA route hops.
-    if (sessionState.checked) {
+    // Skip re-fetching during SPA navigations within the same JS runtime,
+    // or across page reloads when the queue was already confirmed empty.
+    // If the user reloads mid-queue (`checked && !queueEmpty && !dismissed`),
+    // re-fetch so remaining unanswered meetings are never lost.
+    if (
+      fetchedUserInRuntimeRef.current === rawUserId ||
+      (sessionState.checked && sessionState.queueEmpty)
+    ) {
       return;
     }
 
@@ -134,8 +140,15 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
 
     void (async () => {
       try {
+        const { fetchPendingFeedbackReservations } =
+          await import('@/services/reservations');
+        if (cancelled || controller.signal.aborted) {
+          return;
+        }
+
         const items = await fetchPendingFeedbackReservations({
           userId: rawUserId,
+          fallbackViewerRole: isMentorSession ? 'MENTOR' : 'MENTEE',
           signal: controller.signal,
         });
 
@@ -143,15 +156,18 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
           return;
         }
 
-        const skippedSet = new Set(
-          getSessionPendingFeedbackState(rawUserId).skippedIds
-        );
-        const remaining = items.filter(
-          (item) =>
-            !skippedSet.has(item.id) && !submittedIdsRef.current.has(item.id)
-        );
+        const persisted = getSessionPendingFeedbackState(rawUserId);
+        const excludedIds = new Set([
+          ...persisted.skippedIds,
+          ...persisted.submittedIds,
+          ...Array.from(submittedIdsRef.current),
+        ]);
+        const remaining = items
+          .filter((item) => !excludedIds.has(item.id))
+          .map((item) => normalizeReservationViewerRole(item, isMentorSession));
 
-        markSessionPendingFeedbackChecked(rawUserId);
+        fetchedUserInRuntimeRef.current = rawUserId;
+        markSessionPendingFeedbackChecked(rawUserId, remaining.length > 0);
 
         if (remaining.length > 0) {
           activeQueueIdsRef.current = remaining.map((item) => item.id);
@@ -162,6 +178,7 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
         }
       } catch {
         if (!cancelled && !controller.signal.aborted) {
+          fetchedUserInRuntimeRef.current = rawUserId;
           activeQueueIdsRef.current = [];
           setQueueItems(null);
         }
@@ -175,6 +192,7 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
   }, [
     status,
     rawUserId,
+    isMentorSession,
     isOnboardingIncomplete,
     hasSessionError,
     isSuppressed,
@@ -189,16 +207,12 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
         throw new Error('[usePendingFeedbackQueue] missing current user id');
       }
 
-      const roleForReservation: FeedbackViewerRole =
-        targetReservation.viewerRole === 'MENTOR'
-          ? 'mentor'
-          : targetReservation.viewerRole === 'MENTEE'
-            ? 'mentee'
-            : isMentorSession
-              ? 'mentor'
-              : 'mentee';
+      const roleForReservation = resolveFeedbackViewerRole(
+        targetReservation.viewerRole,
+        isMentorSession
+      );
 
-      await submitReservationFeedback({
+      await submitFeedbackWithEffects({
         reservation: targetReservation,
         myUserId: rawUserId,
         myRole: roleForReservation,
@@ -209,23 +223,11 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
       activeQueueIdsRef.current = activeQueueIdsRef.current.filter(
         (id) => id !== targetReservation.id
       );
-
-      if (payload.meeting_happened || roleForReservation === 'mentor') {
-        const targetMentorId =
-          roleForReservation === 'mentor'
-            ? Number(rawUserId)
-            : Number(resolveCounterpartyId(targetReservation, rawUserId));
-        if (Number.isFinite(targetMentorId) && targetMentorId > 0) {
-          clearUserProfileDtoCache(targetMentorId, 'zh_TW');
-          clearUserProfileDtoCache(targetMentorId, 'en_US');
-        }
-      }
-
-      trackEvent({
-        name: 'reservation_feedback_submitted',
-        feature: 'reservation',
-        metadata: { meeting_happened: payload.meeting_happened },
-      });
+      markSessionReservationSubmitted(
+        rawUserId,
+        targetReservation.id,
+        activeQueueIdsRef.current.length === 0
+      );
     },
     [rawUserId, isMentorSession]
   );

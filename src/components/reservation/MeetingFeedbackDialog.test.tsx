@@ -308,7 +308,7 @@ describe('MeetingFeedbackDialog', () => {
 
     for (const label of [
       '雙方時間無法配合',
-      '對方未出席',
+      '未出席',
       '未收到或錯過會議通知',
       '技術／連線問題',
       '其他',
@@ -317,7 +317,7 @@ describe('MeetingFeedbackDialog', () => {
     }
 
     // Selecting a non-OTHER reason enables submit and keeps 補充說明 collapsed
-    fireEvent.click(screen.getByRole('radio', { name: '對方未出席' }));
+    fireEvent.click(screen.getByRole('radio', { name: '未出席' }));
     expect(submitBtn).not.toBeDisabled();
     expect(noteCollapse).toHaveAttribute('data-expanded', 'false');
 
@@ -332,7 +332,7 @@ describe('MeetingFeedbackDialog', () => {
     });
 
     // Switching away from 其他 collapses 補充說明 even when draft has text, and omits note on submit
-    fireEvent.click(screen.getByRole('radio', { name: '對方未出席' }));
+    fireEvent.click(screen.getByRole('radio', { name: '未出席' }));
     expect(noteCollapse).toHaveAttribute('data-expanded', 'false');
 
     fireEvent.click(submitBtn);
@@ -1151,6 +1151,193 @@ describe('MeetingFeedbackDialog', () => {
       expect(
         screen.queryByTestId('mentor-not-happened-warning')
       ).not.toBeInTheDocument();
+    });
+
+    it('cleanly transitions across a mixed-role queue (MENTOR -> MENTEE) with accurate Step 1 buttons, Zod schemas, and payloads', async () => {
+      const onSubmitFeedback = vi.fn().mockResolvedValue(undefined);
+      const mentorItem = fromPartial<Reservation>({
+        ...baseReservation,
+        id: 'mixed-mentor-1',
+        name: 'Emily Chen',
+        viewerRole: 'MENTOR',
+      });
+      const menteeItem = fromPartial<Reservation>({
+        ...baseReservation,
+        id: 'mixed-mentee-2',
+        name: 'Alex Wang',
+        viewerRole: 'MENTEE',
+      });
+
+      const originalMatchMedia = window.matchMedia;
+      window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+        matches: query === '(prefers-reduced-motion: reduce)',
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }));
+
+      try {
+        render(
+          <MeetingFeedbackDialog
+            defaultOpen
+            hideTrigger
+            reservation={mentorItem}
+            queue={[mentorItem, menteeItem]}
+            onSubmitFeedback={onSubmitFeedback}
+          />
+        );
+
+        // Card 1 (MENTOR): Step 1 shows disabled 確定送出, submits { meeting_happened: true } directly
+        expect(screen.getByTestId('feedback-queue-counter')).toHaveTextContent(
+          '第 1／2 場'
+        );
+        expect(screen.getByRole('button', { name: '確定送出' })).toBeDisabled();
+
+        fireEvent.click(screen.getByRole('radio', { name: '有進行' }));
+        fireEvent.click(screen.getByRole('button', { name: '確定送出' }));
+
+        await waitFor(() => {
+          expect(onSubmitFeedback).toHaveBeenNthCalledWith(
+            1,
+            { meeting_happened: true },
+            expect.objectContaining({ id: 'mixed-mentor-1' })
+          );
+        });
+
+        // Card 2 (MENTEE): Step 1 switches to 下一步, enters Step 2 rating, and submits { meeting_happened: true, feedback }
+        await waitFor(() => {
+          expect(
+            screen.getByTestId('feedback-queue-counter')
+          ).toHaveTextContent('第 2／2 場');
+        });
+        expect(
+          screen.queryByRole('button', { name: '確定送出' })
+        ).not.toBeInTheDocument();
+        const nextBtn = screen.getByRole('button', { name: '下一步' });
+        expect(nextBtn).toBeDisabled();
+
+        fireEvent.click(screen.getByRole('radio', { name: '有進行' }));
+        expect(nextBtn).not.toBeDisabled();
+        fireEvent.click(nextBtn);
+
+        expect(screen.getByText('為本次會議評分')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('radio', { name: '9 分' }));
+        fireEvent.change(screen.getByLabelText(/文字回饋/), {
+          target: { value: '收穫滿滿的一場交流！' },
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: '送出回饋' }));
+
+        await waitFor(() => {
+          expect(onSubmitFeedback).toHaveBeenNthCalledWith(
+            2,
+            {
+              meeting_happened: true,
+              feedback: {
+                rating: 9,
+                content: '收穫滿滿的一場交流！',
+              },
+            },
+            expect.objectContaining({ id: 'mixed-mentee-2' })
+          );
+        });
+      } finally {
+        window.matchMedia = originalMatchMedia;
+      }
+    });
+
+    it('cleanly transitions across a reverse mixed-role queue (MENTEE -> MENTOR) without leaking rating fields into Mentor submission', async () => {
+      const onSubmitFeedback = vi.fn().mockResolvedValue(undefined);
+      const menteeItem = fromPartial<Reservation>({
+        ...baseReservation,
+        id: 'rev-mentee-1',
+        name: 'Alex Wang',
+        viewerRole: 'MENTEE',
+      });
+      const mentorItem = fromPartial<Reservation>({
+        ...baseReservation,
+        id: 'rev-mentor-2',
+        name: 'Emily Chen',
+        viewerRole: 'MENTOR',
+      });
+
+      const originalMatchMedia = window.matchMedia;
+      window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+        matches: query === '(prefers-reduced-motion: reduce)',
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }));
+
+      try {
+        render(
+          <MeetingFeedbackDialog
+            defaultOpen
+            hideTrigger
+            reservation={menteeItem}
+            queue={[menteeItem, mentorItem]}
+            onSubmitFeedback={onSubmitFeedback}
+          />
+        );
+
+        // Card 1 (MENTEE): rate 8 stars and submit
+        fireEvent.click(screen.getByRole('radio', { name: '有進行' }));
+        fireEvent.click(screen.getByRole('button', { name: '下一步' }));
+        fireEvent.click(screen.getByRole('radio', { name: '8 分' }));
+        fireEvent.change(screen.getByLabelText(/文字回饋/), {
+          target: { value: '謝謝導師建議' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: '送出並填下一場' }));
+
+        await waitFor(() => {
+          expect(onSubmitFeedback).toHaveBeenNthCalledWith(
+            1,
+            {
+              meeting_happened: true,
+              feedback: { rating: 8, content: '謝謝導師建議' },
+            },
+            expect.objectContaining({ id: 'rev-mentee-1' })
+          );
+        });
+
+        // Card 2 (MENTOR): Step 1 resets cleanly to disabled 確定送出, and Mentor not-happened shows warning box
+        await waitFor(() => {
+          expect(
+            screen.getByTestId('feedback-queue-counter')
+          ).toHaveTextContent('第 2／2 場');
+        });
+        expect(screen.getByRole('button', { name: '確定送出' })).toBeDisabled();
+
+        fireEvent.click(screen.getByRole('radio', { name: '沒有進行' }));
+        fireEvent.click(screen.getByRole('button', { name: '下一步' }));
+
+        expect(
+          screen.getByTestId('mentor-not-happened-warning')
+        ).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('radio', { name: '未出席' }));
+        fireEvent.click(screen.getByRole('button', { name: '送出回饋' }));
+
+        await waitFor(() => {
+          expect(onSubmitFeedback).toHaveBeenNthCalledWith(
+            2,
+            {
+              meeting_happened: false,
+              not_happened_reason: 'MENTOR_ABSENT',
+            },
+            expect.objectContaining({ id: 'rev-mentor-2' })
+          );
+        });
+      } finally {
+        window.matchMedia = originalMatchMedia;
+      }
     });
   });
 });

@@ -30,6 +30,7 @@ vi.mock('@/lib/analytics', () => ({
 
 import { clearUserProfileDtoCache } from '@/hooks/user/user-data/userProfileDtoCache';
 import { trackEvent } from '@/lib/analytics';
+import { getSessionPendingFeedbackState } from '@/lib/reservation/pendingFeedbackGuard';
 import {
   fetchPendingFeedbackReservations,
   submitReservationFeedback,
@@ -296,16 +297,183 @@ describe('usePendingFeedbackQueue (#740)', () => {
     expect(mockFetchPending).toHaveBeenCalledTimes(1);
   });
 
-  it('recovers gracefully when fetchPendingFeedbackReservations rejects unexpectedly', async () => {
-    mockFetchPending.mockRejectedValueOnce(
-      new Error('Unexpected network trap')
-    );
+  it('recovers gracefully without writing sessionStorage when fetchPendingFeedbackReservations rejects transiently, allowing retry on page reload', async () => {
+    const recoveredItem = makeItem('399', 1760000000);
+    mockFetchPending
+      .mockRejectedValueOnce(new Error('Unexpected network trap'))
+      .mockResolvedValueOnce([recoveredItem]);
 
-    const { result } = renderHook(() => usePendingFeedbackQueue());
+    const firstMount = renderHook(() => usePendingFeedbackQueue());
 
     await waitFor(() => {
       expect(mockFetchPending).toHaveBeenCalledTimes(1);
     });
+    expect(firstMount.result.current.queueItems).toBeNull();
+    expect(getSessionPendingFeedbackState('1')).toEqual({
+      checked: false,
+      dismissed: false,
+      queueEmpty: false,
+      submittedIds: [],
+      skippedIds: [],
+    });
+
+    // SPA route change within same runtime does not hammer failed endpoint
+    mockUsePathname.mockReturnValue('/about');
+    firstMount.rerender();
+    expect(mockFetchPending).toHaveBeenCalledTimes(1);
+
+    // Page reload (remount) retries because sessionStorage was not poisoned
+    firstMount.unmount();
+    const secondMount = renderHook(() => usePendingFeedbackQueue());
+    await waitFor(() => {
+      expect(secondMount.result.current.queueItems).toEqual([recoveredItem]);
+    });
+    expect(mockFetchPending).toHaveBeenCalledTimes(2);
+  });
+
+  it('normalizes missing viewerRole on simplified items using session isMentor so UI and submitFeedbackItem share identical Mentor role', async () => {
+    const itemMissingRole = fromPartial<Reservation>({
+      id: '401',
+      name: 'Emily Chen',
+      date: '2026/10/12',
+      time: '19:00–19:30',
+      dtstart: 1760000000,
+      dtend: 1760001800,
+      senderUserId: 202,
+      participantUserId: 1,
+      viewerRole: undefined,
+    });
+    const explicitMenteeItem = makeItem('402', 1761000000, 'MENTEE');
+
+    mockUseSession.mockReturnValue({
+      data: {
+        ...mockSession,
+        user: {
+          ...mockSession.user,
+          id: '1',
+          onBoarding: true,
+          isMentor: true,
+        },
+      },
+      status: 'authenticated',
+      update: vi.fn(),
+    });
+    mockFetchPending.mockResolvedValueOnce([
+      itemMissingRole,
+      explicitMenteeItem,
+    ]);
+    mockSubmitFeedback.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => usePendingFeedbackQueue());
+
+    await waitFor(() => {
+      expect(result.current.queueItems).toHaveLength(2);
+    });
+
+    // Missing viewerRole is normalized to 'MENTOR', while explicit 'MENTEE' is preserved!
+    expect(result.current.queueItems?.[0].viewerRole).toBe('MENTOR');
+    expect(result.current.queueItems?.[1].viewerRole).toBe('MENTEE');
+
+    await act(async () => {
+      await result.current.submitFeedbackItem(
+        { meeting_happened: true },
+        result.current.queueItems![0]
+      );
+    });
+
+    expect(mockSubmitFeedback).toHaveBeenCalledWith(
+      expect.objectContaining({
+        myUserId: '1',
+        myRole: 'mentor',
+        payload: { meeting_happened: true },
+      })
+    );
+    expect(mockClearDtoCache).toHaveBeenCalledWith(1, 'zh_TW');
+    expect(mockClearDtoCache).toHaveBeenCalledWith(1, 'en_US');
+  });
+
+  it('re-fetches and preserves remaining unanswered items after a mid-queue page reload, then stops re-fetching once all items are completed', async () => {
+    const item1 = makeItem('501', 1760000000, 'MENTOR');
+    const item2 = makeItem('502', 1761000000, 'MENTOR');
+    mockFetchPending.mockResolvedValueOnce([item1, item2]);
+    mockSubmitFeedback.mockResolvedValue(undefined);
+
+    const firstMount = renderHook(() => usePendingFeedbackQueue());
+
+    await waitFor(() => {
+      expect(firstMount.result.current.queueItems).toEqual([item1, item2]);
+    });
+
+    // Submit item1, then simulate F5 page reload before completing item2 (without clicking X)
+    await act(async () => {
+      await firstMount.result.current.submitFeedbackItem(
+        { meeting_happened: true },
+        item1
+      );
+    });
+    firstMount.unmount();
+
+    // Even if backend still returns [item1, item2] due to eventual consistency, item1 is filtered out and item2 surfaces!
+    mockFetchPending.mockResolvedValueOnce([item1, item2]);
+    const secondMount = renderHook(() => usePendingFeedbackQueue());
+
+    await waitFor(() => {
+      expect(secondMount.result.current.queueItems).toEqual([item2]);
+    });
+    expect(mockFetchPending).toHaveBeenCalledTimes(2);
+
+    // Complete final item2 -> marks queueEmpty: true in sessionStorage
+    await act(async () => {
+      await secondMount.result.current.submitFeedbackItem(
+        { meeting_happened: true },
+        item2
+      );
+    });
+    secondMount.unmount();
+
+    // Subsequent reload in the same session does NOT re-fetch because queueEmpty is now true
+    const thirdMount = renderHook(() => usePendingFeedbackQueue());
+    expect(thirdMount.result.current.queueItems).toBeNull();
+    expect(mockFetchPending).toHaveBeenCalledTimes(2);
+  });
+
+  it('clears previous user session state and fetches new queue when switching authenticated user.id directly', async () => {
+    const user1Item = makeItem('601', 1760000000, 'MENTEE');
+    const user2Item = makeItem('602', 1761000000, 'MENTOR');
+    mockFetchPending
+      .mockResolvedValueOnce([user1Item])
+      .mockResolvedValueOnce([user2Item]);
+
+    const { result, rerender } = renderHook(() => usePendingFeedbackQueue());
+
+    await waitFor(() => {
+      expect(result.current.queueItems).toEqual([user1Item]);
+    });
+
+    act(() => {
+      result.current.dismissQueue();
+    });
     expect(result.current.queueItems).toBeNull();
+
+    // Switch directly to user '2' while staying authenticated
+    mockUseSession.mockReturnValue({
+      data: {
+        ...mockSession,
+        user: {
+          ...mockSession.user,
+          id: '2',
+          onBoarding: true,
+          isMentor: true,
+        },
+      },
+      status: 'authenticated',
+      update: vi.fn(),
+    });
+    rerender();
+
+    await waitFor(() => {
+      expect(result.current.queueItems).toEqual([user2Item]);
+    });
+    expect(mockFetchPending).toHaveBeenCalledTimes(2);
   });
 });

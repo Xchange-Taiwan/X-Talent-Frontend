@@ -104,12 +104,16 @@ export function sortPendingFeedbackOldestFirst(
 export interface SessionPendingFeedbackState {
   checked: boolean;
   dismissed: boolean;
+  queueEmpty: boolean;
+  submittedIds: string[];
   skippedIds: string[];
 }
 
 const DEFAULT_SESSION_STATE: SessionPendingFeedbackState = {
   checked: false,
   dismissed: false,
+  queueEmpty: false,
+  submittedIds: [],
   skippedIds: [],
 };
 
@@ -119,6 +123,12 @@ function getStorageKey(userId: string): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parseStringIdArray(raw: unknown): string[] {
+  return Array.isArray(raw)
+    ? raw.filter((id): id is string => typeof id === 'string' && id.length > 0)
+    : [];
 }
 
 export function getSessionPendingFeedbackState(
@@ -137,15 +147,12 @@ export function getSessionPendingFeedbackState(
     if (!isRecord(parsed)) {
       return DEFAULT_SESSION_STATE;
     }
-    const skippedIds = Array.isArray(parsed.skippedIds)
-      ? parsed.skippedIds.filter(
-          (id): id is string => typeof id === 'string' && id.length > 0
-        )
-      : [];
     return {
       checked: Boolean(parsed.checked),
       dismissed: Boolean(parsed.dismissed),
-      skippedIds,
+      queueEmpty: Boolean(parsed.queueEmpty),
+      submittedIds: parseStringIdArray(parsed.submittedIds),
+      skippedIds: parseStringIdArray(parsed.skippedIds),
     };
   } catch {
     return DEFAULT_SESSION_STATE;
@@ -166,11 +173,33 @@ function writeSessionPendingFeedbackState(
   }
 }
 
-export function markSessionPendingFeedbackChecked(userId: string): void {
+export function markSessionPendingFeedbackChecked(
+  userId: string,
+  hasRemainingItems = false
+): void {
   const prev = getSessionPendingFeedbackState(userId);
   writeSessionPendingFeedbackState(userId, {
     ...prev,
     checked: true,
+    queueEmpty: !hasRemainingItems,
+  });
+}
+
+export function markSessionReservationSubmitted(
+  userId: string,
+  reservationId: string,
+  isQueueNowEmpty = false
+): void {
+  if (!reservationId) return;
+  const prev = getSessionPendingFeedbackState(userId);
+  const nextSubmitted = prev.submittedIds.includes(reservationId)
+    ? prev.submittedIds
+    : [...prev.submittedIds, reservationId];
+  writeSessionPendingFeedbackState(userId, {
+    ...prev,
+    checked: true,
+    queueEmpty: prev.queueEmpty || isQueueNowEmpty,
+    submittedIds: nextSubmitted,
   });
 }
 
@@ -199,6 +228,7 @@ export function markSessionPendingFeedbackDismissed(
     new Set([...prev.skippedIds, ...remainingReservationIds.filter(Boolean)])
   );
   writeSessionPendingFeedbackState(userId, {
+    ...prev,
     checked: true,
     dismissed: true,
     skippedIds: mergedSkipped,

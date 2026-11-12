@@ -27,7 +27,7 @@ export function FeedbackRadioOption({
     <label
       className={cn(
         'focus-within:ring-brand-500 flex cursor-pointer items-center gap-2.5 rounded-md border px-3.5 text-sm transition-colors focus-within:ring-2 focus-within:ring-offset-1',
-        density === 'compact' ? 'py-2' : 'py-3',
+        density === 'compact' ? 'py-[7px]' : 'py-3',
         disabled && 'pointer-events-none opacity-60',
         checked
           ? 'border-brand-700 bg-brand-50 text-text-primary font-medium'

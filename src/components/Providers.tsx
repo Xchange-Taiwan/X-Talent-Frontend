@@ -6,7 +6,7 @@ import AnalyticsUserSync from '@/components/AnalyticsUserSync';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import GlobalErrorMonitor from '@/components/GlobalErrorMonitor';
 import PageViewTracker from '@/components/PageViewTracker';
-import { PendingFeedbackQueueLauncher } from '@/components/reservation/PendingFeedbackModal';
+import { PendingFeedbackQueueLauncher } from '@/components/reservation/PendingFeedbackQueueLauncher';
 import SessionErrorWatcher from '@/components/SessionErrorWatcher';
 import WebVitalsReporter from '@/components/WebVitalsReporter';
 import { setSessionGetter } from '@/lib/apiClient';
