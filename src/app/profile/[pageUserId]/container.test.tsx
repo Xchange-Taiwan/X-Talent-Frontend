@@ -40,6 +40,11 @@ vi.mock('@/hooks/user/user-data/useUserData', () => ({
   default: (...args: unknown[]) => mockUseUserData(...args),
 }));
 
+const mockUseMentorFeedback = vi.fn();
+vi.mock('@/hooks/user/feedback/useMentorFeedback', () => ({
+  useMentorFeedback: (...args: unknown[]) => mockUseMentorFeedback(...args),
+}));
+
 vi.mock('@/hooks/user/user-data/useUserProfileDto', () => ({
   primeUserProfileDtoCacheIfEmpty: vi.fn(),
 }));
@@ -326,5 +331,64 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
     );
     expect(mockClampSelectedDateToToday).not.toHaveBeenCalled();
     expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('enables useMentorFeedback only for resolved mentor profiles (#736)', () => {
+    mockUseMentorFeedback.mockClear();
+    mockUseResolvedIdentity.mockReturnValue(
+      identity({ sessionSettled: true, hasFullUser: false, userId: null })
+    );
+
+    mockUseUserData.mockReturnValue({
+      userData: null,
+      isLoading: true,
+      error: null,
+      refetch: vi.fn(),
+    });
+    const loadingEmptyRender = renderContainer();
+    expect(mockUseMentorFeedback).toHaveBeenLastCalledWith({
+      mentorId: 123,
+      enabled: false,
+    });
+    loadingEmptyRender.unmount();
+
+    mockUseUserData.mockReturnValue({
+      userData: { user_id: 123, name: 'Cached Mentor', is_mentor: true },
+      isLoading: true,
+      error: null,
+      refetch: vi.fn(),
+    });
+    const loadingCachedMentorRender = renderContainer();
+    expect(mockUseMentorFeedback).toHaveBeenLastCalledWith({
+      mentorId: 123,
+      enabled: false,
+    });
+    loadingCachedMentorRender.unmount();
+
+    mockUseUserData.mockReturnValue({
+      userData: { user_id: 123, name: 'Mentee', is_mentor: false },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    const menteeRender = renderContainer();
+    expect(mockUseMentorFeedback).toHaveBeenLastCalledWith({
+      mentorId: 123,
+      enabled: false,
+    });
+    menteeRender.unmount();
+
+    mockUseUserData.mockReturnValue({
+      userData: { user_id: 123, name: 'Mentor', is_mentor: true },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    const mentorRender = renderContainer();
+    expect(mockUseMentorFeedback).toHaveBeenLastCalledWith({
+      mentorId: 123,
+      enabled: true,
+    });
+    mentorRender.unmount();
   });
 });

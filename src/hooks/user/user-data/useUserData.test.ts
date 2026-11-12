@@ -1,11 +1,14 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
+import { fromAny, fromPartial } from '@total-typescript/shoehorn';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/services/profile/user', () => ({
   fetchUserById: vi.fn(),
 }));
 
+import { EMPTY_TAG_CATALOGS } from '@/services/profile/tagCatalog';
 import { fetchUserById } from '@/services/profile/user';
+import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
 
 import useUserData, {
@@ -313,6 +316,228 @@ describe('useUserData caching', () => {
     expect(result.current.userData?.personal_statement).toBe(
       '給導生的第一點\n給導生的第二點'
     );
+    unmount();
+  });
+
+  it('maps mentor stats (#760), localized location, and industries into userData (#736)', () => {
+    const userId = 4301;
+    const ssrDto = fromPartial<MentorProfileVO>({
+      ...makeUserDto(userId),
+      is_mentor: true,
+      location: 'TWN',
+      years_of_experience: 'FIVE_TO_TEN',
+      industry: fromAny({
+        id: 1,
+        subject_group: null,
+        subject: '軟體及網路相關業',
+      }),
+      stats: {
+        completed_meeting_count: 128,
+        rating_count: 12,
+        rating_average: 8.5,
+      },
+    });
+
+    const { result, unmount } = renderHook(() =>
+      useUserData(userId, 'zh_TW', ssrDto)
+    );
+
+    expect(result.current.userData?.location).toBe('台灣');
+    expect(result.current.userData?.years_of_experience).toBe('5~10 年');
+    expect(result.current.userData?.industries).toEqual([
+      {
+        subject_group: '軟體及網路相關業',
+        subject: '軟體及網路相關業',
+      },
+    ]);
+    expect(result.current.userData?.stats).toEqual({
+      completed_meeting_count: 128,
+      rating_count: 12,
+      rating_average: 8.5,
+    });
+    unmount();
+  });
+
+  it('falls back to is_primary workExperience job_location (or first entry) when userDto.location is empty (#736)', () => {
+    const primaryUserId = 4302;
+    const primaryWorkDto = fromPartial<MentorProfileVO>({
+      ...makeUserDto(primaryUserId),
+      is_mentor: true,
+      location: '',
+      experiences: fromAny([
+        {
+          category: 'WORK',
+          order: 1,
+          mentor_experiences_metadata: {
+            data: [
+              {
+                job: 'Frontend Engineer',
+                company: 'Co A',
+                job_period_start: '2020',
+                job_period_end: '2022',
+                industry: 'SOFTWARE',
+                job_location: 'USA',
+                description: '',
+                is_primary: false,
+              },
+              {
+                job: 'Staff Designer',
+                company: 'Co B',
+                job_period_start: '2022',
+                job_period_end: '至今',
+                industry: 'DESIGN',
+                job_location: 'JPN',
+                description: '',
+                is_primary: true,
+              },
+            ],
+          },
+        },
+      ]),
+    });
+
+    const primaryHook = renderHook(() =>
+      useUserData(primaryUserId, 'zh_TW', primaryWorkDto)
+    );
+    expect(primaryHook.result.current.userData?.location).toBe('日本');
+    primaryHook.unmount();
+
+    const fallbackFirstUserId = 4303;
+    const fallbackFirstDto = fromPartial<MentorProfileVO>({
+      ...makeUserDto(fallbackFirstUserId),
+      is_mentor: true,
+      location: '',
+      experiences: fromAny([
+        {
+          category: 'WORK',
+          order: 1,
+          mentor_experiences_metadata: {
+            data: [
+              {
+                job: 'Product Manager',
+                company: 'Co C',
+                job_period_start: '2021',
+                job_period_end: '2024',
+                industry: 'SOFTWARE',
+                job_location: 'SGP',
+                description: '',
+                is_primary: false,
+              },
+              {
+                job: 'Engineer',
+                company: 'Co D',
+                job_period_start: '2019',
+                job_period_end: '2021',
+                industry: 'SOFTWARE',
+                job_location: 'USA',
+                description: '',
+                is_primary: false,
+              },
+            ],
+          },
+        },
+      ]),
+    });
+
+    const fallbackFirstHook = renderHook(() =>
+      useUserData(fallbackFirstUserId, 'zh_TW', fallbackFirstDto)
+    );
+    expect(fallbackFirstHook.result.current.userData?.location).toBe('新加坡');
+    fallbackFirstHook.unmount();
+  });
+
+  it('translates workExperiences industry codes via tagCatalog and deduplicates against primary industry (#736)', () => {
+    const userId = 4304;
+    const initialCatalogs: TagCatalogsByBucket = {
+      ...EMPTY_TAG_CATALOGS,
+      industry: [
+        { subject_group: 'SOFTWARE', subject: '軟體及網路相關業' },
+        { subject_group: 'DESIGN', subject: '設計及創意相關業' },
+      ],
+    };
+
+    const ssrDto = fromPartial<MentorProfileVO>({
+      ...makeUserDto(userId),
+      is_mentor: true,
+      industry: fromAny({
+        id: 1,
+        subject_group: 'SOFTWARE',
+        subject: '軟體及網路相關業',
+      }),
+      experiences: fromAny([
+        {
+          category: 'WORK',
+          order: 1,
+          mentor_experiences_metadata: {
+            data: [
+              {
+                job: 'Lead Designer',
+                company: 'Studio A',
+                job_period_start: '2023',
+                job_period_end: '至今',
+                industry: 'SOFTWARE',
+                job_location: 'TWN',
+                description: '',
+                is_primary: true,
+              },
+              {
+                job: 'Senior UX Designer',
+                company: 'Studio B',
+                job_period_start: '2021',
+                job_period_end: '2023',
+                industry: 'DESIGN',
+                job_location: 'TWN',
+                description: '',
+                is_primary: false,
+              },
+              {
+                job: 'Product Designer',
+                company: 'Studio C',
+                job_period_start: '2019',
+                job_period_end: '2021',
+                industry: 'DESIGN',
+                job_location: 'TWN',
+                description: '',
+                is_primary: false,
+              },
+              {
+                job: 'Visual Designer',
+                company: 'Studio D',
+                job_period_start: '2018',
+                job_period_end: '2019',
+                industry: '軟體及網路相關業',
+                job_location: 'TWN',
+                description: '',
+                is_primary: false,
+              },
+              {
+                job: 'Consultant',
+                company: 'Lab E',
+                job_period_start: '2017',
+                job_period_end: '2018',
+                industry: 'LEGACY_CUSTOM_IND',
+                job_location: 'TWN',
+                description: '',
+                is_primary: false,
+              },
+            ],
+          },
+        },
+      ]),
+    });
+
+    const { result, unmount } = renderHook(() =>
+      useUserData(userId, 'zh_TW', ssrDto, initialCatalogs)
+    );
+
+    expect(result.current.userData?.industries).toEqual([
+      { subject_group: 'SOFTWARE', subject: '軟體及網路相關業' },
+      { subject_group: 'DESIGN', subject: '設計及創意相關業' },
+      {
+        subject_group: 'LEGACY_CUSTOM_IND',
+        subject: 'LEGACY_CUSTOM_IND',
+      },
+    ]);
     unmount();
   });
 });
