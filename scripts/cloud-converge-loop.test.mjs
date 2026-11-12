@@ -864,7 +864,11 @@ describe('cloud-converge-loop', () => {
               }
               if (cmd === 'pnpm' && args[0] === 'lint') {
                 clock += 130000;
-                return { ok: false, stderr: `err ${clock}`, combined: `err ${clock}` };
+                return {
+                  ok: false,
+                  stderr: `err ${clock}`,
+                  combined: `err ${clock}`,
+                };
               }
               return { ok: true, stdout: '', stderr: '' };
             },
