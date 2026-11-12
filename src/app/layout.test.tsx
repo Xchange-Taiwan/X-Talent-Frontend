@@ -148,15 +148,21 @@ describe('RootLayout and global light-mode lock (#861)', () => {
 
     expect(typeof window.gtag).toBe('function');
     expect(window.dataLayer).toHaveLength(2);
-    expect(window.dataLayer?.[0]).toEqual(['js', expect.any(Date)]);
-    expect(window.dataLayer?.[1]).toEqual([
+    expect(Object.prototype.toString.call(window.dataLayer?.[0])).toBe(
+      '[object Arguments]'
+    );
+    expect(Array.from(window.dataLayer?.[0] as IArguments)).toEqual([
+      'js',
+      expect.any(Date),
+    ]);
+    expect(Array.from(window.dataLayer?.[1] as IArguments)).toEqual([
       'config',
       'G-TEST123456',
       expect.objectContaining({ send_page_view: false }),
     ]);
 
     trackPageView('/');
-    expect(window.dataLayer?.[2]).toEqual([
+    expect(Array.from(window.dataLayer?.[2] as IArguments)).toEqual([
       'event',
       'page_view',
       expect.objectContaining({
