@@ -840,5 +840,117 @@ describe('reservationService API Error Handling', () => {
         nextStep: null,
       });
     });
+
+    it('maps #760 §6 counterpart { name, avatar: "", job_title, company } and §3.1 feedback.meeting_happened fallback', async () => {
+      mockGet.mockResolvedValueOnce({
+        reservations: [
+          {
+            reservation_id: 901,
+            role: 'MENTEE',
+            dtstart: 1760000000,
+            dtend: 1760001800,
+            cancelled_by: null,
+            counterpart: {
+              name: 'Zahra Mirzakhani',
+              avatar: '',
+              job_title: 'Staff UX Researcher',
+              company: 'Google Taiwan',
+            },
+            feedback: {
+              next_step: 'ANSWER',
+              meeting_happened: null,
+              rating: null,
+            },
+          },
+          {
+            reservation_id: 902,
+            role: 'MENTOR',
+            dtstart: 1760000500,
+            dtend: 1760001200,
+            cancelled_by: null,
+            counterpart: {
+              name: 'Alex Wang',
+              avatar: '   ',
+              job_title: 'Product Designer',
+              company: '',
+              years_of_experience: 'ONE_TO_THREE',
+            },
+            feedback: {
+              next_step: 'ANSWER',
+              meeting_happened: null,
+              rating: null,
+            },
+          },
+        ],
+      });
+
+      const pendingItems = await fetchPendingFeedbackReservations({
+        userId: '1',
+      });
+      // Sorted by dtend ascending (902 dtend=1760001200 < 901 dtend=1760001800)
+      expect(pendingItems.map((it) => it.id)).toEqual(['902', '901']);
+      expect(pendingItems[0]).toMatchObject({
+        id: '902',
+        name: 'Alex Wang',
+        avatar: undefined,
+        roleLine: 'Product Designer, 1~3 年',
+        viewerRole: 'MENTOR',
+      });
+      expect(pendingItems[1]).toMatchObject({
+        id: '901',
+        name: 'Zahra Mirzakhani',
+        avatar: undefined,
+        roleLine: 'Staff UX Researcher, Google Taiwan',
+        viewerRole: 'MENTEE',
+      });
+
+      mockGet.mockResolvedValueOnce({
+        reservations: [
+          {
+            id: 604,
+            sender: {
+              user_id: 91,
+              role: 'MENTEE',
+              status: 'ACCEPT',
+              name: 'Mentee D',
+              avatar: '',
+              job_title: 'Designer',
+              years_of_experience: 'ONE_TO_THREE',
+            },
+            participant: {
+              user_id: 1,
+              role: 'MENTOR',
+              status: 'ACCEPT',
+              name: 'Mentor Me',
+              avatar: '',
+              job_title: 'Staff Designer',
+              years_of_experience: 'FIVE_TO_TEN',
+            },
+            schedule_id: 604,
+            dtstart: 1760300000,
+            dtend: 1760301800,
+            previous_reserve: null,
+            messages: [],
+            feedback: {
+              meeting_happened: true,
+              rating: null,
+              next_step: null,
+            },
+          },
+        ],
+        next_dtend: 0,
+      });
+
+      const listRes = await fetchReservations({
+        userId: '1',
+        state: 'MENTOR_HISTORY',
+      });
+      expect(listRes.items[0]?.feedback).toEqual({
+        meetingHappened: true,
+        myMeetingHappened: true,
+        rating: null,
+        nextStep: null,
+      });
+    });
   });
 });
