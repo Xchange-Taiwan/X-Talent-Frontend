@@ -275,7 +275,9 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
     );
 
     // Select 其他 -> expands optional 1000-char note field
-    const otherRadioCard = dialog.locator('label').filter({ hasText: /^其他$/ });
+    const otherRadioCard = dialog
+      .locator('label')
+      .filter({ hasText: /^其他$/ });
     await otherRadioCard.click();
     const noteField = dialog.getByLabel(/補充說明/);
     await expect(noteField).toBeVisible();
