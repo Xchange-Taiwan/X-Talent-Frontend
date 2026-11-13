@@ -3,10 +3,37 @@ import path from 'node:path';
 
 import { sniffImageMimeType } from '../../prefetch-ticket-visuals.mjs';
 
-const MAX_REF_BASE64_CHARS = 6 * 1024 * 1024; // 6 MB base64 budget for design refs
+const MAX_REF_BASE64_CHARS = 8 * 1024 * 1024; // 8 MB base64 budget for design refs
 const MAX_EVIDENCE_BASE64_CHARS = 10 * 1024 * 1024; // 10 MB dedicated base64 budget for E2E screenshots
-export const MAX_REF_IMAGES = 4;
+export const MAX_REF_IMAGES = 6;
 export const MAX_EVIDENCE_IMAGES = 8;
+const MAX_DOM_MD_CHARS = 8000;
+
+function readDomMarkdownSummaries(dirPath, maxChars = MAX_DOM_MD_CHARS) {
+  if (!dirPath || !fs.existsSync(dirPath)) return '';
+  try {
+    const mdFiles = fs
+      .readdirSync(dirPath)
+      .filter((f) => /-dom\.md$/i.test(f))
+      .sort()
+      .slice(0, 4);
+    const chunks = [];
+    let used = 0;
+    for (const fileName of mdFiles) {
+      if (used >= maxChars) break;
+      const content = fs
+        .readFileSync(path.join(dirPath, fileName), 'utf8')
+        .trim();
+      if (!content) continue;
+      const slice = content.slice(0, maxChars - used);
+      chunks.push(`### 原型 DOM / CSS / 動畫摘要 (${fileName})\n${slice}`);
+      used += slice.length;
+    }
+    return chunks.join('\n\n');
+  } catch {
+    return '';
+  }
+}
 
 function selectWithinBase64Budget(candidates, maxBase64Chars) {
   const selected = [];
@@ -85,14 +112,18 @@ export function loadReviewVisualAssets({
   );
   const selectedImages = [...selectedRefs, ...selectedEvidence];
 
+  const domSummariesMd = readDomMarkdownSummaries(ticketImagesDir);
   const hasRef = selectedRefs.length > 0;
   const hasEvidence = selectedEvidence.length > 0;
+  const hasDomMd = Boolean(domSummariesMd);
 
   const refNoteLines = hasRef
     ? [
         `- 已附上 ${selectedRefs.length} 張 Ticket／Design Hub 原始設計參考圖（標記為 \`Ticket/DesignHub 設計參考圖\`），請直接以視覺比對實作欄位、排版與文案是否對齊設計圖。`,
       ]
     : [];
+
+  const domNoteLines = hasDomMd ? ['', domSummariesMd] : [];
 
   const evidenceNoteLines = hasEvidence
     ? [
@@ -104,12 +135,13 @@ export function loadReviewVisualAssets({
     : [];
 
   const fullContextMarkdown =
-    hasRef || hasEvidence
+    hasRef || hasEvidence || hasDomMd
       ? [
           '',
           '## 多模態視覺審查附件說明（Multimodal Visual Attachments）',
           ...refNoteLines,
           ...evidenceNoteLines,
+          ...domNoteLines,
         ].join('\n')
       : '';
 

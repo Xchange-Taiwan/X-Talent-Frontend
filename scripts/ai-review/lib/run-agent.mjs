@@ -14,7 +14,12 @@ import {
  * `outputName` so the next stage in the pipeline can read it via
  * `needs.<job>.outputs.<outputName>`.
  */
-export async function runAgent({ promptUrl, upstreamEnvVars, outputName }) {
+export async function runAgent({
+  promptUrl,
+  upstreamEnvVars,
+  outputName,
+  allowErrorFallback = true,
+}) {
   const baseRef = process.env.BASE_REF;
   if (!baseRef) {
     throw new Error('BASE_REF env var is required');
@@ -43,7 +48,23 @@ export async function runAgent({ promptUrl, upstreamEnvVars, outputName }) {
     ...upstreamReplacements,
   });
 
-  const result = await callGemini(prompt);
+  let result;
+  try {
+    result = await callGemini(prompt);
+  } catch (err) {
+    if (!allowErrorFallback) {
+      throw err;
+    }
+    console.warn(
+      `[${outputName}] Non-fatal error after retries (${err.message}); emitting skippedDueToError fallback.`
+    );
+    result = {
+      hasFindings: false,
+      skippedDueToError: true,
+      summary: `此領域審查因暫時性錯誤略過（${err.message}）`,
+      findings: [],
+    };
+  }
   console.log(`[${outputName}] result:`, JSON.stringify(result, null, 2));
   writeGithubOutput(outputName, encodeContext(result));
   return result;
