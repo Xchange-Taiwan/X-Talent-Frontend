@@ -121,4 +121,30 @@ describe('visual-parity & Design Hub KB helpers', () => {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }
   });
+
+  it('injects *-dom.md computed style & motion rules into visualContextMarkdown when present in ticketImagesDir', () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'visual-dom-md-'));
+    const refDir = path.join(tmpRoot, 'ticket-images');
+    fs.mkdirSync(refDir, { recursive: true });
+    const tinyPng = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      'base64'
+    );
+    try {
+      fs.writeFileSync(path.join(refDir, 'prototype-01.png'), tinyPng);
+      fs.writeFileSync(
+        path.join(refDir, 'prototype-01-dom.md'),
+        '# Prototype Motion\n```css\n.xt-back { transform: rotate(-5deg); }\n```\n',
+        'utf8'
+      );
+      const loaded = loadReviewVisualAssets({
+        ticketImagesDir: refDir,
+        evidenceDir: '__non_existent_ev__',
+      });
+      expect(loaded.refCount).toBe(1);
+      expect(loaded.visualContextMarkdown).toContain('rotate(-5deg)');
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
 });
