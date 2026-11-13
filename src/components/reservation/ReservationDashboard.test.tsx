@@ -506,7 +506,7 @@ describe('ReservationDashboard', () => {
     ]);
   });
 
-  it('forwards reservationId search param as highlightedReservationId to history ReservationList and strips it on tab switch (#734)', () => {
+  it('forwards reservationId search param as highlightedReservationId only to history ReservationList and strips it on tab switch (#734)', () => {
     mockPathname.mockReturnValue('/reservation/mentor');
     mockGet.mockImplementation((key: string) => {
       if (key === 'tab') return 'history';
@@ -521,12 +521,51 @@ describe('ReservationDashboard', () => {
 
     render(<ReservationDashboard userRole="mentor" />);
 
+    const pendingCall = vi
+      .mocked(ReservationList)
+      .mock.calls.find(([props]) => props.variant === 'pending-mentor');
+    const upcomingCall = vi
+      .mocked(ReservationList)
+      .mock.calls.find(([props]) => props.variant === 'upcoming');
     const historyCall = vi
       .mocked(ReservationList)
       .mock.calls.find(([props]) => props.variant === 'history');
+
+    expect(pendingCall?.[0].highlightedReservationId).toBeUndefined();
+    expect(upcomingCall?.[0].highlightedReservationId).toBeUndefined();
     expect(historyCall?.[0].highlightedReservationId).toBe('401');
 
     fireEvent.click(screen.getByTestId('trigger-pending-mentor'));
     expect(mockReplace).toHaveBeenCalledWith('/reservation/mentor?tab=pending');
+  });
+
+  it('auto-switches to history tab when reservationId is present without tab=history and loads next history page when target card is not in page 1 (#734)', () => {
+    mockPathname.mockReturnValue('/reservation/mentor');
+    mockGet.mockImplementation((key: string) =>
+      key === 'reservationId' ? '401' : null
+    );
+    mockToString.mockReturnValue('reservationId=401');
+
+    vi.mocked(useReservationData).mockReturnValue(
+      fromPartial({
+        ...baseHookReturnValue,
+        data: {
+          upcoming: [],
+          pending: [],
+          history: [{ id: '410', dtstart: 9000, dtend: 9800 }],
+          nextTokens: { upcoming: 0, pending: 0, history: 1760959800 },
+        },
+        isHistoryLoaded: true,
+        isLoadingHistory: false,
+      })
+    );
+
+    render(<ReservationDashboard userRole="mentor" />);
+
+    expect(screen.getByTestId('tabs')).toHaveAttribute(
+      'data-default-value',
+      'history'
+    );
+    expect(mockLoadMore).toHaveBeenCalledWith('history');
   });
 });

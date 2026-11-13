@@ -1,3 +1,4 @@
+import { fromAny } from '@total-typescript/shoehorn';
 import { describe, expect, it } from 'vitest';
 
 import { mapNotificationVOToItem } from '@/services/notifications/notificationMapper';
@@ -38,13 +39,13 @@ describe('mapNotificationVOToItem', () => {
     expect(() =>
       mapNotificationVOToItem({
         ...baseApiItem,
-        metadata: null as unknown as Record<string, unknown>,
+        metadata: fromAny(null),
       })
     ).not.toThrow();
 
     const item = mapNotificationVOToItem({
       ...baseApiItem,
-      metadata: null as unknown as Record<string, unknown>,
+      metadata: fromAny(null),
     });
     expect(item.role).toBeUndefined();
     expect(item.menteeName).toBeUndefined();
@@ -52,25 +53,30 @@ describe('mapNotificationVOToItem', () => {
   });
 
   it('does not throw and falls back to a valid ISO string when created_at is missing or invalid', () => {
-    for (const invalidCreatedAt of [
-      undefined,
-      null,
-      NaN,
-    ] as unknown as number[]) {
+    for (const invalidCreatedAt of [undefined, null, NaN]) {
       expect(() =>
         mapNotificationVOToItem({
           ...baseApiItem,
-          created_at: invalidCreatedAt,
+          created_at: fromAny(invalidCreatedAt),
         })
       ).not.toThrow();
 
       const item = mapNotificationVOToItem({
         ...baseApiItem,
-        created_at: invalidCreatedAt,
+        created_at: fromAny(invalidCreatedAt),
       });
       expect(() => new Date(item.createdAt).toISOString()).not.toThrow();
       expect(Number.isNaN(new Date(item.createdAt).getTime())).toBe(false);
     }
+  });
+
+  it('maps unrecognized notification types to unknown safely without throwing', () => {
+    const item = mapNotificationVOToItem({
+      ...baseApiItem,
+      type: 'future_unrecognized_event',
+    });
+
+    expect(item.type).toBe('unknown');
   });
 
   it('maps role/counterparty_name to menteeName/mentorName based on role', () => {
@@ -134,7 +140,7 @@ describe('mapNotificationVOToItem', () => {
     expect(item.reservationId).toBe('401');
   });
 
-  it('normalizes reservation_feedback_received and meeting_feedback_received aliases to feedback_received and infers mentor role (#734)', () => {
+  it('normalizes feedback-received aliases and enforces mentor role with full menteeName (#734)', () => {
     const reservationPrefixed = mapNotificationVOToItem({
       ...baseApiItem,
       type: 'reservation_feedback_received',
@@ -161,16 +167,31 @@ describe('mapNotificationVOToItem', () => {
     expect(meetingPrefixed.role).toBe('mentor');
     expect(meetingPrefixed.menteeName).toBe('張大文');
     expect(meetingPrefixed.reservationId).toBe('608');
+
+    const uppercaseWithActorRoleMismatch = mapNotificationVOToItem({
+      ...baseApiItem,
+      type: 'FEEDBACK_RECEIVED',
+      metadata: {
+        role: 'mentee',
+        counterparty_name: '蘇元貞',
+        reservationId: 709,
+      },
+    });
+    expect(uppercaseWithActorRoleMismatch.type).toBe('feedback_received');
+    expect(uppercaseWithActorRoleMismatch.role).toBe('mentor');
+    expect(uppercaseWithActorRoleMismatch.menteeName).toBe('蘇元貞');
+    expect(uppercaseWithActorRoleMismatch.mentorName).toBeUndefined();
+    expect(uppercaseWithActorRoleMismatch.reservationId).toBe('709');
   });
 
-  it('gracefully omits reservationId when reservation_id and session_link are missing or invalid (#734)', () => {
+  it('gracefully omits reservationId when reservation_id and session_link are missing, zero, or invalid (#734)', () => {
     const item = mapNotificationVOToItem({
       ...baseApiItem,
       type: 'feedback_received',
       metadata: {
         role: 'mentor',
         counterparty_name: '王小明',
-        reservation_id: null,
+        reservation_id: 0,
         session_link: '   ',
       },
     });

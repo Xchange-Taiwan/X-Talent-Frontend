@@ -17,6 +17,7 @@ import {
 } from '@/hooks/useNotificationCenter';
 import { useScrollThumb } from '@/hooks/useScrollThumb';
 import { formatRelativeTime } from '@/lib/dateUtils';
+import { emitFeedbackDeepLink } from '@/lib/reservation/feedbackDeepLink';
 import {
   FOCUS_RING_CLASSES,
   FOCUS_RING_NO_OFFSET_CLASSES,
@@ -120,6 +121,9 @@ const NotificationList = React.memo(function NotificationList({
               key={item.id}
               href={href}
               onClick={() => {
+                if (item.type === 'feedback_received' && item.reservationId) {
+                  emitFeedbackDeepLink(item.reservationId);
+                }
                 onItemClick(item.id);
                 onNavigate();
               }}

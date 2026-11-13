@@ -129,6 +129,37 @@ describe('meetingFeedbackSchema', () => {
         content: '非常感謝導師的職涯建議！',
       },
     });
+
+    expect(
+      toSubmitFeedbackPayload(
+        {
+          meetingHappened: true,
+          rating: 10,
+          content: '',
+          notHappenedReason: null,
+          notHappenedNote: '',
+        },
+        'mentor'
+      )
+    ).toEqual({
+      meeting_happened: true,
+    });
+
+    expect(
+      toSubmitFeedbackPayload(
+        {
+          meetingHappened: false,
+          rating: 10,
+          content: '',
+          notHappenedReason: 'MENTEE_ABSENT',
+          notHappenedNote: '',
+        },
+        'mentor'
+      )
+    ).toEqual({
+      meeting_happened: false,
+      not_happened_reason: 'MENTEE_ABSENT',
+    });
   });
 
   it('builds meeting_happened=false payload with reason only (no not_happened_party) and attaches trimmed note exclusively for OTHER', () => {

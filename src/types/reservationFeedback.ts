@@ -6,17 +6,35 @@ export const NOT_HAPPENED_REASONS = [
   'OTHER',
 ] as const;
 
-export type NotHappenedReason = (typeof NOT_HAPPENED_REASONS)[number];
+export const MENTOR_NOT_HAPPENED_REASONS = [
+  'SCHEDULE_CONFLICT',
+  'MENTEE_ABSENT',
+  'MISSED_NOTIFICATION',
+  'TECHNICAL_ISSUE',
+  'OTHER',
+] as const;
+
+export const ALL_NOT_HAPPENED_REASONS = [
+  'SCHEDULE_CONFLICT',
+  'MENTOR_ABSENT',
+  'MENTEE_ABSENT',
+  'MISSED_NOTIFICATION',
+  'TECHNICAL_ISSUE',
+  'OTHER',
+] as const;
+
+export type NotHappenedReason = (typeof ALL_NOT_HAPPENED_REASONS)[number];
 
 export const NOT_HAPPENED_REASON_LABELS: Record<NotHappenedReason, string> = {
   SCHEDULE_CONFLICT: '雙方時間無法配合',
   MENTOR_ABSENT: '對方未出席',
+  MENTEE_ABSENT: '對方未出席',
   MISSED_NOTIFICATION: '未收到或錯過會議通知',
   TECHNICAL_ISSUE: '技術／連線問題',
   OTHER: '其他',
 };
 
-export type FeedbackNextStep = 'ANSWER' | null;
+export type FeedbackNextStep = 'ANSWER' | 'RATE' | null;
 
 export interface RawReservationRating {
   rating: number;
@@ -51,7 +69,7 @@ export interface ReservationFeedback {
 export type SubmitReservationFeedbackRequest =
   | {
       meeting_happened: true;
-      feedback: {
+      feedback?: {
         rating: number;
         content: string;
       };

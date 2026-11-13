@@ -53,6 +53,7 @@ export type MeetingFeedbackMode = 'create' | 'edit';
 
 export interface MeetingFeedbackDialogProps {
   reservation: Reservation;
+  sourceRole?: 'mentee' | 'mentor';
   /**
    * Optional multi-session queue (#740 shared design). When length > 1 in create mode,
    * renders segmented progress bar, tilted -5deg back card, and -8deg swipe transition.
@@ -115,6 +116,7 @@ function buildCreateInitialValues(
 
 export default function MeetingFeedbackDialog({
   reservation,
+  sourceRole = 'mentee',
   queue,
   initialQueueIndex = 0,
   mode = 'create',
@@ -314,7 +316,7 @@ export default function MeetingFeedbackDialog({
   };
 
   const handleNextFromAttendance = () => {
-    if (meetingHappened === true) {
+    if (meetingHappened === true && sourceRole !== 'mentor') {
       transitionToStep('rating');
     } else if (meetingHappened === false) {
       transitionToStep('not-happened');
@@ -373,7 +375,7 @@ export default function MeetingFeedbackDialog({
       return;
     }
 
-    const payload = toSubmitFeedbackPayload(currentValues);
+    const payload = toSubmitFeedbackPayload(currentValues, sourceRole);
     if (!payload || !onSubmitFeedback) return;
 
     inFlightRef.current = true;
@@ -680,6 +682,7 @@ export default function MeetingFeedbackDialog({
                     />
                   ) : (
                     <NotHappenedStepContent
+                      sourceRole={sourceRole}
                       notHappenedReason={notHappenedReason}
                       notHappenedNote={notHappenedNote}
                       noteError={noteError}
@@ -704,6 +707,9 @@ export default function MeetingFeedbackDialog({
                 isTransitioningCard={isTransitioningCard}
                 canProceedAttendance={meetingHappened !== null}
                 canSubmitStep2={canSubmitStep2}
+                submitDirectlyOnAttendance={
+                  sourceRole === 'mentor' && meetingHappened === true
+                }
                 hasRemainingQueueCard={hasRemainingQueueCard}
                 onNextFromAttendance={handleNextFromAttendance}
                 onBackToAttendance={() => transitionToStep('attendance')}

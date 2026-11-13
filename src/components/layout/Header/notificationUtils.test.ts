@@ -1,3 +1,4 @@
+import { fromAny } from '@total-typescript/shoehorn';
 import dayjs from 'dayjs';
 import { describe, expect, it } from 'vitest';
 
@@ -100,16 +101,22 @@ describe('notificationUtils', () => {
     }
   );
 
-  it('falls back to a generic title/body and root href for an unrecognized type', () => {
-    const item = buildItem({
-      type: 'some_future_type' as NotificationItem['type'],
-    });
-
-    expect(getNotificationContent(item)).toEqual({
+  it('falls back to a generic title/body and root href for unknown or unrecognized types', () => {
+    const unknownItem = buildItem({ type: 'unknown' });
+    expect(getNotificationContent(unknownItem)).toEqual({
       title: '通知',
       body: '您有一則新通知',
     });
-    expect(getNotificationHref(item)).toBe('/');
+    expect(getNotificationHref(unknownItem)).toBe('/');
+
+    const futureTypeItem = buildItem({
+      type: fromAny('some_future_type'),
+    });
+    expect(getNotificationContent(futureTypeItem)).toEqual({
+      title: '通知',
+      body: '您有一則新通知',
+    });
+    expect(getNotificationHref(futureTypeItem)).toBe('/');
   });
 
   it('formats reservation_upcoming body with dtstart when present and falls back to 24h copy when absent', () => {

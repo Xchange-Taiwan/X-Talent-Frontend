@@ -735,6 +735,25 @@ describe('ReservationList', () => {
           behavior: 'auto',
           block: 'center',
         });
+
+        // Manually collapse panel -> does not re-scroll while highlightNonce stays 0
+        fireEvent.click(toggleBtn);
+        expect(toggleBtn).toHaveAttribute('aria-expanded', 'false');
+        expect(scrollSpy).toHaveBeenCalledTimes(1);
+
+        // Repeated click on notification increments highlightNonce -> re-expands and re-scrolls
+        rerender(
+          <ReservationList
+            items={items}
+            variant="history"
+            sourceRole="mentor"
+            myUserId="user-456"
+            highlightedReservationId=" 401 "
+            highlightNonce={1}
+          />
+        );
+        expect(toggleBtn).toHaveAttribute('aria-expanded', 'true');
+        expect(scrollSpy).toHaveBeenCalledTimes(2);
       } finally {
         Element.prototype.scrollIntoView = originalScrollIntoView;
         Object.defineProperty(window, 'matchMedia', {

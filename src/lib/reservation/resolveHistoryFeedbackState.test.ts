@@ -64,6 +64,22 @@ describe('resolveHistoryFeedbackState', () => {
       headerAction: { kind: 'answer-button' },
       feedbackBlock: null,
     });
+
+    const rateState = resolveHistoryFeedbackState({
+      reservation: makeReservation({
+        feedback: {
+          meetingHappened: true,
+          rating: null,
+          nextStep: 'RATE',
+        },
+      }),
+      sourceRole: 'mentee',
+    });
+
+    expect(rateState).toEqual({
+      headerAction: { kind: 'answer-button' },
+      feedbackBlock: null,
+    });
   });
 
   it('shows collapsible 查看回饋 toggle and editable public rating when mentee submitted rating with isPublic=true (no 尚未公開)', () => {
@@ -214,6 +230,52 @@ describe('resolveHistoryFeedbackState', () => {
     expect(notHappenedMentorState).toEqual({
       headerAction: { kind: 'badge', label: '未進行' },
       feedbackBlock: null,
+    });
+
+    const pendingMentorAttendanceState = resolveHistoryFeedbackState({
+      reservation: makeReservation({
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      }),
+      sourceRole: 'mentor',
+    });
+
+    expect(pendingMentorAttendanceState).toEqual({
+      headerAction: { kind: 'answer-button' },
+      feedbackBlock: null,
+    });
+
+    const ratedPendingMentorAttendanceState = resolveHistoryFeedbackState({
+      reservation: makeReservation({
+        feedback: {
+          meetingHappened: null,
+          rating: {
+            rating: 9,
+            content: '學員已先評分',
+            createdAt: 1760002000,
+            updatedAt: 1760002000,
+            authorName: '林＊華',
+            isPublic: true,
+          },
+          nextStep: 'ANSWER',
+        },
+      }),
+      sourceRole: 'mentor',
+    });
+
+    expect(ratedPendingMentorAttendanceState).toEqual({
+      headerAction: { kind: 'feedback-toggle', label: '查看回饋' },
+      canReportAttendance: true,
+      feedbackBlock: {
+        kind: 'public-rating',
+        label: '學員評價',
+        rating: 9,
+        content: '學員已先評分',
+        canEdit: false,
+      },
     });
   });
 

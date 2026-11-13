@@ -28,7 +28,7 @@ function getMentorContext(item: NotificationItem): boolean {
  * type is added or changed.
  */
 const NOTIFICATION_CONFIG: Record<
-  NotificationItem['type'],
+  Exclude<NotificationItem['type'], 'unknown'>,
   NotificationConfigEntry
 > = {
   reservation_requested: {
@@ -125,6 +125,9 @@ const DEFAULT_HREF = '/';
 export function getNotificationContent(
   item: NotificationItem
 ): NotificationContent {
+  if (item.type === 'unknown') {
+    return DEFAULT_CONTENT;
+  }
   const entry = NOTIFICATION_CONFIG[item.type];
   return entry ? entry.getContent(item) : DEFAULT_CONTENT;
 }
@@ -133,6 +136,9 @@ export function getNotificationContent(
  * Returns the destination URL for a given notification item contextually.
  */
 export function getNotificationHref(item: NotificationItem): string {
+  if (item.type === 'unknown') {
+    return DEFAULT_HREF;
+  }
   const entry = NOTIFICATION_CONFIG[item.type];
   return entry ? entry.getHref(item, getMentorContext(item)) : DEFAULT_HREF;
 }

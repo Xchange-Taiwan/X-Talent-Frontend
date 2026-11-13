@@ -32,6 +32,7 @@ export type HistoryFeedbackBlockModel =
 
 export interface HistoryFeedbackState {
   headerAction: HistoryHeaderAction;
+  canReportAttendance?: boolean;
   bottomStatusLabel?: string;
   feedbackBlock: HistoryFeedbackBlockModel | null;
 }
@@ -40,7 +41,10 @@ export function filterPendingFeedbackQueueItems(
   items: readonly Reservation[]
 ): Reservation[] {
   return items.filter(
-    (item) => !item.cancelledBy && item.feedback?.nextStep === 'ANSWER'
+    (item) =>
+      !item.cancelledBy &&
+      (item.feedback?.nextStep === 'ANSWER' ||
+        item.feedback?.nextStep === 'RATE')
   );
 }
 
@@ -61,7 +65,7 @@ export function resolveHistoryFeedbackState(opts: {
   const feedback = reservation.feedback;
 
   if (sourceRole === 'mentee') {
-    if (feedback?.nextStep === 'ANSWER') {
+    if (feedback?.nextStep === 'ANSWER' || feedback?.nextStep === 'RATE') {
       return {
         headerAction: { kind: 'answer-button' },
         feedbackBlock: null,
@@ -112,7 +116,7 @@ export function resolveHistoryFeedbackState(opts: {
     };
   }
 
-  // Mentor view: show '未進行' if marked not happened, or collapsible public mentee review
+  // Mentor view: show '未進行' if marked not happened, collapsible public mentee review, or attendance reporting CTA
   if (feedback?.meetingHappened === false) {
     return {
       headerAction: { kind: 'badge', label: '未進行' },
@@ -123,6 +127,7 @@ export function resolveHistoryFeedbackState(opts: {
   if (feedback?.rating && feedback.rating.isPublic !== false) {
     return {
       headerAction: { kind: 'feedback-toggle', label: '查看回饋' },
+      ...(feedback.nextStep === 'ANSWER' ? { canReportAttendance: true } : {}),
       feedbackBlock: {
         kind: 'public-rating',
         label: '學員評價',
@@ -130,6 +135,13 @@ export function resolveHistoryFeedbackState(opts: {
         content: feedback.rating.content,
         canEdit: false,
       },
+    };
+  }
+
+  if (feedback?.nextStep === 'ANSWER') {
+    return {
+      headerAction: { kind: 'answer-button' },
+      feedbackBlock: null,
     };
   }
 

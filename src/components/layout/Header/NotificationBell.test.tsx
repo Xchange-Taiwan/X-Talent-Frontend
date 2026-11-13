@@ -15,6 +15,7 @@ import { resetNotificationStore } from '@/stores/notificationStore';
 import { mockToast } from '@/test/mocks/useToast';
 
 import { NotificationBell } from './NotificationBell';
+import * as notificationBellStories from './NotificationBell.stories';
 import {
   getNotificationContent,
   getNotificationHref,
@@ -638,6 +639,21 @@ describe('NotificationBell', () => {
     });
 
     it('renders Mentor feedback-received notification with full mentee name and reservationId history href (#734)', async () => {
+      expect(
+        notificationBellStories.MentorFeedbackReceived.args
+          ?.initialNotifications
+      ).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'feedback_received',
+            role: 'mentor',
+            menteeName: '王小明',
+            reservationId: '401',
+            unread: true,
+          }),
+        ])
+      );
+
       const onMarkReadMock = vi.fn().mockResolvedValue(undefined);
 
       renderBell({

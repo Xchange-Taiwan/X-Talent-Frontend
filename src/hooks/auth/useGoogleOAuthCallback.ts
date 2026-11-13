@@ -134,7 +134,7 @@ export function useGoogleOAuthCallback() {
       data: GoogleCallbackVO,
       email: string
     ) => {
-      // Safe clearance of sessionStorage at the absolute top of execution to prevent zombie states
+      // Non-login account deletion branch: clear pending markers to prevent zombie states
       clearPendingDeleteAccountEmail();
       clearPendingSignInCallbackUrl();
 

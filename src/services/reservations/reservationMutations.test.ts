@@ -42,6 +42,7 @@ import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import { subscribeMentorFeedbackInvalidation } from '@/services/profile/feedback';
 import {
   acceptReservation,
+  extractBackendIsPublic,
   getReservationErrorMessage,
   rejectOrCancelReservation,
   RESERVATION_CONFLICT_MESSAGE,
@@ -1038,5 +1039,227 @@ describe('updateReservationFeedback (#731)', () => {
       step: 'put_feedback',
       message: 'Update feedback failed',
     });
+  });
+
+  it('extracts backend is_public from nested feedback.rating.is_public and meeting_happened === false and keeps optimistic state unpublicized (#734)', async () => {
+    expect(
+      extractBackendIsPublic({
+        feedback: {
+          meeting_happened: false,
+          rating: { is_public: false },
+        },
+      })
+    ).toBe(false);
+    expect(
+      extractBackendIsPublic({
+        feedback: {
+          meeting_happened: true,
+          rating: { is_public: true },
+        },
+      })
+    ).toBe(true);
+    expect(
+      extractBackendIsPublic({
+        feedback: {
+          meeting_happened: false,
+          rating: null,
+        },
+      })
+    ).toBe(false);
+    expect(extractBackendIsPublic({ meeting_happened: false })).toBe(false);
+    expect(extractBackendIsPublic({})).toBeUndefined();
+
+    mockPost.mockResolvedValueOnce({
+      feedback: {
+        meeting_happened: false,
+        rating: {
+          rating: 9,
+          content: '已被導師標註未進行的評價',
+          is_public: false,
+        },
+      },
+    });
+
+    const targetRes = makeMockReservation({
+      id: 'res-nested-unpub',
+      senderUserId: '10',
+      participantUserId: '20',
+      feedback: {
+        meetingHappened: false,
+        rating: null,
+        nextStep: 'ANSWER',
+      },
+    });
+    const menteeHistoryKey = {
+      userId: '10',
+      state: 'MENTEE_HISTORY',
+    } as const;
+    reservationReadModel.set(menteeHistoryKey, {
+      items: [targetRes],
+      next_dtend: 0,
+    });
+    const unsubscribe = reservationReadModel.subscribe(
+      menteeHistoryKey,
+      () => new Promise(() => {}),
+      () => {}
+    );
+
+    try {
+      await submitReservationFeedback({
+        reservation: targetRes,
+        myUserId: '10',
+        myRole: 'mentee',
+        payload: {
+          meeting_happened: true,
+          feedback: { rating: 9, content: '已被導師標註未進行的評價' },
+        },
+      });
+
+      const optimistic =
+        reservationReadModel.get(menteeHistoryKey)?.items[0]?.feedback;
+      expect(optimistic).toMatchObject({
+        meetingHappened: false,
+        rating: {
+          rating: 9,
+          content: '已被導師標註未進行的評價',
+          isPublic: false,
+        },
+        nextStep: null,
+      });
+      expect(clearPoolSpy).not.toHaveBeenCalled();
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it('supports mentor attendance confirmation without feedback rating and flips cached mentee rating to isPublic=false when mentor marks not happened', async () => {
+    mockPost.mockResolvedValueOnce({}).mockResolvedValueOnce({});
+
+    const mentorReservation = makeMockReservation({
+      id: 'res-mentor-734',
+      senderUserId: '10',
+      participantUserId: '20',
+      feedback: {
+        meetingHappened: null,
+        rating: {
+          rating: 10,
+          content: '學員先行評分',
+          createdAt: 1760000100,
+          updatedAt: 1760000100,
+          authorName: '王＊明',
+          isPublic: true,
+        },
+        nextStep: 'ANSWER',
+      },
+    });
+
+    const mentorHistoryKey = {
+      userId: '10',
+      state: 'MENTOR_HISTORY',
+    } as const;
+    const menteeHistoryKey = {
+      userId: '20',
+      state: 'MENTEE_HISTORY',
+    } as const;
+
+    reservationReadModel.set(mentorHistoryKey, {
+      items: [mentorReservation],
+      next_dtend: 0,
+    });
+
+    const invalidatedMentorIds: Array<number | undefined> = [];
+    const unsubscribeFeedback = subscribeMentorFeedbackInvalidation(
+      (mentorId) => {
+        invalidatedMentorIds.push(mentorId);
+      }
+    );
+    const unsubscribeMentor = reservationReadModel.subscribe(
+      mentorHistoryKey,
+      () => new Promise(() => {}),
+      () => {}
+    );
+    const unsubscribeMentee = reservationReadModel.subscribe(
+      menteeHistoryKey,
+      () => new Promise(() => {}),
+      () => {}
+    );
+
+    try {
+      await submitReservationFeedback({
+        reservation: mentorReservation,
+        myUserId: '10',
+        myRole: 'mentor',
+        payload: { meeting_happened: true },
+      });
+
+      expect(
+        reservationReadModel.get(mentorHistoryKey)?.items[0]?.feedback
+      ).toEqual({
+        meetingHappened: true,
+        rating: mentorReservation.feedback?.rating ?? null,
+        nextStep: null,
+      });
+      expect(clearPoolSpy).not.toHaveBeenCalled();
+      expect(invalidatedMentorIds).toEqual([]);
+
+      // Reverse order: Mentee rated first, then Mentor marks meeting_happened: false
+      const menteeReservation = makeMockReservation({
+        id: 'res-mentor-734',
+        senderUserId: '10',
+        participantUserId: '20',
+        feedback: {
+          meetingHappened: true,
+          rating: {
+            rating: 10,
+            content: '學員先行評分',
+            createdAt: 1760000100,
+            updatedAt: 1760000100,
+            authorName: '王＊明',
+            isPublic: true,
+          },
+          nextStep: null,
+        },
+      });
+
+      reservationReadModel.set(menteeHistoryKey, {
+        items: [menteeReservation],
+        next_dtend: 0,
+      });
+
+      await submitReservationFeedback({
+        reservation: mentorReservation,
+        myUserId: '10',
+        myRole: 'mentor',
+        payload: {
+          meeting_happened: false,
+          not_happened_reason: 'MENTEE_ABSENT',
+        },
+      });
+
+      expect(
+        reservationReadModel.get(mentorHistoryKey)?.items[0]?.feedback
+      ).toEqual({
+        meetingHappened: false,
+        rating: null,
+        nextStep: null,
+      });
+      expect(
+        reservationReadModel.get(menteeHistoryKey)?.items[0]?.feedback
+      ).toMatchObject({
+        meetingHappened: false,
+        rating: {
+          rating: 10,
+          content: '學員先行評分',
+          isPublic: false,
+        },
+        nextStep: null,
+      });
+      expect(clearPoolSpy).toHaveBeenCalledTimes(1);
+      expect(invalidatedMentorIds).toEqual([10]);
+    } finally {
+      unsubscribeMentor();
+      unsubscribeMentee();
+      unsubscribeFeedback();
+    }
   });
 });

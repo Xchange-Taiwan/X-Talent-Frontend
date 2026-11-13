@@ -490,6 +490,281 @@ test.describe('Mentee 送出回饋後通知 Mentor 與評價未公開顯示 (#73
     ).toBeVisible();
   });
 
+  test('同網域絕對網址 callbackUrl 且漏帶 tab=history、目標卡片位於歷史紀錄第 2 頁時，登入後自動切換分頁並跨頁載入高亮展開評價 (#734)', async ({
+    page,
+    baseURL,
+  }) => {
+    const mentorHistoryItems = buildMentorHistoryItems();
+    const page1Items = mentorHistoryItems.slice(0, 4);
+    const page2Items = mentorHistoryItems.slice(4);
+    const page1Cursor = 1761219000;
+
+    await page.route(
+      (url) => url.pathname.endsWith('/notifications/unread-count'),
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            code: '0',
+            msg: 'ok',
+            data: { unread_count: 0 },
+          }),
+        })
+    );
+
+    await page.route(
+      (url) => url.pathname.endsWith('/notifications'),
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            code: '0',
+            msg: 'ok',
+            data: { notifications: [], next_cursor: null },
+          }),
+        })
+    );
+
+    let historyPage2Fetched = false;
+    await page.route(
+      (url) => url.pathname.endsWith(`/users/${USER_ID}/reservations`),
+      (route) => {
+        const url = new URL(route.request().url());
+        const state = url.searchParams.get('state');
+        const nextDtend = url.searchParams.get('next_dtend');
+
+        if (state !== 'MENTOR_HISTORY') {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(makeReservationResponse([])),
+          });
+        }
+
+        if (nextDtend === String(page1Cursor)) {
+          historyPage2Fetched = true;
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              code: '0',
+              msg: 'ok',
+              data: {
+                reservations: page2Items,
+                next_dtend: 0,
+              },
+            }),
+          });
+        }
+
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            code: '0',
+            msg: 'ok',
+            data: {
+              reservations: page1Items,
+              next_dtend: page1Cursor,
+            },
+          }),
+        });
+      }
+    );
+
+    const origin = baseURL ?? 'http://localhost:3000';
+    const absoluteCallbackUrl = `${origin}/reservation/mentor?reservationId=401`;
+    await page.goto(
+      `/auth/signin?callbackUrl=${encodeURIComponent(absoluteCallbackUrl)}`
+    );
+
+    await setupAuth(page, true);
+    await page.route(
+      (url) => url.pathname === '/api/auth/callback/credentials',
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ url: origin }),
+        })
+    );
+
+    await page.fill('input[name="email"]', 'mentor@example.com');
+    await page.fill('input[name="password"]', 'Password1234');
+    await page.click('button[type="submit"]');
+
+    await expect(page).toHaveURL('/reservation/mentor?reservationId=401', {
+      timeout: 15_000,
+    });
+
+    const historyTab = page.getByRole('tab', { name: /歷史紀錄/ });
+    await expect(historyTab).toHaveAttribute('aria-selected', 'true');
+    await expect.poll(() => historyPage2Fetched).toBe(true);
+
+    const targetCard = page.locator(
+      '[data-testid="reservation-card"][data-reservation-id="401"]'
+    );
+    await expect(targetCard).toBeVisible();
+    await expect(targetCard).toHaveAttribute('data-highlighted', 'true');
+    await expect(
+      targetCard.getByRole('button', { name: '查看回饋' })
+    ).toHaveAttribute('aria-expanded', 'true');
+    await expect(
+      targetCard.getByText('謝謝導師清楚剖析設計系統架構與職涯方向！')
+    ).toBeVisible();
+  });
+
+  test('評價事後因標註沒有進行而下架（is_public=false）時，Mentor 點擊既有「您收到新的回饋」站內通知定位卡片但不公開顯示評分與評語', async ({
+    page,
+  }) => {
+    await setupAuth(page, true);
+
+    const feedbackNotification: NotificationVO = {
+      id: 73402,
+      type: 'feedback_received',
+      read_at: null,
+      created_at: Math.floor(Date.now() / 1000) - 300,
+      metadata: {
+        role: 'mentor',
+        counterparty_name: '林佳穎',
+        reservation_id: 408,
+      },
+    };
+
+    await page.route(
+      (url) => url.pathname.endsWith('/notifications/unread-count'),
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            code: '0',
+            msg: 'ok',
+            data: { unread_count: 1 },
+          }),
+        })
+    );
+
+    await page.route(
+      (url) => url.pathname.endsWith('/notifications'),
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            code: '0',
+            msg: 'ok',
+            data: {
+              notifications: [feedbackNotification],
+              next_cursor: null,
+            },
+          }),
+        })
+    );
+
+    await page.route(
+      (url) => url.pathname.endsWith('/notifications/73402'),
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            code: '0',
+            msg: 'ok',
+            data: { ...feedbackNotification, read_at: READ_AT_UNIX },
+          }),
+        })
+    );
+
+    const delistedMentorHistoryItems = [
+      ...buildMentorHistoryItems().slice(0, 6),
+      {
+        id: 408,
+        sender: {
+          user_id: 58,
+          role: 'MENTEE',
+          status: 'ACCEPT',
+          name: '林佳穎',
+          avatar: '',
+          job_title: '產品設計師',
+          years_of_experience: 'ONE_TO_THREE',
+        },
+        participant: {
+          user_id: Number(USER_ID),
+          role: 'MENTOR',
+          status: 'ACCEPT',
+          name: 'Emily Chen',
+          avatar: '',
+          job_title: 'Senior UI/UX Designer',
+          years_of_experience: 'FIVE_TO_TEN',
+        },
+        schedule_id: 408,
+        dtstart: 1760950000,
+        dtend: 1760951800,
+        previous_reserve: null,
+        messages: [],
+        feedback: {
+          meeting_happened: false,
+          rating: {
+            rating: 8,
+            content: '這段已下架的評價內容不應向導師顯示。',
+            created_at: 1760952000,
+            updated_at: 1760952500,
+            author_name: '林＊穎',
+            is_public: false,
+          },
+          next_step: null,
+        },
+      },
+    ];
+
+    await page.route(
+      (url) => url.pathname.endsWith(`/users/${USER_ID}/reservations`),
+      (route) => {
+        const url = new URL(route.request().url());
+        const state = url.searchParams.get('state');
+        const list =
+          state === 'MENTOR_HISTORY' ? delistedMentorHistoryItems : [];
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(makeReservationResponse(list)),
+        });
+      }
+    );
+
+    await page.goto('/');
+    await page.getByRole('button', { name: '開啟通知選單' }).click();
+    await page.getByText('林佳穎 為您留下了一則會談回饋，前往查看。').click();
+
+    await expect(page).toHaveURL(
+      '/reservation/mentor?tab=history&reservationId=408'
+    );
+
+    const targetCard = page.locator(
+      '[data-testid="reservation-card"][data-reservation-id="408"]'
+    );
+    await expect(targetCard).toBeVisible();
+    await expect(targetCard).toHaveAttribute('data-highlighted', 'true');
+    await expect(targetCard.getByRole('status')).toHaveText('未進行');
+    await expect(
+      targetCard.getByRole('button', { name: '查看回饋' })
+    ).toHaveCount(0);
+    await expect(targetCard.getByText('評價未公開')).toHaveCount(0);
+    await expect(targetCard.getByText('學員評價')).toHaveCount(0);
+    await expect(targetCard.getByText('8 / 10')).toHaveCount(0);
+    await expect(
+      targetCard.getByText('這段已下架的評價內容不應向導師顯示。')
+    ).toHaveCount(0);
+
+    await captureEvidence(
+      page,
+      'mentor-history-delisted-feedback-hidden-from-notification'
+    );
+  });
+
   test('Mentee 歷史紀錄卡片依 is_public=false 顯示「評價未公開」暖黃說明面板、回饋表單連結、自身回饋與編輯入口且不揭露標註者', async ({
     page,
   }) => {

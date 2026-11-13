@@ -12,14 +12,41 @@ function hasControlCharacters(value: string): boolean {
   return false;
 }
 
+function resolveTrustedOrigin(explicitOrigin?: string): string | null {
+  const trimmedOrigin = explicitOrigin?.trim();
+  if (trimmedOrigin) {
+    try {
+      const originUrl = new URL(trimmedOrigin);
+      if (originUrl.protocol === 'http:' || originUrl.protocol === 'https:') {
+        return originUrl.origin;
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+
+  if (
+    typeof window !== 'undefined' &&
+    typeof window.location?.origin === 'string' &&
+    window.location.origin !== 'null'
+  ) {
+    return window.location.origin;
+  }
+
+  return null;
+}
+
 /**
  * Validates and normalizes an internal post-login callback URL.
- * Rejects external origins, protocol-relative URLs, auth pages, and API routes
- * to prevent open-redirect vulnerabilities and sign-in redirect loops.
+ * Supports both relative paths and same-origin absolute URLs (preserving full
+ * query params and hash), while rejecting external origins, protocol-relative
+ * URLs, dot-segment protocol-relative bypasses, auth pages, and API routes.
  */
 export function sanitizeCallbackUrl(
   raw: string | null | undefined,
-  fallback: string = DEFAULT_AUTHENTICATED_PATH
+  fallback: string = DEFAULT_AUTHENTICATED_PATH,
+  currentOrigin?: string
 ): string {
   if (typeof raw !== 'string') {
     return fallback;
@@ -27,33 +54,63 @@ export function sanitizeCallbackUrl(
 
   const trimmed = raw.trim();
   if (
-    !trimmed.startsWith('/') ||
-    trimmed.startsWith('//') ||
-    trimmed.startsWith(`/${BACKSLASH}`) ||
+    !trimmed ||
+    trimmed.includes(BACKSLASH) ||
     hasControlCharacters(trimmed)
   ) {
     return fallback;
   }
 
-  try {
-    const parsed = new URL(trimmed, 'http://localhost');
+  const trustedOrigin = resolveTrustedOrigin(currentOrigin);
+  let parsed: URL;
+
+  if (trimmed.startsWith('/')) {
+    if (trimmed.startsWith('//')) {
+      return fallback;
+    }
+    const baseOrigin = trustedOrigin ?? 'http://localhost';
+    try {
+      parsed = new URL(trimmed, baseOrigin);
+    } catch {
+      return fallback;
+    }
+    if (parsed.origin !== baseOrigin) {
+      return fallback;
+    }
+  } else if (/^https?:\/\//i.test(trimmed)) {
+    if (!trustedOrigin) {
+      return fallback;
+    }
+    try {
+      parsed = new URL(trimmed);
+    } catch {
+      return fallback;
+    }
     if (
-      parsed.origin !== 'http://localhost' ||
-      parsed.pathname === '/' ||
-      parsed.pathname.startsWith('//') ||
-      parsed.pathname.includes(BACKSLASH) ||
-      parsed.pathname.startsWith('/auth/') ||
-      parsed.pathname === '/auth' ||
-      parsed.pathname.startsWith('/api/') ||
-      parsed.pathname === '/api'
+      (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') ||
+      parsed.origin !== trustedOrigin ||
+      parsed.username !== '' ||
+      parsed.password !== ''
     ) {
       return fallback;
     }
-
-    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
-  } catch {
+  } else {
     return fallback;
   }
+
+  if (
+    parsed.pathname === '/' ||
+    parsed.pathname.startsWith('//') ||
+    parsed.pathname.includes(BACKSLASH) ||
+    parsed.pathname.startsWith('/auth/') ||
+    parsed.pathname === '/auth' ||
+    parsed.pathname.startsWith('/api/') ||
+    parsed.pathname === '/api'
+  ) {
+    return fallback;
+  }
+
+  return `${parsed.pathname}${parsed.search}${parsed.hash}`;
 }
 
 export function setPendingSignInCallbackUrl(

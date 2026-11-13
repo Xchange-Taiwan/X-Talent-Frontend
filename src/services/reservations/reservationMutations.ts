@@ -258,21 +258,41 @@ export async function rejectOrCancelReservation({
   ]).forEach(invalidateReservationRead);
 }
 
-function extractBackendIsPublic(responseData: unknown): boolean | undefined {
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function extractIsPublicFromFeedbackLike(
+  record: Record<string, unknown>
+): boolean | undefined {
+  if (typeof record.is_public === 'boolean') {
+    return record.is_public;
+  }
   if (
-    !responseData ||
-    typeof responseData !== 'object' ||
-    !('feedback' in responseData)
+    isPlainRecord(record.rating) &&
+    typeof record.rating.is_public === 'boolean'
   ) {
+    return record.rating.is_public;
+  }
+  if (record.meeting_happened === false) {
+    return false;
+  }
+  return undefined;
+}
+
+export function extractBackendIsPublic(
+  responseData: unknown
+): boolean | undefined {
+  if (!isPlainRecord(responseData)) {
     return undefined;
   }
-  const { feedback } = responseData;
-  if (!feedback || typeof feedback !== 'object' || !('is_public' in feedback)) {
-    return undefined;
+  if (isPlainRecord(responseData.feedback)) {
+    const nested = extractIsPublicFromFeedbackLike(responseData.feedback);
+    if (nested !== undefined) {
+      return nested;
+    }
   }
-  return typeof feedback.is_public === 'boolean'
-    ? feedback.is_public
-    : undefined;
+  return extractIsPublicFromFeedbackLike(responseData);
 }
 
 export interface SubmitFeedbackParams {
@@ -291,7 +311,10 @@ export async function submitReservationFeedback({
   myRole,
   payload,
 }: SubmitFeedbackParams): Promise<void> {
-  let resolvedIsPublic = true;
+  const wasMarkedNotHappened = reservation.feedback?.meetingHappened === false;
+  let backendIsPublic: boolean | undefined;
+  let resolvedIsPublic =
+    !wasMarkedNotHappened && reservation.feedback?.rating?.isPublic !== false;
   try {
     if (!myUserId) {
       throw new Error('[reservationMutations] missing current user id');
@@ -301,8 +324,9 @@ export async function submitReservationFeedback({
       reservationId: reservation.id,
       body: payload,
     });
-    if (extractBackendIsPublic(responseData) === false) {
-      resolvedIsPublic = false;
+    backendIsPublic = extractBackendIsPublic(responseData);
+    if (typeof backendIsPublic === 'boolean') {
+      resolvedIsPublic = backendIsPublic;
     }
   } catch (err) {
     if (err instanceof ApiError && err.status === 409) {
@@ -340,18 +364,29 @@ export async function submitReservationFeedback({
         items: current.items.map((item) => {
           if (item.id !== reservation.id) return item;
           if (payload.meeting_happened) {
+            const itemNotHappened =
+              item.feedback?.meetingHappened === false || wasMarkedNotHappened;
+            const effectiveIsPublic =
+              typeof backendIsPublic === 'boolean'
+                ? backendIsPublic
+                : itemNotHappened
+                  ? false
+                  : resolvedIsPublic;
+
             return {
               ...item,
               feedback: {
-                meetingHappened: true,
-                rating: {
-                  rating: payload.feedback.rating,
-                  content: payload.feedback.content,
-                  createdAt: nowUnixSeconds,
-                  updatedAt: nowUnixSeconds,
-                  authorName: item.feedback?.rating?.authorName ?? null,
-                  isPublic: resolvedIsPublic,
-                },
+                meetingHappened: effectiveIsPublic === false ? false : true,
+                rating: payload.feedback
+                  ? {
+                      rating: payload.feedback.rating,
+                      content: payload.feedback.content,
+                      createdAt: nowUnixSeconds,
+                      updatedAt: nowUnixSeconds,
+                      authorName: item.feedback?.rating?.authorName ?? null,
+                      isPublic: effectiveIsPublic,
+                    }
+                  : (item.feedback?.rating ?? null),
                 nextStep: null,
               },
             };
@@ -369,16 +404,65 @@ export async function submitReservationFeedback({
     });
   }
 
+  if (!payload.meeting_happened && myRole === 'mentor') {
+    const counterpartyId = resolveCounterpartyId(reservation, myUserId);
+    if (counterpartyId) {
+      const menteeHistoryKey: ReservationReadKey = {
+        userId: String(counterpartyId),
+        state: 'MENTEE_HISTORY',
+      };
+      for (const targetKey of reservationReadModel.getMatchingKeys(
+        menteeHistoryKey
+      )) {
+        reservationReadModel.update(targetKey, (current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            items: current.items.map((item) => {
+              if (item.id !== reservation.id) return item;
+              return {
+                ...item,
+                feedback: {
+                  meetingHappened: false,
+                  rating: item.feedback?.rating
+                    ? { ...item.feedback.rating, isPublic: false }
+                    : null,
+                  nextStep:
+                    item.feedback?.rating !== undefined &&
+                    item.feedback?.rating !== null
+                      ? null
+                      : (item.feedback?.nextStep ?? null),
+                },
+              };
+            }),
+          };
+        });
+      }
+    }
+  }
+
   affectedKeys(reservation, myUserId, myRole, ['history']).forEach(
     invalidateReservationRead
   );
 
-  if (payload.meeting_happened) {
+  if (
+    payload.meeting_happened &&
+    payload.feedback &&
+    resolvedIsPublic !== false
+  ) {
     mentorPoolReadManager.clear();
     const counterpartyId = Number(resolveCounterpartyId(reservation, myUserId));
     invalidateMentorFeedback(
       Number.isFinite(counterpartyId) && counterpartyId > 0
         ? counterpartyId
+        : undefined
+    );
+  } else if (!payload.meeting_happened && myRole === 'mentor') {
+    mentorPoolReadManager.clear();
+    const mentorNumericId = Number(myUserId);
+    invalidateMentorFeedback(
+      Number.isFinite(mentorNumericId) && mentorNumericId > 0
+        ? mentorNumericId
         : undefined
     );
   }
@@ -436,7 +520,10 @@ export async function updateReservationFeedback({
 
   const nowUnixSeconds = Math.floor(Date.now() / 1000);
   const fallbackIsPublic =
-    backendIsPublic ?? reservation.feedback?.rating?.isPublic ?? true;
+    backendIsPublic ??
+    (reservation.feedback?.meetingHappened === false
+      ? false
+      : (reservation.feedback?.rating?.isPublic ?? true));
   const myHistoryKey: ReservationReadKey = {
     userId: myUserId,
     state: statesForRole(myRole).history,
@@ -452,12 +539,18 @@ export async function updateReservationFeedback({
           const existingFeedback = item.feedback ?? reservation.feedback;
           const existingRating = existingFeedback?.rating;
           const preservedIsPublic =
-            backendIsPublic ?? existingRating?.isPublic ?? fallbackIsPublic;
+            backendIsPublic ??
+            (existingFeedback?.meetingHappened === false
+              ? false
+              : (existingRating?.isPublic ?? fallbackIsPublic));
 
           return {
             ...item,
             feedback: {
-              meetingHappened: existingFeedback?.meetingHappened ?? true,
+              meetingHappened:
+                preservedIsPublic === false
+                  ? false
+                  : (existingFeedback?.meetingHappened ?? true),
               rating: {
                 rating: payload.rating,
                 content: payload.content,

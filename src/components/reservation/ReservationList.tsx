@@ -83,12 +83,14 @@ function ReservationItem({
   sourceRole,
   myUserId,
   isHighlighted = false,
+  highlightNonce = 0,
 }: {
   reservation: Reservation;
   variant: Variant;
   sourceRole: SourceRole;
   myUserId: string | undefined;
   isHighlighted?: boolean;
+  highlightNonce?: number;
 }) {
   const [isFeedbackExpanded, setIsFeedbackExpanded] = React.useState(
     Boolean(isHighlighted)
@@ -124,14 +126,15 @@ function ReservationItem({
       return;
     }
     setIsFeedbackExpanded(true);
-  }, [isHighlighted, reservation.id]);
+  }, [highlightNonce, isHighlighted, reservation.id]);
 
   React.useEffect(() => {
     if (!isHighlighted) {
       return;
     }
 
-    const highlightKey = `${variant}:${String(reservation.id)}`;
+    const itemId = String(reservation.id);
+    const highlightKey = `${variant}:${itemId}:${highlightNonce}`;
     if (handledHighlightKeyRef.current === highlightKey) {
       return;
     }
@@ -153,7 +156,13 @@ function ReservationItem({
         block: 'center',
       });
     }
-  }, [isFeedbackExpanded, isHighlighted, reservation.id, variant]);
+  }, [
+    highlightNonce,
+    isFeedbackExpanded,
+    isHighlighted,
+    reservation.id,
+    variant,
+  ]);
 
   const handleProfileLinkInvalidation = useProfileLinkClick({
     disabled: isMutating,
@@ -177,6 +186,12 @@ function ReservationItem({
       return (
         <MeetingFeedbackDialog
           reservation={reservation}
+          sourceRole={sourceRole}
+          initialStep={
+            sourceRole === 'mentee' && reservation.feedback?.nextStep === 'RATE'
+              ? 'rating'
+              : 'attendance'
+          }
           disabled={isMutating}
           onSubmitFeedback={(payload) => submitFeedback(reservation, payload)}
         />
@@ -187,7 +202,7 @@ function ReservationItem({
       historyState.headerAction.kind === 'feedback-toggle' ||
       historyState.headerAction.kind === 'unpublicized-toggle'
     ) {
-      return (
+      const toggle = (
         <ReservationFeedbackHeaderToggle
           action={historyState.headerAction}
           isExpanded={isFeedbackExpanded}
@@ -195,6 +210,24 @@ function ReservationItem({
           onToggle={() => setIsFeedbackExpanded((prev) => !prev)}
         />
       );
+
+      if (historyState.canReportAttendance) {
+        return (
+          <div className="flex items-center gap-2">
+            <MeetingFeedbackDialog
+              reservation={reservation}
+              sourceRole={sourceRole}
+              disabled={isMutating}
+              onSubmitFeedback={(payload) =>
+                submitFeedback(reservation, payload)
+              }
+            />
+            {toggle}
+          </div>
+        );
+      }
+
+      return toggle;
     }
 
     return (
@@ -329,6 +362,7 @@ export function ReservationList({
   feedbackQueueItems = null,
   onFeedbackQueueClose,
   highlightedReservationId = null,
+  highlightNonce = 0,
 }: {
   items: Reservation[];
   variant: Variant;
@@ -340,6 +374,7 @@ export function ReservationList({
   feedbackQueueItems?: Reservation[] | null;
   onFeedbackQueueClose?: () => void;
   highlightedReservationId?: string | null;
+  highlightNonce?: number;
 }) {
   const emptyState = resolveEmptyStateContent(sourceRole, variant, myUserId);
   const normalizedHighlightedId = highlightedReservationId?.trim() || null;
@@ -368,6 +403,7 @@ export function ReservationList({
             normalizedHighlightedId !== null &&
             String(it.id) === normalizedHighlightedId
           }
+          highlightNonce={highlightNonce}
         />
       ))}
 

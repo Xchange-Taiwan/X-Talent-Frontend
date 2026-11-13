@@ -6,6 +6,7 @@ import { Suspense, useCallback, useEffect, useRef } from 'react';
 import { ReservationListSkeleton } from '@/app/reservation/skeleton';
 import { ReservationList } from '@/components/reservation/ReservationList';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useFeedbackDeepLinkParam } from '@/hooks/user/reservation/useFeedbackDeepLinkParam';
 import { useFeedbackQueueParam } from '@/hooks/user/reservation/useFeedbackQueueParam';
 import {
   type ReservationRole,
@@ -150,12 +151,27 @@ export function ReservationDashboardView({
     });
 
   const tabParam = searchParams.get('tab');
-  const rawReservationId = searchParams.get('reservationId')?.trim() ?? '';
-  const highlightedReservationId =
-    rawReservationId.length > 0 ? rawReservationId : undefined;
+  const mappedTab = tabParam ? TAB_MAPPING[tabParam] : undefined;
+  const hasExplicitNonHistoryTab =
+    mappedTab !== undefined && mappedTab !== 'history';
+
+  const { highlightedReservationId, highlightNonce, shouldForceHistoryTab } =
+    useFeedbackDeepLinkParam({
+      hasExplicitNonHistoryTab,
+      history,
+      isHistoryLoaded,
+      isLoadingHistory,
+      hasMoreHistory: nextTokens.history !== 0,
+      isLoadingMoreHistory: loadingMoreStates.history,
+      nextHistoryCursor: nextTokens.history,
+      onLoadMoreHistory,
+    });
+
   const activeTab = isFeedbackQueueRequested
     ? 'history'
-    : (tabParam && TAB_MAPPING[tabParam]) || pendingTabValue;
+    : shouldForceHistoryTab
+      ? 'history'
+      : mappedTab || pendingTabValue;
 
   const lastCountsRef = useRef<{
     role: ReservationRole;
@@ -310,7 +326,6 @@ export function ReservationDashboardView({
                     hasMore={nextTokens.pending !== 0}
                     onLoadMore={onLoadMorePending}
                     isLoadingMore={loadingMoreStates.pending}
-                    highlightedReservationId={highlightedReservationId}
                   />
                 )}
               </TabsContent>
@@ -327,7 +342,6 @@ export function ReservationDashboardView({
                     hasMore={nextTokens.upcoming !== 0}
                     onLoadMore={onLoadMoreUpcoming}
                     isLoadingMore={loadingMoreStates.upcoming}
-                    highlightedReservationId={highlightedReservationId}
                   />
                 )}
               </TabsContent>
@@ -347,6 +361,7 @@ export function ReservationDashboardView({
                     feedbackQueueItems={feedbackQueueItems}
                     onFeedbackQueueClose={dismissFeedbackQueue}
                     highlightedReservationId={highlightedReservationId}
+                    highlightNonce={highlightNonce}
                   />
                 )}
               </TabsContent>

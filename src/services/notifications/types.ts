@@ -6,7 +6,8 @@ export type NotificationItem = {
     | 'reservation_failed'
     | 'reservation_canceled'
     | 'reservation_upcoming'
-    | 'feedback_received';
+    | 'feedback_received'
+    | 'unknown';
   menteeName?: string;
   mentorName?: string;
   reservationId?: string;

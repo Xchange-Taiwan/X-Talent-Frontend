@@ -7,14 +7,39 @@ import type { NotificationItem } from './types';
 // this many digits in the year 2286).
 const SECONDS_TIMESTAMP_MAX = 9999999999;
 
-function normalizeNotificationType(rawType: string): NotificationItem['type'] {
+type KnownNotificationType = Exclude<NotificationItem['type'], 'unknown'>;
+
+function isKnownNotificationType(
+  value: string
+): value is KnownNotificationType {
+  return (
+    value === 'reservation_requested' ||
+    value === 'reservation_success' ||
+    value === 'reservation_failed' ||
+    value === 'reservation_canceled' ||
+    value === 'reservation_upcoming' ||
+    value === 'feedback_received'
+  );
+}
+
+function normalizeNotificationType(rawType: unknown): NotificationItem['type'] {
+  if (typeof rawType !== 'string') {
+    return 'unknown';
+  }
+  const cleaned = rawType.trim().toLowerCase();
   if (
-    rawType === 'reservation_feedback_received' ||
-    rawType === 'meeting_feedback_received'
+    cleaned === 'feedback_received' ||
+    cleaned === 'reservation_feedback_received' ||
+    cleaned === 'meeting_feedback_received' ||
+    cleaned === 'mentor_feedback_received' ||
+    cleaned === 'new_feedback'
   ) {
     return 'feedback_received';
   }
-  return rawType as NotificationItem['type'];
+  if (isKnownNotificationType(cleaned)) {
+    return cleaned;
+  }
+  return 'unknown';
 }
 
 function readNonEmptyString(value: unknown): string | undefined {
@@ -28,14 +53,22 @@ function readFiniteNumber(value: unknown): number | undefined {
 }
 
 function normalizeRole(value: unknown): 'mentor' | 'mentee' | undefined {
-  return value === 'mentor' || value === 'mentee' ? value : undefined;
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const lower = value.trim().toLowerCase();
+  return lower === 'mentor' || lower === 'mentee' ? lower : undefined;
 }
 
 function normalizeActorRole(
   value: unknown
 ): 'mentor' | 'mentee' | 'system' | undefined {
-  return value === 'mentor' || value === 'mentee' || value === 'system'
-    ? value
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const lower = value.trim().toLowerCase();
+  return lower === 'mentor' || lower === 'mentee' || lower === 'system'
+    ? lower
     : undefined;
 }
 
@@ -46,7 +79,7 @@ function extractReservationIdFromSessionLink(
     return undefined;
   }
   try {
-    const parsed = new URL(sessionLink, 'https://xtalent.local');
+    const parsed = new URL(sessionLink.trim(), 'https://xtalent.local');
     const param =
       parsed.searchParams.get('reservationId') ??
       parsed.searchParams.get('reservation_id');
@@ -60,7 +93,11 @@ function normalizeReservationId(
   metadata: Record<string, unknown>
 ): string | undefined {
   const rawCandidate = metadata.reservation_id ?? metadata.reservationId;
-  if (typeof rawCandidate === 'number' && Number.isFinite(rawCandidate)) {
+  if (
+    typeof rawCandidate === 'number' &&
+    Number.isFinite(rawCandidate) &&
+    rawCandidate > 0
+  ) {
     return String(rawCandidate);
   }
   if (typeof rawCandidate === 'string' && rawCandidate.trim() !== '') {
@@ -88,14 +125,19 @@ export function mapNotificationVOToItem(
   const isFeedbackReceived = normalizedType === 'feedback_received';
 
   const explicitRole = normalizeRole(metadata.role);
-  const role = explicitRole ?? (isFeedbackReceived ? 'mentor' : undefined);
+  // Feedback-received notifications always target the Mentor recipient.
+  const role = isFeedbackReceived ? 'mentor' : explicitRole;
   const actorRole = normalizeActorRole(metadata.actor_role);
   const counterpartyName = readNonEmptyString(metadata.counterparty_name);
-  const explicitMenteeName = readNonEmptyString(metadata.mentee_name);
-  const explicitMentorName = readNonEmptyString(metadata.mentor_name);
+  const explicitMenteeName =
+    readNonEmptyString(metadata.mentee_name) ??
+    readNonEmptyString(metadata.menteeName);
+  const explicitMentorName =
+    readNonEmptyString(metadata.mentor_name) ??
+    readNonEmptyString(metadata.mentorName);
 
   // Map role and counterparty_name to menteeName/mentorName for frontend compatibility.
-  // Feedback-received notifications always target the Mentor and use the Mentee's full name.
+  // Feedback-received notifications always display the Mentee's full name.
   const menteeName =
     role === 'mentor'
       ? (counterpartyName ?? explicitMenteeName)

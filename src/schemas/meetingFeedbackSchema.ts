@@ -1,7 +1,7 @@
 import * as z from 'zod';
 
 import {
-  NOT_HAPPENED_REASONS,
+  ALL_NOT_HAPPENED_REASONS,
   type SubmitReservationFeedbackRequest,
   type UpdateReservationFeedbackRequest,
 } from '@/types/reservationFeedback';
@@ -29,7 +29,7 @@ export const notHappenedNoteFieldSchema = z
   .string()
   .max(MAX_NOT_HAPPENED_NOTE_LENGTH, NOT_HAPPENED_NOTE_MAX_ERROR);
 
-export const notHappenedReasonFieldSchema = z.enum(NOT_HAPPENED_REASONS);
+export const notHappenedReasonFieldSchema = z.enum(ALL_NOT_HAPPENED_REASONS);
 
 export const happenedFeedbackFieldsSchema = z.object({
   rating: meetingRatingFieldSchema,
@@ -136,9 +136,16 @@ export function toUpdateFeedbackPayload(values: {
 }
 
 export function toSubmitFeedbackPayload(
-  values: MeetingFeedbackFormValues
+  values: MeetingFeedbackFormValues,
+  sourceRole: 'mentee' | 'mentor' = 'mentee'
 ): SubmitReservationFeedbackRequest | null {
   if (values.meetingHappened === true) {
+    if (sourceRole === 'mentor') {
+      return {
+        meeting_happened: true,
+      };
+    }
+
     const parsed = happenedFeedbackFieldsSchema.safeParse({
       rating: values.rating,
       content: values.content,

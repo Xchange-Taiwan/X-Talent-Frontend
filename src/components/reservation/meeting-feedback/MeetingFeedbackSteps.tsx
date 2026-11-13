@@ -20,6 +20,7 @@ import {
   MAX_NOT_HAPPENED_NOTE_LENGTH,
 } from '@/schemas/meetingFeedbackSchema';
 import {
+  MENTOR_NOT_HAPPENED_REASONS,
   NOT_HAPPENED_REASON_LABELS,
   NOT_HAPPENED_REASONS,
   type NotHappenedReason,
@@ -203,6 +204,7 @@ export function RatingStepContent({
 }
 
 export interface NotHappenedStepContentProps {
+  sourceRole?: 'mentee' | 'mentor';
   notHappenedReason: NotHappenedReason | null;
   notHappenedNote: string;
   noteError?: string;
@@ -213,6 +215,7 @@ export interface NotHappenedStepContentProps {
 }
 
 export function NotHappenedStepContent({
+  sourceRole = 'mentee',
   notHappenedReason,
   notHappenedNote,
   noteError,
@@ -224,6 +227,10 @@ export function NotHappenedStepContent({
   const showNoteField = notHappenedReason === 'OTHER';
   const visibleNoteError = showNoteField ? noteError : undefined;
   const hasNoteError = Boolean(visibleNoteError);
+  const reasons =
+    sourceRole === 'mentor'
+      ? MENTOR_NOT_HAPPENED_REASONS
+      : NOT_HAPPENED_REASONS;
 
   return (
     <>
@@ -249,7 +256,7 @@ export function NotHappenedStepContent({
             aria-label="為何沒有成功進行"
             className="space-y-1.5"
           >
-            {NOT_HAPPENED_REASONS.map((reason) => (
+            {reasons.map((reason) => (
               <FeedbackRadioOption
                 key={reason}
                 name="notHappenedReason"
@@ -331,6 +338,7 @@ export interface MeetingFeedbackFooterProps {
   isTransitioningCard: boolean;
   canProceedAttendance: boolean;
   canSubmitStep2: boolean;
+  submitDirectlyOnAttendance?: boolean;
   hasRemainingQueueCard?: boolean;
   onNextFromAttendance: () => void;
   onBackToAttendance: () => void;
@@ -344,12 +352,38 @@ export function MeetingFeedbackFooter({
   isTransitioningCard,
   canProceedAttendance,
   canSubmitStep2,
+  submitDirectlyOnAttendance = false,
   hasRemainingQueueCard = false,
   onNextFromAttendance,
   onBackToAttendance,
   onCancelEdit,
 }: MeetingFeedbackFooterProps) {
   if (effectiveStep === 'attendance') {
+    if (submitDirectlyOnAttendance) {
+      return (
+        <DialogFooter className="bg-background-white flex shrink-0 flex-row justify-end px-5 pt-2 pb-5 sm:space-x-0 sm:px-6 sm:pb-6">
+          <Button
+            type="submit"
+            disabled={
+              !canProceedAttendance || isSubmitting || isTransitioningCard
+            }
+            className="bg-brand-500 text-text-primary hover:bg-brand-400 rounded-md px-4 disabled:opacity-45"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-1.5 size-4 animate-spin" />
+                送出中...
+              </>
+            ) : hasRemainingQueueCard ? (
+              '送出並填下一場'
+            ) : (
+              '送出回饋'
+            )}
+          </Button>
+        </DialogFooter>
+      );
+    }
+
     return (
       <DialogFooter className="bg-background-white flex shrink-0 flex-row justify-end px-5 pt-2 pb-5 sm:space-x-0 sm:px-6 sm:pb-6">
         <Button
