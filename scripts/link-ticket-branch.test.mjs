@@ -104,7 +104,9 @@ describe('link-ticket-branch state machine', () => {
         title: '[Feature] Mentor Profile v2',
         linkedBranches: { nodes: [] },
         closedByPullRequestsReferences: {
-          nodes: [{ number: 1200, state: 'MERGED', headRefName: 'feat/830-v1' }],
+          nodes: [
+            { number: 1200, state: 'MERGED', headRefName: 'feat/830-v1' },
+          ],
         },
       },
       requestedBranch: 'develop',

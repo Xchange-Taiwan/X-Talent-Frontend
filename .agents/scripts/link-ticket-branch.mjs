@@ -514,9 +514,7 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
   const existingBranches = (issueObj.linkedBranches?.nodes || [])
     .map((n) => n?.ref?.name)
     .filter(Boolean);
-  const existingOpenPrs = (
-    issueObj.closedByPullRequestsReferences?.nodes || []
-  )
+  const existingOpenPrs = (issueObj.closedByPullRequestsReferences?.nodes || [])
     .filter((n) => n?.state === 'OPEN')
     .map((n) => n?.headRefName)
     .filter(Boolean);

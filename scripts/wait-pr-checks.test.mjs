@@ -10,11 +10,31 @@ describe('wait-pr-checks convergence state machine', () => {
   it('waits for AI Review: Final Summary when upstream AI Review checks are present even if >=5 checks completed', () => {
     const prEarly = {
       statusCheckRollup: [
-        { name: 'AI Review: Planner', status: 'COMPLETED', conclusion: 'SUCCESS' },
-        { name: 'Unit & Integration Tests', status: 'COMPLETED', conclusion: 'SUCCESS' },
-        { name: 'Format and Lint Check', status: 'COMPLETED', conclusion: 'SUCCESS' },
-        { name: 'Bundle Size Budget Check', status: 'COMPLETED', conclusion: 'SUCCESS' },
-        { name: 'OpenAPI Types Check', status: 'COMPLETED', conclusion: 'SUCCESS' },
+        {
+          name: 'AI Review: Planner',
+          status: 'COMPLETED',
+          conclusion: 'SUCCESS',
+        },
+        {
+          name: 'Unit & Integration Tests',
+          status: 'COMPLETED',
+          conclusion: 'SUCCESS',
+        },
+        {
+          name: 'Format and Lint Check',
+          status: 'COMPLETED',
+          conclusion: 'SUCCESS',
+        },
+        {
+          name: 'Bundle Size Budget Check',
+          status: 'COMPLETED',
+          conclusion: 'SUCCESS',
+        },
+        {
+          name: 'OpenAPI Types Check',
+          status: 'COMPLETED',
+          conclusion: 'SUCCESS',
+        },
       ],
     };
     expect(evaluatePollProgress(prEarly).done).toBe(false);
@@ -42,7 +62,8 @@ describe('wait-pr-checks convergence state machine', () => {
           __typename: 'StatusContext',
           context: 'Vercel',
           state: 'FAILURE',
-          description: 'Resource is limited - try again in 4 hours (api-deployments-free-per-day)',
+          description:
+            'Resource is limited - try again in 4 hours (api-deployments-free-per-day)',
         },
         {
           __typename: 'CheckRun',
