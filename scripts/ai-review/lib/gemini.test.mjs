@@ -154,7 +154,39 @@ describe('callGemini', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('throws immediately without retrying when truncated by MAX_TOKENS', async () => {
+  it('expands maxOutputTokens (16384 -> 32768 -> 65536) and retries when truncated by MAX_TOKENS (including empty parts)', async () => {
+    const noopSleep = vi.fn().mockResolvedValue(undefined);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [] } }],
+        }),
+        text: async () => '',
+      })
+      .mockResolvedValueOnce(
+        candidateResponse('{"incomplete', { finishReason: 'MAX_TOKENS' })
+      )
+      .mockResolvedValueOnce(candidateResponse('{"ok":"expanded"}'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      callGemini('prompt', { sleepFn: noopSleep })
+    ).resolves.toEqual({ ok: 'expanded' });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    const req1 = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const req2 = JSON.parse(fetchMock.mock.calls[1][1].body);
+    const req3 = JSON.parse(fetchMock.mock.calls[2][1].body);
+    expect(req1.generationConfig.maxOutputTokens).toBe(16384);
+    expect(req2.generationConfig.maxOutputTokens).toBe(32768);
+    expect(req3.generationConfig.maxOutputTokens).toBe(65536);
+  });
+
+  it('stops retrying immediately and throws MAX_TOKENS once maxOutputTokens reaches 65536', async () => {
+    const noopSleep = vi.fn().mockResolvedValue(undefined);
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -162,8 +194,40 @@ describe('callGemini', () => {
       );
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(callGemini('prompt')).rejects.toThrow('MAX_TOKENS');
+    await expect(
+      callGemini('prompt', { maxOutputTokens: 65536, sleepFn: noopSleep })
+    ).rejects.toThrow('MAX_TOKENS');
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('carries expanded maxOutputTokens to fallbackModel when primary model exhausts transient retries', async () => {
+    const noopSleep = vi.fn().mockResolvedValue(undefined);
+    const unavailable = {
+      ok: false,
+      status: 503,
+      text: async () => 'UNAVAILABLE',
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        candidateResponse('{"incomplete', { finishReason: 'MAX_TOKENS' })
+      )
+      .mockResolvedValueOnce(unavailable)
+      .mockResolvedValueOnce(unavailable)
+      .mockResolvedValueOnce(unavailable)
+      .mockResolvedValueOnce(unavailable)
+      .mockResolvedValueOnce(candidateResponse('{"ok":"fallback-65k"}'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      callGemini('prompt', { maxOutputTokens: 32768, sleepFn: noopSleep })
+    ).resolves.toEqual({ ok: 'fallback-65k' });
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(fetchMock.mock.calls[5][0]).toContain(
+      'models/gemini-2.5-flash:generateContent'
+    );
+    const fallbackBody = JSON.parse(fetchMock.mock.calls[5][1].body);
+    expect(fallbackBody.generationConfig.maxOutputTokens).toBe(65536);
   });
 
   it('uses exponential backoff with jitter across up to 5 primary attempts and falls back to gemini-2.5-flash when 503 persists', async () => {
