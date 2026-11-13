@@ -204,12 +204,62 @@ function createLinkedBranchWithRetry({
   return linkedId;
 }
 
+export function queryBranchOpenPrState({
+  org,
+  frontendRepo,
+  targetBranch,
+  execGh = runGh,
+}) {
+  const cleanBranch = String(targetBranch || '').trim();
+  if (!cleanBranch || cleanBranch === 'develop' || cleanBranch === 'main') {
+    return { ok: false, hasOpenPr: false, openPrCount: null, headRefName: '' };
+  }
+  const raw = execGh(
+    [
+      'pr',
+      'list',
+      '--repo',
+      `${org}/${frontendRepo}`,
+      '--head',
+      cleanBranch,
+      '--state',
+      'open',
+      '--json',
+      'number,headRefName',
+    ],
+    { allowFail: true, retries: 2 }
+  );
+  if (!raw || !String(raw).trim()) {
+    return { ok: false, hasOpenPr: false, openPrCount: null, headRefName: '' };
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return {
+        ok: false,
+        hasOpenPr: false,
+        openPrCount: null,
+        headRefName: '',
+      };
+    }
+    return {
+      ok: true,
+      hasOpenPr: parsed.length > 0,
+      openPrCount: parsed.length,
+      headRefName: parsed[0]?.headRefName || cleanBranch,
+    };
+  } catch {
+    return { ok: false, hasOpenPr: false, openPrCount: null, headRefName: '' };
+  }
+}
+
 export function resolveTicketBranchPlan({
   issueNumber,
   issueObj,
   requestedBranch = '',
   openPrsByTicket = [],
   remoteBranchExists = false,
+  directBranchOpenPrCheck = null,
 }) {
   const cleanRequested =
     requestedBranch &&
@@ -222,8 +272,16 @@ export function resolveTicketBranchPlan({
     issueObj?.closedByPullRequestsReferences?.nodes || []
   ).filter((n) => n?.state === 'OPEN' && n?.headRefName);
 
+  const directOpenBranch =
+    directBranchOpenPrCheck?.ok && directBranchOpenPrCheck?.hasOpenPr
+      ? directBranchOpenPrCheck.headRefName
+      : '';
+
   const activeOpenPrBranch =
-    openLinkedPrs[0]?.headRefName || openPrsByTicket[0]?.headRefName || '';
+    openLinkedPrs[0]?.headRefName ||
+    openPrsByTicket[0]?.headRefName ||
+    directOpenBranch ||
+    '';
 
   const hasOpenPr = Boolean(activeOpenPrBranch);
 
@@ -250,10 +308,18 @@ export function resolveTicketBranchPlan({
   const targetBranch =
     preLinked || deriveBranchNameFromIssue(issueNumber, issueObj?.title);
 
+  // Fail-closed: if `directBranchOpenPrCheck` was attempted and failed (`ok === false`),
+  // refuse to force-reset the remote branch so network/rate-limit errors never wipe an open PR.
+  const canSafelyResetRemote =
+    Boolean(remoteBranchExists) &&
+    (directBranchOpenPrCheck === null ||
+      (directBranchOpenPrCheck.ok === true &&
+        directBranchOpenPrCheck.openPrCount === 0));
+
   return {
     targetBranch,
     hasOpenPr: false,
-    resetToOriginDevelop: Boolean(remoteBranchExists),
+    resetToOriginDevelop: canSafelyResetRemote,
   };
 }
 
@@ -370,6 +436,14 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
     { allowFail: true }
   );
 
+  const directProbeCheck = probeLsRemote
+    ? queryBranchOpenPrState({
+        org,
+        frontendRepo,
+        targetBranch: candidateForProbe,
+      })
+    : null;
+
   const branchPlan = resolveTicketBranchPlan({
     issueNumber,
     issueObj,
@@ -380,6 +454,7 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
         : ''),
     openPrsByTicket,
     remoteBranchExists: Boolean(probeLsRemote),
+    directBranchOpenPrCheck: directProbeCheck,
   });
 
   targetBranch = branchPlan.targetBranch;
@@ -393,18 +468,29 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
     runGit(['rev-parse', 'HEAD']);
 
   if (branchPlan.resetToOriginDevelop) {
-    console.log(
-      `ℹ️ Resetting stale remote branch origin/${targetBranch} (no open PR) to latest origin/develop (${remoteBaseOid.slice(0, 7)})...`
-    );
-    runGit(
-      [
-        'push',
-        'origin',
-        `--force`,
-        `${remoteBaseOid}:refs/heads/${targetBranch}`,
-      ],
-      { allowFail: true }
-    );
+    const finalResetCheck =
+      targetBranch === candidateForProbe && directProbeCheck
+        ? directProbeCheck
+        : queryBranchOpenPrState({ org, frontendRepo, targetBranch });
+    if (finalResetCheck.ok && finalResetCheck.openPrCount === 0) {
+      console.log(
+        `ℹ️ Resetting stale remote branch origin/${targetBranch} (verified 0 open PRs) to latest origin/develop (${remoteBaseOid.slice(0, 7)})...`
+      );
+      runGit(
+        [
+          'push',
+          'origin',
+          `--force`,
+          `${remoteBaseOid}:refs/heads/${targetBranch}`,
+        ],
+        { allowFail: true }
+      );
+    } else {
+      console.warn(
+        `⚠️ Skipping --force reset of origin/${targetBranch} because open-PR check did not confirm 0 open PRs (ok=${finalResetCheck.ok}, count=${finalResetCheck.openPrCount}).`
+      );
+      branchPlan.resetToOriginDevelop = false;
+    }
   }
 
   const repoIdQuery = `
@@ -428,7 +514,9 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
   const existingBranches = (issueObj.linkedBranches?.nodes || [])
     .map((n) => n?.ref?.name)
     .filter(Boolean);
-  const existingOpenPrs = (issueObj.closedByPullRequestsReferences?.nodes || [])
+  const existingOpenPrs = (
+    issueObj.closedByPullRequestsReferences?.nodes || []
+  )
     .filter((n) => n?.state === 'OPEN')
     .map((n) => n?.headRefName)
     .filter(Boolean);
@@ -448,26 +536,13 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
       if (remoteOid) {
         branchOidForMutation = remoteOid;
       }
-      const openPrCountStr = runGh(
-        [
-          'pr',
-          'list',
-          '--repo',
-          `${org}/${frontendRepo}`,
-          '--head',
-          targetBranch,
-          '--state',
-          'open',
-          '--json',
-          'number',
-          '--jq',
-          'length',
-        ],
-        { allowFail: true }
-      );
-      const openPrCount = Number(openPrCountStr) || 0;
+      const deleteGuard = queryBranchOpenPrState({
+        org,
+        frontendRepo,
+        targetBranch,
+      });
       let deletedRemoteBranch = false;
-      if (openPrCount === 0) {
+      if (deleteGuard.ok && deleteGuard.openPrCount === 0) {
         console.log(
           `ℹ️ Remote branch origin/${targetBranch} exists without an open PR; recreating via createLinkedBranch at ${branchOidForMutation.slice(0, 7)}...`
         );
