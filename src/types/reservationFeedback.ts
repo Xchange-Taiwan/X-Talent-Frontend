@@ -15,9 +15,7 @@ export const NOT_HAPPENED_REASONS = [
 export type NotHappenedReason = (typeof NOT_HAPPENED_REASONS)[number];
 
 export type LegacyNotHappenedReason =
-  | NotHappenedReason
-  | 'MENTOR_ABSENT'
-  | 'MENTEE_ABSENT';
+  NotHappenedReason | 'MENTOR_ABSENT' | 'MENTEE_ABSENT';
 
 export type FeedbackViewerRole = 'mentee' | 'mentor';
 
