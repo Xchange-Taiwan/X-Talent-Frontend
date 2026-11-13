@@ -199,7 +199,7 @@ export async function waitForUiSettled(page, options = {}) {
       if (finiteAnims.length > 0) {
         await withTimeout(
           Promise.allSettled(finiteAnims.map((a) => a.finished)),
-          1500
+          2100
         );
       }
 
