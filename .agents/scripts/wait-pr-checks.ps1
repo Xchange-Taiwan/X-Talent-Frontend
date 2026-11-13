@@ -29,7 +29,7 @@ if ([string]::IsNullOrWhiteSpace($PrNumber)) {
 
 $PrObj = $null
 for ($i = 1; $i -le 60; $i++) {
-  $RawPr = (gh pr view $PrNumber --repo "$ORG/$FRONTEND_REPO" --json headRefName,state,mergeable,labels,statusCheckRollup 2>$null)
+  $RawPr = (gh pr view $PrNumber --repo "$ORG/$FRONTEND_REPO" --json headRefName,headRefOid,state,mergeable,labels,statusCheckRollup 2>$null)
   if ($RawPr) {
     try {
       $LatestPr = $RawPr | ConvertFrom-Json
@@ -38,6 +38,7 @@ for ($i = 1; $i -le 60; $i++) {
         $Checks = if ($null -ne $PrObj.statusCheckRollup) { @($PrObj.statusCheckRollup) } else { @() }
         if ($Checks.Count -gt 0) {
           $Pending = 0
+          $HasAnyAiReview = $false
           $HasFinalSummary = $false
           foreach ($c in $Checks) {
             $name = "$($c.name)$($c.context)"
@@ -45,7 +46,10 @@ for ($i = 1; $i -le 60; $i++) {
             $statusUpper = "$($c.status)".ToUpper()
             $stateUpper = "$($c.state)".ToUpper()
             $concUpper = "$($c.conclusion)".ToUpper()
-            if ($name -match "AI Review: Final Summary" -and ($concUpper -in @("SUCCESS", "NEUTRAL", "SKIPPED"))) {
+            if ($name -match "(?i)AI Review") {
+              $HasAnyAiReview = $true
+            }
+            if ($name -match "AI Review: Final Summary" -and $statusUpper -eq "COMPLETED") {
               $HasFinalSummary = $true
             }
             $isPending = if ($typename -eq "StatusContext") {
@@ -57,7 +61,8 @@ for ($i = 1; $i -le 60; $i++) {
               $Pending++
             }
           }
-          if ($Pending -eq 0 -and ($HasFinalSummary -or $Checks.Count -ge 5)) {
+          $AiReviewSettled = $HasFinalSummary -or ((-not $HasAnyAiReview) -and ($Checks.Count -ge 5))
+          if ($Pending -eq 0 -and $AiReviewSettled) {
             break
           }
         }
@@ -69,10 +74,14 @@ for ($i = 1; $i -le 60; $i++) {
 
 $AllChecks = if ($null -ne $PrObj -and $null -ne $PrObj.statusCheckRollup) { @($PrObj.statusCheckRollup) } else { @() }
 $Labels = if ($null -ne $PrObj -and $null -ne $PrObj.labels) { @($PrObj.labels | ForEach-Object { "$($_.name)" }) } else { @() }
+$HeadSha = if ($null -ne $PrObj -and $PrObj.headRefOid) { "$($PrObj.headRefOid)".Trim().ToLower() } else { "" }
+
+$FinalSummaryCheck = $AllChecks | Where-Object { "$($_.name)$($_.context)" -match "AI Review: Final Summary" } | Select-Object -First 1
+$FinalSummarySkipped = ($null -ne $FinalSummaryCheck) -and ("$($FinalSummaryCheck.status)".ToUpper() -eq "COMPLETED") -and ("$($FinalSummaryCheck.conclusion)".ToUpper() -eq "SKIPPED")
 
 $RawComments = (gh pr view $PrNumber --repo "$ORG/$FRONTEND_REPO" --json comments 2>$null)
 $CommentsList = @()
-$RiskLevel = "unknown"
+$RiskLevel = if ($FinalSummarySkipped) { "low" } else { "unknown" }
 $FindingsExcerpt = ""
 if ($RawComments) {
   try {
@@ -80,22 +89,43 @@ if ($RawComments) {
     if ($null -ne $CommentsObj -and $null -ne $CommentsObj.comments) {
       $CommentsList = @($CommentsObj.comments)
     }
-    $AiComment = $CommentsList | Where-Object {
-      ($_.author.login -in @("github-actions", "github-actions[bot]")) -and
-      ($_.body -match "<!-- ai-review-pipeline -->")
-    } | Select-Object -Last 1
-    if ($AiComment -and $AiComment.body) {
-      $m = [regex]::Match($AiComment.body, '(?i)### ⚠️ Overall Risk\s+\*\*([a-z]+)\*\*')
-      if ($m.Success) { $RiskLevel = $m.Groups[1].Value.ToLower() }
-      if ($RiskLevel -ne "low") {
-        $FindingsExcerpt = $AiComment.body.Substring(0, [Math]::Min(3500, $AiComment.body.Length))
+    if (-not $FinalSummarySkipped) {
+      $AiComment = $CommentsList | Where-Object {
+        $isBot = ($_.author.login -in @("github-actions", "github-actions[bot]"))
+        $bodyStr = "$($_.body)"
+        if (-not $isBot -or ($bodyStr -notmatch "<!-- ai-review-pipeline -->")) { return $false }
+        $shaTag = [regex]::Match($bodyStr, '(?i)<!--\s*ai-review-sha:([0-9a-f]+)\s*-->')
+        if ($shaTag.Success -and $HeadSha) {
+          $tagged = $shaTag.Groups[1].Value.ToLower()
+          return $HeadSha.StartsWith($tagged) -or $tagged.StartsWith($HeadSha)
+        }
+        return $true
+      } | Select-Object -Last 1
+      if ($AiComment -and $AiComment.body) {
+        $m = [regex]::Match($AiComment.body, '(?i)### ⚠️ Overall Risk\s+\*\*([a-z]+)\*\*')
+        if ($m.Success) { $RiskLevel = $m.Groups[1].Value.ToLower() }
+        if ($RiskLevel -ne "low") {
+          $FindingsExcerpt = $AiComment.body.Substring(0, [Math]::Min(3500, $AiComment.body.Length))
+        }
       }
     }
   } catch {}
 }
 
+$LatestQuotaComment = $CommentsList | Where-Object { "$($_.body)" -match "(?i)vercel-quota-limit|api-deployments-free-per-day|Resource is limited - try again in" } | Select-Object -Last 1
+$QuotaCommentMatchesHead = $false
+if ($LatestQuotaComment) {
+  $qMatch = [regex]::Match("$($LatestQuotaComment.body)", '(?i)<!--\s*vercel-quota-limit:sha=([0-9a-f]+)\s*-->')
+  if ($qMatch.Success -and $HeadSha) {
+    $qSha = $qMatch.Groups[1].Value.ToLower()
+    $QuotaCommentMatchesHead = $HeadSha.StartsWith($qSha) -or $qSha.StartsWith($HeadSha)
+  } elseif (-not $HeadSha) {
+    $QuotaCommentMatchesHead = $true
+  }
+}
+
 $VercelQuotaReached = ($Labels -contains "vercel-quota-limit") -or
-  (($CommentsList | Where-Object { "$($_.body)" -match "(?i)vercel-quota-limit|api-deployments-free-per-day|Resource is limited - try again in" }).Count -gt 0) -or
+  $QuotaCommentMatchesHead -or
   (($AllChecks | Where-Object { ("$($_.name)$($_.context)" -match "(?i)vercel") -and ("$($_.description)$($_.title)" -match "(?i)api-deployments-free-per-day|Resource is limited") }).Count -gt 0)
 
 $FailedChecks = @()

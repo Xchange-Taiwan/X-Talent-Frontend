@@ -30,7 +30,7 @@ fi
 # Poll quietly every 15 seconds (up to 15 minutes = 60 polls) without printing intermediate tables
 PR_JSON=""
 for ((i = 1; i <= 60; i++)); do
-  LATEST_PR_JSON=$(gh pr view "$PR_NUMBER" --repo "$ORG/$FRONTEND_REPO" --json headRefName,state,mergeable,labels,statusCheckRollup 2>/dev/null || true)
+  LATEST_PR_JSON=$(gh pr view "$PR_NUMBER" --repo "$ORG/$FRONTEND_REPO" --json headRefName,headRefOid,state,mergeable,labels,statusCheckRollup 2>/dev/null || true)
   if [ -z "$LATEST_PR_JSON" ]; then
     sleep 15
     continue
@@ -46,6 +46,7 @@ for ((i = 1; i <= 60; i++)); do
         const checks = j.statusCheckRollup || [];
         if (checks.length === 0) { console.log("PENDING:0:0:0"); return; }
         let pending = 0, failed = 0, passed = 0;
+        let hasAnyAiReview = false;
         let hasFinalSummary = false;
         for (const c of checks) {
           const name = c.name || c.context || "";
@@ -53,7 +54,10 @@ for ((i = 1; i <= 60; i++)); do
           const status = String(c.status || "").toUpperCase();
           const state = String(c.state || "").toUpperCase();
           const conc = String(c.conclusion || "").toUpperCase();
-          if (name.includes("AI Review: Final Summary") && (conc === "SUCCESS" || conc === "NEUTRAL" || conc === "SKIPPED")) {
+          if (/AI Review/i.test(name)) {
+            hasAnyAiReview = true;
+          }
+          if (name.includes("AI Review: Final Summary") && status === "COMPLETED") {
             hasFinalSummary = true;
           }
           const isPending = typename === "StatusContext"
@@ -67,7 +71,8 @@ for ((i = 1; i <= 60; i++)); do
             failed++;
           }
         }
-        if (pending === 0 && (hasFinalSummary || checks.length >= 5)) {
+        const aiReviewSettled = hasFinalSummary || (!hasAnyAiReview && checks.length >= 5);
+        if (pending === 0 && aiReviewSettled) {
           console.log(`DONE:${passed}:${failed}:${checks.length}`);
         } else {
           console.log(`PENDING:${passed}:${failed}:${pending}`);
@@ -102,10 +107,26 @@ try { commentsObj = JSON.parse(fs.readFileSync(commentsFile, "utf8") || '{"comme
 const checks = Array.isArray(pr.statusCheckRollup) ? pr.statusCheckRollup : [];
 const labels = Array.isArray(pr.labels) ? pr.labels.map(l => String(l?.name || "")) : [];
 const comments = Array.isArray(commentsObj.comments) ? commentsObj.comments : [];
+const headSha = String(pr.headRefOid || "").trim().toLowerCase();
+
+const latestQuotaComment = [...comments]
+  .reverse()
+  .find(c => /vercel-quota-limit|api-deployments-free-per-day|Resource is limited - try again in/i.test(String(c?.body || "")));
+
+let quotaCommentMatchesHead = false;
+if (latestQuotaComment) {
+  const shaMatch = String(latestQuotaComment.body || "").match(/<!--\s*vercel-quota-limit:sha=([0-9a-f]+)\s*-->/i);
+  if (shaMatch && headSha) {
+    const taggedSha = shaMatch[1].toLowerCase();
+    quotaCommentMatchesHead = headSha.startsWith(taggedSha) || taggedSha.startsWith(headSha);
+  } else if (!headSha) {
+    quotaCommentMatchesHead = true;
+  }
+}
 
 const vercelQuotaReached =
   labels.includes("vercel-quota-limit") ||
-  comments.some(c => /vercel-quota-limit|api-deployments-free-per-day|Resource is limited - try again in/i.test(String(c?.body || ""))) ||
+  quotaCommentMatchesHead ||
   checks.some(c => /vercel/i.test(String(c?.name || c?.context || "")) && /api-deployments-free-per-day|Resource is limited/i.test(String(c?.description || c?.title || "")));
 
 const failedChecks = [];
@@ -132,16 +153,29 @@ for (const c of checks) {
   }
 }
 
+const finalSummaryCheck = checks.find(c => String(c?.name || c?.context || "").includes("AI Review: Final Summary"));
+const finalSummarySkipped =
+  Boolean(finalSummaryCheck) &&
+  String(finalSummaryCheck.status || "").toUpperCase() === "COMPLETED" &&
+  String(finalSummaryCheck.conclusion || "").toUpperCase() === "SKIPPED";
+
 const aiComment = [...comments]
   .reverse()
-  .find(c =>
-    (c.author?.login === "github-actions" || c.author?.login === "github-actions[bot]") &&
-    (c.body || "").includes("<!-- ai-review-pipeline -->")
-  );
+  .find(c => {
+    const isBot = c.author?.login === "github-actions" || c.author?.login === "github-actions[bot]";
+    const body = String(c.body || "");
+    if (!isBot || !body.includes("<!-- ai-review-pipeline -->")) return false;
+    const shaTag = body.match(/<!--\s*ai-review-sha:([0-9a-f]+)\s*-->/i);
+    if (shaTag && headSha) {
+      const tagged = shaTag[1].toLowerCase();
+      return headSha.startsWith(tagged) || tagged.startsWith(headSha);
+    }
+    return true;
+  });
 
-let riskLevel = "unknown";
+let riskLevel = finalSummarySkipped ? "low" : "unknown";
 let findingsExcerpt = "";
-if (aiComment && aiComment.body) {
+if (!finalSummarySkipped && aiComment && aiComment.body) {
   const body = aiComment.body;
   const riskMatch = body.match(/### ⚠️ Overall Risk\s+\*\*([a-zA-Z]+)\*\*/i);
   if (riskMatch) riskLevel = riskMatch[1].toLowerCase();

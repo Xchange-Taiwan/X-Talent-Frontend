@@ -161,6 +161,49 @@ export function deriveBranchNameFromIssue(issueNumber, rawTitle = '') {
  *   leftover stale remote branch cleanly to `origin/develop` so old dead commits
  *   never cause `mergeable_state: dirty` conflicts.
  */
+function createLinkedBranchWithRetry({
+  issueId,
+  repositoryId,
+  oid,
+  branchName,
+  maxAttempts = 4,
+}) {
+  const createMut = `
+    mutation($issueId: ID!, $repositoryId: ID!, $oid: GitObjectID!, $name: String!) {
+      createLinkedBranch(input: {issueId: $issueId, repositoryId: $repositoryId, oid: $oid, name: $name}) {
+        linkedBranch { id ref { name } }
+      }
+    }
+  `;
+  let linkedId = '';
+  for (let mutAttempt = 1; mutAttempt <= maxAttempts; mutAttempt++) {
+    const mutOut = runGh(
+      [
+        'api',
+        'graphql',
+        '-f',
+        `query=${createMut}`,
+        '-f',
+        `issueId=${issueId}`,
+        '-f',
+        `repositoryId=${repositoryId}`,
+        '-f',
+        `oid=${oid}`,
+        '-f',
+        `name=${branchName}`,
+      ],
+      { allowFail: true, retries: 1 }
+    );
+    try {
+      linkedId =
+        JSON.parse(mutOut)?.data?.createLinkedBranch?.linkedBranch?.id || '';
+    } catch {}
+    if (linkedId) break;
+    if (mutAttempt < maxAttempts) sleepSync(1500 * mutAttempt);
+  }
+  return linkedId;
+}
+
 export function resolveTicketBranchPlan({
   issueNumber,
   issueObj,
@@ -354,12 +397,7 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
       `ℹ️ Resetting stale remote branch origin/${targetBranch} (no open PR) to latest origin/develop (${remoteBaseOid.slice(0, 7)})...`
     );
     runGit(
-      [
-        'push',
-        'origin',
-        `--force`,
-        `${remoteBaseOid}:refs/heads/${targetBranch}`,
-      ],
+      ['push', 'origin', `--force`, `${remoteBaseOid}:refs/heads/${targetBranch}`],
       { allowFail: true }
     );
   }
@@ -385,7 +423,9 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
   const existingBranches = (issueObj.linkedBranches?.nodes || [])
     .map((n) => n?.ref?.name)
     .filter(Boolean);
-  const existingOpenPrs = (issueObj.closedByPullRequestsReferences?.nodes || [])
+  const existingOpenPrs = (
+    issueObj.closedByPullRequestsReferences?.nodes || []
+  )
     .filter((n) => n?.state === 'OPEN')
     .map((n) => n?.headRefName)
     .filter(Boolean);
@@ -437,40 +477,13 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
         deletedRemoteBranch = true;
       }
 
-      const createMut = `
-        mutation($issueId: ID!, $repositoryId: ID!, $oid: GitObjectID!, $name: String!) {
-          createLinkedBranch(input: {issueId: $issueId, repositoryId: $repositoryId, oid: $oid, name: $name}) {
-            linkedBranch { id ref { name } }
-          }
-        }
-      `;
-      let linkedId = '';
-      for (let mutAttempt = 1; mutAttempt <= 4; mutAttempt++) {
-        const mutOut = runGh(
-          [
-            'api',
-            'graphql',
-            '-f',
-            `query=${createMut}`,
-            '-f',
-            `issueId=${issueObj.id}`,
-            '-f',
-            `repositoryId=${repoNodeId}`,
-            '-f',
-            `oid=${branchOidForMutation}`,
-            '-f',
-            `name=${targetBranch}`,
-          ],
-          { allowFail: true, retries: 1 }
-        );
-        try {
-          linkedId =
-            JSON.parse(mutOut)?.data?.createLinkedBranch?.linkedBranch?.id ||
-            '';
-        } catch {}
-        if (linkedId) break;
-        if (mutAttempt < 4) sleepSync(1500 * mutAttempt);
-      }
+      const linkedId = createLinkedBranchWithRetry({
+        issueId: issueObj.id,
+        repositoryId: repoNodeId,
+        oid: branchOidForMutation,
+        branchName: targetBranch,
+        maxAttempts: 4,
+      });
 
       if (linkedId) {
         console.log(
@@ -490,40 +503,13 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
         );
       }
     } else {
-      const createMut = `
-        mutation($issueId: ID!, $repositoryId: ID!, $oid: GitObjectID!, $name: String!) {
-          createLinkedBranch(input: {issueId: $issueId, repositoryId: $repositoryId, oid: $oid, name: $name}) {
-            linkedBranch { id ref { name } }
-          }
-        }
-      `;
-      let linkedId = '';
-      for (let mutAttempt = 1; mutAttempt <= 3; mutAttempt++) {
-        const mutOut = runGh(
-          [
-            'api',
-            'graphql',
-            '-f',
-            `query=${createMut}`,
-            '-f',
-            `issueId=${issueObj.id}`,
-            '-f',
-            `repositoryId=${repoNodeId}`,
-            '-f',
-            `oid=${branchOidForMutation}`,
-            '-f',
-            `name=${targetBranch}`,
-          ],
-          { allowFail: true, retries: 1 }
-        );
-        try {
-          linkedId =
-            JSON.parse(mutOut)?.data?.createLinkedBranch?.linkedBranch?.id ||
-            '';
-        } catch {}
-        if (linkedId) break;
-        if (mutAttempt < 3) sleepSync(1500 * mutAttempt);
-      }
+      const linkedId = createLinkedBranchWithRetry({
+        issueId: issueObj.id,
+        repositoryId: repoNodeId,
+        oid: branchOidForMutation,
+        branchName: targetBranch,
+        maxAttempts: 3,
+      });
       if (linkedId) {
         console.log(
           `✅ Linked branch '${targetBranch}' to ${org}/${issueRepo}#${issueNumber} (id: ${linkedId})`
