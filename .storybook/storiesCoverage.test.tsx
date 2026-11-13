@@ -228,6 +228,15 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
         }),
       ])
     );
+    expect(
+      notificationBellStories.FeedbackReceivedForMentor.args
+        ?.initialNotifications?.[0]
+    ).toMatchObject({
+      type: 'feedback_received',
+      role: 'mentor',
+      menteeName: 'Zahra Mirzakhani',
+      reservationId: '201',
+    });
 
     expect(announcementBannerStories.ActiveMaintenanceNotice).toBeDefined();
     expect(guestActionButtonsStories.ConfirmedGuest).toBeDefined();

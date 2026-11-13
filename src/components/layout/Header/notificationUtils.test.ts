@@ -261,4 +261,48 @@ describe('notificationUtils', () => {
       '/reservation/mentee?tab=history'
     );
   });
+
+  it('maps feedback_received variants for Mentor ("您收到新的回饋") using full menteeName and /reservation/mentor?tab=history&reservationId=<id> (#734)', () => {
+    const mentorFeedbackReceived = buildItem({
+      type: 'feedback_received',
+      role: 'mentor',
+      menteeName: 'Zahra Mirzakhani',
+      reservationId: '201',
+    });
+    expect(getNotificationContent(mentorFeedbackReceived)).toEqual({
+      title: '您收到新的回饋',
+      body: 'Zahra Mirzakhani 為您留下了一則會談回饋，前往查看。',
+    });
+    expect(getNotificationHref(mentorFeedbackReceived)).toBe(
+      '/reservation/mentor?tab=history&reservationId=201'
+    );
+
+    const chineseFullNameWithoutRole = buildItem({
+      type: 'reservation_feedback_received',
+      role: undefined,
+      menteeName: '王小明',
+      reservationId: '305',
+    });
+    expect(getNotificationContent(chineseFullNameWithoutRole)).toEqual({
+      title: '您收到新的回饋',
+      body: '王小明 為您留下了一則會談回饋，前往查看。',
+    });
+    expect(getNotificationHref(chineseFullNameWithoutRole)).toBe(
+      '/reservation/mentor?tab=history&reservationId=305'
+    );
+
+    const fallbackWithoutNameOrReservationId = buildItem({
+      type: 'meeting_feedback_received',
+      role: undefined,
+      menteeName: undefined,
+      reservationId: '   ',
+    });
+    expect(getNotificationContent(fallbackWithoutNameOrReservationId)).toEqual({
+      title: '您收到新的回饋',
+      body: 'Mentee 為您留下了一則會談回饋，前往查看。',
+    });
+    expect(getNotificationHref(fallbackWithoutNameOrReservationId)).toBe(
+      '/reservation/mentor?tab=history'
+    );
+  });
 });

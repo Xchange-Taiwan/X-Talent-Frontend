@@ -154,4 +154,47 @@ describe('mapNotificationVOToItem', () => {
     });
     expect(missingReservationIdItem.reservationId).toBeUndefined();
   });
+
+  it('maps feedback_received variants for Mentor with full menteeName and reservationId normalization (#734)', () => {
+    const standardItem = mapNotificationVOToItem({
+      ...baseApiItem,
+      type: 'feedback_received',
+      metadata: {
+        role: 'mentor',
+        counterparty_name: 'Zahra Mirzakhani',
+        reservation_id: 201,
+      },
+    });
+    expect(standardItem.type).toBe('feedback_received');
+    expect(standardItem.role).toBe('mentor');
+    expect(standardItem.menteeName).toBe('Zahra Mirzakhani');
+    expect(standardItem.mentorName).toBeUndefined();
+    expect(standardItem.reservationId).toBe('201');
+
+    const inferredMentorRoleItem = mapNotificationVOToItem({
+      ...baseApiItem,
+      type: 'reservation_feedback_received',
+      metadata: {
+        counterparty_name: ' 王小明 ',
+        reservation_id: ' 305 ',
+      },
+    });
+    expect(inferredMentorRoleItem.type).toBe('reservation_feedback_received');
+    expect(inferredMentorRoleItem.role).toBe('mentor');
+    expect(inferredMentorRoleItem.menteeName).toBe('王小明');
+    expect(inferredMentorRoleItem.reservationId).toBe('305');
+
+    const explicitMenteeFieldItem = mapNotificationVOToItem({
+      ...baseApiItem,
+      type: 'meeting_feedback_received',
+      metadata: {
+        mentee_name: '林學員',
+        reserve_id: 408,
+      },
+    });
+    expect(explicitMenteeFieldItem.type).toBe('meeting_feedback_received');
+    expect(explicitMenteeFieldItem.role).toBe('mentor');
+    expect(explicitMenteeFieldItem.menteeName).toBe('林學員');
+    expect(explicitMenteeFieldItem.reservationId).toBe('408');
+  });
 });

@@ -7,6 +7,18 @@ import type { NotificationItem } from './types';
 // this many digits in the year 2286).
 const SECONDS_TIMESTAMP_MAX = 9999999999;
 
+const MENTOR_FEEDBACK_RECEIVED_TYPES = new Set<string>([
+  'feedback_received',
+  'reservation_feedback_received',
+  'meeting_feedback_received',
+]);
+
+function normalizeOptionalString(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed !== '' ? trimmed : undefined;
+}
+
 /**
  * Converts a backend NotificationVO (API DTO) into the frontend's
  * NotificationItem domain model. Kept as a standalone, dependency-free
@@ -17,21 +29,45 @@ export function mapNotificationVOToItem(
   apiItem: components['schemas']['NotificationVO']
 ): NotificationItem {
   const isUnread = !apiItem.read_at;
+  const isMentorFeedbackReceived = MENTOR_FEEDBACK_RECEIVED_TYPES.has(
+    apiItem.type
+  );
   const metadata = (apiItem.metadata || {}) as {
     role?: 'mentor' | 'mentee';
     actor_role?: 'mentor' | 'mentee' | 'system';
     counterparty_name?: string;
+    mentee_name?: string;
+    menteeName?: string;
+    mentor_name?: string;
+    mentorName?: string;
     reservation_id?: number | string | null;
     reservationId?: number | string | null;
+    reserve_id?: number | string | null;
     dtstart?: number;
     dtend?: number;
   };
   const { role, actor_role, counterparty_name, dtstart, dtend } = metadata;
 
+  const resolvedRole =
+    role ?? (isMentorFeedbackReceived ? 'mentor' : undefined);
+  const explicitMenteeName =
+    normalizeOptionalString(metadata.mentee_name) ??
+    normalizeOptionalString(metadata.menteeName);
+  const explicitMentorName =
+    normalizeOptionalString(metadata.mentor_name) ??
+    normalizeOptionalString(metadata.mentorName);
+
   // Map role and counterparty_name to menteeName/mentorName for frontend compatibility
-  const menteeName = role === 'mentor' ? counterparty_name : undefined;
-  const mentorName = role === 'mentee' ? counterparty_name : undefined;
-  const rawReservationId = metadata.reservation_id ?? metadata.reservationId;
+  const menteeName =
+    resolvedRole === 'mentor'
+      ? (normalizeOptionalString(counterparty_name) ?? explicitMenteeName)
+      : explicitMenteeName;
+  const mentorName =
+    resolvedRole === 'mentee'
+      ? (normalizeOptionalString(counterparty_name) ?? explicitMentorName)
+      : explicitMentorName;
+  const rawReservationId =
+    metadata.reservation_id ?? metadata.reservationId ?? metadata.reserve_id;
   const normalizedReservationId =
     typeof rawReservationId === 'number' && Number.isFinite(rawReservationId)
       ? String(rawReservationId)
@@ -57,7 +93,7 @@ export function mapNotificationVOToItem(
     type: apiItem.type as NotificationItem['type'],
     createdAt,
     unread: isUnread,
-    role,
+    role: resolvedRole,
     actorRole: actor_role,
     menteeName,
     mentorName,

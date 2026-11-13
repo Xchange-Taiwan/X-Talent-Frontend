@@ -50,6 +50,15 @@ const FEEDBACK_REMINDER_CONFIG: NotificationConfigEntry = {
     ),
 };
 
+const FEEDBACK_RECEIVED_CONFIG: NotificationConfigEntry = {
+  getContent: (item) => ({
+    title: '您收到新的回饋',
+    body: `${item.menteeName?.trim() || 'Mentee'} 為您留下了一則會談回饋，前往查看。`,
+  }),
+  getHref: (item) =>
+    buildHistoryFeedbackHref('/reservation/mentor', item.reservationId),
+};
+
 /**
  * Single source of truth for how each notification `type` renders (title,
  * body) and where it links to (href). Keeping both concerns keyed by the
@@ -129,6 +138,9 @@ const NOTIFICATION_CONFIG: Record<
   feedback_reminder: FEEDBACK_REMINDER_CONFIG,
   reservation_feedback_reminder: FEEDBACK_REMINDER_CONFIG,
   meeting_feedback_reminder: FEEDBACK_REMINDER_CONFIG,
+  feedback_received: FEEDBACK_RECEIVED_CONFIG,
+  reservation_feedback_received: FEEDBACK_RECEIVED_CONFIG,
+  meeting_feedback_received: FEEDBACK_RECEIVED_CONFIG,
 };
 
 const DEFAULT_CONTENT: NotificationContent = {
