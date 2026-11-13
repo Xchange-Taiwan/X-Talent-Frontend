@@ -172,9 +172,9 @@ describe('callGemini', () => {
       .mockResolvedValueOnce(candidateResponse('{"ok":"expanded"}'));
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(
-      callGemini('prompt', { sleepFn: noopSleep })
-    ).resolves.toEqual({ ok: 'expanded' });
+    await expect(callGemini('prompt', { sleepFn: noopSleep })).resolves.toEqual(
+      { ok: 'expanded' }
+    );
     expect(fetchMock).toHaveBeenCalledTimes(3);
 
     const req1 = JSON.parse(fetchMock.mock.calls[0][1].body);
