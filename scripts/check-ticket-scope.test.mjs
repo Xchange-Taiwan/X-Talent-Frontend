@@ -6,6 +6,7 @@ import {
   classifyTicketScopeDeterministic,
   evaluateTicketScope,
   parseIssueSpecMarkdown,
+  sliceSpecPreservingHeadAndTail,
 } from './check-ticket-scope.mjs';
 
 describe('check-ticket-scope', () => {
@@ -225,15 +226,62 @@ describe('check-ticket-scope', () => {
       );
     });
 
-    it('fails open without calling classifier when both title and body are empty (e.g. transient GitHub API read failure)', async () => {
+    it('fails closed when both title and body are empty so headless VM never codes blind on unreadable specs', async () => {
       const spyClassifier = vi.fn();
       const res = await evaluateTicketScope(
         { title: '', body: '', state: 'OPEN' },
         { callClassifier: spyClassifier }
       );
 
-      expect(res.actionableInFrontendRepo).toBe(true);
+      expect(res.actionableInFrontendRepo).toBe(false);
+      expect(res.reason).toContain('未讀到規格');
       expect(spyClassifier).not.toHaveBeenCalled();
+    });
+
+    it('preserves both top description head and newest bottom comments tail, and blocks tickets with unresolved spec conflicts', async () => {
+      const headPart = 'TOP_SPEC_ANCHOR ' + 'a'.repeat(7000);
+      const middleNoise = 'MIDDLE_OLD_CHATTER ' + 'm'.repeat(10000);
+      const tailPart = 'z'.repeat(1000) + ' LATEST_DISCORD_SETTLEMENT_ANCHOR';
+      const sliced = sliceSpecPreservingHeadAndTail(
+        `${headPart}\n${middleNoise}\n${tailPart}`,
+        14000
+      );
+      expect(sliced).toContain('TOP_SPEC_ANCHOR');
+      expect(sliced).toContain('LATEST_DISCORD_SETTLEMENT_ANCHOR');
+      expect(sliced.length).toBeLessThan(14500);
+
+      const conflictClassifier = vi.fn().mockResolvedValue({
+        scope: 'frontend_only',
+        actionableInFrontendRepo: true,
+        specBlocked: true,
+        specBlockReason:
+          '最新留言正在詢問 PM 要採方案 A 或方案 B，尚未拍板定案',
+        frontendTasksSummary: '實作回饋彈窗',
+        outOfRepoItems: [],
+        reason: '前端功能票',
+      });
+      const blockedRes = await evaluateTicketScope(
+        {
+          title: '[Feature] 回饋彈窗',
+          body: '請問 @evan 要走方案 A 還是方案 B？待確認後開發',
+          state: 'OPEN',
+        },
+        { callClassifier: conflictClassifier }
+      );
+      expect(blockedRes.actionableInFrontendRepo).toBe(false);
+      expect(blockedRes.reason).toContain('方案 A 或方案 B');
+
+      const omittedActionableClassifier = vi.fn().mockResolvedValue({
+        scope: 'frontend_only',
+        specBlocked: true,
+        specBlockReason: '待設計師補齊彈窗圖稿',
+      });
+      const blockedOmitted = await evaluateTicketScope(
+        { title: '[Feature] 彈窗', body: '待補圖', state: 'OPEN' },
+        { callClassifier: omittedActionableClassifier }
+      );
+      expect(blockedOmitted.actionableInFrontendRepo).toBe(false);
+      expect(blockedOmitted.reason).toContain('待設計師補齊彈窗圖稿');
     });
   });
 });

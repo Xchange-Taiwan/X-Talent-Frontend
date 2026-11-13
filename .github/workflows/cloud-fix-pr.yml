@@ -17,9 +17,9 @@ on:
         default: ''
         type: string
       max_review_rounds:
-        description: 'Maximum pre-push AI Review convergence rounds (1-20)'
+        description: 'Maximum deterministic + E2E self-healing rounds (1-10)'
         required: false
-        default: '20'
+        default: '3'
         type: string
       run_e2e:
         description: 'Run Playwright E2E suite in each convergence round'
@@ -34,7 +34,7 @@ on:
 
 concurrency:
   group: cloud-fix-pr-${{ inputs.pr_number }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: write
@@ -78,9 +78,9 @@ jobs:
 
           CLEAN_ROUNDS="${MAX_REVIEW_ROUNDS//[[:space:]]/}"
           if ! [[ "$CLEAN_ROUNDS" =~ ^[0-9]+$ ]] || [ "$CLEAN_ROUNDS" -lt 1 ]; then
-            CLEAN_ROUNDS="20"
-          elif [ "$CLEAN_ROUNDS" -gt 20 ]; then
-            CLEAN_ROUNDS="20"
+            CLEAN_ROUNDS="3"
+          elif [ "$CLEAN_ROUNDS" -gt 10 ]; then
+            CLEAN_ROUNDS="10"
           fi
           echo "SAFE_MAX_ROUNDS=${CLEAN_ROUNDS}" >> "$GITHUB_ENV"
 
@@ -114,7 +114,7 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
 
-      - name: Check out PR #${{ inputs.pr_number }}
+      - name: 'Check out PR #${{ inputs.pr_number }}'
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ env.SAFE_PR_NUMBER }}
@@ -123,7 +123,6 @@ jobs:
           git config user.name "x-talent-cloud-agent[bot]"
           git config user.email "x-talent-cloud-agent[bot]@users.noreply.github.com"
           git fetch origin develop --quiet || true
-          git merge origin/develop --no-edit || git merge --abort || true
 
       - name: Set up PNPM
         uses: pnpm/action-setup@v6
@@ -174,6 +173,7 @@ jobs:
         run: bash .agents/scripts/setup-cloud-env.sh
 
       - name: Run Gemini CLI for initial PR Fix (Phase 1)
+        timeout-minutes: 15
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
@@ -184,7 +184,23 @@ jobs:
           FIX_INSTRUCTIONS: ${{ inputs.fix_instructions }}
         run: |
           mkdir -p .agents/tmp
-          rm -f .agents/tmp/scope-guidance.md
+          rm -f .agents/tmp/scope-guidance.md .agents/tmp/merge-conflicts.md
+          MERGE_CONFLICTS_PRESENT="false"
+          bash .agents/scripts/unstage-cloud-locks.sh --restore-worktree
+          if ! git merge origin/develop --no-edit; then
+            CONFLICT_FILES=$(git diff --name-only --diff-filter=U || true)
+            if [ -n "$CONFLICT_FILES" ]; then
+              {
+                echo "## ⚠️ 與最新 origin/develop 發生合併衝突（請優先解開衝突標記）"
+                echo "以下檔案存在 Git 合併衝突標記（\`<<<<<<<\` / \`=======\` / \`>>>>>>>\`），請務必保留雙方有效功能並徹底清除所有衝突標記："
+                echo "$CONFLICT_FILES" | sed 's/^/- `/' | sed 's/$/`/'
+              } > .agents/tmp/merge-conflicts.md
+              MERGE_CONFLICTS_PRESENT="true"
+            else
+              git merge --abort || true
+            fi
+          fi
+          bash .agents/scripts/setup-cloud-env.sh
           GH_TOKEN="${TRACKER_READ_TOKEN:-$GH_TOKEN}" gh issue view "$TICKET_NUMBER" --repo Xchange-Taiwan/X-Talent-Tracker --comments > .agents/tmp/ticket-spec.md 2>/dev/null || true
           node scripts/check-ticket-scope.mjs --spec-file=.agents/tmp/ticket-spec.md --guidance-out=.agents/tmp/scope-guidance.md >/dev/null 2>&1 || true
           SCOPE_GUIDANCE=""
@@ -193,7 +209,10 @@ jobs:
           fi
           ARCH_QUERY="#${TICKET_NUMBER} $(head -n 25 .agents/tmp/ticket-spec.md 2>/dev/null | tr '\n' ' ' || echo '')"
           jq -n --arg q "$ARCH_QUERY" '{query: $q}' | curl -sS -X POST "https://x-talent-discord-mention-notify.x-talent.workers.dev/__arch-kb" -H "Content-Type: application/json" -d @- | jq -r 'if .kb then "\n\n## X-Talent 跨專案架構知識庫 (Cloudflare KV Architecture KB)\n```json\n" + (.kb | tojson) + "\n```" else "" end' >> .agents/tmp/ticket-spec.md 2>/dev/null || true
-          gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments?per_page=30" --jq '[.[] | select(.body | contains("ai-review-pipeline"))] | last | if . then "\n\n## 目前 PR 線上 AI Review 審查意見（含 Visual / Design Parity 視覺比對）\n" + .body else "" end' >> .agents/tmp/ticket-spec.md 2>/dev/null || true
+          if [ -s .agents/tmp/merge-conflicts.md ]; then
+            cat .agents/tmp/merge-conflicts.md >> .agents/tmp/ticket-spec.md
+          fi
+          gh api --paginate "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments?per_page=100" | jq -rs '[.[][] | select(.body | contains("ai-review-pipeline"))] | last | if . then "\n\n## 目前 PR 線上 AI Review 審查意見（含 Visual / Design Parity 視覺比對）\n" + .body else "" end' >> .agents/tmp/ticket-spec.md 2>/dev/null || true
           PR_HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq '.headRefOid // empty' 2>/dev/null || echo "")
           if [ -n "$PR_HEAD_SHA" ]; then
             node -e '
@@ -221,25 +240,35 @@ jobs:
           fi
           node scripts/prefetch-ticket-visuals.mjs --ticket="$TICKET_NUMBER" || true
 
+          PROMPT_FILE=$(mktemp)
+          printf '我們正在處理 PR #%s（對應 Ticket #%s，完整規格、線上 AI Review 意見、合併衝突清單與視覺參考圖位於 .agents/tmp/ticket-spec.md）。\n' "$PR_NUMBER" "$TICKET_NUMBER" > "$PROMPT_FILE"
           if [ -n "$FIX_INSTRUCTIONS" ]; then
-            PROMPT="我們正在處理 PR #${PR_NUMBER}（對應 Ticket #${TICKET_NUMBER}，完整規格、Cloudflare KV Design Hub 規範、線上 AI Review 意見與視覺參考圖清單位於 .agents/tmp/ticket-spec.md）。
-            工程師下達了以下具體修改指示：
-            「${FIX_INSTRUCTIONS}」
-            請依序執行：
-            1. 先讀取 .agents/tmp/ticket-spec.md；若列有 .agents/tmp/ticket-images/ 下的設計參考圖或 Design Hub 原型截圖與 -dom.md 樣式摘要，動手改 UI 前請務必先用 read_file 逐一檢視圖片細節，確保版面格數、雙欄水平對齊與樣式 1:1 對齊設計稿。
-            2. 優先針對上述修改指示，以及線上 AI Review（特別是 Visual / Design Parity 視覺落差）與失敗的 CI Checks 一併完成程式碼、Storybook (.stories.tsx)、單元測試與互動式 E2E 截圖（captureEvidence）修復（嚴禁手動修改自動產生的 src/types/api.ts）。
-            3. 極速批次修復規範：所有檔案修改儲存後，僅執行一次 pnpm type-check 確認型別通過即可立即結束回覆（嚴禁使用 \$() 子命令，也請勿在 Phase 1 自行執行 vitest、pnpm test、playwright 或 git push，下一步 Phase 2 會自動用多核心平行執行測試、Turbopack E2E 截圖重拍與多模態視覺審查）。
-            ${SCOPE_GUIDANCE}"
-          else
-            PROMPT="請針對 PR #${PR_NUMBER}（對應 Ticket #${TICKET_NUMBER}，完整規格、Cloudflare KV Design Hub 規範、線上 AI Review 意見與視覺參考圖清單位於 .agents/tmp/ticket-spec.md）：
-            1. 先讀取 .agents/tmp/ticket-spec.md；若列有 .agents/tmp/ticket-images/ 下的設計參考圖或 Design Hub 原型截圖與 -dom.md 樣式摘要，請先用 read_file 逐一檢視圖片細節。
-            2. 檢查所有失敗的 CI Checks 與線上 AI Review 留言（含 Visual / Design Parity 視覺落差），批次完成程式碼、Storybook (.stories.tsx)、單元測試與互動式 E2E 截圖（captureEvidence）修復（嚴禁手動修改自動產生的 src/types/api.ts）。
-            3. 極速批次修復規範：所有檔案修改儲存後，僅執行一次 pnpm type-check 確認型別通過即可立即結束回覆（嚴禁使用 \$() 子命令，也請勿在 Phase 1 自行執行 vitest、pnpm test、playwright 或 git push，下一步 Phase 2 會自動用多核心平行執行測試、Turbopack E2E 截圖重拍與多模態視覺審查）。
-            ${SCOPE_GUIDANCE}"
+            printf '工程師下達了以下具體修改指示：\n「%s」\n' "$FIX_INSTRUCTIONS" >> "$PROMPT_FILE"
           fi
-          npx gemini -m "$GEMINI_MODEL" --approval-mode=yolo --skip-trust -p "$PROMPT"
+          cat <<'EOF' >> "$PROMPT_FILE"
+          請依序執行：
+          1. 先讀取 .agents/tmp/ticket-spec.md；若列有合併衝突檔案，請務必先完整解開所有衝突標記（<<<<<<< / ======= / >>>>>>>）；若列有 .agents/tmp/ticket-images/ 設計參考圖或 -dom.md 摘要，改 UI 前請用 read_file 檢視細節，且切勿改壞既有已定案文案。
+          2. 優先針對上述修改指示（若有）、合併衝突、失敗的 CI Checks 與線上 AI Review 中的實質 Bug／規格漏做／視覺裁切完成修復（嚴禁手動修改自動產生的 src/types/api.ts；嚴禁修改 .storybook/storiesCoverage.test.tsx）。
+          3. 極速批次修復規範：所有檔案修改儲存後請立即結束回覆（Phase 2 漏斗快篩會自動平行執行 lint、type-check、單元測試與 Turbopack E2E 截圖重拍）。
+          EOF
+          printf '\n%s\n' "$SCOPE_GUIDANCE" >> "$PROMPT_FILE"
+          npx gemini -m "$GEMINI_MODEL" --approval-mode=yolo --skip-trust -p "$(cat "$PROMPT_FILE")"
+          rm -f "$PROMPT_FILE"
 
-      - name: Run Multi-Round AI Review & Playwright E2E Convergence Loop (Phase 2)
+          # If merge was in progress, verify Gemini cleared all conflict markers and commit the merge cleanly before Phase 2
+          if [ "$MERGE_CONFLICTS_PRESENT" = "true" ] && [ -f .git/MERGE_HEAD ]; then
+            if git grep -nE '^(<<<<<<<|=======|>>>>>>>)' -- . ':!.agents/tmp/**' >/dev/null 2>&1; then
+              echo "::error::Unresolved Git conflict markers remain after Phase 1; aborting failed merge."
+              git merge --abort || true
+              exit 1
+            fi
+            git add -A
+            bash .agents/scripts/unstage-cloud-locks.sh --restore-worktree
+            git commit --no-edit -m "chore: merge origin/develop and resolve conflicts for PR #${PR_NUMBER}"
+            bash .agents/scripts/setup-cloud-env.sh
+          fi
+
+      - name: Run Fast Funnel Deterministic & Playwright E2E Verification Loop (Phase 2)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
@@ -248,11 +277,13 @@ jobs:
           TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER }}
           MAX_AI_REVIEW_ROUNDS: ${{ env.SAFE_MAX_ROUNDS }}
           RUN_E2E: ${{ env.SAFE_RUN_E2E }}
+          CONVERGE_MAX_DURATION_MS: '1500000'
         run: |
           node scripts/cloud-converge-loop.mjs \
             --ticket="$TICKET_NUMBER" \
             --max-rounds="$MAX_AI_REVIEW_ROUNDS" \
             --run-e2e="$RUN_E2E" \
+            --run-ai-review=false \
             --require-ui-evidence="$RUN_E2E"
 
       - name: Commit and push converged fixes to PR branch (Phase 3)
@@ -281,10 +312,15 @@ jobs:
 
           PR_URL="https://github.com/${{ github.repository }}/pull/${CLEAN_PR}"
           VERCEL_LIMIT="false"
+          if [ -n "$CLEAN_PR" ]; then
+            if gh api --paginate "repos/${{ github.repository }}/issues/${CLEAN_PR}/comments?per_page=100" --jq '.[].body' 2>/dev/null | grep -qiE 'vercel-quota-limit|api-deployments-free-per-day'; then
+              VERCEL_LIMIT="true"
+            fi
+          fi
 
           if [ "$JOB_STATUS" = "success" ]; then
             STATUS="fix_pr_succeeded"
-            MSG="雲端 Fix PR #${CLEAN_PR} 已完成多輪 AI Review 與 E2E 收斂並更新分支"
+            MSG="雲端 Fix PR #${CLEAN_PR} 已完成修復與測試截圖更新並推回分支"
           else
             STATUS="fix_pr_failed"
             MSG="雲端 Fix PR #${CLEAN_PR} 執行未完全通過（狀態: ${JOB_STATUS}），按鈕已自動解鎖可重試"
