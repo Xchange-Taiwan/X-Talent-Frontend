@@ -22,7 +22,7 @@ vi.mock('next-auth/react', () => ({
   useSession: () => mockUseSession(),
 }));
 
-vi.mock('@/services/reservations/reservationFeedbackLookup', () => ({
+vi.mock('@/services/reservations', () => ({
   fetchSingleReservationFeedback: (...args: unknown[]) =>
     mockFetchSingle(...args),
 }));
@@ -43,6 +43,24 @@ describe('/reservation/history email deep-link route (#875 / #760 §7)', () => {
         'tab=upcoming&reservation_id=205'
       )
     ).toBe('/reservation/mentor?tab=history&reservation_id=205');
+  });
+
+  it('redirects unauthenticated user to /auth/signin preserving callbackUrl', async () => {
+    currentQuery = 'reservation_id=101';
+    mockUseSession.mockReturnValue({
+      status: 'unauthenticated',
+      data: null,
+    });
+
+    render(<ReservationHistoryPage />);
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith(
+        '/auth/signin?callbackUrl=%2Freservation%2Fhistory%3Freservation_id%3D101',
+        { scroll: false }
+      );
+    });
+    expect(mockFetchSingle).not.toHaveBeenCalled();
   });
 
   it('redirects authenticated user to /reservation/mentor when single-reservation lookup resolves role MENTOR', async () => {
@@ -76,6 +94,26 @@ describe('/reservation/history email deep-link route (#875 / #760 §7)', () => {
   });
 
   it('falls back safely to session role when reservation_id is absent or single lookup fails', async () => {
+    currentQuery = '';
+    mockUseSession.mockReturnValue({
+      status: 'authenticated',
+      data: {
+        user: { id: '1', isMentor: false },
+      },
+    });
+
+    const { unmount } = render(<ReservationHistoryPage />);
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith(
+        '/reservation/mentee?tab=history',
+        { scroll: false }
+      );
+    });
+    expect(mockFetchSingle).not.toHaveBeenCalled();
+    unmount();
+
+    vi.clearAllMocks();
     currentQuery = 'reservation_id=999';
     mockUseSession.mockReturnValue({
       status: 'authenticated',

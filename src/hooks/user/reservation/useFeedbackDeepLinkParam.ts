@@ -13,7 +13,7 @@ import {
 import {
   fetchSingleReservationFeedback,
   type ReservationFeedbackLookupResult,
-} from '@/services/reservations/reservationFeedbackLookup';
+} from '@/services/reservations';
 import type { Reservation } from '@/types/reservation';
 
 const MAX_DEEP_LINK_LOAD_MORE_PAGES = 3;
@@ -31,6 +31,7 @@ export interface UseFeedbackDeepLinkParamOptions {
     userId: string;
     reservationId: string;
     fallbackRole: 'mentee' | 'mentor';
+    signal?: AbortSignal;
   }) => Promise<ReservationFeedbackLookupResult | null>;
 }
 
@@ -77,8 +78,20 @@ export function useFeedbackDeepLinkParam({
   const activeTargetKeyRef = useRef<string | null>(null);
   const handledKeyRef = useRef<string | null>(null);
   const singleLookupKeyRef = useRef<string | null>(null);
+  const lookupAbortRef = useRef<AbortController | null>(null);
+  const isMountedRef = useRef(true);
   const autoLoadCountRef = useRef(0);
   const lastAutoLoadHistoryLengthRef = useRef(-1);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      lookupAbortRef.current?.abort();
+      lookupAbortRef.current = null;
+      singleLookupKeyRef.current = null;
+    };
+  }, []);
 
   const clearDeepLinkFocus = useCallback(() => {
     setLatchedDialogReservation(null);
@@ -174,6 +187,8 @@ export function useFeedbackDeepLinkParam({
   useEffect(() => {
     if (prevRoleRef.current !== userRole) {
       prevRoleRef.current = userRole;
+      lookupAbortRef.current?.abort();
+      lookupAbortRef.current = null;
       activeTargetKeyRef.current = null;
       handledKeyRef.current = null;
       singleLookupKeyRef.current = null;
@@ -185,6 +200,8 @@ export function useFeedbackDeepLinkParam({
     }
 
     if (!targetReservationId) {
+      lookupAbortRef.current?.abort();
+      lookupAbortRef.current = null;
       activeTargetKeyRef.current = null;
       handledKeyRef.current = null;
       singleLookupKeyRef.current = null;
@@ -198,6 +215,8 @@ export function useFeedbackDeepLinkParam({
 
     const targetKey = `${userRole}:${targetReservationId}`;
     if (activeTargetKeyRef.current !== targetKey) {
+      lookupAbortRef.current?.abort();
+      lookupAbortRef.current = null;
       activeTargetKeyRef.current = targetKey;
       singleLookupKeyRef.current = null;
       autoLoadCountRef.current = 0;
@@ -245,14 +264,21 @@ export function useFeedbackDeepLinkParam({
         return;
       }
       singleLookupKeyRef.current = targetKey;
+      const controller = new AbortController();
+      lookupAbortRef.current = controller;
 
       void lookupSingleFeedback({
         userId: cleanUserId,
         reservationId: targetReservationId,
         fallbackRole: userRole,
+        signal: controller.signal,
       })
         .then((lookupResult) => {
-          if (activeTargetKeyRef.current !== targetKey) {
+          if (
+            !isMountedRef.current ||
+            controller.signal.aborted ||
+            activeTargetKeyRef.current !== targetKey
+          ) {
             return;
           }
           if (!lookupResult) {
@@ -279,7 +305,11 @@ export function useFeedbackDeepLinkParam({
           applyResolvedOutcome(targetKey, singleOutcome);
         })
         .catch(() => {
-          if (activeTargetKeyRef.current !== targetKey) {
+          if (
+            !isMountedRef.current ||
+            controller.signal.aborted ||
+            activeTargetKeyRef.current !== targetKey
+          ) {
             return;
           }
           applyNotFoundOutcome(targetKey);

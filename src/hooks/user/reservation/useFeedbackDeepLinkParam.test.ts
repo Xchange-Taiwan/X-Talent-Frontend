@@ -554,8 +554,41 @@ describe('useFeedbackDeepLinkParam (#733)', () => {
       userId: '1',
       reservationId: '888',
       fallbackRole: 'mentee',
+      signal: expect.any(AbortSignal),
     });
     expect(result.current.deepLinkDialogReservation).toBe(lookupItem);
+    expect(mockToast).not.toHaveBeenCalled();
+
+    // Unmounting while lookup is in-flight aborts signal and suppresses stale not-found toast
+    currentQuery = 'tab=history&reservation_id=890';
+    let capturedSignal: AbortSignal | undefined;
+    let resolveInFlight: ((val: null) => void) | undefined;
+    const inFlightLookup = vi.fn().mockImplementation(({ signal }) => {
+      capturedSignal = signal;
+      return new Promise<null>((resolve) => {
+        resolveInFlight = resolve;
+      });
+    });
+
+    const { unmount } = renderHook(() =>
+      useFeedbackDeepLinkParam({
+        userRole: 'mentee',
+        myUserId: '1',
+        history: [],
+        isHistoryLoaded: true,
+        isLoadingHistory: false,
+        hasMoreHistory: false,
+        lookupSingleFeedback: inFlightLookup,
+      })
+    );
+
+    unmount();
+    expect(capturedSignal?.aborted).toBe(true);
+
+    await act(async () => {
+      resolveInFlight?.(null);
+      await Promise.resolve();
+    });
     expect(mockToast).not.toHaveBeenCalled();
 
     // Cross-role redirect when lookup reveals target belongs to mentor view

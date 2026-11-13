@@ -1,3 +1,4 @@
+import { fromAny } from '@total-typescript/shoehorn';
 import { describe, expect, it } from 'vitest';
 
 import { mapNotificationVOToItem } from '@/services/notifications/notificationMapper';
@@ -216,7 +217,7 @@ describe('mapNotificationVOToItem', () => {
       ...baseApiItem,
       type: 'reservation_attendance_requested',
       metadata: {
-        role: 'MENTOR' as unknown as 'mentor',
+        role: fromAny('MENTOR'),
         counterparty_name: '林學員',
         reservation_id: 205,
       },
