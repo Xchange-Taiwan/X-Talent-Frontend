@@ -1123,6 +1123,8 @@ describe('cloud-converge-loop', () => {
       expect(res.converged).toBe(false);
       expect(res.roundsRun).toBe(2);
       expect(restoredShas).toContain('tree-round-1');
+      expect(res.evaluation.deterministicPassed).toBe(true);
+      expect(resolveConvergeExitCode(res)).toBe(0);
     });
 
     it('preserves Phase 2 working-tree locks (.gitignore and .gemini/settings.json) when createSnapshotSaver runs', () => {

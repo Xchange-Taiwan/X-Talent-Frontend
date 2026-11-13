@@ -883,6 +883,9 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
   let stalled = false;
   let bestSnapshotSha = '';
   let bestRoundScore = -Infinity;
+  let bestEvaluation = null;
+  let bestE2ePassed = false;
+  let bestEvidenceIntact = true;
 
   const collectChangedFiles = () => {
     const diffFilesRes = execStep('git', [
@@ -1013,6 +1016,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
 
       if (config.requireUiEvidence && hasUiSurfaceChanges) {
         clearEvidence();
+        bestEvidenceIntact = false;
       }
       const useTargetedSpecs =
         !hasSharedE2eChanges && allChangedSpecs.length > 0;
@@ -1278,8 +1282,20 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       if (candidateSha) {
         bestSnapshotSha = candidateSha;
         bestRoundScore = currentRoundScore;
+        bestEvaluation = lastEvaluation;
+        bestE2ePassed = lastE2ePassed;
+        bestEvidenceIntact =
+          !config.requireUiEvidence || listEvidence().length > 0;
       }
     }
+
+    const restoreBestPassingState = () => {
+      restoreSnapshot(bestSnapshotSha);
+      if (bestEvaluation && bestEvidenceIntact) {
+        lastEvaluation = bestEvaluation;
+        lastE2ePassed = bestE2ePassed;
+      }
+    };
 
     // Check oscillation / stall guard
     if (lastEvaluation.fingerprint === previousFingerprint) {
@@ -1299,7 +1315,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         log(
           `[cloud-converge] Restoring best passing snapshot (${bestSnapshotSha.slice(0, 8)}) before exiting.`
         );
-        restoreSnapshot(bestSnapshotSha);
+        restoreBestPassingState();
       }
       break;
     }
@@ -1312,7 +1328,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         log(
           `[cloud-converge] Restoring best passing snapshot (${bestSnapshotSha.slice(0, 8)}) before exiting.`
         );
-        restoreSnapshot(bestSnapshotSha);
+        restoreBestPassingState();
       }
       break;
     }
@@ -1325,7 +1341,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         log(
           `[cloud-converge] Restoring best passing snapshot (${bestSnapshotSha.slice(0, 8)}) before exiting.`
         );
-        restoreSnapshot(bestSnapshotSha);
+        restoreBestPassingState();
       }
       break;
     }
