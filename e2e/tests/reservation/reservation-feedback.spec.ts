@@ -500,13 +500,13 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄收合面板與版面翻�
     ]);
   });
 
-  test('未進行會談流程：原因單選（選其他展開 1000 字補充說明、改選非其他自動收合）送出後卡片更新為未進行；Mentor 歷史紀錄可展開查看回饋', async ({
+  test('未進行會談流程：原因單選（選其他展開 1000 字補充說明、改選非其他自動收合）與對方未出席（COUNTERPART_ABSENT）送出後卡片更新為未進行；Mentor 歷史紀錄可展開查看回饋', async ({
     page,
   }) => {
     await setupMenteeAuth(page);
 
-    let reportedNotHappened = false;
-    let submittedPayload: unknown = null;
+    const reportedNotHappenedIds = new Set<number>();
+    const submittedPayloads: Array<{ id: number; body: unknown }> = [];
 
     await page.route(
       new RegExp(`/v1/users/${USER_ID}/reservations([?]|$)`),
@@ -514,25 +514,30 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄收合面板與版面翻�
         const url = new URL(route.request().url());
         const state = url.searchParams.get('state');
         if (state === 'MENTEE_HISTORY') {
-          const item = makeMenteeHistoryReservation(
-            301,
-            'Alex Wang',
-            reportedNotHappened
-              ? {
-                  meeting_happened: false,
-                  rating: null,
-                  next_step: null,
-                }
-              : {
-                  meeting_happened: null,
-                  rating: null,
-                  next_step: 'ANSWER',
-                }
+          const items = [
+            { id: 301, mentorName: 'Alex Wang' },
+            { id: 302, mentorName: 'David Lin' },
+          ].map(({ id, mentorName }) =>
+            makeMenteeHistoryReservation(
+              id,
+              mentorName,
+              reportedNotHappenedIds.has(id)
+                ? {
+                    meeting_happened: false,
+                    rating: null,
+                    next_step: null,
+                  }
+                : {
+                    meeting_happened: null,
+                    rating: null,
+                    next_step: 'ANSWER',
+                  }
+            )
           );
           return route.fulfill({
             status: 200,
             contentType: 'application/json',
-            body: JSON.stringify(makeReservationResponse([item])),
+            body: JSON.stringify(makeReservationResponse(items)),
           });
         }
         return route.fulfill({
@@ -544,10 +549,18 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄收合面板與版面翻�
     );
 
     await page.route(
-      new RegExp(`/v1/users/${USER_ID}/reservations/301/feedback$`),
+      new RegExp(`/v1/users/${USER_ID}/reservations/(301|302)/feedback$`),
       async (route) => {
-        submittedPayload = route.request().postDataJSON();
-        reportedNotHappened = true;
+        const match = route
+          .request()
+          .url()
+          .match(/reservations\/(\d+)\/feedback$/);
+        const targetId = Number(match?.[1] ?? 0);
+        submittedPayloads.push({
+          id: targetId,
+          body: route.request().postDataJSON(),
+        });
+        reportedNotHappenedIds.add(targetId);
         return route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -557,7 +570,10 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄收合面板與版面翻�
     );
 
     await page.goto(`${MENTEE_PAGE_URL}?tab=history`);
-    await page.getByRole('button', { name: '填寫回饋' }).click();
+    const alexCard = page
+      .getByTestId('reservation-card')
+      .filter({ hasText: 'Alex Wang' });
+    await alexCard.getByRole('button', { name: '填寫回饋' }).click();
 
     const dialog = page.getByRole('dialog');
     await dialog
@@ -654,16 +670,56 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄收合面板與版面翻�
     await dialog.getByRole('button', { name: '送出回饋' }).click();
 
     await expect(page.getByText('已送出', { exact: true })).toBeVisible();
+    await expect(alexCard.getByRole('status')).toHaveText('未進行');
 
-    const card = page
+    // Card 302: Mentee selects 沒有進行 -> 對方未出席 -> submits not_happened_reason: 'COUNTERPART_ABSENT'
+    const davidCard = page
       .getByTestId('reservation-card')
-      .filter({ hasText: 'Alex Wang' });
-    await expect(card.getByRole('status')).toHaveText('未進行');
-    expect(submittedPayload).toEqual({
-      meeting_happened: false,
-      not_happened_reason: 'OTHER',
-      note: '等候 15 分鐘未上線',
-    });
+      .filter({ hasText: 'David Lin' });
+    await davidCard.getByRole('button', { name: '填寫回饋' }).click();
+    await expect(dialog).toBeVisible();
+    await dialog
+      .locator('label')
+      .filter({ hasText: /^沒有進行$/ })
+      .click();
+    await dialog.getByRole('button', { name: /下一步/ }).click();
+    await dialog
+      .locator('label')
+      .filter({ hasText: /^對方未出席$/ })
+      .click();
+    await expect(
+      dialog.getByRole('button', { name: '送出回饋' })
+    ).toBeEnabled();
+
+    await captureEvidence(
+      page,
+      '874-mentee-feedback-step2-counterpart-absent',
+      {
+        waitForSelector: '[role="dialog"]',
+      }
+    );
+
+    await dialog.getByRole('button', { name: '送出回饋' }).click();
+    await expect(dialog).not.toBeVisible();
+    await expect(davidCard.getByRole('status')).toHaveText('未進行');
+
+    expect(submittedPayloads).toEqual([
+      {
+        id: 301,
+        body: {
+          meeting_happened: false,
+          not_happened_reason: 'OTHER',
+          note: '等候 15 分鐘未上線',
+        },
+      },
+      {
+        id: 302,
+        body: {
+          meeting_happened: false,
+          not_happened_reason: 'COUNTERPART_ABSENT',
+        },
+      },
+    ]);
 
     // Verify Mentor History view tab swap & collapsible 查看回饋 public review display
     await page.unrouteAll({ behavior: 'ignoreErrors' });

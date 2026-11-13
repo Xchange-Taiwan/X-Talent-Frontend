@@ -84,12 +84,12 @@ const FEEDBACK_BUSINESS_CONFLICT_TYPES = new Set([
 ]);
 
 function isFeedbackBusinessConflictError(err: ApiError): boolean {
-  if (!err.data || typeof err.data !== 'object') {
+  if (!err.data || typeof err.data !== 'object' || !('type' in err.data)) {
     return false;
   }
-  const errType = (err.data as { type?: unknown }).type;
   return (
-    typeof errType === 'string' && FEEDBACK_BUSINESS_CONFLICT_TYPES.has(errType)
+    typeof err.data.type === 'string' &&
+    FEEDBACK_BUSINESS_CONFLICT_TYPES.has(err.data.type)
   );
 }
 

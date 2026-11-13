@@ -651,8 +651,8 @@ export default function MeetingFeedbackDialog({
                   <Avatar className="border-avatar-border/50 size-10 shrink-0 border">
                     <AvatarImage
                       src={
-                        activeReservation.avatar
-                          ? getAvatarThumbUrl(activeReservation.avatar)
+                        activeReservation.avatar?.trim()
+                          ? getAvatarThumbUrl(activeReservation.avatar.trim())
                           : undefined
                       }
                       alt={activeReservation.name}

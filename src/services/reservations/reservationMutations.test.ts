@@ -853,9 +853,10 @@ describe('submitReservationFeedback (#730)', () => {
       }
       expect(caught).toBeInstanceOf(ApiError);
       expect(caught).not.toBeInstanceOf(ReservationVersionConflictError);
-      expect((caught as ApiError<{ type: string }>).data?.type).toBe(
-        businessType
-      );
+      expect(caught).toMatchObject({
+        status: 409,
+        data: { type: businessType },
+      });
       expect(reservationReadModel.get(unscopedHistory)).toBeUndefined();
     }
   });
@@ -1111,6 +1112,40 @@ describe('updateReservationFeedback (#731)', () => {
 
     expect(reservationReadModel.get(menteeHistoryKey)).toBeUndefined();
     expect(mockCaptureFailure).not.toHaveBeenCalled();
+
+    for (const businessType of [
+      'attendance_already_reported',
+      'attendance_not_allowed',
+      'mentor_unavailable',
+    ]) {
+      reservationReadModel.set(menteeHistoryKey, emptyPage);
+      mockPut.mockRejectedValueOnce(
+        new ApiError(409, `Business conflict: ${businessType}`, '409', {
+          type: businessType,
+          message: `Business conflict: ${businessType}`,
+        })
+      );
+
+      let caughtEditErr: unknown;
+      try {
+        await updateReservationFeedback({
+          reservation,
+          myUserId: '10',
+          myRole: 'mentee',
+          payload: { rating: 8, content: '業務衝突測試' },
+        });
+      } catch (err) {
+        caughtEditErr = err;
+      }
+
+      expect(caughtEditErr).toBeInstanceOf(ApiError);
+      expect(caughtEditErr).not.toBeInstanceOf(ReservationVersionConflictError);
+      expect(caughtEditErr).toMatchObject({
+        status: 409,
+        data: { type: businessType },
+      });
+      expect(reservationReadModel.get(menteeHistoryKey)).toBeUndefined();
+    }
 
     mockPut.mockRejectedValueOnce(new Error('Update feedback failed'));
 

@@ -111,7 +111,8 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
 
     const submittedPayloads: Array<{ id: number; body: unknown }> = [];
 
-    // Deliberately return out-of-order from backend to verify frontend sorts oldest-first (由遠到近: 701 -> 702 -> 703)
+    // Deliberately return out-of-order and give 701 a later dtstart but earlier dtend than 702
+    // to verify frontend sorts by dtend ascending (#760 §6: 701 -> 702 -> 703)
     await page.route(
       new RegExp(`/v1/users/${USER_ID}/reservations/pending-feedback$`),
       (route) =>
@@ -127,18 +128,21 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
                   id: 703,
                   counterpartyName: 'Zahra Mirzakhani',
                   dtstart: 1761500000,
-                  viewerRole: 'MENTOR',
-                }),
-                makePendingFeedbackReservation({
-                  id: 701,
-                  counterpartyName: 'Emily Chen',
-                  dtstart: 1760266800,
+                  dtend: 1761501800,
                   viewerRole: 'MENTOR',
                 }),
                 makePendingFeedbackReservation({
                   id: 702,
                   counterpartyName: 'Alex Wang',
-                  dtstart: 1760900000,
+                  dtstart: 1760266800,
+                  dtend: 1760270400,
+                  viewerRole: 'MENTOR',
+                }),
+                makePendingFeedbackReservation({
+                  id: 701,
+                  counterpartyName: 'Emily Chen',
+                  dtstart: 1760267400,
+                  dtend: 1760268600,
                   viewerRole: 'MENTOR',
                 }),
               ],
@@ -181,6 +185,9 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
     await expect(dialog.getByTestId('feedback-mentor-header')).toContainText(
       /\d{4}\/\d{2}\/\d{2} · \d{2}:\d{2}–\d{2}:\d{2}/
     );
+    await expect(
+      dialog.getByTestId('feedback-mentor-header').locator('img')
+    ).toHaveCount(0);
 
     // Unselected Mentor Step 1: 確定送出 is visible and disabled; only X button in top-right
     const submitHappenedBtn = dialog.getByRole('button', { name: '確定送出' });

@@ -490,6 +490,7 @@ describe('reservationService API Error Handling', () => {
 
       expect(withUnpublicizedFeedback.feedback).toEqual({
         meetingHappened: false,
+        myMeetingHappened: false,
         rating: {
           rating: 8,
           content: '感謝分享',
@@ -515,6 +516,7 @@ describe('reservationService API Error Handling', () => {
 
       expect(withPendingRateStep.feedback).toEqual({
         meetingHappened: true,
+        myMeetingHappened: true,
         rating: null,
         nextStep: 'RATE',
       });

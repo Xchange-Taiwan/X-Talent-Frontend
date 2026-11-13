@@ -24,6 +24,10 @@ export class ApiError<TData = unknown> extends Error {
   }
 }
 
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 function extractFastApiDetailMessage(detail: unknown): string | undefined {
   if (typeof detail === 'string' && detail.trim().length > 0) {
     return detail.trim();
@@ -36,13 +40,12 @@ function extractFastApiDetailMessage(detail: unknown): string | undefined {
       if (typeof item === 'string') {
         return item.trim();
       }
-      if (!item || typeof item !== 'object') {
+      if (!isPlainRecord(item)) {
         return '';
       }
-      const record = item as Record<string, unknown>;
-      const msg = typeof record.msg === 'string' ? record.msg.trim() : '';
-      const loc = Array.isArray(record.loc)
-        ? record.loc
+      const msg = typeof item.msg === 'string' ? item.msg.trim() : '';
+      const loc = Array.isArray(item.loc)
+        ? item.loc
             .filter(
               (seg) =>
                 (typeof seg === 'string' || typeof seg === 'number') &&
@@ -58,10 +61,10 @@ function extractFastApiDetailMessage(detail: unknown): string | undefined {
 }
 
 function extractNestedDataMessage(data: unknown): string | undefined {
-  if (!data || typeof data !== 'object') {
+  if (!isPlainRecord(data)) {
     return undefined;
   }
-  const msg = (data as Record<string, unknown>).message;
+  const msg = data.message;
   return typeof msg === 'string' && msg.trim().length > 0
     ? msg.trim()
     : undefined;
@@ -257,11 +260,10 @@ async function request<T>(
       }
     }
 
-    const errorBody = await response.json().catch(() => ({}));
-    const errorRecord =
-      errorBody && typeof errorBody === 'object'
-        ? (errorBody as Record<string, unknown>)
-        : {};
+    const errorBody: unknown = await response.json().catch(() => ({}));
+    const errorRecord: Record<string, unknown> = isPlainRecord(errorBody)
+      ? errorBody
+      : {};
     const topMsg =
       (typeof errorRecord.msg === 'string' && errorRecord.msg.trim()) ||
       (typeof errorRecord.message === 'string' && errorRecord.message.trim()) ||
