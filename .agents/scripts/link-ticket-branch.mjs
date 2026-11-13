@@ -354,7 +354,12 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
       `ℹ️ Resetting stale remote branch origin/${targetBranch} (no open PR) to latest origin/develop (${remoteBaseOid.slice(0, 7)})...`
     );
     runGit(
-      ['push', 'origin', `--force`, `${remoteBaseOid}:refs/heads/${targetBranch}`],
+      [
+        'push',
+        'origin',
+        `--force`,
+        `${remoteBaseOid}:refs/heads/${targetBranch}`,
+      ],
       { allowFail: true }
     );
   }
@@ -380,9 +385,7 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
   const existingBranches = (issueObj.linkedBranches?.nodes || [])
     .map((n) => n?.ref?.name)
     .filter(Boolean);
-  const existingOpenPrs = (
-    issueObj.closedByPullRequestsReferences?.nodes || []
-  )
+  const existingOpenPrs = (issueObj.closedByPullRequestsReferences?.nodes || [])
     .filter((n) => n?.state === 'OPEN')
     .map((n) => n?.headRefName)
     .filter(Boolean);

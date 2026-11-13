@@ -353,8 +353,7 @@ export async function captureEvidence(
               )
             )
               .filter(
-                (el) =>
-                  isVis(el) && !footerEls.some((fEl) => fEl.contains(el))
+                (el) => isVis(el) && !footerEls.some((fEl) => fEl.contains(el))
               )
               .flatMap((el) => {
                 const rawRect = el.getBoundingClientRect();

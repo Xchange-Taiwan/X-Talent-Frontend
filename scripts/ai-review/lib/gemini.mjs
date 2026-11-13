@@ -199,7 +199,10 @@ export async function callGemini(promptText, options = {}) {
       });
     } catch (err) {
       lastErr = err;
-      if (err.maxTokensTruncated && effectiveTokens < MAX_EXPANDED_OUTPUT_TOKENS) {
+      if (
+        err.maxTokensTruncated &&
+        effectiveTokens < MAX_EXPANDED_OUTPUT_TOKENS
+      ) {
         effectiveTokens = Math.min(
           MAX_EXPANDED_OUTPUT_TOKENS,
           Math.max(32768, effectiveTokens * 2)

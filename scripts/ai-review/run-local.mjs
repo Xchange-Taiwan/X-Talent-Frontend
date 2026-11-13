@@ -25,7 +25,9 @@ if (!process.env.GEMINI_MAX_OUTPUT_TOKENS) {
 
 if (!process.env.GEMINI_API_KEY) {
   if (process.env.STRICT_AI_REVIEW === '1') {
-    console.error('[ai-review-local] GEMINI_API_KEY is missing under STRICT_AI_REVIEW=1.');
+    console.error(
+      '[ai-review-local] GEMINI_API_KEY is missing under STRICT_AI_REVIEW=1.'
+    );
     console.log(
       JSON.stringify({
         mode: 'review-error',

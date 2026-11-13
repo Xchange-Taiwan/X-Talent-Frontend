@@ -1021,7 +1021,12 @@ describe('cloud-converge-loop', () => {
 
     it('supports fast 0-AI-Review funnel mode (--run-ai-review=false) converging immediately once lint, tests, and E2E pass', async () => {
       const parsedFast = parseConvergeArgs(
-        ['--max-rounds=3', '--ticket=740', '--run-e2e=true', '--run-ai-review=false'],
+        [
+          '--max-rounds=3',
+          '--ticket=740',
+          '--run-e2e=true',
+          '--run-ai-review=false',
+        ],
         {}
       );
       expect(parsedFast.runAiReview).toBe(false);
@@ -1031,7 +1036,11 @@ describe('cloud-converge-loop', () => {
       const execStep = vi.fn((cmd, args) => {
         calls.push(`${cmd} ${args.join(' ')}`);
         if (cmd === 'git' && args[0] === 'diff') {
-          return { ok: true, stdout: 'src/components/Foo.tsx\ne2e/tests/public/foo.spec.ts\n', stderr: '' };
+          return {
+            ok: true,
+            stdout: 'src/components/Foo.tsx\ne2e/tests/public/foo.spec.ts\n',
+            stderr: '',
+          };
         }
         return { ok: true, stdout: '', stderr: '' };
       });
@@ -1072,7 +1081,11 @@ describe('cloud-converge-loop', () => {
           // Round 1 compiles cleanly; Round 2 breaks compilation!
           return roundNum === 1
             ? { ok: true, stdout: '', stderr: '' }
-            : { ok: false, stderr: 'TS2322 broken in round 2', combined: 'TS2322 broken in round 2' };
+            : {
+                ok: false,
+                stderr: 'TS2322 broken in round 2',
+                combined: 'TS2322 broken in round 2',
+              };
         }
         if (cmd === 'node' && String(args[0]).includes('run-local.mjs')) {
           // Simulate silent API failure returning fallback-ci (must NOT falsely converge!)

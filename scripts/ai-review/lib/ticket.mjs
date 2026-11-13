@@ -49,7 +49,10 @@ export async function fetchTicketContext(branchName, token, fallbackTicket) {
   }
 
   const issue = await ghGet(`/issues/${number}`, token);
-  const comments = await ghGet(`/issues/${number}/comments?per_page=100`, token);
+  const comments = await ghGet(
+    `/issues/${number}/comments?per_page=100`,
+    token
+  );
 
   return {
     ticketFound: true,

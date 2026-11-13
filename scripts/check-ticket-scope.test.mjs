@@ -242,7 +242,10 @@ describe('check-ticket-scope', () => {
       const headPart = 'TOP_SPEC_ANCHOR ' + 'a'.repeat(7000);
       const middleNoise = 'MIDDLE_OLD_CHATTER ' + 'm'.repeat(10000);
       const tailPart = 'z'.repeat(1000) + ' LATEST_DISCORD_SETTLEMENT_ANCHOR';
-      const sliced = sliceSpecPreservingHeadAndTail(`${headPart}\n${middleNoise}\n${tailPart}`, 14000);
+      const sliced = sliceSpecPreservingHeadAndTail(
+        `${headPart}\n${middleNoise}\n${tailPart}`,
+        14000
+      );
       expect(sliced).toContain('TOP_SPEC_ANCHOR');
       expect(sliced).toContain('LATEST_DISCORD_SETTLEMENT_ANCHOR');
       expect(sliced.length).toBeLessThan(14500);
@@ -251,7 +254,8 @@ describe('check-ticket-scope', () => {
         scope: 'frontend_only',
         actionableInFrontendRepo: true,
         specBlocked: true,
-        specBlockReason: '最新留言正在詢問 PM 要採方案 A 或方案 B，尚未拍板定案',
+        specBlockReason:
+          '最新留言正在詢問 PM 要採方案 A 或方案 B，尚未拍板定案',
         frontendTasksSummary: '實作回饋彈窗',
         outOfRepoItems: [],
         reason: '前端功能票',
