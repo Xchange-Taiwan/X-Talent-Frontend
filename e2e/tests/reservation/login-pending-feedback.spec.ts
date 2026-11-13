@@ -290,10 +290,7 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
     // 1) textarea left/right edges align 0px flush with sibling radio cards
     // 2) overflow-hidden clip wrapper keeps >=4px clearance so focus ring never clips
     await page.waitForTimeout(240);
-    const clipWrapper = dialog
-      .getByTestId('not-happened-note-collapse')
-      .locator('> div')
-      .first();
+    const clipWrapper = dialog.getByTestId('not-happened-note-clip');
 
     // Ensure the warm-yellow Mentor warning box is completely visible and never clipped by scroll or footer
     const submitNextBtn = dialog.getByRole('button', {

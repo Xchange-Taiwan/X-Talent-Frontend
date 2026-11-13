@@ -311,8 +311,11 @@ export function NotHappenedStepContent({
               : 'pointer-events-none invisible mt-0 grid-rows-[0fr] opacity-0'
           )}
         >
-          <div className="-mx-1.5 min-h-0 overflow-hidden px-1.5">
-            <div className="space-y-1 py-1">
+          <div
+            data-testid="not-happened-note-clip"
+            className="-mx-1.5 min-h-0 overflow-hidden px-1.5"
+          >
+            <div className="space-y-1 pt-0.5 pb-0.5">
               <label
                 htmlFor={noteFieldId}
                 className="text-text-primary block text-sm font-medium"

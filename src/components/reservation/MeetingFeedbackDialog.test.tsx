@@ -1406,8 +1406,7 @@ describe('MeetingFeedbackDialog', () => {
       fireEvent.click(screen.getByRole('button', { name: '下一步' }));
       fireEvent.click(screen.getByRole('radio', { name: '其他' }));
 
-      const collapseRoot = screen.getByTestId('not-happened-note-collapse');
-      const clipWrapper = collapseRoot.firstElementChild;
+      const clipWrapper = screen.getByTestId('not-happened-note-clip');
       expect(clipWrapper).toHaveClass('-mx-1.5', 'px-1.5', 'overflow-hidden');
 
       const noteTextarea = screen.getByLabelText(/補充說明/);
