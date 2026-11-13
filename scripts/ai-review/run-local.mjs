@@ -24,6 +24,22 @@ if (!process.env.GEMINI_MAX_OUTPUT_TOKENS) {
 }
 
 if (!process.env.GEMINI_API_KEY) {
+  if (process.env.STRICT_AI_REVIEW === '1') {
+    console.error('[ai-review-local] GEMINI_API_KEY is missing under STRICT_AI_REVIEW=1.');
+    console.log(
+      JSON.stringify({
+        mode: 'review-error',
+        reviewError: true,
+        overallRisk: {
+          level: 'high',
+          reason: 'GEMINI_API_KEY is missing under STRICT_AI_REVIEW=1.',
+        },
+        requirementCoverage: [],
+        findings: {},
+      })
+    );
+    process.exit(1);
+  }
   console.log(
     JSON.stringify(
       {
@@ -134,8 +150,15 @@ async function main() {
   const visualAssets = loadReviewVisualAssets();
   const visualNote = visualAssets.visualContextMarkdown || '';
 
+  const commentsText =
+    Array.isArray(ticket.comments) && ticket.comments.length > 0
+      ? `\n\n### Comments\n${ticket.comments
+          .map((c) => `- ${c.author}: ${c.body}`)
+          .join('\n')}`
+      : '';
+
   const ticketSection = ticket.ticketFound
-    ? `## 對應 Ticket\n**#${ticket.number} ${ticket.title}**\n\n${ticket.body}${visualNote}${e2eSection}${archKbSection}`
+    ? `## 對應 Ticket\n**#${ticket.number} ${ticket.title}**\n\n${ticket.body}${commentsText}${visualNote}${e2eSection}${archKbSection}`
     : `## 對應 Ticket\n（僅根據 diff 進行分析）${visualNote}${e2eSection}${archKbSection}`;
 
   const planPrompt = buildPrompt(
@@ -245,6 +268,22 @@ async function main() {
 }
 
 main().catch((err) => {
+  if (process.env.STRICT_AI_REVIEW === '1') {
+    console.error(`[ai-review-local] Strict review failed: ${err.message}`);
+    console.log(
+      JSON.stringify({
+        mode: 'review-error',
+        reviewError: true,
+        overallRisk: {
+          level: 'high',
+          reason: `AI Review execution failed: ${err.message}`,
+        },
+        requirementCoverage: [],
+        findings: {},
+      })
+    );
+    process.exit(1);
+  }
   console.warn(
     `[ai-review-local] Gemini call skipped (${err.message}); falling back to CI review.`
   );
