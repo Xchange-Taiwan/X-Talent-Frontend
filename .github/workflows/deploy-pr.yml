@@ -2,6 +2,11 @@ name: Deploy to Vercel (Pull Request Preview)
 
 on:
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
     branches:
       - '**'
     paths-ignore:
@@ -41,6 +46,7 @@ env:
 
 jobs:
   deploy-pr-preview:
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     name: Deploy PR Preview to Vercel
 
@@ -64,28 +70,44 @@ jobs:
         run: npm install --global vercel@51.2.1
 
       - name: Pull Vercel environment (preview)
-        run: vercel pull --yes --environment=preview --token=${{ env.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
 
       # Single build: vercel build runs next build internally with Vercel env vars
       - name: Build project with Vercel
         shell: bash
         run: |
           set -euo pipefail
-          if ! vercel build --token="${{ env.VERCEL_TOKEN }}" 2>&1 | tee .build-output.txt; then
+          if ! vercel build --token="$VERCEL_TOKEN" 2>&1 | tee .build-output.txt; then
             echo "Cached Vercel build failed; clearing .next/cache and retrying clean build..."
             rm -rf .next .vercel/output
-            vercel build --token="${{ env.VERCEL_TOKEN }}" 2>&1 | tee .build-output.txt
+            vercel build --token="$VERCEL_TOKEN" 2>&1 | tee .build-output.txt
           fi
 
       - name: Deploy PR preview
         id: vercel_preview
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           echo "🚀 Deploying PR preview..."
-          out="$(vercel deploy --prebuilt --archive=tgz --token="${{ env.VERCEL_TOKEN }}")"
+          err_file="$(mktemp)"
+          out="$(vercel deploy --prebuilt --archive=tgz --token="$VERCEL_TOKEN" 2>"$err_file")"
+          rc=$?
+          cat "$err_file" >&2
           echo "$out"
-          url="$(printf '%s\n' "$out" | tail -n 1)"
+          if [ "$rc" -ne 0 ]; then
+            if grep -qiE 'api-deployments-free-per-day|Resource is limited' "$err_file"; then
+              echo "::warning::Vercel Hobby daily deployment quota reached; marking PR comment without failing code gates."
+              gh pr comment "$PR_NUMBER" --body "<!-- vercel-quota-limit:sha=${HEAD_SHA} -->⚠️ **Vercel 每日免費預覽部署額度已達上限**（\`api-deployments-free-per-day\`），程式碼與測試檢查不受影響，待額度重置後可重新觸發預覽。" || true
+            fi
+            rm -f "$err_file"
+            exit "$rc"
+          fi
+          rm -f "$err_file"
+          url="$(printf '%s\n' "$out" | grep -Eo 'https://[^[:space:]]+' | tail -n 1)"
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
       - name: Extract bundle size report
@@ -112,6 +134,7 @@ jobs:
           PREVIEW_URL: ${{ steps.vercel_preview.outputs.url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           touch .evidence-markdown.txt
           if [ -z "$PREVIEW_URL" ]; then exit 0; fi
@@ -124,8 +147,8 @@ jobs:
             exit 0
           fi
 
-          git fetch origin "${{ github.event.pull_request.base.ref }}" --depth=20 || true
-          CHANGED_UI=$(git diff --name-only "origin/${{ github.event.pull_request.base.ref }}...HEAD" -- 'src/app/' 'src/components/' 'src/styles/' | grep -vE '\.(test|spec|stories)\.(ts|tsx)$' || true)
+          git fetch origin "$BASE_REF" --depth=20 || true
+          CHANGED_UI=$(git diff --name-only "origin/${BASE_REF}...HEAD" -- 'src/app/' 'src/components/' 'src/styles/' | grep -vE '\.(test|spec|stories)\.(ts|tsx)$' || true)
           if [ -z "$CHANGED_UI" ]; then
             echo "No UI-facing files changed; skipping screenshot capture."
             exit 0
