@@ -29,6 +29,30 @@ function buildHistoryFeedbackHref(
   return `${basePath}?tab=history&reservationId=${encodeURIComponent(trimmedId)}`;
 }
 
+const FEEDBACK_REQUESTED_CONFIG: NotificationConfigEntry = {
+  getContent: (item) => ({
+    title: '留下您的會談回饋',
+    body: `您與 ${item.mentorName || item.menteeName || 'Mentor'} 的會談已結束，前往留下回饋。`,
+  }),
+  getHref: (item) =>
+    buildHistoryFeedbackHref(
+      item.role === 'mentor' ? '/reservation/mentor' : '/reservation/mentee',
+      item.reservationId
+    ),
+};
+
+const ATTENDANCE_REQUESTED_CONFIG: NotificationConfigEntry = {
+  getContent: (item) => ({
+    title: '留下您的會談紀錄',
+    body: `您與 ${item.menteeName || item.mentorName || 'Mentee'} 的會談已結束，前往留下紀錄。`,
+  }),
+  getHref: (item) =>
+    buildHistoryFeedbackHref(
+      item.role === 'mentee' ? '/reservation/mentee' : '/reservation/mentor',
+      item.reservationId
+    ),
+};
+
 const FEEDBACK_REMINDER_CONFIG: NotificationConfigEntry = {
   getContent: (item) => {
     const isMentor = getMentorContext(item);
@@ -135,6 +159,8 @@ const NOTIFICATION_CONFIG: Record<
         ? '/reservation/mentor?tab=upcoming'
         : '/reservation/mentee?tab=upcoming',
   },
+  reservation_feedback_requested: FEEDBACK_REQUESTED_CONFIG,
+  reservation_attendance_requested: ATTENDANCE_REQUESTED_CONFIG,
   feedback_reminder: FEEDBACK_REMINDER_CONFIG,
   reservation_feedback_reminder: FEEDBACK_REMINDER_CONFIG,
   meeting_feedback_reminder: FEEDBACK_REMINDER_CONFIG,

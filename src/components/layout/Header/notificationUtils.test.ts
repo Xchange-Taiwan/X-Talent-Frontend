@@ -305,4 +305,34 @@ describe('notificationUtils', () => {
       '/reservation/mentor?tab=history'
     );
   });
+
+  it('maps #760 §7 official notification types reservation_feedback_requested and reservation_attendance_requested (#875)', () => {
+    const menteeRequested = buildItem({
+      type: 'reservation_feedback_requested',
+      role: 'mentee',
+      mentorName: 'Emily Chen',
+      reservationId: '101',
+    });
+    expect(getNotificationContent(menteeRequested)).toEqual({
+      title: '留下您的會談回饋',
+      body: '您與 Emily Chen 的會談已結束，前往留下回饋。',
+    });
+    expect(getNotificationHref(menteeRequested)).toBe(
+      '/reservation/mentee?tab=history&reservationId=101'
+    );
+
+    const mentorAttendanceRequested = buildItem({
+      type: 'reservation_attendance_requested',
+      role: 'mentor',
+      menteeName: '林學員',
+      reservationId: '205',
+    });
+    expect(getNotificationContent(mentorAttendanceRequested)).toEqual({
+      title: '留下您的會談紀錄',
+      body: '您與 林學員 的會談已結束，前往留下紀錄。',
+    });
+    expect(getNotificationHref(mentorAttendanceRequested)).toBe(
+      '/reservation/mentor?tab=history&reservationId=205'
+    );
+  });
 });
