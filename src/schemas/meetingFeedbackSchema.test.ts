@@ -207,17 +207,17 @@ describe('meetingFeedbackSchema', () => {
           meetingHappened: false,
           rating: 10,
           content: '',
-          notHappenedReason: 'MENTEE_ABSENT',
+          notHappenedReason: 'COUNTERPART_ABSENT',
           notHappenedNote: '',
         },
         'mentor'
       )
     ).toEqual({
       meeting_happened: false,
-      not_happened_reason: 'MENTEE_ABSENT',
+      not_happened_reason: 'COUNTERPART_ABSENT',
     });
 
-    // Normalizes counterparty absence by viewer role so Mentor never emits MENTOR_ABSENT
+    // Normalizes legacy MENTOR_ABSENT / MENTEE_ABSENT into unified COUNTERPART_ABSENT (#760 §4)
     expect(
       toSubmitFeedbackPayload(
         {
@@ -231,7 +231,7 @@ describe('meetingFeedbackSchema', () => {
       )
     ).toEqual({
       meeting_happened: false,
-      not_happened_reason: 'MENTEE_ABSENT',
+      not_happened_reason: 'COUNTERPART_ABSENT',
     });
 
     expect(
@@ -247,7 +247,7 @@ describe('meetingFeedbackSchema', () => {
       )
     ).toEqual({
       meeting_happened: false,
-      not_happened_reason: 'MENTOR_ABSENT',
+      not_happened_reason: 'COUNTERPART_ABSENT',
     });
 
     expect(
@@ -264,7 +264,7 @@ describe('meetingFeedbackSchema', () => {
     ).toEqual({
       meeting_happened: false,
       not_happened_reason: 'OTHER',
-      not_happened_note: '學員臨時有事改期',
+      note: '學員臨時有事改期',
     });
   });
 
@@ -273,13 +273,13 @@ describe('meetingFeedbackSchema', () => {
       meetingHappened: false,
       rating: 10,
       content: 'ignored text',
-      notHappenedReason: 'MENTOR_ABSENT',
+      notHappenedReason: 'COUNTERPART_ABSENT',
       notHappenedNote: '   ',
     });
 
     expect(withoutNote).toEqual({
       meeting_happened: false,
-      not_happened_reason: 'MENTOR_ABSENT',
+      not_happened_reason: 'COUNTERPART_ABSENT',
     });
     expect(withoutNote && 'feedback' in withoutNote).toBe(false);
     expect(withoutNote && 'not_happened_party' in withoutNote).toBe(false);
@@ -295,8 +295,9 @@ describe('meetingFeedbackSchema', () => {
     expect(withOtherNote).toEqual({
       meeting_happened: false,
       not_happened_reason: 'OTHER',
-      not_happened_note: '臨時身體不適已私訊說明',
+      note: '臨時身體不適已私訊說明',
     });
+    expect(withOtherNote && 'not_happened_note' in withOtherNote).toBe(false);
 
     // Draft note entered under OTHER must not block or leak into non-OTHER payload
     const nonOtherWithDraftValues: MeetingFeedbackFormValues = {
@@ -342,14 +343,14 @@ describe('meetingFeedbackSchema', () => {
       meetingHappened: false,
       rating: 10,
       content: 'a'.repeat(1005),
-      notHappenedReason: 'MENTOR_ABSENT',
+      notHappenedReason: 'COUNTERPART_ABSENT',
       notHappenedNote: '',
     };
 
     expect(meetingFeedbackFormSchema.safeParse(values).success).toBe(true);
     expect(toSubmitFeedbackPayload(values)).toEqual({
       meeting_happened: false,
-      not_happened_reason: 'MENTOR_ABSENT',
+      not_happened_reason: 'COUNTERPART_ABSENT',
     });
   });
 

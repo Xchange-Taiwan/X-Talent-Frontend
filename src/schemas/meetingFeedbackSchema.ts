@@ -2,6 +2,8 @@ import * as z from 'zod';
 
 import {
   type FeedbackViewerRole,
+  type LegacyNotHappenedReason,
+  normalizeNotHappenedReason,
   NOT_HAPPENED_REASONS,
   resolveNotHappenedReasonForRole,
   type SubmitReservationFeedbackRequest,
@@ -150,8 +152,15 @@ export function toUpdateFeedbackPayload(values: {
   };
 }
 
+export type MeetingFeedbackPayloadInput = Omit<
+  MeetingFeedbackFormValues,
+  'notHappenedReason'
+> & {
+  notHappenedReason: LegacyNotHappenedReason | null;
+};
+
 export function toSubmitFeedbackPayload(
-  values: MeetingFeedbackFormValues,
+  values: MeetingFeedbackPayloadInput,
   role: FeedbackViewerRole = 'mentee'
 ): SubmitReservationFeedbackRequest | null {
   if (values.meetingHappened === true) {
@@ -178,8 +187,11 @@ export function toSubmitFeedbackPayload(
   }
 
   if (values.meetingHappened === false) {
+    const normalizedReason = values.notHappenedReason
+      ? normalizeNotHappenedReason(values.notHappenedReason)
+      : null;
     const parsed = notHappenedFeedbackFieldsSchema.safeParse({
-      notHappenedReason: values.notHappenedReason,
+      notHappenedReason: normalizedReason,
       notHappenedNote: values.notHappenedNote,
     });
     if (!parsed.success) {
@@ -197,7 +209,7 @@ export function toSubmitFeedbackPayload(
         parsed.data.notHappenedReason,
         role
       ),
-      ...(trimmedNote.length > 0 ? { not_happened_note: trimmedNote } : {}),
+      ...(trimmedNote.length > 0 ? { note: trimmedNote } : {}),
     };
   }
 
