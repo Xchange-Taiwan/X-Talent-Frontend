@@ -20,6 +20,7 @@ import {
   isFrontendApplicableCriterion,
   normalizeErrorSignatures,
   parseConvergeArgs,
+  resolveConvergeExitCode,
   runConvergeLoop,
 } from './cloud-converge-loop.mjs';
 
@@ -1184,6 +1185,28 @@ describe('cloud-converge-loop', () => {
       } finally {
         fs.rmSync(tmpRepo, { recursive: true, force: true });
       }
+    });
+
+    it('exits non-zero when unconverged due to failing tests or E2E, preventing broken PRs', () => {
+      expect(resolveConvergeExitCode({ converged: true })).toBe(0);
+      expect(
+        resolveConvergeExitCode({
+          converged: false,
+          evaluation: { deterministicPassed: false, e2ePassed: true },
+        })
+      ).toBe(1);
+      expect(
+        resolveConvergeExitCode({
+          converged: false,
+          evaluation: { deterministicPassed: true, e2ePassed: false },
+        })
+      ).toBe(1);
+      expect(
+        resolveConvergeExitCode({
+          converged: false,
+          evaluation: { deterministicPassed: true, e2ePassed: true },
+        })
+      ).toBe(0);
     });
   });
 });

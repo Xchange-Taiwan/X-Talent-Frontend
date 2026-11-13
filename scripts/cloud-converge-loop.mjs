@@ -624,6 +624,8 @@ export function evaluateRoundConvergence({
 
   return {
     converged,
+    deterministicPassed: Boolean(deterministicPassed),
+    e2ePassed: Boolean(e2ePassed),
     riskLevel,
     riskReason,
     totalFindings: flatFindings.length,
@@ -1416,6 +1418,15 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
   };
 }
 
+export function resolveConvergeExitCode(res) {
+  if (!res || res.converged) {
+    return 0;
+  }
+  const detOk = res.evaluation?.deterministicPassed !== false;
+  const e2eOk = res.evaluation?.e2ePassed !== false;
+  return !detOk || !e2eOk ? 1 : 0;
+}
+
 const isMain =
   process.argv[1] &&
   path.resolve(process.argv[1]) ===
@@ -1427,7 +1438,7 @@ if (isMain) {
   runConvergeLoop(options)
     .then((res) => {
       console.log(res.summaryMd);
-      process.exit(0);
+      process.exit(resolveConvergeExitCode(res));
     })
     .catch((err) => {
       console.error('[cloud-converge] Fatal error:', err);
