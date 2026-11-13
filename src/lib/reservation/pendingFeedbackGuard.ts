@@ -73,6 +73,7 @@ export function shouldSuppressPendingFeedbackPopup({
 
   if (
     hasNonEmptyParam(searchParams, 'reservationId') ||
+    hasNonEmptyParam(searchParams, 'reservation_id') ||
     hasNonEmptyParam(searchParams, 'feedbackReservationId') ||
     searchParams?.get('feedback') === 'queue'
   ) {

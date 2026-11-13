@@ -1041,6 +1041,9 @@ describe('MeetingFeedbackDialog', () => {
       expect(
         screen.queryByRole('button', { name: '確認會談' })
       ).not.toBeInTheDocument();
+      expect(screen.getByTestId('feedback-dialog-title')).toHaveTextContent(
+        '確認會談'
+      );
 
       const confirmSubmitBtn = screen.getByRole('button', { name: '確定送出' });
       expect(confirmSubmitBtn).toBeDisabled();
@@ -1090,6 +1093,10 @@ describe('MeetingFeedbackDialog', () => {
       expect(screen.getByText('步驟 2 / 2 · 會談狀況')).toBeInTheDocument();
       expect(screen.getByText('未進行會談的原因')).toBeInTheDocument();
       expect(screen.queryByText(/誰沒有進行會談/)).not.toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: '對方未出席' })).toHaveAttribute(
+        'value',
+        'MENTEE_ABSENT'
+      );
 
       const warningBox = screen.getByTestId('mentor-not-happened-warning');
       expect(warningBox).toBeVisible();
@@ -1128,6 +1135,34 @@ describe('MeetingFeedbackDialog', () => {
             meeting_happened: false,
             not_happened_reason: 'OTHER',
             not_happened_note: '學員因臨時會議未上線',
+          },
+          expect.objectContaining({ id: 'res-mentor-opt-a' })
+        );
+      });
+    });
+
+    it('submits MENTEE_ABSENT (never MENTOR_ABSENT) when Mentor selects 對方未出席 on Step 2', async () => {
+      const onSubmitFeedback = vi.fn().mockResolvedValue(undefined);
+
+      render(
+        <MeetingFeedbackDialog
+          defaultOpen
+          hideTrigger
+          reservation={mentorReservation}
+          onSubmitFeedback={onSubmitFeedback}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('radio', { name: '沒有進行' }));
+      fireEvent.click(screen.getByRole('button', { name: '下一步' }));
+      fireEvent.click(screen.getByRole('radio', { name: '對方未出席' }));
+      fireEvent.click(screen.getByRole('button', { name: '送出' }));
+
+      await waitFor(() => {
+        expect(onSubmitFeedback).toHaveBeenCalledWith(
+          {
+            meeting_happened: false,
+            not_happened_reason: 'MENTEE_ABSENT',
           },
           expect.objectContaining({ id: 'res-mentor-opt-a' })
         );
@@ -1336,7 +1371,7 @@ describe('MeetingFeedbackDialog', () => {
             2,
             {
               meeting_happened: false,
-              not_happened_reason: 'MENTOR_ABSENT',
+              not_happened_reason: 'MENTEE_ABSENT',
             },
             expect.objectContaining({ id: 'rev-mentor-2' })
           );

@@ -736,8 +736,9 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄收合面板與版面翻�
     await expect(mentorTabs.nth(1)).toContainText('即將到來');
     await expect(mentorTabs.nth(2)).toContainText('歷史紀錄');
 
-    await page.getByRole('button', { name: '查看回饋' }).click();
+    await page.getByRole('button', { name: '查看紀錄' }).click();
     await expect(page.getByText('學員評價')).toBeVisible();
+    await expect(page.getByText('王＊明')).toBeVisible();
     await expect(page.getByText('10 / 10')).toBeVisible();
     await expect(
       page.getByText('謝謝導師清楚剖析設計系統架構！')

@@ -427,6 +427,7 @@ export async function submitReservationFeedback({
               ...item,
               feedback: {
                 meetingHappened: nextMeetingHappened,
+                ...(myRole === 'mentor' ? { myMeetingHappened: true } : {}),
                 rating: nextRating,
                 nextStep: null,
               },
@@ -436,6 +437,7 @@ export async function submitReservationFeedback({
             ...item,
             feedback: {
               meetingHappened: false,
+              ...(myRole === 'mentor' ? { myMeetingHappened: false } : {}),
               rating:
                 myRole === 'mentor' && item.feedback?.rating
                   ? {

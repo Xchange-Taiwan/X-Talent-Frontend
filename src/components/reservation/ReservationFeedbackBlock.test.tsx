@@ -179,7 +179,7 @@ describe('ReservationFeedbackBlock & HeaderToggle', () => {
     expect(onEditUnpublicized).toHaveBeenCalledTimes(1);
   });
 
-  it('does not render 編輯 button when canEdit is false (Mentor view)', () => {
+  it('does not render 編輯 or 刪除 buttons when canEdit is false and displays 遮罩姓名 · 分數 / 10 · 日期 for Mentor view (#735)', () => {
     render(
       <ReservationFeedbackBlock
         model={{
@@ -187,12 +187,50 @@ describe('ReservationFeedbackBlock & HeaderToggle', () => {
           label: '學員評價',
           rating: 10,
           content: '學員好評',
+          authorMaskedName: '王＊明',
+          formattedDate: '2026/10/28',
+          mentorAttendanceLabel: '已回報：有進行',
           canEdit: false,
         }}
         editAction={<button type="button">編輯</button>}
       />
     );
 
+    expect(screen.getByText('學員評價')).toBeInTheDocument();
+    expect(screen.getByTestId('mentor-attendance-record')).toHaveTextContent(
+      '已回報：有進行'
+    );
+    const metaRow = screen.getByTestId('mentor-feedback-meta');
+    expect(metaRow).toHaveTextContent('王＊明');
+    expect(metaRow).toHaveTextContent('10 / 10');
+    expect(metaRow).toHaveTextContent('2026/10/28');
+    expect(screen.getByText('學員好評')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '編輯' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /刪除/ })
+    ).not.toBeInTheDocument();
+  });
+
+  it('renders Mentor attendance-only record block without leaking Mentee attendance state (#735)', () => {
+    render(
+      <ReservationFeedbackBlock
+        model={{
+          kind: 'mentor-record',
+          attendanceLabel: '已回報：有進行',
+        }}
+      />
+    );
+
+    expect(
+      screen.getByTestId('reservation-feedback-mentor-record')
+    ).toBeInTheDocument();
+    expect(screen.getByText('會談紀錄')).toBeInTheDocument();
+    expect(screen.getByTestId('mentor-attendance-record')).toHaveTextContent(
+      '已回報：有進行'
+    );
+    expect(screen.queryByText(/目前尚無|等待|尚未/)).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: '編輯' })
     ).not.toBeInTheDocument();

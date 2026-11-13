@@ -712,5 +712,133 @@ describe('reservationService API Error Handling', () => {
         participantUserId: 99,
       });
     });
+
+    it('maps my_meeting_happened and mentor_meeting_happened into feedback.myMeetingHappened (#735)', async () => {
+      mockGet.mockResolvedValueOnce({
+        reservations: [
+          {
+            id: 601,
+            sender: {
+              user_id: 88,
+              role: 'MENTEE',
+              status: 'ACCEPT',
+              name: 'Mentee A',
+              avatar: '',
+              job_title: 'Designer',
+              years_of_experience: 'ONE_TO_THREE',
+            },
+            participant: {
+              user_id: 1,
+              role: 'MENTOR',
+              status: 'ACCEPT',
+              name: 'Mentor Me',
+              avatar: '',
+              job_title: 'Staff Designer',
+              years_of_experience: 'FIVE_TO_TEN',
+            },
+            schedule_id: 601,
+            dtstart: 1760000000,
+            dtend: 1760001800,
+            previous_reserve: null,
+            messages: [],
+            feedback: {
+              meeting_happened: false,
+              my_meeting_happened: true,
+              rating: null,
+              next_step: null,
+            },
+          },
+          {
+            id: 602,
+            sender: {
+              user_id: 89,
+              role: 'MENTEE',
+              status: 'ACCEPT',
+              name: 'Mentee B',
+              avatar: '',
+              job_title: 'Engineer',
+              years_of_experience: 'ONE_TO_THREE',
+            },
+            participant: {
+              user_id: 1,
+              role: 'MENTOR',
+              status: 'ACCEPT',
+              name: 'Mentor Me',
+              avatar: '',
+              job_title: 'Staff Designer',
+              years_of_experience: 'FIVE_TO_TEN',
+            },
+            schedule_id: 602,
+            dtstart: 1760100000,
+            dtend: 1760101800,
+            previous_reserve: null,
+            messages: [],
+            feedback: {
+              meeting_happened: false,
+              mentor_meeting_happened: false,
+              rating: null,
+              next_step: null,
+            },
+          },
+          {
+            id: 603,
+            sender: {
+              user_id: 90,
+              role: 'MENTEE',
+              status: 'ACCEPT',
+              name: 'Mentee C',
+              avatar: '',
+              job_title: 'PM',
+              years_of_experience: 'ONE_TO_THREE',
+            },
+            participant: {
+              user_id: 1,
+              role: 'MENTOR',
+              status: 'ACCEPT',
+              name: 'Mentor Me',
+              avatar: '',
+              job_title: 'Staff Designer',
+              years_of_experience: 'FIVE_TO_TEN',
+            },
+            schedule_id: 603,
+            dtstart: 1760200000,
+            dtend: 1760201800,
+            previous_reserve: null,
+            messages: [],
+            feedback: {
+              meeting_happened: true,
+              my_meeting_happened: null,
+              rating: null,
+              next_step: null,
+            },
+          },
+        ],
+        next_dtend: 0,
+      });
+
+      const pageResult = await fetchReservations({
+        userId: '1',
+        state: 'MENTOR_HISTORY',
+      });
+
+      expect(pageResult.items[0]?.feedback).toEqual({
+        meetingHappened: false,
+        myMeetingHappened: true,
+        rating: null,
+        nextStep: null,
+      });
+      expect(pageResult.items[1]?.feedback).toEqual({
+        meetingHappened: false,
+        myMeetingHappened: false,
+        rating: null,
+        nextStep: null,
+      });
+      expect(pageResult.items[2]?.feedback).toEqual({
+        meetingHappened: true,
+        myMeetingHappened: null,
+        rating: null,
+        nextStep: null,
+      });
+    });
   });
 });

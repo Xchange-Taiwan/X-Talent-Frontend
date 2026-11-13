@@ -1,6 +1,15 @@
+/**
+ * Backend #760 `not_happened_reason` enum contract.
+ * Per Design Hub (#730 / #740 / #735), Step 2 removes the legacy party-attribution
+ * question ("誰沒有進行會談？", i.e. 不問誰未出席) and displays 5 shared options
+ * (`雙方時間無法配合`、`對方未出席`、`未收到或錯過會議通知`、`技術／連線問題`、`其他`).
+ * Selecting `對方未出席` maps by viewer role (`mentee` -> `MENTOR_ABSENT`,
+ * `mentor` -> `MENTEE_ABSENT`) so counterparty absence attribution is never inverted.
+ */
 export const NOT_HAPPENED_REASONS = [
   'SCHEDULE_CONFLICT',
   'MENTOR_ABSENT',
+  'MENTEE_ABSENT',
   'MISSED_NOTIFICATION',
   'TECHNICAL_ISSUE',
   'OTHER',
@@ -10,9 +19,47 @@ export type NotHappenedReason = (typeof NOT_HAPPENED_REASONS)[number];
 
 export type FeedbackViewerRole = 'mentee' | 'mentor';
 
+export const MENTEE_NOT_HAPPENED_REASONS = [
+  'SCHEDULE_CONFLICT',
+  'MENTOR_ABSENT',
+  'MISSED_NOTIFICATION',
+  'TECHNICAL_ISSUE',
+  'OTHER',
+] as const satisfies readonly NotHappenedReason[];
+
+export const MENTOR_NOT_HAPPENED_REASONS = [
+  'SCHEDULE_CONFLICT',
+  'MENTEE_ABSENT',
+  'MISSED_NOTIFICATION',
+  'TECHNICAL_ISSUE',
+  'OTHER',
+] as const satisfies readonly NotHappenedReason[];
+
+export function getNotHappenedReasonsForRole(
+  role: FeedbackViewerRole = 'mentee'
+): readonly NotHappenedReason[] {
+  return role === 'mentor'
+    ? MENTOR_NOT_HAPPENED_REASONS
+    : MENTEE_NOT_HAPPENED_REASONS;
+}
+
+export function resolveNotHappenedReasonForRole(
+  reason: NotHappenedReason,
+  role: FeedbackViewerRole = 'mentee'
+): NotHappenedReason {
+  if (role === 'mentor' && reason === 'MENTOR_ABSENT') {
+    return 'MENTEE_ABSENT';
+  }
+  if (role === 'mentee' && reason === 'MENTEE_ABSENT') {
+    return 'MENTOR_ABSENT';
+  }
+  return reason;
+}
+
 export const NOT_HAPPENED_REASON_LABELS: Record<NotHappenedReason, string> = {
   SCHEDULE_CONFLICT: '雙方時間無法配合',
   MENTOR_ABSENT: '對方未出席',
+  MENTEE_ABSENT: '對方未出席',
   MISSED_NOTIFICATION: '未收到或錯過會議通知',
   TECHNICAL_ISSUE: '技術／連線問題',
   OTHER: '其他',
@@ -31,6 +78,8 @@ export interface RawReservationRating {
 
 export interface RawReservationFeedback {
   meeting_happened: boolean | null;
+  my_meeting_happened?: boolean | null;
+  mentor_meeting_happened?: boolean | null;
   rating: RawReservationRating | null;
   next_step: FeedbackNextStep;
 }
@@ -46,6 +95,7 @@ export interface ReservationRating {
 
 export interface ReservationFeedback {
   meetingHappened: boolean | null;
+  myMeetingHappened?: boolean | null;
   rating: ReservationRating | null;
   nextStep: FeedbackNextStep;
 }

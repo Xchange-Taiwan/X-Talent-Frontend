@@ -102,6 +102,24 @@ function classifyMessageRole(
   return undefined;
 }
 
+function resolveMyMeetingHappened(
+  raw: RawReservationFeedback
+): boolean | null | undefined {
+  if (
+    raw.my_meeting_happened === null ||
+    typeof raw.my_meeting_happened === 'boolean'
+  ) {
+    return raw.my_meeting_happened;
+  }
+  if (
+    raw.mentor_meeting_happened === null ||
+    typeof raw.mentor_meeting_happened === 'boolean'
+  ) {
+    return raw.mentor_meeting_happened;
+  }
+  return undefined;
+}
+
 function mapReservationFeedback(
   raw: RawReservationFeedback | null | undefined
 ): ReservationFeedback | undefined {
@@ -111,6 +129,8 @@ function mapReservationFeedback(
 
   const meetingHappened =
     typeof raw.meeting_happened === 'boolean' ? raw.meeting_happened : null;
+
+  const myMeetingHappened = resolveMyMeetingHappened(raw);
 
   const rawRating = raw.rating;
   const rating =
@@ -141,6 +161,7 @@ function mapReservationFeedback(
 
   return {
     meetingHappened,
+    ...(myMeetingHappened !== undefined ? { myMeetingHappened } : {}),
     rating,
     nextStep,
   };

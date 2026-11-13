@@ -553,7 +553,7 @@ describe('ReservationList', () => {
       ).not.toBeInTheDocument();
     });
 
-    it('never renders 編輯 or 刪除 buttons on Mentor history cards even after expanding 查看回饋 (#731)', () => {
+    it('never renders 編輯 or 刪除 buttons on Mentor history cards even after expanding 查看紀錄 (#731, #735)', () => {
       render(
         <ReservationList
           items={[
@@ -580,8 +580,14 @@ describe('ReservationList', () => {
         />
       );
 
-      fireEvent.click(screen.getByRole('button', { name: '查看回饋' }));
+      fireEvent.click(screen.getByRole('button', { name: '查看紀錄' }));
       expect(screen.getByText('學員評價')).toBeInTheDocument();
+      expect(screen.getByTestId('mentor-feedback-meta')).toHaveTextContent(
+        '王＊明'
+      );
+      expect(screen.getByTestId('mentor-feedback-meta')).toHaveTextContent(
+        '10 / 10'
+      );
       expect(
         screen.queryByRole('button', { name: '編輯' })
       ).not.toBeInTheDocument();
@@ -844,6 +850,84 @@ describe('ReservationList', () => {
           title: '您已填寫過此場會談回饋',
         })
       );
+    });
+
+    it('renders 確認會談 on pending Mentor history cards (showing received public rating immediately), submits Mentor 2-page flow, and auto-opens via deepLinkDialogReservation (#735)', async () => {
+      const pendingMentorWithRating: Reservation = {
+        ...mockReservation,
+        id: 'mentor-pending-735',
+        viewerRole: 'MENTOR',
+        feedback: {
+          meetingHappened: null,
+          rating: {
+            rating: 9,
+            content: '很感謝導師提供清楚的面試建議！',
+            createdAt: 1761609600,
+            updatedAt: 1761609600,
+            authorName: '林＊員',
+            isPublic: true,
+          },
+          nextStep: 'ANSWER',
+        },
+      };
+
+      const onDeepLinkDialogClose = vi.fn();
+
+      render(
+        <ReservationList
+          items={[pendingMentorWithRating]}
+          variant="history"
+          sourceRole="mentor"
+          myUserId="user-456"
+          deepLinkDialogReservation={pendingMentorWithRating}
+          onDeepLinkDialogClose={onDeepLinkDialogClose}
+          highlightedReservationId="mentor-pending-735"
+        />
+      );
+
+      // Public rating is immediately visible on the Mentor card even before Mentor confirms attendance
+      expect(
+        screen.getByText('很感謝導師提供清楚的面試建議！')
+      ).toBeInTheDocument();
+      expect(screen.getByTestId('mentor-feedback-meta')).toHaveTextContent(
+        '林＊員'
+      );
+
+      // Deep link auto-opens Mentor 確認會談 modal
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByTestId('feedback-dialog-title')).toHaveTextContent(
+        '確認會談'
+      );
+
+      // Choose 沒有進行 -> 下一步 -> Step 2 with 5 reasons (without 誰沒有進行會談) + warning box -> 送出
+      fireEvent.click(screen.getByRole('radio', { name: '沒有進行' }));
+      fireEvent.click(screen.getByRole('button', { name: '下一步' }));
+
+      expect(screen.queryByText(/誰沒有進行會談/)).not.toBeInTheDocument();
+      expect(
+        screen.getByTestId('mentor-not-happened-warning')
+      ).toHaveTextContent(
+        '送出後不能修改。這場會談不會計入已完成場次，學員的評價也不會公開。'
+      );
+
+      fireEvent.click(screen.getByRole('radio', { name: '對方未出席' }));
+      fireEvent.click(screen.getByRole('button', { name: '送出' }));
+
+      await waitFor(() => {
+        expect(mockSubmitReservationFeedback).toHaveBeenCalledWith({
+          reservation: pendingMentorWithRating,
+          myUserId: 'user-456',
+          myRole: 'mentor',
+          payload: {
+            meeting_happened: false,
+            not_happened_reason: 'MENTEE_ABSENT',
+          },
+        });
+      });
+
+      await waitFor(() => {
+        expect(onDeepLinkDialogClose).toHaveBeenCalledTimes(1);
+      });
     });
   });
 });

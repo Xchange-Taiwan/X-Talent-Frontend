@@ -1151,6 +1151,14 @@ describe('updateReservationFeedback (#731)', () => {
       expect(clearPoolSpy).toHaveBeenCalledTimes(1);
       expect(feedbackInvalidatedIds).toContain(20);
 
+      const afterHappened =
+        reservationReadModel.get(mentorHistoryKey)?.items[0]?.feedback;
+      expect(afterHappened).toMatchObject({
+        meetingHappened: true,
+        myMeetingHappened: true,
+        nextStep: null,
+      });
+
       mockPost.mockResolvedValueOnce({ code: '0', msg: 'ok', data: {} });
       reservationReadModel.set(mentorHistoryKey, {
         items: [mentorRes],
@@ -1163,7 +1171,7 @@ describe('updateReservationFeedback (#731)', () => {
         myRole: 'mentor',
         payload: {
           meeting_happened: false,
-          not_happened_reason: 'MENTOR_ABSENT',
+          not_happened_reason: 'MENTEE_ABSENT',
         },
       });
 
@@ -1171,6 +1179,7 @@ describe('updateReservationFeedback (#731)', () => {
         reservationReadModel.get(mentorHistoryKey)?.items[0]?.feedback;
       expect(afterNotHappened).toEqual({
         meetingHappened: false,
+        myMeetingHappened: false,
         rating: {
           rating: 9,
           content: '導師建議很具體',

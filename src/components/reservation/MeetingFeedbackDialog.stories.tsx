@@ -33,6 +33,13 @@ export const ClosedTrigger: Story = {
   },
 };
 
+export const MentorClosedConfirmSessionTrigger: Story = {
+  args: {
+    defaultOpen: false,
+    viewerRole: 'mentor',
+  },
+};
+
 export const StepAttendanceOpen: Story = {
   args: {
     defaultOpen: true,

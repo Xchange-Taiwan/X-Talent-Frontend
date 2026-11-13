@@ -166,7 +166,10 @@ export function useFeedbackDeepLinkParam({
     setHighlightedReservationId(outcome.reservation.id);
     setDeepLinkTriggerSeq((prev) => prev + 1);
 
-    if (outcome.kind === 'mentee-open-dialog') {
+    if (
+      outcome.kind === 'mentee-open-dialog' ||
+      outcome.kind === 'mentor-open-dialog'
+    ) {
       setAutoExpandedReservationId(null);
       setLatchedDialogReservation(outcome.reservation);
       return;

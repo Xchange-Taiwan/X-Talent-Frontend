@@ -623,6 +623,24 @@ export default function MeetingFeedbackDialog({
                     })}
                   </div>
                 </div>
+              ) : isMentor ? (
+                <div className="mb-3.5 flex items-center justify-between gap-3">
+                  <span
+                    data-testid="feedback-dialog-title"
+                    className="text-text-primary text-base font-semibold"
+                  >
+                    確認會談
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="關閉回饋視窗"
+                    disabled={isSubmitting}
+                    onClick={handleCloseOrSkipClick}
+                    className="text-text-secondary hover:bg-background-bottom hover:text-text-primary focus-visible:ring-brand-500 inline-flex size-7 shrink-0 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-45"
+                  >
+                    <X className="size-4" aria-hidden="true" />
+                  </button>
+                </div>
               ) : null}
 
               <div
@@ -654,7 +672,7 @@ export default function MeetingFeedbackDialog({
                   </div>
                 </div>
 
-                {!isQueueMode ? (
+                {!isQueueMode && !isMentor ? (
                   <button
                     type="button"
                     aria-label="關閉回饋視窗"
@@ -720,6 +738,7 @@ export default function MeetingFeedbackDialog({
                     />
                   ) : (
                     <NotHappenedStepContent
+                      isMentor={isMentor}
                       notHappenedReason={notHappenedReason}
                       notHappenedNote={notHappenedNote}
                       noteError={noteError}

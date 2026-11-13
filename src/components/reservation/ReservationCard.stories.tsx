@@ -357,3 +357,111 @@ export const HistoryMenteeNotHappened: Story = {
     ),
   },
 };
+
+// 10. Mentor History - Needs Session Confirmation (#735 top-right 確認會談 button)
+export const HistoryMentorNeedsConfirmation: Story = {
+  args: {
+    variant: 'history',
+    sourceRole: 'mentor',
+    item: {
+      ...mockReservation,
+      viewerRole: 'MENTOR',
+      feedback: {
+        meetingHappened: null,
+        rating: null,
+        nextStep: 'ANSWER',
+      },
+    },
+    headerAction: (
+      <MeetingFeedbackDialog
+        viewerRole="mentor"
+        reservation={{
+          ...mockReservation,
+          viewerRole: 'MENTOR',
+        }}
+        onSubmitFeedback={async () => {}}
+      />
+    ),
+    footer: (
+      <ReservationConversationDialog
+        reservation={mockReservation}
+        sourceRole="mentor"
+      />
+    ),
+  },
+};
+
+// 11. Mentor History - Confirmed Session With Public Mentee Rating (#735 查看紀錄 ⌄ + 遮罩姓名 · 分數/10 · 日期)
+export const HistoryMentorConfirmedWithPublicRating: Story = {
+  args: {
+    variant: 'history',
+    sourceRole: 'mentor',
+    item: {
+      ...mockReservation,
+      viewerRole: 'MENTOR',
+      feedback: {
+        meetingHappened: true,
+        myMeetingHappened: true,
+        rating: {
+          rating: 9,
+          content: '問題拆解清晰、建議可立即落地，非常感謝導師撥空指導。',
+          createdAt: 1761609600,
+          updatedAt: 1761609600,
+          authorName: '王＊明',
+          isPublic: true,
+        },
+        nextStep: null,
+      },
+    },
+    headerAction: (
+      <ReservationFeedbackHeaderToggle
+        action={{ kind: 'feedback-toggle', label: '查看紀錄' }}
+        isExpanded={true}
+        onToggle={() => {}}
+      />
+    ),
+    feedbackContent: (
+      <ReservationFeedbackBlock
+        model={{
+          kind: 'public-rating',
+          label: '學員評價',
+          rating: 9,
+          content: '問題拆解清晰、建議可立即落地，非常感謝導師撥空指導。',
+          authorMaskedName: '王＊明',
+          formattedDate: '2025/10/28',
+          mentorAttendanceLabel: '已回報：有進行',
+          canEdit: false,
+        }}
+      />
+    ),
+    footer: (
+      <ReservationConversationDialog
+        reservation={mockReservation}
+        sourceRole="mentor"
+      />
+    ),
+  },
+};
+
+// 12. Mentor History - Session Reported Not Happened (#735 locked 未進行 badge)
+export const HistoryMentorNotHappened: Story = {
+  args: {
+    variant: 'history',
+    sourceRole: 'mentor',
+    item: {
+      ...mockReservation,
+      viewerRole: 'MENTOR',
+      feedback: {
+        meetingHappened: false,
+        myMeetingHappened: false,
+        rating: null,
+        nextStep: null,
+      },
+    },
+    headerAction: (
+      <Badge variant="secondary" role="status">
+        未進行
+      </Badge>
+    ),
+  },
+};

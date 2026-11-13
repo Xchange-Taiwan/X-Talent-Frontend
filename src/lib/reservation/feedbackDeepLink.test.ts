@@ -236,7 +236,7 @@ describe('feedbackDeepLink helpers (#733)', () => {
       });
     });
 
-    it('resolves mentor-locate-card for mentor role and flags public mentee rating for expansion', () => {
+    it('resolves mentor-open-dialog when Mentor is pending confirmation (#735) and mentor-locate-card once answered', () => {
       expect(
         resolveDeepLinkOutcome({
           role: 'mentor',
@@ -244,9 +244,8 @@ describe('feedbackDeepLink helpers (#733)', () => {
           history,
         })
       ).toEqual({
-        kind: 'mentor-locate-card',
+        kind: 'mentor-open-dialog',
         reservation: pendingReservation,
-        shouldExpandFeedback: false,
       });
 
       expect(
@@ -258,6 +257,73 @@ describe('feedbackDeepLink helpers (#733)', () => {
       ).toEqual({
         kind: 'mentor-locate-card',
         reservation: ratedReservation,
+        shouldExpandFeedback: true,
+      });
+
+      expect(
+        resolveDeepLinkOutcome({
+          role: 'mentor',
+          targetReservationId: '103',
+          history,
+        })
+      ).toEqual({
+        kind: 'mentor-locate-card',
+        reservation: notHappenedReservation,
+        shouldExpandFeedback: false,
+      });
+
+      expect(
+        resolveDeepLinkOutcome({
+          role: 'mentor',
+          targetReservationId: '104',
+          history,
+        })
+      ).toEqual({
+        kind: 'mentor-locate-card',
+        reservation: cancelledReservation,
+        shouldExpandFeedback: false,
+      });
+
+      const mentorUnansweredMenteeYesNoRating = fromPartial<Reservation>({
+        id: '106',
+        feedback: {
+          meetingHappened: true,
+          myMeetingHappened: null,
+          rating: null,
+          nextStep: null,
+        },
+      });
+      const mentorConfirmedYesNoRating = fromPartial<Reservation>({
+        id: '107',
+        feedback: {
+          meetingHappened: false,
+          myMeetingHappened: true,
+          rating: null,
+          nextStep: null,
+        },
+      });
+
+      expect(
+        resolveDeepLinkOutcome({
+          role: 'mentor',
+          targetReservationId: '106',
+          history: [mentorUnansweredMenteeYesNoRating],
+        })
+      ).toEqual({
+        kind: 'mentor-locate-card',
+        reservation: mentorUnansweredMenteeYesNoRating,
+        shouldExpandFeedback: false,
+      });
+
+      expect(
+        resolveDeepLinkOutcome({
+          role: 'mentor',
+          targetReservationId: '107',
+          history: [mentorConfirmedYesNoRating],
+        })
+      ).toEqual({
+        kind: 'mentor-locate-card',
+        reservation: mentorConfirmedYesNoRating,
         shouldExpandFeedback: true,
       });
     });
