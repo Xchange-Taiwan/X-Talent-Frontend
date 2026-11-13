@@ -204,6 +204,14 @@ jobs:
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET_DEV }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
+          if [ -z "$BRANCH_NAME" ]; then
+            DETECTED_WIP_BR=$(node scripts/cloud-wip-checkpoint.mjs prepare-resume --ticket="$TICKET_NUMBER" || echo "")
+            if [ -n "$DETECTED_WIP_BR" ]; then
+              BRANCH_NAME="$DETECTED_WIP_BR"
+              echo "SAFE_BRANCH_NAME=${BRANCH_NAME}" >> "$GITHUB_ENV"
+              echo "::notice::Resuming from saved cloud WIP checkpoint branch '${BRANCH_NAME}'."
+            fi
+          fi
           if [ -n "$BRANCH_NAME" ]; then
             git fetch origin "$BRANCH_NAME"
             git checkout "$BRANCH_NAME" || git checkout -b "$BRANCH_NAME" "origin/$BRANCH_NAME"
@@ -221,7 +229,7 @@ jobs:
       - name: Run Gemini CLI to implement or complete ticket requirements (Phase 1)
         if: env.SCOPE_SKIPPED != 'true'
         id: gemini_implement
-        timeout-minutes: 18
+        timeout-minutes: 30
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
@@ -251,7 +259,7 @@ jobs:
           1. 直接讀取 .agents/tmp/ticket-spec.md；若規格末段列有預先下載至 .agents/tmp/ticket-images/ 的附圖或 Design Hub 原型截圖與 -dom.md 樣式摘要，請務必先用 read_file 逐一檢視圖片細節與 CSS 數值，並對照 git diff origin/develop 與所有驗收條件（Acceptance Criteria）。
           2. 補齊尚未實作完畢的需求、Vitest 單元測試、Playwright E2E (.spec.ts) 與對應的 Storybook (.stories.tsx) 檔案（嚴禁手動修改自動產生的 src/types/api.ts；嚴禁修改 .storybook/storiesCoverage.test.tsx，該測試已改為自動掃描全站 .stories.tsx）。
           3. 互動式 UI 證據截圖要求：只要本次變更涉及前端畫面或 UI 元件（src/app/** 或 src/components/**），請務必在對應的 Playwright E2E (.spec.ts) 中引入 captureEvidence，並在實際互動打開目標狀態且 expect(...).toBeVisible() 通過後呼叫 await captureEvidence(page, '<描述性狀態名稱>')。
-          4. 極速批次開發規範：一次規劃並批次寫完所有元件、Storybook、單元測試與 E2E 檔案後請立即結束回覆（Phase 2 漏斗快篩會自動平行執行 lint、type-check、單元測試與 Turbopack E2E 截圖驗證）。
+          4. 極速批次開發規範：修改任何既有檔案前請務必先用 read_file（長檔案搭配 offset / limit）讀取目標區段的精確原始碼，切勿憑猜測呼叫 replace；一次規劃並批次寫完所有元件、Storybook、單元測試與 E2E 檔案後請立即結束回覆（Phase 2 漏斗快篩會自動平行執行 lint、type-check、單元測試與 Turbopack E2E 截圖驗證）。
           EOF
           else
             printf '請針對 https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/%s 執行第一階段程式碼與測試實作：\n1. Issue #%s 的完整規格、留言與視覺參考圖清單已預先下載至 .agents/tmp/ticket-spec.md，請直接讀取 .agents/tmp/ticket-spec.md。\n' "$TICKET_NUMBER" "$TICKET_NUMBER" > "$PROMPT_FILE"
@@ -259,12 +267,16 @@ jobs:
           若列有 .agents/tmp/ticket-images/ 下的設計參考圖或 Design Hub 原型截圖與 -dom.md 樣式摘要，動手寫 UI 前請務必先用 read_file 逐一檢視圖片，確保排版、字級與狀態 1:1 對齊。
           2. 根據需求完成程式碼、Vitest 單元測試、Playwright E2E (.spec.ts) 與 Storybook (.stories.tsx) 檔案（嚴禁手動修改自動產生的 src/types/api.ts；嚴禁修改 .storybook/storiesCoverage.test.tsx，該測試已改為自動掃描全站 .stories.tsx）。
           3. 互動式 UI 證據截圖要求：只要涉及前端畫面或 UI 元件（src/app/** 或 src/components/**），請在 Playwright E2E (.spec.ts) 中引入 captureEvidence，並在實際互動打開目標狀態且 expect(...).toBeVisible() 通過後呼叫 await captureEvidence(page, '<描述性狀態名稱>')。
-          4. 極速批次開發規範：一次規劃並批次寫完所有元件、Storybook、單元測試與 E2E 檔案後請立即結束回覆（Phase 2 漏斗快篩會自動平行執行 lint、type-check、單元測試與 Turbopack E2E 截圖驗證）。
+          4. 極速批次開發規範：修改任何既有檔案前請務必先用 read_file（長檔案搭配 offset / limit）讀取目標區段的精確原始碼，切勿憑猜測呼叫 replace；一次規劃並批次寫完所有元件、Storybook、單元測試與 E2E 檔案後請立即結束回覆（Phase 2 漏斗快篩會自動平行執行 lint、type-check、單元測試與 Turbopack E2E 截圖驗證）。
           EOF
           fi
           printf '\n%s\n%s\n' "$SCOPE_GUIDANCE" "$EXTRA_PROMPT" >> "$PROMPT_FILE"
-          npx gemini -m "$GEMINI_MODEL" --approval-mode=yolo --skip-trust -p "$(cat "$PROMPT_FILE")"
+          set +e
+          timeout --signal=TERM --kill-after=20s 26m npx gemini -m "$GEMINI_MODEL" --approval-mode=yolo --skip-trust -p "$(cat "$PROMPT_FILE")"
+          PHASE1_EXIT=$?
+          set -e
           rm -f "$PROMPT_FILE"
+          node scripts/cloud-wip-checkpoint.mjs verify-phase1 --exit-code="$PHASE1_EXIT"
 
       - name: Run Fast Funnel Deterministic & Playwright E2E Verification Loop (Phase 2)
         if: env.SCOPE_SKIPPED != 'true'
@@ -295,6 +307,15 @@ jobs:
           TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER }}
         run: bash .agents/scripts/cloud-submit-pr.sh implement
 
+      - name: Save WIP checkpoint to ticket branch on unconverged failure
+        if: failure() && env.SCOPE_SKIPPED != 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER }}
+        run: node scripts/cloud-wip-checkpoint.mjs save --ticket="$TICKET_NUMBER"
+
       - name: Finalize and notify Discord Worker (Suggestion 4 auto-recovery & Vercel limit detection)
         if: always()
         env:
@@ -304,6 +325,7 @@ jobs:
           JOB_STATUS: ${{ job.status }}
           SCOPE_SKIPPED: ${{ env.SCOPE_SKIPPED }}
           SCOPE_SKIP_REASON: ${{ env.SCOPE_SKIP_REASON }}
+          WIP_CHECKPOINT_BRANCH: ${{ env.WIP_CHECKPOINT_BRANCH }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           rm -f .env.development.local .env.e2e.local
@@ -340,6 +362,9 @@ jobs:
           elif [ -n "$PR_NUMBER" ] && [ "$JOB_STATUS" = "success" ]; then
             STATUS="implement_succeeded"
             MSG="雲端 AI 已完成測試與截圖驗證並開出草稿 PR #${PR_NUMBER}（等待線上 AI Review 審查）"
+          elif [ -n "${WIP_CHECKPOINT_BRANCH:-}" ]; then
+            STATUS="implement_failed"
+            MSG="雲端實作未完全收斂（狀態: ${JOB_STATUS}），已將目前進度保存至分支 ${WIP_CHECKPOINT_BRANCH}，重試將自動接續完成"
           else
             STATUS="implement_failed"
             MSG="雲端實作未完成（狀態: ${JOB_STATUS}），按鈕已自動解鎖可重試"
