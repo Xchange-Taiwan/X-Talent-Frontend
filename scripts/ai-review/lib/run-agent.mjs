@@ -43,7 +43,20 @@ export async function runAgent({ promptUrl, upstreamEnvVars, outputName }) {
     ...upstreamReplacements,
   });
 
-  const result = await callGemini(prompt);
+  let result;
+  try {
+    result = await callGemini(prompt);
+  } catch (err) {
+    console.warn(
+      `[${outputName}] Non-fatal error after retries (${err.message}); emitting skippedDueToError fallback.`
+    );
+    result = {
+      hasFindings: false,
+      skippedDueToError: true,
+      summary: `此領域審查因暫時性錯誤略過（${err.message}）`,
+      findings: [],
+    };
+  }
   console.log(`[${outputName}] result:`, JSON.stringify(result, null, 2));
   writeGithubOutput(outputName, encodeContext(result));
   return result;
