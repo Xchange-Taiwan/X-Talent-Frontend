@@ -178,3 +178,38 @@ export const FeedbackReceivedForMentor: Story = {
     ],
   },
 };
+
+export const OfficialFeedbackNotificationTypes: Story = {
+  args: {
+    initialStatus: 'success',
+    initialNotifications: [
+      {
+        id: 'official-feedback-requested-1',
+        type: 'reservation_feedback_requested',
+        role: 'mentee',
+        mentorName: 'Emily Chen',
+        reservationId: '101',
+        createdAt: new Date().toISOString(),
+        unread: true,
+      },
+      {
+        id: 'official-attendance-requested-2',
+        type: 'reservation_attendance_requested',
+        role: 'mentor',
+        menteeName: '林學員',
+        reservationId: '205',
+        createdAt: new Date(Date.now() - 900 * 1000).toISOString(),
+        unread: true,
+      },
+      {
+        id: 'official-feedback-received-3',
+        type: 'reservation_feedback_received',
+        role: 'mentor',
+        menteeName: 'Zahra Mirzakhani',
+        reservationId: '201',
+        createdAt: new Date(Date.now() - 1800 * 1000).toISOString(),
+        unread: false,
+      },
+    ],
+  },
+};

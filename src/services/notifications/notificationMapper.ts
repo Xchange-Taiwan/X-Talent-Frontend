@@ -7,11 +7,27 @@ import type { NotificationItem } from './types';
 // this many digits in the year 2286).
 const SECONDS_TIMESTAMP_MAX = 9999999999;
 
-const MENTOR_FEEDBACK_RECEIVED_TYPES = new Set<string>([
+const MENTOR_DEFAULT_NOTIFICATION_TYPES = new Set<string>([
   'feedback_received',
   'reservation_feedback_received',
   'meeting_feedback_received',
+  'reservation_attendance_requested',
 ]);
+
+const MENTEE_DEFAULT_NOTIFICATION_TYPES = new Set<string>([
+  'reservation_feedback_requested',
+]);
+
+function normalizeNotificationRole(
+  rawRole: unknown
+): 'mentor' | 'mentee' | undefined {
+  if (typeof rawRole !== 'string') return undefined;
+  const lowered = rawRole.trim().toLowerCase();
+  if (lowered === 'mentor' || lowered === 'mentee') {
+    return lowered;
+  }
+  return undefined;
+}
 
 function normalizeOptionalString(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
@@ -29,11 +45,14 @@ export function mapNotificationVOToItem(
   apiItem: components['schemas']['NotificationVO']
 ): NotificationItem {
   const isUnread = !apiItem.read_at;
-  const isMentorFeedbackReceived = MENTOR_FEEDBACK_RECEIVED_TYPES.has(
+  const isMentorDefaultType = MENTOR_DEFAULT_NOTIFICATION_TYPES.has(
+    apiItem.type
+  );
+  const isMenteeDefaultType = MENTEE_DEFAULT_NOTIFICATION_TYPES.has(
     apiItem.type
   );
   const metadata = (apiItem.metadata || {}) as {
-    role?: 'mentor' | 'mentee';
+    role?: 'mentor' | 'mentee' | 'MENTOR' | 'MENTEE';
     actor_role?: 'mentor' | 'mentee' | 'system';
     counterparty_name?: string;
     mentee_name?: string;
@@ -49,7 +68,12 @@ export function mapNotificationVOToItem(
   const { role, actor_role, counterparty_name, dtstart, dtend } = metadata;
 
   const resolvedRole =
-    role ?? (isMentorFeedbackReceived ? 'mentor' : undefined);
+    normalizeNotificationRole(role) ??
+    (isMentorDefaultType
+      ? 'mentor'
+      : isMenteeDefaultType
+        ? 'mentee'
+        : undefined);
   const explicitMenteeName =
     normalizeOptionalString(metadata.mentee_name) ??
     normalizeOptionalString(metadata.menteeName);

@@ -1,3 +1,4 @@
+import { fromAny } from '@total-typescript/shoehorn';
 import { describe, expect, it } from 'vitest';
 
 import { mapNotificationVOToItem } from '@/services/notifications/notificationMapper';
@@ -196,5 +197,34 @@ describe('mapNotificationVOToItem', () => {
     expect(explicitMenteeFieldItem.role).toBe('mentor');
     expect(explicitMenteeFieldItem.menteeName).toBe('林學員');
     expect(explicitMenteeFieldItem.reservationId).toBe('408');
+  });
+
+  it('maps #760 §7 official types reservation_feedback_requested and reservation_attendance_requested with default roles (#875)', () => {
+    const menteeReq = mapNotificationVOToItem({
+      ...baseApiItem,
+      type: 'reservation_feedback_requested',
+      metadata: {
+        counterparty_name: 'Emily Chen',
+        reservation_id: 101,
+      },
+    });
+    expect(menteeReq.type).toBe('reservation_feedback_requested');
+    expect(menteeReq.role).toBe('mentee');
+    expect(menteeReq.mentorName).toBe('Emily Chen');
+    expect(menteeReq.reservationId).toBe('101');
+
+    const mentorAttendanceReq = mapNotificationVOToItem({
+      ...baseApiItem,
+      type: 'reservation_attendance_requested',
+      metadata: {
+        role: fromAny('MENTOR'),
+        counterparty_name: '林學員',
+        reservation_id: 205,
+      },
+    });
+    expect(mentorAttendanceReq.type).toBe('reservation_attendance_requested');
+    expect(mentorAttendanceReq.role).toBe('mentor');
+    expect(mentorAttendanceReq.menteeName).toBe('林學員');
+    expect(mentorAttendanceReq.reservationId).toBe('205');
   });
 });

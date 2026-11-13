@@ -516,4 +516,169 @@ describe('useFeedbackDeepLinkParam (#733)', () => {
     expect(result.current.highlightedReservationId).toBeNull();
     expect(result.current.autoExpandedReservationId).toBeNull();
   });
+
+  it('uses single-reservation lookup fallback when target is outside loaded pages and opens dialog or switches role (#875)', async () => {
+    currentQuery = 'tab=history&reservation_id=888';
+
+    const lookupItem = fromPartial<Reservation>({
+      id: '888',
+      name: 'Emily Chen',
+      feedback: {
+        meetingHappened: null,
+        rating: null,
+        nextStep: 'ANSWER',
+      },
+    });
+    const lookupSingleFeedback = vi.fn().mockResolvedValueOnce({
+      viewerRole: 'mentee',
+      reservation: lookupItem,
+    });
+
+    const { result } = renderHook(() =>
+      useFeedbackDeepLinkParam({
+        userRole: 'mentee',
+        myUserId: '1',
+        history: [],
+        isHistoryLoaded: true,
+        isLoadingHistory: false,
+        hasMoreHistory: false,
+        lookupSingleFeedback,
+      })
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(lookupSingleFeedback).toHaveBeenCalledWith({
+      userId: '1',
+      reservationId: '888',
+      fallbackRole: 'mentee',
+      signal: expect.any(AbortSignal),
+    });
+    expect(result.current.deepLinkDialogReservation).toBe(lookupItem);
+    expect(mockToast).not.toHaveBeenCalled();
+
+    // Unmounting while lookup is in-flight aborts signal and suppresses stale not-found toast
+    currentQuery = 'tab=history&reservation_id=890';
+    let capturedSignal: AbortSignal | undefined;
+    let resolveInFlight: ((val: null) => void) | undefined;
+    const inFlightLookup = vi.fn().mockImplementation(({ signal }) => {
+      capturedSignal = signal;
+      return new Promise<null>((resolve) => {
+        resolveInFlight = resolve;
+      });
+    });
+
+    const { unmount } = renderHook(() =>
+      useFeedbackDeepLinkParam({
+        userRole: 'mentee',
+        myUserId: '1',
+        history: [],
+        isHistoryLoaded: true,
+        isLoadingHistory: false,
+        hasMoreHistory: false,
+        lookupSingleFeedback: inFlightLookup,
+      })
+    );
+
+    unmount();
+    expect(capturedSignal?.aborted).toBe(true);
+
+    await act(async () => {
+      resolveInFlight?.(null);
+      await Promise.resolve();
+    });
+    expect(mockToast).not.toHaveBeenCalled();
+
+    // Cross-role redirect when lookup reveals target belongs to mentor view
+    currentQuery = 'tab=history&reservation_id=889';
+    const crossRoleLookup = vi.fn().mockResolvedValueOnce({
+      viewerRole: 'mentor',
+      reservation: fromPartial<Reservation>({ id: '889' }),
+    });
+
+    renderHook(() =>
+      useFeedbackDeepLinkParam({
+        userRole: 'mentee',
+        myUserId: '1',
+        history: [],
+        isHistoryLoaded: true,
+        isLoadingHistory: false,
+        hasMoreHistory: false,
+        lookupSingleFeedback: crossRoleLookup,
+      })
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockReplace).toHaveBeenCalledWith(
+      '/reservation/mentor?tab=history&reservation_id=889',
+      { scroll: false }
+    );
+
+    // 404 (null) and 500 (rejected) single-reservation lookup fallbacks show friendly not-found toast and clean query
+    vi.clearAllMocks();
+    currentQuery = 'tab=history&reservation_id=404';
+    const nullLookup = vi.fn().mockResolvedValueOnce(null);
+
+    renderHook(() =>
+      useFeedbackDeepLinkParam({
+        userRole: 'mentee',
+        myUserId: '1',
+        history: [],
+        isHistoryLoaded: true,
+        isLoadingHistory: false,
+        hasMoreHistory: false,
+        lookupSingleFeedback: nullLookup,
+      })
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockToast).toHaveBeenCalledWith({
+      title: '找不到指定的會談紀錄',
+      description: '請確認您登入的帳號是否正確，或於歷史紀錄列表查看。',
+    });
+    expect(mockReplace).toHaveBeenCalledWith(
+      '/reservation/mentee?tab=history',
+      { scroll: false }
+    );
+
+    vi.clearAllMocks();
+    currentQuery = 'tab=history&reservation_id=500';
+    const rejectedLookup = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('500 Internal Error'));
+
+    renderHook(() =>
+      useFeedbackDeepLinkParam({
+        userRole: 'mentee',
+        myUserId: '1',
+        history: [],
+        isHistoryLoaded: true,
+        isLoadingHistory: false,
+        hasMoreHistory: false,
+        lookupSingleFeedback: rejectedLookup,
+      })
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockToast).toHaveBeenCalledWith({
+      title: '找不到指定的會談紀錄',
+      description: '請確認您登入的帳號是否正確，或於歷史紀錄列表查看。',
+    });
+    expect(mockReplace).toHaveBeenCalledWith(
+      '/reservation/mentee?tab=history',
+      { scroll: false }
+    );
+  });
 });

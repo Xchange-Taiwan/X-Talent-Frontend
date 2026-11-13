@@ -6,21 +6,33 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import {
   extractDeepLinkReservationId,
+  type FeedbackDeepLinkResolution,
   resolveDeepLinkOutcome,
   stripDeepLinkQueryParams,
 } from '@/lib/reservation/feedbackDeepLink';
+import {
+  fetchSingleReservationFeedback,
+  type ReservationFeedbackLookupResult,
+} from '@/services/reservations';
 import type { Reservation } from '@/types/reservation';
 
 const MAX_DEEP_LINK_LOAD_MORE_PAGES = 3;
 
 export interface UseFeedbackDeepLinkParamOptions {
   userRole: 'mentee' | 'mentor';
+  myUserId?: string;
   history: Reservation[];
   isHistoryLoaded: boolean;
   isLoadingHistory: boolean;
   isLoadingMoreHistory?: boolean;
   hasMoreHistory?: boolean;
   onLoadMoreHistory?: () => void;
+  lookupSingleFeedback?: (opts: {
+    userId: string;
+    reservationId: string;
+    fallbackRole: 'mentee' | 'mentor';
+    signal?: AbortSignal;
+  }) => Promise<ReservationFeedbackLookupResult | null>;
 }
 
 export interface UseFeedbackDeepLinkParamResult {
@@ -35,12 +47,14 @@ export interface UseFeedbackDeepLinkParamResult {
 
 export function useFeedbackDeepLinkParam({
   userRole,
+  myUserId,
   history,
   isHistoryLoaded,
   isLoadingHistory,
   isLoadingMoreHistory = false,
   hasMoreHistory = false,
   onLoadMoreHistory,
+  lookupSingleFeedback = fetchSingleReservationFeedback,
 }: UseFeedbackDeepLinkParamOptions): UseFeedbackDeepLinkParamResult {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -63,8 +77,21 @@ export function useFeedbackDeepLinkParam({
   const prevRoleRef = useRef(userRole);
   const activeTargetKeyRef = useRef<string | null>(null);
   const handledKeyRef = useRef<string | null>(null);
+  const singleLookupKeyRef = useRef<string | null>(null);
+  const lookupAbortRef = useRef<AbortController | null>(null);
+  const isMountedRef = useRef(true);
   const autoLoadCountRef = useRef(0);
   const lastAutoLoadHistoryLengthRef = useRef(-1);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      lookupAbortRef.current?.abort();
+      lookupAbortRef.current = null;
+      singleLookupKeyRef.current = null;
+    };
+  }, []);
 
   const clearDeepLinkFocus = useCallback(() => {
     setLatchedDialogReservation(null);
@@ -90,11 +117,81 @@ export function useFeedbackDeepLinkParam({
     clearDeepLinkParams();
   }, [clearDeepLinkParams]);
 
+  const applyResolvedOutcome = useCallback(
+    (
+      targetKey: string,
+      outcome: Exclude<FeedbackDeepLinkResolution, { kind: 'not-found' }>
+    ) => {
+      handledKeyRef.current = targetKey;
+      setHighlightedReservationId(outcome.reservation.id);
+      setDeepLinkTriggerSeq((prev) => prev + 1);
+
+      if (
+        outcome.kind === 'mentee-open-dialog' ||
+        outcome.kind === 'mentor-open-dialog'
+      ) {
+        setAutoExpandedReservationId(null);
+        setLatchedDialogReservation(outcome.reservation);
+        return;
+      }
+
+      if (outcome.kind === 'mentee-already-rated') {
+        setAutoExpandedReservationId(outcome.reservation.id);
+        toast({
+          title: '您已填寫過此場會談回饋',
+          description: '已為您展開先前的回饋紀錄。',
+        });
+        clearDeepLinkParams();
+        return;
+      }
+
+      if (outcome.kind === 'mentee-already-resolved') {
+        setAutoExpandedReservationId(null);
+        if (outcome.reason === 'cancelled') {
+          toast({
+            title: '此預約已取消',
+            description: '已取消的預約無須填寫會談回饋。',
+          });
+        } else {
+          toast({
+            title: '您已完成此場會談紀錄',
+            description: '此場會談無須重複填寫回饋。',
+          });
+        }
+        clearDeepLinkParams();
+        return;
+      }
+
+      setAutoExpandedReservationId(
+        outcome.shouldExpandFeedback ? outcome.reservation.id : null
+      );
+      clearDeepLinkParams();
+    },
+    [clearDeepLinkParams, toast]
+  );
+
+  const applyNotFoundOutcome = useCallback(
+    (targetKey: string) => {
+      handledKeyRef.current = targetKey;
+      setHighlightedReservationId(null);
+      setAutoExpandedReservationId(null);
+      toast({
+        title: '找不到指定的會談紀錄',
+        description: '請確認您登入的帳號是否正確，或於歷史紀錄列表查看。',
+      });
+      clearDeepLinkParams();
+    },
+    [clearDeepLinkParams, toast]
+  );
+
   useEffect(() => {
     if (prevRoleRef.current !== userRole) {
       prevRoleRef.current = userRole;
+      lookupAbortRef.current?.abort();
+      lookupAbortRef.current = null;
       activeTargetKeyRef.current = null;
       handledKeyRef.current = null;
+      singleLookupKeyRef.current = null;
       autoLoadCountRef.current = 0;
       lastAutoLoadHistoryLengthRef.current = -1;
       setLatchedDialogReservation(null);
@@ -103,8 +200,11 @@ export function useFeedbackDeepLinkParam({
     }
 
     if (!targetReservationId) {
+      lookupAbortRef.current?.abort();
+      lookupAbortRef.current = null;
       activeTargetKeyRef.current = null;
       handledKeyRef.current = null;
+      singleLookupKeyRef.current = null;
       autoLoadCountRef.current = 0;
       lastAutoLoadHistoryLengthRef.current = -1;
       if (latchedDialogReservation !== null) {
@@ -115,7 +215,10 @@ export function useFeedbackDeepLinkParam({
 
     const targetKey = `${userRole}:${targetReservationId}`;
     if (activeTargetKeyRef.current !== targetKey) {
+      lookupAbortRef.current?.abort();
+      lookupAbortRef.current = null;
       activeTargetKeyRef.current = targetKey;
+      singleLookupKeyRef.current = null;
       autoLoadCountRef.current = 0;
       lastAutoLoadHistoryLengthRef.current = -1;
       if (latchedDialogReservation !== null) {
@@ -151,73 +254,84 @@ export function useFeedbackDeepLinkParam({
         return;
       }
 
-      handledKeyRef.current = targetKey;
-      setHighlightedReservationId(null);
-      setAutoExpandedReservationId(null);
-      toast({
-        title: '找不到指定的會談紀錄',
-        description: '請確認您登入的帳號是否正確，或於歷史紀錄列表查看。',
-      });
-      clearDeepLinkParams();
-      return;
-    }
-
-    handledKeyRef.current = targetKey;
-    setHighlightedReservationId(outcome.reservation.id);
-    setDeepLinkTriggerSeq((prev) => prev + 1);
-
-    if (
-      outcome.kind === 'mentee-open-dialog' ||
-      outcome.kind === 'mentor-open-dialog'
-    ) {
-      setAutoExpandedReservationId(null);
-      setLatchedDialogReservation(outcome.reservation);
-      return;
-    }
-
-    if (outcome.kind === 'mentee-already-rated') {
-      setAutoExpandedReservationId(outcome.reservation.id);
-      toast({
-        title: '您已填寫過此場會談回饋',
-        description: '已為您展開先前的回饋紀錄。',
-      });
-      clearDeepLinkParams();
-      return;
-    }
-
-    if (outcome.kind === 'mentee-already-resolved') {
-      setAutoExpandedReservationId(null);
-      if (outcome.reason === 'cancelled') {
-        toast({
-          title: '此預約已取消',
-          description: '已取消的預約無須填寫會談回饋。',
-        });
-      } else {
-        toast({
-          title: '您已完成此場會談紀錄',
-          description: '此場會談無須重複填寫回饋。',
-        });
+      const cleanUserId = myUserId?.trim() ?? '';
+      if (!cleanUserId) {
+        applyNotFoundOutcome(targetKey);
+        return;
       }
-      clearDeepLinkParams();
+
+      if (singleLookupKeyRef.current === targetKey) {
+        return;
+      }
+      singleLookupKeyRef.current = targetKey;
+      const controller = new AbortController();
+      lookupAbortRef.current = controller;
+
+      void lookupSingleFeedback({
+        userId: cleanUserId,
+        reservationId: targetReservationId,
+        fallbackRole: userRole,
+        signal: controller.signal,
+      })
+        .then((lookupResult) => {
+          if (
+            !isMountedRef.current ||
+            controller.signal.aborted ||
+            activeTargetKeyRef.current !== targetKey
+          ) {
+            return;
+          }
+          if (!lookupResult) {
+            applyNotFoundOutcome(targetKey);
+            return;
+          }
+          if (lookupResult.viewerRole !== userRole) {
+            handledKeyRef.current = targetKey;
+            router.replace(
+              `/reservation/${lookupResult.viewerRole}?tab=history&reservation_id=${encodeURIComponent(targetReservationId)}`,
+              { scroll: false }
+            );
+            return;
+          }
+          const singleOutcome = resolveDeepLinkOutcome({
+            role: userRole,
+            targetReservationId,
+            history: [lookupResult.reservation],
+          });
+          if (singleOutcome.kind === 'not-found') {
+            applyNotFoundOutcome(targetKey);
+            return;
+          }
+          applyResolvedOutcome(targetKey, singleOutcome);
+        })
+        .catch(() => {
+          if (
+            !isMountedRef.current ||
+            controller.signal.aborted ||
+            activeTargetKeyRef.current !== targetKey
+          ) {
+            return;
+          }
+          applyNotFoundOutcome(targetKey);
+        });
       return;
     }
 
-    // Mentor locate-card outcome
-    setAutoExpandedReservationId(
-      outcome.shouldExpandFeedback ? outcome.reservation.id : null
-    );
-    clearDeepLinkParams();
+    applyResolvedOutcome(targetKey, outcome);
   }, [
-    clearDeepLinkParams,
+    applyNotFoundOutcome,
+    applyResolvedOutcome,
     hasMoreHistory,
     history,
     isHistoryLoaded,
     isLoadingHistory,
     isLoadingMoreHistory,
     latchedDialogReservation,
+    lookupSingleFeedback,
+    myUserId,
     onLoadMoreHistory,
+    router,
     targetReservationId,
-    toast,
     userRole,
   ]);
 

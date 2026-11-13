@@ -6,6 +6,8 @@ export type NotificationItem = {
     | 'reservation_failed'
     | 'reservation_canceled'
     | 'reservation_upcoming'
+    | 'reservation_feedback_requested'
+    | 'reservation_attendance_requested'
     | 'feedback_reminder'
     | 'reservation_feedback_reminder'
     | 'meeting_feedback_reminder'

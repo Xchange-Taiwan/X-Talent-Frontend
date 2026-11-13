@@ -270,6 +270,36 @@ test.describe('會談結束回饋提醒：站內通知與 Email 深連結導向 
 
     await mockMenteeReservations(page, historyItems);
     await mockNotifications(page, []);
+    await page.route(
+      new RegExp(`/v1/users/${MENTEE_USER_ID}/reservations/101/feedback$`),
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            code: '0',
+            msg: 'ok',
+            data: {
+              reservation_id: 101,
+              role: 'MENTEE',
+              counterpart: {
+                name: 'Emily Chen',
+                avatar: '',
+                job_title: 'UI/UX 設計師',
+                company: 'Tech Corp',
+              },
+              dtstart: 1760958000,
+              dtend: 1760959800,
+              cancelled_by: null,
+              feedback: {
+                meeting_happened: null,
+                rating: null,
+                next_step: 'ANSWER',
+              },
+            },
+          }),
+        })
+    );
 
     let isAuthenticated = false;
     await page.route(/\/api\/auth\/session/, (route) =>
@@ -293,21 +323,21 @@ test.describe('會談結束回饋提醒：站內通知與 Email 深連結導向 
       });
     });
 
-    // 1. Unauthenticated user clicks Email reminder link
-    await page.goto('/reservation/mentee?tab=history&reservationId=101');
+    // 1. Unauthenticated user clicks official #760 §7 Email reminder link (/reservation/history?reservation_id=101)
+    await page.goto('/reservation/history?reservation_id=101');
 
     await expect(page).toHaveURL(
-      /\/auth\/signin\?callbackUrl=%2Freservation%2Fmentee%3Ftab%3Dhistory%26reservationId%3D101/,
+      /\/auth\/signin\?callbackUrl=%2Freservation%2Fhistory%3Freservation_id%3D101/,
       { timeout: 15_000 }
     );
 
-    // 2. Sign in on /auth/signin -> returns to full callbackUrl (with query params intact)
+    // 2. Sign in on /auth/signin -> returns to /reservation/history?reservation_id=101 -> resolves role MENTEE -> /reservation/mentee?tab=history&reservation_id=101
     await page.fill('input[name="email"]', 'mentee@example.com');
     await page.fill('input[name="password"]', 'Password1234');
     await page.click('button[type="submit"]');
 
     await expect(page).toHaveURL(
-      /\/reservation\/mentee\?tab=history&reservationId=101/,
+      /\/reservation\/mentee\?tab=history&reservation_id=101/,
       { timeout: 15_000 }
     );
 
@@ -361,6 +391,9 @@ test.describe('會談結束回饋提醒：站內通知與 Email 深連結導向 
     await page.route(
       new RegExp(`/v1/users/${MENTEE_USER_ID}/reservations/101/feedback$`),
       (route) => {
+        if (route.request().method() !== 'POST') {
+          return route.continue();
+        }
         historyItems[0] = makeMenteeHistoryReservation(101, 'Emily Chen', {
           meeting_happened: true,
           rating: {
@@ -387,7 +420,7 @@ test.describe('會談結束回饋提醒：站內通知與 Email 深連結導向 
     await mockNotifications(page, [
       {
         id: 9001,
-        type: 'feedback_reminder',
+        type: 'reservation_feedback_requested',
         read_at: null,
         created_at: Math.floor(Date.now() / 1000),
         metadata: {
@@ -545,7 +578,7 @@ test.describe('會談結束回饋提醒：站內通知與 Email 深連結導向 
     await mockNotifications(page, [
       {
         id: 9002,
-        type: 'feedback_reminder',
+        type: 'reservation_attendance_requested',
         read_at: null,
         created_at: Math.floor(Date.now() / 1000),
         metadata: {
@@ -598,5 +631,71 @@ test.describe('會談結束回饋提醒：站內通知與 Email 深連結導向 
     ).toBeVisible();
 
     await captureEvidence(page, '733-mentor-history-deeplink-card-located');
+  });
+
+  test('目標 reservation_id 不在已載入歷史分頁內時，透過單場查詢 GET /feedback 自動開啟回饋彈窗 (#875)', async ({
+    page,
+  }) => {
+    const menteeSession = makeMenteeSession();
+    await setSignedSessionCookie(page, {
+      ...menteeSession.user,
+      token: 'mock-access-token',
+    });
+    await page.route(/\/api\/auth\/session/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(menteeSession),
+      })
+    );
+
+    await mockMenteeReservations(page, []);
+    await mockNotifications(page, []);
+    await page.route(
+      new RegExp(`/v1/users/${MENTEE_USER_ID}/reservations/555/feedback$`),
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            code: '0',
+            msg: 'ok',
+            data: {
+              reservation_id: 555,
+              role: 'MENTEE',
+              counterpart: {
+                name: 'Zahra Mirzakhani',
+                avatar: '',
+                job_title: 'Staff UX Researcher',
+                company: 'Google Taiwan',
+              },
+              dtstart: 1760958000,
+              dtend: 1760959800,
+              cancelled_by: null,
+              feedback: {
+                meeting_happened: null,
+                rating: null,
+                next_step: 'ANSWER',
+              },
+            },
+          }),
+        })
+    );
+
+    await page.goto('/reservation/history?reservation_id=555');
+    await expect(page).toHaveURL(
+      /\/reservation\/mentee\?tab=history&reservation_id=555/,
+      { timeout: 15_000 }
+    );
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText('Zahra Mirzakhani')).toBeVisible();
+
+    await captureEvidence(
+      page,
+      '875-single-feedback-lookup-fallback-dialog-open',
+      { waitForSelector: '[role="dialog"]' }
+    );
   });
 });

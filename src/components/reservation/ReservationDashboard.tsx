@@ -151,6 +151,7 @@ export function ReservationDashboardView({
     clearDeepLinkFocus,
   } = useFeedbackDeepLinkParam({
     userRole,
+    myUserId,
     history,
     isHistoryLoaded,
     isLoadingHistory,
