@@ -634,7 +634,7 @@ describe('submitReservationFeedback (#730)', () => {
       myRole: 'mentee',
       payload: {
         meeting_happened: false,
-        not_happened_reason: 'MENTOR_ABSENT',
+        not_happened_reason: 'COUNTERPART_ABSENT',
       },
     });
 
@@ -642,7 +642,7 @@ describe('submitReservationFeedback (#730)', () => {
       '/v1/users/10/reservations/res-730-absent/feedback',
       {
         meeting_happened: false,
-        not_happened_reason: 'MENTOR_ABSENT',
+        not_happened_reason: 'COUNTERPART_ABSENT',
       }
     );
     expect(
@@ -822,6 +822,43 @@ describe('submitReservationFeedback (#730)', () => {
     expect(reservationReadModel.get(unscopedHistory)).toBeUndefined();
     expect(reservationReadModel.get(scopedHistory)).toBeUndefined();
     expect(clearPoolSpy).not.toHaveBeenCalled();
+
+    // Feedback business 409s (#760 §0) invalidate history slices and rethrow ApiError (not ReservationVersionConflictError)
+    for (const businessType of [
+      'attendance_already_reported',
+      'attendance_not_allowed',
+      'mentor_unavailable',
+    ]) {
+      reservationReadModel.set(unscopedHistory, emptyPage);
+      mockPost.mockRejectedValueOnce(
+        new ApiError(409, 'Feedback conflict', '409', {
+          type: businessType,
+          message: `Business conflict: ${businessType}`,
+        })
+      );
+
+      let caught: unknown;
+      try {
+        await submitReservationFeedback({
+          reservation,
+          myUserId: '10',
+          myRole: 'mentee',
+          payload: {
+            meeting_happened: true,
+            feedback: { rating: 10, content: '測試' },
+          },
+        });
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(ApiError);
+      expect(caught).not.toBeInstanceOf(ReservationVersionConflictError);
+      expect(caught).toMatchObject({
+        status: 409,
+        data: { type: businessType },
+      });
+      expect(reservationReadModel.get(unscopedHistory)).toBeUndefined();
+    }
   });
 
   it('posts meeting_happened=false with not_happened_reason and reports Sentry failure when API throws', async () => {
@@ -1076,6 +1113,40 @@ describe('updateReservationFeedback (#731)', () => {
     expect(reservationReadModel.get(menteeHistoryKey)).toBeUndefined();
     expect(mockCaptureFailure).not.toHaveBeenCalled();
 
+    for (const businessType of [
+      'attendance_already_reported',
+      'attendance_not_allowed',
+      'mentor_unavailable',
+    ]) {
+      reservationReadModel.set(menteeHistoryKey, emptyPage);
+      mockPut.mockRejectedValueOnce(
+        new ApiError(409, `Business conflict: ${businessType}`, '409', {
+          type: businessType,
+          message: `Business conflict: ${businessType}`,
+        })
+      );
+
+      let caughtEditErr: unknown;
+      try {
+        await updateReservationFeedback({
+          reservation,
+          myUserId: '10',
+          myRole: 'mentee',
+          payload: { rating: 8, content: '業務衝突測試' },
+        });
+      } catch (err) {
+        caughtEditErr = err;
+      }
+
+      expect(caughtEditErr).toBeInstanceOf(ApiError);
+      expect(caughtEditErr).not.toBeInstanceOf(ReservationVersionConflictError);
+      expect(caughtEditErr).toMatchObject({
+        status: 409,
+        data: { type: businessType },
+      });
+      expect(reservationReadModel.get(menteeHistoryKey)).toBeUndefined();
+    }
+
     mockPut.mockRejectedValueOnce(new Error('Update feedback failed'));
 
     await expect(
@@ -1171,7 +1242,7 @@ describe('updateReservationFeedback (#731)', () => {
         myRole: 'mentor',
         payload: {
           meeting_happened: false,
-          not_happened_reason: 'MENTEE_ABSENT',
+          not_happened_reason: 'COUNTERPART_ABSENT',
         },
       });
 

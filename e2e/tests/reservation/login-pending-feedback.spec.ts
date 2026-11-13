@@ -41,56 +41,24 @@ function makePendingFeedbackReservation(opts: {
   id: number;
   counterpartyName: string;
   dtstart: number;
+  dtend?: number;
   viewerRole: 'MENTEE' | 'MENTOR';
 }) {
-  const { id, counterpartyName, dtstart, viewerRole } = opts;
+  const { id, counterpartyName, dtstart, dtend, viewerRole } = opts;
   const isMentorViewer = viewerRole === 'MENTOR';
 
   return {
-    id,
-    sender: isMentorViewer
-      ? {
-          user_id: 200 + id,
-          role: 'MENTEE',
-          status: 'ACCEPT',
-          name: counterpartyName,
-          avatar: '',
-          job_title: 'Junior Product Designer',
-          years_of_experience: 'ONE_TO_THREE',
-        }
-      : {
-          user_id: Number(USER_ID),
-          role: 'MENTEE',
-          status: 'ACCEPT',
-          name: 'Test Mentee',
-          avatar: '',
-          job_title: 'Junior Product Designer',
-          years_of_experience: 'ONE_TO_THREE',
-        },
-    participant: isMentorViewer
-      ? {
-          user_id: Number(USER_ID),
-          role: 'MENTOR',
-          status: 'ACCEPT',
-          name: 'Emily Chen',
-          avatar: '',
-          job_title: 'Senior UI/UX Designer',
-          years_of_experience: 'FIVE_TO_TEN',
-        }
-      : {
-          user_id: 100 + id,
-          role: 'MENTOR',
-          status: 'ACCEPT',
-          name: counterpartyName,
-          avatar: '',
-          job_title: 'UI/UX 設計師',
-          years_of_experience: 'FIVE_TO_TEN',
-        },
-    schedule_id: id,
+    reservation_id: id,
+    role: viewerRole,
+    counterpart: {
+      name: counterpartyName,
+      avatar: '',
+      job_title: isMentorViewer ? 'Junior Product Designer' : 'UI/UX 設計師',
+      company: isMentorViewer ? 'Design Lab' : 'Google Taiwan',
+    },
     dtstart,
-    dtend: dtstart + 1800,
-    previous_reserve: null,
-    messages: [],
+    dtend: dtend ?? dtstart + 1800,
+    cancelled_by: null,
     feedback: {
       meeting_happened: null,
       rating: null,
@@ -143,7 +111,8 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
 
     const submittedPayloads: Array<{ id: number; body: unknown }> = [];
 
-    // Deliberately return out-of-order from backend to verify frontend sorts oldest-first (由遠到近: 701 -> 702 -> 703)
+    // Deliberately return out-of-order and give 701 a later dtstart but earlier dtend than 702
+    // to verify frontend sorts by dtend ascending (#760 §6: 701 -> 702 -> 703)
     await page.route(
       new RegExp(`/v1/users/${USER_ID}/reservations/pending-feedback$`),
       (route) =>
@@ -159,18 +128,21 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
                   id: 703,
                   counterpartyName: 'Zahra Mirzakhani',
                   dtstart: 1761500000,
-                  viewerRole: 'MENTOR',
-                }),
-                makePendingFeedbackReservation({
-                  id: 701,
-                  counterpartyName: 'Emily Chen',
-                  dtstart: 1760266800,
+                  dtend: 1761501800,
                   viewerRole: 'MENTOR',
                 }),
                 makePendingFeedbackReservation({
                   id: 702,
                   counterpartyName: 'Alex Wang',
-                  dtstart: 1760900000,
+                  dtstart: 1760266800,
+                  dtend: 1760270400,
+                  viewerRole: 'MENTOR',
+                }),
+                makePendingFeedbackReservation({
+                  id: 701,
+                  counterpartyName: 'Emily Chen',
+                  dtstart: 1760267400,
+                  dtend: 1760268600,
                   viewerRole: 'MENTOR',
                 }),
               ],
@@ -213,6 +185,9 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
     await expect(dialog.getByTestId('feedback-mentor-header')).toContainText(
       /\d{4}\/\d{2}\/\d{2} · \d{2}:\d{2}–\d{2}:\d{2}/
     );
+    await expect(
+      dialog.getByTestId('feedback-mentor-header').locator('img')
+    ).toHaveCount(0);
 
     // Unselected Mentor Step 1: 確定送出 is visible and disabled; only X button in top-right
     const submitHappenedBtn = dialog.getByRole('button', { name: '確定送出' });
@@ -300,10 +275,10 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
     );
 
     // Select 其他 -> expands optional 1000-char note field
-    await dialog
+    const otherRadioCard = dialog
       .locator('label')
-      .filter({ hasText: /^其他$/ })
-      .click();
+      .filter({ hasText: /^其他$/ });
+    await otherRadioCard.click();
     const noteField = dialog.getByLabel(/補充說明/);
     await expect(noteField).toBeVisible();
     await noteField.fill('學員臨時有事已在聊聊通知改期');
@@ -311,15 +286,42 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
       '14 / 1000'
     );
 
+    // Wait for 200ms collapse transition and verify:
+    // 1) textarea left/right edges align 0px flush with sibling radio cards
+    // 2) overflow-hidden clip wrapper keeps >=4px clearance so focus ring never clips
+    await page.waitForTimeout(240);
+    const clipWrapper = dialog.getByTestId('not-happened-note-clip');
+
     // Ensure the warm-yellow Mentor warning box is completely visible and never clipped by scroll or footer
     const submitNextBtn = dialog.getByRole('button', {
       name: '送出並填下一場',
     });
-    const [noteCounterBox, warningRect, submitBtnRect] = await Promise.all([
+    const [
+      otherCardRect,
+      clipRect,
+      noteRect,
+      noteCounterBox,
+      warningRect,
+      submitBtnRect,
+    ] = await Promise.all([
+      otherRadioCard.boundingBox(),
+      clipWrapper.boundingBox(),
+      noteField.boundingBox(),
       dialog.getByTestId('feedback-note-counter').boundingBox(),
       warningBox.boundingBox(),
       submitNextBtn.boundingBox(),
     ]);
+    expect(otherCardRect).not.toBeNull();
+    expect(clipRect).not.toBeNull();
+    expect(noteRect).not.toBeNull();
+    expect(Math.abs(noteRect!.x - otherCardRect!.x)).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(noteRect!.width - otherCardRect!.width)
+    ).toBeLessThanOrEqual(1);
+    expect(clipRect!.x).toBeLessThanOrEqual(noteRect!.x - 4);
+    expect(clipRect!.x + clipRect!.width).toBeGreaterThanOrEqual(
+      noteRect!.x + noteRect!.width + 4
+    );
     expect(noteCounterBox).not.toBeNull();
     expect(warningRect).not.toBeNull();
     expect(submitBtnRect).not.toBeNull();
@@ -331,6 +333,7 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
       submitBtnRect!.y + 2
     );
 
+    await noteField.focus();
     await captureEvidence(
       page,
       'issue-740-mentor-step2-other-note-expanded-warning',
@@ -374,14 +377,14 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
         body: {
           meeting_happened: false,
           not_happened_reason: 'OTHER',
-          not_happened_note: '學員臨時有事已在聊聊通知改期',
+          note: '學員臨時有事已在聊聊通知改期',
         },
       },
       {
         id: 703,
         body: {
           meeting_happened: false,
-          not_happened_reason: 'MENTEE_ABSENT',
+          not_happened_reason: 'COUNTERPART_ABSENT',
         },
       },
     ]);

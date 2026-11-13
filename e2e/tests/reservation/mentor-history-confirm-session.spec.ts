@@ -179,14 +179,13 @@ test.describe('Mentor 預約歷史紀錄卡片與「確認會談」彈窗流程 
     page,
   }) => {
     const historyState = [
-      // 1. Mentor confirmed 有進行 + received public Mentee feedback
+      // 1. Mentor confirmed 有進行 + received public Mentee feedback (#760 §3.1 feedback.meeting_happened)
       makeMentorHistoryItem({
         id: 701,
         menteeName: 'Zahra Mirzakhani',
         jobTitle: 'Senior UX Designer',
         feedback: {
           meeting_happened: true,
-          my_meeting_happened: true,
           rating: {
             rating: 10,
             content: '非常感謝導師提供可立即落地的設計系統治理建議！',
@@ -298,7 +297,6 @@ test.describe('Mentor 預約歷史紀錄卡片與「確認會談」彈窗流程 
             ...prev,
             feedback: {
               meeting_happened: happened,
-              my_meeting_happened: happened,
               rating: prevRating
                 ? {
                     ...prevRating,
@@ -476,7 +474,7 @@ test.describe('Mentor 預約歷史紀錄卡片與「確認會談」彈窗流程 
       body: {
         meeting_happened: false,
         not_happened_reason: 'OTHER',
-        not_happened_note: '學員因臨時加班來訊改期，當日未進行會談',
+        note: '學員因臨時加班來訊改期，當日未進行會談',
       },
     });
 
@@ -488,6 +486,23 @@ test.describe('Mentor 預約歷史紀錄卡片與「確認會談」彈窗流程 
     await expect(
       card702.getByText('導師分享的作品集架構拆解非常清楚。')
     ).toHaveCount(0);
+
+    // Reload page so in-memory optimistic cache clears and cards render purely from
+    // #760 §3.1 API shape `{ meeting_happened: true | false, rating, next_step: null }`
+    await page.reload();
+    await expect(
+      card703.getByRole('button', { name: '查看紀錄' })
+    ).toBeVisible();
+    await card703.getByRole('button', { name: '查看紀錄' }).click();
+    await expect(card703.getByTestId('mentor-attendance-record')).toHaveText(
+      '已回報：有進行'
+    );
+    await expect(card702.getByText('未進行')).toBeVisible();
+
+    await captureEvidence(
+      page,
+      '874-mentor-history-reloaded-meeting-happened-states'
+    );
   });
 
   test('URL 帶入 reservation_id 深連結且 Mentor 待回答時自動切至歷史紀錄並開啟「確認會談」彈窗，關閉或送出後清除參數且手機版 RWD 排版正常', async ({

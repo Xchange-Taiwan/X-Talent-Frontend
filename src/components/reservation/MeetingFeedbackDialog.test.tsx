@@ -341,7 +341,7 @@ describe('MeetingFeedbackDialog', () => {
       expect(onSubmitFeedback).toHaveBeenCalledWith(
         {
           meeting_happened: false,
-          not_happened_reason: 'MENTOR_ABSENT',
+          not_happened_reason: 'COUNTERPART_ABSENT',
         },
         baseReservation
       );
@@ -585,7 +585,7 @@ describe('MeetingFeedbackDialog', () => {
         {
           meeting_happened: false,
           not_happened_reason: 'OTHER',
-          not_happened_note: '臨時改期未同步',
+          note: '臨時改期未同步',
         },
         baseReservation
       );
@@ -1095,7 +1095,7 @@ describe('MeetingFeedbackDialog', () => {
       expect(screen.queryByText(/誰沒有進行會談/)).not.toBeInTheDocument();
       expect(screen.getByRole('radio', { name: '對方未出席' })).toHaveAttribute(
         'value',
-        'MENTEE_ABSENT'
+        'COUNTERPART_ABSENT'
       );
 
       const warningBox = screen.getByTestId('mentor-not-happened-warning');
@@ -1134,14 +1134,14 @@ describe('MeetingFeedbackDialog', () => {
           {
             meeting_happened: false,
             not_happened_reason: 'OTHER',
-            not_happened_note: '學員因臨時會議未上線',
+            note: '學員因臨時會議未上線',
           },
           expect.objectContaining({ id: 'res-mentor-opt-a' })
         );
       });
     });
 
-    it('submits MENTEE_ABSENT (never MENTOR_ABSENT) when Mentor selects 對方未出席 on Step 2', async () => {
+    it('submits COUNTERPART_ABSENT when Mentor selects 對方未出席 on Step 2 (#760 §4)', async () => {
       const onSubmitFeedback = vi.fn().mockResolvedValue(undefined);
 
       render(
@@ -1162,7 +1162,7 @@ describe('MeetingFeedbackDialog', () => {
         expect(onSubmitFeedback).toHaveBeenCalledWith(
           {
             meeting_happened: false,
-            not_happened_reason: 'MENTEE_ABSENT',
+            not_happened_reason: 'COUNTERPART_ABSENT',
           },
           expect.objectContaining({ id: 'res-mentor-opt-a' })
         );
@@ -1371,7 +1371,7 @@ describe('MeetingFeedbackDialog', () => {
             2,
             {
               meeting_happened: false,
-              not_happened_reason: 'MENTEE_ABSENT',
+              not_happened_reason: 'COUNTERPART_ABSENT',
             },
             expect.objectContaining({ id: 'rev-mentor-2' })
           );
@@ -1379,6 +1379,43 @@ describe('MeetingFeedbackDialog', () => {
       } finally {
         window.matchMedia = originalMatchMedia;
       }
+    });
+
+    it('uses non-clipping bleed padding and unified offset-0 focus borders on feedback textareas', () => {
+      render(
+        <MeetingFeedbackDialog
+          defaultOpen
+          hideTrigger
+          reservation={baseReservation}
+          onSubmitFeedback={vi.fn()}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('radio', { name: '有進行' }));
+      fireEvent.click(screen.getByRole('button', { name: '下一步' }));
+      const ratingTextarea = screen.getByLabelText(/文字回饋/);
+      expect(ratingTextarea).toHaveClass(
+        'focus-visible:ring-offset-0',
+        'focus-visible:border-ring',
+        'focus-visible:ring-1'
+      );
+      expect(ratingTextarea).not.toHaveClass('focus-visible:ring-offset-2');
+
+      fireEvent.click(screen.getByRole('button', { name: '上一步' }));
+      fireEvent.click(screen.getByRole('radio', { name: '沒有進行' }));
+      fireEvent.click(screen.getByRole('button', { name: '下一步' }));
+      fireEvent.click(screen.getByRole('radio', { name: '其他' }));
+
+      const clipWrapper = screen.getByTestId('not-happened-note-clip');
+      expect(clipWrapper).toHaveClass('-mx-1.5', 'px-1.5', 'overflow-hidden');
+
+      const noteTextarea = screen.getByLabelText(/補充說明/);
+      expect(noteTextarea).toHaveClass(
+        'focus-visible:ring-offset-0',
+        'focus-visible:border-ring',
+        'focus-visible:ring-1'
+      );
+      expect(noteTextarea).not.toHaveClass('focus-visible:ring-offset-2');
     });
   });
 });

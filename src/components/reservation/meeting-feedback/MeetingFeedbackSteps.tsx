@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip } from '@/components/ui/tooltip';
+import { FOCUS_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 import {
   MAX_FEEDBACK_CONTENT_LENGTH,
@@ -175,7 +176,11 @@ export function RatingStepContent({
           rows={5}
           aria-invalid={hasContentError}
           disabled={isSubmitting}
-          className="resize-none overflow-y-auto text-sm font-normal"
+          className={cn(
+            'resize-none overflow-y-auto text-sm font-normal',
+            FOCUS_RING_NO_OFFSET_CLASSES,
+            'focus-visible:border-ring focus-visible:ring-1'
+          )}
           {...contentRegistration}
         />
         <div className="flex items-center justify-between gap-2 text-xs">
@@ -306,8 +311,11 @@ export function NotHappenedStepContent({
               : 'pointer-events-none invisible mt-0 grid-rows-[0fr] opacity-0'
           )}
         >
-          <div className="min-h-0 overflow-hidden">
-            <div className="space-y-1 px-0.5 pt-0.5 pb-0.5">
+          <div
+            data-testid="not-happened-note-clip"
+            className="-mx-1.5 min-h-0 overflow-hidden px-1.5"
+          >
+            <div className="space-y-1 pt-0.5 pb-0.5">
               <label
                 htmlFor={noteFieldId}
                 className="text-text-primary block text-sm font-medium"
@@ -323,7 +331,11 @@ export function NotHappenedStepContent({
                 placeholder="說說發生了什麼事…"
                 aria-invalid={hasNoteError}
                 tabIndex={showNoteField ? undefined : -1}
-                className="min-h-12 resize-none overflow-y-auto py-1.5 text-sm font-normal"
+                className={cn(
+                  'min-h-12 resize-none overflow-y-auto py-1.5 text-sm font-normal',
+                  FOCUS_RING_NO_OFFSET_CLASSES,
+                  'focus-visible:border-ring focus-visible:ring-1'
+                )}
                 {...noteRegistration}
                 disabled={isSubmitting || !showNoteField}
               />

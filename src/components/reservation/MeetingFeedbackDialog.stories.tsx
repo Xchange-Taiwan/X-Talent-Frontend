@@ -79,6 +79,26 @@ export const MentorStepNotHappenedOpen: Story = {
   },
 };
 
+export const EmptyAvatarCounterpartFallbackOpen: Story = {
+  args: {
+    defaultOpen: true,
+    initialStep: 'not-happened',
+    reservation: {
+      ...mockReservation,
+      name: 'Emily Chen',
+      avatar: undefined,
+      roleLine: 'UI/UX 設計師, Google Taiwan',
+      date: '2026/10/20',
+      time: '19:00–19:30',
+      feedback: {
+        meetingHappened: null,
+        rating: null,
+        nextStep: 'ANSWER',
+      },
+    },
+  },
+};
+
 export const MultiSessionQueueOpen: Story = {
   args: {
     defaultOpen: true,

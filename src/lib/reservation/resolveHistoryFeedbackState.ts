@@ -65,10 +65,14 @@ function resolveMentorOwnAttendance(
   if (feedback.nextStep === 'ANSWER') {
     return 'pending';
   }
-  if (feedback.myMeetingHappened === true) {
+  const ownAnswered =
+    feedback.myMeetingHappened !== undefined
+      ? feedback.myMeetingHappened
+      : feedback.meetingHappened;
+  if (ownAnswered === true) {
     return 'happened';
   }
-  if (feedback.myMeetingHappened === false) {
+  if (ownAnswered === false) {
     return 'not-happened';
   }
   return 'unknown';

@@ -393,6 +393,41 @@ describe('resolveHistoryFeedbackState', () => {
         canEdit: false,
       },
     });
+
+    // 9. Backend #760 §3.1 shape (only feedback.meeting_happened without my_meeting_happened) ->
+    // Mentor card renders 查看紀錄 (已回報：有進行) when meetingHappened=true and 未進行 when meetingHappened=false
+    const contractMentorHappened = resolveHistoryFeedbackState({
+      reservation: makeReservation({
+        feedback: {
+          meetingHappened: true,
+          rating: null,
+          nextStep: null,
+        },
+      }),
+      sourceRole: 'mentor',
+    });
+    expect(contractMentorHappened).toEqual({
+      headerAction: { kind: 'feedback-toggle', label: '查看紀錄' },
+      feedbackBlock: {
+        kind: 'mentor-record',
+        attendanceLabel: '已回報：有進行',
+      },
+    });
+
+    const contractMentorNotHappened = resolveHistoryFeedbackState({
+      reservation: makeReservation({
+        feedback: {
+          meetingHappened: false,
+          rating: null,
+          nextStep: null,
+        },
+      }),
+      sourceRole: 'mentor',
+    });
+    expect(contractMentorNotHappened).toEqual({
+      headerAction: { kind: 'badge', label: '未進行' },
+      feedbackBlock: null,
+    });
   });
 
   it('filters only uncancelled history items with nextStep === "ANSWER" for pending feedback queue', () => {

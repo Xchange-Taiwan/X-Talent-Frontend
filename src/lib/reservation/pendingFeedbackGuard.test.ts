@@ -163,6 +163,29 @@ describe('pendingFeedbackGuard (#740)', () => {
       // Input array is not mutated
       expect(items.map((item) => item.id)).toEqual(['30', '10', '20']);
     });
+
+    it('sorts primarily by dtend ascending before dtstart and id (#760 §6)', () => {
+      const items: Reservation[] = [
+        fromPartial<Reservation>({
+          id: '2',
+          dtstart: 1760000000,
+          dtend: 1760005400,
+        }),
+        fromPartial<Reservation>({
+          id: '1',
+          dtstart: 1760001800,
+          dtend: 1760003600,
+        }),
+        fromPartial<Reservation>({
+          id: '3',
+          dtstart: 1760000900,
+          dtend: 1760003600,
+        }),
+      ];
+
+      const sorted = sortPendingFeedbackOldestFirst(items);
+      expect(sorted.map((item) => item.id)).toEqual(['3', '1', '2']);
+    });
   });
 
   describe('sessionStorage skip/dismiss lifecycle', () => {

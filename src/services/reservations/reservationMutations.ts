@@ -77,6 +77,22 @@ function affectedKeys(
 
 export { RESERVATION_CONFLICT_MESSAGE, ReservationVersionConflictError };
 
+const FEEDBACK_BUSINESS_CONFLICT_TYPES = new Set([
+  'attendance_already_reported',
+  'attendance_not_allowed',
+  'mentor_unavailable',
+]);
+
+function isFeedbackBusinessConflictError(err: ApiError): boolean {
+  if (!err.data || typeof err.data !== 'object' || !('type' in err.data)) {
+    return false;
+  }
+  return (
+    typeof err.data.type === 'string' &&
+    FEEDBACK_BUSINESS_CONFLICT_TYPES.has(err.data.type)
+  );
+}
+
 /**
  * Resolve the user-facing error message for a reservation status-update
  * failure (accept/reject/cancel). Single place so every confirm dialog's
@@ -367,6 +383,9 @@ export async function submitReservationFeedback({
           invalidateReservationRead
         );
       }
+      if (isFeedbackBusinessConflictError(err)) {
+        throw err;
+      }
       throw new ReservationVersionConflictError();
     }
     captureFlowFailure({
@@ -499,6 +518,9 @@ export async function updateReservationFeedback({
         affectedKeys(reservation, myUserId, myRole, ['history']).forEach(
           invalidateReservationRead
         );
+      }
+      if (isFeedbackBusinessConflictError(err)) {
+        throw err;
       }
       throw new ReservationVersionConflictError();
     }

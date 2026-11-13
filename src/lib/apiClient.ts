@@ -11,15 +11,63 @@ export function setSessionGetter(getter: () => Promise<Session | null>) {
 }
 
 // ─── Custom Errors ───────────────────────────────────────────────────────────
-export class ApiError extends Error {
+export class ApiError<TData = unknown> extends Error {
   constructor(
     public readonly status: number,
     message: string,
-    public readonly code?: string
+    public readonly code?: string,
+    public readonly data?: TData,
+    public readonly detail?: unknown
   ) {
     super(message);
     this.name = 'ApiError';
   }
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function extractFastApiDetailMessage(detail: unknown): string | undefined {
+  if (typeof detail === 'string' && detail.trim().length > 0) {
+    return detail.trim();
+  }
+  if (!Array.isArray(detail) || detail.length === 0) {
+    return undefined;
+  }
+  const parts = detail
+    .map((item) => {
+      if (typeof item === 'string') {
+        return item.trim();
+      }
+      if (!isPlainRecord(item)) {
+        return '';
+      }
+      const msg = typeof item.msg === 'string' ? item.msg.trim() : '';
+      const loc = Array.isArray(item.loc)
+        ? item.loc
+            .filter(
+              (seg) =>
+                (typeof seg === 'string' || typeof seg === 'number') &&
+                seg !== 'body'
+            )
+            .join('.')
+        : '';
+      return loc && msg ? `${loc}: ${msg}` : msg;
+    })
+    .filter(Boolean);
+
+  return parts.length > 0 ? parts.join('; ') : undefined;
+}
+
+function extractNestedDataMessage(data: unknown): string | undefined {
+  if (!isPlainRecord(data)) {
+    return undefined;
+  }
+  const msg = data.message;
+  return typeof msg === 'string' && msg.trim().length > 0
+    ? msg.trim()
+    : undefined;
 }
 
 class MaintenanceError extends Error {
@@ -212,10 +260,18 @@ async function request<T>(
       }
     }
 
-    const errorBody = await response.json().catch(() => ({}));
+    const errorBody: unknown = await response.json().catch(() => ({}));
+    const errorRecord: Record<string, unknown> = isPlainRecord(errorBody)
+      ? errorBody
+      : {};
+    const topMsg =
+      (typeof errorRecord.msg === 'string' && errorRecord.msg.trim()) ||
+      (typeof errorRecord.message === 'string' && errorRecord.message.trim()) ||
+      undefined;
     const message =
-      (errorBody as Record<string, string>).msg ||
-      (errorBody as Record<string, string>).message ||
+      topMsg ||
+      extractNestedDataMessage(errorRecord.data) ||
+      extractFastApiDetailMessage(errorRecord.detail) ||
       `Request failed with status ${response.status}`;
     captureApiFailure({
       endpoint: path,
@@ -227,7 +283,11 @@ async function request<T>(
     throw new ApiError(
       response.status,
       message,
-      errorBody?.code ? String(errorBody.code) : undefined
+      errorRecord.code !== undefined && errorRecord.code !== null
+        ? String(errorRecord.code)
+        : undefined,
+      errorRecord.data,
+      errorRecord.detail
     );
   }
 
@@ -265,8 +325,12 @@ async function executeRequestUnwrapped<T>(
       !isNaN(numericStatus) && numericStatus >= 400 && numericStatus < 600
         ? numericStatus
         : 400;
+    const message =
+      (typeof result.msg === 'string' && result.msg.trim()) ||
+      extractNestedDataMessage(result.data) ||
+      `Request failed with code ${rawCode}`;
 
-    throw new ApiError(validStatus, result.msg, rawCode);
+    throw new ApiError(validStatus, message, rawCode, result.data);
   }
 
   return result.data;

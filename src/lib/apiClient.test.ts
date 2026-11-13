@@ -397,6 +397,82 @@ describe('apiClient', () => {
       ).rejects.toMatchObject({ status: 422, code: '422' });
     });
 
+    it('preserves data.type on error envelopes and extracts FastAPI 422 detail messages (#760 §0)', async () => {
+      mockFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: '409',
+            msg: '',
+            data: {
+              type: 'attendance_already_reported',
+              message: '已回報過出席狀態',
+            },
+          }),
+          { status: 409 }
+        )
+      );
+
+      await expect(
+        apiClient.postUnwrapped('/v1/feedback', {}, { auth: false })
+      ).rejects.toMatchObject({
+        status: 409,
+        code: '409',
+        message: '已回報過出席狀態',
+        data: {
+          type: 'attendance_already_reported',
+          message: '已回報過出席狀態',
+        },
+      });
+
+      mockFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            detail: [
+              {
+                loc: ['body', 'not_happened_reason'],
+                msg: "Input should be 'COUNTERPART_ABSENT'",
+                type: 'enum',
+              },
+            ],
+          }),
+          { status: 422 }
+        )
+      );
+
+      await expect(
+        apiClient.postUnwrapped('/v1/feedback', {}, { auth: false })
+      ).rejects.toMatchObject({
+        status: 422,
+        message: "not_happened_reason: Input should be 'COUNTERPART_ABSENT'",
+      });
+
+      mockFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: '409',
+            msg: '',
+            data: {
+              type: 'attendance_not_allowed',
+              message: '目前無法回報出席狀態',
+            },
+          }),
+          { status: 200 }
+        )
+      );
+
+      await expect(
+        apiClient.postUnwrapped('/v1/feedback', {}, { auth: false })
+      ).rejects.toMatchObject({
+        status: 409,
+        code: '409',
+        message: '目前無法回報出席狀態',
+        data: {
+          type: 'attendance_not_allowed',
+          message: '目前無法回報出席狀態',
+        },
+      });
+    });
+
     it('returns undefined on empty 204 No Content response without throwing TypeError', async () => {
       mockFetch.mockResolvedValue({
         ok: true,

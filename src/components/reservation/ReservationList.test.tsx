@@ -920,7 +920,7 @@ describe('ReservationList', () => {
           myRole: 'mentor',
           payload: {
             meeting_happened: false,
-            not_happened_reason: 'MENTEE_ABSENT',
+            not_happened_reason: 'COUNTERPART_ABSENT',
           },
         });
       });

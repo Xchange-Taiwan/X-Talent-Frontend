@@ -117,6 +117,12 @@ function resolveMyMeetingHappened(
   ) {
     return raw.mentor_meeting_happened;
   }
+  if (
+    raw.meeting_happened === null ||
+    typeof raw.meeting_happened === 'boolean'
+  ) {
+    return raw.meeting_happened;
+  }
   return undefined;
 }
 
@@ -551,8 +557,13 @@ function mapPendingFeedbackCandidate(
       mapped.dtstart > 0
         ? formatPendingFeedbackDateTime(mapped.dtstart, mapped.dtend)
         : undefined;
+    const normalizedAvatar =
+      typeof mapped.avatar === 'string' && mapped.avatar.trim().length > 0
+        ? mapped.avatar.trim()
+        : undefined;
     return {
       ...mapped,
+      avatar: normalizedAvatar,
       ...(formattedDateTime ?? {}),
       viewerRole: mapped.viewerRole ?? fallbackViewerRole,
       feedback: mapped.feedback ?? {
@@ -596,22 +607,26 @@ function mapPendingFeedbackCandidate(
   const viewerRole: 'MENTEE' | 'MENTOR' | undefined =
     rawRole === 'MENTOR' || rawRole === 'MENTEE' ? rawRole : undefined;
 
-  const counterparty = candidate.counterparty;
+  const counterpart = candidate.counterpart ?? candidate.counterparty;
   const name =
-    counterparty?.name?.trim() || candidate.counterparty_name?.trim() || '—';
+    counterpart?.name?.trim() || candidate.counterparty_name?.trim() || '—';
+  const rawAvatar =
+    counterpart?.avatar ?? candidate.counterparty_avatar ?? undefined;
   const avatar =
-    counterparty?.avatar ?? candidate.counterparty_avatar ?? undefined;
-  const roleLine = [
-    counterparty?.job_title?.trim() || '',
-    formatExperience(counterparty?.years_of_experience),
-  ]
+    typeof rawAvatar === 'string' && rawAvatar.trim().length > 0
+      ? rawAvatar.trim()
+      : undefined;
+  const companyOrExperience =
+    counterpart?.company?.trim() ||
+    formatExperience(counterpart?.years_of_experience);
+  const roleLine = [counterpart?.job_title?.trim() || '', companyOrExperience]
     .filter(Boolean)
     .join(', ');
 
   const myNumericId = Number(userId);
   const resolvedMyId = Number.isFinite(myNumericId) ? myNumericId : 0;
   const counterpartyUserId =
-    typeof counterparty?.user_id === 'number' ? counterparty.user_id : 0;
+    typeof counterpart?.user_id === 'number' ? counterpart.user_id : 0;
 
   const senderUserId =
     viewerRole === 'MENTOR' ? counterpartyUserId : resolvedMyId;
