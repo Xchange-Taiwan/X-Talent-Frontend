@@ -553,11 +553,7 @@ export function saveWipCheckpoint({
       gitOpts
     );
   } catch {
-    execGit(
-      'git',
-      ['push', '--force', '-u', 'origin', currentBranch],
-      gitOpts
-    );
+    execGit('git', ['push', '--force', '-u', 'origin', currentBranch], gitOpts);
   }
 
   return {

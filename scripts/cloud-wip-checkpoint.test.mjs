@@ -182,8 +182,7 @@ describe('cloud-wip-checkpoint', () => {
     expect(res.branch).toBe('feat/875-reservation-history-api');
     expect(
       gitCalls.some(
-        (args) =>
-          args[0] === 'reset' && args.includes('.env.development.local')
+        (args) => args[0] === 'reset' && args.includes('.env.development.local')
       )
     ).toBe(true);
     expect(
