@@ -42,6 +42,15 @@ import * as reservationMessagePreviewStories from '@/components/reservation/Rese
 import * as sliderStories from '@/components/ui/slider.stories';
 import * as tooltipStories from '@/components/ui/tooltip.stories';
 
+declare global {
+  interface ImportMeta {
+    glob<T = unknown>(
+      pattern: string,
+      options: { eager: true }
+    ): Record<string, T>;
+  }
+}
+
 describe('Storybook stories coverage for recent commits (#849)', () => {
   it('exposes all identity states for HomePageCtaButton and FeatureItem stories (#709)', () => {
     expect(homePageCtaButtonStories.default.title).toBe(
@@ -410,5 +419,27 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
     expect(
       screen.getByTestId('reservation-feedback-unpublicized')
     ).toBeInTheDocument();
+  });
+
+  it('dynamically discovers all src/components/**/*.stories.tsx files via Vite import.meta.glob without requiring manual per-PR imports', () => {
+    const storyModules = import.meta.glob<Record<string, unknown>>(
+      '../src/components/**/*.stories.{ts,tsx}',
+      { eager: true }
+    );
+    const entries = Object.entries(storyModules);
+    expect(entries.length).toBeGreaterThan(20);
+
+    for (const [relPath, mod] of entries) {
+      const defaultMeta = mod.default as { title?: string } | undefined;
+      expect(
+        defaultMeta?.title,
+        `Missing default meta.title in ${relPath}`
+      ).toBeTruthy();
+      const namedStories = Object.keys(mod).filter((k) => k !== 'default');
+      expect(
+        namedStories.length,
+        `Expected at least one named Story export in ${relPath}`
+      ).toBeGreaterThan(0);
+    }
   });
 });
