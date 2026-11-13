@@ -186,6 +186,7 @@ jobs:
           mkdir -p .agents/tmp
           rm -f .agents/tmp/scope-guidance.md .agents/tmp/merge-conflicts.md
           MERGE_CONFLICTS_PRESENT="false"
+          bash .agents/scripts/unstage-cloud-locks.sh --restore-worktree
           if ! git merge origin/develop --no-edit; then
             CONFLICT_FILES=$(git diff --name-only --diff-filter=U || true)
             if [ -n "$CONFLICT_FILES" ]; then
@@ -199,6 +200,7 @@ jobs:
               git merge --abort || true
             fi
           fi
+          bash .agents/scripts/setup-cloud-env.sh
           GH_TOKEN="${TRACKER_READ_TOKEN:-$GH_TOKEN}" gh issue view "$TICKET_NUMBER" --repo Xchange-Taiwan/X-Talent-Tracker --comments > .agents/tmp/ticket-spec.md 2>/dev/null || true
           node scripts/check-ticket-scope.mjs --spec-file=.agents/tmp/ticket-spec.md --guidance-out=.agents/tmp/scope-guidance.md >/dev/null 2>&1 || true
           SCOPE_GUIDANCE=""
@@ -261,11 +263,8 @@ jobs:
               exit 1
             fi
             git add -A
-            for locked_f in .gitignore .gemini/settings.json; do
-              git reset HEAD -- "$locked_f" >/dev/null 2>&1 || true
-            done
-            git reset HEAD -- '.env*' '*/.env*' '.agents/tmp*' >/dev/null 2>&1 || true
-            git commit --no-edit -m "chore: merge origin/develop and resolve conflicts for PR #${PR_NUMBER}" || true
+            bash .agents/scripts/unstage-cloud-locks.sh --restore-worktree
+            git commit --no-edit -m "chore: merge origin/develop and resolve conflicts for PR #${PR_NUMBER}"
             bash .agents/scripts/setup-cloud-env.sh
           fi
 

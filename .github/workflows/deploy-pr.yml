@@ -89,6 +89,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -uo pipefail
           echo "🚀 Deploying PR preview..."
@@ -98,7 +99,7 @@ jobs:
           if [ "$rc" -ne 0 ]; then
             if printf '%s' "$out" | grep -qiE 'api-deployments-free-per-day|Resource is limited'; then
               echo "::warning::Vercel Hobby daily deployment quota reached; marking PR comment without failing code gates."
-              gh pr comment "$PR_NUMBER" --body "<!-- vercel-quota-limit -->⚠️ **Vercel 每日免費預覽部署額度已達上限**（\`api-deployments-free-per-day\`），程式碼與測試檢查不受影響，待額度重置後可重新觸發預覽。" || true
+              gh pr comment "$PR_NUMBER" --body "<!-- vercel-quota-limit:sha=${HEAD_SHA} -->⚠️ **Vercel 每日免費預覽部署額度已達上限**（\`api-deployments-free-per-day\`），程式碼與測試檢查不受影響，待額度重置後可重新觸發預覽。" || true
             fi
             exit "$rc"
           fi
