@@ -637,6 +637,36 @@ describe('NotificationBell', () => {
       );
     });
 
+    it('renders feedback_received notification with full Mentee name and Mentor history deep-link href (#734)', () => {
+      renderBell({
+        initialStatus: 'success',
+        initialNotifications: [
+          {
+            id: 'feedback-received-201',
+            type: 'feedback_received',
+            role: 'mentor',
+            menteeName: '王小明',
+            reservationId: '201',
+            createdAt: new Date().toISOString(),
+            unread: true,
+          },
+        ],
+      });
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      const feedbackReceivedLink = screen
+        .getByText('您收到新的回饋')
+        .closest('a');
+      expect(feedbackReceivedLink).toHaveAttribute(
+        'href',
+        '/reservation/mentor?tab=history&reservationId=201'
+      );
+      expect(
+        screen.getByText('王小明 為您留下了一則會談回饋，前往查看。')
+      ).toBeInTheDocument();
+    });
+
     it('marks clicked notification as read, triggers onMarkRead, and closes popover on click', async () => {
       const onMarkReadMock = vi.fn().mockResolvedValue(undefined);
 

@@ -152,3 +152,29 @@ export const FeedbackReminderByRole: Story = {
     ],
   },
 };
+
+export const FeedbackReceivedForMentor: Story = {
+  args: {
+    initialStatus: 'success',
+    initialNotifications: [
+      {
+        id: 'feedback-received-mentor-1',
+        type: 'feedback_received',
+        role: 'mentor',
+        menteeName: 'Zahra Mirzakhani',
+        reservationId: '201',
+        createdAt: new Date().toISOString(),
+        unread: true,
+      },
+      {
+        id: 'feedback-received-mentor-2',
+        type: 'feedback_received',
+        role: 'mentor',
+        menteeName: '王小明',
+        reservationId: '202',
+        createdAt: new Date(Date.now() - 1800 * 1000).toISOString(),
+        unread: false,
+      },
+    ],
+  },
+};

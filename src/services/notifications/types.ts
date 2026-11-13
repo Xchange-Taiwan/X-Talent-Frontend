@@ -8,7 +8,10 @@ export type NotificationItem = {
     | 'reservation_upcoming'
     | 'feedback_reminder'
     | 'reservation_feedback_reminder'
-    | 'meeting_feedback_reminder';
+    | 'meeting_feedback_reminder'
+    | 'feedback_received'
+    | 'reservation_feedback_received'
+    | 'meeting_feedback_received';
   menteeName?: string;
   mentorName?: string;
   reservationId?: string;
