@@ -62,10 +62,16 @@ if ! command -v rg >/dev/null 2>&1 && [ "$(uname -s 2>/dev/null || echo '')" = "
 fi
 
 # Strip external npx genable-mcp startup overhead, redundant AfterAgent hooks,
-# exclude slow/unnecessary web_fetch & google_web_search in headless Cloud CI,
-# and allow reading .agents/tmp in headless Cloud CI runs.
+# exclude run_shell_command, web_fetch & google_web_search in headless Cloud CI
+# so Phase 1 never spawns dev servers or nested test runners, and keep
+# respectGitIgnore: true so Gemini CLI never scans node_modules/ or .next/
+# (~200k files; .agents/tmp/ was already un-ignored above).
 if [ -f .gemini/settings.json ] && command -v jq >/dev/null 2>&1; then
-  jq 'del(.mcpServers, .hooks) | .tools = ((.tools // {}) + {"exclude": ["web_fetch", "google_web_search"]}) | .fileFiltering = ((.fileFiltering // {}) + {"respectGitIgnore": false, "respectGeminiIgnore": false}) | .context = ((.context // {}) + {"fileFiltering": {"respectGitIgnore": false, "respectGeminiIgnore": false}})' .gemini/settings.json > .gemini/settings.json.tmp && mv .gemini/settings.json.tmp .gemini/settings.json || true
+  if jq 'del(.mcpServers, .hooks) | .tools = ((.tools // {}) + {"exclude": ["run_shell_command", "web_fetch", "google_web_search"]}) | .fileFiltering = ((.fileFiltering // {}) + {"respectGitIgnore": true, "respectGeminiIgnore": false}) | .context = ((.context // {}) + {"fileFiltering": {"respectGitIgnore": true, "respectGeminiIgnore": false}})' .gemini/settings.json > .gemini/settings.json.tmp 2>/dev/null; then
+    mv .gemini/settings.json.tmp .gemini/settings.json
+  else
+    rm -f .gemini/settings.json.tmp
+  fi
   git update-index --skip-worktree .gemini/settings.json 2>/dev/null || true
 fi
 
@@ -77,13 +83,13 @@ mkdir -p .git/info .git/hooks
 printf '\n.env.development.local\n.env.e2e.local\n.env*.local\n' >> .git/info/exclude
 cat <<'HOOK' > .git/hooks/pre-commit
 #!/usr/bin/env bash
-if git diff --cached --name-only | grep -qE '(^|/)\.env(\..+)?$'; then
-  git reset HEAD -- '.env*' '*/.env*' >/dev/null 2>&1 || true
-  echo "Blocked staging of .env files in pre-commit hook." >&2
+if git diff --cached --name-only | grep -E '(^|/)\.env(\..+)?$' | grep -qvE '\.env\.(example|sample|template)$'; then
+  bash .agents/scripts/unstage-cloud-locks.sh >/dev/null 2>&1 || true
+  echo "Blocked staging of secret .env files in pre-commit hook." >&2
   exit 1
 fi
-if git diff --cached --name-only | grep -qE '^\.agents/tmp/'; then
-  git reset HEAD -- '.agents/tmp' '.agents/tmp/*' >/dev/null 2>&1 || true
+if git diff --cached --name-only | grep -qE '^(\.agents/tmp/|\.gitignore$|\.gemini/settings\.json$)'; then
+  bash .agents/scripts/unstage-cloud-locks.sh >/dev/null 2>&1 || true
 fi
 HOOK
 chmod +x .git/hooks/pre-commit
