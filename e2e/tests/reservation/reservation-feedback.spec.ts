@@ -662,7 +662,7 @@ test.describe('Mentee 會談回饋彈窗、歷史紀錄收合面板與版面翻�
     expect(submittedPayload).toEqual({
       meeting_happened: false,
       not_happened_reason: 'OTHER',
-      not_happened_note: '等候 15 分鐘未上線',
+      note: '等候 15 分鐘未上線',
     });
 
     // Verify Mentor History view tab swap & collapsible 查看回饋 public review display

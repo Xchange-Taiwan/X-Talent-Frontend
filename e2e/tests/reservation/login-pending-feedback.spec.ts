@@ -41,56 +41,24 @@ function makePendingFeedbackReservation(opts: {
   id: number;
   counterpartyName: string;
   dtstart: number;
+  dtend?: number;
   viewerRole: 'MENTEE' | 'MENTOR';
 }) {
-  const { id, counterpartyName, dtstart, viewerRole } = opts;
+  const { id, counterpartyName, dtstart, dtend, viewerRole } = opts;
   const isMentorViewer = viewerRole === 'MENTOR';
 
   return {
-    id,
-    sender: isMentorViewer
-      ? {
-          user_id: 200 + id,
-          role: 'MENTEE',
-          status: 'ACCEPT',
-          name: counterpartyName,
-          avatar: '',
-          job_title: 'Junior Product Designer',
-          years_of_experience: 'ONE_TO_THREE',
-        }
-      : {
-          user_id: Number(USER_ID),
-          role: 'MENTEE',
-          status: 'ACCEPT',
-          name: 'Test Mentee',
-          avatar: '',
-          job_title: 'Junior Product Designer',
-          years_of_experience: 'ONE_TO_THREE',
-        },
-    participant: isMentorViewer
-      ? {
-          user_id: Number(USER_ID),
-          role: 'MENTOR',
-          status: 'ACCEPT',
-          name: 'Emily Chen',
-          avatar: '',
-          job_title: 'Senior UI/UX Designer',
-          years_of_experience: 'FIVE_TO_TEN',
-        }
-      : {
-          user_id: 100 + id,
-          role: 'MENTOR',
-          status: 'ACCEPT',
-          name: counterpartyName,
-          avatar: '',
-          job_title: 'UI/UX 設計師',
-          years_of_experience: 'FIVE_TO_TEN',
-        },
-    schedule_id: id,
+    reservation_id: id,
+    role: viewerRole,
+    counterpart: {
+      name: counterpartyName,
+      avatar: '',
+      job_title: isMentorViewer ? 'Junior Product Designer' : 'UI/UX 設計師',
+      company: isMentorViewer ? 'Design Lab' : 'Google Taiwan',
+    },
     dtstart,
-    dtend: dtstart + 1800,
-    previous_reserve: null,
-    messages: [],
+    dtend: dtend ?? dtstart + 1800,
+    cancelled_by: null,
     feedback: {
       meeting_happened: null,
       rating: null,
@@ -374,14 +342,14 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
         body: {
           meeting_happened: false,
           not_happened_reason: 'OTHER',
-          not_happened_note: '學員臨時有事已在聊聊通知改期',
+          note: '學員臨時有事已在聊聊通知改期',
         },
       },
       {
         id: 703,
         body: {
           meeting_happened: false,
-          not_happened_reason: 'MENTEE_ABSENT',
+          not_happened_reason: 'COUNTERPART_ABSENT',
         },
       },
     ]);
