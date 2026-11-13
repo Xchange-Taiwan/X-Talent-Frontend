@@ -49,20 +49,18 @@ trap cleanup EXIT
 
 export GIT_INDEX_FILE="$SCRATCH_INDEX"
 
-for ATTEMPT in 1 2 3; do
+for ATTEMPT in 1 2 3 4 5 6; do
   rm -f "$SCRATCH_INDEX"
-  git fetch origin "$EVIDENCE_BRANCH" >/dev/null 2>&1 || true
-  PARENT_SHA=$(git ls-remote origin "refs/heads/$EVIDENCE_BRANCH" | cut -f1 || true)
-
-  if [ -n "$PARENT_SHA" ]; then
-    git read-tree "$PARENT_SHA"
-  else
-    MARKER=$(mktemp)
-    printf 'Evidence branch for PR screenshots, published by .agents/scripts/publish-evidence.sh.\n\nThis is an orphan branch: it shares no history with the repository code\nbranches. Pull request bodies link into it by commit sha, so links stay\nstable even after later runs overwrite the same paths at the branch tip.\n' > "$MARKER"
-    MARKER_BLOB=$(git hash-object -w "$MARKER")
-    rm -f "$MARKER"
-    git update-index --add --cacheinfo 100644 "$MARKER_BLOB" ".pr-evidence"
+  PARENT_SHA=""
+  if git fetch origin "$EVIDENCE_BRANCH" --depth=1 >/dev/null 2>&1; then
+    PARENT_SHA=$(git rev-parse FETCH_HEAD 2>/dev/null || true)
   fi
+
+  MARKER=$(mktemp)
+  printf 'Evidence branch for PR screenshots, published by .agents/scripts/publish-evidence.sh.\n\nThis is an orphan branch: it shares no history with the repository code\nbranches. Pull request bodies link into it by commit sha, so links stay\nstable even without accumulating previous PR trees on the branch tip.\n' > "$MARKER"
+  MARKER_BLOB=$(git hash-object -w "$MARKER")
+  rm -f "$MARKER"
+  git update-index --add --cacheinfo 100644 "$MARKER_BLOB" ".pr-evidence"
 
   INDEX=0
   REL_PATHS=()
@@ -87,11 +85,11 @@ for ATTEMPT in 1 2 3; do
   if git push origin "$COMMIT_SHA:refs/heads/$EVIDENCE_BRANCH" >&2; then
     break
   fi
-  if [ "$ATTEMPT" -eq 3 ]; then
-    echo "ERROR: failed to push to $EVIDENCE_BRANCH after 3 attempts" >&2
+  if [ "$ATTEMPT" -eq 6 ]; then
+    echo "ERROR: failed to push to $EVIDENCE_BRANCH after 6 attempts" >&2
     exit 1
   fi
-  sleep 2
+  sleep $(( (RANDOM % 4) + ATTEMPT * 2 ))
 done
 
 for REL_PATH in "${REL_PATHS[@]}"; do
