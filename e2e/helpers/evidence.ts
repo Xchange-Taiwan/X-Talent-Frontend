@@ -335,3 +335,113 @@ export async function captureEvidence(
 
   return filePath;
 }
+
+export function collectDialogClippingSnapshot(): DialogClippingSnapshot {
+  const isVis = (el: Element): boolean => {
+    if (!el || typeof (el as HTMLElement).getBoundingClientRect !== 'function') {
+      return false;
+    }
+    const s = window.getComputedStyle(el);
+    if (
+      s.display === 'none' ||
+      s.visibility === 'hidden' ||
+      Number(s.opacity) === 0
+    ) {
+      return false;
+    }
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  };
+  const dialogs = Array.from(
+    document.querySelectorAll('[role="dialog"], [role="alertdialog"]')
+  )
+    .filter(isVis)
+    .map((dlg) => {
+      const dr = dlg.getBoundingClientRect();
+      const dlgHeight = dr.bottom - dr.top;
+      const footerEls = Array.from(dlg.querySelectorAll('*')).filter((el) => {
+        if (!isVis(el)) return false;
+        const pos = window.getComputedStyle(el).position;
+        if (pos !== 'sticky' && pos !== 'fixed') return false;
+        const r = el.getBoundingClientRect();
+        return (
+          dlgHeight > 80 &&
+          r.bottom >= dr.bottom - 32 &&
+          r.top >= dr.top + dlgHeight * 0.45
+        );
+      });
+      const stickyFooters = footerEls.map((el) => {
+        const r = el.getBoundingClientRect();
+        return { top: r.top, bottom: r.bottom };
+      });
+      const minFooterTop =
+        stickyFooters.length > 0
+          ? Math.min(...stickyFooters.map((f) => f.top))
+          : Infinity;
+
+      const protectedBlocks = Array.from(
+        dlg.querySelectorAll(
+          '[role="note"], [role="alert"], [data-testid*="warning" i]'
+        )
+      )
+        .filter((el) => isVis(el) && !footerEls.some((fEl) => fEl.contains(el)))
+        .flatMap((el) => {
+          const rawRect = el.getBoundingClientRect();
+          let visTop = rawRect.top;
+          let visBottom = rawRect.bottom;
+          let maxRemainingScroll = 0;
+
+          let cur: HTMLElement | null = el.parentElement;
+          while (cur && dlg.contains(cur)) {
+            const oy = window.getComputedStyle(cur).overflowY;
+            if (oy !== 'visible') {
+              const containsFooter = footerEls.some((fEl) =>
+                cur!.contains(fEl)
+              );
+              if (!containsFooter) {
+                const cr = cur.getBoundingClientRect();
+                visTop = Math.max(visTop, cr.top);
+                visBottom = Math.min(visBottom, cr.bottom);
+              }
+              if (
+                (oy === 'auto' || oy === 'scroll') &&
+                cur.scrollHeight > cur.clientHeight + 4
+              ) {
+                const rem = Math.max(
+                  0,
+                  cur.scrollHeight - cur.clientHeight - cur.scrollTop
+                );
+                maxRemainingScroll = Math.max(maxRemainingScroll, rem);
+              }
+            }
+            if (cur === dlg) break;
+            cur = cur.parentElement;
+          }
+
+          if (visBottom - visTop <= 2) return [];
+          const canScrollAboveFooter =
+            maxRemainingScroll > 0 &&
+            rawRect.bottom - maxRemainingScroll <= minFooterTop + 2;
+
+          const label = (el.textContent || '')
+            .trim()
+            .replace(/\s+/g, ' ')
+            .slice(0, 36);
+          return [
+            {
+              label: label || 'notice',
+              top: visTop,
+              bottom: visBottom,
+              canScrollAboveFooter,
+            },
+          ];
+        });
+      return {
+        top: dr.top,
+        bottom: dr.bottom,
+        stickyFooters,
+        protectedBlocks,
+      };
+    });
+  return { viewportHeight: window.innerHeight, dialogs };
+}
