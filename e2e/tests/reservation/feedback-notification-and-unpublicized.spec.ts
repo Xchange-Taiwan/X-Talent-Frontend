@@ -305,7 +305,7 @@ test.describe('Mentee 送出回饋後通知 Mentor 與評價未公開面板 (#73
     await mockNotifications(page, [
       {
         id: 9301,
-        type: 'feedback_received',
+        type: 'reservation_feedback_received',
         read_at: null,
         created_at: Math.floor(Date.now() / 1000),
         metadata: {
@@ -409,6 +409,43 @@ test.describe('Mentee 送出回饋後通知 Mentor 與評價未公開面板 (#73
 
     await mockMentorReservations(page, mentorHistory);
     await mockNotifications(page, []);
+    await page.route(
+      new RegExp(`/v1/users/${MENTOR_USER_ID}/reservations/201/feedback$`),
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            code: '0',
+            msg: 'ok',
+            data: {
+              reservation_id: 201,
+              role: 'MENTOR',
+              counterpart: {
+                name: 'Zahra Mirzakhani',
+                avatar: '',
+                job_title: 'Product Designer',
+                company: 'Design Co',
+              },
+              dtstart: 1761649200,
+              dtend: 1761651000,
+              cancelled_by: null,
+              feedback: {
+                meeting_happened: true,
+                rating: {
+                  rating: 9,
+                  content: '導師給予的職涯建議非常實用且具體！',
+                  created_at: 1761652000,
+                  updated_at: 1761652000,
+                  author_name: 'Z***',
+                  is_public: true,
+                },
+                next_step: null,
+              },
+            },
+          }),
+        })
+    );
 
     let isAuthenticated = false;
     await page.route(/\/api\/auth\/session/, (route) =>
@@ -432,10 +469,10 @@ test.describe('Mentee 送出回饋後通知 Mentor 與評價未公開面板 (#73
       });
     });
 
-    await page.goto('/reservation/mentor?tab=history&reservationId=201');
+    await page.goto('/reservation/history?reservation_id=201');
 
     await expect(page).toHaveURL(
-      /\/auth\/signin\?callbackUrl=%2Freservation%2Fmentor%3Ftab%3Dhistory%26reservationId%3D201/,
+      /\/auth\/signin\?callbackUrl=%2Freservation%2Fhistory%3Freservation_id%3D201/,
       { timeout: 15_000 }
     );
 
