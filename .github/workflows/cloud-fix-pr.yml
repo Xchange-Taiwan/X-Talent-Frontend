@@ -201,7 +201,7 @@ jobs:
             fi
           fi
           bash .agents/scripts/setup-cloud-env.sh
-          GH_TOKEN="${TRACKER_READ_TOKEN:-$GH_TOKEN}" gh issue view "$TICKET_NUMBER" --repo Xchange-Taiwan/X-Talent-Tracker --comments > .agents/tmp/ticket-spec.md 2>/dev/null || true
+          GH_TOKEN="${TRACKER_READ_TOKEN:-$GH_TOKEN}" node scripts/export-ticket-spec.mjs --ticket="$TICKET_NUMBER" --repo="Xchange-Taiwan/X-Talent-Tracker" --out=.agents/tmp/ticket-spec.md 2>/dev/null || true
           node scripts/check-ticket-scope.mjs --spec-file=.agents/tmp/ticket-spec.md --guidance-out=.agents/tmp/scope-guidance.md >/dev/null 2>&1 || true
           SCOPE_GUIDANCE=""
           if [ -s .agents/tmp/scope-guidance.md ]; then

@@ -135,7 +135,7 @@ jobs:
         run: |
           mkdir -p .agents/tmp
           rm -f .agents/tmp/ticket-scope.json .agents/tmp/scope-guidance.md
-          GH_TOKEN="${TRACKER_READ_TOKEN:-$GH_TOKEN}" gh issue view "$TICKET_NUMBER" --repo Xchange-Taiwan/X-Talent-Tracker --comments > .agents/tmp/ticket-spec.md 2>/dev/null || true
+          GH_TOKEN="${TRACKER_READ_TOKEN:-$GH_TOKEN}" node scripts/export-ticket-spec.mjs --ticket="$TICKET_NUMBER" --repo="Xchange-Taiwan/X-Talent-Tracker" --out=.agents/tmp/ticket-spec.md 2>/dev/null || true
           node scripts/check-ticket-scope.mjs \
             --spec-file=.agents/tmp/ticket-spec.md \
             --branch="$BRANCH_NAME" \
@@ -233,7 +233,7 @@ jobs:
         run: |
           mkdir -p .agents/tmp
           if [ ! -s .agents/tmp/ticket-spec.md ]; then
-            GH_TOKEN="${TRACKER_READ_TOKEN:-$GH_TOKEN}" gh issue view "$TICKET_NUMBER" --repo Xchange-Taiwan/X-Talent-Tracker --comments > .agents/tmp/ticket-spec.md 2>/dev/null || true
+            GH_TOKEN="${TRACKER_READ_TOKEN:-$GH_TOKEN}" node scripts/export-ticket-spec.mjs --ticket="$TICKET_NUMBER" --repo="Xchange-Taiwan/X-Talent-Tracker" --out=.agents/tmp/ticket-spec.md 2>/dev/null || true
           fi
           ARCH_QUERY="#${TICKET_NUMBER} $(head -n 25 .agents/tmp/ticket-spec.md 2>/dev/null | tr '\n' ' ' || echo '')"
           jq -n --arg q "$ARCH_QUERY" '{query: $q}' | curl -sS -X POST "https://x-talent-discord-mention-notify.x-talent.workers.dev/__arch-kb" -H "Content-Type: application/json" -d @- | jq -r 'if .kb then "\n\n## X-Talent 跨專案架構知識庫 (Cloudflare KV Architecture KB)\n```json\n" + (.kb | tojson) + "\n```" else "" end' >> .agents/tmp/ticket-spec.md 2>/dev/null || true
