@@ -93,6 +93,10 @@ export function fetchIssueSpecViaGh(
   if (!/^\d+$/.test(cleanTicket)) {
     throw new Error(`Invalid ticket number: ${ticketNumber}`);
   }
+  const cleanRepo = String(repo ?? '').trim();
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(cleanRepo)) {
+    throw new Error(`Invalid repository identifier: ${repo}`);
+  }
 
   const env = {
     ...process.env,
@@ -107,7 +111,7 @@ export function fetchIssueSpecViaGh(
         'view',
         cleanTicket,
         '--repo',
-        repo,
+        cleanRepo,
         '--json',
         'number,title,state,author,labels,body,comments',
       ],
@@ -120,7 +124,7 @@ export function fetchIssueSpecViaGh(
       }
     );
     const parsed = JSON.parse(rawJson);
-    if (parsed && (parsed.title || parsed.body)) {
+    if (parsed && String(parsed.title ?? '').trim()) {
       return formatIssueJsonToSpecMarkdown(parsed);
     }
   } catch {
@@ -129,7 +133,7 @@ export function fetchIssueSpecViaGh(
 
   const issueRaw = execGh(
     'gh',
-    ['api', `repos/${repo}/issues/${cleanTicket}`],
+    ['api', `repos/${cleanRepo}/issues/${cleanTicket}`],
     {
       encoding: 'utf8',
       maxBuffer: 10 * 1024 * 1024,
@@ -146,7 +150,8 @@ export function fetchIssueSpecViaGh(
       [
         'api',
         '--paginate',
-        `repos/${repo}/issues/${cleanTicket}/comments?per_page=100`,
+        '--slurp',
+        `repos/${cleanRepo}/issues/${cleanTicket}/comments?per_page=100`,
       ],
       {
         encoding: 'utf8',
@@ -158,7 +163,7 @@ export function fetchIssueSpecViaGh(
     );
     const parsedComments = JSON.parse(commentsRaw);
     if (Array.isArray(parsedComments)) {
-      comments = parsedComments;
+      comments = parsedComments.flat();
     }
   } catch {
     // Proceed with top issue spec if comments fetch fails

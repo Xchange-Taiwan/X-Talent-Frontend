@@ -44,7 +44,39 @@ describe('export-ticket-spec', () => {
     expect(parsed.body).not.toContain('/implement');
   });
 
-  it('includes discussion comments alongside top body via REST fallback', () => {
+  it('uses gh issue view --json primary path first', () => {
+    const execGh = vi.fn(() =>
+      JSON.stringify({
+        number: 874,
+        title: '[Refactor][FE] 主路徑測試',
+        state: 'OPEN',
+        author: { login: 'LowSugarCoke' },
+        labels: ['enhancement'],
+        body: '主路徑內文說明',
+        comments: {
+          nodes: [
+            {
+              author: { login: 'EvanCWChang' },
+              createdAt: '2026-11-13T04:03:27Z',
+              body: '確認採用 COUNTERPART_ABSENT',
+            },
+          ],
+        },
+      })
+    );
+
+    const md = fetchIssueSpecViaGh(
+      { ticketNumber: '874', token: 'tok' },
+      { execGh }
+    );
+    expect(execGh).toHaveBeenCalledTimes(1);
+    const parsed = parseIssueSpecMarkdown(md);
+    expect(parsed.title).toBe('[Refactor][FE] 主路徑測試');
+    expect(parsed.body).toContain('主路徑內文說明');
+    expect(parsed.body).toContain('確認採用 COUNTERPART_ABSENT');
+  });
+
+  it('flattens multi-page --slurp arrays in REST fallback', () => {
     const execGh = vi.fn((_bin, args) => {
       if (args[0] === 'issue') {
         throw new Error('GraphQL projectItems forbidden');
@@ -59,17 +91,27 @@ describe('export-ticket-spec', () => {
           body: '新增 /reservation/history 路由',
         });
       }
+      expect(args).toContain('--slurp');
       return JSON.stringify([
-        {
-          user: { login: 'JeterChan' },
-          created_at: '2026-11-13T05:32:13Z',
-          body: '契約已定案為 COUNTERPART_ABSENT',
-        },
-        {
-          user: { login: 'LowSugarCoke' },
-          created_at: '2026-11-13T15:54:11Z',
-          body: '/implement',
-        },
+        [
+          {
+            user: { login: 'JeterChan' },
+            created_at: '2026-11-13T05:32:13Z',
+            body: '第一頁留言：COUNTERPART_ABSENT',
+          },
+        ],
+        [
+          {
+            user: { login: 'EvanCWChang' },
+            created_at: '2026-11-13T06:00:00Z',
+            body: '第二頁留言：超過 100 則跨頁保留',
+          },
+          {
+            user: { login: 'LowSugarCoke' },
+            created_at: '2026-11-13T15:54:11Z',
+            body: '/implement',
+          },
+        ],
       ]);
     });
 
@@ -81,7 +123,19 @@ describe('export-ticket-spec', () => {
     expect(parsed.title).toBe('[Refactor][FE] 補齊深連結路由');
     expect(parsed.state).toBe('OPEN');
     expect(parsed.body).toContain('新增 /reservation/history 路由');
-    expect(parsed.body).toContain('契約已定案為 COUNTERPART_ABSENT');
+    expect(parsed.body).toContain('第一頁留言：COUNTERPART_ABSENT');
+    expect(parsed.body).toContain('第二頁留言：超過 100 則跨頁保留');
     expect(parsed.body).not.toContain('/implement');
+  });
+
+  it('rejects invalid ticket numbers and repo identifiers', () => {
+    for (const badTicket of ['', 'abc', '#12;rm -rf /']) {
+      expect(() => fetchIssueSpecViaGh({ ticketNumber: badTicket })).toThrow(
+        /Invalid ticket number/
+      );
+    }
+    expect(() =>
+      fetchIssueSpecViaGh({ ticketNumber: '874', repo: '../bad/repo/path' })
+    ).toThrow(/Invalid repository identifier/);
   });
 });
