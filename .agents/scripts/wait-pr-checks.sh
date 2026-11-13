@@ -28,14 +28,16 @@ if [ -z "$PR_NUMBER" ]; then
 fi
 
 # Poll quietly every 15 seconds (up to 15 minutes = 60 polls) without printing intermediate tables
+PR_JSON=""
 for ((i = 1; i <= 60; i++)); do
-  PR_JSON=$(gh pr view "$PR_NUMBER" --repo "$ORG/$FRONTEND_REPO" --json headRefName,state,mergeable,statusCheckRollup 2>/dev/null || true)
-  if [ -z "$PR_JSON" ]; then
+  LATEST_PR_JSON=$(gh pr view "$PR_NUMBER" --repo "$ORG/$FRONTEND_REPO" --json headRefName,state,mergeable,labels,statusCheckRollup 2>/dev/null || true)
+  if [ -z "$LATEST_PR_JSON" ]; then
     sleep 15
     continue
   fi
+  PR_JSON="$LATEST_PR_JSON"
 
-  STATUS_SUMMARY=$(echo "$PR_JSON" | node -e '
+  STATUS_SUMMARY=$(printf '%s' "$PR_JSON" | node -e '
     let d = "";
     process.stdin.on("data", c => d += c);
     process.stdin.on("end", () => {
@@ -47,12 +49,17 @@ for ((i = 1; i <= 60; i++)); do
         let hasFinalSummary = false;
         for (const c of checks) {
           const name = c.name || c.context || "";
-          const state = c.status || c.state || "";
-          const conc = c.conclusion || "";
+          const typename = c.__typename || (c.context && !c.status ? "StatusContext" : "CheckRun");
+          const status = String(c.status || "").toUpperCase();
+          const state = String(c.state || "").toUpperCase();
+          const conc = String(c.conclusion || "").toUpperCase();
           if (name.includes("AI Review: Final Summary") && (conc === "SUCCESS" || conc === "NEUTRAL" || conc === "SKIPPED")) {
             hasFinalSummary = true;
           }
-          if (state === "IN_PROGRESS" || state === "QUEUED" || state === "PENDING" || (!conc && state !== "SUCCESS")) {
+          const isPending = typename === "StatusContext"
+            ? (state === "PENDING" || state === "EXPECTED")
+            : (status !== "COMPLETED");
+          if (isPending) {
             pending++;
           } else if (conc === "SUCCESS" || conc === "NEUTRAL" || conc === "SKIPPED" || state === "SUCCESS") {
             passed++;
@@ -77,53 +84,92 @@ for ((i = 1; i <= 60; i++)); do
   sleep 15
 done
 
-# Extract compact final check results and AI review bot comment
-COMMENTS_JSON=$(gh pr view "$PR_NUMBER" --repo "$ORG/$FRONTEND_REPO" --json comments 2>/dev/null || echo '{"comments":[]}')
+# Extract compact final check results and AI review bot comment via temp files (avoids Linux 128KB MAX_ARG_STRLEN E2BIG)
+TMP_PR_JSON=$(mktemp)
+TMP_COMMENTS_JSON=$(mktemp)
+trap 'rm -f "$TMP_PR_JSON" "$TMP_COMMENTS_JSON"' EXIT
+printf '%s' "${PR_JSON:-{}}" > "$TMP_PR_JSON"
+gh pr view "$PR_NUMBER" --repo "$ORG/$FRONTEND_REPO" --json comments > "$TMP_COMMENTS_JSON" 2>/dev/null || printf '{"comments":[]}' > "$TMP_COMMENTS_JSON"
 
-node -e '
-  const pr = JSON.parse(process.argv[1] || "{}");
-  const commentsObj = JSON.parse(process.argv[2] || "{\"comments\":[]}");
-  const checks = pr.statusCheckRollup || [];
+node --input-type=commonjs - "$TMP_PR_JSON" "$TMP_COMMENTS_JSON" "$PR_NUMBER" <<'EOF'
+const fs = require("fs");
+const [prFile, commentsFile, prNum] = process.argv.slice(2);
+let pr = {};
+let commentsObj = { comments: [] };
+try { pr = JSON.parse(fs.readFileSync(prFile, "utf8") || "{}"); } catch {}
+try { commentsObj = JSON.parse(fs.readFileSync(commentsFile, "utf8") || '{"comments":[]}'); } catch {}
 
-  const failedChecks = [];
-  for (const c of checks) {
-    const name = c.name || c.context || "unknown";
-    const conc = c.conclusion || c.state || "";
-    if (conc && !["SUCCESS", "NEUTRAL", "SKIPPED"].includes(conc)) {
-      failedChecks.push(`${name} (${conc})`);
+const checks = Array.isArray(pr.statusCheckRollup) ? pr.statusCheckRollup : [];
+const labels = Array.isArray(pr.labels) ? pr.labels.map(l => String(l?.name || "")) : [];
+const comments = Array.isArray(commentsObj.comments) ? commentsObj.comments : [];
+
+const vercelQuotaReached =
+  labels.includes("vercel-quota-limit") ||
+  comments.some(c => /vercel-quota-limit|api-deployments-free-per-day|Resource is limited - try again in/i.test(String(c?.body || ""))) ||
+  checks.some(c => /vercel/i.test(String(c?.name || c?.context || "")) && /api-deployments-free-per-day|Resource is limited/i.test(String(c?.description || c?.title || "")));
+
+const failedChecks = [];
+for (const c of checks) {
+  const name = c.name || c.context || "unknown";
+  const typename = c.__typename || (c.context && !c.status ? "StatusContext" : "CheckRun");
+  const status = String(c.status || "").toUpperCase();
+  const state = String(c.state || "").toUpperCase();
+  const conc = String(c.conclusion || "").toUpperCase();
+  const isCompleted = typename === "StatusContext"
+    ? (state !== "PENDING" && state !== "EXPECTED" && Boolean(state))
+    : (status === "COMPLETED");
+  const effectiveResult = typename === "StatusContext" ? state : conc;
+  if (!isCompleted) {
+    if (vercelQuotaReached && /vercel|deploy pr preview/i.test(name)) {
+      continue;
     }
-  }
-
-  const aiComment = [...(commentsObj.comments || [])]
-    .reverse()
-    .find(c =>
-      (c.author?.login === "github-actions" || c.author?.login === "github-actions[bot]") &&
-      (c.body || "").includes("<!-- ai-review-pipeline -->")
-    );
-
-  let riskLevel = "unknown";
-  let findingsExcerpt = "";
-  if (aiComment && aiComment.body) {
-    const body = aiComment.body;
-    const riskMatch = body.match(/### ⚠️ Overall Risk\s+\*\*([a-zA-Z]+)\*\*/i);
-    if (riskMatch) riskLevel = riskMatch[1].toLowerCase();
-    if (riskLevel !== "low") {
-      findingsExcerpt = body.slice(0, 3500);
+    failedChecks.push(`${name} (${status || state || "PENDING"})`);
+  } else if (!["SUCCESS", "NEUTRAL", "SKIPPED"].includes(effectiveResult)) {
+    if (vercelQuotaReached && /vercel|deploy pr preview/i.test(name)) {
+      continue;
     }
+    failedChecks.push(`${name} (${effectiveResult || "FAILED"})`);
   }
+}
 
-  console.log(`=== PR #${process.argv[3]} CI & AI REVIEW SUMMARY ===`);
-  console.log(`Total checks: ${checks.length} | Failed: ${failedChecks.length} | AI Review Overall Risk: ${riskLevel}`);
-  if (failedChecks.length > 0) {
-    console.log("Failed checks:\n  - " + failedChecks.join("\n  - "));
+const aiComment = [...comments]
+  .reverse()
+  .find(c =>
+    (c.author?.login === "github-actions" || c.author?.login === "github-actions[bot]") &&
+    (c.body || "").includes("<!-- ai-review-pipeline -->")
+  );
+
+let riskLevel = "unknown";
+let findingsExcerpt = "";
+if (aiComment && aiComment.body) {
+  const body = aiComment.body;
+  const riskMatch = body.match(/### ⚠️ Overall Risk\s+\*\*([a-zA-Z]+)\*\*/i);
+  if (riskMatch) riskLevel = riskMatch[1].toLowerCase();
+  if (riskLevel !== "low") {
+    findingsExcerpt = body.slice(0, 3500);
   }
-  if (failedChecks.length === 0 && (riskLevel === "low" || riskLevel === "unknown")) {
-    console.log("CONVERGED=true");
-    console.log("✅ All CI checks passed and AI Review risk is low. No fixes needed!");
-  } else {
-    console.log("CONVERGED=false");
-    if (findingsExcerpt) {
-      console.log("\n=== AI REVIEW FINDINGS ===\n" + findingsExcerpt);
-    }
+}
+
+const mergeable = String(pr.mergeable || "");
+if (mergeable === "CONFLICTING") {
+  failedChecks.push("Merge Conflict against base branch (CONFLICTING)");
+}
+
+console.log(`=== PR #${prNum} CI & AI REVIEW SUMMARY ===`);
+console.log(`Total checks: ${checks.length} | Mergeable: ${mergeable || "UNKNOWN"} | Failed: ${failedChecks.length} | AI Review Overall Risk: ${riskLevel} | VercelQuotaLimit: ${vercelQuotaReached}`);
+if (vercelQuotaReached) {
+  console.log("VERCEL_LIMIT=true");
+}
+if (failedChecks.length > 0) {
+  console.log("Failed checks:\n  - " + failedChecks.join("\n  - "));
+}
+if (checks.length > 0 && failedChecks.length === 0 && riskLevel === "low") {
+  console.log("CONVERGED=true");
+  console.log("✅ All CI checks passed and AI Review risk is low. No fixes needed!");
+} else {
+  console.log("CONVERGED=false");
+  if (findingsExcerpt) {
+    console.log("\n=== AI REVIEW FINDINGS ===\n" + findingsExcerpt);
   }
-' "$PR_JSON" "$COMMENTS_JSON" "$PR_NUMBER"
+}
+EOF

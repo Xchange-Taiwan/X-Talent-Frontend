@@ -29,27 +29,37 @@ if ([string]::IsNullOrWhiteSpace($PrNumber)) {
 
 $PrObj = $null
 for ($i = 1; $i -le 60; $i++) {
-  $RawPr = (gh pr view $PrNumber --repo "$ORG/$FRONTEND_REPO" --json headRefName,state,mergeable,statusCheckRollup 2>$null)
+  $RawPr = (gh pr view $PrNumber --repo "$ORG/$FRONTEND_REPO" --json headRefName,state,mergeable,labels,statusCheckRollup 2>$null)
   if ($RawPr) {
     try {
-      $PrObj = $RawPr | ConvertFrom-Json
-      $Checks = @($PrObj.statusCheckRollup)
-      if ($Checks.Count -gt 0) {
-        $Pending = 0
-        $HasFinalSummary = $false
-        foreach ($c in $Checks) {
-          $name = "$($c.name)$($c.context)"
-          $state = "$($c.status)$($c.state)"
-          $conc = "$($c.conclusion)"
-          if ($name -match "AI Review: Final Summary" -and ($conc -in @("SUCCESS", "NEUTRAL", "SKIPPED"))) {
-            $HasFinalSummary = $true
+      $LatestPr = $RawPr | ConvertFrom-Json
+      if ($null -ne $LatestPr) {
+        $PrObj = $LatestPr
+        $Checks = if ($null -ne $PrObj.statusCheckRollup) { @($PrObj.statusCheckRollup) } else { @() }
+        if ($Checks.Count -gt 0) {
+          $Pending = 0
+          $HasFinalSummary = $false
+          foreach ($c in $Checks) {
+            $name = "$($c.name)$($c.context)"
+            $typename = if ($c.__typename) { "$($c.__typename)" } elseif ($c.context -and -not $c.status) { "StatusContext" } else { "CheckRun" }
+            $statusUpper = "$($c.status)".ToUpper()
+            $stateUpper = "$($c.state)".ToUpper()
+            $concUpper = "$($c.conclusion)".ToUpper()
+            if ($name -match "AI Review: Final Summary" -and ($concUpper -in @("SUCCESS", "NEUTRAL", "SKIPPED"))) {
+              $HasFinalSummary = $true
+            }
+            $isPending = if ($typename -eq "StatusContext") {
+              $stateUpper -in @("PENDING", "EXPECTED")
+            } else {
+              $statusUpper -ne "COMPLETED"
+            }
+            if ($isPending) {
+              $Pending++
+            }
           }
-          if ($state -match "IN_PROGRESS|QUEUED|PENDING" -or (-not $conc -and $state -ne "SUCCESS")) {
-            $Pending++
+          if ($Pending -eq 0 -and ($HasFinalSummary -or $Checks.Count -ge 5)) {
+            break
           }
-        }
-        if ($Pending -eq 0 -and ($HasFinalSummary -or $Checks.Count -ge 5)) {
-          break
         }
       }
     } catch {}
@@ -57,22 +67,20 @@ for ($i = 1; $i -le 60; $i++) {
   Start-Sleep -Seconds 15
 }
 
-$FailedChecks = @()
-foreach ($c in @($PrObj.statusCheckRollup)) {
-  $name = if ($c.name) { $c.name } else { $c.context }
-  $conc = if ($c.conclusion) { $c.conclusion } else { $c.state }
-  if ($conc -and ($conc -notin @("SUCCESS", "NEUTRAL", "SKIPPED"))) {
-    $FailedChecks += "$name ($conc)"
-  }
-}
+$AllChecks = if ($null -ne $PrObj -and $null -ne $PrObj.statusCheckRollup) { @($PrObj.statusCheckRollup) } else { @() }
+$Labels = if ($null -ne $PrObj -and $null -ne $PrObj.labels) { @($PrObj.labels | ForEach-Object { "$($_.name)" }) } else { @() }
 
 $RawComments = (gh pr view $PrNumber --repo "$ORG/$FRONTEND_REPO" --json comments 2>$null)
+$CommentsList = @()
 $RiskLevel = "unknown"
 $FindingsExcerpt = ""
 if ($RawComments) {
   try {
     $CommentsObj = $RawComments | ConvertFrom-Json
-    $AiComment = @($CommentsObj.comments) | Where-Object {
+    if ($null -ne $CommentsObj -and $null -ne $CommentsObj.comments) {
+      $CommentsList = @($CommentsObj.comments)
+    }
+    $AiComment = $CommentsList | Where-Object {
       ($_.author.login -in @("github-actions", "github-actions[bot]")) -and
       ($_.body -match "<!-- ai-review-pipeline -->")
     } | Select-Object -Last 1
@@ -86,13 +94,54 @@ if ($RawComments) {
   } catch {}
 }
 
+$VercelQuotaReached = ($Labels -contains "vercel-quota-limit") -or
+  (($CommentsList | Where-Object { "$($_.body)" -match "(?i)vercel-quota-limit|api-deployments-free-per-day|Resource is limited - try again in" }).Count -gt 0) -or
+  (($AllChecks | Where-Object { ("$($_.name)$($_.context)" -match "(?i)vercel") -and ("$($_.description)$($_.title)" -match "(?i)api-deployments-free-per-day|Resource is limited") }).Count -gt 0)
+
+$FailedChecks = @()
+foreach ($c in $AllChecks) {
+  $name = if ($c.name) { "$($c.name)" } else { "$($c.context)" }
+  $typename = if ($c.__typename) { "$($c.__typename)" } elseif ($c.context -and -not $c.status) { "StatusContext" } else { "CheckRun" }
+  $statusUpper = "$($c.status)".ToUpper()
+  $stateUpper = "$($c.state)".ToUpper()
+  $concUpper = "$($c.conclusion)".ToUpper()
+  $isCompleted = if ($typename -eq "StatusContext") {
+    ($stateUpper -notin @("PENDING", "EXPECTED", ""))
+  } else {
+    ($statusUpper -eq "COMPLETED")
+  }
+  $effectiveResult = if ($typename -eq "StatusContext") { $stateUpper } else { $concUpper }
+  if (-not $isCompleted) {
+    if ($VercelQuotaReached -and ($name -match "(?i)vercel|deploy pr preview")) {
+      continue
+    }
+    $lbl = if ($statusUpper) { $statusUpper } elseif ($stateUpper) { $stateUpper } else { "PENDING" }
+    $FailedChecks += "$name ($lbl)"
+  } elseif ($effectiveResult -notin @("SUCCESS", "NEUTRAL", "SKIPPED")) {
+    if ($VercelQuotaReached -and ($name -match "(?i)vercel|deploy pr preview")) {
+      continue
+    }
+    $lbl = if ($effectiveResult) { $effectiveResult } else { "FAILED" }
+    $FailedChecks += "$name ($lbl)"
+  }
+}
+
+$Mergeable = if ($null -ne $PrObj) { "$($PrObj.mergeable)" } else { "" }
+if ($Mergeable -eq "CONFLICTING") {
+  $FailedChecks += "Merge Conflict against base branch (CONFLICTING)"
+}
+$TotalChecks = $AllChecks.Count
+
 Write-Host "=== PR #$PrNumber CI & AI REVIEW SUMMARY ==="
-Write-Host "Total checks: $(@($PrObj.statusCheckRollup).Count) | Failed: $($FailedChecks.Count) | AI Review Overall Risk: $RiskLevel"
+Write-Host "Total checks: $TotalChecks | Mergeable: $Mergeable | Failed: $($FailedChecks.Count) | AI Review Overall Risk: $RiskLevel | VercelQuotaLimit: $VercelQuotaReached"
+if ($VercelQuotaReached) {
+  Write-Host "VERCEL_LIMIT=true"
+}
 if ($FailedChecks.Count -gt 0) {
   Write-Host ("Failed checks:`n  - " + ($FailedChecks -join "`n  - "))
 }
 
-if ($FailedChecks.Count -eq 0 -and ($RiskLevel -in @("low", "unknown"))) {
+if ($TotalChecks -gt 0 -and $FailedChecks.Count -eq 0 -and $RiskLevel -eq "low") {
   Write-Host "CONVERGED=true"
   Write-Host "✅ All CI checks passed and AI Review risk is low. No fixes needed!"
 } else {
