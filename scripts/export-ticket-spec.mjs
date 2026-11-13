@@ -94,7 +94,10 @@ export function fetchIssueSpecViaGh(
     throw new Error(`Invalid ticket number: ${ticketNumber}`);
   }
   const cleanRepo = String(repo ?? '').trim();
-  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(cleanRepo)) {
+  if (
+    !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(cleanRepo) ||
+    cleanRepo.includes('..')
+  ) {
     throw new Error(`Invalid repository identifier: ${repo}`);
   }
 

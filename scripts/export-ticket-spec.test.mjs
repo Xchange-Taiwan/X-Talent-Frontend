@@ -135,6 +135,9 @@ describe('export-ticket-spec', () => {
       );
     }
     expect(() =>
+      fetchIssueSpecViaGh({ ticketNumber: '874', repo: '../bad' })
+    ).toThrow(/Invalid repository identifier/);
+    expect(() =>
       fetchIssueSpecViaGh({ ticketNumber: '874', repo: '../bad/repo/path' })
     ).toThrow(/Invalid repository identifier/);
   });

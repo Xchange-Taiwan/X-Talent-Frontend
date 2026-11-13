@@ -885,6 +885,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
   let bestRoundScore = -Infinity;
   let bestEvaluation = null;
   let bestE2ePassed = false;
+  let bestRequiresUiEvidence = false;
   let bestEvidenceIntact = true;
 
   const collectChangedFiles = () => {
@@ -997,6 +998,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
     // 2. Playwright E2E verification (only when static + unit tests pass)
     const e2eErrors = [];
     let e2eReportForReviewer = '未執行 E2E (--run-e2e=false)';
+    let roundRequiresUiEvidence = false;
 
     if (config.runE2e && !deterministicPassed) {
       lastE2ePassed = false;
@@ -1013,10 +1015,14 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         hasSharedE2eChanges,
       } = detectChangedE2eSpecs(diffFiles);
       lastChangedSpecs = allChangedSpecs;
+      roundRequiresUiEvidence =
+        Boolean(config.requireUiEvidence) && Boolean(hasUiSurfaceChanges);
 
-      if (config.requireUiEvidence && hasUiSurfaceChanges) {
+      if (roundRequiresUiEvidence) {
         clearEvidence();
-        bestEvidenceIntact = false;
+        if (bestRequiresUiEvidence) {
+          bestEvidenceIntact = false;
+        }
       }
       const useTargetedSpecs =
         !hasSharedE2eChanges && allChangedSpecs.length > 0;
@@ -1284,14 +1290,15 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         bestRoundScore = currentRoundScore;
         bestEvaluation = lastEvaluation;
         bestE2ePassed = lastE2ePassed;
+        bestRequiresUiEvidence = roundRequiresUiEvidence;
         bestEvidenceIntact =
-          !config.requireUiEvidence || listEvidence().length > 0;
+          !roundRequiresUiEvidence || listEvidence().length > 0;
       }
     }
 
     const restoreBestPassingState = () => {
       restoreSnapshot(bestSnapshotSha);
-      if (bestEvaluation && bestEvidenceIntact) {
+      if (bestEvaluation && (!bestRequiresUiEvidence || bestEvidenceIntact)) {
         lastEvaluation = bestEvaluation;
         lastE2ePassed = bestE2ePassed;
       }
