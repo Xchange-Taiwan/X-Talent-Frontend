@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  createMeetingFeedbackFormSchema,
   DEFAULT_MEETING_RATING,
   happenedFeedbackFieldsSchema,
   MAX_FEEDBACK_CONTENT_LENGTH,
   MAX_NOT_HAPPENED_NOTE_LENGTH,
   meetingFeedbackFormSchema,
   type MeetingFeedbackFormValues,
+  MENTOR_NOT_HAPPENED_WARNING_TEXT,
   notHappenedFeedbackFieldsSchema,
   toSubmitFeedbackPayload,
   toUpdateFeedbackPayload,
@@ -113,7 +115,7 @@ describe('meetingFeedbackSchema', () => {
     ).toBeNull();
   });
 
-  it('builds meeting_happened=true payload with trimmed content', () => {
+  it('builds Mentee meeting_happened=true payload with trimmed content', () => {
     const payload = toSubmitFeedbackPayload({
       meetingHappened: true,
       rating: 9,
@@ -128,6 +130,108 @@ describe('meetingFeedbackSchema', () => {
         rating: 9,
         content: '非常感謝導師的職涯建議！',
       },
+    });
+  });
+
+  it('builds Mentor Option A meeting_happened=true payload without rating/content (#740)', () => {
+    expect(MENTOR_NOT_HAPPENED_WARNING_TEXT).toBe(
+      '送出後不能修改。這場會談不會計入已完成場次，學員的評價也不會公開。'
+    );
+
+    const mentorSchema = createMeetingFeedbackFormSchema('mentor');
+    expect(
+      mentorSchema.safeParse({
+        meetingHappened: null,
+        rating: 10,
+        content: '',
+        notHappenedReason: null,
+        notHappenedNote: '',
+      }).success
+    ).toBe(false);
+
+    expect(
+      mentorSchema.safeParse({
+        meetingHappened: true,
+        rating: 10,
+        content: 'a'.repeat(1005),
+        notHappenedReason: null,
+        notHappenedNote: '',
+      }).success
+    ).toBe(true);
+
+    const mentorHappenedPayload = toSubmitFeedbackPayload(
+      {
+        meetingHappened: true,
+        rating: 10,
+        content: '',
+        notHappenedReason: null,
+        notHappenedNote: '',
+      },
+      'mentor'
+    );
+
+    expect(mentorHappenedPayload).toEqual({
+      meeting_happened: true,
+    });
+    expect(mentorHappenedPayload && 'feedback' in mentorHappenedPayload).toBe(
+      false
+    );
+  });
+
+  it('validates Mentor Option A meeting_happened=false with 5 required reasons and 1000-char OTHER note (#740)', () => {
+    const mentorSchema = createMeetingFeedbackFormSchema('mentor');
+
+    expect(
+      mentorSchema.safeParse({
+        meetingHappened: false,
+        rating: 10,
+        content: '',
+        notHappenedReason: null,
+        notHappenedNote: '',
+      }).success
+    ).toBe(false);
+
+    expect(
+      mentorSchema.safeParse({
+        meetingHappened: false,
+        rating: 10,
+        content: '',
+        notHappenedReason: 'OTHER',
+        notHappenedNote: 'a'.repeat(MAX_NOT_HAPPENED_NOTE_LENGTH + 1),
+      }).success
+    ).toBe(false);
+
+    expect(
+      toSubmitFeedbackPayload(
+        {
+          meetingHappened: false,
+          rating: 10,
+          content: '',
+          notHappenedReason: 'MENTOR_ABSENT',
+          notHappenedNote: '',
+        },
+        'mentor'
+      )
+    ).toEqual({
+      meeting_happened: false,
+      not_happened_reason: 'MENTOR_ABSENT',
+    });
+
+    expect(
+      toSubmitFeedbackPayload(
+        {
+          meetingHappened: false,
+          rating: 10,
+          content: '',
+          notHappenedReason: 'OTHER',
+          notHappenedNote: '  學員臨時有事改期  ',
+        },
+        'mentor'
+      )
+    ).toEqual({
+      meeting_happened: false,
+      not_happened_reason: 'OTHER',
+      not_happened_note: '學員臨時有事改期',
     });
   });
 

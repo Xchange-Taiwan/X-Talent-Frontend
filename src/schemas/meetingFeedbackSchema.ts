@@ -1,6 +1,7 @@
 import * as z from 'zod';
 
 import {
+  type FeedbackViewerRole,
   NOT_HAPPENED_REASONS,
   type SubmitReservationFeedbackRequest,
   type UpdateReservationFeedbackRequest,
@@ -14,6 +15,8 @@ export const MAX_NOT_HAPPENED_NOTE_LENGTH = 1000;
 
 export const FEEDBACK_CONTENT_MAX_ERROR = `評論內容不可超過 ${MAX_FEEDBACK_CONTENT_LENGTH} 字`;
 export const NOT_HAPPENED_NOTE_MAX_ERROR = `補充說明不可超過 ${MAX_NOT_HAPPENED_NOTE_LENGTH} 字`;
+export const MENTOR_NOT_HAPPENED_WARNING_TEXT =
+  '送出後不能修改。這場會談不會計入已完成場次，學員的評價也不會公開。';
 
 export const meetingRatingFieldSchema = z
   .number()
@@ -59,15 +62,18 @@ export const notHappenedFeedbackFieldsSchema = z
 
 export const updateMeetingFeedbackSchema = happenedFeedbackFieldsSchema;
 
-export const meetingFeedbackFormSchema = z
-  .object({
-    meetingHappened: z.boolean().nullable(),
-    rating: meetingRatingFieldSchema,
-    content: z.string(),
-    notHappenedReason: notHappenedReasonFieldSchema.nullable(),
-    notHappenedNote: z.string(),
-  })
-  .superRefine((values, ctx) => {
+const meetingFeedbackFormBaseSchema = z.object({
+  meetingHappened: z.boolean().nullable(),
+  rating: meetingRatingFieldSchema,
+  content: z.string(),
+  notHappenedReason: notHappenedReasonFieldSchema.nullable(),
+  notHappenedNote: z.string(),
+});
+
+export function createMeetingFeedbackFormSchema(
+  role: FeedbackViewerRole = 'mentee'
+) {
+  return meetingFeedbackFormBaseSchema.superRefine((values, ctx) => {
     if (values.meetingHappened === null) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -78,6 +84,10 @@ export const meetingFeedbackFormSchema = z
     }
 
     if (values.meetingHappened === true) {
+      if (role === 'mentor') {
+        return;
+      }
+
       const contentResult = feedbackContentFieldSchema.safeParse(
         values.content
       );
@@ -115,9 +125,13 @@ export const meetingFeedbackFormSchema = z
       }
     }
   });
+}
+
+export const meetingFeedbackFormSchema =
+  createMeetingFeedbackFormSchema('mentee');
 
 export type MeetingFeedbackFormValues = z.infer<
-  typeof meetingFeedbackFormSchema
+  typeof meetingFeedbackFormBaseSchema
 >;
 
 export function toUpdateFeedbackPayload(values: {
@@ -136,9 +150,16 @@ export function toUpdateFeedbackPayload(values: {
 }
 
 export function toSubmitFeedbackPayload(
-  values: MeetingFeedbackFormValues
+  values: MeetingFeedbackFormValues,
+  role: FeedbackViewerRole = 'mentee'
 ): SubmitReservationFeedbackRequest | null {
   if (values.meetingHappened === true) {
+    if (role === 'mentor') {
+      return {
+        meeting_happened: true,
+      };
+    }
+
     const parsed = happenedFeedbackFieldsSchema.safeParse({
       rating: values.rating,
       content: values.content,

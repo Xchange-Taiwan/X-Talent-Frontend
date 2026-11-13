@@ -1,17 +1,23 @@
 import dayjs from 'dayjs';
 
-import { apiClient } from '@/lib/apiClient';
+import { apiClient, ApiError } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
+import { sortPendingFeedbackOldestFirst } from '@/lib/reservation/pendingFeedbackGuard';
 import {
   MENTOR_SCHEDULE_RESERVATIONS_TTL_MS,
   type ReservationReadKey,
   reservationReadModel,
 } from '@/lib/reservation/reservationReadModel';
-import { resolveCounterpartyProfile } from '@/lib/reservation/resolveCounterparty';
+import {
+  formatExperience,
+  resolveCounterpartyProfile,
+} from '@/lib/reservation/resolveCounterparty';
 import { classifyReservationMessages } from '@/lib/reservation/resolveReservationMessages';
 import { components } from '@/types/api';
 import { Reservation, ReservationMessage } from '@/types/reservation';
 import type {
+  RawPendingFeedbackItem,
+  RawPendingFeedbackResponse,
   RawReservationFeedback,
   ReservationFeedback,
   SubmitReservationFeedbackRequest,
@@ -59,6 +65,19 @@ export function formatDateTime(dtstart: number, dtend: number) {
   return {
     date: start.format('ddd, MMM DD, YYYY'),
     time: `${start.format('h:mm a')} – ${end.format('h:mm a')}`,
+  };
+}
+
+export function formatPendingFeedbackDateTime(dtstart: number, dtend: number) {
+  const start = dayjs.unix(dtstart);
+  const safeDtend =
+    typeof dtend === 'number' && Number.isFinite(dtend) && dtend > 0
+      ? dtend
+      : dtstart;
+  const end = dayjs.unix(safeDtend);
+  return {
+    date: start.format('YYYY/MM/DD'),
+    time: `${start.format('HH:mm')}–${end.format('HH:mm')}`,
   };
 }
 
@@ -447,6 +466,227 @@ export async function fetchReservationMeetLink(opts: {
   }
 
   return data;
+}
+
+/* ================================
+ * GET: Pending meeting feedback queue (#740)
+ * ================================ */
+
+type PendingFeedbackCandidate =
+  ReservationInfoVOWithVersion | RawPendingFeedbackItem;
+
+function isFullReservationInfoVO(
+  item: PendingFeedbackCandidate
+): item is ReservationInfoVOWithVersion {
+  return 'sender' in item || 'participant' in item;
+}
+
+function extractRawPendingFeedbackList(
+  data:
+    | RawPendingFeedbackResponse
+    | ReservationInfoVOWithVersion[]
+    | null
+    | undefined
+): PendingFeedbackCandidate[] {
+  if (!data) {
+    return [];
+  }
+  if (Array.isArray(data)) {
+    return data;
+  }
+  if (typeof data === 'object') {
+    if (Array.isArray(data.reservations)) {
+      return data.reservations;
+    }
+    if (Array.isArray(data.items)) {
+      return data.items;
+    }
+  }
+  return [];
+}
+
+function mapPendingFeedbackCandidate(
+  candidate: PendingFeedbackCandidate,
+  userId: string | number,
+  fallbackViewerRole?: 'MENTEE' | 'MENTOR'
+): Reservation | null {
+  if (!candidate || typeof candidate !== 'object') {
+    return null;
+  }
+
+  if (isFullReservationInfoVO(candidate)) {
+    const mapped = mapToReservation(candidate, userId);
+    if (!mapped.id || mapped.cancelledBy) {
+      return null;
+    }
+    if (
+      candidate.feedback &&
+      candidate.feedback.next_step === null &&
+      candidate.feedback.meeting_happened !== null
+    ) {
+      return null;
+    }
+    const formattedDateTime =
+      mapped.dtstart > 0
+        ? formatPendingFeedbackDateTime(mapped.dtstart, mapped.dtend)
+        : undefined;
+    return {
+      ...mapped,
+      ...(formattedDateTime ?? {}),
+      viewerRole: mapped.viewerRole ?? fallbackViewerRole,
+      feedback: mapped.feedback ?? {
+        meetingHappened: null,
+        rating: null,
+        nextStep: 'ANSWER',
+      },
+    };
+  }
+
+  if (candidate.cancelled_by) {
+    return null;
+  }
+  if (
+    candidate.feedback &&
+    candidate.feedback.next_step === null &&
+    candidate.feedback.meeting_happened !== null
+  ) {
+    return null;
+  }
+
+  const rawId = candidate.id ?? candidate.reservation_id;
+  if (rawId === undefined || rawId === null || String(rawId).trim() === '') {
+    return null;
+  }
+
+  const dtstart =
+    typeof candidate.dtstart === 'number' && Number.isFinite(candidate.dtstart)
+      ? candidate.dtstart
+      : 0;
+  const dtend =
+    typeof candidate.dtend === 'number' && Number.isFinite(candidate.dtend)
+      ? candidate.dtend
+      : dtstart;
+  const { date, time } =
+    dtstart > 0
+      ? formatPendingFeedbackDateTime(dtstart, dtend)
+      : formatDateTime(dtstart, dtend);
+
+  const rawRole = candidate.viewer_role ?? candidate.role ?? fallbackViewerRole;
+  const viewerRole: 'MENTEE' | 'MENTOR' | undefined =
+    rawRole === 'MENTOR' || rawRole === 'MENTEE' ? rawRole : undefined;
+
+  const counterparty = candidate.counterparty;
+  const name =
+    counterparty?.name?.trim() || candidate.counterparty_name?.trim() || '—';
+  const avatar =
+    counterparty?.avatar ?? candidate.counterparty_avatar ?? undefined;
+  const roleLine = [
+    counterparty?.job_title?.trim() || '',
+    formatExperience(counterparty?.years_of_experience),
+  ]
+    .filter(Boolean)
+    .join(', ');
+
+  const myNumericId = Number(userId);
+  const resolvedMyId = Number.isFinite(myNumericId) ? myNumericId : 0;
+  const counterpartyUserId =
+    typeof counterparty?.user_id === 'number' ? counterparty.user_id : 0;
+
+  const senderUserId =
+    viewerRole === 'MENTOR' ? counterpartyUserId : resolvedMyId;
+  const participantUserId =
+    viewerRole === 'MENTOR' ? resolvedMyId : counterpartyUserId;
+
+  const mappedFeedback = mapReservationFeedback(candidate.feedback);
+
+  return {
+    id: String(rawId),
+    name,
+    roleLine,
+    date,
+    time,
+    avatar,
+    messages: [],
+    scheduleId: candidate.schedule_id ?? 0,
+    dtstart,
+    dtend,
+    senderUserId,
+    participantUserId,
+    viewerRole,
+    version: candidate.version ?? 0,
+    feedback: mappedFeedback ?? {
+      meetingHappened: null,
+      rating: null,
+      nextStep: 'ANSWER',
+    },
+  };
+}
+
+export async function fetchPendingFeedbackReservations(opts: {
+  userId: string | number;
+  fallbackViewerRole?: 'MENTEE' | 'MENTOR';
+  signal?: AbortSignal;
+  debug?: boolean;
+}): Promise<Reservation[]> {
+  const { userId, fallbackViewerRole, signal, debug } = opts;
+
+  if (!userId) {
+    return [];
+  }
+
+  const path = `/v1/users/${encodeURIComponent(userId)}/reservations/pending-feedback`;
+
+  try {
+    const data = await apiClient.getUnwrapped<
+      RawPendingFeedbackResponse | ReservationInfoVOWithVersion[] | null
+    >(path, { signal });
+
+    if (debug) {
+      console.debug('[reservations] GET pending-feedback response', data);
+    }
+
+    const rawList = extractRawPendingFeedbackList(data);
+    const seenIds = new Set<string>();
+    const mappedItems: Reservation[] = [];
+
+    for (const rawItem of rawList) {
+      const mapped = mapPendingFeedbackCandidate(
+        rawItem,
+        userId,
+        fallbackViewerRole
+      );
+      if (!mapped || seenIds.has(mapped.id)) {
+        continue;
+      }
+      seenIds.add(mapped.id);
+      mappedItems.push(mapped);
+    }
+
+    return sortPendingFeedbackOldestFirst(mappedItems);
+  } catch (err) {
+    if (
+      signal?.aborted ||
+      (err instanceof Error && err.name === 'AbortError')
+    ) {
+      return [];
+    }
+
+    // Graceful fallback when backend #760 route is not yet deployed (404).
+    if (err instanceof ApiError && err.status === 404) {
+      return [];
+    }
+
+    if (err instanceof ApiError && err.status >= 500) {
+      captureFlowFailure({
+        flow: 'reservation_pending_feedback',
+        step: 'get_pending_feedback',
+        level: 'warning',
+        message: err.message || 'Failed to fetch pending feedback reservations',
+      });
+    }
+
+    throw err;
+  }
 }
 
 /* ================================

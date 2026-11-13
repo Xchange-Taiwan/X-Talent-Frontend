@@ -9,7 +9,10 @@ import {
   type ReservationReadKey,
   reservationReadModel,
 } from '@/lib/reservation/reservationReadModel';
-import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
+import {
+  resolveCounterpartyId,
+  resolveTargetMentorId,
+} from '@/lib/reservation/resolveCounterparty';
 import { invalidateMentorFeedback } from '@/services/profile/feedback';
 import { Reservation } from '@/types/reservation';
 import type {
@@ -259,20 +262,68 @@ export async function rejectOrCancelReservation({
 }
 
 function extractBackendIsPublic(responseData: unknown): boolean | undefined {
+  if (!responseData || typeof responseData !== 'object') {
+    return undefined;
+  }
   if (
-    !responseData ||
-    typeof responseData !== 'object' ||
-    !('feedback' in responseData)
+    'is_public' in responseData &&
+    typeof responseData.is_public === 'boolean'
   ) {
+    return responseData.is_public;
+  }
+  if (
+    'rating' in responseData &&
+    responseData.rating &&
+    typeof responseData.rating === 'object' &&
+    'is_public' in responseData.rating &&
+    typeof responseData.rating.is_public === 'boolean'
+  ) {
+    return responseData.rating.is_public;
+  }
+  if (!('feedback' in responseData)) {
     return undefined;
   }
   const { feedback } = responseData;
-  if (!feedback || typeof feedback !== 'object' || !('is_public' in feedback)) {
+  if (!feedback || typeof feedback !== 'object') {
     return undefined;
   }
-  return typeof feedback.is_public === 'boolean'
-    ? feedback.is_public
-    : undefined;
+  if ('is_public' in feedback && typeof feedback.is_public === 'boolean') {
+    return feedback.is_public;
+  }
+  if (
+    'rating' in feedback &&
+    feedback.rating &&
+    typeof feedback.rating === 'object' &&
+    'is_public' in feedback.rating &&
+    typeof feedback.rating.is_public === 'boolean'
+  ) {
+    return feedback.rating.is_public;
+  }
+  return undefined;
+}
+
+function extractBackendMeetingHappened(
+  responseData: unknown
+): boolean | undefined {
+  if (!responseData || typeof responseData !== 'object') {
+    return undefined;
+  }
+  if (
+    'meeting_happened' in responseData &&
+    typeof responseData.meeting_happened === 'boolean'
+  ) {
+    return responseData.meeting_happened;
+  }
+  if (
+    'feedback' in responseData &&
+    responseData.feedback &&
+    typeof responseData.feedback === 'object' &&
+    'meeting_happened' in responseData.feedback &&
+    typeof responseData.feedback.meeting_happened === 'boolean'
+  ) {
+    return responseData.feedback.meeting_happened;
+  }
+  return undefined;
 }
 
 export interface SubmitFeedbackParams {
@@ -292,6 +343,7 @@ export async function submitReservationFeedback({
   payload,
 }: SubmitFeedbackParams): Promise<void> {
   let resolvedIsPublic = true;
+  let backendMeetingHappened: boolean | undefined;
   try {
     if (!myUserId) {
       throw new Error('[reservationMutations] missing current user id');
@@ -301,7 +353,11 @@ export async function submitReservationFeedback({
       reservationId: reservation.id,
       body: payload,
     });
-    if (extractBackendIsPublic(responseData) === false) {
+    backendMeetingHappened = extractBackendMeetingHappened(responseData);
+    if (
+      extractBackendIsPublic(responseData) === false ||
+      backendMeetingHappened === false
+    ) {
       resolvedIsPublic = false;
     }
   } catch (err) {
@@ -340,18 +396,38 @@ export async function submitReservationFeedback({
         items: current.items.map((item) => {
           if (item.id !== reservation.id) return item;
           if (payload.meeting_happened) {
-            return {
-              ...item,
-              feedback: {
-                meetingHappened: true,
-                rating: {
+            const nextMeetingHappened =
+              backendMeetingHappened === false ||
+              item.feedback?.meetingHappened === false ||
+              reservation.feedback?.meetingHappened === false
+                ? false
+                : true;
+            const effectiveIsPublic = nextMeetingHappened
+              ? resolvedIsPublic
+              : false;
+            const nextRating = payload.feedback
+              ? {
                   rating: payload.feedback.rating,
                   content: payload.feedback.content,
                   createdAt: nowUnixSeconds,
                   updatedAt: nowUnixSeconds,
                   authorName: item.feedback?.rating?.authorName ?? null,
-                  isPublic: resolvedIsPublic,
-                },
+                  isPublic: effectiveIsPublic,
+                }
+              : item.feedback?.rating
+                ? {
+                    ...item.feedback.rating,
+                    isPublic: nextMeetingHappened
+                      ? item.feedback.rating.isPublic
+                      : false,
+                  }
+                : null;
+
+            return {
+              ...item,
+              feedback: {
+                meetingHappened: nextMeetingHappened,
+                rating: nextRating,
                 nextStep: null,
               },
             };
@@ -360,7 +436,13 @@ export async function submitReservationFeedback({
             ...item,
             feedback: {
               meetingHappened: false,
-              rating: null,
+              rating:
+                myRole === 'mentor' && item.feedback?.rating
+                  ? {
+                      ...item.feedback.rating,
+                      isPublic: false,
+                    }
+                  : null,
               nextStep: null,
             },
           };
@@ -373,13 +455,10 @@ export async function submitReservationFeedback({
     invalidateReservationRead
   );
 
-  if (payload.meeting_happened) {
+  if (payload.meeting_happened || myRole === 'mentor') {
     mentorPoolReadManager.clear();
-    const counterpartyId = Number(resolveCounterpartyId(reservation, myUserId));
     invalidateMentorFeedback(
-      Number.isFinite(counterpartyId) && counterpartyId > 0
-        ? counterpartyId
-        : undefined
+      resolveTargetMentorId(reservation, myUserId, myRole)
     );
   }
 }

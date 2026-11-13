@@ -7,6 +7,8 @@ export {
   type AttendanceStepContentProps,
   MeetingFeedbackFooter,
   type MeetingFeedbackFooterProps,
+  MentorNotHappenedWarning,
+  type MentorNotHappenedWarningProps,
   NotHappenedStepContent,
   type NotHappenedStepContentProps,
   RatingStepContent,

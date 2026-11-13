@@ -10,18 +10,39 @@ import type { NotHappenedReason } from '@/types/reservationFeedback';
 
 import {
   AttendanceStepContent,
+  MeetingFeedbackFooter,
+  MentorNotHappenedWarning,
   NotHappenedStepContent,
   RatingStepContent,
 } from './MeetingFeedbackSteps';
 
-function AttendancePreview() {
-  const [val, setVal] = React.useState<boolean | null>(true);
+function AttendancePreview({
+  initialValue = true,
+  isMentor = false,
+}: {
+  initialValue?: boolean | null;
+  isMentor?: boolean;
+}) {
+  const [val, setVal] = React.useState<boolean | null>(initialValue);
   return (
     <Dialog open>
       <DialogContent className="max-w-[468px] space-y-4">
         <AttendanceStepContent
           meetingHappened={val}
           onSelectMeetingHappened={setVal}
+        />
+        <MeetingFeedbackFooter
+          effectiveStep="attendance"
+          isEditMode={false}
+          isMentor={isMentor}
+          meetingHappened={val}
+          isSubmitting={false}
+          isTransitioningCard={false}
+          canProceedAttendance={val !== null}
+          canSubmitStep2={false}
+          onNextFromAttendance={() => {}}
+          onBackToAttendance={() => {}}
+          onCancelEdit={() => {}}
         />
       </DialogContent>
     </Dialog>
@@ -30,14 +51,19 @@ function AttendancePreview() {
 
 function NotHappenedPreview({
   initialReason = null,
+  isMentor = false,
 }: {
   initialReason?: NotHappenedReason | null;
+  isMentor?: boolean;
 }) {
-  const form = useMeetingFeedbackForm({
-    ...DEFAULT_MEETING_FEEDBACK_FORM_VALUES,
-    meetingHappened: false,
-    notHappenedReason: initialReason,
-  });
+  const form = useMeetingFeedbackForm(
+    {
+      ...DEFAULT_MEETING_FEEDBACK_FORM_VALUES,
+      meetingHappened: false,
+      notHappenedReason: initialReason,
+    },
+    isMentor ? 'mentor' : 'mentee'
+  );
   const reason = form.watch('notHappenedReason');
   const note = form.watch('notHappenedNote');
 
@@ -51,6 +77,20 @@ function NotHappenedPreview({
           isSubmitting={false}
           noteRegistration={form.register('notHappenedNote')}
           onSelectReason={(next) => form.setValue('notHappenedReason', next)}
+        />
+        {isMentor ? <MentorNotHappenedWarning /> : null}
+        <MeetingFeedbackFooter
+          effectiveStep="not-happened"
+          isEditMode={false}
+          isMentor={isMentor}
+          meetingHappened={false}
+          isSubmitting={false}
+          isTransitioningCard={false}
+          canProceedAttendance={true}
+          canSubmitStep2={reason !== null}
+          onNextFromAttendance={() => {}}
+          onBackToAttendance={() => {}}
+          onCancelEdit={() => {}}
         />
       </DialogContent>
     </Dialog>
@@ -107,4 +147,24 @@ export const Step2NotHappened: Story = {
 
 export const Step2NotHappenedOtherExpanded: Story = {
   render: () => <NotHappenedPreview initialReason="OTHER" />,
+};
+
+export const MentorStep1Unselected: Story = {
+  render: () => <AttendancePreview initialValue={null} isMentor />,
+};
+
+export const MentorStep1Happened: Story = {
+  render: () => <AttendancePreview initialValue={true} isMentor />,
+};
+
+export const MentorStep1NotHappened: Story = {
+  render: () => <AttendancePreview initialValue={false} isMentor />,
+};
+
+export const MentorStep2NotHappenedWithWarning: Story = {
+  render: () => <NotHappenedPreview initialReason="MENTOR_ABSENT" isMentor />,
+};
+
+export const MentorStep2NotHappenedOtherExpanded: Story = {
+  render: () => <NotHappenedPreview initialReason="OTHER" isMentor />,
 };

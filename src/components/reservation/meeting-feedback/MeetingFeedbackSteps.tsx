@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, Info, Loader2 } from 'lucide-react';
+import { Info, Loader2 } from 'lucide-react';
 import * as React from 'react';
 import type { UseFormRegisterReturn } from 'react-hook-form';
 
@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import {
   MAX_FEEDBACK_CONTENT_LENGTH,
   MAX_NOT_HAPPENED_NOTE_LENGTH,
+  MENTOR_NOT_HAPPENED_WARNING_TEXT,
 } from '@/schemas/meetingFeedbackSchema';
 import {
   NOT_HAPPENED_REASON_LABELS,
@@ -202,6 +203,31 @@ export function RatingStepContent({
   );
 }
 
+export interface MentorNotHappenedWarningProps {
+  className?: string;
+}
+
+export function MentorNotHappenedWarning({
+  className,
+}: MentorNotHappenedWarningProps) {
+  return (
+    <div
+      role="note"
+      data-testid="mentor-not-happened-warning"
+      className={cn(
+        'border-status-warning-border bg-status-warning-surface text-status-warning-text flex items-start gap-2 rounded-lg border px-3.5 py-2 text-xs leading-relaxed',
+        className
+      )}
+    >
+      <Info
+        className="text-status-warning-text mt-0.5 size-4 shrink-0"
+        aria-hidden="true"
+      />
+      <p>{MENTOR_NOT_HAPPENED_WARNING_TEXT}</p>
+    </div>
+  );
+}
+
 export interface NotHappenedStepContentProps {
   notHappenedReason: NotHappenedReason | null;
   notHappenedNote: string;
@@ -227,7 +253,7 @@ export function NotHappenedStepContent({
 
   return (
     <>
-      <DialogHeader className="space-y-1 text-left">
+      <DialogHeader className="space-y-0.5 text-left">
         <p className="text-brand-700 text-xs font-medium">
           步驟 2 / 2 · 會談狀況
         </p>
@@ -271,12 +297,12 @@ export function NotHappenedStepContent({
           className={cn(
             'grid transition-all duration-200 ease-out motion-reduce:transition-none',
             showNoteField
-              ? 'visible mt-3 grid-rows-[1fr] opacity-100'
+              ? 'visible mt-2.5 grid-rows-[1fr] opacity-100'
               : 'pointer-events-none invisible mt-0 grid-rows-[0fr] opacity-0'
           )}
         >
           <div className="min-h-0 overflow-hidden">
-            <div className="space-y-1.5 px-1 pt-0.5 pb-0.5">
+            <div className="space-y-1 px-0.5 pt-0.5 pb-0.5">
               <label
                 htmlFor={noteFieldId}
                 className="text-text-primary block text-sm font-medium"
@@ -292,7 +318,7 @@ export function NotHappenedStepContent({
                 placeholder="說說發生了什麼事…"
                 aria-invalid={hasNoteError}
                 tabIndex={showNoteField ? undefined : -1}
-                className="min-h-14 resize-none overflow-y-auto py-1.5 text-sm font-normal"
+                className="min-h-12 resize-none overflow-y-auto py-1.5 text-sm font-normal"
                 {...noteRegistration}
                 disabled={isSubmitting || !showNoteField}
               />
@@ -327,6 +353,8 @@ export function NotHappenedStepContent({
 export interface MeetingFeedbackFooterProps {
   effectiveStep: 'attendance' | 'rating' | 'not-happened';
   isEditMode: boolean;
+  isMentor?: boolean;
+  meetingHappened?: boolean | null;
   isSubmitting: boolean;
   isTransitioningCard: boolean;
   canProceedAttendance: boolean;
@@ -340,6 +368,8 @@ export interface MeetingFeedbackFooterProps {
 export function MeetingFeedbackFooter({
   effectiveStep,
   isEditMode,
+  isMentor = false,
+  meetingHappened = null,
   isSubmitting,
   isTransitioningCard,
   canProceedAttendance,
@@ -350,16 +380,57 @@ export function MeetingFeedbackFooter({
   onCancelEdit,
 }: MeetingFeedbackFooterProps) {
   if (effectiveStep === 'attendance') {
+    if (isMentor && meetingHappened !== false) {
+      if (meetingHappened === true) {
+        return (
+          <DialogFooter className="bg-background-white flex shrink-0 flex-row justify-end px-5 pt-2 pb-5 sm:space-x-0 sm:px-6 sm:pb-6">
+            <Button
+              key="mentor-submit-happened"
+              type="submit"
+              disabled={
+                !canProceedAttendance || isSubmitting || isTransitioningCard
+              }
+              className="bg-brand-500 text-text-primary hover:bg-brand-400 rounded-md px-4 disabled:opacity-45"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-1.5 size-4 animate-spin" />
+                  送出中...
+                </>
+              ) : (
+                '確定送出'
+              )}
+            </Button>
+          </DialogFooter>
+        );
+      }
+
+      return (
+        <DialogFooter className="bg-background-white flex shrink-0 flex-row justify-end px-5 pt-2 pb-5 sm:space-x-0 sm:px-6 sm:pb-6">
+          <Button
+            key="mentor-submit-unselected"
+            type="button"
+            disabled
+            className="bg-brand-500 text-text-primary hover:bg-brand-400 rounded-md px-4 disabled:opacity-45"
+          >
+            確定送出
+          </Button>
+        </DialogFooter>
+      );
+    }
+
     return (
       <DialogFooter className="bg-background-white flex shrink-0 flex-row justify-end px-5 pt-2 pb-5 sm:space-x-0 sm:px-6 sm:pb-6">
         <Button
+          key="attendance-next"
           type="button"
-          disabled={!canProceedAttendance || isTransitioningCard}
+          disabled={
+            !canProceedAttendance || isSubmitting || isTransitioningCard
+          }
           onClick={onNextFromAttendance}
           className="bg-brand-500 text-text-primary hover:bg-brand-400 rounded-md px-4 disabled:opacity-45"
         >
           <span>下一步</span>
-          <ArrowRight className="ml-1.5 size-4" aria-hidden="true" />
         </Button>
       </DialogFooter>
     );
@@ -370,7 +441,9 @@ export function MeetingFeedbackFooter({
       className={cn(
         'bg-background-white flex shrink-0 flex-row items-center justify-between gap-3 px-5 sm:justify-between sm:space-x-0 sm:px-6',
         effectiveStep === 'not-happened'
-          ? 'border-background-border/70 border-t py-3 sm:py-3.5'
+          ? isMentor
+            ? 'pt-1.5 pb-4 sm:pb-5'
+            : 'border-background-border/70 border-t py-3 sm:py-3.5'
           : 'pt-1 pb-5 sm:pb-6'
       )}
     >
@@ -410,6 +483,8 @@ export function MeetingFeedbackFooter({
           '儲存'
         ) : hasRemainingQueueCard ? (
           '送出並填下一場'
+        ) : isMentor ? (
+          '送出'
         ) : (
           '送出回饋'
         )}

@@ -1,3 +1,4 @@
+import dayjs from 'dayjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/apiClient', async (importActual) => {
@@ -25,8 +26,10 @@ import { components } from '@/types/api';
 import {
   createReservation,
   fetchAllReservationsForState,
+  fetchPendingFeedbackReservations,
   fetchReservationMeetLink,
   fetchReservations,
+  formatPendingFeedbackDateTime,
   invalidateReservationRead,
   mapToReservation,
   postReservationFeedback,
@@ -557,6 +560,157 @@ describe('reservationService API Error Handling', () => {
           content: '更新後的回饋內容',
         }
       );
+    });
+
+    it('fetches GET /v1/users/:userId/reservations/pending-feedback, filters answered/cancelled items, and sorts oldest-first (#740)', async () => {
+      mockGet.mockResolvedValueOnce({
+        reservations: [
+          {
+            ...makeApiReservation({
+              id: 303,
+              dtstart: 1762000000,
+              dtend: 1762001800,
+            }),
+            feedback: {
+              meeting_happened: null,
+              rating: null,
+              next_step: 'ANSWER',
+            },
+          },
+          {
+            id: 101,
+            dtstart: 1760000000,
+            dtend: 1760001800,
+            viewer_role: 'MENTOR',
+            counterparty: {
+              user_id: 88,
+              name: 'Emily Chen',
+              job_title: 'UI/UX 設計師',
+              years_of_experience: 'FIVE_TO_TEN',
+            },
+          },
+          {
+            ...makeApiReservation({
+              id: 202,
+              dtstart: 1761000000,
+              dtend: 1761001800,
+            }),
+            cancelled_by: 'SYSTEM',
+          },
+          {
+            ...makeApiReservation({
+              id: 404,
+              dtstart: 1761500000,
+              dtend: 1761501800,
+            }),
+            feedback: {
+              meeting_happened: true,
+              rating: null,
+              next_step: null,
+            },
+          },
+        ],
+      });
+
+      const items = await fetchPendingFeedbackReservations({ userId: '1' });
+
+      expect(mockGet).toHaveBeenCalledWith(
+        '/v1/users/1/reservations/pending-feedback',
+        { signal: undefined }
+      );
+      expect(items.map((it) => it.id)).toEqual(['101', '303']);
+      expect(items[0]).toMatchObject({
+        id: '101',
+        name: 'Emily Chen',
+        viewerRole: 'MENTOR',
+        date: dayjs.unix(1760000000).format('YYYY/MM/DD'),
+        time: `${dayjs.unix(1760000000).format('HH:mm')}–${dayjs.unix(1760001800).format('HH:mm')}`,
+      });
+      expect(items[1]).toMatchObject({
+        id: '303',
+        viewerRole: 'MENTEE',
+        date: dayjs.unix(1762000000).format('YYYY/MM/DD'),
+        time: `${dayjs.unix(1762000000).format('HH:mm')}–${dayjs.unix(1762001800).format('HH:mm')}`,
+      });
+      expect(formatPendingFeedbackDateTime(1760266800, 1760268600)).toEqual({
+        date: dayjs.unix(1760266800).format('YYYY/MM/DD'),
+        time: `${dayjs.unix(1760266800).format('HH:mm')}–${dayjs.unix(1760268600).format('HH:mm')}`,
+      });
+    });
+
+    it('gracefully falls back to [] when pending-feedback endpoint returns 404 or null, and rethrows transient errors (#740)', async () => {
+      mockGet.mockRejectedValueOnce(new ApiError(404, 'Not Found', '404'));
+      const on404 = await fetchPendingFeedbackReservations({ userId: '1' });
+      expect(on404).toEqual([]);
+      expect(mockCaptureFlowFailure).not.toHaveBeenCalled();
+
+      mockGet.mockResolvedValueOnce(null);
+      const onEmpty = await fetchPendingFeedbackReservations({ userId: '1' });
+      expect(onEmpty).toEqual([]);
+
+      mockGet.mockRejectedValueOnce(
+        new ApiError(503, 'Service Unavailable', '503')
+      );
+      await expect(
+        fetchPendingFeedbackReservations({ userId: '1' })
+      ).rejects.toThrow('Service Unavailable');
+      expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          flow: 'reservation_pending_feedback',
+          step: 'get_pending_feedback',
+          level: 'warning',
+        })
+      );
+
+      mockGet.mockRejectedValueOnce(new Error('Network timeout'));
+      await expect(
+        fetchPendingFeedbackReservations({ userId: '1' })
+      ).rejects.toThrow('Network timeout');
+    });
+
+    it('applies fallbackViewerRole when simplified pending-feedback items omit viewer_role while preserving explicit per-item roles (#740)', async () => {
+      mockGet.mockResolvedValueOnce({
+        reservations: [
+          {
+            id: 501,
+            dtstart: 1760000000,
+            dtend: 1760001800,
+            counterparty: {
+              user_id: 88,
+              name: 'Mentee Without Role Field',
+            },
+          },
+          {
+            id: 502,
+            dtstart: 1761000000,
+            dtend: 1761001800,
+            viewer_role: 'MENTEE',
+            counterparty: {
+              user_id: 99,
+              name: 'Explicit Mentee Session',
+            },
+          },
+        ],
+      });
+
+      const items = await fetchPendingFeedbackReservations({
+        userId: '1',
+        fallbackViewerRole: 'MENTOR',
+      });
+
+      expect(items).toHaveLength(2);
+      expect(items[0]).toMatchObject({
+        id: '501',
+        viewerRole: 'MENTOR',
+        senderUserId: 88,
+        participantUserId: 1,
+      });
+      expect(items[1]).toMatchObject({
+        id: '502',
+        viewerRole: 'MENTEE',
+        senderUserId: 1,
+        participantUserId: 99,
+      });
     });
   });
 });

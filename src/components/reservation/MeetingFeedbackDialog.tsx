@@ -37,6 +37,7 @@ import {
 } from '@/schemas/meetingFeedbackSchema';
 import type { Reservation } from '@/types/reservation';
 import type {
+  FeedbackViewerRole,
   SubmitReservationFeedbackRequest,
   UpdateReservationFeedbackRequest,
 } from '@/types/reservationFeedback';
@@ -44,6 +45,7 @@ import type {
 import {
   AttendanceStepContent,
   MeetingFeedbackFooter,
+  MentorNotHappenedWarning,
   NotHappenedStepContent,
   RatingStepContent,
 } from './meeting-feedback';
@@ -59,9 +61,15 @@ export interface MeetingFeedbackDialogProps {
    */
   queue?: Reservation[];
   initialQueueIndex?: number;
+  /**
+   * Optional explicit viewer role ('mentee' | 'mentor'). When omitted, falls back to
+   * `activeReservation.viewerRole === 'MENTOR' ? 'mentor' : 'mentee'`.
+   */
+  viewerRole?: FeedbackViewerRole;
   mode?: MeetingFeedbackMode;
   disabled?: boolean;
   defaultOpen?: boolean;
+  hideTrigger?: boolean;
   initialStep?: MeetingFeedbackStep;
   initialRating?: number;
   initialContent?: string;
@@ -117,9 +125,11 @@ export default function MeetingFeedbackDialog({
   reservation,
   queue,
   initialQueueIndex = 0,
+  viewerRole,
   mode = 'create',
   disabled = false,
   defaultOpen = false,
+  hideTrigger = false,
   initialStep = 'attendance',
   initialRating,
   initialContent,
@@ -144,6 +154,8 @@ export default function MeetingFeedbackDialog({
   const [tooltipDismissSignal, setTooltipDismissSignal] = React.useState(0);
 
   const inFlightRef = React.useRef(false);
+  const onAdvanceItemRef = React.useRef<() => void>(() => {});
+  const onFinishQueueRef = React.useRef<() => void>(() => {});
   const { toast } = useToast();
 
   const dismissTooltips = React.useCallback(() => {
@@ -162,34 +174,13 @@ export default function MeetingFeedbackDialog({
     [resolvedInitialStep, initialRating, initialContent]
   );
 
-  const form = useMeetingFeedbackForm(
-    isEditMode
-      ? buildEditBaseValues(reservation, initialRating, initialContent)
-      : baseCreateValues
-  );
-  const {
-    watch,
-    setValue,
-    trigger: triggerFieldValidation,
-    register,
-    reset,
-    handleSubmit: submitWithValidation,
-    formState: { errors },
-  } = form;
-
   const handleAdvanceQueueItem = React.useCallback(() => {
-    dismissTooltips();
-    reset(DEFAULT_MEETING_FEEDBACK_FORM_VALUES);
-    setStep('attendance');
-  }, [dismissTooltips, reset]);
+    onAdvanceItemRef.current();
+  }, []);
 
   const handleFinishQueue = React.useCallback(() => {
-    dismissTooltips();
-    reset(baseCreateValues);
-    setStep(resolvedInitialStep);
-    setOpen(false);
-    onClose?.();
-  }, [baseCreateValues, dismissTooltips, onClose, reset, resolvedInitialStep]);
+    onFinishQueueRef.current();
+  }, []);
 
   const {
     queueItems,
@@ -212,6 +203,42 @@ export default function MeetingFeedbackDialog({
     onAdvanceItem: handleAdvanceQueueItem,
     onFinishQueue: handleFinishQueue,
   });
+
+  const effectiveViewerRole: FeedbackViewerRole = isEditMode
+    ? 'mentee'
+    : (viewerRole ??
+      (activeReservation.viewerRole === 'MENTOR' ? 'mentor' : 'mentee'));
+  const isMentor = !isEditMode && effectiveViewerRole === 'mentor';
+
+  const form = useMeetingFeedbackForm(
+    isEditMode
+      ? buildEditBaseValues(reservation, initialRating, initialContent)
+      : baseCreateValues,
+    effectiveViewerRole
+  );
+  const {
+    watch,
+    setValue,
+    trigger: triggerFieldValidation,
+    register,
+    reset,
+    handleSubmit: submitWithValidation,
+    formState: { errors },
+  } = form;
+
+  onAdvanceItemRef.current = () => {
+    dismissTooltips();
+    reset(DEFAULT_MEETING_FEEDBACK_FORM_VALUES);
+    setStep('attendance');
+  };
+
+  onFinishQueueRef.current = () => {
+    dismissTooltips();
+    reset(baseCreateValues);
+    setStep(resolvedInitialStep);
+    setOpen(false);
+    onClose?.();
+  };
 
   const savedRating = activeReservation.feedback?.rating?.rating;
   const savedContent = activeReservation.feedback?.rating?.content;
@@ -280,7 +307,7 @@ export default function MeetingFeedbackDialog({
   }, [reset, baseFormValues, resolvedInitialStep, dismissTooltips]);
 
   const handleOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen && inFlightRef.current) {
+    if (!nextOpen && (inFlightRef.current || isTransitioningCard)) {
       return;
     }
 
@@ -294,6 +321,15 @@ export default function MeetingFeedbackDialog({
       }
       setOpen(true);
       return;
+    }
+
+    // When manually closing the dialog (e.g. ESC key, outside click, or single-item X),
+    // mark any remaining unaddressed reservation(s) in the active queue as skipped
+    // before resetting state and invoking onClose (`dismissQueue`).
+    if (!isEditMode && onSkipReservation) {
+      for (const item of queueItems.slice(queueIndex)) {
+        onSkipReservation(item);
+      }
     }
 
     // Manual close resets draft cleanly (1.b.3 & #731).
@@ -314,7 +350,7 @@ export default function MeetingFeedbackDialog({
   };
 
   const handleNextFromAttendance = () => {
-    if (meetingHappened === true) {
+    if (meetingHappened === true && !isMentor) {
       transitionToStep('rating');
     } else if (meetingHappened === false) {
       transitionToStep('not-happened');
@@ -373,7 +409,7 @@ export default function MeetingFeedbackDialog({
       return;
     }
 
-    const payload = toSubmitFeedbackPayload(currentValues);
+    const payload = toSubmitFeedbackPayload(currentValues, effectiveViewerRole);
     if (!payload || !onSubmitFeedback) return;
 
     inFlightRef.current = true;
@@ -463,13 +499,15 @@ export default function MeetingFeedbackDialog({
         className
       )}
     >
-      填寫回饋
+      {isMentor ? '確認會談' : '填寫回饋'}
     </Button>
   );
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>{trigger ?? defaultTrigger}</DialogTrigger>
+      {!hideTrigger ? (
+        <DialogTrigger asChild>{trigger ?? defaultTrigger}</DialogTrigger>
+      ) : null}
 
       <DialogPortal>
         <DialogOverlay
@@ -505,17 +543,17 @@ export default function MeetingFeedbackDialog({
             data-testid="feedback-dialog-surface"
             data-queue-motion={queueMotionState}
             className={cn(
-              'border-background-border bg-background-white text-text-primary relative flex max-h-[90dvh] flex-col overflow-hidden rounded-lg border shadow-lg sm:max-h-[92dvh]',
+              'border-background-border bg-background-white text-text-primary relative flex max-h-[calc(100dvh-1.5rem)] flex-col overflow-hidden rounded-lg border shadow-lg sm:max-h-[calc(100dvh-1.5rem)]',
               queueMotionState === 'swiping-out' &&
                 'motion-safe:animate-feedback-card-out',
               queueMotionState === 'promoting' &&
                 'motion-safe:animate-feedback-card-promote'
             )}
           >
-            {/* Fixed Top Header: Queue Progress + Mentor Session Info */}
-            <div className="relative z-20 shrink-0 px-5 pt-5 sm:px-6 sm:pt-6">
+            {/* Fixed Top Header: Queue Progress + Counterparty Session Info */}
+            <div className="relative z-20 shrink-0 px-5 pt-5 sm:px-6 sm:pt-5">
               {isQueueMode ? (
-                <div className="mb-4">
+                <div className="mb-3.5">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-baseline gap-2">
                       <span className="text-text-primary text-base font-semibold">
@@ -557,7 +595,7 @@ export default function MeetingFeedbackDialog({
                     aria-valuemax={queueItems.length}
                     aria-valuenow={queueIndex + 1}
                     data-testid="feedback-queue-progressbar"
-                    className="mt-3 flex gap-1.5"
+                    className="mt-2.5 flex gap-1.5"
                   >
                     {queueItems.map((item, idx) => {
                       const segmentState =
@@ -629,10 +667,10 @@ export default function MeetingFeedbackDialog({
                 ) : null}
               </div>
 
-              <div className="bg-background-border mt-4 h-px w-full" />
+              <div className="bg-background-border mt-3.5 h-px w-full" />
             </div>
 
-            {/* Scrollable Step Body + Sticky Bottom Footer */}
+            {/* Scrollable Step Body + Pinned Mentor Warning + Sticky Bottom Footer */}
             <form
               onSubmit={submitWithValidation(handleValidSubmit)}
               noValidate
@@ -641,20 +679,22 @@ export default function MeetingFeedbackDialog({
               <div
                 className={cn(
                   'min-h-0 flex-1 overflow-y-auto px-5 sm:px-6',
-                  effectiveStep === 'not-happened' ? 'py-3.5' : 'py-4'
+                  effectiveStep === 'not-happened' ? 'pt-3 pb-2' : 'py-4'
                 )}
               >
                 <div
                   key={`${activeReservation.id}-${effectiveStep}`}
                   className={cn(
                     'motion-safe:animate-feedback-step-in',
-                    effectiveStep === 'not-happened' ? 'space-y-3' : 'space-y-4'
+                    effectiveStep === 'not-happened'
+                      ? 'space-y-2.5'
+                      : 'space-y-4'
                   )}
                 >
                   {effectiveStep === 'attendance' ? (
                     <AttendanceStepContent
                       meetingHappened={meetingHappened}
-                      disabled={isTransitioningCard}
+                      disabled={isSubmitting || isTransitioningCard}
                       onSelectMeetingHappened={(val) =>
                         setValue('meetingHappened', val, {
                           shouldValidate: true,
@@ -697,9 +737,17 @@ export default function MeetingFeedbackDialog({
                 </div>
               </div>
 
+              {effectiveStep === 'not-happened' && isMentor ? (
+                <div className="shrink-0 px-5 pt-1 pb-2 sm:px-6">
+                  <MentorNotHappenedWarning />
+                </div>
+              ) : null}
+
               <MeetingFeedbackFooter
                 effectiveStep={effectiveStep}
                 isEditMode={isEditMode}
+                isMentor={isMentor}
+                meetingHappened={meetingHappened}
                 isSubmitting={isSubmitting}
                 isTransitioningCard={isTransitioningCard}
                 canProceedAttendance={meetingHappened !== null}

@@ -56,6 +56,22 @@ export const StepNotHappenedOpen: Story = {
   },
 };
 
+export const MentorStepAttendanceOpen: Story = {
+  args: {
+    defaultOpen: true,
+    viewerRole: 'mentor',
+    initialStep: 'attendance',
+  },
+};
+
+export const MentorStepNotHappenedOpen: Story = {
+  args: {
+    defaultOpen: true,
+    viewerRole: 'mentor',
+    initialStep: 'not-happened',
+  },
+};
+
 export const MultiSessionQueueOpen: Story = {
   args: {
     defaultOpen: true,
@@ -94,6 +110,58 @@ export const MultiSessionQueueOpen: Story = {
         roleLine: 'Senior UX Designer · 5–10 年工作經驗',
         date: '2026/10/18',
         time: '21:00–21:30',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+    ],
+  },
+};
+
+export const MentorMultiSessionQueueOpen: Story = {
+  args: {
+    defaultOpen: true,
+    viewerRole: 'mentor',
+    initialStep: 'attendance',
+    queue: [
+      {
+        ...mockReservation,
+        id: 'mentor-queue-1',
+        name: 'Emily Chen',
+        roleLine: 'Junior Product Designer · 1–3 年工作經驗',
+        date: '2026/10/12',
+        time: '19:00–19:30',
+        viewerRole: 'MENTOR',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+      {
+        ...mockReservation,
+        id: 'mentor-queue-2',
+        name: 'Alex Wang',
+        roleLine: '前端工程師 · 1–3 年工作經驗',
+        date: '2026/10/15',
+        time: '20:00–20:30',
+        viewerRole: 'MENTOR',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+      {
+        ...mockReservation,
+        id: 'mentor-queue-3',
+        name: 'Zahra Mirzakhani',
+        roleLine: 'UX Researcher · 3–5 年工作經驗',
+        date: '2026/10/18',
+        time: '21:00–21:30',
+        viewerRole: 'MENTOR',
         feedback: {
           meetingHappened: null,
           rating: null,
