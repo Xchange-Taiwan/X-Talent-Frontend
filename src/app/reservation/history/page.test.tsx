@@ -1,9 +1,9 @@
 import { render, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import ReservationHistoryPage, {
-  buildReservationHistoryRedirectHref,
-} from './page';
+import { buildReservationHistoryRedirectHref } from '@/hooks/user/reservation/useReservationHistoryRedirect';
+
+import ReservationHistoryPage from './page';
 
 const mockReplace = vi.fn();
 const mockUseSession = vi.fn();

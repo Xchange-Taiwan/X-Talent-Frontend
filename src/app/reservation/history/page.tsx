@@ -3,12 +3,7 @@
 import { Suspense } from 'react';
 
 import { ReservationListSkeleton } from '@/app/reservation/skeleton';
-import {
-  buildReservationHistoryRedirectHref,
-  useReservationHistoryRedirect,
-} from '@/hooks/user/reservation/useReservationHistoryRedirect';
-
-export { buildReservationHistoryRedirectHref };
+import { useReservationHistoryRedirect } from '@/hooks/user/reservation/useReservationHistoryRedirect';
 
 function ReservationHistoryLoadingShell() {
   return (
