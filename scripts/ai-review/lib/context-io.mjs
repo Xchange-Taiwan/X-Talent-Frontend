@@ -14,7 +14,6 @@ export function decodeContext(b64) {
   }
 }
 
-/** Writes `name=value` to $GITHUB_OUTPUT so downstream jobs can read it via `needs.<job>.outputs.<name>`. */
 export function writeGithubOutput(name, value) {
   const outputPath = process.env.GITHUB_OUTPUT;
   if (!outputPath) {
