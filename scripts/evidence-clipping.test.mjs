@@ -176,9 +176,9 @@ describe('detectDialogStickyFooterClipping (720p Dialog & Sticky Footer Gate)', 
     // Case 1: scrollTop=0 -> remaining scroll (184px) clears sticky footer (668 - 184 <= 626) -> allowed!
     const snapCanScroll = collectDialogClippingSnapshot();
     expect(snapCanScroll.dialogs[0].protectedBlocks).toHaveLength(1);
-    expect(snapCanScroll.dialogs[0].protectedBlocks[0].canScrollAboveFooter).toBe(
-      true
-    );
+    expect(
+      snapCanScroll.dialogs[0].protectedBlocks[0].canScrollAboveFooter
+    ).toBe(true);
     expect(detectDialogStickyFooterClipping(snapCanScroll)).toBeNull();
 
     // Case 2: already scrolled to bottom (scrollTop=184) and STILL overlapped -> caught!

@@ -338,7 +338,10 @@ export async function captureEvidence(
 
 export function collectDialogClippingSnapshot(): DialogClippingSnapshot {
   const isVis = (el: Element): boolean => {
-    if (!el || typeof (el as HTMLElement).getBoundingClientRect !== 'function') {
+    if (
+      !el ||
+      typeof (el as HTMLElement).getBoundingClientRect !== 'function'
+    ) {
       return false;
     }
     const s = window.getComputedStyle(el);

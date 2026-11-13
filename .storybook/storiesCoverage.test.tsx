@@ -420,9 +420,9 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
   });
 
   it('dynamically discovers all src/components/**/*.stories.tsx files via Vite import.meta.glob without requiring manual per-PR imports', () => {
-    const storyModules = (
-      import.meta as unknown as ViteGlobImportMeta
-    ).glob<Record<string, unknown>>('../src/components/**/*.stories.{ts,tsx}', {
+    const storyModules = (import.meta as unknown as ViteGlobImportMeta).glob<
+      Record<string, unknown>
+    >('../src/components/**/*.stories.{ts,tsx}', {
       eager: true,
     });
     const entries = Object.entries(storyModules);
