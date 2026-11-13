@@ -25,9 +25,7 @@ if (!process.env.GEMINI_MAX_OUTPUT_TOKENS) {
 
 if (!process.env.GEMINI_API_KEY) {
   if (process.env.STRICT_AI_REVIEW === '1') {
-    console.error(
-      '[ai-review-local] GEMINI_API_KEY is missing under STRICT_AI_REVIEW=1.'
-    );
+    console.error('[ai-review-local] GEMINI_API_KEY is missing under STRICT_AI_REVIEW=1.');
     console.log(
       JSON.stringify({
         mode: 'review-error',
@@ -270,34 +268,35 @@ async function main() {
 }
 
 main().catch((err) => {
-  if (process.env.STRICT_AI_REVIEW === '1') {
-    console.error(`[ai-review-local] Strict review failed: ${err.message}`);
+  if (process.env.STRICT_AI_REVIEW === '0') {
+    console.warn(
+      `[ai-review-local] Gemini call skipped (${err.message}); falling back to CI review (STRICT_AI_REVIEW=0).`
+    );
     console.log(
       JSON.stringify({
-        mode: 'review-error',
-        reviewError: true,
+        mode: 'fallback-ci',
         overallRisk: {
-          level: 'high',
-          reason: `AI Review execution failed: ${err.message}`,
+          level: 'low',
+          reason: 'Deferred to GitHub Actions CI Gemini pipeline.',
         },
         requirementCoverage: [],
         findings: {},
       })
     );
-    process.exit(1);
+    return;
   }
-  console.warn(
-    `[ai-review-local] Gemini call skipped (${err.message}); falling back to CI review.`
-  );
+  console.error(`[ai-review-local] Review failed (fail-closed): ${err.message}`);
   console.log(
     JSON.stringify({
-      mode: 'fallback-ci',
+      mode: 'review-error',
+      reviewError: true,
       overallRisk: {
-        level: 'low',
-        reason: 'Deferred to GitHub Actions CI Gemini pipeline.',
+        level: 'high',
+        reason: `AI Review execution failed: ${err.message}`,
       },
       requirementCoverage: [],
       findings: {},
     })
   );
+  process.exit(1);
 });

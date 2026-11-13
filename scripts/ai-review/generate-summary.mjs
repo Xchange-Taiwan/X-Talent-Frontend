@@ -10,31 +10,51 @@ import { formatComment } from './lib/format-comment.mjs';
  * failing to run must not prevent the other stages' results from being
  * posted (formatComment renders a missing stage as "not run").
  */
-function decodeUpstream(name, envVar) {
+function decodeUpstream(name, envVar, { requiredCore = false } = {}) {
   const value = decodeContext(process.env[envVar]);
   if (!value) {
     console.warn(
       `[generate-summary] missing or undecodable upstream output: ${name} (${envVar})`
     );
+    if (requiredCore) {
+      return {
+        hasFindings: false,
+        skippedDueToError: true,
+        summary: `此領域審查結果缺漏或解碼失敗（${envVar}）`,
+        findings: [],
+      };
+    }
   }
   return value;
 }
 
 const plan = decodeUpstream('plan', 'PLAN_B64');
-const security = decodeUpstream('security', 'SECURITY_FINDINGS_B64');
-const correctness = decodeUpstream('correctness', 'CORRECTNESS_FINDINGS_B64');
+const security = decodeUpstream('security', 'SECURITY_FINDINGS_B64', {
+  requiredCore: true,
+});
+const correctness = decodeUpstream('correctness', 'CORRECTNESS_FINDINGS_B64', {
+  requiredCore: true,
+});
 const businessLogic = decodeUpstream(
   'businessLogic',
-  'BUSINESS_LOGIC_FINDINGS_B64'
+  'BUSINESS_LOGIC_FINDINGS_B64',
+  { requiredCore: true }
 );
 const visualParity = process.env.VISUAL_PARITY_FINDINGS_B64
-  ? decodeUpstream('visualParity', 'VISUAL_PARITY_FINDINGS_B64')
+  ? decodeUpstream('visualParity', 'VISUAL_PARITY_FINDINGS_B64', {
+      requiredCore: true,
+    })
   : undefined;
-const performance = decodeUpstream('performance', 'PERFORMANCE_FINDINGS_B64');
-const testing = decodeUpstream('testing', 'TESTING_FINDINGS_B64');
+const performance = decodeUpstream('performance', 'PERFORMANCE_FINDINGS_B64', {
+  requiredCore: true,
+});
+const testing = decodeUpstream('testing', 'TESTING_FINDINGS_B64', {
+  requiredCore: true,
+});
 const architecture = decodeUpstream(
   'architecture',
-  'ARCHITECTURE_FINDINGS_B64'
+  'ARCHITECTURE_FINDINGS_B64',
+  { requiredCore: true }
 );
 const reviewGuide = decodeUpstream('reviewGuide', 'REVIEW_GUIDE_B64');
 
@@ -76,5 +96,6 @@ const comment = formatComment({
   testing,
   architecture,
   summary,
+  headSha: process.env.HEAD_SHA || '',
 });
 writeFileSync('ai-review-comment.md', comment, 'utf-8');
