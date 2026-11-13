@@ -14,7 +14,12 @@ import {
  * `outputName` so the next stage in the pipeline can read it via
  * `needs.<job>.outputs.<outputName>`.
  */
-export async function runAgent({ promptUrl, upstreamEnvVars, outputName }) {
+export async function runAgent({
+  promptUrl,
+  upstreamEnvVars,
+  outputName,
+  allowErrorFallback = true,
+}) {
   const baseRef = process.env.BASE_REF;
   if (!baseRef) {
     throw new Error('BASE_REF env var is required');
@@ -47,6 +52,9 @@ export async function runAgent({ promptUrl, upstreamEnvVars, outputName }) {
   try {
     result = await callGemini(prompt);
   } catch (err) {
+    if (!allowErrorFallback) {
+      throw err;
+    }
     console.warn(
       `[${outputName}] Non-fatal error after retries (${err.message}); emitting skippedDueToError fallback.`
     );
