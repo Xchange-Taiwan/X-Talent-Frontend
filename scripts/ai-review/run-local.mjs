@@ -287,7 +287,9 @@ main().catch((err) => {
     );
     return;
   }
-  console.error(`[ai-review-local] Review failed (fail-closed): ${err.message}`);
+  console.error(
+    `[ai-review-local] Review failed (fail-closed): ${err.message}`
+  );
   console.log(
     JSON.stringify({
       mode: 'review-error',

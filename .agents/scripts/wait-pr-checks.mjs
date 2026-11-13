@@ -28,7 +28,8 @@ export function evaluatePollProgress(pr = {}) {
   for (const c of checks) {
     const name = String(c?.name || c?.context || '');
     const typename =
-      c?.__typename || (c?.context && !c?.status ? 'StatusContext' : 'CheckRun');
+      c?.__typename ||
+      (c?.context && !c?.status ? 'StatusContext' : 'CheckRun');
     const status = String(c?.status || '').toUpperCase();
     const state = String(c?.state || '').toUpperCase();
     const conc = String(c?.conclusion || '').toUpperCase();
@@ -36,10 +37,7 @@ export function evaluatePollProgress(pr = {}) {
     if (/AI Review/i.test(name)) {
       hasAnyAiReview = true;
     }
-    if (
-      name.includes('AI Review: Final Summary') &&
-      status === 'COMPLETED'
-    ) {
+    if (name.includes('AI Review: Final Summary') && status === 'COMPLETED') {
       hasFinalSummary = true;
     }
 
@@ -98,13 +96,11 @@ export function evaluateFinalPrConvergence(pr = {}, comments = []) {
   // `deploy-pr.yml` ONLY AFTER `vercel build` (`next build`) succeeded on this exact commit.
   const quotaCommentMatchesHead = Boolean(
     headSha &&
-      safeComments.some((c) => {
-        const body = String(c?.body || '');
-        const m = body.match(
-          /<!--\s*vercel-quota-limit:sha=([^\s-]+)\s*-->/i
-        );
-        return Boolean(m && shaMatches(headSha, m[1]));
-      })
+    safeComments.some((c) => {
+      const body = String(c?.body || '');
+      const m = body.match(/<!--\s*vercel-quota-limit:sha=([^\s-]+)\s*-->/i);
+      return Boolean(m && shaMatches(headSha, m[1]));
+    })
   );
 
   let anyVercelQuotaExempted = quotaCommentMatchesHead;
@@ -113,7 +109,8 @@ export function evaluateFinalPrConvergence(pr = {}, comments = []) {
   for (const c of checks) {
     const name = String(c?.name || c?.context || 'unknown');
     const typename =
-      c?.__typename || (c?.context && !c?.status ? 'StatusContext' : 'CheckRun');
+      c?.__typename ||
+      (c?.context && !c?.status ? 'StatusContext' : 'CheckRun');
     const status = String(c?.status || '').toUpperCase();
     const state = String(c?.state || '').toUpperCase();
     const conc = String(c?.conclusion || '').toUpperCase();
@@ -172,8 +169,7 @@ export function evaluateFinalPrConvergence(pr = {}, comments = []) {
 
   const aiComment = [...safeComments].reverse().find((c) => {
     const login = String(c?.author?.login || '');
-    const isBot =
-      login === 'github-actions' || login === 'github-actions[bot]';
+    const isBot = login === 'github-actions' || login === 'github-actions[bot]';
     const body = String(c?.body || '');
     if (!isBot || !body.includes('<!-- ai-review-pipeline -->')) return false;
     const shaTag = body.match(/<!--\s*ai-review-sha:([^\s-]+)\s*-->/i);

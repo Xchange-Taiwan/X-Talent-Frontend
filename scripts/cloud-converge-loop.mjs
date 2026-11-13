@@ -485,7 +485,11 @@ export function createSnapshotSaver({
           }
         }
       } catch {}
-      for (const spec of ['.agents/tmp*', '.gitignore', '.gemini/settings.json']) {
+      for (const spec of [
+        '.agents/tmp*',
+        '.gitignore',
+        '.gemini/settings.json',
+      ]) {
         try {
           execGit('git', ['reset', '--', spec], {
             cwd,
