@@ -66,6 +66,14 @@ rm -f .env.development.local .env.e2e.local .gemini/settings.json.tmp
 rm -rf .agents/tmp
 bash .agents/scripts/unstage-cloud-locks.sh --restore-worktree
 
+# Collapse any resumed [cloud-wip-checkpoint] commits into one clean feature commit when no open PR exists yet
+git fetch origin develop --quiet 2>/dev/null || true
+if git log "origin/develop..HEAD" --format=%s 2>/dev/null | grep -Fq '[cloud-wip-checkpoint]'; then
+  if OPEN_PR_CHECK=$(gh pr list --head "$CURRENT_BRANCH" --state open --json number --jq 'length' 2>/dev/null) && [ "$OPEN_PR_CHECK" = "0" ]; then
+    git reset --soft origin/develop
+  fi
+fi
+
 # 4. Stage and commit any uncommitted working tree changes (allow .env.example/.sample/.template while blocking secret .env files)
 git add -A
 bash .agents/scripts/unstage-cloud-locks.sh --restore-worktree
