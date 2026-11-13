@@ -24,9 +24,9 @@ if (!process.env.GEMINI_MAX_OUTPUT_TOKENS) {
 }
 
 if (!process.env.GEMINI_API_KEY) {
-  if (process.env.STRICT_AI_REVIEW === '1') {
+  if (process.env.STRICT_AI_REVIEW !== '0') {
     console.error(
-      '[ai-review-local] GEMINI_API_KEY is missing under STRICT_AI_REVIEW=1.'
+      '[ai-review-local] GEMINI_API_KEY is missing (fail-closed by default; set STRICT_AI_REVIEW=0 only for offline local dev).'
     );
     console.log(
       JSON.stringify({
@@ -34,7 +34,7 @@ if (!process.env.GEMINI_API_KEY) {
         reviewError: true,
         overallRisk: {
           level: 'high',
-          reason: 'GEMINI_API_KEY is missing under STRICT_AI_REVIEW=1.',
+          reason: 'GEMINI_API_KEY is missing (fail-closed).',
         },
         requirementCoverage: [],
         findings: {},
@@ -49,7 +49,7 @@ if (!process.env.GEMINI_API_KEY) {
         overallRisk: {
           level: 'low',
           reason:
-            'No local GEMINI_API_KEY found in .env.development.local. Skip spawning sub-agents; rely on local lint/type-check/vitest and GitHub Actions CI Gemini review.',
+            'No local GEMINI_API_KEY found under STRICT_AI_REVIEW=0. Rely on local lint/type-check/vitest and GitHub Actions CI Gemini review.',
         },
         requirementCoverage: [],
         findings: {},
@@ -287,9 +287,7 @@ main().catch((err) => {
     );
     return;
   }
-  console.error(
-    `[ai-review-local] Review failed (fail-closed): ${err.message}`
-  );
+  console.error(`[ai-review-local] Review failed (fail-closed): ${err.message}`);
   console.log(
     JSON.stringify({
       mode: 'review-error',

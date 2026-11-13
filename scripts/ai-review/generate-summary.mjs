@@ -40,11 +40,11 @@ const businessLogic = decodeUpstream(
   'BUSINESS_LOGIC_FINDINGS_B64',
   { requiredCore: true }
 );
-const visualParity = process.env.VISUAL_PARITY_FINDINGS_B64
-  ? decodeUpstream('visualParity', 'VISUAL_PARITY_FINDINGS_B64', {
-      requiredCore: true,
-    })
-  : undefined;
+const visualParity = decodeUpstream(
+  'visualParity',
+  'VISUAL_PARITY_FINDINGS_B64',
+  { requiredCore: true }
+);
 const performance = decodeUpstream('performance', 'PERFORMANCE_FINDINGS_B64', {
   requiredCore: true,
 });
