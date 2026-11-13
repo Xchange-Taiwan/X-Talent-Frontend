@@ -77,4 +77,42 @@ describe('link-ticket-branch state machine', () => {
       'fix/740-impl'
     );
   });
+
+  it('reuses openPrsByTicket fallback when GraphQL closedByPullRequestsReferences is empty', () => {
+    const plan = resolveTicketBranchPlan({
+      issueNumber: 735,
+      issueObj: {
+        title: '[Feature] Mentor 回饋顯示',
+        linkedBranches: { nodes: [] },
+        closedByPullRequestsReferences: { nodes: [] },
+      },
+      requestedBranch: '',
+      openPrsByTicket: [{ number: 1247, headRefName: 'feat/735-mentor' }],
+      remoteBranchExists: true,
+    });
+
+    expect(plan.targetBranch).toBe('feat/735-mentor');
+    expect(plan.hasOpenPr).toBe(true);
+    expect(plan.resetToOriginDevelop).toBe(false);
+  });
+
+  it('does not reset when remote branch does not exist yet and ignores develop/main as requestedBranch', () => {
+    const plan = resolveTicketBranchPlan({
+      issueNumber: 830,
+      issueObj: {
+        title: '[Feature] Mentor Profile v2',
+        linkedBranches: { nodes: [] },
+        closedByPullRequestsReferences: {
+          nodes: [{ number: 1200, state: 'MERGED', headRefName: 'feat/830-v1' }],
+        },
+      },
+      requestedBranch: 'develop',
+      openPrsByTicket: [],
+      remoteBranchExists: false,
+    });
+
+    expect(plan.targetBranch).toBe('feat/830-mentor-profile-v2');
+    expect(plan.hasOpenPr).toBe(false);
+    expect(plan.resetToOriginDevelop).toBe(false);
+  });
 });

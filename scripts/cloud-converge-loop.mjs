@@ -456,13 +456,36 @@ export function createSnapshotSaver({
         stdio: 'ignore',
       });
       execGit('git', ['add', '-A'], { cwd, env: snapEnv, stdio: 'ignore' });
-      for (const spec of [
-        '.env*',
-        '*/.env*',
-        '.agents/tmp*',
-        '.gitignore',
-        '.gemini/settings.json',
-      ]) {
+      try {
+        const cachedNames = execGit(
+          'git',
+          ['diff', '--cached', '--name-only'],
+          {
+            cwd,
+            env: snapEnv,
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+          }
+        )
+          .split(/\r?\n/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+        for (const f of cachedNames) {
+          if (
+            /(^|\/)\.env(\..+)?$/.test(f) &&
+            !/\.env\.(example|sample|template)$/.test(f)
+          ) {
+            try {
+              execGit('git', ['reset', '--', f], {
+                cwd,
+                env: snapEnv,
+                stdio: 'ignore',
+              });
+            } catch {}
+          }
+        }
+      } catch {}
+      for (const spec of ['.agents/tmp*', '.gitignore', '.gemini/settings.json']) {
         try {
           execGit('git', ['reset', '--', spec], {
             cwd,

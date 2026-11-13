@@ -936,6 +936,10 @@ describe('cloud-converge-loop', () => {
           cwd: tmpRepo,
           stdio: 'ignore',
         });
+        execFileSync('git', ['config', 'core.autocrlf', 'false'], {
+          cwd: tmpRepo,
+          stdio: 'ignore',
+        });
 
         fs.mkdirSync(path.join(tmpRepo, '.gemini'), { recursive: true });
         fs.mkdirSync(path.join(tmpRepo, 'src'), { recursive: true });
@@ -1021,12 +1025,7 @@ describe('cloud-converge-loop', () => {
 
     it('supports fast 0-AI-Review funnel mode (--run-ai-review=false) converging immediately once lint, tests, and E2E pass', async () => {
       const parsedFast = parseConvergeArgs(
-        [
-          '--max-rounds=3',
-          '--ticket=740',
-          '--run-e2e=true',
-          '--run-ai-review=false',
-        ],
+        ['--max-rounds=3', '--ticket=740', '--run-e2e=true', '--run-ai-review=false'],
         {}
       );
       expect(parsedFast.runAiReview).toBe(false);
@@ -1036,11 +1035,7 @@ describe('cloud-converge-loop', () => {
       const execStep = vi.fn((cmd, args) => {
         calls.push(`${cmd} ${args.join(' ')}`);
         if (cmd === 'git' && args[0] === 'diff') {
-          return {
-            ok: true,
-            stdout: 'src/components/Foo.tsx\ne2e/tests/public/foo.spec.ts\n',
-            stderr: '',
-          };
+          return { ok: true, stdout: 'src/components/Foo.tsx\ne2e/tests/public/foo.spec.ts\n', stderr: '' };
         }
         return { ok: true, stdout: '', stderr: '' };
       });
@@ -1081,11 +1076,7 @@ describe('cloud-converge-loop', () => {
           // Round 1 compiles cleanly; Round 2 breaks compilation!
           return roundNum === 1
             ? { ok: true, stdout: '', stderr: '' }
-            : {
-                ok: false,
-                stderr: 'TS2322 broken in round 2',
-                combined: 'TS2322 broken in round 2',
-              };
+            : { ok: false, stderr: 'TS2322 broken in round 2', combined: 'TS2322 broken in round 2' };
         }
         if (cmd === 'node' && String(args[0]).includes('run-local.mjs')) {
           // Simulate silent API failure returning fallback-ci (must NOT falsely converge!)
@@ -1140,8 +1131,8 @@ describe('cloud-converge-loop', () => {
         const gitCmds = [];
         const mockExecGit = vi.fn((_bin, args) => {
           gitCmds.push(args.join(' '));
-          if (args[0] === 'reset' && args[2] === '.env*') {
-            throw new Error('pathspec .env* did not match any files');
+          if (args[0] === 'diff' && args[1] === '--cached') {
+            return '.env.development.local\n.env.example\nsrc/app.tsx\n';
           }
           if (args[0] === 'write-tree') return 'deadbeef1234\n';
           return '';
@@ -1159,6 +1150,8 @@ describe('cloud-converge-loop', () => {
 
         expect(sha).toBe('deadbeef1234');
         expect(gitCmds.some((c) => c.startsWith('checkout '))).toBe(false);
+        expect(gitCmds).toContain('reset -- .env.development.local');
+        expect(gitCmds).not.toContain('reset -- .env.example');
         expect(gitCmds).toContain('reset -- .gitignore');
         expect(gitCmds).toContain('reset -- .gemini/settings.json');
 
