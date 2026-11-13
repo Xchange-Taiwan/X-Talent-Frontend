@@ -381,7 +381,7 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
         id: 703,
         body: {
           meeting_happened: false,
-          not_happened_reason: 'MENTOR_ABSENT',
+          not_happened_reason: 'MENTEE_ABSENT',
         },
       },
     ]);

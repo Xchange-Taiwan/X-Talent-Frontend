@@ -1,11 +1,16 @@
+import {
+  formatAuthorMaskedName,
+  formatFeedbackDate,
+} from '@/lib/mentor/mentorStats';
 import type { Reservation } from '@/types/reservation';
+import type { ReservationFeedback } from '@/types/reservationFeedback';
 
 export const UNPUBLICIZED_FEEDBACK_NOTICE =
   '這場會談已被標註沒有進行，因此評價不會公開；如有疑問可以透過回饋表單聯繫我們。';
 
 export type HistoryHeaderAction =
   | { kind: 'answer-button' }
-  | { kind: 'feedback-toggle'; label: '查看回饋' }
+  | { kind: 'feedback-toggle'; label: '查看回饋' | '查看紀錄' }
   | {
       kind: 'unpublicized-toggle';
       badgeLabel: '評價未公開';
@@ -20,6 +25,9 @@ export type HistoryFeedbackBlockModel =
       label: '我的回饋' | '學員評價';
       rating: number;
       content: string;
+      authorMaskedName?: string;
+      formattedDate?: string;
+      mentorAttendanceLabel?: string;
       canEdit?: boolean;
     }
   | {
@@ -28,6 +36,10 @@ export type HistoryFeedbackBlockModel =
       content: string;
       notice: string;
       canEdit?: boolean;
+    }
+  | {
+      kind: 'mentor-record';
+      attendanceLabel: string;
     };
 
 export interface HistoryFeedbackState {
@@ -42,6 +54,24 @@ export function filterPendingFeedbackQueueItems(
   return items.filter(
     (item) => !item.cancelledBy && item.feedback?.nextStep === 'ANSWER'
   );
+}
+
+function resolveMentorOwnAttendance(
+  feedback: ReservationFeedback | undefined
+): 'pending' | 'happened' | 'not-happened' | 'unknown' {
+  if (!feedback) {
+    return 'unknown';
+  }
+  if (feedback.nextStep === 'ANSWER') {
+    return 'pending';
+  }
+  if (feedback.myMeetingHappened === true) {
+    return 'happened';
+  }
+  if (feedback.myMeetingHappened === false) {
+    return 'not-happened';
+  }
+  return 'unknown';
 }
 
 export function resolveHistoryFeedbackState(opts: {
@@ -112,24 +142,69 @@ export function resolveHistoryFeedbackState(opts: {
     };
   }
 
-  // Mentor view: show '未進行' if marked not happened, or collapsible public mentee review
-  if (feedback?.meetingHappened === false) {
+  // Mentor view (#735):
+  // 1. Only reflect Mentor's own attendance answer (never reveal Mentee's attendance answer).
+  // 2. Display received public rating (masked name · score/10 · date + content) only when
+  //    neither party answered not-happened and rating.isPublic !== false.
+  const ownAttendance = resolveMentorOwnAttendance(feedback);
+  const rating = feedback?.rating;
+  const isSessionMarkedNotHappened =
+    ownAttendance === 'not-happened' || feedback?.meetingHappened === false;
+  const hasPublicMenteeRating = Boolean(
+    !isSessionMarkedNotHappened && rating && rating.isPublic !== false
+  );
+
+  const publicRatingBlock: Extract<
+    HistoryFeedbackBlockModel,
+    { kind: 'public-rating' }
+  > | null =
+    hasPublicMenteeRating && rating
+      ? {
+          kind: 'public-rating',
+          label: '學員評價',
+          rating: rating.rating,
+          content: rating.content,
+          authorMaskedName: formatAuthorMaskedName(rating.authorName),
+          formattedDate: formatFeedbackDate(
+            rating.createdAt || rating.updatedAt
+          ),
+          canEdit: false,
+        }
+      : null;
+
+  if (ownAttendance === 'pending') {
+    return {
+      headerAction: { kind: 'answer-button' },
+      feedbackBlock: publicRatingBlock,
+    };
+  }
+
+  if (ownAttendance === 'not-happened') {
     return {
       headerAction: { kind: 'badge', label: '未進行' },
       feedbackBlock: null,
     };
   }
 
-  if (feedback?.rating && feedback.rating.isPublic !== false) {
+  if (ownAttendance === 'happened') {
     return {
-      headerAction: { kind: 'feedback-toggle', label: '查看回饋' },
-      feedbackBlock: {
-        kind: 'public-rating',
-        label: '學員評價',
-        rating: feedback.rating.rating,
-        content: feedback.rating.content,
-        canEdit: false,
-      },
+      headerAction: { kind: 'feedback-toggle', label: '查看紀錄' },
+      feedbackBlock: publicRatingBlock
+        ? {
+            ...publicRatingBlock,
+            mentorAttendanceLabel: '已回報：有進行',
+          }
+        : {
+            kind: 'mentor-record',
+            attendanceLabel: '已回報：有進行',
+          },
+    };
+  }
+
+  if (publicRatingBlock) {
+    return {
+      headerAction: { kind: 'feedback-toggle', label: '查看紀錄' },
+      feedbackBlock: publicRatingBlock,
     };
   }
 

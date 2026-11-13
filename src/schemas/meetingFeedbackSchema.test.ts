@@ -207,10 +207,43 @@ describe('meetingFeedbackSchema', () => {
           meetingHappened: false,
           rating: 10,
           content: '',
+          notHappenedReason: 'MENTEE_ABSENT',
+          notHappenedNote: '',
+        },
+        'mentor'
+      )
+    ).toEqual({
+      meeting_happened: false,
+      not_happened_reason: 'MENTEE_ABSENT',
+    });
+
+    // Normalizes counterparty absence by viewer role so Mentor never emits MENTOR_ABSENT
+    expect(
+      toSubmitFeedbackPayload(
+        {
+          meetingHappened: false,
+          rating: 10,
+          content: '',
           notHappenedReason: 'MENTOR_ABSENT',
           notHappenedNote: '',
         },
         'mentor'
+      )
+    ).toEqual({
+      meeting_happened: false,
+      not_happened_reason: 'MENTEE_ABSENT',
+    });
+
+    expect(
+      toSubmitFeedbackPayload(
+        {
+          meetingHappened: false,
+          rating: 10,
+          content: '',
+          notHappenedReason: 'MENTEE_ABSENT',
+          notHappenedNote: '',
+        },
+        'mentee'
       )
     ).toEqual({
       meeting_happened: false,

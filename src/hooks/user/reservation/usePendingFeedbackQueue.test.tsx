@@ -366,7 +366,7 @@ describe('usePendingFeedbackQueue (#740)', () => {
       await result.current.submitFeedbackItem(
         {
           meeting_happened: false,
-          not_happened_reason: 'MENTOR_ABSENT',
+          not_happened_reason: 'MENTEE_ABSENT',
         },
         mentorItem
       );
@@ -377,7 +377,7 @@ describe('usePendingFeedbackQueue (#740)', () => {
       myRole: 'mentor',
       payload: {
         meeting_happened: false,
-        not_happened_reason: 'MENTOR_ABSENT',
+        not_happened_reason: 'MENTEE_ABSENT',
       },
     });
     expect(mockClearDtoCache).toHaveBeenCalledWith(1, 'zh_TW');

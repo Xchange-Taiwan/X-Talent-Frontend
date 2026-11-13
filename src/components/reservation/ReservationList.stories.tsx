@@ -259,3 +259,60 @@ export const DeepLinkTargetHighlightedAndAutoExpanded: Story = {
     autoExpandedReservationId: 'res-deeplink-rated',
   },
 };
+
+// 12. Mentor History Confirm-Session & Public Feedback States (#735)
+export const MentorHistoryFeedbackStates: Story = {
+  args: {
+    items: [
+      {
+        ...mockReservations[6],
+        id: 'mentor-res-confirmed-rated',
+        name: 'Zahra Mirzakhani',
+        roleLine: 'Senior UX Designer · 5–10 年工作經驗',
+        viewerRole: 'MENTOR',
+        feedback: {
+          meetingHappened: true,
+          myMeetingHappened: true,
+          rating: {
+            rating: 10,
+            content: '謝謝導師清楚拆解設計系統與跨職能溝通策略！',
+            createdAt: 1761609600,
+            updatedAt: 1761609600,
+            authorName: 'Z***',
+            isPublic: true,
+          },
+          nextStep: null,
+        },
+      },
+      {
+        ...mockReservations[6],
+        id: 'mentor-res-needs-confirm',
+        name: 'Emily Chen',
+        roleLine: 'UI/UX 設計師 · 5–10 年工作經驗',
+        viewerRole: 'MENTOR',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+      {
+        ...mockReservations[6],
+        id: 'mentor-res-not-happened',
+        name: 'Alex Wang',
+        roleLine: '後端工程師 · 5–10 年工作經驗',
+        viewerRole: 'MENTOR',
+        feedback: {
+          meetingHappened: false,
+          myMeetingHappened: false,
+          rating: null,
+          nextStep: null,
+        },
+      },
+      mockReservations[7],
+    ],
+    variant: 'history',
+    sourceRole: 'mentor',
+    myUserId: 'user-mentor-current',
+  },
+};

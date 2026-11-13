@@ -81,6 +81,7 @@ export function stripDeepLinkQueryParams(searchString: string): string {
 export type FeedbackDeepLinkResolution =
   | { kind: 'not-found' }
   | { kind: 'mentee-open-dialog'; reservation: Reservation }
+  | { kind: 'mentor-open-dialog'; reservation: Reservation }
   | { kind: 'mentee-already-rated'; reservation: Reservation }
   | {
       kind: 'mentee-already-resolved';
@@ -106,11 +107,25 @@ export function resolveDeepLinkOutcome(opts: {
   }
 
   if (role === 'mentor') {
+    if (!target.cancelledBy && target.feedback?.nextStep === 'ANSWER') {
+      return {
+        kind: 'mentor-open-dialog',
+        reservation: target,
+      };
+    }
+
+    const ownMeetingHappened =
+      typeof target.feedback?.myMeetingHappened === 'boolean'
+        ? target.feedback.myMeetingHappened
+        : undefined;
+
     const shouldExpandFeedback = Boolean(
       !target.cancelledBy &&
-      target.feedback?.meetingHappened !== false &&
-      target.feedback?.rating &&
-      target.feedback.rating.isPublic !== false
+      (ownMeetingHappened === true ||
+        (ownMeetingHappened !== false &&
+          target.feedback?.meetingHappened !== false &&
+          target.feedback?.rating &&
+          target.feedback.rating.isPublic !== false))
     );
     return {
       kind: 'mentor-locate-card',

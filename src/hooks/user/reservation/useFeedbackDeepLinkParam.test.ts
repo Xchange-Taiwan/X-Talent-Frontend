@@ -244,7 +244,47 @@ describe('useFeedbackDeepLinkParam (#733)', () => {
     );
   });
 
-  it('locates and highlights Mentor card without opening Mentee dialog and cleans deep-link param', () => {
+  it('auto-opens Mentor confirm-session dialog when reservation_id targets a pending Mentor session (#735) and strips param on dismiss', () => {
+    currentPathname = '/reservation/mentor';
+    currentQuery = 'reservation_id=205';
+
+    const pendingMentorCard = fromPartial<Reservation>({
+      id: '205',
+      viewerRole: 'MENTOR',
+      feedback: {
+        meetingHappened: null,
+        rating: null,
+        nextStep: 'ANSWER',
+      },
+    });
+
+    const { result } = renderHook(() =>
+      useFeedbackDeepLinkParam({
+        userRole: 'mentor',
+        history: [pendingMentorCard],
+        isHistoryLoaded: true,
+        isLoadingHistory: false,
+      })
+    );
+
+    expect(result.current.hasDeepLinkTarget).toBe(true);
+    expect(result.current.deepLinkDialogReservation).toBe(pendingMentorCard);
+    expect(result.current.highlightedReservationId).toBe('205');
+    expect(mockToast).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+
+    act(() => {
+      result.current.dismissDeepLinkDialog();
+    });
+
+    expect(result.current.deepLinkDialogReservation).toBeNull();
+    expect(mockReplace).toHaveBeenCalledWith(
+      '/reservation/mentor?tab=history',
+      { scroll: false }
+    );
+  });
+
+  it('locates and highlights Mentor card without opening dialog when already answered and cleans deep-link param', () => {
     currentPathname = '/reservation/mentor';
     currentQuery = 'tab=history&reservationId=201';
 

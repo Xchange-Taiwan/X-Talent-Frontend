@@ -97,6 +97,13 @@ describe('pendingFeedbackGuard (#740)', () => {
 
       expect(
         shouldSuppressPendingFeedbackPopup({
+          pathname: '/about',
+          searchParams: new URLSearchParams('reservation_id=102'),
+        })
+      ).toBe(true);
+
+      expect(
+        shouldSuppressPendingFeedbackPopup({
           pathname: '/mentor-pool',
           searchParams: new URLSearchParams('feedbackReservationId=202'),
         })

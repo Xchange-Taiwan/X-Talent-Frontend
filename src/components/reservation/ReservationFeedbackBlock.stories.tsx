@@ -48,7 +48,19 @@ export const MentorPublicRating: Story = {
       label: '學員評價',
       rating: 9,
       content: '問題拆解清晰、建議可立即落地，非常感謝導師撥空指導。',
+      authorMaskedName: '王＊明',
+      formattedDate: '2026/10/28',
+      mentorAttendanceLabel: '已回報：有進行',
       canEdit: false,
+    },
+  },
+};
+
+export const MentorConfirmedWithoutRating: Story = {
+  args: {
+    model: {
+      kind: 'mentor-record',
+      attendanceLabel: '已回報：有進行',
     },
   },
 };

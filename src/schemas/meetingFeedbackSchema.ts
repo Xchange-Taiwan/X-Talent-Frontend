@@ -3,6 +3,7 @@ import * as z from 'zod';
 import {
   type FeedbackViewerRole,
   NOT_HAPPENED_REASONS,
+  resolveNotHappenedReasonForRole,
   type SubmitReservationFeedbackRequest,
   type UpdateReservationFeedbackRequest,
 } from '@/types/reservationFeedback';
@@ -192,7 +193,10 @@ export function toSubmitFeedbackPayload(
 
     return {
       meeting_happened: false,
-      not_happened_reason: parsed.data.notHappenedReason,
+      not_happened_reason: resolveNotHappenedReasonForRole(
+        parsed.data.notHappenedReason,
+        role
+      ),
       ...(trimmedNote.length > 0 ? { not_happened_note: trimmedNote } : {}),
     };
   }

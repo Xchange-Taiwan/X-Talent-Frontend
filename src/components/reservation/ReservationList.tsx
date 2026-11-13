@@ -157,8 +157,11 @@ function ReservationItem({
     if (historyState.headerAction.kind === 'answer-button') {
       return (
         <MeetingFeedbackDialog
+          viewerRole={sourceRole}
           initialStep={
-            reservation.feedback?.nextStep === 'RATE' ? 'rating' : 'attendance'
+            sourceRole === 'mentee' && reservation.feedback?.nextStep === 'RATE'
+              ? 'rating'
+              : 'attendance'
           }
           reservation={reservation}
           disabled={isMutating}
@@ -192,6 +195,14 @@ function ReservationItem({
     );
   };
 
+  const isCollapsibleFeedbackHeader =
+    historyState?.headerAction.kind === 'feedback-toggle' ||
+    historyState?.headerAction.kind === 'unpublicized-toggle';
+  const shouldRenderFeedbackBlock = Boolean(
+    historyState?.feedbackBlock &&
+    (!isCollapsibleFeedbackHeader || isFeedbackExpanded)
+  );
+
   return (
     <div
       ref={cardWrapperRef}
@@ -214,11 +225,12 @@ function ReservationItem({
         sourceRole={sourceRole}
         headerAction={renderHistoryHeaderAction()}
         feedbackContent={
-          historyState?.feedbackBlock && isFeedbackExpanded ? (
+          historyState?.feedbackBlock && shouldRenderFeedbackBlock ? (
             <ReservationFeedbackBlock
               id={feedbackPanelId}
               model={historyState.feedbackBlock}
               editAction={
+                historyState.feedbackBlock.kind !== 'mentor-record' &&
                 historyState.feedbackBlock.canEdit ? (
                   <MeetingFeedbackDialog
                     mode="edit"
@@ -284,26 +296,31 @@ function ReservationItem({
   );
 }
 
-function MenteeDeepLinkFeedbackDialog({
+function DeepLinkFeedbackDialog({
   reservation,
+  sourceRole,
   myUserId,
   onClose,
 }: {
   reservation: Reservation;
+  sourceRole: SourceRole;
   myUserId: string | undefined;
   onClose?: () => void;
 }) {
   const { submitFeedback, isMutating } = useReservationActions({
     myUserId,
     variant: 'history',
-    myRole: 'mentee',
+    myRole: sourceRole,
   });
 
   return (
     <MeetingFeedbackDialog
       defaultOpen
+      viewerRole={sourceRole}
       initialStep={
-        reservation.feedback?.nextStep === 'RATE' ? 'rating' : 'attendance'
+        sourceRole === 'mentee' && reservation.feedback?.nextStep === 'RATE'
+          ? 'rating'
+          : 'attendance'
       }
       reservation={reservation}
       disabled={isMutating}
@@ -377,12 +394,11 @@ export function ReservationList({
 
   return (
     <div className="space-y-3 sm:space-y-4">
-      {deepLinkDialogReservation &&
-      variant === 'history' &&
-      sourceRole === 'mentee' ? (
-        <MenteeDeepLinkFeedbackDialog
-          key={deepLinkDialogReservation.id}
+      {deepLinkDialogReservation && variant === 'history' ? (
+        <DeepLinkFeedbackDialog
+          key={`${sourceRole}-${deepLinkDialogReservation.id}`}
           reservation={deepLinkDialogReservation}
+          sourceRole={sourceRole}
           myUserId={myUserId}
           onClose={onDeepLinkDialogClose}
         />

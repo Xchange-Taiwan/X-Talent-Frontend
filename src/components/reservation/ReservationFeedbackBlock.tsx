@@ -141,6 +141,28 @@ export function ReservationFeedbackBlock({
   editAction,
   onEdit,
 }: ReservationFeedbackBlockProps) {
+  if (model.kind === 'mentor-record') {
+    return (
+      <div
+        id={id}
+        data-testid="reservation-feedback-mentor-record"
+        className="border-background-border/70 bg-background-bottom-secondary motion-safe:animate-feedback-step-in mt-3 rounded-lg border px-3.5 py-3 sm:px-4 sm:py-3.5"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-text-secondary text-xs font-medium">
+            會談紀錄
+          </span>
+          <span
+            data-testid="mentor-attendance-record"
+            className="text-brand-700 text-xs font-medium sm:text-sm"
+          >
+            {model.attendanceLabel}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   const trimmedContent = model.content.trim();
   const hasContent = trimmedContent.length > 0;
 
@@ -204,6 +226,72 @@ export function ReservationFeedbackBlock({
             </p>
           )}
         </div>
+      </div>
+    );
+  }
+
+  const isMentorReceivedRating =
+    model.label === '學員評價' && Boolean(model.authorMaskedName);
+
+  if (isMentorReceivedRating) {
+    return (
+      <div
+        id={id}
+        data-testid="reservation-feedback-public"
+        className="border-background-border/70 bg-background-bottom-secondary motion-safe:animate-feedback-step-in mt-3 rounded-lg border px-3.5 py-3 sm:px-4 sm:py-3.5"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-text-secondary text-xs font-medium">
+            {model.label}
+          </span>
+          {model.mentorAttendanceLabel ? (
+            <span
+              data-testid="mentor-attendance-record"
+              className="text-brand-700 text-xs font-medium"
+            >
+              {model.mentorAttendanceLabel}
+            </span>
+          ) : null}
+        </div>
+
+        <div
+          data-testid="mentor-feedback-meta"
+          className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs sm:text-sm"
+        >
+          <span className="text-text-primary font-semibold">
+            {model.authorMaskedName}
+          </span>
+          <span className="text-text-tertiary" aria-hidden="true">
+            ·
+          </span>
+          <span className="text-brand-700 inline-flex items-center gap-1 font-semibold tabular-nums">
+            <Star
+              className="fill-brand-700 text-brand-700 size-3.5"
+              aria-hidden="true"
+            />
+            <span>{model.rating} / 10</span>
+          </span>
+          {model.formattedDate ? (
+            <>
+              <span className="text-text-tertiary" aria-hidden="true">
+                ·
+              </span>
+              <time className="text-text-tertiary tabular-nums">
+                {model.formattedDate}
+              </time>
+            </>
+          ) : null}
+        </div>
+
+        {hasContent ? (
+          <p className="text-text-primary mt-1.5 text-xs leading-relaxed whitespace-pre-line sm:text-sm">
+            {trimmedContent}
+          </p>
+        ) : (
+          <p className="text-text-tertiary mt-1.5 text-xs leading-relaxed sm:text-sm">
+            {EMPTY_FEEDBACK_CONTENT_TEXT}
+          </p>
+        )}
       </div>
     );
   }

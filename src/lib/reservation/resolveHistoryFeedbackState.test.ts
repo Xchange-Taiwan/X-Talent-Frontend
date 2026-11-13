@@ -179,11 +179,60 @@ describe('resolveHistoryFeedbackState', () => {
     });
   });
 
-  it('renders collapsible 查看回饋 public mentee review on mentor history card and hides unpublicized reviews', () => {
+  it('renders Mentor history card states (#735): 確認會談 when pending, 查看紀錄 with masked name · score/10 · date, non-leaking 查看紀錄 when Mentee answered not-happened, and 未進行 when Mentor answered not-happened', () => {
+    // 1. Mentor pending without Mentee rating -> 確認會談 button, no feedbackBlock
+    const pendingNoRatingState = resolveHistoryFeedbackState({
+      reservation: makeReservation({
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      }),
+      sourceRole: 'mentor',
+    });
+    expect(pendingNoRatingState).toEqual({
+      headerAction: { kind: 'answer-button' },
+      feedbackBlock: null,
+    });
+
+    // 2. Mentor pending WITH public Mentee rating -> 確認會談 button stays open AND public rating is immediately visible
+    const pendingWithPublicRatingState = resolveHistoryFeedbackState({
+      reservation: makeReservation({
+        feedback: {
+          meetingHappened: null,
+          rating: {
+            rating: 10,
+            content: '謝謝導師清楚剖析設計系統架構！',
+            createdAt: 1761609600,
+            updatedAt: 1761609600,
+            authorName: '王＊明',
+            isPublic: true,
+          },
+          nextStep: 'ANSWER',
+        },
+      }),
+      sourceRole: 'mentor',
+    });
+    expect(pendingWithPublicRatingState).toEqual({
+      headerAction: { kind: 'answer-button' },
+      feedbackBlock: {
+        kind: 'public-rating',
+        label: '學員評價',
+        rating: 10,
+        content: '謝謝導師清楚剖析設計系統架構！',
+        authorMaskedName: '王＊明',
+        formattedDate: expect.stringMatching(/^\d{4}\/\d{2}\/\d{2}$/),
+        canEdit: false,
+      },
+    });
+
+    // 3. Mentor answered 有進行 + public Mentee rating -> 查看紀錄 toggle + 已回報：有進行 + masked name · score/10 · date
     const publicMentorState = resolveHistoryFeedbackState({
       reservation: makeReservation({
         feedback: {
           meetingHappened: true,
+          myMeetingHappened: true,
           rating: {
             rating: 9,
             content: '收穫良多！',
@@ -199,20 +248,54 @@ describe('resolveHistoryFeedbackState', () => {
     });
 
     expect(publicMentorState).toEqual({
-      headerAction: { kind: 'feedback-toggle', label: '查看回饋' },
+      headerAction: { kind: 'feedback-toggle', label: '查看紀錄' },
       feedbackBlock: {
         kind: 'public-rating',
         label: '學員評價',
         rating: 9,
         content: '收穫良多！',
+        authorMaskedName: '林＊華',
+        formattedDate: expect.stringMatching(/^\d{4}\/\d{2}\/\d{2}$/),
+        mentorAttendanceLabel: '已回報：有進行',
         canEdit: false,
       },
     });
 
+    // 4. Mentor answered 有進行, Mentee answered 沒有進行 (aggregate meetingHappened=false, myMeetingHappened=true) ->
+    // MUST still show 查看紀錄 (own answer) and hide unpublicized rating without leaking Mentee's attendance answer!
+    const mentorYesMenteeNoState = resolveHistoryFeedbackState({
+      reservation: makeReservation({
+        feedback: {
+          meetingHappened: false,
+          myMeetingHappened: true,
+          rating: {
+            rating: 8,
+            content: '不應顯示的未公開回饋',
+            createdAt: 1760002000,
+            updatedAt: 1760002000,
+            authorName: '林＊華',
+            isPublic: false,
+          },
+          nextStep: null,
+        },
+      }),
+      sourceRole: 'mentor',
+    });
+
+    expect(mentorYesMenteeNoState).toEqual({
+      headerAction: { kind: 'feedback-toggle', label: '查看紀錄' },
+      feedbackBlock: {
+        kind: 'mentor-record',
+        attendanceLabel: '已回報：有進行',
+      },
+    });
+
+    // 5. Mentor answered 沒有進行 -> locked 未進行 badge and hidden rating
     const notHappenedMentorState = resolveHistoryFeedbackState({
       reservation: makeReservation({
         feedback: {
           meetingHappened: false,
+          myMeetingHappened: false,
           rating: {
             rating: 9,
             content: '未公開內容',
@@ -230,6 +313,85 @@ describe('resolveHistoryFeedbackState', () => {
     expect(notHappenedMentorState).toEqual({
       headerAction: { kind: 'badge', label: '未進行' },
       feedbackBlock: null,
+    });
+
+    // 6. Mentor never answered (myMeetingHappened: null / undefined, nextStep: null) while Mentee answered 沒有進行 ->
+    // MUST fall back to 已結束 without leaking Mentee's 未進行 answer or unpublicized rating!
+    const mentorUnansweredMenteeNoState = resolveHistoryFeedbackState({
+      reservation: makeReservation({
+        feedback: {
+          meetingHappened: false,
+          myMeetingHappened: null,
+          rating: {
+            rating: 7,
+            content: '未公開評論',
+            createdAt: 1760002000,
+            updatedAt: 1760002000,
+            authorName: '陳＊明',
+            isPublic: false,
+          },
+          nextStep: null,
+        },
+      }),
+      sourceRole: 'mentor',
+    });
+
+    expect(mentorUnansweredMenteeNoState).toEqual({
+      headerAction: { kind: 'badge', label: '已結束' },
+      feedbackBlock: null,
+    });
+
+    // 7. Mentor never answered (myMeetingHappened: null, nextStep: null) while Mentee answered 有進行 without rating ->
+    // MUST render 已結束 with null feedbackBlock (never fabricate 查看紀錄 / 已回報：有進行)
+    const mentorUnansweredNoRatingState = resolveHistoryFeedbackState({
+      reservation: makeReservation({
+        feedback: {
+          meetingHappened: true,
+          myMeetingHappened: null,
+          rating: null,
+          nextStep: null,
+        },
+      }),
+      sourceRole: 'mentor',
+    });
+
+    expect(mentorUnansweredNoRatingState).toEqual({
+      headerAction: { kind: 'badge', label: '已結束' },
+      feedbackBlock: null,
+    });
+
+    // 8. Mentor never answered (myMeetingHappened: null, nextStep: null) while Mentee left a public rating ->
+    // Shows 查看紀錄 with public rating, WITHOUT fabricating mentorAttendanceLabel ('已回報：有進行')
+    const mentorUnansweredPublicRatingState = resolveHistoryFeedbackState({
+      reservation: makeReservation({
+        feedback: {
+          meetingHappened: true,
+          myMeetingHappened: null,
+          rating: {
+            rating: 10,
+            content: '非常實用的職涯建議！',
+            createdAt: 1760002000,
+            updatedAt: 1760002000,
+            authorName: '張＊婷',
+            isPublic: true,
+          },
+          nextStep: null,
+        },
+      }),
+      sourceRole: 'mentor',
+    });
+
+    expect(mentorUnansweredPublicRatingState).toEqual({
+      headerAction: { kind: 'feedback-toggle', label: '查看紀錄' },
+      feedbackBlock: {
+        kind: 'public-rating',
+        label: '學員評價',
+        rating: 10,
+        content: '非常實用的職涯建議！',
+        authorMaskedName: '張＊婷',
+        formattedDate: expect.stringMatching(/^\d{4}\/\d{2}\/\d{2}$/),
+        canEdit: false,
+      },
     });
   });
 

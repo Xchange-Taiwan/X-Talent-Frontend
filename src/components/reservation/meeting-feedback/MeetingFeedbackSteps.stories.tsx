@@ -71,6 +71,7 @@ function NotHappenedPreview({
     <Dialog open>
       <DialogContent className="max-w-[468px] space-y-3">
         <NotHappenedStepContent
+          isMentor={isMentor}
           notHappenedReason={reason}
           notHappenedNote={note}
           noteFieldId="story-note"
@@ -162,7 +163,7 @@ export const MentorStep1NotHappened: Story = {
 };
 
 export const MentorStep2NotHappenedWithWarning: Story = {
-  render: () => <NotHappenedPreview initialReason="MENTOR_ABSENT" isMentor />,
+  render: () => <NotHappenedPreview initialReason="MENTEE_ABSENT" isMentor />,
 };
 
 export const MentorStep2NotHappenedOtherExpanded: Story = {

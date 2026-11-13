@@ -21,8 +21,8 @@ import {
   MENTOR_NOT_HAPPENED_WARNING_TEXT,
 } from '@/schemas/meetingFeedbackSchema';
 import {
+  getNotHappenedReasonsForRole,
   NOT_HAPPENED_REASON_LABELS,
-  NOT_HAPPENED_REASONS,
   type NotHappenedReason,
 } from '@/types/reservationFeedback';
 
@@ -229,6 +229,7 @@ export function MentorNotHappenedWarning({
 }
 
 export interface NotHappenedStepContentProps {
+  isMentor?: boolean;
   notHappenedReason: NotHappenedReason | null;
   notHappenedNote: string;
   noteError?: string;
@@ -239,6 +240,7 @@ export interface NotHappenedStepContentProps {
 }
 
 export function NotHappenedStepContent({
+  isMentor = false,
   notHappenedReason,
   notHappenedNote,
   noteError,
@@ -247,6 +249,9 @@ export function NotHappenedStepContent({
   noteRegistration,
   onSelectReason,
 }: NotHappenedStepContentProps) {
+  const reasonOptions = getNotHappenedReasonsForRole(
+    isMentor ? 'mentor' : 'mentee'
+  );
   const showNoteField = notHappenedReason === 'OTHER';
   const visibleNoteError = showNoteField ? noteError : undefined;
   const hasNoteError = Boolean(visibleNoteError);
@@ -275,7 +280,7 @@ export function NotHappenedStepContent({
             aria-label="為何沒有成功進行"
             className="space-y-1.5"
           >
-            {NOT_HAPPENED_REASONS.map((reason) => (
+            {reasonOptions.map((reason) => (
               <FeedbackRadioOption
                 key={reason}
                 name="notHappenedReason"
