@@ -53,34 +53,47 @@ if [ -z "$CURRENT_BRANCH" ] || [ "$CURRENT_BRANCH" = "develop" ] || [ "$CURRENT_
   exit 1
 fi
 
-# 2. If any screenshots were already captured in .agents/tmp/evidence/*.png, publish them
+# 2. If any screenshots were already captured in .agents/tmp/evidence/*, publish them
 shopt -s nullglob
-EVIDENCE_FILES=(.agents/tmp/evidence/*.png)
+EVIDENCE_FILES=(.agents/tmp/evidence/*.png .agents/tmp/evidence/*.jpg .agents/tmp/evidence/*.jpeg .agents/tmp/evidence/*.webp)
 shopt -u nullglob
 if [ "${#EVIDENCE_FILES[@]}" -gt 0 ]; then
   bash .agents/scripts/publish-evidence.sh "${EVIDENCE_FILES[@]}" > "$TMP_EVIDENCE_URLS" || true
 fi
 
-# 3. Clean up temporary cloud files and restore skip-worktree files before staging
-rm -f .env.development.local .env.e2e.local
+# 3. Clean up temporary cloud files and restore skip-worktree files individually from HEAD before staging
+rm -f .env.development.local .env.e2e.local .gemini/settings.json.tmp
 rm -rf .agents/tmp
-git update-index --no-skip-worktree .gitignore .gemini/settings.json 2>/dev/null || true
-git checkout -- .gitignore .gemini/settings.json 2>/dev/null || true
+for locked_file in .gitignore .gemini/settings.json; do
+  git update-index --no-skip-worktree "$locked_file" 2>/dev/null || true
+  git checkout HEAD -- "$locked_file" 2>/dev/null || true
+done
 
-# 4. Stage and commit any uncommitted working tree changes
+# 4. Stage and commit any uncommitted working tree changes (allow .env.example/.sample/.template while blocking secret .env files)
 git add -A
-git reset HEAD -- '.env*' '*/.env*' '.agents/tmp*' >/dev/null 2>&1 || true
+while IFS= read -r secret_env_file; do
+  [ -n "$secret_env_file" ] && git reset HEAD -- "$secret_env_file" >/dev/null 2>&1 || true
+done < <(git diff --cached --name-only | grep -E '(^|/)\.env(\..+)?$' | grep -vE '\.env\.(example|sample|template)$' || true)
+for excl_spec in '.agents/tmp*' '.gitignore' '.gemini/settings.json'; do
+  git reset HEAD -- "$excl_spec" >/dev/null 2>&1 || true
+done
+for locked_file in .gitignore .gemini/settings.json; do
+  git checkout HEAD -- "$locked_file" 2>/dev/null || true
+done
 
 if ! git diff --cached --quiet; then
-  STAGED_FILES=$(git diff --cached --name-only)
-  node - "$CLEAN_TICKET" "$CURRENT_BRANCH" "$TMP_SPEC" "$TMP_EVIDENCE_URLS" "$STAGED_FILES" "$TMP_COMMIT_MSG" <<'EOF'
+  TMP_STAGED_LIST=$(mktemp)
+  git diff --cached --name-only > "$TMP_STAGED_LIST"
+  node --input-type=commonjs - "$CLEAN_TICKET" "$CURRENT_BRANCH" "$TMP_SPEC" "$TMP_EVIDENCE_URLS" "$TMP_STAGED_LIST" "$TMP_COMMIT_MSG" <<'EOF'
 const fs = require('fs');
-const [ticket, branch, specPath, evidencePath, stagedRaw, outPath] = process.argv.slice(2);
+const [ticket, branch, specPath, evidencePath, stagedListPath, outPath] = process.argv.slice(2);
 const specText = fs.existsSync(specPath) ? fs.readFileSync(specPath, 'utf8') : '';
 const evidenceUrls = fs.existsSync(evidencePath)
   ? fs.readFileSync(evidencePath, 'utf8').split(/\r?\n/).map(s => s.trim()).filter(Boolean)
   : [];
-const stagedFiles = String(stagedRaw || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+const stagedFiles = fs.existsSync(stagedListPath)
+  ? fs.readFileSync(stagedListPath, 'utf8').split(/\r?\n/).map(s => s.trim()).filter(Boolean)
+  : [];
 
 const titleMatch = specText.match(/^title:\s*(.+)$/m);
 const rawIssueTitle = titleMatch ? titleMatch[1].trim() : '';
@@ -129,14 +142,11 @@ const fullMsg = [
 
 fs.writeFileSync(outPath, fullMsg, 'utf8');
 EOF
+  rm -f "$TMP_STAGED_LIST"
   git commit -F "$TMP_COMMIT_MSG"
 fi
 
-# 5. Push branch to origin
-git push -u origin "$CURRENT_BRANCH"
-
-# 6. Create or update Pull Request with rich AI-synthesized Traditional Chinese description
-LAST_SUBJECT=$(git log -1 --format=%s 2>/dev/null || echo "")
+# 5. Resolve existing open PR before pushing so re-initialized branches without an open PR can force-with-lease cleanly
 EXISTING_PR="$CLEAN_PR"
 if [ -z "$EXISTING_PR" ]; then
   EXISTING_PR=$(gh pr list --head "$CURRENT_BRANCH" --state open --json number --jq '.[0].number // empty' 2>/dev/null || echo "")
@@ -157,6 +167,22 @@ fi
 
 git fetch origin "$EXISTING_BASE_REF" --quiet 2>/dev/null || true
 
+if [ "$MODE" = "implement" ] && [ -z "$EXISTING_PR" ]; then
+  AHEAD_COUNT=$(git rev-list --count "origin/${EXISTING_BASE_REF}..HEAD" 2>/dev/null || echo "0")
+  if [ "${AHEAD_COUNT:-0}" -eq 0 ]; then
+    echo "ERROR: Branch '$CURRENT_BRANCH' has 0 commits ahead of origin/${EXISTING_BASE_REF}; refusing to open empty PR." >&2
+    exit 1
+  fi
+  git push -u origin "$CURRENT_BRANCH" || git push --force-with-lease -u origin "$CURRENT_BRANCH"
+else
+  if ! git push -u origin "$CURRENT_BRANCH"; then
+    git pull --rebase origin "$CURRENT_BRANCH" && git push -u origin "$CURRENT_BRANCH"
+  fi
+fi
+
+# 6. Create or update Pull Request with rich AI-synthesized Traditional Chinese description
+LAST_SUBJECT=$(git log -1 --format=%s 2>/dev/null || echo "")
+
 node scripts/generate-pr-description.mjs \
   --ticket="$CLEAN_TICKET" \
   --branch="$CURRENT_BRANCH" \
@@ -172,7 +198,14 @@ node scripts/generate-pr-description.mjs \
 PR_TITLE=$(cat "$TMP_PR_TITLE")
 if [ -z "$EXISTING_PR" ]; then
   if [ "$MODE" = "implement" ]; then
-    gh pr create --base "$EXISTING_BASE_REF" --head "$CURRENT_BRANCH" --title "$PR_TITLE" --body-file "$TMP_PR_BODY"
+    DRAFT_FLAG="--draft"
+    if [ "${CLOUD_PR_DRAFT:-true}" = "false" ]; then
+      DRAFT_FLAG=""
+    fi
+    # Open as Draft PR by default so Vercel Preview deployment only fires once
+    # after online AI Review + CI pass and Worker promotes PR to Ready for Review.
+    # shellcheck disable=SC2086
+    gh pr create $DRAFT_FLAG --base "$EXISTING_BASE_REF" --head "$CURRENT_BRANCH" --title "$PR_TITLE" --body-file "$TMP_PR_BODY"
   fi
 else
   if [ "$MODE" = "implement" ]; then

@@ -32,17 +32,24 @@ function runGit(args, { allowFail = false } = {}) {
   }
 }
 
-function runGh(args, { allowFail = false } = {}) {
-  try {
-    return execFileSync('gh', args, {
-      cwd: repoRoot,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    }).trim();
-  } catch (err) {
-    if (allowFail) return '';
-    throw err;
+function runGh(args, { allowFail = false, retries = 3 } = {}) {
+  let lastErr;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return execFileSync('gh', args, {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }).trim();
+    } catch (err) {
+      lastErr = err;
+      if (attempt < retries) {
+        sleepSync(1000 * attempt);
+      }
+    }
   }
+  if (allowFail) return '';
+  throw lastErr;
 }
 
 function sleepSync(ms) {
@@ -144,6 +151,69 @@ export function deriveBranchNameFromIssue(issueNumber, rawTitle = '') {
   return `${prefix}/${issueNumber}-${slug}`;
 }
 
+/**
+ * Pure state-machine planner for selecting or resetting a ticket's feature branch:
+ * - Only OPEN PRs count as active PRs (CLOSED / MERGED PRs are historical and ignored).
+ * - If an OPEN PR exists for this ticket (and no explicit branch was requested),
+ *   reuse that OPEN PR's headRefName without resetting it.
+ * - If NO OPEN PR exists and `requestedBranch` was not explicitly passed (e.g. fresh
+ *   `cloud-implement.yml` run after a closed/merged PR or failed attempt), reset any
+ *   leftover stale remote branch cleanly to `origin/develop` so old dead commits
+ *   never cause `mergeable_state: dirty` conflicts.
+ */
+export function resolveTicketBranchPlan({
+  issueNumber,
+  issueObj,
+  requestedBranch = '',
+  openPrsByTicket = [],
+  remoteBranchExists = false,
+}) {
+  const cleanRequested =
+    requestedBranch &&
+    requestedBranch !== 'develop' &&
+    requestedBranch !== 'main'
+      ? String(requestedBranch).trim()
+      : '';
+
+  const openLinkedPrs = (
+    issueObj?.closedByPullRequestsReferences?.nodes || []
+  ).filter((n) => n?.state === 'OPEN' && n?.headRefName);
+
+  const activeOpenPrBranch =
+    openLinkedPrs[0]?.headRefName || openPrsByTicket[0]?.headRefName || '';
+
+  const hasOpenPr = Boolean(activeOpenPrBranch);
+
+  if (cleanRequested) {
+    return {
+      targetBranch: cleanRequested,
+      hasOpenPr,
+      resetToOriginDevelop: false,
+    };
+  }
+
+  if (activeOpenPrBranch) {
+    return {
+      targetBranch: activeOpenPrBranch,
+      hasOpenPr: true,
+      resetToOriginDevelop: false,
+    };
+  }
+
+  const preLinked = (issueObj?.linkedBranches?.nodes || [])
+    .map((n) => n?.ref?.name)
+    .find((b) => b && b !== 'develop' && b !== 'main');
+
+  const targetBranch =
+    preLinked || deriveBranchNameFromIssue(issueNumber, issueObj?.title);
+
+  return {
+    targetBranch,
+    hasOpenPr: false,
+    resetToOriginDevelop: Boolean(remoteBranchExists),
+  };
+}
+
 export function linkTicketBranch(argv = process.argv.slice(2)) {
   const cfg = loadConfig();
   const org = cfg.org;
@@ -169,10 +239,11 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
   }
 
   const rawIssue = positional[0] || '';
+  const explicitArgBranch = positional[1] || '';
   const currentBranch = runGit(['branch', '--show-current'], {
     allowFail: true,
   });
-  let targetBranch = positional[1] || currentBranch;
+  let targetBranch = explicitArgBranch || currentBranch;
 
   let issueRepo = trackerRepo;
   let issueNumber = 0;
@@ -213,14 +284,78 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
     );
   }
 
-  if (!targetBranch || targetBranch === 'develop' || targetBranch === 'main') {
-    const preLinked = (issueObj.linkedBranches?.nodes || [])
-      .map((n) => n?.ref?.name)
-      .find((b) => b && b !== 'develop' && b !== 'main');
-    targetBranch =
-      preLinked || deriveBranchNameFromIssue(issueNumber, issueObj.title);
+  let openPrsByTicket = [];
+  if (!explicitArgBranch) {
+    const rawOpenPrs = runGh(
+      [
+        'pr',
+        'list',
+        '--repo',
+        `${org}/${frontendRepo}`,
+        '--state',
+        'open',
+        '--limit',
+        '30',
+        '--json',
+        'number,headRefName,title,body',
+      ],
+      { allowFail: true }
+    );
+    if (rawOpenPrs) {
+      try {
+        const parsedPrs = JSON.parse(rawOpenPrs) || [];
+        const tkRe = new RegExp(`(?:^|/|-|#)${issueNumber}(?:\\b|-|$)`);
+        openPrsByTicket = parsedPrs.filter(
+          (p) =>
+            tkRe.test(String(p?.headRefName || '')) ||
+            tkRe.test(String(p?.title || ''))
+        );
+      } catch {}
+    }
+  }
+
+  const candidateForProbe =
+    targetBranch && targetBranch !== 'develop' && targetBranch !== 'main'
+      ? targetBranch
+      : (issueObj.linkedBranches?.nodes || [])
+          .map((n) => n?.ref?.name)
+          .find((b) => b && b !== 'develop' && b !== 'main') ||
+        deriveBranchNameFromIssue(issueNumber, issueObj.title);
+
+  const probeLsRemote = runGit(
+    ['ls-remote', '--heads', 'origin', candidateForProbe],
+    { allowFail: true }
+  );
+
+  const branchPlan = resolveTicketBranchPlan({
+    issueNumber,
+    issueObj,
+    requestedBranch:
+      explicitArgBranch ||
+      (currentBranch !== 'develop' && currentBranch !== 'main'
+        ? currentBranch
+        : ''),
+    openPrsByTicket,
+    remoteBranchExists: Boolean(probeLsRemote),
+  });
+
+  targetBranch = branchPlan.targetBranch;
+  console.log(
+    `ℹ️ Selected target branch '${targetBranch}' for #${issueNumber} (hasOpenPr=${branchPlan.hasOpenPr}, resetToOriginDevelop=${branchPlan.resetToOriginDevelop}).`
+  );
+
+  runGit(['fetch', 'origin', 'develop', '--quiet'], { allowFail: true });
+  const remoteBaseOid =
+    runGit(['rev-parse', 'refs/remotes/origin/develop'], { allowFail: true }) ||
+    runGit(['rev-parse', 'HEAD']);
+
+  if (branchPlan.resetToOriginDevelop) {
     console.log(
-      `ℹ️ Auto-selected target branch '${targetBranch}' for #${issueNumber}.`
+      `ℹ️ Resetting stale remote branch origin/${targetBranch} (no open PR) to latest origin/develop (${remoteBaseOid.slice(0, 7)})...`
+    );
+    runGit(
+      ['push', 'origin', `--force`, `${remoteBaseOid}:refs/heads/${targetBranch}`],
+      { allowFail: true }
     );
   }
 
@@ -245,25 +380,18 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
   const existingBranches = (issueObj.linkedBranches?.nodes || [])
     .map((n) => n?.ref?.name)
     .filter(Boolean);
-  const existingPrs = (issueObj.closedByPullRequestsReferences?.nodes || [])
+  const existingOpenPrs = (
+    issueObj.closedByPullRequestsReferences?.nodes || []
+  )
+    .filter((n) => n?.state === 'OPEN')
     .map((n) => n?.headRefName)
     .filter(Boolean);
 
-  if (existingBranches.length > 0 || existingPrs.length > 0) {
+  if (existingBranches.includes(targetBranch) || existingOpenPrs.length > 0) {
     console.log(
-      `✅ Issue #${issueNumber} (${issueRepo}) is already linked to branch/PR on GitHub.`
+      `✅ Issue #${issueNumber} (${issueRepo}) is already linked to active branch/open PR on GitHub.`
     );
   } else {
-    // Always resolve a commit OID that is GUARANTEED to exist on GitHub (origin)
-    // so createLinkedBranch never fails due to unpushed local commits.
-    runGit(['fetch', 'origin', 'develop', '--quiet'], { allowFail: true });
-    let remoteBaseOid = runGit(['rev-parse', 'refs/remotes/origin/develop'], {
-      allowFail: true,
-    });
-    if (!remoteBaseOid) {
-      remoteBaseOid = runGit(['rev-parse', 'HEAD']);
-    }
-
     const lsRemote = runGit(['ls-remote', '--heads', 'origin', targetBranch], {
       allowFail: true,
     });
@@ -274,7 +402,7 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
       if (remoteOid) {
         branchOidForMutation = remoteOid;
       }
-      const allPrCountStr = runGh(
+      const openPrCountStr = runGh(
         [
           'pr',
           'list',
@@ -283,7 +411,7 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
           '--head',
           targetBranch,
           '--state',
-          'all',
+          'open',
           '--json',
           'number',
           '--jq',
@@ -291,52 +419,113 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
         ],
         { allowFail: true }
       );
-      const allPrCount = Number(allPrCountStr) || 0;
-      if (allPrCount === 0) {
+      const openPrCount = Number(openPrCountStr) || 0;
+      let deletedRemoteBranch = false;
+      if (openPrCount === 0) {
         console.log(
-          `ℹ️ Remote branch origin/${targetBranch} already exists without a link; recreating via createLinkedBranch at ${branchOidForMutation}...`
+          `ℹ️ Remote branch origin/${targetBranch} exists without an open PR; recreating via createLinkedBranch at ${branchOidForMutation.slice(0, 7)}...`
         );
+        runGit(['fetch', 'origin', targetBranch, '--quiet'], {
+          allowFail: true,
+        });
         runGit(['push', 'origin', '--delete', targetBranch], {
           allowFail: true,
         });
+        deletedRemoteBranch = true;
       }
-    }
 
-    const createMut = `
-      mutation($issueId: ID!, $repositoryId: ID!, $oid: GitObjectID!, $name: String!) {
-        createLinkedBranch(input: {issueId: $issueId, repositoryId: $repositoryId, oid: $oid, name: $name}) {
-          linkedBranch { id ref { name } }
+      const createMut = `
+        mutation($issueId: ID!, $repositoryId: ID!, $oid: GitObjectID!, $name: String!) {
+          createLinkedBranch(input: {issueId: $issueId, repositoryId: $repositoryId, oid: $oid, name: $name}) {
+            linkedBranch { id ref { name } }
+          }
         }
+      `;
+      let linkedId = '';
+      for (let mutAttempt = 1; mutAttempt <= 4; mutAttempt++) {
+        const mutOut = runGh(
+          [
+            'api',
+            'graphql',
+            '-f',
+            `query=${createMut}`,
+            '-f',
+            `issueId=${issueObj.id}`,
+            '-f',
+            `repositoryId=${repoNodeId}`,
+            '-f',
+            `oid=${branchOidForMutation}`,
+            '-f',
+            `name=${targetBranch}`,
+          ],
+          { allowFail: true, retries: 1 }
+        );
+        try {
+          linkedId =
+            JSON.parse(mutOut)?.data?.createLinkedBranch?.linkedBranch?.id ||
+            '';
+        } catch {}
+        if (linkedId) break;
+        if (mutAttempt < 4) sleepSync(1500 * mutAttempt);
       }
-    `;
-    const mutOut = runGh(
-      [
-        'api',
-        'graphql',
-        '-f',
-        `query=${createMut}`,
-        '-f',
-        `issueId=${issueObj.id}`,
-        '-f',
-        `repositoryId=${repoNodeId}`,
-        '-f',
-        `oid=${branchOidForMutation}`,
-        '-f',
-        `name=${targetBranch}`,
-      ],
-      { allowFail: true }
-    );
 
-    let linkedId = '';
-    try {
-      linkedId =
-        JSON.parse(mutOut)?.data?.createLinkedBranch?.linkedBranch?.id || '';
-    } catch {}
-
-    if (linkedId) {
-      console.log(
-        `✅ Linked branch '${targetBranch}' to ${org}/${issueRepo}#${issueNumber} (id: ${linkedId})`
-      );
+      if (linkedId) {
+        console.log(
+          `✅ Linked branch '${targetBranch}' to ${org}/${issueRepo}#${issueNumber} (id: ${linkedId})`
+        );
+      } else if (deletedRemoteBranch) {
+        console.warn(
+          `⚠️ createLinkedBranch did not succeed after retries; restoring remote branch origin/${targetBranch} at ${branchOidForMutation.slice(0, 7)}...`
+        );
+        runGit(
+          [
+            'push',
+            'origin',
+            `${branchOidForMutation}:refs/heads/${targetBranch}`,
+          ],
+          { allowFail: true }
+        );
+      }
+    } else {
+      const createMut = `
+        mutation($issueId: ID!, $repositoryId: ID!, $oid: GitObjectID!, $name: String!) {
+          createLinkedBranch(input: {issueId: $issueId, repositoryId: $repositoryId, oid: $oid, name: $name}) {
+            linkedBranch { id ref { name } }
+          }
+        }
+      `;
+      let linkedId = '';
+      for (let mutAttempt = 1; mutAttempt <= 3; mutAttempt++) {
+        const mutOut = runGh(
+          [
+            'api',
+            'graphql',
+            '-f',
+            `query=${createMut}`,
+            '-f',
+            `issueId=${issueObj.id}`,
+            '-f',
+            `repositoryId=${repoNodeId}`,
+            '-f',
+            `oid=${branchOidForMutation}`,
+            '-f',
+            `name=${targetBranch}`,
+          ],
+          { allowFail: true, retries: 1 }
+        );
+        try {
+          linkedId =
+            JSON.parse(mutOut)?.data?.createLinkedBranch?.linkedBranch?.id ||
+            '';
+        } catch {}
+        if (linkedId) break;
+        if (mutAttempt < 3) sleepSync(1500 * mutAttempt);
+      }
+      if (linkedId) {
+        console.log(
+          `✅ Linked branch '${targetBranch}' to ${org}/${issueRepo}#${issueNumber} (id: ${linkedId})`
+        );
+      }
     }
   }
 
@@ -353,20 +542,26 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
   );
 
   if (!noCheckout) {
-    const nowBranch = runGit(['branch', '--show-current'], { allowFail: true });
-    if (nowBranch !== targetBranch) {
-      if (hasLocalBranch) {
-        runGit(['checkout', targetBranch]);
-      } else if (hasRemoteBranch) {
-        runGit([
-          'checkout',
-          '-b',
-          targetBranch,
-          '--track',
-          `origin/${targetBranch}`,
-        ]);
-      } else {
-        runGit(['checkout', '-b', targetBranch]);
+    if (branchPlan.resetToOriginDevelop) {
+      runGit(['checkout', '-B', targetBranch, remoteBaseOid]);
+    } else {
+      const nowBranch = runGit(['branch', '--show-current'], {
+        allowFail: true,
+      });
+      if (nowBranch !== targetBranch) {
+        if (hasLocalBranch) {
+          runGit(['checkout', targetBranch]);
+        } else if (hasRemoteBranch) {
+          runGit([
+            'checkout',
+            '-b',
+            targetBranch,
+            '--track',
+            `origin/${targetBranch}`,
+          ]);
+        } else {
+          runGit(['checkout', '-b', targetBranch]);
+        }
       }
     }
   }
@@ -385,14 +580,22 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
     );
   }
 
-  // Verify Development link on GitHub
-  const verifyObj = queryIssueState(org, issueRepo, issueNumber);
-  const vBranches = (verifyObj?.linkedBranches?.nodes || [])
-    .map((n) => n?.ref?.name)
-    .filter(Boolean);
-  const vPrs = (verifyObj?.closedByPullRequestsReferences?.nodes || [])
-    .map((n) => `#${n?.number}`)
-    .filter(Boolean);
+  // Verify Development link on GitHub (with brief retry for GraphQL read-replica lag)
+  let verifyObj = null;
+  let vBranches = [];
+  let vPrs = [];
+  for (let vAttempt = 1; vAttempt <= 3; vAttempt++) {
+    verifyObj = queryIssueState(org, issueRepo, issueNumber);
+    vBranches = (verifyObj?.linkedBranches?.nodes || [])
+      .map((n) => n?.ref?.name)
+      .filter(Boolean);
+    vPrs = (verifyObj?.closedByPullRequestsReferences?.nodes || [])
+      .filter((n) => n?.state === 'OPEN')
+      .map((n) => `#${n?.number}`)
+      .filter(Boolean);
+    if (vBranches.length > 0 || vPrs.length > 0) break;
+    if (vAttempt < 3) sleepSync(1500);
+  }
 
   if (vBranches.length > 0 || vPrs.length > 0) {
     console.log(
@@ -408,7 +611,7 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
         '--head',
         targetBranch,
         '--state',
-        'all',
+        'open',
         '--limit',
         '1',
         '--json',
@@ -500,6 +703,7 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
           ) { projectV2Item { id } }
         }
       `;
+      let boardMoved = false;
       for (let attempt = 1; attempt <= 4; attempt++) {
         runGh(
           [
@@ -516,7 +720,7 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
             '-f',
             `query=${upMut}`,
           ],
-          { allowFail: true }
+          { allowFail: true, retries: 1 }
         );
         sleepSync(2000);
         const actualOpt = runGh(
@@ -530,13 +734,22 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
             '--jq',
             '.data.node.fieldValueByName.optionId // empty',
           ],
-          { allowFail: true }
+          { allowFail: true, retries: 1 }
         );
-        if (actualOpt === inProgressOptionId) break;
+        if (actualOpt === inProgressOptionId) {
+          boardMoved = true;
+          break;
+        }
       }
-      console.log(
-        `✅ Ticket #${issueNumber} moved to In progress on Project Board`
-      );
+      if (boardMoved) {
+        console.log(
+          `✅ Ticket #${issueNumber} moved to In progress on Project Board`
+        );
+      } else {
+        console.warn(
+          `⚠️ Warning: Could not confirm Project Board status update for Ticket #${issueNumber}`
+        );
+      }
     }
   }
 }
