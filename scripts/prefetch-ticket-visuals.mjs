@@ -124,13 +124,12 @@ export function isAllowedPrototypeUrl(rawUrl) {
     const parsed = new URL(String(rawUrl ?? '').trim());
     if (parsed.protocol !== 'https:') return false;
     const host = parsed.hostname.toLowerCase();
-    if (ALLOWED_PROTOTYPE_EXACT_HOSTS.has(host)) return true;
-    if (
-      host.endsWith('.chatgpt.site') &&
-      host.length > '.chatgpt.site'.length
-    ) {
-      return true;
+    // Skip *.chatgpt.site directly at URL-filter time because ChatGPT Canvas
+    // hosts enforce an interactive login wall in headless Cloud CI runners.
+    if (host === 'chatgpt.site' || host.endsWith('.chatgpt.site')) {
+      return false;
     }
+    if (ALLOWED_PROTOTYPE_EXACT_HOSTS.has(host)) return true;
     return false;
   } catch {
     return false;
@@ -289,7 +288,8 @@ export function extractDesignUrlsFromTexts(
         }
       } else if (
         /^https:\/\/(www\.)?figma\.com\//i.test(cleaned) ||
-        /^https:\/\/claude\.ai\/artifact\//i.test(cleaned)
+        /^https:\/\/claude\.ai\/artifact\//i.test(cleaned) ||
+        /^https:\/\/([a-z0-9-]+\.)+chatgpt\.site(\/|$)/i.test(cleaned)
       ) {
         if (!seenSkipped.has(cleaned)) {
           seenSkipped.add(cleaned);
