@@ -84,17 +84,18 @@ export function shouldSuppressPendingFeedbackPopup({
 }
 
 /**
- * Sorts pending feedback meetings chronologically from oldest to newest (`由遠到近`).
+ * Sorts pending feedback meetings chronologically by end time (`dtend`) from
+ * oldest to newest (`由舊到新`), breaking ties by `dtstart` and `id` (#760 §6).
  */
 export function sortPendingFeedbackOldestFirst(
   items: readonly Reservation[]
 ): Reservation[] {
   return [...items].sort((a, b) => {
-    if (a.dtstart !== b.dtstart) {
-      return a.dtstart - b.dtstart;
-    }
     if (a.dtend !== b.dtend) {
       return a.dtend - b.dtend;
+    }
+    if (a.dtstart !== b.dtstart) {
+      return a.dtstart - b.dtstart;
     }
     return String(a.id).localeCompare(String(b.id), undefined, {
       numeric: true,
