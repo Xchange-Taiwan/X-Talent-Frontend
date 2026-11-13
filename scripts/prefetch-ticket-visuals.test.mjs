@@ -75,10 +75,10 @@ describe('prefetch-ticket-visuals', () => {
       );
     });
 
-    it('accepts Design Hub and *.chatgpt.site prototype URLs only over HTTPS', () => {
+    it('accepts Design Hub prototype URLs over HTTPS and rejects login-gated *.chatgpt.site hosts', () => {
       expect(
         isAllowedPrototypeUrl('https://xtalent-chat-654.bonny80.chatgpt.site/')
-      ).toBe(true);
+      ).toBe(false);
       expect(
         isAllowedPrototypeUrl(
           'https://x-talent-design-hub.x-talent.workers.dev/pages/mentor-card-737.html'
@@ -152,7 +152,11 @@ describe('prefetch-ticket-visuals', () => {
             hubUrl:
               'https://x-talent-design-hub.x-talent.workers.dev/screens/mentor-card-737.html',
             tickets: ['737'],
-            scenarios: [{ id: 'default' }, { id: 'rating' }],
+            scenarios: [
+              { key: 'default', label: '預設' },
+              { key: 'rating', label: '評分狀態' },
+              { id: 'legacy-id' },
+            ],
           },
           {
             id: 'fe-broken',
@@ -165,12 +169,11 @@ describe('prefetch-ticket-visuals', () => {
 
       const res = extractDesignUrlsFromTexts(texts, '737', mockKb);
       expect(res.prototypeUrls).toEqual([
-        'https://xtalent-chat-654.bonny80.chatgpt.site/',
         'https://x-talent-design-hub.x-talent.workers.dev/screens/mentor-card-737.html',
-        'https://x-talent-design-hub.x-talent.workers.dev/?view=screens&screen=mentor-card-737&device=desktop&scenario=default&mode=play',
         'https://x-talent-design-hub.x-talent.workers.dev/?view=screens&screen=mentor-card-737&device=desktop&scenario=rating&mode=play',
+        'https://x-talent-design-hub.x-talent.workers.dev/?view=screens&screen=mentor-card-737&device=desktop&scenario=legacy-id&mode=play',
       ]);
-      expect(res.skippedProtectedUrls).toHaveLength(2);
+      expect(res.skippedProtectedUrls).toHaveLength(3);
     });
 
     it('extracts @keyframes, transition/transform rules, and Web Animations API calls while stripping CSS comments and prefers-reduced-motion blocks', () => {
