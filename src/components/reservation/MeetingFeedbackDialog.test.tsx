@@ -341,7 +341,7 @@ describe('MeetingFeedbackDialog', () => {
       expect(onSubmitFeedback).toHaveBeenCalledWith(
         {
           meeting_happened: false,
-          not_happened_reason: 'MENTOR_ABSENT',
+          not_happened_reason: 'COUNTERPART_ABSENT',
         },
         baseReservation
       );
@@ -585,7 +585,7 @@ describe('MeetingFeedbackDialog', () => {
         {
           meeting_happened: false,
           not_happened_reason: 'OTHER',
-          not_happened_note: '臨時改期未同步',
+          note: '臨時改期未同步',
         },
         baseReservation
       );
@@ -1095,7 +1095,7 @@ describe('MeetingFeedbackDialog', () => {
       expect(screen.queryByText(/誰沒有進行會談/)).not.toBeInTheDocument();
       expect(screen.getByRole('radio', { name: '對方未出席' })).toHaveAttribute(
         'value',
-        'MENTEE_ABSENT'
+        'COUNTERPART_ABSENT'
       );
 
       const warningBox = screen.getByTestId('mentor-not-happened-warning');
@@ -1134,14 +1134,14 @@ describe('MeetingFeedbackDialog', () => {
           {
             meeting_happened: false,
             not_happened_reason: 'OTHER',
-            not_happened_note: '學員因臨時會議未上線',
+            note: '學員因臨時會議未上線',
           },
           expect.objectContaining({ id: 'res-mentor-opt-a' })
         );
       });
     });
 
-    it('submits MENTEE_ABSENT (never MENTOR_ABSENT) when Mentor selects 對方未出席 on Step 2', async () => {
+    it('submits COUNTERPART_ABSENT when Mentor selects 對方未出席 on Step 2 (#760 §4)', async () => {
       const onSubmitFeedback = vi.fn().mockResolvedValue(undefined);
 
       render(
@@ -1162,7 +1162,7 @@ describe('MeetingFeedbackDialog', () => {
         expect(onSubmitFeedback).toHaveBeenCalledWith(
           {
             meeting_happened: false,
-            not_happened_reason: 'MENTEE_ABSENT',
+            not_happened_reason: 'COUNTERPART_ABSENT',
           },
           expect.objectContaining({ id: 'res-mentor-opt-a' })
         );
@@ -1371,7 +1371,7 @@ describe('MeetingFeedbackDialog', () => {
             2,
             {
               meeting_happened: false,
-              not_happened_reason: 'MENTEE_ABSENT',
+              not_happened_reason: 'COUNTERPART_ABSENT',
             },
             expect.objectContaining({ id: 'rev-mentor-2' })
           );
