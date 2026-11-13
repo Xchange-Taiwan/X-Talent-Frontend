@@ -624,6 +624,8 @@ export function evaluateRoundConvergence({
 
   return {
     converged,
+    deterministicPassed: Boolean(deterministicPassed),
+    e2ePassed: Boolean(e2ePassed),
     riskLevel,
     riskReason,
     totalFindings: flatFindings.length,
@@ -881,6 +883,10 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
   let stalled = false;
   let bestSnapshotSha = '';
   let bestRoundScore = -Infinity;
+  let bestEvaluation = null;
+  let bestE2ePassed = false;
+  let bestRequiresUiEvidence = false;
+  let bestEvidenceIntact = true;
 
   const collectChangedFiles = () => {
     const diffFilesRes = execStep('git', [
@@ -992,6 +998,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
     // 2. Playwright E2E verification (only when static + unit tests pass)
     const e2eErrors = [];
     let e2eReportForReviewer = '未執行 E2E (--run-e2e=false)';
+    let roundRequiresUiEvidence = false;
 
     if (config.runE2e && !deterministicPassed) {
       lastE2ePassed = false;
@@ -1008,9 +1015,14 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         hasSharedE2eChanges,
       } = detectChangedE2eSpecs(diffFiles);
       lastChangedSpecs = allChangedSpecs;
+      roundRequiresUiEvidence =
+        Boolean(config.requireUiEvidence) && Boolean(hasUiSurfaceChanges);
 
-      if (config.requireUiEvidence && hasUiSurfaceChanges) {
+      if (roundRequiresUiEvidence) {
         clearEvidence();
+        if (bestRequiresUiEvidence) {
+          bestEvidenceIntact = false;
+        }
       }
       const useTargetedSpecs =
         !hasSharedE2eChanges && allChangedSpecs.length > 0;
@@ -1276,8 +1288,21 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       if (candidateSha) {
         bestSnapshotSha = candidateSha;
         bestRoundScore = currentRoundScore;
+        bestEvaluation = lastEvaluation;
+        bestE2ePassed = lastE2ePassed;
+        bestRequiresUiEvidence = roundRequiresUiEvidence;
+        bestEvidenceIntact =
+          !roundRequiresUiEvidence || listEvidence().length > 0;
       }
     }
+
+    const restoreBestPassingState = () => {
+      restoreSnapshot(bestSnapshotSha);
+      if (bestEvaluation && (!bestRequiresUiEvidence || bestEvidenceIntact)) {
+        lastEvaluation = bestEvaluation;
+        lastE2ePassed = bestE2ePassed;
+      }
+    };
 
     // Check oscillation / stall guard
     if (lastEvaluation.fingerprint === previousFingerprint) {
@@ -1297,7 +1322,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         log(
           `[cloud-converge] Restoring best passing snapshot (${bestSnapshotSha.slice(0, 8)}) before exiting.`
         );
-        restoreSnapshot(bestSnapshotSha);
+        restoreBestPassingState();
       }
       break;
     }
@@ -1310,7 +1335,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         log(
           `[cloud-converge] Restoring best passing snapshot (${bestSnapshotSha.slice(0, 8)}) before exiting.`
         );
-        restoreSnapshot(bestSnapshotSha);
+        restoreBestPassingState();
       }
       break;
     }
@@ -1323,7 +1348,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         log(
           `[cloud-converge] Restoring best passing snapshot (${bestSnapshotSha.slice(0, 8)}) before exiting.`
         );
-        restoreSnapshot(bestSnapshotSha);
+        restoreBestPassingState();
       }
       break;
     }
@@ -1416,6 +1441,15 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
   };
 }
 
+export function resolveConvergeExitCode(res) {
+  if (!res || res.converged) {
+    return 0;
+  }
+  const detOk = res.evaluation?.deterministicPassed !== false;
+  const e2eOk = res.evaluation?.e2ePassed !== false;
+  return !detOk || !e2eOk ? 1 : 0;
+}
+
 const isMain =
   process.argv[1] &&
   path.resolve(process.argv[1]) ===
@@ -1427,7 +1461,7 @@ if (isMain) {
   runConvergeLoop(options)
     .then((res) => {
       console.log(res.summaryMd);
-      process.exit(0);
+      process.exit(resolveConvergeExitCode(res));
     })
     .catch((err) => {
       console.error('[cloud-converge] Fatal error:', err);

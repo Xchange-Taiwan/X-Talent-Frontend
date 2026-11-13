@@ -109,6 +109,12 @@ function queryIssueState(org, repoName, issueNumber) {
             nodes {
               id
               project { number }
+              fieldValueByName(name: "Status") {
+                ... on ProjectV2ItemFieldSingleSelectValue {
+                  name
+                  optionId
+                }
+              }
             }
           }
         }
@@ -136,6 +142,11 @@ function queryIssueState(org, repoName, issueNumber) {
   } catch {
     return null;
   }
+}
+
+export function shouldPreserveBoardStatus(statusLabel = '') {
+  const clean = String(statusLabel ?? '').trim();
+  return ['QA Review', 'Done', 'Blocked', 'Cancel'].includes(clean);
 }
 
 export function deriveBranchNameFromIssue(issueNumber, rawTitle = '') {
@@ -727,12 +738,24 @@ export function linkTicketBranch(argv = process.argv.slice(2)) {
     }
   }
 
-  // Move Ticket on Project V2 Board to "In progress"
+  // Move Ticket on Project V2 Board to "In progress" (preserving QA Review / Done / Blocked / Cancel)
   if (!noBoardUpdate) {
-    let itemId =
-      (verifyObj?.projectItems?.nodes || []).find(
-        (n) => n?.project?.number === projectNumber
-      )?.id || '';
+    const existingProjectItem = (
+      verifyObj?.projectItems?.nodes ||
+      issueObj?.projectItems?.nodes ||
+      []
+    ).find((n) => n?.project?.number === projectNumber);
+
+    const existingStatusName =
+      existingProjectItem?.fieldValueByName?.name || '';
+    if (shouldPreserveBoardStatus(existingStatusName)) {
+      console.log(
+        `ℹ️ Ticket #${issueNumber} is already in '${existingStatusName}' on Project Board; preserving current status.`
+      );
+      return;
+    }
+
+    let itemId = existingProjectItem?.id || '';
 
     if (!itemId && projectId && issueObj.id) {
       const addMut = `

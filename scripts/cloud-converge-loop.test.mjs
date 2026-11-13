@@ -20,6 +20,7 @@ import {
   isFrontendApplicableCriterion,
   normalizeErrorSignatures,
   parseConvergeArgs,
+  resolveConvergeExitCode,
   runConvergeLoop,
 } from './cloud-converge-loop.mjs';
 
@@ -1122,6 +1123,8 @@ describe('cloud-converge-loop', () => {
       expect(res.converged).toBe(false);
       expect(res.roundsRun).toBe(2);
       expect(restoredShas).toContain('tree-round-1');
+      expect(res.evaluation.deterministicPassed).toBe(true);
+      expect(resolveConvergeExitCode(res)).toBe(0);
     });
 
     it('preserves Phase 2 working-tree locks (.gitignore and .gemini/settings.json) when createSnapshotSaver runs', () => {
@@ -1184,6 +1187,138 @@ describe('cloud-converge-loop', () => {
       } finally {
         fs.rmSync(tmpRepo, { recursive: true, force: true });
       }
+    });
+
+    it('exits non-zero when unconverged due to failing tests or E2E, preventing broken PRs', () => {
+      expect(resolveConvergeExitCode({ converged: true })).toBe(0);
+      expect(
+        resolveConvergeExitCode({
+          converged: false,
+          evaluation: { deterministicPassed: false, e2ePassed: true },
+        })
+      ).toBe(1);
+      expect(
+        resolveConvergeExitCode({
+          converged: false,
+          evaluation: { deterministicPassed: true, e2ePassed: false },
+        })
+      ).toBe(1);
+      expect(
+        resolveConvergeExitCode({
+          converged: false,
+          evaluation: { deterministicPassed: true, e2ePassed: true },
+        })
+      ).toBe(0);
+    });
+
+    it('restores bestEvaluation on non-UI diffs with requireUiEvidence', async () => {
+      let roundNum = 0;
+      const execStep = vi.fn((cmd, args) => {
+        if (cmd === 'git' && args[0] === 'diff') {
+          roundNum += 1;
+          return { ok: true, stdout: 'src/lib/apiClient.ts\n', stderr: '' };
+        }
+        if (cmd === 'pnpm' && args[0] === 'type-check') {
+          return roundNum === 1
+            ? { ok: true, stdout: '', stderr: '' }
+            : { ok: false, stderr: 'TS error', combined: 'TS error' };
+        }
+        if (cmd === 'node' && String(args[0]).includes('run-local.mjs')) {
+          return {
+            ok: true,
+            stdout: JSON.stringify({
+              mode: 'fallback-ci',
+              overallRisk: { level: 'low', reason: 'Deferred' },
+              requirementCoverage: [],
+              findings: {},
+            }),
+            stderr: '',
+          };
+        }
+        return { ok: true, stdout: '', stderr: '' };
+      });
+
+      const res = await runConvergeLoop(
+        {
+          maxRounds: 2,
+          ticketNumber: '874',
+          runE2e: true,
+          runAiReview: true,
+          requireUiEvidence: true,
+        },
+        {
+          execStep,
+          writeFile: () => {},
+          log: () => {},
+          fileExists: () => true,
+          clearEvidence: () => {},
+          listEvidence: () => [],
+          saveSnapshot: () => `snap-${roundNum}`,
+          restoreSnapshot: () => {},
+        }
+      );
+
+      expect(res.evaluation.deterministicPassed).toBe(true);
+      expect(res.evaluation.e2ePassed).toBe(true);
+      expect(resolveConvergeExitCode(res)).toBe(0);
+    });
+
+    it('fails closed when Round 2 clears UI evidence and E2E fails', async () => {
+      let roundNum = 0;
+      let shots = ['round1-shot.png'];
+      const execStep = vi.fn((cmd, args) => {
+        if (cmd === 'git' && args[0] === 'diff') {
+          roundNum += 1;
+          return {
+            ok: true,
+            stdout: 'src/components/Foo.tsx\ne2e/tests/public/foo.spec.ts\n',
+            stderr: '',
+          };
+        }
+        if (cmd === 'pnpm' && args[0] === 'test:e2e:mock') {
+          return roundNum === 1
+            ? { ok: true, stdout: '', stderr: '' }
+            : { ok: false, stderr: 'E2E fail', combined: 'E2E fail' };
+        }
+        if (cmd === 'node' && String(args[0]).includes('run-local.mjs')) {
+          return {
+            ok: true,
+            stdout: JSON.stringify({
+              mode: 'fallback-ci',
+              overallRisk: { level: 'low', reason: 'Deferred' },
+              requirementCoverage: [],
+              findings: {},
+            }),
+            stderr: '',
+          };
+        }
+        return { ok: true, stdout: '', stderr: '' };
+      });
+
+      const res = await runConvergeLoop(
+        {
+          maxRounds: 2,
+          ticketNumber: '875',
+          runE2e: true,
+          runAiReview: true,
+          requireUiEvidence: true,
+        },
+        {
+          execStep,
+          writeFile: () => {},
+          log: () => {},
+          fileExists: () => true,
+          clearEvidence: () => {
+            if (roundNum >= 2) shots = [];
+          },
+          listEvidence: () => shots,
+          saveSnapshot: () => `snap-ui-${roundNum}`,
+          restoreSnapshot: () => {},
+        }
+      );
+
+      expect(res.evaluation.e2ePassed).toBe(false);
+      expect(resolveConvergeExitCode(res)).toBe(1);
     });
   });
 });

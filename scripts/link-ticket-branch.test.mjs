@@ -5,6 +5,7 @@ import {
   deriveBranchNameFromIssue,
   queryBranchOpenPrState,
   resolveTicketBranchPlan,
+  shouldPreserveBoardStatus,
 } from '../.agents/scripts/link-ticket-branch.mjs';
 
 describe('link-ticket-branch state machine', () => {
@@ -169,5 +170,29 @@ describe('link-ticket-branch state machine', () => {
     });
     expect(planWithUnlinkedOpenPr.hasOpenPr).toBe(true);
     expect(planWithUnlinkedOpenPr.resetToOriginDevelop).toBe(false);
+  });
+
+  it('preserves post-dev board statuses like QA Review and Done', () => {
+    for (const label of [
+      'QA Review',
+      '  QA Review  ',
+      'Done',
+      'Blocked',
+      'Cancel',
+    ]) {
+      expect(shouldPreserveBoardStatus(label)).toBe(true);
+    }
+    for (const activeLabel of [
+      'Backlog',
+      'Ready for Review',
+      'Todo',
+      'In progress',
+      'PR Review',
+      '',
+      null,
+      undefined,
+    ]) {
+      expect(shouldPreserveBoardStatus(activeLabel)).toBe(false);
+    }
   });
 });
