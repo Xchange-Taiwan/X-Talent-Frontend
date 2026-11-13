@@ -64,22 +64,11 @@ fi
 # 3. Clean up temporary cloud files and restore skip-worktree files individually from HEAD before staging
 rm -f .env.development.local .env.e2e.local .gemini/settings.json.tmp
 rm -rf .agents/tmp
-for locked_file in .gitignore .gemini/settings.json; do
-  git update-index --no-skip-worktree "$locked_file" 2>/dev/null || true
-  git checkout HEAD -- "$locked_file" 2>/dev/null || true
-done
+bash .agents/scripts/unstage-cloud-locks.sh --restore-worktree
 
 # 4. Stage and commit any uncommitted working tree changes (allow .env.example/.sample/.template while blocking secret .env files)
 git add -A
-while IFS= read -r secret_env_file; do
-  [ -n "$secret_env_file" ] && git reset HEAD -- "$secret_env_file" >/dev/null 2>&1 || true
-done < <(git diff --cached --name-only | grep -E '(^|/)\.env(\..+)?$' | grep -vE '\.env\.(example|sample|template)$' || true)
-for excl_spec in '.agents/tmp*' '.gitignore' '.gemini/settings.json'; do
-  git reset HEAD -- "$excl_spec" >/dev/null 2>&1 || true
-done
-for locked_file in .gitignore .gemini/settings.json; do
-  git checkout HEAD -- "$locked_file" 2>/dev/null || true
-done
+bash .agents/scripts/unstage-cloud-locks.sh --restore-worktree
 
 if ! git diff --cached --quiet; then
   TMP_STAGED_LIST=$(mktemp)

@@ -84,12 +84,12 @@ printf '\n.env.development.local\n.env.e2e.local\n.env*.local\n' >> .git/info/ex
 cat <<'HOOK' > .git/hooks/pre-commit
 #!/usr/bin/env bash
 if git diff --cached --name-only | grep -E '(^|/)\.env(\..+)?$' | grep -qvE '\.env\.(example|sample|template)$'; then
-  git reset HEAD -- '.env*' '*/.env*' >/dev/null 2>&1 || true
+  bash .agents/scripts/unstage-cloud-locks.sh >/dev/null 2>&1 || true
   echo "Blocked staging of secret .env files in pre-commit hook." >&2
   exit 1
 fi
-if git diff --cached --name-only | grep -qE '^\.agents/tmp/'; then
-  git reset HEAD -- '.agents/tmp' '.agents/tmp/*' >/dev/null 2>&1 || true
+if git diff --cached --name-only | grep -qE '^(\.agents/tmp/|\.gitignore$|\.gemini/settings\.json$)'; then
+  bash .agents/scripts/unstage-cloud-locks.sh >/dev/null 2>&1 || true
 fi
 HOOK
 chmod +x .git/hooks/pre-commit
