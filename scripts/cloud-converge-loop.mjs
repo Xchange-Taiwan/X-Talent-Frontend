@@ -4,6 +4,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -58,6 +59,15 @@ export function parseConvergeArgs(argv = [], env = process.env) {
     .trim();
   const runE2e = rawRunE2e !== 'false' && rawRunE2e !== '0';
 
+  const rawRunAiReview = (
+    getArg('--run-ai-review=') ??
+    env.RUN_PRE_PR_AI_REVIEW ??
+    'true'
+  )
+    .toLowerCase()
+    .trim();
+  const runAiReview = rawRunAiReview !== 'false' && rawRunAiReview !== '0';
+
   const rawRequireEvidence = (
     getArg('--require-ui-evidence=') ??
     env.REQUIRE_UI_EVIDENCE ??
@@ -79,6 +89,7 @@ export function parseConvergeArgs(argv = [], env = process.env) {
     maxRounds,
     ticketNumber,
     runE2e,
+    runAiReview,
     requireUiEvidence,
     baseRef,
     summaryOut,
@@ -363,14 +374,17 @@ export function ensurePhase2GeminiToolExclusions(
       },
       fileFiltering: {
         ...prevFiltering,
-        respectGitIgnore: false,
+        // Keep respectGitIgnore: true so Gemini CLI never scans node_modules/
+        // or .next/ (~200k files). `.agents/tmp/` is removed from `.gitignore`
+        // in-memory during cloud runs so `.agents/tmp/ticket-spec.md` stays readable.
+        respectGitIgnore: true,
         respectGeminiIgnore: false,
       },
       context: {
         ...prevContext,
         fileFiltering: {
           ...prevCtxFiltering,
-          respectGitIgnore: false,
+          respectGitIgnore: true,
           respectGeminiIgnore: false,
         },
       },
@@ -422,6 +436,56 @@ export function applyPhase2HeadlessWorkspaceLocks({
       );
     } catch {}
   }
+}
+
+export function createSnapshotSaver({
+  cwd = process.cwd(),
+  fsImpl = fs,
+  execGit = execFileSync,
+} = {}) {
+  return () => {
+    const tmpIdx = path.join(
+      process.env.RUNNER_TEMP || os.tmpdir(),
+      `converge-idx-${process.pid}-${Date.now()}`
+    );
+    try {
+      const snapEnv = { ...process.env, GIT_INDEX_FILE: tmpIdx };
+      execGit('git', ['read-tree', 'HEAD'], {
+        cwd,
+        env: snapEnv,
+        stdio: 'ignore',
+      });
+      execGit('git', ['add', '-A'], { cwd, env: snapEnv, stdio: 'ignore' });
+      for (const spec of [
+        '.env*',
+        '*/.env*',
+        '.agents/tmp*',
+        '.gitignore',
+        '.gemini/settings.json',
+      ]) {
+        try {
+          execGit('git', ['reset', '--', spec], {
+            cwd,
+            env: snapEnv,
+            stdio: 'ignore',
+          });
+        } catch {}
+      }
+      const treeSha = execGit('git', ['write-tree'], {
+        cwd,
+        env: snapEnv,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim();
+      return treeSha;
+    } catch {
+      return '';
+    } finally {
+      try {
+        fsImpl.rmSync(tmpIdx, { force: true });
+      } catch {}
+    }
+  };
 }
 
 export function createSnapshotRestorer({
@@ -664,7 +728,7 @@ const STEP_TIMEOUT_MS = {
   unitTest: 8 * 60 * 1000,
   e2e: 10 * 60 * 1000,
   review: 5 * 60 * 1000,
-  geminiFix: 9 * 60 * 1000,
+  geminiFix: 5 * 60 * 1000,
 };
 
 export function inferDefaultTimeoutMs(cmd, args = []) {
@@ -751,39 +815,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
 
   const fileExists = deps.fileExists || ((p) => fs.existsSync(p));
 
-  const saveSnapshot =
-    deps.saveSnapshot ||
-    (() => {
-      const tmpIdx = path.join(
-        process.env.RUNNER_TEMP || '/tmp',
-        `converge-idx-${process.pid}-${Date.now()}`
-      );
-      try {
-        const snapEnv = { ...process.env, GIT_INDEX_FILE: tmpIdx };
-        execFileSync('git', ['read-tree', 'HEAD'], {
-          env: snapEnv,
-          stdio: 'ignore',
-        });
-        execFileSync('git', ['add', '-A'], { env: snapEnv, stdio: 'ignore' });
-        execFileSync(
-          'git',
-          ['reset', '--', '.env*', '*/.env*', '.agents/tmp*'],
-          { env: snapEnv, stdio: 'ignore' }
-        );
-        const treeSha = execFileSync('git', ['write-tree'], {
-          env: snapEnv,
-          encoding: 'utf8',
-          stdio: ['ignore', 'pipe', 'ignore'],
-        }).trim();
-        return treeSha;
-      } catch {
-        return '';
-      } finally {
-        try {
-          fs.rmSync(tmpIdx, { force: true });
-        } catch {}
-      }
-    });
+  const saveSnapshot = deps.saveSnapshot || createSnapshotSaver();
 
   const restoreSnapshot = deps.restoreSnapshot || createSnapshotRestorer();
 
@@ -791,6 +823,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
     maxRounds: clampMaxRounds(rawOptions.maxRounds, 20),
     ticketNumber: rawOptions.ticketNumber ?? '',
     runE2e: rawOptions.runE2e !== false,
+    runAiReview: rawOptions.runAiReview !== false,
     requireUiEvidence: Boolean(rawOptions.requireUiEvidence),
     baseRef: rawOptions.baseRef || 'origin/develop',
     summaryOut:
@@ -819,14 +852,10 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
   let lastChangedSpecs = [];
   let roundsRun = 0;
   let stalled = false;
+  let bestSnapshotSha = '';
+  let bestRoundScore = -Infinity;
 
-  for (let round = 1; round <= config.maxRounds; round++) {
-    roundsRun = round;
-    log(
-      `\n[cloud-converge] === Round ${round}/${config.maxRounds} starting ===`
-    );
-
-    // Inspect changed + untracked files once at the start of the round for targeted unit & E2E runs
+  const collectChangedFiles = () => {
     const diffFilesRes = execStep('git', [
       'diff',
       '--name-only',
@@ -853,9 +882,22 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
               !relPath.startsWith('.agents/tmp/')
           )
       : [];
-    const diffFiles = [
-      ...new Set([...trackedDiffFiles, ...untrackedDiffFiles]),
-    ];
+    return [...new Set([...trackedDiffFiles, ...untrackedDiffFiles])];
+  };
+
+  const computeRoundScore = (detOk, e2eOk, evalObj) =>
+    (detOk ? 1000 : 0) +
+    (e2eOk ? 500 : 0) -
+    (evalObj?.uncoveredCriteria?.length ?? 0) * 10 -
+    (evalObj?.totalFindings ?? 0);
+
+  for (let round = 1; round <= config.maxRounds; round++) {
+    roundsRun = round;
+    log(
+      `\n[cloud-converge] === Round ${round}/${config.maxRounds} starting ===`
+    );
+
+    const diffFiles = collectChangedFiles();
 
     const testEnv = {
       ...process.env,
@@ -1048,14 +1090,28 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         : `Playwright E2E 測試失敗：\n${e2eErrors.join('\n').slice(0, 1500)}`;
     }
 
-    // 3. 7-Agent Parallel Gemini AI Review (run-local.mjs — only when code compiles & unit tests pass)
+    // 3. Optional Pre-PR Gemini AI Review (disabled by default in Cloud VMs via --run-ai-review=false so PR CI acts as single referee)
     let reviewJson = {
-      overallRisk: { level: 'low', reason: 'Fallback' },
+      overallRisk: {
+        level: 'low',
+        reason: config.runAiReview
+          ? 'Completed'
+          : 'Skipped inside VM (--run-ai-review=false); delegated to PR CI AI Review Pipeline.',
+      },
       requirementCoverage: [],
       findings: {},
     };
 
-    if (deterministicPassed) {
+    if (!deterministicPassed) {
+      reviewJson = {
+        overallRisk: {
+          level: 'medium',
+          reason: 'Deferred until lint/type-check/unit tests pass.',
+        },
+        requirementCoverage: [],
+        findings: {},
+      };
+    } else if (config.runAiReview) {
       const reviewArgs = [
         'scripts/ai-review/run-local.mjs',
         `--base-ref=${config.baseRef}`,
@@ -1070,28 +1126,47 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
           TICKET_NUMBER: config.ticketNumber,
           E2E_VERIFICATION_REPORT: e2eReportForReviewer,
           GEMINI_MAX_OUTPUT_TOKENS: '32768',
+          STRICT_AI_REVIEW: '1',
         },
       });
 
       if (reviewRes.ok && reviewRes.stdout.trim()) {
         const parsedJson = extractJsonObject(reviewRes.stdout);
-        if (parsedJson) {
+        if (
+          parsedJson &&
+          !parsedJson.reviewError &&
+          parsedJson.mode !== 'fallback-ci' &&
+          parsedJson.mode !== 'fallback-in-context' &&
+          parsedJson.mode !== 'review-error'
+        ) {
           reviewJson = parsedJson;
         } else {
           log(
-            `[cloud-converge] Warning: could not parse run-local.mjs output in round ${round}`
+            `[cloud-converge] Warning: run-local.mjs returned fallback/error or unparseable JSON in round ${round}; failing closed.`
           );
+          reviewJson = {
+            overallRisk: {
+              level: 'medium',
+              reason:
+                'Pre-PR AI Review failed or returned fallback-ci; retrying verification.',
+            },
+            requirementCoverage: [],
+            findings: {},
+          };
         }
+      } else if (!reviewRes.ok) {
+        log(
+          `[cloud-converge] Warning: run-local.mjs exited non-zero in round ${round}; failing closed.`
+        );
+        reviewJson = {
+          overallRisk: {
+            level: 'medium',
+            reason: 'Pre-PR AI Review process failed; retrying verification.',
+          },
+          requirementCoverage: [],
+          findings: {},
+        };
       }
-    } else {
-      reviewJson = {
-        overallRisk: {
-          level: 'medium',
-          reason: 'Deferred AI Review until lint/type-check/unit tests pass.',
-        },
-        requirementCoverage: [],
-        findings: {},
-      };
     }
 
     lastEvaluation = evaluateRoundConvergence({
@@ -1104,6 +1179,12 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
 
     log(
       `[cloud-converge] Round ${round} result: risk=${lastEvaluation.riskLevel}, findings=${lastEvaluation.totalFindings}, uncoveredAC=${lastEvaluation.uncoveredCriteria.length}, detPassed=${deterministicPassed}, e2ePassed=${lastE2ePassed}`
+    );
+
+    let currentRoundScore = computeRoundScore(
+      deterministicPassed,
+      lastE2ePassed,
+      lastEvaluation
     );
 
     if (lastEvaluation.converged) {
@@ -1129,6 +1210,11 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
             e2eErrors,
             reviewResult: reviewJson,
           });
+          currentRoundScore = computeRoundScore(
+            false,
+            lastE2ePassed,
+            lastEvaluation
+          );
         }
       }
     }
@@ -1155,6 +1241,15 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       };
     }
 
+    // Track best passing/cleanest tree snapshot so non-converged exits never push regressed code
+    if (deterministicPassed && currentRoundScore >= bestRoundScore) {
+      const candidateSha = saveSnapshot();
+      if (candidateSha) {
+        bestSnapshotSha = candidateSha;
+        bestRoundScore = currentRoundScore;
+      }
+    }
+
     // Check oscillation / stall guard
     if (lastEvaluation.fingerprint === previousFingerprint) {
       consecutiveSameFingerprint += 1;
@@ -1169,6 +1264,12 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         `[cloud-converge] Identical findings fingerprint repeated ${consecutiveSameFingerprint} times in round ${round}. Breaking loop via Stall Guard.`
       );
       stalled = true;
+      if (bestSnapshotSha && currentRoundScore < bestRoundScore) {
+        log(
+          `[cloud-converge] Restoring best passing snapshot (${bestSnapshotSha.slice(0, 8)}) before exiting.`
+        );
+        restoreSnapshot(bestSnapshotSha);
+      }
       break;
     }
 
@@ -1176,6 +1277,12 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       log(
         `[cloud-converge] Reached max rounds (${config.maxRounds}). Finishing loop.`
       );
+      if (bestSnapshotSha && currentRoundScore < bestRoundScore) {
+        log(
+          `[cloud-converge] Restoring best passing snapshot (${bestSnapshotSha.slice(0, 8)}) before exiting.`
+        );
+        restoreSnapshot(bestSnapshotSha);
+      }
       break;
     }
 
@@ -1183,6 +1290,12 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       log(
         `[cloud-converge] Soft wall-clock budget (${Math.round(maxDurationMs / 60000)}m) reached in round ${round}; exiting cleanly so Phase 3 can push and open PR.`
       );
+      if (bestSnapshotSha && currentRoundScore < bestRoundScore) {
+        log(
+          `[cloud-converge] Restoring best passing snapshot (${bestSnapshotSha.slice(0, 8)}) before exiting.`
+        );
+        restoreSnapshot(bestSnapshotSha);
+      }
       break;
     }
 
@@ -1209,21 +1322,43 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       '-p',
       fixPrompt,
     ]);
-    if (geminiRes.timedOut && snapshotSha) {
-      // Only roll back if partial edits broke TypeScript compilation; if partial
-      // edits compile cleanly, keep that progress so the next round builds on it!
+    if ((geminiRes.timedOut || !geminiRes.ok) && snapshotSha) {
+      // Require BOTH type-check and related unit tests to pass before retaining
+      // timed-out / aborted partial edits; otherwise roll back cleanly!
       const tcCheck = execStep('pnpm', ['type-check']);
-      if (!tcCheck.ok) {
+      let partialValid = tcCheck.ok;
+      if (partialValid) {
+        const latestEditedFiles = collectChangedFiles();
+        const relTargets = latestEditedFiles.filter(
+          (f) =>
+            /\.(ts|tsx|js|jsx|mjs)$/.test(f) &&
+            !f.startsWith('e2e/') &&
+            fileExists(f)
+        );
+        if (relTargets.length > 0) {
+          const unitCheck = execStep(
+            'npx',
+            ['vitest', 'related', ...relTargets, '--run', '--passWithNoTests'],
+            { env: testEnv }
+          );
+          partialValid = unitCheck.ok;
+        }
+      }
+      if (!partialValid) {
         log(
-          `[cloud-converge] Gemini CLI timed out with broken type-check in round ${round}; restoring clean pre-round snapshot (${snapshotSha.slice(0, 8)}).`
+          `[cloud-converge] Gemini CLI aborted/timed out with broken checks in round ${round}; restoring clean pre-round snapshot (${snapshotSha.slice(0, 8)}).`
         );
         restoreSnapshot(snapshotSha);
       } else {
         log(
-          `[cloud-converge] Gemini CLI timed out in round ${round}, but partial edits pass type-check; retaining valid progress.`
+          `[cloud-converge] Gemini CLI timed out in round ${round}, and partial edits pass type-check + related unit tests; retaining valid progress.`
         );
       }
-      if (timeoutResetsUsed < 1 && consecutiveSameFingerprint > 0) {
+      if (
+        geminiRes.timedOut &&
+        timeoutResetsUsed < 1 &&
+        consecutiveSameFingerprint > 0
+      ) {
         timeoutResetsUsed += 1;
         previousFingerprint = '';
         consecutiveSameFingerprint = 0;

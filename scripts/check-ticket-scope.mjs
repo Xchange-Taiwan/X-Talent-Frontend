@@ -169,25 +169,34 @@ export function classifyTicketScopeDeterministic({
   };
 }
 
+export function sliceSpecPreservingHeadAndTail(rawBody = '', maxChars = 14000) {
+  const text = String(rawBody ?? '');
+  if (text.length <= maxChars) return text;
+  const headBudget = Math.floor(maxChars * 0.45);
+  const tailBudget = maxChars - headBudget;
+  return `${text.slice(0, headBudget)}\n\n... [中間歷史討論已省略，以下為最新留言與決議] ...\n\n${text.slice(-tailBudget)}`;
+}
+
 function buildScopeClassifierPrompt({ title, body }) {
   return [
-    '你是 X-Talent 專案的雲端虛擬機入口分流器（Scope Gatekeeper）。',
+    '你是 X-Talent 專案的雲端虛擬機入口分流與規格就緒度閘門（Scope & Spec Readiness Gatekeeper）。',
     '目前這個 GitHub Actions 虛擬機**只能修改前端儲存庫 `X-Talent-Frontend`（Next.js App Router、React 元件、前端路由導頁與 query 參數處理、登入 callbackUrl 導回、站內通知文案映射 notificationMapper、API 串接、GA4 gtag 前端埋點、Storybook、Vitest 與 Playwright 測試）**。',
     '後端 API 開發、資料庫儲存、資料離開後端前的遮罩運算、排程 Cron Job、發送 Email、GA4/GCP 後台設定則屬於 `X-Talent-Backend` 或外部系統。',
     '',
-    '請根據以下 Ticket 標題與內容，判斷本票在 `X-Talent-Frontend` 是否有可執行的前端實作工作：',
-    '- 若整張票**完全屬於後端、純業務規則定義（前端入口已拆在其他子票）、外部後台設定或 PM 文件規劃**，沒有任何獨立的前端程式碼需要修改，請回傳 `"scope": "non_frontend"` 且 `"actionableInFrontendRepo": false`。',
-    '- 若本票同時包含後端工作（如寄送 Email、排程發通知、DB 邏輯）與前端工作（如點擊通知或信中連結導向前端路由並開啟彈窗、未登入導回），請回傳 `"scope": "mixed_fe_be"` 且 `"actionableInFrontendRepo": true`，並清楚拆分 `frontendTasksSummary` 與 `outOfRepoItems`。',
-    '- 若本票純屬前端工作，請回傳 `"scope": "frontend_only"` 且 `"actionableInFrontendRepo": true`。',
+    '請根據以下 Ticket 標題、頂部規格與最新留言，判斷：',
+    '1. 本票在 `X-Talent-Frontend` 是否有可執行的前端實作工作（`frontend_only` | `mixed_fe_be` | `non_frontend`）。',
+    '2. **規格就緒度檢查（`specBlocked`）**：若最新留言明確指出核心需求仍在等待 PM／設計師二選一拍板（例如「請問要走方案 A 還是方案 B？待確認後再開發」），或主文與最新留言存在未解決的直接矛盾而無法確定實作行為，請回傳 `"specBlocked": true` 並在 `"specBlockReason"` 簡述待拍板問題；若規格已定案（包含已有最新決議覆蓋舊描述），回傳 `"specBlocked": false`。',
     '',
     `## Ticket 標題\n${title}`,
     '',
-    `## Ticket 內容與留言節錄\n${String(body ?? '').slice(0, 14000)}`,
+    `## Ticket 內容與最新留言節錄\n${sliceSpecPreservingHeadAndTail(body, 14000)}`,
     '',
     '請只回傳以下 JSON 格式：',
     '{',
     '  "scope": "frontend_only | mixed_fe_be | non_frontend",',
     '  "actionableInFrontendRepo": boolean,',
+    '  "specBlocked": boolean,',
+    '  "specBlockReason": "若規格有未決矛盾或待拍板阻塞，簡述原因；否則填空字串",',
     '  "frontendTasksSummary": "繁體中文簡述前端儲存庫應實作的具體項目（無則填空字串）",',
     '  "outOfRepoItems": ["繁體中文列出屬於後端或外部系統、不應在前端實作或阻擋前端 PR 收斂的項目"],',
     '  "reason": "一句話繁體中文判斷理由"',
@@ -234,18 +243,29 @@ export async function evaluateTicketScope(
     !String(ticket?.title ?? '').trim() &&
     !String(ticket?.body ?? '').trim()
   ) {
-    return {
-      scope: 'frontend_only',
-      actionableInFrontendRepo: true,
+    return applyPromotedBranchOverride({
+      scope: 'non_frontend',
+      actionableInFrontendRepo: false,
       frontendTasksSummary: '',
       outOfRepoItems: [],
-      reason: '預檢階段未讀到規格內容，預設放行交由後續階段重試讀取。',
-    };
+      reason:
+        '預檢階段未讀到規格內容（Ticket 標題與內容為空或讀取失敗），已自動攔截避免盲目實作。',
+    });
   }
 
   if (typeof callClassifier === 'function') {
     try {
       const llmRes = await callClassifier(ticket);
+      if (llmRes && Boolean(llmRes.specBlocked)) {
+        const blockReason = sanitizeSingleLine(llmRes.specBlockReason);
+        return applyPromotedBranchOverride({
+          scope: 'non_frontend',
+          actionableInFrontendRepo: false,
+          frontendTasksSummary: sanitizeSingleLine(llmRes.frontendTasksSummary),
+          outOfRepoItems: [],
+          reason: `規格尚未定案：${blockReason || sanitizeSingleLine(llmRes.reason) || 'Ticket 存在待確認問題或新舊規格衝突'}`,
+        });
+      }
       if (llmRes && typeof llmRes.actionableInFrontendRepo === 'boolean') {
         const validScope = [
           'frontend_only',
