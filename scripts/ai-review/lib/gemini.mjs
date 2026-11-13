@@ -1,6 +1,7 @@
 const DEFAULT_MODEL = 'gemini-4-carbon';
 const DEFAULT_FALLBACK_MODEL = 'gemini-2.5-flash';
 const DEFAULT_MAX_OUTPUT_TOKENS = 16384;
+const MAX_EXPANDED_OUTPUT_TOKENS = 65536;
 export const MAX_ATTEMPTS = 5;
 const BASE_RETRY_DELAY_MS = 2000;
 const MAX_RETRY_DELAY_MS = 25000;
@@ -123,21 +124,21 @@ async function callGeminiOnce(
     .map((p) => p.text ?? '')
     .join('');
 
+  if (candidate?.finishReason === 'MAX_TOKENS') {
+    const err = new Error(
+      `Gemini response was truncated (finishReason: MAX_TOKENS, maxOutputTokens: ${maxOutputTokens}). ` +
+        'Set GEMINI_MAX_OUTPUT_TOKENS higher or shorten the prompt/diff.'
+    );
+    err.maxTokensTruncated = true;
+    err.retryable = maxOutputTokens < MAX_EXPANDED_OUTPUT_TOKENS;
+    throw err;
+  }
+
   if (!text) {
     const err = new Error(
       `Gemini API returned no content (finishReason: ${candidate?.finishReason ?? 'unknown'})`
     );
     err.retryable = true;
-    throw err;
-  }
-
-  if (candidate.finishReason === 'MAX_TOKENS') {
-    const err = new Error(
-      `Gemini response was truncated (finishReason: MAX_TOKENS, maxOutputTokens: ${maxOutputTokens}). ` +
-        'Set GEMINI_MAX_OUTPUT_TOKENS higher or shorten the prompt/diff.'
-    );
-    // Retrying won't help — the same prompt will hit the same cap again.
-    err.retryable = false;
     throw err;
   }
 
@@ -186,17 +187,24 @@ export async function callGemini(promptText, options = {}) {
   const sleepFn =
     typeof options.sleepFn === 'function' ? options.sleepFn : sleep;
 
+  let effectiveTokens = maxOutputTokens;
   let lastErr;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
       return await callGeminiOnce(promptText, {
         model,
-        maxOutputTokens,
+        maxOutputTokens: effectiveTokens,
         apiKey,
         images,
       });
     } catch (err) {
       lastErr = err;
+      if (err.maxTokensTruncated && effectiveTokens < MAX_EXPANDED_OUTPUT_TOKENS) {
+        effectiveTokens = Math.min(
+          MAX_EXPANDED_OUTPUT_TOKENS,
+          Math.max(32768, effectiveTokens * 2)
+        );
+      }
       // A raw fetch/network failure (DNS, connection reset) throws a plain
       // TypeError with no `retryable` flag at all — treat "not explicitly
       // false" as retryable so those transient errors aren't mistaken for
@@ -229,7 +237,7 @@ export async function callGemini(promptText, options = {}) {
     try {
       return await callGeminiOnce(promptText, {
         model: fallbackModel,
-        maxOutputTokens,
+        maxOutputTokens: effectiveTokens,
         apiKey,
         images,
       });

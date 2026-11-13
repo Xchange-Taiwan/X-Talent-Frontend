@@ -107,6 +107,9 @@ function renderReviewGuide(reviewGuide) {
   if (!reviewGuide) {
     return null;
   }
+  if (reviewGuide.skippedDueToError) {
+    return `### 🧭 Review Guide\n⚠️ ${reviewGuide.summary || '導讀產生因暫時性錯誤略過'}`;
+  }
 
   const order =
     Array.isArray(reviewGuide.readingOrder) && reviewGuide.readingOrder.length
