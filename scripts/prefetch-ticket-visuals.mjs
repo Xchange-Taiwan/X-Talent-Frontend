@@ -11,7 +11,7 @@
  * 2. Captures live Light Mode Playwright screenshots (unwrapping `#hub-frame`
  *    iframes on Design Hub and waiting for scenario boot) + computed DOM/CSS
  *    summaries + `@keyframes` / `transition` / `transform` / `animate()` motion
- *    rules for public Design Hub (`*.workers.dev`) and prototype (`*.chatgpt.site`) URLs.
+ *    rules for public Design Hub (`*.workers.dev`) URLs while skipping login-gated hosts (`*.chatgpt.site`).
  * 3. Appends a structured local file manifest to `.agents/tmp/ticket-spec.md`
  *    and writes `.agents/tmp/visual-manifest.json`.
  */
@@ -124,13 +124,12 @@ export function isAllowedPrototypeUrl(rawUrl) {
     const parsed = new URL(String(rawUrl ?? '').trim());
     if (parsed.protocol !== 'https:') return false;
     const host = parsed.hostname.toLowerCase();
-    if (ALLOWED_PROTOTYPE_EXACT_HOSTS.has(host)) return true;
-    if (
-      host.endsWith('.chatgpt.site') &&
-      host.length > '.chatgpt.site'.length
-    ) {
-      return true;
+    // Skip *.chatgpt.site directly at URL-filter time because ChatGPT Canvas
+    // hosts enforce an interactive login wall in headless Cloud CI runners.
+    if (host === 'chatgpt.site' || host.endsWith('.chatgpt.site')) {
+      return false;
     }
+    if (ALLOWED_PROTOTYPE_EXACT_HOSTS.has(host)) return true;
     return false;
   } catch {
     return false;
@@ -289,7 +288,8 @@ export function extractDesignUrlsFromTexts(
         }
       } else if (
         /^https:\/\/(www\.)?figma\.com\//i.test(cleaned) ||
-        /^https:\/\/claude\.ai\/artifact\//i.test(cleaned)
+        /^https:\/\/claude\.ai\/artifact\//i.test(cleaned) ||
+        /^https:\/\/([a-z0-9-]+\.)*chatgpt\.site(\/|$)/i.test(cleaned)
       ) {
         if (!seenSkipped.has(cleaned)) {
           seenSkipped.add(cleaned);
@@ -306,7 +306,10 @@ export function extractDesignUrlsFromTexts(
       ? designHubKb.screens
       : [];
     for (const screen of screens) {
-      if (screen?.module === 'frontend') continue; // skip chunk-broken frontend shell
+      const hasValidHubOrSourceUrl = Boolean(
+        String(screen?.hubUrl || screen?.sourceUrl || '').trim()
+      );
+      if (screen?.module === 'frontend' && !hasValidHubOrSourceUrl) continue; // skip chunk-broken bare frontend shell
       const screenTickets = Array.isArray(screen?.tickets)
         ? screen.tickets.map((t) => String(t).replace(/^#/, ''))
         : [];
@@ -332,11 +335,12 @@ export function extractDesignUrlsFromTexts(
             prototypeUrls.push(fullUrl);
           }
         }
-        // Expand key Design Hub interactive scenarios (e.g. form, rating, failure) when present
+        // Expand key Design Hub interactive scenarios (design-hub-kb.json uses `sc.key`, with legacy `sc.id` fallback)
         if (screen?.id && Array.isArray(screen?.scenarios)) {
-          for (const sc of screen.scenarios.slice(0, 4)) {
-            if (!sc?.id) continue;
-            const scUrl = `${DESIGN_HUB_BASE_URL}/?view=screens&screen=${encodeURIComponent(screen.id)}&device=desktop&scenario=${encodeURIComponent(sc.id)}&mode=play`;
+          for (const sc of screen.scenarios.slice(0, 6)) {
+            const scKey = String(sc?.key ?? sc?.id ?? '').trim();
+            if (!scKey || scKey === 'default') continue;
+            const scUrl = `${DESIGN_HUB_BASE_URL}/?view=screens&screen=${encodeURIComponent(screen.id)}&device=desktop&scenario=${encodeURIComponent(scKey)}&mode=play`;
             if (isAllowedPrototypeUrl(scUrl) && !seenProto.has(scUrl)) {
               seenProto.add(scUrl);
               prototypeUrls.push(scUrl);
@@ -574,11 +578,28 @@ async function capturePrototypesWithPlaywright(urls, outDir, rawSpecText = '') {
     for (let idx = 0; idx < urls.length; idx++) {
       const url = urls[idx];
       try {
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        if (!isAllowedPrototypeUrl(page.url())) {
+          continue;
+        }
+        // Fast-bail on login-walled sites (*.chatgpt.site / SSO redirects) without burning settle timeouts
+        const isLoginGated = await page
+          .evaluate(() =>
+            Boolean(
+              document.querySelector(
+                'script[src*="login-required"], input[type="password"]'
+              ) || /sign in|log in|登入/i.test(document.title || '')
+            )
+          )
+          .catch(() => false);
+        if (isLoginGated) {
+          continue;
+        }
         await waitForUiSettled(page, {
-          networkIdleTimeoutMs: 4000,
-          skeletonTimeoutMs: 5000,
+          networkIdleTimeoutMs: 3000,
+          skeletonTimeoutMs: 4000,
           settleDelayMs: 400,
+          preserveMotionStyles: true,
         });
 
         // If Design Hub wraps a screen inside an iframe (#hub-frame), allow extra
@@ -589,6 +610,9 @@ async function capturePrototypesWithPlaywright(urls, outDir, rawSpecText = '') {
           .catch(() => 0);
         if (hasIframe > 0) {
           await page.waitForTimeout(1200);
+        }
+        if (!isAllowedPrototypeUrl(page.url())) {
+          continue;
         }
 
         const pageSummary = await page.evaluate(() => {
@@ -800,6 +824,9 @@ async function capturePrototypesWithPlaywright(urls, outDir, rawSpecText = '') {
 
             if (clicked) {
               await waitForUiSettled(page, { settleDelayMs: 300 });
+              if (!isAllowedPrototypeUrl(page.url())) {
+                break;
+              }
               const tabImgPath = path.join(
                 outDir,
                 `${baseName}-tab-${tIdx + 1}.png`

@@ -9,12 +9,16 @@
 
 export const DEFAULT_SETTLE_TIMEOUT_MS = 6000;
 
-export async function lockLightModeAndReducedMotion(page) {
+export async function lockLightModeAndReducedMotion(
+  page,
+  { preserveMotionStyles = false } = {}
+) {
   try {
-    await page.emulateMedia({
-      colorScheme: 'light',
-      reducedMotion: 'reduce',
-    });
+    await page.emulateMedia(
+      preserveMotionStyles
+        ? { colorScheme: 'light' }
+        : { colorScheme: 'light', reducedMotion: 'reduce' }
+    );
   } catch {
     // Ignore if page context does not support emulateMedia
   }
@@ -54,9 +58,10 @@ export async function waitForUiSettled(page, options = {}) {
     networkIdleTimeoutMs = 4000,
     skeletonTimeoutMs = DEFAULT_SETTLE_TIMEOUT_MS,
     settleDelayMs = 250,
+    preserveMotionStyles = false,
   } = options;
 
-  await lockLightModeAndReducedMotion(page);
+  await lockLightModeAndReducedMotion(page, { preserveMotionStyles });
 
   try {
     await page.waitForLoadState('domcontentloaded', { timeout: 10000 });
@@ -176,6 +181,28 @@ export async function waitForUiSettled(page, options = {}) {
         5000
       );
 
+      const finiteAnims = (
+        typeof document.getAnimations === 'function'
+          ? document.getAnimations()
+          : []
+      ).filter((anim) => {
+        const timing = anim.effect?.getComputedTiming?.();
+        const iterations = timing?.iterations ?? 1;
+        const duration = Number(timing?.duration ?? 0);
+        return (
+          iterations !== Infinity &&
+          Number.isFinite(duration) &&
+          duration > 0 &&
+          duration <= 2000
+        );
+      });
+      if (finiteAnims.length > 0) {
+        await withTimeout(
+          Promise.allSettled(finiteAnims.map((a) => a.finished)),
+          2100
+        );
+      }
+
       await new Promise((resolve) =>
         requestAnimationFrame(() => requestAnimationFrame(resolve))
       );
@@ -184,7 +211,7 @@ export async function waitForUiSettled(page, options = {}) {
     // Ignore if execution context navigated
   }
 
-  await lockLightModeAndReducedMotion(page);
+  await lockLightModeAndReducedMotion(page, { preserveMotionStyles });
 
   if (settleDelayMs > 0) {
     await page.waitForTimeout(settleDelayMs);
