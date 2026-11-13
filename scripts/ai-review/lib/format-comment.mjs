@@ -107,6 +107,9 @@ function renderReviewGuide(reviewGuide) {
   if (!reviewGuide) {
     return null;
   }
+  if (reviewGuide.skippedDueToError) {
+    return `### 🧭 Review Guide\n⚠️ ${reviewGuide.summary || '導讀產生因暫時性錯誤略過'}`;
+  }
 
   const order =
     Array.isArray(reviewGuide.readingOrder) && reviewGuide.readingOrder.length
@@ -137,6 +140,62 @@ function renderReviewGuide(reviewGuide) {
  * judgment call failed should still result in a postable comment covering
  * whatever *did* succeed, rather than the whole thing blowing up.
  */
+export function resolveOverallRiskWithFailClosed({
+  summary,
+  security,
+  correctness,
+  businessLogic,
+  visualParity,
+  performance,
+  testing,
+  architecture,
+}) {
+  const coreEntries = [
+    ['Security', security],
+    ['Correctness / Regression', correctness],
+    ['Business Logic / Requirements', businessLogic],
+    ...(visualParity !== undefined
+      ? [['Visual / Design Parity', visualParity]]
+      : []),
+    ['Performance', performance],
+    ['Testing', testing],
+    ['Architecture / Code Smell', architecture],
+  ];
+
+  const degradedDomains = coreEntries
+    .filter(([, stage]) => stage?.skippedDueToError === true)
+    .map(([label]) => label);
+
+  if (!summary?.overallRisk) {
+    if (degradedDomains.length > 0) {
+      return {
+        level: 'medium',
+        reason: `核心審查領域因錯誤略過（${degradedDomains.join('、')}），系統強制標記為 medium 防止漏審放行`,
+      };
+    }
+    return null;
+  }
+
+  const rawLevel = String(summary.overallRisk.level ?? '')
+    .toLowerCase()
+    .trim();
+  const rawReason = String(summary.overallRisk.reason ?? '').trim();
+
+  if (degradedDomains.length > 0) {
+    const elevatedLevel = rawLevel === 'high' ? 'high' : 'medium';
+    const prefix = `核心審查領域因錯誤略過（${degradedDomains.join('、')}），系統強制提升風險等級防止漏審放行`;
+    return {
+      level: elevatedLevel,
+      reason: rawReason ? `${prefix}；${rawReason}` : prefix,
+    };
+  }
+
+  return {
+    level: rawLevel || 'medium',
+    reason: rawReason,
+  };
+}
+
 export function formatComment({
   plan,
   reviewGuide,
@@ -148,6 +207,7 @@ export function formatComment({
   testing,
   architecture,
   summary,
+  headSha = '',
 }) {
   const sections = [
     renderFindingsSection('🧭 Business Logic / Requirements', businessLogic),
@@ -161,15 +221,30 @@ export function formatComment({
     renderFindingsSection('🏗️ Architecture / Code Smell', architecture),
   ];
 
-  const overallRisk = summary?.overallRisk
-    ? `**${summary.overallRisk.level}** — ${summary.overallRisk.reason}`
+  const effectiveRisk = resolveOverallRiskWithFailClosed({
+    summary,
+    security,
+    correctness,
+    businessLogic,
+    visualParity,
+    performance,
+    testing,
+    architecture,
+  });
+  const overallRisk = effectiveRisk
+    ? `**${effectiveRisk.level}** — ${effectiveRisk.reason}`
     : '_（未提供）_';
 
   const mergeRecommendation = summary?.mergeRecommendation ?? '_（未提供）_';
   const guideSection = renderReviewGuide(reviewGuide);
+  const shaMarker = headSha
+    ? `<!-- ai-review-sha:${String(headSha).trim()} -->`
+    : '';
 
   return [
-    AI_REVIEW_COMMENT_MARKER,
+    shaMarker
+      ? `${AI_REVIEW_COMMENT_MARKER}\n${shaMarker}`
+      : AI_REVIEW_COMMENT_MARKER,
     '## 🤖 AI Review Pipeline',
     '',
     plan?.requirementSummary ? `> ${plan.requirementSummary}` : '',

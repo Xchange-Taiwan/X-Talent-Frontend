@@ -17,6 +17,7 @@ import { extractExistingEvidenceUrls } from '../generate-pr-description.mjs';
 import {
   downloadVerifiedImage,
   extractTicketImageCandidates,
+  prioritizeIssueAndCommentBlocks,
   sniffImageMimeType,
 } from '../prefetch-ticket-visuals.mjs';
 import {
@@ -95,13 +96,13 @@ async function fetchIssueHtmlBlocks(ticketNumber, token) {
     let comments = [];
     try {
       const c = ghApiJson(
-        `${basePath}/comments?per_page=50`,
+        `${basePath}/comments?per_page=100`,
         token,
         'application/vnd.github.full+json'
       );
       if (Array.isArray(c)) comments = c;
     } catch {}
-    return [issue, ...comments];
+    return prioritizeIssueAndCommentBlocks(issue, comments);
   } catch {
     return [];
   }

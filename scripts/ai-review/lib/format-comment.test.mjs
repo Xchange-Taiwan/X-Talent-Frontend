@@ -455,4 +455,51 @@ describe('formatComment', () => {
     expect(comment).toContain('### 🎨 Visual / Design Parity');
     expect(comment).toContain('Visual Drift - Missing or Partial Layout');
   });
+
+  it('elevates Overall Risk from low to medium (fail-closed) when any core review stage has skippedDueToError, while ignoring skipped reviewGuide', () => {
+    const elevated = formatComment({
+      plan: basePlan,
+      businessLogic: noFindings,
+      security: {
+        hasFindings: false,
+        skippedDueToError: true,
+        summary: '資安審查因 API 503 略過',
+        findings: [],
+      },
+      correctness: noFindings,
+      performance: noFindings,
+      testing: noFindings,
+      architecture: noFindings,
+      summary: {
+        overallRisk: { level: 'low', reason: '其餘領域無問題' },
+        mergeRecommendation: '可合併',
+      },
+      headSha: 'abc1234',
+    });
+
+    expect(elevated).toContain('<!-- ai-review-sha:abc1234 -->');
+    expect(elevated).toContain(
+      '**medium** — 核心審查領域因錯誤略過（Security）'
+    );
+    expect(elevated).not.toContain('**low**');
+
+    const guideOnlySkipped = formatComment({
+      plan: basePlan,
+      reviewGuide: {
+        skippedDueToError: true,
+        summary: '導讀略過',
+      },
+      businessLogic: noFindings,
+      security: noFindings,
+      correctness: noFindings,
+      performance: noFindings,
+      testing: noFindings,
+      architecture: noFindings,
+      summary: {
+        overallRisk: { level: 'low', reason: '全部核心領域通過' },
+        mergeRecommendation: '可合併',
+      },
+    });
+    expect(guideOnlySkipped).toContain('**low** — 全部核心領域通過');
+  });
 });

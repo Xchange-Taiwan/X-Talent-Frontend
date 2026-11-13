@@ -309,6 +309,7 @@ jobs:
       - name: Generate final summary comment
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PLAN_B64: ${{ needs.planner.outputs.plan }}
           SECURITY_FINDINGS_B64: ${{ needs.security.outputs.findings }}
           CORRECTNESS_FINDINGS_B64: ${{ needs.correctness.outputs.findings }}
