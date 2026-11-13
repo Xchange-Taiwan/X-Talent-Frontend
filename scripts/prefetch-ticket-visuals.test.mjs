@@ -152,7 +152,11 @@ describe('prefetch-ticket-visuals', () => {
             hubUrl:
               'https://x-talent-design-hub.x-talent.workers.dev/screens/mentor-card-737.html',
             tickets: ['737'],
-            scenarios: [{ id: 'default' }, { id: 'rating' }],
+            scenarios: [
+              { key: 'default', label: '預設' },
+              { key: 'rating', label: '評分狀態' },
+              { id: 'legacy-id' },
+            ],
           },
           {
             id: 'fe-broken',
@@ -167,8 +171,8 @@ describe('prefetch-ticket-visuals', () => {
       expect(res.prototypeUrls).toEqual([
         'https://xtalent-chat-654.bonny80.chatgpt.site/',
         'https://x-talent-design-hub.x-talent.workers.dev/screens/mentor-card-737.html',
-        'https://x-talent-design-hub.x-talent.workers.dev/?view=screens&screen=mentor-card-737&device=desktop&scenario=default&mode=play',
         'https://x-talent-design-hub.x-talent.workers.dev/?view=screens&screen=mentor-card-737&device=desktop&scenario=rating&mode=play',
+        'https://x-talent-design-hub.x-talent.workers.dev/?view=screens&screen=mentor-card-737&device=desktop&scenario=legacy-id&mode=play',
       ]);
       expect(res.skippedProtectedUrls).toHaveLength(2);
     });
