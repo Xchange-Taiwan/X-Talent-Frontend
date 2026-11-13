@@ -163,7 +163,9 @@ export const MentorStep1NotHappened: Story = {
 };
 
 export const MentorStep2NotHappenedWithWarning: Story = {
-  render: () => <NotHappenedPreview initialReason="MENTEE_ABSENT" isMentor />,
+  render: () => (
+    <NotHappenedPreview initialReason="COUNTERPART_ABSENT" isMentor />
+  ),
 };
 
 export const MentorStep2NotHappenedOtherExpanded: Story = {
