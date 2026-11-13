@@ -275,10 +275,8 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
     );
 
     // Select 其他 -> expands optional 1000-char note field
-    await dialog
-      .locator('label')
-      .filter({ hasText: /^其他$/ })
-      .click();
+    const otherRadioCard = dialog.locator('label').filter({ hasText: /^其他$/ });
+    await otherRadioCard.click();
     const noteField = dialog.getByLabel(/補充說明/);
     await expect(noteField).toBeVisible();
     await noteField.fill('學員臨時有事已在聊聊通知改期');
@@ -286,15 +284,45 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
       '14 / 1000'
     );
 
+    // Wait for 200ms collapse transition and verify:
+    // 1) textarea left/right edges align 0px flush with sibling radio cards
+    // 2) overflow-hidden clip wrapper keeps >=4px clearance so focus ring never clips
+    await page.waitForTimeout(240);
+    const clipWrapper = dialog
+      .getByTestId('not-happened-note-collapse')
+      .locator('> div')
+      .first();
+
     // Ensure the warm-yellow Mentor warning box is completely visible and never clipped by scroll or footer
     const submitNextBtn = dialog.getByRole('button', {
       name: '送出並填下一場',
     });
-    const [noteCounterBox, warningRect, submitBtnRect] = await Promise.all([
+    const [
+      otherCardRect,
+      clipRect,
+      noteRect,
+      noteCounterBox,
+      warningRect,
+      submitBtnRect,
+    ] = await Promise.all([
+      otherRadioCard.boundingBox(),
+      clipWrapper.boundingBox(),
+      noteField.boundingBox(),
       dialog.getByTestId('feedback-note-counter').boundingBox(),
       warningBox.boundingBox(),
       submitNextBtn.boundingBox(),
     ]);
+    expect(otherCardRect).not.toBeNull();
+    expect(clipRect).not.toBeNull();
+    expect(noteRect).not.toBeNull();
+    expect(Math.abs(noteRect!.x - otherCardRect!.x)).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(noteRect!.width - otherCardRect!.width)
+    ).toBeLessThanOrEqual(1);
+    expect(clipRect!.x).toBeLessThanOrEqual(noteRect!.x - 4);
+    expect(clipRect!.x + clipRect!.width).toBeGreaterThanOrEqual(
+      noteRect!.x + noteRect!.width + 4
+    );
     expect(noteCounterBox).not.toBeNull();
     expect(warningRect).not.toBeNull();
     expect(submitBtnRect).not.toBeNull();
@@ -306,6 +334,7 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
       submitBtnRect!.y + 2
     );
 
+    await noteField.focus();
     await captureEvidence(
       page,
       'issue-740-mentor-step2-other-note-expanded-warning',

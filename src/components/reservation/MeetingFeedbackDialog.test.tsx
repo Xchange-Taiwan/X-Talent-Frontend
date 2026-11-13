@@ -1380,5 +1380,43 @@ describe('MeetingFeedbackDialog', () => {
         window.matchMedia = originalMatchMedia;
       }
     });
+
+    it('uses non-clipping bleed padding and unified offset-0 focus borders on feedback textareas', () => {
+      render(
+        <MeetingFeedbackDialog
+          defaultOpen
+          hideTrigger
+          reservation={baseReservation}
+          onSubmitFeedback={vi.fn()}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('radio', { name: '有進行' }));
+      fireEvent.click(screen.getByRole('button', { name: '下一步' }));
+      const ratingTextarea = screen.getByLabelText(/文字回饋/);
+      expect(ratingTextarea).toHaveClass(
+        'focus-visible:ring-offset-0',
+        'focus-visible:border-ring',
+        'focus-visible:ring-1'
+      );
+      expect(ratingTextarea).not.toHaveClass('focus-visible:ring-offset-2');
+
+      fireEvent.click(screen.getByRole('button', { name: '上一步' }));
+      fireEvent.click(screen.getByRole('radio', { name: '沒有進行' }));
+      fireEvent.click(screen.getByRole('button', { name: '下一步' }));
+      fireEvent.click(screen.getByRole('radio', { name: '其他' }));
+
+      const collapseRoot = screen.getByTestId('not-happened-note-collapse');
+      const clipWrapper = collapseRoot.firstElementChild;
+      expect(clipWrapper).toHaveClass('-mx-1.5', 'px-1.5', 'overflow-hidden');
+
+      const noteTextarea = screen.getByLabelText(/補充說明/);
+      expect(noteTextarea).toHaveClass(
+        'focus-visible:ring-offset-0',
+        'focus-visible:border-ring',
+        'focus-visible:ring-1'
+      );
+      expect(noteTextarea).not.toHaveClass('focus-visible:ring-offset-2');
+    });
   });
 });

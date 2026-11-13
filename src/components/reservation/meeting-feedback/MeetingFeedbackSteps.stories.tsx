@@ -51,9 +51,11 @@ function AttendancePreview({
 
 function NotHappenedPreview({
   initialReason = null,
+  initialNote = '',
   isMentor = false,
 }: {
   initialReason?: NotHappenedReason | null;
+  initialNote?: string;
   isMentor?: boolean;
 }) {
   const form = useMeetingFeedbackForm(
@@ -61,6 +63,7 @@ function NotHappenedPreview({
       ...DEFAULT_MEETING_FEEDBACK_FORM_VALUES,
       meetingHappened: false,
       notHappenedReason: initialReason,
+      notHappenedNote: initialNote,
     },
     isMentor ? 'mentor' : 'mentee'
   );
@@ -169,5 +172,11 @@ export const MentorStep2NotHappenedWithWarning: Story = {
 };
 
 export const MentorStep2NotHappenedOtherExpanded: Story = {
-  render: () => <NotHappenedPreview initialReason="OTHER" isMentor />,
+  render: () => (
+    <NotHappenedPreview
+      initialReason="OTHER"
+      initialNote="學員臨時有事已在聊聊通知改期"
+      isMentor
+    />
+  ),
 };
