@@ -11,7 +11,7 @@
  * 2. Captures live Light Mode Playwright screenshots (unwrapping `#hub-frame`
  *    iframes on Design Hub and waiting for scenario boot) + computed DOM/CSS
  *    summaries + `@keyframes` / `transition` / `transform` / `animate()` motion
- *    rules for public Design Hub (`*.workers.dev`) and prototype (`*.chatgpt.site`) URLs.
+ *    rules for public Design Hub (`*.workers.dev`) URLs while skipping login-gated hosts (`*.chatgpt.site`).
  * 3. Appends a structured local file manifest to `.agents/tmp/ticket-spec.md`
  *    and writes `.agents/tmp/visual-manifest.json`.
  */
@@ -289,7 +289,7 @@ export function extractDesignUrlsFromTexts(
       } else if (
         /^https:\/\/(www\.)?figma\.com\//i.test(cleaned) ||
         /^https:\/\/claude\.ai\/artifact\//i.test(cleaned) ||
-        /^https:\/\/([a-z0-9-]+\.)+chatgpt\.site(\/|$)/i.test(cleaned)
+        /^https:\/\/([a-z0-9-]+\.)*chatgpt\.site(\/|$)/i.test(cleaned)
       ) {
         if (!seenSkipped.has(cleaned)) {
           seenSkipped.add(cleaned);

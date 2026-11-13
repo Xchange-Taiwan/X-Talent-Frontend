@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   deriveBranchNameFromIssue,
+  queryBranchOpenPrState,
   resolveTicketBranchPlan,
 } from '../.agents/scripts/link-ticket-branch.mjs';
 
@@ -103,9 +104,7 @@ describe('link-ticket-branch state machine', () => {
         title: '[Feature] Mentor Profile v2',
         linkedBranches: { nodes: [] },
         closedByPullRequestsReferences: {
-          nodes: [
-            { number: 1200, state: 'MERGED', headRefName: 'feat/830-v1' },
-          ],
+          nodes: [{ number: 1200, state: 'MERGED', headRefName: 'feat/830-v1' }],
         },
       },
       requestedBranch: 'develop',
@@ -116,5 +115,57 @@ describe('link-ticket-branch state machine', () => {
     expect(plan.targetBranch).toBe('feat/830-mentor-profile-v2');
     expect(plan.hasOpenPr).toBe(false);
     expect(plan.resetToOriginDevelop).toBe(false);
+  });
+
+  it('fails closed (refuses resetToOriginDevelop) when direct --head open-PR query fails or finds an unlinked open PR', () => {
+    const failedQuery = queryBranchOpenPrState({
+      org: 'Xchange-Taiwan',
+      frontendRepo: 'X-Talent-Frontend',
+      targetBranch: 'feat/734-mentee-mentor',
+      execGh: () => '',
+    });
+    expect(failedQuery.ok).toBe(false);
+
+    const planOnApiFailure = resolveTicketBranchPlan({
+      issueNumber: 734,
+      issueObj: {
+        title: '[Feature] 回饋通知',
+        linkedBranches: {
+          nodes: [{ id: 'lb1', ref: { name: 'feat/734-mentee-mentor' } }],
+        },
+        closedByPullRequestsReferences: { nodes: [] },
+      },
+      requestedBranch: '',
+      openPrsByTicket: [],
+      remoteBranchExists: true,
+      directBranchOpenPrCheck: failedQuery,
+    });
+    expect(planOnApiFailure.resetToOriginDevelop).toBe(false);
+
+    const foundUnlinkedQuery = queryBranchOpenPrState({
+      org: 'Xchange-Taiwan',
+      frontendRepo: 'X-Talent-Frontend',
+      targetBranch: 'feat/custom-branch',
+      execGh: () => '[{"number":1299,"headRefName":"feat/custom-branch"}]',
+    });
+    expect(foundUnlinkedQuery.ok).toBe(true);
+    expect(foundUnlinkedQuery.hasOpenPr).toBe(true);
+
+    const planWithUnlinkedOpenPr = resolveTicketBranchPlan({
+      issueNumber: 734,
+      issueObj: {
+        title: '[Feature] 回饋通知',
+        linkedBranches: {
+          nodes: [{ id: 'lb2', ref: { name: 'feat/custom-branch' } }],
+        },
+        closedByPullRequestsReferences: { nodes: [] },
+      },
+      requestedBranch: '',
+      openPrsByTicket: [],
+      remoteBranchExists: true,
+      directBranchOpenPrCheck: foundUnlinkedQuery,
+    });
+    expect(planWithUnlinkedOpenPr.hasOpenPr).toBe(true);
+    expect(planWithUnlinkedOpenPr.resetToOriginDevelop).toBe(false);
   });
 });

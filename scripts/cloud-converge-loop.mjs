@@ -485,11 +485,7 @@ export function createSnapshotSaver({
           }
         }
       } catch {}
-      for (const spec of [
-        '.agents/tmp*',
-        '.gitignore',
-        '.gemini/settings.json',
-      ]) {
+      for (const spec of ['.agents/tmp*', '.gitignore', '.gemini/settings.json']) {
         try {
           execGit('git', ['reset', '--', spec], {
             cwd,
@@ -903,8 +899,10 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
           .filter(
             (relPath) =>
               relPath &&
-              !relPath.startsWith('.env') &&
-              !relPath.includes('/.env') &&
+              !(
+                /(^|\/)\.env(\..+)?$/.test(relPath) &&
+                !/\.env\.(example|sample|template)$/.test(relPath)
+              ) &&
               relPath !== '.agents/tmp' &&
               !relPath.startsWith('.agents/tmp/')
           )
