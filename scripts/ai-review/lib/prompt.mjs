@@ -23,11 +23,6 @@ function loadShared() {
   };
 }
 
-/**
- * Loads an agent's prompt template (a URL, e.g. `new URL('../prompts/security.md', import.meta.url)`)
- * and fills in the shared fragments plus any agent-specific replacements.
- * Placeholders are `{{NAME}}` tokens; unknown placeholders are left as-is.
- */
 export function buildPrompt(templateUrl, replacements = {}) {
   const { projectContext, reviewDiscipline, businessRules, codeSmellBaseline } =
     loadShared();
