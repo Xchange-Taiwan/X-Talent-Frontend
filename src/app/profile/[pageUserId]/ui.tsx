@@ -3,6 +3,7 @@
 import Image, { type StaticImageData } from 'next/image';
 import { useCallback, useMemo } from 'react';
 
+import { MentorBookmarkButton } from '@/components/favorites';
 import {
   EducationSection,
   WorkExperienceSection,
@@ -176,6 +177,16 @@ export default function ProfilePageUI({
   // silently diverge from it.
   const isOwnMentorProfile =
     !!userData && userData.is_mentor && canShowOwnerControls;
+  const isOwnProfileByLoginId =
+    Boolean(loginUserId) &&
+    userData !== null &&
+    String(loginUserId) === String(userData.user_id);
+  const canShowMentorBookmark = Boolean(
+    isIdentityResolved &&
+    userData?.is_mentor &&
+    !canShowOwnerControls &&
+    !isOwnProfileByLoginId
+  );
 
   // Only mentors viewing their own profile see booking status dots.
   const getDateStatus = useCallback(
@@ -247,40 +258,52 @@ export default function ProfilePageUI({
                 />
               </div>
 
-              <div className="mt-4 flex min-w-0 flex-col items-center sm:mt-14 sm:ml-6 sm:items-start">
-                <div className="mb-2 flex flex-col items-center gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
-                  <p className="text-2xl font-semibold break-words">
-                    {userData.name}
-                  </p>
-                  {!!userData.personalLinks?.length && (
-                    <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-                      {userData.personalLinks
-                        .filter((link) => isSafeUrl(link.url))
-                        .map((link) => (
-                          <a
-                            key={link.platform}
-                            href={link.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            data-analytics-click="profile_social_link"
-                            data-analytics-event="profile_social_link_click"
-                            data-analytics-feature="profile"
-                            data-analytics-location="profile_header"
-                            data-analytics-omit-destination="true"
-                            data-analytics-param-platform={link.platform}
-                            data-analytics-param-mentor-id={String(
-                              userData.user_id
-                            )}
-                            className="text-text-secondary hover:text-brand-500"
-                            title={
-                              platformLabelMap[link.platform]?.label ||
-                              link.platform
-                            }
-                          >
-                            {platformLabelMap[link.platform]?.icon}
-                          </a>
-                        ))}
-                    </div>
+              <div className="mt-4 flex min-w-0 flex-1 flex-col items-center sm:mt-14 sm:ml-6 sm:items-start">
+                <div className="mb-2 flex w-full flex-col items-center gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-col items-center gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+                    <p className="text-2xl font-semibold break-words">
+                      {userData.name}
+                    </p>
+                    {!!userData.personalLinks?.length && (
+                      <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+                        {userData.personalLinks
+                          .filter((link) => isSafeUrl(link.url))
+                          .map((link) => (
+                            <a
+                              key={link.platform}
+                              href={link.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              data-analytics-click="profile_social_link"
+                              data-analytics-event="profile_social_link_click"
+                              data-analytics-feature="profile"
+                              data-analytics-location="profile_header"
+                              data-analytics-omit-destination="true"
+                              data-analytics-param-platform={link.platform}
+                              data-analytics-param-mentor-id={String(
+                                userData.user_id
+                              )}
+                              className="text-text-secondary hover:text-brand-500"
+                              title={
+                                platformLabelMap[link.platform]?.label ||
+                                link.platform
+                              }
+                            >
+                              {platformLabelMap[link.platform]?.icon}
+                            </a>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                  {canShowMentorBookmark && (
+                    <MentorBookmarkButton
+                      mentorId={userData.user_id}
+                      mentorName={userData.name}
+                      feature="profile"
+                      variant="outline"
+                      tooltipSide="top"
+                      tooltipAlign="end"
+                    />
                   )}
                 </div>
                 {(userData.job_title || userData.company) && (
