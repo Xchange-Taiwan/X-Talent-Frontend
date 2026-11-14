@@ -39,6 +39,7 @@ import {
   executeDeleteAccountXC,
   executeGoogleOAuthCallback,
   initiateGoogleDeleteAccountReauth,
+  resolvePostAuthRedirect,
   type SessionTeardownReason,
   SignInLifecycleError,
   signInWithCredentials,
@@ -951,6 +952,44 @@ describe('sessionLifecycle (#885)', () => {
     });
   });
 
+  describe('resolvePostAuthRedirect', () => {
+    it('resolves post-auth redirect priority using route constants and cleans up conflicting pendingFavoriteMentor', () => {
+      const baseTime = 1_760_000_000_000;
+
+      savePendingFavoriteMentor(101, baseTime);
+      const redirectToFavorite = resolvePostAuthRedirect({
+        explicitCallbackUrl: null,
+        isOnboarded: true,
+        now: baseTime + 1000,
+      });
+      expect(redirectToFavorite).toBe('/profile/101');
+      expect(getPendingFavoriteMentorId(baseTime + 1000)).toBe(101);
+
+      const redirectToOnboarding = resolvePostAuthRedirect({
+        explicitCallbackUrl: '/profile/101',
+        isOnboarded: false,
+        now: baseTime + 2000,
+      });
+      expect(redirectToOnboarding).toBe('/auth/onboarding');
+      expect(getPendingFavoriteMentorId(baseTime + 2000)).toBe(101);
+
+      const redirectConflictUnonboarded = resolvePostAuthRedirect({
+        explicitCallbackUrl: '/reservation/mentee?tab=history',
+        isOnboarded: false,
+        now: baseTime + 3000,
+      });
+      expect(redirectConflictUnonboarded).toBe('/auth/onboarding');
+      expect(getPendingFavoriteMentorId(baseTime + 3000)).toBeNull();
+
+      const redirectDefault = resolvePostAuthRedirect({
+        explicitCallbackUrl: null,
+        isOnboarded: true,
+        now: baseTime + 4000,
+      });
+      expect(redirectDefault).toBe('/mentor-pool');
+    });
+  });
+
   describe('terminateClientSession across all 4 teardown reasons', () => {
     it.each<{
       reason: SessionTeardownReason;
@@ -983,7 +1022,7 @@ describe('sessionLifecycle (#885)', () => {
         expectsRevalidate: true,
       },
     ])(
-      'deterministically clears sessionHint, analytics, authFlowStorage, notificationStoreManager, reservationReadModel, and scheduleReadModel on $reason',
+      'deterministically clears sessionHint, analytics, authFlowStorage, pendingFavoriteMentor, notificationStoreManager, reservationReadModel, and scheduleReadModel on $reason',
       async ({
         reason,
         expectedSignOutArgs,
@@ -1002,13 +1041,15 @@ describe('sessionLifecycle (#885)', () => {
           'url("https://cdn.example.com/a.png")'
         );
 
-        // Seed authFlowStorage
+        // Seed authFlowStorage & pendingFavoriteMentor localStorage
         const storage = createInMemorySessionStorage({
           [PENDING_VERIFICATION_EMAIL_KEY]: 'v@example.com',
           [PENDING_PASSWORD_RESET_EMAIL_KEY]: 'r@example.com',
           [PENDING_DELETE_ACCOUNT_EMAIL_KEY]: 'd@example.com',
           [PENDING_AUTH_CALLBACK_URL_KEY]: '/reservation/mentee',
         });
+        savePendingFavoriteMentor(101);
+        expect(getPendingFavoriteMentorId()).toBe(101);
 
         // Seed all 3 user-scoped in-memory stores
         notificationStoreManager.getOrCreateState('user-42');
@@ -1065,8 +1106,9 @@ describe('sessionLifecycle (#885)', () => {
         // 2. analytics cleared
         expect(clearAnalyticsUser).toHaveBeenCalledOnce();
 
-        // 3. authFlowStorage cleared
+        // 3. authFlowStorage & pendingFavoriteMentor cleared
         expect(storage.dump()).toEqual({});
+        expect(getPendingFavoriteMentorId()).toBeNull();
 
         // 4. All 3 user-scoped stores cleared
         expect(
@@ -1088,5 +1130,39 @@ describe('sessionLifecycle (#885)', () => {
         expect(signOut).toHaveBeenCalledWith(...expectedSignOutArgs);
       }
     );
+
+    it('prevents stale pendingFavoriteMentor from redirecting the next signed-in user after logout (#756)', async () => {
+      savePendingFavoriteMentor(101);
+      expect(getPendingFavoriteMentorId()).toBe(101);
+
+      await terminateClientSession('logout', {
+        signOut: vi.fn().mockResolvedValue(undefined),
+        revokeBackendSession: vi.fn().mockResolvedValue(undefined),
+        clearAnalyticsUser: vi.fn(),
+        clearSessionHint: vi.fn(),
+      });
+
+      expect(getPendingFavoriteMentorId()).toBeNull();
+
+      const navigate = vi.fn();
+      await signInWithCredentials(
+        { email: 'user-b@example.com', password: 'Password1!' },
+        {
+          signIn: vi.fn().mockResolvedValue({ error: null, ok: true }),
+          getSession: vi.fn().mockResolvedValue(
+            fromPartial<Session>({
+              accessToken: 'jwt_user_b',
+              user: { id: '88', onBoarding: true, isMentor: false },
+            })
+          ),
+          navigate,
+          currentOrigin: 'https://xtalent.tw',
+          setAnalyticsUserContext: vi.fn(),
+          trackEvent: vi.fn(),
+        }
+      );
+
+      expect(navigate).toHaveBeenCalledWith('/mentor-pool');
+    });
   });
 });
