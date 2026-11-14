@@ -44,7 +44,7 @@ export default function FavoritesPageUI({
         )}
 
         {listStatus === 'success' && (
-          <div className="grid w-fit grid-cols-1 gap-5 max-md:mx-auto md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid w-full grid-cols-1 justify-items-center gap-6 md:grid-cols-2 min-[1360px]:grid-cols-3">
             {mentors.map((mentor, index) => (
               <MentorCard
                 key={mentor.user_id}
