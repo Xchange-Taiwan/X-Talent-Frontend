@@ -5,6 +5,7 @@ export {
 } from './useConsumePendingFavorite';
 export {
   FAVORITE_MENTOR_ERROR_TOAST_MESSAGE,
+  type FavoriteMentorAnalyticsFeature,
   useFavoriteMentor,
   type UseFavoriteMentorOptions,
   type UseFavoriteMentorResult,

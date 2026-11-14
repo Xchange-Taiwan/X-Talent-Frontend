@@ -16,7 +16,10 @@ import {
   clearPendingCallbackUrl,
   sanitizeCallbackUrl,
 } from '@/lib/auth/callbackUrl';
-import { getPendingFavoriteProfilePath } from '@/lib/favorites';
+import {
+  clearPendingFavoriteMentor,
+  getPendingFavoriteProfilePath,
+} from '@/lib/favorites';
 import { SignInSchema } from '@/schemas/auth';
 
 type SignInValues = z.infer<typeof SignInSchema>;
@@ -108,12 +111,16 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
           rawCallbackUrl,
           typeof window !== 'undefined' ? window.location.origin : undefined
         );
+        const pendingFavoritePath = getPendingFavoriteProfilePath();
+
+        if (safeCallbackUrl && safeCallbackUrl !== pendingFavoritePath) {
+          clearPendingFavoriteMentor();
+        }
 
         if (session.user.onBoarding === false) {
           router.push('/auth/onboarding');
         } else {
-          const pendingFavoritePath = getPendingFavoriteProfilePath();
-          router.push(pendingFavoritePath ?? safeCallbackUrl ?? '/mentor-pool');
+          router.push(safeCallbackUrl ?? pendingFavoritePath ?? '/mentor-pool');
         }
       },
       {

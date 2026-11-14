@@ -193,4 +193,4 @@ function useToast() {
   };
 }
 
-export { clearToasts, useToast };
+export { clearToasts, toast, useToast };

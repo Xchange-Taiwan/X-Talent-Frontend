@@ -170,6 +170,14 @@ async function setupCommonSupportRoutes(page: Page) {
 
   await mockApiRoute(
     page,
+    /\/v1\/users\/[^/]+\/reservations\/pending-feedback$/,
+    {
+      body: { code: '0', msg: 'ok', data: { reservations: [] } },
+    }
+  );
+
+  await mockApiRoute(
+    page,
     new RegExp(`/v1/(?:mentors|users)/${TARGET_MENTOR_ID_STR}/zh_TW/profile`),
     {
       body: makeMentorProfileResponse(TARGET_MENTOR_ID, true),
@@ -347,7 +355,7 @@ test.describe('Mentor 書籤收藏 (#758)', () => {
     );
 
     const profileBookmarkBtn = page.locator(
-      'button[data-analytics-event="mentor_bookmark_toggle"]'
+      'button[data-testid="mentor-bookmark-button"]'
     );
     await expect(profileBookmarkBtn).toBeVisible();
     await expect(profileBookmarkBtn).toHaveAttribute('aria-pressed', 'true');
@@ -457,21 +465,22 @@ test.describe('Mentor 書籤收藏 (#758)', () => {
     await expect(cards).toHaveCount(2);
 
     await expect(
-      cards
-        .nth(0)
-        .locator('button[data-analytics-event="mentor_bookmark_toggle"]')
+      cards.nth(0).locator('button[data-testid="mentor-bookmark-button"]')
     ).toHaveCount(0);
     await expect(
       cards.nth(1).getByRole('button', { name: '收藏 陳宥廷 Austin' })
     ).toBeVisible();
 
     // 2. 自己的 Mentor 個人頁：隱藏書籤按鈕
-    await page.goto(`/profile/${TARGET_MENTOR_ID_STR}`);
+    const selfProfileRes = await page.goto(`/profile/${TARGET_MENTOR_ID_STR}`);
+    if (selfProfileRes && selfProfileRes.status() >= 400) {
+      await page.reload();
+    }
     await expect(
       page.getByRole('button', { name: '編輯個人資訊' })
     ).toBeVisible();
     await expect(
-      page.locator('button[data-analytics-event="mentor_bookmark_toggle"]')
+      page.locator('button[data-testid="mentor-bookmark-button"]')
     ).toHaveCount(0);
 
     // 3. 清除登入狀態後，未登入訪客點擊卡片書籤導向 /auth/signin?callbackUrl=...

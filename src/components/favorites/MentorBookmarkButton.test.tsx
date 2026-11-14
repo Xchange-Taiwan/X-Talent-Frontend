@@ -6,7 +6,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Toaster } from '@/components/ui/toaster';
 import { clearToasts } from '@/components/ui/use-toast';
-import { FAVORITE_MENTOR_ERROR_TOAST_MESSAGE } from '@/hooks/favorites';
+import {
+  FAVORITE_MENTOR_ERROR_TOAST_MESSAGE,
+  useFavoriteMentor,
+} from '@/hooks/favorites';
 import * as analyticsModule from '@/lib/analytics';
 import { getPendingFavoriteMentorId } from '@/lib/favorites';
 import {
@@ -95,7 +98,7 @@ describe('MentorBookmarkButton', () => {
     });
   });
 
-  it('toggles icon fill/color, updates aria-label & tooltip, stops card propagation, and fires analytics without PII', async () => {
+  it('toggles icon fill/color, updates aria-label & tooltip, stops card propagation, and fires analytics without duplicate declarative attributes', async () => {
     const user = userEvent.setup();
     const onParentCardClick = vi.fn();
     const trackEventSpy = vi.spyOn(analyticsModule, 'trackEvent');
@@ -115,11 +118,8 @@ describe('MentorBookmarkButton', () => {
 
     const button = screen.getByRole('button', { name: '收藏 陳宥廷 Austin' });
     expect(button).toHaveAttribute('aria-pressed', 'false');
-    expect(button).toHaveAttribute(
-      'data-analytics-event',
-      'mentor_bookmark_toggle'
-    );
-    expect(button).toHaveAttribute('data-analytics-feature', 'mentor_pool');
+    expect(button).not.toHaveAttribute('data-analytics-event');
+    expect(button).not.toHaveAttribute('data-analytics-feature');
     expect(button.textContent).toBe('');
 
     const svgBefore = button.querySelector('svg');
@@ -145,6 +145,7 @@ describe('MentorBookmarkButton', () => {
       screen.queryByText(FAVORITE_MENTOR_ERROR_TOAST_MESSAGE)
     ).not.toBeInTheDocument();
 
+    expect(trackEventSpy).toHaveBeenCalledTimes(1);
     expect(trackEventSpy).toHaveBeenCalledWith({
       name: 'mentor_bookmark_toggle',
       feature: 'mentor_pool',
@@ -168,6 +169,66 @@ describe('MentorBookmarkButton', () => {
         action: 'remove',
       },
     });
+  });
+
+  it('tracks mentor_bookmark_toggle with feature "profile" when rendered on profile page', async () => {
+    const user = userEvent.setup();
+    const trackEventSpy = vi.spyOn(analyticsModule, 'trackEvent');
+    favoriteMentorStore.seedFavorites('999', []);
+
+    renderWithSession(
+      <MentorBookmarkButton
+        mentorId={101}
+        mentorName="陳宥廷 Austin"
+        analyticsFeature="profile"
+        variant="outline"
+      />
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: '收藏 陳宥廷 Austin' })
+    );
+
+    expect(trackEventSpy).toHaveBeenCalledWith({
+      name: 'mentor_bookmark_toggle',
+      feature: 'profile',
+      metadata: {
+        mentor_id: 101,
+        action: 'add',
+      },
+    });
+  });
+
+  it('uses per-mentorId primitive snapshot selector so toggling one mentor does not re-render other mentor bookmark hooks', async () => {
+    const user = userEvent.setup();
+    favoriteMentorStore.seedFavorites('999', []);
+
+    let mentor202RenderCount = 0;
+    function UnrelatedMentorProbe() {
+      mentor202RenderCount += 1;
+      const { isFavorited } = useFavoriteMentor({ mentorId: 202 });
+      return <span data-testid="probe-202">{String(isFavorited)}</span>;
+    }
+
+    renderWithSession(
+      <>
+        <MentorBookmarkButton mentorId={101} mentorName="陳宥廷 Austin" />
+        <UnrelatedMentorProbe />
+      </>
+    );
+
+    const baselineRenders = mentor202RenderCount;
+    await user.click(
+      screen.getByRole('button', { name: '收藏 陳宥廷 Austin' })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: '取消收藏 陳宥廷 Austin' })
+      ).not.toHaveAttribute('aria-busy');
+    });
+
+    expect(mentor202RenderCount).toBe(baselineRenders);
   });
 
   it('rolls back icon state and shows destructive toast when API mutation fails', async () => {

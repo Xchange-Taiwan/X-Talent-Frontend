@@ -75,6 +75,7 @@ class FavoriteMentorStoreManager {
   private activeUserId: string | null = null;
   private userEpoch = 0;
   private loadPromise: Promise<void> | null = null;
+  private fetchedServerMentors: ReadonlyMap<number, MentorType> | null = null;
   private optimisticOverrides = new Map<
     number,
     { favorited: boolean; mentor?: MentorType }
@@ -104,6 +105,14 @@ class FavoriteMentorStoreManager {
       ...patch,
     };
     this.emit();
+  }
+
+  private pruneSettledOptimisticOverrides(): void {
+    Array.from(this.optimisticOverrides.keys()).forEach((id) => {
+      if (!this.state.pendingMentorIds.has(id)) {
+        this.optimisticOverrides.delete(id);
+      }
+    });
   }
 
   setAdapter(adapter: FavoriteMentorServiceAdapter): void {
@@ -137,6 +146,7 @@ class FavoriteMentorStoreManager {
         this.activeUserId = null;
         this.userEpoch += 1;
         this.loadPromise = null;
+        this.fetchedServerMentors = null;
         this.optimisticOverrides.clear();
         this.state = createInitialFavoriteState();
         this.emit();
@@ -148,6 +158,7 @@ class FavoriteMentorStoreManager {
       this.activeUserId = normalizedUserId;
       this.userEpoch += 1;
       this.loadPromise = null;
+      this.fetchedServerMentors = null;
       this.optimisticOverrides.clear();
       this.state = {
         ...createInitialFavoriteState(),
@@ -175,13 +186,15 @@ class FavoriteMentorStoreManager {
           return;
         }
 
-        const mergedIds = new Set<number>(
-          fetchedMentors.map((mentor) => mentor.user_id)
-        );
+        const serverMentorMap = new Map<number, MentorType>();
+        const mergedIds = new Set<number>();
         const mentorMap = new Map<number, MentorType>();
         for (const mentor of fetchedMentors) {
+          serverMentorMap.set(mentor.user_id, mentor);
+          mergedIds.add(mentor.user_id);
           mentorMap.set(mentor.user_id, mentor);
         }
+        this.fetchedServerMentors = serverMentorMap;
 
         // Preserve any optimistic mutations initiated while initial GET was in flight
         this.optimisticOverrides.forEach((override, id) => {
@@ -195,6 +208,8 @@ class FavoriteMentorStoreManager {
             mentorMap.delete(id);
           }
         });
+
+        this.pruneSettledOptimisticOverrides();
 
         this.setState({
           favoriteMentorIds: mergedIds,
@@ -210,6 +225,7 @@ class FavoriteMentorStoreManager {
         ) {
           return;
         }
+        this.pruneSettledOptimisticOverrides();
         // Mark loadedUserId so transient failure doesn't cause an infinite refetch loop on re-renders
         this.setState({
           loadedUserId: targetUserId,
@@ -238,6 +254,7 @@ class FavoriteMentorStoreManager {
       return { status: 'skipped', nextFavorited: false };
     }
 
+    const wasLoadedBeforeToggle = this.state.loadedUserId !== null;
     const currentlyFavorited = this.state.favoriteMentorIds.has(mentorId);
     if (this.state.pendingMentorIds.has(mentorId)) {
       return { status: 'skipped', nextFavorited: currentlyFavorited };
@@ -305,46 +322,67 @@ class FavoriteMentorStoreManager {
         ? { status: 'added', nextFavorited: true }
         : { status: 'removed', nextFavorited: false };
     } catch (error) {
-      if (this.userEpoch === requestEpoch) {
-        const rolledBackIds = new Set(this.state.favoriteMentorIds);
-        let rolledBackMentors: MentorType[];
-
-        if (currentlyFavorited) {
-          rolledBackIds.add(mentorId);
-          const restoredEntry =
-            previousMentorEntry ??
-            mentorSnapshot ??
-            buildPlaceholderMentor(mentorId);
-          const withoutCurrent = this.state.favoriteMentors.filter(
-            (item) => item.user_id !== mentorId
-          );
-          rolledBackMentors = [restoredEntry, ...withoutCurrent];
-        } else {
-          rolledBackIds.delete(mentorId);
-          rolledBackMentors = this.state.favoriteMentors.filter(
-            (item) => item.user_id !== mentorId
-          );
-        }
-
-        const updatedPending = new Set(this.state.pendingMentorIds);
-        updatedPending.delete(mentorId);
-
-        if (previousOverride) {
-          this.optimisticOverrides.set(mentorId, previousOverride);
-        } else {
-          this.optimisticOverrides.delete(mentorId);
-        }
-
-        this.setState({
-          favoriteMentorIds: rolledBackIds,
-          favoriteMentors: rolledBackMentors,
-          pendingMentorIds: updatedPending,
-        });
+      if (this.userEpoch !== requestEpoch) {
+        return {
+          status: 'failed',
+          nextFavorited: currentlyFavorited,
+          error,
+        };
       }
+
+      const serverBaseline = this.fetchedServerMentors;
+      const useFetchedServerBaseline =
+        !wasLoadedBeforeToggle &&
+        previousOverride === undefined &&
+        serverBaseline !== null;
+
+      const rollbackFavorited = useFetchedServerBaseline
+        ? serverBaseline.has(mentorId)
+        : currentlyFavorited;
+      const rollbackMentor = useFetchedServerBaseline
+        ? (serverBaseline.get(mentorId) ?? null)
+        : previousMentorEntry;
+
+      const rolledBackIds = new Set(this.state.favoriteMentorIds);
+      let rolledBackMentors: MentorType[];
+
+      if (rollbackFavorited) {
+        rolledBackIds.add(mentorId);
+        const restoredEntry =
+          rollbackMentor ?? mentorSnapshot ?? buildPlaceholderMentor(mentorId);
+        const hasExistingEntry = this.state.favoriteMentors.some(
+          (item) => item.user_id === mentorId
+        );
+        rolledBackMentors = hasExistingEntry
+          ? this.state.favoriteMentors.map((item) =>
+              item.user_id === mentorId ? restoredEntry : item
+            )
+          : [restoredEntry, ...this.state.favoriteMentors];
+      } else {
+        rolledBackIds.delete(mentorId);
+        rolledBackMentors = this.state.favoriteMentors.filter(
+          (item) => item.user_id !== mentorId
+        );
+      }
+
+      const updatedPending = new Set(this.state.pendingMentorIds);
+      updatedPending.delete(mentorId);
+
+      if (previousOverride !== undefined && this.state.loadedUserId === null) {
+        this.optimisticOverrides.set(mentorId, previousOverride);
+      } else {
+        this.optimisticOverrides.delete(mentorId);
+      }
+
+      this.setState({
+        favoriteMentorIds: rolledBackIds,
+        favoriteMentors: rolledBackMentors,
+        pendingMentorIds: updatedPending,
+      });
 
       return {
         status: 'failed',
-        nextFavorited: currentlyFavorited,
+        nextFavorited: rollbackFavorited,
         error,
       };
     }
@@ -393,16 +431,22 @@ class FavoriteMentorStoreManager {
 
     const ids = new Set<number>();
     const mentors: MentorType[] = [];
+    const baselineMap = new Map<number, MentorType>();
 
     for (const item of items) {
       if (typeof item === 'number') {
+        const placeholder = buildPlaceholderMentor(item);
         ids.add(item);
-        mentors.push(buildPlaceholderMentor(item));
+        mentors.push(placeholder);
+        baselineMap.set(item, placeholder);
       } else {
         ids.add(item.user_id);
         mentors.push(item);
+        baselineMap.set(item.user_id, item);
       }
     }
+
+    this.fetchedServerMentors = normalizedUserId ? baselineMap : null;
 
     this.state = {
       favoriteMentorIds: ids,
@@ -418,6 +462,7 @@ class FavoriteMentorStoreManager {
     this.activeUserId = null;
     this.userEpoch += 1;
     this.loadPromise = null;
+    this.fetchedServerMentors = null;
     this.optimisticOverrides.clear();
     this.adapter = defaultAdapter;
     this.state = createInitialFavoriteState();

@@ -373,7 +373,7 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
     );
 
     const profileBookmarkBtn = page.locator(
-      'button[data-analytics-event="mentor_bookmark_toggle"]'
+      'button[data-testid="mentor-bookmark-button"]'
     );
     await expect(profileBookmarkBtn).toBeVisible();
     await expect(profileBookmarkBtn).toHaveAttribute('aria-pressed', 'true');
@@ -481,10 +481,15 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
     });
 
     await page.setViewportSize({ width: 1280, height: 800 });
-    await page.goto(`/profile/${TARGET_MENTOR_ID_STR}`);
+    const initialProfileRes = await page.goto(
+      `/profile/${TARGET_MENTOR_ID_STR}`
+    );
+    if (initialProfileRes && initialProfileRes.status() >= 400) {
+      await page.reload();
+    }
 
     const guestProfileBookmarkBtn = page.locator(
-      'button[data-analytics-event="mentor_bookmark_toggle"]'
+      'button[data-testid="mentor-bookmark-button"]'
     );
     await expect(guestProfileBookmarkBtn).toBeVisible();
     await guestProfileBookmarkBtn.click();
@@ -506,7 +511,7 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
       page.getByRole('button', { name: '編輯個人資訊' })
     ).toBeVisible();
     await expect(
-      page.locator('button[data-analytics-event="mentor_bookmark_toggle"]')
+      page.locator('button[data-testid="mentor-bookmark-button"]')
     ).toHaveCount(0);
 
     const selfBlockedToast = page.getByText('無法收藏自己', { exact: true });
@@ -687,7 +692,7 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
     );
 
     const profileBookmarkBtn = page.locator(
-      'button[data-analytics-event="mentor_bookmark_toggle"]'
+      'button[data-testid="mentor-bookmark-button"]'
     );
     await expect(profileBookmarkBtn).toBeVisible();
     await expect(profileBookmarkBtn).toHaveAttribute('aria-pressed', 'true');

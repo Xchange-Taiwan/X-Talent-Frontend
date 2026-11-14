@@ -57,7 +57,7 @@ export async function setSignedSessionCookie(
 ): Promise<void> {
   const signed = await encode({
     token: payload as JWT,
-    secret: process.env.NEXTAUTH_SECRET ?? 'secret',
+    secret: process.env.NEXTAUTH_SECRET || 'secret',
   });
 
   const { name, domain, secure } = getCookieTarget();
@@ -85,7 +85,7 @@ export async function setSignedMaintenanceCookie(
 ): Promise<void> {
   const signed = await encode({
     token: payload as unknown as JWT,
-    secret: process.env.NEXTAUTH_SECRET ?? 'secret',
+    secret: process.env.NEXTAUTH_SECRET || 'secret',
   });
 
   const { domain, secure } = getCookieTarget();

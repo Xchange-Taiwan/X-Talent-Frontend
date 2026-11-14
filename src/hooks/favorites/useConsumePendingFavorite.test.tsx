@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Toaster } from '@/components/ui/toaster';
 import { clearToasts } from '@/components/ui/use-toast';
 import type { UserType } from '@/hooks/user/user-data/useUserData';
+import * as analyticsModule from '@/lib/analytics';
 import {
   getPendingFavoriteMentorId,
   savePendingFavoriteMentor,
@@ -67,6 +68,7 @@ describe('useConsumePendingFavorite', () => {
   });
 
   it('waits until loginUserId is confirmed and userLoading is false before consuming pending favorite', async () => {
+    const trackEventSpy = vi.spyOn(analyticsModule, 'trackEvent');
     savePendingFavoriteMentor(101);
     const mentorData = buildMentorUserData({ user_id: 101 });
 
@@ -109,6 +111,16 @@ describe('useConsumePendingFavorite', () => {
     expect(addMock).toHaveBeenCalledWith(101);
     expect(favoriteMentorStore.isFavorited(101)).toBe(true);
     expect(getPendingFavoriteMentorId()).toBeNull();
+    await waitFor(() => {
+      expect(trackEventSpy).toHaveBeenCalledWith({
+        name: 'mentor_bookmark_toggle',
+        feature: 'profile',
+        metadata: {
+          mentor_id: 101,
+          action: 'add',
+        },
+      });
+    });
   });
 
   it('blocks self-favorite without calling API and displays destructive toast "無法收藏自己"', async () => {

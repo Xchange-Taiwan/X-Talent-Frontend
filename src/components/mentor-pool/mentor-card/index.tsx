@@ -67,6 +67,7 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
           mentorId={id}
           mentorName={name}
           mentorSnapshot={mentorSnapshot}
+          analyticsFeature="mentor_pool"
           variant="overlay"
           tooltipSide="bottom"
           tooltipAlign="end"

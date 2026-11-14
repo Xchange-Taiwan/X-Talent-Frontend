@@ -425,6 +425,69 @@ describe('GoogleOAuthRedirectPage Component', () => {
       });
     });
 
+    it('prioritizes explicit conflicting pending_auth_callback_url over stale pendingFavoriteMentor and clears stale pendingFavoriteMentor (#756)', async () => {
+      savePendingFavoriteMentor(101);
+      sessionStorage.setItem(
+        PENDING_AUTH_CALLBACK_URL_KEY,
+        '/reservation/mentee?tab=history&reservationId=888'
+      );
+      const mockData = {
+        auth_type: 'LOGIN' as const,
+        auth: { token: 'tok_2', email: 'user@example.com' },
+        user: fromPartial<ProfileVO>({ user_id: 456 }),
+      };
+
+      mockResolveOAuthOutcome.mockResolvedValue({
+        type: 'LOGIN',
+        data: mockData,
+      });
+
+      mockGetSession.mockResolvedValue({
+        user: { onBoarding: true },
+      });
+
+      render(<GoogleOAuthRedirectPage />);
+
+      await waitFor(() => {
+        expect(pushMock).toHaveBeenCalledWith(
+          '/reservation/mentee?tab=history&reservationId=888'
+        );
+        expect(getPendingFavoriteMentorId()).toBeNull();
+        expect(
+          sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+        ).toBeNull();
+      });
+    });
+
+    it('redirects to /profile/:id and preserves pendingFavoriteMentor when pending_auth_callback_url matches pendingFavoritePath (#756)', async () => {
+      savePendingFavoriteMentor(101);
+      sessionStorage.setItem(PENDING_AUTH_CALLBACK_URL_KEY, '/profile/101');
+      const mockData = {
+        auth_type: 'LOGIN' as const,
+        auth: { token: 'tok_2', email: 'user@example.com' },
+        user: fromPartial<ProfileVO>({ user_id: 456 }),
+      };
+
+      mockResolveOAuthOutcome.mockResolvedValue({
+        type: 'LOGIN',
+        data: mockData,
+      });
+
+      mockGetSession.mockResolvedValue({
+        user: { onBoarding: true },
+      });
+
+      render(<GoogleOAuthRedirectPage />);
+
+      await waitFor(() => {
+        expect(pushMock).toHaveBeenCalledWith('/profile/101');
+        expect(getPendingFavoriteMentorId()).toBe(101);
+        expect(
+          sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+        ).toBeNull();
+      });
+    });
+
     it('preserves pendingFavoriteMentor across SIGNUP and LOGIN with onBoarding: false (#756)', async () => {
       savePendingFavoriteMentor(101);
       mockResolveOAuthOutcome.mockResolvedValueOnce({

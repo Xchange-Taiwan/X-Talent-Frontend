@@ -20,7 +20,10 @@ import {
   resolveOAuthOutcome,
   signInWithGoogleToken,
 } from '@/lib/auth/oauthOutcome';
-import { getPendingFavoriteProfilePath } from '@/lib/favorites';
+import {
+  clearPendingFavoriteMentor,
+  getPendingFavoriteProfilePath,
+} from '@/lib/favorites';
 import { deleteAccount } from '@/services/auth/deleteAccount';
 import type { components } from '@/types/api';
 
@@ -122,16 +125,20 @@ export function useGoogleOAuthCallback() {
         },
       });
 
+      const pendingCallbackUrl = consumePendingCallbackUrl(
+        typeof window !== 'undefined' ? window.location.origin : undefined
+      );
+      const pendingFavoritePath = getPendingFavoriteProfilePath();
+
+      if (pendingCallbackUrl && pendingCallbackUrl !== pendingFavoritePath) {
+        clearPendingFavoriteMentor();
+      }
+
       if (session?.user?.onBoarding === false) {
-        clearPendingCallbackUrl();
         router.push('/auth/onboarding');
       } else {
-        const pendingCallbackUrl = consumePendingCallbackUrl(
-          typeof window !== 'undefined' ? window.location.origin : undefined
-        );
-        const pendingFavoritePath = getPendingFavoriteProfilePath();
         router.push(
-          pendingFavoritePath ?? pendingCallbackUrl ?? '/mentor-pool'
+          pendingCallbackUrl ?? pendingFavoritePath ?? '/mentor-pool'
         );
       }
     };

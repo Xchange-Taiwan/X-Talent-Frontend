@@ -8,7 +8,10 @@ import {
   type TooltipAlign,
   type TooltipSide,
 } from '@/components/ui/tooltip';
-import { useFavoriteMentor } from '@/hooks/favorites';
+import {
+  type FavoriteMentorAnalyticsFeature,
+  useFavoriteMentor,
+} from '@/hooks/favorites';
 import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 import type { MentorType } from '@/types/mentor';
@@ -19,6 +22,7 @@ export interface MentorBookmarkButtonProps {
   mentorId: number;
   mentorName: string;
   mentorSnapshot?: MentorType;
+  analyticsFeature?: FavoriteMentorAnalyticsFeature;
   variant?: MentorBookmarkButtonVariant;
   tooltipSide?: TooltipSide;
   tooltipAlign?: TooltipAlign;
@@ -30,6 +34,7 @@ export function MentorBookmarkButton({
   mentorId,
   mentorName,
   mentorSnapshot,
+  analyticsFeature = 'mentor_pool',
   variant = 'overlay',
   tooltipSide = 'bottom',
   tooltipAlign = 'end',
@@ -45,6 +50,7 @@ export function MentorBookmarkButton({
   } = useFavoriteMentor({
     mentorId,
     mentorSnapshot,
+    analyticsFeature,
   });
 
   if (isSelf || isIdentityUnresolved) {
@@ -70,11 +76,10 @@ export function MentorBookmarkButton({
     >
       <button
         type="button"
+        data-testid="mentor-bookmark-button"
         aria-label={actionLabel}
         aria-pressed={isFavorited}
         aria-busy={isPending || undefined}
-        data-analytics-event="mentor_bookmark_toggle"
-        data-analytics-feature="mentor_pool"
         onClick={handleClick}
         className={cn(
           'inline-flex size-10 shrink-0 items-center justify-center rounded-full transition-colors',

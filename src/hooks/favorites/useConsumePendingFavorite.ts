@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from '@/components/ui/use-toast';
 import type { UserType } from '@/hooks/user/user-data/useUserData';
 import { trackEvent } from '@/lib/analytics';
 import { consumePendingFavoriteMentorForPage } from '@/lib/favorites';
@@ -49,8 +49,6 @@ export function useConsumePendingFavorite({
   userData,
   userLoading,
 }: UseConsumePendingFavoriteOptions): void {
-  const { toast } = useToast();
-
   useEffect(() => {
     const normalizedLoginUserId = loginUserId.trim();
     if (!normalizedLoginUserId || userLoading) {
@@ -101,7 +99,7 @@ export function useConsumePendingFavorite({
       if (outcome.status === 'added' && !wasAlreadyFavorited) {
         trackEvent({
           name: 'mentor_bookmark_toggle',
-          feature: 'mentor_pool',
+          feature: 'profile',
           metadata: {
             mentor_id: pageMentorId,
             action: 'add',
@@ -114,5 +112,5 @@ export function useConsumePendingFavorite({
         });
       }
     })();
-  }, [loginUserId, pageUserId, toast, userData, userLoading]);
+  }, [loginUserId, pageUserId, userData, userLoading]);
 }

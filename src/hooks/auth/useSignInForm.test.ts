@@ -279,6 +279,52 @@ describe('useSignInForm', () => {
     expect(getPendingFavoriteMentorId()).toBe(7482008160728084);
   });
 
+  it('success + explicit conflicting callbackUrl + stale pendingFavoriteMentor → prioritizes explicit callbackUrl and clears stale pendingFavoriteMentor (#756)', async () => {
+    savePendingFavoriteMentor(101);
+    window.history.replaceState(
+      {},
+      '',
+      '/auth/signin?callbackUrl=%2Freservation%2Fmentee%3Ftab%3Dhistory%26reservationId%3D888'
+    );
+    mockGetSession.mockResolvedValueOnce({
+      ...mockSession,
+      user: { ...mockSession.user, onBoarding: true, isMentor: false },
+    });
+
+    const { result } = renderHook(() => useSignInForm());
+
+    await act(async () => {
+      await result.current.onSubmit(validValues);
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith(
+      '/reservation/mentee?tab=history&reservationId=888'
+    );
+    expect(getPendingFavoriteMentorId()).toBeNull();
+  });
+
+  it('success + matching callbackUrl (/profile/:id) + pendingFavoriteMentor → redirects to /profile/:id and preserves pendingFavoriteMentor (#756)', async () => {
+    savePendingFavoriteMentor(101);
+    window.history.replaceState(
+      {},
+      '',
+      '/auth/signin?callbackUrl=%2Fprofile%2F101'
+    );
+    mockGetSession.mockResolvedValueOnce({
+      ...mockSession,
+      user: { ...mockSession.user, onBoarding: true, isMentor: false },
+    });
+
+    const { result } = renderHook(() => useSignInForm());
+
+    await act(async () => {
+      await result.current.onSubmit(validValues);
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/profile/101');
+    expect(getPendingFavoriteMentorId()).toBe(101);
+  });
+
   it('success + pendingFavoriteMentor + onBoarding === false → redirects to /auth/onboarding without clearing pendingFavoriteMentor (#756)', async () => {
     savePendingFavoriteMentor(101);
     mockGetSession.mockResolvedValueOnce({

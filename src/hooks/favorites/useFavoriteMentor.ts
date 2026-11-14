@@ -9,13 +9,22 @@ import {
   useSyncExternalStore,
 } from 'react';
 
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from '@/components/ui/use-toast';
 import { trackEvent } from '@/lib/analytics';
 import { savePendingFavoriteMentor } from '@/lib/favorites';
 import { favoriteMentorStore } from '@/stores/favoriteMentorStore';
 import type { MentorType } from '@/types/mentor';
 
 export const FAVORITE_MENTOR_ERROR_TOAST_MESSAGE = '收藏操作失敗，請稍後再試';
+
+export type FavoriteMentorAnalyticsFeature = 'mentor_pool' | 'profile';
+
+const FAVORITED_BIT = 1;
+const PENDING_BIT = 2;
+
+function getServerFavoriteSnapshot(): number {
+  return 0;
+}
 
 function useOptionalRouter(): ReturnType<typeof useRouter> | null {
   try {
@@ -28,6 +37,7 @@ function useOptionalRouter(): ReturnType<typeof useRouter> | null {
 export interface UseFavoriteMentorOptions {
   mentorId: number;
   mentorSnapshot?: MentorType;
+  analyticsFeature?: FavoriteMentorAnalyticsFeature;
 }
 
 export interface UseFavoriteMentorResult {
@@ -42,10 +52,10 @@ export interface UseFavoriteMentorResult {
 export function useFavoriteMentor({
   mentorId,
   mentorSnapshot,
+  analyticsFeature = 'mentor_pool',
 }: UseFavoriteMentorOptions): UseFavoriteMentorResult {
   const sessionContext = useContext(SessionContext);
   const router = useOptionalRouter();
-  const { toast } = useToast();
 
   const session = sessionContext?.data ?? null;
   const sessionStatus = sessionContext?.status ?? 'unauthenticated';
@@ -69,18 +79,25 @@ export function useFavoriteMentor({
     }
   }, [confirmedUserId, isIdentityUnresolved]);
 
-  const storeState = useSyncExternalStore(
+  const getMentorFavoriteSnapshot = useCallback(
+    () =>
+      (favoriteMentorStore.isFavorited(mentorId) ? FAVORITED_BIT : 0) |
+      (favoriteMentorStore.isPending(mentorId) ? PENDING_BIT : 0),
+    [mentorId]
+  );
+
+  const snapshotMask = useSyncExternalStore(
     favoriteMentorStore.subscribe,
-    favoriteMentorStore.getState,
-    favoriteMentorStore.getServerSnapshot
+    getMentorFavoriteSnapshot,
+    getServerFavoriteSnapshot
   );
 
   const isSelf =
     confirmedUserId !== null && confirmedUserId === String(mentorId);
   const isFavorited = isAuthenticated
-    ? storeState.favoriteMentorIds.has(mentorId)
+    ? (snapshotMask & FAVORITED_BIT) !== 0
     : false;
-  const isPending = storeState.pendingMentorIds.has(mentorId);
+  const isPending = (snapshotMask & PENDING_BIT) !== 0;
 
   const handleToggleFavorite = useCallback(async () => {
     if (isSelf || isIdentityUnresolved) return;
@@ -115,7 +132,7 @@ export function useFavoriteMentor({
 
     trackEvent({
       name: 'mentor_bookmark_toggle',
-      feature: 'mentor_pool',
+      feature: analyticsFeature,
       metadata: {
         mentor_id: mentorId,
         action: optimisticAction,
@@ -134,6 +151,7 @@ export function useFavoriteMentor({
       });
     }
   }, [
+    analyticsFeature,
     isSelf,
     isIdentityUnresolved,
     isAuthenticated,
@@ -141,7 +159,6 @@ export function useFavoriteMentor({
     mentorId,
     mentorSnapshot,
     router,
-    toast,
   ]);
 
   return {
