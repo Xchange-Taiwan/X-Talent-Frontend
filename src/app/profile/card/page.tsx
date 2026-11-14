@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth/next';
 
 import authOptions from '@/auth.config';
 import { hasUserProperties, isValidUserId } from '@/lib/auth/userGuard';
-import { DEFAULT_LOGIN } from '@/routes';
+import { DEFAULT_LOGIN } from '@/lib/routes';
 import { fetchTagCatalogServer } from '@/services/profile/tagCatalog.server';
 import { fetchUserByIdServer } from '@/services/profile/user.server';
 
