@@ -331,6 +331,7 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
       name: '收藏 Zahra Mirzakhani',
     });
     await expect(guestBookmarkBtn).toBeVisible();
+    await captureEvidence(page, 'favorite-mentor-pool-guest-card');
     await guestBookmarkBtn.click();
 
     await expect(page).toHaveURL(
@@ -381,6 +382,7 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
       .getByRole('button', { name: '取消收藏 Zahra Mirzakhani' });
     await expect(syncedCardBtn).toBeVisible();
     await expect(syncedCardBtn).toHaveAttribute('aria-pressed', 'true');
+    await captureEvidence(page, 'favorite-mentor-pool-synced-card');
 
     const deletePromise = page.waitForResponse(
       (res) =>
@@ -443,11 +445,16 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
     });
 
     await page.setViewportSize({ width: 1280, height: 800 });
-    const initialProfileRes = await page.goto(
-      `/profile/${TARGET_MENTOR_ID_STR}`
-    );
-    if (initialProfileRes && initialProfileRes.status() >= 400) {
-      await page.reload();
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const res = await page.goto(`/profile/${TARGET_MENTOR_ID_STR}`);
+      const isNotFoundHeadingVisible = await page
+        .getByRole('heading', { name: '404', exact: true })
+        .isVisible()
+        .catch(() => false);
+      if ((!res || res.status() < 400) && !isNotFoundHeadingVisible) {
+        break;
+      }
+      await page.waitForTimeout(500);
     }
 
     const guestProfileBookmarkBtn = page.locator(

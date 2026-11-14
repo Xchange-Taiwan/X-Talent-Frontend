@@ -45,6 +45,11 @@ function createInitialFavoriteState(): FavoriteMentorState {
 }
 
 const SERVER_SNAPSHOT: FavoriteMentorState = createInitialFavoriteState();
+const SYNC_RETRY_COOLDOWN_MS = 5_000;
+
+export interface SyncFavoriteUserOptions {
+  forceRetry?: boolean;
+}
 
 function buildPlaceholderMentor(mentorId: number): MentorType {
   return {
@@ -75,6 +80,7 @@ class FavoriteMentorStoreManager {
   private activeUserId: string | null = null;
   private userEpoch = 0;
   private loadPromise: Promise<void> | null = null;
+  private lastFailedSyncAt: number | null = null;
   private fetchedServerMentors: ReadonlyMap<number, MentorType> | null = null;
   private optimisticOverrides = new Map<
     number,
@@ -132,13 +138,17 @@ class FavoriteMentorStoreManager {
    * Automatically loads `/v1/me/favorite-mentors` once per userId and resets
    * state upon logout or account switch.
    */
-  syncUser(rawUserId: string | null | undefined): Promise<void> {
+  syncUser(
+    rawUserId: string | null | undefined,
+    options?: SyncFavoriteUserOptions
+  ): Promise<void> {
     const normalizedUserId = rawUserId?.trim() ? rawUserId.trim() : null;
 
     if (!normalizedUserId) {
       if (
         this.activeUserId !== null ||
         this.state.loadedUserId !== null ||
+        this.lastFailedSyncAt !== null ||
         this.state.favoriteMentorIds.size > 0 ||
         this.state.pendingMentorIds.size > 0 ||
         this.state.isLoading
@@ -146,6 +156,7 @@ class FavoriteMentorStoreManager {
         this.activeUserId = null;
         this.userEpoch += 1;
         this.loadPromise = null;
+        this.lastFailedSyncAt = null;
         this.fetchedServerMentors = null;
         this.optimisticOverrides.clear();
         this.state = createInitialFavoriteState();
@@ -158,6 +169,7 @@ class FavoriteMentorStoreManager {
       this.activeUserId = normalizedUserId;
       this.userEpoch += 1;
       this.loadPromise = null;
+      this.lastFailedSyncAt = null;
       this.fetchedServerMentors = null;
       this.optimisticOverrides.clear();
       this.state = {
@@ -169,7 +181,14 @@ class FavoriteMentorStoreManager {
       return Promise.resolve();
     } else if (this.loadPromise) {
       return this.loadPromise;
+    } else if (
+      !options?.forceRetry &&
+      this.lastFailedSyncAt !== null &&
+      Date.now() - this.lastFailedSyncAt < SYNC_RETRY_COOLDOWN_MS
+    ) {
+      return Promise.resolve();
     } else {
+      this.lastFailedSyncAt = null;
       this.setState({ isLoading: true });
     }
 
@@ -186,6 +205,7 @@ class FavoriteMentorStoreManager {
           return;
         }
 
+        this.lastFailedSyncAt = null;
         const serverMentorMap = new Map<number, MentorType>();
         const mergedIds = new Set<number>();
         const mentorMap = new Map<number, MentorType>();
@@ -225,10 +245,10 @@ class FavoriteMentorStoreManager {
         ) {
           return;
         }
-        this.pruneSettledOptimisticOverrides();
-        // Mark loadedUserId so transient failure doesn't cause an infinite refetch loop on re-renders
+        // Keep loadedUserId null and retain optimisticOverrides until a future
+        // GET succeeds, using a cooldown to prevent render-loop refetches.
+        this.lastFailedSyncAt = Date.now();
         this.setState({
-          loadedUserId: targetUserId,
           isLoading: false,
         });
       })
@@ -407,7 +427,7 @@ class FavoriteMentorStoreManager {
       return { status: 'skipped', nextFavorited: false };
     }
 
-    await this.syncUser(normalizedUserId);
+    await this.syncUser(normalizedUserId, { forceRetry: true });
 
     if (this.activeUserId !== normalizedUserId) {
       return { status: 'skipped', nextFavorited: false };
@@ -431,6 +451,7 @@ class FavoriteMentorStoreManager {
     this.activeUserId = normalizedUserId;
     this.userEpoch += 1;
     this.loadPromise = null;
+    this.lastFailedSyncAt = null;
     this.optimisticOverrides.clear();
 
     const ids = new Set<number>();
@@ -466,6 +487,7 @@ class FavoriteMentorStoreManager {
     this.activeUserId = null;
     this.userEpoch += 1;
     this.loadPromise = null;
+    this.lastFailedSyncAt = null;
     this.fetchedServerMentors = null;
     this.optimisticOverrides.clear();
     this.adapter = defaultAdapter;
