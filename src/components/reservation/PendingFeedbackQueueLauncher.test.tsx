@@ -28,14 +28,32 @@ vi.mock('next-auth/react', async () => {
   return nextAuthMockFactory();
 });
 
-vi.mock('@/services/reservations', () => ({
-  fetchPendingFeedbackReservations: vi.fn(),
-  submitReservationFeedback: vi.fn(),
-}));
+vi.mock(
+  '@/services/reservations/reservationService',
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import('@/services/reservations/reservationService')
+      >();
+    return {
+      ...actual,
+      fetchPendingFeedbackReservations: vi.fn(),
+      postReservationFeedback: vi.fn().mockResolvedValue({ ok: true }),
+    };
+  }
+);
 
-vi.mock('@/hooks/user/user-data/userProfileDtoCache', () => ({
-  clearUserProfileDtoCache: vi.fn(),
-}));
+vi.mock('@/services/reservations', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/services/reservations')>();
+  return {
+    ...actual,
+    submitReservationFeedback: vi.fn(
+      (...args: Parameters<typeof actual.submitReservationFeedback>) =>
+        actual.submitReservationFeedback(...args)
+    ),
+  };
+});
 
 vi.mock('@/lib/analytics', () => ({
   trackEvent: vi.fn(),
@@ -45,7 +63,6 @@ vi.mock('@/components/ui/use-toast', () => ({
   useToast: () => ({ toast: mockToast, dismiss: vi.fn() }),
 }));
 
-import { submitFeedbackWithEffects } from '@/hooks/user/reservation/submitFeedbackWithEffects';
 import {
   QUEUE_PROMOTE_MS,
   QUEUE_SWIPE_OUT_MS,
@@ -136,7 +153,6 @@ describe('PendingFeedbackQueueLauncher + usePendingFeedbackQueue real integratio
     );
 
     mockFetchPending.mockResolvedValueOnce([itemA, itemB, itemC]);
-    mockSubmitFeedback.mockResolvedValue(undefined);
 
     render(<PendingFeedbackQueueLauncher />);
 
@@ -248,7 +264,6 @@ describe('PendingFeedbackQueueLauncher + usePendingFeedbackQueue real integratio
     );
 
     mockFetchPending.mockResolvedValueOnce([itemA, itemB]);
-    mockSubmitFeedback.mockResolvedValue(undefined);
 
     render(<PendingFeedbackQueueLauncher />);
 
@@ -316,7 +331,6 @@ describe('PendingFeedbackQueueLauncher + usePendingFeedbackQueue real integratio
     );
 
     mockFetchPending.mockResolvedValueOnce([itemA, itemB]);
-    mockSubmitFeedback.mockResolvedValue(undefined);
 
     const { rerender } = render(<PendingFeedbackQueueLauncher />);
 
@@ -353,7 +367,7 @@ describe('PendingFeedbackQueueLauncher + usePendingFeedbackQueue real integratio
     mockUsePathname.mockReturnValue('/reservation/mentor');
     rerender(<PendingFeedbackQueueLauncher />);
     await act(async () => {
-      await submitFeedbackWithEffects({
+      await submitReservationFeedback({
         reservation: itemB,
         myUserId: '1',
         myRole: 'mentor',

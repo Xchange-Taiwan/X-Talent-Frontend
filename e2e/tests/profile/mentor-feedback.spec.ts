@@ -784,4 +784,285 @@ test.describe('導師個人頁評價區塊與 RWD 排版 (#736)', () => {
     ).toHaveCount(0);
     expect(menteeFeedbackCalls).toBe(0);
   });
+
+  test('mentorFeedbackReadModel 分頁快取重用與預約回饋編輯後跨頁同步無效化 (#888)', async ({
+    page,
+  }) => {
+    await seedMockAuthSession(page, {
+      id: '1',
+      name: 'Test Mentee',
+      isMentor: false,
+      onBoarding: true,
+      jobTitle: 'Junior Product Designer',
+      company: 'Studio X',
+    });
+
+    await mockApiRoute(page, /\/v1\/notifications/, {
+      body: { code: '0', msg: 'ok', data: { items: [] } },
+    });
+    await mockApiRoute(page, /\/v1\/users\/1\/reservations\/pending-feedback/, {
+      body: { code: '0', msg: 'ok', data: { items: [] } },
+    });
+
+    let currentRating = 8;
+    let currentComment = '分享了很具體的建議，也幫助我釐清下一步的方向。';
+    let currentAverage = 8.5;
+    let feedbackPage1Calls = 0;
+    let feedbackPage2Calls = 0;
+
+    await page.route(
+      new RegExp(String.raw`/v1/users/${REAL_MENTOR_ID}/profile(\?|$)`),
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(
+            makeMentorProfilePayload({
+              isMentor: true,
+              ratingCount: 12,
+              ratingAverage: currentAverage,
+              completedMeetingCount: 128,
+            })
+          ),
+        })
+    );
+
+    await mockApiRoute(page, SCHEDULE_ROUTE_RE, {
+      body: {
+        code: '0',
+        msg: 'ok',
+        data: {
+          schedule: [
+            {
+              id: 501,
+              user_id: Number(REAL_MENTOR_ID),
+              dtstart: SLOT_1_START,
+              dtend: SLOT_1_END,
+              rrule: null,
+            },
+          ],
+          booked_dates: [],
+        },
+      },
+    });
+
+    await page.route(FEEDBACK_ROUTE_RE, (route) => {
+      const url = new URL(route.request().url());
+      const requestedPage = Number(url.searchParams.get('page') ?? '1');
+      if (requestedPage === 2) {
+        feedbackPage2Calls += 1;
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            code: '0',
+            msg: 'ok',
+            data: {
+              total_count: 12,
+              page: 2,
+              page_size: 10,
+              rating_average: currentAverage,
+              completed_meeting_count: 128,
+              feedbacks: [
+                {
+                  id: 'fb-p2-1',
+                  author_name: '吳**',
+                  rating: 9,
+                  content: '第二頁的職涯討論回饋內容。',
+                  created_at: '2026-10-15T10:00:00Z',
+                  is_public: true,
+                },
+              ],
+            },
+          }),
+        });
+      }
+
+      feedbackPage1Calls += 1;
+      const page1Items = Array.from({ length: 10 }, (_, idx) => ({
+        id: `fb-p1-${idx + 1}`,
+        author_name: idx === 0 ? '陳**' : '林**',
+        rating: idx === 0 ? currentRating : 8,
+        content:
+          idx === 0
+            ? currentComment
+            : `第 ${idx + 1} 則公開評價：提供了具體的調整方向。`,
+        created_at: `2026-10-${String(28 - idx).padStart(2, '0')}T10:00:00Z`,
+        is_public: true,
+      }));
+
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: '0',
+          msg: 'ok',
+          data: {
+            total_count: 12,
+            page: 1,
+            page_size: 10,
+            rating_average: currentAverage,
+            completed_meeting_count: 128,
+            feedbacks: page1Items,
+          },
+        }),
+      });
+    });
+
+    await page.route(/\/v1\/users\/1\/reservations([?]|$)/, (route) => {
+      const url = new URL(route.request().url());
+      const state = url.searchParams.get('state');
+      const reservations =
+        state === 'MENTEE_HISTORY'
+          ? [
+              {
+                id: 888,
+                sender: {
+                  user_id: 1,
+                  role: 'MENTEE',
+                  status: 'ACCEPT',
+                  name: 'Test Mentee',
+                  avatar: '',
+                  job_title: 'Junior Product Designer',
+                  years_of_experience: 'ONE_TO_THREE',
+                },
+                participant: {
+                  user_id: Number(REAL_MENTOR_ID),
+                  role: 'MENTOR',
+                  status: 'ACCEPT',
+                  name: 'Zahra Mirzakhani',
+                  avatar: '',
+                  job_title: 'Senior UX Designer',
+                  company: 'CreativeUX Design Studio',
+                  years_of_experience: 'FIVE_TO_TEN',
+                },
+                schedule_id: 501,
+                dtstart: 1760958000,
+                dtend: 1760959800,
+                previous_reserve: null,
+                messages: [
+                  {
+                    id: 8881,
+                    user_id: 1,
+                    role: 'MENTEE',
+                    content: '想請教作品集的研究敘事結構。',
+                  },
+                ],
+                feedback: {
+                  meeting_happened: true,
+                  my_meeting_happened: true,
+                  rating: {
+                    rating: currentRating,
+                    content: currentComment,
+                    created_at: 1760960000,
+                    updated_at: 1760960000,
+                    author_name: '陳**',
+                    is_public: true,
+                  },
+                  next_step: null,
+                },
+              },
+            ]
+          : [];
+
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: '0',
+          msg: 'ok',
+          data: { reservations, next_dtend: 0 },
+        }),
+      });
+    });
+
+    await page.route(
+      /\/v1\/users\/1\/reservations\/888\/feedback$/,
+      (route) => {
+        const rawBody: unknown = route.request().postDataJSON();
+        if (rawBody && typeof rawBody === 'object') {
+          if ('rating' in rawBody && typeof rawBody.rating === 'number') {
+            currentRating = rawBody.rating;
+          }
+          if ('content' in rawBody && typeof rawBody.content === 'string') {
+            currentComment = rawBody.content;
+          }
+        }
+        currentAverage = 9.5;
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ code: '0', msg: 'ok', data: {} }),
+        });
+      }
+    );
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/reservation/mentee?tab=history');
+
+    const zahraCard = page
+      .getByTestId('reservation-card')
+      .filter({ hasText: 'Zahra Mirzakhani' });
+    await expect(zahraCard).toBeVisible();
+
+    // 1. SPA navigate to mentor profile and open 評價 tab
+    await zahraCard
+      .getByRole('link', { name: /Zahra Mirzakhani/ })
+      .first()
+      .click();
+    await expect(page).toHaveURL(new RegExp(`/profile/${REAL_MENTOR_ID}$`));
+
+    const reviewsTab = page.getByRole('tab', { name: /評價/ });
+    await expect(reviewsTab).toBeVisible();
+    await reviewsTab.click();
+
+    const feedbackSection = page.getByTestId('mentor-feedback-section');
+    await expect(feedbackSection).toBeVisible();
+    await expect(feedbackSection.getByText(currentComment)).toBeVisible();
+    expect(feedbackPage1Calls).toBe(1);
+
+    // 2. Paginate Page 1 -> Page 2 -> Page 1 and verify Page 1 hits mentorFeedbackReadModel cache
+    await feedbackSection.getByRole('button', { name: '第 2 頁' }).click();
+    await expect(
+      feedbackSection.getByText('第二頁的職涯討論回饋內容。')
+    ).toBeVisible();
+    expect(feedbackPage2Calls).toBe(1);
+
+    await feedbackSection.getByRole('button', { name: '上一頁' }).click();
+    await expect(feedbackSection.getByText(currentComment)).toBeVisible();
+    expect(feedbackPage1Calls).toBe(1);
+
+    // 3. SPA navigate back to reservation history, edit public feedback (#731), and return without TTL expiry
+    await page.goBack();
+    await expect(page).toHaveURL(/\/reservation\/mentee\?tab=history/);
+
+    await zahraCard.getByRole('button', { name: '查看回饋' }).click();
+    await zahraCard.getByRole('button', { name: '編輯' }).click();
+
+    const editDialog = page.getByRole('dialog');
+    await expect(editDialog.getByText('編輯回饋')).toBeVisible();
+    const updatedComment = '透過統一回饋突變通道即時同步更新的公開評價內容！';
+    await editDialog
+      .getByRole('radiogroup', { name: '整體滿意度' })
+      .getByRole('radio', { name: '10 分' })
+      .click();
+    await editDialog.getByLabel(/文字回饋/).fill(updatedComment);
+    await editDialog.getByRole('button', { name: '儲存' }).click();
+    await expect(editDialog).not.toBeVisible();
+
+    // 4. SPA navigate back to mentor profile -> mentorFeedbackReadModel was invalidated and refetches fresh Page 1
+    await zahraCard
+      .getByRole('link', { name: /Zahra Mirzakhani/ })
+      .first()
+      .click();
+    await expect(page).toHaveURL(new RegExp(`/profile/${REAL_MENTOR_ID}$`));
+
+    await page.getByRole('tab', { name: /評價/ }).click();
+    await expect(feedbackSection.getByText(updatedComment)).toBeVisible();
+    expect(feedbackPage1Calls).toBe(2);
+
+    await captureEvidence(page, '888-mentor-feedback-synced-after-edit', {
+      waitForSelector: '[data-testid="mentor-feedback-section"]',
+    });
+  });
 });
