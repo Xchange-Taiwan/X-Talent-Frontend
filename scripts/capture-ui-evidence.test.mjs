@@ -139,10 +139,7 @@ describe('capture-ui-evidence & multimodal review helpers', () => {
       allowClipping: true,
     });
     expect(savedPath).toBe(
-      path.join(
-        '.agents/tmp/evidence',
-        'mentor-desktop-reservation_mentor.png'
-      )
+      path.join('.agents/tmp/evidence', 'mentor-desktop-reservation_mentor.png')
     );
     expect(screenshot).toHaveBeenCalledTimes(1);
   });
