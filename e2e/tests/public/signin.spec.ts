@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { setSignedSessionCookie } from '../../helpers/session';
+import { seedMockAuthSession } from '../../helpers/session';
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/auth/signin');
@@ -50,40 +50,12 @@ test('invalid credentials → toast shows "Invalid credentials!", stays on sign-
 test('valid credentials + onBoarding: false → redirects to /auth/onboarding', async ({
   page,
 }) => {
-  // Forge a signed JWT so the middleware (which checks cookie existence) allows
-  // navigation to protected routes after router.push().
-  await setSignedSessionCookie(page, {
+  await seedMockAuthSession(page, {
     id: '1',
     name: 'Test User',
     onBoarding: false,
     isMentor: false,
-    token: 'mock-access-token',
-    jobTitle: '',
-    company: '',
-    personalLinks: [],
   });
-
-  // Mock /api/auth/session so getSession() inside useSignInForm returns a
-  // controlled session — avoids relying on the dev server to decode the JWT.
-  await page.route(/\/api\/auth\/session/, (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        user: {
-          id: '1',
-          name: 'Test User',
-          onBoarding: false,
-          isMentor: false,
-          jobTitle: '',
-          company: '',
-          personalLinks: [],
-        },
-        accessToken: 'mock-access-token',
-        expires: '2099-01-01T00:00:00.000Z',
-      }),
-    })
-  );
 
   await page.route(/\/api\/auth\/callback\/credentials/, (route) =>
     route.fulfill({
@@ -103,36 +75,12 @@ test('valid credentials + onBoarding: false → redirects to /auth/onboarding', 
 test('valid credentials + onBoarding: true → redirects to /mentor-pool', async ({
   page,
 }) => {
-  await setSignedSessionCookie(page, {
+  await seedMockAuthSession(page, {
     id: '1',
     name: 'Test User',
     onBoarding: true,
     isMentor: false,
-    token: 'mock-access-token',
-    jobTitle: '',
-    company: '',
-    personalLinks: [],
   });
-
-  await page.route(/\/api\/auth\/session/, (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        user: {
-          id: '1',
-          name: 'Test User',
-          onBoarding: true,
-          isMentor: false,
-          jobTitle: '',
-          company: '',
-          personalLinks: [],
-        },
-        accessToken: 'mock-access-token',
-        expires: '2099-01-01T00:00:00.000Z',
-      }),
-    })
-  );
 
   await page.route(/\/api\/auth\/callback\/credentials/, (route) =>
     route.fulfill({

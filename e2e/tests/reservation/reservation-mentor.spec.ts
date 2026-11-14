@@ -1,27 +1,11 @@
 import { expect, Page, test } from '@playwright/test';
 
-import { setSignedSessionCookie } from '../../helpers/session';
+import { seedMockAuthSession } from '../../helpers/session';
 
 const USER_ID = '1';
 const PAGE_URL = '/reservation/mentor';
 
 // ─── Mock payloads ───────────────────────────────────────────────────────────
-
-function makeSession() {
-  return {
-    user: {
-      id: USER_ID,
-      name: 'Test Mentor',
-      isMentor: true,
-      onBoarding: true,
-      jobTitle: '',
-      company: '',
-      personalLinks: [],
-    },
-    accessToken: 'mock-token',
-    expires: '2099-01-01T00:00:00.000Z',
-  };
-}
 
 function makeReservationResponse(reservations: object[]) {
   return {
@@ -89,16 +73,12 @@ function makePutResponse(id: number, status: 'ACCEPT' | 'REJECT') {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-async function mockSessionGet(page: Page): Promise<void> {
-  await page.route(/\/api\/auth\/session/, (route) => {
-    if (route.request().method() === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(makeSession()),
-      });
-    }
-    return route.continue();
+async function seedMentor(page: Page): Promise<void> {
+  await seedMockAuthSession(page, {
+    id: USER_ID,
+    name: 'Test Mentor',
+    isMentor: true,
+    onBoarding: true,
   });
 }
 
@@ -140,14 +120,7 @@ async function mockReservationListEndpoints(
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 test('頁面載入 → 三個 Tab 可見', async ({ page }) => {
-  await setSignedSessionCookie(page, {
-    id: USER_ID,
-    name: 'Test Mentor',
-    isMentor: true,
-    onBoarding: true,
-    token: 'mock-access-token',
-  });
-  await mockSessionGet(page);
+  await seedMentor(page);
   await mockReservationListEndpoints(page);
 
   await page.goto(PAGE_URL);
@@ -162,14 +135,7 @@ test('頁面載入 → 三個 Tab 可見', async ({ page }) => {
 test('待您回覆 Tab → pending 預約卡片顯示，含接受與拒絕按鈕', async ({
   page,
 }) => {
-  await setSignedSessionCookie(page, {
-    id: USER_ID,
-    name: 'Test Mentor',
-    isMentor: true,
-    onBoarding: true,
-    token: 'mock-access-token',
-  });
-  await mockSessionGet(page);
+  await seedMentor(page);
   await mockReservationListEndpoints(page, {
     MENTOR_PENDING: [makeReservation(1, 'Mentee Lee')],
   });
@@ -189,14 +155,7 @@ test('待您回覆 Tab → pending 預約卡片顯示，含接受與拒絕按鈕
 });
 
 test('點擊接受並確認 → 卡片移至即將到來 Tab', async ({ page }) => {
-  await setSignedSessionCookie(page, {
-    id: USER_ID,
-    name: 'Test Mentor',
-    isMentor: true,
-    onBoarding: true,
-    token: 'mock-access-token',
-  });
-  await mockSessionGet(page);
+  await seedMentor(page);
 
   // State flag: after PUT succeeds, reload should return updated lists
   let putCalled = false;
@@ -271,14 +230,7 @@ test('點擊接受並確認 → 卡片移至即將到來 Tab', async ({ page }) 
 });
 
 test('點擊拒絕並填入原因後確認 → 卡片從待您回覆消失', async ({ page }) => {
-  await setSignedSessionCookie(page, {
-    id: USER_ID,
-    name: 'Test Mentor',
-    isMentor: true,
-    onBoarding: true,
-    token: 'mock-access-token',
-  });
-  await mockSessionGet(page);
+  await seedMentor(page);
 
   let putCalled = false;
 
@@ -348,14 +300,7 @@ test('點擊拒絕並填入原因後確認 → 卡片從待您回覆消失', asy
 });
 
 test('資料載入中 → Skeleton 顯示且不閃爍錯誤內容', async ({ page }) => {
-  await setSignedSessionCookie(page, {
-    id: USER_ID,
-    name: 'Test Mentor',
-    isMentor: true,
-    onBoarding: true,
-    token: 'mock-access-token',
-  });
-  await mockSessionGet(page);
+  await seedMentor(page);
 
   // Hold all reservation responses until we release the promise
   let resolveDelay!: () => void;
@@ -404,14 +349,7 @@ test.describe('歷史紀錄 Tab 測試', () => {
   test('歷史紀錄 Tab 中有/無訊息的預約卡片與取消 badge 顯示', async ({
     page,
   }) => {
-    await setSignedSessionCookie(page, {
-      id: USER_ID,
-      name: 'Test Mentor',
-      isMentor: true,
-      onBoarding: true,
-      token: 'mock-access-token',
-    });
-    await mockSessionGet(page);
+    await seedMentor(page);
 
     const withMsg = {
       ...makeReservation(20, 'Mentee Lee'),
@@ -501,14 +439,7 @@ test.describe('歷史紀錄 Tab 測試', () => {
   test('SYSTEM 自動取消之預約於歷史紀錄顯示「已自動取消」標籤，且展開完整對話紀錄彈窗顯示系統自動取消提示', async ({
     page,
   }) => {
-    await setSignedSessionCookie(page, {
-      id: USER_ID,
-      name: 'Test Mentor',
-      isMentor: true,
-      onBoarding: true,
-      token: 'mock-access-token',
-    });
-    await mockSessionGet(page);
+    await seedMentor(page);
 
     const cancelledBySystem = {
       ...makeReservation(24, 'Mentee AutoCancel'),
@@ -558,14 +489,7 @@ test.describe('歷史紀錄 Tab 測試', () => {
   test('逾時未回覆（距離 dtstart 小於 24 小時）的 PENDING 預約於讀取時自動收斂至「歷史紀錄」Tab', async ({
     page,
   }) => {
-    await setSignedSessionCookie(page, {
-      id: USER_ID,
-      name: 'Test Mentor',
-      isMentor: true,
-      onBoarding: true,
-      token: 'mock-access-token',
-    });
-    await mockSessionGet(page);
+    await seedMentor(page);
 
     const nowUnix = Math.floor(Date.now() / 1000);
     const overduePending = {
@@ -611,14 +535,7 @@ test.describe('導師端空狀態情境文案與 CTA 導向測試', () => {
   test('驗證三個 Tab（「待您回覆」、「即將到來」、「歷史紀錄」）空狀態情境文案，且點擊「管理可預約時段」導向 /profile/:userId', async ({
     page,
   }) => {
-    await setSignedSessionCookie(page, {
-      id: USER_ID,
-      name: 'Test Mentor',
-      isMentor: true,
-      onBoarding: true,
-      token: 'mock-access-token',
-    });
-    await mockSessionGet(page);
+    await seedMentor(page);
     await mockReservationListEndpoints(page);
 
     await page.goto(PAGE_URL);

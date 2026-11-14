@@ -1,7 +1,7 @@
 import { expect, Locator, Page, test } from '@playwright/test';
 
 import { mockApiRoute } from '../../helpers/route';
-import { setSignedSessionCookie } from '../../helpers/session';
+import { seedMockAuthSession } from '../../helpers/session';
 
 // Static, valid mentee ID from the dev/staging BFF database
 const REAL_MENTEE_ID = '7482008160728087'; // testing_visitor (Mentee)
@@ -11,38 +11,13 @@ const REAL_MENTEE_ID = '7482008160728087'; // testing_visitor (Mentee)
  * renders NotificationBell instead of the guest sign-in buttons.
  */
 async function setupMenteeSession(page: Page): Promise<void> {
-  await setSignedSessionCookie(page, {
+  await seedMockAuthSession(page, {
     id: REAL_MENTEE_ID,
     name: 'Test Own User',
     isMentor: false,
     onBoarding: true,
     jobTitle: 'Software Engineer',
     company: 'Own Company',
-    personalLinks: [],
-    token: 'mock-access-token',
-  });
-
-  await page.route(/\/api\/auth\/session/, (route) => {
-    if (route.request().method() === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          user: {
-            id: REAL_MENTEE_ID,
-            name: 'Test Own User',
-            isMentor: false,
-            onBoarding: true,
-            jobTitle: 'Software Engineer',
-            company: 'Own Company',
-            personalLinks: [],
-          },
-          accessToken: 'mock-access-token',
-          expires: '2099-01-01T00:00:00.000Z',
-        }),
-      });
-    }
-    return route.continue();
   });
 }
 
