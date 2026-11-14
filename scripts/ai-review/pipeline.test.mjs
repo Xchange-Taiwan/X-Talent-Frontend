@@ -117,7 +117,9 @@ describe('scripts/ai-review/pipeline.mjs', () => {
           number: 882,
           title: 'Collapse shallow AI review wrappers',
           body: 'Detailed specification body',
-          comments: [{ author: 'LowSugarCoke', body: 'Ready with Minor Notes' }],
+          comments: [
+            { author: 'LowSugarCoke', body: 'Ready with Minor Notes' },
+          ],
         })),
         loadArchitectureKb: vi.fn(async () => ({
           matchedDesignSpecs: {
