@@ -1,10 +1,12 @@
 import { apiClient, ApiError } from '@/lib/apiClient';
-import { formatExperience } from '@/lib/reservation/resolveCounterparty';
+import {
+  mapReservationFeedbackDto,
+  normalizeCancelledByDto,
+  normalizeFeedbackCounterpartDto,
+  resolveFeedbackPartyIds,
+} from '@/lib/reservation/mapReservationFeedbackDto';
 import type { Reservation } from '@/types/reservation';
-import type {
-  RawReservationFeedback,
-  ReservationFeedback,
-} from '@/types/reservationFeedback';
+import type { RawReservationFeedback } from '@/types/reservationFeedback';
 
 import { formatDateTime } from './reservationService';
 
@@ -35,60 +37,6 @@ export interface RawSingleReservationFeedbackVO {
 export interface ReservationFeedbackLookupResult {
   viewerRole: 'mentee' | 'mentor';
   reservation: Reservation;
-}
-
-function mapSingleRawFeedback(
-  raw: RawReservationFeedback | null | undefined
-): ReservationFeedback | undefined {
-  if (!raw || typeof raw !== 'object') {
-    return undefined;
-  }
-
-  const meetingHappened =
-    typeof raw.meeting_happened === 'boolean' ? raw.meeting_happened : null;
-
-  const myMeetingHappened =
-    raw.my_meeting_happened === null ||
-    typeof raw.my_meeting_happened === 'boolean'
-      ? raw.my_meeting_happened
-      : raw.mentor_meeting_happened === null ||
-          typeof raw.mentor_meeting_happened === 'boolean'
-        ? raw.mentor_meeting_happened
-        : meetingHappened;
-
-  const rawRating = raw.rating;
-  const rating =
-    rawRating &&
-    typeof rawRating === 'object' &&
-    typeof rawRating.rating === 'number' &&
-    Number.isFinite(rawRating.rating)
-      ? {
-          rating: rawRating.rating,
-          content:
-            typeof rawRating.content === 'string' ? rawRating.content : '',
-          createdAt:
-            typeof rawRating.created_at === 'number' ? rawRating.created_at : 0,
-          updatedAt:
-            typeof rawRating.updated_at === 'number' ? rawRating.updated_at : 0,
-          authorName:
-            typeof rawRating.author_name === 'string'
-              ? rawRating.author_name
-              : null,
-          isPublic: rawRating.is_public !== false,
-        }
-      : null;
-
-  const nextStep =
-    raw.next_step === 'ANSWER' || raw.next_step === 'RATE'
-      ? raw.next_step
-      : null;
-
-  return {
-    meetingHappened,
-    myMeetingHappened,
-    rating,
-    nextStep,
-  };
 }
 
 /**
@@ -123,17 +71,8 @@ export function mapSingleReservationFeedbackLookup(
   const viewerRole: 'mentee' | 'mentor' =
     upperRole === 'MENTOR' ? 'mentor' : 'mentee';
 
-  const cp = raw.counterpart ?? raw.counterparty;
-  const name = cp?.name?.trim() || '—';
-  const avatar =
-    typeof cp?.avatar === 'string' && cp.avatar.trim().length > 0
-      ? cp.avatar.trim()
-      : undefined;
-  const companyOrExp =
-    cp?.company?.trim() || formatExperience(cp?.years_of_experience);
-  const roleLine = [cp?.job_title?.trim() || '', companyOrExp]
-    .filter(Boolean)
-    .join(', ');
+  const { name, avatar, roleLine, counterpartyUserId } =
+    normalizeFeedbackCounterpartDto(raw);
 
   const dtstart =
     typeof raw.dtstart === 'number' && Number.isFinite(raw.dtstart)
@@ -145,23 +84,13 @@ export function mapSingleReservationFeedbackLookup(
       : dtstart;
   const { date, time } = formatDateTime(dtstart, dtend);
 
-  const myNumericId = Number(userId);
-  const resolvedMyId = Number.isFinite(myNumericId) ? myNumericId : 0;
-  const counterpartyUserId = typeof cp?.user_id === 'number' ? cp.user_id : 0;
-
-  const senderUserId =
-    upperRole === 'MENTOR' ? counterpartyUserId : resolvedMyId;
-  const participantUserId =
-    upperRole === 'MENTOR' ? resolvedMyId : counterpartyUserId;
-
-  const cancelledBy =
-    raw.cancelled_by === 'MENTEE' ||
-    raw.cancelled_by === 'MENTOR' ||
-    raw.cancelled_by === 'SYSTEM'
-      ? raw.cancelled_by
-      : undefined;
-
-  const feedback = mapSingleRawFeedback(raw.feedback);
+  const { senderUserId, participantUserId } = resolveFeedbackPartyIds(
+    userId,
+    counterpartyUserId,
+    upperRole
+  );
+  const cancelledBy = normalizeCancelledByDto(raw.cancelled_by);
+  const feedback = mapReservationFeedbackDto(raw.feedback);
 
   return {
     viewerRole,

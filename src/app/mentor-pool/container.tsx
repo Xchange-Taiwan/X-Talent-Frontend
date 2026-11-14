@@ -102,7 +102,6 @@ export default function MentorPoolContainer({
     initialNextCursor,
     initialMentorCount,
     params,
-    labelMap,
     initialError,
   });
 
@@ -116,6 +115,7 @@ export default function MentorPoolContainer({
       selectedFilters={selectedFilters}
       activeFilterBadges={activeFilterBadges}
       filterOptions={dynamicFilterOptions}
+      labelMap={labelMap}
       onFilterChange={setFilters}
       onRemoveFilter={removeFilter}
       onClearAll={clearAll}

@@ -2,16 +2,18 @@ import dayjs from 'dayjs';
 
 import { apiClient, ApiError } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
+import {
+  mapReservationFeedbackDto,
+  normalizeFeedbackCounterpartDto,
+  resolveFeedbackPartyIds,
+} from '@/lib/reservation/mapReservationFeedbackDto';
 import { sortPendingFeedbackOldestFirst } from '@/lib/reservation/pendingFeedbackGuard';
 import {
   MENTOR_SCHEDULE_RESERVATIONS_TTL_MS,
   type ReservationReadKey,
   reservationReadModel,
 } from '@/lib/reservation/reservationReadModel';
-import {
-  formatExperience,
-  resolveCounterpartyProfile,
-} from '@/lib/reservation/resolveCounterparty';
+import { resolveCounterpartyProfile } from '@/lib/reservation/resolveCounterparty';
 import { classifyReservationMessages } from '@/lib/reservation/resolveReservationMessages';
 import { components } from '@/types/api';
 import { Reservation, ReservationMessage } from '@/types/reservation';
@@ -19,7 +21,6 @@ import type {
   RawPendingFeedbackItem,
   RawPendingFeedbackResponse,
   RawReservationFeedback,
-  ReservationFeedback,
   SubmitReservationFeedbackRequest,
   UpdateReservationFeedbackRequest,
 } from '@/types/reservationFeedback';
@@ -102,77 +103,6 @@ function classifyMessageRole(
   return undefined;
 }
 
-function resolveMyMeetingHappened(
-  raw: RawReservationFeedback
-): boolean | null | undefined {
-  if (
-    raw.my_meeting_happened === null ||
-    typeof raw.my_meeting_happened === 'boolean'
-  ) {
-    return raw.my_meeting_happened;
-  }
-  if (
-    raw.mentor_meeting_happened === null ||
-    typeof raw.mentor_meeting_happened === 'boolean'
-  ) {
-    return raw.mentor_meeting_happened;
-  }
-  if (
-    raw.meeting_happened === null ||
-    typeof raw.meeting_happened === 'boolean'
-  ) {
-    return raw.meeting_happened;
-  }
-  return undefined;
-}
-
-function mapReservationFeedback(
-  raw: RawReservationFeedback | null | undefined
-): ReservationFeedback | undefined {
-  if (!raw || typeof raw !== 'object') {
-    return undefined;
-  }
-
-  const meetingHappened =
-    typeof raw.meeting_happened === 'boolean' ? raw.meeting_happened : null;
-
-  const myMeetingHappened = resolveMyMeetingHappened(raw);
-
-  const rawRating = raw.rating;
-  const rating =
-    rawRating &&
-    typeof rawRating === 'object' &&
-    typeof rawRating.rating === 'number' &&
-    Number.isFinite(rawRating.rating)
-      ? {
-          rating: rawRating.rating,
-          content:
-            typeof rawRating.content === 'string' ? rawRating.content : '',
-          createdAt:
-            typeof rawRating.created_at === 'number' ? rawRating.created_at : 0,
-          updatedAt:
-            typeof rawRating.updated_at === 'number' ? rawRating.updated_at : 0,
-          authorName:
-            typeof rawRating.author_name === 'string'
-              ? rawRating.author_name
-              : null,
-          isPublic: rawRating.is_public !== false,
-        }
-      : null;
-
-  const nextStep =
-    raw.next_step === 'ANSWER' || raw.next_step === 'RATE'
-      ? raw.next_step
-      : null;
-
-  return {
-    meetingHappened,
-    ...(myMeetingHappened !== undefined ? { myMeetingHappened } : {}),
-    rating,
-    nextStep,
-  };
-}
-
 export function mapToReservation(
   reservation: ReservationInfoVOWithVersion,
   myUserId?: string | number | null
@@ -180,7 +110,7 @@ export function mapToReservation(
   const { name, avatar, roleLine, cancelledBy, viewerRole } =
     resolveCounterpartyProfile(reservation, myUserId);
   const { date, time } = formatDateTime(reservation.dtstart, reservation.dtend);
-  const feedback = mapReservationFeedback(reservation.feedback);
+  const feedback = mapReservationFeedbackDto(reservation.feedback);
 
   // Preserve the full conversation in API order so the detail view can render
   // the entire thread, while also tracking the latest message per side for the
@@ -607,33 +537,15 @@ function mapPendingFeedbackCandidate(
   const viewerRole: 'MENTEE' | 'MENTOR' | undefined =
     rawRole === 'MENTOR' || rawRole === 'MENTEE' ? rawRole : undefined;
 
-  const counterpart = candidate.counterpart ?? candidate.counterparty;
-  const name =
-    counterpart?.name?.trim() || candidate.counterparty_name?.trim() || '—';
-  const rawAvatar =
-    counterpart?.avatar ?? candidate.counterparty_avatar ?? undefined;
-  const avatar =
-    typeof rawAvatar === 'string' && rawAvatar.trim().length > 0
-      ? rawAvatar.trim()
-      : undefined;
-  const companyOrExperience =
-    counterpart?.company?.trim() ||
-    formatExperience(counterpart?.years_of_experience);
-  const roleLine = [counterpart?.job_title?.trim() || '', companyOrExperience]
-    .filter(Boolean)
-    .join(', ');
+  const { name, avatar, roleLine, counterpartyUserId } =
+    normalizeFeedbackCounterpartDto(candidate);
+  const { senderUserId, participantUserId } = resolveFeedbackPartyIds(
+    userId,
+    counterpartyUserId,
+    viewerRole
+  );
 
-  const myNumericId = Number(userId);
-  const resolvedMyId = Number.isFinite(myNumericId) ? myNumericId : 0;
-  const counterpartyUserId =
-    typeof counterpart?.user_id === 'number' ? counterpart.user_id : 0;
-
-  const senderUserId =
-    viewerRole === 'MENTOR' ? counterpartyUserId : resolvedMyId;
-  const participantUserId =
-    viewerRole === 'MENTOR' ? resolvedMyId : counterpartyUserId;
-
-  const mappedFeedback = mapReservationFeedback(candidate.feedback);
+  const mappedFeedback = mapReservationFeedbackDto(candidate.feedback);
 
   return {
     id: String(rawId),

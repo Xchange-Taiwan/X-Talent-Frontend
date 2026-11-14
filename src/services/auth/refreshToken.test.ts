@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { fromPartial } from '@total-typescript/shoehorn';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { extractRefreshToken, refreshAccessToken } from './refreshToken';
 
@@ -26,7 +27,26 @@ describe('refreshToken', () => {
   });
 
   describe('refreshAccessToken', () => {
-    it('successfully refreshes token with injected customFetch', async () => {
+    const originalSsrUrl = process.env.SSR_API_URL;
+    const originalPublicUrl = process.env.NEXT_PUBLIC_API_URL;
+
+    afterEach(() => {
+      if (originalSsrUrl === undefined) {
+        delete process.env.SSR_API_URL;
+      } else {
+        process.env.SSR_API_URL = originalSsrUrl;
+      }
+      if (originalPublicUrl === undefined) {
+        delete process.env.NEXT_PUBLIC_API_URL;
+      } else {
+        process.env.NEXT_PUBLIC_API_URL = originalPublicUrl;
+      }
+    });
+
+    it('successfully refreshes token with injected customFetch and prefers SSR_API_URL over NEXT_PUBLIC_API_URL (#885)', async () => {
+      process.env.SSR_API_URL = 'http://internal-bff:8000/api';
+      process.env.NEXT_PUBLIC_API_URL = 'https://public-bff.example.com/api';
+
       const mockResponseData = {
         data: {
           auth: {
@@ -41,14 +61,14 @@ describe('refreshToken', () => {
         'refresh_token=new_refresh_token_xyz; Path=/; HttpOnly'
       );
 
-      const customFetch = vi.fn<typeof fetch>(async () => {
-        return {
+      const customFetch = vi.fn<typeof fetch>(async () =>
+        fromPartial<Response>({
           ok: true,
           status: 200,
           json: async () => mockResponseData,
           headers: mockHeaders,
-        } as unknown as Response;
-      });
+        })
+      );
 
       const result = await refreshAccessToken(
         'old_refresh_token_123',
@@ -56,20 +76,17 @@ describe('refreshToken', () => {
       );
 
       expect(customFetch).toHaveBeenCalledTimes(1);
-      // Verify called URL and options
       const [calledUrl, calledOptions] = customFetch.mock.calls[0];
-      expect(calledUrl).toContain('/v1/auth/token');
+      expect(calledUrl).toBe('http://internal-bff:8000/api/v1/auth/token');
       expect(calledOptions?.method).toBe('POST');
       expect(calledOptions?.headers).toEqual({
         'Content-Type': 'application/x-www-form-urlencoded',
       });
 
-      // Verify body
-      const bodyParams = new URLSearchParams(calledOptions?.body as string);
+      const bodyParams = new URLSearchParams(String(calledOptions?.body));
       expect(bodyParams.get('grant_type')).toBe('refresh_token');
       expect(bodyParams.get('refresh_token')).toBe('old_refresh_token_123');
 
-      // Verify returned result
       expect(result).toEqual({
         token: 'new_access_token_abc',
         refreshToken: 'new_refresh_token_xyz',
@@ -77,14 +94,14 @@ describe('refreshToken', () => {
     });
 
     it('throws an error if response status is not ok', async () => {
-      const customFetch = vi.fn<typeof fetch>(async () => {
-        return {
+      const customFetch = vi.fn<typeof fetch>(async () =>
+        fromPartial<Response>({
           ok: false,
           status: 400,
           json: async () => ({ msg: 'Invalid refresh token' }),
           headers: new Headers(),
-        } as unknown as Response;
-      });
+        })
+      );
 
       await expect(
         refreshAccessToken('invalid_token', customFetch)
@@ -94,20 +111,18 @@ describe('refreshToken', () => {
     it('throws an error if response is missing token', async () => {
       const mockResponseData = {
         data: {
-          auth: {
-            // token is missing!
-          },
+          auth: {},
         },
       };
 
-      const customFetch = vi.fn<typeof fetch>(async () => {
-        return {
+      const customFetch = vi.fn<typeof fetch>(async () =>
+        fromPartial<Response>({
           ok: true,
           status: 200,
           json: async () => mockResponseData,
           headers: new Headers(),
-        } as unknown as Response;
-      });
+        })
+      );
 
       await expect(
         refreshAccessToken('some_token', customFetch)

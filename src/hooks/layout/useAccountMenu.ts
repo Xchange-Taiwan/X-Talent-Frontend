@@ -5,10 +5,14 @@ import type { Session } from 'next-auth';
 import { signOut } from 'next-auth/react';
 import * as React from 'react';
 
-import { clearAnalyticsUser } from '@/lib/analytics';
-import { clearSessionHint, ResolvedIdentity } from '@/lib/auth/sessionHint';
-import { getMentorOnboardingUrl } from '@/lib/routes';
-import { postBackendLogout } from '@/services/auth/backendLogout';
+import { ResolvedIdentity } from '@/lib/auth/sessionHint';
+import { terminateClientSession } from '@/lib/auth/sessionLifecycle';
+import {
+  getMentorOnboardingUrl,
+  HOME_HREF,
+  RESERVATION_MENTEE_HREF,
+  RESERVATION_MENTOR_HREF,
+} from '@/lib/routes';
 import type { PersonalLink } from '@/types/types';
 
 export interface UseAccountMenuOptions {
@@ -64,7 +68,7 @@ export function useAccountMenu({
   const company = identity.company ?? user?.company ?? '';
   const personalLinks = identity.personalLinks ?? user?.personalLinks ?? [];
 
-  const profilePath = userId ? `/profile/${userId}` : '/';
+  const profilePath = userId ? `/profile/${userId}` : HOME_HREF;
 
   const subtitle =
     jobTitle && company
@@ -85,7 +89,7 @@ export function useAccountMenu({
     if (!userId) return;
     closeMenu();
     if (isMentor) {
-      router.push('/reservation/mentor');
+      router.push(RESERVATION_MENTOR_HREF);
     } else {
       router.push(getMentorOnboardingUrl(userId));
     }
@@ -93,7 +97,7 @@ export function useAccountMenu({
 
   const handleMyReservation = React.useCallback((): void => {
     closeMenu();
-    router.push('/reservation/mentee');
+    router.push(RESERVATION_MENTEE_HREF);
   }, [closeMenu, router]);
 
   const handleDeleteAccount = React.useCallback((): void => {
@@ -105,15 +109,7 @@ export function useAccountMenu({
 
   const handleLogout = React.useCallback(async (): Promise<void> => {
     closeMenu();
-    clearSessionHint();
-    clearAnalyticsUser();
-    try {
-      await postBackendLogout();
-    } catch {
-      // Backend session revocation is best-effort; local sign-out must still complete.
-    } finally {
-      await signOut();
-    }
+    await terminateClientSession('logout', { signOut });
   }, [closeMenu]);
 
   return {

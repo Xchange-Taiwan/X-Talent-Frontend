@@ -1,3 +1,4 @@
+import { fromPartial } from '@total-typescript/shoehorn';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next-auth/react', async () => {
@@ -35,11 +36,20 @@ vi.mock('@/lib/analytics', async (importActual) => {
 });
 
 import { apiClient, ApiError } from '@/lib/apiClient';
-import { mentorPoolReadManager } from '@/lib/cache/mentorPoolCache';
+import {
+  getUserProfileDtoFromCache,
+  primeUserProfileDtoCache,
+  userProfileDtoReadManager,
+} from '@/lib/cache/userProfileDtoCache';
+import { mentorFeedbackReadModel } from '@/lib/feedback/mentorFeedbackReadModel';
+import {
+  mentorPoolReadModel,
+  UNFILTERED_MENTOR_POOL_QUERY,
+} from '@/lib/mentor/mentorPoolReadModel';
 import { captureFlowFailure } from '@/lib/monitoring';
+import { getSessionPendingFeedbackState } from '@/lib/reservation/pendingFeedbackGuard';
 import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
-import { subscribeMentorFeedbackInvalidation } from '@/services/profile/feedback';
 import {
   acceptReservation,
   getReservationErrorMessage,
@@ -49,7 +59,10 @@ import {
   submitReservationFeedback,
   updateReservationFeedback,
 } from '@/services/reservations';
+import type { MentorFeedbackPage } from '@/types/feedback';
+import type { MentorType } from '@/types/mentor';
 import type { Reservation } from '@/types/reservation';
+import type { MentorProfileVO } from '@/types/user';
 
 const mockGet = vi.mocked(apiClient.getUnwrapped);
 const mockPut = vi.mocked(apiClient.putUnwrapped);
@@ -549,9 +562,12 @@ describe('submitReservationFeedback (#730)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    window.sessionStorage.clear();
     reservationReadModel.clear();
-    mentorPoolReadManager.clear();
-    clearPoolSpy = vi.spyOn(mentorPoolReadManager, 'clear');
+    mentorPoolReadModel.clear();
+    mentorFeedbackReadModel.clear();
+    userProfileDtoReadManager.clear();
+    clearPoolSpy = vi.spyOn(mentorPoolReadModel, 'clear');
   });
 
   afterEach(() => {
@@ -888,18 +904,28 @@ describe('submitReservationFeedback (#730)', () => {
 
 describe('updateReservationFeedback (#731)', () => {
   let clearPoolSpy: ReturnType<typeof vi.spyOn>;
+  let invalidateFeedbackSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    window.sessionStorage.clear();
     mockGet.mockReturnValue(new Promise(() => {}));
     reservationReadModel.clear();
+    mentorPoolReadModel.clear();
+    mentorFeedbackReadModel.clear();
+    userProfileDtoReadManager.clear();
     clearPoolSpy = vi
-      .spyOn(mentorPoolReadManager, 'clear')
+      .spyOn(mentorPoolReadModel, 'clear')
       .mockImplementation(() => {});
+    invalidateFeedbackSpy = vi.spyOn(
+      mentorFeedbackReadModel,
+      'invalidateMentor'
+    );
   });
 
   afterEach(() => {
     clearPoolSpy.mockRestore();
+    invalidateFeedbackSpy.mockRestore();
   });
 
   it('calls PUT /feedback with { rating, content }, preserves createdAt, isPublic=true, and item order, and clears mentor pool + history caches', async () => {
@@ -943,12 +969,6 @@ describe('updateReservationFeedback (#731)', () => {
     });
     reservationReadModel.set(mentorHistoryKey, emptyPage);
 
-    const invalidatedMentorIds: Array<number | undefined> = [];
-    const unsubscribeFeedback = subscribeMentorFeedbackInvalidation(
-      (mentorId) => {
-        invalidatedMentorIds.push(mentorId);
-      }
-    );
     const unsubscribe = reservationReadModel.subscribe(
       menteeHistoryKey,
       () => new Promise(() => {}),
@@ -1001,10 +1021,9 @@ describe('updateReservationFeedback (#731)', () => {
       );
       expect(reservationReadModel.get(mentorHistoryKey)).toBeUndefined();
       expect(clearPoolSpy).toHaveBeenCalledTimes(1);
-      expect(invalidatedMentorIds).toEqual([20]);
+      expect(invalidateFeedbackSpy).toHaveBeenCalledWith(20);
     } finally {
       unsubscribe();
-      unsubscribeFeedback();
     }
   });
 
@@ -1166,11 +1185,11 @@ describe('updateReservationFeedback (#731)', () => {
   });
 
   it('supports Mentor Option A { meeting_happened: true } without payload.feedback and { meeting_happened: false } unpublishing (#740)', async () => {
-    const clearPoolSpy = vi.spyOn(mentorPoolReadManager, 'clear');
-    const feedbackInvalidatedIds: Array<number | undefined> = [];
-    const unsubscribeFeedback = subscribeMentorFeedbackInvalidation((id) => {
-      feedbackInvalidatedIds.push(id);
-    });
+    const localClearPoolSpy = vi.spyOn(mentorPoolReadModel, 'clear');
+    const localInvalidateFeedbackSpy = vi.spyOn(
+      mentorFeedbackReadModel,
+      'invalidateMentor'
+    );
 
     const mentorRes = makeMockReservation({
       id: 'res-mentor-740',
@@ -1219,8 +1238,8 @@ describe('updateReservationFeedback (#731)', () => {
         '/v1/users/20/reservations/res-mentor-740/feedback',
         { meeting_happened: true }
       );
-      expect(clearPoolSpy).toHaveBeenCalledTimes(1);
-      expect(feedbackInvalidatedIds).toContain(20);
+      expect(localClearPoolSpy).toHaveBeenCalledTimes(1);
+      expect(localInvalidateFeedbackSpy).toHaveBeenCalledWith(20);
 
       const afterHappened =
         reservationReadModel.get(mentorHistoryKey)?.items[0]?.feedback;
@@ -1261,11 +1280,511 @@ describe('updateReservationFeedback (#731)', () => {
         },
         nextStep: null,
       });
-      expect(clearPoolSpy).toHaveBeenCalledTimes(2);
+      expect(localClearPoolSpy).toHaveBeenCalledTimes(2);
     } finally {
       unsubHistory();
-      unsubscribeFeedback();
-      clearPoolSpy.mockRestore();
+      localClearPoolSpy.mockRestore();
+      localInvalidateFeedbackSpy.mockRestore();
     }
+  });
+});
+
+describe('5-store atomic invalidation & in-memory transport adapter (#888)', () => {
+  const TARGET_MENTOR_ID = 20;
+  const OTHER_MENTOR_ID = 99;
+
+  function seedAllFiveStores(reservation: Reservation): void {
+    reservationReadModel.set(
+      { userId: '10', state: 'MENTEE_HISTORY' },
+      { items: [reservation], next_dtend: 0 }
+    );
+    reservationReadModel.set(
+      { userId: String(TARGET_MENTOR_ID), state: 'MENTOR_HISTORY' },
+      { items: [reservation], next_dtend: 0 }
+    );
+
+    mentorPoolReadModel.set(UNFILTERED_MENTOR_POOL_QUERY, {
+      mentors: [fromPartial<MentorType>({ user_id: TARGET_MENTOR_ID })],
+      nextCursor: null,
+      hasMore: false,
+      mentorCount: 1,
+      isNoResults: false,
+      hasError: false,
+    });
+
+    const sampleFeedbackPage: MentorFeedbackPage = {
+      items: [
+        {
+          id: 'fb-seed',
+          authorName: '王**',
+          rating: 8,
+          content: '初始評價',
+          createdAt: '2026-10-20T10:00:00Z',
+        },
+      ],
+      totalRatingCount: 1,
+      page: 1,
+      pageSize: 10,
+      ratingAverage: 8.0,
+      completedMeetingCount: 5,
+    };
+    mentorFeedbackReadModel.set(
+      { mentorId: TARGET_MENTOR_ID, page: 1 },
+      sampleFeedbackPage
+    );
+    mentorFeedbackReadModel.set(
+      { mentorId: OTHER_MENTOR_ID, page: 1 },
+      sampleFeedbackPage
+    );
+
+    primeUserProfileDtoCache(
+      TARGET_MENTOR_ID,
+      'zh_TW',
+      fromPartial<MentorProfileVO>({ user_id: TARGET_MENTOR_ID })
+    );
+    primeUserProfileDtoCache(
+      TARGET_MENTOR_ID,
+      'en_US',
+      fromPartial<MentorProfileVO>({ user_id: TARGET_MENTOR_ID })
+    );
+    primeUserProfileDtoCache(
+      OTHER_MENTOR_ID,
+      'zh_TW',
+      fromPartial<MentorProfileVO>({ user_id: OTHER_MENTOR_ID })
+    );
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.sessionStorage.clear();
+    reservationReadModel.clear();
+    mentorPoolReadModel.clear();
+    mentorFeedbackReadModel.clear();
+    userProfileDtoReadManager.clear();
+  });
+
+  it('atomically updates/invalidates all 5 stores on submit via injected in-memory transport without touching HTTP apiClient', async () => {
+    const reservation = makeMockReservation({
+      id: 'res-888-submit',
+      senderUserId: '10',
+      participantUserId: String(TARGET_MENTOR_ID),
+      feedback: {
+        meetingHappened: null,
+        myMeetingHappened: null,
+        rating: null,
+        nextStep: 'ANSWER',
+      },
+    });
+    seedAllFiveStores(reservation);
+
+    const submittedPayloads: unknown[] = [];
+    await submitReservationFeedback({
+      reservation,
+      myUserId: '10',
+      myRole: 'mentee',
+      payload: {
+        meeting_happened: true,
+        feedback: { rating: 10, content: '使用記憶體 transport 測試送出' },
+      },
+      transport: {
+        submitFeedback: async (opts) => {
+          submittedPayloads.push(opts);
+          return { ok: true };
+        },
+      },
+    });
+
+    expect(mockPost).not.toHaveBeenCalled();
+    expect(submittedPayloads).toEqual([
+      {
+        userId: '10',
+        reservationId: 'res-888-submit',
+        body: {
+          meeting_happened: true,
+          feedback: { rating: 10, content: '使用記憶體 transport 測試送出' },
+        },
+      },
+    ]);
+
+    // 1. reservationReadModel invalidated for both parties
+    expect(
+      reservationReadModel.get({ userId: '10', state: 'MENTEE_HISTORY' })
+    ).toBeUndefined();
+    expect(
+      reservationReadModel.get({
+        userId: String(TARGET_MENTOR_ID),
+        state: 'MENTOR_HISTORY',
+      })
+    ).toBeUndefined();
+
+    // 2. mentorPoolReadModel cleared
+    expect(
+      mentorPoolReadModel.get(UNFILTERED_MENTOR_POOL_QUERY)
+    ).toBeUndefined();
+
+    // 3. mentorFeedbackReadModel invalidated for target mentor only
+    expect(
+      mentorFeedbackReadModel.get({ mentorId: TARGET_MENTOR_ID, page: 1 })
+    ).toBeUndefined();
+    expect(
+      mentorFeedbackReadModel.get({ mentorId: OTHER_MENTOR_ID, page: 1 })
+    ).toBeDefined();
+
+    // 4. userProfileDtoCache invalidated for both zh_TW and en_US of target mentor
+    expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'zh_TW')).toBeNull();
+    expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'en_US')).toBeNull();
+    expect(getUserProfileDtoFromCache(OTHER_MENTOR_ID, 'zh_TW')).not.toBeNull();
+
+    // 5. pendingFeedbackGuard marked submitted
+    expect(getSessionPendingFeedbackState('10').submittedIds).toContain(
+      'res-888-submit'
+    );
+  });
+
+  it('preserves myMeetingHappened during #731 edits (both public and mutual-non-denial unpublicized) and invalidates all 5 stores on public edit', async () => {
+    mockGet.mockReturnValue(new Promise(() => {}));
+
+    const publicRes = makeMockReservation({
+      id: 'res-888-edit-public',
+      senderUserId: '10',
+      participantUserId: String(TARGET_MENTOR_ID),
+      feedback: {
+        meetingHappened: true,
+        myMeetingHappened: true,
+        rating: {
+          rating: 8,
+          content: '原本公開評論',
+          createdAt: 1700001000,
+          updatedAt: 1700001000,
+          authorName: '王＊明',
+          isPublic: true,
+        },
+        nextStep: null,
+      },
+    });
+    seedAllFiveStores(publicRes);
+
+    const menteeHistoryKey = {
+      userId: '10',
+      state: 'MENTEE_HISTORY',
+    } as const;
+    const unsubPublic = reservationReadModel.subscribe(
+      menteeHistoryKey,
+      () => new Promise(() => {}),
+      () => {}
+    );
+
+    try {
+      await updateReservationFeedback({
+        reservation: publicRes,
+        myUserId: '10',
+        myRole: 'mentee',
+        payload: { rating: 10, content: '編輯後的公開評論' },
+        transport: {
+          updateFeedback: async () => ({}),
+        },
+      });
+
+      expect(mockPut).not.toHaveBeenCalled();
+      expect(
+        reservationReadModel.get(menteeHistoryKey)?.items[0]?.feedback
+      ).toEqual({
+        meetingHappened: true,
+        myMeetingHappened: true,
+        rating: {
+          rating: 10,
+          content: '編輯後的公開評論',
+          createdAt: 1700001000,
+          updatedAt: expect.any(Number),
+          authorName: '王＊明',
+          isPublic: true,
+        },
+        nextStep: null,
+      });
+
+      expect(
+        reservationReadModel.get({
+          userId: String(TARGET_MENTOR_ID),
+          state: 'MENTOR_HISTORY',
+        })
+      ).toBeUndefined();
+      expect(
+        mentorPoolReadModel.get(UNFILTERED_MENTOR_POOL_QUERY)
+      ).toBeUndefined();
+      expect(
+        mentorFeedbackReadModel.get({ mentorId: TARGET_MENTOR_ID, page: 1 })
+      ).toBeUndefined();
+      expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'zh_TW')).toBeNull();
+      expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'en_US')).toBeNull();
+      expect(getSessionPendingFeedbackState('10').submittedIds).toContain(
+        'res-888-edit-public'
+      );
+    } finally {
+      unsubPublic();
+    }
+
+    // Mutual non-denial case: Mentee answered myMeetingHappened=true, Mentor reported COUNTERPART_ABSENT -> meetingHappened=false, isPublic=false
+    const unpublicizedByPeerRes = makeMockReservation({
+      id: 'res-888-edit-peer-absent',
+      senderUserId: '10',
+      participantUserId: String(TARGET_MENTOR_ID),
+      feedback: {
+        meetingHappened: false,
+        myMeetingHappened: true,
+        rating: {
+          rating: 8,
+          content: '導師標記未出席前的評論',
+          createdAt: 1700002000,
+          updatedAt: 1700002000,
+          authorName: '王＊明',
+          isPublic: false,
+        },
+        nextStep: null,
+      },
+    });
+    reservationReadModel.set(menteeHistoryKey, {
+      items: [unpublicizedByPeerRes],
+      next_dtend: 0,
+    });
+    const unsubPeerAbsent = reservationReadModel.subscribe(
+      menteeHistoryKey,
+      () => new Promise(() => {}),
+      () => {}
+    );
+
+    try {
+      await updateReservationFeedback({
+        reservation: unpublicizedByPeerRes,
+        myUserId: '10',
+        myRole: 'mentee',
+        payload: { rating: 7, content: '保留個人已出席狀態但仍維持不公開' },
+        transport: {
+          updateFeedback: async () => ({}),
+        },
+      });
+
+      expect(
+        reservationReadModel.get(menteeHistoryKey)?.items[0]?.feedback
+      ).toEqual({
+        meetingHappened: false,
+        myMeetingHappened: true,
+        rating: {
+          rating: 7,
+          content: '保留個人已出席狀態但仍維持不公開',
+          createdAt: 1700002000,
+          updatedAt: expect.any(Number),
+          authorName: '王＊明',
+          isPublic: false,
+        },
+        nextStep: null,
+      });
+    } finally {
+      unsubPeerAbsent();
+    }
+  });
+
+  it('atomically invalidates all 5 stores on COUNTERPART_ABSENT when Mentor reports absent or when Mentee reports absent after Mentor confirmed happened', async () => {
+    // Scenario 1: Mentor reports COUNTERPART_ABSENT
+    const mentorAbsentRes = makeMockReservation({
+      id: 'res-888-mentor-absent',
+      senderUserId: '10',
+      participantUserId: String(TARGET_MENTOR_ID),
+      viewerRole: 'MENTOR',
+      feedback: {
+        meetingHappened: true,
+        myMeetingHappened: null,
+        rating: {
+          rating: 9,
+          content: '學員先行送出的評論',
+          createdAt: 1700003000,
+          updatedAt: 1700003000,
+          authorName: '陳**',
+          isPublic: true,
+        },
+        nextStep: 'ANSWER',
+      },
+    });
+    seedAllFiveStores(mentorAbsentRes);
+
+    await submitReservationFeedback({
+      reservation: mentorAbsentRes,
+      myUserId: String(TARGET_MENTOR_ID),
+      myRole: 'mentor',
+      payload: {
+        meeting_happened: false,
+        not_happened_reason: 'COUNTERPART_ABSENT',
+      },
+      transport: {
+        submitFeedback: async () => ({}),
+      },
+    });
+
+    expect(
+      reservationReadModel.get({
+        userId: String(TARGET_MENTOR_ID),
+        state: 'MENTOR_HISTORY',
+      })
+    ).toBeUndefined();
+    expect(
+      mentorPoolReadModel.get(UNFILTERED_MENTOR_POOL_QUERY)
+    ).toBeUndefined();
+    expect(
+      mentorFeedbackReadModel.get({ mentorId: TARGET_MENTOR_ID, page: 1 })
+    ).toBeUndefined();
+    expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'zh_TW')).toBeNull();
+    expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'en_US')).toBeNull();
+    expect(
+      getSessionPendingFeedbackState(String(TARGET_MENTOR_ID)).submittedIds
+    ).toContain('res-888-mentor-absent');
+
+    // Scenario 2: Mentee reports COUNTERPART_ABSENT after Mentor had already confirmed meetingHappened=true
+    const menteeAbsentAfterMentorHappened = makeMockReservation({
+      id: 'res-888-mentee-absent-override',
+      senderUserId: '10',
+      participantUserId: String(TARGET_MENTOR_ID),
+      viewerRole: 'MENTEE',
+      feedback: {
+        meetingHappened: true,
+        myMeetingHappened: null,
+        rating: null,
+        nextStep: 'ANSWER',
+      },
+    });
+    seedAllFiveStores(menteeAbsentAfterMentorHappened);
+
+    await submitReservationFeedback({
+      reservation: menteeAbsentAfterMentorHappened,
+      myUserId: '10',
+      myRole: 'mentee',
+      payload: {
+        meeting_happened: false,
+        not_happened_reason: 'COUNTERPART_ABSENT',
+      },
+      transport: {
+        submitFeedback: async () => ({}),
+      },
+    });
+
+    expect(
+      reservationReadModel.get({ userId: '10', state: 'MENTEE_HISTORY' })
+    ).toBeUndefined();
+    expect(
+      mentorPoolReadModel.get(UNFILTERED_MENTOR_POOL_QUERY)
+    ).toBeUndefined();
+    expect(
+      mentorFeedbackReadModel.get({ mentorId: TARGET_MENTOR_ID, page: 1 })
+    ).toBeUndefined();
+    expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'zh_TW')).toBeNull();
+    expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'en_US')).toBeNull();
+    expect(getSessionPendingFeedbackState('10').submittedIds).toContain(
+      'res-888-mentee-absent-override'
+    );
+  });
+
+  it('invalidates all 5 stores on #731 edit even when pre-write reservation prop has stale isPublic=false or when backend transitions a public review to unpublicized', async () => {
+    const stalePropRes = makeMockReservation({
+      id: 'res-888-stale-prop',
+      senderUserId: '10',
+      participantUserId: String(TARGET_MENTOR_ID),
+      feedback: {
+        meetingHappened: false,
+        myMeetingHappened: true,
+        rating: {
+          rating: 7,
+          content: '對話框開啟時的舊快照',
+          createdAt: 1700004000,
+          updatedAt: 1700004000,
+          authorName: '王＊明',
+          isPublic: false,
+        },
+        nextStep: null,
+      },
+    });
+    const liveCachedPublicRes = makeMockReservation({
+      id: 'res-888-stale-prop',
+      senderUserId: '10',
+      participantUserId: String(TARGET_MENTOR_ID),
+      feedback: {
+        meetingHappened: true,
+        myMeetingHappened: true,
+        rating: {
+          rating: 7,
+          content: '快取中已公開的最新狀態',
+          createdAt: 1700004000,
+          updatedAt: 1700004000,
+          authorName: '王＊明',
+          isPublic: true,
+        },
+        nextStep: null,
+      },
+    });
+    seedAllFiveStores(liveCachedPublicRes);
+
+    await updateReservationFeedback({
+      reservation: stalePropRes,
+      myUserId: '10',
+      myRole: 'mentee',
+      payload: { rating: 10, content: '即使舊 prop 為 false 仍應刷新公開快取' },
+      transport: {
+        updateFeedback: async () => ({}),
+      },
+    });
+
+    expect(
+      mentorPoolReadModel.get(UNFILTERED_MENTOR_POOL_QUERY)
+    ).toBeUndefined();
+    expect(
+      mentorFeedbackReadModel.get({ mentorId: TARGET_MENTOR_ID, page: 1 })
+    ).toBeUndefined();
+    expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'zh_TW')).toBeNull();
+    expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'en_US')).toBeNull();
+
+    // Reverse transition: review was public on input, backend response marks is_public=false
+    const previouslyPublicRes = makeMockReservation({
+      id: 'res-888-became-private',
+      senderUserId: '10',
+      participantUserId: String(TARGET_MENTOR_ID),
+      feedback: {
+        meetingHappened: true,
+        myMeetingHappened: true,
+        rating: {
+          rating: 9,
+          content: '原本公開但後端剛轉為不公開',
+          createdAt: 1700005000,
+          updatedAt: 1700005000,
+          authorName: '王＊明',
+          isPublic: true,
+        },
+        nextStep: null,
+      },
+    });
+    seedAllFiveStores(previouslyPublicRes);
+
+    await updateReservationFeedback({
+      reservation: previouslyPublicRes,
+      myUserId: '10',
+      myRole: 'mentee',
+      payload: {
+        rating: 8,
+        content: '後端回應轉為不公開時也必須清除舊公開快取',
+      },
+      transport: {
+        updateFeedback: async () => ({
+          feedback: {
+            meeting_happened: false,
+            rating: { is_public: false },
+          },
+        }),
+      },
+    });
+
+    expect(
+      mentorPoolReadModel.get(UNFILTERED_MENTOR_POOL_QUERY)
+    ).toBeUndefined();
+    expect(
+      mentorFeedbackReadModel.get({ mentorId: TARGET_MENTOR_ID, page: 1 })
+    ).toBeUndefined();
+    expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'zh_TW')).toBeNull();
+    expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'en_US')).toBeNull();
   });
 });

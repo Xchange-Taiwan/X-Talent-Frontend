@@ -15,21 +15,48 @@ vi.mock('next-auth/react', async () => {
   return nextAuthMockFactory();
 });
 
-vi.mock('@/services/reservations', () => ({
-  fetchPendingFeedbackReservations: vi.fn(),
-  submitReservationFeedback: vi.fn(),
-}));
+vi.mock(
+  '@/services/reservations/reservationService',
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import('@/services/reservations/reservationService')
+      >();
+    return {
+      ...actual,
+      fetchPendingFeedbackReservations: vi.fn(),
+      postReservationFeedback: vi.fn().mockResolvedValue({ ok: true }),
+    };
+  }
+);
 
-vi.mock('@/hooks/user/user-data/userProfileDtoCache', () => ({
-  clearUserProfileDtoCache: vi.fn(),
-}));
+vi.mock('@/services/reservations', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/services/reservations')>();
+  return {
+    ...actual,
+    submitReservationFeedback: vi.fn(
+      (...args: Parameters<typeof actual.submitReservationFeedback>) =>
+        actual.submitReservationFeedback(...args)
+    ),
+  };
+});
+
+vi.mock('@/lib/cache/userProfileDtoCache', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/cache/userProfileDtoCache')>();
+  return {
+    ...actual,
+    clearUserProfileDtoCache: vi.fn(),
+  };
+});
 
 vi.mock('@/lib/analytics', () => ({
   trackEvent: vi.fn(),
 }));
 
-import { clearUserProfileDtoCache } from '@/hooks/user/user-data/userProfileDtoCache';
 import { trackEvent } from '@/lib/analytics';
+import { clearUserProfileDtoCache } from '@/lib/cache/userProfileDtoCache';
 import {
   getSessionPendingFeedbackState,
   markSessionPendingFeedbackChecked,
@@ -41,7 +68,6 @@ import {
 import { mockSession, mockUseSession } from '@/test/mocks/nextAuth';
 import type { Reservation } from '@/types/reservation';
 
-import { submitFeedbackWithEffects } from './submitFeedbackWithEffects';
 import { usePendingFeedbackQueue } from './usePendingFeedbackQueue';
 
 const mockFetchPending = vi.mocked(fetchPendingFeedbackReservations);
@@ -248,7 +274,6 @@ describe('usePendingFeedbackQueue (#740)', () => {
     const item1 = makeItem('101', 1760000000, 'MENTOR');
     const item2 = makeItem('102', 1761000000, 'MENTEE');
     mockFetchPending.mockResolvedValueOnce([item1, item2]);
-    mockSubmitFeedback.mockResolvedValueOnce(undefined);
 
     const { result, rerender } = renderHook(() => usePendingFeedbackQueue());
 
@@ -327,7 +352,6 @@ describe('usePendingFeedbackQueue (#740)', () => {
   it('invalidates counterparty mentor DTO cache on mentee happened feedback, skips DTO invalidation on mentee not-happened, and throws if session expired before submit', async () => {
     const menteeItem = makeItem('201', 1760000000, 'MENTEE');
     mockFetchPending.mockResolvedValueOnce([menteeItem]);
-    mockSubmitFeedback.mockResolvedValue(undefined);
 
     const { result, rerender } = renderHook(() => usePendingFeedbackQueue());
 
@@ -405,7 +429,6 @@ describe('usePendingFeedbackQueue (#740)', () => {
     const item2 = makeItem('302', 1761000000, 'MENTOR');
     const item3 = makeItem('303', 1762000000, 'MENTOR');
     mockFetchPending.mockResolvedValueOnce([item1, item2, item3]);
-    mockSubmitFeedback.mockResolvedValueOnce(undefined);
 
     const { result, rerender } = renderHook(() => usePendingFeedbackQueue());
 
@@ -498,7 +521,6 @@ describe('usePendingFeedbackQueue (#740)', () => {
       itemMissingRole,
       explicitMenteeItem,
     ]);
-    mockSubmitFeedback.mockResolvedValue(undefined);
 
     const { result } = renderHook(() => usePendingFeedbackQueue());
 
@@ -532,7 +554,6 @@ describe('usePendingFeedbackQueue (#740)', () => {
     const item1 = makeItem('501', 1760000000, 'MENTOR');
     const item2 = makeItem('502', 1761000000, 'MENTOR');
     mockFetchPending.mockResolvedValueOnce([item1, item2]);
-    mockSubmitFeedback.mockResolvedValue(undefined);
 
     const firstMount = renderHook(() => usePendingFeedbackQueue());
 
@@ -613,11 +634,10 @@ describe('usePendingFeedbackQueue (#740)', () => {
     expect(mockFetchPending).toHaveBeenCalledTimes(2);
   });
 
-  it('prunes reservations submitted via submitFeedbackWithEffects on a suppressed route so returning to an eligible route never re-prompts', async () => {
+  it('prunes reservations submitted via submitReservationFeedback on a suppressed route so returning to an eligible route never re-prompts', async () => {
     const item1 = makeItem('701', 1760000000, 'MENTEE');
     const item2 = makeItem('702', 1761000000, 'MENTEE');
     mockFetchPending.mockResolvedValueOnce([item1, item2]);
-    mockSubmitFeedback.mockResolvedValue(undefined);
 
     const { result, rerender } = renderHook(() => usePendingFeedbackQueue());
 
@@ -632,7 +652,7 @@ describe('usePendingFeedbackQueue (#740)', () => {
 
     // User submits item1 from the reservation history card while suppressed
     await act(async () => {
-      await submitFeedbackWithEffects({
+      await submitReservationFeedback({
         reservation: item1,
         myUserId: '1',
         myRole: 'mentee',
@@ -652,7 +672,7 @@ describe('usePendingFeedbackQueue (#740)', () => {
     mockUsePathname.mockReturnValue('/reservation/mentee');
     rerender();
     await act(async () => {
-      await submitFeedbackWithEffects({
+      await submitReservationFeedback({
         reservation: item2,
         myUserId: '1',
         myRole: 'mentee',
@@ -747,7 +767,6 @@ describe('usePendingFeedbackQueue (#740)', () => {
     mockFetchPending
       .mockResolvedValueOnce([item1, item2])
       .mockResolvedValueOnce([laterEndedItem]);
-    mockSubmitFeedback.mockResolvedValue(undefined);
 
     const firstMount = renderHook(() => usePendingFeedbackQueue());
 
