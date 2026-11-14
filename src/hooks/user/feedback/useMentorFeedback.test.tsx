@@ -10,10 +10,8 @@ vi.mock('@/services/profile/feedback', async (importOriginal) => {
   };
 });
 
-import {
-  fetchMentorFeedback,
-  invalidateMentorFeedback,
-} from '@/services/profile/feedback';
+import { mentorFeedbackReadModel } from '@/lib/feedback/mentorFeedbackReadModel';
+import { fetchMentorFeedback } from '@/services/profile/feedback';
 import type { MentorFeedbackPage } from '@/types/feedback';
 
 import { useMentorFeedback } from './useMentorFeedback';
@@ -49,9 +47,10 @@ function makePage(
   };
 }
 
-describe('useMentorFeedback hook (#736)', () => {
+describe('useMentorFeedback hook (#736 / #888)', () => {
   beforeEach(() => {
     mockFetchMentorFeedback.mockReset();
+    mentorFeedbackReadModel.clear();
   });
 
   it('does not fetch when enabled is false (e.g. mentee profile)', () => {
@@ -64,14 +63,23 @@ describe('useMentorFeedback hook (#736)', () => {
     expect(result.current.items).toEqual([]);
   });
 
-  it('fetches page 1 on mount, sorts items newest-first by createdAt, and supports pagination', async () => {
-    mockFetchMentorFeedback.mockResolvedValue(makePage());
+  it('fetches page 1 on mount, sorts items newest-first once via mentorFeedbackReadModel, and serves cached page 1 on back-pagination without refetching', async () => {
+    let resolvePage2: ((value: MentorFeedbackPage) => void) | undefined;
+    mockFetchMentorFeedback
+      .mockResolvedValueOnce(makePage())
+      .mockImplementationOnce(
+        () =>
+          new Promise<MentorFeedbackPage>((resolve) => {
+            resolvePage2 = resolve;
+          })
+      );
 
     const { result } = renderHook(() =>
       useMentorFeedback({ mentorId: 101, enabled: true })
     );
 
     await waitFor(() => expect(result.current.hasLoaded).toBe(true));
+    expect(mockFetchMentorFeedback).toHaveBeenCalledTimes(1);
     expect(mockFetchMentorFeedback).toHaveBeenCalledWith({
       mentorId: 101,
       page: 1,
@@ -87,6 +95,30 @@ describe('useMentorFeedback hook (#736)', () => {
       result.current.setPage(2);
     });
 
+    // Summary stats remain steady from cached page 1 while page 2 is loading
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.hasLoaded).toBe(true);
+    expect(result.current.totalRatingCount).toBe(12);
+    expect(result.current.ratingAverage).toBe(9.0);
+    expect(result.current.completedMeetingCount).toBe(20);
+
+    await act(async () => {
+      resolvePage2?.(
+        makePage({
+          page: 2,
+          items: [
+            {
+              id: '3',
+              authorName: '張**',
+              rating: 9,
+              content: '第二頁評論',
+              createdAt: '2026-10-20T10:00:00Z',
+            },
+          ],
+        })
+      );
+    });
+
     await waitFor(() =>
       expect(mockFetchMentorFeedback).toHaveBeenCalledWith({
         mentorId: 101,
@@ -95,6 +127,19 @@ describe('useMentorFeedback hook (#736)', () => {
         signal: expect.any(AbortSignal),
       })
     );
+    expect(mockFetchMentorFeedback).toHaveBeenCalledTimes(2);
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.items[0]?.content).toBe('第二頁評論');
+
+    // Navigating back to page 1 hits mentorFeedbackReadModel cache synchronously
+    await act(async () => {
+      result.current.setPage(1);
+    });
+    expect(mockFetchMentorFeedback).toHaveBeenCalledTimes(2);
+    expect(result.current.items.map((i) => i.authorName)).toEqual([
+      '陳**',
+      '林**',
+    ]);
   });
 
   it('surfaces error message on failure and recovers via reload()', async () => {
@@ -118,7 +163,7 @@ describe('useMentorFeedback hook (#736)', () => {
     expect(result.current.totalRatingCount).toBe(12);
   });
 
-  it('reloads automatically when invalidateMentorFeedback is emitted for the active mentor (#731)', async () => {
+  it('reloads automatically when mentorFeedbackReadModel.invalidateMentor is emitted for the active mentor (#731 / #888)', async () => {
     mockFetchMentorFeedback.mockResolvedValueOnce(makePage());
 
     const { result } = renderHook(() =>
@@ -130,7 +175,7 @@ describe('useMentorFeedback hook (#736)', () => {
 
     // Unrelated mentor id should not trigger refetch
     await act(async () => {
-      invalidateMentorFeedback(999);
+      mentorFeedbackReadModel.invalidateMentor(999);
     });
     expect(mockFetchMentorFeedback).toHaveBeenCalledTimes(1);
 
@@ -150,7 +195,7 @@ describe('useMentorFeedback hook (#736)', () => {
     );
 
     await act(async () => {
-      invalidateMentorFeedback(101);
+      mentorFeedbackReadModel.invalidateMentor(101);
     });
 
     await waitFor(() =>

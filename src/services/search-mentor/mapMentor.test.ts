@@ -329,6 +329,18 @@ describe('resolveMentorAvatar', () => {
     );
   });
 
+  it('appends &cb= without double-? when avatar already carries ?v= version param', () => {
+    const mentor = {
+      ...baseMentor,
+      avatar:
+        'https://s3.amazonaws.com/bucket/files/123/avatar?v=1754000000000',
+    };
+    const resolved = resolveMentorAvatar(mentor);
+    expect(resolved.avatar).toBe(
+      'https://s3.amazonaws.com/bucket/files/123/avatar?v=1754000000000&cb=2021-01-07T06%3A13%3A20Z'
+    );
+  });
+
   it('does not apply avatar cache-busting when updated_at is null', () => {
     const mentor = { ...baseMentor, updated_at: null };
     const resolved = resolveMentorAvatar(mentor);

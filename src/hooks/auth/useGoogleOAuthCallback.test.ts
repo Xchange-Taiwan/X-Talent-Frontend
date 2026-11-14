@@ -46,6 +46,7 @@ type ProfileVO = components['schemas']['ProfileVO'];
 describe('useGoogleOAuthCallback (#885)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
     window.sessionStorage.clear();
     mockRevalidateAfterDelete.mockResolvedValue(undefined);
     mockSignIn.mockResolvedValue({ error: null, ok: true });

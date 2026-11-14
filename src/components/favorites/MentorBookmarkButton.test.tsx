@@ -1,15 +1,11 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SessionContext, type SessionContextValue } from 'next-auth/react';
-import type { ReactNode } from 'react';
+import { Profiler, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Toaster } from '@/components/ui/toaster';
-import { clearToasts } from '@/components/ui/use-toast';
-import {
-  FAVORITE_MENTOR_ERROR_TOAST_MESSAGE,
-  useFavoriteMentor,
-} from '@/hooks/favorites';
+import { FAVORITE_MENTOR_ERROR_TOAST_MESSAGE } from '@/hooks/favorites';
 import * as analyticsModule from '@/lib/analytics';
 import { getPendingFavoriteMentorId } from '@/lib/favorites';
 import {
@@ -84,7 +80,6 @@ describe('MentorBookmarkButton', () => {
 
   beforeEach(() => {
     window.localStorage.clear();
-    clearToasts();
     resetFavoriteMentorStore();
     vi.clearAllMocks();
     document.cookie = 'session-hint=; path=/; max-age=0';
@@ -98,7 +93,7 @@ describe('MentorBookmarkButton', () => {
     });
   });
 
-  it('toggles icon fill/color, updates aria-label & tooltip, stops card propagation, and fires analytics without duplicate declarative attributes', async () => {
+  it('toggles icon fill/color, updates aria-label & tooltip, stops card propagation, and fires analytics without PII', async () => {
     const user = userEvent.setup();
     const onParentCardClick = vi.fn();
     const trackEventSpy = vi.spyOn(analyticsModule, 'trackEvent');
@@ -118,16 +113,11 @@ describe('MentorBookmarkButton', () => {
 
     const button = screen.getByRole('button', { name: '收藏 陳宥廷 Austin' });
     expect(button).toHaveAttribute('aria-pressed', 'false');
-    expect(button).toHaveClass('group');
-    expect(button).toHaveClass('border-background-border/60');
-    expect(button).toHaveClass('bg-background-white/90');
     expect(button).not.toHaveAttribute('data-analytics-event');
-    expect(button).not.toHaveAttribute('data-analytics-feature');
     expect(button.textContent).toBe('');
 
     const svgBefore = button.querySelector('svg');
     expect(svgBefore).not.toHaveClass('fill-current');
-    expect(svgBefore).toHaveClass('group-hover:text-text-primary');
 
     // Hover reveals accessible tooltip
     await user.hover(button);
@@ -141,8 +131,6 @@ describe('MentorBookmarkButton', () => {
       name: '取消收藏 陳宥廷 Austin',
     });
     expect(activeButton).toHaveAttribute('aria-pressed', 'true');
-    expect(activeButton).toHaveClass('border-brand-500/30');
-    expect(activeButton).toHaveClass('bg-brand-50/95');
 
     const svgAfter = activeButton.querySelector('svg');
     expect(svgAfter).toHaveClass('fill-current');
@@ -151,7 +139,6 @@ describe('MentorBookmarkButton', () => {
       screen.queryByText(FAVORITE_MENTOR_ERROR_TOAST_MESSAGE)
     ).not.toBeInTheDocument();
 
-    expect(trackEventSpy).toHaveBeenCalledTimes(1);
     expect(trackEventSpy).toHaveBeenCalledWith({
       name: 'mentor_bookmark_toggle',
       feature: 'mentor_pool',
@@ -177,74 +164,6 @@ describe('MentorBookmarkButton', () => {
     });
   });
 
-  it('tracks mentor_bookmark_toggle with feature "profile" when rendered on profile page', async () => {
-    const user = userEvent.setup();
-    const trackEventSpy = vi.spyOn(analyticsModule, 'trackEvent');
-    favoriteMentorStore.seedFavorites('999', []);
-
-    renderWithSession(
-      <MentorBookmarkButton
-        mentorId={101}
-        mentorName="陳宥廷 Austin"
-        analyticsFeature="profile"
-        variant="outline"
-      />
-    );
-
-    const button = screen.getByRole('button', { name: '收藏 陳宥廷 Austin' });
-    expect(button).toHaveClass('border-background-border');
-    expect(button).toHaveClass('bg-background-white');
-
-    await user.click(button);
-
-    const activeButton = screen.getByRole('button', {
-      name: '取消收藏 陳宥廷 Austin',
-    });
-    expect(activeButton).toHaveClass('border-brand-100');
-    expect(activeButton).toHaveClass('bg-brand-50');
-
-    expect(trackEventSpy).toHaveBeenCalledWith({
-      name: 'mentor_bookmark_toggle',
-      feature: 'profile',
-      metadata: {
-        mentor_id: 101,
-        action: 'add',
-      },
-    });
-  });
-
-  it('uses per-mentorId primitive snapshot selector so toggling one mentor does not re-render other mentor bookmark hooks', async () => {
-    const user = userEvent.setup();
-    favoriteMentorStore.seedFavorites('999', []);
-
-    let mentor202RenderCount = 0;
-    function UnrelatedMentorProbe() {
-      mentor202RenderCount += 1;
-      const { isFavorited } = useFavoriteMentor({ mentorId: 202 });
-      return <span data-testid="probe-202">{String(isFavorited)}</span>;
-    }
-
-    renderWithSession(
-      <>
-        <MentorBookmarkButton mentorId={101} mentorName="陳宥廷 Austin" />
-        <UnrelatedMentorProbe />
-      </>
-    );
-
-    const baselineRenders = mentor202RenderCount;
-    await user.click(
-      screen.getByRole('button', { name: '收藏 陳宥廷 Austin' })
-    );
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole('button', { name: '取消收藏 陳宥廷 Austin' })
-      ).not.toHaveAttribute('aria-busy');
-    });
-
-    expect(mentor202RenderCount).toBe(baselineRenders);
-  });
-
   it('rolls back icon state and shows destructive toast when API mutation fails', async () => {
     const user = userEvent.setup();
     addMock.mockRejectedValueOnce(new Error('500 Internal Error'));
@@ -268,8 +187,9 @@ describe('MentorBookmarkButton', () => {
     ).toBeVisible();
   });
 
-  it('persists pendingFavoriteMentor in localStorage and redirects unauthenticated guest to /auth/signin with encoded profile callbackUrl (#756)', async () => {
+  it('persists pendingFavoriteMentor in localStorage and redirects unauthenticated guest to /auth/signin with encoded profile callbackUrl without firing toggle analytics (#756)', async () => {
     const user = userEvent.setup();
+    const trackEventSpy = vi.spyOn(analyticsModule, 'trackEvent');
 
     renderWithSession(
       <MentorBookmarkButton mentorId={101} mentorName="陳宥廷 Austin" />,
@@ -284,6 +204,63 @@ describe('MentorBookmarkButton', () => {
       '/auth/signin?callbackUrl=%2Fprofile%2F101'
     );
     expect(addMock).not.toHaveBeenCalled();
+    expect(trackEventSpy).not.toHaveBeenCalled();
+  });
+
+  it('forwards actual feature source (profile) to trackEvent', async () => {
+    const user = userEvent.setup();
+    const trackEventSpy = vi.spyOn(analyticsModule, 'trackEvent');
+    favoriteMentorStore.seedFavorites('999', []);
+
+    renderWithSession(
+      <MentorBookmarkButton
+        mentorId={101}
+        mentorName="陳宥廷 Austin"
+        feature="profile"
+        variant="outline"
+      />
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: '收藏 陳宥廷 Austin' })
+    );
+
+    expect(trackEventSpy).toHaveBeenCalledWith({
+      name: 'mentor_bookmark_toggle',
+      feature: 'profile',
+      metadata: {
+        mentor_id: 101,
+        action: 'add',
+      },
+    });
+  });
+
+  it('does not re-render an unrelated mentor bookmark button when another mentor is toggled', async () => {
+    favoriteMentorStore.seedFavorites('999', []);
+    let renderCount = 0;
+
+    renderWithSession(
+      <Profiler
+        id="bookmark-101"
+        onRender={() => {
+          renderCount += 1;
+        }}
+      >
+        <MentorBookmarkButton mentorId={101} mentorName="陳宥廷 Austin" />
+      </Profiler>
+    );
+
+    expect(
+      screen.getByRole('button', { name: '收藏 陳宥廷 Austin' })
+    ).toBeInTheDocument();
+    const baselineRenders = renderCount;
+
+    await act(async () => {
+      await favoriteMentorStore.toggleFavorite(202);
+    });
+
+    expect(favoriteMentorStore.isFavorited(202)).toBe(true);
+    expect(renderCount).toBe(baselineRenders);
   });
 
   it('renders nothing when logged-in mentor views their own mentor card/profile', () => {
@@ -345,35 +322,5 @@ describe('MentorBookmarkButton', () => {
         screen.getByRole('button', { name: '取消收藏 陳宥廷 Austin' })
       ).not.toHaveAttribute('aria-busy');
     });
-  });
-
-  it('suppresses failure toast when an in-flight favorite mutation rejects after logout', async () => {
-    const user = userEvent.setup();
-    let rejectPut!: (reason?: unknown) => void;
-    addMock.mockImplementationOnce(
-      () =>
-        new Promise<void>((_resolve, reject) => {
-          rejectPut = reject;
-        })
-    );
-    favoriteMentorStore.seedFavorites('999', []);
-
-    renderWithSession(
-      <MentorBookmarkButton mentorId={101} mentorName="陳宥廷 Austin" />
-    );
-
-    const button = screen.getByRole('button', { name: '收藏 陳宥廷 Austin' });
-    await user.click(button);
-
-    await favoriteMentorStore.syncUser(null);
-    rejectPut(new Error('Aborted on logout'));
-
-    await waitFor(() => {
-      expect(favoriteMentorStore.getState().pendingMentorIds.size).toBe(0);
-    });
-
-    expect(
-      screen.queryByText(FAVORITE_MENTOR_ERROR_TOAST_MESSAGE)
-    ).not.toBeInTheDocument();
   });
 });

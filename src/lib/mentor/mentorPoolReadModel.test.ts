@@ -2,7 +2,6 @@ import { fromPartial } from '@total-typescript/shoehorn';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { AsyncReadResult } from '@/lib/asyncReadManager';
-import { mentorPoolReadManager } from '@/lib/cache/mentorPoolCache';
 import type { MentorPage, MentorRequest, MentorType } from '@/types/mentor';
 
 import {
@@ -636,27 +635,7 @@ describe('mentorPoolReadModel', () => {
     });
   });
 
-  describe('@deprecated mentorPoolCache shim & applyMentorPage', () => {
-    it('forwards mentorPoolReadManager.clear() to mentorPoolReadModel.clear()', () => {
-      mentorPoolReadModel.set(UNFILTERED_MENTOR_POOL_QUERY, {
-        mentors: [makeMentor(1)],
-        nextCursor: null,
-        hasMore: false,
-        mentorCount: 1,
-        isNoResults: false,
-        hasError: false,
-      });
-      expect(
-        mentorPoolReadModel.get(UNFILTERED_MENTOR_POOL_QUERY)
-      ).toBeDefined();
-
-      mentorPoolReadManager.clear();
-
-      expect(
-        mentorPoolReadModel.get(UNFILTERED_MENTOR_POOL_QUERY)
-      ).toBeUndefined();
-    });
-
+  describe('applyMentorPage', () => {
     it('applyMentorPage respects explicit totalCount on replace', () => {
       const state = applyMentorPage(
         {

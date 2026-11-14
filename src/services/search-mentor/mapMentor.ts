@@ -1,4 +1,5 @@
 import avatarImage from '@/assets/default-avatar.png';
+import { withAvatarVersion } from '@/lib/avatar/avatarUrl';
 import { normalizeMentorStats } from '@/lib/mentor/mentorStats';
 import type {
   MentorListWireResponse,
@@ -63,11 +64,7 @@ export function resolveMentorAvatar(mentor: MentorType): MentorType {
     ...mentor,
     avatar:
       typeof mentor.avatar === 'string' && mentor.avatar
-        ? `${mentor.avatar}${
-            mentor.updated_at
-              ? `?cb=${encodeURIComponent(mentor.updated_at)}`
-              : ''
-          }`
+        ? withAvatarVersion(mentor.avatar, mentor.updated_at, 'cb')
         : avatarImage,
   };
 }

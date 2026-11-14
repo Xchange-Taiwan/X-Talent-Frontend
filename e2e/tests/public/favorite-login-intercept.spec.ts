@@ -1,4 +1,4 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Page, type Route, test } from '@playwright/test';
 
 import { captureEvidence } from '../../helpers/evidence';
 import { mockApiRoute } from '../../helpers/route';
@@ -12,6 +12,30 @@ test.use({ timezoneId: 'Asia/Taipei' });
 const TARGET_MENTOR_ID = 7482008160728084;
 const TARGET_MENTOR_ID_STR = String(TARGET_MENTOR_ID);
 const SECOND_MENTOR_ID = 102;
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+function fulfillCorsOptions(route: Route) {
+  return route.fulfill({
+    status: 204,
+    headers: CORS_HEADERS,
+  });
+}
+
+function fulfillJsonWithCors(route: Route, status: number, body: unknown) {
+  return route.fulfill({
+    status,
+    contentType: 'application/json',
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+    },
+    body: JSON.stringify(body),
+  });
+}
 
 function makePoolMentor(
   id: number,
@@ -278,20 +302,26 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
     });
 
     await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
       const mentors = Array.from(favoritedSet).map((id) =>
         makePoolMentor(id, {
           name: id === TARGET_MENTOR_ID ? 'Zahra Mirzakhani' : '陳宥廷 Austin',
         })
       );
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ code: '0', msg: 'ok', data: { mentors } }),
+      return fulfillJsonWithCors(route, 200, {
+        code: '0',
+        msg: 'ok',
+        data: { mentors },
       });
     });
 
     await page.route(/\/v1\/mentors\/\d+\/favorite$/, (route) => {
       const method = route.request().method();
+      if (method === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
       const match = route
         .request()
         .url()
@@ -301,20 +331,20 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
       if (method === 'PUT') {
         putCount += 1;
         favoritedSet.add(mentorId);
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
+        return fulfillJsonWithCors(route, 200, {
+          code: '0',
+          msg: 'ok',
+          data: null,
         });
       }
 
       if (method === 'DELETE') {
         deleteCount += 1;
         favoritedSet.delete(mentorId);
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
+        return fulfillJsonWithCors(route, 200, {
+          code: '0',
+          msg: 'ok',
+          data: null,
         });
       }
 
@@ -425,22 +455,28 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
       });
     });
 
-    await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ code: '0', msg: 'ok', data: { mentors: [] } }),
-      })
-    );
+    await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
+      return fulfillJsonWithCors(route, 200, {
+        code: '0',
+        msg: 'ok',
+        data: { mentors: [] },
+      });
+    });
 
     await page.route(/\/v1\/mentors\/\d+\/favorite$/, (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
       if (route.request().method() === 'PUT') {
         putCount += 1;
       }
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
+      return fulfillJsonWithCors(route, 200, {
+        code: '0',
+        msg: 'ok',
+        data: null,
       });
     });
 
@@ -500,6 +536,9 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
     await setupCommonSupportRoutes(page);
 
     await page.route(/\/v1\/mentors\/9002\/profile$/, async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
       await seedMockAuthSession(page, {
         id: '9002',
         name: 'New Mentee',
@@ -507,10 +546,10 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
         isMentor: false,
         token: 'mock-new-mentee-token',
       });
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
+      return fulfillJsonWithCors(route, 200, {
+        code: '0',
+        msg: 'ok',
+        data: null,
       });
     });
 
@@ -530,18 +569,24 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
     });
 
     await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
       const mentors = Array.from(favoritedSet).map((id) =>
         makePoolMentor(id, { name: 'Zahra Mirzakhani' })
       );
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ code: '0', msg: 'ok', data: { mentors } }),
+      return fulfillJsonWithCors(route, 200, {
+        code: '0',
+        msg: 'ok',
+        data: { mentors },
       });
     });
 
     await page.route(/\/v1\/mentors\/\d+\/favorite$/, (route) => {
       const method = route.request().method();
+      if (method === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
       const match = route
         .request()
         .url()
@@ -551,10 +596,10 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
       if (method === 'PUT') {
         putCount += 1;
         favoritedSet.add(mentorId);
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
+        return fulfillJsonWithCors(route, 200, {
+          code: '0',
+          msg: 'ok',
+          data: null,
         });
       }
       return route.continue();

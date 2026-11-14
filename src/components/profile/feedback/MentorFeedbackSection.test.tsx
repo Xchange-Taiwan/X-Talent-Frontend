@@ -141,12 +141,18 @@ describe('MentorFeedbackSection (#736)', () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
-  it('exports valid Storybook stories', () => {
+  it('exports valid Storybook stories covering loaded, loading, empty, fallback-empty, error, and pagination states', () => {
     expect(stories.default.component).toBe(MentorFeedbackSection);
+    expect(stories.DefaultWithReviews.args?.totalRatingCount).toBe(3);
     expect(stories.WithPaginationOverTen.args?.totalRatingCount).toBe(12);
+    expect(stories.ControlledPaginationPageTwo.args?.page).toBe(2);
     expect(stories.EmptyZeroReviews.args?.totalRatingCount).toBe(0);
     expect(stories.FallbackUnavailableWithStats.args?.totalRatingCount).toBe(
       12
+    );
+    expect(stories.LoadingState.args?.isLoading).toBe(true);
+    expect(stories.ErrorWithRetry.args?.error).toBe(
+      '載入評價時發生錯誤，請稍後再試。'
     );
   });
 });

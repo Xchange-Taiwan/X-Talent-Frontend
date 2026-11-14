@@ -2,9 +2,7 @@ import { useCallback } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
-import { clearUserProfileDtoCache } from '@/hooks/user/user-data/userProfileDtoCache';
 import { trackEvent } from '@/lib/analytics';
-import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import {
   acceptReservation,
   rejectOrCancelReservation,
@@ -16,8 +14,6 @@ import type {
   SubmitReservationFeedbackRequest,
   UpdateReservationFeedbackRequest,
 } from '@/types/reservationFeedback';
-
-import { submitFeedbackWithEffects } from './submitFeedbackWithEffects';
 
 export type Variant =
   'upcoming' | 'pending-mentee' | 'pending-mentor' | 'history';
@@ -112,12 +108,16 @@ export function useReservationActions({
       payload: SubmitReservationFeedbackRequest
     ) => {
       await run(async () => {
-        await submitFeedbackWithEffects({
+        await submitReservationFeedback({
           reservation,
           myUserId,
           myRole,
           payload,
-          submitServiceFn: submitReservationFeedback,
+        });
+        trackEvent({
+          name: 'reservation_feedback_submitted',
+          feature: 'reservation',
+          metadata: { meeting_happened: payload.meeting_happened },
         });
         await onMutationSuccess?.(reservation.id);
       });
@@ -137,15 +137,6 @@ export function useReservationActions({
           myRole,
           payload,
         });
-        if (myUserId && reservation.feedback?.rating?.isPublic !== false) {
-          const counterpartyId = Number(
-            resolveCounterpartyId(reservation, myUserId)
-          );
-          if (Number.isFinite(counterpartyId) && counterpartyId > 0) {
-            clearUserProfileDtoCache(counterpartyId, 'zh_TW');
-            clearUserProfileDtoCache(counterpartyId, 'en_US');
-          }
-        }
         trackEvent({
           name: 'reservation_feedback_updated',
           feature: 'reservation',

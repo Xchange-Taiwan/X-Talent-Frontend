@@ -44,6 +44,11 @@ import {
   signInWithCredentials,
   terminateClientSession,
 } from '@/lib/auth/sessionLifecycle';
+import {
+  getPendingFavoriteMentorId,
+  PENDING_FAVORITE_TTL_MS,
+  savePendingFavoriteMentor,
+} from '@/lib/favorites';
 import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
 import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
 import { notificationStoreManager } from '@/stores/notificationStore';
@@ -198,6 +203,7 @@ describe('bffAuth (#885)', () => {
 
 describe('sessionLifecycle (#885)', () => {
   beforeEach(() => {
+    window.localStorage.clear();
     notificationStoreManager.clear();
     reservationReadModel.clear();
     scheduleReadModel.clear();
@@ -346,6 +352,89 @@ describe('sessionLifecycle (#885)', () => {
       });
 
       expect(navigate).toHaveBeenCalledWith('/auth/onboarding');
+    });
+
+    it('resolves pendingFavoriteMentor redirect, preserves intent during onboarding, and clears stale intent on conflicting callbackUrl (#756)', async () => {
+      const signIn = vi.fn().mockResolvedValue({ error: null, ok: true });
+      const navigate = vi.fn();
+
+      // 1. Valid pendingFavoriteMentor without search callbackUrl -> /profile/:id & preserved
+      savePendingFavoriteMentor(101);
+      await signInWithCredentials(validCredentials, {
+        signIn,
+        getSession: vi.fn().mockResolvedValue(
+          fromPartial<Session>({
+            accessToken: 'jwt_fav_1',
+            user: { id: '77', onBoarding: true, isMentor: false },
+          })
+        ),
+        navigate,
+        currentOrigin: 'https://xtalent.tw',
+        setAnalyticsUserContext: vi.fn(),
+        trackEvent: vi.fn(),
+      });
+      expect(navigate).toHaveBeenCalledWith('/profile/101');
+      expect(getPendingFavoriteMentorId()).toBe(101);
+
+      // 2. onBoarding === false -> /auth/onboarding while preserving pendingFavoriteMentor
+      navigate.mockClear();
+      await signInWithCredentials(validCredentials, {
+        signIn,
+        getSession: vi.fn().mockResolvedValue(
+          fromPartial<Session>({
+            accessToken: 'jwt_fav_2',
+            user: { id: '78', onBoarding: false, isMentor: false },
+          })
+        ),
+        navigate,
+        search: '?callbackUrl=%2Fprofile%2F101',
+        currentOrigin: 'https://xtalent.tw',
+        setAnalyticsUserContext: vi.fn(),
+        trackEvent: vi.fn(),
+      });
+      expect(navigate).toHaveBeenCalledWith('/auth/onboarding');
+      expect(getPendingFavoriteMentorId()).toBe(101);
+
+      // 3. Conflicting explicit callbackUrl -> clears stale pendingFavoriteMentor and routes to explicit callbackUrl
+      navigate.mockClear();
+      await signInWithCredentials(validCredentials, {
+        signIn,
+        getSession: vi.fn().mockResolvedValue(
+          fromPartial<Session>({
+            accessToken: 'jwt_fav_3',
+            user: { id: '77', onBoarding: true, isMentor: false },
+          })
+        ),
+        navigate,
+        search: '?callbackUrl=%2Freservation%2Fmentee',
+        currentOrigin: 'https://xtalent.tw',
+        setAnalyticsUserContext: vi.fn(),
+        trackEvent: vi.fn(),
+      });
+      expect(navigate).toHaveBeenCalledWith('/reservation/mentee');
+      expect(getPendingFavoriteMentorId()).toBeNull();
+
+      // 4. Expired pendingFavoriteMentor -> cleared and falls back to /mentor-pool
+      navigate.mockClear();
+      savePendingFavoriteMentor(
+        101,
+        Date.now() - PENDING_FAVORITE_TTL_MS - 1_000
+      );
+      await signInWithCredentials(validCredentials, {
+        signIn,
+        getSession: vi.fn().mockResolvedValue(
+          fromPartial<Session>({
+            accessToken: 'jwt_fav_4',
+            user: { id: '77', onBoarding: true, isMentor: false },
+          })
+        ),
+        navigate,
+        currentOrigin: 'https://xtalent.tw',
+        setAnalyticsUserContext: vi.fn(),
+        trackEvent: vi.fn(),
+      });
+      expect(navigate).toHaveBeenCalledWith('/mentor-pool');
+      expect(getPendingFavoriteMentorId()).toBeNull();
     });
   });
 
@@ -511,6 +600,142 @@ describe('sessionLifecycle (#885)', () => {
       });
       expect(storage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)).toBeNull();
       expect(navigate).toHaveBeenCalledWith('/reservation/mentee?tab=history');
+    });
+
+    it('resolves pendingFavoriteMentor across Google LOGIN, onboarding, conflicting callbackUrl, and SIGNUP (#756)', async () => {
+      const navigate = vi.fn();
+
+      // 1. Google SIGNUP preserves pendingFavoriteMentor while clearing sessionStorage callbackUrl
+      savePendingFavoriteMentor(303);
+      const signupStorage = createInMemorySessionStorage({
+        [PENDING_AUTH_CALLBACK_URL_KEY]: '/profile/303',
+      });
+      await executeGoogleOAuthCallback(
+        { code: 'c_sup', state: 's_sup' },
+        {
+          exchangeCode: vi.fn().mockResolvedValue(
+            fromPartial<OAuthCallbackResponse>({
+              data: {
+                auth_type: 'SIGNUP',
+                auth: { token: 't_sup', email: 'new@example.com' },
+                user: null,
+              },
+            })
+          ),
+          signIn: vi.fn(),
+          signOut: vi.fn(),
+          getSession: vi.fn(),
+          navigate,
+          onToast: vi.fn(),
+          storage: signupStorage,
+          trackEvent: vi.fn(),
+        }
+      );
+      expect(navigate).toHaveBeenCalledWith('/auth/email-verify');
+      expect(getPendingFavoriteMentorId()).toBe(303);
+
+      // 2. Google LOGIN with valid pendingFavoriteMentor (even after sessionStorage was cleared) -> /profile/303
+      navigate.mockClear();
+      await executeGoogleOAuthCallback(
+        { code: 'c_login_fav', state: 's_login_fav' },
+        {
+          exchangeCode: vi.fn().mockResolvedValue(
+            fromPartial<OAuthCallbackResponse>({
+              data: {
+                auth_type: 'LOGIN',
+                auth: { token: 'tok_g', email: 'u@example.com' },
+                user: fromPartial<ProfileVO>({ user_id: 88, is_mentor: false }),
+              },
+            })
+          ),
+          signIn: vi.fn().mockResolvedValue({ error: null, ok: true }),
+          signOut: vi.fn(),
+          getSession: vi.fn().mockResolvedValue(
+            fromPartial<Session>({
+              accessToken: 'tok_g',
+              user: { id: '88', onBoarding: true, isMentor: false },
+            })
+          ),
+          navigate,
+          onToast: vi.fn(),
+          currentOrigin: 'https://xtalent.tw',
+          storage: createInMemorySessionStorage(),
+          setAnalyticsUserContext: vi.fn(),
+          trackEvent: vi.fn(),
+        }
+      );
+      expect(navigate).toHaveBeenCalledWith('/profile/303');
+      expect(getPendingFavoriteMentorId()).toBe(303);
+
+      // 3. Google LOGIN with onBoarding === false -> /auth/onboarding while preserving pendingFavoriteMentor
+      navigate.mockClear();
+      await executeGoogleOAuthCallback(
+        { code: 'c_onb', state: 's_onb' },
+        {
+          exchangeCode: vi.fn().mockResolvedValue(
+            fromPartial<OAuthCallbackResponse>({
+              data: {
+                auth_type: 'LOGIN',
+                auth: { token: 'tok_g', email: 'u@example.com' },
+                user: fromPartial<ProfileVO>({ user_id: 89, is_mentor: false }),
+              },
+            })
+          ),
+          signIn: vi.fn().mockResolvedValue({ error: null, ok: true }),
+          signOut: vi.fn(),
+          getSession: vi.fn().mockResolvedValue(
+            fromPartial<Session>({
+              accessToken: 'tok_g',
+              user: { id: '89', onBoarding: false, isMentor: false },
+            })
+          ),
+          navigate,
+          onToast: vi.fn(),
+          currentOrigin: 'https://xtalent.tw',
+          storage: createInMemorySessionStorage({
+            [PENDING_AUTH_CALLBACK_URL_KEY]: '/profile/303',
+          }),
+          setAnalyticsUserContext: vi.fn(),
+          trackEvent: vi.fn(),
+        }
+      );
+      expect(navigate).toHaveBeenCalledWith('/auth/onboarding');
+      expect(getPendingFavoriteMentorId()).toBe(303);
+
+      // 4. Google LOGIN with conflicting stored callbackUrl -> clears stale pendingFavoriteMentor
+      navigate.mockClear();
+      await executeGoogleOAuthCallback(
+        { code: 'c_conflict', state: 's_conflict' },
+        {
+          exchangeCode: vi.fn().mockResolvedValue(
+            fromPartial<OAuthCallbackResponse>({
+              data: {
+                auth_type: 'LOGIN',
+                auth: { token: 'tok_g', email: 'u@example.com' },
+                user: fromPartial<ProfileVO>({ user_id: 88, is_mentor: false }),
+              },
+            })
+          ),
+          signIn: vi.fn().mockResolvedValue({ error: null, ok: true }),
+          signOut: vi.fn(),
+          getSession: vi.fn().mockResolvedValue(
+            fromPartial<Session>({
+              accessToken: 'tok_g',
+              user: { id: '88', onBoarding: true, isMentor: false },
+            })
+          ),
+          navigate,
+          onToast: vi.fn(),
+          currentOrigin: 'https://xtalent.tw',
+          storage: createInMemorySessionStorage({
+            [PENDING_AUTH_CALLBACK_URL_KEY]: '/reservation/mentee',
+          }),
+          setAnalyticsUserContext: vi.fn(),
+          trackEvent: vi.fn(),
+        }
+      );
+      expect(navigate).toHaveBeenCalledWith('/reservation/mentee');
+      expect(getPendingFavoriteMentorId()).toBeNull();
     });
 
     it('handles RESUME_DELETE_ACCOUNT across success, blocked_reservations, and error outcomes', async () => {

@@ -52,6 +52,7 @@ export function MobileUserMenu({
     handleShareProfile,
     handleAsMentor,
     handleMyReservation,
+    handleMyFavorites,
     handleDeleteAccount,
     handleLogout,
   } = useAccountMenu({ identity, user, closeMenu });
@@ -160,6 +161,16 @@ export function MobileUserMenu({
                 className="text-text-primary py-4 text-left text-xl"
               >
                 我的預約
+              </button>
+              <button
+                type="button"
+                onClick={handleMyFavorites}
+                data-analytics-click="mobile_user_menu_my_favorites"
+                data-analytics-location="mobile_user_menu"
+                data-analytics-feature="navigation"
+                className="text-text-primary py-4 text-left text-xl"
+              >
+                我的收藏
               </button>
 
               <Link

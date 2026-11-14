@@ -9,7 +9,7 @@ import {
   type TooltipSide,
 } from '@/components/ui/tooltip';
 import {
-  type FavoriteMentorAnalyticsFeature,
+  type FavoriteMentorFeature,
   useFavoriteMentor,
 } from '@/hooks/favorites';
 import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
@@ -22,7 +22,7 @@ export interface MentorBookmarkButtonProps {
   mentorId: number;
   mentorName: string;
   mentorSnapshot?: MentorType;
-  analyticsFeature?: FavoriteMentorAnalyticsFeature;
+  feature?: FavoriteMentorFeature;
   variant?: MentorBookmarkButtonVariant;
   tooltipSide?: TooltipSide;
   tooltipAlign?: TooltipAlign;
@@ -30,26 +30,11 @@ export interface MentorBookmarkButtonProps {
   className?: string;
 }
 
-function getVariantClasses(
-  variant: MentorBookmarkButtonVariant,
-  isFavorited: boolean
-): string {
-  if (variant === 'overlay') {
-    return isFavorited
-      ? 'border-brand-500/30 bg-brand-50/95 hover:bg-brand-100 border shadow-sm backdrop-blur-sm'
-      : 'border-background-border/60 bg-background-white/90 hover:bg-background-white border shadow-sm backdrop-blur-sm';
-  }
-
-  return isFavorited
-    ? 'border-brand-100 bg-brand-50 hover:bg-brand-100 border'
-    : 'border-background-border bg-background-white hover:bg-background-hover border';
-}
-
 export function MentorBookmarkButton({
   mentorId,
   mentorName,
   mentorSnapshot,
-  analyticsFeature = 'mentor_pool',
+  feature = 'mentor_pool',
   variant = 'overlay',
   tooltipSide = 'bottom',
   tooltipAlign = 'end',
@@ -65,7 +50,7 @@ export function MentorBookmarkButton({
   } = useFavoriteMentor({
     mentorId,
     mentorSnapshot,
-    analyticsFeature,
+    feature,
   });
 
   if (isSelf || isIdentityUnresolved) {
@@ -97,8 +82,10 @@ export function MentorBookmarkButton({
         aria-busy={isPending || undefined}
         onClick={handleClick}
         className={cn(
-          'group inline-flex size-10 shrink-0 items-center justify-center rounded-full transition-colors',
-          getVariantClasses(variant, isFavorited),
+          'inline-flex size-10 shrink-0 items-center justify-center rounded-full transition-colors',
+          variant === 'overlay'
+            ? 'border-background-border/60 bg-background-white/90 hover:bg-background-white border shadow-sm backdrop-blur-sm'
+            : 'border-background-border bg-background-white hover:bg-background-hover border',
           FOCUS_RING_CLASSES,
           className
         )}
@@ -109,7 +96,7 @@ export function MentorBookmarkButton({
             'size-5 transition-colors',
             isFavorited
               ? 'text-brand-500 fill-current'
-              : 'text-text-secondary group-hover:text-text-primary'
+              : 'text-text-secondary hover:text-text-primary'
           )}
         />
       </button>

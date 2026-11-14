@@ -1,6 +1,8 @@
+import { fromAny, fromPartial } from '@total-typescript/shoehorn';
 import { describe, expect, it, vi } from 'vitest';
 
 import { defaultValues, ProfileFormValues } from '@/schemas/profileSchema';
+import type { IndustryOption } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
 
 import {
@@ -9,6 +11,7 @@ import {
   isProfileSynced,
   mapFormValuesToPayload,
   mapVoToFormValues,
+  resolveOptimisticIndustry,
 } from './profileSaveAdapter';
 
 vi.mock('@/lib/profile/readIndustryTag', () => ({
@@ -49,7 +52,7 @@ describe('profileSaveAdapter', () => {
   });
 
   describe('mapVoToFormValues', () => {
-    const mockVo: MentorProfileVO = {
+    const mockVo = fromPartial<MentorProfileVO>({
       user_id: 42,
       name: 'John Doe',
       avatar: 'https://avatar.com/john',
@@ -59,18 +62,18 @@ describe('profileSaveAdapter', () => {
       personal_statement: 'My statement',
       about: 'About me',
       years_of_experience: '3_5',
-      industry: {
+      industry: fromAny({
         id: 100,
         kind: 'industry',
         subject_group: 'tech',
         subject: 'Software',
         language: 'zh_TW',
-      } as unknown as MentorProfileVO['industry'],
+      }),
       experiences: [
         {
           category: 'WORK',
           order: 1,
-          mentor_experiences_metadata: {
+          mentor_experiences_metadata: fromAny({
             data: [
               {
                 job: 'Engineer',
@@ -83,7 +86,7 @@ describe('profileSaveAdapter', () => {
                 is_primary: true,
               },
             ],
-          } as unknown as Record<string, never>,
+          }),
         },
       ],
       onboarding: true,
@@ -95,7 +98,7 @@ describe('profileSaveAdapter', () => {
       want_topic: ['Career'],
       have_skill: ['JS'],
       have_topic: ['Onboarding'],
-    };
+    });
 
     it('correctly maps a VO to form values', () => {
       const result = mapVoToFormValues(mockVo, false);
@@ -113,7 +116,7 @@ describe('profileSaveAdapter', () => {
     });
 
     it('correctly falls back to defaults when optional API fields are null or empty', () => {
-      const incompleteVo: MentorProfileVO = {
+      const incompleteVo = fromPartial<MentorProfileVO>({
         user_id: 99,
         name: null,
         avatar: null,
@@ -134,7 +137,7 @@ describe('profileSaveAdapter', () => {
         want_topic: null,
         have_skill: null,
         have_topic: null,
-      };
+      });
 
       const result = mapVoToFormValues(incompleteVo, false);
 
@@ -266,11 +269,15 @@ describe('profileSaveAdapter', () => {
       const linkExperience = payload.experiences?.find(
         (e) => e.category === 'LINK'
       );
-      const linksData = linkExperience?.mentor_experiences_metadata
-        ?.data as unknown as { platform: string; url: string }[];
+      const rawMetadata = linkExperience?.mentor_experiences_metadata;
+      const linksData = Array.isArray(rawMetadata?.data)
+        ? rawMetadata.data
+        : [];
       expect(linksData).toHaveLength(1);
-      expect(linksData[0].platform).toBe('linkedin');
-      expect(linksData[0].url).toBe('https://linkedin.com/in/bob');
+      expect(linksData[0]).toMatchObject({
+        platform: 'linkedin',
+        url: 'https://linkedin.com/in/bob',
+      });
     });
 
     it('retains undefined avatar to avoid clearing existing avatar in the backend', () => {
@@ -295,6 +302,75 @@ describe('profileSaveAdapter', () => {
     });
   });
 
+  describe('resolveOptimisticIndustry', () => {
+    const catalog: IndustryOption[] = [
+      { subject_group: 'tech', subject: '軟體與科技' },
+      { subject_group: 'finance', subject: '金融業' },
+    ];
+
+    it('resolves localized subject from industryCatalog when switching to a new industry code', () => {
+      const currentIndustry: MentorProfileVO['industry'] = fromAny({
+        id: 1,
+        kind: 'industry',
+        subject_group: 'tech',
+        subject: '軟體與科技',
+        language: 'zh_TW',
+      });
+
+      expect(
+        resolveOptimisticIndustry('finance', catalog, currentIndustry, true)
+      ).toEqual({
+        subject_group: 'finance',
+        subject: '金融業',
+      });
+    });
+
+    it('does not leak stale subject from currentIndustry when switching codes and catalog is unavailable', () => {
+      const currentIndustry: MentorProfileVO['industry'] = fromAny({
+        id: 1,
+        kind: 'industry',
+        subject_group: 'tech',
+        subject: '軟體與科技',
+        language: 'zh_TW',
+      });
+
+      expect(
+        resolveOptimisticIndustry('finance', [], currentIndustry, true)
+      ).toEqual({
+        subject_group: 'finance',
+        subject: '',
+      });
+    });
+
+    it('preserves existing industry metadata when code is unchanged and catalog is omitted', () => {
+      const currentIndustry: MentorProfileVO['industry'] = fromAny({
+        id: 1,
+        kind: 'industry',
+        subject_group: 'tech',
+        subject: '軟體與科技',
+        language: 'zh_TW',
+      });
+
+      expect(
+        resolveOptimisticIndustry('tech', undefined, currentIndustry, false)
+      ).toEqual(currentIndustry);
+    });
+
+    it('returns null when industry is explicitly cleared while dirty, and preserves currentIndustry otherwise', () => {
+      const currentIndustry: MentorProfileVO['industry'] = fromAny({
+        subject_group: 'tech',
+        subject: '軟體與科技',
+      });
+
+      expect(
+        resolveOptimisticIndustry('', catalog, currentIndustry, true)
+      ).toBeNull();
+      expect(
+        resolveOptimisticIndustry('', catalog, currentIndustry, false)
+      ).toBe(currentIndustry);
+    });
+  });
+
   describe('isProfileSynced', () => {
     const mockValues: ProfileFormValues = {
       ...defaultValues,
@@ -306,23 +382,23 @@ describe('profileSaveAdapter', () => {
       years_of_experience: '3_5',
     };
 
-    const mockVo: MentorProfileVO = {
+    const mockVo = fromPartial<MentorProfileVO>({
       user_id: 1,
       name: 'Bob',
-      avatar: 'https://avatar.com/bob',
+      avatar: 'https://avatar.com/bob?v=1754000000000',
       job_title: null,
       company: null,
       location: 'Taipei',
       personal_statement: 'Hi',
       about: 'About',
       years_of_experience: '3_5',
-      industry: {
+      industry: fromAny({
         id: 1,
         kind: 'industry',
         subject_group: 'tech',
         subject: 'Software',
         language: 'zh_TW',
-      } as unknown as MentorProfileVO['industry'],
+      }),
       experiences: [],
       onboarding: true,
       is_mentor: true,
@@ -333,54 +409,85 @@ describe('profileSaveAdapter', () => {
       want_topic: null,
       have_skill: null,
       have_topic: null,
-    };
+    });
 
-    it('returns true if all checked fields match', () => {
+    it('returns true if all checked fields match (including ?v= + &cb= avatar convergence)', () => {
       expect(
-        isProfileSynced(mockValues, mockVo, 'https://avatar.com/bob')
+        isProfileSynced(
+          mockValues,
+          mockVo,
+          'https://avatar.com/bob?v=1754000000000'
+        )
+      ).toBe(true);
+      expect(
+        isProfileSynced(
+          mockValues,
+          {
+            ...mockVo,
+            avatar:
+              'https://avatar.com/bob?v=1754000000000&cb=2026-11-14T00%3A00%3A00Z',
+          },
+          'https://avatar.com/bob?v=1754000000000'
+        )
       ).toBe(true);
     });
 
     it('returns false if name differs', () => {
       const differentVo = { ...mockVo, name: 'Alice' };
       expect(
-        isProfileSynced(mockValues, differentVo, 'https://avatar.com/bob')
+        isProfileSynced(
+          mockValues,
+          differentVo,
+          'https://avatar.com/bob?v=1754000000000'
+        )
       ).toBe(false);
     });
 
     it('returns false if location differs', () => {
       const differentVo = { ...mockVo, location: 'Hsinchu' };
       expect(
-        isProfileSynced(mockValues, differentVo, 'https://avatar.com/bob')
+        isProfileSynced(
+          mockValues,
+          differentVo,
+          'https://avatar.com/bob?v=1754000000000'
+        )
       ).toBe(false);
     });
 
-    it('returns false if avatar differs', () => {
+    it('returns false if avatar version or asset differs', () => {
+      expect(
+        isProfileSynced(
+          mockValues,
+          mockVo,
+          'https://avatar.com/bob?v=1754000099999'
+        )
+      ).toBe(false);
       expect(
         isProfileSynced(mockValues, mockVo, 'https://avatar.com/new-bob')
       ).toBe(false);
     });
 
-    it('returns true if avatar is empty or matches', () => {
+    it('returns true if avatar expectation is empty', () => {
       expect(isProfileSynced(mockValues, mockVo, '')).toBe(true);
-      expect(
-        isProfileSynced(mockValues, mockVo, 'https://avatar.com/bob')
-      ).toBe(true);
     });
 
     it('returns false if industry differs', () => {
-      const differentVo = {
+      const differentVo: MentorProfileVO = {
         ...mockVo,
-        industry: {
+        industry: fromAny({
           id: 1,
           kind: 'industry',
           subject_group: 'finance',
           subject: 'Banking',
           language: 'zh_TW',
-        } as unknown as MentorProfileVO['industry'],
+        }),
       };
       expect(
-        isProfileSynced(mockValues, differentVo, 'https://avatar.com/bob')
+        isProfileSynced(
+          mockValues,
+          differentVo,
+          'https://avatar.com/bob?v=1754000000000'
+        )
       ).toBe(false);
     });
   });
