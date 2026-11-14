@@ -728,3 +728,136 @@ test('搜尋導師後卡片依方案 B 顯示純數字平均分與已完成場�
 
   await captureEvidence(page, 'mentor-pool-card-rating-mobile');
 });
+
+test('帶 utm_* 追蹤參數進入搜尋並滾動分頁後，移除追蹤參數切回相同條件時命中正規化快取且保留原始代碼標籤置頂 (#886)', async ({
+  page,
+}) => {
+  let frontendPageOneFetchCount = 0;
+
+  const firstPage = Array.from({ length: PAGE_LIMIT }, (_, i) =>
+    makeMentor(i + 1, {
+      name: `Frontend Mentor ${i + 1}`,
+      have_topic: ['職涯規劃'],
+      have_skill: ['前端開發'],
+    })
+  );
+  const secondPage = [
+    makeMentor(10, {
+      name: 'Frontend Mentor 10',
+      have_topic: ['職涯規劃'],
+      have_skill: ['前端開發'],
+    }),
+  ];
+
+  await page.route(/\/v1\/mentors(\?|$)/, (route, request) => {
+    const url = new URL(request.url());
+    const keyword = url.searchParams.get('search_pattern');
+    const skill = url.searchParams.get('filter_skills');
+    const cursor = url.searchParams.get('cursor');
+
+    if (skill) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          mentorResponse([
+            makeMentor(50, {
+              name: 'Skill Matched Mentor',
+              have_topic: ['職涯規劃'],
+              have_skill: [skill],
+            }),
+          ])
+        ),
+      });
+    }
+
+    if (keyword === '前端工程師') {
+      if (cursor === 'opaque-fe-page-2') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(mentorResponse(secondPage, null)),
+        });
+      }
+      frontendPageOneFetchCount += 1;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mentorResponse(firstPage, 'opaque-fe-page-2')),
+      });
+    }
+
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(mentorResponse([makeMentor(99)])),
+    });
+  });
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(
+    '/mentor-pool?utm_source=discord&utm_medium=social&q=%E5%89%8D%E7%AB%AF%E5%B7%A5%E7%A8%8B%E5%B8%AB'
+  );
+  await expect(page.locator('article')).toHaveCount(PAGE_LIMIT);
+  expect(frontendPageOneFetchCount).toBe(1);
+
+  // 1. 滾動到底部觸發 mentorPoolReadModel.loadMore 載入第 2 頁（共 10 筆）
+  const loadMorePromise = page.waitForResponse(
+    (res) =>
+      /\/v1\/mentors/.test(res.url()) &&
+      new URL(res.url()).searchParams.get('cursor') === 'opaque-fe-page-2'
+  );
+  await page.locator('article').last().scrollIntoViewIfNeeded();
+  await loadMorePromise;
+
+  await expect(page.locator('article')).toHaveCount(PAGE_LIMIT + 1);
+  await expect(page.getByText(`找到 ${PAGE_LIMIT + 1} 位導師`)).toBeVisible();
+
+  // 2. 套用技能篩選：驗證 MentorCardList 以原始 subject_group 代碼置頂再解析顯示名稱
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+  await page.getByRole('button', { name: /篩選/ }).click();
+  await page.getByRole('combobox').first().click();
+  const firstSkillOption = page.getByRole('option').first();
+  const selectedSkillLabel =
+    (await firstSkillOption.textContent())?.trim() ?? '';
+  await firstSkillOption.click();
+
+  const skillResponsePromise = page.waitForResponse(
+    (res) =>
+      /\/v1\/mentors/.test(res.url()) &&
+      Boolean(new URL(res.url()).searchParams.get('filter_skills'))
+  );
+  await page.getByRole('button', { name: '套用' }).click();
+  await skillResponsePromise;
+
+  await expect(page.locator('article')).toHaveCount(1);
+  if (selectedSkillLabel) {
+    await expect(
+      page
+        .locator('article')
+        .first()
+        .getByTestId('display-container')
+        .locator('> div')
+        .first()
+    ).toHaveText(selectedSkillLabel);
+  }
+  await captureEvidence(page, 'mentor-pool-code-prioritized-filter');
+
+  // 3. 透過 Header 導覽切回乾淨的 /mentor-pool（移除 utm_*），再點擊「前端工程師」熱門標籤：
+  // 必須直接命中先前帶 utm_* 建立的正規化快取（保留 10 筆分頁資料，不重複發送第 1 頁 API）
+  await page.locator('header').getByRole('link', { name: '尋找導師' }).click();
+  await expect(page).toHaveURL(/\/mentor-pool$/);
+
+  await page
+    .getByLabel('熱門職位')
+    .getByRole('button', { name: '前端工程師' })
+    .click();
+  await expect(page).toHaveURL(
+    /\/mentor-pool\?q=%E5%89%8D%E7%AB%AF%E5%B7%A5%E7%A8%8B%E5%B8%AB$/
+  );
+  await expect(page.locator('article')).toHaveCount(PAGE_LIMIT + 1);
+  await expect(page.getByText(`找到 ${PAGE_LIMIT + 1} 位導師`)).toBeVisible();
+  expect(frontendPageOneFetchCount).toBe(1);
+
+  await captureEvidence(page, 'mentor-pool-canonical-cache-hit');
+});

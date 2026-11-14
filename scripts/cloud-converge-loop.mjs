@@ -649,7 +649,8 @@ export function buildRoundFixPrompt({
 }) {
   const sections = [
     `你正在執行雲端 Pre-PR 自動收斂迴圈（第 ${round}/${maxRounds} 輪）${ticketNumber ? `，對應 Ticket #${ticketNumber}` : ''}。`,
-    '請直接使用檔案讀寫工具（`read_file` / `replace` / `write_file`）修改工作目錄中的程式碼或測試檔案以修復以下問題（嚴禁修改 `.env*` 或 `.agents/tmp*`）：',
+    '請直接使用檔案讀寫工具（`read_file` / `replace` / `write_file`）修改工作目錄中的程式碼或測試檔案以修復以下問題（嚴禁修改 `.env*`，且除 `.agents/tmp/delete-files.txt` 外嚴禁修改 `.agents/tmp*`）：',
+    '若需刪除既有檔案，請將相對路徑逐行寫入 .agents/tmp/delete-files.txt，本輪結束後會自動真實刪除。',
   ];
 
   if (deterministicErrors.length > 0) {
@@ -812,7 +813,118 @@ function defaultExecStep(cmd, args, options = {}) {
   }
 }
 
+function applyDeleteFilesManifest(repoRoot, log, fsImpl = fs) {
+  const manifestPath = path.join(repoRoot, '.agents/tmp/delete-files.txt');
+  if (!fsImpl.existsSync(manifestPath)) {
+    return;
+  }
+
+  let rawContent = '';
+  try {
+    const manifestStat = fsImpl.lstatSync(manifestPath);
+    if (!manifestStat.isFile()) {
+      fsImpl.unlinkSync(manifestPath);
+      return;
+    }
+    rawContent = fsImpl.readFileSync(manifestPath, 'utf8');
+  } catch (err) {
+    const msg = err?.message || err;
+    log(`[cloud-converge] Failed to read delete-files.txt: ${msg}`);
+    try {
+      fsImpl.unlinkSync(manifestPath);
+    } catch {}
+    return;
+  }
+
+  try {
+    const lines = rawContent
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    for (const rawLine of lines) {
+      const isUnsafePath =
+        rawLine.includes('\0') ||
+        path.isAbsolute(rawLine) ||
+        rawLine.startsWith('/') ||
+        rawLine.startsWith('\\') ||
+        /^[a-zA-Z]:/.test(rawLine);
+      if (isUnsafePath) {
+        log(`[cloud-converge] Skipping unsafe delete entry: ${rawLine}`);
+        continue;
+      }
+
+      const relPath = rawLine.replace(/\\/g, '/').replace(/^\.\//, '');
+      const segments = relPath.split('/');
+      const hasForbiddenSegment = segments.some(
+        (seg) =>
+          !seg ||
+          seg === '.' ||
+          seg === '..' ||
+          seg === '.git' ||
+          seg === '.agents' ||
+          seg === '.gemini' ||
+          seg.startsWith('.env')
+      );
+      if (!relPath || relPath === '.gitignore' || hasForbiddenSegment) {
+        log(`[cloud-converge] Skipping forbidden delete entry: ${rawLine}`);
+        continue;
+      }
+
+      const resolvedPath = path.resolve(repoRoot, relPath);
+      const relFromRoot = path.relative(repoRoot, resolvedPath);
+      const isOutsideRoot =
+        !relFromRoot ||
+        relFromRoot.startsWith('..') ||
+        path.isAbsolute(relFromRoot);
+      if (isOutsideRoot) {
+        log(`[cloud-converge] Skipping out-of-repo delete entry: ${rawLine}`);
+        continue;
+      }
+
+      try {
+        let hasInvalidParent = false;
+        let walkDir = repoRoot;
+        for (let i = 0; i < segments.length - 1; i++) {
+          walkDir = path.join(walkDir, segments[i]);
+          const dirStat = fsImpl.lstatSync(walkDir);
+          if (dirStat.isSymbolicLink() || !dirStat.isDirectory()) {
+            hasInvalidParent = true;
+            break;
+          }
+        }
+        if (hasInvalidParent) {
+          log(`[cloud-converge] Skipping symlink-parent entry: ${relPath}`);
+          continue;
+        }
+
+        const targetStat = fsImpl.lstatSync(resolvedPath);
+        if (!targetStat.isFile() && !targetStat.isSymbolicLink()) {
+          log(`[cloud-converge] Skipping non-file delete entry: ${relPath}`);
+          continue;
+        }
+
+        fsImpl.unlinkSync(resolvedPath);
+        log(`[cloud-converge] Deleted file via manifest: ${relPath}`);
+      } catch (err) {
+        if (err?.code === 'ENOENT') {
+          continue;
+        }
+        const msg = err?.message || err;
+        log(`[cloud-converge] Failed to delete ${relPath}: ${msg}`);
+      }
+    }
+  } finally {
+    try {
+      fsImpl.unlinkSync(manifestPath);
+    } catch {}
+  }
+}
+
 export async function runConvergeLoop(rawOptions = {}, deps = {}) {
+  const repoRoot = path.resolve(deps.cwd || process.cwd());
+  const formatFailureTail = (res) =>
+    String(res?.combined || res?.stderr || '').slice(-1800);
   const execStep = deps.execStep || defaultExecStep;
   const writeFile =
     deps.writeFile ||
@@ -948,6 +1060,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       const res = execStep('pnpm', args);
       if (!res.ok) {
         log(`[cloud-converge] ${label} failed in round ${round}`);
+        log(formatFailureTail(res));
         deterministicErrors.push(`[${label}]\n${res.combined || res.stderr}`);
       }
     }
@@ -974,6 +1087,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         );
         if (!relRes.ok) {
           log(`[cloud-converge] vitest related failed in round ${round}`);
+          log(formatFailureTail(relRes));
           deterministicErrors.push(
             `[vitest related]\n${relRes.combined || relRes.stderr}`
           );
@@ -983,6 +1097,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         const testRes = execStep('pnpm', ['test'], { env: testEnv });
         if (!testRes.ok) {
           log(`[cloud-converge] pnpm test failed in round ${round}`);
+          log(formatFailureTail(testRes));
           deterministicErrors.push(
             `[pnpm test]\n${testRes.combined || testRes.stderr}`
           );
@@ -1057,6 +1172,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         const mockE2eRes = execStep('pnpm', mockArgs, { env: e2eEnv });
         if (!mockE2eRes.ok) {
           log(`[cloud-converge] pnpm test:e2e:mock failed in round ${round}`);
+          log(formatFailureTail(mockE2eRes));
           e2eErrors.push(
             `[pnpm test:e2e:mock]\n${mockE2eRes.combined || mockE2eRes.stderr}`
           );
@@ -1079,6 +1195,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
           log(
             `[cloud-converge] backend-readonly E2E specs failed in round ${round}`
           );
+          log(formatFailureTail(readonlyRes));
           e2eErrors.push(
             `[playwright chromium-backend-readonly specs]\n${readonlyRes.combined || readonlyRes.stderr}`
           );
@@ -1099,6 +1216,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         );
         if (!extraRes.ok) {
           log(`[cloud-converge] onboarding E2E specs failed in round ${round}`);
+          log(formatFailureTail(extraRes));
           e2eErrors.push(
             `[playwright onboarding specs]\n${extraRes.combined || extraRes.stderr}`
           );
@@ -1240,6 +1358,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
           log(
             `[cloud-converge] Final full pnpm test gate failed in round ${round}; continuing fix loop.`
           );
+          log(formatFailureTail(finalUnitRes));
           deterministicPassed = false;
           deterministicErrors.push(
             `[pnpm test]\n${finalUnitRes.combined || finalUnitRes.stderr}`
@@ -1376,6 +1495,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       '-p',
       fixPrompt,
     ]);
+    applyDeleteFilesManifest(repoRoot, log, deps.fsImpl || fs);
     if ((geminiRes.timedOut || !geminiRes.ok) && snapshotSha) {
       // Require BOTH type-check and related unit tests to pass before retaining
       // timed-out / aborted partial edits; otherwise roll back cleanly!

@@ -2,7 +2,10 @@ import { expect, type Page, test } from '@playwright/test';
 
 import { captureEvidence } from '../../helpers/evidence';
 import { mockApiRoute } from '../../helpers/route';
-import { setSignedSessionCookie } from '../../helpers/session';
+import {
+  clearMockAuthSession,
+  seedMockAuthSession,
+} from '../../helpers/session';
 
 test.use({ timezoneId: 'Asia/Taipei' });
 
@@ -158,9 +161,13 @@ async function setupCommonSupportRoutes(page: Page) {
     },
   });
 
-  await mockApiRoute(page, /\/v1\/notifications\/unread-count/, {
-    body: { code: '0', msg: 'ok', data: { unread_count: 0 } },
-  });
+  await mockApiRoute(
+    page,
+    /\/v1\/(?:users\/[^/]+\/)?notifications\/unread-count/,
+    {
+      body: { code: '0', msg: 'ok', data: { unread_count: 0 } },
+    }
+  );
 
   await mockApiRoute(page, /\/v1\/notifications(\?|$)/, {
     body: {
@@ -192,7 +199,7 @@ async function setupCommonSupportRoutes(page: Page) {
       String.raw`/v1/mentors/${TARGET_MENTOR_ID_STR}/schedule/y/\d+/m/\d+`
     ),
     {
-      body: { code: '0', msg: 'ok', data: { dtstart: [] } },
+      body: { code: '0', msg: 'ok', data: { segments: [], dtstart: [] } },
     }
   );
 
@@ -204,6 +211,7 @@ async function setupCommonSupportRoutes(page: Page) {
         code: '0',
         msg: 'ok',
         data: {
+          feedbacks: [],
           items: [],
           total_rating_count: 10,
           rating_average: 9.6,
@@ -250,42 +258,18 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
     const favoritedSet = new Set<number>();
     let putCount = 0;
     let deleteCount = 0;
-    let activeSession: Record<string, unknown> = {};
 
+    await clearMockAuthSession(page);
     await setupCommonSupportRoutes(page);
 
-    await page.route(/\/api\/auth\/session/, (route) => {
-      if (route.request().method() === 'GET') {
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(activeSession),
-        });
-      }
-      return route.continue();
-    });
-
     await page.route(/\/api\/auth\/callback\/credentials/, async (route) => {
-      await setSignedSessionCookie(page, {
+      await seedMockAuthSession(page, {
         id: '9001',
         name: 'Mentee Viewer',
         onBoarding: true,
         isMentor: false,
         token: 'mock-auth-token',
       });
-      activeSession = {
-        user: {
-          id: '9001',
-          name: 'Mentee Viewer',
-          onBoarding: true,
-          isMentor: false,
-          jobTitle: '',
-          company: '',
-          personalLinks: [],
-        },
-        accessToken: 'mock-auth-token',
-        expires: '2099-01-01T00:00:00.000Z',
-      };
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -418,42 +402,20 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
     page,
   }) => {
     let putCount = 0;
-    let activeSession: Record<string, unknown> = {};
 
+    await clearMockAuthSession(page);
     await setupCommonSupportRoutes(page);
 
-    await page.route(/\/api\/auth\/session/, (route) => {
-      if (route.request().method() === 'GET') {
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(activeSession),
-        });
-      }
-      return route.continue();
-    });
-
     await page.route(/\/api\/auth\/callback\/credentials/, async (route) => {
-      await setSignedSessionCookie(page, {
+      await seedMockAuthSession(page, {
         id: TARGET_MENTOR_ID_STR,
         name: 'Zahra Mirzakhani',
         onBoarding: true,
         isMentor: true,
+        jobTitle: 'Senior UX Designer',
+        company: 'CreativeUX Design Studio',
         token: 'mock-mentor-self-token',
       });
-      activeSession = {
-        user: {
-          id: TARGET_MENTOR_ID_STR,
-          name: 'Zahra Mirzakhani',
-          onBoarding: true,
-          isMentor: true,
-          jobTitle: 'Senior UX Designer',
-          company: 'CreativeUX Design Studio',
-          personalLinks: [],
-        },
-        accessToken: 'mock-mentor-self-token',
-        expires: '2099-01-01T00:00:00.000Z',
-      };
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -526,74 +488,33 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
   }) => {
     const favoritedSet = new Set<number>();
     let putCount = 0;
-    let activeSession: Record<string, unknown> = {};
 
+    await clearMockAuthSession(page);
     await setupCommonSupportRoutes(page);
 
-    await mockApiRoute(page, /\/v1\/mentors\/9002\/profile$/, {
-      body: { code: '0', msg: 'ok', data: null },
-    });
-
-    await page.route(/\/api\/auth\/session/, async (route) => {
-      const method = route.request().method();
-      if (method === 'GET') {
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(activeSession),
-        });
-      }
-      if (method === 'POST') {
-        await setSignedSessionCookie(page, {
-          id: '9002',
-          name: 'New Mentee',
-          onBoarding: true,
-          isMentor: false,
-          token: 'mock-new-mentee-token',
-        });
-        activeSession = {
-          user: {
-            id: '9002',
-            name: 'New Mentee',
-            onBoarding: true,
-            isMentor: false,
-            jobTitle: '',
-            company: '',
-            personalLinks: [],
-          },
-          accessToken: 'mock-new-mentee-token',
-          expires: '2099-01-01T00:00:00.000Z',
-        };
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(activeSession),
-        });
-      }
-      return route.continue();
+    await page.route(/\/v1\/mentors\/9002\/profile$/, async (route) => {
+      await seedMockAuthSession(page, {
+        id: '9002',
+        name: 'New Mentee',
+        onBoarding: true,
+        isMentor: false,
+        token: 'mock-new-mentee-token',
+      });
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
+      });
     });
 
     await page.route(/\/api\/auth\/callback\/credentials/, async (route) => {
-      await setSignedSessionCookie(page, {
+      await seedMockAuthSession(page, {
         id: '9002',
         name: 'New Mentee',
         onBoarding: false,
         isMentor: false,
         token: 'mock-new-mentee-token',
       });
-      activeSession = {
-        user: {
-          id: '9002',
-          name: 'New Mentee',
-          onBoarding: false,
-          isMentor: false,
-          jobTitle: '',
-          company: '',
-          personalLinks: [],
-        },
-        accessToken: 'mock-new-mentee-token',
-        expires: '2099-01-01T00:00:00.000Z',
-      };
       return route.fulfill({
         status: 200,
         contentType: 'application/json',

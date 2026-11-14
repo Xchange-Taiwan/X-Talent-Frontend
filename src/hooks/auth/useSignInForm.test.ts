@@ -16,14 +16,11 @@ vi.mock('@/components/ui/use-toast', async () => {
   return useToastMockFactory();
 });
 
-vi.mock('@/lib/actions/signIn', () => ({
-  validateSignIn: vi.fn(),
-}));
-
 vi.mock('@/lib/monitoring', () => ({
   captureFlowFailure: vi.fn(),
   sanitize: (val: string) => val,
 }));
+
 vi.mock('@/lib/analytics', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/analytics')>();
   return {
@@ -33,7 +30,6 @@ vi.mock('@/lib/analytics', async (importOriginal) => {
   };
 });
 
-import { validateSignIn } from '@/lib/actions/signIn';
 import { setAnalyticsUserContext, trackEvent } from '@/lib/analytics';
 import { PENDING_AUTH_CALLBACK_URL_KEY } from '@/lib/auth/callbackUrl';
 import {
@@ -48,7 +44,6 @@ import { mockToast } from '@/test/mocks/useToast';
 
 import useSignInForm from './useSignInForm';
 
-const mockValidateSignIn = vi.mocked(validateSignIn);
 const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 const mockSetAnalyticsUserContext = vi.mocked(setAnalyticsUserContext);
 const mockTrackEvent = vi.mocked(trackEvent);
@@ -61,24 +56,18 @@ describe('useSignInForm', () => {
     window.localStorage.clear();
     window.sessionStorage.clear();
     window.history.replaceState({}, '', '/auth/signin');
-    mockValidateSignIn.mockResolvedValue({
-      success: true,
-      email: validValues.email,
-      password: validValues.password,
-    });
     mockSignIn.mockResolvedValue({ error: null });
     mockGetSession.mockResolvedValue(mockSession);
   });
 
-  it('validateSignIn returns { error } → toast shows the error message, no redirect', async () => {
-    mockValidateSignIn.mockResolvedValueOnce({ error: 'Invalid fields!' });
-
+  it('invalid schema values → validates in memory without server round-trip, shows toast, no redirect', async () => {
     const { result } = renderHook(() => useSignInForm());
 
     await act(async () => {
-      await result.current.onSubmit(validValues);
+      await result.current.onSubmit({ email: 'not-an-email', password: '' });
     });
 
+    expect(mockSignIn).not.toHaveBeenCalled();
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
         variant: 'destructive',
@@ -360,7 +349,7 @@ describe('useSignInForm', () => {
   });
 
   it('unexpected error is thrown → toast shows "Something went wrong!"', async () => {
-    mockValidateSignIn.mockRejectedValueOnce(new Error('Network error'));
+    mockSignIn.mockRejectedValueOnce(new Error('Network error'));
 
     const { result } = renderHook(() => useSignInForm());
 
@@ -387,14 +376,12 @@ describe('useSignInForm', () => {
     expect(result.current.isSubmitting).toBe(false);
   });
 
-  describe('SignInError dynamic capturing and monitoring attributes', () => {
+  describe('SignInLifecycleError dynamic capturing and monitoring attributes', () => {
     it('captures correct metadata when validation fails', async () => {
-      mockValidateSignIn.mockResolvedValueOnce({ error: 'Invalid fields!' });
-
       const { result } = renderHook(() => useSignInForm());
 
       await act(async () => {
-        await result.current.onSubmit(validValues);
+        await result.current.onSubmit({ email: 'bad-email', password: '' });
       });
 
       expect(mockCaptureFlowFailure).toHaveBeenCalledWith({

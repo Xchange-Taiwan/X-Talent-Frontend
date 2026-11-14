@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
-import { setSignedSessionCookie } from '../../helpers/session';
+import { captureEvidence } from '../../helpers/evidence';
+import { seedMockAuthSession } from '../../helpers/session';
 
 // Static, valid user IDs from the dev/staging BFF database so that Next.js
 // server-side fetches succeed, preventing 404s and keeping tests fully reliable.
@@ -10,22 +11,6 @@ import { setSignedSessionCookie } from '../../helpers/session';
 // E2E_MENTOR_EMAIL/E2E_MENTEE_EMAIL), not real production users.
 const REAL_MENTOR_ID = '7482008160728084'; // display name "Mentee", Mentor role (E2E_MENTOR_EMAIL)
 const REAL_MENTEE_ID = '7482008160728087'; // testing_visitor (Mentee)
-
-// Helper to construct a flat NextAuth JWT Payload matching e2e/helpers/session.ts's SessionPayload.
-// NextAuth stores the flat JWT payload inside the encrypted cookie, which is then decrypted
-// and mapped to a nested { user, accessToken, expires } session object client-side.
-function makeJWTPayload(userId: string, isMentor: boolean) {
-  return {
-    id: userId,
-    name: 'Test Own User',
-    isMentor,
-    onBoarding: true,
-    jobTitle: 'Software Engineer',
-    company: 'Own Company',
-    personalLinks: [],
-    token: 'mock-access-token',
-  };
-}
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
@@ -44,6 +29,8 @@ test('檢視他人的 mentor 個人檔案 → 基本資訊、可預約時段區�
 
   // Assert schedule calendar / booking section is visible
   await expect(page.getByText('可預約日期')).toBeVisible();
+
+  await captureEvidence(page, 'profile-mentor-hydrated-catalog-view');
 });
 
 test('檢視他人的 mentee 個人檔案 → 預約區塊不存在', async ({ page }) => {
@@ -74,8 +61,15 @@ test('檢視自己的個人檔案（isOwnMentorProfile 為 true 時）→ 顯示
 }) => {
   const mentorId = REAL_MENTOR_ID;
 
-  // Sign in and set signed session cookie matching the pageUserId (own profile)
-  await setSignedSessionCookie(page, makeJWTPayload(mentorId, true));
+  // Seed signed session cookie + CSR session matching the pageUserId (own profile)
+  await seedMockAuthSession(page, {
+    id: mentorId,
+    name: 'Test Own User',
+    isMentor: true,
+    onBoarding: true,
+    jobTitle: 'Software Engineer',
+    company: 'Own Company',
+  });
 
   await page.goto(`/profile/${mentorId}`);
 

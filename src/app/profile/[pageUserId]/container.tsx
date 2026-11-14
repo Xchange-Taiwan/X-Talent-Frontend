@@ -12,7 +12,6 @@ import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
 import { useMentorFeedback } from '@/hooks/user/feedback/useMentorFeedback';
 import { useBookingConfirmation } from '@/hooks/user/reservation/useBookingConfirmation';
-import { primeTagCatalogCacheIfEmpty } from '@/hooks/user/tags/useTagCatalog';
 import useUserData from '@/hooks/user/user-data/useUserData';
 import { getMentorOnboardingUrl, OPEN_SCHEDULE_DIALOG_KEY } from '@/lib/routes';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
@@ -49,21 +48,16 @@ function ScheduleAutoOpenWatcher({
 interface Props {
   pageUserId: string;
   initialDto: MentorProfileVO | null;
-  initialCatalogs: TagCatalogsByBucket;
+  initialCatalogs: TagCatalogsByBucket | null;
 }
 
 export default function ProfilePageContainer({
   pageUserId,
-  initialDto: _initialDto,
+  initialDto,
   initialCatalogs,
 }: Props) {
   const router = useRouter();
   const pageUserIdNumber = Number(pageUserId);
-
-  // Same idea for the tag catalog: SSR already fetched the localized labels,
-  // so seed the client cache here so useTagCatalog resolves subject_group
-  // codes to Chinese labels on first paint instead of flashing raw codes.
-  primeTagCatalogCacheIfEmpty('zh_TW', initialCatalogs);
 
   const identity = useResolvedIdentity();
   const isIdentityResolved =
@@ -88,7 +82,12 @@ export default function ProfilePageContainer({
     isLoading: userLoading,
     error,
     refetch,
-  } = useUserData(pageUserIdNumber, 'zh_TW', _initialDto);
+  } = useUserData(
+    pageUserIdNumber,
+    'zh_TW',
+    initialDto,
+    initialCatalogs ?? undefined
+  );
 
   useConsumePendingFavorite({
     pageUserId,

@@ -1,7 +1,8 @@
 import { expect, Page, test } from '@playwright/test';
 
+import { captureEvidence } from '../../helpers/evidence';
 import { mockApiRoute } from '../../helpers/route';
-import { setSignedSessionCookie } from '../../helpers/session';
+import { seedMockAuthSession } from '../../helpers/session';
 
 test.use({ timezoneId: 'Asia/Taipei' });
 
@@ -13,43 +14,14 @@ const RESERVATION_ID = 501;
 const SLOT_DTSTART = 1784253600;
 const SLOT_DTEND = 1784255400;
 
-function makeJWTPayload(userId: string) {
-  return {
-    id: userId,
+async function setupMentorSession(page: Page): Promise<void> {
+  await seedMockAuthSession(page, {
+    id: REAL_MENTOR_ID,
     name: 'Test Mentor',
     isMentor: true,
     onBoarding: true,
     jobTitle: 'Software Engineer',
     company: 'Own Company',
-    personalLinks: [],
-    token: 'mock-access-token',
-  };
-}
-
-async function setupMentorSession(page: Page): Promise<void> {
-  await setSignedSessionCookie(page, makeJWTPayload(REAL_MENTOR_ID));
-
-  await page.route(/\/api\/auth\/session/, (route) => {
-    if (route.request().method() === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          user: {
-            id: REAL_MENTOR_ID,
-            name: 'Test Mentor',
-            isMentor: true,
-            onBoarding: true,
-            jobTitle: 'Software Engineer',
-            company: 'Own Company',
-            personalLinks: [],
-          },
-          accessToken: 'mock-access-token',
-          expires: '2099-01-01T00:00:00.000Z',
-        }),
-      });
-    }
-    return route.continue();
   });
 }
 
@@ -464,6 +436,8 @@ test.describe('導師個人頁日曆直接操作預約與鎖定時段攔截 (#78
     const scheduleDialog = page.getByRole('dialog', { name: '設定可預約時段' });
     await expect(scheduleDialog).toBeVisible();
     await scheduleDialog.getByTestId('day-2026-07-17').click();
+    await expect(scheduleDialog.getByText('10:00 – 10:30')).toBeVisible();
+    await captureEvidence(page, 'mentor-schedule-dialog-open');
 
     // 1. Clicking X on the actively booked 10:00 – 10:30 slot opens the lock prompt dialog
     const bookedSlotRow = scheduleDialog
@@ -475,6 +449,7 @@ test.describe('導師個人頁日曆直接操作預約與鎖定時段攔截 (#78
       name: /已預約此時段|此時段已有預約/,
     });
     await expect(promptDialog).toBeVisible();
+    await captureEvidence(page, 'mentor-schedule-reservation-block-prompt');
     await promptDialog.getByRole('button', { name: '取消' }).click();
     await expect(promptDialog).not.toBeVisible();
 
@@ -491,5 +466,90 @@ test.describe('導師個人頁日曆直接操作預約與鎖定時段攔截 (#78
       timeout: 10_000,
     });
     await expect(scheduleDialog).toBeVisible();
+  });
+
+  test('MentorScheduleDialog 拆分後子彈窗（AddSlotModal / EditSlotModal）與日曆切換冷凍瞬間一致性 (#880)', async ({
+    page,
+  }) => {
+    await mockApiRoute(
+      page,
+      new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule/y/2026/m/7`),
+      {
+        body: {
+          code: '0',
+          msg: 'ok',
+          data: {
+            segments: [
+              {
+                id: 880,
+                user_id: Number(REAL_MENTOR_ID),
+                dt_type: 'ALLOW',
+                dt_year: 2026,
+                dt_month: 7,
+                dtstart: 1784268000, // 2026-07-17 14:00 Asia/Taipei
+                dtend: 1784269800, // 2026-07-17 14:30 Asia/Taipei
+                rrule: 'FREQ=WEEKLY;COUNT=2',
+                timezone: 'UTC',
+              },
+            ],
+          },
+        },
+      }
+    );
+
+    await mockApiRoute(
+      page,
+      new RegExp(`/v1/users/${REAL_MENTOR_ID}/reservations(\\?|$)`),
+      {
+        body: {
+          code: '0',
+          msg: 'ok',
+          data: { reservations: [], next_dtend: 0 },
+        },
+      }
+    );
+
+    await page.goto(`/profile/${REAL_MENTOR_ID}`);
+    await page.getByRole('button', { name: '預約設定' }).click();
+
+    const scheduleDialog = page.getByRole('dialog', { name: '設定可預約時段' });
+    await expect(scheduleDialog).toBeVisible();
+    await scheduleDialog.getByTestId('day-2026-07-17').click();
+    await expect(scheduleDialog.getByText('14:00 – 14:30')).toBeVisible();
+
+    // 1. Open AddSlotModal and preview weekly recurrence
+    await scheduleDialog.locator('button:has(svg.lucide-plus)').click();
+    const addDialog = page.getByRole('dialog', { name: '新增可預約時段' });
+    await expect(addDialog).toBeVisible();
+    await addDialog.getByRole('checkbox').click();
+    await expect(
+      addDialog.getByText('將建立 3 個時段:7/17、7/24、7/31')
+    ).toBeVisible();
+    await captureEvidence(page, 'mentor-schedule-add-slot-modal');
+    await addDialog.getByRole('button', { name: '取消' }).click();
+    await expect(addDialog).not.toBeVisible();
+
+    // 2. Open EditSlotModal on 14:00 – 14:30 and update duration to 45 mins
+    await scheduleDialog
+      .locator('[role="button"]')
+      .filter({ hasText: '14:00 – 14:30' })
+      .click();
+    const editDialog = page.getByRole('dialog', { name: '編輯時段' });
+    await expect(editDialog).toBeVisible();
+    await editDialog.getByRole('button', { name: '45 分' }).click();
+    await captureEvidence(page, 'mentor-schedule-edit-slot-modal');
+    await editDialog.getByRole('button', { name: '完成' }).click();
+    await expect(editDialog).not.toBeVisible();
+    await expect(scheduleDialog.getByText('14:00 – 14:45')).toBeVisible();
+
+    // 3. Advance browser clock past 2026-07-17 14:00 while switching between dates:
+    // frozen nowSec keeps 14:00 – 14:45 interactive (not marked "已過")
+    await page.clock.setFixedTime(new Date('2026-07-17T14:10:00+08:00'));
+    await scheduleDialog.getByTestId('day-2026-07-24').click();
+    await expect(scheduleDialog.getByText('14:00 – 14:30')).toBeVisible();
+
+    await scheduleDialog.getByTestId('day-2026-07-17').click();
+    await expect(scheduleDialog.getByText('14:00 – 14:45')).toBeVisible();
+    await expect(scheduleDialog.getByText(/已過/)).not.toBeVisible();
   });
 });

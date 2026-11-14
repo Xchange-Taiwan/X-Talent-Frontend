@@ -1,8 +1,7 @@
+import { resolveBffBaseUrl } from '@/lib/auth/bffAuth';
 import type { components } from '@/types/api';
 
 type RefreshResponse = components['schemas']['ApiResponse_TokenRefreshVO_'];
-
-const BFF_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
 
 interface RefreshResult {
   token: string;
@@ -18,7 +17,7 @@ export async function refreshAccessToken(
   currentRefreshToken: string,
   customFetch: typeof fetch = fetch
 ): Promise<RefreshResult> {
-  const res = await customFetch(`${BFF_URL}/v1/auth/token`, {
+  const res = await customFetch(`${resolveBffBaseUrl()}/v1/auth/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({

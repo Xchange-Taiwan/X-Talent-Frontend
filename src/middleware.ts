@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { decode, getToken } from 'next-auth/jwt';
-import { match } from 'path-to-regexp';
 
 import {
   encodeSessionHint,
@@ -12,37 +11,23 @@ import {
   getMaintenanceBypassToken,
   getMaintenanceMode,
 } from '@/lib/globalConfig';
-import { apiAuthPrefix, DEFAULT_LOGIN, publicRoutes } from '@/routes';
-
-// Convert Next.js dynamic route → express style (:id)
-function normalizeRoute(route: string): string {
-  return route.replace(/\[([^\]]+)\]/g, ':$1');
-}
+import {
+  classifyPathname,
+  evaluateMiddlewareGate,
+  shouldVerifyMiddlewareSession,
+} from '@/lib/routes';
 
 export async function middleware(req: NextRequest) {
   const { nextUrl } = req;
   const pathname = nextUrl.pathname;
+  const route = classifyPathname(pathname);
 
-  // -------- 0. Bypass Static Assets and Sentry Tunnel --------
-  // Sentry tunnel route — bypass middleware so anonymous-user envelope POSTs
-  // aren't redirected to /auth/signin (defined by withSentryConfig
-  // tunnelRoute in next.config.js).
-  const isAsset =
-    pathname.startsWith('/_next/') ||
-    pathname.startsWith('/static/') ||
-    pathname.startsWith('/assets/') ||
-    pathname.startsWith('/landing/') ||
-    pathname === '/favicon.ico' ||
-    pathname === '/logo.svg';
-
-  const isMonitoring =
-    pathname === '/monitoring' || pathname.startsWith('/monitoring/');
-
-  if (isAsset || isMonitoring) {
+  // -------- 0. Short-circuit Static Assets and Sentry Tunnel --------
+  if (route.kind === 'bypass') {
     return NextResponse.next();
   }
 
-  // -------- 0.05 Check Maintenance Bypass --------
+  // -------- 1. Resolve Maintenance Bypass & Mode --------
   const bypassParam = nextUrl.searchParams.get('bypass');
   const bypassCookie = req.cookies.get('maintenance_bypass')?.value;
 
@@ -55,11 +40,6 @@ export async function middleware(req: NextRequest) {
         }).catch(() => null)
       : null;
 
-  // The env var is an override for local dev and emergency use (it requires
-  // a redeploy to change). Normal operation rotates the token in Global
-  // Config instead, which - like maintenance mode itself - takes effect
-  // immediately with no redeploy. Only fetched when actually needed, so
-  // ordinary requests with no bypass param/cookie don't pay for the read.
   let bypassToken: string | undefined =
     (typeof e2eMaintenanceOverride?.bypassToken === 'string'
       ? e2eMaintenanceOverride.bypassToken
@@ -69,7 +49,6 @@ export async function middleware(req: NextRequest) {
     bypassToken = bypassResult.value ?? undefined;
   }
 
-  // If correct bypass token is in query param, set cookie and redirect to clear the URL query param
   if (bypassToken && bypassParam === bypassToken) {
     const nextUrlClean = new URL(req.url);
     nextUrlClean.searchParams.delete('bypass');
@@ -80,16 +59,14 @@ export async function middleware(req: NextRequest) {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: 7200, // 2 hours
+      maxAge: 7200,
     });
     return response;
   }
 
-  const hasValidBypass = !!(bypassToken && bypassCookie === bypassToken);
+  const hasValidBypass = Boolean(bypassToken && bypassCookie === bypassToken);
+  const isMaintenancePage = route.kind === 'maintenance';
 
-  const isMaintenancePage = pathname === '/maintenance';
-
-  // -------- 0.1 Check Maintenance Mode --------
   let isInMaintenanceMode = false;
   const isEnvMaintenance =
     e2eMaintenanceOverride?.maintenanceMode === true ||
@@ -100,128 +77,101 @@ export async function middleware(req: NextRequest) {
     isInMaintenanceMode = true;
   } else {
     const result = await getMaintenanceMode(500);
-    if (!result.success) {
-      // If we timed out or encountered an error, use a safe fallback:
-      // If the user is already on the maintenance page, assume they should stay there.
-      // If they are on a normal page, let them continue (don't force maintenance).
-      isInMaintenanceMode = isMaintenancePage;
-    } else {
-      isInMaintenanceMode = result.value;
-    }
+    isInMaintenanceMode = result.success ? result.value : isMaintenancePage;
   }
 
-  // Override maintenance mode if a valid bypass token is present
   if (hasValidBypass) {
     isInMaintenanceMode = false;
   }
 
-  if (isInMaintenanceMode) {
-    if (isMaintenancePage) {
-      return NextResponse.next();
-    }
+  // -------- 2. Short-circuit /api/auth/* & maintenance before getToken() --------
+  const needsSessionCheck = shouldVerifyMiddlewareSession(
+    route,
+    isInMaintenanceMode
+  );
 
-    // For API routes under maintenance, return 503
-    if (pathname.startsWith('/api/')) {
-      return NextResponse.json(
-        { error: 'Service Unavailable (Maintenance Mode)' },
-        { status: 503, headers: { 'X-Maintenance-Mode': '1' } }
-      );
-    }
-
-    // Redirect any other page requests to /maintenance
-    const redirectUrl = new URL('/maintenance', nextUrl);
-    return NextResponse.redirect(redirectUrl);
-  } else {
-    // If not in maintenance mode, redirect /maintenance to /
-    if (isMaintenancePage) {
-      const redirectUrl = new URL('/', nextUrl);
-      return NextResponse.redirect(redirectUrl);
-    }
-  }
-
-  // -------- 1. Verify session via NextAuth getToken (JWT signature + exp) --------
-  const token = await getToken({
-    req,
-    secret: process.env.NEXTAUTH_SECRET,
-  });
+  const token = needsSessionCheck
+    ? await getToken({
+        req,
+        secret: process.env.NEXTAUTH_SECRET,
+      })
+    : null;
 
   const hasRefreshError = token?.error === 'RefreshTokenError';
-  const isLoggedIn = !!token && !hasRefreshError;
-  // `req.cookies.get()` returns the raw stored value, which `.cookies.set()`
-  // encodeURIComponent's on write — decode once so it's comparable to a
-  // freshly computed `encodeSessionHint()` result below.
+  const isLoggedIn = Boolean(token) && !hasRefreshError;
+
   const rawCurrentHint = req.cookies.get(SESSION_HINT_COOKIE)?.value;
   const currentHint =
     rawCurrentHint !== undefined
       ? safeDecodeURIComponent(rawCurrentHint)
       : undefined;
 
-  // -------- 2. Allow NextAuth API routes through unconditionally --------
-  const isApiAuthRoute = pathname.startsWith(apiAuthPrefix);
-
-  if (isApiAuthRoute) {
-    return NextResponse.next();
-  }
-
-  // -------- 3. Check if the request matches a public route --------
-  const isMatchedPublicRoute = publicRoutes.some((route) => {
-    const normalized = normalizeRoute(route);
-    const matcher = match(normalized, { decode: decodeURIComponent });
-    return matcher(pathname);
+  // -------- 3. Delegate Gate Decision --------
+  const decision = evaluateMiddlewareGate({
+    pathname,
+    search: nextUrl.search,
+    method: req.method,
+    isInMaintenanceMode,
+    session: isLoggedIn
+      ? {
+          isAuthenticated: true,
+          onBoarding:
+            typeof token?.onBoarding === 'boolean'
+              ? token.onBoarding
+              : undefined,
+          isMentor: Boolean(token?.isMentor),
+        }
+      : null,
   });
 
-  // /profile/[id]/edit is always protected even if its parent route is public
-  const isEditProfile = /^\/profile\/[^\/]+\/edit$/.test(pathname);
+  if (decision.action === 'maintenance_api_503') {
+    return NextResponse.json(
+      { error: 'Service Unavailable (Maintenance Mode)' },
+      { status: 503, headers: { 'X-Maintenance-Mode': '1' } }
+    );
+  }
 
-  const isPublicRoute = isMatchedPublicRoute && !isEditProfile;
-
-  // -------- 4. Redirect unauthenticated users away from protected routes --------
-  if (!isPublicRoute && !isLoggedIn) {
-    const redirectUrl = new URL(DEFAULT_LOGIN, nextUrl);
-    if (!pathname.startsWith('/api/')) {
-      redirectUrl.searchParams.set(
-        'callbackUrl',
-        `${pathname}${nextUrl.search}`
-      );
-    }
+  if (decision.action === 'redirect') {
+    const redirectUrl = new URL(decision.destination, nextUrl);
     const response = NextResponse.redirect(redirectUrl);
 
-    // Stale cookie would make middleware re-evaluate the same error on every
-    // request; clearing it lets the next request start from a clean state.
     if (hasRefreshError) {
       response.cookies.delete('next-auth.session-token');
       response.cookies.delete('__Secure-next-auth.session-token');
     }
 
-    if (currentHint !== undefined) {
+    if (!isLoggedIn && currentHint !== undefined) {
       response.cookies.delete(SESSION_HINT_COOKIE);
     }
+
     return response;
   }
 
-  // -------- 5. Keep the client-readable hint in sync with the verified token --------
-  // UI-only signal for instant header rendering — never used for auth decisions.
-  // Only emit Set-Cookie when the value actually changes: writing on every
-  // request would mark otherwise-cacheable public responses (e.g. `/`)
-  // as uncacheable for CDNs and Next's route cache.
+  // -------- 4. Preserve ADR-0001 Session-Hint Cookie Sync --------
   const response = NextResponse.next();
 
-  if (isLoggedIn) {
-    const nextHint = encodeSessionHint({
-      isMentor: Boolean(token?.isMentor),
-      userId: (token?.id as string | undefined) ?? undefined,
-      avatar:
-        ((token?.avatar || token?.picture) as string | undefined) ?? undefined,
-    });
-    if (currentHint !== nextHint) {
-      response.cookies.set(
-        SESSION_HINT_COOKIE,
-        nextHint,
-        SESSION_HINT_COOKIE_OPTIONS
-      );
+  if (decision.syncSessionHint) {
+    if (isLoggedIn) {
+      const nextHint = encodeSessionHint({
+        isMentor: Boolean(token?.isMentor),
+        userId: typeof token?.id === 'string' ? token.id : undefined,
+        avatar:
+          typeof token?.avatar === 'string' && token.avatar
+            ? token.avatar
+            : typeof token?.picture === 'string' && token.picture
+              ? token.picture
+              : undefined,
+      });
+      if (currentHint !== nextHint) {
+        response.cookies.set(
+          SESSION_HINT_COOKIE,
+          nextHint,
+          SESSION_HINT_COOKIE_OPTIONS
+        );
+      }
+    } else if (currentHint !== undefined) {
+      response.cookies.delete(SESSION_HINT_COOKIE);
     }
-  } else if (currentHint !== undefined) {
-    response.cookies.delete(SESSION_HINT_COOKIE);
   }
 
   return response;

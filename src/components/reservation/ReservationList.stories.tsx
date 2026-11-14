@@ -316,3 +316,56 @@ export const MentorHistoryFeedbackStates: Story = {
     myUserId: 'user-mentor-current',
   },
 };
+
+// 13. SYSTEM 24h Auto-Cancelled vs Participant-Cancelled History Mix (#881)
+export const SystemAutoCancelledHistoryList: Story = {
+  args: {
+    items: [
+      {
+        ...mockReservations[6],
+        id: 'mentor-res-system-auto-cancelled',
+        name: '王小明 (Ming Wang)',
+        messages: [],
+        menteeMessage: undefined,
+        mentorMessage: undefined,
+        cancelledBy: 'SYSTEM',
+      },
+      mockReservations[7],
+      mockReservations[8],
+    ],
+    variant: 'history',
+    sourceRole: 'mentor',
+    myUserId: 'user-mentor-current',
+  },
+};
+
+// 14. Mentee Deep-Link Dialog Opening Directly on Step 2 Rating (#881: nextStep === 'RATE')
+export const MenteeDeepLinkResumeRatingDialog: Story = {
+  args: {
+    items: [
+      {
+        ...mockReservations[6],
+        id: 'mentee-res-deeplink-rate',
+        name: '陳大文 (David Chen)',
+        feedback: {
+          meetingHappened: true,
+          rating: null,
+          nextStep: 'RATE',
+        },
+      },
+    ],
+    variant: 'history',
+    sourceRole: 'mentee',
+    myUserId: 'user-mentee-jay',
+    deepLinkDialogReservation: {
+      ...mockReservations[6],
+      id: 'mentee-res-deeplink-rate',
+      name: '陳大文 (David Chen)',
+      feedback: {
+        meetingHappened: true,
+        rating: null,
+        nextStep: 'RATE',
+      },
+    },
+  },
+};

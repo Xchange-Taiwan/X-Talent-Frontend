@@ -2,11 +2,17 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { buildGeminiParts } from './ai-review/lib/gemini.mjs';
 import { loadReviewVisualAssets } from './ai-review/lib/visuals.mjs';
-import { fileNameFor, parseArgs } from './capture-ui-evidence.mjs';
+import {
+  captureRouteEvidence,
+  fileNameFor,
+  parseArgs,
+  VIEWPORTS,
+} from './capture-ui-evidence.mjs';
+import { collectDialogClippingSnapshot } from './ui-settle.mjs';
 
 const VALID_PNG = Buffer.from([
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49,
@@ -21,7 +27,7 @@ describe('capture-ui-evidence & multimodal review helpers', () => {
     }
   });
 
-  it('parses interactive CLI flags (--click, --wait-for, --viewport-only, --label) accurately', () => {
+  it('parses interactive CLI flags (--click, --wait-for, --viewport-only, --label, --allow-clipping) accurately', () => {
     const parsed = parseArgs([
       '--routes',
       '/mentor-pool,/profile/123',
@@ -47,8 +53,12 @@ describe('capture-ui-evidence & multimodal review helpers', () => {
       clicks: ['[aria-label*="通知"]'],
       waitFor: '[role="dialog"]',
       viewportOnly: true,
+      allowClipping: false,
       label: 'notification-open',
     });
+
+    const withOverride = parseArgs(['--routes', '/', '--allow-clipping']);
+    expect(withOverride.allowClipping).toBe(true);
   });
 
   it('throws clear errors on invalid role, viewport, or missing routes', () => {
@@ -71,6 +81,67 @@ describe('capture-ui-evidence & multimodal review helpers', () => {
     expect(
       fileNameFor('mentor', 'desktop', '/', 'notification-popover-open')
     ).toBe('mentor-desktop-notification-popover-open.png');
+  });
+
+  it('enforces the shared 720p dialog & sticky-footer clipping gate unless --allow-clipping is enabled', async () => {
+    expect(VIEWPORTS.desktop).toEqual({ width: 1280, height: 720 });
+
+    const screenshot = vi.fn(async () => {});
+    const mockPage = {
+      goto: vi.fn(async () => {}),
+      emulateMedia: vi.fn(async () => {}),
+      waitForLoadState: vi.fn(async () => {}),
+      waitForFunction: vi.fn(async () => {}),
+      waitForTimeout: vi.fn(async () => {}),
+      locator: vi.fn(() => ({
+        first: () => ({
+          waitFor: vi.fn(async () => {}),
+          click: vi.fn(async () => {}),
+        }),
+      })),
+      evaluate: vi.fn(async (fn) => {
+        if (fn === collectDialogClippingSnapshot) {
+          return {
+            viewportHeight: 720,
+            dialogs: [
+              {
+                top: 20,
+                bottom: 768,
+                stickyFooters: [],
+                protectedBlocks: [],
+              },
+            ],
+          };
+        }
+        return undefined;
+      }),
+      screenshot,
+    };
+
+    await expect(
+      captureRouteEvidence(mockPage, {
+        route: '/reservation/mentor',
+        role: 'mentor',
+        viewport: 'desktop',
+        outDir: '.agents/tmp/evidence',
+        allowClipping: false,
+      })
+    ).rejects.toThrow(
+      /\[capture-ui-evidence:mentor-desktop-reservation_mentor\.png\].*720/
+    );
+    expect(screenshot).not.toHaveBeenCalled();
+
+    const savedPath = await captureRouteEvidence(mockPage, {
+      route: '/reservation/mentor',
+      role: 'mentor',
+      viewport: 'desktop',
+      outDir: '.agents/tmp/evidence',
+      allowClipping: true,
+    });
+    expect(savedPath).toBe(
+      path.join('.agents/tmp/evidence', 'mentor-desktop-reservation_mentor.png')
+    );
+    expect(screenshot).toHaveBeenCalledTimes(1);
   });
 
   it('loads genuine PNGs for multimodal Gemini review while ignoring invalid non-image files', () => {

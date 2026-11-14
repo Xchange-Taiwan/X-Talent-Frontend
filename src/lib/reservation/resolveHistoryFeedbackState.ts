@@ -2,8 +2,16 @@ import {
   formatAuthorMaskedName,
   formatFeedbackDate,
 } from '@/lib/mentor/mentorStats';
+import {
+  canEditReservationFeedback,
+  canSubmitReservationFeedback,
+  isEligibleForPendingFeedbackQueue,
+  isMenteeSessionMarkedNotHappened,
+  isPublicRatingVisibleToMentor,
+  resolveCancelledByLabel,
+  resolveMentorOwnAttendance,
+} from '@/lib/reservation/reservationLifecyclePolicy';
 import type { Reservation } from '@/types/reservation';
-import type { ReservationFeedback } from '@/types/reservationFeedback';
 
 export const UNPUBLICIZED_FEEDBACK_NOTICE =
   '這場會談已被標註沒有進行，因此評價不會公開；如有疑問可以透過回饋表單聯繫我們。';
@@ -51,31 +59,7 @@ export interface HistoryFeedbackState {
 export function filterPendingFeedbackQueueItems(
   items: readonly Reservation[]
 ): Reservation[] {
-  return items.filter(
-    (item) => !item.cancelledBy && item.feedback?.nextStep === 'ANSWER'
-  );
-}
-
-function resolveMentorOwnAttendance(
-  feedback: ReservationFeedback | undefined
-): 'pending' | 'happened' | 'not-happened' | 'unknown' {
-  if (!feedback) {
-    return 'unknown';
-  }
-  if (feedback.nextStep === 'ANSWER') {
-    return 'pending';
-  }
-  const ownAnswered =
-    feedback.myMeetingHappened !== undefined
-      ? feedback.myMeetingHappened
-      : feedback.meetingHappened;
-  if (ownAnswered === true) {
-    return 'happened';
-  }
-  if (ownAnswered === false) {
-    return 'not-happened';
-  }
-  return 'unknown';
+  return items.filter((item) => isEligibleForPendingFeedbackQueue(item));
 }
 
 export function resolveHistoryFeedbackState(opts: {
@@ -84,26 +68,30 @@ export function resolveHistoryFeedbackState(opts: {
   cancelledByLabel?: string;
 }): HistoryFeedbackState {
   const { reservation, sourceRole, cancelledByLabel } = opts;
+  const effectiveCancelledLabel =
+    cancelledByLabel ?? resolveCancelledByLabel(reservation.cancelledBy);
 
-  if (cancelledByLabel) {
+  if (effectiveCancelledLabel) {
     return {
-      headerAction: { kind: 'badge', label: cancelledByLabel },
+      headerAction: { kind: 'badge', label: effectiveCancelledLabel },
       feedbackBlock: null,
     };
   }
 
-  const feedback = reservation.feedback;
+  const rating = reservation.feedback?.rating;
 
   if (sourceRole === 'mentee') {
-    if (feedback?.nextStep === 'ANSWER' || feedback?.nextStep === 'RATE') {
+    if (canSubmitReservationFeedback(reservation, 'mentee')) {
       return {
         headerAction: { kind: 'answer-button' },
         feedbackBlock: null,
       };
     }
 
-    if (feedback?.rating) {
-      if (feedback.rating.isPublic === false) {
+    if (rating) {
+      const canEdit = canEditReservationFeedback(reservation, 'mentee');
+
+      if (rating.isPublic === false) {
         return {
           headerAction: {
             kind: 'unpublicized-toggle',
@@ -113,10 +101,10 @@ export function resolveHistoryFeedbackState(opts: {
           },
           feedbackBlock: {
             kind: 'unpublicized',
-            rating: feedback.rating.rating,
-            content: feedback.rating.content,
+            rating: rating.rating,
+            content: rating.content,
             notice: UNPUBLICIZED_FEEDBACK_NOTICE,
-            canEdit: true,
+            canEdit,
           },
         };
       }
@@ -126,14 +114,14 @@ export function resolveHistoryFeedbackState(opts: {
         feedbackBlock: {
           kind: 'public-rating',
           label: '我的回饋',
-          rating: feedback.rating.rating,
-          content: feedback.rating.content,
-          canEdit: true,
+          rating: rating.rating,
+          content: rating.content,
+          canEdit,
         },
       };
     }
 
-    if (feedback?.meetingHappened === false) {
+    if (isMenteeSessionMarkedNotHappened(reservation)) {
       return {
         headerAction: { kind: 'badge', label: '未進行' },
         feedbackBlock: null,
@@ -150,13 +138,8 @@ export function resolveHistoryFeedbackState(opts: {
   // 1. Only reflect Mentor's own attendance answer (never reveal Mentee's attendance answer).
   // 2. Display received public rating (masked name · score/10 · date + content) only when
   //    neither party answered not-happened and rating.isPublic !== false.
-  const ownAttendance = resolveMentorOwnAttendance(feedback);
-  const rating = feedback?.rating;
-  const isSessionMarkedNotHappened =
-    ownAttendance === 'not-happened' || feedback?.meetingHappened === false;
-  const hasPublicMenteeRating = Boolean(
-    !isSessionMarkedNotHappened && rating && rating.isPublic !== false
-  );
+  const ownAttendance = resolveMentorOwnAttendance(reservation);
+  const hasPublicMenteeRating = isPublicRatingVisibleToMentor(reservation);
 
   const publicRatingBlock: Extract<
     HistoryFeedbackBlockModel,
@@ -172,11 +155,11 @@ export function resolveHistoryFeedbackState(opts: {
           formattedDate: formatFeedbackDate(
             rating.createdAt || rating.updatedAt
           ),
-          canEdit: false,
+          canEdit: canEditReservationFeedback(reservation, 'mentor'),
         }
       : null;
 
-  if (ownAttendance === 'pending') {
+  if (canSubmitReservationFeedback(reservation, 'mentor')) {
     return {
       headerAction: { kind: 'answer-button' },
       feedbackBlock: publicRatingBlock,

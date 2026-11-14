@@ -1,12 +1,14 @@
-import { signIn } from 'next-auth/react';
+import { fromPartial } from '@total-typescript/shoehorn';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { googleCallback } from '@/lib/actions/googleCallback';
+import { createInMemorySessionStorage } from '@/lib/auth/authFlowStorage';
 import type { components } from '@/types/api';
 
 import {
   clearPendingDeleteAccountEmail,
+  type ClientSignInFn,
   getPendingDeleteAccountEmail,
+  type GoogleOAuthCodeExchanger,
   resolveOAuthOutcome,
   signInWithGoogleToken,
 } from './oauthOutcome';
@@ -16,72 +18,40 @@ type ProfileVO = components['schemas']['ProfileVO'];
 type OAuthCallbackResponse =
   components['schemas']['ApiResponse_GoogleCallbackVO_'];
 
-vi.mock('@/lib/actions/googleCallback', () => ({
-  googleCallback: vi.fn(),
-}));
-
-vi.mock('next-auth/react', () => ({
-  signIn: vi.fn(),
-}));
-
-const mockGoogleCallback = vi.mocked(googleCallback);
-const mockSignIn = vi.mocked(signIn);
-
 describe('getPendingDeleteAccountEmail & clearPendingDeleteAccountEmail', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    // Stub sessionStorage in JSDOM
-    const store: Record<string, string> = {};
-    vi.stubGlobal('sessionStorage', {
-      getItem: (key: string) => store[key] || null,
-      setItem: (key: string, val: string) => {
-        store[key] = val;
-      },
-      removeItem: (key: string) => {
-        delete store[key];
-      },
-      clear: () => {
-        for (const k in store) {
-          delete store[k];
-        }
-      },
+  it('returns null when storage is empty', () => {
+    const storage = createInMemorySessionStorage();
+    expect(getPendingDeleteAccountEmail(storage)).toBeNull();
+  });
+
+  it('retrieves the email without removing it from storage', () => {
+    const storage = createInMemorySessionStorage({
+      delete_account_email: 'user@example.com',
     });
-  });
 
-  it('returns null if window/sessionStorage is not found or empty', () => {
-    sessionStorage.clear();
-    const result = getPendingDeleteAccountEmail();
-    expect(result).toBeNull();
-  });
-
-  it('retrieves the email but does not remove it from sessionStorage', () => {
-    sessionStorage.setItem('delete_account_email', 'user@example.com');
-
-    const result = getPendingDeleteAccountEmail();
-
-    expect(result).toBe('user@example.com');
-    expect(sessionStorage.getItem('delete_account_email')).toBe(
-      'user@example.com'
-    );
+    expect(getPendingDeleteAccountEmail(storage)).toBe('user@example.com');
+    expect(storage.getItem('delete_account_email')).toBe('user@example.com');
   });
 
   it('removes the email when clearPendingDeleteAccountEmail is called', () => {
-    sessionStorage.setItem('delete_account_email', 'user@example.com');
+    const storage = createInMemorySessionStorage({
+      delete_account_email: 'user@example.com',
+    });
 
-    clearPendingDeleteAccountEmail();
+    clearPendingDeleteAccountEmail(storage);
 
-    expect(sessionStorage.getItem('delete_account_email')).toBeNull();
+    expect(storage.getItem('delete_account_email')).toBeNull();
   });
 });
 
 describe('signInWithGoogleToken', () => {
-  it('calls next-auth signIn with correct custom-google-token options', async () => {
-    mockSignIn.mockResolvedValue({
+  it('calls injected signIn adapter with custom-google-token options', async () => {
+    const mockSignIn = vi.fn<ClientSignInFn>().mockResolvedValue({
       error: undefined,
       ok: true,
-    } as unknown as Awaited<ReturnType<typeof signIn>>);
+    });
 
-    await signInWithGoogleToken('token123', 'user@example.com', {
+    await signInWithGoogleToken(mockSignIn, 'token123', 'user@example.com', {
       id: 'user-1',
     });
 
@@ -93,59 +63,77 @@ describe('signInWithGoogleToken', () => {
     });
   });
 
-  it('throws an error if NextAuth signIn returns an error', async () => {
-    mockSignIn.mockResolvedValue({
+  it('throws an error if injected signIn adapter returns an error', async () => {
+    const mockSignIn = vi.fn<ClientSignInFn>().mockResolvedValue({
       error: 'OAuthSigninError',
       ok: false,
-    } as unknown as Awaited<ReturnType<typeof signIn>>);
+    });
 
     await expect(
-      signInWithGoogleToken('token123', 'user@example.com', { id: 'user-1' })
+      signInWithGoogleToken(mockSignIn, 'token123', 'user@example.com', {
+        id: 'user-1',
+      })
     ).rejects.toThrow('OAuthSigninError');
   });
 });
 
 describe('resolveOAuthOutcome', () => {
+  const mockExchangeCode = vi.fn<GoogleOAuthCodeExchanger>();
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('returns INVALID if code or state is missing', async () => {
-    const res1 = await resolveOAuthOutcome(null, 'state');
+  it('returns INVALID if code or state is missing without calling exchangeCode', async () => {
+    const res1 = await resolveOAuthOutcome(null, 'state', {
+      exchangeCode: mockExchangeCode,
+    });
     expect(res1).toEqual({ type: 'INVALID', errorType: 'MISSING_PARAMS' });
 
-    const res2 = await resolveOAuthOutcome('code', null);
+    const res2 = await resolveOAuthOutcome('code', null, {
+      exchangeCode: mockExchangeCode,
+    });
     expect(res2).toEqual({ type: 'INVALID', errorType: 'MISSING_PARAMS' });
+    expect(mockExchangeCode).not.toHaveBeenCalled();
   });
 
-  it('returns INVALID if googleCallback fails or returns no data', async () => {
-    mockGoogleCallback.mockResolvedValue({
-      code: '1',
-    } as unknown as OAuthCallbackResponse);
+  it('returns INVALID if exchangeCode returns no data', async () => {
+    mockExchangeCode.mockResolvedValue(
+      fromPartial<OAuthCallbackResponse>({
+        code: '1',
+      })
+    );
 
-    const res = await resolveOAuthOutcome('code', 'state');
+    const res = await resolveOAuthOutcome('code', 'state', {
+      exchangeCode: mockExchangeCode,
+    });
     expect(res).toEqual({ type: 'INVALID', errorType: 'CALLBACK_FAILED' });
   });
 
-  it('returns INVALID if googleCallback throws', async () => {
-    mockGoogleCallback.mockRejectedValue(new Error('Network error'));
+  it('returns INVALID if exchangeCode throws', async () => {
+    mockExchangeCode.mockRejectedValue(new Error('Network error'));
 
-    const res = await resolveOAuthOutcome('code', 'state');
+    const res = await resolveOAuthOutcome('code', 'state', {
+      exchangeCode: mockExchangeCode,
+    });
     expect(res).toEqual({ type: 'INVALID', errorType: 'CALLBACK_FAILED' });
   });
 
   describe('with pending delete account email flow', () => {
     it('returns RESUME_DELETE_ACCOUNT if auth_type is LOGIN', async () => {
-      const mockData: GoogleCallbackVO = {
+      const mockData = fromPartial<GoogleCallbackVO>({
         auth_type: 'LOGIN',
         auth: { token: 'tok_123', email: 'user@example.com' },
-        user: { user_id: 123 } as unknown as ProfileVO,
-      };
-      mockGoogleCallback.mockResolvedValue({
-        data: mockData,
-      } as unknown as OAuthCallbackResponse);
+        user: fromPartial<ProfileVO>({ user_id: 123 }),
+      });
+      mockExchangeCode.mockResolvedValue(
+        fromPartial<OAuthCallbackResponse>({
+          data: mockData,
+        })
+      );
 
       const res = await resolveOAuthOutcome('code', 'state', {
+        exchangeCode: mockExchangeCode,
         pendingDeleteAccountEmail: 'delete@example.com',
       });
 
@@ -157,16 +145,19 @@ describe('resolveOAuthOutcome', () => {
     });
 
     it('returns INVALID with DELETE_FLOW_INVALID error if auth_type is SIGNUP', async () => {
-      const mockData: GoogleCallbackVO = {
+      const mockData = fromPartial<GoogleCallbackVO>({
         auth_type: 'SIGNUP',
         auth: { token: 'tok_123', email: 'user@example.com' },
         user: null,
-      };
-      mockGoogleCallback.mockResolvedValue({
-        data: mockData,
-      } as unknown as OAuthCallbackResponse);
+      });
+      mockExchangeCode.mockResolvedValue(
+        fromPartial<OAuthCallbackResponse>({
+          data: mockData,
+        })
+      );
 
       const res = await resolveOAuthOutcome('code', 'state', {
+        exchangeCode: mockExchangeCode,
         pendingDeleteAccountEmail: 'delete@example.com',
       });
 
@@ -179,16 +170,20 @@ describe('resolveOAuthOutcome', () => {
 
   describe('standard oauth flow (no delete email)', () => {
     it('returns SIGNUP if auth_type is SIGNUP', async () => {
-      const mockData: GoogleCallbackVO = {
+      const mockData = fromPartial<GoogleCallbackVO>({
         auth_type: 'SIGNUP',
         auth: { token: 'tok_123', email: 'user@example.com' },
         user: null,
-      };
-      mockGoogleCallback.mockResolvedValue({
-        data: mockData,
-      } as unknown as OAuthCallbackResponse);
+      });
+      mockExchangeCode.mockResolvedValue(
+        fromPartial<OAuthCallbackResponse>({
+          data: mockData,
+        })
+      );
 
-      const res = await resolveOAuthOutcome('code', 'state');
+      const res = await resolveOAuthOutcome('code', 'state', {
+        exchangeCode: mockExchangeCode,
+      });
 
       expect(res).toEqual({
         type: 'SIGNUP',
@@ -197,16 +192,20 @@ describe('resolveOAuthOutcome', () => {
     });
 
     it('returns LOGIN if auth_type is LOGIN', async () => {
-      const mockData: GoogleCallbackVO = {
+      const mockData = fromPartial<GoogleCallbackVO>({
         auth_type: 'LOGIN',
         auth: { token: 'tok_123', email: 'user@example.com' },
-        user: { user_id: 123 } as unknown as ProfileVO,
-      };
-      mockGoogleCallback.mockResolvedValue({
-        data: mockData,
-      } as unknown as OAuthCallbackResponse);
+        user: fromPartial<ProfileVO>({ user_id: 123 }),
+      });
+      mockExchangeCode.mockResolvedValue(
+        fromPartial<OAuthCallbackResponse>({
+          data: mockData,
+        })
+      );
 
-      const res = await resolveOAuthOutcome('code', 'state');
+      const res = await resolveOAuthOutcome('code', 'state', {
+        exchangeCode: mockExchangeCode,
+      });
 
       expect(res).toEqual({
         type: 'LOGIN',

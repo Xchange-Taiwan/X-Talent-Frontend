@@ -2,43 +2,16 @@ import { useMemo } from 'react';
 
 import { useAsyncRead } from '@/hooks/useAsyncRead';
 import { AsyncReadManager } from '@/lib/asyncReadManager';
-import { createKeyedCache } from '@/lib/createKeyedCache';
 import {
   EMPTY_TAG_CATALOGS,
   fetchTagCatalog,
 } from '@/services/profile/tagCatalog';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 
-const tagCatalogCache = createKeyedCache<string, TagCatalogsByBucket>();
-
-const tagCatalogReadManager = new AsyncReadManager<string, TagCatalogsByBucket>(
-  tagCatalogCache
-);
-
-/**
- * Seed the in-memory catalog cache from SSR-fetched catalogs so that the
- * first render of useTagCatalog reads localized labels synchronously — avoids
- * a one-frame flash of raw subject_group codes before the client-side fetch
- * resolves. `IfEmpty` preserves any prior client-side prime.
- */
-export function primeTagCatalogCacheIfEmpty(
-  language: string,
-  catalogs: TagCatalogsByBucket
-): void {
-  if (!language) return;
-  tagCatalogCache.prime(language, catalogs, { ifEmpty: true });
-}
-
-export async function getTagCatalogCached(
-  language: string
-): Promise<TagCatalogsByBucket> {
-  return tagCatalogCache.fetch(language, () => fetchTagCatalog(language));
-}
-
-export interface UseTagCatalogResult extends TagCatalogsByBucket {
-  isLoading: boolean;
-  error: string | null;
-}
+export const tagCatalogReadManager = new AsyncReadManager<
+  string,
+  TagCatalogsByBucket
+>();
 
 function isEmptyTagCatalog(
   catalog: TagCatalogsByBucket | null | undefined
@@ -52,6 +25,17 @@ function isEmptyTagCatalog(
     catalog.have_topic.length === 0 &&
     catalog.industry.length === 0
   );
+}
+
+export function shouldCacheTagCatalog(
+  catalog: TagCatalogsByBucket | null | undefined
+): boolean {
+  return !isEmptyTagCatalog(catalog);
+}
+
+export interface UseTagCatalogResult extends TagCatalogsByBucket {
+  isLoading: boolean;
+  error: string | null;
 }
 
 export default function useTagCatalog(
@@ -71,7 +55,7 @@ export default function useTagCatalog(
     (signal) => fetchTagCatalog(language, signal),
     {
       initialData: effectiveInitialData,
-      shouldCache: (res) => !isEmptyTagCatalog(res),
+      shouldCache: shouldCacheTagCatalog,
     }
   );
 

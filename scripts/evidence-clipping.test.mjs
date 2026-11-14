@@ -2,15 +2,53 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  assertNoDialogClipping,
   collectDialogClippingSnapshot,
   detectDialogStickyFooterClipping,
+  waitForPageSettled,
 } from '../e2e/helpers/evidence.ts';
+import {
+  assertNoDialogClipping as sharedAssertNoDialogClipping,
+  collectDialogClippingSnapshot as sharedCollectDialogClippingSnapshot,
+  detectDialogStickyFooterClipping as sharedDetectDialogStickyFooterClipping,
+} from './ui-settle.mjs';
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
 describe('detectDialogStickyFooterClipping (720p Dialog & Sticky Footer Gate)', () => {
+  it('re-exports the single shared clipping helpers from scripts/ui-settle.mjs and delegates waitForPageSettled', async () => {
+    expect(collectDialogClippingSnapshot).toBe(
+      sharedCollectDialogClippingSnapshot
+    );
+    expect(detectDialogStickyFooterClipping).toBe(
+      sharedDetectDialogStickyFooterClipping
+    );
+    expect(assertNoDialogClipping).toBe(sharedAssertNoDialogClipping);
+
+    const emulateMedia = vi.fn(async () => {});
+    const waitForTimeout = vi.fn(async () => {});
+    const mockPage = {
+      emulateMedia,
+      evaluate: vi.fn(async () => {}),
+      waitForLoadState: vi.fn(async () => {}),
+      waitForFunction: vi.fn(async () => {}),
+      waitForTimeout,
+      locator: vi.fn(() => ({
+        first: () => ({ waitFor: vi.fn(async () => {}) }),
+      })),
+    };
+
+    await waitForPageSettled(mockPage, {
+      preserveMotionStyles: true,
+      settleDelayMs: 120,
+    });
+
+    expect(emulateMedia).toHaveBeenCalledWith({ colorScheme: 'light' });
+    expect(waitForTimeout).toHaveBeenCalledWith(120);
+  });
+
   it('passes when dialog fits inside 720p viewport and warning box sits cleanly above sticky footer', () => {
     const err = detectDialogStickyFooterClipping({
       viewportHeight: 720,

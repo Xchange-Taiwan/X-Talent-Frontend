@@ -26,11 +26,15 @@ vi.mock('@/lib/analytics', async (importOriginal) => {
 });
 
 import { clearAnalyticsUser } from '@/lib/analytics';
+import { PENDING_AUTH_CALLBACK_URL_KEY } from '@/lib/auth/authFlowStorage';
 import {
   DOM_AUTH_AVATAR_ATTR,
   DOM_AUTH_STATE_ATTR,
   SESSION_HINT_COOKIE,
 } from '@/lib/auth/sessionHint';
+import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
+import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
+import { notificationStoreManager } from '@/stores/notificationStore';
 import { authenticatedIdentity, GUEST_IDENTITY } from '@/test/mocks/identity';
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockSignOut } from '@/test/mocks/nextAuth';
@@ -366,6 +370,21 @@ describe('useAccountMenu', () => {
         '--auth-avatar',
         'url("https://example.com/avatar.png")'
       );
+      window.sessionStorage.setItem(
+        PENDING_AUTH_CALLBACK_URL_KEY,
+        '/reservation/mentee'
+      );
+      notificationStoreManager.getOrCreateState('user-1');
+      notificationStoreManager.setInitialData('user-1', 4, [], null);
+      reservationReadModel.set(
+        { userId: 'user-1', state: 'MENTEE_UPCOMING' },
+        { items: [], next_dtend: 0 }
+      );
+      scheduleReadModel.set({ userId: 'user-1', year: 2026, month: 11 }, []);
+
+      expect(
+        notificationStoreManager.getOrCreateState('user-1').unreadCountState
+      ).toBe(4);
 
       const { result } = renderHook(() =>
         useAccountMenu({
@@ -395,6 +414,21 @@ describe('useAccountMenu', () => {
       expect(
         document.documentElement.style.getPropertyValue('--auth-avatar')
       ).toBe('');
+      expect(
+        window.sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+      ).toBeNull();
+      expect(
+        notificationStoreManager.getOrCreateState('user-1').unreadCountState
+      ).toBe(0);
+      expect(
+        reservationReadModel.get({
+          userId: 'user-1',
+          state: 'MENTEE_UPCOMING',
+        })
+      ).toBeUndefined();
+      expect(
+        scheduleReadModel.get({ userId: 'user-1', year: 2026, month: 11 })
+      ).toBeUndefined();
     });
 
     it('still signs the user out locally when the backend revocation fails', async () => {

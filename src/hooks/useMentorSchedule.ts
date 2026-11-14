@@ -26,13 +26,11 @@ import {
   BookingSlot,
   computeBookingAvailability,
   MentorScheduleEditor,
-  ParsedMentorTimeslot,
   SlotsSnapshot,
 } from '@/lib/profile/bookingAvailability';
 import { MonthDraftStore } from '@/lib/profile/MonthDraftStore';
 import { toDateKey } from '@/lib/profile/scheduleFormatters';
 import {
-  formatTimeslot,
   monthKeyFromYearMonth,
   parseMonthKey,
   RawMentorTimeslot,
@@ -67,10 +65,9 @@ const useIsomorphicLayoutEffect =
 // it, so they expire on their own. Hoisted to module scope because
 // `useAsyncRead` keeps the options object in a ref - a fresh literal per
 // render would be pointless churn.
-const RESERVATIONS_READ_OPTIONS: AsyncReadOptions<
-  ReservationReadKey,
-  FetchReservationsResult
-> = { ttlMs: MENTOR_SCHEDULE_RESERVATIONS_TTL_MS };
+const RESERVATIONS_READ_OPTIONS: AsyncReadOptions<FetchReservationsResult> = {
+  ttlMs: MENTOR_SCHEDULE_RESERVATIONS_TTL_MS,
+};
 
 type Options = {
   backend: {
@@ -148,7 +145,13 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   const { dirtyMonths, allDraftSlots: allDraftRaws } = storeState;
 
   const [loaded, setLoaded] = useState(false);
-  const [selectedDate, setSelectedDateState] = useState<string | null>(
+  // Frozen instant contract (see CONTEXT.md): captured once when the schedule
+  // session starts and refreshed only on explicit reload or account switch so
+  // clicking between calendar dates never shifts the past/future boundary.
+  const [nowSec, setNowSec] = useState<number>(() =>
+    Math.floor(Date.now() / 1000)
+  );
+  const [selectedDate, setSelectedDateState] = useState<string | null>(() =>
     dayjs().format('YYYY-MM-DD')
   );
   const [selectedSlot, setSelectedSlot] = useState<BookingSlot | null>(null);
@@ -376,6 +379,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       reservationReadModel.clear();
       store.clearAll();
       setLoaded(false);
+      setNowSec(Math.floor(Date.now() / 1000));
       hasAutoSelectedRef.current = false;
     }
     prevUserIdRef.current = backend.userId;
@@ -403,38 +407,18 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   // Derived view models
   // --------------------------------------------------------------------
 
-  const parsedDraft = useMemo(() => {
-    const formatted = allDraftRaws.flatMap(formatTimeslot);
-    const seen = new Set<string>();
-    const out: ParsedMentorTimeslot[] = [];
-    for (const slot of formatted) {
-      if (!seen.has(slot.occurrenceId)) {
-        seen.add(slot.occurrenceId);
-        out.push(slot);
-      }
-    }
-    return out.sort((a, b) => a.start.getTime() - b.start.getTime());
-  }, [allDraftRaws]);
-
-  const draftForSelectedDate = useMemo(
+  // Compute month-level booking availability once per (allDraftRaws, nowSec,
+  // includeBookedDates) change — completely decoupled from selectedDate and
+  // reservations so clicking dates never re-expands RRules or re-reads Date.now().
+  const availabilityModel = useMemo(
     () =>
-      selectedDate
-        ? parsedDraft.filter((p) => p.dateKey === selectedDate)
-        : parsedDraft,
-    [parsedDraft, selectedDate]
+      computeBookingAvailability({
+        draftRows: allDraftRaws,
+        nowSec,
+        includeBookedDates,
+      }),
+    [allDraftRaws, nowSec, includeBookedDates]
   );
-
-  // Compute booking availability read model using our extracted pure non-React module
-  const availabilityModel = useMemo(() => {
-    const nowSec = Math.floor(Date.now() / 1000);
-    return computeBookingAvailability({
-      draftRows: allDraftRaws,
-      nowSec,
-      includeBookedDates,
-      selectedDate,
-      reservations,
-    });
-  }, [allDraftRaws, includeBookedDates, selectedDate, reservations]);
 
   const {
     allowedDates,
@@ -442,9 +426,21 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     bookedDates,
     earliestSelectableDate,
     bookingStatusByDate,
-    slotsWithMeta,
-    futureSlots,
+    parsedOccurrences: parsedDraft,
   } = availabilityModel;
+
+  const draftForSelectedDate = useMemo(
+    () =>
+      selectedDate
+        ? availabilityModel.getOccurrencesForDate(selectedDate)
+        : parsedDraft,
+    [availabilityModel, selectedDate, parsedDraft]
+  );
+
+  const { slotsWithMeta, futureSlots } = useMemo(
+    () => availabilityModel.projectEditorSlots(selectedDate, reservations),
+    [availabilityModel, selectedDate, reservations]
+  );
 
   // Initial earliest-date auto-selection once the schedule has loaded
   useEffect(() => {
@@ -701,6 +697,9 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       // `null` means the refresh never published - its month was cleared or
       // overwritten mid-flight (an account switch), so there is no failure to
       // report and nothing the user can act on.
+      if (published !== null) {
+        setNowSec(Math.floor(Date.now() / 1000));
+      }
       if (published?.error) {
         captureFlowFailure({
           flow: 'mentor_schedule_reload_schedule',

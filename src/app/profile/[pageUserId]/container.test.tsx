@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import { fromPartial } from '@total-typescript/shoehorn';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -45,14 +46,6 @@ vi.mock('@/hooks/user/feedback/useMentorFeedback', () => ({
   useMentorFeedback: (...args: unknown[]) => mockUseMentorFeedback(...args),
 }));
 
-vi.mock('@/hooks/user/user-data/useUserProfileDto', () => ({
-  primeUserProfileDtoCacheIfEmpty: vi.fn(),
-}));
-
-vi.mock('@/hooks/user/tags/useTagCatalog', () => ({
-  primeTagCatalogCacheIfEmpty: vi.fn(),
-}));
-
 vi.mock('@/hooks/useMentorSchedule', () => ({
   useMentorSchedule: () => ({
     loaded: true,
@@ -68,9 +61,6 @@ vi.mock('@/hooks/useMentorSchedule', () => ({
       allowedDates: [],
       reload: vi.fn(),
     },
-    // Always non-null here: the container additionally gates rendering the
-    // dialog on canShowOwnerControls (driven by the identity mocks below),
-    // so this stub's own truthiness never has to vary per test case.
     editor: {},
   }),
 }));
@@ -89,6 +79,7 @@ import {
   getPendingFavoriteMentorId,
   savePendingFavoriteMentor,
 } from '@/lib/favorites';
+import { EMPTY_TAG_CATALOGS } from '@/services/profile/tagCatalog';
 import {
   favoriteMentorStore,
   resetFavoriteMentorStore,
@@ -99,16 +90,16 @@ import type { MentorProfileVO } from '@/types/user';
 import ProfilePageContainer from './container';
 
 const PAGE_USER_ID = '123';
-const emptyCatalogs = {} as TagCatalogsByBucket;
-const initialDto = { user_id: 123 } as MentorProfileVO;
+const emptyCatalogs: TagCatalogsByBucket = EMPTY_TAG_CATALOGS;
+const initialDto = fromPartial<MentorProfileVO>({ user_id: 123 });
 
-function renderContainer() {
+function renderContainer(catalogs: TagCatalogsByBucket | null = emptyCatalogs) {
   return render(
     <>
       <ProfilePageContainer
         pageUserId={PAGE_USER_ID}
         initialDto={initialDto}
-        initialCatalogs={emptyCatalogs}
+        initialCatalogs={catalogs}
       />
       <Toaster />
     </>
@@ -171,10 +162,35 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
     });
   });
 
+  it('forwards pageUserIdNumber, language, initialDto, and initialCatalogs directly into useUserData (#877)', () => {
+    mockUseResolvedIdentity.mockReturnValue(
+      identity({ sessionSettled: true, hasFullUser: false, userId: null })
+    );
+    const seededCatalogs: TagCatalogsByBucket = {
+      ...EMPTY_TAG_CATALOGS,
+      industry: [{ subject_group: 'SOFTWARE', subject: '軟體及網路相關業' }],
+    };
+
+    const { unmount } = renderContainer(seededCatalogs);
+
+    expect(mockUseUserData).toHaveBeenCalledWith(
+      123,
+      'zh_TW',
+      initialDto,
+      seededCatalogs
+    );
+    unmount();
+
+    renderContainer(null);
+    expect(mockUseUserData).toHaveBeenLastCalledWith(
+      123,
+      'zh_TW',
+      initialDto,
+      undefined
+    );
+  });
+
   it('withholds MentorScheduleDialog while the session has not settled, even for the profile owner', () => {
-    // The hint cookie can name the right user before useSession() confirms
-    // it; injecting the editor here is exactly the role flash the container
-    // gate exists to prevent.
     mockUseResolvedIdentity.mockReturnValue(
       identity({
         sessionSettled: false,
@@ -251,7 +267,6 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
   });
 
   it('covers a hinted member who settles to guest and asserts no owner control was ever rendered', () => {
-    // 1st render: Hint-only (hinted member)
     mockUseResolvedIdentity.mockReturnValueOnce(
       identity({
         sessionSettled: false,
@@ -260,7 +275,6 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
       })
     );
 
-    // 2nd render: Settles to guest
     mockUseResolvedIdentity.mockReturnValue(
       identity({
         sessionSettled: true,
@@ -271,12 +285,10 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
 
     const { rerender } = renderContainer();
 
-    // Verify no editor dialog is rendered initially
     expect(
       screen.queryByTestId('mentor-schedule-dialog')
     ).not.toBeInTheDocument();
 
-    // Re-render to simulate settling to guest
     rerender(
       <ProfilePageContainer
         pageUserId={PAGE_USER_ID}
@@ -285,7 +297,6 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
       />
     );
 
-    // Verify no editor dialog is rendered after settling to guest either
     expect(
       screen.queryByTestId('mentor-schedule-dialog')
     ).not.toBeInTheDocument();

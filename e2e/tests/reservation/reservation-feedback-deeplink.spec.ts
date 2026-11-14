@@ -1,42 +1,31 @@
 import { expect, Page, test } from '@playwright/test';
 
 import { captureEvidence } from '../../helpers/evidence';
-import { setSignedSessionCookie } from '../../helpers/session';
+import {
+  clearMockAuthSession,
+  seedMockAuthSession,
+} from '../../helpers/session';
 
 const MENTEE_USER_ID = '1';
 const MENTOR_USER_ID = '2';
 
-function makeMenteeSession() {
-  return {
-    user: {
-      id: MENTEE_USER_ID,
-      name: 'Test Mentee',
-      isMentor: false,
-      onBoarding: true,
-      jobTitle: 'Junior Product Designer',
-      company: 'Studio X',
-      personalLinks: [],
-    },
-    accessToken: 'mock-token',
-    expires: '2099-01-01T00:00:00.000Z',
-  };
-}
+const MENTEE_USER = {
+  id: MENTEE_USER_ID,
+  name: 'Test Mentee',
+  isMentor: false,
+  onBoarding: true,
+  jobTitle: 'Junior Product Designer',
+  company: 'Studio X',
+} as const;
 
-function makeMentorSession() {
-  return {
-    user: {
-      id: MENTOR_USER_ID,
-      name: 'Emily Chen',
-      isMentor: true,
-      onBoarding: true,
-      jobTitle: 'Senior UI/UX Designer',
-      company: 'Tech Corp',
-      personalLinks: [],
-    },
-    accessToken: 'mock-token',
-    expires: '2099-01-01T00:00:00.000Z',
-  };
-}
+const MENTOR_USER = {
+  id: MENTOR_USER_ID,
+  name: 'Emily Chen',
+  isMentor: true,
+  onBoarding: true,
+  jobTitle: 'Senior UI/UX Designer',
+  company: 'Tech Corp',
+} as const;
 
 function makeReservationResponse(reservations: object[]) {
   return {
@@ -253,13 +242,12 @@ test.describe('會談結束回饋提醒：站內通知與 Email 深連結導向 
   test.use({ storageState: { cookies: [], origins: [] } });
 
   test.beforeEach(async ({ page }) => {
-    await page.context().clearCookies();
+    await clearMockAuthSession(page);
   });
 
   test('未登入點擊 Email 回饋深連結 → 導向登入並保留完整 callbackUrl → 登入後導回 History 自動開啟回饋彈窗且關閉後清除單次參數', async ({
     page,
   }) => {
-    const menteeSession = makeMenteeSession();
     const historyItems = [
       makeMenteeHistoryReservation(101, 'Emily Chen', {
         meeting_happened: null,
@@ -301,21 +289,8 @@ test.describe('會談結束回饋提醒：站內通知與 Email 深連結導向 
         })
     );
 
-    let isAuthenticated = false;
-    await page.route(/\/api\/auth\/session/, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(isAuthenticated ? menteeSession : {}),
-      })
-    );
-
     await page.route(/\/api\/auth\/callback\/credentials/, async (route) => {
-      isAuthenticated = true;
-      await setSignedSessionCookie(page, {
-        ...menteeSession.user,
-        token: 'mock-access-token',
-      });
+      await seedMockAuthSession(page, MENTEE_USER);
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -366,18 +341,7 @@ test.describe('會談結束回饋提醒：站內通知與 Email 深連結導向 
   test('Mentee 點擊站內「留下您的會談回饋」通知 → 導向開啟回饋彈窗並成功送出回饋、清除單次參數', async ({
     page,
   }) => {
-    const menteeSession = makeMenteeSession();
-    await setSignedSessionCookie(page, {
-      ...menteeSession.user,
-      token: 'mock-access-token',
-    });
-    await page.route(/\/api\/auth\/session/, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(menteeSession),
-      })
-    );
+    await seedMockAuthSession(page, MENTEE_USER);
 
     const historyItems = [
       makeMenteeHistoryReservation(101, 'Emily Chen', {
@@ -491,18 +455,7 @@ test.describe('會談結束回饋提醒：站內通知與 Email 深連結導向 
   test('Mentee 點擊已填寫過回饋的深連結 → 不重複開啟彈窗，自動定位標示卡片、展開既有回饋、顯示友善提示並清除單次參數', async ({
     page,
   }) => {
-    const menteeSession = makeMenteeSession();
-    await setSignedSessionCookie(page, {
-      ...menteeSession.user,
-      token: 'mock-access-token',
-    });
-    await page.route(/\/api\/auth\/session/, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(menteeSession),
-      })
-    );
+    await seedMockAuthSession(page, MENTEE_USER);
 
     const historyItems = [
       makeMenteeHistoryReservation(102, 'Alex Wang', {
@@ -546,18 +499,7 @@ test.describe('會談結束回饋提醒：站內通知與 Email 深連結導向 
   test('Mentor 點擊站內「留下您的會談紀錄」通知 → 導向 /reservation/mentor?tab=history 定位並標示該場會談卡片', async ({
     page,
   }) => {
-    const mentorSession = makeMentorSession();
-    await setSignedSessionCookie(page, {
-      ...mentorSession.user,
-      token: 'mock-access-token',
-    });
-    await page.route(/\/api\/auth\/session/, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(mentorSession),
-      })
-    );
+    await seedMockAuthSession(page, MENTOR_USER);
 
     const mentorHistory = [
       makeMentorHistoryReservation(201, '林學員', {
@@ -636,18 +578,7 @@ test.describe('會談結束回饋提醒：站內通知與 Email 深連結導向 
   test('目標 reservation_id 不在已載入歷史分頁內時，透過單場查詢 GET /feedback 自動開啟回饋彈窗 (#875)', async ({
     page,
   }) => {
-    const menteeSession = makeMenteeSession();
-    await setSignedSessionCookie(page, {
-      ...menteeSession.user,
-      token: 'mock-access-token',
-    });
-    await page.route(/\/api\/auth\/session/, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(menteeSession),
-      })
-    );
+    await seedMockAuthSession(page, MENTEE_USER);
 
     await mockMenteeReservations(page, []);
     await mockNotifications(page, []);

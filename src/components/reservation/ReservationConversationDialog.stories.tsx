@@ -114,7 +114,7 @@ export const EmptyConversation: Story = {
   },
 };
 
-// 5. System Auto-Cancelled (Shows warning banner inside dialog)
+// 5. System Auto-Cancelled (Mentee View: shows 24h warning banner inside dialog)
 export const SystemAutoCancelled: Story = {
   args: {
     reservation: {
@@ -122,6 +122,20 @@ export const SystemAutoCancelled: Story = {
       cancelledBy: 'SYSTEM',
     },
     sourceRole: 'mentee',
+  },
+};
+
+// 5b. System Auto-Cancelled (Mentor View, #881: empty thread still displays mentor-tailored 24h auto-cancel banner)
+export const SystemAutoCancelledMentorView: Story = {
+  args: {
+    reservation: {
+      ...mockReservation,
+      messages: [],
+      menteeMessage: undefined,
+      mentorMessage: undefined,
+      cancelledBy: 'SYSTEM',
+    },
+    sourceRole: 'mentor',
   },
 };
 
