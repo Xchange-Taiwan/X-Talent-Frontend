@@ -11,6 +11,7 @@ import {
 
 import { useToast } from '@/components/ui/use-toast';
 import { trackEvent } from '@/lib/analytics';
+import { savePendingFavoriteMentor } from '@/lib/favorites';
 import { favoriteMentorStore } from '@/stores/favoriteMentorStore';
 import type { MentorType } from '@/types/mentor';
 
@@ -85,6 +86,9 @@ export function useFavoriteMentor({
     if (isSelf || isIdentityUnresolved) return;
 
     if (!isAuthenticated || !confirmedUserId) {
+      if (Number.isSafeInteger(mentorId) && mentorId > 0) {
+        savePendingFavoriteMentor(mentorId);
+      }
       const callbackPath = `/profile/${mentorId}`;
       const signInUrl = `/auth/signin?callbackUrl=${encodeURIComponent(callbackPath)}`;
       if (router) {

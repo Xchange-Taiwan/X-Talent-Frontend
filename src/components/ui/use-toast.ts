@@ -164,18 +164,27 @@ function toast({ ...props }: Toast) {
   };
 }
 
+function clearToasts() {
+  toastTimeouts.forEach((timeout) => {
+    clearTimeout(timeout);
+  });
+  toastTimeouts.clear();
+  dispatch({ type: 'REMOVE_TOAST' });
+}
+
 function useToast() {
   const [state, setState] = React.useState<State>(memoryState);
 
   React.useEffect(() => {
     listeners.push(setState);
+    setState(memoryState);
     return () => {
       const index = listeners.indexOf(setState);
       if (index > -1) {
         listeners.splice(index, 1);
       }
     };
-  }, [state]);
+  }, []);
 
   return {
     ...state,
@@ -184,4 +193,4 @@ function useToast() {
   };
 }
 
-export { useToast };
+export { clearToasts, useToast };

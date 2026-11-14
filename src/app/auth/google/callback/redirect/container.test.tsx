@@ -14,6 +14,10 @@ import {
   resolveOAuthOutcome,
   signInWithGoogleToken,
 } from '@/lib/auth/oauthOutcome';
+import {
+  getPendingFavoriteMentorId,
+  savePendingFavoriteMentor,
+} from '@/lib/favorites';
 import { deleteAccount } from '@/services/auth/deleteAccount';
 import type { components } from '@/types/api';
 
@@ -97,6 +101,7 @@ const mockTrackEvent = vi.mocked(trackEvent);
 describe('GoogleOAuthRedirectPage Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
     mockDispatchDeleteAccountRevalidate.mockResolvedValue(undefined);
 
     // Stub sessionStorage
@@ -393,6 +398,52 @@ describe('GoogleOAuthRedirectPage Component', () => {
           sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
         ).toBeNull();
       });
+    });
+
+    it('redirects to /profile/:id when unexpired pendingFavoriteMentor exists on LOGIN with onBoarding: true and preserves it for profile consumption (#756)', async () => {
+      savePendingFavoriteMentor(101);
+      const mockData = {
+        auth_type: 'LOGIN' as const,
+        auth: { token: 'tok_2', email: 'user@example.com' },
+        user: fromPartial<ProfileVO>({ user_id: 456 }),
+      };
+
+      mockResolveOAuthOutcome.mockResolvedValue({
+        type: 'LOGIN',
+        data: mockData,
+      });
+
+      mockGetSession.mockResolvedValue({
+        user: { onBoarding: true },
+      });
+
+      render(<GoogleOAuthRedirectPage />);
+
+      await waitFor(() => {
+        expect(pushMock).toHaveBeenCalledWith('/profile/101');
+        expect(getPendingFavoriteMentorId()).toBe(101);
+      });
+    });
+
+    it('preserves pendingFavoriteMentor across SIGNUP and LOGIN with onBoarding: false (#756)', async () => {
+      savePendingFavoriteMentor(101);
+      mockResolveOAuthOutcome.mockResolvedValueOnce({
+        type: 'SIGNUP',
+        data: {
+          auth_type: 'SIGNUP' as const,
+          auth: { token: 'tok_1', email: 'newuser@example.com' },
+          user: null,
+        },
+      });
+
+      const { unmount } = render(<GoogleOAuthRedirectPage />);
+
+      await waitFor(() => {
+        expect(pushMock).toHaveBeenCalledWith('/auth/email-verify');
+        expect(getPendingFavoriteMentorId()).toBe(101);
+      });
+
+      unmount();
     });
 
     it('falls back to /mentor-pool when pending_auth_callback_url normalizes to a protocol-relative // path (#733)', async () => {

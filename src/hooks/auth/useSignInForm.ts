@@ -16,6 +16,7 @@ import {
   clearPendingCallbackUrl,
   sanitizeCallbackUrl,
 } from '@/lib/auth/callbackUrl';
+import { getPendingFavoriteProfilePath } from '@/lib/favorites';
 import { SignInSchema } from '@/schemas/auth';
 
 type SignInValues = z.infer<typeof SignInSchema>;
@@ -111,7 +112,8 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
         if (session.user.onBoarding === false) {
           router.push('/auth/onboarding');
         } else {
-          router.push(safeCallbackUrl ?? '/mentor-pool');
+          const pendingFavoritePath = getPendingFavoriteProfilePath();
+          router.push(pendingFavoritePath ?? safeCallbackUrl ?? '/mentor-pool');
         }
       },
       {

@@ -142,4 +142,36 @@ describe('favoriteMentorStore', () => {
       'Existing Mentor'
     );
   });
+
+  it('ensureFavorite adds unfavorited mentor after syncing user and skips DELETE when already favorited', async () => {
+    fetchMock.mockResolvedValueOnce([buildMentor({ user_id: 101 })]);
+    addMock.mockResolvedValueOnce(undefined);
+
+    // Already favorited on server -> syncs and keeps favorited without calling PUT or DELETE
+    const existingOutcome = await favoriteMentorStore.ensureFavorite(
+      'user-1',
+      101
+    );
+    expect(existingOutcome).toEqual({
+      status: 'skipped',
+      nextFavorited: true,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(addMock).not.toHaveBeenCalled();
+    expect(removeMock).not.toHaveBeenCalled();
+    expect(favoriteMentorStore.isFavorited(101)).toBe(true);
+
+    // Not yet favorited -> adds via PUT
+    const addedOutcome = await favoriteMentorStore.ensureFavorite(
+      'user-1',
+      202,
+      buildMentor({ user_id: 202, name: 'Zahra' })
+    );
+    expect(addedOutcome).toEqual({
+      status: 'added',
+      nextFavorited: true,
+    });
+    expect(addMock).toHaveBeenCalledWith(202);
+    expect(favoriteMentorStore.isFavorited(202)).toBe(true);
+  });
 });

@@ -427,8 +427,9 @@ test.describe('Mentor 書籤收藏 (#758)', () => {
       firstCard.getByRole('button', { name: '收藏 Zahra Mirzakhani' })
     ).toHaveAttribute('aria-pressed', 'false');
 
-    const errorToast = page.getByText('收藏操作失敗，請稍後再試');
-    await expect(errorToast).toBeVisible();
+    await expect(
+      page.getByText('收藏操作失敗，請稍後再試', { exact: true })
+    ).toBeVisible();
     await captureEvidence(page, 'mentor-bookmark-error-toast');
   });
 

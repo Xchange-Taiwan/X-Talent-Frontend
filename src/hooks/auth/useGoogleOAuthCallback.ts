@@ -20,6 +20,7 @@ import {
   resolveOAuthOutcome,
   signInWithGoogleToken,
 } from '@/lib/auth/oauthOutcome';
+import { getPendingFavoriteProfilePath } from '@/lib/favorites';
 import { deleteAccount } from '@/services/auth/deleteAccount';
 import type { components } from '@/types/api';
 
@@ -128,7 +129,10 @@ export function useGoogleOAuthCallback() {
         const pendingCallbackUrl = consumePendingCallbackUrl(
           typeof window !== 'undefined' ? window.location.origin : undefined
         );
-        router.push(pendingCallbackUrl ?? '/mentor-pool');
+        const pendingFavoritePath = getPendingFavoriteProfilePath();
+        router.push(
+          pendingFavoritePath ?? pendingCallbackUrl ?? '/mentor-pool'
+        );
       }
     };
 

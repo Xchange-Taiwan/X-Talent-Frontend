@@ -36,6 +36,11 @@ vi.mock('@/lib/analytics', async (importOriginal) => {
 import { validateSignIn } from '@/lib/actions/signIn';
 import { setAnalyticsUserContext, trackEvent } from '@/lib/analytics';
 import { PENDING_AUTH_CALLBACK_URL_KEY } from '@/lib/auth/callbackUrl';
+import {
+  getPendingFavoriteMentorId,
+  PENDING_FAVORITE_TTL_MS,
+  savePendingFavoriteMentor,
+} from '@/lib/favorites';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockGetSession, mockSession, mockSignIn } from '@/test/mocks/nextAuth';
@@ -53,6 +58,7 @@ const validValues = { email: 'user@example.com', password: 'Password1!' };
 describe('useSignInForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
     window.sessionStorage.clear();
     window.history.replaceState({}, '', '/auth/signin');
     mockValidateSignIn.mockResolvedValue({
@@ -254,6 +260,57 @@ describe('useSignInForm', () => {
     });
 
     expect(mockRouter.push).toHaveBeenCalledWith('/mentor-pool');
+  });
+
+  it('success + valid pendingFavoriteMentor in localStorage → redirects to /profile/:id even without callbackUrl query and keeps pendingFavoriteMentor for profile page consumption (#756)', async () => {
+    savePendingFavoriteMentor(7482008160728084);
+    mockGetSession.mockResolvedValueOnce({
+      ...mockSession,
+      user: { ...mockSession.user, onBoarding: true, isMentor: false },
+    });
+
+    const { result } = renderHook(() => useSignInForm());
+
+    await act(async () => {
+      await result.current.onSubmit(validValues);
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/profile/7482008160728084');
+    expect(getPendingFavoriteMentorId()).toBe(7482008160728084);
+  });
+
+  it('success + pendingFavoriteMentor + onBoarding === false → redirects to /auth/onboarding without clearing pendingFavoriteMentor (#756)', async () => {
+    savePendingFavoriteMentor(101);
+    mockGetSession.mockResolvedValueOnce({
+      ...mockSession,
+      user: { ...mockSession.user, onBoarding: false, isMentor: false },
+    });
+
+    const { result } = renderHook(() => useSignInForm());
+
+    await act(async () => {
+      await result.current.onSubmit(validValues);
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/auth/onboarding');
+    expect(getPendingFavoriteMentorId()).toBe(101);
+  });
+
+  it('success + expired pendingFavoriteMentor → clears expired entry and falls back to /mentor-pool (#756)', async () => {
+    savePendingFavoriteMentor(101, Date.now() - PENDING_FAVORITE_TTL_MS - 1000);
+    mockGetSession.mockResolvedValueOnce({
+      ...mockSession,
+      user: { ...mockSession.user, onBoarding: true, isMentor: false },
+    });
+
+    const { result } = renderHook(() => useSignInForm());
+
+    await act(async () => {
+      await result.current.onSubmit(validValues);
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/mentor-pool');
+    expect(getPendingFavoriteMentorId()).toBeNull();
   });
 
   it('unexpected error is thrown → toast shows "Something went wrong!"', async () => {

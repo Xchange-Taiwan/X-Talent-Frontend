@@ -84,6 +84,12 @@ export const ProfileHeaderOutlineFavorited: Story = {
 export const GuestUnauthenticated: Story = {
   parameters: {
     nextAuth: { session: null },
+    docs: {
+      description: {
+        story:
+          '未登入訪客點擊書籤時，會寫入 30 分鐘 TTL 的 pendingFavoriteStorage 並導向 `/auth/signin?callbackUrl=/profile/:id`。',
+      },
+    },
   },
   args: {
     userId: null,

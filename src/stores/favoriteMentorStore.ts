@@ -351,6 +351,34 @@ class FavoriteMentorStoreManager {
   }
 
   /**
+   * Ensures `mentorId` is favorited for `userId` after synchronizing the user's
+   * server favorites. Unlike `toggleFavorite`, if `mentorId` is already in
+   * `favoriteMentorIds`, this method keeps it favorited without removing it.
+   */
+  async ensureFavorite(
+    userId: string,
+    mentorId: number,
+    mentorSnapshot?: MentorType
+  ): Promise<ToggleFavoriteOutcome> {
+    const normalizedUserId = userId.trim();
+    if (!normalizedUserId || !Number.isFinite(mentorId) || mentorId <= 0) {
+      return { status: 'skipped', nextFavorited: false };
+    }
+
+    await this.syncUser(normalizedUserId);
+
+    if (this.activeUserId !== normalizedUserId) {
+      return { status: 'skipped', nextFavorited: false };
+    }
+
+    if (this.state.favoriteMentorIds.has(mentorId)) {
+      return { status: 'skipped', nextFavorited: true };
+    }
+
+    return this.toggleFavorite(mentorId, mentorSnapshot);
+  }
+
+  /**
    * Seeds store state directly (useful for Storybook stories and deterministic tests).
    */
   seedFavorites(
