@@ -28,6 +28,7 @@ interface Props {
   selectedFilters: SelectFilters;
   activeFilterBadges?: ActiveFilterBadge[];
   filterOptions: FilterOptions;
+  labelMap?: ReadonlyMap<string, string>;
   onFilterChange: (opts: SelectFilters) => void;
   onRemoveFilter: (key: string) => void;
   onClearAll: () => void;
@@ -44,6 +45,7 @@ export default function MentorPoolUI({
   selectedFilters,
   activeFilterBadges,
   filterOptions,
+  labelMap,
   onFilterChange,
   onRemoveFilter,
   onClearAll,
@@ -114,6 +116,7 @@ export default function MentorPoolUI({
               mentors={mentors}
               onScrollToBottom={onScrollToBottom}
               activeFilterBadges={badges}
+              labelMap={labelMap}
             />
             {showOverlay && (
               <div

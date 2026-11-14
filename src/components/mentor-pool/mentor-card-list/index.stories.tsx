@@ -60,6 +60,39 @@ export const FilteredSkillPrioritized: Story = {
   },
 };
 
+export const CodeMappedSkillAndTopicPrioritized: Story = {
+  args: {
+    mentors: [
+      {
+        ...mockMentors[0],
+        have_topic: ['career_planning', 'resume_review'],
+        have_skill: ['ui_ux_design', 'react_nextjs'],
+      },
+      {
+        ...mockMentors[1],
+        have_topic: ['mock_interview'],
+        have_skill: ['typescript', 'react_nextjs'],
+      },
+    ],
+    activeFilterBadges: [
+      {
+        key: 'filter_skills',
+        name: '技能',
+        value: 'react_nextjs',
+        label: 'React / Next.js',
+      },
+    ],
+    labelMap: new Map([
+      ['career_planning', '職涯規劃與轉職諮詢'],
+      ['resume_review', '履歷健檢與優化'],
+      ['mock_interview', '模擬面試與回饋'],
+      ['ui_ux_design', 'UI / UX 設計'],
+      ['react_nextjs', 'React / Next.js'],
+      ['typescript', 'TypeScript'],
+    ]),
+  },
+};
+
 export const EmptyList: Story = {
   args: {
     mentors: [],
