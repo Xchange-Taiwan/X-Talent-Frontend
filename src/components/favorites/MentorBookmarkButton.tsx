@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/tooltip';
 import {
   type FavoriteMentorAnalyticsFeature,
+  type FavoriteMentorAnalyticsLocation,
   useFavoriteMentor,
 } from '@/hooks/favorites';
 import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
@@ -23,6 +24,7 @@ export interface MentorBookmarkButtonProps {
   mentorName: string;
   mentorSnapshot?: MentorType;
   analyticsFeature?: FavoriteMentorAnalyticsFeature;
+  analyticsLocation?: FavoriteMentorAnalyticsLocation;
   variant?: MentorBookmarkButtonVariant;
   tooltipSide?: TooltipSide;
   tooltipAlign?: TooltipAlign;
@@ -50,6 +52,7 @@ export function MentorBookmarkButton({
   mentorName,
   mentorSnapshot,
   analyticsFeature = 'mentor_pool',
+  analyticsLocation,
   variant = 'overlay',
   tooltipSide = 'bottom',
   tooltipAlign = 'end',
@@ -66,6 +69,7 @@ export function MentorBookmarkButton({
     mentorId,
     mentorSnapshot,
     analyticsFeature,
+    analyticsLocation,
   });
 
   if (isSelf || isIdentityUnresolved) {

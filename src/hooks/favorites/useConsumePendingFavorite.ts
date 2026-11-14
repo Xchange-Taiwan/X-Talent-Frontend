@@ -103,6 +103,7 @@ export function useConsumePendingFavorite({
           metadata: {
             mentor_id: pageMentorId,
             action: 'add',
+            button_location: 'profile_header',
           },
         });
       } else if (outcome.status === 'failed') {

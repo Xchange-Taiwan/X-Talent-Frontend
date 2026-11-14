@@ -19,6 +19,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useProfileLinkClick } from '@/hooks/reservation/useProfileLinkClick';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { trackEvent } from '@/lib/analytics';
+import {
+  canOpenHistoryConversation,
+  resolveFeedbackInitialStep,
+} from '@/lib/reservation/reservationLifecyclePolicy';
 import { resolveReservationViewer } from '@/lib/reservation/reservationViewerModel';
 import { resolveHistoryFeedbackState } from '@/lib/reservation/resolveHistoryFeedbackState';
 import type { Reservation } from '@/types/reservation';
@@ -158,11 +162,10 @@ function ReservationItem({
       return (
         <MeetingFeedbackDialog
           viewerRole={sourceRole}
-          initialStep={
-            sourceRole === 'mentee' && reservation.feedback?.nextStep === 'RATE'
-              ? 'rating'
-              : 'attendance'
-          }
+          initialStep={resolveFeedbackInitialStep({
+            reservation,
+            role: sourceRole,
+          })}
           reservation={reservation}
           disabled={isMutating}
           onSubmitFeedback={(payload) => submitFeedback(reservation, payload)}
@@ -282,9 +285,7 @@ function ReservationItem({
           )
         }
         footer={
-          variant === 'history' &&
-          (reservation.messages.length > 0 ||
-            reservation.cancelledBy === 'SYSTEM') ? (
+          variant === 'history' && canOpenHistoryConversation(reservation) ? (
             <ReservationConversationDialog
               reservation={reservation}
               sourceRole={sourceRole}
@@ -317,11 +318,10 @@ function DeepLinkFeedbackDialog({
     <MeetingFeedbackDialog
       defaultOpen
       viewerRole={sourceRole}
-      initialStep={
-        sourceRole === 'mentee' && reservation.feedback?.nextStep === 'RATE'
-          ? 'rating'
-          : 'attendance'
-      }
+      initialStep={resolveFeedbackInitialStep({
+        reservation,
+        role: sourceRole,
+      })}
       reservation={reservation}
       disabled={isMutating}
       trigger={<span className="sr-only">指定會談回饋視窗</span>}

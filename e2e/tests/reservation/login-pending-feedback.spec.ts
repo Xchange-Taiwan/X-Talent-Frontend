@@ -1,41 +1,32 @@
 import { expect, Page, test } from '@playwright/test';
 
 import { captureEvidence } from '../../helpers/evidence';
-import { setSignedSessionCookie } from '../../helpers/session';
+import {
+  clearMockAuthSession,
+  seedMockAuthSession,
+} from '../../helpers/session';
 
 const USER_ID = '1';
 
-function makeMenteeSession() {
-  return {
-    user: {
-      id: USER_ID,
-      name: 'Test Mentee',
-      isMentor: false,
-      onBoarding: true,
-      jobTitle: 'Junior Product Designer',
-      company: 'Studio X',
-      personalLinks: [],
-    },
-    accessToken: 'mock-mentee-token',
-    expires: '2099-01-01T00:00:00.000Z',
-  };
-}
+const MENTEE_USER = {
+  id: USER_ID,
+  name: 'Test Mentee',
+  isMentor: false,
+  onBoarding: true,
+  jobTitle: 'Junior Product Designer',
+  company: 'Studio X',
+  token: 'mock-mentee-token',
+} as const;
 
-function makeMentorSession() {
-  return {
-    user: {
-      id: USER_ID,
-      name: 'Emily Chen',
-      isMentor: true,
-      onBoarding: true,
-      jobTitle: 'Senior UI/UX Designer',
-      company: 'Tech Corp',
-      personalLinks: [],
-    },
-    accessToken: 'mock-mentor-token',
-    expires: '2099-01-01T00:00:00.000Z',
-  };
-}
+const MENTOR_USER = {
+  id: USER_ID,
+  name: 'Emily Chen',
+  isMentor: true,
+  onBoarding: true,
+  jobTitle: 'Senior UI/UX Designer',
+  company: 'Tech Corp',
+  token: 'mock-mentor-token',
+} as const;
 
 function makePendingFeedbackReservation(opts: {
   id: number;
@@ -92,21 +83,7 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
   test('Mentor 登入進站：依會談時間由遠到近排序、選項 A 選「有進行」按「確定送出」直接送出、選「沒有進行」進第 2 頁必選 5 原因 +「其他」1000 字補充說明 + 暖黃下架鎖定提醒框', async ({
     page,
   }) => {
-    const session = makeMentorSession();
-    await setSignedSessionCookie(page, {
-      ...session.user,
-      token: 'mock-access-token',
-    });
-    await page.route(/\/api\/auth\/session/, (route) => {
-      if (route.request().method() === 'GET') {
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(session),
-        });
-      }
-      return route.continue();
-    });
+    await seedMockAuthSession(page, MENTOR_USER);
     await mockCommonRoutes(page);
 
     const submittedPayloads: Array<{ id: number; body: unknown }> = [];
@@ -393,24 +370,7 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
   test('Mentee 登入略過與讓位防護：URL 含 reservationId / feedbackReservationId 及預約頁面讓位不彈出；點擊 X 僅略過本次登入，重新登入後再次彈出', async ({
     page,
   }) => {
-    let isLoggedIn = true;
-    const menteeSession = makeMenteeSession();
-
-    await setSignedSessionCookie(page, {
-      ...menteeSession.user,
-      token: 'mock-access-token',
-    });
-
-    await page.route(/\/api\/auth\/session/, (route) => {
-      if (route.request().method() === 'GET') {
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(isLoggedIn ? menteeSession : {}),
-        });
-      }
-      return route.continue();
-    });
+    await seedMockAuthSession(page, MENTEE_USER);
     await mockCommonRoutes(page);
 
     await page.route(
@@ -488,11 +448,11 @@ test.describe('#740 登入後待回饋佇列彈窗與 Mentor 兩頁版選項 A �
     await expect(page.getByRole('dialog')).toHaveCount(0);
 
     // 5. Simulate logout -> unauthenticated clears session skip state -> re-login pops up again!
-    isLoggedIn = false;
+    await clearMockAuthSession(page);
     await page.goto('/about');
     await expect(page.getByRole('dialog')).toHaveCount(0);
 
-    isLoggedIn = true;
+    await seedMockAuthSession(page, MENTEE_USER);
     await page.goto('/about');
     await expect(page.getByRole('dialog')).toBeVisible();
     await expect(

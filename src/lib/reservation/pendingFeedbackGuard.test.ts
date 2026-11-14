@@ -116,6 +116,21 @@ describe('pendingFeedbackGuard (#740)', () => {
         })
       ).toBe(true);
 
+      expect(
+        shouldSuppressPendingFeedbackPopup({
+          pathname: '/mentor-pool',
+          searchParams: new URLSearchParams('feedback=404'),
+        })
+      ).toBe(true);
+
+      // Boolean-like flags (?feedback=1 / ?feedback=0) and whitespace-only params do not suppress
+      expect(
+        shouldSuppressPendingFeedbackPopup({
+          pathname: '/mentor-pool',
+          searchParams: new URLSearchParams('feedback=1'),
+        })
+      ).toBe(false);
+
       // Whitespace-only query params do not suppress
       expect(
         shouldSuppressPendingFeedbackPopup({

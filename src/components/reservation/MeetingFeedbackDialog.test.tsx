@@ -1417,5 +1417,58 @@ describe('MeetingFeedbackDialog', () => {
       );
       expect(noteTextarea).not.toHaveClass('focus-visible:ring-offset-2');
     });
+
+    it('derives initial step via reservationLifecyclePolicy (Mentee RATE -> rating, Mentor -> always attendance)', () => {
+      const menteeRateReservation = fromPartial<Reservation>({
+        ...baseReservation,
+        id: 'res-rate-881',
+        feedback: {
+          meetingHappened: true,
+          rating: null,
+          nextStep: 'RATE',
+        },
+      });
+
+      const { unmount } = render(
+        <MeetingFeedbackDialog
+          defaultOpen
+          hideTrigger
+          reservation={menteeRateReservation}
+          onSubmitFeedback={vi.fn()}
+        />
+      );
+
+      expect(screen.getByText('步驟 2 / 2 · 交流回饋')).toBeInTheDocument();
+      unmount();
+
+      const mentorReservation = fromPartial<Reservation>({
+        ...baseReservation,
+        id: 'res-mentor-881',
+        viewerRole: 'MENTOR',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      });
+
+      render(
+        <MeetingFeedbackDialog
+          defaultOpen
+          hideTrigger
+          initialStep="rating"
+          reservation={mentorReservation}
+          onSubmitFeedback={vi.fn()}
+        />
+      );
+
+      expect(screen.getByTestId('feedback-dialog-title')).toHaveTextContent(
+        '確認會談'
+      );
+      expect(screen.getByText('這場會談是否順利進行？')).toBeInTheDocument();
+      expect(
+        screen.queryByText('步驟 2 / 2 · 交流回饋')
+      ).not.toBeInTheDocument();
+    });
   });
 });

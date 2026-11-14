@@ -2,7 +2,10 @@ import { expect, type Page, test } from '@playwright/test';
 
 import { captureEvidence } from '../../helpers/evidence';
 import { mockApiRoute } from '../../helpers/route';
-import { setSignedSessionCookie } from '../../helpers/session';
+import {
+  clearMockAuthSession,
+  seedMockAuthSession,
+} from '../../helpers/session';
 
 test.use({ timezoneId: 'Asia/Taipei' });
 
@@ -179,32 +182,12 @@ async function setupAuthenticatedViewer(
     isMentor: false,
   }
 ) {
-  await setSignedSessionCookie(page, {
+  await seedMockAuthSession(page, {
     id: user.id,
     name: user.name,
     isMentor: user.isMentor,
     onBoarding: true,
     token: 'mock-auth-token',
-  });
-
-  await page.route(/\/api\/auth\/session/, (route) => {
-    if (route.request().method() === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          user: {
-            id: user.id,
-            name: user.name,
-            isMentor: user.isMentor,
-            onBoarding: true,
-          },
-          accessToken: 'mock-auth-token',
-          expires: '2099-01-01T00:00:00.000Z',
-        }),
-      });
-    }
-    return route.continue();
   });
 }
 
@@ -241,18 +224,25 @@ async function setupCommonSupportRoutes(
     },
   });
 
-  await page.route(/\/v1\/notifications\/unread-count/, (route) => {
-    if (route.request().method() !== 'GET' && sideEffectCounter) {
-      sideEffectCounter.notificationMutations += 1;
+  await page.route(
+    /\/v1\/(?:users\/[^/]+\/)?notifications\/unread-count/,
+    (route) => {
+      if (route.request().method() !== 'GET' && sideEffectCounter) {
+        sideEffectCounter.notificationMutations += 1;
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: '0',
+          msg: 'ok',
+          data: { unread_count: 0 },
+        }),
+      });
     }
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ code: '0', msg: 'ok', data: { unread_count: 0 } }),
-    });
-  });
+  );
 
-  await page.route(/\/v1\/notifications(\?|$)/, (route) => {
+  await page.route(/\/v1\/(?:users\/[^/]+\/)?notifications(\?|$)/, (route) => {
     if (route.request().method() !== 'GET' && sideEffectCounter) {
       sideEffectCounter.notificationMutations += 1;
     }
@@ -452,16 +442,31 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     expect(String(addToggleEvent?.params.mentor_id)).toBe(TARGET_MENTOR_ID_STR);
     expect(addToggleEvent?.params.action).toBe('add');
     expect(addToggleEvent?.params.feature).toBe('mentor_pool');
+    expect(addToggleEvent?.params.button_location).toBe('mentor_pool_list');
     expect(addToggleEvent?.params.user_id).toBe('9001');
     expect(addToggleEvent?.params.user_role).toBe('mentee');
 
-    // 2. 點擊導師卡片進入個人頁 -> 驗證跨頁狀態同步為已收藏並擷取證據圖
+    // 2. 點擊導師卡片進入個人頁 -> 驗證 mentor_card_click 與跨頁狀態同步為已收藏並擷取證據圖
     await firstCard
       .getByRole('link', { name: '前往 Zahra Mirzakhani 的個人頁面' })
       .click();
     await expect(page).toHaveURL(
       new RegExp(`/profile/${TARGET_MENTOR_ID_STR}$`)
     );
+
+    await expect
+      .poll(async () => {
+        const events = await getDataLayerEvents(page);
+        return events.find((e) => e.name === 'mentor_card_click');
+      })
+      .toMatchObject({
+        name: 'mentor_card_click',
+        params: {
+          mentor_id: TARGET_MENTOR_ID_STR,
+          feature: 'mentor_pool',
+          button_location: 'mentor_pool_list',
+        },
+      });
 
     const profileBookmarkBtn = page.locator(
       'button[data-testid="mentor-bookmark-button"]'
@@ -507,6 +512,7 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
             mentor_id: String(e.params.mentor_id),
             action: e.params.action,
             feature: e.params.feature,
+            button_location: e.params.button_location,
           }));
       })
       .toEqual([
@@ -514,11 +520,13 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
           mentor_id: TARGET_MENTOR_ID_STR,
           action: 'add',
           feature: 'mentor_pool',
+          button_location: 'mentor_pool_list',
         },
         {
           mentor_id: TARGET_MENTOR_ID_STR,
           action: 'remove',
           feature: 'profile',
+          button_location: 'profile_header',
         },
       ]);
 
@@ -770,42 +778,18 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
   }) => {
     const favoritedSet = new Set<number>();
     let putCount = 0;
-    let activeSession: Record<string, unknown> = {};
 
+    await clearMockAuthSession(page);
     await setupCommonSupportRoutes(page);
 
-    await page.route(/\/api\/auth\/session/, (route) => {
-      if (route.request().method() === 'GET') {
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(activeSession),
-        });
-      }
-      return route.continue();
-    });
-
     await page.route(/\/api\/auth\/callback\/credentials/, async (route) => {
-      await setSignedSessionCookie(page, {
+      await seedMockAuthSession(page, {
         id: '9001',
         name: 'Mentee Viewer',
         onBoarding: true,
         isMentor: false,
         token: 'mock-auth-token',
       });
-      activeSession = {
-        user: {
-          id: '9001',
-          name: 'Mentee Viewer',
-          onBoarding: true,
-          isMentor: false,
-          jobTitle: '',
-          company: '',
-          personalLinks: [],
-        },
-        accessToken: 'mock-auth-token',
-        expires: '2099-01-01T00:00:00.000Z',
-      };
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -893,6 +877,7 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
         params: {
           feature: 'profile',
           action: 'add',
+          button_location: 'profile_header',
         },
       });
 
@@ -910,23 +895,13 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     ).toHaveAttribute('aria-pressed', 'true');
 
     // 3. 切換為導師本人身分檢視：Mentor Pool 自己的卡片與個人頁皆不顯示收藏按鈕或任何收藏者名單
-    await setSignedSessionCookie(page, {
+    await seedMockAuthSession(page, {
       id: TARGET_MENTOR_ID_STR,
       name: 'Zahra Mirzakhani',
       isMentor: true,
       onBoarding: true,
       token: 'mock-mentor-token',
     });
-    activeSession = {
-      user: {
-        id: TARGET_MENTOR_ID_STR,
-        name: 'Zahra Mirzakhani',
-        isMentor: true,
-        onBoarding: true,
-      },
-      accessToken: 'mock-mentor-token',
-      expires: '2099-01-01T00:00:00.000Z',
-    };
 
     await page.goto('/mentor-pool?q=design');
     const cards = page.locator('article');

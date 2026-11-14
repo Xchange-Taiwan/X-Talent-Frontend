@@ -7,6 +7,7 @@ import { useAsyncRead } from '@/hooks/useAsyncRead';
 import { trackEvent } from '@/lib/analytics';
 import { isAbortError } from '@/lib/errorUtils';
 import { captureFlowFailure } from '@/lib/monitoring';
+import { partitionReservationTabSlices } from '@/lib/reservation/reservationLifecyclePolicy';
 import {
   type ReservationReadKey,
   reservationReadModel,
@@ -58,13 +59,6 @@ const EMPTY_LOADING_MORE: LoadingMoreStates = {
   pending: false,
   history: false,
 };
-
-// Backend orders every list by dtend desc, which is correct for HISTORY
-// (most recent past first) but reverses what users expect for UPCOMING /
-// PENDING — those should lead with the meeting closest to now. Resort
-// client-side by dtstart ascending so the closest reservation sits at the top.
-const sortByDtstartAsc = (items: Reservation[]): Reservation[] =>
-  [...items].sort((a, b) => a.dtstart - b.dtstart);
 
 export interface UseReservationDataReturn {
   data: ReservationData | null;
@@ -208,26 +202,19 @@ export function useReservationData({
 
   const isHistoryLoaded = historyResult !== null && !isHistoryLoading;
 
-  const upcomingSorted = useMemo<Reservation[]>(() => {
-    return upcomingResult ? sortByDtstartAsc(upcomingResult.items) : [];
-  }, [upcomingResult]);
-
-  const pendingSorted = useMemo<Reservation[]>(() => {
-    const sorted = pendingResult ? sortByDtstartAsc(pendingResult.items) : [];
-    return sorted.filter((it) => !it.cancelledBy);
-  }, [pendingResult]);
-
-  const historyItems = useMemo<Reservation[]>(() => {
-    const derivedCancelledFromPending = (pendingResult?.items ?? []).filter(
-      (it) => Boolean(it.cancelledBy)
-    );
-    const items = historyResult ? historyResult.items : [];
-    const existingIds = new Set(items.map((it) => it.id));
-    return [
-      ...derivedCancelledFromPending.filter((it) => !existingIds.has(it.id)),
-      ...items,
-    ];
-  }, [pendingResult, historyResult]);
+  const {
+    upcoming: upcomingSorted,
+    pending: pendingSorted,
+    history: historyItems,
+  } = useMemo(
+    () =>
+      partitionReservationTabSlices({
+        upcomingItems: upcomingResult?.items,
+        pendingItems: pendingResult?.items,
+        historyItems: historyResult?.items,
+      }),
+    [upcomingResult, pendingResult, historyResult]
+  );
 
   const data = useMemo<ReservationData | null>(() => {
     if (!myUserId) return null;

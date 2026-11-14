@@ -26,6 +26,11 @@ import {
   RESERVATION_CONFLICT_MESSAGE,
   ReservationVersionConflictError,
 } from '@/lib/reservation/reservationConflictError';
+import {
+  resolveEffectiveFeedbackRole,
+  resolveFeedbackDialogStep,
+  resolveFeedbackInitialStep,
+} from '@/lib/reservation/reservationLifecyclePolicy';
 import { cn } from '@/lib/utils';
 import {
   DEFAULT_MEETING_RATING,
@@ -130,7 +135,7 @@ export default function MeetingFeedbackDialog({
   disabled = false,
   defaultOpen = false,
   hideTrigger = false,
-  initialStep = 'attendance',
+  initialStep,
   initialRating,
   initialContent,
   onSubmitFeedback,
@@ -141,13 +146,8 @@ export default function MeetingFeedbackDialog({
   className,
 }: MeetingFeedbackDialogProps) {
   const isEditMode = mode === 'edit';
-  const resolvedInitialStep: MeetingFeedbackStep = isEditMode
-    ? 'rating'
-    : initialStep;
 
   const [open, setOpen] = React.useState(defaultOpen);
-  const [step, setStep] =
-    React.useState<MeetingFeedbackStep>(resolvedInitialStep);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isMaskTooltipOpen, setIsMaskTooltipOpen] = React.useState(false);
   const [isSkipTooltipOpen, setIsSkipTooltipOpen] = React.useState(false);
@@ -163,16 +163,6 @@ export default function MeetingFeedbackDialog({
     setIsSkipTooltipOpen(false);
     setTooltipDismissSignal((v) => v + 1);
   }, []);
-
-  const baseCreateValues = React.useMemo(
-    () =>
-      buildCreateInitialValues(
-        resolvedInitialStep,
-        initialRating,
-        initialContent
-      ),
-    [resolvedInitialStep, initialRating, initialContent]
-  );
 
   const handleAdvanceQueueItem = React.useCallback(() => {
     onAdvanceItemRef.current();
@@ -204,11 +194,32 @@ export default function MeetingFeedbackDialog({
     onFinishQueue: handleFinishQueue,
   });
 
-  const effectiveViewerRole: FeedbackViewerRole = isEditMode
-    ? 'mentee'
-    : (viewerRole ??
-      (activeReservation.viewerRole === 'MENTOR' ? 'mentor' : 'mentee'));
+  const effectiveViewerRole: FeedbackViewerRole = resolveEffectiveFeedbackRole({
+    reservation: activeReservation,
+    explicitRole: viewerRole,
+    isEditMode,
+  });
   const isMentor = !isEditMode && effectiveViewerRole === 'mentor';
+
+  const resolvedInitialStep: MeetingFeedbackStep = resolveFeedbackDialogStep({
+    reservation: activeReservation,
+    role: effectiveViewerRole,
+    mode,
+    requestedStep: initialStep,
+  });
+
+  const [step, setStep] =
+    React.useState<MeetingFeedbackStep>(resolvedInitialStep);
+
+  const baseCreateValues = React.useMemo(
+    () =>
+      buildCreateInitialValues(
+        resolvedInitialStep,
+        initialRating,
+        initialContent
+      ),
+    [resolvedInitialStep, initialRating, initialContent]
+  );
 
   const form = useMeetingFeedbackForm(
     isEditMode
@@ -227,9 +238,26 @@ export default function MeetingFeedbackDialog({
   } = form;
 
   onAdvanceItemRef.current = () => {
+    const nextReservation =
+      queueItems[Math.min(queueIndex + 1, queueItems.length - 1)] ??
+      activeReservation;
+    const nextRole = resolveEffectiveFeedbackRole({
+      reservation: nextReservation,
+      explicitRole: viewerRole,
+      isEditMode: false,
+    });
+    const nextStep = resolveFeedbackInitialStep({
+      reservation: nextReservation,
+      role: nextRole,
+      mode: 'create',
+    });
     dismissTooltips();
-    reset(DEFAULT_MEETING_FEEDBACK_FORM_VALUES);
-    setStep('attendance');
+    reset(
+      nextStep === 'attendance'
+        ? DEFAULT_MEETING_FEEDBACK_FORM_VALUES
+        : buildCreateInitialValues(nextStep)
+    );
+    setStep(nextStep);
   };
 
   onFinishQueueRef.current = () => {

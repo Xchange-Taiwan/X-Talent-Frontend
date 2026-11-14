@@ -158,6 +158,7 @@ describe('MentorBookmarkButton', () => {
       metadata: {
         mentor_id: 101,
         action: 'add',
+        button_location: 'mentor_pool_list',
       },
     });
 
@@ -173,11 +174,12 @@ describe('MentorBookmarkButton', () => {
       metadata: {
         mentor_id: 101,
         action: 'remove',
+        button_location: 'mentor_pool_list',
       },
     });
   });
 
-  it('tracks mentor_bookmark_toggle with feature "profile" when rendered on profile page', async () => {
+  it('tracks mentor_bookmark_toggle with feature "profile" and button_location "profile_header" when rendered on profile page', async () => {
     const user = userEvent.setup();
     const trackEventSpy = vi.spyOn(analyticsModule, 'trackEvent');
     favoriteMentorStore.seedFavorites('999', []);
@@ -209,6 +211,36 @@ describe('MentorBookmarkButton', () => {
       metadata: {
         mentor_id: 101,
         action: 'add',
+        button_location: 'profile_header',
+      },
+    });
+  });
+
+  it('tracks mentor_bookmark_toggle with button_location "favorites_list" when rendered in favorites list', async () => {
+    const user = userEvent.setup();
+    const trackEventSpy = vi.spyOn(analyticsModule, 'trackEvent');
+    favoriteMentorStore.seedFavorites('999', [101]);
+
+    renderWithSession(
+      <MentorBookmarkButton
+        mentorId={101}
+        mentorName="陳宥廷 Austin"
+        analyticsFeature="mentor_pool"
+        analyticsLocation="favorites_list"
+      />
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: '取消收藏 陳宥廷 Austin' })
+    );
+
+    expect(trackEventSpy).toHaveBeenCalledWith({
+      name: 'mentor_bookmark_toggle',
+      feature: 'mentor_pool',
+      metadata: {
+        mentor_id: 101,
+        action: 'remove',
+        button_location: 'favorites_list',
       },
     });
   });

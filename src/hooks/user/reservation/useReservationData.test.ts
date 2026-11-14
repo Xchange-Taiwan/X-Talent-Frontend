@@ -509,4 +509,41 @@ describe('useReservationData (mentor)', () => {
       'stale-pending',
     ]);
   });
+
+  it('filters cancelled reservations out of upcomingSorted and derives them into history without duplicates (#881)', async () => {
+    mockFetch.mockImplementation(({ state }) => {
+      if (state === 'MENTOR_UPCOMING') {
+        return Promise.resolve({
+          items: [
+            {
+              ...makeReservation('upcoming-later'),
+              dtstart: 1700007200,
+            },
+            {
+              ...makeReservation('stale-upcoming-cancelled'),
+              dtstart: 1700001800,
+              cancelledBy: 'MENTEE' as const,
+            },
+            {
+              ...makeReservation('upcoming-sooner'),
+              dtstart: 1700003600,
+            },
+          ],
+          next_dtend: 0,
+        });
+      }
+      return Promise.resolve({ items: [], next_dtend: 0 });
+    });
+
+    const { result } = renderHook(() => useReservationData({ role: 'mentor' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.data?.upcoming.map((it) => it.id)).toEqual([
+      'upcoming-sooner',
+      'upcoming-later',
+    ]);
+    expect(result.current.data?.history.map((it) => it.id)).toEqual([
+      'stale-upcoming-cancelled',
+    ]);
+  });
 });

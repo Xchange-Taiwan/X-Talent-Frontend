@@ -1,9 +1,4 @@
-import {
-  AsyncReadManager,
-  type AsyncReadOptions,
-  type AsyncReadResult,
-} from '@/lib/asyncReadManager';
-import { createKeyedCache } from '@/lib/createKeyedCache';
+import { AsyncReadManager, type AsyncReadResult } from '@/lib/asyncReadManager';
 import type { RawMentorTimeslot } from '@/lib/profile/scheduleHelpers';
 
 /** One cache entry per mentor *and* calendar month. */
@@ -26,77 +21,12 @@ function toCacheKey({ userId, year, month }: ScheduleReadKey): string {
 }
 
 // Private to this module: nothing outside MentorScheduleReadModel may reach
-// the schedule cache or the manager directly, so the key shape and the cache
-// policy live in exactly one place. Months carry no TTL - a mentor's own
-// schedule only changes through this app's own writes (save, discard,
-// explicit reload), all of which come back through `set()` / `refresh()`
-// below. See CONTEXT.md ("Staleness Contract").
-const cache = createKeyedCache<string, RawMentorTimeslot[]>();
-const manager = new AsyncReadManager<string, RawMentorTimeslot[]>(cache);
-
-/**
- * Run one fetch for `key` to completion with no component subscribed to it.
- *
- * `AsyncReadManager` aborts a key's in-flight fetch the moment its last
- * listener unsubscribes, so both "warm this month even though nothing is
- * mounted on it" (`prefetch`) and "refetch this month and tell me when the
- * result has landed" (`refresh`) need a listener that outlives the request.
- * This holds one until the manager publishes a result, then drops it.
- *
- * Resolves with the published result, or `null` when the fetch was
- * superseded before it could publish - the key was cleared or overwritten
- * mid-flight (e.g. an account switch), which the manager signals by aborting
- * and never notifying. Never rejects: a failed fetch is a published result
- * carrying `error`, not a throw.
- */
-function readOnce(
-  cacheKey: string,
-  fetcher: ScheduleFetcher,
-  options?: AsyncReadOptions<string, RawMentorTimeslot[]>
-): Promise<AsyncReadResult<RawMentorTimeslot[]> | null> {
-  return new Promise((resolve) => {
-    // `subscribe` can notify synchronously (cache hit), i.e. before it has
-    // handed back the unsubscribe function - hence the box rather than a
-    // plain local, plus the `settled` re-check after it returns.
-    const handle: { unsubscribe?: () => void } = {};
-    let settled = false;
-
-    const finish = (
-      result: AsyncReadResult<RawMentorTimeslot[]> | null
-    ): void => {
-      if (settled) return;
-      settled = true;
-      handle.unsubscribe?.();
-      resolve(result);
-    };
-
-    const guarded: ScheduleFetcher = async (signal) => {
-      try {
-        return await fetcher(signal);
-      } finally {
-        // An aborted fetch is never notified about, so this is the only
-        // signal that no result is coming. Unsubscribing here is safe
-        // precisely because there is no cache write left to protect.
-        if (signal.aborted) finish(null);
-      }
-    };
-
-    handle.unsubscribe = manager.subscribe(
-      cacheKey,
-      guarded,
-      (result) => {
-        // The manager writes the cache and clears its in-flight entry before
-        // notifying, so dropping the subscription from here cannot abort the
-        // very fetch that produced this result.
-        if (result.isLoading) return;
-        finish(result);
-      },
-      options
-    );
-
-    if (settled) handle.unsubscribe();
-  });
-}
+// the schedule manager directly, so the key shape and the cache policy live in
+// exactly one place. Months carry no TTL - a mentor's own schedule only
+// changes through this app's own writes (save, discard, explicit reload), all
+// of which come back through `set()` / `refresh()` below. See CONTEXT.md
+// ("Staleness Contract").
+const manager = new AsyncReadManager<string, RawMentorTimeslot[]>();
 
 export interface MentorScheduleReadModel {
   /** Synchronous cached-snapshot read; does not trigger a fetch. */
@@ -161,10 +91,10 @@ export const scheduleReadModel: MentorScheduleReadModel = {
     return manager.subscribe(toCacheKey(key), fetcher, onUpdate, options);
   },
   refresh(key, fetcher) {
-    return readOnce(toCacheKey(key), fetcher, { force: true });
+    return manager.refresh(toCacheKey(key), fetcher);
   },
   prefetch(key, fetcher) {
-    void readOnce(toCacheKey(key), fetcher);
+    void manager.prefetch(toCacheKey(key), fetcher);
   },
   clear() {
     manager.clear();

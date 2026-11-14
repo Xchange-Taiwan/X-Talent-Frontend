@@ -118,6 +118,7 @@ describe('useConsumePendingFavorite', () => {
         metadata: {
           mentor_id: 101,
           action: 'add',
+          button_location: 'profile_header',
         },
       });
     });

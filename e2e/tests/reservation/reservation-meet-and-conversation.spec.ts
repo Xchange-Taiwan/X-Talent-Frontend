@@ -1,26 +1,10 @@
 import { expect, Page, test } from '@playwright/test';
 
-import { setSignedSessionCookie } from '../../helpers/session';
+import { seedMockAuthSession } from '../../helpers/session';
 
 const USER_ID = '1';
 const PAGE_URL = '/reservation/mentee?tab=upcoming';
 const RESERVATION_ID = 301;
-
-function makeSession() {
-  return {
-    user: {
-      id: USER_ID,
-      name: 'Test Mentee',
-      isMentor: false,
-      onBoarding: true,
-      jobTitle: '',
-      company: '',
-      personalLinks: [],
-    },
-    accessToken: 'mock-token',
-    expires: '2099-01-01T00:00:00.000Z',
-  };
-}
 
 function makeUpcomingReservationWithConversation() {
   return {
@@ -65,20 +49,11 @@ function makeUpcomingReservationWithConversation() {
 }
 
 async function setupMenteePageMocks(page: Page): Promise<void> {
-  await setSignedSessionCookie(page, {
-    ...makeSession().user,
-    token: 'mock-access-token',
-  });
-
-  await page.route(/\/api\/auth\/session/, (route) => {
-    if (route.request().method() === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(makeSession()),
-      });
-    }
-    return route.continue();
+  await seedMockAuthSession(page, {
+    id: USER_ID,
+    name: 'Test Mentee',
+    isMentor: false,
+    onBoarding: true,
   });
 
   await page.route(

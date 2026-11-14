@@ -19,6 +19,9 @@ export const FAVORITE_MENTOR_ERROR_TOAST_MESSAGE = '收藏操作失敗，請稍�
 
 export type FavoriteMentorAnalyticsFeature = 'mentor_pool' | 'profile';
 
+export type FavoriteMentorAnalyticsLocation =
+  'mentor_pool_list' | 'profile_header' | 'favorites_list';
+
 const FAVORITED_BIT = 1;
 const PENDING_BIT = 2;
 
@@ -38,6 +41,7 @@ export interface UseFavoriteMentorOptions {
   mentorId: number;
   mentorSnapshot?: MentorType;
   analyticsFeature?: FavoriteMentorAnalyticsFeature;
+  analyticsLocation?: FavoriteMentorAnalyticsLocation;
 }
 
 export interface UseFavoriteMentorResult {
@@ -53,9 +57,13 @@ export function useFavoriteMentor({
   mentorId,
   mentorSnapshot,
   analyticsFeature = 'mentor_pool',
+  analyticsLocation,
 }: UseFavoriteMentorOptions): UseFavoriteMentorResult {
   const sessionContext = useContext(SessionContext);
   const router = useOptionalRouter();
+  const resolvedAnalyticsLocation: FavoriteMentorAnalyticsLocation =
+    analyticsLocation ??
+    (analyticsFeature === 'profile' ? 'profile_header' : 'mentor_pool_list');
 
   const session = sessionContext?.data ?? null;
   const sessionStatus = sessionContext?.status ?? 'unauthenticated';
@@ -136,6 +144,7 @@ export function useFavoriteMentor({
       metadata: {
         mentor_id: mentorId,
         action: optimisticAction,
+        button_location: resolvedAnalyticsLocation,
       },
     });
 
@@ -152,6 +161,7 @@ export function useFavoriteMentor({
     }
   }, [
     analyticsFeature,
+    resolvedAnalyticsLocation,
     isSelf,
     isIdentityUnresolved,
     isAuthenticated,

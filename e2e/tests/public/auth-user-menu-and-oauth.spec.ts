@@ -1,12 +1,12 @@
 import { expect, Page, test } from '@playwright/test';
 
 import { mockApiRoute } from '../../helpers/route';
-import { setSignedSessionCookie } from '../../helpers/session';
+import { seedMockAuthSession } from '../../helpers/session';
 
 const USER_ID = '999998';
 
 async function setupLoggedInUser(page: Page): Promise<void> {
-  await setSignedSessionCookie(page, {
+  await seedMockAuthSession(page, {
     id: USER_ID,
     name: 'Alice Chen',
     onBoarding: true,
@@ -19,7 +19,6 @@ async function setupLoggedInUser(page: Page): Promise<void> {
         url: 'https://www.linkedin.com/in/alicechen',
       },
     ],
-    token: 'mock-access-token',
   });
 }
 

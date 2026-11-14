@@ -1,7 +1,7 @@
 import { expect, Page, test } from '@playwright/test';
 
 import { mockApiRoute } from '../../helpers/route';
-import { setSignedSessionCookie } from '../../helpers/session';
+import { seedMockAuthSession } from '../../helpers/session';
 
 test.use({ timezoneId: 'Asia/Taipei' });
 
@@ -13,43 +13,14 @@ const RESERVATION_ID = 501;
 const SLOT_DTSTART = 1784253600;
 const SLOT_DTEND = 1784255400;
 
-function makeJWTPayload(userId: string) {
-  return {
-    id: userId,
+async function setupMentorSession(page: Page): Promise<void> {
+  await seedMockAuthSession(page, {
+    id: REAL_MENTOR_ID,
     name: 'Test Mentor',
     isMentor: true,
     onBoarding: true,
     jobTitle: 'Software Engineer',
     company: 'Own Company',
-    personalLinks: [],
-    token: 'mock-access-token',
-  };
-}
-
-async function setupMentorSession(page: Page): Promise<void> {
-  await setSignedSessionCookie(page, makeJWTPayload(REAL_MENTOR_ID));
-
-  await page.route(/\/api\/auth\/session/, (route) => {
-    if (route.request().method() === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          user: {
-            id: REAL_MENTOR_ID,
-            name: 'Test Mentor',
-            isMentor: true,
-            onBoarding: true,
-            jobTitle: 'Software Engineer',
-            company: 'Own Company',
-            personalLinks: [],
-          },
-          accessToken: 'mock-access-token',
-          expires: '2099-01-01T00:00:00.000Z',
-        }),
-      });
-    }
-    return route.continue();
   });
 }
 

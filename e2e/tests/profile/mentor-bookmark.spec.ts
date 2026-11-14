@@ -2,7 +2,10 @@ import { expect, type Page, test } from '@playwright/test';
 
 import { captureEvidence } from '../../helpers/evidence';
 import { mockApiRoute } from '../../helpers/route';
-import { setSignedSessionCookie } from '../../helpers/session';
+import {
+  clearMockAuthSession,
+  seedMockAuthSession,
+} from '../../helpers/session';
 
 test.use({ timezoneId: 'Asia/Taipei' });
 
@@ -107,32 +110,12 @@ async function setupAuthenticatedViewer(
     isMentor: false,
   }
 ) {
-  await setSignedSessionCookie(page, {
+  await seedMockAuthSession(page, {
     id: user.id,
     name: user.name,
     isMentor: user.isMentor,
     onBoarding: true,
     token: 'mock-auth-token',
-  });
-
-  await page.route(/\/api\/auth\/session/, (route) => {
-    if (route.request().method() === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          user: {
-            id: user.id,
-            name: user.name,
-            isMentor: user.isMentor,
-            onBoarding: true,
-          },
-          accessToken: 'mock-auth-token',
-          expires: '2099-01-01T00:00:00.000Z',
-        }),
-      });
-    }
-    return route.continue();
   });
 }
 
@@ -156,11 +139,15 @@ async function setupCommonSupportRoutes(page: Page) {
     },
   });
 
-  await mockApiRoute(page, /\/v1\/notifications\/unread-count/, {
-    body: { code: '0', msg: 'ok', data: { unread_count: 0 } },
-  });
+  await mockApiRoute(
+    page,
+    /\/v1\/(?:users\/[^/]+\/)?notifications\/unread-count/,
+    {
+      body: { code: '0', msg: 'ok', data: { unread_count: 0 } },
+    }
+  );
 
-  await mockApiRoute(page, /\/v1\/notifications(\?|$)/, {
+  await mockApiRoute(page, /\/v1\/(?:users\/[^/]+\/)?notifications(\?|$)/, {
     body: {
       code: '0',
       msg: 'ok',
@@ -484,15 +471,7 @@ test.describe('Mentor 書籤收藏 (#758)', () => {
     ).toHaveCount(0);
 
     // 3. 清除登入狀態後，未登入訪客點擊卡片書籤導向 /auth/signin?callbackUrl=...
-    await page.context().clearCookies();
-    await page.unroute(/\/api\/auth\/session/);
-    await page.route(/\/api\/auth\/session/, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({}),
-      })
-    );
+    await clearMockAuthSession(page);
 
     await page.goto('/mentor-pool?q=design');
     const guestBookmarkBtn = page

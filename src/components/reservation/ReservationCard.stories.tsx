@@ -105,7 +105,7 @@ export const Reject: Story = {
   },
 };
 
-// 4. System Auto-Cancelled State: Reservation timed out without confirmation 24h before start.
+// 4. System Auto-Cancelled State (Mentee View): Reservation timed out without confirmation 24h before start.
 export const SystemAutoCancelled: Story = {
   args: {
     variant: 'history',
@@ -116,11 +116,6 @@ export const SystemAutoCancelled: Story = {
       dtend: Math.floor(Date.now() / 1000) - 23 * 3600,
       cancelledBy: 'SYSTEM',
     },
-    headerAction: (
-      <Badge variant="secondary" role="status">
-        系統自動取消
-      </Badge>
-    ),
     footer: (
       <ReservationConversationDialog
         reservation={{
@@ -128,6 +123,29 @@ export const SystemAutoCancelled: Story = {
           cancelledBy: 'SYSTEM',
         }}
         sourceRole="mentee"
+      />
+    ),
+  },
+};
+
+// 4b. System Auto-Cancelled State (Mentor View, #881): Uses canonical 已自動取消 badge + mentor 24h notice.
+export const SystemAutoCancelledMentorView: Story = {
+  args: {
+    variant: 'history',
+    sourceRole: 'mentor',
+    item: {
+      ...mockReservation,
+      dtstart: Math.floor(Date.now() / 1000) - 24 * 3600,
+      dtend: Math.floor(Date.now() / 1000) - 23 * 3600,
+      cancelledBy: 'SYSTEM',
+    },
+    footer: (
+      <ReservationConversationDialog
+        reservation={{
+          ...mockReservation,
+          cancelledBy: 'SYSTEM',
+        }}
+        sourceRole="mentor"
       />
     ),
   },
@@ -462,6 +480,35 @@ export const HistoryMentorNotHappened: Story = {
       <Badge variant="secondary" role="status">
         未進行
       </Badge>
+    ),
+  },
+};
+
+// 13. Mentee History - Resume Rating Step (#881: nextStep === 'RATE' opens Step 2 directly via reservationLifecyclePolicy)
+export const HistoryMenteeResumeRateStep: Story = {
+  args: {
+    variant: 'history',
+    sourceRole: 'mentee',
+    item: {
+      ...mockReservation,
+      feedback: {
+        meetingHappened: true,
+        rating: null,
+        nextStep: 'RATE',
+      },
+    },
+    headerAction: (
+      <MeetingFeedbackDialog
+        reservation={{
+          ...mockReservation,
+          feedback: {
+            meetingHappened: true,
+            rating: null,
+            nextStep: 'RATE',
+          },
+        }}
+        onSubmitFeedback={async () => {}}
+      />
     ),
   },
 };
