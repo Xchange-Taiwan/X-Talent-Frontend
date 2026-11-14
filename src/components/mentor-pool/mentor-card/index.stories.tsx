@@ -1,4 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
+import { useLayoutEffect } from 'react';
+
+import { favoriteMentorStore } from '@/stores/favoriteMentorStore';
 
 import { mockMentors } from '../__mocks__/mentors.mock';
 import { buildMentorCardTags } from '../mentor-card-list';
@@ -133,4 +136,26 @@ export const ShortBioWithoutRole: Story = {
     about: '簡短的一行自介。',
     haveTopicLabels: buildMentorCardTags(mockMentors[0]),
   },
+};
+
+function SeededBookmarkedCardStory(
+  props: React.ComponentProps<typeof MentorCard>
+) {
+  useLayoutEffect(() => {
+    favoriteMentorStore.setAdapter({
+      fetchFavoriteMentors: async () => [],
+      addFavoriteMentor: async () => {},
+      removeFavoriteMentor: async () => {},
+    });
+    favoriteMentorStore.seedFavorites('test-user-id', [props.id]);
+  }, [props.id]);
+
+  return <MentorCard {...props} />;
+}
+
+export const Bookmarked: Story = {
+  args: {
+    ...Default.args,
+  },
+  render: (args) => <SeededBookmarkedCardStory {...args} />,
 };
