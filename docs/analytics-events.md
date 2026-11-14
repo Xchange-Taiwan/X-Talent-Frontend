@@ -127,7 +127,7 @@ trackEvent({
 | `user_menu_mentor_reservations` / `mobile_user_menu_mentor_reservations` | `UserDropdown.tsx` / `MobileUserMenu.tsx`  | `reservation` | 導師點擊「導師預約管理」                        |
 | `user_menu_become_mentor` / `mobile_user_menu_become_mentor`             | `UserDropdown.tsx` / `MobileUserMenu.tsx`  | `onboarding`  | 學員點擊「成為導師」                            |
 | `user_menu_my_reservations` / `mobile_user_menu_my_reservations`         | `UserDropdown.tsx` / `MobileUserMenu.tsx`  | `reservation` | 已登入會員點擊「我的預約」                      |
-| `user_menu_my_favorites` / `mobile_user_menu_my_favorites`               | `UserDropdown.tsx` / `MobileUserMenu.tsx`  | `profile`     | 已登入會員點擊「我的收藏」進入 `/favorites`     |
+| `user_menu_my_favorites` / `mobile_user_menu_my_favorites`               | `UserDropdown.tsx` / `MobileUserMenu.tsx`  | `navigation`  | 已登入會員點擊「我的收藏」進入 `/favorites`     |
 | `user_menu_logout` / `mobile_user_menu_logout`                           | `UserDropdown.tsx` / `MobileUserMenu.tsx`  | `auth`        | 已登入會員點擊「登出」                          |
 
 ---

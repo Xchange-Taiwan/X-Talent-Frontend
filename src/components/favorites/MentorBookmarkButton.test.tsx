@@ -176,6 +176,8 @@ describe('MentorBookmarkButton', () => {
   it('supports keyboard Tab focus and Enter / Space activation to toggle aria-pressed, aria-label, and mentor_bookmark_toggle without triggering outer container', async () => {
     const user = userEvent.setup();
     const onParentCardClick = vi.fn();
+    const onParentCardKeyDown = vi.fn();
+    const onParentCardKeyUp = vi.fn();
     const trackEventSpy = vi.spyOn(analyticsModule, 'trackEvent');
     favoriteMentorStore.seedFavorites('999', []);
 
@@ -185,7 +187,8 @@ describe('MentorBookmarkButton', () => {
         tabIndex={0}
         aria-label="導師卡片外層容器"
         onClick={onParentCardClick}
-        onKeyDown={onParentCardClick}
+        onKeyDown={onParentCardKeyDown}
+        onKeyUp={onParentCardKeyUp}
       >
         <MentorBookmarkButton mentorId={101} mentorName="陳宥廷 Austin" />
       </div>
@@ -202,15 +205,23 @@ describe('MentorBookmarkButton', () => {
     await user.tab();
     expect(button).toHaveFocus();
     expect(screen.getByRole('tooltip')).toHaveTextContent('收藏 陳宥廷 Austin');
+    expect(onParentCardClick).not.toHaveBeenCalled();
+    onParentCardKeyDown.mockClear();
+    onParentCardKeyUp.mockClear();
 
     await user.keyboard('{Enter}');
 
     expect(onParentCardClick).not.toHaveBeenCalled();
+    expect(onParentCardKeyDown).not.toHaveBeenCalled();
+    expect(onParentCardKeyUp).not.toHaveBeenCalled();
     const favoritedButton = screen.getByRole('button', {
       name: '取消收藏 陳宥廷 Austin',
     });
     expect(favoritedButton).toHaveFocus();
     expect(favoritedButton).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('tooltip')).toHaveTextContent(
+      '取消收藏 陳宥廷 Austin'
+    );
     await waitFor(() => {
       expect(favoritedButton).not.toHaveAttribute('aria-busy');
     });
@@ -229,6 +240,8 @@ describe('MentorBookmarkButton', () => {
     await user.keyboard(' ');
 
     expect(onParentCardClick).not.toHaveBeenCalled();
+    expect(onParentCardKeyDown).not.toHaveBeenCalled();
+    expect(onParentCardKeyUp).not.toHaveBeenCalled();
     const unfavoritedButton = screen.getByRole('button', {
       name: '收藏 陳宥廷 Austin',
     });

@@ -106,56 +106,115 @@ describe('MentorCard (#757)', () => {
     const user = userEvent.setup();
     const trackEventSpy = vi.spyOn(analyticsModule, 'trackEvent');
     const onLinkClick = vi.fn((event: Event) => event.preventDefault());
-    const onArticleBubbleClick = vi.fn();
+    const onDocumentClick = vi.fn();
+    const onDocumentKeyDown = vi.fn();
+    const onDocumentKeyUp = vi.fn();
     favoriteMentorStore.seedFavorites('9001', []);
 
     renderWithAuthenticatedSession(<MentorCard {...buildCardProps()} />);
+    document.addEventListener('click', onDocumentClick);
+    document.addEventListener('keydown', onDocumentKeyDown);
+    document.addEventListener('keyup', onDocumentKeyUp);
 
-    const article = screen.getByRole('article');
-    const cardLink = screen.getByRole('link', {
-      name: '前往 Zahra Mirzakhani 的個人頁面',
-    });
-    const bookmarkButton = screen.getByRole('button', {
-      name: '收藏 Zahra Mirzakhani',
-    });
+    try {
+      const cardLink = screen.getByRole('link', {
+        name: '前往 Zahra Mirzakhani 的個人頁面',
+      });
+      const bookmarkButton = screen.getByRole('button', {
+        name: '收藏 Zahra Mirzakhani',
+      });
 
-    expect(cardLink).toHaveAttribute('href', '/profile/101');
-    expect(cardLink).toHaveAttribute(
-      'data-analytics-event',
-      'mentor_card_click'
-    );
-    expect(cardLink).toHaveAttribute('data-analytics-feature', 'mentor_pool');
-    expect(cardLink).toHaveAttribute(
-      'data-analytics-location',
-      'mentor_pool_list'
-    );
-    expect(cardLink).toHaveAttribute('data-analytics-param-mentor-id', '101');
-    expect(cardLink).toHaveClass('z-10');
-    expect(bookmarkButton.parentElement).toHaveClass('z-20');
+      expect(cardLink).toHaveAttribute('href', '/profile/101');
+      expect(cardLink).toHaveAttribute(
+        'data-analytics-event',
+        'mentor_card_click'
+      );
+      expect(cardLink).toHaveAttribute('data-analytics-feature', 'mentor_pool');
+      expect(cardLink).toHaveAttribute(
+        'data-analytics-location',
+        'mentor_pool_list'
+      );
+      expect(cardLink).toHaveAttribute('data-analytics-param-mentor-id', '101');
+      expect(cardLink).toHaveClass('z-10');
+      expect(bookmarkButton.parentElement).toHaveClass('z-20');
 
-    cardLink.addEventListener('click', onLinkClick);
-    article.addEventListener('click', onArticleBubbleClick);
+      cardLink.addEventListener('click', onLinkClick);
 
-    await user.click(bookmarkButton);
+      await user.click(bookmarkButton);
 
-    expect(onLinkClick).not.toHaveBeenCalled();
-    expect(onArticleBubbleClick).not.toHaveBeenCalled();
-    expect(addMock).toHaveBeenCalledWith(101);
-    expect(trackEventSpy).toHaveBeenCalledWith({
-      name: 'mentor_bookmark_toggle',
-      feature: 'mentor_pool',
-      metadata: {
-        mentor_id: 101,
-        action: 'add',
-        button_location: 'mentor_pool_list',
-      },
-    });
+      expect(onLinkClick).not.toHaveBeenCalled();
+      expect(onDocumentClick).not.toHaveBeenCalled();
+      expect(addMock).toHaveBeenCalledWith(101);
+      expect(trackEventSpy).toHaveBeenCalledWith({
+        name: 'mentor_bookmark_toggle',
+        feature: 'mentor_pool',
+        metadata: {
+          mentor_id: 101,
+          action: 'add',
+          button_location: 'mentor_pool_list',
+        },
+      });
 
-    await waitFor(() => {
-      expect(
-        screen.getByRole('button', { name: '取消收藏 Zahra Mirzakhani' })
-      ).not.toHaveAttribute('aria-busy');
-    });
+      const activeBookmarkButton = screen.getByRole('button', {
+        name: '取消收藏 Zahra Mirzakhani',
+      });
+      expect(activeBookmarkButton).toHaveFocus();
+      await waitFor(() => {
+        expect(activeBookmarkButton).not.toHaveAttribute('aria-busy');
+      });
+
+      await user.keyboard('{Enter}');
+
+      expect(onLinkClick).not.toHaveBeenCalled();
+      expect(onDocumentClick).not.toHaveBeenCalled();
+      expect(onDocumentKeyDown).not.toHaveBeenCalled();
+      expect(onDocumentKeyUp).not.toHaveBeenCalled();
+      expect(removeMock).toHaveBeenCalledWith(101);
+      expect(trackEventSpy).toHaveBeenLastCalledWith({
+        name: 'mentor_bookmark_toggle',
+        feature: 'mentor_pool',
+        metadata: {
+          mentor_id: 101,
+          action: 'remove',
+          button_location: 'mentor_pool_list',
+        },
+      });
+
+      const idleBookmarkButton = screen.getByRole('button', {
+        name: '收藏 Zahra Mirzakhani',
+      });
+      expect(idleBookmarkButton).toHaveFocus();
+      await waitFor(() => {
+        expect(idleBookmarkButton).not.toHaveAttribute('aria-busy');
+      });
+
+      await user.keyboard(' ');
+
+      expect(onLinkClick).not.toHaveBeenCalled();
+      expect(onDocumentClick).not.toHaveBeenCalled();
+      expect(onDocumentKeyDown).not.toHaveBeenCalled();
+      expect(onDocumentKeyUp).not.toHaveBeenCalled();
+      expect(addMock).toHaveBeenCalledTimes(2);
+      expect(trackEventSpy).toHaveBeenLastCalledWith({
+        name: 'mentor_bookmark_toggle',
+        feature: 'mentor_pool',
+        metadata: {
+          mentor_id: 101,
+          action: 'add',
+          button_location: 'mentor_pool_list',
+        },
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('button', { name: '取消收藏 Zahra Mirzakhani' })
+        ).not.toHaveAttribute('aria-busy');
+      });
+    } finally {
+      document.removeEventListener('click', onDocumentClick);
+      document.removeEventListener('keydown', onDocumentKeyDown);
+      document.removeEventListener('keyup', onDocumentKeyUp);
+    }
   });
 
   it('forwards analyticsLocation="favorites_list" to both card Link and embedded bookmark button toggle analytics without triggering Link click', async () => {

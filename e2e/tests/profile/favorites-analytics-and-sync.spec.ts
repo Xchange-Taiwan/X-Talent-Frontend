@@ -429,6 +429,10 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     await expect(poolRemoveBtn).toBeVisible();
     await expect(poolRemoveBtn).toHaveAttribute('aria-pressed', 'true');
 
+    await page.mouse.move(10, 10);
+    await poolRemoveBtn.evaluate((el: HTMLElement) => el.blur());
+    await captureEvidence(page, 'favorites-mentor-pool-bookmarked');
+
     await expect
       .poll(async () => {
         const events = await getDataLayerEvents(page);
@@ -771,6 +775,9 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     await expect(
       page.getByText('收藏操作失敗，請稍後再試', { exact: true })
     ).toBeVisible();
+    await captureEvidence(page, 'favorites-error-rollback-toast', {
+      settleDelayMs: 100,
+    });
   });
 
   test('未登入訪客收藏登入返回自動同步埋點，且導師本人檢視不可見自己的收藏按鈕或收藏名單', async ({
