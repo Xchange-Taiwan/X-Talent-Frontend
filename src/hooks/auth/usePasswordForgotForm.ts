@@ -5,6 +5,8 @@ import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
 import { useToast } from '@/components/ui/use-toast';
+import { setPendingPasswordResetEmail } from '@/lib/auth/authFlowStorage';
+import { PASSWORD_FORGOT_SUCCESS_HREF } from '@/lib/routes';
 import { PasswordForgotSchema } from '@/schemas/auth';
 import { resetPassword } from '@/services/auth/resetPasswordByEmail';
 
@@ -27,8 +29,8 @@ export default function usePasswordForgotForm() {
 
     try {
       await resetPassword(values.email);
-      sessionStorage.setItem('pending_reset_email', values.email);
-      router.push('/auth/password-forgot-success');
+      setPendingPasswordResetEmail(values.email);
+      router.push(PASSWORD_FORGOT_SUCCESS_HREF);
     } catch (error) {
       setIsSubmitting(false);
       toast({
