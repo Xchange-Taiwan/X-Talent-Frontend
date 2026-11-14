@@ -1320,5 +1320,164 @@ describe('cloud-converge-loop', () => {
       expect(res.evaluation.e2ePassed).toBe(false);
       expect(resolveConvergeExitCode(res)).toBe(1);
     });
+
+    it('processes .agents/tmp/delete-files.txt safely, blocks traversal/protected/symlink-parent/dir targets, and cleans up on ENOENT or rollback', async () => {
+      const tmpRepo = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'converge-del-manifest-')
+      );
+      const inRepo = (...parts) => path.join(tmpRepo, ...parts);
+      const manifestFile = inRepo('.agents', 'tmp', 'delete-files.txt');
+      try {
+        fs.mkdirSync(inRepo('src', 'sub'), { recursive: true });
+        fs.mkdirSync(inRepo('.agents', 'tmp'), { recursive: true });
+        fs.mkdirSync(inRepo('.git'), { recursive: true });
+        fs.mkdirSync(inRepo('.gemini'), { recursive: true });
+
+        fs.writeFileSync(inRepo('src', 'legacy.ts'), 'old', 'utf8');
+        fs.writeFileSync(inRepo('.env.local'), 'sec', 'utf8');
+        fs.writeFileSync(inRepo('.gitignore'), 'dist/', 'utf8');
+        fs.writeFileSync(inRepo('.git', 'HEAD'), 'ref', 'utf8');
+        fs.writeFileSync(inRepo('.gemini', 'settings.json'), '{}', 'utf8');
+
+        const fixPrompt = buildRoundFixPrompt({
+          round: 1,
+          maxRounds: 3,
+          ticketNumber: '878',
+          deterministicErrors: ['err'],
+          e2eErrors: [],
+          evaluation: null,
+        });
+        expect(fixPrompt).toContain('.agents/tmp/delete-files.txt');
+
+        const logs = [];
+        let roundNum = 0;
+        const res = await runConvergeLoop(
+          { maxRounds: 2, runE2e: false, runAiReview: false },
+          {
+            cwd: tmpRepo,
+            log: (msg) => logs.push(msg),
+            writeFile: () => {},
+            saveSnapshot: () => '',
+            restoreSnapshot: () => {},
+            execStep: (cmd, args) => {
+              if (cmd === 'pnpm' && args[0] === 'lint') {
+                roundNum += 1;
+                if (roundNum === 1) {
+                  return {
+                    ok: false,
+                    stderr: 'lint failure detail tail',
+                    combined: 'lint failure detail tail',
+                  };
+                }
+                return { ok: true, stdout: '', stderr: '' };
+              }
+              if (cmd === 'npx' && args[0] === 'gemini') {
+                fs.writeFileSync(
+                  manifestFile,
+                  [
+                    'src/legacy.ts',
+                    './src/does-not-exist.ts',
+                    'src/sub',
+                    '../outside.txt',
+                    '/etc/passwd',
+                    'src/bad\0file.ts',
+                    '.env.local',
+                    '.git/HEAD',
+                    '.agents/tmp/keep.txt',
+                    '.gemini/settings.json',
+                    '.gitignore',
+                  ].join('\n'),
+                  'utf8'
+                );
+                return { ok: true, stdout: '', stderr: '' };
+              }
+              return { ok: true, stdout: '', stderr: '' };
+            },
+          }
+        );
+
+        expect(res.converged).toBe(true);
+        expect(logs).toContain('lint failure detail tail');
+        expect(fs.existsSync(inRepo('src', 'legacy.ts'))).toBe(false);
+        expect(fs.existsSync(manifestFile)).toBe(false);
+        expect(fs.existsSync(inRepo('src', 'sub'))).toBe(true);
+        expect(fs.existsSync(inRepo('.env.local'))).toBe(true);
+        expect(fs.existsSync(inRepo('.gitignore'))).toBe(true);
+        expect(fs.existsSync(inRepo('.git', 'HEAD'))).toBe(true);
+        expect(fs.existsSync(inRepo('.gemini', 'settings.json'))).toBe(true);
+      } finally {
+        fs.rmSync(tmpRepo, { recursive: true, force: true });
+      }
+
+      // Verify symlink-parent blocking and rollback ordering
+      const unlinked = [];
+      const eventOrder = [];
+      const mockFs = {
+        existsSync: (p) => String(p).endsWith('delete-files.txt'),
+        lstatSync: (p) => {
+          const norm = String(p).replace(/\\/g, '/');
+          if (norm.endsWith('delete-files.txt')) {
+            return {
+              isFile: () => true,
+              isSymbolicLink: () => false,
+              isDirectory: () => false,
+            };
+          }
+          if (norm.endsWith('/symlink-dir')) {
+            return {
+              isFile: () => false,
+              isSymbolicLink: () => true,
+              isDirectory: () => true,
+            };
+          }
+          return {
+            isFile: () => true,
+            isSymbolicLink: () => false,
+            isDirectory: () => true,
+          };
+        },
+        readFileSync: () => 'symlink-dir/secret.ts\nsrc/aborted.ts',
+        unlinkSync: (p) => {
+          const norm = String(p).replace(/\\/g, '/');
+          unlinked.push(norm);
+          eventOrder.push(`unlink:${path.posix.basename(norm)}`);
+        },
+      };
+
+      let abortRound = 0;
+      await runConvergeLoop(
+        { maxRounds: 2, runE2e: false, runAiReview: false },
+        {
+          cwd: '/repo',
+          fsImpl: mockFs,
+          log: () => {},
+          writeFile: () => {},
+          saveSnapshot: () => 'snap-before-gemini',
+          restoreSnapshot: (sha) => eventOrder.push(`restore:${sha}`),
+          execStep: (cmd, args) => {
+            if (cmd === 'pnpm' && args[0] === 'type-check') {
+              abortRound += 1;
+              if (abortRound <= 2) {
+                return { ok: false, stderr: 'TS error', combined: 'TS error' };
+              }
+              return { ok: true, stdout: '', stderr: '' };
+            }
+            if (cmd === 'npx' && args[0] === 'gemini') {
+              return { ok: false, timedOut: true, stderr: 'timed out' };
+            }
+            return { ok: true, stdout: '', stderr: '' };
+          },
+        }
+      );
+
+      expect(unlinked.some((p) => p.endsWith('secret.ts'))).toBe(false);
+      expect(unlinked.some((p) => p.endsWith('aborted.ts'))).toBe(true);
+      expect(unlinked.some((p) => p.endsWith('delete-files.txt'))).toBe(true);
+      expect(eventOrder).toEqual([
+        'unlink:aborted.ts',
+        'unlink:delete-files.txt',
+        'restore:snap-before-gemini',
+      ]);
+    });
   });
 });
