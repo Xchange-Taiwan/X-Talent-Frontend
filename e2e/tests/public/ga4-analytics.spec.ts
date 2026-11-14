@@ -170,6 +170,9 @@ test.describe('GA4 事件追蹤：page_view、scroll_depth [25,50,75,100]、核�
         body: JSON.stringify(MOCK_MENTORS_RESPONSE),
       })
     );
+    await mockApiRoute(page, /\/v1\/me\/favorite-mentors(\?|$)/, {
+      body: { code: '0', msg: 'ok', data: { mentors: [] } },
+    });
   });
 
   test('驗證初次進站與 SPA 換頁 page_view、分段滾動單一 scroll_depth [25,50,75,100] 與桌機導覽埋點', async ({

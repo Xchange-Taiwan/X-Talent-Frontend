@@ -2,12 +2,16 @@ import { StaticImageData } from 'next/image';
 import Link from 'next/link';
 import { forwardRef, memo } from 'react';
 
+import { MentorBookmarkButton } from '@/components/favorites';
 import { FOCUS_WITHIN_RING_CLASSES } from '@/lib/ui/focusRing';
 import { HOVER_CLICKABLE_CARD_CLASSES } from '@/lib/ui/hoverStyles';
 import { cn } from '@/lib/utils';
+import type { MentorType } from '@/types/mentor';
 
 import { AvatarWithBadge } from './AvatarWithBadge';
 import { Information } from './Information';
+
+export type MentorCardAnalyticsLocation = 'mentor_pool_list' | 'favorites_list';
 
 export interface MentorCardProps {
   id: number;
@@ -21,6 +25,8 @@ export interface MentorCardProps {
   ratingAverage?: number | null;
   completedMeetingCount?: number | null;
   priority?: boolean;
+  mentorSnapshot?: MentorType;
+  analyticsLocation?: MentorCardAnalyticsLocation;
 }
 
 const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
@@ -37,6 +43,8 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
       ratingAverage = null,
       completedMeetingCount = null,
       priority = false,
+      mentorSnapshot,
+      analyticsLocation = 'mentor_pool_list',
     }: MentorCardProps,
     ref
   ) => {
@@ -55,10 +63,21 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
           data-analytics-click="mentor_card"
           data-analytics-event="mentor_card_click"
           data-analytics-feature="mentor_pool"
-          data-analytics-location="mentor_pool_list"
+          data-analytics-location={analyticsLocation}
           data-analytics-param-mentor-id={String(id)}
           className="absolute inset-0 z-10"
         ></Link>
+        <MentorBookmarkButton
+          mentorId={id}
+          mentorName={name}
+          mentorSnapshot={mentorSnapshot}
+          analyticsFeature="mentor_pool"
+          analyticsLocation={analyticsLocation}
+          variant="overlay"
+          tooltipSide="bottom"
+          tooltipAlign="end"
+          wrapperClassName="absolute top-3 right-3 z-20"
+        />
         <AvatarWithBadge
           avatar={avatar}
           years={years}

@@ -7,6 +7,10 @@ import { useToast } from '@/components/ui/use-toast';
 import { useOnboardingSubmit } from '@/hooks/user/onboarding/useOnboardingSubmit';
 import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
 import { trackEvent } from '@/lib/analytics';
+import {
+  getPendingFavoriteMentorId,
+  savePendingFavoriteMentor,
+} from '@/lib/favorites';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 
 import { useOnboardingForm } from './useOnboardingForm';
@@ -55,6 +59,7 @@ describe('useOnboardingForm', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    window.localStorage.clear();
 
     mockUseRouter.mockReturnValue({ push: mockPush } as unknown as ReturnType<
       typeof useRouter
@@ -242,6 +247,42 @@ describe('useOnboardingForm', () => {
       feature: 'onboarding',
     });
     expect(mockPush).toHaveBeenCalledWith('/profile/card');
+  });
+
+  it('redirects to /profile/:id instead of /profile/card after Step 5 when pendingFavoriteMentor exists (#756)', async () => {
+    savePendingFavoriteMentor(7482008160728084);
+    mockSubmitProfile.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() =>
+      useOnboardingForm({ industries: mockIndustries })
+    );
+
+    await act(async () => {
+      result.current.onSubmitStep1({
+        name: 'John Doe',
+        avatar: '',
+        language: 'zh_TW',
+      });
+    });
+    await act(async () => {
+      result.current.onSubmitStep2({
+        location: 'TWN',
+        years_of_experience: '1_3',
+        industry: 'TECH',
+      });
+    });
+    await act(async () => {
+      result.current.onSubmitStep3({ want_position: ['pos1'] });
+    });
+    await act(async () => {
+      result.current.onSubmitStep4({ want_skill: ['skill1'] });
+    });
+    await act(async () => {
+      await result.current.onSubmitStep5({ want_topic: ['topic1'] });
+    });
+
+    expect(mockPush).toHaveBeenCalledWith('/profile/7482008160728084');
+    expect(getPendingFavoriteMentorId()).toBe(7482008160728084);
   });
 
   it('should handle avatar upload failure on Step 5, aborting, setting error, and redirecting to Step 1', async () => {
