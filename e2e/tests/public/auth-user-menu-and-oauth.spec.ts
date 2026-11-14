@@ -195,7 +195,8 @@ test.describe('UserDropdown (Share Profile & Logout) & Google OAuth Callback E2E
       }
     });
 
-    await setSignedSessionCookie(page, {
+    const sessionMod = await import('../../helpers/session');
+    await sessionMod.setSignedSessionCookie(page, {
       id: USER_ID,
       name: 'Alice Chen',
       onBoarding: true,
