@@ -1,7 +1,7 @@
 import { expect, Locator, Page, test } from '@playwright/test';
 
 import { mockApiRoute } from '../../helpers/route';
-import { setSignedSessionCookie } from '../../helpers/session';
+import { seedMockAuthSession } from '../../helpers/session';
 
 // Specify timezone locally to guarantee identical time behaviours across local & CI
 test.use({ timezoneId: 'Asia/Taipei' });
@@ -12,49 +12,18 @@ test.use({ timezoneId: 'Asia/Taipei' });
 // user.
 const REAL_MENTOR_ID = '7482008160728084'; // display name "Mentee", Mentor role (E2E_MENTOR_EMAIL)
 
-// Helper to construct a flat NextAuth JWT Payload
-function makeJWTPayload(userId: string, isMentor: boolean) {
-  return {
+/**
+ * Sign in and mock next-auth session endpoints for the specified role.
+ */
+async function setupTestSession(page: Page, isMentor: boolean): Promise<void> {
+  const userId = isMentor ? REAL_MENTOR_ID : '123';
+  await seedMockAuthSession(page, {
     id: userId,
     name: 'Test Own User',
     isMentor,
     onBoarding: true,
     jobTitle: 'Software Engineer',
     company: 'Own Company',
-    personalLinks: [],
-    token: 'mock-access-token',
-  };
-}
-
-/**
- * Sign in and mock next-auth session endpoints for the specified role.
- */
-async function setupTestSession(page: Page, isMentor: boolean): Promise<void> {
-  const userId = isMentor ? REAL_MENTOR_ID : '123';
-  await setSignedSessionCookie(page, makeJWTPayload(userId, isMentor));
-
-  await page.route(/\/api\/auth\/session/, (route) => {
-    if (route.request().method() === 'GET') {
-      const session = {
-        user: {
-          id: userId,
-          name: 'Test Own User',
-          isMentor,
-          onBoarding: true,
-          jobTitle: 'Software Engineer',
-          company: 'Own Company',
-          personalLinks: [],
-        },
-        accessToken: 'mock-access-token',
-        expires: '2099-01-01T00:00:00.000Z',
-      };
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(session),
-      });
-    }
-    return route.continue();
   });
 }
 

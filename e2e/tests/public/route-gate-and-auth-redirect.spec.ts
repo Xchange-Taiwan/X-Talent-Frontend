@@ -2,7 +2,7 @@ import { expect, Page, test } from '@playwright/test';
 
 import { captureEvidence } from '../../helpers/evidence';
 import { mockApiRoute } from '../../helpers/route';
-import { setSignedSessionCookie } from '../../helpers/session';
+import { seedMockAuthSession } from '../../helpers/session';
 
 const MOCK_COUNTRIES = { code: '0', msg: 'ok', data: { TWN: '台灣' } };
 
@@ -100,36 +100,12 @@ test.describe('Route Access Policy, Callback Sanitization & Auth Guards (#878)',
     page,
   }) => {
     const userId = '999981';
-    const clientSession = {
-      user: {
-        id: userId,
-        name: 'Onboarding User',
-        avatar: '',
-        isMentor: false,
-        onBoarding: false,
-        jobTitle: '',
-        company: '',
-        personalLinks: [],
-      },
-      accessToken: 'mock-access-token',
-      expires: '2099-01-01T00:00:00.000Z',
-    };
-
-    await setSignedSessionCookie(page, {
+    await seedMockAuthSession(page, {
       id: userId,
       name: 'Onboarding User',
       onBoarding: false,
       isMentor: false,
-      token: 'mock-access-token',
     });
-
-    await page.route(/\/api\/auth\/session/, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(clientSession),
-      })
-    );
     await setupOnboardingCatalogMocks(page);
 
     await page.goto('/auth/signin');
@@ -154,36 +130,14 @@ test.describe('Route Access Policy, Callback Sanitization & Auth Guards (#878)',
     page,
   }) => {
     const userId = '999982';
-    const menteeSession = {
-      user: {
-        id: userId,
-        name: 'Active Mentee',
-        avatar: '',
-        isMentor: false,
-        onBoarding: true,
-        jobTitle: 'Frontend Developer',
-        company: 'X-Talent',
-        personalLinks: [],
-      },
-      accessToken: 'mock-access-token',
-      expires: '2099-01-01T00:00:00.000Z',
-    };
-
-    await setSignedSessionCookie(page, {
+    await seedMockAuthSession(page, {
       id: userId,
       name: 'Active Mentee',
       onBoarding: true,
       isMentor: false,
-      token: 'mock-access-token',
+      jobTitle: 'Frontend Developer',
+      company: 'X-Talent',
     });
-
-    await page.route(/\/api\/auth\/session/, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(menteeSession),
-      })
-    );
     await mockApiRoute(
       page,
       new RegExp(`/v1/users/${userId}/reservations([?]|$)`),
@@ -224,12 +178,12 @@ test.describe('Route Access Policy, Callback Sanitization & Auth Guards (#878)',
       page.getByRole('heading', { name: '登入 X-Talent 帳戶' })
     ).toBeVisible();
 
-    await setSignedSessionCookie(page, {
+    await seedMockAuthSession(page, {
       id: '999983',
       name: 'Safe Redirect User',
+      email: 'user@example.com',
       onBoarding: true,
       isMentor: false,
-      token: 'mock-access-token',
     });
 
     await page.route(/\/api\/auth\/csrf/, (route) =>
@@ -244,27 +198,6 @@ test.describe('Route Access Policy, Callback Sanitization & Auth Guards (#878)',
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({ url: new URL('/', page.url()).origin }),
-      })
-    );
-    await page.route(/\/api\/auth\/session/, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          user: {
-            id: '999983',
-            name: 'Safe Redirect User',
-            email: 'user@example.com',
-            onBoarding: true,
-            isMentor: false,
-            avatar: '',
-            jobTitle: '',
-            company: '',
-            personalLinks: [],
-          },
-          accessToken: 'mock-access-token',
-          expires: '2099-01-01T00:00:00.000Z',
-        }),
       })
     );
 

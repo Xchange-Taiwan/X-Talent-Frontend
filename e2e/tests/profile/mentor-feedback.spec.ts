@@ -2,7 +2,7 @@ import { expect, type Page, test } from '@playwright/test';
 
 import { captureEvidence } from '../../helpers/evidence';
 import { mockApiRoute } from '../../helpers/route';
-import { setSignedSessionCookie } from '../../helpers/session';
+import { seedMockAuthSession } from '../../helpers/session';
 
 test.use({ timezoneId: 'Asia/Taipei' });
 
@@ -202,32 +202,12 @@ async function setupBaseMentorMocks(
 
   await page.clock.setFixedTime(new Date(clockIso));
 
-  await setSignedSessionCookie(page, {
+  await seedMockAuthSession(page, {
     id: '9001',
     name: 'Mentee Viewer',
     isMentor: false,
     onBoarding: true,
     token: 'mock-mentee-token',
-  });
-
-  await page.route(/\/api\/auth\/session/, (route) => {
-    if (route.request().method() === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          user: {
-            id: '9001',
-            name: 'Mentee Viewer',
-            isMentor: false,
-            onBoarding: true,
-          },
-          accessToken: 'mock-mentee-token',
-          expires: '2099-01-01T00:00:00.000Z',
-        }),
-      });
-    }
-    return route.continue();
   });
 
   await mockApiRoute(
