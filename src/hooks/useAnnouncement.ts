@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 
 import { useAsyncRead } from '@/hooks/useAsyncRead';
 import { AsyncReadManager } from '@/lib/asyncReadManager';
-import { createKeyedCache } from '@/lib/createKeyedCache';
 import {
   AnnouncementData,
   fetchAnnouncement,
@@ -14,11 +13,10 @@ import {
 
 const DISMISSED_STORAGE_KEY = 'announcement-dismissed';
 
-const announcementCache = createKeyedCache<string, AnnouncementData | null>();
 export const announcementReadManager = new AsyncReadManager<
   string,
   AnnouncementData | null
->(announcementCache);
+>();
 
 export function useAnnouncement() {
   const [hasMounted, setHasMounted] = useState<boolean>(false);

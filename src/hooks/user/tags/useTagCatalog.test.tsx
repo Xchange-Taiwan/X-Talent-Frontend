@@ -6,10 +6,7 @@ import {
   fetchTagCatalog,
 } from '@/services/profile/tagCatalog';
 
-import useTagCatalog, {
-  getTagCatalogCached,
-  primeTagCatalogCacheIfEmpty,
-} from './useTagCatalog';
+import useTagCatalog, { tagCatalogReadManager } from './useTagCatalog';
 
 vi.mock('@/services/profile/tagCatalog', async () => {
   const actual = await vi.importActual<
@@ -24,6 +21,7 @@ vi.mock('@/services/profile/tagCatalog', async () => {
 describe('useTagCatalog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    tagCatalogReadManager.clear();
   });
 
   it('fetches tag catalog and updates state', async () => {
@@ -53,24 +51,24 @@ describe('useTagCatalog', () => {
     };
     vi.mocked(fetchTagCatalog).mockResolvedValueOnce(mockData);
 
-    // First fetch
-    await getTagCatalogCached('zh-TW');
+    await tagCatalogReadManager.prefetch('zh-TW', (signal) =>
+      fetchTagCatalog('zh-TW', signal)
+    );
 
     const { result } = renderHook(() => useTagCatalog('zh-TW'));
 
-    // Should load synchronously from cache (isLoading = false initially)
     expect(result.current.isLoading).toBe(false);
     expect(result.current.industry).toEqual(mockData.industry);
     expect(fetchTagCatalog).toHaveBeenCalledTimes(1);
   });
 
-  it('supports priming the cache', () => {
+  it('supports conditional cache priming via tagCatalogReadManager.prime', () => {
     const primedData = {
       ...EMPTY_TAG_CATALOGS,
       industry: [{ subject_group: 'IND_3', subject: 'Industry 3' }],
     };
 
-    primeTagCatalogCacheIfEmpty('ja', primedData);
+    tagCatalogReadManager.prime('ja', primedData, { ifEmpty: true });
 
     const { result } = renderHook(() => useTagCatalog('ja'));
 
@@ -79,42 +77,62 @@ describe('useTagCatalog', () => {
     expect(fetchTagCatalog).not.toHaveBeenCalled();
   });
 
-  it('respects initialData option for SSR behavior', () => {
+  it('respects initialData option for SSR hydration and warms the cache post-mount', () => {
     const initialData = {
       ...EMPTY_TAG_CATALOGS,
       industry: [{ subject_group: 'IND_5', subject: 'Industry 5' }],
     };
 
-    const { result } = renderHook(() => useTagCatalog('de', initialData));
+    const { result, unmount } = renderHook(() =>
+      useTagCatalog('de', initialData)
+    );
 
     expect(result.current.isLoading).toBe(false);
     expect(result.current.industry).toEqual(initialData.industry);
     expect(fetchTagCatalog).not.toHaveBeenCalled();
+    unmount();
+
+    // Subsequent mount without initialData reads the post-mount warmed cache
+    const { result: secondMount } = renderHook(() => useTagCatalog('de'));
+    expect(secondMount.current.isLoading).toBe(false);
+    expect(secondMount.current.industry).toEqual(initialData.industry);
+    expect(fetchTagCatalog).not.toHaveBeenCalled();
   });
 
-  it('treats an all-empty initialData (SSR fetch failure fallback) as missing and runs the client-side fetch', async () => {
-    const mockData = {
+  it('recovers from an all-empty SSR initialData without poisoning tagCatalogReadManager', async () => {
+    const recoveredCatalog = {
       ...EMPTY_TAG_CATALOGS,
       industry: [{ subject_group: 'IND_6', subject: 'Industry 6' }],
     };
-    vi.mocked(fetchTagCatalog).mockResolvedValueOnce(mockData);
+    vi.mocked(fetchTagCatalog).mockResolvedValueOnce(recoveredCatalog);
 
-    const { result } = renderHook(() =>
+    const { result, unmount } = renderHook(() =>
       useTagCatalog('es', EMPTY_TAG_CATALOGS)
     );
+
+    // Must NOT poison cache with EMPTY_TAG_CATALOGS on initial mount
+    expect(tagCatalogReadManager.get('es')).toBeUndefined();
+    expect(result.current.isLoading).toBe(true);
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
     });
 
     expect(fetchTagCatalog).toHaveBeenCalledTimes(1);
-    expect(result.current.industry).toEqual(mockData.industry);
+    expect(result.current.industry).toEqual(recoveredCatalog.industry);
+    expect(tagCatalogReadManager.get('es')).toEqual(recoveredCatalog);
+    unmount();
+
+    // Subsequent mount serves the recovered catalog from cache
+    const { result: nextMount } = renderHook(() => useTagCatalog('es'));
+    expect(nextMount.current.isLoading).toBe(false);
+    expect(nextMount.current.industry).toEqual(recoveredCatalog.industry);
+    expect(fetchTagCatalog).toHaveBeenCalledTimes(1);
   });
 
   it('handles fetch failures and allows subsequent retries', async () => {
     vi.mocked(fetchTagCatalog).mockRejectedValueOnce(new Error('Fetch failed'));
 
-    // First call: should fail and surface error
     const { result, unmount } = renderHook(() => useTagCatalog('fr'));
 
     expect(result.current.isLoading).toBe(true);
@@ -125,10 +143,8 @@ describe('useTagCatalog', () => {
 
     expect(result.current.error).toBe('Failed to load tag catalog');
 
-    // Unmount so we can remount and trigger a fresh fetch
     unmount();
 
-    // Second call: should trigger fetchTagCatalog again because inflight was cleaned up
     const mockData = {
       ...EMPTY_TAG_CATALOGS,
       industry: [{ subject_group: 'IND_4', subject: 'Industry 4' }],

@@ -3,6 +3,7 @@ import dayjs from 'dayjs';
 
 import type { components } from '@/types/api';
 
+import { captureEvidence } from '../../helpers/evidence';
 import { seedMockAuthSession } from '../../helpers/session';
 
 type NotificationVO = components['schemas']['NotificationVO'];
@@ -128,16 +129,86 @@ test.describe('Notification Center E2E Tests', () => {
     await expect(page.getByText('尚無新通知')).toBeVisible();
   });
 
+  test('Deduplicates unread-count bootstrap across desktop/mobile Header bells and recovers via unified retry (#879)', async ({
+    page,
+  }) => {
+    const recoveredNotif = makeNotificationVO(
+      '100',
+      'reservation_success',
+      true,
+      'Mentor Wang',
+      'mentee'
+    );
+    await seedNotificationRole(page, false);
+
+    let unreadCountRequests = 0;
+    let listRequests = 0;
+
+    await page.route(
+      /\/v1\/users\/.*\/notifications\/unread-count/,
+      (route) => {
+        unreadCountRequests += 1;
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            code: '0',
+            msg: 'ok',
+            data: { unread_count: 1 },
+          }),
+        });
+      }
+    );
+
+    await page.route(/\/v1\/users\/.*\/notifications(\?|$)/, (route) => {
+      listRequests += 1;
+      if (listRequests === 1) {
+        return route.fulfill({
+          status: 500,
+          contentType: 'application/json',
+          body: JSON.stringify({ message: 'Temporary Server Error' }),
+        });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: '0',
+          msg: 'ok',
+          data: {
+            notifications: [recoveredNotif],
+            next_cursor: null,
+          },
+        }),
+      });
+    });
+
+    await page.goto(PAGE_URL);
+
+    const bell = page.getByRole('button', { name: '開啟通知選單' });
+    await expect(bell).toBeVisible();
+    const badge = bell.locator('[aria-label*="則未讀通知"]');
+    await expect(badge).toHaveText('1');
+
+    // Desktop + mobile NotificationBell instances share NotificationStoreManager:
+    // mount bootstrap fires unread-count exactly once and defers list fetch until open.
+    expect(unreadCountRequests).toBe(1);
+    expect(listRequests).toBe(0);
+
+    await bell.click();
+    await expect(page.getByText('載入失敗，請重試')).toBeVisible();
+
+    await page.getByRole('button', { name: '重新嘗試' }).click();
+    await expect(page.getByText('Mentor Wang 已接受您的預約')).toBeVisible();
+
+    await captureEvidence(page, 'notification-bell-open');
+  });
+
   test('Unread badge count optimistic updates when marking as read', async ({
     page,
   }) => {
     const mockNotif = await setupMenteeWithNotification(page, '101');
 
-    // Hold the PUT response pending indefinitely until the test explicitly
-    // releases it. This is what actually distinguishes "optimistic update"
-    // from "waited for the response": with a fixed delay, expect(...).not
-    // .toBeVisible()'s own retry window (5s) would swallow the difference
-    // and pass either way once the delay elapses.
     let releasePut!: () => void;
     const putHeld = new Promise<void>((resolve) => {
       releasePut = resolve;
@@ -163,17 +234,9 @@ test.describe('Notification Center E2E Tests', () => {
     const bell = page.getByRole('button', { name: '開啟通知選單' });
     await expect(bell).toBeVisible();
 
-    // Scoped inside the (visible) bell button, not page-wide with .first() -
-    // a page-wide match risks silently grabbing a hidden duplicate (e.g. a
-    // responsive mobile-menu badge), which would make not.toBeVisible()
-    // trivially pass regardless of whether the real badge disappeared.
     const badge = bell.locator('[aria-label*="則未讀通知"]');
     await expect(badge).toHaveText('1');
 
-    // Everything from here on can fail (a missing element, a request that
-    // never fires) while the PUT route is already held pending - wrap the
-    // whole sequence so releasePut() always runs, not just on assertion
-    // failure specifically.
     try {
       await bell.click();
 
@@ -184,13 +247,8 @@ test.describe('Notification Center E2E Tests', () => {
       await page.getByText('Mentor Wang 已接受您的預約').click();
       await markReadRequest;
 
-      // The PUT response is still genuinely pending here - if the badge is
-      // already gone, that can only be an optimistic update, since the real
-      // response can never arrive until releasePut() is called.
       await expect(badge).not.toBeVisible();
     } finally {
-      // Always release, even on failure - otherwise the held route never
-      // resolves and leaves a dangling pending request.
       releasePut();
     }
   });
@@ -217,16 +275,10 @@ test.describe('Notification Center E2E Tests', () => {
     await bell.click();
     await page.getByText('Mentor Wang 已接受您的預約').click();
 
-    // Toast message for error with first() to avoid strict mode violations on duplicate elements
     await expect(
       page.getByText('無法將通知標示為已讀，請稍後再試').first()
     ).toBeVisible();
 
-    // The badge stays hidden by design: opening the center already marked
-    // the count as seen (showBadge = badgeCount > seenUnreadCount). Verify
-    // the rollback on the item itself instead. Reopening refreshes the list
-    // in the background - hold that refresh so what renders is the store's
-    // rolled-back state, not a fresh copy of the (unread) mock.
     let releaseRefresh!: () => void;
     const refreshHeld = new Promise<void>((resolve) => {
       releaseRefresh = resolve;
@@ -263,12 +315,10 @@ test.describe('Notification Center E2E Tests', () => {
     await page.getByRole('button', { name: '開啟通知選單' }).click();
     await page.getByText('Mentor Wang 已接受您的預約').click();
 
-    // Verify redirect endpoint
     await expect(page).toHaveURL(/\/reservation\/mentee\?tab=upcoming/);
   });
 
   test('Role switching logic functions cleanly', async ({ page }) => {
-    // 1. Mentee mode notification
     const menteeNotif = makeNotificationVO(
       '104',
       'reservation_success',
@@ -284,7 +334,6 @@ test.describe('Notification Center E2E Tests', () => {
     await page.getByRole('button', { name: '開啟通知選單' }).click();
     await expect(page.getByText('Mentor Wang 已接受您的預約')).toBeVisible();
 
-    // 2. Mentor mode notification
     const mentorNotif = makeNotificationVO(
       '105',
       'reservation_requested',
@@ -299,8 +348,6 @@ test.describe('Notification Center E2E Tests', () => {
     await page.goto(PAGE_URL);
     await page.getByRole('button', { name: '開啟通知選單' }).click();
 
-    // The old (mentee) role's notification must not flash before the new
-    // (mentor) role's content renders - a stale-content leak between roles.
     await expect(
       page.getByText('Mentor Wang 已接受您的預約')
     ).not.toBeVisible();
@@ -468,7 +515,6 @@ test.describe('Notification Center E2E Tests', () => {
     await page.getByText('您與 Mentee Lin 的預約已被取消').click();
     await expect(page).toHaveURL(/\/reservation\/mentor\?tab=history/);
 
-    // Switch to mentee view and verify mentee copy
     const menteeCancelNotif = makeNotificationVO(
       '111',
       'reservation_canceled',
@@ -519,9 +565,6 @@ test.describe('Notification Center E2E Tests', () => {
       popover.getByRole('button', { name: '全部標示為已讀' })
     ).toBeVisible();
 
-    // Spec (#807, #858): w-[calc(100vw-32px)] max-w-[360px] with collisionPadding={16}
-    // Wait for Radix Popover's zoom-in-95 open animation to settle so
-    // boundingBox() measures the final unscaled layout box (375 - 32 = 343px).
     await expect
       .poll(async () => {
         const box = await popover.boundingBox();
@@ -535,11 +578,12 @@ test.describe('Notification Center E2E Tests', () => {
     expect(Math.round(popoverBox!.x)).toBe(16);
     expect(Math.round(375 - (popoverBox!.x + popoverBox!.width))).toBe(16);
 
-    // Ensure notification text is not horizontally clipped/overflowing its container
     const isHorizontallyTruncated = await notifTitle.evaluate(
       (el) => el.scrollWidth > el.clientWidth
     );
     expect(isHorizontallyTruncated).toBe(false);
+
+    await captureEvidence(page, 'notification-bell-open');
   });
 
   test('Mobile viewport (390x844) positions notification popover with balanced left and right margins instead of sticking to left: 0px (#858)', async ({
@@ -560,7 +604,6 @@ test.describe('Notification Center E2E Tests', () => {
     const popover = page.getByRole('dialog');
     await expect(popover).toBeVisible();
 
-    // 390 - 32 = 358px, with 16px margin on both left and right
     await expect
       .poll(async () => {
         const box = await popover.boundingBox();
