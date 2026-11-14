@@ -44,6 +44,10 @@ import {
   signInWithCredentials,
   terminateClientSession,
 } from '@/lib/auth/sessionLifecycle';
+import {
+  getPendingFavoriteMentorId,
+  savePendingFavoriteMentor,
+} from '@/lib/favorites';
 import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
 import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
 import { notificationStoreManager } from '@/stores/notificationStore';
@@ -198,6 +202,7 @@ describe('bffAuth (#885)', () => {
 
 describe('sessionLifecycle (#885)', () => {
   beforeEach(() => {
+    window.localStorage.clear();
     notificationStoreManager.clear();
     reservationReadModel.clear();
     scheduleReadModel.clear();
@@ -346,6 +351,27 @@ describe('sessionLifecycle (#885)', () => {
       });
 
       expect(navigate).toHaveBeenCalledWith('/auth/onboarding');
+
+      // Case 3: pendingFavoriteMentor without explicit callbackUrl -> routes to /profile/:id and retains pending favorite
+      navigate.mockClear();
+      savePendingFavoriteMentor(101);
+      await signInWithCredentials(validCredentials, {
+        signIn,
+        getSession: vi.fn().mockResolvedValue(
+          fromPartial<Session>({
+            accessToken: 'jwt_3',
+            user: { id: '79', onBoarding: true, isMentor: false },
+          })
+        ),
+        navigate,
+        currentOrigin: 'https://xtalent.tw',
+        storage,
+        setAnalyticsUserContext,
+        trackEvent,
+      });
+
+      expect(navigate).toHaveBeenCalledWith('/profile/101');
+      expect(getPendingFavoriteMentorId()).toBe(101);
     });
   });
 

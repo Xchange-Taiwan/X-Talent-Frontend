@@ -1,13 +1,27 @@
+import { hasAvatarVersionConverged } from '@/lib/avatar/avatarUrl';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { isProfileSynced } from '@/lib/profile/profileSaveAdapter';
 import { ProfileFormValues } from '@/schemas/profileSchema';
 import { fetchUserById } from '@/services/profile/user';
 import { fetchMentors } from '@/services/search-mentor/mentors';
-import type { MentorType } from '@/types/mentor';
+import type { MentorRequest, MentorType } from '@/types/mentor';
 import type { MentorProfileVO } from '@/types/user';
 
-// MENTOR_POOL_POLL_LIMIT constant
 const MENTOR_POOL_POLL_LIMIT = 20;
+
+export type FetchProfileRecordFn = (
+  userId: number
+) => Promise<MentorProfileVO | null>;
+
+export type SearchMentorsFn = (request: MentorRequest) => Promise<MentorType[]>;
+
+const defaultFetchProfileRecord: FetchProfileRecordFn = (userId) =>
+  fetchUserById(userId, 'zh_TW', undefined, true);
+
+const defaultSearchMentors: SearchMentorsFn = async (request) => {
+  const result = await fetchMentors(request);
+  return result.mentors;
+};
 
 export interface MentorCardFields {
   name: string;
@@ -16,14 +30,14 @@ export interface MentorCardFields {
   about: string;
   yearsOfExperience: string;
   haveTopic: string[];
+  haveSkill: string[];
   avatar: string;
 }
 
-// Helper to compare arrays of topics
-function sameTopics(a: readonly string[], b: readonly string[]): boolean {
+function sameTagCodes(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false;
   const sortedB = [...b].sort();
-  return [...a].sort().every((topic, i) => topic === sortedB[i]);
+  return [...a].sort().every((code, i) => code === sortedB[i]);
 }
 
 /**
@@ -40,18 +54,19 @@ export interface ConvergenceAdapter<T> {
 }
 
 /**
- * Adapter for the DB-backed profile record (queries fetchUserById).
+ * Adapter for the DB-backed profile record (queries fetchUserById by default).
  */
 export class ProfileRecordAdapter implements ConvergenceAdapter<MentorProfileVO> {
   constructor(
     private userId: number,
     private values: ProfileFormValues,
-    private avatar: string
+    private avatar: string,
+    private fetchProfileFn: FetchProfileRecordFn = defaultFetchProfileRecord
   ) {}
 
   async fetch(): Promise<MentorProfileVO | null> {
     try {
-      return await fetchUserById(this.userId, 'zh_TW', undefined, true);
+      return await this.fetchProfileFn(this.userId);
     } catch {
       return null;
     }
@@ -76,7 +91,10 @@ export class ProfileRecordAdapter implements ConvergenceAdapter<MentorProfileVO>
 abstract class BaseSearchIndexAdapter implements ConvergenceAdapter<
   MentorType[]
 > {
-  constructor(protected userId: number) {}
+  constructor(
+    protected userId: number,
+    private searchMentorsFn: SearchMentorsFn = defaultSearchMentors
+  ) {}
 
   abstract getSearchPattern(): string;
   abstract isCaughtUp(mentors: MentorType[]): boolean;
@@ -88,11 +106,10 @@ abstract class BaseSearchIndexAdapter implements ConvergenceAdapter<
 
   async fetch(): Promise<MentorType[] | null> {
     try {
-      const result = await fetchMentors({
+      return await this.searchMentorsFn({
         search_pattern: this.getSearchPattern(),
         limit: MENTOR_POOL_POLL_LIMIT,
       });
-      return result.mentors;
     } catch {
       return null;
     }
@@ -105,9 +122,10 @@ abstract class BaseSearchIndexAdapter implements ConvergenceAdapter<
 export class SearchIndexSyncAdapter extends BaseSearchIndexAdapter {
   constructor(
     userId: number,
-    private fields: MentorCardFields
+    private fields: MentorCardFields,
+    searchMentorsFn?: SearchMentorsFn
   ) {
-    super(userId);
+    super(userId, searchMentorsFn);
   }
 
   getSearchPattern(): string {
@@ -118,12 +136,9 @@ export class SearchIndexSyncAdapter extends BaseSearchIndexAdapter {
     const card = mentors.find((mentor) => mentor.user_id === this.userId);
     if (!card) return false;
 
-    // mapMentor appends `?cb=<updated_at>` to the avatar URL, so compare
-    // by prefix rather than exact equality.
     const avatarSynced =
       !this.fields.avatar ||
-      (typeof card.avatar === 'string' &&
-        card.avatar.startsWith(this.fields.avatar));
+      hasAvatarVersionConverged(this.fields.avatar, card.avatar);
 
     return (
       card.name === this.fields.name &&
@@ -131,7 +146,8 @@ export class SearchIndexSyncAdapter extends BaseSearchIndexAdapter {
       card.company === this.fields.company &&
       card.about === this.fields.about &&
       card.years_of_experience === this.fields.yearsOfExperience &&
-      sameTopics(card.have_topic, this.fields.haveTopic) &&
+      sameTagCodes(card.have_topic ?? [], this.fields.haveTopic) &&
+      sameTagCodes(card.have_skill ?? [], this.fields.haveSkill) &&
       avatarSynced
     );
   }
@@ -152,9 +168,10 @@ export class SearchIndexSyncAdapter extends BaseSearchIndexAdapter {
 export class SearchIndexDeleteAdapter extends BaseSearchIndexAdapter {
   constructor(
     userId: number,
-    private name?: string
+    private name?: string,
+    searchMentorsFn?: SearchMentorsFn
   ) {
-    super(userId);
+    super(userId, searchMentorsFn);
   }
 
   getSearchPattern(): string {

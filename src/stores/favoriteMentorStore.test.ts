@@ -21,6 +21,16 @@ function buildMentor(overrides: Partial<MentorType> = {}): MentorType {
   });
 }
 
+function createDeferred<T = void>() {
+  let resolve: (value: T | PromiseLike<T>) => void = () => {};
+  let reject: (reason?: unknown) => void = () => {};
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 describe('favoriteMentorStore', () => {
   const fetchMock =
     vi.fn<FavoriteMentorServiceAdapter['fetchFavoriteMentors']>();
@@ -147,7 +157,6 @@ describe('favoriteMentorStore', () => {
     fetchMock.mockResolvedValueOnce([buildMentor({ user_id: 101 })]);
     addMock.mockResolvedValueOnce(undefined);
 
-    // Already favorited on server -> syncs and keeps favorited without calling PUT or DELETE
     const existingOutcome = await favoriteMentorStore.ensureFavorite(
       'user-1',
       101
@@ -161,7 +170,6 @@ describe('favoriteMentorStore', () => {
     expect(removeMock).not.toHaveBeenCalled();
     expect(favoriteMentorStore.isFavorited(101)).toBe(true);
 
-    // Not yet favorited -> adds via PUT
     const addedOutcome = await favoriteMentorStore.ensureFavorite(
       'user-1',
       202,
@@ -175,193 +183,124 @@ describe('favoriteMentorStore', () => {
     expect(favoriteMentorStore.isFavorited(202)).toBe(true);
   });
 
-  it('preserves optimistic toggle initiated while initial syncUser GET is in flight when stale GET resolves afterwards', async () => {
-    let resolveInitialGet!: (mentors: MentorType[]) => void;
-    fetchMock.mockImplementationOnce(
-      () =>
-        new Promise<MentorType[]>((resolve) => {
-          resolveInitialGet = resolve;
-        })
-    );
+  it('preserves optimistic overrides while initial GET is in flight and rolls back failed mutations against resolved server baseline', async () => {
+    const initialFetch = createDeferred<MentorType[]>();
+    const putAlreadyOnServer = createDeferred<void>();
+    const putNewMentor = createDeferred<void>();
+    const deleteSettledAdd = createDeferred<void>();
+
+    fetchMock.mockReturnValueOnce(initialFetch.promise);
+    addMock.mockReturnValueOnce(putAlreadyOnServer.promise);
+    addMock.mockReturnValueOnce(putNewMentor.promise);
     addMock.mockResolvedValueOnce(undefined);
+    removeMock.mockReturnValueOnce(deleteSettledAdd.promise);
 
     const syncPromise = favoriteMentorStore.syncUser('user-1');
-    const addedSnapshot = buildMentor({ user_id: 303, name: 'Zahra' });
 
-    const toggleOutcome = await favoriteMentorStore.toggleFavorite(
+    const toggle101Promise = favoriteMentorStore.toggleFavorite(101);
+    const toggle303Promise = favoriteMentorStore.toggleFavorite(
       303,
-      addedSnapshot
+      buildMentor({ user_id: 303, name: 'Zahra' })
     );
-    expect(toggleOutcome).toEqual({ status: 'added', nextFavorited: true });
-    expect(favoriteMentorStore.isFavorited(303)).toBe(true);
 
-    // Stale initial GET resolves without 303 -> must preserve 303 via optimisticOverrides
-    resolveInitialGet([buildMentor({ user_id: 101, name: 'Austin' })]);
-    await syncPromise;
+    await favoriteMentorStore.toggleFavorite(
+      404,
+      buildMentor({ user_id: 404, name: 'Settled Mentor' })
+    );
+    const remove404Promise = favoriteMentorStore.toggleFavorite(404);
 
     expect(favoriteMentorStore.isFavorited(101)).toBe(true);
     expect(favoriteMentorStore.isFavorited(303)).toBe(true);
+    expect(favoriteMentorStore.isFavorited(404)).toBe(false);
+
+    initialFetch.resolve([
+      buildMentor({ user_id: 101, name: 'Server Austin' }),
+      buildMentor({ user_id: 202, name: 'Server Mentor 202' }),
+      buildMentor({ user_id: 404, name: 'Settled Mentor' }),
+    ]);
+    await syncPromise;
+
+    expect(favoriteMentorStore.isFavorited(101)).toBe(true);
+    expect(favoriteMentorStore.isFavorited(202)).toBe(true);
+    expect(favoriteMentorStore.isFavorited(303)).toBe(true);
+    expect(favoriteMentorStore.isFavorited(404)).toBe(false);
+
+    putAlreadyOnServer.reject(new Error('500 Transient Failure'));
+    const outcome101 = await toggle101Promise;
+    expect(outcome101.status).toBe('failed');
+    expect(outcome101.nextFavorited).toBe(true);
+    expect(favoriteMentorStore.isFavorited(101)).toBe(true);
+    expect(favoriteMentorStore.isPending(101)).toBe(false);
+    expect(
+      favoriteMentorStore
+        .getState()
+        .favoriteMentors.find((mentor) => mentor.user_id === 101)?.name
+    ).toBe('Server Austin');
+
+    putNewMentor.reject(new Error('500 Transient Failure'));
+    const outcome303 = await toggle303Promise;
+    expect(outcome303.status).toBe('failed');
+    expect(outcome303.nextFavorited).toBe(false);
+    expect(favoriteMentorStore.isFavorited(303)).toBe(false);
+    expect(favoriteMentorStore.isPending(303)).toBe(false);
+
+    deleteSettledAdd.resolve();
+    const outcome404 = await remove404Promise;
+    expect(outcome404).toEqual({ status: 'removed', nextFavorited: false });
+    expect(favoriteMentorStore.isFavorited(404)).toBe(false);
+  });
+
+  it('ignores stale in-flight GET and toggle responses after account switch or logout', async () => {
+    const user1Fetch = createDeferred<MentorType[]>();
+    const user1Put = createDeferred<void>();
+    const user2Put = createDeferred<void>();
+
+    fetchMock.mockReturnValueOnce(user1Fetch.promise);
+    addMock.mockReturnValueOnce(user1Put.promise);
+
+    const syncUser1 = favoriteMentorStore.syncUser('user-1');
+    const toggleUser1 = favoriteMentorStore.toggleFavorite(
+      101,
+      buildMentor({ user_id: 101, name: 'User 1 Mentor' })
+    );
+
+    fetchMock.mockResolvedValueOnce([
+      buildMentor({ user_id: 202, name: 'User 2 Mentor' }),
+    ]);
+    await favoriteMentorStore.syncUser('user-2');
+
+    expect(favoriteMentorStore.getState().loadedUserId).toBe('user-2');
+    expect(favoriteMentorStore.isFavorited(101)).toBe(false);
+    expect(favoriteMentorStore.isFavorited(202)).toBe(true);
+    expect(favoriteMentorStore.getState().pendingMentorIds.size).toBe(0);
+
+    user1Fetch.resolve([buildMentor({ user_id: 999, name: 'Stale Mentor' })]);
+    user1Put.reject(new Error('Stale PUT failure'));
+    const [, staleOutcome] = await Promise.all([syncUser1, toggleUser1]);
+
+    expect(staleOutcome).toEqual({ status: 'skipped', nextFavorited: false });
+    expect(favoriteMentorStore.getState().loadedUserId).toBe('user-2');
+    expect(favoriteMentorStore.isFavorited(999)).toBe(false);
+    expect(favoriteMentorStore.isFavorited(101)).toBe(false);
+    expect(favoriteMentorStore.isFavorited(202)).toBe(true);
     expect(
       favoriteMentorStore
         .getState()
         .favoriteMentors.map((mentor) => mentor.user_id)
-    ).toEqual([101, 303]);
+    ).toEqual([202]);
 
-    // Subsequent failed remove rolls back cleanly to favorited
-    removeMock.mockRejectedValueOnce(new Error('500 Delete Failed'));
-    const failedRemove = await favoriteMentorStore.toggleFavorite(303);
-    expect(failedRemove.status).toBe('failed');
-    expect(failedRemove.nextFavorited).toBe(true);
-    expect(favoriteMentorStore.isFavorited(303)).toBe(true);
-  });
-
-  it('rolls back failed toggle initiated during in-flight initial GET against the fetched server baseline', async () => {
-    // Case A: Mentor 101 WAS already favorited on server when blind optimistic PUT fails after GET resolves
-    let resolveGetA!: (mentors: MentorType[]) => void;
-    let rejectPutA!: (reason?: unknown) => void;
-    fetchMock.mockImplementationOnce(
-      () =>
-        new Promise<MentorType[]>((resolve) => {
-          resolveGetA = resolve;
-        })
-    );
-    addMock.mockImplementationOnce(
-      () =>
-        new Promise<void>((_resolve, reject) => {
-          rejectPutA = reject;
-        })
-    );
-
-    const syncPromiseA = favoriteMentorStore.syncUser('user-1');
-    const togglePromiseA = favoriteMentorStore.toggleFavorite(
-      101,
-      buildMentor({ user_id: 101, name: 'Client Austin' })
-    );
-
-    resolveGetA([
-      buildMentor({ user_id: 202, name: 'Server Zahra' }),
-      buildMentor({ user_id: 101, name: 'Server Austin' }),
-    ]);
-    await syncPromiseA;
-
-    rejectPutA(new Error('500 Transient Error'));
-    const outcomeA = await togglePromiseA;
-
-    expect(outcomeA.status).toBe('failed');
-    expect(outcomeA.nextFavorited).toBe(true);
-    expect(favoriteMentorStore.isFavorited(101)).toBe(true);
-    expect(favoriteMentorStore.isPending(101)).toBe(false);
-    expect(
-      favoriteMentorStore.getState().favoriteMentors.map((m) => ({
-        id: m.user_id,
-        name: m.name,
-      }))
-    ).toEqual([
-      { id: 202, name: 'Server Zahra' },
-      { id: 101, name: 'Server Austin' },
-    ]);
-
-    // Case B: Mentor 303 was NOT favorited on server when optimistic PUT fails after GET resolves
-    resetFavoriteMentorStore();
-    favoriteMentorStore.setAdapter({
-      fetchFavoriteMentors: fetchMock,
-      addFavoriteMentor: addMock,
-      removeFavoriteMentor: removeMock,
-    });
-
-    let resolveGetB!: (mentors: MentorType[]) => void;
-    let rejectPutB!: (reason?: unknown) => void;
-    fetchMock.mockImplementationOnce(
-      () =>
-        new Promise<MentorType[]>((resolve) => {
-          resolveGetB = resolve;
-        })
-    );
-    addMock.mockImplementationOnce(
-      () =>
-        new Promise<void>((_resolve, reject) => {
-          rejectPutB = reject;
-        })
-    );
-
-    const syncPromiseB = favoriteMentorStore.syncUser('user-1');
-    const togglePromiseB = favoriteMentorStore.toggleFavorite(
+    addMock.mockReturnValueOnce(user2Put.promise);
+    const toggleUser2 = favoriteMentorStore.toggleFavorite(
       303,
-      buildMentor({ user_id: 303, name: 'New Mentor' })
+      buildMentor({ user_id: 303, name: 'Logged Out Toggle' })
     );
 
-    resolveGetB([buildMentor({ user_id: 202, name: 'Server Zahra' })]);
-    await syncPromiseB;
-
-    rejectPutB(new Error('Network Error'));
-    const outcomeB = await togglePromiseB;
-
-    expect(outcomeB.status).toBe('failed');
-    expect(outcomeB.nextFavorited).toBe(false);
-    expect(favoriteMentorStore.isFavorited(303)).toBe(false);
-    expect(favoriteMentorStore.isFavorited(202)).toBe(true);
-    expect(
-      favoriteMentorStore.getState().favoriteMentors.map((m) => m.user_id)
-    ).toEqual([202]);
-  });
-
-  it('discards stale in-flight syncUser GET and toggleFavorite results after account switch or logout (userEpoch guard)', async () => {
-    let resolveUser1Get!: (mentors: MentorType[]) => void;
-    let resolveUser1Put!: () => void;
-    let rejectUser2Put!: (reason?: unknown) => void;
-
-    fetchMock.mockImplementationOnce(
-      () =>
-        new Promise<MentorType[]>((resolve) => {
-          resolveUser1Get = resolve;
-        })
-    );
-    addMock.mockImplementationOnce(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveUser1Put = resolve;
-        })
-    );
-
-    const user1Sync = favoriteMentorStore.syncUser('user-1');
-    const user1Toggle = favoriteMentorStore.toggleFavorite(
-      101,
-      buildMentor({ user_id: 101, name: 'User1 Favorite' })
-    );
-
-    // Switch account to user-2 before user-1 requests settle
-    fetchMock.mockResolvedValueOnce([
-      buildMentor({ user_id: 202, name: 'User2 Favorite' }),
-    ]);
-    await favoriteMentorStore.syncUser('user-2');
-
-    // Settle stale user-1 requests
-    resolveUser1Get([buildMentor({ user_id: 999, name: 'Stale Server' })]);
-    resolveUser1Put();
-    await user1Sync;
-    const staleOutcome = await user1Toggle;
-
-    expect(staleOutcome).toEqual({ status: 'skipped', nextFavorited: false });
-    expect(favoriteMentorStore.getState().loadedUserId).toBe('user-2');
-    expect(favoriteMentorStore.isFavorited(101)).toBe(false);
-    expect(favoriteMentorStore.isFavorited(999)).toBe(false);
-    expect(favoriteMentorStore.isFavorited(202)).toBe(true);
-    expect(
-      favoriteMentorStore.getState().favoriteMentors.map((m) => m.user_id)
-    ).toEqual([202]);
-
-    // Start an in-flight remove on user-2, then log out before it rejects
-    removeMock.mockImplementationOnce(
-      () =>
-        new Promise<void>((_resolve, reject) => {
-          rejectUser2Put = reject;
-        })
-    );
-    const user2Toggle = favoriteMentorStore.toggleFavorite(202);
     await favoriteMentorStore.syncUser(null);
+    expect(favoriteMentorStore.getState().loadedUserId).toBeNull();
+    expect(favoriteMentorStore.getState().favoriteMentorIds.size).toBe(0);
 
-    rejectUser2Put(new Error('Aborted after logout'));
-    const logoutOutcome = await user2Toggle;
+    user2Put.resolve();
+    const logoutOutcome = await toggleUser2;
 
     expect(logoutOutcome).toEqual({ status: 'skipped', nextFavorited: false });
     expect(favoriteMentorStore.getState().loadedUserId).toBeNull();

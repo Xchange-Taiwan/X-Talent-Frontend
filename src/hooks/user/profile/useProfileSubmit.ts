@@ -1,17 +1,18 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { Session } from 'next-auth';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
-import {
-  clearUserDataCache,
-  primeUserDataCache,
-} from '@/hooks/user/user-data/useUserData';
 import { type ProfileDirtyFields } from '@/lib/profile/profileSaveAdapter';
-import { LoggedError, saveProfile } from '@/lib/profile/saveProfile';
+import {
+  LoggedError,
+  type ProfileSavePort,
+  saveProfile,
+} from '@/lib/profile/saveProfile';
 import { ProfileFormValues } from '@/schemas/profileSchema';
+import type { IndustryOption } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
 
 export type { ProfileDirtyFields };
@@ -23,6 +24,7 @@ interface Options {
   updateSession: (data: unknown) => Promise<Session | null>;
   consumeAvatarUpload?: (file: File | undefined) => Promise<string | undefined>;
   currentDto?: MentorProfileVO | null;
+  industryCatalog?: readonly IndustryOption[];
 }
 
 export function useProfileSubmit({
@@ -32,11 +34,22 @@ export function useProfileSubmit({
   updateSession,
   consumeAvatarUpload,
   currentDto,
+  industryCatalog,
 }: Options) {
-  const router = useRouter();
+  const { push } = useRouter();
 
-  // 概念驗證 (PoC) 呼叫端：此處整合並呼叫統一管理非同步生命週期的 useAsyncAction Hook
-  // 作為基礎建設的一部分，用於收斂載入狀態、防重複連擊與 Sentry 錯誤上報
+  const port = useMemo<ProfileSavePort>(
+    () => ({
+      updateSession,
+      navigate: push,
+      revalidateProfilePath,
+      ...(consumeAvatarUpload
+        ? { uploadAvatar: (file: File) => consumeAvatarUpload(file) }
+        : {}),
+    }),
+    [updateSession, push, consumeAvatarUpload]
+  );
+
   const { run, isPending: isSaving } = useAsyncAction({
     captureFailure: {
       flow: 'profile_update',
@@ -46,7 +59,7 @@ export function useProfileSubmit({
       description: '儲存失敗，請稍後再試',
     },
     throwError: false,
-    resetPendingOnSuccess: false, // 成功後保持 isSaving 為 true 以模擬轉址中的 UI
+    resetPendingOnSuccess: false,
     shouldSkipLogging: (err) => err instanceof LoggedError,
   });
 
@@ -56,19 +69,18 @@ export function useProfileSubmit({
       dirtyFields?: ProfileDirtyFields
     ): Promise<MentorProfileVO | undefined> => {
       return await run(() =>
-        saveProfile(values, {
-          pageUserId,
-          isMentorOnboarding,
-          session,
-          dirtyFields,
-          consumeAvatarUpload,
-          updateSession,
-          navigate: router.push,
-          revalidateProfilePath,
-          clearUserDataCache,
-          primeUserDataCache,
-          currentDto,
-        })
+        saveProfile(
+          values,
+          {
+            pageUserId,
+            isMentorOnboarding,
+            session,
+            dirtyFields,
+            currentDto,
+            industryCatalog,
+          },
+          port
+        )
       );
     },
     [
@@ -76,10 +88,9 @@ export function useProfileSubmit({
       pageUserId,
       isMentorOnboarding,
       session,
-      consumeAvatarUpload,
-      updateSession,
-      router.push,
       currentDto,
+      industryCatalog,
+      port,
     ]
   );
 

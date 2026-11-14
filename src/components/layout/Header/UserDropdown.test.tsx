@@ -30,9 +30,13 @@ vi.mock('next-auth/react', async () => {
   return nextAuthMockFactory();
 });
 
+const mockUsePathname = vi.fn<() => string>(() => '/');
 vi.mock('next/navigation', async () => {
   const { navigationMockFactory } = await import('@/test/mocks/navigation');
-  return navigationMockFactory();
+  return {
+    ...navigationMockFactory(),
+    usePathname: () => mockUsePathname(),
+  };
 });
 
 const trackEvent = vi.fn();
@@ -45,6 +49,7 @@ vi.mock('@/lib/analytics', async (importOriginal) => {
 });
 
 import { authenticatedIdentity, GUEST_IDENTITY } from '@/test/mocks/identity';
+import { mockRouter } from '@/test/mocks/navigation';
 import { mockSession } from '@/test/mocks/nextAuth';
 
 import { UserDropdown } from './UserDropdown';
@@ -63,6 +68,8 @@ describe('UserDropdown share flow', () => {
 
   beforeEach(() => {
     queuedFrames = [];
+    mockRouter.push.mockClear();
+    mockUsePathname.mockReturnValue('/');
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -205,5 +212,68 @@ describe('UserDropdown share flow', () => {
     expect(
       screen.queryByRole('menuitem', { name: '提供回饋' })
     ).not.toBeInTheDocument();
+  });
+
+  it.each([false, true])(
+    'renders 我的收藏 between 我的預約 and 登出 with GA4 attributes for isMentor=%s and navigates to /favorites',
+    (isMentor) => {
+      render(
+        <UserDropdown
+          identity={authenticatedIdentity('user-1', { isMentor })}
+          user={buildUser({ isMentor })}
+        />
+      );
+
+      openMenu();
+
+      const menuItems = screen.getAllByRole('menuitem');
+      const labels = menuItems.map((el) => el.textContent?.trim());
+      const myReservationIdx = labels.indexOf('我的預約');
+      const myFavoritesIdx = labels.indexOf('我的收藏');
+      const logoutIdx = labels.indexOf('登出');
+
+      expect(myReservationIdx).toBeGreaterThanOrEqual(0);
+      expect(myFavoritesIdx).toBe(myReservationIdx + 1);
+      expect(logoutIdx).toBe(myFavoritesIdx + 1);
+
+      const favoritesItem = screen.getByRole('menuitem', { name: '我的收藏' });
+      expect(favoritesItem).toHaveTextContent(/^我的收藏$/);
+      expect(favoritesItem).not.toHaveAttribute('aria-current');
+      expect(favoritesItem).toHaveAttribute(
+        'data-analytics-click',
+        'user_menu_my_favorites'
+      );
+      expect(favoritesItem).toHaveAttribute(
+        'data-analytics-location',
+        'user_dropdown'
+      );
+      expect(favoritesItem).toHaveAttribute(
+        'data-analytics-feature',
+        'navigation'
+      );
+
+      fireEvent.click(favoritesItem);
+
+      expect(
+        screen.queryByRole('menuitem', { name: '我的收藏' })
+      ).not.toBeInTheDocument();
+      expect(mockRouter.push).toHaveBeenCalledWith('/favorites');
+    }
+  );
+
+  it('sets aria-current="page" on 我的收藏 when on /favorites', () => {
+    mockUsePathname.mockReturnValue('/favorites');
+
+    render(
+      <UserDropdown
+        identity={authenticatedIdentity('user-1', { isMentor: false })}
+        user={buildUser()}
+      />
+    );
+
+    openMenu();
+
+    const favoritesItem = screen.getByRole('menuitem', { name: '我的收藏' });
+    expect(favoritesItem).toHaveAttribute('aria-current', 'page');
   });
 });

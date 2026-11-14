@@ -18,14 +18,15 @@ import type { MentorType } from '@/types/mentor';
 export const FAVORITE_MENTOR_ERROR_TOAST_MESSAGE = '收藏操作失敗，請稍後再試';
 
 export type FavoriteMentorAnalyticsFeature = 'mentor_pool' | 'profile';
+export type FavoriteMentorFeature = FavoriteMentorAnalyticsFeature;
 
 export type FavoriteMentorAnalyticsLocation =
   'mentor_pool_list' | 'profile_header' | 'favorites_list';
 
-const FAVORITED_BIT = 1;
-const PENDING_BIT = 2;
+const FAVORITED_STATE_BIT = 1;
+const PENDING_STATE_BIT = 2;
 
-function getServerFavoriteSnapshot(): number {
+function getServerMentorStateMask(): number {
   return 0;
 }
 
@@ -87,25 +88,29 @@ export function useFavoriteMentor({
     }
   }, [confirmedUserId, isIdentityUnresolved]);
 
-  const getMentorFavoriteSnapshot = useCallback(
-    () =>
-      (favoriteMentorStore.isFavorited(mentorId) ? FAVORITED_BIT : 0) |
-      (favoriteMentorStore.isPending(mentorId) ? PENDING_BIT : 0),
-    [mentorId]
-  );
+  const getMentorStateMask = useCallback((): number => {
+    if (!Number.isFinite(mentorId) || mentorId <= 0) {
+      return 0;
+    }
+    const state = favoriteMentorStore.getState();
+    return (
+      (state.favoriteMentorIds.has(mentorId) ? FAVORITED_STATE_BIT : 0) |
+      (state.pendingMentorIds.has(mentorId) ? PENDING_STATE_BIT : 0)
+    );
+  }, [mentorId]);
 
-  const snapshotMask = useSyncExternalStore(
+  const mentorStateMask = useSyncExternalStore(
     favoriteMentorStore.subscribe,
-    getMentorFavoriteSnapshot,
-    getServerFavoriteSnapshot
+    getMentorStateMask,
+    getServerMentorStateMask
   );
 
   const isSelf =
     confirmedUserId !== null && confirmedUserId === String(mentorId);
   const isFavorited = isAuthenticated
-    ? (snapshotMask & FAVORITED_BIT) !== 0
+    ? (mentorStateMask & FAVORITED_STATE_BIT) !== 0
     : false;
-  const isPending = (snapshotMask & PENDING_BIT) !== 0;
+  const isPending = (mentorStateMask & PENDING_STATE_BIT) !== 0;
 
   const handleToggleFavorite = useCallback(async () => {
     if (isSelf || isIdentityUnresolved) return;

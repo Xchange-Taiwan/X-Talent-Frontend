@@ -25,14 +25,13 @@ import {
   signInWithGoogleToken,
 } from '@/lib/auth/oauthOutcome';
 import { clearSessionHint as defaultClearSessionHint } from '@/lib/auth/sessionHint';
+import { resolvePostAuthRedirect } from '@/lib/favorites';
 import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
 import { captureFlowFailure as defaultCaptureFlowFailure } from '@/lib/monitoring';
 import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
 import {
   EMAIL_VERIFY_HREF,
-  FIND_MENTOR_HREF,
   HOME_HREF,
-  ONBOARDING_HREF,
   RESERVATION_MENTEE_HREF,
   sanitizeCallbackUrl,
   SIGNIN_HREF,
@@ -248,11 +247,12 @@ async function completePostLoginChoreography({
     safeCallbackUrl = consumePendingCallbackUrl(currentOrigin, storage);
   }
 
-  if (session.user?.onBoarding === false) {
-    navigate(ONBOARDING_HREF);
-  } else {
-    navigate(safeCallbackUrl ?? FIND_MENTOR_HREF);
-  }
+  navigate(
+    resolvePostAuthRedirect({
+      explicitCallbackUrl: safeCallbackUrl,
+      isOnboarded: session.user?.onBoarding !== false,
+    })
+  );
 }
 
 export interface SignInWithCredentialsAdapters {

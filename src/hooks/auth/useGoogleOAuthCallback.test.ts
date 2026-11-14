@@ -32,6 +32,10 @@ vi.mock('@/actions/auth', () => ({
 }));
 
 import { PENDING_AUTH_CALLBACK_URL_KEY } from '@/lib/auth/authFlowStorage';
+import {
+  getPendingFavoriteMentorId,
+  savePendingFavoriteMentor,
+} from '@/lib/favorites';
 import { mockRouter, mockSearchParams } from '@/test/mocks/navigation';
 import { mockGetSession, mockSignIn } from '@/test/mocks/nextAuth';
 import { mockToast } from '@/test/mocks/useToast';
@@ -46,6 +50,7 @@ type ProfileVO = components['schemas']['ProfileVO'];
 describe('useGoogleOAuthCallback (#885)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
     window.sessionStorage.clear();
     mockRevalidateAfterDelete.mockResolvedValue(undefined);
     mockSignIn.mockResolvedValue({ error: null, ok: true });
@@ -122,5 +127,33 @@ describe('useGoogleOAuthCallback (#885)', () => {
       description: 'Something went wrong during login.',
     });
     expect(mockRouter.push).toHaveBeenCalledWith('/auth/signin');
+  });
+
+  it('redirects Google LOGIN to pending favorite profile path via sessionLifecycle when no explicit callbackUrl is stored', async () => {
+    savePendingFavoriteMentor(303);
+    mockGoogleCallback.mockResolvedValue(
+      fromPartial<OAuthCallbackResponse>({
+        data: {
+          auth_type: 'LOGIN',
+          auth: { token: 'jwt_tok', email: 'user@example.com' },
+          user: fromPartial<ProfileVO>({ user_id: 501, is_mentor: false }),
+        },
+      })
+    );
+    mockGetSession.mockResolvedValue(
+      fromPartial<Session>({
+        accessToken: 'jwt_tok',
+        user: { id: '501', onBoarding: true, isMentor: false },
+      })
+    );
+
+    const { result } = renderHook(() => useGoogleOAuthCallback());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/profile/303');
+    expect(getPendingFavoriteMentorId()).toBe(303);
   });
 });

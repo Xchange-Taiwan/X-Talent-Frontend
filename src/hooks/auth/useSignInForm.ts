@@ -10,8 +10,6 @@ import {
   SignInLifecycleError,
   signInWithCredentials,
 } from '@/lib/auth/sessionLifecycle';
-import { resolvePostAuthRedirect } from '@/lib/favorites';
-import { sanitizeCallbackUrl } from '@/lib/routes';
 import { SignInSchema } from '@/schemas/auth';
 
 type SignInValues = z.infer<typeof SignInSchema>;
@@ -31,39 +29,13 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
   const onSubmit = async (values: SignInValues) => {
     await run(
       async () => {
-        const search =
-          typeof window !== 'undefined' ? window.location.search : '';
-        const currentOrigin =
-          typeof window !== 'undefined' ? window.location.origin : undefined;
-        const explicitCallbackUrl = sanitizeCallbackUrl(
-          search ? new URLSearchParams(search).get('callbackUrl') : null,
-          currentOrigin
-        );
-        let isOnboarded: boolean | null = null;
-
         await signInWithCredentials(values, {
           signIn: clientSignIn,
-          getSession: async () => {
-            const currentSession = await getSession();
-            if (currentSession?.accessToken) {
-              isOnboarded = currentSession.user?.onBoarding !== false;
-            }
-            return currentSession;
-          },
-          navigate: (href) => {
-            if (isOnboarded !== null) {
-              router.push(
-                resolvePostAuthRedirect({
-                  explicitCallbackUrl,
-                  isOnboarded,
-                })
-              );
-              return;
-            }
-            router.push(href);
-          },
-          search,
-          currentOrigin,
+          getSession,
+          navigate: (href) => router.push(href),
+          search: typeof window !== 'undefined' ? window.location.search : '',
+          currentOrigin:
+            typeof window !== 'undefined' ? window.location.origin : undefined,
         });
       },
       {

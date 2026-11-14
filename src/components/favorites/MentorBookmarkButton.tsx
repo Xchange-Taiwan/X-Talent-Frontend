@@ -1,7 +1,7 @@
 'use client';
 
 import { Bookmark } from 'lucide-react';
-import type { MouseEvent } from 'react';
+import type { KeyboardEvent, MouseEvent } from 'react';
 
 import {
   Tooltip,
@@ -30,21 +30,6 @@ export interface MentorBookmarkButtonProps {
   tooltipAlign?: TooltipAlign;
   wrapperClassName?: string;
   className?: string;
-}
-
-function getVariantClasses(
-  variant: MentorBookmarkButtonVariant,
-  isFavorited: boolean
-): string {
-  if (variant === 'overlay') {
-    return isFavorited
-      ? 'border-brand-500/30 bg-brand-50/95 hover:bg-brand-100 border shadow-sm backdrop-blur-sm'
-      : 'border-background-border/60 bg-background-white/90 hover:bg-background-white border shadow-sm backdrop-blur-sm';
-  }
-
-  return isFavorited
-    ? 'border-brand-100 bg-brand-50 hover:bg-brand-100 border'
-    : 'border-background-border bg-background-white hover:bg-background-hover border';
 }
 
 export function MentorBookmarkButton({
@@ -85,6 +70,18 @@ export function MentorBookmarkButton({
     void handleToggleFavorite();
   };
 
+  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.stopPropagation();
+    }
+  };
+
+  const handleKeyUp = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.stopPropagation();
+    }
+  };
+
   return (
     <Tooltip
       content={actionLabel}
@@ -100,9 +97,13 @@ export function MentorBookmarkButton({
         aria-pressed={isFavorited}
         aria-busy={isPending || undefined}
         onClick={handleClick}
+        onKeyDown={handleKeyDown}
+        onKeyUp={handleKeyUp}
         className={cn(
-          'group inline-flex size-10 shrink-0 items-center justify-center rounded-full transition-colors',
-          getVariantClasses(variant, isFavorited),
+          'inline-flex size-10 shrink-0 items-center justify-center rounded-full transition-colors',
+          variant === 'overlay'
+            ? 'border-background-border/60 bg-background-white/90 hover:bg-background-white border shadow-sm backdrop-blur-sm'
+            : 'border-background-border bg-background-white hover:bg-background-hover border',
           FOCUS_RING_CLASSES,
           className
         )}
@@ -113,7 +114,7 @@ export function MentorBookmarkButton({
             'size-5 transition-colors',
             isFavorited
               ? 'text-brand-500 fill-current'
-              : 'text-text-secondary group-hover:text-text-primary'
+              : 'text-text-secondary hover:text-text-primary'
           )}
         />
       </button>

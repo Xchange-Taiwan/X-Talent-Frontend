@@ -13,6 +13,7 @@ import {
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { mapVoToFormValues } from '@/lib/profile/profileSaveAdapter';
 import type { ProfileFormValues } from '@/schemas/profileSchema';
+import type { IndustryOption } from '@/types/tagCatalog';
 
 import { useBackgroundAvatarUpload } from './useBackgroundAvatarUpload';
 import { useEditProfileData } from './useEditProfileData';
@@ -27,6 +28,7 @@ export interface UseProfileEditorSessionOptions {
   pageUserId: string;
   isAuthorized: boolean;
   isMentorOnboarding: boolean;
+  industryCatalog?: readonly IndustryOption[];
 }
 
 /**
@@ -42,6 +44,7 @@ export function useProfileEditorSession({
   pageUserId,
   isAuthorized,
   isMentorOnboarding,
+  industryCatalog,
 }: UseProfileEditorSessionOptions) {
   const router = useRouter();
   const { data: session, update: updateSession } = useSession();
@@ -106,6 +109,7 @@ export function useProfileEditorSession({
     updateSession,
     consumeAvatarUpload: avatarUpload.consume,
     currentDto: userDto,
+    industryCatalog,
   });
 
   const jobSectionErrorRef = useRef(false);

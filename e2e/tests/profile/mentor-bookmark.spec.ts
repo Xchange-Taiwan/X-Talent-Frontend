@@ -1,17 +1,38 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Page, type Route, test } from '@playwright/test';
 
 import { captureEvidence } from '../../helpers/evidence';
 import { mockApiRoute } from '../../helpers/route';
-import {
-  clearMockAuthSession,
-  seedMockAuthSession,
-} from '../../helpers/session';
+import { setSignedSessionCookie } from '../../helpers/session';
 
 test.use({ timezoneId: 'Asia/Taipei' });
 
 const TARGET_MENTOR_ID = 7482008160728084;
 const TARGET_MENTOR_ID_STR = String(TARGET_MENTOR_ID);
 const SECOND_MENTOR_ID = 102;
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+function fulfillCorsOptions(route: Route) {
+  return route.fulfill({
+    status: 204,
+    headers: CORS_HEADERS,
+  });
+}
+
+function fulfillJsonWithCors(route: Route, status: number, body: unknown) {
+  return route.fulfill({
+    status,
+    contentType: 'application/json',
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+    },
+    body: JSON.stringify(body),
+  });
+}
 
 function makePoolMentor(
   id: number,
@@ -110,12 +131,36 @@ async function setupAuthenticatedViewer(
     isMentor: false,
   }
 ) {
-  await seedMockAuthSession(page, {
+  if (!process.env.NEXTAUTH_SECRET) {
+    process.env.NEXTAUTH_SECRET = 'secret';
+  }
+
+  await setSignedSessionCookie(page, {
     id: user.id,
     name: user.name,
     isMentor: user.isMentor,
     onBoarding: true,
     token: 'mock-auth-token',
+  });
+
+  await page.route(/\/api\/auth\/session/, (route) => {
+    if (route.request().method() === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          user: {
+            id: user.id,
+            name: user.name,
+            isMentor: user.isMentor,
+            onBoarding: true,
+          },
+          accessToken: 'mock-auth-token',
+          expires: '2099-01-01T00:00:00.000Z',
+        }),
+      });
+    }
+    return route.continue();
   });
 }
 
@@ -240,24 +285,27 @@ test.describe('Mentor 書籤收藏 (#758)', () => {
     await setupCommonSupportRoutes(page);
 
     await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
       const mentors = Array.from(favoritedSet).map((id) =>
         makePoolMentor(id, {
           name: id === TARGET_MENTOR_ID ? 'Zahra Mirzakhani' : '陳宥廷 Austin',
         })
       );
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          code: '0',
-          msg: 'ok',
-          data: { mentors },
-        }),
+      return fulfillJsonWithCors(route, 200, {
+        code: '0',
+        msg: 'ok',
+        data: { mentors },
       });
     });
 
     await page.route(/\/v1\/mentors\/\d+\/favorite$/, (route) => {
       const method = route.request().method();
+      if (method === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
+
       const match = route
         .request()
         .url()
@@ -267,20 +315,20 @@ test.describe('Mentor 書籤收藏 (#758)', () => {
       if (method === 'PUT') {
         putCount += 1;
         favoritedSet.add(mentorId);
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
+        return fulfillJsonWithCors(route, 200, {
+          code: '0',
+          msg: 'ok',
+          data: null,
         });
       }
 
       if (method === 'DELETE') {
         deleteCount += 1;
         favoritedSet.delete(mentorId);
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
+        return fulfillJsonWithCors(route, 200, {
+          code: '0',
+          msg: 'ok',
+          data: null,
         });
       }
 
@@ -341,9 +389,9 @@ test.describe('Mentor 書籤收藏 (#758)', () => {
       new RegExp(`/profile/${TARGET_MENTOR_ID_STR}$`)
     );
 
-    const profileBookmarkBtn = page.locator(
-      'button[data-testid="mentor-bookmark-button"]'
-    );
+    const profileBookmarkBtn = page
+      .locator('main')
+      .getByRole('button', { name: /^(?:取消)?收藏\s+.+/ });
     await expect(profileBookmarkBtn).toBeVisible();
     await expect(profileBookmarkBtn).toHaveAttribute('aria-pressed', 'true');
     await expect(profileBookmarkBtn).toHaveAttribute(
@@ -378,25 +426,19 @@ test.describe('Mentor 書籤收藏 (#758)', () => {
     await setupCommonSupportRoutes(page);
 
     // 模擬後端 #759 未部署時 GET /v1/me/favorite-mentors 回傳 404
-    await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) =>
-      route.fulfill({
-        status: 404,
-        contentType: 'application/json',
-        body: JSON.stringify({ detail: 'Not Found' }),
-      })
-    );
+    await mockApiRoute(page, /\/v1\/me\/favorite-mentors(\?|$)/, {
+      status: 404,
+      body: { detail: 'Not Found' },
+    });
 
     // 模擬 PUT /v1/mentors/:id/favorite 失敗回傳 500
-    await page.route(/\/v1\/mentors\/\d+\/favorite$/, (route) =>
-      route.fulfill({
-        status: 500,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          code: '500',
-          msg: 'Internal Server Error',
-        }),
-      })
-    );
+    await mockApiRoute(page, /\/v1\/mentors\/\d+\/favorite$/, {
+      status: 500,
+      body: {
+        code: '500',
+        msg: 'Internal Server Error',
+      },
+    });
 
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/mentor-pool?q=design');
@@ -412,6 +454,7 @@ test.describe('Mentor 書籤收藏 (#758)', () => {
     const failedPutPromise = page.waitForResponse(
       (res) =>
         res.url().includes(`/v1/mentors/${TARGET_MENTOR_ID_STR}/favorite`) &&
+        res.request().method() === 'PUT' &&
         res.status() === 500
     );
     await bookmarkBtn.click();
@@ -425,7 +468,9 @@ test.describe('Mentor 書籤收藏 (#758)', () => {
     await expect(
       page.getByText('收藏操作失敗，請稍後再試', { exact: true })
     ).toBeVisible();
-    await captureEvidence(page, 'mentor-bookmark-error-toast');
+    await captureEvidence(page, 'mentor-bookmark-error-toast', {
+      settleDelayMs: 100,
+    });
   });
 
   test('導師檢視自己的卡片與個人頁皆隱藏書籤按鈕；未登入訪客點擊導向登入頁', async ({
@@ -438,13 +483,9 @@ test.describe('Mentor 書籤收藏 (#758)', () => {
     });
     await setupCommonSupportRoutes(page);
 
-    await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ code: '0', msg: 'ok', data: [] }),
-      })
-    );
+    await mockApiRoute(page, /\/v1\/me\/favorite-mentors(\?|$)/, {
+      body: { code: '0', msg: 'ok', data: [] },
+    });
 
     // 1. Mentor Pool：自己的卡片隱藏書籤，其他導師卡片仍顯示書籤
     await page.goto('/mentor-pool?q=design');
@@ -452,26 +493,31 @@ test.describe('Mentor 書籤收藏 (#758)', () => {
     await expect(cards).toHaveCount(2);
 
     await expect(
-      cards.nth(0).locator('button[data-testid="mentor-bookmark-button"]')
+      cards.nth(0).getByRole('button', { name: /收藏 Zahra Mirzakhani/ })
     ).toHaveCount(0);
     await expect(
       cards.nth(1).getByRole('button', { name: '收藏 陳宥廷 Austin' })
     ).toBeVisible();
 
     // 2. 自己的 Mentor 個人頁：隱藏書籤按鈕
-    const selfProfileRes = await page.goto(`/profile/${TARGET_MENTOR_ID_STR}`);
-    if (selfProfileRes && selfProfileRes.status() >= 400) {
-      await page.reload();
-    }
+    await page.goto(`/profile/${TARGET_MENTOR_ID_STR}`);
     await expect(
       page.getByRole('button', { name: '編輯個人資訊' })
     ).toBeVisible();
     await expect(
-      page.locator('button[data-testid="mentor-bookmark-button"]')
+      page.locator('main').getByRole('button', { name: /^(?:取消)?收藏\s+.+/ })
     ).toHaveCount(0);
 
     // 3. 清除登入狀態後，未登入訪客點擊卡片書籤導向 /auth/signin?callbackUrl=...
-    await clearMockAuthSession(page);
+    await page.context().clearCookies();
+    await page.unroute(/\/api\/auth\/session/);
+    await page.route(/\/api\/auth\/session/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({}),
+      })
+    );
 
     await page.goto('/mentor-pool?q=design');
     const guestBookmarkBtn = page
