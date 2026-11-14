@@ -1,3 +1,10 @@
+import {
+  canEditReservationFeedback,
+  canSubmitReservationFeedback,
+  hasExpandableMentorFeedback,
+  isMenteeSessionMarkedNotHappened,
+  isReservationCancelled,
+} from '@/lib/reservation/reservationLifecyclePolicy';
 import type { Reservation } from '@/types/reservation';
 
 export const FEEDBACK_DEEP_LINK_ID_KEYS = [
@@ -107,34 +114,21 @@ export function resolveDeepLinkOutcome(opts: {
   }
 
   if (role === 'mentor') {
-    if (!target.cancelledBy && target.feedback?.nextStep === 'ANSWER') {
+    if (canSubmitReservationFeedback(target, 'mentor')) {
       return {
         kind: 'mentor-open-dialog',
         reservation: target,
       };
     }
 
-    const ownMeetingHappened =
-      typeof target.feedback?.myMeetingHappened === 'boolean'
-        ? target.feedback.myMeetingHappened
-        : undefined;
-
-    const shouldExpandFeedback = Boolean(
-      !target.cancelledBy &&
-      (ownMeetingHappened === true ||
-        (ownMeetingHappened !== false &&
-          target.feedback?.meetingHappened !== false &&
-          target.feedback?.rating &&
-          target.feedback.rating.isPublic !== false))
-    );
     return {
       kind: 'mentor-locate-card',
       reservation: target,
-      shouldExpandFeedback,
+      shouldExpandFeedback: hasExpandableMentorFeedback(target),
     };
   }
 
-  if (target.cancelledBy) {
+  if (isReservationCancelled(target)) {
     return {
       kind: 'mentee-already-resolved',
       reservation: target,
@@ -142,24 +136,21 @@ export function resolveDeepLinkOutcome(opts: {
     };
   }
 
-  if (
-    target.feedback?.nextStep === 'ANSWER' ||
-    target.feedback?.nextStep === 'RATE'
-  ) {
+  if (canSubmitReservationFeedback(target, 'mentee')) {
     return {
       kind: 'mentee-open-dialog',
       reservation: target,
     };
   }
 
-  if (target.feedback?.rating) {
+  if (canEditReservationFeedback(target, 'mentee')) {
     return {
       kind: 'mentee-already-rated',
       reservation: target,
     };
   }
 
-  if (target.feedback?.meetingHappened === false) {
+  if (isMenteeSessionMarkedNotHappened(target)) {
     return {
       kind: 'mentee-already-resolved',
       reservation: target,

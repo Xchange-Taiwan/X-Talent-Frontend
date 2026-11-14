@@ -7,6 +7,7 @@ import { ReservationMessagePreview } from '@/components/reservation/ReservationM
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { useReservationMeetLink } from '@/hooks/user/reservation/useReservationMeetLink';
+import { resolveSystemAutoCancelNotice } from '@/lib/reservation/reservationLifecyclePolicy';
 import { resolveReservationViewer } from '@/lib/reservation/reservationViewerModel';
 import type { Reservation } from '@/types/reservation';
 
@@ -49,24 +50,20 @@ export function ReservationCard({
 }) {
   const isUpcoming = variant === 'upcoming';
   const isHistory = variant === 'history';
+  const systemCancelNotice = resolveSystemAutoCancelNotice(item, sourceRole);
 
-  const systemCancelBanner =
-    item.cancelledBy === 'SYSTEM' ? (
-      <div
-        role="note"
-        className="border-status-warning-default/40 bg-status-warning-active/15 text-text-primary mt-3 flex items-start gap-2 rounded-lg border p-2.5 text-xs sm:text-sm"
-      >
-        <AlertCircle
-          className="text-status-info-default mt-0.5 size-4 shrink-0"
-          aria-hidden
-        />
-        <span>
-          {sourceRole === 'mentor'
-            ? '因您未於預約開始前 24 小時前確認，系統已自動取消此預約。'
-            : '因導師未於預約開始前 24 小時前確認，系統已自動取消此預約。'}
-        </span>
-      </div>
-    ) : null;
+  const systemCancelBanner = systemCancelNotice ? (
+    <div
+      role="note"
+      className="border-status-warning-default/40 bg-status-warning-active/15 text-text-primary mt-3 flex items-start gap-2 rounded-lg border p-2.5 text-xs sm:text-sm"
+    >
+      <AlertCircle
+        className="text-status-info-default mt-0.5 size-4 shrink-0"
+        aria-hidden
+      />
+      <span>{systemCancelNotice}</span>
+    </div>
+  ) : null;
 
   if (isHistory) {
     const { cancelledByLabel } = resolveReservationViewer({

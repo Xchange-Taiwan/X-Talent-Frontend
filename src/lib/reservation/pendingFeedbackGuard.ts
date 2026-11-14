@@ -1,3 +1,4 @@
+import { extractDeepLinkReservationId } from '@/lib/reservation/feedbackDeepLink';
 import { MENTOR_ONBOARDING_KEY, OPEN_SCHEDULE_DIALOG_KEY } from '@/lib/routes';
 import type { Reservation } from '@/types/reservation';
 
@@ -10,14 +11,6 @@ export interface SearchParamReadable {
 export interface PendingFeedbackRouteContext {
   pathname: string | null;
   searchParams?: SearchParamReadable | null;
-}
-
-function hasNonEmptyParam(
-  searchParams: SearchParamReadable | null | undefined,
-  key: string
-): boolean {
-  const raw = searchParams?.get(key);
-  return typeof raw === 'string' && raw.trim().length > 0;
 }
 
 export function isAuthResetRoute(pathname: string | null): boolean {
@@ -33,8 +26,10 @@ export function isAuthResetRoute(pathname: string | null): boolean {
  * 2. Reservation / booking flows (`/reservation/**`, `/booking/**`, or
  *    `?open-schedule=true`).
  * 3. Maintenance page (`/maintenance`).
- * 4. URL query parameters targeting a specific reservation or queue
- *    (`reservationId`, `feedbackReservationId`, or `feedback=queue`).
+ * 4. URL query parameters targeting a specific reservation deep link
+ *    (`reservationId`, `reservation_id`, `feedbackReservationId`, or
+ *    `feedback=<reservationId>` via `extractDeepLinkReservationId`) or
+ *    `feedback=queue`.
  */
 export function shouldSuppressPendingFeedbackPopup({
   pathname,
@@ -72,10 +67,9 @@ export function shouldSuppressPendingFeedbackPopup({
   }
 
   if (
-    hasNonEmptyParam(searchParams, 'reservationId') ||
-    hasNonEmptyParam(searchParams, 'reservation_id') ||
-    hasNonEmptyParam(searchParams, 'feedbackReservationId') ||
-    searchParams?.get('feedback') === 'queue'
+    searchParams &&
+    (extractDeepLinkReservationId(searchParams) !== null ||
+      searchParams.get('feedback')?.trim().toLowerCase() === 'queue')
   ) {
     return true;
   }
