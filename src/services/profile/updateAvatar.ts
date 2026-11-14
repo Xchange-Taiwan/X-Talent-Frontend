@@ -1,3 +1,4 @@
+import { withAvatarVersion } from '@/lib/avatar/avatarUrl';
 import {
   fetchPresignedUrl,
   PresignedUrlData,
@@ -92,7 +93,7 @@ function buildS3ObjectUrl(bucketUrl: string, key: string): string {
   const base = bucketUrl.endsWith('/')
     ? `${bucketUrl}${key}`
     : `${bucketUrl}/${key}`;
-  return `${base}?v=${Date.now()}`;
+  return withAvatarVersion(base, Date.now(), 'v');
 }
 
 /**

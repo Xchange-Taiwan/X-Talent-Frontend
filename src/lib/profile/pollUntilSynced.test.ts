@@ -44,6 +44,7 @@ const makeMentor = (
     about: '',
     years_of_experience: '',
     have_topic: [],
+    have_skill: [],
     avatar: '',
     ...overrides,
   });
@@ -57,6 +58,7 @@ const makeFields = (
   about: '',
   yearsOfExperience: '',
   haveTopic: [],
+  haveSkill: [],
   avatar: '',
   ...overrides,
 });
