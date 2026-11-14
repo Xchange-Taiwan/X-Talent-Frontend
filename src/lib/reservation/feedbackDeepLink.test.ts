@@ -326,6 +326,27 @@ describe('feedbackDeepLink helpers (#733)', () => {
         reservation: mentorConfirmedYesNoRating,
         shouldExpandFeedback: true,
       });
+
+      const mentorContractHappenedWithoutMyField = fromPartial<Reservation>({
+        id: '108',
+        feedback: {
+          meetingHappened: true,
+          rating: null,
+          nextStep: null,
+        },
+      });
+
+      expect(
+        resolveDeepLinkOutcome({
+          role: 'mentor',
+          targetReservationId: '108',
+          history: [mentorContractHappenedWithoutMyField],
+        })
+      ).toEqual({
+        kind: 'mentor-locate-card',
+        reservation: mentorContractHappenedWithoutMyField,
+        shouldExpandFeedback: true,
+      });
     });
   });
 });

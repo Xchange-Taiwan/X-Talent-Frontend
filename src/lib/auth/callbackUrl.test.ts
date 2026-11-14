@@ -3,12 +3,13 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   clearPendingCallbackUrl,
   consumePendingCallbackUrl,
+  isDisallowedCallbackPathname,
   PENDING_AUTH_CALLBACK_URL_KEY,
   persistPendingCallbackUrlFromSearch,
   sanitizeCallbackUrl,
 } from './callbackUrl';
 
-describe('callbackUrl helpers (#733)', () => {
+describe('callbackUrl helpers (#733 / #878)', () => {
   beforeEach(() => {
     window.sessionStorage.clear();
   });
@@ -66,13 +67,32 @@ describe('callbackUrl helpers (#733)', () => {
       expect(sanitizeCallbackUrl(undefined)).toBeNull();
     });
 
-    it('rejects /auth/* and /api/* paths to prevent post-login redirect loops', () => {
-      expect(sanitizeCallbackUrl('/auth/signin')).toBeNull();
-      expect(
-        sanitizeCallbackUrl('/auth/signin?callbackUrl=/mentor-pool')
-      ).toBeNull();
-      expect(sanitizeCallbackUrl('/auth/signup')).toBeNull();
-      expect(sanitizeCallbackUrl('/api/auth/session')).toBeNull();
+    it.each([
+      '/maintenance',
+      '/maintenance?retry=1',
+      '/auth/signin',
+      '/auth/signin?callbackUrl=/mentor-pool',
+      '/auth/signup',
+      '/auth/onboarding',
+      '/api/auth/session',
+      '/monitoring',
+    ])(
+      'delegates disallowed pathname check to src/lib/routes and rejects %s',
+      (disallowedTarget) => {
+        expect(sanitizeCallbackUrl(disallowedTarget)).toBeNull();
+        expect(
+          sanitizeCallbackUrl(
+            `https://x-talent.example.com${disallowedTarget}`,
+            'https://x-talent.example.com'
+          )
+        ).toBeNull();
+      }
+    );
+
+    it('exposes isDisallowedCallbackPathname rejecting /maintenance and allowing member routes', () => {
+      expect(isDisallowedCallbackPathname('/maintenance')).toBe(true);
+      expect(isDisallowedCallbackPathname('/auth/signin')).toBe(true);
+      expect(isDisallowedCallbackPathname('/mentor-pool')).toBe(false);
     });
   });
 
@@ -90,17 +110,16 @@ describe('callbackUrl helpers (#733)', () => {
       expect(consumePendingCallbackUrl('http://localhost:3000')).toBe(
         '/reservation/mentee?tab=history&reservationId=101'
       );
-      // Consumed once — subsequent call returns null
       expect(consumePendingCallbackUrl('http://localhost:3000')).toBeNull();
     });
 
-    it('clears stale sessionStorage entry when search has an unsafe or missing callbackUrl', () => {
+    it('clears stale sessionStorage entry when search has /maintenance or unsafe callbackUrl', () => {
       window.sessionStorage.setItem(
         PENDING_AUTH_CALLBACK_URL_KEY,
         '/reservation/mentee?tab=history'
       );
 
-      persistPendingCallbackUrlFromSearch('?callbackUrl=//evil.example.com');
+      persistPendingCallbackUrlFromSearch('?callbackUrl=%2Fmaintenance');
       expect(
         window.sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
       ).toBeNull();

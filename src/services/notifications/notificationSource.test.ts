@@ -8,10 +8,11 @@ import {
 } from './notificationService';
 import {
   createFixtureNotificationSource,
+  createInMemoryNotificationSource,
   httpNotificationSource,
 } from './notificationSource';
 
-// Mock the underlying services
+// Mock the underlying services with an explicit factory
 vi.mock('./notificationService', () => ({
   fetchUnreadCount: vi.fn(),
   listNotifications: vi.fn(),
@@ -72,6 +73,59 @@ describe('httpNotificationSource', () => {
   });
 });
 
+describe('createInMemoryNotificationSource', () => {
+  it('defaults to requiresAuth=true and isPreloaded=false with no artificial retry delay', () => {
+    const source = createInMemoryNotificationSource([]);
+
+    expect(source.requiresAuth).toBe(true);
+    expect(source.isPreloaded).toBe(false);
+    expect(source.retry).toBeUndefined();
+  });
+
+  it('supports cursor pagination, unread count computation, and isolated mutations', async () => {
+    const seed = Array.from({ length: 5 }, (_, i) => ({
+      id: String(i + 1),
+      type: 'reservation_requested' as const,
+      createdAt: new Date().toISOString(),
+      unread: i < 3,
+    }));
+    const source = createInMemoryNotificationSource(seed);
+
+    expect(await source.getUnreadCount('u1')).toEqual({ unread_count: 3 });
+
+    const page1 = await source.listNotifications('u1', undefined, 2);
+    expect(page1.notifications.map((n) => n.id)).toEqual(['1', '2']);
+    expect(page1.next_cursor).toBe('2');
+
+    const page2 = await source.listNotifications('u1', '2', 2);
+    expect(page2.notifications.map((n) => n.id)).toEqual(['3', '4']);
+    expect(page2.next_cursor).toBe('4');
+
+    const page3 = await source.listNotifications('u1', '4', 2);
+    expect(page3.notifications.map((n) => n.id)).toEqual(['5']);
+    expect(page3.next_cursor).toBeNull();
+
+    await source.markOneRead('u1', '1');
+    expect(await source.getUnreadCount('u1')).toEqual({ unread_count: 2 });
+    expect(seed[0].unread).toBe(true); // Does not mutate caller's seed array
+
+    await source.markAllRead('u1');
+    expect(await source.getUnreadCount('u1')).toEqual({ unread_count: 0 });
+  });
+
+  it('supports requiresAuth=false and unreadCountOverride options', async () => {
+    const source = createInMemoryNotificationSource([], {
+      requiresAuth: false,
+      unreadCountOverride: 12,
+    });
+
+    expect(source.requiresAuth).toBe(false);
+    expect(await source.getUnreadCount('generic')).toEqual({
+      unread_count: 12,
+    });
+  });
+});
+
 describe('createFixtureNotificationSource', () => {
   it('should initialize with provided notifications and correctly return unread count', async () => {
     const mockNotifications = [
@@ -107,21 +161,18 @@ describe('createFixtureNotificationSource', () => {
     }));
     const source = createFixtureNotificationSource(mockNotifications);
 
-    // Load first page of 2 items
     const page1 = await source.listNotifications('any-user', null, 2);
     expect(page1.notifications).toHaveLength(2);
     expect(page1.notifications[0].id).toBe('1');
     expect(page1.notifications[1].id).toBe('2');
     expect(page1.next_cursor).toBe('2');
 
-    // Load second page of 2 items
     const page2 = await source.listNotifications('any-user', '2', 2);
     expect(page2.notifications).toHaveLength(2);
     expect(page2.notifications[0].id).toBe('3');
     expect(page2.notifications[1].id).toBe('4');
     expect(page2.next_cursor).toBe('4');
 
-    // Load third page (final item)
     const page3 = await source.listNotifications('any-user', '4', 2);
     expect(page3.notifications).toHaveLength(1);
     expect(page3.notifications[0].id).toBe('5');
