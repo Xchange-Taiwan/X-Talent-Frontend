@@ -4,6 +4,7 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { trackEvent } from '@/lib/analytics';
 import {
   clearAllSessionPendingFeedbackState,
   getSessionPendingFeedbackState,
@@ -20,8 +21,6 @@ import {
 } from '@/lib/reservation/resolveCounterparty';
 import type { Reservation } from '@/types/reservation';
 import type { SubmitReservationFeedbackRequest } from '@/types/reservationFeedback';
-
-import { submitFeedbackWithEffects } from './submitFeedbackWithEffects';
 
 export interface UsePendingFeedbackQueueResult {
   queueItems: Reservation[] | null;
@@ -292,11 +291,19 @@ export function usePendingFeedbackQueue(): UsePendingFeedbackQueueResult {
         isMentorSession
       );
 
-      await submitFeedbackWithEffects({
+      const { submitReservationFeedback } =
+        await import('@/services/reservations');
+      await submitReservationFeedback({
         reservation: targetReservation,
         myUserId: rawUserId,
         myRole: roleForReservation,
         payload,
+      });
+
+      trackEvent({
+        name: 'reservation_feedback_submitted',
+        feature: 'reservation',
+        metadata: { meeting_happened: payload.meeting_happened },
       });
     },
     [rawUserId, isRoleResolved, isMentorSession]
