@@ -36,14 +36,16 @@ vi.mock('@/lib/analytics', async (importOriginal) => {
   };
 });
 
-// Uses src/services/notifications/__mocks__/notificationService.ts
-vi.mock('@/services/notifications/notificationService');
-
 const mockUseResolvedIdentity = vi.fn();
 vi.mock('@/hooks/user/auth/useResolvedIdentity', () => ({
   useResolvedIdentity: () => mockUseResolvedIdentity(),
 }));
 
+import { createInMemoryNotificationSource } from '@/services/notifications/notificationSource';
+import {
+  notificationStoreManager,
+  resetNotificationStore,
+} from '@/stores/notificationStore';
 import {
   authenticatedIdentity,
   buildResolvedIdentity,
@@ -54,32 +56,42 @@ import { mockSession, mockUseSession } from '@/test/mocks/nextAuth';
 
 import { Header } from './Header';
 
-// `useResolvedIdentity` is the single call site everything else's identity is
-// derived from (see `useIdentity`), so these are the exact `ResolvedIdentity`
-// values `resolveIdentity` would produce for each scenario below - not a
-// separate ad-hoc shape.
 const AUTHENTICATED_MATCHING_IDENTITY = authenticatedIdentity('user-123');
+
+class NoopIntersectionObserver implements IntersectionObserver {
+  readonly root: Element | Document | null = null;
+  readonly rootMargin = '';
+  readonly thresholds: ReadonlyArray<number> = [];
+  disconnect() {}
+  observe() {}
+  takeRecords(): IntersectionObserverEntry[] {
+    return [];
+  }
+  unobserve() {}
+}
 
 describe('Header', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
+    resetNotificationStore();
+    const headerNotificationSource = createInMemoryNotificationSource([
+      {
+        id: 'header-notif-1',
+        type: 'reservation_requested',
+        menteeName: '小明',
+        createdAt: new Date().toISOString(),
+        unread: true,
+      },
+    ]);
+    notificationStoreManager.setSource('user-123', headerNotificationSource);
+    notificationStoreManager.setSource('mentor-999', headerNotificationSource);
     mockUseResolvedIdentity.mockReturnValue(UNKNOWN_IDENTITY);
-    global.IntersectionObserver = class IntersectionObserver {
-      readonly root: Element | null = null;
-      readonly rootMargin: string = '';
-      readonly thresholds: ReadonlyArray<number> = [];
-      disconnect() {}
-      observe() {}
-      takeRecords() {
-        return [];
-      }
-      unobserve() {}
-    } as unknown as typeof IntersectionObserver;
+    global.IntersectionObserver = NoopIntersectionObserver;
   });
 
   it('disables the second nav link while resolving a logged-in user, instead of falling back to /auth/signup or /', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
-    // Hint confirms mentee, but has no userId yet - state is hint-only.
     mockUseResolvedIdentity.mockReturnValue(
       buildResolvedIdentity({
         state: 'hint-only',
@@ -92,7 +104,6 @@ describe('Header', () => {
     expect(link).toHaveAttribute('href', '#');
     expect(link).toHaveAttribute('aria-disabled', 'true');
 
-    // dispatchEvent() returns false when a handler called preventDefault().
     const notPrevented = fireEvent.click(link);
     expect(notPrevented).toBe(false);
   });
@@ -125,9 +136,6 @@ describe('Header', () => {
   });
 
   it('pre-renders guest sign-in/sign-up actions with CSS data-auth-state visibility toggles before auth is known', () => {
-    // No session-hint cookie means the visitor is a guest until proven
-    // otherwise, so the guest actions render immediately (CSS-gated on
-    // data-auth-state=guest) instead of waiting on authKnown.
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
 
     render(<Header />);
@@ -145,9 +153,6 @@ describe('Header', () => {
   });
 
   it('renders both links with CSS data-auth-state visibility toggles before auth is known', () => {
-    // `useIdentity` defaults `isMentor` to false until it can be
-    // determined — this must not leak into the rendered nav link before
-    // `authKnown` is true, or a mentor briefly sees the wrong role's label.
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
 
     render(<Header />);
@@ -165,9 +170,6 @@ describe('Header', () => {
   });
 
   it('never disables the guest fast-path "成為導師" link, since isResolvingUser can only be true for a logged-in user', () => {
-    // isResolvingUser = isLoggedIn && !userId (see sessionHint.ts's resolveIdentity) — a
-    // guest's isLoggedIn is always false, so this link must stay clickable
-    // through the whole pre-hydration fast path, not just after authKnown.
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
 
     render(<Header />);
@@ -274,9 +276,8 @@ describe('Header', () => {
 
     render(<Header />);
 
-    // Verified the fast-path background image avatar placeholder is rendered in the DOM under !authKnown
     const placeholders = document.querySelectorAll(
-      '.size-8.rounded-full.bg-\\[image\\:var\\(--auth-avatar\\)\\]'
+      '.size-8.rounded-full[class~="bg-[image:var(--auth-avatar)]"]'
     );
     expect(placeholders).toHaveLength(2);
     expect(placeholders[0]).toHaveClass(
@@ -312,13 +313,17 @@ describe('Header', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('renders NotificationBell on both desktop and mobile/tablet when logged in', () => {
+  it('renders NotificationBell on both desktop and mobile/tablet when logged in and bootstraps unread count only once', async () => {
+    const sharedSource = notificationStoreManager.getSource('user-123')!;
+    const countSpy = vi.spyOn(sharedSource, 'getUnreadCount');
+
     mockUseSession.mockReturnValue({
       data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
       status: 'authenticated',
     });
     mockUseResolvedIdentity.mockReturnValue(AUTHENTICATED_MATCHING_IDENTITY);
     render(<Header />);
+
     const desktopContainer = screen.getByTestId('desktop-header-right');
     const mobileContainer = screen.getByTestId('mobile-header-right');
 
@@ -331,6 +336,12 @@ describe('Header', () => {
 
     expect(desktopBell).toBeInTheDocument();
     expect(mobileBell).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(within(desktopBell).getByText('1')).toBeInTheDocument();
+      expect(within(mobileBell).getByText('1')).toBeInTheDocument();
+    });
+    expect(countSpy).toHaveBeenCalledTimes(1);
   });
 
   it('closes desktop NotificationBell popover when desktop UserDropdown avatar is clicked', async () => {
@@ -357,7 +368,6 @@ describe('Header', () => {
     fireEvent.click(bellButton);
     expect((await screen.findAllByText('您有新的預約'))[0]).toBeInTheDocument();
 
-    // Radix Popover listens to low-level pointerDown and mouseDown on document to close on click-outside
     fireEvent.pointerDown(avatarButton, { bubbles: true });
     fireEvent.mouseDown(avatarButton, { bubbles: true });
     fireEvent.click(avatarButton);
@@ -391,7 +401,6 @@ describe('Header', () => {
     fireEvent.click(bellButton);
     expect((await screen.findAllByText('您有新的預約'))[0]).toBeInTheDocument();
 
-    // Radix Popover listens to low-level pointerDown and mouseDown on document to close on click-outside
     fireEvent.pointerDown(avatarButton, { bubbles: true });
     fireEvent.mouseDown(avatarButton, { bubbles: true });
     fireEvent.click(avatarButton);
@@ -474,8 +483,6 @@ describe('Header', () => {
         'onboarding'
       );
 
-      // Header is wrapped in React.memo() with zero props, so unmount before
-      // remounting with a new mocked useResolvedIdentity return value.
       unmount();
       mockUseResolvedIdentity.mockReturnValue(
         authenticatedIdentity('mentor-999', { isMentor: true })

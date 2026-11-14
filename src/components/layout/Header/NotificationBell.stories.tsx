@@ -1,6 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import React from 'react';
 
+import type { NotificationItem } from '@/hooks/useNotificationCenter';
+import {
+  createInMemoryNotificationSource,
+  type NotificationSource,
+} from '@/services/notifications/notificationSource';
+
 import { NotificationBell } from './NotificationBell';
 
 const meta: Meta<typeof NotificationBell> = {
@@ -19,10 +25,80 @@ const meta: Meta<typeof NotificationBell> = {
 export default meta;
 type Story = StoryObj<typeof NotificationBell>;
 
-const generateNotifications = (count: number) =>
+const defaultStoryNotifications: NotificationItem[] = [
+  {
+    id: 'default-1',
+    type: 'reservation_requested',
+    menteeName: '林學員 (Mentee)',
+    role: 'mentor',
+    createdAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+    unread: true,
+  },
+  {
+    id: 'default-2',
+    type: 'reservation_success',
+    mentorName: '陳導師 (Mentor)',
+    role: 'mentee',
+    createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+    unread: true,
+  },
+  {
+    id: 'default-3',
+    type: 'feedback_received',
+    menteeName: '王小明',
+    role: 'mentor',
+    reservationId: '201',
+    createdAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
+    unread: false,
+  },
+];
+
+const loadingStorySource: NotificationSource = {
+  requiresAuth: false,
+  isPreloaded: false,
+  getUnreadCount: () => new Promise(() => {}),
+  listNotifications: () => new Promise(() => {}),
+  markOneRead: async () => {},
+  markAllRead: async () => {},
+};
+
+function createErrorStorySource(
+  fallbackItems: NotificationItem[]
+): NotificationSource {
+  let recoveredItems = fallbackItems.map((item) => ({ ...item }));
+  return {
+    requiresAuth: false,
+    isPreloaded: false,
+    async getUnreadCount() {
+      return {
+        unread_count: recoveredItems.filter((item) => item.unread).length,
+      };
+    },
+    async listNotifications() {
+      throw new Error('Simulated notification load failure');
+    },
+    async markOneRead(_userId: string, notificationId: string) {
+      recoveredItems = recoveredItems.map((item) =>
+        item.id === notificationId ? { ...item, unread: false } : item
+      );
+    },
+    async markAllRead() {
+      recoveredItems = recoveredItems.map((item) => ({
+        ...item,
+        unread: false,
+      }));
+    },
+    async retry() {
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      return recoveredItems.map((item) => ({ ...item }));
+    },
+  };
+}
+
+const generateNotifications = (count: number): NotificationItem[] =>
   Array.from({ length: count }, (_, i) => ({
     id: `${i}`,
-    type: 'reservation_requested' as const,
+    type: 'reservation_requested',
     menteeName: `Mentee ${i}`,
     createdAt: new Date().toISOString(),
     unread: true,
@@ -30,12 +106,17 @@ const generateNotifications = (count: number) =>
 
 export const Default: Story = {
   args: {
-    initialStatus: 'success',
+    userId: 'story-default',
+    notificationSource: createInMemoryNotificationSource(
+      defaultStoryNotifications,
+      { requiresAuth: false }
+    ),
   },
 };
 
 export const UpcomingReservationWithDtstart: Story = {
   args: {
+    userId: 'story-upcoming-dtstart',
     initialStatus: 'success',
     initialNotifications: [
       {
@@ -62,6 +143,7 @@ export const UpcomingReservationWithDtstart: Story = {
 
 export const CanceledReservationByRole: Story = {
   args: {
+    userId: 'story-canceled-by-role',
     initialStatus: 'success',
     initialNotifications: [
       {
@@ -88,18 +170,23 @@ export const CanceledReservationByRole: Story = {
 
 export const LoadingState: Story = {
   args: {
+    userId: 'story-loading',
     initialStatus: 'loading',
+    notificationSource: loadingStorySource,
   },
 };
 
 export const ErrorState: Story = {
   args: {
+    userId: 'story-error',
     initialStatus: 'error',
+    notificationSource: createErrorStorySource(defaultStoryNotifications),
   },
 };
 
 export const EmptyState: Story = {
   args: {
+    userId: 'story-empty',
     initialNotifications: [],
     initialStatus: 'empty',
   },
@@ -107,6 +194,7 @@ export const EmptyState: Story = {
 
 export const Over99Notifications: Story = {
   args: {
+    userId: 'story-over-99',
     initialNotifications: generateNotifications(120),
     initialStatus: 'success',
   },
@@ -114,6 +202,7 @@ export const Over99Notifications: Story = {
 
 export const LongText: Story = {
   args: {
+    userId: 'story-long-text',
     initialStatus: 'success',
     initialNotifications: [
       {
@@ -129,6 +218,7 @@ export const LongText: Story = {
 
 export const FeedbackReminderByRole: Story = {
   args: {
+    userId: 'story-feedback-reminder',
     initialStatus: 'success',
     initialNotifications: [
       {
@@ -155,6 +245,7 @@ export const FeedbackReminderByRole: Story = {
 
 export const FeedbackReceivedForMentor: Story = {
   args: {
+    userId: 'story-feedback-received',
     initialStatus: 'success',
     initialNotifications: [
       {
@@ -181,6 +272,7 @@ export const FeedbackReceivedForMentor: Story = {
 
 export const OfficialFeedbackNotificationTypes: Story = {
   args: {
+    userId: 'story-official-feedback-types',
     initialStatus: 'success',
     initialNotifications: [
       {

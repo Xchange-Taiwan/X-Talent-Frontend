@@ -21,8 +21,8 @@ export interface NotificationSource {
   /**
    * Whether this source is seeded up-front instead of fetched. A preloaded
    * source already holds the whole list, so callers must not drive
-   * refresh/pagination loads into it, and must not persist a "seen" badge
-   * count on its behalf.
+   * refresh/pagination loads into it, and must not advance a "seen" badge
+   * count from background refreshes on its behalf.
    */
   isPreloaded?: boolean;
   getUnreadCount(userId: string): Promise<{ unread_count: number }>;
@@ -39,9 +39,23 @@ export interface NotificationSource {
   /**
    * Source-specific handling for a manual retry, resolving with the list to
    * show. Sources that omit it are retried by re-running the normal initial
-   * load.
+   * load inside `NotificationStoreManager.retry()`.
    */
   retry?(userId: string): Promise<NotificationItem[]>;
+}
+
+export interface InMemoryNotificationSourceOptions {
+  /**
+   * Mirrors `httpNotificationSource` (`true`) by default so unauthenticated
+   * callers skip fetches; pass `false` for standalone Storybook stories that
+   * render without a `userId`.
+   */
+  requiresAuth?: boolean;
+  /**
+   * Optional explicit initial unread count override (defaults to counting
+   * `unread` items in the current in-memory list).
+   */
+  unreadCountOverride?: number;
 }
 
 export const httpNotificationSource: NotificationSource = {
@@ -70,10 +84,75 @@ export const httpNotificationSource: NotificationSource = {
   },
 };
 
+function paginateNotificationItems(
+  list: NotificationItem[],
+  cursor?: string | null,
+  limit?: number
+): { notifications: NotificationItem[]; next_cursor: string | null } {
+  const startIdx = cursor ? parseInt(cursor, 10) : 0;
+  if (Number.isNaN(startIdx)) {
+    return {
+      notifications: list.map((item) => ({ ...item })),
+      next_cursor: null,
+    };
+  }
+  const pageSize = limit ?? 20;
+  const paginated = list
+    .slice(startIdx, startIdx + pageSize)
+    .map((item) => ({ ...item }));
+  const nextCursor =
+    startIdx + pageSize < list.length ? String(startIdx + pageSize) : null;
+  return {
+    notifications: paginated,
+    next_cursor: nextCursor,
+  };
+}
+
+/**
+ * Deterministic, zero-delay in-memory `NotificationSource` for unit tests and
+ * fetched Storybook stories (`isPreloaded: false`).
+ */
+export function createInMemoryNotificationSource(
+  initialNotifications: NotificationItem[] = [],
+  options: InMemoryNotificationSourceOptions = {}
+): NotificationSource {
+  let list = initialNotifications.map((item) => ({ ...item }));
+  const { requiresAuth = true, unreadCountOverride } = options;
+
+  return {
+    requiresAuth,
+    isPreloaded: false,
+    async getUnreadCount(_userId: string) {
+      const count =
+        unreadCountOverride !== undefined
+          ? unreadCountOverride
+          : list.filter((n) => n.unread).length;
+      return { unread_count: count };
+    },
+    async listNotifications(
+      _userId: string,
+      cursor?: string | null,
+      limit?: number
+    ) {
+      return paginateNotificationItems(list, cursor, limit);
+    },
+    async markOneRead(_userId: string, notificationId: string) {
+      list = list.map((item) =>
+        item.id === notificationId ? { ...item, unread: false } : item
+      );
+      return { success: true };
+    },
+    async markAllRead(_userId: string) {
+      list = list.map((item) => ({ ...item, unread: false }));
+      return { success: true };
+    },
+  };
+}
+
 export function createFixtureNotificationSource(
   initialNotifications: NotificationItem[] = []
 ): NotificationSource {
-  let list = [...initialNotifications];
+  let list = initialNotifications.map((item) => ({ ...item }));
 
   return {
     requiresAuth: false,
@@ -87,18 +166,7 @@ export function createFixtureNotificationSource(
       cursor?: string | null,
       limit?: number
     ) {
-      const startIdx = cursor ? parseInt(cursor, 10) : 0;
-      if (Number.isNaN(startIdx)) {
-        return { notifications: list, next_cursor: null };
-      }
-      const pageSize = limit ?? 20;
-      const paginated = list.slice(startIdx, startIdx + pageSize);
-      const nextCursor =
-        startIdx + pageSize < list.length ? String(startIdx + pageSize) : null;
-      return {
-        notifications: paginated,
-        next_cursor: nextCursor,
-      };
+      return paginateNotificationItems(list, cursor, limit);
     },
     async markOneRead(_userId: string, notificationId: string) {
       list = list.map((item) =>
@@ -114,7 +182,7 @@ export function createFixtureNotificationSource(
       await new Promise((resolve) =>
         setTimeout(resolve, FIXTURE_RETRY_DELAY_MS)
       );
-      return list;
+      return list.map((item) => ({ ...item }));
     },
   };
 }
