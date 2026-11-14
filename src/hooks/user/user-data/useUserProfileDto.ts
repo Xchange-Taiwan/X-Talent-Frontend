@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { useAsyncRead } from '@/hooks/useAsyncRead';
 import {
@@ -43,15 +43,20 @@ export function useUserProfileDto(
   initialData?: MentorProfileVO | null,
   options?: { enabled?: boolean }
 ): UseUserProfileDtoResult {
+  const [manualRetryCount, setManualRetryCount] = useState(0);
   const key = userId && language ? `${userId}-${language}` : null;
   const effectiveInitialData = getEffectiveInitialDto(key, initialData);
-  const bypassKey = options?.enabled === false ? null : key;
+  const bypassKey =
+    options?.enabled === false ||
+    (effectiveInitialData === null && manualRetryCount === 0)
+      ? null
+      : key;
 
   const {
     data: asyncReadData,
     isLoading,
     error,
-    refetch,
+    refetch: rawRefetch,
   } = useAsyncRead(
     userProfileDtoReadManager,
     bypassKey,
@@ -67,6 +72,11 @@ export function useUserProfileDto(
       shouldCache: (res) => shouldCacheUserProfileDto(key, res),
     }
   );
+
+  const refetch = useCallback(() => {
+    setManualRetryCount((c) => c + 1);
+    rawRefetch();
+  }, [rawRefetch]);
 
   const cachedData = key ? userProfileDtoReadManager.peek(key) : null;
   const userDto =

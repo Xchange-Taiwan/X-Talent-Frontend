@@ -535,6 +535,29 @@ describe('AsyncReadManager unit tests', () => {
       unsubscribe();
     });
 
+    it('update() reads stale cached entries via peek() after TTL expiry to derive optimistic updates and refresh TTL', () => {
+      vi.useFakeTimers();
+      const manager = new AsyncReadManager<string, string[]>({ ttlMs: 1_000 });
+      manager.set('key', ['a', 'b']);
+
+      vi.advanceTimersByTime(1_001);
+
+      expect(manager.get('key')).toBeUndefined();
+      expect(manager.has('key')).toBe(false);
+      expect(manager.peek('key')).toEqual(['a', 'b']);
+
+      manager.update('key', (current) =>
+        current ? [...current, 'c'] : undefined
+      );
+
+      expect(manager.get('key')).toEqual(['a', 'b', 'c']);
+      expect(manager.has('key')).toBe(true);
+      expect(manager.getSnapshot('key')).toEqual({
+        value: ['a', 'b', 'c'],
+        isStale: false,
+      });
+    });
+
     it('update() is a no-op when the updater returns undefined (nothing to derive from)', () => {
       const manager = new AsyncReadManager<string, string[]>();
       const updates: AsyncReadResult<string[]>[] = [];

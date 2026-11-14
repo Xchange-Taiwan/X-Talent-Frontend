@@ -181,6 +181,43 @@ describe('useAsyncRead hook tests', () => {
     expect(manager.get('key')).toBe('client-primed');
   });
 
+  it('does not cache initialData when shouldCache returns false, still subscribes, and fetches valid network data', async () => {
+    const manager = new AsyncReadManager<string, string>();
+    let resolveFetch: (value: string) => void = () => {};
+    const fetcher = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveFetch = resolve;
+        })
+    );
+
+    const { result, unmount } = renderHook(() =>
+      useAsyncRead(manager, 'key', fetcher, {
+        initialData: 'invalid-ssr-data',
+        shouldCache: (val) => val !== 'invalid-ssr-data',
+      })
+    );
+
+    expect(result.current.data).toBe('invalid-ssr-data');
+    expect(result.current.isLoading).toBe(false);
+    expect(manager.get('key')).toBeUndefined();
+    expect(manager.peek('key')).toBeUndefined();
+    expect(manager.getListenerCount('key')).toBe(1);
+    expect(fetcher).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      resolveFetch('valid-network-data');
+      await Promise.resolve();
+    });
+
+    expect(result.current.data).toBe('valid-network-data');
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.error).toBeNull();
+    expect(manager.get('key')).toBe('valid-network-data');
+
+    unmount();
+  });
+
   it('preserves stale cache over SSR initialData without aborting SWR revalidation, then updates to fresh network value', async () => {
     vi.useFakeTimers();
     const manager = new AsyncReadManager<string, string>({ ttlMs: 1_000 });

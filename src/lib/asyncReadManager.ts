@@ -252,15 +252,16 @@ export class AsyncReadManager<K, V> implements AsyncReadSource<K, V> {
   }
 
   /**
-   * Update the value at `key` derived from its current fresh cached value.
-   * Returning `undefined` from `updater` is a no-op (nothing to update from).
+   * Update the value at `key` derived from its current cached value (fresh or
+   * stale). Returning `undefined` from `updater` is a no-op (nothing to update
+   * from), whereas returning a value writes it and refreshes its TTL.
    */
   public update(
     key: K,
     updater: (current: V | undefined) => V | undefined,
     ttlMs?: number
   ): void {
-    const next = updater(this.get(key));
+    const next = updater(this.peek(key));
     if (next === undefined) {
       return;
     }

@@ -119,14 +119,6 @@ export function useAsyncRead<K, V>(
     const isForced = retryTrigger > lastRetryRef.current;
     lastRetryRef.current = retryTrigger;
 
-    if (
-      !isForced &&
-      activeInitialData !== undefined &&
-      readCachedSnapshot(manager, key) === undefined
-    ) {
-      return;
-    }
-
     const currentOptions = isForced
       ? { ...optionsRef.current, force: true, initialData: activeInitialData }
       : { ...optionsRef.current, initialData: activeInitialData };

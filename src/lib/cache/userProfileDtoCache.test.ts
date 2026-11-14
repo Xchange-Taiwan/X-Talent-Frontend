@@ -163,6 +163,58 @@ describe('userProfileDtoCache (src/lib/cache)', () => {
       clearUserProfileDtoCache(60, 'zh_TW');
     });
 
+    it('retains stale primed DTO via peek() during optimistic transition window when entry TTL has elapsed and incoming DTO has not converged', async () => {
+      const primedDto = fromPartial<MentorProfileVO>({
+        user_id: 64,
+        name: 'Stale Optimistic Name',
+        job_title: 'Principal Engineer',
+        company: 'Next Corp',
+        is_mentor: true,
+      });
+      const staleIncomingDto = fromPartial<MentorProfileVO>({
+        user_id: 64,
+        name: 'Old Backend Name',
+        job_title: 'Junior Engineer',
+        company: 'Old Corp',
+        is_mentor: false,
+      });
+      const convergedIncomingDto = fromPartial<MentorProfileVO>({
+        user_id: 64,
+        name: 'Stale Optimistic Name',
+        job_title: 'Principal Engineer',
+        company: 'Next Corp',
+        is_mentor: true,
+      });
+
+      primeUserProfileDtoCache(64, 'zh_TW', primedDto);
+      // Override entry TTL to 1s so the cache entry expires while the 10s optimistic window remains active
+      userProfileDtoReadManager.set('64-zh_TW', primedDto, 1_000);
+      vi.advanceTimersByTime(1_001);
+
+      expect(userProfileDtoReadManager.get('64-zh_TW')).toBeUndefined();
+      expect(userProfileDtoReadManager.getSnapshot('64-zh_TW')).toEqual({
+        value: primedDto,
+        isStale: true,
+      });
+      expect(isOptimisticTransitionActive()).toBe(true);
+
+      const nonConvergedResult = await resolveUserProfileDtoFetch(
+        '64-zh_TW',
+        async () => staleIncomingDto,
+        new AbortController().signal
+      );
+      expect(nonConvergedResult).toBe(primedDto);
+
+      const convergedResult = await resolveUserProfileDtoFetch(
+        '64-zh_TW',
+        async () => convergedIncomingDto,
+        new AbortController().signal
+      );
+      expect(convergedResult).toBe(convergedIncomingDto);
+
+      clearUserProfileDtoCache(64, 'zh_TW');
+    });
+
     it('retains existing cached DTO when background revalidation resolves null', async () => {
       const existingDto = fromPartial<MentorProfileVO>({
         user_id: 61,
