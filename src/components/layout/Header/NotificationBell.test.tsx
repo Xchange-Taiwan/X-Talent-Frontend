@@ -5,12 +5,17 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
-import { fromAny } from '@total-typescript/shoehorn';
+import { fromAny, fromPartial } from '@total-typescript/shoehorn';
+import * as React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as useNotificationCenterModule from '@/hooks/useNotificationCenter';
 import { type NotificationItem } from '@/hooks/useNotificationCenter';
 import { captureFlowFailure } from '@/lib/monitoring';
+import {
+  createInMemoryNotificationSource,
+  type NotificationSource,
+} from '@/services/notifications/notificationSource';
 import { resetNotificationStore } from '@/stores/notificationStore';
 import { mockToast } from '@/test/mocks/useToast';
 
@@ -29,8 +34,33 @@ vi.mock('@/lib/monitoring', () => ({
   captureFlowFailure: vi.fn(),
 }));
 
-// Uses src/services/notifications/__mocks__/notificationService.ts
-vi.mock('@/services/notifications/notificationService');
+interface Deferred<T> {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason: Error) => void;
+}
+
+function createDeferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: Error) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+class NoopIntersectionObserver implements IntersectionObserver {
+  readonly root: Element | Document | null = null;
+  readonly rootMargin = '';
+  readonly thresholds: ReadonlyArray<number> = [];
+  disconnect() {}
+  observe() {}
+  takeRecords(): IntersectionObserverEntry[] {
+    return [];
+  }
+  unobserve() {}
+}
 
 const MOCK_MIXED_NOTIFICATIONS: NotificationItem[] = [
   {
@@ -106,7 +136,7 @@ function getMockNotifications(count: number): NotificationItem[] {
     id: `${i + 1}`,
     type: types[i % types.length],
     menteeName: i === 0 ? '小明' : `Mentee ${i}`,
-    mentorName: `林導師`,
+    mentorName: '林導師',
     createdAt: new Date().toISOString(),
     unread: true,
   }));
@@ -117,7 +147,21 @@ function renderBell(
     unreadCount?: number;
   } = {}
 ) {
-  const { unreadCount = 5, initialNotifications, ...rest } = props;
+  const {
+    unreadCount = 5,
+    initialNotifications,
+    notificationSource,
+    ...rest
+  } = props;
+  if (notificationSource !== undefined) {
+    return render(
+      <NotificationBell
+        notificationSource={notificationSource}
+        initialNotifications={initialNotifications}
+        {...rest}
+      />
+    );
+  }
   const notifications =
     initialNotifications !== undefined
       ? initialNotifications
@@ -133,17 +177,7 @@ describe('NotificationBell', () => {
     vi.mocked(captureFlowFailure).mockClear();
     localStorage.clear();
     resetNotificationStore();
-    global.IntersectionObserver = class IntersectionObserver {
-      readonly root: Element | null = null;
-      readonly rootMargin: string = '';
-      readonly thresholds: ReadonlyArray<number> = [];
-      disconnect() {}
-      observe() {}
-      takeRecords() {
-        return [];
-      }
-      unobserve() {}
-    } as unknown as typeof IntersectionObserver;
+    global.IntersectionObserver = NoopIntersectionObserver;
   });
 
   it('renders the bell icon button with title and aria-label', () => {
@@ -175,10 +209,8 @@ describe('NotificationBell', () => {
     });
     const button = screen.getByRole('button', { name: '開啟通知選單' });
 
-    // Click the bell button to open the popover
     fireEvent.click(button);
 
-    // Popover content should be visible
     expect(screen.getByText('尚無新通知')).toBeInTheDocument();
 
     const popoverContent = screen
@@ -229,20 +261,16 @@ describe('NotificationBell', () => {
       const button = screen.getByRole('button', { name: '開啟通知選單' });
       fireEvent.click(button);
 
-      // Check header
       expect(screen.getByText('通知')).toBeInTheDocument();
 
-      // a. 預約通知
       expect(screen.getByText('您有新的預約')).toBeInTheDocument();
       expect(
         screen.getByText('小明 與您提出預約需求，請前往接受預約')
       ).toBeInTheDocument();
 
-      // b. 預約成功通知
       expect(screen.getByText('林導師 已接受您的預約')).toBeInTheDocument();
       expect(screen.getByText('前往查看您的預約詳情')).toBeInTheDocument();
 
-      // c. 預約失敗通知
       expect(
         screen.getByText('您與 王導師 的預約已被拒絕')
       ).toBeInTheDocument();
@@ -250,12 +278,10 @@ describe('NotificationBell', () => {
         screen.getByText('您的預約已被拒絕，歡迎重新預約')
       ).toBeInTheDocument();
 
-      // d. 預約取消通知
       expect(
         screen.getByText('您與 陳導師 的預約已被取消')
       ).toBeInTheDocument();
 
-      // e. 預約即將到來通知
       expect(
         screen.getByText('您與 張導師 的預約即將到來')
       ).toBeInTheDocument();
@@ -285,9 +311,6 @@ describe('NotificationBell', () => {
       const button = screen.getByRole('button', { name: '開啟通知選單' });
       fireEvent.click(button);
 
-      // Falls back to the generic template content rather than crashing on undefined.
-      // '通知' also matches the popover header, so assert on the fallback body text,
-      // which is unique to the default-case content.
       expect(screen.getByText('您有一則新通知')).toBeInTheDocument();
     });
 
@@ -305,44 +328,42 @@ describe('NotificationBell', () => {
     it('applies unread and read classes appropriately to notification titles based on unread status', () => {
       const spy = vi
         .spyOn(useNotificationCenterModule, 'useNotificationCenter')
-        .mockReturnValue({
-          open: true,
-          status: 'success',
-          items: [
-            {
-              id: '1',
-              type: 'reservation_requested',
-              createdAt: new Date().toISOString(),
-              unread: true,
-            },
-            {
-              id: '2',
-              type: 'reservation_success',
-              createdAt: new Date().toISOString(),
-              unread: false,
-            },
-          ],
-          badgeCount: 1,
-          showBadge: false,
-          formattedCount: '1',
-          hasUnread: true,
-          onOpenChange: vi.fn(),
-          closeCenter: vi.fn(),
-          markRead: vi.fn(),
-          markAllRead: vi.fn(),
-          handleRetry: vi.fn(),
-        } as unknown as ReturnType<
-          typeof useNotificationCenterModule.useNotificationCenter
-        >);
+        .mockReturnValue(
+          fromPartial({
+            open: true,
+            status: 'success',
+            items: [
+              {
+                id: '1',
+                type: 'reservation_requested',
+                createdAt: new Date().toISOString(),
+                unread: true,
+              },
+              {
+                id: '2',
+                type: 'reservation_success',
+                createdAt: new Date().toISOString(),
+                unread: false,
+              },
+            ],
+            badgeCount: 1,
+            showBadge: false,
+            formattedCount: '1',
+            hasUnread: true,
+            onOpenChange: vi.fn(),
+            closeCenter: vi.fn(),
+            markRead: vi.fn(),
+            markAllRead: vi.fn(),
+            handleRetry: vi.fn(),
+          })
+        );
 
       renderBell({ initialStatus: 'success' });
 
-      // Check an unread notification
       const unreadTitle = screen.getByText('您有新的預約');
       expect(unreadTitle).toHaveClass('font-bold');
       expect(unreadTitle).toHaveClass('text-text-primary');
 
-      // Check a read notification
       const readTitle = screen.getByText('Mentor 已接受您的預約');
       expect(readTitle).toHaveClass('font-normal');
       expect(readTitle).toHaveClass('text-text-secondary');
@@ -371,54 +392,74 @@ describe('NotificationBell', () => {
       expect(retryButton).toHaveClass('focus-visible:ring-ring');
     });
 
-    it('transitions to loading and then success when clicking retry button', async () => {
-      vi.useFakeTimers();
-      try {
-        renderBell({ unreadCount: 5, initialStatus: 'error' });
-        const button = screen.getByRole('button', { name: '開啟通知選單' });
-        fireEvent.click(button);
+    it('transitions to loading and then success when clicking retry button via NotificationSource', async () => {
+      const deferredRetry = createDeferred<{
+        notifications: NotificationItem[];
+        next_cursor: string | null;
+      }>();
+      let listCallCount = 0;
 
-        const retryButton = screen.getByRole('button', { name: '重新嘗試' });
-        fireEvent.click(retryButton);
+      const source: NotificationSource = {
+        requiresAuth: false,
+        isPreloaded: false,
+        getUnreadCount: vi.fn().mockResolvedValue({ unread_count: 5 }),
+        listNotifications: vi.fn().mockImplementation(() => {
+          listCallCount += 1;
+          if (listCallCount === 1) {
+            return Promise.reject(new Error('Initial network error'));
+          }
+          return deferredRetry.promise;
+        }),
+        markOneRead: vi.fn().mockResolvedValue(undefined),
+        markAllRead: vi.fn().mockResolvedValue(undefined),
+      };
 
-        expect(screen.queryByText('載入失敗，請重試')).not.toBeInTheDocument();
+      renderBell({ userId: 'user-retry-ui', notificationSource: source });
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
 
-        // The fixture source resolves its retry asynchronously, so the timer
-        // has to be advanced with the microtask queue drained alongside it.
-        await act(async () => {
-          await vi.advanceTimersByTimeAsync(1000);
+      expect(await screen.findByText('載入失敗，請重試')).toBeInTheDocument();
+
+      const retryButton = screen.getByRole('button', { name: '重新嘗試' });
+      fireEvent.click(retryButton);
+
+      expect(screen.queryByText('載入失敗，請重試')).not.toBeInTheDocument();
+
+      await act(async () => {
+        deferredRetry.resolve({
+          notifications: MOCK_MIXED_NOTIFICATIONS,
+          next_cursor: null,
         });
+        await deferredRetry.promise;
+      });
 
-        expect(screen.getByText('您有新的預約')).toBeInTheDocument();
-      } finally {
-        vi.useRealTimers();
-      }
+      expect(screen.getByText('您有新的預約')).toBeInTheDocument();
     });
 
     it('shows the "older unread" hint above the load-more area when olderUnreadCount is positive', () => {
       const spy = vi
         .spyOn(useNotificationCenterModule, 'useNotificationCenter')
-        .mockReturnValue({
-          open: true,
-          status: 'success',
-          items: MOCK_MIXED_NOTIFICATIONS,
-          badgeCount: 8,
-          showBadge: false,
-          formattedCount: '8',
-          hasUnread: true,
-          onOpenChange: vi.fn(),
-          closeCenter: vi.fn(),
-          markRead: vi.fn(),
-          markAllRead: vi.fn(),
-          handleRetry: vi.fn(),
-          hasMore: true,
-          isLoadingMore: false,
-          hasLoadMoreError: false,
-          loadMore: vi.fn(),
-          olderUnreadCount: 3,
-        } as unknown as ReturnType<
-          typeof useNotificationCenterModule.useNotificationCenter
-        >);
+        .mockReturnValue(
+          fromPartial({
+            open: true,
+            status: 'success',
+            items: MOCK_MIXED_NOTIFICATIONS,
+            badgeCount: 8,
+            showBadge: false,
+            formattedCount: '8',
+            hasUnread: true,
+            onOpenChange: vi.fn(),
+            closeCenter: vi.fn(),
+            markRead: vi.fn(),
+            markAllRead: vi.fn(),
+            handleRetry: vi.fn(),
+            hasMore: true,
+            isLoadingMore: false,
+            hasLoadMoreError: false,
+            loadMore: vi.fn(),
+            olderUnreadCount: 3,
+          })
+        );
 
       renderBell({ initialStatus: 'success' });
 
@@ -430,27 +471,27 @@ describe('NotificationBell', () => {
     it('caps the "older unread" hint at "99+" when olderUnreadCount exceeds 99', () => {
       const spy = vi
         .spyOn(useNotificationCenterModule, 'useNotificationCenter')
-        .mockReturnValue({
-          open: true,
-          status: 'success',
-          items: MOCK_MIXED_NOTIFICATIONS,
-          badgeCount: 150,
-          showBadge: false,
-          formattedCount: '99+',
-          hasUnread: true,
-          onOpenChange: vi.fn(),
-          closeCenter: vi.fn(),
-          markRead: vi.fn(),
-          markAllRead: vi.fn(),
-          handleRetry: vi.fn(),
-          hasMore: true,
-          isLoadingMore: false,
-          hasLoadMoreError: false,
-          loadMore: vi.fn(),
-          olderUnreadCount: 120,
-        } as unknown as ReturnType<
-          typeof useNotificationCenterModule.useNotificationCenter
-        >);
+        .mockReturnValue(
+          fromPartial({
+            open: true,
+            status: 'success',
+            items: MOCK_MIXED_NOTIFICATIONS,
+            badgeCount: 150,
+            showBadge: false,
+            formattedCount: '99+',
+            hasUnread: true,
+            onOpenChange: vi.fn(),
+            closeCenter: vi.fn(),
+            markRead: vi.fn(),
+            markAllRead: vi.fn(),
+            handleRetry: vi.fn(),
+            hasMore: true,
+            isLoadingMore: false,
+            hasLoadMoreError: true,
+            loadMore: vi.fn(),
+            olderUnreadCount: 120,
+          })
+        );
 
       renderBell({ initialStatus: 'success' });
 
@@ -462,27 +503,27 @@ describe('NotificationBell', () => {
     it('gives the load-more "點擊重試" button a visible keyboard focus ring', () => {
       const spy = vi
         .spyOn(useNotificationCenterModule, 'useNotificationCenter')
-        .mockReturnValue({
-          open: true,
-          status: 'success',
-          items: MOCK_MIXED_NOTIFICATIONS,
-          badgeCount: 8,
-          showBadge: false,
-          formattedCount: '8',
-          hasUnread: true,
-          onOpenChange: vi.fn(),
-          closeCenter: vi.fn(),
-          markRead: vi.fn(),
-          markAllRead: vi.fn(),
-          handleRetry: vi.fn(),
-          hasMore: true,
-          isLoadingMore: false,
-          hasLoadMoreError: true,
-          loadMore: vi.fn(),
-          olderUnreadCount: 0,
-        } as unknown as ReturnType<
-          typeof useNotificationCenterModule.useNotificationCenter
-        >);
+        .mockReturnValue(
+          fromPartial({
+            open: true,
+            status: 'success',
+            items: MOCK_MIXED_NOTIFICATIONS,
+            badgeCount: 8,
+            showBadge: false,
+            formattedCount: '8',
+            hasUnread: true,
+            onOpenChange: vi.fn(),
+            closeCenter: vi.fn(),
+            markRead: vi.fn(),
+            markAllRead: vi.fn(),
+            handleRetry: vi.fn(),
+            hasMore: true,
+            isLoadingMore: false,
+            hasLoadMoreError: true,
+            loadMore: vi.fn(),
+            olderUnreadCount: 0,
+          })
+        );
 
       renderBell({ initialStatus: 'success' });
 
@@ -506,29 +547,40 @@ describe('NotificationBell', () => {
       expect(screen.queryByText(/則較舊的未讀通知/)).not.toBeInTheDocument();
     });
 
-    it('clears active timeouts on unmount during retry loading', () => {
-      vi.useFakeTimers();
-      try {
-        const { unmount } = renderBell({
-          unreadCount: 5,
-          initialStatus: 'error',
-        });
-        const button = screen.getByRole('button', { name: '開啟通知選單' });
-        fireEvent.click(button);
+    it('safely discards late retry resolution after unmount without crashing', async () => {
+      const deferredRetry = createDeferred<NotificationItem[]>();
+      const source: NotificationSource = {
+        requiresAuth: false,
+        isPreloaded: false,
+        getUnreadCount: vi.fn().mockResolvedValue({ unread_count: 1 }),
+        listNotifications: vi
+          .fn()
+          .mockRejectedValue(new Error('Initial failure')),
+        markOneRead: vi.fn().mockResolvedValue(undefined),
+        markAllRead: vi.fn().mockResolvedValue(undefined),
+        retry: vi.fn(() => deferredRetry.promise),
+      };
 
-        const retryButton = screen.getByRole('button', { name: '重新嘗試' });
-        fireEvent.click(retryButton);
+      const { unmount } = renderBell({
+        userId: 'user-retry-unmount',
+        notificationSource: source,
+      });
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
 
-        expect(screen.queryByText('載入失敗，請重試')).not.toBeInTheDocument();
+      const retryButton = await screen.findByRole('button', {
+        name: '重新嘗試',
+      });
+      fireEvent.click(retryButton);
 
-        unmount();
+      expect(screen.queryByText('載入失敗，請重試')).not.toBeInTheDocument();
 
-        act(() => {
-          vi.advanceTimersByTime(1000);
-        });
-      } finally {
-        vi.useRealTimers();
-      }
+      unmount();
+
+      await act(async () => {
+        deferredRetry.resolve(MOCK_MIXED_NOTIFICATIONS);
+        await deferredRetry.promise;
+      });
     });
   });
 
@@ -566,14 +618,12 @@ describe('NotificationBell', () => {
       const button = screen.getByRole('button', { name: '開啟通知選單' });
       fireEvent.click(button);
 
-      // Check reservation_requested href (Mentor page)
       const newReservationLink = screen.getByText('您有新的預約').closest('a');
       expect(newReservationLink).toHaveAttribute(
         'href',
         '/reservation/mentor?tab=pending'
       );
 
-      // Check reservation_success href
       const successLink = screen
         .getByText('林導師 已接受您的預約')
         .closest('a');
@@ -582,19 +632,16 @@ describe('NotificationBell', () => {
         '/reservation/mentee?tab=upcoming'
       );
 
-      // Check reservation_failed href
       const failedLink = screen
         .getByText('您與 王導師 的預約已被拒絕')
         .closest('a');
       expect(failedLink).toHaveAttribute('href', '/mentor-pool');
 
-      // Check reservation_canceled href for Mentee
       const canceledLink = screen
         .getByText('您與 陳導師 的預約已被取消')
         .closest('a');
       expect(canceledLink).toHaveAttribute('href', '/mentor-pool');
 
-      // Check reservation_upcoming href for Mentee
       const upcomingLink = screen
         .getByText('您與 張導師 的預約即將到來')
         .closest('a');
@@ -612,7 +659,6 @@ describe('NotificationBell', () => {
       const button = screen.getByRole('button', { name: '開啟通知選單' });
       fireEvent.click(button);
 
-      // Check reservation_canceled href and mentor-perspective body for Mentor context (#858)
       const canceledLink = screen
         .getByText('您與 小明 的預約已被取消')
         .closest('a');
@@ -627,7 +673,6 @@ describe('NotificationBell', () => {
         screen.queryByText('您的預約已被取消，歡迎重新預約')
       ).not.toBeInTheDocument();
 
-      // Check reservation_upcoming href for Mentor context
       const upcomingLink = screen
         .getByText('您與 小華 的預約即將到來')
         .closest('a');
@@ -667,33 +712,31 @@ describe('NotificationBell', () => {
       ).toBeInTheDocument();
     });
 
-    it('marks clicked notification as read, triggers onMarkRead, and closes popover on click', async () => {
-      const onMarkReadMock = vi.fn().mockResolvedValue(undefined);
+    it('marks clicked notification as read via NotificationSource and closes popover on click', async () => {
+      const source = createInMemoryNotificationSource(MOCK_MIXED_NOTIFICATIONS);
+      const markOneSpy = vi.spyOn(source, 'markOneRead');
 
       renderBell({
-        initialStatus: 'success',
-        onMarkRead: onMarkReadMock,
+        userId: 'user-click-read',
+        notificationSource: source,
       });
       const button = screen.getByRole('button', { name: '開啟通知選單' });
       fireEvent.click(button);
 
-      // Click the first notification (which is unread)
-      const link = screen.getByText('您有新的預約').closest('a');
+      const title = await screen.findByText('您有新的預約');
+      const link = title.closest('a');
       expect(link).toBeInTheDocument();
 
       fireEvent.click(link!);
 
       await waitFor(() => {
-        expect(onMarkReadMock).toHaveBeenCalledWith('1');
+        expect(markOneSpy).toHaveBeenCalledWith('user-click-read', '1');
       });
 
       expect(screen.queryByText('通知')).not.toBeInTheDocument();
     });
 
-    it('rolls back an individually clicked notification to unread and shows an error toast when onMarkRead fails', async () => {
-      const onMarkReadErrorMock = vi
-        .fn()
-        .mockRejectedValue(new Error('Network error'));
+    it('rolls back an individually clicked notification to unread and shows an error toast when NotificationSource.markOneRead fails', async () => {
       const mixedNotifications: NotificationItem[] = [
         {
           id: 'unread-1',
@@ -703,20 +746,24 @@ describe('NotificationBell', () => {
           unread: true,
         },
       ];
+      const source = createInMemoryNotificationSource(mixedNotifications);
+      const markOneSpy = vi
+        .spyOn(source, 'markOneRead')
+        .mockRejectedValue(new Error('Network error'));
 
       renderBell({
-        initialStatus: 'success',
-        initialNotifications: mixedNotifications,
-        onMarkRead: onMarkReadErrorMock,
+        userId: 'user-click-fail',
+        notificationSource: source,
       });
       const button = screen.getByRole('button', { name: '開啟通知選單' });
       fireEvent.click(button);
 
-      const link = screen.getByText('您有新的預約').closest('a');
+      const title = await screen.findByText('您有新的預約');
+      const link = title.closest('a');
       fireEvent.click(link!);
 
       await waitFor(() => {
-        expect(onMarkReadErrorMock).toHaveBeenCalledWith('unread-1');
+        expect(markOneSpy).toHaveBeenCalledWith('user-click-fail', 'unread-1');
       });
 
       fireEvent.click(button);
@@ -758,8 +805,7 @@ describe('NotificationBell', () => {
       expect(unreadTitle).toHaveClass('font-bold');
     });
 
-    it('marks all notifications as read when "全部標示為已讀" is clicked and calls onMarkAllRead exactly for unread items', async () => {
-      const onMarkAllReadMock = vi.fn();
+    it('marks all notifications as read when "全部標示為已讀" is clicked via NotificationSource.markAllRead', async () => {
       const mixedNotifications: NotificationItem[] = [
         {
           id: 'unread-1',
@@ -776,16 +822,17 @@ describe('NotificationBell', () => {
           unread: false,
         },
       ];
+      const source = createInMemoryNotificationSource(mixedNotifications);
+      const markAllSpy = vi.spyOn(source, 'markAllRead');
 
       renderBell({
-        initialStatus: 'success',
-        initialNotifications: mixedNotifications,
-        onMarkAllRead: onMarkAllReadMock,
+        userId: 'user-mark-all',
+        notificationSource: source,
       });
       const button = screen.getByRole('button', { name: '開啟通知選單' });
       fireEvent.click(button);
 
-      const unreadTitle = screen.getByText('您有新的預約');
+      const unreadTitle = await screen.findByText('您有新的預約');
       expect(unreadTitle).toHaveClass('font-bold');
 
       const readTitle = screen.getByText('林導師 已接受您的預約');
@@ -794,8 +841,6 @@ describe('NotificationBell', () => {
       const markAllBtn = screen.getByRole('button', {
         name: '全部標示為已讀',
       });
-      expect(markAllBtn).toBeInTheDocument();
-
       fireEvent.click(markAllBtn);
 
       await waitFor(() => {
@@ -803,60 +848,11 @@ describe('NotificationBell', () => {
         expect(unreadTitle).not.toHaveClass('font-bold');
       });
 
-      expect(onMarkAllReadMock).toHaveBeenCalledTimes(1);
-      expect(onMarkAllReadMock).toHaveBeenCalledWith(['unread-1']);
+      expect(markAllSpy).toHaveBeenCalledTimes(1);
+      expect(markAllSpy).toHaveBeenCalledWith('user-mark-all');
     });
 
-    it('successfully falls back to calling onMarkRead individually for unread notifications when onMarkAllRead is not provided', async () => {
-      const onMarkReadMock = vi.fn();
-      const mixedNotifications: NotificationItem[] = [
-        {
-          id: 'unread-1',
-          type: 'reservation_requested',
-          menteeName: '小明',
-          createdAt: new Date().toISOString(),
-          unread: true,
-        },
-        {
-          id: 'unread-2',
-          type: 'reservation_upcoming',
-          mentorName: '王導師',
-          createdAt: new Date().toISOString(),
-          unread: true,
-        },
-        {
-          id: 'read-3',
-          type: 'reservation_success',
-          mentorName: '林導師',
-          createdAt: new Date().toISOString(),
-          unread: false,
-        },
-      ];
-
-      renderBell({
-        initialStatus: 'success',
-        initialNotifications: mixedNotifications,
-        onMarkRead: onMarkReadMock,
-      });
-      const button = screen.getByRole('button', { name: '開啟通知選單' });
-      fireEvent.click(button);
-
-      const markAllBtn = screen.getByRole('button', {
-        name: '全部標示為已讀',
-      });
-      fireEvent.click(markAllBtn);
-
-      await waitFor(() => {
-        expect(onMarkReadMock).toHaveBeenCalledTimes(2);
-      });
-      expect(onMarkReadMock).toHaveBeenCalledWith('unread-1');
-      expect(onMarkReadMock).toHaveBeenCalledWith('unread-2');
-    });
-
-    it('rolls back state to original unread notifications and restores the unread badge when onMarkAllRead API call fails', async () => {
-      const onMarkAllReadErrorMock = vi
-        .fn()
-        .mockRejectedValue(new Error('Network error'));
+    it('rolls back state to original unread notifications when NotificationSource.markAllRead fails', async () => {
       const mixedNotifications: NotificationItem[] = [
         {
           id: 'unread-1',
@@ -866,19 +862,23 @@ describe('NotificationBell', () => {
           unread: true,
         },
       ];
+      const deferredMarkAll = createDeferred<void>();
+      const source = createInMemoryNotificationSource(mixedNotifications);
+      vi.spyOn(source, 'markAllRead').mockImplementation(
+        () => deferredMarkAll.promise
+      );
 
       renderBell({
-        initialStatus: 'success',
-        initialNotifications: mixedNotifications,
-        onMarkAllRead: onMarkAllReadErrorMock,
+        userId: 'user-mark-all-fail',
+        notificationSource: source,
       });
+
+      expect(await screen.findByText('1')).toBeInTheDocument();
+
       const button = screen.getByRole('button', { name: '開啟通知選單' });
-
-      expect(screen.getByText('1')).toBeInTheDocument();
-
       fireEvent.click(button);
 
-      const unreadTitle = screen.getByText('您有新的預約');
+      const unreadTitle = await screen.findByText('您有新的預約');
       expect(unreadTitle).toHaveClass('font-bold');
 
       const markAllBtn = screen.getByRole('button', {
@@ -887,6 +887,11 @@ describe('NotificationBell', () => {
       fireEvent.click(markAllBtn);
 
       expect(unreadTitle).toHaveClass('font-normal');
+
+      await act(async () => {
+        deferredMarkAll.reject(new Error('Network error'));
+        await deferredMarkAll.promise.catch(() => {});
+      });
 
       await waitFor(() => {
         expect(unreadTitle).toHaveClass('font-bold');
@@ -907,113 +912,6 @@ describe('NotificationBell', () => {
           message: 'Network error',
         })
       );
-    });
-
-    it('rolls back ONLY the failed notification state while successfully updating others during sequential onMarkRead fallback failure', async () => {
-      const onMarkReadMixedMock = vi
-        .fn()
-        .mockResolvedValueOnce(undefined)
-        .mockRejectedValueOnce(new Error('Individual error'));
-
-      const mixedNotifications: NotificationItem[] = [
-        {
-          id: 'unread-1',
-          type: 'reservation_requested',
-          menteeName: '小明',
-          createdAt: new Date().toISOString(),
-          unread: true,
-        },
-        {
-          id: 'unread-2',
-          type: 'reservation_upcoming',
-          mentorName: '王導師',
-          createdAt: new Date().toISOString(),
-          unread: true,
-        },
-      ];
-
-      renderBell({
-        initialStatus: 'success',
-        initialNotifications: mixedNotifications,
-        onMarkRead: onMarkReadMixedMock,
-      });
-      const button = screen.getByRole('button', { name: '開啟通知選單' });
-
-      expect(screen.getByText('2')).toBeInTheDocument();
-
-      fireEvent.click(button);
-
-      const title1 = screen.getByText('您有新的預約');
-      const title2 = screen.getByText('您與 王導師 的預約即將到來');
-      expect(title1).toHaveClass('font-bold');
-      expect(title2).toHaveClass('font-bold');
-
-      const markAllBtn = screen.getByRole('button', {
-        name: '全部標示為已讀',
-      });
-      fireEvent.click(markAllBtn);
-
-      expect(title1).toHaveClass('font-normal');
-      expect(title2).toHaveClass('font-normal');
-
-      await waitFor(() => {
-        expect(title1).toHaveClass('font-normal');
-        expect(title1).not.toHaveClass('font-bold');
-        expect(title2).toHaveClass('font-bold');
-        expect(title2).not.toHaveClass('font-normal');
-        expect(screen.queryByText('2')).not.toBeInTheDocument();
-      });
-
-      expect(mockToast).toHaveBeenCalledWith(
-        expect.objectContaining({
-          variant: 'destructive',
-          description: '部分通知標示為已讀失敗，請稍後再試',
-        })
-      );
-
-      expect(captureFlowFailure).toHaveBeenCalledWith(
-        expect.objectContaining({
-          flow: 'notification_mark_all_read',
-          step: 'mark_read_fallback:unread-2',
-          message: 'Individual error',
-        })
-      );
-    });
-
-    it('processes onMarkRead fallback calls in batches of 5 when there are more unread notifications than the batch size', async () => {
-      const onMarkReadMock = vi.fn().mockResolvedValue(undefined);
-      const manyUnreadNotifications: NotificationItem[] = Array.from(
-        { length: 6 },
-        (_, i) => ({
-          id: `unread-${i}`,
-          type: 'reservation_requested',
-          menteeName: '小明',
-          createdAt: new Date().toISOString(),
-          unread: true,
-        })
-      );
-
-      renderBell({
-        initialStatus: 'success',
-        initialNotifications: manyUnreadNotifications,
-        onMarkRead: onMarkReadMock,
-      });
-      const button = screen.getByRole('button', { name: '開啟通知選單' });
-      fireEvent.click(button);
-
-      const markAllBtn = screen.getByRole('button', {
-        name: '全部標示為已讀',
-      });
-      fireEvent.click(markAllBtn);
-
-      await waitFor(() => {
-        expect(onMarkReadMock).toHaveBeenCalledTimes(6);
-      });
-      manyUnreadNotifications.forEach((item) => {
-        expect(onMarkReadMock).toHaveBeenCalledWith(item.id);
-      });
-
-      expect(mockToast).not.toHaveBeenCalled();
     });
 
     it('disables "全部標示為已讀" button when there are no unread notifications', () => {
@@ -1039,7 +937,7 @@ describe('NotificationBell', () => {
       expect(markAllBtn).toBeDisabled();
     });
 
-    it('resets hasBeenClicked and displays the unread badge again when unreadCount increases', () => {
+    it('displays the unread badge again when unreadCount increases', () => {
       const { rerender } = renderBell({ unreadCount: 5 });
       const button = screen.getByRole('button', { name: '開啟通知選單' });
 
@@ -1054,7 +952,7 @@ describe('NotificationBell', () => {
       expect(screen.getByText('6')).toBeInTheDocument();
     });
 
-    it('does not reset hasBeenClicked and keeps the badge hidden when unreadCount decreases', () => {
+    it('keeps the badge hidden when unreadCount decreases', () => {
       const { rerender } = renderBell({ unreadCount: 5 });
       const button = screen.getByRole('button', { name: '開啟通知選單' });
 
@@ -1108,16 +1006,20 @@ describe('NotificationBell', () => {
     });
 
     it('does NOT reset seenUnreadCount to 0 and keeps localStorage intact when rollback occurs on 全部標示為已讀 failure', async () => {
-      const onMarkAllReadErrorMock = vi
-        .fn()
-        .mockRejectedValue(new Error('Network error'));
+      const source = createInMemoryNotificationSource(getMockNotifications(1));
+      vi.spyOn(source, 'markAllRead').mockRejectedValue(
+        new Error('Network error')
+      );
+
       renderBell({
-        unreadCount: 1,
         userId: 'user-123',
-        initialStatus: 'success',
-        onMarkAllRead: onMarkAllReadErrorMock,
+        notificationSource: source,
       });
+
+      await screen.findByText('1');
       fireEvent.click(screen.getByRole('button', { name: '開啟通知選單' }));
+
+      await screen.findByText('您有新的預約');
       expect(localStorage.getItem('notif_seen_unread_count_user-123')).toBe(
         '1'
       );
@@ -1128,6 +1030,7 @@ describe('NotificationBell', () => {
       fireEvent.click(markAllBtn);
 
       await waitFor(() => {
+        expect(mockToast).toHaveBeenCalled();
         expect(localStorage.getItem('notif_seen_unread_count_user-123')).toBe(
           '1'
         );
@@ -1194,17 +1097,25 @@ describe('NotificationBell', () => {
       });
     });
 
-    it('synchronizes seen states across multiple rendered instances on the same page', async () => {
+    it('synchronizes seen states across multiple rendered instances on the same page without duplicate bootstrap fetches', async () => {
+      const sharedSource = createInMemoryNotificationSource(
+        getMockNotifications(5)
+      );
+      const countSpy = vi.spyOn(sharedSource, 'getUnreadCount');
+
       const { container: container1 } = renderBell({
-        unreadCount: 5,
         userId: 'user-123',
+        notificationSource: sharedSource,
       });
       const { container: container2 } = renderBell({
-        unreadCount: 5,
         userId: 'user-123',
+        notificationSource: sharedSource,
       });
 
-      expect(screen.queryAllByText('5').length).toBe(2);
+      await waitFor(() => {
+        expect(screen.queryAllByText('5').length).toBe(2);
+      });
+      expect(countSpy).toHaveBeenCalledTimes(1);
 
       const button1 = container1.querySelector(
         'button[aria-label="開啟通知選單"]'
@@ -1232,9 +1143,6 @@ describe('NotificationBell', () => {
 
       expect(screen.queryAllByText('5').length).toBe(2);
 
-      // The 'storage' listener is store-owned (a single, shared listener),
-      // not registered per Hook instance, so unmounting one instance must
-      // not break sync for the instance that remains mounted.
       unmount();
 
       act(() => {
@@ -1269,7 +1177,7 @@ describe('NotificationBell', () => {
       });
     });
 
-    it('does NOT trigger clamping and overwrite localStorage when in loading status', async () => {
+    it('does NOT trigger clamping and overwrite localStorage when in loading status', () => {
       localStorage.setItem('notif_seen_unread_count_user-123', '5');
 
       renderBell({
@@ -1291,80 +1199,77 @@ describe('NotificationBell', () => {
       const unobserveSpy = vi.fn();
       const disconnectSpy = vi.fn();
 
-      global.IntersectionObserver = class IntersectionObserver {
-        readonly root = null;
+      class SpyIntersectionObserver implements IntersectionObserver {
+        readonly root: Element | Document | null = null;
         readonly rootMargin = '';
-        readonly thresholds = [];
+        readonly thresholds: ReadonlyArray<number> = [];
         observe = observeSpy;
         unobserve = unobserveSpy;
         disconnect = disconnectSpy;
-        takeRecords() {
+        takeRecords(): IntersectionObserverEntry[] {
           return [];
         }
-      } as unknown as typeof IntersectionObserver;
+      }
+      global.IntersectionObserver = SpyIntersectionObserver;
 
-      const { unmount } = render(<NotificationBell userId="user-123" />);
+      const source = createInMemoryNotificationSource(getMockNotifications(25));
 
-      // Click to open popover so NotificationList is mounted and observer is created
+      const { unmount } = render(
+        <NotificationBell userId="user-123" notificationSource={source} />
+      );
+
       fireEvent.click(screen.getByRole('button', { name: '開啟通知選單' }));
 
-      // Wait for service items to load and render in success state
       await screen.findAllByText('您有新的預約');
 
       expect(observeSpy).toHaveBeenCalled();
 
-      // Unmount the component to trigger cleanup
       unmount();
 
       expect(disconnectSpy).toHaveBeenCalled();
     });
 
     it('triggers onLoadMore when IntersectionObserver intersects (isIntersecting)', async () => {
-      let observerCallback:
-        ((entries: Array<{ isIntersecting: boolean }>) => void) | null = null;
+      let observerCallback: IntersectionObserverCallback | null = null;
 
-      global.IntersectionObserver = class IntersectionObserver {
-        readonly root = null;
+      class CallbackIntersectionObserver implements IntersectionObserver {
+        readonly root: Element | Document | null = null;
         readonly rootMargin = '';
-        readonly thresholds = [];
-        constructor(
-          callback: (entries: Array<{ isIntersecting: boolean }>) => void
-        ) {
+        readonly thresholds: ReadonlyArray<number> = [];
+        constructor(callback: IntersectionObserverCallback) {
           observerCallback = callback;
         }
         observe() {}
         unobserve() {}
         disconnect() {}
-        takeRecords() {
+        takeRecords(): IntersectionObserverEntry[] {
           return [];
         }
-      } as unknown as typeof IntersectionObserver;
+      }
+      global.IntersectionObserver = CallbackIntersectionObserver;
 
-      const mockService = await import('@/mocks/mockNotificationService');
-      const listSpy = vi.spyOn(mockService, 'listNotifications');
+      const source = createInMemoryNotificationSource(getMockNotifications(25));
+      const listSpy = vi.spyOn(source, 'listNotifications');
 
-      render(<NotificationBell userId="user-123" />);
+      render(
+        <NotificationBell userId="user-123" notificationSource={source} />
+      );
 
-      // Click to open popover so NotificationList is mounted and observer is created
       fireEvent.click(screen.getByRole('button', { name: '開啟通知選單' }));
 
-      // Wait for service items to load in success state
       await screen.findAllByText('您有新的預約');
 
-      expect(observerCallback).toBeDefined();
+      expect(observerCallback).not.toBeNull();
       expect(listSpy).toHaveBeenCalledTimes(1);
 
-      // Trigger the intersection observer callback manually
       await act(async () => {
-        if (observerCallback) {
-          observerCallback([{ isIntersecting: true }]);
-        }
+        observerCallback?.(
+          [fromPartial<IntersectionObserverEntry>({ isIntersecting: true })],
+          new CallbackIntersectionObserver(() => {})
+        );
       });
 
-      // It should trigger loadMore, resulting in listNotifications being called again!
       expect(listSpy).toHaveBeenCalledTimes(2);
-
-      listSpy.mockRestore();
     });
   });
 });
