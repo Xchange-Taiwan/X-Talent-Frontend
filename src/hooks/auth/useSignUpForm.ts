@@ -8,7 +8,9 @@ import { AuthFormProps } from '@/components/auth/types';
 import { useToast } from '@/components/ui/use-toast';
 import { trackEvent } from '@/lib/analytics';
 import { ApiError } from '@/lib/apiClient';
+import { setPendingVerificationEmail } from '@/lib/auth/authFlowStorage';
 import { captureFlowFailure } from '@/lib/monitoring';
+import { EMAIL_VERIFY_HREF } from '@/lib/routes';
 import { SignUpSchema } from '@/schemas/auth';
 import { signUp } from '@/services/auth/signUp';
 
@@ -47,8 +49,8 @@ export default function useSignUpForm(): AuthFormProps<SignUpValues> {
           user_role: 'guest',
         },
       });
-      sessionStorage.setItem('email', values.email);
-      router.push('/auth/email-verify');
+      setPendingVerificationEmail(values.email);
+      router.push(EMAIL_VERIFY_HREF);
     } catch (error) {
       captureFlowFailure({
         flow: 'sign_up',

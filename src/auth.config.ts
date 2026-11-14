@@ -2,50 +2,30 @@ import { cookies } from 'next/headers';
 import type { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 
+import {
+  type BffUserPayload,
+  type MentorExperience,
+  normalizeBffAuthUser,
+  type PersonalLink,
+  resolveBffBaseUrl,
+  resolveMentorExperienceLinks,
+} from '@/lib/auth/bffAuth';
 import { consumeOAuthRefreshBridge } from '@/lib/auth/oauthRefreshBridge';
 import { singleFlight } from '@/lib/singleFlight';
-import { isSafeUrl } from '@/lib/url/isSafeUrl';
 import { SignInSchema } from '@/schemas/auth';
 import {
-  refreshAccessToken,
   extractRefreshToken,
+  refreshAccessToken,
 } from '@/services/auth/refreshToken';
 
-export interface MentorExperience {
-  category: string;
-  mentor_experiences_metadata?: {
-    data?: unknown[];
-  };
-}
-
-export interface PersonalLink {
-  platform: string;
-  url: string;
-}
-
-function isPersonalLink(l: unknown): l is PersonalLink {
-  if (typeof l !== 'object' || l === null) return false;
-  const raw = l as Record<string, unknown>;
-  return (
-    typeof raw.url === 'string' &&
-    typeof raw.platform === 'string' &&
-    Boolean(raw.url) &&
-    isSafeUrl(raw.url)
-  );
-}
-
-export function resolveMentorExperienceLinks(
-  experiences: MentorExperience[] | undefined | null
-): PersonalLink[] {
-  if (!experiences) return [];
-  return experiences
-    .filter((exp) => exp.category === 'LINK')
-    .flatMap((exp) => {
-      const list = exp.mentor_experiences_metadata?.data;
-      return Array.isArray(list) ? list : [];
-    })
-    .filter(isPersonalLink);
-}
+export {
+  type BffUserPayload,
+  type MentorExperience,
+  normalizeBffAuthUser,
+  type PersonalLink,
+  resolveBffBaseUrl,
+  resolveMentorExperienceLinks,
+};
 
 export const REFRESH_SKEW_SECONDS = 300;
 
@@ -167,36 +147,31 @@ const authOptions = {
 
         const { email, password } = validated.data;
 
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/v1/auth/login`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password }),
-          }
-        );
+        const res = await fetch(`${resolveBffBaseUrl()}/v1/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
 
-        const response = await res.json();
+        const response = (await res.json()) as {
+          data?: {
+            auth: {
+              user_id: string | number;
+              token: string;
+              email?: string | null;
+            };
+            user: BffUserPayload;
+          };
+        };
         if (!res.ok || !response?.data) return null;
 
-        const personalLinks = resolveMentorExperienceLinks(
-          response.data.user.experiences
-        );
-
-        return {
-          id: String(response.data.auth.user_id),
+        return normalizeBffAuthUser({
+          userId: response.data.auth.user_id,
           token: response.data.auth.token,
-          refreshToken: extractRefreshToken(res.headers) ?? undefined,
+          refreshToken: extractRefreshToken(res.headers),
           email: response.data.auth.email,
-          onBoarding: response.data.user.onboarding,
-          isMentor: response.data.user.is_mentor,
-          name: response.data.user.name,
-          avatar: response.data.user.avatar,
-          avatarUpdatedAt: response.data.user.avatar_updated_at ?? undefined,
-          jobTitle: response.data.user.job_title ?? '',
-          company: response.data.user.company ?? '',
-          personalLinks,
-        };
+          user: response.data.user,
+        });
       },
     }),
 
@@ -212,27 +187,17 @@ const authOptions = {
         if (!credentials?.token || !credentials?.user) return null;
 
         try {
-          const user = JSON.parse(credentials.user as string);
+          const user = JSON.parse(credentials.user as string) as BffUserPayload;
 
           const cookieStore = await cookies();
           const refreshToken = consumeOAuthRefreshBridge(cookieStore);
 
-          const personalLinks = resolveMentorExperienceLinks(user.experiences);
-
-          return {
-            id: String(user.user_id),
+          return normalizeBffAuthUser({
             token: credentials.token,
-            refreshToken: refreshToken || undefined,
-            email: (credentials.email as string) || undefined,
-            name: user.name,
-            avatar: user.avatar,
-            avatarUpdatedAt: user.avatar_updated_at ?? undefined,
-            isMentor: user.is_mentor,
-            onBoarding: user.onboarding,
-            jobTitle: user.job_title ?? '',
-            company: user.company ?? '',
-            personalLinks,
-          };
+            refreshToken,
+            email: credentials.email as string,
+            user,
+          });
         } catch {
           return null;
         }

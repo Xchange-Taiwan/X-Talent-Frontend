@@ -1,5 +1,6 @@
 import { expect, Page, test } from '@playwright/test';
 
+import { captureEvidence } from '../../helpers/evidence';
 import { mockApiRoute } from '../../helpers/route';
 import { setSignedSessionCookie } from '../../helpers/session';
 
@@ -124,6 +125,13 @@ test.describe('UserDropdown (Share Profile & Logout) & Google OAuth Callback E2E
     });
 
     await page.goto('/about');
+    await page.evaluate(() => {
+      sessionStorage.setItem(
+        'pending_auth_callback_url',
+        '/reservation/mentee'
+      );
+      sessionStorage.setItem('pending_reset_email', 'stale@example.com');
+    });
 
     const menuTrigger = page.getByRole('button', { name: '開啟用戶選單' });
     await expect(menuTrigger).toBeVisible({ timeout: 15_000 });
@@ -140,6 +148,17 @@ test.describe('UserDropdown (Share Profile & Logout) & Google OAuth Callback E2E
         .getByTestId('desktop-header-right')
         .getByRole('link', { name: '登入' })
     ).toBeVisible();
+
+    const remainingKeys = await page.evaluate(() => ({
+      callbackUrl: sessionStorage.getItem('pending_auth_callback_url'),
+      resetEmail: sessionStorage.getItem('pending_reset_email'),
+    }));
+    expect(remainingKeys).toEqual({
+      callbackUrl: null,
+      resetEmail: null,
+    });
+
+    await captureEvidence(page, '885-header-guest-after-logout-teardown');
 
     // Wait for NextAuth signOut() to finish clearing the session cookie before
     // navigating, so page.goto() does not abort the in-flight POST /api/auth/signout.
@@ -160,6 +179,56 @@ test.describe('UserDropdown (Share Profile & Logout) & Google OAuth Callback E2E
     // Navigating to a protected route should redirect to /auth/signin
     await page.goto('/reservation/mentee');
     await expect(page).toHaveURL(/\/auth\/signin/, { timeout: 15_000 });
+  });
+
+  test('SessionErrorWatcher 偵測 RefreshTokenError → 原子清除暫存認證狀態與 Cookie 並導向 /auth/signin (#885)', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      if (!sessionStorage.getItem('__seeded_885')) {
+        sessionStorage.setItem('__seeded_885', '1');
+        sessionStorage.setItem(
+          'pending_auth_callback_url',
+          '/reservation/mentor'
+        );
+        sessionStorage.setItem('delete_account_email', 'stale@example.com');
+      }
+    });
+
+    await setSignedSessionCookie(page, {
+      id: USER_ID,
+      name: 'Alice Chen',
+      onBoarding: true,
+      isMentor: true,
+      token: 'expired-access-token',
+      error: 'RefreshTokenError',
+    });
+
+    await page.goto('/about');
+
+    await expect(page).toHaveURL('/auth/signin', { timeout: 15_000 });
+    await expect(page.locator('input[name="email"]')).toBeVisible();
+
+    const clearedStorage = await page.evaluate(() => ({
+      callbackUrl: sessionStorage.getItem('pending_auth_callback_url'),
+      deleteEmail: sessionStorage.getItem('delete_account_email'),
+    }));
+    expect(clearedStorage).toEqual({
+      callbackUrl: null,
+      deleteEmail: null,
+    });
+
+    const cookies = await page.context().cookies();
+    expect(
+      cookies.some(
+        (c) =>
+          c.name === 'session-hint' ||
+          c.name === 'next-auth.session-token' ||
+          c.name === '__Secure-next-auth.session-token'
+      )
+    ).toBe(false);
+
+    await captureEvidence(page, '885-refresh-token-error-teardown-signin');
   });
 
   test('造訪 /auth/google/callback/redirect 缺少 code/state 參數 → 顯示錯誤 Toast 並退回 /auth/signin', async ({

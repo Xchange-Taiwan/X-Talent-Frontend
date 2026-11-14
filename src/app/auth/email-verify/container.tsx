@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
+import { getPendingVerificationEmail } from '@/lib/auth/authFlowStorage';
+import { HOME_HREF } from '@/lib/routes';
 import { resendVerificationEmail } from '@/services/auth/resend';
 
 const EmailVerificationPage = dynamic(() => import('./ui'));
@@ -15,9 +17,9 @@ export default function EmailVerificationContainer() {
   const [email, setEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    const storedEmail = sessionStorage.getItem('email');
+    const storedEmail = getPendingVerificationEmail();
     if (!storedEmail) {
-      router.push('/');
+      router.push(HOME_HREF);
     } else {
       setEmail(storedEmail);
     }
@@ -44,7 +46,7 @@ export default function EmailVerificationContainer() {
   };
 
   const handleNavigateHome = () => {
-    router.push('/');
+    router.push(HOME_HREF);
   };
 
   if (!email) {
