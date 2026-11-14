@@ -162,6 +162,7 @@ const MentorCardListBase = ({
               mentor.stats?.completed_meeting_count ?? null
             }
             priority={index === 0}
+            mentorSnapshot={mentor}
           />
         ))}
       </div>
