@@ -132,7 +132,7 @@ export function shouldCacheUserProfileDto(
   key: string | null,
   res: MentorProfileVO | null
 ): boolean {
-  return res !== null && (!key || res !== userProfileDtoReadManager.peek(key));
+  return res !== null && (!key || res !== userProfileDtoReadManager.get(key));
 }
 
 /**

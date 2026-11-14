@@ -13,11 +13,6 @@ export const tagCatalogReadManager = new AsyncReadManager<
   TagCatalogsByBucket
 >();
 
-export interface UseTagCatalogResult extends TagCatalogsByBucket {
-  isLoading: boolean;
-  error: string | null;
-}
-
 function isEmptyTagCatalog(
   catalog: TagCatalogsByBucket | null | undefined
 ): boolean {
@@ -30,6 +25,17 @@ function isEmptyTagCatalog(
     catalog.have_topic.length === 0 &&
     catalog.industry.length === 0
   );
+}
+
+export function shouldCacheTagCatalog(
+  catalog: TagCatalogsByBucket | null | undefined
+): boolean {
+  return !isEmptyTagCatalog(catalog);
+}
+
+export interface UseTagCatalogResult extends TagCatalogsByBucket {
+  isLoading: boolean;
+  error: string | null;
 }
 
 export default function useTagCatalog(
@@ -49,7 +55,7 @@ export default function useTagCatalog(
     (signal) => fetchTagCatalog(language, signal),
     {
       initialData: effectiveInitialData,
-      shouldCache: (res) => !isEmptyTagCatalog(res),
+      shouldCache: shouldCacheTagCatalog,
     }
   );
 

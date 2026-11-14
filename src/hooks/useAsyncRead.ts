@@ -93,13 +93,19 @@ export function useAsyncRead<K, V>(
   // Sync cache with initialData on mount or key changes in useEffect to avoid SSR pollution
   useEffect(() => {
     if (activeInitialData !== undefined && key !== null && key !== undefined) {
-      if (manager.prime) {
-        manager.prime(key, activeInitialData, {
-          ifEmpty: true,
-          ttlMs: optionsRef.current?.ttlMs,
-        });
-      } else if (manager.get(key) === undefined) {
-        manager.set(key, activeInitialData, optionsRef.current?.ttlMs);
+      if (
+        readCachedSnapshot(manager, key) === undefined &&
+        (!optionsRef.current?.shouldCache ||
+          optionsRef.current.shouldCache(activeInitialData))
+      ) {
+        if (manager.prime) {
+          manager.prime(key, activeInitialData, {
+            ifEmpty: true,
+            ttlMs: optionsRef.current?.ttlMs,
+          });
+        } else if (manager.get(key) === undefined) {
+          manager.set(key, activeInitialData, optionsRef.current?.ttlMs);
+        }
       }
       initialDataRef.current = undefined;
     }
@@ -112,6 +118,14 @@ export function useAsyncRead<K, V>(
 
     const isForced = retryTrigger > lastRetryRef.current;
     lastRetryRef.current = retryTrigger;
+
+    if (
+      !isForced &&
+      activeInitialData !== undefined &&
+      readCachedSnapshot(manager, key) === undefined
+    ) {
+      return;
+    }
 
     const currentOptions = isForced
       ? { ...optionsRef.current, force: true, initialData: activeInitialData }

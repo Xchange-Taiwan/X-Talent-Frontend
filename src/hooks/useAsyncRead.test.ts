@@ -181,6 +181,68 @@ describe('useAsyncRead hook tests', () => {
     expect(manager.get('key')).toBe('client-primed');
   });
 
+  it('preserves stale cache over SSR initialData without aborting SWR revalidation, then updates to fresh network value', async () => {
+    vi.useFakeTimers();
+    const manager = new AsyncReadManager<string, string>({ ttlMs: 1_000 });
+    manager.set('key', 'stale-value');
+
+    // Expire the entry before mounting with SSR initialData
+    vi.advanceTimersByTime(1_001);
+
+    let aborted = false;
+    let resolveRevalidation: (value: string) => void = () => {};
+    const fetcher = vi.fn((signal: AbortSignal) => {
+      signal.addEventListener('abort', () => {
+        aborted = true;
+      });
+      return new Promise<string>((resolve) => {
+        resolveRevalidation = resolve;
+      });
+    });
+
+    const renderedStates: Array<{ data: string | null; isLoading: boolean }> =
+      [];
+    const first = renderHook(() => {
+      const res = useAsyncRead(manager, 'key', fetcher, {
+        initialData: 'ssr-initial-data',
+      });
+      renderedStates.push({ data: res.data, isLoading: res.isLoading });
+      return res;
+    });
+
+    expect(renderedStates[0]).toEqual({
+      data: 'stale-value',
+      isLoading: false,
+    });
+    expect(first.result.current.data).toBe('stale-value');
+    expect(first.result.current.isLoading).toBe(false);
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(aborted).toBe(false);
+    expect(manager.peek('key')).toBe('stale-value');
+
+    // Mounting another consumer with SSR initialData while SWR is in flight must not abort it
+    const second = renderHook(() =>
+      useAsyncRead(manager, 'key', fetcher, {
+        initialData: 'ssr-initial-data-2',
+      })
+    );
+    expect(second.result.current.data).toBe('stale-value');
+    expect(second.result.current.isLoading).toBe(false);
+    expect(aborted).toBe(false);
+    expect(fetcher).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      resolveRevalidation('fresh-network-value');
+      await Promise.resolve();
+    });
+
+    expect(aborted).toBe(false);
+    expect(first.result.current.data).toBe('fresh-network-value');
+    expect(first.result.current.isLoading).toBe(false);
+    expect(second.result.current.data).toBe('fresh-network-value');
+    expect(manager.get('key')).toBe('fresh-network-value');
+  });
+
   it('triggers a fresh fetch with force: true options when refetch is called', async () => {
     const manager = new AsyncReadManager<string, string>();
     const fetcher = vi
