@@ -221,7 +221,7 @@ jobs:
       - name: Run Gemini CLI to implement or complete ticket requirements (Phase 1)
         if: env.SCOPE_SKIPPED != 'true'
         id: gemini_implement
-        timeout-minutes: 18
+        timeout-minutes: 38
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
@@ -262,9 +262,21 @@ jobs:
           4. 極速批次開發規範：一次規劃並批次寫完所有元件、Storybook、單元測試與 E2E 檔案後請立即結束回覆（Phase 2 漏斗快篩會自動平行執行 lint、type-check、單元測試與 Turbopack E2E 截圖驗證）。
           EOF
           fi
+          rm -f .agents/tmp/delete-files.txt
+          printf '\n5. 刪除舊檔專用通道（因安全沙盒已停用 shell 指令）：若規格要求刪除任何既有檔案，請勿保留空檔案，請將欲刪除的專案相對路徑（每行一個，例如 src/lib/foo.ts）寫入 .agents/tmp/delete-files.txt，Phase 1 結束後系統會自動為你真實刪除。\n' >> "$PROMPT_FILE"
           printf '\n%s\n%s\n' "$SCOPE_GUIDANCE" "$EXTRA_PROMPT" >> "$PROMPT_FILE"
-          npx gemini -m "$GEMINI_MODEL" --approval-mode=yolo --skip-trust -p "$(cat "$PROMPT_FILE")"
+          timeout --kill-after=30s 33m npx gemini -m "$GEMINI_MODEL" --approval-mode=yolo --skip-trust -p "$(cat "$PROMPT_FILE")" < /dev/null || echo "::warning::Phase 1 exited non-zero or hit 33m soft limit; handing off workspace changes to Phase 2 convergence loop."
           rm -f "$PROMPT_FILE"
+          if [ -s .agents/tmp/delete-files.txt ]; then
+            while IFS= read -r raw_del || [ -n "$raw_del" ]; do
+              del_path=$(printf '%s' "$raw_del" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+              if [ -n "$del_path" ] && [[ "$del_path" != /* ]] && [[ "$del_path" != *".."* ]] && [[ "$del_path" != .git* ]] && [[ "$del_path" != .env* ]]; then
+                rm -f -- "$del_path"
+                echo "[phase1-delete] Removed $del_path"
+              fi
+            done < .agents/tmp/delete-files.txt
+            rm -f .agents/tmp/delete-files.txt
+          fi
 
       - name: Run Fast Funnel Deterministic & Playwright E2E Verification Loop (Phase 2)
         if: env.SCOPE_SKIPPED != 'true'
