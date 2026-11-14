@@ -100,6 +100,30 @@ export function getPendingFavoriteProfilePath(
   return mentorId !== null ? `/profile/${mentorId}` : null;
 }
 
+export interface ResolvePostAuthRedirectOptions {
+  explicitCallbackUrl: string | null;
+  isOnboarded: boolean;
+  now?: number;
+}
+
+export function resolvePostAuthRedirect({
+  explicitCallbackUrl,
+  isOnboarded,
+  now = Date.now(),
+}: ResolvePostAuthRedirectOptions): string {
+  const pendingFavoritePath = getPendingFavoriteProfilePath(now);
+
+  if (explicitCallbackUrl && explicitCallbackUrl !== pendingFavoritePath) {
+    clearPendingFavoriteMentor();
+  }
+
+  if (!isOnboarded) {
+    return '/auth/onboarding';
+  }
+
+  return explicitCallbackUrl ?? pendingFavoritePath ?? '/mentor-pool';
+}
+
 export function consumePendingFavoriteMentorForPage(
   pageMentorId: number,
   now: number = Date.now()

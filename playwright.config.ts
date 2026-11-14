@@ -172,6 +172,8 @@ export default defineConfig({
   webServer: isRemote
     ? undefined
     : {
+        // package.json maps dev/dev-turbo to `next dev --webpack` to bypass the
+        // Next.js 16.4.1 Turbopack + @tailwindcss/postcss next/font/google bug.
         command:
           process.env.PLAYWRIGHT_USE_TURBO === '1'
             ? 'pnpm dev-turbo'

@@ -16,10 +16,7 @@ import {
   clearPendingCallbackUrl,
   sanitizeCallbackUrl,
 } from '@/lib/auth/callbackUrl';
-import {
-  clearPendingFavoriteMentor,
-  getPendingFavoriteProfilePath,
-} from '@/lib/favorites';
+import { resolvePostAuthRedirect } from '@/lib/favorites';
 import { SignInSchema } from '@/schemas/auth';
 
 type SignInValues = z.infer<typeof SignInSchema>;
@@ -111,17 +108,13 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
           rawCallbackUrl,
           typeof window !== 'undefined' ? window.location.origin : undefined
         );
-        const pendingFavoritePath = getPendingFavoriteProfilePath();
 
-        if (safeCallbackUrl && safeCallbackUrl !== pendingFavoritePath) {
-          clearPendingFavoriteMentor();
-        }
-
-        if (session.user.onBoarding === false) {
-          router.push('/auth/onboarding');
-        } else {
-          router.push(safeCallbackUrl ?? pendingFavoritePath ?? '/mentor-pool');
-        }
+        router.push(
+          resolvePostAuthRedirect({
+            explicitCallbackUrl: safeCallbackUrl,
+            isOnboarded: session.user.onBoarding !== false,
+          })
+        );
       },
       {
         throwError: false,

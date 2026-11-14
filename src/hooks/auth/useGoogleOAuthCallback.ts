@@ -20,10 +20,7 @@ import {
   resolveOAuthOutcome,
   signInWithGoogleToken,
 } from '@/lib/auth/oauthOutcome';
-import {
-  clearPendingFavoriteMentor,
-  getPendingFavoriteProfilePath,
-} from '@/lib/favorites';
+import { resolvePostAuthRedirect } from '@/lib/favorites';
 import { deleteAccount } from '@/services/auth/deleteAccount';
 import type { components } from '@/types/api';
 
@@ -128,19 +125,13 @@ export function useGoogleOAuthCallback() {
       const pendingCallbackUrl = consumePendingCallbackUrl(
         typeof window !== 'undefined' ? window.location.origin : undefined
       );
-      const pendingFavoritePath = getPendingFavoriteProfilePath();
 
-      if (pendingCallbackUrl && pendingCallbackUrl !== pendingFavoritePath) {
-        clearPendingFavoriteMentor();
-      }
-
-      if (session?.user?.onBoarding === false) {
-        router.push('/auth/onboarding');
-      } else {
-        router.push(
-          pendingCallbackUrl ?? pendingFavoritePath ?? '/mentor-pool'
-        );
-      }
+      router.push(
+        resolvePostAuthRedirect({
+          explicitCallbackUrl: pendingCallbackUrl,
+          isOnboarded: session?.user?.onBoarding !== false,
+        })
+      );
     };
 
     const executeResumeDeleteAccount = async (

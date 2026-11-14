@@ -507,6 +507,60 @@ describe('GoogleOAuthRedirectPage Component', () => {
       });
 
       unmount();
+      pushMock.mockClear();
+      sessionStorage.setItem(PENDING_AUTH_CALLBACK_URL_KEY, '/profile/101');
+
+      mockResolveOAuthOutcome.mockResolvedValueOnce({
+        type: 'LOGIN',
+        data: {
+          auth_type: 'LOGIN' as const,
+          auth: { token: 'tok_2', email: 'newuser@example.com' },
+          user: fromPartial<ProfileVO>({ user_id: 456 }),
+        },
+      });
+      mockGetSession.mockResolvedValueOnce({
+        user: { onBoarding: false },
+      });
+
+      render(<GoogleOAuthRedirectPage />);
+
+      await waitFor(() => {
+        expect(pushMock).toHaveBeenCalledWith('/auth/onboarding');
+        expect(getPendingFavoriteMentorId()).toBe(101);
+        expect(
+          sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+        ).toBeNull();
+      });
+    });
+
+    it('clears stale pendingFavoriteMentor when pending_auth_callback_url conflicts even when onBoarding is false (#756)', async () => {
+      savePendingFavoriteMentor(101);
+      sessionStorage.setItem(
+        PENDING_AUTH_CALLBACK_URL_KEY,
+        '/reservation/mentee?tab=history&reservationId=888'
+      );
+
+      mockResolveOAuthOutcome.mockResolvedValueOnce({
+        type: 'LOGIN',
+        data: {
+          auth_type: 'LOGIN' as const,
+          auth: { token: 'tok_2', email: 'newuser@example.com' },
+          user: fromPartial<ProfileVO>({ user_id: 456 }),
+        },
+      });
+      mockGetSession.mockResolvedValueOnce({
+        user: { onBoarding: false },
+      });
+
+      render(<GoogleOAuthRedirectPage />);
+
+      await waitFor(() => {
+        expect(pushMock).toHaveBeenCalledWith('/auth/onboarding');
+        expect(getPendingFavoriteMentorId()).toBeNull();
+        expect(
+          sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+        ).toBeNull();
+      });
     });
 
     it('falls back to /mentor-pool when pending_auth_callback_url normalizes to a protocol-relative // path (#733)', async () => {

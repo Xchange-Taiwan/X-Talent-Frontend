@@ -118,12 +118,16 @@ describe('MentorBookmarkButton', () => {
 
     const button = screen.getByRole('button', { name: '收藏 陳宥廷 Austin' });
     expect(button).toHaveAttribute('aria-pressed', 'false');
+    expect(button).toHaveClass('group');
+    expect(button).toHaveClass('border-background-border/60');
+    expect(button).toHaveClass('bg-background-white/90');
     expect(button).not.toHaveAttribute('data-analytics-event');
     expect(button).not.toHaveAttribute('data-analytics-feature');
     expect(button.textContent).toBe('');
 
     const svgBefore = button.querySelector('svg');
     expect(svgBefore).not.toHaveClass('fill-current');
+    expect(svgBefore).toHaveClass('group-hover:text-text-primary');
 
     // Hover reveals accessible tooltip
     await user.hover(button);
@@ -137,6 +141,8 @@ describe('MentorBookmarkButton', () => {
       name: '取消收藏 陳宥廷 Austin',
     });
     expect(activeButton).toHaveAttribute('aria-pressed', 'true');
+    expect(activeButton).toHaveClass('border-brand-500/30');
+    expect(activeButton).toHaveClass('bg-brand-50/95');
 
     const svgAfter = activeButton.querySelector('svg');
     expect(svgAfter).toHaveClass('fill-current');
@@ -185,9 +191,17 @@ describe('MentorBookmarkButton', () => {
       />
     );
 
-    await user.click(
-      screen.getByRole('button', { name: '收藏 陳宥廷 Austin' })
-    );
+    const button = screen.getByRole('button', { name: '收藏 陳宥廷 Austin' });
+    expect(button).toHaveClass('border-background-border');
+    expect(button).toHaveClass('bg-background-white');
+
+    await user.click(button);
+
+    const activeButton = screen.getByRole('button', {
+      name: '取消收藏 陳宥廷 Austin',
+    });
+    expect(activeButton).toHaveClass('border-brand-100');
+    expect(activeButton).toHaveClass('bg-brand-50');
 
     expect(trackEventSpy).toHaveBeenCalledWith({
       name: 'mentor_bookmark_toggle',
@@ -331,5 +345,35 @@ describe('MentorBookmarkButton', () => {
         screen.getByRole('button', { name: '取消收藏 陳宥廷 Austin' })
       ).not.toHaveAttribute('aria-busy');
     });
+  });
+
+  it('suppresses failure toast when an in-flight favorite mutation rejects after logout', async () => {
+    const user = userEvent.setup();
+    let rejectPut!: (reason?: unknown) => void;
+    addMock.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectPut = reject;
+        })
+    );
+    favoriteMentorStore.seedFavorites('999', []);
+
+    renderWithSession(
+      <MentorBookmarkButton mentorId={101} mentorName="陳宥廷 Austin" />
+    );
+
+    const button = screen.getByRole('button', { name: '收藏 陳宥廷 Austin' });
+    await user.click(button);
+
+    await favoriteMentorStore.syncUser(null);
+    rejectPut(new Error('Aborted on logout'));
+
+    await waitFor(() => {
+      expect(favoriteMentorStore.getState().pendingMentorIds.size).toBe(0);
+    });
+
+    expect(
+      screen.queryByText(FAVORITE_MENTOR_ERROR_TOAST_MESSAGE)
+    ).not.toBeInTheDocument();
   });
 });

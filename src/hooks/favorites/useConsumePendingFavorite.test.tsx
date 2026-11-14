@@ -252,4 +252,40 @@ describe('useConsumePendingFavorite', () => {
     expect(favoriteMentorStore.isFavorited(101)).toBe(true);
     expect(getPendingFavoriteMentorId()).toBeNull();
   });
+
+  it('suppresses failure toast when auto-favorite API rejects after logout or account switch', async () => {
+    savePendingFavoriteMentor(101);
+    let rejectPut!: (reason?: unknown) => void;
+    addMock.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectPut = reject;
+        })
+    );
+    const mentorData = buildMentorUserData({ user_id: 101 });
+
+    render(
+      <Harness
+        pageUserId="101"
+        loginUserId="999"
+        userData={mentorData}
+        userLoading={false}
+      />
+    );
+
+    await waitFor(() => {
+      expect(addMock).toHaveBeenCalledTimes(1);
+    });
+
+    await favoriteMentorStore.syncUser(null);
+    rejectPut(new Error('Aborted on logout'));
+
+    await waitFor(() => {
+      expect(favoriteMentorStore.getState().pendingMentorIds.size).toBe(0);
+    });
+
+    expect(
+      screen.queryByText(FAVORITE_MENTOR_ERROR_TOAST_MESSAGE)
+    ).not.toBeInTheDocument();
+  });
 });

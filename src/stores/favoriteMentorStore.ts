@@ -309,14 +309,19 @@ class FavoriteMentorStoreManager {
         await this.adapter.removeFavoriteMentor(mentorId);
       }
 
-      if (this.userEpoch === requestEpoch) {
-        const updatedPending = new Set(this.state.pendingMentorIds);
-        updatedPending.delete(mentorId);
-        if (this.state.loadedUserId !== null) {
-          this.optimisticOverrides.delete(mentorId);
-        }
-        this.setState({ pendingMentorIds: updatedPending });
+      if (this.userEpoch !== requestEpoch) {
+        return {
+          status: 'skipped',
+          nextFavorited: this.isFavorited(mentorId),
+        };
       }
+
+      const updatedPending = new Set(this.state.pendingMentorIds);
+      updatedPending.delete(mentorId);
+      if (this.state.loadedUserId !== null) {
+        this.optimisticOverrides.delete(mentorId);
+      }
+      this.setState({ pendingMentorIds: updatedPending });
 
       return nextFavorited
         ? { status: 'added', nextFavorited: true }
@@ -324,9 +329,8 @@ class FavoriteMentorStoreManager {
     } catch (error) {
       if (this.userEpoch !== requestEpoch) {
         return {
-          status: 'failed',
-          nextFavorited: currentlyFavorited,
-          error,
+          status: 'skipped',
+          nextFavorited: this.isFavorited(mentorId),
         };
       }
 

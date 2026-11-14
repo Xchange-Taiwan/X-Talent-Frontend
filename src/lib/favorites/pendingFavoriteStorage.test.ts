@@ -7,6 +7,7 @@ import {
   getPendingFavoriteProfilePath,
   PENDING_FAVORITE_MENTOR_STORAGE_KEY,
   PENDING_FAVORITE_TTL_MS,
+  resolvePostAuthRedirect,
   savePendingFavoriteMentor,
 } from './pendingFavoriteStorage';
 
@@ -97,5 +98,41 @@ describe('pendingFavoriteStorage', () => {
     savePendingFavoriteMentor(303, 1_760_000_000_000);
     clearPendingFavoriteMentor();
     expect(getPendingFavoriteMentorId(1_760_000_000_000)).toBeNull();
+  });
+
+  it('resolves post-auth redirect priority and cleans up conflicting pendingFavoriteMentor', () => {
+    const baseTime = 1_760_000_000_000;
+
+    savePendingFavoriteMentor(101, baseTime);
+    const redirectToFavorite = resolvePostAuthRedirect({
+      explicitCallbackUrl: null,
+      isOnboarded: true,
+      now: baseTime + 1000,
+    });
+    expect(redirectToFavorite).toBe('/profile/101');
+    expect(getPendingFavoriteMentorId(baseTime + 1000)).toBe(101);
+
+    const redirectToOnboarding = resolvePostAuthRedirect({
+      explicitCallbackUrl: '/profile/101',
+      isOnboarded: false,
+      now: baseTime + 2000,
+    });
+    expect(redirectToOnboarding).toBe('/auth/onboarding');
+    expect(getPendingFavoriteMentorId(baseTime + 2000)).toBe(101);
+
+    const redirectConflictUnonboarded = resolvePostAuthRedirect({
+      explicitCallbackUrl: '/reservation/mentee?tab=history',
+      isOnboarded: false,
+      now: baseTime + 3000,
+    });
+    expect(redirectConflictUnonboarded).toBe('/auth/onboarding');
+    expect(getPendingFavoriteMentorId(baseTime + 3000)).toBeNull();
+
+    const redirectDefault = resolvePostAuthRedirect({
+      explicitCallbackUrl: null,
+      isOnboarded: true,
+      now: baseTime + 4000,
+    });
+    expect(redirectDefault).toBe('/mentor-pool');
   });
 });

@@ -338,8 +338,10 @@ describe('favoriteMentorStore', () => {
     // Settle stale user-1 requests
     resolveUser1Get([buildMentor({ user_id: 999, name: 'Stale Server' })]);
     resolveUser1Put();
-    await Promise.all([user1Sync, user1Toggle]);
+    await user1Sync;
+    const staleOutcome = await user1Toggle;
 
+    expect(staleOutcome).toEqual({ status: 'skipped', nextFavorited: false });
     expect(favoriteMentorStore.getState().loadedUserId).toBe('user-2');
     expect(favoriteMentorStore.isFavorited(101)).toBe(false);
     expect(favoriteMentorStore.isFavorited(999)).toBe(false);
@@ -359,8 +361,9 @@ describe('favoriteMentorStore', () => {
     await favoriteMentorStore.syncUser(null);
 
     rejectUser2Put(new Error('Aborted after logout'));
-    await user2Toggle;
+    const logoutOutcome = await user2Toggle;
 
+    expect(logoutOutcome).toEqual({ status: 'skipped', nextFavorited: false });
     expect(favoriteMentorStore.getState().loadedUserId).toBeNull();
     expect(favoriteMentorStore.getState().favoriteMentorIds.size).toBe(0);
     expect(favoriteMentorStore.getState().favoriteMentors).toEqual([]);
