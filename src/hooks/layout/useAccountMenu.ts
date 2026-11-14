@@ -41,6 +41,7 @@ export interface UseAccountMenuResult {
   handleShareProfile: () => void;
   handleAsMentor: () => void;
   handleMyReservation: () => void;
+  handleMyFavorites: () => void;
   handleDeleteAccount: () => void;
   handleLogout: () => void;
 }
@@ -96,6 +97,11 @@ export function useAccountMenu({
     router.push('/reservation/mentee');
   }, [closeMenu, router]);
 
+  const handleMyFavorites = React.useCallback((): void => {
+    closeMenu();
+    router.push('/favorites');
+  }, [closeMenu, router]);
+
   const handleDeleteAccount = React.useCallback((): void => {
     closeMenu();
     requestAnimationFrame(() => {
@@ -133,6 +139,7 @@ export function useAccountMenu({
     handleShareProfile,
     handleAsMentor,
     handleMyReservation,
+    handleMyFavorites,
     handleDeleteAccount,
     handleLogout,
   };

@@ -16,7 +16,7 @@ const meta: Meta<typeof UserDropdown> = {
     docs: {
       description: {
         component:
-          '桌機版已登入會員選單，個人頁面、分享名片、導師預約管理／成為導師、我的預約與登出皆具備 `data-analytics-click`（`location="user_dropdown"`），且嚴格不攜帶 `userId`、姓名或 Email。',
+          '桌機版已登入會員選單，個人頁面、分享名片、導師預約管理／成為導師、我的預約、我的收藏與登出皆具備 `data-analytics-click`（`location="user_dropdown"`），且嚴格不攜帶 `userId`、姓名或 Email。',
       },
     },
   },
@@ -88,6 +88,22 @@ export const AnonymousSession: Story = {
       avatar: undefined,
       onBoarding: true,
       isMentor: false,
+    },
+  },
+};
+
+// 4. Active Favorites Route
+export const FavoritesActiveRoute: Story = {
+  args: {
+    identity: authenticatedIdentity('mentee-456', { isMentor: false }),
+    user: mockMenteeUser,
+  },
+  parameters: {
+    nextjs: {
+      appDirectory: true,
+      navigation: {
+        pathname: '/favorites',
+      },
     },
   },
 };

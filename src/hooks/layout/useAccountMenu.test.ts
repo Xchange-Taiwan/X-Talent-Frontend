@@ -1,4 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
+import { fromPartial } from '@total-typescript/shoehorn';
 import type { Session } from 'next-auth';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -38,12 +39,12 @@ import { mockSignOut } from '@/test/mocks/nextAuth';
 import { useAccountMenu } from './useAccountMenu';
 
 function buildUser(overrides: Partial<Session['user']> = {}): Session['user'] {
-  return {
+  return fromPartial({
     id: 'user-1',
     name: 'Ada Lovelace',
     isMentor: false,
     ...overrides,
-  } as Session['user'];
+  });
 }
 
 describe('useAccountMenu', () => {
@@ -329,6 +330,25 @@ describe('useAccountMenu', () => {
 
       expect(closeMenu).toHaveBeenCalledOnce();
       expect(mockRouter.push).toHaveBeenCalledWith('/reservation/mentee');
+    });
+  });
+
+  describe('handleMyFavorites', () => {
+    it('closes the menu and navigates to the favorites page', () => {
+      const { result } = renderHook(() =>
+        useAccountMenu({
+          identity: authenticatedIdentity('user-1', { isMentor: false }),
+          user: buildUser(),
+          closeMenu,
+        })
+      );
+
+      act(() => {
+        result.current.handleMyFavorites();
+      });
+
+      expect(closeMenu).toHaveBeenCalledOnce();
+      expect(mockRouter.push).toHaveBeenCalledWith('/favorites');
     });
   });
 

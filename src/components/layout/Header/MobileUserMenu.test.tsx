@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { fromPartial } from '@total-typescript/shoehorn';
 import type { Session } from 'next-auth';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/image', () => ({
   // className is forwarded so tests can assert the interactive hover/focus
@@ -44,6 +44,7 @@ vi.mock('@/lib/analytics', async (importOriginal) => {
 });
 
 import { authenticatedIdentity } from '@/test/mocks/identity';
+import { mockRouter } from '@/test/mocks/navigation';
 import { mockSession } from '@/test/mocks/nextAuth';
 
 import { MobileUserMenu } from './MobileUserMenu';
@@ -58,6 +59,10 @@ function buildUser(overrides: Partial<Session['user']> = {}): Session['user'] {
 }
 
 describe('MobileUserMenu', () => {
+  beforeEach(() => {
+    mockRouter.push.mockClear();
+  });
+
   it('renders correctly with default mock user showing proper alt text', () => {
     render(
       <MobileUserMenu
@@ -190,4 +195,49 @@ describe('MobileUserMenu', () => {
       screen.queryByRole('link', { name: '提供回饋' })
     ).not.toBeInTheDocument();
   });
+
+  it.each([false, true])(
+    'renders 我的收藏 directly below 我的預約 for isMentor=%s, closes the sheet, and navigates to /favorites',
+    (isMentor) => {
+      render(
+        <MobileUserMenu
+          identity={authenticatedIdentity('user-1', { isMentor })}
+          user={buildUser({ isMentor })}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: '開啟用戶選單' }));
+
+      const nav = screen.getByRole('navigation');
+      const navItems = Array.from(nav.children);
+      const navChildren = navItems.map((el) => el.textContent?.trim());
+      const myReservationIdx = navChildren.indexOf('我的預約');
+      const myFavoritesIdx = navChildren.indexOf('我的收藏');
+
+      expect(myReservationIdx).toBeGreaterThanOrEqual(0);
+      expect(myFavoritesIdx).toBe(myReservationIdx + 1);
+
+      const favoritesButton = screen.getByRole('button', { name: '我的收藏' });
+      expect(favoritesButton).toHaveTextContent(/^我的收藏$/);
+      expect(favoritesButton).toHaveAttribute(
+        'data-analytics-click',
+        'mobile_user_menu_my_favorites'
+      );
+      expect(favoritesButton).toHaveAttribute(
+        'data-analytics-location',
+        'mobile_user_menu'
+      );
+      expect(favoritesButton).toHaveAttribute(
+        'data-analytics-feature',
+        'navigation'
+      );
+
+      fireEvent.click(favoritesButton);
+
+      expect(
+        screen.queryByRole('button', { name: '我的收藏' })
+      ).not.toBeInTheDocument();
+      expect(mockRouter.push).toHaveBeenCalledWith('/favorites');
+    }
+  );
 });

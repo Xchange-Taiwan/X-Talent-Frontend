@@ -51,6 +51,7 @@ export const UserDropdown = React.memo(function UserDropdown({
     handleShareProfile,
     handleAsMentor,
     handleMyReservation,
+    handleMyFavorites,
     handleDeleteAccount,
     handleLogout,
   } = useAccountMenu({ identity, user, closeMenu });
@@ -60,6 +61,7 @@ export const UserDropdown = React.memo(function UserDropdown({
     pathname?.startsWith('/reservation/mentor') ?? false;
   const isOnMenteeReservation =
     pathname?.startsWith('/reservation/mentee') ?? false;
+  const isOnFavorites = pathname?.startsWith('/favorites') ?? false;
 
   // The share dialog mounts on top of the closing dropdown, so open it a
   // frame after the close starts to avoid the two animations racing.
@@ -174,6 +176,17 @@ export const UserDropdown = React.memo(function UserDropdown({
               data-analytics-feature="reservation"
             >
               我的預約
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              className="px-4 py-3 text-2xl"
+              onClick={handleMyFavorites}
+              aria-current={isOnFavorites ? 'page' : undefined}
+              data-analytics-click="user_menu_my_favorites"
+              data-analytics-location="user_dropdown"
+              data-analytics-feature="navigation"
+            >
+              我的收藏
             </DropdownMenuItem>
 
             <DropdownMenuItem
