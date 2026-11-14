@@ -1,5 +1,4 @@
 import { AsyncReadManager } from '@/lib/asyncReadManager';
-import { createKeyedCache } from '@/lib/createKeyedCache';
 import type { MentorPage, MentorType } from '@/types/mentor';
 
 export const DEFAULT_MENTOR_PAGE_LIMIT = 9;
@@ -83,11 +82,10 @@ export function toMentorPoolConditionKey(
   return hasConditions ? `filter_${paramsString}` : UNFILTERED_MENTOR_POOL_KEY;
 }
 
-const mentorPoolCache = createKeyedCache<string, MentorPoolPageState>();
 export const mentorPoolReadManager = new AsyncReadManager<
   string,
   MentorPoolPageState
->(mentorPoolCache);
+>();
 
 export const mentorPoolStore = {
   buildInitialUnfilteredState(opts: {

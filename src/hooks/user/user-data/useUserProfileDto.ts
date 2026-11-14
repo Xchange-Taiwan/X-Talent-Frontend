@@ -1,9 +1,6 @@
 import { useMemo } from 'react';
 
 import { useAsyncRead } from '@/hooks/useAsyncRead';
-import { fetchUserById } from '@/services/profile/user';
-import type { MentorProfileVO } from '@/types/user';
-
 import {
   clearUserProfileDtoCache,
   getEffectiveInitialDto,
@@ -14,7 +11,9 @@ import {
   shouldCacheUserProfileDto,
   USER_PROFILE_DTO_CACHE_TTL_MS,
   userProfileDtoReadManager,
-} from './userProfileDtoCache';
+} from '@/lib/cache/userProfileDtoCache';
+import { fetchUserById } from '@/services/profile/user';
+import type { MentorProfileVO } from '@/types/user';
 
 export {
   clearUserProfileDtoCache,
@@ -69,7 +68,7 @@ export function useUserProfileDto(
     }
   );
 
-  const cachedData = key ? userProfileDtoReadManager.get(key) : null;
+  const cachedData = key ? userProfileDtoReadManager.peek(key) : null;
   const userDto =
     options?.enabled === false ? (cachedData ?? null) : asyncReadData;
 

@@ -192,7 +192,7 @@ function useUserData(
   } = useUserProfileDto(userId, language, initialDto ?? undefined);
   // Catalog supplies localized labels for the raw subject_group arrays
   // (want_*, have_*) and for the enriched industry. Loads in parallel with
-  // the user dto and is cached app-wide via getTagCatalogCached.
+  // the user dto and is cached app-wide via tagCatalogReadManager.
   const tagCatalog = useTagCatalog(language, initialCatalogs);
 
   const userData: UserType | null = userDto
