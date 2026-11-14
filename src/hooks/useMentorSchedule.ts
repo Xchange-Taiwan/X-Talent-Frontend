@@ -67,10 +67,9 @@ const useIsomorphicLayoutEffect =
 // it, so they expire on their own. Hoisted to module scope because
 // `useAsyncRead` keeps the options object in a ref - a fresh literal per
 // render would be pointless churn.
-const RESERVATIONS_READ_OPTIONS: AsyncReadOptions<
-  ReservationReadKey,
-  FetchReservationsResult
-> = { ttlMs: MENTOR_SCHEDULE_RESERVATIONS_TTL_MS };
+const RESERVATIONS_READ_OPTIONS: AsyncReadOptions<FetchReservationsResult> = {
+  ttlMs: MENTOR_SCHEDULE_RESERVATIONS_TTL_MS,
+};
 
 type Options = {
   backend: {

@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 
+import { captureEvidence } from '../../helpers/evidence';
 import { setSignedSessionCookie } from '../../helpers/session';
 
 // Static, valid user IDs from the dev/staging BFF database so that Next.js
@@ -44,6 +45,8 @@ test('檢視他人的 mentor 個人檔案 → 基本資訊、可預約時段區�
 
   // Assert schedule calendar / booking section is visible
   await expect(page.getByText('可預約日期')).toBeVisible();
+
+  await captureEvidence(page, 'profile-mentor-hydrated-catalog-view');
 });
 
 test('檢視他人的 mentee 個人檔案 → 預約區塊不存在', async ({ page }) => {

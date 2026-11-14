@@ -1,5 +1,8 @@
-import { AsyncReadManager, type AsyncReadResult } from '@/lib/asyncReadManager';
-import { createKeyedCache } from '@/lib/createKeyedCache';
+import {
+  type AsyncCacheSnapshot,
+  AsyncReadManager,
+  type AsyncReadResult,
+} from '@/lib/asyncReadManager';
 import type { ReservationState } from '@/services/reservations';
 import type { Reservation } from '@/types/reservation';
 
@@ -46,12 +49,11 @@ function toCacheKey({
 export const MENTOR_SCHEDULE_RESERVATIONS_TTL_MS = 30_000;
 
 // Private to this module: nothing outside ReservationReadModel may reach the
-// shared reservation cache directly. All reads, writes, and invalidation go
+// shared reservation manager directly. All reads, writes, and invalidation go
 // through the methods below, which own the key shape and the (TTL-less,
 // invalidate-driven - see CONTEXT.md) cache policy so callers never pass a
 // TTL or a cache handle in.
-const cache = createKeyedCache<string, FetchReservationsResult>();
-const manager = new AsyncReadManager<string, FetchReservationsResult>(cache);
+const manager = new AsyncReadManager<string, FetchReservationsResult>();
 const knownKeys = new Map<string, ReservationReadKey>();
 
 function trackKey(key: ReservationReadKey): string {
@@ -61,8 +63,14 @@ function trackKey(key: ReservationReadKey): string {
 }
 
 export interface ReservationReadModel {
-  /** Synchronous cached-snapshot read; does not trigger a fetch. */
+  /** Synchronous fresh cached-snapshot read; returns `undefined` if expired. */
   get(key: ReservationReadKey): FetchReservationsResult | undefined;
+  /** Non-destructive SWR value inspection (returns fresh or stale value). */
+  peek(key: ReservationReadKey): FetchReservationsResult | undefined;
+  /** Non-destructive SWR snapshot inspection. */
+  getSnapshot(
+    key: ReservationReadKey
+  ): AsyncCacheSnapshot<FetchReservationsResult> | undefined;
   /**
    * Direct write, primarily for framework plumbing (initial-data hydration)
    * - prefer `update()`. `ttlMs` is for a caller using
@@ -87,7 +95,12 @@ export interface ReservationReadModel {
       context?: { force?: boolean }
     ) => Promise<FetchReservationsResult>,
     onUpdate: (result: AsyncReadResult<FetchReservationsResult>) => void,
-    options?: { force?: boolean; initialData?: FetchReservationsResult }
+    options?: {
+      ttlMs?: number;
+      force?: boolean;
+      initialData?: FetchReservationsResult;
+      shouldCache?: (value: FetchReservationsResult) => boolean;
+    }
   ): () => void;
   /** Derive the next value from the current cached value (optimistic removal, pagination append, ...). */
   update(
@@ -136,6 +149,12 @@ export interface ReservationReadModel {
 export const reservationReadModel: ReservationReadModel = {
   get(key) {
     return manager.get(toCacheKey(key));
+  },
+  peek(key) {
+    return manager.peek(toCacheKey(key));
+  },
+  getSnapshot(key) {
+    return manager.getSnapshot(toCacheKey(key));
   },
   set(key, value, ttlMs) {
     manager.set(trackKey(key), value, ttlMs);

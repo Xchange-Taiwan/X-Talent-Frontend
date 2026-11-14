@@ -1,9 +1,6 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { useAsyncRead } from '@/hooks/useAsyncRead';
-import { fetchUserById } from '@/services/profile/user';
-import type { MentorProfileVO } from '@/types/user';
-
 import {
   clearUserProfileDtoCache,
   getEffectiveInitialDto,
@@ -14,7 +11,9 @@ import {
   shouldCacheUserProfileDto,
   USER_PROFILE_DTO_CACHE_TTL_MS,
   userProfileDtoReadManager,
-} from './userProfileDtoCache';
+} from '@/lib/cache/userProfileDtoCache';
+import { fetchUserById } from '@/services/profile/user';
+import type { MentorProfileVO } from '@/types/user';
 
 export {
   clearUserProfileDtoCache,
@@ -44,15 +43,20 @@ export function useUserProfileDto(
   initialData?: MentorProfileVO | null,
   options?: { enabled?: boolean }
 ): UseUserProfileDtoResult {
+  const [manualRetryCount, setManualRetryCount] = useState(0);
   const key = userId && language ? `${userId}-${language}` : null;
   const effectiveInitialData = getEffectiveInitialDto(key, initialData);
-  const bypassKey = options?.enabled === false ? null : key;
+  const bypassKey =
+    options?.enabled === false ||
+    (effectiveInitialData === null && manualRetryCount === 0)
+      ? null
+      : key;
 
   const {
     data: asyncReadData,
     isLoading,
     error,
-    refetch,
+    refetch: rawRefetch,
   } = useAsyncRead(
     userProfileDtoReadManager,
     bypassKey,
@@ -69,7 +73,12 @@ export function useUserProfileDto(
     }
   );
 
-  const cachedData = key ? userProfileDtoReadManager.get(key) : null;
+  const refetch = useCallback(() => {
+    setManualRetryCount((c) => c + 1);
+    rawRefetch();
+  }, [rawRefetch]);
+
+  const cachedData = key ? userProfileDtoReadManager.peek(key) : null;
   const userDto =
     options?.enabled === false ? (cachedData ?? null) : asyncReadData;
 
