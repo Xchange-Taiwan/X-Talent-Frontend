@@ -1,10 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import dayjs from 'dayjs';
+import { useLayoutEffect } from 'react';
 
 import defaultAvatar from '@/assets/default-avatar.png';
 import { mockBookingSlots } from '@/components/profile/reservation/__mocks__/reservationStories.mock';
 import type { UserType } from '@/hooks/user/user-data/useUserData';
 import type { BookingCalendarReader } from '@/lib/profile/bookingAvailability';
+import { favoriteMentorStore } from '@/stores/favoriteMentorStore';
 import type { MentorFeedbackItem } from '@/types/feedback';
 
 import ProfilePageUI from './ui';
@@ -362,4 +364,26 @@ export const LoadingSkeleton: Story = {
     isSubmitting: false,
     onConfirmReservation: async () => true,
   },
+};
+
+function SeededBookmarkedProfileStory(
+  props: React.ComponentProps<typeof ProfilePageUI>
+) {
+  useLayoutEffect(() => {
+    favoriteMentorStore.setAdapter({
+      fetchFavoriteMentors: async () => [],
+      addFavoriteMentor: async () => {},
+      removeFavoriteMentor: async () => {},
+    });
+    favoriteMentorStore.seedFavorites('test-user-id', [101]);
+  }, []);
+
+  return <ProfilePageUI {...props} />;
+}
+
+export const MentorBookmarkedVisitorView: Story = {
+  args: {
+    ...MentorVisitorView.args,
+  },
+  render: (args) => <SeededBookmarkedProfileStory {...args} />,
 };

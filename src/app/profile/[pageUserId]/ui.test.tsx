@@ -855,3 +855,92 @@ describe('ProfilePageUI - mentor summary bar and feedback tabs (#736)', () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe('ProfilePageUI - mentor bookmark button gating (#758)', () => {
+  it('renders the bookmark button for a visitor viewing a mentor profile without Email/notification copy', () => {
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            user_id: 123,
+            name: 'Zahra Mirzakhani',
+            is_mentor: true,
+          }),
+          loginUserId: '999',
+          isIdentityResolved: true,
+          canShowOwnerControls: false,
+        })}
+      />
+    );
+
+    const bookmarkBtn = screen.getByRole('button', {
+      name: '收藏 Zahra Mirzakhani',
+    });
+    expect(bookmarkBtn).toBeInTheDocument();
+    expect(bookmarkBtn.textContent).toBe('');
+    expect(screen.queryByText(/新時段通知/)).not.toBeInTheDocument();
+  });
+
+  it('hides the bookmark button on the mentor owner profile', () => {
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            user_id: 123,
+            name: 'Zahra Mirzakhani',
+            is_mentor: true,
+          }),
+          loginUserId: '123',
+          isIdentityResolved: true,
+          canShowOwnerControls: true,
+        })}
+      />
+    );
+
+    expect(
+      screen.queryByRole('button', { name: /收藏 Zahra Mirzakhani/ })
+    ).not.toBeInTheDocument();
+  });
+
+  it('hides the bookmark button on a non-mentor profile', () => {
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            user_id: 456,
+            name: 'Alex Mentee',
+            is_mentor: false,
+          }),
+          loginUserId: '999',
+          isIdentityResolved: true,
+          canShowOwnerControls: false,
+        })}
+      />
+    );
+
+    expect(
+      screen.queryByRole('button', { name: /收藏 Alex Mentee/ })
+    ).not.toBeInTheDocument();
+  });
+
+  it('withholds the bookmark button while identity is still resolving', () => {
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            user_id: 123,
+            name: 'Zahra Mirzakhani',
+            is_mentor: true,
+          }),
+          loginUserId: '',
+          isIdentityResolved: false,
+          canShowOwnerControls: false,
+        })}
+      />
+    );
+
+    expect(
+      screen.queryByRole('button', { name: /收藏 Zahra Mirzakhani/ })
+    ).not.toBeInTheDocument();
+  });
+});

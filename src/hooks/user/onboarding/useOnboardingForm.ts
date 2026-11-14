@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { useOnboardingSubmit } from '@/hooks/user/onboarding/useOnboardingSubmit';
 import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
 import { trackEvent } from '@/lib/analytics';
+import { getPendingFavoriteProfilePath } from '@/lib/favorites';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   step1Schema,
@@ -191,7 +192,8 @@ export function useOnboardingForm({ industries }: Options) {
       await submitProfile(allData, hasNewAvatar);
 
       trackEvent({ name: 'onboarding_completed', feature: 'onboarding' });
-      router.push('/profile/card');
+      const pendingFavoritePath = getPendingFavoriteProfilePath();
+      router.push(pendingFavoritePath ?? '/profile/card');
     } catch {
       toast({
         variant: 'destructive',
