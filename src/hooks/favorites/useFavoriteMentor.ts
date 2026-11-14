@@ -16,6 +16,15 @@ import type { MentorType } from '@/types/mentor';
 
 export const FAVORITE_MENTOR_ERROR_TOAST_MESSAGE = '收藏操作失敗，請稍後再試';
 
+export type FavoriteMentorFeature = 'mentor_pool' | 'profile';
+
+const FAVORITED_STATE_BIT = 1;
+const PENDING_STATE_BIT = 2;
+
+function getServerMentorStateMask(): number {
+  return 0;
+}
+
 function useOptionalRouter(): ReturnType<typeof useRouter> | null {
   try {
     return useRouter();
@@ -27,6 +36,7 @@ function useOptionalRouter(): ReturnType<typeof useRouter> | null {
 export interface UseFavoriteMentorOptions {
   mentorId: number;
   mentorSnapshot?: MentorType;
+  feature?: FavoriteMentorFeature;
 }
 
 export interface UseFavoriteMentorResult {
@@ -41,6 +51,7 @@ export interface UseFavoriteMentorResult {
 export function useFavoriteMentor({
   mentorId,
   mentorSnapshot,
+  feature = 'mentor_pool',
 }: UseFavoriteMentorOptions): UseFavoriteMentorResult {
   const sessionContext = useContext(SessionContext);
   const router = useOptionalRouter();
@@ -68,18 +79,29 @@ export function useFavoriteMentor({
     }
   }, [confirmedUserId, isIdentityUnresolved]);
 
-  const storeState = useSyncExternalStore(
+  const getMentorStateMask = useCallback((): number => {
+    if (!Number.isFinite(mentorId) || mentorId <= 0) {
+      return 0;
+    }
+    const state = favoriteMentorStore.getState();
+    return (
+      (state.favoriteMentorIds.has(mentorId) ? FAVORITED_STATE_BIT : 0) |
+      (state.pendingMentorIds.has(mentorId) ? PENDING_STATE_BIT : 0)
+    );
+  }, [mentorId]);
+
+  const mentorStateMask = useSyncExternalStore(
     favoriteMentorStore.subscribe,
-    favoriteMentorStore.getState,
-    favoriteMentorStore.getServerSnapshot
+    getMentorStateMask,
+    getServerMentorStateMask
   );
 
   const isSelf =
     confirmedUserId !== null && confirmedUserId === String(mentorId);
   const isFavorited = isAuthenticated
-    ? storeState.favoriteMentorIds.has(mentorId)
+    ? (mentorStateMask & FAVORITED_STATE_BIT) !== 0
     : false;
-  const isPending = storeState.pendingMentorIds.has(mentorId);
+  const isPending = (mentorStateMask & PENDING_STATE_BIT) !== 0;
 
   const handleToggleFavorite = useCallback(async () => {
     if (isSelf || isIdentityUnresolved) return;
@@ -111,7 +133,7 @@ export function useFavoriteMentor({
 
     trackEvent({
       name: 'mentor_bookmark_toggle',
-      feature: 'mentor_pool',
+      feature,
       metadata: {
         mentor_id: mentorId,
         action: optimisticAction,
@@ -134,6 +156,7 @@ export function useFavoriteMentor({
     isIdentityUnresolved,
     isAuthenticated,
     confirmedUserId,
+    feature,
     mentorId,
     mentorSnapshot,
     router,

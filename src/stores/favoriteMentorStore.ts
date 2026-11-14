@@ -75,6 +75,7 @@ class FavoriteMentorStoreManager {
   private activeUserId: string | null = null;
   private userEpoch = 0;
   private loadPromise: Promise<void> | null = null;
+  private serverMentorMap = new Map<number, MentorType>();
   private optimisticOverrides = new Map<
     number,
     { favorited: boolean; mentor?: MentorType }
@@ -137,6 +138,7 @@ class FavoriteMentorStoreManager {
         this.activeUserId = null;
         this.userEpoch += 1;
         this.loadPromise = null;
+        this.serverMentorMap.clear();
         this.optimisticOverrides.clear();
         this.state = createInitialFavoriteState();
         this.emit();
@@ -148,6 +150,7 @@ class FavoriteMentorStoreManager {
       this.activeUserId = normalizedUserId;
       this.userEpoch += 1;
       this.loadPromise = null;
+      this.serverMentorMap.clear();
       this.optimisticOverrides.clear();
       this.state = {
         ...createInitialFavoriteState(),
@@ -175,13 +178,13 @@ class FavoriteMentorStoreManager {
           return;
         }
 
-        const mergedIds = new Set<number>(
-          fetchedMentors.map((mentor) => mentor.user_id)
-        );
-        const mentorMap = new Map<number, MentorType>();
+        this.serverMentorMap.clear();
         for (const mentor of fetchedMentors) {
-          mentorMap.set(mentor.user_id, mentor);
+          this.serverMentorMap.set(mentor.user_id, mentor);
         }
+
+        const mergedIds = new Set<number>(this.serverMentorMap.keys());
+        const mentorMap = new Map<number, MentorType>(this.serverMentorMap);
 
         // Preserve any optimistic mutations initiated while initial GET was in flight
         this.optimisticOverrides.forEach((override, id) => {
@@ -193,6 +196,19 @@ class FavoriteMentorStoreManager {
           } else {
             mergedIds.delete(id);
             mentorMap.delete(id);
+          }
+
+          if (!this.state.pendingMentorIds.has(id)) {
+            if (override.favorited) {
+              const settledMentor =
+                mentorMap.get(id) ??
+                override.mentor ??
+                buildPlaceholderMentor(id);
+              this.serverMentorMap.set(id, settledMentor);
+            } else {
+              this.serverMentorMap.delete(id);
+            }
+            this.optimisticOverrides.delete(id);
           }
         });
 
@@ -210,6 +226,22 @@ class FavoriteMentorStoreManager {
         ) {
           return;
         }
+        this.optimisticOverrides.forEach((override, id) => {
+          if (!this.state.pendingMentorIds.has(id)) {
+            if (override.favorited) {
+              const existingEntry = this.state.favoriteMentors.find(
+                (item) => item.user_id === id
+              );
+              this.serverMentorMap.set(
+                id,
+                override.mentor ?? existingEntry ?? buildPlaceholderMentor(id)
+              );
+            } else {
+              this.serverMentorMap.delete(id);
+            }
+            this.optimisticOverrides.delete(id);
+          }
+        });
         // Mark loadedUserId so transient failure doesn't cause an infinite refetch loop on re-renders
         this.setState({
           loadedUserId: targetUserId,
@@ -296,6 +328,18 @@ class FavoriteMentorStoreManager {
         const updatedPending = new Set(this.state.pendingMentorIds);
         updatedPending.delete(mentorId);
         if (this.state.loadedUserId !== null) {
+          if (nextFavorited) {
+            const currentEntry =
+              this.state.favoriteMentors.find(
+                (item) => item.user_id === mentorId
+              ) ??
+              mentorSnapshot ??
+              this.serverMentorMap.get(mentorId) ??
+              buildPlaceholderMentor(mentorId);
+            this.serverMentorMap.set(mentorId, currentEntry);
+          } else {
+            this.serverMentorMap.delete(mentorId);
+          }
           this.optimisticOverrides.delete(mentorId);
         }
         this.setState({ pendingMentorIds: updatedPending });
@@ -305,13 +349,24 @@ class FavoriteMentorStoreManager {
         ? { status: 'added', nextFavorited: true }
         : { status: 'removed', nextFavorited: false };
     } catch (error) {
+      let rolledBackToFavorited = currentlyFavorited;
+
       if (this.userEpoch === requestEpoch) {
+        rolledBackToFavorited =
+          previousOverride !== undefined
+            ? previousOverride.favorited
+            : this.state.loadedUserId !== null
+              ? this.serverMentorMap.has(mentorId)
+              : currentlyFavorited;
+
         const rolledBackIds = new Set(this.state.favoriteMentorIds);
         let rolledBackMentors: MentorType[];
 
-        if (currentlyFavorited) {
+        if (rolledBackToFavorited) {
           rolledBackIds.add(mentorId);
           const restoredEntry =
+            previousOverride?.mentor ??
+            this.serverMentorMap.get(mentorId) ??
             previousMentorEntry ??
             mentorSnapshot ??
             buildPlaceholderMentor(mentorId);
@@ -330,7 +385,22 @@ class FavoriteMentorStoreManager {
         updatedPending.delete(mentorId);
 
         if (previousOverride) {
-          this.optimisticOverrides.set(mentorId, previousOverride);
+          if (this.state.loadedUserId !== null) {
+            if (previousOverride.favorited) {
+              const settledEntry =
+                previousOverride.mentor ??
+                this.serverMentorMap.get(mentorId) ??
+                previousMentorEntry ??
+                mentorSnapshot ??
+                buildPlaceholderMentor(mentorId);
+              this.serverMentorMap.set(mentorId, settledEntry);
+            } else {
+              this.serverMentorMap.delete(mentorId);
+            }
+            this.optimisticOverrides.delete(mentorId);
+          } else {
+            this.optimisticOverrides.set(mentorId, previousOverride);
+          }
         } else {
           this.optimisticOverrides.delete(mentorId);
         }
@@ -344,7 +414,7 @@ class FavoriteMentorStoreManager {
 
       return {
         status: 'failed',
-        nextFavorited: currentlyFavorited,
+        nextFavorited: rolledBackToFavorited,
         error,
       };
     }
@@ -361,19 +431,18 @@ class FavoriteMentorStoreManager {
     this.activeUserId = normalizedUserId;
     this.userEpoch += 1;
     this.loadPromise = null;
+    this.serverMentorMap.clear();
     this.optimisticOverrides.clear();
 
     const ids = new Set<number>();
     const mentors: MentorType[] = [];
 
     for (const item of items) {
-      if (typeof item === 'number') {
-        ids.add(item);
-        mentors.push(buildPlaceholderMentor(item));
-      } else {
-        ids.add(item.user_id);
-        mentors.push(item);
-      }
+      const entry =
+        typeof item === 'number' ? buildPlaceholderMentor(item) : item;
+      ids.add(entry.user_id);
+      mentors.push(entry);
+      this.serverMentorMap.set(entry.user_id, entry);
     }
 
     this.state = {
@@ -390,6 +459,7 @@ class FavoriteMentorStoreManager {
     this.activeUserId = null;
     this.userEpoch += 1;
     this.loadPromise = null;
+    this.serverMentorMap.clear();
     this.optimisticOverrides.clear();
     this.adapter = defaultAdapter;
     this.state = createInitialFavoriteState();
