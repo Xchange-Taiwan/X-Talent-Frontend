@@ -1,43 +1,11 @@
 import { expect, Page, test } from '@playwright/test';
 
 import { captureEvidence } from '../../helpers/evidence';
-import { setSignedSessionCookie } from '../../helpers/session';
+import { seedMockAuthSession } from '../../helpers/session';
 
 const USER_ID = '1';
 const MENTEE_PAGE_URL = '/reservation/mentee';
 const MENTOR_PAGE_URL = '/reservation/mentor';
-
-function makeMenteeSession() {
-  return {
-    user: {
-      id: USER_ID,
-      name: 'Test Mentee',
-      isMentor: false,
-      onBoarding: true,
-      jobTitle: 'Junior Product Designer',
-      company: 'Studio X',
-      personalLinks: [],
-    },
-    accessToken: 'mock-token',
-    expires: '2099-01-01T00:00:00.000Z',
-  };
-}
-
-function makeMentorSession() {
-  return {
-    user: {
-      id: USER_ID,
-      name: 'Emily Chen',
-      isMentor: true,
-      onBoarding: true,
-      jobTitle: 'Senior UI/UX Designer',
-      company: 'Tech Corp',
-      personalLinks: [],
-    },
-    accessToken: 'mock-token',
-    expires: '2099-01-01T00:00:00.000Z',
-  };
-}
 
 function makeReservationResponse(reservations: object[]) {
   return {
@@ -92,20 +60,13 @@ function makeMenteeHistoryReservation(
 }
 
 async function setupMenteeAuth(page: Page): Promise<void> {
-  const session = makeMenteeSession();
-  await setSignedSessionCookie(page, {
-    ...session.user,
-    token: 'mock-access-token',
-  });
-  await page.route(/\/api\/auth\/session/, (route) => {
-    if (route.request().method() === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(session),
-      });
-    }
-    return route.continue();
+  await seedMockAuthSession(page, {
+    id: USER_ID,
+    name: 'Test Mentee',
+    isMentor: false,
+    onBoarding: true,
+    jobTitle: 'Junior Product Designer',
+    company: 'Studio X',
   });
   await page.route(/\/v1\/notifications/, (route) =>
     route.fulfill({
@@ -117,20 +78,13 @@ async function setupMenteeAuth(page: Page): Promise<void> {
 }
 
 async function setupMentorAuth(page: Page): Promise<void> {
-  const session = makeMentorSession();
-  await setSignedSessionCookie(page, {
-    ...session.user,
-    token: 'mock-access-token',
-  });
-  await page.route(/\/api\/auth\/session/, (route) => {
-    if (route.request().method() === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(session),
-      });
-    }
-    return route.continue();
+  await seedMockAuthSession(page, {
+    id: USER_ID,
+    name: 'Emily Chen',
+    isMentor: true,
+    onBoarding: true,
+    jobTitle: 'Senior UI/UX Designer',
+    company: 'Tech Corp',
   });
   await page.route(/\/v1\/notifications/, (route) =>
     route.fulfill({

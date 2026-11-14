@@ -1,42 +1,31 @@
 import { expect, Page, test } from '@playwright/test';
 
 import { captureEvidence } from '../../helpers/evidence';
-import { setSignedSessionCookie } from '../../helpers/session';
+import {
+  clearMockAuthSession,
+  seedMockAuthSession,
+} from '../../helpers/session';
 
 const MENTEE_USER_ID = '1';
 const MENTOR_USER_ID = '2';
 
-function makeMenteeSession() {
-  return {
-    user: {
-      id: MENTEE_USER_ID,
-      name: 'Test Mentee',
-      isMentor: false,
-      onBoarding: true,
-      jobTitle: 'Junior Product Designer',
-      company: 'Studio X',
-      personalLinks: [],
-    },
-    accessToken: 'mock-token',
-    expires: '2099-01-01T00:00:00.000Z',
-  };
-}
+const MENTEE_USER = {
+  id: MENTEE_USER_ID,
+  name: 'Test Mentee',
+  isMentor: false,
+  onBoarding: true,
+  jobTitle: 'Junior Product Designer',
+  company: 'Studio X',
+} as const;
 
-function makeMentorSession() {
-  return {
-    user: {
-      id: MENTOR_USER_ID,
-      name: 'Emily Chen',
-      isMentor: true,
-      onBoarding: true,
-      jobTitle: 'Senior UI/UX Designer',
-      company: 'Tech Corp',
-      personalLinks: [],
-    },
-    accessToken: 'mock-token',
-    expires: '2099-01-01T00:00:00.000Z',
-  };
-}
+const MENTOR_USER = {
+  id: MENTOR_USER_ID,
+  name: 'Emily Chen',
+  isMentor: true,
+  onBoarding: true,
+  jobTitle: 'Senior UI/UX Designer',
+  company: 'Tech Corp',
+} as const;
 
 function makeReservationResponse(reservations: object[]) {
   return {
@@ -253,24 +242,13 @@ test.describe('Mentee 送出回饋後通知 Mentor 與評價未公開面板 (#73
   test.use({ storageState: { cookies: [], origins: [] } });
 
   test.beforeEach(async ({ page }) => {
-    await page.context().clearCookies();
+    await clearMockAuthSession(page);
   });
 
   test('Mentor 點擊站內「您收到新的回饋」通知（顯示完整學員姓名）→ 導向歷史紀錄定位高亮並自動展開公開評價；若評價不公開（is_public: false）則不顯示評價內容', async ({
     page,
   }) => {
-    const mentorSession = makeMentorSession();
-    await setSignedSessionCookie(page, {
-      ...mentorSession.user,
-      token: 'mock-access-token',
-    });
-    await page.route(/\/api\/auth\/session/, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(mentorSession),
-      })
-    );
+    await seedMockAuthSession(page, MENTOR_USER);
 
     const mentorHistory = [
       makeMentorHistoryReservation(201, 'Zahra Mirzakhani', {
@@ -390,7 +368,6 @@ test.describe('Mentee 送出回饋後通知 Mentor 與評價未公開面板 (#73
   test('未登入 Mentor 點擊回饋通知信連結 → 導向登入並保留 callbackUrl → 登入後導回歷史紀錄定位高亮並自動展開回饋卡片', async ({
     page,
   }) => {
-    const mentorSession = makeMentorSession();
     const mentorHistory = [
       makeMentorHistoryReservation(201, 'Zahra Mirzakhani', {
         meeting_happened: true,
@@ -447,21 +424,8 @@ test.describe('Mentee 送出回饋後通知 Mentor 與評價未公開面板 (#73
         })
     );
 
-    let isAuthenticated = false;
-    await page.route(/\/api\/auth\/session/, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(isAuthenticated ? mentorSession : {}),
-      })
-    );
-
     await page.route(/\/api\/auth\/callback\/credentials/, async (route) => {
-      isAuthenticated = true;
-      await setSignedSessionCookie(page, {
-        ...mentorSession.user,
-        token: 'mock-access-token',
-      });
+      await seedMockAuthSession(page, MENTOR_USER);
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -495,18 +459,7 @@ test.describe('Mentee 送出回饋後通知 Mentor 與評價未公開面板 (#73
   test('Mentee「我的預約 → 歷史紀錄」依 is_public 顯示：false 顯示暖黃「評價未公開」標籤、說明文字與回饋表單連結（不揭露標註方）；true 維持顯示「查看回饋」', async ({
     page,
   }) => {
-    const menteeSession = makeMenteeSession();
-    await setSignedSessionCookie(page, {
-      ...menteeSession.user,
-      token: 'mock-access-token',
-    });
-    await page.route(/\/api\/auth\/session/, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(menteeSession),
-      })
-    );
+    await seedMockAuthSession(page, MENTEE_USER);
 
     const menteeHistory = [
       makeMenteeHistoryReservation(101, 'Zahra Mirzakhani', {

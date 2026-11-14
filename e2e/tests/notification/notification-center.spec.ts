@@ -1,10 +1,9 @@
 import { expect, Page, test } from '@playwright/test';
 import dayjs from 'dayjs';
-import type { Session } from 'next-auth';
 
 import type { components } from '@/types/api';
 
-import { setSignedSessionCookie as setSharedSessionCookie } from '../../helpers/session';
+import { seedMockAuthSession } from '../../helpers/session';
 
 type NotificationVO = components['schemas']['NotificationVO'];
 
@@ -19,22 +18,6 @@ const PAGE_URL = '/'; // Notification bell lives in the header of the main/home 
 // --- Mock Payloads ---
 
 const MENTOR_USER_ID = '999000111'; // Fully mocked session identity - no real account needed
-
-function makeSession(isMentor: boolean): Session {
-  return {
-    user: {
-      id: isMentor ? MENTOR_USER_ID : USER_ID,
-      name: isMentor ? 'Test Mentor' : 'Test Mentee',
-      isMentor,
-      onBoarding: true,
-      jobTitle: '',
-      company: '',
-      personalLinks: [],
-    },
-    accessToken: 'mock-token',
-    expires: '2099-01-01T00:00:00.000Z',
-  };
-}
 
 function makeNotificationVO(
   id: string,
@@ -63,24 +46,12 @@ function makeNotificationVO(
 
 // --- Helpers ---
 
-async function loginAs(page: Page, isMentor: boolean) {
-  const session = makeSession(isMentor);
-  await setSharedSessionCookie(page, {
-    ...session.user,
-    // makeSession always sets these concretely; they're only optional on
-    // Session['user'] because next-auth's own type allows it in general.
-    id: session.user.id!,
-    name: session.user.name!,
-    onBoarding: session.user.onBoarding!,
-    isMentor: session.user.isMentor!,
-    token: 'mock-access-token',
-  });
-  await page.route(/\/api\/auth\/session/, (route) => {
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(session),
-    });
+async function seedNotificationRole(page: Page, isMentor: boolean) {
+  await seedMockAuthSession(page, {
+    id: isMentor ? MENTOR_USER_ID : USER_ID,
+    name: isMentor ? 'Test Mentor' : 'Test Mentee',
+    isMentor,
+    onBoarding: true,
   });
 }
 
@@ -134,7 +105,7 @@ async function setupMenteeWithNotification(
     'Mentor Wang',
     'mentee'
   );
-  await loginAs(page, false);
+  await seedNotificationRole(page, false);
   await mockUnreadCount(page, 1);
   await mockNotificationList(page, [notif]);
   return notif;
@@ -144,7 +115,7 @@ async function setupMenteeWithNotification(
 
 test.describe('Notification Center E2E Tests', () => {
   test('Empty state when zero notifications', async ({ page }) => {
-    await loginAs(page, false);
+    await seedNotificationRole(page, false);
     await mockUnreadCount(page, 0);
     await mockNotificationList(page, []);
 
@@ -305,7 +276,7 @@ test.describe('Notification Center E2E Tests', () => {
       'Mentor Wang',
       'mentee'
     );
-    await loginAs(page, false); // Mentee
+    await seedNotificationRole(page, false); // Mentee
     await mockUnreadCount(page, 1);
     await mockNotificationList(page, [menteeNotif]);
 
@@ -321,7 +292,7 @@ test.describe('Notification Center E2E Tests', () => {
       'Mentee Lin',
       'mentor'
     );
-    await loginAs(page, true); // Mentor
+    await seedNotificationRole(page, true); // Mentor
     await mockUnreadCount(page, 1);
     await mockNotificationList(page, [mentorNotif]);
 
@@ -350,7 +321,7 @@ test.describe('Notification Center E2E Tests', () => {
       { dtstart, dtend: dtstart + 1800 }
     );
 
-    await loginAs(page, false);
+    await seedNotificationRole(page, false);
     await mockUnreadCount(page, 1);
     await mockNotificationList(page, [upcomingNotif]);
 
@@ -379,7 +350,7 @@ test.describe('Notification Center E2E Tests', () => {
       { actor_role: 'system' }
     );
 
-    await loginAs(page, false);
+    await seedNotificationRole(page, false);
     await mockUnreadCount(page, 1);
     await mockNotificationList(page, [menteeAutoCancelNotif]);
 
@@ -423,7 +394,7 @@ test.describe('Notification Center E2E Tests', () => {
       { actor_role: 'system' }
     );
 
-    await loginAs(page, true);
+    await seedNotificationRole(page, true);
     await mockUnreadCount(page, 1);
     await mockNotificationList(page, [mentorAutoCancelNotif]);
 
@@ -465,7 +436,7 @@ test.describe('Notification Center E2E Tests', () => {
       { actor_role: 'mentee' }
     );
 
-    await loginAs(page, true);
+    await seedNotificationRole(page, true);
     await mockUnreadCount(page, 1);
     await mockNotificationList(page, [mentorCancelNotif]);
 
@@ -506,7 +477,7 @@ test.describe('Notification Center E2E Tests', () => {
       'mentee',
       { actor_role: 'mentor' }
     );
-    await loginAs(page, false);
+    await seedNotificationRole(page, false);
     await mockUnreadCount(page, 1);
     await mockNotificationList(page, [menteeCancelNotif]);
 

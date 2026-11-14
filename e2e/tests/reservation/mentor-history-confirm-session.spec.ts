@@ -1,26 +1,10 @@
 import { expect, Page, test } from '@playwright/test';
 
 import { captureEvidence } from '../../helpers/evidence';
-import { setSignedSessionCookie } from '../../helpers/session';
+import { seedMockAuthSession } from '../../helpers/session';
 
 const MENTOR_USER_ID = '2';
 const MENTOR_PAGE_URL = '/reservation/mentor';
-
-function makeMentorSession() {
-  return {
-    user: {
-      id: MENTOR_USER_ID,
-      name: 'Alex Mentor',
-      isMentor: true,
-      onBoarding: true,
-      jobTitle: 'Staff Product Designer',
-      company: 'X-Talent',
-      personalLinks: [],
-    },
-    accessToken: 'mock-token',
-    expires: '2099-01-01T00:00:00.000Z',
-  };
-}
 
 function makeReservationResponse(reservations: object[]) {
   return {
@@ -142,18 +126,14 @@ function makeMentorHistoryItem(opts: {
 }
 
 async function setupAuthenticatedMentor(page: Page) {
-  const mentorSession = makeMentorSession();
-  await setSignedSessionCookie(page, {
-    ...mentorSession.user,
-    token: 'mock-access-token',
+  await seedMockAuthSession(page, {
+    id: MENTOR_USER_ID,
+    name: 'Alex Mentor',
+    isMentor: true,
+    onBoarding: true,
+    jobTitle: 'Staff Product Designer',
+    company: 'X-Talent',
   });
-  await page.route(/\/api\/auth\/session/, (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(mentorSession),
-    })
-  );
   await page.route(/\/v1\/users\/.*\/notifications\/unread-count/, (route) =>
     route.fulfill({
       status: 200,

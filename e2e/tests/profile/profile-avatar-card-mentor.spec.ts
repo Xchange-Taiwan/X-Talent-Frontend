@@ -1,7 +1,7 @@
 import { expect, Page, test } from '@playwright/test';
 
 import { mockApiRoute } from '../../helpers/route';
-import { setSignedSessionCookie } from '../../helpers/session';
+import { seedMockAuthSession } from '../../helpers/session';
 
 // Use a synthetic user ID that does not exist on the dev backend so SSR
 // fetchUserByIdServer(/profile/card) returns null and falls back to the
@@ -17,23 +17,6 @@ const TINY_PNG_BUFFER = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPj/HwADBwIAMCbHYQAAAABJRU5ErkJggg==',
   'base64'
 );
-
-function makeSession(isMentor: boolean, avatar = '') {
-  return {
-    user: {
-      id: USER_ID,
-      name: 'Test Mentee',
-      avatar,
-      isMentor,
-      onBoarding: true,
-      jobTitle: 'Frontend Engineer',
-      company: 'XChange',
-      personalLinks: [],
-    },
-    accessToken: 'mock-token',
-    expires: '2099-01-01T00:00:00.000Z',
-  };
-}
 
 interface MakeProfileOptions {
   name?: string;
@@ -262,39 +245,19 @@ const MOCK_TAG_CATALOG = {
   },
 };
 
-async function mockSessionEndpoints(
+async function seedProfileUser(
   page: Page,
-  initialSession: ReturnType<typeof makeSession>
+  isMentor: boolean,
+  avatar = ''
 ): Promise<void> {
-  let currentSession = initialSession;
-  await page.route(/\/api\/auth\/session/, (route) => {
-    const method = route.request().method();
-    if (method === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(currentSession),
-      });
-    }
-    if (method === 'POST' || method === 'PUT') {
-      const body = route.request().postDataJSON() as
-        { user?: Record<string, unknown> } | undefined;
-      if (body?.user) {
-        currentSession = {
-          ...currentSession,
-          user: {
-            ...currentSession.user,
-            ...body.user,
-          } as typeof currentSession.user,
-        };
-      }
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(currentSession),
-      });
-    }
-    return route.continue();
+  await seedMockAuthSession(page, {
+    id: USER_ID,
+    name: 'Test Mentee',
+    avatar,
+    isMentor,
+    onBoarding: true,
+    jobTitle: 'Frontend Engineer',
+    company: 'XChange',
   });
 }
 
@@ -377,12 +340,7 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
   test('選擇圖片開啟剪裁彈窗 → 儲存後觸發 S3 Presigned POST 並將新頭像網址送入 PUT /profile', async ({
     page,
   }) => {
-    const session = makeSession(false);
-    await setSignedSessionCookie(page, {
-      ...session.user,
-      token: 'mock-access-token',
-    });
-    await mockSessionEndpoints(page, session);
+    await seedProfileUser(page, false);
     await mockDropdowns(page);
 
     let presignedRequested = false;
@@ -482,12 +440,7 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
     page,
   }) => {
     const initialAvatarUrl = `${S3_BUCKET_URL}/avatars/${USER_ID}/original-avatar.png`;
-    const session = makeSession(false, initialAvatarUrl);
-    await setSignedSessionCookie(page, {
-      ...session.user,
-      token: 'mock-access-token',
-    });
-    await mockSessionEndpoints(page, session);
+    await seedProfileUser(page, false, initialAvatarUrl);
     await mockDropdowns(page);
 
     let shouldFailS3Post = true;
@@ -593,12 +546,7 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
   test('Mentee 造訪 /profile/card → 顯示完成個人頁面訊息與「成為導師」、「開始探索 X-Talent」導向', async ({
     page,
   }) => {
-    const session = makeSession(false);
-    await setSignedSessionCookie(page, {
-      ...session.user,
-      token: 'mock-access-token',
-    });
-    await mockSessionEndpoints(page, session);
+    await seedProfileUser(page, false);
     await mockDropdowns(page);
 
     await mockApiRoute(
@@ -645,12 +593,7 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
   test('Mentor 造訪 /profile/card → 顯示恭喜成為導師訊息，點擊「返回我的個人頁面」導向 /profile/:id', async ({
     page,
   }) => {
-    const session = makeSession(true);
-    await setSignedSessionCookie(page, {
-      ...session.user,
-      token: 'mock-access-token',
-    });
-    await mockSessionEndpoints(page, session);
+    await seedProfileUser(page, true);
 
     await mockApiRoute(
       page,
@@ -689,12 +632,7 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
     page,
   }) => {
     const avatarUrl = `${S3_BUCKET_URL}/${S3_OBJECT_KEY}`;
-    const session = makeSession(false, avatarUrl);
-    await setSignedSessionCookie(page, {
-      ...session.user,
-      token: 'mock-access-token',
-    });
-    await mockSessionEndpoints(page, session);
+    await seedProfileUser(page, false, avatarUrl);
     await mockDropdowns(page);
 
     await page.route(

@@ -1,42 +1,10 @@
 import { expect, Page, test } from '@playwright/test';
 
 import { captureEvidence } from '../../helpers/evidence';
-import { setSignedSessionCookie } from '../../helpers/session';
+import { seedMockAuthSession } from '../../helpers/session';
 
 const MENTEE_USER_ID = '1';
 const MENTOR_USER_ID = '2';
-
-function makeMenteeSession() {
-  return {
-    user: {
-      id: MENTEE_USER_ID,
-      name: 'Test Mentee',
-      isMentor: false,
-      onBoarding: true,
-      jobTitle: 'Junior Product Designer',
-      company: 'Studio X',
-      personalLinks: [],
-    },
-    accessToken: 'mock-token',
-    expires: '2099-01-01T00:00:00.000Z',
-  };
-}
-
-function makeMentorSession() {
-  return {
-    user: {
-      id: MENTOR_USER_ID,
-      name: 'Emily Chen',
-      isMentor: true,
-      onBoarding: true,
-      jobTitle: 'Senior UI/UX Designer',
-      company: 'Tech Corp',
-      personalLinks: [],
-    },
-    accessToken: 'mock-token',
-    expires: '2099-01-01T00:00:00.000Z',
-  };
-}
 
 async function mockCommonAuxiliaryRoutes(page: Page) {
   await page.route(/\/v1\/(?:users\/[^/]+\/)?notifications/, (route) =>
@@ -73,21 +41,13 @@ test.describe('#881 預約生命週期與回饋資格領域政策 (reservationLi
   test('Mentor 分頁過濾與 SYSTEM 自動取消：upcoming 排除已取消預約並導入歷史紀錄、顯示已自動取消標籤與 24 小時說明橫幅及對話彈窗', async ({
     page,
   }) => {
-    const session = makeMentorSession();
-    await setSignedSessionCookie(page, {
-      ...session.user,
-      token: session.accessToken,
-    });
-
-    await page.route(/\/api\/auth\/session/, (route) => {
-      if (route.request().method() === 'GET') {
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(session),
-        });
-      }
-      return route.continue();
+    await seedMockAuthSession(page, {
+      id: MENTOR_USER_ID,
+      name: 'Emily Chen',
+      isMentor: true,
+      onBoarding: true,
+      jobTitle: 'Senior UI/UX Designer',
+      company: 'Tech Corp',
     });
     await mockCommonAuxiliaryRoutes(page);
 
@@ -227,21 +187,13 @@ test.describe('#881 預約生命週期與回饋資格領域政策 (reservationLi
   test('深連結守衛與 [DECISION-02] 步驟推導：?feedback=<id> 抑制登入待回饋佇列彈窗，且 Mentee nextStep=RATE 直接開啟第 2 頁評分步驟', async ({
     page,
   }) => {
-    const session = makeMenteeSession();
-    await setSignedSessionCookie(page, {
-      ...session.user,
-      token: session.accessToken,
-    });
-
-    await page.route(/\/api\/auth\/session/, (route) => {
-      if (route.request().method() === 'GET') {
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(session),
-        });
-      }
-      return route.continue();
+    await seedMockAuthSession(page, {
+      id: MENTEE_USER_ID,
+      name: 'Test Mentee',
+      isMentor: false,
+      onBoarding: true,
+      jobTitle: 'Junior Product Designer',
+      company: 'Studio X',
     });
     await mockCommonAuxiliaryRoutes(page);
 
