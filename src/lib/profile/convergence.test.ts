@@ -20,6 +20,7 @@ import type { MentorType } from '@/types/mentor';
 import type { MentorProfileVO } from '@/types/user';
 
 import {
+  type MentorCardFields,
   ProfileRecordAdapter,
   runConvergence,
   SearchIndexDeleteAdapter,
@@ -42,9 +43,24 @@ const makeMentor = (
     about: '',
     years_of_experience: '',
     have_topic: [],
+    have_skill: [],
     avatar: '',
     ...overrides,
   });
+
+const makeCardFields = (
+  overrides: Partial<MentorCardFields> = {}
+): MentorCardFields => ({
+  name: 'Jane Doe',
+  jobTitle: 'Developer',
+  company: 'Acme',
+  about: 'about-me',
+  yearsOfExperience: '5_10',
+  haveTopic: ['tech'],
+  haveSkill: ['typescript'],
+  avatar: 'avatar-url',
+  ...overrides,
+});
 
 const makeSyncedDto = (avatar = ''): MentorProfileVO =>
   fromAny({
@@ -204,15 +220,7 @@ describe('SearchIndexSyncAdapter', () => {
   });
 
   it('fetches mentors from index scoped to name', async () => {
-    const fields = {
-      name: 'Jane Doe',
-      jobTitle: 'Developer',
-      company: 'Acme',
-      about: 'about-me',
-      yearsOfExperience: '5_10',
-      haveTopic: ['tech'],
-      avatar: 'avatar-url',
-    };
+    const fields = makeCardFields();
     mockFetchMentors.mockResolvedValueOnce({ mentors: [], nextCursor: null });
 
     const adapter = new SearchIndexSyncAdapter(1, fields);
@@ -226,15 +234,7 @@ describe('SearchIndexSyncAdapter', () => {
   });
 
   it('returns null on fetch mentors error', async () => {
-    const fields = {
-      name: 'Jane Doe',
-      jobTitle: 'Developer',
-      company: 'Acme',
-      about: 'about-me',
-      yearsOfExperience: '5_10',
-      haveTopic: ['tech'],
-      avatar: 'avatar-url',
-    };
+    const fields = makeCardFields();
     mockFetchMentors.mockRejectedValueOnce(new Error('search down'));
 
     const adapter = new SearchIndexSyncAdapter(1, fields);
@@ -243,16 +243,12 @@ describe('SearchIndexSyncAdapter', () => {
     expect(result).toBeNull();
   });
 
-  it('is caught up when mentor with userId matches all fields', () => {
-    const fields = {
-      name: 'Jane Doe',
-      jobTitle: 'Developer',
-      company: 'Acme',
-      about: 'about-me',
-      yearsOfExperience: '5_10',
+  it('is caught up when mentor with userId matches all fields including haveSkill and ?v=+&cb= avatar', () => {
+    const fields = makeCardFields({
       haveTopic: ['tech', 'career'],
-      avatar: 'https://cdn/avatar.png',
-    };
+      haveSkill: ['react_nextjs', 'typescript'],
+      avatar: 'https://s3.amazonaws.com/bucket/files/1/avatar?v=1754000000000',
+    });
     const adapter = new SearchIndexSyncAdapter(1, fields);
 
     const matchedMentor = makeMentor(1, {
@@ -262,35 +258,42 @@ describe('SearchIndexSyncAdapter', () => {
       about: 'about-me',
       years_of_experience: '5_10',
       have_topic: ['career', 'tech'],
-      avatar: 'https://cdn/avatar.png?cb=123',
+      have_skill: ['typescript', 'react_nextjs'],
+      avatar:
+        'https://s3.amazonaws.com/bucket/files/1/avatar?v=1754000000000&cb=2026-11-14T00%3A00%3A00Z',
     });
 
     expect(adapter.isCaughtUp([matchedMentor])).toBe(true);
 
-    const staleMentor = makeMentor(1, {
-      name: 'Jane Doe',
-      job_title: 'Stale Title',
-      company: 'Acme',
-      about: 'about-me',
-      years_of_experience: '5_10',
-      have_topic: ['career', 'tech'],
-      avatar: 'https://cdn/avatar.png?cb=123',
+    const staleSkillMentor = makeMentor(1, {
+      ...matchedMentor,
+      have_skill: ['typescript'],
     });
+    expect(adapter.isCaughtUp([staleSkillMentor])).toBe(false);
 
-    expect(adapter.isCaughtUp([staleMentor])).toBe(false);
+    const staleAvatarVersionMentor = makeMentor(1, {
+      ...matchedMentor,
+      avatar:
+        'https://s3.amazonaws.com/bucket/files/1/avatar?v=1753999999999&cb=2026-11-14T00%3A00%3A00Z',
+    });
+    expect(adapter.isCaughtUp([staleAvatarVersionMentor])).toBe(false);
+
+    const prefixTrapAvatarMentor = makeMentor(1, {
+      ...matchedMentor,
+      avatar:
+        'https://s3.amazonaws.com/bucket/files/1/avatar?v=1754000000000999',
+    });
+    expect(adapter.isCaughtUp([prefixTrapAvatarMentor])).toBe(false);
+
+    const staleTitleMentor = makeMentor(1, {
+      ...matchedMentor,
+      job_title: 'Stale Title',
+    });
+    expect(adapter.isCaughtUp([staleTitleMentor])).toBe(false);
   });
 
   it('defines correct exhaustion metadata', () => {
-    const fields = {
-      name: 'Jane Doe',
-      jobTitle: 'Developer',
-      company: 'Acme',
-      about: 'about-me',
-      yearsOfExperience: '5_10',
-      haveTopic: ['tech'],
-      avatar: 'avatar-url',
-    };
-    const adapter = new SearchIndexSyncAdapter(1, fields);
+    const adapter = new SearchIndexSyncAdapter(1, makeCardFields());
     expect(adapter.getExhaustionMetadata()).toEqual({
       flow: 'profile_update',
       step: 'poll_mentor_pool_sync',

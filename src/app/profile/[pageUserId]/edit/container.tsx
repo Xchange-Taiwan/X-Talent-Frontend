@@ -117,6 +117,7 @@ export default function EditProfileContainer({
     pageUserId,
     isAuthorized,
     isMentorOnboarding,
+    industryCatalog: industries,
   });
 
   const haveTopicCategories = tagGroupsToCategories(tagCatalog.have_topic);

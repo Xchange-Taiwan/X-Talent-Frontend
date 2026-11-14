@@ -1,3 +1,5 @@
+import { toAvatarThumbUrl } from '@/lib/avatar/avatarUrl';
+
 /**
  * Returns the thumbnail variant of an S3 avatar URL.
  *
@@ -16,10 +18,5 @@
  * getAvatarThumbUrl("https://…/files/123/avatar?cb=1234567890")
  */
 export function getAvatarThumbUrl(avatarUrl: string): string {
-  if (!avatarUrl) return avatarUrl;
-  const qIdx = avatarUrl.indexOf('?');
-  const base = qIdx === -1 ? avatarUrl : avatarUrl.slice(0, qIdx);
-  const query = qIdx === -1 ? '' : avatarUrl.slice(qIdx);
-  const thumbBase = base.replace(/\/avatar$/, '/avatar-thumb');
-  return thumbBase + query;
+  return toAvatarThumbUrl(avatarUrl);
 }

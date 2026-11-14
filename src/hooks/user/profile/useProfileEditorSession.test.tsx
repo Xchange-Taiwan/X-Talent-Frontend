@@ -17,11 +17,12 @@ vi.mock('./useEditProfileData', () => ({
 }));
 
 const mockOnSubmit = vi.fn().mockResolvedValue({});
+const mockUseProfileSubmit = vi.fn().mockReturnValue({
+  onSubmit: mockOnSubmit,
+  isSaving: false,
+});
 vi.mock('./useProfileSubmit', () => ({
-  useProfileSubmit: () => ({
-    onSubmit: mockOnSubmit,
-    isSaving: false,
-  }),
+  useProfileSubmit: (options: unknown) => mockUseProfileSubmit(options),
 }));
 
 const mockScrollToField = vi.fn();
@@ -239,5 +240,32 @@ describe('useProfileEditorSession (#787)', () => {
 
     // Must remain 2 (1 initial upload + 1 rollback), never a 3rd duplicate rollback
     expect(mockUpdateAvatar).toHaveBeenCalledTimes(2);
+  });
+
+  it('forwards hydrated userDto and industryCatalog into useProfileSubmit (#889)', () => {
+    const industryCatalog = [
+      { subject_group: 'finance', subject: '金融與銀行' },
+    ];
+
+    renderHook(() =>
+      useProfileEditorSession({
+        pageUserId: '1',
+        isAuthorized: true,
+        isMentorOnboarding: false,
+        industryCatalog,
+      })
+    );
+
+    expect(mockUseProfileSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pageUserId: '1',
+        isMentorOnboarding: false,
+        currentDto: expect.objectContaining({
+          user_id: 1,
+          name: 'Initial Name',
+        }),
+        industryCatalog,
+      })
+    );
   });
 });
