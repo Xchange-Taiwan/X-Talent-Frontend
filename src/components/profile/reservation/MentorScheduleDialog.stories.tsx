@@ -2,10 +2,11 @@ import type { Meta, StoryObj } from '@storybook/nextjs';
 import dayjs from 'dayjs';
 import React, { useState } from 'react';
 
-import type {
-  BookingCalendarReader,
-  MentorScheduleEditor,
-  ParsedMentorTimeslot,
+import {
+  type BookingCalendarReader,
+  type MentorScheduleEditor,
+  type ParsedMentorTimeslot,
+  projectEditorOccurrences,
 } from '@/lib/profile/bookingAvailability';
 import type { Reservation } from '@/types/reservation';
 
@@ -30,6 +31,7 @@ const meta: Meta<typeof MentorScheduleDialog> = {
 export default meta;
 type Story = StoryObj<typeof MentorScheduleDialog>;
 
+const referenceNowSec = Math.floor(Date.now() / 1000);
 const targetDay = dayjs().add(1, 'day').startOf('day');
 const pastDay = dayjs().subtract(1, 'day').startOf('day');
 const targetDateStr = targetDay.format('YYYY-MM-DD');
@@ -169,6 +171,28 @@ const orphanDraftSlots: ParsedMentorTimeslot[] = [
   virtualPendingSlot16,
 ];
 
+function buildScheduleMock(
+  draftForSelectedDate: ParsedMentorTimeslot[],
+  reservations: Reservation[] = mockReservations
+): MentorScheduleEditor {
+  const { slotsWithMeta, futureSlots } = projectEditorOccurrences(
+    draftForSelectedDate,
+    reservations,
+    referenceNowSec
+  );
+  return {
+    draftForSelectedDate,
+    slotsWithMeta,
+    futureSlots,
+    addSlotForSelectedDate: () => ({ added: 1, skipped: 0 }),
+    updateDraftSlot: () => ({ success: true }),
+    deleteDraftSlot: () => {},
+    confirmChanges: async () => ({ ok: true }),
+    resetChanges: () => {},
+    reservations,
+  };
+}
+
 const defaultReaderMock: BookingCalendarReader = {
   year: targetDay.year(),
   month: targetDay.month() + 1,
@@ -183,15 +207,8 @@ const defaultReaderMock: BookingCalendarReader = {
   reload: async () => {},
 };
 
-const defaultScheduleMock: MentorScheduleEditor = {
-  draftForSelectedDate: mockDraftSlots,
-  addSlotForSelectedDate: () => ({ added: 1, skipped: 0 }),
-  updateDraftSlot: () => ({ success: true }),
-  deleteDraftSlot: () => {},
-  confirmChanges: async () => ({ ok: true }),
-  resetChanges: () => {},
-  reservations: mockReservations,
-};
+const defaultScheduleMock: MentorScheduleEditor =
+  buildScheduleMock(mockDraftSlots);
 
 interface DialogWrapperProps {
   reader: BookingCalendarReader;
@@ -242,17 +259,16 @@ export const WithBookedAndPendingPrompts: Story = {
     open: true,
     onOpenChange: () => {},
     reader: defaultReaderMock,
-    schedule: {
-      ...defaultScheduleMock,
-      draftForSelectedDate: [
+    schedule: buildScheduleMock(
+      [
         allowSlot14,
         allowSlot15,
         virtualBookedSlot15,
         allowSlot16,
         virtualPendingSlot16,
       ],
-      reservations: mockReservations,
-    },
+      mockReservations
+    ),
   },
 };
 
@@ -264,11 +280,7 @@ export const OrphanVirtualReservationSlot: Story = {
     open: true,
     onOpenChange: () => {},
     reader: defaultReaderMock,
-    schedule: {
-      ...defaultScheduleMock,
-      draftForSelectedDate: orphanDraftSlots,
-      reservations: mockReservations,
-    },
+    schedule: buildScheduleMock(orphanDraftSlots, mockReservations),
   },
 };
 
@@ -286,9 +298,6 @@ export const Loading: Story = {
         monthLoaded: false,
       },
     },
-    schedule: {
-      ...defaultScheduleMock,
-      draftForSelectedDate: [],
-    },
+    schedule: buildScheduleMock([], mockReservations),
   },
 };

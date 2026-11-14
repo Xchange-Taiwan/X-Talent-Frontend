@@ -2,6 +2,7 @@ process.env.TZ = 'UTC';
 
 import { act, renderHook, waitFor } from '@testing-library/react';
 import dayjs from 'dayjs';
+import { RRule } from 'rrule';
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 // Only the raw network read is mocked. Caching, in-flight de-duplication,
@@ -2861,6 +2862,106 @@ describe('useMentorSchedule', () => {
       } finally {
         vi.useRealTimers();
       }
+    });
+  });
+
+  describe('frozen nowSec session/reload lifecycle & date-switch RRule decoupling (#880)', () => {
+    it('freezes nowSec across clock advancement and date switches without re-expanding RRules or re-reading Date.now(), then refreshes nowSec on reload', async () => {
+      const initialNowMs = new Date('2026-07-01T00:00:00Z').getTime();
+      const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(initialNowMs);
+      onTestFinished(() => {
+        dateNowSpy.mockRestore();
+      });
+
+      // Slot on 2026-07-01 at 00:05:00Z (5 minutes after initialNowMs) plus a weekly recurrence
+      const boundaryStart = Math.floor(
+        new Date('2026-07-01T00:05:00Z').getTime() / 1000
+      );
+      const recurringRaws: RawMentorTimeslot[] = [
+        {
+          id: 8801,
+          type: 'ALLOW',
+          dtstart: boundaryStart,
+          dtend: boundaryStart + 1800,
+          rrule: 'FREQ=WEEKLY;COUNT=3',
+          exdate: [],
+        },
+      ];
+      mockLoadMonthSchedule.mockResolvedValue(recurringRaws);
+      mockFetchAllReservationsForState.mockResolvedValue([]);
+
+      const rruleAllSpy = vi.spyOn(RRule.prototype, 'all');
+      onTestFinished(() => {
+        rruleAllSpy.mockRestore();
+      });
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: '123',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+        expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true);
+        expect(result.current.reader.slotsSnapshot.reservationsLoaded).toBe(
+          true
+        );
+      });
+
+      expect(result.current.reader.allowedDates).toEqual([
+        '2026-07-01',
+        '2026-07-08',
+        '2026-07-15',
+      ]);
+      // RRule expanded at most once once allDraftRaws settled with recurringRaws
+      expect(rruleAllSpy).toHaveBeenCalledTimes(1);
+
+      rruleAllSpy.mockClear();
+      dateNowSpy.mockClear();
+
+      // Advance system clock 10 minutes past the 2026-07-01T00:05:00Z slot boundary
+      dateNowSpy.mockReturnValue(new Date('2026-07-01T00:15:00Z').getTime());
+
+      // Click across multiple dates while system clock is past the 2026-07-01 slot boundary
+      act(() => {
+        result.current.reader.setSelectedDate('2026-07-08');
+      });
+      expect(result.current.reader.slotsSnapshot.slots).toHaveLength(1);
+
+      act(() => {
+        result.current.reader.setSelectedDate('2026-07-15');
+      });
+      expect(result.current.reader.slotsSnapshot.slots).toHaveLength(1);
+
+      act(() => {
+        result.current.reader.setSelectedDate('2026-07-01');
+      });
+
+      // Frozen-instant invariant: both allowedDates and slotsSnapshot still include 2026-07-01
+      expect(result.current.reader.allowedDates).toContain('2026-07-01');
+      expect(result.current.reader.slotsSnapshot.slots).toHaveLength(1);
+      expect(result.current.editor!.slotsWithMeta).toHaveLength(1);
+      expect(result.current.editor!.slotsWithMeta[0].isPast).toBe(false);
+      expect(result.current.editor!.futureSlots).toHaveLength(1);
+
+      // Clicking between dates never re-expanded RRules or called Date.now()
+      expect(rruleAllSpy).not.toHaveBeenCalled();
+      expect(dateNowSpy).not.toHaveBeenCalled();
+
+      // Explicit reload refreshes nowSec so both allowedDates and slotsSnapshot advance together
+      await act(async () => {
+        await result.current.reader.reload?.();
+      });
+
+      expect(result.current.reader.allowedDates).toEqual([
+        '2026-07-08',
+        '2026-07-15',
+      ]);
+      expect(result.current.reader.slotsSnapshot.slots).toHaveLength(0);
+      expect(result.current.editor!.slotsWithMeta[0].isPast).toBe(true);
+      expect(result.current.editor!.futureSlots).toHaveLength(0);
     });
   });
 });
