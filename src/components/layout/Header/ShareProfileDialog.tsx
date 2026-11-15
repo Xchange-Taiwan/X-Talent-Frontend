@@ -197,7 +197,10 @@ export function ShareProfileDialog({
                 id="share-profile-link"
                 value={profileUrl}
                 readOnly
-                className="text-text-primary focus-visible:ring-ring md:text-14 w-full min-w-0 flex-1 rounded-sm border-0 bg-transparent text-base outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                className={cn(
+                  'text-text-primary md:text-14 w-full min-w-0 flex-1 rounded-sm border-0 bg-transparent text-base outline-none',
+                  FOCUS_RING_CLASSES
+                )}
               />
 
               <Button

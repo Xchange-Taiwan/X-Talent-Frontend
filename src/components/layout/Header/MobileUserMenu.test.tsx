@@ -55,7 +55,12 @@ function MobileUserMenuHarness({
   identity: ResolvedIdentity;
 }): JSX.Element {
   const navigation = useHeaderNavigation({ identity });
-  return <MobileUserMenu navigation={navigation} />;
+  return (
+    <MobileUserMenu
+      profileHeader={navigation.profileHeader}
+      menu={navigation.mobileAccountMenu}
+    />
+  );
 }
 
 describe('MobileUserMenu shell', () => {
@@ -123,6 +128,11 @@ describe('MobileUserMenu shell', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: '開啟用戶選單' }));
+
+    const dialog = screen.getByRole('dialog', { name: '用戶選單' });
+    expect(dialog).toHaveClass('h-dvh', 'w-screen', 'p-0');
+    expect(dialog).not.toHaveClass('p-6');
+    expect(dialog.querySelector('.overflow-y-auto')).toHaveClass('p-6');
 
     const favoritesLink = screen.getByRole('link', { name: '我的收藏' });
     expect(favoritesLink).toHaveAttribute('href', '/favorites');

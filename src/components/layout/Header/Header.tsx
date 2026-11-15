@@ -12,6 +12,7 @@ import {
 } from '@/hooks/layout/useHeaderNavigation';
 import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
 import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
+import { HOVER_NAV_UNDERLINE_CLASSES } from '@/lib/ui/hoverStyles';
 import { cn } from '@/lib/utils';
 
 import { AuthHintGate, AuthHintProvider } from './AuthHintGate';
@@ -23,14 +24,20 @@ import { NotificationBell } from './NotificationBell';
 import { ShareProfileDialog } from './ShareProfileDialog';
 import { UserDropdown } from './UserDropdown';
 
-const DESKTOP_NAV_LINK_BASE = `relative rounded-sm py-1 text-base font-medium after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:origin-center after:scale-x-0 after:transition-transform after:duration-200 ${FOCUS_RING_CLASSES}`;
-const DESKTOP_NAV_LINK_HOVER = 'after:bg-brand-500 hover:after:scale-x-100';
-const DESKTOP_NAV_LINK = `${DESKTOP_NAV_LINK_BASE} ${DESKTOP_NAV_LINK_HOVER}`;
+const DESKTOP_NAV_LINK_BASE = `text-text-primary font-open-sans rounded-sm text-base ${FOCUS_RING_CLASSES}`;
+const DESKTOP_NAV_LINK = `${DESKTOP_NAV_LINK_BASE} ${HOVER_NAV_UNDERLINE_CLASSES}`;
 
 export function Header(): JSX.Element {
   const identity = useResolvedIdentity();
   const navigation = useHeaderNavigation({ identity });
-  const { desktopNav, desktopGuestAuth, profileHeader } = navigation;
+  const {
+    desktopAccountMenu,
+    desktopGuestAuth,
+    desktopNav,
+    mobileAccountMenu,
+    mobileGuestMenu,
+    profileHeader,
+  } = navigation;
   const isMemberState =
     identity.state === 'confirmed-member' || identity.state === 'hint-only';
   const isConfirmedMember = identity.state === 'confirmed-member';
@@ -38,9 +45,9 @@ export function Header(): JSX.Element {
   return (
     <AuthHintProvider identity={identity}>
       <header className="bg-light fixed inset-x-0 top-[var(--banner-height,0px)] z-50 px-5">
-        <div className="mx-auto flex h-[70px] max-w-7xl items-center justify-between">
+        <div className="flex h-[70px] items-center justify-between">
           {/* Left: Logo + Nav */}
-          <div className="flex items-center gap-8">
+          <div className="flex items-center gap-10">
             <Link
               href="/"
               aria-label="Go to homepage"
@@ -59,7 +66,7 @@ export function Header(): JSX.Element {
               />
             </Link>
 
-            <nav className="hidden items-center gap-8 lg:flex">
+            <nav className="hidden items-center gap-7 lg:flex">
               <Link
                 href={desktopNav.findMentor.href}
                 aria-current={
@@ -88,26 +95,55 @@ export function Header(): JSX.Element {
                       {...getNavAnalyticsAttributes(
                         desktopNav.mentorRoleCandidate.analytics
                       )}
-                      className={DESKTOP_NAV_LINK}
+                      className={cn(
+                        DESKTOP_NAV_LINK_BASE,
+                        !desktopNav.mentorRoleCandidate.disabled &&
+                          HOVER_NAV_UNDERLINE_CLASSES
+                      )}
                     >
                       {desktopNav.mentorRoleCandidate.label}
                     </DisabledAwareLink>
                   </AuthHintGate>
-                  <AuthHintGate asChild when={['guest', 'mentee']}>
+                  <AuthHintGate asChild when={['mentee']}>
                     <DisabledAwareLink
-                      href={desktopNav.nonMentorRoleCandidate.href}
-                      disabled={desktopNav.nonMentorRoleCandidate.disabled}
+                      href={desktopNav.menteeRoleCandidate.href}
+                      disabled={desktopNav.menteeRoleCandidate.disabled}
                       aria-current={
-                        desktopNav.nonMentorRoleCandidate.isCurrent
+                        desktopNav.menteeRoleCandidate.isCurrent
                           ? 'page'
                           : undefined
                       }
                       {...getNavAnalyticsAttributes(
-                        desktopNav.nonMentorRoleCandidate.analytics
+                        desktopNav.menteeRoleCandidate.analytics
                       )}
-                      className={DESKTOP_NAV_LINK}
+                      className={cn(
+                        DESKTOP_NAV_LINK_BASE,
+                        !desktopNav.menteeRoleCandidate.disabled &&
+                          HOVER_NAV_UNDERLINE_CLASSES
+                      )}
                     >
-                      {desktopNav.nonMentorRoleCandidate.label}
+                      {desktopNav.menteeRoleCandidate.label}
+                    </DisabledAwareLink>
+                  </AuthHintGate>
+                  <AuthHintGate asChild when={['guest']}>
+                    <DisabledAwareLink
+                      href={desktopNav.guestRoleCandidate.href}
+                      disabled={desktopNav.guestRoleCandidate.disabled}
+                      aria-current={
+                        desktopNav.guestRoleCandidate.isCurrent
+                          ? 'page'
+                          : undefined
+                      }
+                      {...getNavAnalyticsAttributes(
+                        desktopNav.guestRoleCandidate.analytics
+                      )}
+                      className={cn(
+                        DESKTOP_NAV_LINK_BASE,
+                        !desktopNav.guestRoleCandidate.disabled &&
+                          HOVER_NAV_UNDERLINE_CLASSES
+                      )}
+                    >
+                      {desktopNav.guestRoleCandidate.label}
                     </DisabledAwareLink>
                   </AuthHintGate>
                 </>
@@ -124,7 +160,7 @@ export function Header(): JSX.Element {
                   className={cn(
                     DESKTOP_NAV_LINK_BASE,
                     !desktopNav.resolvedRoleItem.disabled &&
-                      DESKTOP_NAV_LINK_HOVER
+                      HOVER_NAV_UNDERLINE_CLASSES
                   )}
                 >
                   {desktopNav.resolvedRoleItem.label}
@@ -154,10 +190,10 @@ export function Header(): JSX.Element {
           </div>
 
           {/* Right: Auth buttons / User menu / Mobile menus */}
-          <div className="flex items-center">
+          <div className="flex items-center gap-3 lg:mr-20">
             {/* Desktop */}
             <div
-              className="hidden items-center gap-5 lg:flex"
+              className="hidden items-center gap-3 lg:flex"
               data-testid="desktop-header-right"
             >
               <AuthHintGate when="unhinted">
@@ -183,7 +219,10 @@ export function Header(): JSX.Element {
                     userId={identity.userId}
                     key={identity.userId ?? 'guest'}
                   />
-                  <UserDropdown navigation={navigation} />
+                  <UserDropdown
+                    profileHeader={profileHeader}
+                    menu={desktopAccountMenu}
+                  />
                 </>
               )}
             </div>
@@ -214,10 +253,13 @@ export function Header(): JSX.Element {
                     userId={identity.userId}
                     key={identity.userId ?? 'guest'}
                   />
-                  <MobileUserMenu navigation={navigation} />
+                  <MobileUserMenu
+                    profileHeader={profileHeader}
+                    menu={mobileAccountMenu}
+                  />
                 </>
               )}
-              <HamburgerMenu navigation={navigation} />
+              <HamburgerMenu menu={mobileGuestMenu} />
             </div>
           </div>
         </div>

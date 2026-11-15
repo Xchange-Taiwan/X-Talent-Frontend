@@ -13,7 +13,8 @@ import {
 } from '@/components/ui/sheet';
 import {
   getNavAnalyticsAttributes,
-  type HeaderNavigationModel,
+  type MobileAccountMenuModel,
+  type ProfileHeaderDescriptor,
 } from '@/hooks/layout/useHeaderNavigation';
 import {
   FOCUS_RING_CLASSES,
@@ -25,17 +26,18 @@ import { DisabledAwareLink } from './DisabledAwareLink';
 import { UserAvatar } from './UserAvatar';
 
 export type MobileUserMenuProps = {
-  navigation: HeaderNavigationModel;
+  profileHeader: ProfileHeaderDescriptor;
+  menu: MobileAccountMenuModel;
 };
 
-export function MobileUserMenu({
-  navigation,
+export const MobileUserMenu = React.memo(function MobileUserMenu({
+  profileHeader,
+  menu,
 }: MobileUserMenuProps): JSX.Element {
   const [open, setOpen] = React.useState(false);
   const closeMenu = React.useCallback(() => setOpen(false), []);
 
-  const { profileHeader, mobileAccountMenu } = navigation;
-  const { shareProfile, navItems, accountActions } = mobileAccountMenu;
+  const { shareProfile, navItems, accountActions } = menu;
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -55,9 +57,9 @@ export function MobileUserMenu({
         </button>
       </SheetTrigger>
 
-      <SheetContent side="right" className="h-dvh w-screen">
+      <SheetContent side="right" className="h-dvh w-screen p-0">
         <SheetTitle className="sr-only">用戶選單</SheetTitle>
-        <div className="flex h-full flex-col overflow-y-auto">
+        <div className="flex h-full flex-col overflow-y-auto p-6">
           <SheetClose asChild>
             <button
               type="button"
@@ -179,4 +181,4 @@ export function MobileUserMenu({
       </SheetContent>
     </Sheet>
   );
-}
+});

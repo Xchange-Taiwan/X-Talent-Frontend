@@ -42,14 +42,16 @@ import { UserDropdown } from './UserDropdown';
 
 function UserDropdownHarness({
   identity,
-  onActiveDialog,
 }: {
   identity: ResolvedIdentity;
-  onActiveDialog?: (dialog: string | null) => void;
 }): JSX.Element {
   const navigation = useHeaderNavigation({ identity });
-  onActiveDialog?.(navigation.activeDialog);
-  return <UserDropdown navigation={navigation} />;
+  return (
+    <UserDropdown
+      profileHeader={navigation.profileHeader}
+      menu={navigation.desktopAccountMenu}
+    />
+  );
 }
 
 describe('UserDropdown shell', () => {

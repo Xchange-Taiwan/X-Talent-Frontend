@@ -138,20 +138,31 @@ describe('useHeaderNavigation', () => {
   });
 
   describe('navigation states across unknown, guest, hint-only, mentee, and mentor', () => {
-    it('exposes pre-hydration candidates without disabling guest fast-path when state is unknown', () => {
+    it('disables mentorRoleCandidate and menteeRoleCandidate while keeping guestRoleCandidate fast-path enabled when state is unknown', () => {
+      mockUsePathname.mockReturnValue('/auth/signup');
       const { result } = renderHook(() =>
         useHeaderNavigation({ identity: UNKNOWN_IDENTITY })
       );
 
-      expect(result.current.desktopNav.nonMentorRoleCandidate.href).toBe(
-        '/auth/signup'
-      );
-      expect(result.current.desktopNav.nonMentorRoleCandidate.disabled).toBe(
-        false
-      );
-      expect(result.current.desktopNav.mentorRoleCandidate.disabled).toBe(
-        false
-      );
+      expect(result.current.desktopNav.guestRoleCandidate).toMatchObject({
+        id: 'become-mentor',
+        label: '成為導師',
+        href: '/auth/signup',
+        isCurrent: true,
+        disabled: false,
+      });
+      expect(result.current.desktopNav.menteeRoleCandidate).toMatchObject({
+        id: 'become-mentor',
+        label: '成為導師',
+        isCurrent: false,
+        disabled: true,
+      });
+      expect(result.current.desktopNav.mentorRoleCandidate).toMatchObject({
+        id: 'my-mentor-page',
+        label: '我的導師頁面',
+        isCurrent: false,
+        disabled: true,
+      });
     });
 
     it('exposes guest navigation with /auth/signup and external feedback aria-label', () => {
@@ -427,11 +438,20 @@ describe('useHeaderNavigation', () => {
         })
       );
 
+      const initialProfileHeader = result.current.profileHeader;
+      const initialDesktopMenu = result.current.desktopAccountMenu;
+      const initialMobileMenu = result.current.mobileAccountMenu;
+      const initialGuestMenu = result.current.mobileGuestMenu;
+
       act(() => {
         void result.current.desktopAccountMenu.shareProfile.onSelect(closeMenu);
       });
       expect(closeMenu).toHaveBeenCalledTimes(1);
       expect(result.current.activeDialog).toBe('share-profile');
+      expect(result.current.profileHeader).toBe(initialProfileHeader);
+      expect(result.current.desktopAccountMenu).toBe(initialDesktopMenu);
+      expect(result.current.mobileAccountMenu).toBe(initialMobileMenu);
+      expect(result.current.mobileGuestMenu).toBe(initialGuestMenu);
 
       const deleteAction =
         result.current.desktopAccountMenu.accountActions.find(

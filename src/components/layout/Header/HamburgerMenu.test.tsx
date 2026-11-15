@@ -27,7 +27,9 @@ function HamburgerMenuHarness({
   identity: ResolvedIdentity;
 }): JSX.Element {
   const navigation = useHeaderNavigation({ identity });
-  return <HamburgerMenu navigation={navigation} />;
+  return (
+    <HamburgerMenu menu={navigation.mobileGuestMenu} identity={identity} />
+  );
 }
 
 describe('HamburgerMenu', () => {
@@ -43,8 +45,10 @@ describe('HamburgerMenu', () => {
     fireEvent.click(triggerButton);
 
     const dialog = screen.getByRole('dialog');
-    expect(dialog).toHaveClass('h-dvh');
+    expect(dialog).toHaveClass('h-dvh', 'w-screen', 'p-0');
     expect(dialog).not.toHaveClass('h-screen');
+    expect(dialog).not.toHaveClass('p-6');
+    expect(dialog.querySelector('.overflow-y-auto')).toHaveClass('p-6');
 
     const becomeMentorLink = screen.getByRole('link', { name: '成為導師' });
     expect(becomeMentorLink).toHaveAttribute('href', '/auth/signup');

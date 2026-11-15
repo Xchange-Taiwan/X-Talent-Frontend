@@ -15,7 +15,9 @@ function HamburgerMenuStoryHarness({
   identity,
 }: HamburgerMenuStoryArgs): JSX.Element {
   const navigation = useHeaderNavigation({ identity });
-  return <HamburgerMenu navigation={navigation} />;
+  return (
+    <HamburgerMenu menu={navigation.mobileGuestMenu} identity={identity} />
+  );
 }
 
 const meta: Meta<typeof HamburgerMenuStoryHarness> = {

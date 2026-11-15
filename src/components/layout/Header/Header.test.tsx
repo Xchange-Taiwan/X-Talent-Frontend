@@ -224,23 +224,54 @@ describe('Header', () => {
     );
   });
 
-  it('renders both role links with AuthHintGate CSS visibility toggles before auth is known without disabling guest fast-path', () => {
+  it('renders split mentor, mentee, and guest role links with AuthHintGate toggles before auth is known, disabling mentor/mentee while keeping guest fast-path enabled', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
 
     render(<Header />);
 
     const mentorLink = screen.getByRole('link', { name: '我的導師頁面' });
-    const menteeLink = screen.getByRole('link', { name: '成為導師' });
     expect(mentorLink).toHaveClass(
       'hidden',
-      'group-data-[auth-state=mentor]/auth-state:block'
+      'group-data-[auth-state=mentor]/auth-state:block',
+      'pointer-events-none',
+      'opacity-50'
     );
+    expect(mentorLink).toHaveAttribute('aria-disabled', 'true');
+    expect(mentorLink).toHaveAttribute('href', '#');
+    expect(mentorLink).not.toHaveClass('after:bg-brand-500');
+    expect(mentorLink).not.toHaveClass('hover:after:scale-x-100');
+
+    const becomeMentorLinks = screen.getAllByRole('link', { name: '成為導師' });
+    expect(becomeMentorLinks).toHaveLength(2);
+
+    const menteeLink = becomeMentorLinks.find((el) =>
+      el.classList.contains('group-data-[auth-state=mentee]/auth-state:block')
+    );
+    const guestLink = becomeMentorLinks.find((el) =>
+      el.classList.contains('group-data-[auth-state=guest]/auth-state:block')
+    );
+
+    expect(menteeLink).toBeDefined();
     expect(menteeLink).toHaveClass(
       'hidden',
-      'group-data-[auth-state=mentee]/auth-state:block'
+      'group-data-[auth-state=mentee]/auth-state:block',
+      'pointer-events-none',
+      'opacity-50'
     );
-    expect(menteeLink).toHaveAttribute('aria-disabled', 'false');
-    expect(menteeLink).toHaveAttribute('href', '/auth/signup');
+    expect(menteeLink).toHaveAttribute('aria-disabled', 'true');
+    expect(menteeLink).toHaveAttribute('href', '#');
+    expect(menteeLink).not.toHaveClass('after:bg-brand-500');
+    expect(menteeLink).not.toHaveClass('hover:after:scale-x-100');
+
+    expect(guestLink).toBeDefined();
+    expect(guestLink).toHaveClass(
+      'hidden',
+      'group-data-[auth-state=guest]/auth-state:block',
+      'after:bg-brand-500',
+      'hover:after:scale-x-100'
+    );
+    expect(guestLink).toHaveAttribute('aria-disabled', 'false');
+    expect(guestLink).toHaveAttribute('href', '/auth/signup');
   });
 
   it('renders UserDropdown and MobileUserMenu with hint avatar when logged in per hint before session resolves', () => {
@@ -454,14 +485,25 @@ describe('Header', () => {
   });
 
   describe('navigation links hover style & GA4 attributes', () => {
-    it('applies underline hover classes when enabled and excludes them when disabled (hint-only)', () => {
+    it('applies HOVER_NAV_UNDERLINE_CLASSES, typography tokens, and full-width row layout when enabled and excludes hover underline when disabled (hint-only)', () => {
       mockUseSession.mockReturnValue({ data: null, status: 'loading' });
       mockUseResolvedIdentity.mockReturnValue(
         buildResolvedIdentity({ state: 'hint-only' })
       );
 
-      const { unmount } = render(<Header />);
+      const { container, unmount } = render(<Header />);
+      const headerRow = container.querySelector('header > div');
+      expect(headerRow).toHaveClass(
+        'flex',
+        'h-[70px]',
+        'items-center',
+        'justify-between'
+      );
+      expect(headerRow).not.toHaveClass('mx-auto');
+      expect(headerRow).not.toHaveClass('max-w-7xl');
+
       const disabledLink = screen.getByRole('link', { name: '成為導師' });
+      expect(disabledLink).toHaveClass('text-text-primary', 'font-open-sans');
       expect(disabledLink).not.toHaveClass('after:bg-brand-500');
       expect(disabledLink).not.toHaveClass('hover:after:scale-x-100');
 
@@ -482,6 +524,10 @@ describe('Header', () => {
         name: '我的導師頁面',
       });
       expect(myMentorPageLink).toHaveClass(
+        'text-text-primary',
+        'font-open-sans',
+        'after:-bottom-1',
+        'after:origin-left',
         'after:bg-brand-500',
         'hover:after:scale-x-100'
       );

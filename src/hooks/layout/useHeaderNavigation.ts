@@ -95,38 +95,49 @@ export interface UseHeaderNavigationOptions {
   user?: Session['user'];
 }
 
+export interface DesktopNavModel {
+  findMentor: HeaderLinkDescriptor;
+  mentorRoleCandidate: HeaderLinkDescriptor;
+  menteeRoleCandidate: HeaderLinkDescriptor;
+  guestRoleCandidate: HeaderLinkDescriptor;
+  resolvedRoleItem: HeaderLinkDescriptor;
+  about: HeaderLinkDescriptor;
+  feedback: HeaderExternalLinkDescriptor;
+}
+
+export interface DesktopGuestAuthModel {
+  signup: HeaderLinkDescriptor;
+  signin: HeaderLinkDescriptor;
+}
+
+export interface MobileGuestMenuModel {
+  navItems: HeaderNavItemDescriptor[];
+  signin: HeaderLinkDescriptor;
+  signup: HeaderLinkDescriptor;
+}
+
+export interface DesktopAccountMenuModel {
+  shareProfile: HeaderActionDescriptor;
+  navItems: HeaderLinkDescriptor[];
+  accountActions: HeaderActionDescriptor[];
+}
+
+export interface MobileAccountMenuModel {
+  shareProfile: HeaderActionDescriptor;
+  navItems: HeaderNavItemDescriptor[];
+  accountActions: HeaderActionDescriptor[];
+}
+
 export interface HeaderNavigationModel {
   identity: ResolvedIdentity;
   isMentor: boolean;
   canDeleteAccount: boolean;
   profileHeader: ProfileHeaderDescriptor;
-  desktopNav: {
-    findMentor: HeaderLinkDescriptor;
-    mentorRoleCandidate: HeaderLinkDescriptor;
-    nonMentorRoleCandidate: HeaderLinkDescriptor;
-    resolvedRoleItem: HeaderLinkDescriptor;
-    about: HeaderLinkDescriptor;
-    feedback: HeaderExternalLinkDescriptor;
-  };
-  desktopGuestAuth: {
-    signup: HeaderLinkDescriptor;
-    signin: HeaderLinkDescriptor;
-  };
-  mobileGuestMenu: {
-    navItems: HeaderNavItemDescriptor[];
-    signin: HeaderLinkDescriptor;
-    signup: HeaderLinkDescriptor;
-  };
-  desktopAccountMenu: {
-    shareProfile: HeaderActionDescriptor;
-    navItems: HeaderLinkDescriptor[];
-    accountActions: HeaderActionDescriptor[];
-  };
-  mobileAccountMenu: {
-    shareProfile: HeaderActionDescriptor;
-    navItems: HeaderNavItemDescriptor[];
-    accountActions: HeaderActionDescriptor[];
-  };
+  desktopNav: DesktopNavModel;
+  desktopGuestAuth: DesktopGuestAuthModel;
+  mobileGuestMenu: MobileGuestMenuModel;
+  desktopAccountMenu: DesktopAccountMenuModel;
+  mobileAccountMenu: MobileAccountMenuModel;
   activeDialog: HeaderDialogType | null;
   setActiveDialog: React.Dispatch<
     React.SetStateAction<HeaderDialogType | null>
@@ -147,10 +158,9 @@ export function getNavAnalyticsAttributes(
   };
 }
 
-export function buildDesktopGuestAuth(pathname: string | null = null): {
-  signup: HeaderLinkDescriptor;
-  signin: HeaderLinkDescriptor;
-} {
+export function buildDesktopGuestAuth(
+  pathname: string | null = null
+): DesktopGuestAuthModel {
   return {
     signup: {
       id: 'signup',
@@ -304,8 +314,8 @@ export function useHeaderNavigation({
     [cancelPendingDialogRaf]
   );
 
-  return React.useMemo<HeaderNavigationModel>(() => {
-    const feedbackItem: HeaderExternalLinkDescriptor = {
+  const feedbackItem = React.useMemo<HeaderExternalLinkDescriptor>(
+    () => ({
       id: 'feedback',
       kind: 'external-link',
       label: '提供回饋',
@@ -314,9 +324,12 @@ export function useHeaderNavigation({
       isCurrent: false,
       disabled: false,
       onClick: handleFeedbackClick,
-    };
+    }),
+    [handleFeedbackClick]
+  );
 
-    const profileHeader: ProfileHeaderDescriptor = {
+  const profileHeader = React.useMemo<ProfileHeaderDescriptor>(
+    () => ({
       userId,
       name,
       displayName,
@@ -340,15 +353,28 @@ export function useHeaderNavigation({
           omitDestination: true,
         },
       },
-    };
+    }),
+    [
+      avatarSrc,
+      displayName,
+      isOnOwnProfile,
+      isUserUnresolved,
+      name,
+      personalLinks,
+      profileHref,
+      subtitle,
+      userId,
+    ]
+  );
 
+  const desktopNav = React.useMemo<DesktopNavModel>(() => {
     const desktopMentorRoleItem: HeaderLinkDescriptor = {
       id: 'my-mentor-page',
       kind: 'link',
       label: '我的導師頁面',
       href: profileHref,
       isCurrent: isOnOwnProfile,
-      disabled: isDesktopRoleNavDisabled,
+      disabled: isUserUnresolved,
       analytics: {
         click: 'header_nav_my_mentor_page',
         location: 'header',
@@ -371,11 +397,157 @@ export function useHeaderNavigation({
       },
     };
 
-    const buildAccountRoleLink = (
+    return {
+      findMentor: {
+        id: 'find-mentor',
+        kind: 'link',
+        label: '尋找導師',
+        href: FIND_MENTOR_HREF,
+        isCurrent: isOnFindMentor,
+        disabled: false,
+        analytics: {
+          click: 'header_nav_mentor_pool',
+          location: 'header',
+          feature: 'navigation',
+        },
+      },
+      mentorRoleCandidate: {
+        ...desktopMentorRoleItem,
+        isCurrent: !isUserUnresolved && isOnOwnProfile,
+        disabled: isUserUnresolved,
+      },
+      menteeRoleCandidate: {
+        ...desktopBecomeMentorItem,
+        isCurrent: false,
+        disabled: isUserUnresolved,
+      },
+      guestRoleCandidate: {
+        ...desktopBecomeMentorItem,
+        href: getBecomeMentorHref(undefined),
+        isCurrent: isOnSignup,
+        disabled: false,
+      },
+      resolvedRoleItem: isMentor
+        ? desktopMentorRoleItem
+        : desktopBecomeMentorItem,
+      about: {
+        id: 'about',
+        kind: 'link',
+        label: '關於 X-Talent',
+        href: ABOUT_HREF,
+        isCurrent: isOnAbout,
+        disabled: false,
+        analytics: {
+          click: 'header_nav_about',
+          location: 'header',
+          feature: 'navigation',
+        },
+      },
+      feedback: feedbackItem,
+    };
+  }, [
+    feedbackItem,
+    isDesktopRoleNavDisabled,
+    isMentor,
+    isOnAbout,
+    isOnFindMentor,
+    isOnOwnProfile,
+    isOnSignup,
+    isUserUnresolved,
+    profileHref,
+    userId,
+  ]);
+
+  const desktopGuestAuth = React.useMemo<DesktopGuestAuthModel>(() => {
+    if (isOnSignup) {
+      return buildDesktopGuestAuth(SIGNUP_HREF);
+    }
+    if (isOnSignin) {
+      return buildDesktopGuestAuth(SIGNIN_HREF);
+    }
+    return buildDesktopGuestAuth(null);
+  }, [isOnSignin, isOnSignup]);
+
+  const mobileGuestMenu = React.useMemo<MobileGuestMenuModel>(
+    () => ({
+      navItems: [
+        {
+          id: 'find-mentor',
+          kind: 'link',
+          label: '尋找導師',
+          href: FIND_MENTOR_HREF,
+          isCurrent: isOnFindMentor,
+          disabled: false,
+          analytics: {
+            click: 'mobile_nav_mentor_pool',
+            location: 'mobile_menu',
+            feature: 'navigation',
+          },
+        },
+        {
+          id: 'become-mentor',
+          kind: 'link',
+          label: '成為導師',
+          href: getBecomeMentorHref(undefined),
+          isCurrent: isOnSignup,
+          disabled: false,
+          analytics: {
+            click: 'mobile_nav_become_mentor',
+            location: 'mobile_menu',
+            feature: 'onboarding',
+          },
+        },
+        {
+          id: 'about',
+          kind: 'link',
+          label: '關於 X-Talent',
+          href: ABOUT_HREF,
+          isCurrent: isOnAbout,
+          disabled: false,
+          analytics: {
+            click: 'mobile_nav_about',
+            location: 'mobile_menu',
+            feature: 'navigation',
+          },
+        },
+        feedbackItem,
+      ],
+      signin: {
+        id: 'signin',
+        kind: 'link',
+        label: '登入',
+        href: SIGNIN_HREF,
+        isCurrent: isOnSignin,
+        disabled: false,
+        analytics: {
+          click: 'mobile_signin',
+          location: 'mobile_menu',
+          feature: 'auth',
+        },
+      },
+      signup: {
+        id: 'signup',
+        kind: 'link',
+        label: '註冊',
+        href: SIGNUP_HREF,
+        isCurrent: isOnSignup,
+        disabled: false,
+        analytics: {
+          click: 'mobile_signup',
+          location: 'mobile_menu',
+          feature: 'auth',
+        },
+      },
+    }),
+    [feedbackItem, isOnAbout, isOnFindMentor, isOnSignin, isOnSignup]
+  );
+
+  const buildAccountCommonLinks = React.useCallback(
+    (
       location: 'user_dropdown' | 'mobile_user_menu',
       prefix: 'user_menu' | 'mobile_user_menu'
-    ): HeaderLinkDescriptor =>
-      isMentor
+    ): HeaderLinkDescriptor[] => {
+      const roleLink: HeaderLinkDescriptor = isMentor
         ? {
             id: 'mentor-reservations',
             kind: 'link',
@@ -403,40 +575,48 @@ export function useHeaderNavigation({
             },
           };
 
-    const buildAccountCommonLinks = (
-      location: 'user_dropdown' | 'mobile_user_menu',
-      prefix: 'user_menu' | 'mobile_user_menu'
-    ): HeaderLinkDescriptor[] => [
-      buildAccountRoleLink(location, prefix),
-      {
-        id: 'my-reservations',
-        kind: 'link',
-        label: '我的預約',
-        href: RESERVATION_MENTEE_HREF,
-        isCurrent: isOnMenteeReservation,
-        disabled: false,
-        analytics: {
-          click: `${prefix}_my_reservations`,
-          location,
-          feature: 'reservation',
+      return [
+        roleLink,
+        {
+          id: 'my-reservations',
+          kind: 'link',
+          label: '我的預約',
+          href: RESERVATION_MENTEE_HREF,
+          isCurrent: isOnMenteeReservation,
+          disabled: false,
+          analytics: {
+            click: `${prefix}_my_reservations`,
+            location,
+            feature: 'reservation',
+          },
         },
-      },
-      {
-        id: 'my-favorites',
-        kind: 'link',
-        label: '我的收藏',
-        href: FAVORITES_HREF,
-        isCurrent: isOnFavorites,
-        disabled: false,
-        analytics: {
-          click: `${prefix}_my_favorites`,
-          location,
-          feature: 'navigation',
+        {
+          id: 'my-favorites',
+          kind: 'link',
+          label: '我的收藏',
+          href: FAVORITES_HREF,
+          isCurrent: isOnFavorites,
+          disabled: false,
+          analytics: {
+            click: `${prefix}_my_favorites`,
+            location,
+            feature: 'navigation',
+          },
         },
-      },
-    ];
+      ];
+    },
+    [
+      isMentor,
+      isOnFavorites,
+      isOnMenteeReservation,
+      isOnMentorReservation,
+      isUserUnresolved,
+      userId,
+    ]
+  );
 
-    const buildAccountActions = (
+  const buildAccountActions = React.useCallback(
+    (
       location: 'user_dropdown' | 'mobile_user_menu',
       prefix: 'user_menu' | 'mobile_user_menu'
     ): HeaderActionDescriptor[] => {
@@ -466,15 +646,54 @@ export function useHeaderNavigation({
         });
       }
       return actions;
-    };
+    },
+    [canDeleteAccount, handleDeleteAccount, handleLogout, isUserUnresolved]
+  );
 
-    return {
-      identity,
-      isMentor,
-      canDeleteAccount,
-      profileHeader,
-      desktopNav: {
-        findMentor: {
+  const desktopAccountMenu = React.useMemo<DesktopAccountMenuModel>(
+    () => ({
+      shareProfile: {
+        id: 'share-profile',
+        kind: 'action',
+        label: '分享個人頁面',
+        tone: 'default',
+        disabled: isUserUnresolved,
+        analytics: {
+          click: 'user_menu_share_profile',
+          location: 'user_dropdown',
+          feature: 'profile',
+        },
+        onSelect: handleShareProfile,
+      },
+      navItems: buildAccountCommonLinks('user_dropdown', 'user_menu'),
+      accountActions: buildAccountActions('user_dropdown', 'user_menu'),
+    }),
+    [
+      buildAccountActions,
+      buildAccountCommonLinks,
+      handleShareProfile,
+      isUserUnresolved,
+    ]
+  );
+
+  const mobileAccountMenu = React.useMemo<MobileAccountMenuModel>(
+    () => ({
+      shareProfile: {
+        id: 'share-profile',
+        kind: 'action',
+        label: '分享個人頁面',
+        tone: 'default',
+        disabled: isUserUnresolved,
+        analytics: {
+          click: 'mobile_user_menu_share_profile',
+          location: 'mobile_user_menu',
+          feature: 'profile',
+        },
+        onSelect: handleShareProfile,
+      },
+      navItems: [
+        ...buildAccountCommonLinks('mobile_user_menu', 'mobile_user_menu'),
+        {
           id: 'find-mentor',
           kind: 'link',
           label: '尋找導師',
@@ -482,26 +701,12 @@ export function useHeaderNavigation({
           isCurrent: isOnFindMentor,
           disabled: false,
           analytics: {
-            click: 'header_nav_mentor_pool',
-            location: 'header',
+            click: 'mobile_nav_mentor_pool',
+            location: 'mobile_user_menu',
             feature: 'navigation',
           },
         },
-        mentorRoleCandidate: {
-          ...desktopMentorRoleItem,
-          isCurrent: false,
-          disabled: false,
-        },
-        nonMentorRoleCandidate: {
-          ...desktopBecomeMentorItem,
-          href: getBecomeMentorHref(undefined),
-          isCurrent: isOnSignup,
-          disabled: false,
-        },
-        resolvedRoleItem: isMentor
-          ? desktopMentorRoleItem
-          : desktopBecomeMentorItem,
-        about: {
+        {
           id: 'about',
           kind: 'link',
           label: '關於 X-Talent',
@@ -509,180 +714,54 @@ export function useHeaderNavigation({
           isCurrent: isOnAbout,
           disabled: false,
           analytics: {
-            click: 'header_nav_about',
-            location: 'header',
+            click: 'mobile_nav_about',
+            location: 'mobile_user_menu',
             feature: 'navigation',
           },
         },
-        feedback: feedbackItem,
-      },
-      desktopGuestAuth: buildDesktopGuestAuth(
-        isOnSignup ? SIGNUP_HREF : isOnSignin ? SIGNIN_HREF : null
+        feedbackItem,
+      ],
+      accountActions: buildAccountActions(
+        'mobile_user_menu',
+        'mobile_user_menu'
       ),
-      mobileGuestMenu: {
-        navItems: [
-          {
-            id: 'find-mentor',
-            kind: 'link',
-            label: '尋找導師',
-            href: FIND_MENTOR_HREF,
-            isCurrent: isOnFindMentor,
-            disabled: false,
-            analytics: {
-              click: 'mobile_nav_mentor_pool',
-              location: 'mobile_menu',
-              feature: 'navigation',
-            },
-          },
-          {
-            id: 'become-mentor',
-            kind: 'link',
-            label: '成為導師',
-            href: getBecomeMentorHref(undefined),
-            isCurrent: isOnSignup,
-            disabled: false,
-            analytics: {
-              click: 'mobile_nav_become_mentor',
-              location: 'mobile_menu',
-              feature: 'onboarding',
-            },
-          },
-          {
-            id: 'about',
-            kind: 'link',
-            label: '關於 X-Talent',
-            href: ABOUT_HREF,
-            isCurrent: isOnAbout,
-            disabled: false,
-            analytics: {
-              click: 'mobile_nav_about',
-              location: 'mobile_menu',
-              feature: 'navigation',
-            },
-          },
-          feedbackItem,
-        ],
-        signin: {
-          id: 'signin',
-          kind: 'link',
-          label: '登入',
-          href: SIGNIN_HREF,
-          isCurrent: isOnSignin,
-          disabled: false,
-          analytics: {
-            click: 'mobile_signin',
-            location: 'mobile_menu',
-            feature: 'auth',
-          },
-        },
-        signup: {
-          id: 'signup',
-          kind: 'link',
-          label: '註冊',
-          href: SIGNUP_HREF,
-          isCurrent: isOnSignup,
-          disabled: false,
-          analytics: {
-            click: 'mobile_signup',
-            location: 'mobile_menu',
-            feature: 'auth',
-          },
-        },
-      },
-      desktopAccountMenu: {
-        shareProfile: {
-          id: 'share-profile',
-          kind: 'action',
-          label: '分享個人頁面',
-          tone: 'default',
-          disabled: isUserUnresolved,
-          analytics: {
-            click: 'user_menu_share_profile',
-            location: 'user_dropdown',
-            feature: 'profile',
-          },
-          onSelect: handleShareProfile,
-        },
-        navItems: buildAccountCommonLinks('user_dropdown', 'user_menu'),
-        accountActions: buildAccountActions('user_dropdown', 'user_menu'),
-      },
-      mobileAccountMenu: {
-        shareProfile: {
-          id: 'share-profile',
-          kind: 'action',
-          label: '分享個人頁面',
-          tone: 'default',
-          disabled: isUserUnresolved,
-          analytics: {
-            click: 'mobile_user_menu_share_profile',
-            location: 'mobile_user_menu',
-            feature: 'profile',
-          },
-          onSelect: handleShareProfile,
-        },
-        navItems: [
-          ...buildAccountCommonLinks('mobile_user_menu', 'mobile_user_menu'),
-          {
-            id: 'find-mentor',
-            kind: 'link',
-            label: '尋找導師',
-            href: FIND_MENTOR_HREF,
-            isCurrent: isOnFindMentor,
-            disabled: false,
-            analytics: {
-              click: 'mobile_nav_mentor_pool',
-              location: 'mobile_user_menu',
-              feature: 'navigation',
-            },
-          },
-          {
-            id: 'about',
-            kind: 'link',
-            label: '關於 X-Talent',
-            href: ABOUT_HREF,
-            isCurrent: isOnAbout,
-            disabled: false,
-            analytics: {
-              click: 'mobile_nav_about',
-              location: 'mobile_user_menu',
-              feature: 'navigation',
-            },
-          },
-          feedbackItem,
-        ],
-        accountActions: buildAccountActions(
-          'mobile_user_menu',
-          'mobile_user_menu'
-        ),
-      },
+    }),
+    [
+      buildAccountActions,
+      buildAccountCommonLinks,
+      feedbackItem,
+      handleShareProfile,
+      isOnAbout,
+      isOnFindMentor,
+      isUserUnresolved,
+    ]
+  );
+
+  return React.useMemo<HeaderNavigationModel>(
+    () => ({
+      identity,
+      isMentor,
+      canDeleteAccount,
+      profileHeader,
+      desktopNav,
+      desktopGuestAuth,
+      mobileGuestMenu,
+      desktopAccountMenu,
+      mobileAccountMenu,
       activeDialog,
       setActiveDialog,
-    };
-  }, [
-    identity,
-    isMentor,
-    canDeleteAccount,
-    userId,
-    name,
-    displayName,
-    avatarSrc,
-    subtitle,
-    personalLinks,
-    profileHref,
-    isOnOwnProfile,
-    isUserUnresolved,
-    isDesktopRoleNavDisabled,
-    isOnFindMentor,
-    isOnAbout,
-    isOnMentorReservation,
-    isOnMenteeReservation,
-    isOnFavorites,
-    isOnSignup,
-    isOnSignin,
-    handleFeedbackClick,
-    handleShareProfile,
-    handleDeleteAccount,
-    handleLogout,
-    activeDialog,
-  ]);
+    }),
+    [
+      activeDialog,
+      canDeleteAccount,
+      desktopAccountMenu,
+      desktopGuestAuth,
+      desktopNav,
+      identity,
+      isMentor,
+      mobileAccountMenu,
+      mobileGuestMenu,
+      profileHeader,
+    ]
+  );
 }

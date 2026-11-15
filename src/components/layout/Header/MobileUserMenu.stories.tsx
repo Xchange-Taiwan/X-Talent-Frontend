@@ -24,7 +24,10 @@ function MobileUserMenuStoryHarness({
   const navigation = useHeaderNavigation({ identity, user });
   return (
     <>
-      <MobileUserMenu navigation={navigation} />
+      <MobileUserMenu
+        profileHeader={navigation.profileHeader}
+        menu={navigation.mobileAccountMenu}
+      />
       <ShareProfileDialog
         open={navigation.activeDialog === 'share-profile'}
         onOpenChange={(open) =>

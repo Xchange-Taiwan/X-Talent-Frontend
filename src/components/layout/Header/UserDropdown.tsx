@@ -12,8 +12,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
+  type DesktopAccountMenuModel,
   getNavAnalyticsAttributes,
-  type HeaderNavigationModel,
+  type ProfileHeaderDescriptor,
 } from '@/hooks/layout/useHeaderNavigation';
 import { GROUP_FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
@@ -22,17 +23,18 @@ import { DisabledAwareLink } from './DisabledAwareLink';
 import { UserAvatar } from './UserAvatar';
 
 export type UserDropdownProps = {
-  navigation: HeaderNavigationModel;
+  profileHeader: ProfileHeaderDescriptor;
+  menu: DesktopAccountMenuModel;
 };
 
 export const UserDropdown = React.memo(function UserDropdown({
-  navigation,
+  profileHeader,
+  menu,
 }: UserDropdownProps): JSX.Element {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const closeMenu = React.useCallback(() => setMenuOpen(false), []);
 
-  const { profileHeader, desktopAccountMenu } = navigation;
-  const { shareProfile, navItems, accountActions } = desktopAccountMenu;
+  const { shareProfile, navItems, accountActions } = menu;
 
   return (
     <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>

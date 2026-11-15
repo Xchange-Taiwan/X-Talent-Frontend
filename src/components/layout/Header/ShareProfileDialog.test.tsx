@@ -52,6 +52,12 @@ describe('ShareProfileDialog', () => {
     const dialog = screen.getByRole('dialog', { name: '分享個人頁面' });
     expect(dialog).toBeInTheDocument();
     expect(dialog).toHaveClass('max-h-[90dvh]', 'overflow-y-auto');
+    expect(screen.getByLabelText('個人頁面連結')).toHaveClass(
+      'focus-visible:ring-2',
+      'focus-visible:ring-ring',
+      'focus-visible:ring-offset-2',
+      'focus-visible:outline-none'
+    );
     expect(document.documentElement.style.overflow).toBe('clip');
     expect(mockTrackEvent).toHaveBeenCalledWith({
       name: 'feature_opened',

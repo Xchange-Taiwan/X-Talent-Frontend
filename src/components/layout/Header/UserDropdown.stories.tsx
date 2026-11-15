@@ -24,7 +24,10 @@ function UserDropdownStoryHarness({
   const navigation = useHeaderNavigation({ identity, user });
   return (
     <>
-      <UserDropdown navigation={navigation} />
+      <UserDropdown
+        profileHeader={navigation.profileHeader}
+        menu={navigation.desktopAccountMenu}
+      />
       <ShareProfileDialog
         open={navigation.activeDialog === 'share-profile'}
         onOpenChange={(open) =>

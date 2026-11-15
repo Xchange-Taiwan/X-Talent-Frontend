@@ -14,24 +14,25 @@ import {
 } from '@/components/ui/sheet';
 import {
   getNavAnalyticsAttributes,
-  type HeaderNavigationModel,
+  type MobileGuestMenuModel,
 } from '@/hooks/layout/useHeaderNavigation';
+import { type ResolvedIdentity } from '@/lib/auth/sessionHint';
 import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 
 import { AuthHintGate } from './AuthHintGate';
 import { DisabledAwareLink } from './DisabledAwareLink';
 
 export type HamburgerMenuProps = {
-  navigation: HeaderNavigationModel;
+  menu: MobileGuestMenuModel;
+  identity?: ResolvedIdentity;
 };
 
-export function HamburgerMenu({
-  navigation,
+export const HamburgerMenu = React.memo(function HamburgerMenu({
+  menu,
+  identity,
 }: HamburgerMenuProps): JSX.Element | null {
   const [open, setOpen] = React.useState(false);
   const closeMenu = React.useCallback(() => setOpen(false), []);
-
-  const { identity, mobileGuestMenu } = navigation;
 
   return (
     <AuthHintGate when={['guest']} identity={identity} defaultVisible>
@@ -49,9 +50,9 @@ export function HamburgerMenu({
             <HamburgerMenuIcon className="size-6" aria-hidden="true" />
           </Button>
         </SheetTrigger>
-        <SheetContent side="right" className="h-dvh w-screen">
+        <SheetContent side="right" className="h-dvh w-screen p-0">
           <SheetTitle className="sr-only">導航選單</SheetTitle>
-          <div className="flex h-full flex-col overflow-y-auto">
+          <div className="flex h-full flex-col overflow-y-auto p-6">
             <SheetClose asChild>
               <button
                 type="button"
@@ -65,7 +66,7 @@ export function HamburgerMenu({
               </button>
             </SheetClose>
             <nav className="flex flex-1 flex-col items-center justify-center gap-8 py-6 text-2xl">
-              {mobileGuestMenu.navItems.map((item) => {
+              {menu.navItems.map((item) => {
                 if (item.kind === 'external-link') {
                   return (
                     <a
@@ -104,16 +105,12 @@ export function HamburgerMenu({
             <div className="mt-auto flex flex-col items-center gap-5 pb-2">
               <Button variant="default" className="w-40" asChild>
                 <Link
-                  href={mobileGuestMenu.signin.href}
-                  aria-current={
-                    mobileGuestMenu.signin.isCurrent ? 'page' : undefined
-                  }
+                  href={menu.signin.href}
+                  aria-current={menu.signin.isCurrent ? 'page' : undefined}
                   onClick={closeMenu}
-                  {...getNavAnalyticsAttributes(
-                    mobileGuestMenu.signin.analytics
-                  )}
+                  {...getNavAnalyticsAttributes(menu.signin.analytics)}
                 >
-                  {mobileGuestMenu.signin.label}
+                  {menu.signin.label}
                 </Link>
               </Button>
               <Button
@@ -122,16 +119,12 @@ export function HamburgerMenu({
                 asChild
               >
                 <Link
-                  href={mobileGuestMenu.signup.href}
-                  aria-current={
-                    mobileGuestMenu.signup.isCurrent ? 'page' : undefined
-                  }
+                  href={menu.signup.href}
+                  aria-current={menu.signup.isCurrent ? 'page' : undefined}
                   onClick={closeMenu}
-                  {...getNavAnalyticsAttributes(
-                    mobileGuestMenu.signup.analytics
-                  )}
+                  {...getNavAnalyticsAttributes(menu.signup.analytics)}
                 >
-                  {mobileGuestMenu.signup.label}
+                  {menu.signup.label}
                 </Link>
               </Button>
             </div>
@@ -140,4 +133,4 @@ export function HamburgerMenu({
       </Sheet>
     </AuthHintGate>
   );
-}
+});
