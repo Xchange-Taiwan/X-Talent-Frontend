@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -9,7 +10,9 @@ import {
   redactCredentials,
   verifyAndHealBoardStatus,
 } from '../../.agents/scripts/tracker-ops.mjs';
+import { extractTicketNumber } from '../ai-review/lib/ticket.mjs';
 import { runGeneratePrDescription } from '../generate-pr-description.mjs';
+import { readCachedTicketBundle } from './ticket-bundle.mjs';
 import {
   cleanupCloudTempFiles,
   unstageCloudWorkspaceLocks,
@@ -277,14 +280,19 @@ export async function submitCloudPr(rawOptions = {}) {
     ? fsImpl.readFileSync(summaryPath, 'utf8').trim()
     : '';
 
-  let ticketBundle = null;
-  if (fsImpl.existsSync(bundlePath)) {
-    try {
-      ticketBundle = JSON.parse(fsImpl.readFileSync(bundlePath, 'utf8'));
-    } catch {
-      ticketBundle = null;
+  const rawCachedBundle = readCachedTicketBundle(bundlePath, null, fsImpl);
+  const resolveMatchingBundle = (branchName, ticketNum) => {
+    if (!rawCachedBundle) return null;
+    const expectedNum = extractTicketNumber(branchName, ticketNum);
+    if (
+      expectedNum &&
+      rawCachedBundle.ticketNumber &&
+      Number(rawCachedBundle.ticketNumber) !== Number(expectedNum)
+    ) {
+      return null;
     }
-  }
+    return rawCachedBundle;
+  };
 
   const specText = fsImpl.existsSync(specPath)
     ? fsImpl.readFileSync(specPath, 'utf8')
@@ -390,7 +398,7 @@ export async function submitCloudPr(rawOptions = {}) {
     let commitMessage = '';
     if (stagedFiles.length > 0) {
       const rawIssueTitle = extractIssueTitleFromBundleOrSpec(
-        ticketBundle,
+        resolveMatchingBundle(currentBranch, cleanTicket),
         specText
       );
       commitMessage = buildPhase3CommitMessage({
@@ -496,7 +504,7 @@ export async function submitCloudPr(rawOptions = {}) {
       ticket: cleanTicket,
       branch: currentBranch,
       lastSubject,
-      bundle: ticketBundle,
+      bundle: resolveMatchingBundle(currentBranch, cleanTicket),
       bundleFile: '',
       rawSpec: specText,
       summaryText,

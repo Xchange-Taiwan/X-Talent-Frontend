@@ -1,12 +1,19 @@
 // @vitest-environment node
-import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   ensurePrTitleTag,
   extractExistingEvidenceUrls,
   extractSpecExcerptFromBundle,
   humanizeEvidenceSlug,
+  loadStructuredBundle,
+  parseCliArgs,
   renderPrMarkdown,
+  runGeneratePrDescription,
 } from './generate-pr-description.mjs';
 
 const LF = String.fromCharCode(10);
@@ -111,5 +118,126 @@ describe('generate-pr-description', () => {
         0
       )
     ).toBe('桌面版 (1280x800) — mentor pool card rating');
+  });
+
+  it('prefers explicit --spec-file over default .agents/tmp/ticket-bundle.json when --bundle-file is omitted', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gen-pr-spec-win-'));
+    try {
+      const agentsTmp = path.join(tmpDir, '.agents', 'tmp');
+      fs.mkdirSync(agentsTmp, { recursive: true });
+      fs.writeFileSync(
+        path.join(agentsTmp, 'ticket-bundle.json'),
+        JSON.stringify({
+          ticketNumber: 907,
+          cleanSpecMarkdown: 'CACHED DEFAULT BUNDLE CONTENT',
+        }),
+        'utf8'
+      );
+      const customSpecPath = path.join(tmpDir, 'explicit-spec.md');
+      fs.writeFileSync(customSpecPath, 'EXPLICIT SPEC FILE CONTENT', 'utf8');
+
+      let capturedPrompt = '';
+      const callGeminiSpy = vi.fn(async (prompt) => {
+        capturedPrompt = prompt;
+        return {
+          prTitle: 'refactor(ci): tighten bundle precedence',
+          overview: '測試明確傳入 spec-file 優先權。',
+          moduleHighlights: [],
+          demoRoutes: [],
+          screenshotCaptions: [],
+        };
+      });
+
+      const cliArgs = parseCliArgs([
+        '--ticket=907',
+        '--branch=refactor/907-cloud',
+        `--spec-file=${customSpecPath}`,
+      ]);
+      expect(cliArgs.bundleFile).toBeUndefined();
+
+      await runGeneratePrDescription({
+        ...cliArgs,
+        cwd: tmpDir,
+        env: { GEMINI_API_KEY: 'test-key' },
+        port: { git: () => '' },
+        callGeminiImpl: callGeminiSpy,
+      });
+
+      expect(callGeminiSpy).toHaveBeenCalledTimes(1);
+      expect(capturedPrompt).toContain('EXPLICIT SPEC FILE CONTENT');
+      expect(capturedPrompt).not.toContain('CACHED DEFAULT BUNDLE CONTENT');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('validates expectedTicket against cached bundle ticketNumber and rejects stale cross-ticket bundles', async () => {
+    const tmpDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'gen-pr-ticket-check-')
+    );
+    try {
+      const agentsTmp = path.join(tmpDir, '.agents', 'tmp');
+      fs.mkdirSync(agentsTmp, { recursive: true });
+      const bundlePath = path.join(agentsTmp, 'ticket-bundle.json');
+      fs.writeFileSync(
+        bundlePath,
+        JSON.stringify({
+          ticketNumber: 737,
+          cleanSpecMarkdown: 'STALE TICKET 737 SPEC',
+        }),
+        'utf8'
+      );
+
+      expect(loadStructuredBundle(null, bundlePath, fs, '907')).toBeNull();
+      expect(
+        loadStructuredBundle(null, bundlePath, fs, '737')?.ticketNumber
+      ).toBe(737);
+
+      let mismatchPrompt = '';
+      await runGeneratePrDescription({
+        ...parseCliArgs(['--ticket=907', '--branch=refactor/907-cloud']),
+        cwd: tmpDir,
+        env: { GEMINI_API_KEY: 'test-key' },
+        port: { git: () => '+const ok = true;' },
+        callGeminiImpl: async (prompt) => {
+          mismatchPrompt = prompt;
+          return { prTitle: 'refactor(ci): test', overview: 'ok' };
+        },
+      });
+      expect(mismatchPrompt).not.toContain('STALE TICKET 737 SPEC');
+
+      fs.writeFileSync(
+        bundlePath,
+        JSON.stringify({
+          ticketNumber: 907,
+          cleanSpecMarkdown: 'MATCHING TICKET 907 SPEC',
+        }),
+        'utf8'
+      );
+
+      let matchPrompt = '';
+      await runGeneratePrDescription({
+        ...parseCliArgs(['--ticket=907', '--branch=refactor/907-cloud']),
+        cwd: tmpDir,
+        env: { GEMINI_API_KEY: 'test-key' },
+        port: { git: () => '+const ok = true;' },
+        callGeminiImpl: async (prompt) => {
+          matchPrompt = prompt;
+          return { prTitle: 'refactor(ci): test', overview: 'ok' };
+        },
+      });
+      expect(matchPrompt).toContain('MATCHING TICKET 907 SPEC');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('preserves #!/usr/bin/env node shebang at line 1 for direct CLI execution', () => {
+    const scriptPath = path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      'generate-pr-description.mjs'
+    );
+    const raw = fs.readFileSync(scriptPath, 'utf8');
+    expect(raw.startsWith(`#!/usr/bin/env node${LF}`)).toBe(true);
   });
 });

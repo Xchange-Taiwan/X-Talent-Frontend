@@ -1,4 +1,7 @@
 // @vitest-environment node
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -120,5 +123,14 @@ describe('cloud-promote', () => {
       expect(gitCalls).toContain('push -u origin feat/907-cloud-guard');
       expect(ghCalls[0]).toContain('workflow run cloud-implement.yml');
     });
+  });
+
+  it('preserves #!/usr/bin/env node shebang at line 1 for direct CLI execution', () => {
+    const scriptPath = path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      'cloud-promote.mjs'
+    );
+    const raw = fs.readFileSync(scriptPath, 'utf8');
+    expect(raw.startsWith(`#!/usr/bin/env node${LF}`)).toBe(true);
   });
 });

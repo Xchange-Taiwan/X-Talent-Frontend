@@ -1,15 +1,19 @@
+#!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { callGemini } from './ai-review/lib/gemini.mjs';
+import { extractTicketNumber } from './ai-review/lib/ticket.mjs';
+import { readCachedTicketBundle } from './cloud/ticket-bundle.mjs';
 import { formatIssueJsonToSpecMarkdown } from './export-ticket-spec.mjs';
 
 const LF = String.fromCharCode(10);
 const CR = String.fromCharCode(13);
 const BT = String.fromCharCode(96);
 
+const DEFAULT_BUNDLE_FILE = '.agents/tmp/ticket-bundle.json';
 const MAX_SPEC_CHARS = 12_000;
 const MAX_DIFF_CHARS = 60_000;
 
@@ -347,16 +351,18 @@ export function renderPrMarkdown({
   return `${collapseExcessBlankLines(whatParts.join(LF))}${LF}`;
 }
 
-function parseCliArgs(argv = []) {
+export function parseCliArgs(argv = []) {
+  const findRaw = (prefix) => argv.find((a) => a.startsWith(prefix));
   const get = (prefix) => {
-    const hit = argv.find((a) => a.startsWith(prefix));
+    const hit = findRaw(prefix);
     return hit ? hit.slice(prefix.length) : '';
   };
+  const hasBundleFileFlag = findRaw('--bundle-file=') !== undefined;
   return {
     ticket: get('--ticket=').replace(/^#/, '').trim(),
     branch: get('--branch=').trim(),
     lastSubject: get('--last-subject=').trim(),
-    bundleFile: get('--bundle-file=').trim(),
+    bundleFile: hasBundleFileFlag ? get('--bundle-file=').trim() : undefined,
     specFile: get('--spec-file=').trim(),
     summaryFile: get('--summary-file=').trim(),
     evidenceFile: get('--evidence-file=').trim(),
@@ -367,18 +373,59 @@ function parseCliArgs(argv = []) {
   };
 }
 
-function loadStructuredBundle(bundle, bundleFile, fsImpl) {
+function resolveInputPath(filePath, cwd, fsImpl) {
+  const trimmed = String(filePath || '').trim();
+  if (!trimmed) return '';
+  if (path.isAbsolute(trimmed)) return trimmed;
+  const resolved = path.resolve(cwd, trimmed);
+  if (fsImpl.existsSync(resolved)) {
+    return resolved;
+  }
+  if (fsImpl !== fs && fsImpl.existsSync(trimmed)) {
+    return trimmed;
+  }
+  return resolved;
+}
+
+function matchesExpectedTicket(parsedBundle, expectedTicket = '') {
+  if (!parsedBundle || typeof parsedBundle !== 'object') {
+    return false;
+  }
+  const cleanExpected = String(expectedTicket ?? '')
+    .replace(/^#/, '')
+    .trim();
+  if (!cleanExpected || !/^\d+$/.test(cleanExpected)) {
+    return true;
+  }
+  const rawBundleTicket =
+    parsedBundle.ticketNumber ?? parsedBundle?.issue?.number ?? null;
+  if (
+    rawBundleTicket === null ||
+    rawBundleTicket === undefined ||
+    rawBundleTicket === ''
+  ) {
+    return true;
+  }
+  return Number(rawBundleTicket) === Number(cleanExpected);
+}
+
+export function loadStructuredBundle(
+  bundle,
+  bundleFile,
+  fsImpl = fs,
+  expectedTicket = ''
+) {
   if (bundle && typeof bundle === 'object') {
-    return bundle;
+    return matchesExpectedTicket(bundle, expectedTicket) ? bundle : null;
   }
-  if (bundleFile && fsImpl.existsSync(bundleFile)) {
-    try {
-      return JSON.parse(fsImpl.readFileSync(bundleFile, 'utf8'));
-    } catch {
-      return null;
-    }
+  if (!bundleFile) {
+    return null;
   }
-  return null;
+  const cached = readCachedTicketBundle(bundleFile, null, fsImpl);
+  if (!cached) {
+    return null;
+  }
+  return matchesExpectedTicket(cached, expectedTicket) ? cached : null;
 }
 
 export async function runGeneratePrDescription(opts = {}) {
@@ -387,7 +434,7 @@ export async function runGeneratePrDescription(opts = {}) {
     branch = '',
     lastSubject = '',
     bundle = null,
-    bundleFile = '.agents/tmp/ticket-bundle.json',
+    bundleFile,
     rawSpec: directRawSpec = '',
     specFile = '',
     summaryText: directSummaryText = '',
@@ -407,38 +454,21 @@ export async function runGeneratePrDescription(opts = {}) {
     callGeminiImpl = callGemini,
   } = opts;
 
-  const parsedBundle = loadStructuredBundle(bundle, bundleFile, fsImpl);
-  const fallbackRawSpec =
-    directRawSpec ||
-    (specFile && fsImpl.existsSync(specFile)
-      ? fsImpl.readFileSync(specFile, 'utf8')
-      : '');
-  const specExcerpt = parsedBundle
-    ? extractSpecExcerptFromBundle(parsedBundle)
-    : extractSpecExcerptFromBundle(fallbackRawSpec);
-
-  const summaryText =
-    directSummaryText ||
-    (summaryFile && fsImpl.existsSync(summaryFile)
-      ? fsImpl.readFileSync(summaryFile, 'utf8').trim()
-      : '');
-
-  let evidenceUrls = Array.isArray(directEvidenceUrls)
-    ? [...directEvidenceUrls]
-    : evidenceFile && fsImpl.existsSync(evidenceFile)
-      ? splitLines(fsImpl.readFileSync(evidenceFile, 'utf8'))
-          .map((s) => s.trim())
-          .filter(Boolean)
-      : [];
-
-  let resolvedTicket = ticket;
+  let resolvedTicket = String(ticket || '')
+    .replace(/^#/, '')
+    .trim();
   let existingBody = directExistingBody;
+  const resolvedExistingBodyFile = resolveInputPath(
+    existingBodyFile,
+    cwd,
+    fsImpl
+  );
   if (
     !existingBody &&
-    existingBodyFile &&
-    fsImpl.existsSync(existingBodyFile)
+    resolvedExistingBodyFile &&
+    fsImpl.existsSync(resolvedExistingBodyFile)
   ) {
-    existingBody = fsImpl.readFileSync(existingBodyFile, 'utf8');
+    existingBody = fsImpl.readFileSync(resolvedExistingBodyFile, 'utf8');
   }
   if (!resolvedTicket && existingBody) {
     const ticketMatch = existingBody.match(
@@ -446,6 +476,73 @@ export async function runGeneratePrDescription(opts = {}) {
     );
     resolvedTicket = ticketMatch?.[1] || ticketMatch?.[2] || '';
   }
+
+  const inferredBranchTicket = extractTicketNumber(branch, resolvedTicket);
+  const expectedBundleTicket =
+    resolvedTicket ||
+    (inferredBranchTicket ? String(inferredBranchTicket) : '');
+
+  const hasExplicitBundleObject = Boolean(bundle && typeof bundle === 'object');
+  const hasExplicitBundleFile =
+    bundleFile !== undefined && String(bundleFile).trim() !== '';
+  const hasExplicitBundle = hasExplicitBundleObject || hasExplicitBundleFile;
+  const hasExplicitSpec =
+    Boolean(String(directRawSpec || '').trim()) ||
+    Boolean(String(specFile || '').trim());
+
+  let parsedBundle = null;
+  if (hasExplicitBundle) {
+    const explicitBundlePath = hasExplicitBundleFile
+      ? resolveInputPath(bundleFile, cwd, fsImpl)
+      : '';
+    parsedBundle = loadStructuredBundle(
+      bundle,
+      explicitBundlePath,
+      fsImpl,
+      expectedBundleTicket
+    );
+  } else if (
+    bundleFile === undefined &&
+    !hasExplicitSpec &&
+    expectedBundleTicket
+  ) {
+    const defaultBundlePath = resolveInputPath(
+      DEFAULT_BUNDLE_FILE,
+      cwd,
+      fsImpl
+    );
+    parsedBundle = readCachedTicketBundle(
+      defaultBundlePath,
+      expectedBundleTicket,
+      fsImpl
+    );
+  }
+
+  const resolvedSpecFile = resolveInputPath(specFile, cwd, fsImpl);
+  const fallbackRawSpec =
+    directRawSpec ||
+    (resolvedSpecFile && fsImpl.existsSync(resolvedSpecFile)
+      ? fsImpl.readFileSync(resolvedSpecFile, 'utf8')
+      : '');
+  const specExcerpt = parsedBundle
+    ? extractSpecExcerptFromBundle(parsedBundle)
+    : extractSpecExcerptFromBundle(fallbackRawSpec);
+
+  const resolvedSummaryFile = resolveInputPath(summaryFile, cwd, fsImpl);
+  const summaryText =
+    directSummaryText ||
+    (resolvedSummaryFile && fsImpl.existsSync(resolvedSummaryFile)
+      ? fsImpl.readFileSync(resolvedSummaryFile, 'utf8').trim()
+      : '');
+
+  const resolvedEvidenceFile = resolveInputPath(evidenceFile, cwd, fsImpl);
+  let evidenceUrls = Array.isArray(directEvidenceUrls)
+    ? [...directEvidenceUrls]
+    : resolvedEvidenceFile && fsImpl.existsSync(resolvedEvidenceFile)
+      ? splitLines(fsImpl.readFileSync(resolvedEvidenceFile, 'utf8'))
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
 
   if (evidenceUrls.length === 0 && existingBody) {
     evidenceUrls = extractExistingEvidenceUrls(existingBody);
@@ -521,10 +618,14 @@ export async function runGeneratePrDescription(opts = {}) {
   });
 
   if (titleOut) {
-    fsImpl.writeFileSync(titleOut, finalTitle, 'utf8');
+    const resolvedTitleOut =
+      fsImpl === fs ? path.resolve(cwd, titleOut) : titleOut;
+    fsImpl.writeFileSync(resolvedTitleOut, finalTitle, 'utf8');
   }
   if (bodyOut) {
-    fsImpl.writeFileSync(bodyOut, finalBody, 'utf8');
+    const resolvedBodyOut =
+      fsImpl === fs ? path.resolve(cwd, bodyOut) : bodyOut;
+    fsImpl.writeFileSync(resolvedBodyOut, finalBody, 'utf8');
   }
 
   return { title: finalTitle, body: finalBody };
