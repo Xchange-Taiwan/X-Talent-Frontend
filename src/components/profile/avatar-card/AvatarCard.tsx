@@ -1,16 +1,23 @@
 'use client';
+
 import Image from 'next/image';
 import type { FC } from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
-import { LinkedinColor } from '@/components/icon';
+import { getPlatformLabelEntry } from '@/components/profile/social-links/platformLabelMap';
+import {
+  isSocialPlatformKey,
+  type PersonalLink,
+  validatePlatformUrl,
+} from '@/lib/profile/socialLinks';
+import { isSafeUrl } from '@/lib/url/isSafeUrl';
 import { cn } from '@/lib/utils';
 
 interface Props {
   className?: string;
   name: string;
   avatarImgUrl?: string;
-  linkedinUrl?: string;
+  personalLinks?: PersonalLink[];
   jobTitle?: string;
   companyName?: string;
 }
@@ -19,13 +26,28 @@ export const AvatarCard: FC<Props> = ({
   className,
   name,
   avatarImgUrl,
-  linkedinUrl,
+  personalLinks,
   jobTitle,
   companyName,
 }) => {
-  const handleNavigateToLinkedin = (linkedinUrl: string) => {
-    window.open(linkedinUrl, '_blank');
-  };
+  const safePersonalLinks = (personalLinks ?? []).flatMap((link) => {
+    if (!isSafeUrl(link.url)) return [];
+    const normalizedPlatform =
+      typeof link.platform === 'string'
+        ? link.platform.trim().toLowerCase()
+        : '';
+    if (!isSocialPlatformKey(normalizedPlatform)) return [];
+    const validation = validatePlatformUrl(normalizedPlatform, link.url);
+    if (!validation.valid || !validation.normalizedUrl) return [];
+    const entry = getPlatformLabelEntry(normalizedPlatform);
+    if (!entry) return [];
+    return [
+      {
+        link: { platform: normalizedPlatform, url: validation.normalizedUrl },
+        entry,
+      },
+    ];
+  });
 
   return (
     <div
@@ -42,14 +64,25 @@ export const AvatarCard: FC<Props> = ({
       </div>
 
       <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-center gap-2 sm:justify-start">
+        <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
           <h1 className="text-base font-bold sm:text-2xl">{name}</h1>
 
-          {!!linkedinUrl && (
-            <LinkedinColor
-              className="size-5 cursor-pointer sm:size-6"
-              onClick={() => handleNavigateToLinkedin(linkedinUrl)}
-            />
+          {safePersonalLinks.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              {safePersonalLinks.map(({ link, entry }, index) => (
+                <a
+                  key={`${link.platform}-${index}`}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={entry.label}
+                  title={entry.label}
+                  className="inline-flex shrink-0 items-center"
+                >
+                  {entry.icon}
+                </a>
+              ))}
+            </div>
           )}
         </div>
 

@@ -25,11 +25,12 @@ vi.mock('./useProfileSubmit', () => ({
   useProfileSubmit: (options: unknown) => mockUseProfileSubmit(options),
 }));
 
+const mockOnError = vi.fn();
 const mockScrollToField = vi.fn();
 vi.mock('./useFormErrorScroll', () => ({
   useFormErrorScroll: () => ({
     formRef: { current: null },
-    onError: vi.fn(),
+    onError: mockOnError,
     scrollToField: mockScrollToField,
   }),
 }));
@@ -114,14 +115,16 @@ describe('useProfileEditorSession (#787)', () => {
     expect(result.current.form.getValues('name')).toBe('Second User Name');
   });
 
-  it('blocks submit and scrolls to work_experiences or educations when section validation flags an error, and delegates to onSubmit once errors clear', async () => {
-    const { result } = renderHook(() =>
-      useProfileEditorSession({
+  it('blocks submit and surfaces formState.errors when work_experiences or educations have start > end periods, and delegates to onSubmit once valid', async () => {
+    const { result } = renderHook(() => {
+      const session = useProfileEditorSession({
         pageUserId: '1',
         isAuthorized: true,
         isMentorOnboarding: false,
-      })
-    );
+      });
+      void session.form.formState.errors;
+      return session;
+    });
 
     act(() => {
       result.current.form.reset({
@@ -132,41 +135,78 @@ describe('useProfileEditorSession (#787)', () => {
         want_position: ['frontend'],
         want_skill: ['react'],
         want_topic: ['career'],
+        work_experiences: [
+          {
+            id: 0,
+            job: 'Engineer',
+            company: 'Acme',
+            job_period_start: '2024',
+            job_period_end: '2020',
+            industry: 'tech',
+            job_location: 'TWN',
+            description: 'Building products',
+            is_primary: true,
+          },
+        ],
       });
-      result.current.setJobSectionError(true);
     });
 
     await act(async () => {
       await result.current.handleFormSubmit();
     });
 
-    expect(mockScrollToField).toHaveBeenCalledWith('work_experiences');
+    expect(mockOnError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        work_experiences: expect.anything(),
+      }),
+      undefined
+    );
+    expect(
+      result.current.form.formState.errors.work_experiences?.[0]?.job_period_end
+        ?.message
+    ).toBe('開始年份不可大於結束年份');
     expect(mockOnSubmit).not.toHaveBeenCalled();
 
-    mockScrollToField.mockClear();
+    mockOnError.mockClear();
     act(() => {
-      result.current.setJobSectionError(false);
-      result.current.setEducationSectionError(true);
+      result.current.form.setValue('work_experiences.0.job_period_end', '2024');
+      result.current.form.setValue('educations', [
+        {
+          id: 0,
+          subject: 'CS',
+          school: '國立臺灣大學',
+          education_period_start: '2025',
+          education_period_end: '2021',
+        },
+      ]);
     });
 
     await act(async () => {
       await result.current.handleFormSubmit();
     });
 
-    expect(mockScrollToField).toHaveBeenCalledWith('educations');
+    expect(mockOnError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        educations: expect.anything(),
+      }),
+      undefined
+    );
+    expect(
+      result.current.form.formState.errors.educations?.[0]?.education_period_end
+        ?.message
+    ).toBe('開始年份不可大於結束年份');
     expect(mockOnSubmit).not.toHaveBeenCalled();
 
-    // Clearing both section errors allows handleFormSubmit to invoke onSubmit
-    mockScrollToField.mockClear();
+    mockOnError.mockClear();
     act(() => {
-      result.current.setEducationSectionError(false);
+      result.current.form.setValue('educations.0.education_period_end', 'now');
     });
 
     await act(async () => {
       await result.current.handleFormSubmit();
     });
 
-    expect(mockScrollToField).not.toHaveBeenCalled();
+    expect(mockOnError).not.toHaveBeenCalled();
     expect(mockOnSubmit).toHaveBeenCalledTimes(1);
   });
 

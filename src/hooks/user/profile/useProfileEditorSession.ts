@@ -37,8 +37,8 @@ export interface UseProfileEditorSessionOptions {
  *    revalidations once hydrated so dirty form inputs are never clobbered).
  * 2. Background S3 avatar upload, consumption on save, and automatic rollback
  *    on cancel or unconsumed unmount/navigation.
- * 3. Section-level validation (`work_experiences` and `educations`) integrated
- *    directly into the submit handler with automatic error scrolling.
+ * 3. Schema-driven validation integrated directly into the submit handler with
+ *    automatic error scrolling.
  */
 export function useProfileEditorSession({
   pageUserId,
@@ -65,8 +65,7 @@ export function useProfileEditorSession({
 
   const isMentorRole = isMentor || isMentorOnboarding;
   const { form } = useEditProfileForm(isMentorRole);
-  const { formRef, onError, scrollToField } =
-    useFormErrorScroll<ProfileFormValues>();
+  const { formRef, onError } = useFormErrorScroll<ProfileFormValues>();
 
   useIsomorphicLayoutEffect(() => {
     if (!isAuthorized || !userDto) return;
@@ -112,29 +111,13 @@ export function useProfileEditorSession({
     industryCatalog,
   });
 
-  const jobSectionErrorRef = useRef(false);
-  const educationSectionErrorRef = useRef(false);
-
-  const setJobSectionError = useCallback((hasError: boolean) => {
-    jobSectionErrorRef.current = hasError;
-  }, []);
-
-  const setEducationSectionError = useCallback((hasError: boolean) => {
-    educationSectionErrorRef.current = hasError;
-  }, []);
-
   const handleFormSubmit = useCallback(
     (e?: React.BaseSyntheticEvent) =>
-      form.handleSubmit((values) => {
-        if (jobSectionErrorRef.current || educationSectionErrorRef.current) {
-          scrollToField(
-            jobSectionErrorRef.current ? 'work_experiences' : 'educations'
-          );
-          return;
-        }
-        return onSubmit(values, form.formState.dirtyFields);
-      }, onError)(e),
-    [form, onSubmit, onError, scrollToField]
+      form.handleSubmit(
+        (values) => onSubmit(values, form.formState.dirtyFields),
+        onError
+      )(e),
+    [form, onSubmit, onError]
   );
 
   const unsaved = useUnsavedChangesPrompt(form.formState.isDirty && !isSaving);
@@ -158,8 +141,6 @@ export function useProfileEditorSession({
     isSaving,
     handleAvatarFileChange,
     handleFormSubmit,
-    setJobSectionError,
-    setEducationSectionError,
     handleGoToPrev,
     isPromptOpen: unsaved.isPromptOpen,
     cancelLeave: unsaved.cancelLeave,

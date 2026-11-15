@@ -4,6 +4,7 @@ import {
   createProfileFormSchema,
   defaultValues,
   educationSchema,
+  jobSchema,
 } from '@/schemas/profileSchema';
 
 const mentorRequiredFields = {
@@ -140,6 +141,46 @@ describe('createProfileFormSchema conditional validations (Mentor vs Mentee)', (
     });
     expect(result.success).toBe(true);
   });
+
+  it('enforces max 20 characters on name', () => {
+    const atLimit = createProfileFormSchema(false).safeParse({
+      ...baseData,
+      name: '王'.repeat(20),
+    });
+    expect(atLimit.success).toBe(true);
+
+    const overLimit = createProfileFormSchema(false).safeParse({
+      ...baseData,
+      name: '王'.repeat(21),
+    });
+    expect(overLimit.success).toBe(false);
+    expect(
+      overLimit.error?.issues.some(
+        (i) => i.path[0] === 'name' && i.message === '最多不可超過 20 字'
+      )
+    ).toBe(true);
+  });
+
+  it('enforces max 10 items on have_topic and have_skill for mentees', () => {
+    const elevenItems = Array.from({ length: 11 }, (_, idx) => `item-${idx}`);
+    const result = createProfileFormSchema(false).safeParse({
+      ...baseData,
+      have_topic: elevenItems,
+      have_skill: elevenItems,
+    });
+    expect(result.success).toBe(false);
+    const issues = result.error!.issues;
+    expect(
+      issues.some(
+        (i) => i.path[0] === 'have_topic' && i.message === '最多選 10 個'
+      )
+    ).toBe(true);
+    expect(
+      issues.some(
+        (i) => i.path[0] === 'have_skill' && i.message === '最多選 10 個'
+      )
+    ).toBe(true);
+  });
 });
 
 const baseEducation = {
@@ -189,6 +230,101 @@ describe('educationSchema school field (free-text school name)', () => {
     expect(
       result.error?.issues.some(
         (i) => i.path[0] === 'school' && i.message === '學校名稱不可超過 100 字'
+      )
+    ).toBe(true);
+  });
+});
+
+describe('jobSchema and educationSchema chronological period rules (#898)', () => {
+  const validJob = {
+    id: 1,
+    job: '資深前端工程師',
+    company: 'XChange',
+    job_period_start: '2020',
+    job_period_end: '2023',
+    industry: '軟體業',
+    job_location: 'TWN',
+    description: '負責系統架構設計',
+  };
+
+  it('rejects work experience when start year is greater than end year', () => {
+    const result = jobSchema.safeParse({
+      ...validJob,
+      job_period_start: '2024',
+      job_period_end: '2021',
+    });
+    expect(result.success).toBe(false);
+    expect(
+      result.error?.issues.some(
+        (i) =>
+          i.path[0] === 'job_period_end' &&
+          i.message === '開始年份不可大於結束年份'
+      )
+    ).toBe(true);
+  });
+
+  it('accepts work experience when start === end or end === "now"', () => {
+    expect(
+      jobSchema.safeParse({
+        ...validJob,
+        job_period_start: '2024',
+        job_period_end: '2024',
+      }).success
+    ).toBe(true);
+    expect(
+      jobSchema.safeParse({
+        ...validJob,
+        job_period_start: '2024',
+        job_period_end: 'now',
+      }).success
+    ).toBe(true);
+  });
+
+  it('rejects education entry when start year is greater than end year and accepts "now"', () => {
+    const invalid = educationSchema.safeParse({
+      ...baseEducation,
+      school: '國立臺灣大學',
+      education_period_start: '2025',
+      education_period_end: '2021',
+    });
+    expect(invalid.success).toBe(false);
+    expect(
+      invalid.error?.issues.some(
+        (i) =>
+          i.path[0] === 'education_period_end' &&
+          i.message === '開始年份不可大於結束年份'
+      )
+    ).toBe(true);
+
+    const ongoing = educationSchema.safeParse({
+      ...baseEducation,
+      school: '國立臺灣大學',
+      education_period_start: '2025',
+      education_period_end: 'now',
+    });
+    expect(ongoing.success).toBe(true);
+  });
+
+  it('requires at least one work experience and education for mentors with expected messages', () => {
+    const result = createProfileFormSchema(true).safeParse({
+      ...baseData,
+      ...mentorRequiredFields,
+      avatar: 'https://example.com/avatar.png',
+      work_experiences: [],
+      educations: [],
+    });
+    expect(result.success).toBe(false);
+    const issues = result.error!.issues;
+    expect(
+      issues.some(
+        (i) =>
+          i.path[0] === 'work_experiences' &&
+          i.message === '請填寫至少一項工作經歷'
+      )
+    ).toBe(true);
+    expect(
+      issues.some(
+        (i) => i.path[0] === 'educations' && i.message === '請填寫至少一項學歷'
       )
     ).toBe(true);
   });

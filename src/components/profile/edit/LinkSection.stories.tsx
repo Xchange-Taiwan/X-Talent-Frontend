@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
-import React from 'react';
+import React, { useEffect } from 'react';
 
+import type { ProfileFormContext } from '@/hooks/user/profile/useEditProfileForm';
 import {
   createProfileFormSchema,
   defaultValues,
@@ -18,6 +19,18 @@ const meta: Meta<typeof LinksSection> = {
 export default meta;
 
 type Story = StoryObj<typeof LinksSection>;
+
+function ValidationTriggeredLinksSection({
+  form,
+}: {
+  form: ProfileFormContext;
+}) {
+  useEffect(() => {
+    void form.trigger();
+  }, [form]);
+
+  return <LinksSection form={form} />;
+}
 
 export const Default: Story = {
   name: '空白連結區塊',
@@ -37,28 +50,14 @@ export const Filled: Story = {
     const schema = createProfileFormSchema(false);
     const filledValues = {
       ...defaultValues,
-      linkedin: {
-        id: 1,
-        url: 'https://www.linkedin.com/in/testuser',
-        platform: 'linkedin',
+      links: {
+        linkedin: 'https://www.linkedin.com/in/testuser',
+        facebook: 'https://www.facebook.com/testuser',
+        instagram: 'https://www.instagram.com/testuser',
+        twitter: 'https://x.com/testuser',
+        youtube: 'https://www.youtube.com/@testuser',
+        website: 'https://mywebsite.com',
       },
-      facebook: {
-        id: 2,
-        url: 'https://www.facebook.com/testuser',
-        platform: 'facebook',
-      },
-      instagram: {
-        id: 3,
-        url: 'https://www.instagram.com/testuser',
-        platform: 'instagram',
-      },
-      twitter: { id: 4, url: 'https://x.com/testuser', platform: 'twitter' },
-      youtube: {
-        id: 5,
-        url: 'https://www.youtube.com/@testuser',
-        platform: 'youtube',
-      },
-      website: { id: 6, url: 'https://mywebsite.com', platform: 'website' },
     };
     return (
       <ProfileStoryWrapper schema={schema} defaultValues={filledValues}>
@@ -74,23 +73,16 @@ export const WithValidationErrors: Story = {
     const schema = createProfileFormSchema(false);
     const invalidValues = {
       ...defaultValues,
-      linkedin: {
-        id: 1,
-        url: 'https://www.invalid-linkedin.com',
-        platform: 'linkedin',
+      links: {
+        ...defaultValues.links,
+        linkedin: 'https://evil-linkedin.com/in/testuser',
+        twitter: 'http://x.com/testuser',
+        website: 'not-a-valid-url',
       },
-      twitter: { id: 4, url: 'not-a-valid-url', platform: 'twitter' },
     };
     return (
       <ProfileStoryWrapper schema={schema} defaultValues={invalidValues}>
-        {(form) => {
-          // Trigger validation on mount to display errors immediately
-          React.useEffect(() => {
-            form.trigger();
-          }, [form]);
-
-          return <LinksSection form={form} />;
-        }}
+        {(form) => <ValidationTriggeredLinksSection form={form} />}
       </ProfileStoryWrapper>
     );
   },
