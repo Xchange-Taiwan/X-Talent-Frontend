@@ -1,23 +1,15 @@
 import type { MentorExperiencePayload } from '@/lib/profile/experienceCodec';
 import { decode } from '@/lib/profile/experienceCodec';
 import { readIndustryTag } from '@/lib/profile/readIndustryTag';
+import {
+  isSocialPlatformKey,
+  type SocialPlatformKey,
+} from '@/lib/profile/socialLinks';
 import { isSafeUrl } from '@/lib/url/isSafeUrl';
 import type { MentorProfileVO } from '@/types/user';
 
-type SocialPlatform =
-  'linkedin' | 'facebook' | 'instagram' | 'twitter' | 'youtube' | 'website';
-
-const SOCIAL_PLATFORMS: readonly SocialPlatform[] = [
-  'linkedin',
-  'facebook',
-  'instagram',
-  'twitter',
-  'youtube',
-  'website',
-];
-
 interface PublicPersonalLink {
-  platform: SocialPlatform;
+  platform: SocialPlatformKey;
   url: string;
 }
 
@@ -73,15 +65,15 @@ function pickCurrentJob(
 function pickPublicLinks(
   decodedLinks: ReturnType<typeof decode>['personalLinks']
 ): PublicPersonalLink[] {
-  const seen = new Set<SocialPlatform>();
+  const seen = new Set<SocialPlatformKey>();
   const result: PublicPersonalLink[] = [];
 
   for (const link of decodedLinks) {
-    const platform = link.platform as SocialPlatform | undefined;
+    const platform = link.platform;
     const url = link.url;
     if (
       platform &&
-      SOCIAL_PLATFORMS.includes(platform) &&
+      isSocialPlatformKey(platform) &&
       url &&
       isSafeUrl(url) &&
       !seen.has(platform)

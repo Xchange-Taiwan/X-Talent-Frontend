@@ -1,16 +1,19 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { fromPartial } from '@total-typescript/shoehorn';
 import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { UserType } from '@/hooks/user/user-data/useUserData';
+import type { PersonalLink } from '@/lib/profile/socialLinks';
 
 import ProfileCardUI from './ui';
 
+const mockProfileCard = vi.fn();
 vi.mock('@/components/profile/profile-card', () => ({
-  ProfileCard: ({ name }: { name: string }) => (
-    <div data-testid="profile-card">{name}</div>
-  ),
+  ProfileCard: (props: { name: string; personalLinks?: PersonalLink[] }) => {
+    mockProfileCard(props);
+    return <div data-testid="profile-card">{props.name}</div>;
+  },
 }));
 
 const mockUserData = fromPartial<UserType>({
@@ -23,21 +26,29 @@ const mockUserData = fromPartial<UserType>({
   want_topic: [],
   have_skill: [],
   have_topic: [],
-  personalLinks: [],
+  personalLinks: [{ platform: 'website', url: 'https://alicechen.dev' }],
   is_mentor: false,
 });
 
-describe('ProfileCardUI (#804)', () => {
-  it('renders localized Traditional Chinese subtitle and "成為導師" / "開始探索 X-Talent" buttons for mentees', () => {
+describe('ProfileCardUI (#804, #898)', () => {
+  beforeEach(() => {
+    mockProfileCard.mockClear();
+  });
+
+  it('renders localized Traditional Chinese subtitle, forwards personalLinks, and triggers mentee CTA buttons', () => {
     const onBecomeMentor = vi.fn();
     const onGoToMentorPool = vi.fn();
     const onBackToProfile = vi.fn();
+    const explicitLinks: PersonalLink[] = [
+      { platform: 'linkedin', url: 'https://linkedin.com/in/alice' },
+      { platform: 'twitter', url: 'https://x.com/alice' },
+    ];
 
     render(
       <ProfileCardUI
         userData={mockUserData}
         isMentor={false}
-        linkedinUrl="https://linkedin.com/in/alice"
+        personalLinks={explicitLinks}
         onBecomeMentor={onBecomeMentor}
         onGoToMentorPool={onGoToMentorPool}
         onBackToProfile={onBackToProfile}
@@ -53,6 +64,12 @@ describe('ProfileCardUI (#804)', () => {
         /Now you can explore mentors or build your mentor profile/i
       )
     ).not.toBeInTheDocument();
+    expect(mockProfileCard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Alice Chen',
+        personalLinks: explicitLinks,
+      })
+    );
 
     const becomeMentorBtn = screen.getByRole('button', { name: '成為導師' });
     const exploreBtn = screen.getByRole('button', {
@@ -66,7 +83,7 @@ describe('ProfileCardUI (#804)', () => {
     expect(onGoToMentorPool).toHaveBeenCalledTimes(1);
   });
 
-  it('renders mentor completion view and "返回我的個人頁面" button when isMentor is true', () => {
+  it('renders mentor completion view, falls back to userData.personalLinks when personalLinks prop is omitted, and handles back navigation', () => {
     const onBecomeMentor = vi.fn();
     const onGoToMentorPool = vi.fn();
     const onBackToProfile = vi.fn();
@@ -75,7 +92,6 @@ describe('ProfileCardUI (#804)', () => {
       <ProfileCardUI
         userData={{ ...mockUserData, is_mentor: true }}
         isMentor={true}
-        linkedinUrl="https://linkedin.com/in/alice"
         onBecomeMentor={onBecomeMentor}
         onGoToMentorPool={onGoToMentorPool}
         onBackToProfile={onBackToProfile}
@@ -86,6 +102,12 @@ describe('ProfileCardUI (#804)', () => {
     expect(
       screen.queryByRole('button', { name: '成為導師' })
     ).not.toBeInTheDocument();
+    expect(mockProfileCard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Alice Chen',
+        personalLinks: mockUserData.personalLinks,
+      })
+    );
 
     const backBtn = screen.getByRole('button', { name: '返回我的個人頁面' });
     fireEvent.click(backBtn);

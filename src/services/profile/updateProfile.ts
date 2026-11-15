@@ -2,7 +2,7 @@ import * as z from 'zod';
 
 import { formSchema } from '@/components/onboarding/steps';
 import { apiClient } from '@/lib/apiClient';
-import { MentorExperiencePayload } from '@/lib/profile/parseUserExperiences';
+import type { MentorExperiencePayload } from '@/lib/profile/experienceCodec';
 import { createProfileFormSchema } from '@/schemas/profileSchema';
 
 export const unionformSchema = z.union([

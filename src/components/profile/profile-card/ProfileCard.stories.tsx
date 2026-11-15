@@ -17,7 +17,11 @@ export const Mentor: Story = {
     avatarImgUrl: 'https://api.dicebear.com/7.x/adventurer/svg?seed=hana',
     jobTitle: 'Senior Frontend Engineer',
     company: 'Google',
-    linkedinUrl: 'https://www.linkedin.com/in/hana-lin',
+    personalLinks: [
+      { platform: 'linkedin', url: 'https://www.linkedin.com/in/hana-lin' },
+      { platform: 'twitter', url: 'https://x.com/hanalin' },
+      { platform: 'website', url: 'https://hanalin.dev' },
+    ],
     expertise: [
       { subject_group: 'fe-react', subject: 'React' },
       { subject_group: 'fe-ts', subject: 'TypeScript' },
@@ -40,7 +44,10 @@ export const Mentee: Story = {
     avatarImgUrl: 'https://api.dicebear.com/7.x/adventurer/svg?seed=alex',
     jobTitle: 'Junior Web Developer',
     company: 'Startup Studio',
-    linkedinUrl: 'https://www.linkedin.com/in/alex-chen',
+    personalLinks: [
+      { platform: 'linkedin', url: 'https://www.linkedin.com/in/alex-chen' },
+      { platform: 'instagram', url: 'https://www.instagram.com/alexchen' },
+    ],
     interestedRole: [
       { subject_group: 'want-fe', subject: 'Frontend Engineer' },
       { subject_group: 'want-fs', subject: 'Fullstack Engineer' },
@@ -55,5 +62,27 @@ export const Mentee: Story = {
       { subject_group: 'topic-comm', subject: '團隊溝通技巧' },
       { subject_group: 'topic-tech', subject: '技術選型' },
     ],
+  },
+};
+
+export const MultiPlatformLinks: Story = {
+  args: {
+    name: '林小華 Hana Lin',
+    avatarImgUrl: 'https://api.dicebear.com/7.x/adventurer/svg?seed=hana',
+    jobTitle: 'Senior Frontend Engineer',
+    company: 'Google',
+    personalLinks: [
+      { platform: 'linkedin', url: 'https://www.linkedin.com/in/hana-lin' },
+      { platform: 'facebook', url: 'https://www.facebook.com/hana-lin' },
+      { platform: 'instagram', url: 'https://www.instagram.com/hana.lin' },
+      { platform: 'twitter', url: 'https://x.com/hanalin' },
+      { platform: 'youtube', url: 'https://www.youtube.com/@hanalin' },
+      { platform: 'website', url: 'https://hanalin.dev' },
+    ],
+    expertise: [
+      { subject_group: 'fe-react', subject: 'React' },
+      { subject_group: 'fe-ts', subject: 'TypeScript' },
+    ],
+    whatIOffer: [{ subject_group: 'offer-career', subject: '職涯發展諮詢' }],
   },
 };

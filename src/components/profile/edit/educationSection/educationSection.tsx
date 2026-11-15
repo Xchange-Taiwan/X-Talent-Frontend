@@ -127,35 +127,25 @@ export function SchoolComboboxField({
 interface Props {
   form: ProfileFormContext;
   isMentor: boolean;
-  onValidationChange: (hasError: boolean) => void;
 }
 
-export const EducationSection = ({
-  form,
-  isMentor,
-  onValidationChange,
-}: Props) => {
+export const EducationSection = ({ form, isMentor }: Props) => {
   const {
     control,
+    getValues,
+    trigger,
     formState: { errors },
   } = form;
 
-  const { fields, move, isInvalidPeriod, tryAppend, remove } =
-    useRepeatablePeriodSection(
-      form,
-      {
-        arrayName: 'educations',
-        periodStartKey: 'education_period_start',
-        periodEndKey: 'education_period_end',
-        isIncompleteForAppend: (last) =>
-          !last?.subject ||
-          !last?.school ||
-          !last?.education_period_start ||
-          !last?.education_period_end,
-        incompleteAlertMessage: '請先完成上一筆教育資料再新增',
-      },
-      onValidationChange
-    );
+  const { fields, move, tryAppend, remove } = useRepeatablePeriodSection(form, {
+    arrayName: 'educations',
+    isIncompleteForAppend: (last) =>
+      !last?.subject ||
+      !last?.school ||
+      !last?.education_period_start ||
+      !last?.education_period_end,
+    incompleteAlertMessage: '請先完成上一筆教育資料再新增',
+  });
 
   const addEducation = () => {
     tryAppend({
@@ -169,142 +159,142 @@ export const EducationSection = ({
 
   return (
     <Section title="教育經歷" required={isMentor}>
-      {fields.map((field, index) => {
-        const invalidPeriod = isInvalidPeriod(index);
-
-        return (
-          <div key={field.id} className="mb-4 rounded-lg border p-4">
-            {fields.length > 1 && (
-              <div className="mb-4 flex justify-end gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  disabled={index === 0}
-                  onClick={() => move(index, index - 1)}
-                >
-                  <ChevronUpIcon className="size-5" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  disabled={index === fields.length - 1}
-                  onClick={() => move(index, index + 1)}
-                >
-                  <ChevronDownIcon className="size-5" />
-                </Button>
-              </div>
-            )}
-            <div className="mb-6 gap-6 md:flex">
-              <FormField
-                control={control}
-                name={`educations.${index}.subject`}
-                render={({ field }) => (
-                  <FormItem className="mb-4 grow md:mb-0">
-                    <FormLabel>主修</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={control}
-                name={`educations.${index}.school`}
-                render={({ field }) => <SchoolComboboxField field={field} />}
-              />
+      {fields.map((field, index) => (
+        <div key={field.id} className="mb-4 rounded-lg border p-4">
+          {fields.length > 1 && (
+            <div className="mb-4 flex justify-end gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                disabled={index === 0}
+                onClick={() => move(index, index - 1)}
+              >
+                <ChevronUpIcon className="size-5" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                disabled={index === fields.length - 1}
+                onClick={() => move(index, index + 1)}
+              >
+                <ChevronDownIcon className="size-5" />
+              </Button>
             </div>
-
-            <div className="mb-2 gap-2 md:flex md:basis-1/2">
-              <FormField
-                control={control}
-                name={`educations.${index}.education_period_start`}
-                render={({ field }) => (
-                  <FormItem className="mb-4 grow basis-1/2 md:mb-0">
-                    <FormLabel>開始年份</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="請選擇年份" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {YEAR_OPTIONS.map((year) => (
-                          <SelectItem key={year} value={year}>
-                            {year}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <p className="relative bottom-[-8px] mx-2 my-auto hidden text-center md:block">
-                ～
-              </p>
-              <p className="relative bottom-[-8px] mx-2 my-auto text-center text-sm md:hidden">
-                至
-              </p>
-              <FormField
-                control={control}
-                name={`educations.${index}.education_period_end`}
-                render={({ field }) => (
-                  <FormItem className="grow basis-1/2">
-                    <FormLabel className="invisible md:visible">
-                      &nbsp;
-                    </FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="請選擇年份" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="now">至今</SelectItem>
-                        {YEAR_OPTIONS.map((year) => (
-                          <SelectItem key={year} value={year}>
-                            {year}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {invalidPeriod && (
-              <p className="text-status-error-default mb-4 text-sm font-medium">
-                開始年份不可大於結束年份
-              </p>
-            )}
-
-            {fields.length > 1 && (
-              <ConfirmDialog
-                title="要刪除這筆學歷嗎?"
-                description="您確定要移除這個區塊嗎?"
-                onConfirm={() => remove(index)}
-                trigger={
-                  <Button variant="destructive">
-                    <TrashIcon className="mr-2 size-5" />
-                    移除
-                  </Button>
-                }
-              />
-            )}
+          )}
+          <div className="mb-6 gap-6 md:flex">
+            <FormField
+              control={control}
+              name={`educations.${index}.subject`}
+              render={({ field }) => (
+                <FormItem className="mb-4 grow md:mb-0">
+                  <FormLabel>主修</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name={`educations.${index}.school`}
+              render={({ field }) => <SchoolComboboxField field={field} />}
+            />
           </div>
-        );
-      })}
+
+          <div className="mb-2 gap-2 md:flex md:basis-1/2">
+            <FormField
+              control={control}
+              name={`educations.${index}.education_period_start`}
+              render={({ field }) => (
+                <FormItem className="mb-4 grow basis-1/2 md:mb-0">
+                  <FormLabel>開始年份</FormLabel>
+                  <Select
+                    onValueChange={(value) => {
+                      field.onChange(value);
+                      if (
+                        getValues(`educations.${index}.education_period_end`)
+                      ) {
+                        void trigger(
+                          `educations.${index}.education_period_end`
+                        );
+                      }
+                    }}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="請選擇年份" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {YEAR_OPTIONS.map((year) => (
+                        <SelectItem key={year} value={year}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <p className="relative bottom-[-8px] mx-2 my-auto hidden text-center md:block">
+              ～
+            </p>
+            <p className="relative bottom-[-8px] mx-2 my-auto text-center text-sm md:hidden">
+              至
+            </p>
+            <FormField
+              control={control}
+              name={`educations.${index}.education_period_end`}
+              render={({ field }) => (
+                <FormItem className="grow basis-1/2">
+                  <FormLabel className="invisible md:visible">&nbsp;</FormLabel>
+                  <Select
+                    onValueChange={(value) => {
+                      field.onChange(value);
+                      void trigger(`educations.${index}.education_period_end`);
+                    }}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="請選擇年份" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="now">至今</SelectItem>
+                      {YEAR_OPTIONS.map((year) => (
+                        <SelectItem key={year} value={year}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          {fields.length > 1 && (
+            <ConfirmDialog
+              title="要刪除這筆學歷嗎?"
+              description="您確定要移除這個區塊嗎?"
+              onConfirm={() => remove(index)}
+              trigger={
+                <Button variant="destructive">
+                  <TrashIcon className="mr-2 size-5" />
+                  移除
+                </Button>
+              }
+            />
+          )}
+        </div>
+      ))}
 
       <Button
         variant="ghost"
@@ -314,9 +304,9 @@ export const EducationSection = ({
         <PlusIcon className="mr-2 size-5" />
         新增
       </Button>
-      {errors.educations?.message && (
+      {(errors.educations?.message ?? errors.educations?.root?.message) && (
         <p className="text-status-error-default mt-2 text-sm font-medium">
-          {errors.educations?.message as string}
+          {errors.educations?.message ?? errors.educations?.root?.message}
         </p>
       )}
     </Section>

@@ -1,10 +1,16 @@
 import { hasAvatarVersionConverged } from '@/lib/avatar/avatarUrl';
-import { encode } from '@/lib/profile/experienceCodec';
 import {
-  MentorExperiencePayload,
+  encode,
+  type MentorExperiencePayload,
+  type PersonalLinkMetadata,
   toFormValues,
-} from '@/lib/profile/parseUserExperiences';
+} from '@/lib/profile/experienceCodec';
 import { readIndustryTag } from '@/lib/profile/readIndustryTag';
+import {
+  createEmptySocialLinks,
+  SOCIAL_PLATFORM_KEYS,
+  validatePlatformUrl,
+} from '@/lib/profile/socialLinks';
 import { defaultValues, ProfileFormValues } from '@/schemas/profileSchema';
 import type { IndustryOption } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
@@ -56,12 +62,7 @@ export function mapVoToFormValues(
     years_of_experience: userDto.years_of_experience || '',
     work_experiences: parsedExperiences || defaultValues.work_experiences,
     educations: parsedEducations || defaultValues.educations,
-    linkedin: parsedLinks.linkedin || defaultValues.linkedin,
-    facebook: parsedLinks.facebook || defaultValues.facebook,
-    instagram: parsedLinks.instagram || defaultValues.instagram,
-    twitter: parsedLinks.twitter || defaultValues.twitter,
-    youtube: parsedLinks.youtube || defaultValues.youtube,
-    website: parsedLinks.website || defaultValues.website,
+    links: parsedLinks ?? createEmptySocialLinks(),
     have_topic: userDto.have_topic ?? [],
     have_skill: userDto.have_skill ?? [],
     want_position: userDto.want_position ?? [],
@@ -71,7 +72,8 @@ export function mapVoToFormValues(
 }
 
 /**
- * Computes dirty states for profile fields based on React Hook Form's dirtyFields.
+ * Computes dirty states for profile fields based on React Hook Form's dirtyFields,
+ * deriving personal-link dirtiness directly from `SOCIAL_PLATFORM_SPECS`.
  */
 export function computeDirtyStates(
   values: ProfileFormValues,
@@ -85,13 +87,18 @@ export function computeDirtyStates(
 
   const workDirty = isDirty('work_experiences');
   const educationDirty = isDirty('educations');
-  const linksDirty =
-    isDirty('linkedin') ||
-    isDirty('facebook') ||
-    isDirty('instagram') ||
-    isDirty('twitter') ||
-    isDirty('youtube') ||
-    isDirty('website');
+
+  const rawLinksDirty = dirtyFields?.links;
+  const linksDirty = !dirtyFields
+    ? true
+    : typeof rawLinksDirty === 'boolean'
+      ? rawLinksDirty
+      : rawLinksDirty && typeof rawLinksDirty === 'object'
+        ? SOCIAL_PLATFORM_KEYS.some((platform) =>
+            hasDirtyValue((rawLinksDirty as Record<string, unknown>)[platform])
+          )
+        : false;
+
   const experiencesDirty = workDirty || educationDirty || linksDirty;
 
   const profileDirty =
@@ -115,17 +122,18 @@ export function computeDirtyStates(
 }
 
 /**
- * Filters and extracts the valid personal links that have a non-empty URL.
+ * Filters and extracts valid personal links directly from `SOCIAL_PLATFORM_SPECS`.
  */
-export function extractValidLinks(values: ProfileFormValues) {
-  return [
-    values.linkedin,
-    values.facebook,
-    values.instagram,
-    values.twitter,
-    values.youtube,
-    values.website,
-  ].filter((l) => l && l.url);
+export function extractValidLinks(
+  values: ProfileFormValues
+): PersonalLinkMetadata[] {
+  return SOCIAL_PLATFORM_KEYS.flatMap((platform) => {
+    const rawUrl = values.links?.[platform] ?? '';
+    if (!rawUrl.trim()) return [];
+    const validation = validatePlatformUrl(platform, rawUrl);
+    if (!validation.valid || !validation.normalizedUrl) return [];
+    return [{ platform, url: validation.normalizedUrl }];
+  });
 }
 
 /**
@@ -163,29 +171,33 @@ export function mapFormValuesToPayload(
 }
 
 /**
- * Resolves the optimistic enriched `industry` field for `MentorProfileVO`
- * against `industryCatalog`, avoiding copying a stale `currentIndustry.subject`
- * onto a newly edited `subject_group` code.
+ * Resolves the optimistic `MentorProfileVO['industry']` object from the selected
+ * `subject_group` code and localized industry catalog so navigating immediately
+ * to `/profile/[id]` renders the newly selected localized industry name instead
+ * of a stale subject or raw code.
  */
 export function resolveOptimisticIndustry(
-  industryCode: string | null | undefined,
-  industryCatalog?: readonly IndustryOption[],
-  currentIndustry?: MentorProfileVO['industry'] | null,
-  industryDirty?: boolean
+  industryCode: string | undefined,
+  industryCatalog: readonly IndustryOption[] | undefined,
+  currentIndustry: MentorProfileVO['industry'] | undefined,
+  industryDirty: boolean
 ): MentorProfileVO['industry'] {
   const normalizedCode = industryCode?.trim() ?? '';
   if (!normalizedCode) {
-    if (industryDirty) {
-      return null;
-    }
-    return currentIndustry ?? null;
+    return industryDirty
+      ? (null as unknown as MentorProfileVO['industry'])
+      : (currentIndustry ?? ({} as MentorProfileVO['industry']));
   }
 
   const existingTag = readIndustryTag(currentIndustry);
-  const isSameCode = existingTag?.subject_group === normalizedCode;
   const catalogMatch = industryCatalog?.find(
-    (option) => option.subject_group === normalizedCode
+    (item) => item.subject_group === normalizedCode
   );
+  const isSameCode = existingTag?.subject_group === normalizedCode;
+
+  if (isSameCode && !catalogMatch && currentIndustry) {
+    return currentIndustry;
+  }
 
   const resolvedSubject =
     catalogMatch?.subject ?? (isSameCode ? (existingTag?.subject ?? '') : '');

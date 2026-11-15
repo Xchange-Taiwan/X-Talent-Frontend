@@ -1,26 +1,30 @@
+import {
+  createEmptySocialLinks,
+  isSocialPlatformKey,
+  type SocialPlatformKey,
+  validatePlatformUrl,
+} from '@/lib/profile/socialLinks';
 import { isSafeUrl } from '@/lib/url/isSafeUrl';
 import { ExperienceType } from '@/services/profile/experienceType';
 
 // Wire shape for experiences. Mirrors the inline batch on
-// MentorProfileVO/DTO: backend stores them as JSONB[] on profiles.experiences.
-// No row id — each category packs its items in metadata.data.
+// MentorProfileVO/DTO: backend stores them as JSONB[] on profiles.experiences
+// where each element wraps its items under `mentor_experiences_metadata.data`.
 export interface MentorExperiencePayload {
-  category: ExperienceType | string;
+  id?: number;
+  category: string;
   mentor_experiences_metadata: Record<string, unknown>;
   order: number;
 }
 
-// Fields are guaranteed present (never undefined) on decode()'s output —
-// decode() fills every field with a safe default, so callers can consume
-// the result directly without re-declaring fallback logic of their own.
 export interface WorkExperienceMetadata {
   job: string;
   company: string;
   job_period_start: string;
   job_period_end: string;
+  industry: string;
   job_location: string;
   description: string;
-  industry: string;
   is_primary: boolean;
 }
 
@@ -42,12 +46,28 @@ export interface DecodedExperiences {
   personalLinks: PersonalLinkMetadata[];
 }
 
-// encode() tolerates partial per-item data (legacy rows, in-progress edits)
-// and fills the same wire defaults decode() does on the way back — so its
-// input is intentionally looser than decode()'s guaranteed output shape.
+export interface WorkExperienceFormValue extends WorkExperienceMetadata {
+  id: number;
+}
+
+export interface EducationFormValue extends EducationExperienceMetadata {
+  id: number;
+}
+
+export interface ExperienceFormValues {
+  workExperiences: WorkExperienceFormValue[];
+  educations: EducationFormValue[];
+  links: Record<SocialPlatformKey, string>;
+}
+
+// Encode accepts form-shaped work/education items directly: RHF's extra `id`
+// is stripped when mapping to metadata, and missing optional fields default
+// cleanly so callers don't have to pre-sanitize.
 export interface EncodeInput {
-  workExperiences: Partial<WorkExperienceMetadata>[];
-  educations: Partial<EducationExperienceMetadata>[];
+  workExperiences: Array<
+    Partial<WorkExperienceMetadata> & { job: string; company: string }
+  >;
+  educations: Array<Partial<EducationExperienceMetadata>>;
   personalLinks: PersonalLinkMetadata[];
 }
 
@@ -57,28 +77,37 @@ export interface EncodeResult {
   company: string;
 }
 
-type MentorExperienceMetadataBlock<T> = { data?: T[] };
-
 function getMetadataArray<T>(
   experiences: MentorExperiencePayload[] | undefined,
   category: ExperienceType
 ): T[] {
-  return (experiences ?? [])
-    .filter((e) => e.category === category)
-    .flatMap((e) => {
-      const metadata =
-        e.mentor_experiences_metadata as MentorExperienceMetadataBlock<T>;
-      return metadata?.data ?? [];
-    });
+  const found = experiences?.find((exp) => exp.category === category);
+  const rawData = found?.mentor_experiences_metadata?.data;
+  return Array.isArray(rawData) ? (rawData as T[]) : [];
 }
 
+/**
+ * Single decoder from wire `MentorExperiencePayload[]` into domain arrays.
+ *
+ * Encapsulates every read-side invariant in one place:
+ * - Single work experience with no `is_primary` flag defaults to primary
+ *   (legacy records predate the flag).
+ * - Personal link URLs pass `isSafeUrl` so `javascript:` / `data:` schemes
+ *   stored in the DB never reach an `<a href>`.
+ * - Missing fields fall back to empty strings so UI/form consumers never see
+ *   `undefined`.
+ */
 export function decode(
   experiences: MentorExperiencePayload[] | undefined
 ): DecodedExperiences {
-  const workExperiences = getMetadataArray<Partial<WorkExperienceMetadata>>(
+  const rawWork = getMetadataArray<Partial<WorkExperienceMetadata> | null>(
     experiences,
     ExperienceType.WORK
-  ).map((item) => ({
+  ).filter((item): item is Partial<WorkExperienceMetadata> =>
+    Boolean(item && typeof item === 'object')
+  );
+
+  const workExperiences: WorkExperienceMetadata[] = rawWork.map((item) => ({
     job: item.job || '',
     company: item.company || '',
     job_period_start: item.job_period_start || '',
@@ -89,55 +118,88 @@ export function decode(
     is_primary: item.is_primary ?? false,
   }));
 
-  // Self-healing invariant: legacy data with no work experience flagged
-  // primary falls back to the first entry, matching the JobExperienceSection
-  // UI. Only kicks in when nothing is already marked primary.
   if (
-    workExperiences.length > 0 &&
+    workExperiences.length === 1 &&
     !workExperiences.some((w) => w.is_primary)
   ) {
     workExperiences[0].is_primary = true;
   }
 
-  const educations = getMetadataArray<Partial<EducationExperienceMetadata>>(
-    experiences,
-    ExperienceType.EDUCATION
-  ).map((item) => ({
-    subject: item.subject || '',
-    school: item.school || '',
-    education_period_start: item.education_period_start || '',
-    education_period_end: item.education_period_end || '',
-  }));
+  const educations: EducationExperienceMetadata[] =
+    getMetadataArray<Partial<EducationExperienceMetadata> | null>(
+      experiences,
+      ExperienceType.EDUCATION
+    )
+      .filter((item): item is Partial<EducationExperienceMetadata> =>
+        Boolean(item && typeof item === 'object')
+      )
+      .map((item) => ({
+        subject: item.subject || '',
+        school: item.school || '',
+        education_period_start: item.education_period_start || '',
+        education_period_end: item.education_period_end || '',
+      }));
 
-  // isSafeUrl blocks javascript:/data:/etc. Applied here (not per-caller) so
-  // both the display path and the RHF edit form get the same protection —
-  // profiles can be written directly via BFF calls, bypassing the form's own
-  // URL validation.
-  const personalLinks = getMetadataArray<PersonalLinkMetadata>(
-    experiences,
-    ExperienceType.LINK
-  )
-    .map((item) => ({ platform: item.platform, url: item.url || '' }))
-    .filter((link) => isSafeUrl(link.url));
+  const personalLinks: PersonalLinkMetadata[] =
+    getMetadataArray<Partial<PersonalLinkMetadata> | null>(
+      experiences,
+      ExperienceType.LINK
+    )
+      .filter((item): item is Partial<PersonalLinkMetadata> =>
+        Boolean(item && typeof item === 'object')
+      )
+      .map((item) => ({
+        platform:
+          typeof item.platform === 'string'
+            ? item.platform.trim().toLowerCase()
+            : '',
+        url: typeof item.url === 'string' ? item.url.trim() : '',
+      }))
+      .filter((link) => Boolean(link.platform) && isSafeUrl(link.url));
 
   return { workExperiences, educations, personalLinks };
 }
 
-export function encode({
-  workExperiences,
-  educations,
-  personalLinks,
-}: EncodeInput): EncodeResult {
-  // Mentor's top-level job_title / company mirror the primary work
-  // experience so consumers (profile page, mentor pool card, reservations)
-  // can read them directly without re-deriving from the experience list.
-  // Falls back to the first entry when none is flagged primary; empty
-  // strings (not undefined) when there are no work experiences at all, so
-  // the backend clears stale values rather than leaving them untouched.
-  const primaryWork =
-    workExperiences.find((w) => w.is_primary) ?? workExperiences[0];
-  const job_title = primaryWork?.job ?? '';
-  const company = primaryWork?.company ?? '';
+/**
+ * Adapts decoded domain experiences into React Hook Form input values:
+ * - Injects synthetic `id` (array index) on repeatable rows for `useFieldArray`.
+ * - Maps flat `personalLinks` into `Record<SocialPlatformKey, string>` with
+ *   platform domain validation and last-writer-wins semantics.
+ */
+export function toFormValues(
+  experiences: MentorExperiencePayload[] | undefined
+): ExperienceFormValues {
+  const { workExperiences, educations, personalLinks } = decode(experiences);
+
+  const links = createEmptySocialLinks();
+  for (const link of personalLinks) {
+    if (isSocialPlatformKey(link.platform)) {
+      const validation = validatePlatformUrl(link.platform, link.url);
+      if (validation.valid && validation.normalizedUrl) {
+        links[link.platform] = validation.normalizedUrl;
+      }
+    }
+  }
+
+  return {
+    workExperiences: workExperiences.map((item, idx) => ({ id: idx, ...item })),
+    educations: educations.map((item, idx) => ({ id: idx, ...item })),
+    links,
+  };
+}
+
+/**
+ * Symmetric encoder: builds the three-category `experiences` batch for
+ * `PUT /v1/mentors/{id}/profile` and derives the canonical `job_title` /
+ * `company` mirrored onto the top-level profile record from the primary work
+ * experience (empty strings when none is marked primary, so clearing works).
+ */
+export function encode(input: EncodeInput): EncodeResult {
+  const { workExperiences, educations, personalLinks } = input;
+
+  const primary = workExperiences.find((w) => w.is_primary);
+  const job_title = primary?.job ?? '';
+  const company = primary?.company ?? '';
 
   const experiences: MentorExperiencePayload[] = [
     {
@@ -147,11 +209,11 @@ export function encode({
         data: workExperiences.map((item) => ({
           job: item.job,
           company: item.company,
-          job_period_start: item.job_period_start,
-          job_period_end: item.job_period_end,
-          industry: item.industry,
-          job_location: item.job_location,
-          description: item.description,
+          job_period_start: item.job_period_start ?? '',
+          job_period_end: item.job_period_end ?? '',
+          industry: item.industry ?? '',
+          job_location: item.job_location ?? '',
+          description: item.description ?? '',
           is_primary: item.is_primary ?? false,
         })),
       },
@@ -160,11 +222,11 @@ export function encode({
       category: ExperienceType.EDUCATION,
       order: 2,
       mentor_experiences_metadata: {
-        data: educations.map((item) => ({
-          school: item.school,
-          subject: item.subject,
-          education_period_start: item.education_period_start,
-          education_period_end: item.education_period_end,
+        data: educations.map((edu) => ({
+          subject: edu.subject ?? '',
+          school: edu.school ?? '',
+          education_period_start: edu.education_period_start ?? '',
+          education_period_end: edu.education_period_end ?? '',
         })),
       },
     },

@@ -1,35 +1,31 @@
 import { fireEvent, render, waitFor } from '@testing-library/react';
+import { fromAny, fromPartial } from '@total-typescript/shoehorn';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ExperienceType } from '@/services/profile/experienceType';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
-import { MentorProfileVO } from '@/types/user';
+import type { MentorProfileVO } from '@/types/user';
 
-// mock navigate & searchParams
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
   useSearchParams: () => ({ get: vi.fn().mockReturnValue(null) }),
 }));
 
-// mock session
 vi.mock('next-auth/react', () => ({
-  useSession: () => ({ data: { user: { id: '1' } }, update: vi.fn() }),
+  useSession: () => ({
+    data: { user: { id: '1' } },
+    status: 'authenticated',
+    update: vi.fn(),
+  }),
 }));
 
-// mock other hooks to isolate our container test
-const mockUseEditProfileData = vi.fn().mockReturnValue({
-  userDto: { user_id: 1, name: 'Test User' } as unknown as MentorProfileVO,
-  isMentor: false,
-  isError: false,
-});
+const mockUseEditProfileData = vi.fn();
 vi.mock('@/hooks/user/profile/useEditProfileData', () => ({
   useEditProfileData: () => mockUseEditProfileData(),
 }));
 
-const mockUseProfileSubmit = vi.fn().mockReturnValue({
-  onSubmit: vi.fn(),
-  isSaving: false,
-});
+const mockUseProfileSubmit = vi.fn();
 vi.mock('@/hooks/user/profile/useProfileSubmit', () => ({
   useProfileSubmit: () => mockUseProfileSubmit(),
 }));
@@ -66,22 +62,6 @@ vi.mock('@/hooks/user/tags/useTagCatalog', () => ({
   }),
 }));
 
-// Mock the form hook to bypass dynamic validations & directly invoke the onSuccess submit handler
-const mockForm = {
-  reset: vi.fn(),
-  control: {},
-  formState: { dirtyFields: {} },
-  handleSubmit: vi.fn().mockImplementation((onSuccess) => (e: unknown) => {
-    const ev = e as { preventDefault?: () => void } | undefined;
-    if (ev && ev.preventDefault) ev.preventDefault();
-    return onSuccess({});
-  }),
-};
-vi.mock('@/hooks/user/profile/useEditProfileForm', () => ({
-  useEditProfileForm: () => ({ form: mockForm }),
-}));
-
-// Mock the child sections so the form renders with zero issues
 vi.mock('@/components/profile/edit/EditPageHeader', () => ({
   EditPageHeader: () => <div data-testid="edit-header" />,
 }));
@@ -104,39 +84,12 @@ vi.mock('@/components/profile/edit/Section', () => ({
     <div id={id}>{children}</div>
   ),
 }));
-
 vi.mock('@/components/profile/edit/JobExperienceSection', () => ({
-  JobExperienceSection: ({
-    onValidationChange,
-  }: {
-    onValidationChange: (err: boolean) => void;
-  }) => (
-    <button
-      type="button"
-      data-testid="trigger-job-error"
-      onClick={() => onValidationChange(true)}
-    >
-      Trigger Job Error
-    </button>
-  ),
+  JobExperienceSection: () => <div data-testid="job-experience-section" />,
 }));
-
 vi.mock('@/components/profile/edit/educationSection/educationSection', () => ({
-  EducationSection: ({
-    onValidationChange,
-  }: {
-    onValidationChange: (err: boolean) => void;
-  }) => (
-    <button
-      type="button"
-      data-testid="trigger-edu-error"
-      onClick={() => onValidationChange(true)}
-    >
-      Trigger Edu Error
-    </button>
-  ),
+  EducationSection: () => <div data-testid="education-section" />,
 }));
-
 vi.mock('@/components/profile/edit/LinkSection', () => ({
   LinksSection: ({ id }: { id?: string }) => (
     <div id={id} data-testid="links-section" />
@@ -145,16 +98,58 @@ vi.mock('@/components/profile/edit/LinkSection', () => ({
 
 import EditProfileContainer from './container';
 
-describe('EditProfileContainer section validation guards (Isolated)', () => {
+const emptyCatalog = fromPartial<TagCatalogsByBucket>({});
+
+function createValidBaseUserDto(
+  experiences: MentorProfileVO['experiences']
+): MentorProfileVO {
+  return fromPartial<MentorProfileVO>({
+    user_id: 1,
+    name: 'Test User',
+    location: 'TWN',
+    years_of_experience: '1_3',
+    is_mentor: false,
+    want_position: ['frontend'],
+    want_skill: ['typescript'],
+    want_topic: ['career'],
+    experiences,
+  });
+}
+
+describe('EditProfileContainer schema-driven period validation & scroll guards', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('stops submission and scrolls to work_experiences if jobSectionError is true', async () => {
+  it('stops submission and scrolls to work_experiences when a work experience has start > end period', async () => {
     const mockOnSubmit = vi.fn();
     mockUseProfileSubmit.mockReturnValue({
       onSubmit: mockOnSubmit,
       isSaving: false,
+    });
+    mockUseEditProfileData.mockReturnValue({
+      userDto: createValidBaseUserDto([
+        {
+          category: ExperienceType.WORK,
+          order: 1,
+          mentor_experiences_metadata: fromAny({
+            data: [
+              {
+                job: 'Engineer',
+                company: 'Acme',
+                job_period_start: '2025',
+                job_period_end: '2021',
+                industry: 'TECH',
+                job_location: 'TWN',
+                description: 'Building systems',
+                is_primary: true,
+              },
+            ],
+          }),
+        },
+      ]),
+      isMentor: false,
+      isError: false,
     });
 
     const scrolledIds: string[] = [];
@@ -162,32 +157,49 @@ describe('EditProfileContainer section validation guards (Isolated)', () => {
       if (this.id) scrolledIds.push(this.id);
     };
 
-    const { getByTestId, container } = render(
-      <EditProfileContainer
-        pageUserId="1"
-        initialTagCatalog={{} as unknown as TagCatalogsByBucket}
-      />
+    const { container } = render(
+      <EditProfileContainer pageUserId="1" initialTagCatalog={emptyCatalog} />
     );
 
-    const triggerBtn = await waitFor(() => getByTestId('trigger-job-error'));
-    fireEvent.click(triggerBtn);
+    const formEl = await waitFor(() => {
+      const el = container.querySelector('form');
+      expect(el).not.toBeNull();
+      return el!;
+    });
 
-    const formEl = container.querySelector('form');
-    expect(formEl).not.toBeNull();
-    fireEvent.submit(formEl!);
+    fireEvent.submit(formEl);
 
     await waitFor(() => {
       expect(scrolledIds).toContain('work_experiences');
     });
-
     expect(mockOnSubmit).not.toHaveBeenCalled();
   });
 
-  it('stops submission and scrolls to educations if educationSectionError is true', async () => {
+  it('stops submission and scrolls to educations when an education entry has start > end period', async () => {
     const mockOnSubmit = vi.fn();
     mockUseProfileSubmit.mockReturnValue({
       onSubmit: mockOnSubmit,
       isSaving: false,
+    });
+    mockUseEditProfileData.mockReturnValue({
+      userDto: createValidBaseUserDto([
+        {
+          category: ExperienceType.EDUCATION,
+          order: 2,
+          mentor_experiences_metadata: fromAny({
+            data: [
+              {
+                subject: '資訊工程學系',
+                school: '國立臺灣大學',
+                education_period_start: '2025',
+                education_period_end: '2021',
+              },
+            ],
+          }),
+        },
+      ]),
+      isMentor: false,
+      isError: false,
     });
 
     const scrolledIds: string[] = [];
@@ -195,24 +207,21 @@ describe('EditProfileContainer section validation guards (Isolated)', () => {
       if (this.id) scrolledIds.push(this.id);
     };
 
-    const { getByTestId, container } = render(
-      <EditProfileContainer
-        pageUserId="1"
-        initialTagCatalog={{} as unknown as TagCatalogsByBucket}
-      />
+    const { container } = render(
+      <EditProfileContainer pageUserId="1" initialTagCatalog={emptyCatalog} />
     );
 
-    const triggerBtn = await waitFor(() => getByTestId('trigger-edu-error'));
-    fireEvent.click(triggerBtn);
+    const formEl = await waitFor(() => {
+      const el = container.querySelector('form');
+      expect(el).not.toBeNull();
+      return el!;
+    });
 
-    const formEl = container.querySelector('form');
-    expect(formEl).not.toBeNull();
-    fireEvent.submit(formEl!);
+    fireEvent.submit(formEl);
 
     await waitFor(() => {
       expect(scrolledIds).toContain('educations');
     });
-
     expect(mockOnSubmit).not.toHaveBeenCalled();
   });
 });

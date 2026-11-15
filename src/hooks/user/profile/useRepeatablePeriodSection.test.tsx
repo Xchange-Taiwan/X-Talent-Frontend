@@ -1,35 +1,39 @@
 import { act, renderHook } from '@testing-library/react';
 import { useForm } from 'react-hook-form';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useToast } from '@/components/ui/use-toast';
-import { ProfileFormInput, ProfileFormValues } from '@/schemas/profileSchema';
+import {
+  defaultValues,
+  type ProfileFormInput,
+  type ProfileFormValues,
+} from '@/schemas/profileSchema';
 
 import {
-  RepeatablePeriodConfig,
+  type RepeatablePeriodConfig,
   useRepeatablePeriodSection,
   YEAR_OPTIONS,
 } from './useRepeatablePeriodSection';
 
-vi.mock('@/components/ui/use-toast', () => {
-  const toastMock = vi.fn();
-  return {
-    useToast: () => ({
-      toast: toastMock,
-    }),
-  };
-});
+const toastMock = vi.fn();
+
+vi.mock('@/components/ui/use-toast', () => ({
+  useToast: () => ({
+    toast: toastMock,
+  }),
+}));
 
 describe('useRepeatablePeriodSection', () => {
-  const setupHook = (
+  beforeEach(() => {
+    toastMock.mockClear();
+  });
+
+  const setupWorkHook = (
     initialValues: Partial<ProfileFormValues> = {},
-    config: Partial<RepeatablePeriodConfig<'work_experiences'>> = {},
-    onValidationChange = vi.fn()
+    config: Partial<RepeatablePeriodConfig<'work_experiences'>> = {}
   ) => {
     const defaultConfig: RepeatablePeriodConfig<'work_experiences'> = {
       arrayName: 'work_experiences',
-      periodStartKey: 'job_period_start',
-      periodEndKey: 'job_period_end',
       isIncompleteForAppend: (last) =>
         !last?.job ||
         !last?.company ||
@@ -43,46 +47,29 @@ describe('useRepeatablePeriodSection', () => {
     const { result } = renderHook(() => {
       const form = useForm<ProfileFormInput, unknown, ProfileFormValues>({
         defaultValues: {
-          work_experiences: [],
+          ...defaultValues,
           ...initialValues,
-        } as unknown as ProfileFormInput,
+        },
       });
-      const hookResult = useRepeatablePeriodSection(
-        form,
-        finalConfig,
-        onValidationChange
-      );
+      const hookResult = useRepeatablePeriodSection(form, finalConfig);
       return { hookResult, form };
     });
 
     return result;
   };
 
-  it('exports correct static YEAR_OPTIONS', () => {
+  it('exports descending YEAR_OPTIONS from current year down to 1940', () => {
     const currentYear = new Date().getFullYear();
-    expect(YEAR_OPTIONS).toContain(currentYear.toString());
-    expect(YEAR_OPTIONS).toContain('1940');
+    expect(YEAR_OPTIONS[0]).toBe(currentYear.toString());
+    expect(YEAR_OPTIONS[YEAR_OPTIONS.length - 1]).toBe('1940');
+    expect(YEAR_OPTIONS).toHaveLength(currentYear - 1940 + 1);
   });
 
-  it('handles field appending, removal, and moving', () => {
-    const result = setupHook({
-      work_experiences: [
-        {
-          id: 1,
-          job: 'Engineer',
-          company: 'Xchange',
-          job_period_start: '2020',
-          job_period_end: '2021',
-          industry: 'Tech',
-          job_location: 'TWN',
-          description: '',
-        } as unknown as ProfileFormValues['work_experiences'][number],
-      ],
-    });
+  it('appends directly when the field array is initially empty', () => {
+    const result = setupWorkHook({ work_experiences: [] });
 
-    expect(result.current.hookResult.fields).toHaveLength(1);
+    expect(result.current.hookResult.fields).toHaveLength(0);
 
-    // Try appending when the last one is complete
     act(() => {
       result.current.hookResult.tryAppend({
         id: -1,
@@ -93,27 +80,68 @@ describe('useRepeatablePeriodSection', () => {
         industry: '',
         job_location: 'TWN',
         description: '',
-      } as unknown as ProfileFormValues['work_experiences'][number]);
+        is_primary: true,
+      });
+    });
+
+    expect(toastMock).not.toHaveBeenCalled();
+    expect(result.current.hookResult.fields).toHaveLength(1);
+  });
+
+  it('handles field appending, moving, and removal when the previous item is complete', () => {
+    const result = setupWorkHook({
+      work_experiences: [
+        {
+          id: 1,
+          job: 'Engineer',
+          company: 'XChange',
+          job_period_start: '2020',
+          job_period_end: '2021',
+          industry: 'Tech',
+          job_location: 'TWN',
+          description: 'Backend',
+          is_primary: true,
+        },
+      ],
+    });
+
+    expect(result.current.hookResult.fields).toHaveLength(1);
+
+    act(() => {
+      result.current.hookResult.tryAppend({
+        id: -1,
+        job: 'Lead Engineer',
+        company: 'Acme',
+        job_period_start: '2022',
+        job_period_end: 'now',
+        industry: 'Tech',
+        job_location: 'TWN',
+        description: 'Platform',
+        is_primary: false,
+      });
     });
 
     expect(result.current.hookResult.fields).toHaveLength(2);
 
-    // Swap fields via move
     act(() => {
       result.current.hookResult.move(0, 1);
     });
+    expect(result.current.form.getValues('work_experiences.0.job')).toBe(
+      'Lead Engineer'
+    );
 
-    // Remove field
     act(() => {
       result.current.hookResult.remove(0);
     });
-
     expect(result.current.hookResult.fields).toHaveLength(1);
+    expect(result.current.form.getValues('work_experiences.0.job')).toBe(
+      'Engineer'
+    );
   });
 
-  it('triggers toast on tryAppend if the last entry is incomplete', () => {
+  it('triggers destructive toast on tryAppend if the last entry is incomplete', () => {
     const { toast } = useToast();
-    const result = setupHook({
+    const result = setupWorkHook({
       work_experiences: [
         {
           id: 1,
@@ -124,7 +152,8 @@ describe('useRepeatablePeriodSection', () => {
           industry: 'Tech',
           job_location: 'TWN',
           description: '',
-        } as unknown as ProfileFormValues['work_experiences'][number],
+          is_primary: true,
+        },
       ],
     });
 
@@ -138,7 +167,8 @@ describe('useRepeatablePeriodSection', () => {
         industry: '',
         job_location: 'TWN',
         description: '',
-      } as unknown as ProfileFormValues['work_experiences'][number]);
+        is_primary: false,
+      });
     });
 
     expect(toast).toHaveBeenCalledWith({
@@ -146,71 +176,5 @@ describe('useRepeatablePeriodSection', () => {
       description: 'Please complete the last job',
     });
     expect(result.current.hookResult.fields).toHaveLength(1);
-  });
-
-  it('validates period and calls onValidationChange', () => {
-    const onValidationChange = vi.fn();
-    const result = setupHook(
-      {
-        work_experiences: [
-          {
-            id: 1,
-            job: 'Engineer',
-            company: 'X',
-            job_period_start: '2022',
-            job_period_end: '2021',
-          } as unknown as ProfileFormValues['work_experiences'][number],
-        ],
-      },
-      {},
-      onValidationChange
-    );
-
-    expect(onValidationChange).toHaveBeenCalledWith(true);
-    expect(result.current.hookResult.isInvalidPeriod(0)).toBe(true);
-  });
-
-  it('allows "now" as a valid end period without triggering error', () => {
-    const onValidationChange = vi.fn();
-    const result = setupHook(
-      {
-        work_experiences: [
-          {
-            id: 1,
-            job: 'Engineer',
-            company: 'X',
-            job_period_start: '2022',
-            job_period_end: 'now',
-          } as unknown as ProfileFormValues['work_experiences'][number],
-        ],
-      },
-      {},
-      onValidationChange
-    );
-
-    expect(onValidationChange).toHaveBeenCalledWith(false);
-    expect(result.current.hookResult.isInvalidPeriod(0)).toBe(false);
-  });
-
-  it('allows valid sequential year periods without triggering error', () => {
-    const onValidationChange = vi.fn();
-    const result = setupHook(
-      {
-        work_experiences: [
-          {
-            id: 1,
-            job: 'Engineer',
-            company: 'X',
-            job_period_start: '2020',
-            job_period_end: '2025',
-          } as unknown as ProfileFormValues['work_experiences'][number],
-        ],
-      },
-      {},
-      onValidationChange
-    );
-
-    expect(onValidationChange).toHaveBeenCalledWith(false);
-    expect(result.current.hookResult.isInvalidPeriod(0)).toBe(false);
   });
 });

@@ -7,6 +7,7 @@ import {
   encode,
   type EncodeInput,
   type MentorExperiencePayload,
+  toFormValues,
 } from './experienceCodec';
 
 function payloadFor(
@@ -172,5 +173,40 @@ describe('experienceCodec', () => {
       experiences.find((e) => e.category === ExperienceType.WORK)
         ?.mentor_experiences_metadata.data
     ).toEqual([]);
+  });
+
+  it('toFormValues: normalizes legacy casing, applies last-writer-wins per platform, and drops lookalike hosts or malformed entries', () => {
+    const experiences = [
+      payloadFor(ExperienceType.WORK, [
+        null,
+        { job: 'Engineer', company: 'Acme' },
+      ]),
+      payloadFor(ExperienceType.LINK, [
+        null,
+        { url: 'https://example.com/missing-platform' },
+        { platform: 'LinkedIn', url: 'https://linkedin.com/in/first' },
+        { platform: 'linkedin', url: 'https://www.linkedin.com/in/latest' },
+        { platform: 'linkedin', url: 'https://evil-linkedin.com/in/ignored' },
+        { platform: 'website', url: 'https://portfolio.example.com' },
+      ]),
+    ];
+
+    const formValues = toFormValues(experiences);
+
+    expect(formValues.workExperiences).toHaveLength(1);
+    expect(formValues.workExperiences[0]).toMatchObject({
+      id: 0,
+      job: 'Engineer',
+      company: 'Acme',
+      is_primary: true,
+    });
+    expect(formValues.links).toEqual({
+      linkedin: 'https://www.linkedin.com/in/latest',
+      facebook: '',
+      instagram: '',
+      twitter: '',
+      youtube: '',
+      website: 'https://portfolio.example.com',
+    });
   });
 });

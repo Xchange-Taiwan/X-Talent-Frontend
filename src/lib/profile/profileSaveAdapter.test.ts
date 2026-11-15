@@ -150,14 +150,54 @@ describe('profileSaveAdapter', () => {
       expect(result.years_of_experience).toBe('');
       expect(result.work_experiences).toEqual([]);
       expect(result.educations).toEqual([]);
-      expect(result.linkedin.url).toBe('');
-      expect(result.facebook.url).toBe('');
-      expect(result.instagram.url).toBe('');
-      expect(result.twitter.url).toBe('');
-      expect(result.youtube.url).toBe('');
-      expect(result.website.url).toBe('');
+      expect(result.links).toEqual({
+        linkedin: '',
+        facebook: '',
+        instagram: '',
+        twitter: '',
+        youtube: '',
+        website: '',
+      });
       expect(result.have_topic).toEqual([]);
       expect(result.have_skill).toEqual([]);
+    });
+
+    it('hydrates valid social links into result.links while dropping mismatched-host or unsafe URLs', () => {
+      const voWithLinks = fromPartial<MentorProfileVO>({
+        ...mockVo,
+        experiences: [
+          {
+            category: 'LINK',
+            order: 3,
+            mentor_experiences_metadata: fromAny({
+              data: [
+                {
+                  platform: 'linkedin',
+                  url: 'https://www.linkedin.com/in/john',
+                },
+                {
+                  platform: 'twitter',
+                  url: 'https://evil-twitter.com/john',
+                },
+                {
+                  platform: 'website',
+                  url: 'https://johndoe.dev',
+                },
+              ],
+            }),
+          },
+        ],
+      });
+
+      const result = mapVoToFormValues(voWithLinks, false);
+      expect(result.links).toEqual({
+        linkedin: 'https://www.linkedin.com/in/john',
+        facebook: '',
+        instagram: '',
+        twitter: '',
+        youtube: '',
+        website: 'https://johndoe.dev',
+      });
     });
   });
 
@@ -206,9 +246,9 @@ describe('profileSaveAdapter', () => {
       expect(profileDirty).toBe(true);
     });
 
-    it('returns experiencesDirty and profileDirty as true when a single social link is dirty', () => {
+    it('returns experiencesDirty and profileDirty as true when a single social link in links is dirty', () => {
       const dirtyFields = {
-        linkedin: true,
+        links: { linkedin: true },
       };
       const { experiencesDirty, profileDirty } = computeDirtyStates(
         mockValues,
@@ -217,6 +257,18 @@ describe('profileSaveAdapter', () => {
       );
       expect(experiencesDirty).toBe(true);
       expect(profileDirty).toBe(true);
+
+      expect(
+        computeDirtyStates(mockValues, { links: { linkedin: false } }, false)
+      ).toEqual({
+        experiencesDirty: false,
+        profileDirty: false,
+      });
+
+      expect(computeDirtyStates(mockValues, { links: true }, false)).toEqual({
+        experiencesDirty: true,
+        profileDirty: true,
+      });
     });
   });
 
@@ -253,16 +305,16 @@ describe('profileSaveAdapter', () => {
       expect(payload.experiences).toHaveLength(3);
     });
 
-    it('filters out invalid/empty personal links', () => {
+    it('normalizes scheme-omitted personal links and filters out empty or host-mismatched links', () => {
       const mockValues: ProfileFormValues = {
         ...defaultValues,
         industry: defaultValues.industry ?? '',
-        linkedin: {
-          id: 1,
-          platform: 'linkedin',
-          url: 'https://linkedin.com/in/bob',
+        links: {
+          ...defaultValues.links,
+          linkedin: 'linkedin.com/in/bob',
+          facebook: '',
+          instagram: 'https://evil-instagram.com/bob',
         },
-        facebook: { id: 2, platform: 'facebook', url: '' },
       };
 
       const payload = mapFormValuesToPayload(mockValues, undefined, true);
