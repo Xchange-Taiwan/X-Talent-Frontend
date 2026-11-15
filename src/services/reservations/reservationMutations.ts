@@ -28,7 +28,10 @@ import type {
 } from '@/types/reservationFeedback';
 
 import {
-  invalidateReservationRead,
+  refreshMentorScheduleForReservation,
+  refreshReservationKey,
+} from './refreshReservationKey';
+import {
   postReservationFeedback,
   putReservationFeedback,
   type ReservationState,
@@ -210,7 +213,17 @@ export async function acceptReservation({
         'pending',
         'upcoming',
         'history',
-      ]).forEach(invalidateReservationRead);
+      ]).forEach((key) => {
+        void refreshReservationKey(key);
+      });
+      const conflictMentorId =
+        myRole === 'mentor'
+          ? myUserId
+          : resolveCounterpartyId(reservation, myUserId);
+      void refreshMentorScheduleForReservation(
+        conflictMentorId,
+        reservation.dtstart
+      );
     }
     throw err;
   }
@@ -221,13 +234,20 @@ export async function acceptReservation({
 
   // Optimistically remove the item from both parties' PENDING slices first,
   // then invalidate/refresh PENDING + UPCOMING across unscoped and
-  // month-scoped slices.
+  // month-scoped slices, and synchronize the affected mentor schedule month.
   affectedKeys(reservation, myUserId, myRole, ['pending']).forEach((key) =>
     reservationReadModel.evictItem(key, reservation.id)
   );
   affectedKeys(reservation, myUserId, myRole, ['pending', 'upcoming']).forEach(
-    invalidateReservationRead
+    (key) => {
+      void refreshReservationKey(key);
+    }
   );
+  const acceptMentorId =
+    myRole === 'mentor'
+      ? myUserId
+      : resolveCounterpartyId(reservation, myUserId);
+  void refreshMentorScheduleForReservation(acceptMentorId, reservation.dtstart);
 }
 
 export interface RejectOrCancelParams {
@@ -263,7 +283,17 @@ export async function rejectOrCancelReservation({
         'pending',
         'upcoming',
         'history',
-      ]).forEach(invalidateReservationRead);
+      ]).forEach((key) => {
+        void refreshReservationKey(key);
+      });
+      const conflictMentorId =
+        myRole === 'mentor'
+          ? myUserId
+          : resolveCounterpartyId(reservation, myUserId);
+      void refreshMentorScheduleForReservation(
+        conflictMentorId,
+        reservation.dtstart
+      );
     }
     throw err;
   }
@@ -273,7 +303,8 @@ export async function rejectOrCancelReservation({
   if (!myUserId) return;
 
   // Optimistically remove the item from PENDING + UPCOMING source slices, then
-  // invalidate/refresh PENDING + UPCOMING + HISTORY for both parties.
+  // invalidate/refresh PENDING + UPCOMING + HISTORY for both parties and
+  // synchronize the affected mentor schedule month.
   affectedKeys(reservation, myUserId, myRole, ['pending', 'upcoming']).forEach(
     (key) => reservationReadModel.evictItem(key, reservation.id)
   );
@@ -281,7 +312,14 @@ export async function rejectOrCancelReservation({
     'pending',
     'upcoming',
     'history',
-  ]).forEach(invalidateReservationRead);
+  ]).forEach((key) => {
+    void refreshReservationKey(key);
+  });
+  const targetMentorId =
+    myRole === 'mentor'
+      ? myUserId
+      : resolveCounterpartyId(reservation, myUserId);
+  void refreshMentorScheduleForReservation(targetMentorId, reservation.dtstart);
 }
 
 export interface FeedbackMutationTransport {
@@ -366,7 +404,9 @@ export async function submitReservationFeedback(
     if (err instanceof ApiError && err.status === 409) {
       if (myUserId) {
         affectedKeys(reservation, myUserId, myRole, ['history']).forEach(
-          invalidateReservationRead
+          (key) => {
+            void refreshReservationKey(key);
+          }
         );
       }
       if (isFeedbackBusinessConflictError(err)) {
@@ -392,88 +432,81 @@ export async function submitReservationFeedback(
     userId: myUserId,
     state: statesForRole(myRole).history,
   };
+  const otherHistoryKey: ReservationReadKey = {
+    userId: String(resolveCounterpartyId(reservation, myUserId)),
+    state: statesForRole(otherRoleOf(myRole)).history,
+  };
 
   let hadPriorHappenedInCache = reservation.feedback?.meetingHappened === true;
 
-  for (const targetKey of reservationReadModel.getMatchingKeys(myHistoryKey)) {
-    reservationReadModel.update(targetKey, (current) => {
-      if (!current) return current;
-      return {
-        ...current,
-        items: current.items.map((item) => {
-          if (item.id !== reservation.id) return item;
-          if (item.feedback?.meetingHappened === true) {
-            hadPriorHappenedInCache = true;
+  reservationReadModel.patchItem(myHistoryKey, reservation.id, (item) => {
+    if (item.feedback?.meetingHappened === true) {
+      hadPriorHappenedInCache = true;
+    }
+    if (payload.meeting_happened) {
+      const nextMeetingHappened =
+        backendMeetingHappened === false ||
+        item.feedback?.meetingHappened === false ||
+        reservation.feedback?.meetingHappened === false
+          ? false
+          : true;
+      const effectiveIsPublic = nextMeetingHappened ? resolvedIsPublic : false;
+      const nextRating = payload.feedback
+        ? {
+            rating: payload.feedback.rating,
+            content: payload.feedback.content,
+            createdAt: nowUnixSeconds,
+            updatedAt: nowUnixSeconds,
+            authorName: item.feedback?.rating?.authorName ?? null,
+            isPublic: effectiveIsPublic,
           }
-          if (payload.meeting_happened) {
-            const nextMeetingHappened =
-              backendMeetingHappened === false ||
-              item.feedback?.meetingHappened === false ||
-              reservation.feedback?.meetingHappened === false
-                ? false
-                : true;
-            const effectiveIsPublic = nextMeetingHappened
-              ? resolvedIsPublic
-              : false;
-            const nextRating = payload.feedback
-              ? {
-                  rating: payload.feedback.rating,
-                  content: payload.feedback.content,
-                  createdAt: nowUnixSeconds,
-                  updatedAt: nowUnixSeconds,
-                  authorName: item.feedback?.rating?.authorName ?? null,
-                  isPublic: effectiveIsPublic,
-                }
-              : item.feedback?.rating
-                ? {
-                    ...item.feedback.rating,
-                    isPublic: nextMeetingHappened
-                      ? item.feedback.rating.isPublic
-                      : false,
-                  }
-                : null;
+        : item.feedback?.rating
+          ? {
+              ...item.feedback.rating,
+              isPublic: nextMeetingHappened
+                ? item.feedback.rating.isPublic
+                : false,
+            }
+          : null;
 
-            return {
-              ...item,
-              feedback: {
-                meetingHappened: nextMeetingHappened,
-                myMeetingHappened:
-                  backendMyMeetingHappened !== undefined
-                    ? backendMyMeetingHappened
-                    : true,
-                rating: nextRating,
-                nextStep: null,
-              },
-            };
-          }
-          return {
-            ...item,
-            feedback: {
-              meetingHappened: false,
-              myMeetingHappened:
-                backendMyMeetingHappened !== undefined
-                  ? backendMyMeetingHappened
-                  : false,
-              rating:
-                myRole === 'mentor' && item.feedback?.rating
-                  ? {
-                      ...item.feedback.rating,
-                      isPublic: false,
-                    }
-                  : null,
-              nextStep: null,
-            },
-          };
-        }),
+      return {
+        ...item,
+        feedback: {
+          meetingHappened: nextMeetingHappened,
+          myMeetingHappened:
+            backendMyMeetingHappened !== undefined
+              ? backendMyMeetingHappened
+              : true,
+          rating: nextRating,
+          nextStep: null,
+        },
       };
-    });
-  }
+    }
+    return {
+      ...item,
+      feedback: {
+        meetingHappened: false,
+        myMeetingHappened:
+          backendMyMeetingHappened !== undefined
+            ? backendMyMeetingHappened
+            : false,
+        rating:
+          myRole === 'mentor' && item.feedback?.rating
+            ? {
+                ...item.feedback.rating,
+                isPublic: false,
+              }
+            : null,
+        nextStep: null,
+      },
+    };
+  });
 
   markSessionReservationSubmitted(String(myUserId), reservation.id);
 
-  affectedKeys(reservation, myUserId, myRole, ['history']).forEach(
-    invalidateReservationRead
-  );
+  // Only invalidate/refresh the counterparty's HISTORY slice; the caller's own
+  // `myHistoryKey` was patched in place above so loaded Pages 2..N are retained.
+  void refreshReservationKey(otherHistoryKey);
 
   // Invalidate mentor public caches whenever:
   // 1. Submitter confirmed meeting_happened=true (increments meeting count / publishes rating)
@@ -531,7 +564,9 @@ export async function updateReservationFeedback(
     if (err instanceof ApiError && err.status === 409) {
       if (myUserId) {
         affectedKeys(reservation, myUserId, myRole, ['history']).forEach(
-          invalidateReservationRead
+          (key) => {
+            void refreshReservationKey(key);
+          }
         );
       }
       if (isFeedbackBusinessConflictError(err)) {
@@ -567,68 +602,61 @@ export async function updateReservationFeedback(
     userId: myUserId,
     state: statesForRole(myRole).history,
   };
+  const otherHistoryKey: ReservationReadKey = {
+    userId: String(resolveCounterpartyId(reservation, myUserId)),
+    state: statesForRole(otherRoleOf(myRole)).history,
+  };
 
   let shouldInvalidatePublicCaches =
     fallbackIsPublic !== false || wasPublicOnInput;
 
-  for (const targetKey of reservationReadModel.getMatchingKeys(myHistoryKey)) {
-    reservationReadModel.update(targetKey, (current) => {
-      if (!current) return current;
-      return {
-        ...current,
-        items: current.items.map((item) => {
-          if (item.id !== reservation.id) return item;
-          const existingFeedback = item.feedback ?? reservation.feedback;
-          const existingRating = existingFeedback?.rating;
-          const wasPublicInCache =
-            existingFeedback !== undefined &&
-            existingFeedback.meetingHappened !== false &&
-            existingRating?.isPublic !== false;
-          const preservedMeetingHappened =
-            backendMeetingHappened ?? existingFeedback?.meetingHappened ?? true;
-          const preservedMyMeetingHappened =
-            backendMyMeetingHappened !== undefined
-              ? backendMyMeetingHappened
-              : existingFeedback?.myMeetingHappened;
-          const preservedIsPublic =
-            preservedMeetingHappened === false
-              ? false
-              : (backendIsPublic ??
-                existingRating?.isPublic ??
-                fallbackIsPublic);
+  reservationReadModel.patchItem(myHistoryKey, reservation.id, (item) => {
+    const existingFeedback = item.feedback ?? reservation.feedback;
+    const existingRating = existingFeedback?.rating;
+    const wasPublicInCache =
+      existingFeedback !== undefined &&
+      existingFeedback.meetingHappened !== false &&
+      existingRating?.isPublic !== false;
+    const preservedMeetingHappened =
+      backendMeetingHappened ?? existingFeedback?.meetingHappened ?? true;
+    const preservedMyMeetingHappened =
+      backendMyMeetingHappened !== undefined
+        ? backendMyMeetingHappened
+        : existingFeedback?.myMeetingHappened;
+    const preservedIsPublic =
+      preservedMeetingHappened === false
+        ? false
+        : (backendIsPublic ?? existingRating?.isPublic ?? fallbackIsPublic);
 
-          if (preservedIsPublic !== false || wasPublicInCache) {
-            shouldInvalidatePublicCaches = true;
-          }
+    if (preservedIsPublic !== false || wasPublicInCache) {
+      shouldInvalidatePublicCaches = true;
+    }
 
-          return {
-            ...item,
-            feedback: {
-              meetingHappened: preservedMeetingHappened,
-              ...(preservedMyMeetingHappened !== undefined
-                ? { myMeetingHappened: preservedMyMeetingHappened }
-                : {}),
-              rating: {
-                rating: payload.rating,
-                content: payload.content,
-                createdAt: existingRating?.createdAt ?? nowUnixSeconds,
-                updatedAt: nowUnixSeconds,
-                authorName: existingRating?.authorName ?? null,
-                isPublic: preservedIsPublic,
-              },
-              nextStep: null,
-            },
-          };
-        }),
-      };
-    });
-  }
+    return {
+      ...item,
+      feedback: {
+        meetingHappened: preservedMeetingHappened,
+        ...(preservedMyMeetingHappened !== undefined
+          ? { myMeetingHappened: preservedMyMeetingHappened }
+          : {}),
+        rating: {
+          rating: payload.rating,
+          content: payload.content,
+          createdAt: existingRating?.createdAt ?? nowUnixSeconds,
+          updatedAt: nowUnixSeconds,
+          authorName: existingRating?.authorName ?? null,
+          isPublic: preservedIsPublic,
+        },
+        nextStep: null,
+      },
+    };
+  });
 
   markSessionReservationSubmitted(String(myUserId), reservation.id);
 
-  affectedKeys(reservation, myUserId, myRole, ['history']).forEach(
-    invalidateReservationRead
-  );
+  // Preserve loaded Pages 2..N on `myHistoryKey` (already patched in place);
+  // only invalidate/refresh the counterparty's `otherHistoryKey`.
+  void refreshReservationKey(otherHistoryKey);
 
   if (shouldInvalidatePublicCaches) {
     invalidateMentorPublicCaches(reservation, myUserId, myRole);

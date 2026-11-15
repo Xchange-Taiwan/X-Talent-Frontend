@@ -473,4 +473,21 @@ describe('QuickReplyDialog', () => {
 
     expect(mockOnOpenChange).toHaveBeenCalledWith(false);
   });
+
+  it('validates reply against quickReplyFormSchema and disables accept when reply exceeds 500 characters', () => {
+    render(<QuickReplyDialog {...defaultProps} />);
+
+    fireEvent.click(screen.getByText('附上回覆訊息（選填）'));
+    const textarea = screen.getByPlaceholderText(
+      '例如：屆時於 Google Meet 見,請先準備一份履歷。'
+    );
+    fireEvent.change(textarea, { target: { value: 'B'.repeat(501) } });
+
+    expect(screen.getByText('回覆訊息請勿超過 500 字')).toBeInTheDocument();
+
+    const acceptBtn = screen.getByRole('button', { name: '接受' });
+    expect(acceptBtn).toBeDisabled();
+    fireEvent.click(acceptBtn);
+    expect(mockAccept).not.toHaveBeenCalled();
+  });
 });

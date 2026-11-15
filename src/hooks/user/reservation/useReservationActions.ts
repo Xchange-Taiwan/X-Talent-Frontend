@@ -92,7 +92,13 @@ export function useReservationActions({
           myUserId,
           myRole,
         });
-        trackEvent({ name: 'reservation_rejected', feature: 'reservation' });
+        trackEvent({
+          name:
+            action === 'reject'
+              ? 'reservation_rejected'
+              : 'reservation_cancelled',
+          feature: 'reservation',
+        });
         const successMessage =
           action === 'reject' ? '已拒絕預約' : '已取消預約';
         toast({ description: successMessage });

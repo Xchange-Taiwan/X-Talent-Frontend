@@ -14,13 +14,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useConfirmActionDialog } from '@/hooks/reservation/useConfirmActionDialog';
 import { useProfileLinkClick } from '@/hooks/reservation/useProfileLinkClick';
-import { useQuickReplyAccept } from '@/hooks/user/reservation/useQuickReplyAccept';
-import { useQuickReplyForm } from '@/hooks/user/reservation/useQuickReplyForm';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { trackEvent } from '@/lib/analytics';
 import { resolveReservationViewer } from '@/lib/reservation/reservationViewerModel';
-import type { QuickReplyFormValues } from '@/schemas/quickReplySchema';
+import { quickReplyFormSchema } from '@/schemas/quickReplySchema';
 import type { Reservation } from '@/types/reservation';
 
 interface QuickReplyDialogProps {
@@ -48,62 +47,33 @@ export function QuickReplyDialog({
   const { accept, rejectOrCancel, isMutating } = useReservationActions({
     myUserId,
     variant: 'pending-mentor',
-    // Derived from the reservation's own sender/participant role data via
-    // resolveReservationViewer - not hardcoded. The 'mentor' fallback only
-    // matters if that data were ever missing: this dialog only ever renders
-    // on the mentor's own calendar (MentorScheduleConfig, reachable only via
-    // a mentor viewing their own profile, and only a mentor can accept/reject
-    // a pending request), so it can never actually change which party
-    // myUserId is.
     myRole: viewerRole ?? 'mentor',
     onMutationSuccess: async () => {
-      // Await the reload before closing so the underlying page's calendar
-      // and reservation list have already settled to the new state by the
-      // time this dialog disappears, instead of exposing a stale PENDING
-      // slot for one frame.
       await onMutationSuccess?.();
       onOpenChange(false);
     },
   });
-  const [replyOpen, setReplyOpen] = React.useState(false);
-  const {
-    register,
-    handleSubmit,
-    reset: resetReplyForm,
-    formState: { errors: replyErrors, isDirty: isReplyDirty },
-  } = useQuickReplyForm();
-  // Resolves the error message via the service layer itself (including the
-  // shared version-conflict copy) so this component never imports from
-  // src/services directly. No pending state of its own - `isMutating` below
-  // already tracks this same `accept` call in flight.
-  const { execute: executeAccept } = useQuickReplyAccept();
 
-  // Read via a ref (not a dependency) inside the reset effect below: isDirty
-  // flips true on the user's very first keystroke, and if it were a
-  // dependency, that flip alone would re-run the effect mid-typing and
-  // collapse/clear the field the user is actively filling in. The effect
-  // must only fire on open/reservation changes, checking whatever isDirty
-  // happens to be *at that moment*.
-  const isReplyDirtyRef = React.useRef(isReplyDirty);
-  React.useEffect(() => {
-    isReplyDirtyRef.current = isReplyDirty;
+  const { execute: executeAccept } = useConfirmActionDialog({
+    errorMessage: '接受預約失敗,請稍後再試',
+    open,
+    onOpenChange,
+    closeOnSuccess: false,
   });
 
-  // This dialog instance is shared/re-used across reservations (see the
-  // handleOpenChange comment below), so the reply draft must reset whenever
-  // it opens for a (possibly different) reservation - otherwise a leftover
-  // draft from the previous one would carry over. Only call the RHF reset
-  // when there is actually a dirty draft to clear: unlike useState,
-  // react-hook-form's reset() always forces a re-render of formState
-  // subscribers even when resetting to identical values, so calling it
-  // unconditionally on every mount/reopen would re-render for no reason.
+  const [replyOpen, setReplyOpen] = React.useState(false);
+  const [reply, setReply] = React.useState('');
+
+  const parsedReply = quickReplyFormSchema.safeParse({ reply });
+  const replyError = parsedReply.success
+    ? undefined
+    : parsedReply.error.issues[0]?.message;
+
   React.useEffect(() => {
     if (!open) return;
     setReplyOpen(false);
-    if (isReplyDirtyRef.current) {
-      resetReplyForm();
-    }
-  }, [open, reservation?.id, resetReplyForm]);
+    setReply('');
+  }, [open, reservation?.id]);
 
   const handleProfileLinkClick = useProfileLinkClick({
     disabled: isMutating,
@@ -112,20 +82,20 @@ export function QuickReplyDialog({
 
   if (!reservation) return null;
 
-  // No <form> wrapper: the footer also holds RejectReservationDialog's
-  // trigger button, which has no explicit `type` and would default to
-  // "submit" (firing this accept flow) if nested inside one. handleSubmit
-  // is invoked directly from the accept button's onClick instead.
-  const handleAccept = handleSubmit((data: QuickReplyFormValues) => {
-    executeAccept(async () => {
-      await accept(reservation, (data.reply ?? '').trim());
+  const handleAccept = () => {
+    const validated = quickReplyFormSchema.safeParse({ reply });
+    if (!validated.success) return;
+    const trimmedReply = (validated.data.reply ?? '').trim();
+
+    void executeAccept(async () => {
+      await accept(reservation, trimmedReply);
       trackEvent({
         name: 'reservation_accepted',
         feature: 'reservation',
-        metadata: { has_reply: Boolean(data.reply?.trim()) },
+        metadata: { has_reply: trimmedReply.length > 0 },
       });
     });
-  });
+  };
 
   // Block outside-click/Esc dismissal while a mutation is in flight: this
   // dialog is a single shared instance re-used across reservations, so an
@@ -160,8 +130,11 @@ export function QuickReplyDialog({
               open={replyOpen}
               onOpen={() => setReplyOpen(true)}
               disabled={isMutating}
-              error={replyErrors.reply?.message}
-              textareaProps={register('reply')}
+              error={replyError}
+              textareaProps={{
+                value: reply,
+                onChange: (e) => setReply(e.target.value),
+              }}
             />
           </div>
 
@@ -182,7 +155,7 @@ export function QuickReplyDialog({
                 size="default"
                 className="w-full sm:w-auto"
                 onClick={handleAccept}
-                disabled={isMutating || Object.keys(replyErrors).length > 0}
+                disabled={isMutating || Boolean(replyError)}
               >
                 {isMutating && <Loader2 className="mr-2 size-4 animate-spin" />}
                 接受

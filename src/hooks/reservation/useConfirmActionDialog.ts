@@ -12,15 +12,33 @@ interface UseConfirmActionDialogOptions {
    * every reservation confirm dialog resolves it the same way. */
   errorMessage: string;
   onOpen?: () => void;
+  /** Optional controlled open state for externally managed dialogs (e.g. QuickReplyDialog). */
+  open?: boolean;
+  /** Optional controlled open-state handler for externally managed dialogs. */
+  onOpenChange?: (open: boolean) => void;
+  /** Whether `execute` closes the dialog automatically on success (defaults to true). */
+  closeOnSuccess?: boolean;
 }
 
 export function useConfirmActionDialog({
   errorMessage,
   onOpen,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+  closeOnSuccess = true,
 }: UseConfirmActionDialogOptions) {
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = (next: boolean) => {
+    if (controlledOnOpenChange) {
+      controlledOnOpenChange(next);
+    } else {
+      setUncontrolledOpen(next);
+    }
+  };
 
   const onOpenChange = (next: boolean) => {
     if (isSubmitting) return;
@@ -35,7 +53,9 @@ export function useConfirmActionDialog({
     try {
       await action();
       setIsSubmitting(false);
-      setOpen(false);
+      if (closeOnSuccess) {
+        setOpen(false);
+      }
     } catch (error) {
       toast({
         variant: 'destructive',

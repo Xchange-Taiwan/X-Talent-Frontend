@@ -384,6 +384,54 @@ describe('MentorScheduleReadModel', () => {
     });
   });
 
+  describe('invalidate & invalidateOrRefresh', () => {
+    it('invalidate() drops only the targeted month without affecting other months', () => {
+      scheduleReadModel.set(july, rows(101));
+      scheduleReadModel.set(august, rows(202));
+
+      scheduleReadModel.invalidate(july);
+
+      expect(scheduleReadModel.get(july)).toBeUndefined();
+      expect(scheduleReadModel.get(august)).toEqual(rows(202));
+    });
+
+    it('invalidateOrRefresh() drops an unsubscribed month with zero network calls', async () => {
+      scheduleReadModel.set(july, rows(101));
+      const fetcher = vi.fn().mockResolvedValue(rows(999));
+
+      const result = await scheduleReadModel.invalidateOrRefresh(july, fetcher);
+
+      expect(result).toBeNull();
+      expect(fetcher).not.toHaveBeenCalled();
+      expect(scheduleReadModel.get(july)).toBeUndefined();
+    });
+
+    it('invalidateOrRefresh() refreshes an actively subscribed month in place and aborts on clear()', async () => {
+      const leave = scheduleReadModel.subscribe(
+        july,
+        vi.fn().mockResolvedValue(rows(101)),
+        () => {}
+      );
+      await vi.waitFor(() =>
+        expect(scheduleReadModel.get(july)).toEqual(rows(101))
+      );
+
+      const refresh = deferredFetcher();
+      const refreshPromise = scheduleReadModel.invalidateOrRefresh(
+        july,
+        refresh.fetcher
+      );
+
+      scheduleReadModel.clear();
+      expect(refresh.wasAborted()).toBe(true);
+
+      refresh.resolve(rows(999));
+      expect(await refreshPromise).toBeNull();
+      expect(scheduleReadModel.get(july)).toBeUndefined();
+      leave();
+    });
+  });
+
   it('clear() resets every cached month', () => {
     scheduleReadModel.set(july, rows(101));
     scheduleReadModel.set(august, rows(202));

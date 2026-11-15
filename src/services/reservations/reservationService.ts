@@ -8,11 +8,6 @@ import {
   resolveFeedbackPartyIds,
 } from '@/lib/reservation/mapReservationFeedbackDto';
 import { sortPendingFeedbackOldestFirst } from '@/lib/reservation/pendingFeedbackGuard';
-import {
-  MENTOR_SCHEDULE_RESERVATIONS_TTL_MS,
-  type ReservationReadKey,
-  reservationReadModel,
-} from '@/lib/reservation/reservationReadModel';
 import { resolveCounterpartyProfile } from '@/lib/reservation/resolveCounterparty';
 import { classifyReservationMessages } from '@/lib/reservation/resolveReservationMessages';
 import { components } from '@/types/api';
@@ -24,6 +19,12 @@ import type {
   SubmitReservationFeedbackRequest,
   UpdateReservationFeedbackRequest,
 } from '@/types/reservationFeedback';
+
+import {
+  isAbortSignalTriggered,
+  refreshMentorScheduleForReservation,
+  refreshReservationKey,
+} from './refreshReservationKey';
 
 export type ReservationState =
   | 'MENTOR_UPCOMING'
@@ -202,14 +203,14 @@ const MAX_PAGES = 50;
  * paging via `next_dtend` until the backend signals no more pages (`next_dtend
  * === 0`), the returned cursor moves past the end of the target month, the
  * cursor repeats (a stuck-cursor guard against an infinite loop), or
- * MAX_PAGES is reached. Fetch failures are reported via captureFlowFailure
- * and swallowed, returning whatever pages were already collected rather than
- * throwing.
+ * MAX_PAGES is reached. Non-abort failures are reported via captureFlowFailure
+ * and rethrown so callers (`useMentorSchedule`) hold `reservationsLoaded === false`.
  */
 export async function fetchAllReservationsForState(
   userId: string,
   state: ReservationState,
-  endOfMonthUnix: number
+  endOfMonthUnix: number,
+  signal?: AbortSignal
 ): Promise<Reservation[]> {
   let allItems: Reservation[] = [];
   let nextDtend: number | undefined = undefined;
@@ -220,6 +221,7 @@ export async function fetchAllReservationsForState(
         state,
         nextDtend,
         batch: 20,
+        signal,
       });
       allItems = [...allItems, ...res.items];
       if (
@@ -240,82 +242,20 @@ export async function fetchAllReservationsForState(
       }
     }
   } catch (err) {
-    captureFlowFailure({
-      flow: 'mentor_schedule_reservations_fetch',
-      step: `fetch_${state}`,
-      message: err instanceof Error ? err.message : String(err),
-    });
-    console.error(
-      `[reservationService] Failed to fetch reservations for ${state}:`,
-      err
-    );
+    if (!isAbortSignalTriggered(err, signal)) {
+      captureFlowFailure({
+        flow: 'mentor_schedule_reservations_fetch',
+        step: `fetch_${state}`,
+        message: err instanceof Error ? err.message : String(err),
+      });
+      console.error(
+        `[reservationService] Failed to fetch reservations for ${state}:`,
+        err
+      );
+    }
+    throw err;
   }
   return allItems;
-}
-
-/* ================================
- * Read-model invalidation (write path)
- * ================================ */
-
-/**
- * Invalidate the cached reservation page at `key` after a write
- * (accept/reject/cancel/create - see `reservationMutations.ts` and
- * `createReservation` below) whose effect may have landed there, so the
- * write path owns its own cache freshness instead of every caller
- * re-deriving what to invalidate (X-Tracker #651).
- *
- * A key with an active subscriber (most commonly the reservation
- * dashboard, which subscribes to every tab for as long as it's mounted) is
- * refreshed in place with a fresh fetch instead of being dropped via
- * `invalidate()` - that would notify the subscriber with `data: null` and
- * blank a tab the mutation never touched. A key with no active subscriber
- * is simply invalidated: nothing is watching it, so the next `subscribe()`
- * (e.g. navigating back to a route that reads it) fetches fresh on its own
- * instead of paying for a background fetch nobody is watching.
- */
-export function invalidateReservationRead(key: ReservationReadKey): void {
-  for (const targetKey of reservationReadModel.getMatchingKeys(key)) {
-    if (!reservationReadModel.hasSubscribers(targetKey)) {
-      reservationReadModel.invalidate(targetKey);
-      continue;
-    }
-    if (targetKey.endOfMonthUnix !== undefined) {
-      const endOfMonthUnix = targetKey.endOfMonthUnix;
-      fetchAllReservationsForState(
-        targetKey.userId,
-        targetKey.state,
-        endOfMonthUnix
-      )
-        .then((items) => {
-          reservationReadModel.set(
-            targetKey,
-            { items, next_dtend: 0 },
-            MENTOR_SCHEDULE_RESERVATIONS_TTL_MS
-          );
-        })
-        .catch((err) => {
-          captureFlowFailure({
-            flow: 'reservation_mutation_invalidate',
-            step: `refresh_${targetKey.state}`,
-            message: err instanceof Error ? err.message : String(err),
-            level: 'warning',
-          });
-        });
-      continue;
-    }
-    fetchReservations({ userId: targetKey.userId, state: targetKey.state })
-      .then((result) => {
-        reservationReadModel.set(targetKey, result);
-      })
-      .catch((err) => {
-        captureFlowFailure({
-          flow: 'reservation_mutation_invalidate',
-          step: `refresh_${targetKey.state}`,
-          message: err instanceof Error ? err.message : String(err),
-          level: 'warning',
-        });
-      });
-  }
 }
 
 /* ================================
@@ -377,17 +317,17 @@ export async function createReservation(opts: {
 
   if (!data) throw new Error('API error: missing data in response');
 
-  // A new booking lands in PENDING for both sides: the mentee who just
-  // booked (`userId`) and the mentor being booked (`body.user_id`) - see
-  // invalidateReservationRead above.
-  invalidateReservationRead({
+  // A new booking lands in PENDING for both sides and transitions the target
+  // mentor's schedule slot in `(body.user_id, year, month)`.
+  void refreshReservationKey({
     userId: String(userId),
     state: 'MENTEE_PENDING',
   });
-  invalidateReservationRead({
+  void refreshReservationKey({
     userId: String(body.user_id),
     state: 'MENTOR_PENDING',
   });
+  void refreshMentorScheduleForReservation(body.user_id, body.dtstart);
 
   return data;
 }
