@@ -11,17 +11,12 @@ If the workspace is an `X-Frontend` project (e.g., `X-Talent-Frontend` or simila
 
 1. **Setup & Link Branch (Hard Gate — Never Skip):**
    - Call the `/start-ticket <github-issue-url>` skill to automatically pull `develop`, create/link the branch programmatically via GraphQL (`createLinkedBranch`), move the Project V2 board status to `In progress`, and analyze requirements.
-   - **Recommended one-step execution** (prevents lost shell variables across separate tool calls and handles pre-existing local/remote branches and worktrees idempotently):
-     - **On macOS/Linux (Bash/Zsh)**:
-       ```bash
-       bash .agents/scripts/link-ticket-branch.sh <issue-number-or-url> "<feat|fix>/<issue-number>-<slug>"
-       ```
-     - **On Windows (PowerShell)**:
-       ```powershell
-       & .agents/scripts/link-ticket-branch.ps1 <issue-number-or-url> "<feat|fix>/<issue-number>-<slug>"
-       ```
+   - **Recommended one-step cross-platform execution** (prevents lost shell variables across separate tool calls and handles pre-existing local/remote branches and worktrees idempotently on macOS, Linux, and Windows):
+     ```bash
+     node .agents/scripts/link-ticket-branch.mjs <issue-number-or-url> "<feat|fix>/<issue-number>-<slug>"
+     ```
    - **Git Worktree / Pre-existing Branch Rule**:
-     - Never create a branch solely with `git checkout -b` or `git worktree add -b` and skip `/start-ticket`! If you are working in a `git worktree` (or if `develop` is checked out in the main working tree, or a local/remote branch already exists), run `link-ticket-branch.sh` / `link-ticket-branch.ps1` with `--no-checkout` (or `-NoCheckout`) first so `createLinkedBranch` creates and links the remote branch on GitHub from `origin/develop`, then `git fetch origin <branch>` and attach your worktree (`git worktree add <path> <branch>`).
+     - Never create a branch solely with `git checkout -b` or `git worktree add -b` and skip `/start-ticket`! If you are working in a `git worktree` (or if `develop` is checked out in the main working tree, or a local/remote branch already exists), run `node .agents/scripts/link-ticket-branch.mjs` with `--no-checkout` first so `createLinkedBranch` creates and links the remote branch on GitHub from `origin/develop`, then `git fetch origin <branch>` and attach your worktree (`git worktree add <path> <branch>`).
    - **Verification Gate**: Before proceeding to Step 2, verify that the command output confirms `✅ Verified Development link on #<issue-number>` (`linkedBranches` or `linkedPRs` is non-empty). Do not start implementation on an unlinked branch.
 
 2. **Write Lightweight Unit Tests First (TDD), Implement Feature, & Sync Storybook (`.stories.tsx`):**
@@ -52,7 +47,7 @@ If the workspace is an `X-Frontend` project (e.g., `X-Talent-Frontend` or simila
 
 5. **Post-PR Fix Loop (Token-Efficient CI Watch):**
    - Unless the user has explicitly indicated they only want the PR opened and nothing further (e.g. "just open the PR", "stop once it's submitted"), automatically continue into the `/fix-pr` skill immediately after Step 4 succeeds — do not stop to ask first.
-   - `/fix-pr` uses `.agents/scripts/wait-pr-checks.sh` / `.ps1` to wait quietly in the terminal (0 LLM tokens burned while waiting) until the CI pipeline and free Gemini `AI Review: Final Summary` finish, and runs at most **3 fix rounds** locally (or up to 20 pre-push convergence rounds when triggered via `cloud-fix-pr.yml`).
+   - `/fix-pr` uses `node .agents/scripts/wait-pr-checks.mjs` to wait quietly in the terminal (0 LLM tokens burned while waiting) until the CI pipeline and free Gemini `AI Review: Final Summary` finish, and runs at most **3 fix rounds** locally (or up to 20 pre-push convergence rounds when triggered via `cloud-fix-pr.yml`).
    - `/implement` is only considered fully complete when `/fix-pr` converges (all watched checks green and AI Review `Overall Risk: low`) or its only remaining blocker is the Vercel daily deployment limit.
    - Never auto-merge the PR (`gh pr merge`) and never advance the X-Talent-Tracker board status past `PR Review` — both remain manual actions for the user, even when `/fix-pr` fully converges.
 

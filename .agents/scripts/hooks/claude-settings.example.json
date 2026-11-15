@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .agents/scripts/hooks/claude-verify-board-status.sh",
+            "command": "node .agents/scripts/tracker-ops.mjs verify-board-status --dialect=claude",
             "timeout": 30,
             "statusMessage": "Verifying X-Tracker board status..."
           }

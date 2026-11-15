@@ -207,9 +207,9 @@ jobs:
           if [ -n "$BRANCH_NAME" ]; then
             git fetch origin "$BRANCH_NAME"
             git checkout "$BRANCH_NAME" || git checkout -b "$BRANCH_NAME" "origin/$BRANCH_NAME"
-            bash .agents/scripts/link-ticket-branch.sh "$TICKET_NUMBER" "$BRANCH_NAME"
+            node .agents/scripts/link-ticket-branch.mjs "$TICKET_NUMBER" "$BRANCH_NAME"
           else
-            bash .agents/scripts/link-ticket-branch.sh "$TICKET_NUMBER"
+            node .agents/scripts/link-ticket-branch.mjs "$TICKET_NUMBER"
           fi
           ACTIVE_BR=$(git branch --show-current)
           if [ -z "$ACTIVE_BR" ] || [ "$ACTIVE_BR" = "develop" ] || [ "$ACTIVE_BR" = "main" ]; then

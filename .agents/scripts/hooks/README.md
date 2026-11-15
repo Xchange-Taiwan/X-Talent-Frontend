@@ -1,15 +1,16 @@
 # Board-status verification hooks
 
-`check-board-status.sh` (in the parent directory) checks whether the
-X-Talent-Tracker board status actually matches the current branch's real
-state, so `/start-ticket` and `/submit-pr` can't silently skip their
-board-update step. The two files in this directory adapt its output to each
-AI CLI's own hook schema.
+`.agents/scripts/tracker-ops.mjs` (`verify-board-status`) checks whether the
+X-Talent-Tracker board status and GitHub `Development` branch/PR link match the
+current branch's real state, automatically self-healing drift and enforcing
+each AI CLI's hook schema (`--dialect=gemini` or `--dialect=claude`) when
+healing fails.
 
 ## Gemini CLI
 
 Wired automatically — `.gemini/settings.json` is checked into the repo and
-already registers `gemini-verify-board-status.sh` on the `AfterAgent` event.
+invokes Node (`hooks/gemini-verify-board-status.mjs`, which delegates directly
+to `tracker-ops.mjs` with `--dialect=gemini`) on the `AfterAgent` event.
 Nothing to do.
 
 ## Claude Code

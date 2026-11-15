@@ -34,14 +34,14 @@ Repeat the following up to **3 times** (not 20, to prevent runaway token consump
 
 ### 2a. Gather signal (Zero-Token Terminal Wait)
 
-- **Use the quiet wait script** instead of `gh pr checks --watch` (`gh pr checks --watch` floods the LLM context with hundreds of repeated `pending` lines every 10 seconds, wasting massive input tokens). While this script waits in the terminal, **0 LLM tokens are used**:
+- **Use the quiet cross-platform Node wait script** instead of `gh pr checks --watch` (`gh pr checks --watch` floods the LLM context with hundreds of repeated `pending` lines every 10 seconds, wasting massive input tokens). While this script waits in the terminal, **0 LLM tokens are used**:
   - **On macOS/Linux (Bash/Zsh)**:
     ```bash
-    bash .agents/scripts/wait-pr-checks.sh "$PR_NUMBER"
+    node .agents/scripts/wait-pr-checks.mjs "$PR_NUMBER"
     ```
   - **On Windows (PowerShell)**:
     ```powershell
-    & .agents/scripts/wait-pr-checks.ps1 $PR_NUMBER
+    & node .agents/scripts/wait-pr-checks.mjs $PR_NUMBER
     ```
 - The script waits until all CI checks (including `AI Review: Final Summary` from the free Gemini CI pipeline) finish, verifies the comment author is `github-actions` / `github-actions[bot]`, and prints a compact summary (`CONVERGED=true` or `CONVERGED=false` + failed checks and AI Review findings).
 - If `CONVERGED=true`, immediately exit the loop and proceed to Step 3 (Final report)!
@@ -106,7 +106,7 @@ pnpm test
 
 ### 2g. Wait for the next round's signal
 
-Loop back to 2a. `gh pr checks "$PR_NUMBER" --watch` will block until the new commit's checks finish.
+Loop back to 2a. `node .agents/scripts/wait-pr-checks.mjs "$PR_NUMBER"` will block quietly until the new commit's checks finish.
 
 ## Step 3 — Final report
 
