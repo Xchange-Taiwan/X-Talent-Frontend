@@ -16,7 +16,7 @@ const meta: Meta<typeof MobileUserMenu> = {
     docs: {
       description: {
         component:
-          '行動版已登入會員側欄選單，導覽與個人帳務操作項目皆具備與桌機版對齊之 `data-analytics-click`（`location="mobile_user_menu"`），且嚴格不攜帶任何 PII。',
+          '行動版已登入會員側欄選單，導覽與個人帳務操作項目（含我的預約、我的收藏與登出）皆具備與桌機版對齊之 `data-analytics-click`（`location="mobile_user_menu"`），且嚴格不攜帶任何 PII。',
       },
     },
   },

@@ -1,8 +1,10 @@
 import { expect, type Page, type Route, test } from '@playwright/test';
 
+import { encodeSessionHint, SESSION_HINT_COOKIE } from '@/lib/auth/sessionHint';
+
 import { captureEvidence } from '../../helpers/evidence';
 import { mockApiRoute } from '../../helpers/route';
-import { setSignedSessionCookie } from '../../helpers/session';
+import { seedMockAuthSession } from '../../helpers/session';
 
 test.use({ timezoneId: 'Asia/Taipei' });
 
@@ -126,7 +128,7 @@ async function setupAuthenticatedViewer(page: Page) {
     process.env.NEXTAUTH_SECRET = 'secret';
   }
 
-  await setSignedSessionCookie(page, {
+  await seedMockAuthSession(page, {
     id: '9001',
     name: 'Mentee Viewer',
     isMentor: false,
@@ -134,25 +136,18 @@ async function setupAuthenticatedViewer(page: Page) {
     token: 'mock-auth-token',
   });
 
-  await page.route(/\/api\/auth\/session/, (route) => {
-    if (route.request().method() === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          user: {
-            id: '9001',
-            name: 'Mentee Viewer',
-            isMentor: false,
-            onBoarding: true,
-          },
-          accessToken: 'mock-auth-token',
-          expires: '2099-01-01T00:00:00.000Z',
-        }),
-      });
-    }
-    return route.continue();
-  });
+  const baseUrl = new URL(process.env.BASE_URL ?? 'http://localhost:3000');
+  await page.context().addCookies([
+    {
+      name: SESSION_HINT_COOKIE,
+      value: encodeSessionHint({ isMentor: false, userId: '9001' }),
+      domain: baseUrl.hostname,
+      path: '/',
+      httpOnly: false,
+      secure: baseUrl.protocol === 'https:',
+      sameSite: 'Lax',
+    },
+  ]);
 }
 
 async function setupCommonSupportRoutes(page: Page) {
@@ -367,6 +362,20 @@ test.describe('我的收藏頁 /favorites (#755)', () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/favorites');
 
+    const desktopHeaderRight = page.getByTestId('desktop-header-right');
+    await expect(
+      desktopHeaderRight.getByRole('button', { name: '開啟通知選單' })
+    ).toBeVisible();
+    await expect(
+      desktopHeaderRight.getByRole('button', { name: '開啟用戶選單' })
+    ).toBeVisible();
+    await expect(
+      desktopHeaderRight.getByRole('link', { name: '登入' })
+    ).toHaveCount(0);
+    await expect(
+      desktopHeaderRight.getByRole('link', { name: '註冊' })
+    ).toHaveCount(0);
+
     const heading = page.getByRole('heading', { level: 1, name: '我的收藏' });
     await expect(heading).toBeVisible();
     await expect(page.getByText('已收藏 2 位導師')).toBeVisible();
@@ -377,9 +386,16 @@ test.describe('我的收藏頁 /favorites (#755)', () => {
 
     const cards = page.locator('article');
     await expect(cards).toHaveCount(2);
-    await expect(cards.first()).toBeVisible();
+    await expect(cards.nth(0)).toBeVisible();
+    await expect(cards.nth(1)).toBeVisible();
     await expect(
-      cards.first().getByTestId('display-container').getByText('作品集健檢')
+      cards.nth(0).getByRole('heading', { name: 'Zahra Mirzakhani' })
+    ).toBeVisible();
+    await expect(
+      cards.nth(1).getByRole('heading', { name: '陳宥廷 Austin' })
+    ).toBeVisible();
+    await expect(
+      cards.nth(0).getByTestId('display-container').getByText('作品集健檢')
     ).toBeVisible();
 
     const firstBookmarkBtn = cards
@@ -436,6 +452,15 @@ test.describe('我的收藏頁 /favorites (#755)', () => {
       .locator('main')
       .getByRole('link', { name: '尋找導師' });
     await expect(findMentorCta).toBeVisible();
+    await expect(
+      desktopHeaderRight.getByRole('button', { name: '開啟通知選單' })
+    ).toBeVisible();
+    await expect(
+      desktopHeaderRight.getByRole('button', { name: '開啟用戶選單' })
+    ).toBeVisible();
+    await expect(
+      desktopHeaderRight.getByRole('link', { name: '登入' })
+    ).toHaveCount(0);
     expect(deleteCount).toBe(2);
 
     await captureEvidence(page, 'favorites-empty-state');

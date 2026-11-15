@@ -1,7 +1,12 @@
+import { prioritizeIssueAndCommentBlocks } from '../../prefetch-ticket-visuals.mjs';
+
 const TICKET_BRANCH_PATTERN =
   /^(?:feat|fix|chore|refactor|perf|docs|test)\/(\d+)-/;
 const TRACKER_OWNER = 'Xchange-Taiwan';
 const TRACKER_REPO = 'X-Talent-Tracker';
+const MAX_COMMENT_PAGES = 20;
+const NL = String.fromCharCode(10);
+const BACKSLASH = String.fromCharCode(92);
 
 export function extractTicketNumber(branchName, fallbackTicket) {
   const match = branchName?.match(TICKET_BRANCH_PATTERN);
@@ -18,41 +23,84 @@ export function extractTicketNumber(branchName, fallbackTicket) {
   return null;
 }
 
-async function ghGet(apiPath, token) {
-  const res = await fetch(
-    `https://api.github.com/repos/${TRACKER_OWNER}/${TRACKER_REPO}${apiPath}`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github+json',
-      },
-    }
-  );
-  if (!res.ok) {
-    throw new Error(`GitHub API error fetching ${apiPath} (${res.status})`);
+function parseNextLink(linkHeader) {
+  if (!linkHeader) return null;
+  for (const part of String(linkHeader).split(',')) {
+    const match = part.match(/<([^>]+)>;\s*rel="next"/);
+    if (match) return match[1];
   }
-  return res.json();
+  return null;
+}
+
+async function ghGet(
+  urlOrPath,
+  token,
+  { accept = 'application/vnd.github+json', fetchImpl = fetch } = {}
+) {
+  const url = urlOrPath.startsWith('https://')
+    ? urlOrPath
+    : `https://api.github.com/repos/${TRACKER_OWNER}/${TRACKER_REPO}${urlOrPath}`;
+  const res = await fetchImpl(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: accept,
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`GitHub API error fetching ${urlOrPath} (${res.status})`);
+  }
+  const data = await res.json();
+  const nextUrl = parseNextLink(res.headers?.get?.('link'));
+  return { data, nextUrl };
+}
+
+async function fetchPaginatedIssueComments(
+  number,
+  token,
+  { accept = 'application/vnd.github+json', fetchImpl = fetch } = {}
+) {
+  const allComments = [];
+  let nextUrl = `/issues/${number}/comments?per_page=100`;
+  let pageCount = 0;
+
+  while (nextUrl && pageCount < MAX_COMMENT_PAGES) {
+    pageCount += 1;
+    const { data, nextUrl: linkNext } = await ghGet(nextUrl, token, {
+      accept,
+      fetchImpl,
+    });
+    if (Array.isArray(data)) {
+      allComments.push(...data);
+    }
+    nextUrl = linkNext;
+  }
+
+  return allComments;
 }
 
 /**
  * Parses the ticket number out of the PR's head branch name (or uses an
  * explicit fallback ticket number) and fetches the corresponding issue +
- * comments from the (private) X-Talent-Tracker repo.
- * Returns { ticketFound: false } when no valid ticket number is present,
- * or when the token is missing/invalid — callers should treat that as
- * "no ticket context available", not a hard failure.
+ * paginated comments from the (private) X-Talent-Tracker repo.
+ * Returns { ticketFound: false } when no valid ticket number is present.
  */
-export async function fetchTicketContext(branchName, token, fallbackTicket) {
+export async function fetchTicketContext(
+  branchName,
+  token,
+  fallbackTicket,
+  { fetchImpl = fetch } = {}
+) {
   const number = extractTicketNumber(branchName, fallbackTicket);
   if (!number) {
     return { ticketFound: false };
   }
 
-  const issue = await ghGet(`/issues/${number}`, token);
-  const comments = await ghGet(
-    `/issues/${number}/comments?per_page=100`,
-    token
-  );
+  const { data: issue } = await ghGet(`/issues/${number}`, token, {
+    fetchImpl,
+  });
+  const comments = await fetchPaginatedIssueComments(number, token, {
+    fetchImpl,
+  });
 
   return {
     ticketFound: true,
@@ -66,6 +114,47 @@ export async function fetchTicketContext(branchName, token, fallbackTicket) {
   };
 }
 
+/**
+ * Single-flight full issue + paginated comments loader (`application/vnd.github.full+json`),
+ * returning both plain text (`body`) and rendered HTML (`body_html` / `htmlBlocks`)
+ * so downstream stages and visual reference extraction share one GitHub API round-trip.
+ */
+export async function fetchFullTicketContext(
+  branchName,
+  token,
+  fallbackTicket,
+  { fetchImpl = fetch } = {}
+) {
+  const number = extractTicketNumber(branchName, fallbackTicket);
+  if (!number || !token) {
+    return { ticketFound: false };
+  }
+
+  const accept = 'application/vnd.github.full+json';
+  const { data: issue } = await ghGet(`/issues/${number}`, token, {
+    accept,
+    fetchImpl,
+  });
+  const rawComments = await fetchPaginatedIssueComments(number, token, {
+    accept,
+    fetchImpl,
+  });
+
+  return {
+    ticketFound: true,
+    number,
+    title: issue.title ?? '',
+    body: issue.body ?? '',
+    bodyHtml: issue.body_html ?? '',
+    comments: rawComments.map((c) => ({
+      author: c.user?.login ?? 'unknown',
+      body: c.body ?? '',
+      bodyHtml: c.body_html ?? '',
+    })),
+    htmlBlocks: prioritizeIssueAndCommentBlocks(issue, rawComments),
+  };
+}
+
 const ARCH_KB_ENDPOINT =
   process.env.ARCH_KB_ENDPOINT ||
   'https://x-talent-discord-mention-notify.x-talent.workers.dev/__arch-kb';
@@ -74,7 +163,7 @@ const ARCH_KB_ENDPOINT =
  * Fetches the pre-indexed X-Talent Architecture Knowledge Base (Global Map +
  * matched Domain Cards for Frontend, Backend, AWS Infra, BFF Contracts, ADRs,
  * and Figma Route Mappings) from the Cloudflare KV Worker endpoint.
- * Fails gracefully (returns '') if offline or unreachable.
+ * Fails gracefully (returns null) if offline or unreachable.
  */
 export async function fetchRawArchitectureKb(queryText) {
   try {
@@ -93,7 +182,7 @@ export async function fetchRawArchitectureKb(queryText) {
 }
 
 export function isUiReviewFile(filePath = '') {
-  const f = String(filePath).replace(/\\/g, '/').trim();
+  const f = String(filePath).split(BACKSLASH).join('/').trim();
   if (!f) return false;
   if (/\.(test|spec|stories)\.(ts|tsx|js|jsx)$/.test(f)) return false;
   if (f.startsWith('src/app/api/')) return false;
@@ -122,13 +211,16 @@ export function formatArchitectureKnowledgeBase(kb) {
   if (!kb) return '';
   const designSpecs = resolveDesignSpecsFromKb(kb);
   const parts = [
-    '\n\n## X-Talent 跨專案架構知識庫 (Cloudflare KV Architecture KB)',
+    NL + NL + '## X-Talent 跨專案架構知識庫 (Cloudflare KV Architecture KB)',
   ];
   if (kb.matchedDesignSpecs && designSpecs === kb.matchedDesignSpecs) {
     parts.push(
-      '### Design Hub 定案畫面與元件規格 (Single Source of Truth)\n```json\n' +
-        JSON.stringify(kb.matchedDesignSpecs, null, 2).slice(0, 8000) +
-        '\n```'
+      [
+        '### Design Hub 定案畫面與元件規格 (Single Source of Truth)',
+        '```json',
+        JSON.stringify(kb.matchedDesignSpecs, null, 2).slice(0, 8000),
+        '```',
+      ].join(NL)
     );
   }
   const restKb = {
@@ -137,9 +229,9 @@ export function formatArchitectureKnowledgeBase(kb) {
     ticketsPool: kb.ticketsPool,
   };
   parts.push(
-    '```json\n' + JSON.stringify(restKb, null, 2).slice(0, 14000) + '\n```'
+    ['```json', JSON.stringify(restKb, null, 2).slice(0, 14000), '```'].join(NL)
   );
-  return parts.join('\n\n');
+  return parts.join(NL + NL);
 }
 
 /**

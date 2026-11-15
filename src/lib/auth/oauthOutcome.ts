@@ -1,9 +1,18 @@
-import { signIn } from 'next-auth/react';
-
-import { googleCallback } from '@/lib/actions/googleCallback';
 import type { components } from '@/types/api';
 
+import {
+  clearPendingDeleteAccountEmail,
+  getPendingDeleteAccountEmail,
+} from './authFlowStorage';
+
+export { clearPendingDeleteAccountEmail, getPendingDeleteAccountEmail };
+
 type GoogleCallbackVO = components['schemas']['GoogleCallbackVO'];
+type OAuthCallbackResponse =
+  components['schemas']['ApiResponse_GoogleCallbackVO_'];
+
+export type OAuthInvalidErrorType =
+  'MISSING_PARAMS' | 'CALLBACK_FAILED' | 'DELETE_FLOW_INVALID';
 
 export type OAuthOutcome =
   | { type: 'LOGIN'; data: GoogleCallbackVO }
@@ -11,37 +20,39 @@ export type OAuthOutcome =
   | { type: 'RESUME_DELETE_ACCOUNT'; data: GoogleCallbackVO; email: string }
   | {
       type: 'INVALID';
-      errorType: 'MISSING_PARAMS' | 'CALLBACK_FAILED' | 'DELETE_FLOW_INVALID';
+      errorType: OAuthInvalidErrorType;
     };
 
-/**
- * Retrieves the pending delete account email from sessionStorage if it exists.
- * Does NOT clear sessionStorage to prevent state loss in React Strict Mode.
- */
-export function getPendingDeleteAccountEmail(): string | null {
-  if (typeof window === 'undefined') return null;
-  return sessionStorage.getItem('delete_account_email');
+export interface ClientSignInResult {
+  error?: string | null;
+  ok?: boolean;
+}
+
+export type ClientSignInFn = (
+  provider: string,
+  options?: Record<string, unknown>
+) => Promise<ClientSignInResult | undefined>;
+
+export type GoogleOAuthCodeExchanger = (
+  code: string,
+  state: string
+) => Promise<OAuthCallbackResponse>;
+
+export interface ResolveOAuthOutcomeOptions {
+  exchangeCode: GoogleOAuthCodeExchanger;
+  pendingDeleteAccountEmail?: string | null;
 }
 
 /**
- * Clears the pending delete account email from sessionStorage.
- * Call this when actually starting/completing the deletion flow to prevent zombie states.
- */
-export function clearPendingDeleteAccountEmail(): void {
-  if (typeof window === 'undefined') return;
-  sessionStorage.removeItem('delete_account_email');
-}
-
-/**
- * Unified helper for building signIn options and invoking NextAuth signIn
- * for the custom custom-google-token credentials provider.
- * Checks for signIn errors and throws them to prevent silent failures.
+ * Helper to sign in with NextAuth custom-google-token provider via injected
+ * client signIn adapter (keeps src/lib/auth free of next-auth/react imports).
  */
 export async function signInWithGoogleToken(
+  signIn: ClientSignInFn,
   token: string,
   email: string,
   user: Record<string, unknown>
-) {
+): Promise<void> {
   const res = await signIn('custom-google-token', {
     redirect: false,
     token,
@@ -49,44 +60,41 @@ export async function signInWithGoogleToken(
     user: JSON.stringify(user),
   });
 
-  if (!res || res.error || !res.ok) {
-    throw new Error(res?.error || 'Sign-in failed');
+  if (res?.error) {
+    throw new Error(res.error);
   }
-
-  return res;
 }
 
 /**
- * Resolves the Google OAuth callback response into a typed outcome.
+ * Resolves the state machine outcome of a Google OAuth callback via an
+ * injected code-exchange adapter.
  */
 export async function resolveOAuthOutcome(
   code: string | null,
   state: string | null,
-  options: { pendingDeleteAccountEmail?: string | null } = {}
+  options: ResolveOAuthOutcomeOptions
 ): Promise<OAuthOutcome> {
   if (!code || !state) {
     return { type: 'INVALID', errorType: 'MISSING_PARAMS' };
   }
 
   try {
-    const response = await googleCallback(code, state);
-    const callbackData = response.data;
+    const res = await options.exchangeCode(code, state);
+    const callbackData = res?.data;
 
     if (!callbackData) {
       return { type: 'INVALID', errorType: 'CALLBACK_FAILED' };
     }
 
-    const { pendingDeleteAccountEmail } = options;
-
-    if (pendingDeleteAccountEmail) {
-      if (callbackData.auth_type !== 'LOGIN') {
-        return { type: 'INVALID', errorType: 'DELETE_FLOW_INVALID' };
+    if (options.pendingDeleteAccountEmail) {
+      if (callbackData.auth_type === 'LOGIN') {
+        return {
+          type: 'RESUME_DELETE_ACCOUNT',
+          data: callbackData,
+          email: options.pendingDeleteAccountEmail,
+        };
       }
-      return {
-        type: 'RESUME_DELETE_ACCOUNT',
-        data: callbackData,
-        email: pendingDeleteAccountEmail,
-      };
+      return { type: 'INVALID', errorType: 'DELETE_FLOW_INVALID' };
     }
 
     if (callbackData.auth_type === 'SIGNUP') {

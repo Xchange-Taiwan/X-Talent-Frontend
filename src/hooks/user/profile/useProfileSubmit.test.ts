@@ -1,4 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
+import { fromPartial } from '@total-typescript/shoehorn';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/navigation', async () => {
@@ -36,6 +37,7 @@ import { captureFlowFailure } from '@/lib/monitoring';
 import { LoggedError, saveProfile } from '@/lib/profile/saveProfile';
 import { baseValues, mockSession } from '@/test/fixtures/profile';
 import { mockToast } from '@/test/mocks/useToast';
+import type { IndustryOption } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
 
 import { useProfileSubmit } from './useProfileSubmit';
@@ -49,7 +51,7 @@ const makeOptions = (
   pageUserId: 'test-user-id',
   isMentorOnboarding: false,
   session: mockSession,
-  updateSession: vi.fn().mockResolvedValue(mockSession),
+  updateSession: vi.fn(async () => mockSession),
   consumeAvatarUpload: vi.fn(),
   ...overrides,
 });
@@ -61,7 +63,7 @@ describe('useProfileSubmit (Hook Layer)', () => {
 
   it('saveProfile resolves successfully → isSaving remains true (simulating in-flight navigation)', async () => {
     mockSaveProfile.mockResolvedValueOnce(
-      undefined as unknown as MentorProfileVO
+      fromPartial<MentorProfileVO>({ user_id: 1 })
     );
     const { result } = renderHook(() => useProfileSubmit(makeOptions()));
 
@@ -137,26 +139,43 @@ describe('useProfileSubmit (Hook Layer)', () => {
     );
   });
 
-  it('passes currentDto from options to saveProfile', async () => {
+  it('forwards context (including currentDto & industryCatalog) and narrow ProfileSavePort to saveProfile', async () => {
     mockSaveProfile.mockResolvedValueOnce(
-      undefined as unknown as MentorProfileVO
+      fromPartial<MentorProfileVO>({ user_id: 123 })
     );
-    const mockDto = {
+    const mockDto = fromPartial<MentorProfileVO>({
       user_id: 123,
       name: 'Test',
-    } as unknown as MentorProfileVO;
+    });
+    const industries: IndustryOption[] = [
+      { subject_group: 'finance', subject: '金融業' },
+    ];
+
     const { result } = renderHook(() =>
-      useProfileSubmit(makeOptions({ currentDto: mockDto }))
+      useProfileSubmit(
+        makeOptions({ currentDto: mockDto, industryCatalog: industries })
+      )
     );
 
     await act(async () => {
-      await result.current.onSubmit(baseValues);
+      await result.current.onSubmit(baseValues, { industry: true });
     });
 
     expect(mockSaveProfile).toHaveBeenCalledWith(
       baseValues,
       expect.objectContaining({
+        pageUserId: 'test-user-id',
+        isMentorOnboarding: false,
+        session: mockSession,
+        dirtyFields: { industry: true },
         currentDto: mockDto,
+        industryCatalog: industries,
+      }),
+      expect.objectContaining({
+        updateSession: expect.any(Function),
+        navigate: expect.any(Function),
+        revalidateProfilePath: expect.any(Function),
+        uploadAvatar: expect.any(Function),
       })
     );
   });

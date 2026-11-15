@@ -5,13 +5,14 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
+import { revalidateProfilePathAfterDelete } from '@/actions/auth';
 import { useToast } from '@/components/ui/use-toast';
 import useAsyncAction from '@/hooks/useAsyncAction';
-import { clearAnalyticsUser, trackEvent } from '@/lib/analytics';
-import { dispatchDeleteAccountRevalidate } from '@/lib/auth/dispatchDeleteAccountRevalidate';
+import {
+  executeDeleteAccountXC,
+  initiateGoogleDeleteAccountReauth,
+} from '@/lib/auth/sessionLifecycle';
 import { DeleteAccountXCSchema } from '@/schemas/auth';
-import { deleteAccount } from '@/services/auth/deleteAccount';
-import { getGoogleAuthorizeLoginUrl } from '@/services/auth/googleAuthorize';
 
 type XCValues = z.infer<typeof DeleteAccountXCSchema>;
 
@@ -54,16 +55,18 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
     setBlockedByReservations(false);
     await run(
       async () => {
-        const result = await deleteAccount({
-          email: values.email,
-          password: values.password,
-        });
+        const result = await executeDeleteAccountXC(
+          {
+            email: values.email,
+            password: values.password,
+          },
+          {
+            signOut,
+            revalidateAfterDelete: revalidateProfilePathAfterDelete,
+          }
+        );
 
         if (result.status === 'success') {
-          trackEvent({ name: 'delete_account_succeeded', feature: 'auth' });
-          clearAnalyticsUser();
-          await dispatchDeleteAccountRevalidate();
-          await signOut({ callbackUrl: '/' });
           return;
         }
 
@@ -102,18 +105,12 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
 
     await run(
       async () => {
-        sessionStorage.setItem(
-          'delete_account_email',
-          session?.user?.email ?? ''
-        );
-        const { authorization_url } = await getGoogleAuthorizeLoginUrl();
-        router.push(authorization_url);
+        await initiateGoogleDeleteAccountReauth(session?.user?.email ?? '', {
+          navigate: (url) => router.push(url),
+        });
       },
       {
         throwError: false,
-        onError: () => {
-          sessionStorage.removeItem('delete_account_email');
-        },
         toastOnError: {
           description: '無法取得 Google 授權連結，請稍後再試',
           duration: 3000,

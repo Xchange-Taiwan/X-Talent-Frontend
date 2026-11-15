@@ -1,7 +1,18 @@
 import { fromPartial } from '@total-typescript/shoehorn';
-import { describe, expect, it } from 'vitest';
+import { RRule } from 'rrule';
+import { describe, expect, it, onTestFinished, vi } from 'vitest';
+
+vi.mock('@/lib/profile/scheduleHelpers', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/profile/scheduleHelpers')>();
+  return {
+    ...actual,
+    expandRrule: vi.fn(actual.expandRrule),
+  };
+});
 
 import {
+  expandRrule,
   isSlotTaken,
   type RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
@@ -749,6 +760,154 @@ describe('computeBookingAvailability', () => {
       expect(model.slotsWithMeta[1].matchedReservation).toEqual(
         mockReservation
       );
+    });
+  });
+
+  describe('Ticket #880: Single-pass RRule expansion & frozen-instant per-date projection', () => {
+    it('expands each recurring RRule row at most once and derives per-date slots without re-expanding RRules', () => {
+      const expandSpy = vi.mocked(expandRrule);
+      expandSpy.mockClear();
+      const rruleAllSpy = vi.spyOn(RRule.prototype, 'all');
+      onTestFinished(() => {
+        rruleAllSpy.mockRestore();
+      });
+
+      const draftRows: RawMentorTimeslot[] = [
+        {
+          id: 501,
+          type: 'ALLOW',
+          dtstart: futureTime1, // 2026-05-01 13:00 UTC
+          dtend: futureTime1 + 1800,
+          rrule: 'FREQ=WEEKLY;COUNT=4',
+          exdate: [],
+        },
+        {
+          id: 502,
+          type: 'ALLOW',
+          dtstart: futureTime2, // 2026-05-01 14:00 UTC
+          dtend: futureTime2 + 1800,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+
+      const model = computeBookingAvailability({
+        draftRows,
+        nowSec,
+      });
+
+      expect(expandSpy).toHaveBeenCalledTimes(1);
+      expect(rruleAllSpy).toHaveBeenCalledTimes(1);
+      expect(model.allowedDates).toEqual([
+        '2026-05-01',
+        '2026-05-08',
+        '2026-05-15',
+        '2026-05-22',
+      ]);
+
+      expandSpy.mockClear();
+      rruleAllSpy.mockClear();
+
+      // Repeatedly querying different dates for both booking and editor projections
+      // must perform O(occurrences-on-date) lookups with zero RRule expansions.
+      for (const dateKey of model.allowedDates) {
+        const bookingSlots = model.generateBookingSlots(dateKey);
+        const editorProjection = model.projectEditorSlots(dateKey);
+        const rawForDate = model.getOccurrencesForDate(dateKey);
+        expect(bookingSlots.length).toBeGreaterThan(0);
+        expect(editorProjection.slotsWithMeta.length).toBeGreaterThan(0);
+        expect(rawForDate.length).toBeGreaterThan(0);
+      }
+
+      expect(expandSpy).not.toHaveBeenCalled();
+      expect(rruleAllSpy).not.toHaveBeenCalled();
+    });
+
+    it('preserves frozen-instant consistency between allowedDates, generateBookingSlots, and projectEditorSlots even after Date.now() advances past a slot boundary', () => {
+      const boundarySlotStart = nowSec + 60; // 1 minute in the future at computation time
+      const laterDateSlotStart = nowSec + 7 * 86400 + 3600; // 1 week later
+
+      const draftRows: RawMentorTimeslot[] = [
+        {
+          id: 601,
+          type: 'ALLOW',
+          dtstart: boundarySlotStart,
+          dtend: boundarySlotStart + 1800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 602,
+          type: 'ALLOW',
+          dtstart: laterDateSlotStart,
+          dtend: laterDateSlotStart + 1800,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+
+      const model = computeBookingAvailability({
+        draftRows,
+        nowSec,
+      });
+
+      // Advance wall clock 10 minutes past boundarySlotStart
+      const dateNowSpy = vi
+        .spyOn(Date, 'now')
+        .mockReturnValue((boundarySlotStart + 600) * 1000);
+      onTestFinished(() => {
+        dateNowSpy.mockRestore();
+      });
+
+      expect(model.allowedDates).toEqual(['2026-05-01', '2026-05-08']);
+      const slotsDay8 = model.generateBookingSlots('2026-05-08');
+      const slotsDay1 = model.generateBookingSlots('2026-05-01');
+      const editorDay1 = model.projectEditorSlots('2026-05-01');
+
+      expect(slotsDay8).toHaveLength(1);
+      expect(slotsDay1).toHaveLength(1);
+      expect(editorDay1.slotsWithMeta[0].isPast).toBe(false);
+      expect(editorDay1.futureSlots).toHaveLength(1);
+      expect(dateNowSpy).not.toHaveBeenCalled();
+    });
+
+    it('excludes FORBIDDEN rows from reservationBlock overlays and orphan virtual items', () => {
+      const draftRows: RawMentorTimeslot[] = [
+        {
+          id: 701,
+          type: 'ALLOW',
+          dtstart: futureTime1,
+          dtend: futureTime1 + 1800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: -701,
+          type: 'FORBIDDEN',
+          dtstart: futureTime1,
+          dtend: futureTime1 + 1800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: -702,
+          type: 'FORBIDDEN',
+          dtstart: futureTime2,
+          dtend: futureTime2 + 1800,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+
+      const model = computeBookingAvailability({
+        draftRows,
+        nowSec,
+        selectedDate: '2026-05-01',
+      });
+
+      expect(model.slotsWithMeta).toHaveLength(1);
+      expect(model.slotsWithMeta[0].slot.id).toBe(701);
+      expect(model.slotsWithMeta[0].reservationBlock).toBeNull();
     });
   });
 });

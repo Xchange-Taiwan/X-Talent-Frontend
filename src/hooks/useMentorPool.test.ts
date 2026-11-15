@@ -1,6 +1,8 @@
 import { act, renderHook } from '@testing-library/react';
 import { fromPartial } from '@total-typescript/shoehorn';
 import type { ReadonlyURLSearchParams } from 'next/navigation';
+import React from 'react';
+import { renderToString } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/navigation', async () => {
@@ -20,9 +22,9 @@ vi.mock('@/services/search-mentor/mentors', () => ({
 import { PAGE_LIMIT } from '@/app/mentor-pool/constants';
 import avatarImage from '@/assets/default-avatar.png';
 import {
-  mentorPoolReadManager,
-  mentorPoolStore,
-} from '@/lib/cache/mentorPoolCache';
+  mentorPoolReadModel,
+  UNFILTERED_MENTOR_POOL_QUERY,
+} from '@/lib/mentor/mentorPoolReadModel';
 import { fetchMentors } from '@/services/search-mentor/mentors';
 import { mockSearchParams } from '@/test/mocks/navigation';
 import { mockToast } from '@/test/mocks/useToast';
@@ -58,41 +60,71 @@ const mockInitialMentors: MentorType[] = [
   },
 ];
 
-const testLabelMap = new Map<string, string>([
-  ['topic_a', 'Localized Topic A'],
-  ['topic_b', 'Localized Topic B'],
-  ['skill_a', 'Localized Skill A'],
-  ['skill_b', 'Localized Skill B'],
-]);
-
 describe('useMentorPool', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetchMentors.mockReset();
-    mentorPoolReadManager.clear();
+    mentorPoolReadModel.clear();
     mockSearchParams.toString.mockReturnValue('');
     mockSearchParams.get.mockReturnValue(null);
   });
 
-  it('initializes and translates initial mentors when no filters are present', () => {
+  it('initializes with raw subject_group codes intact when no filters are present', () => {
     const { result } = renderHook(() =>
       useMentorPool({
         initialMentors: mockInitialMentors,
         initialMentorCount: 1,
-        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
-        labelMap: testLabelMap,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
       })
     );
 
     expect(result.current.mentors[0].name).toBe('Initial Mentor');
-    expect(result.current.mentors[0].have_topic).toEqual(['Localized Topic A']);
-    expect(result.current.mentors[0].have_skill).toEqual(['Localized Skill A']);
+    expect(result.current.mentors[0].have_topic).toEqual(['topic_a']);
+    expect(result.current.mentors[0].have_skill).toEqual(['skill_a']);
     expect(result.current.mentorCount).toBe(1);
     expect(result.current.isLoading).toBe(false);
     expect(result.current.isNoResults).toBe(false);
   });
 
-  it('triggers a fetch when parameters are present with search conditions', async () => {
+  it('does not mutate singleton cache during SSR render so warm Node ISR revalidations always reflect fresh initialMentors (#886)', () => {
+    function SsrProbe({ mentors }: { mentors: MentorType[] }) {
+      const { mentors: rendered } = useMentorPool({
+        initialMentors: mentors,
+        initialMentorCount: mentors.length,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
+      });
+      return React.createElement(
+        'div',
+        null,
+        rendered.map((m) => m.name).join(',')
+      );
+    }
+
+    const firstHtml = renderToString(
+      React.createElement(SsrProbe, {
+        mentors: [{ ...mockInitialMentors[0], user_id: 1, name: 'SSR V1' }],
+      })
+    );
+    expect(firstHtml).toContain('SSR V1');
+    expect(
+      mentorPoolReadModel.get(UNFILTERED_MENTOR_POOL_QUERY)
+    ).toBeUndefined();
+
+    // Simulate [DEPLOY-04] revalidatePath('/mentor-pool') on the SAME warm Node process
+    // without clearing module singletons in between:
+    const secondHtml = renderToString(
+      React.createElement(SsrProbe, {
+        mentors: [{ ...mockInitialMentors[0], user_id: 2, name: 'SSR V2' }],
+      })
+    );
+    expect(secondHtml).toContain('SSR V2');
+    expect(secondHtml).not.toContain('SSR V1');
+    expect(
+      mentorPoolReadModel.get(UNFILTERED_MENTOR_POOL_QUERY)
+    ).toBeUndefined();
+  });
+
+  it('triggers a fetch when parameters are present with search conditions and preserves raw subject_group codes', async () => {
     mockSearchParams.toString.mockReturnValue('q=react');
     mockSearchParams.get.mockImplementation((key) => {
       if (key === 'q') return 'react';
@@ -131,12 +163,10 @@ describe('useMentorPool', () => {
       useMentorPool({
         initialMentors: mockInitialMentors,
         initialMentorCount: 1,
-        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
-        labelMap: testLabelMap,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
       })
     );
 
-    // Should start in loading state
     expect(result.current.isLoading).toBe(true);
     expect(result.current.mentors).toEqual([]);
 
@@ -147,8 +177,54 @@ describe('useMentorPool', () => {
 
     expect(result.current.isLoading).toBe(false);
     expect(result.current.mentors[0].name).toBe('Fetched Mentor');
-    expect(result.current.mentors[0].have_topic).toEqual(['Localized Topic B']);
+    expect(result.current.mentors[0].have_topic).toEqual(['topic_b']);
     expect(result.current.mentorCount).toBe(1);
+  });
+
+  it('reuses cached results across utm_* tracking params and reordered filter params without issuing duplicate fetches (#886)', async () => {
+    mockSearchParams.toString.mockReturnValue(
+      'utm_source=discord&filter_topics=topic_a&q=react&filter_skills=skill_a'
+    );
+    mockSearchParams.get.mockImplementation((key) => {
+      if (key === 'utm_source') return 'discord';
+      if (key === 'filter_topics') return 'topic_a';
+      if (key === 'q') return 'react';
+      if (key === 'filter_skills') return 'skill_a';
+      return null;
+    });
+
+    mockFetchMentors.mockResolvedValueOnce({
+      mentors: [{ ...mockInitialMentors[0], user_id: 77, name: 'Canonical' }],
+      nextCursor: null,
+    });
+
+    const { result, rerender } = renderHook(() =>
+      useMentorPool({
+        initialMentors: mockInitialMentors,
+        initialMentorCount: 1,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
+      })
+    );
+
+    await act(async () => {});
+    expect(result.current.mentors[0].name).toBe('Canonical');
+    expect(mockFetchMentors).toHaveBeenCalledTimes(1);
+
+    // Strip utm_source and reorder filter params -> must hit canonical cache synchronously
+    mockSearchParams.toString.mockReturnValue(
+      'filter_skills=skill_a&q=react&filter_topics=topic_a'
+    );
+    mockSearchParams.get.mockImplementation((key) => {
+      if (key === 'filter_skills') return 'skill_a';
+      if (key === 'q') return 'react';
+      if (key === 'filter_topics') return 'topic_a';
+      return null;
+    });
+    rerender();
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.mentors[0].name).toBe('Canonical');
+    expect(mockFetchMentors).toHaveBeenCalledTimes(1);
   });
 
   it('handles API errors gracefully inside fetchMentors catch block', async () => {
@@ -172,8 +248,7 @@ describe('useMentorPool', () => {
       useMentorPool({
         initialMentors: mockInitialMentors,
         initialMentorCount: 1,
-        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
-        labelMap: testLabelMap,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
       })
     );
 
@@ -189,7 +264,7 @@ describe('useMentorPool', () => {
     });
 
     expect(result.current.isLoading).toBe(false);
-    expect(result.current.isNoResults).toBe(false); // does not lock infinite scroll on error
+    expect(result.current.isNoResults).toBe(false);
     expect(mockToast).toHaveBeenCalledWith({
       variant: 'destructive',
       title: '載入失敗',
@@ -218,8 +293,7 @@ describe('useMentorPool', () => {
       useMentorPool({
         initialMentors: mockInitialMentors,
         initialMentorCount: 1,
-        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
-        labelMap: testLabelMap,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
       })
     );
 
@@ -254,7 +328,6 @@ describe('useMentorPool', () => {
       resolveFetch2 = resolve;
     });
 
-    // Mock first and second fetch responses
     mockFetchMentors
       .mockReturnValueOnce(fetchPromise1)
       .mockReturnValueOnce(fetchPromise2);
@@ -263,12 +336,10 @@ describe('useMentorPool', () => {
       useMentorPool({
         initialMentors: mockInitialMentors,
         initialMentorCount: 1,
-        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
-        labelMap: testLabelMap,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
       })
     );
 
-    // Simulate parameters updating a second time immediately
     mockSearchParams.toString.mockReturnValue('q=nextjs');
     mockSearchParams.get.mockImplementation((key) => {
       if (key === 'q') return 'nextjs';
@@ -276,7 +347,6 @@ describe('useMentorPool', () => {
     });
     rerender();
 
-    // Resolve first (now obsolete) fetch
     await act(async () => {
       resolveFetch1({
         mentors: [{ ...mockInitialMentors[0], user_id: 99 }],
@@ -285,10 +355,8 @@ describe('useMentorPool', () => {
       await fetchPromise1;
     });
 
-    // obsolete response should be ignored, mentors state remains empty/loading
     expect(result.current.mentors).toEqual([]);
 
-    // Resolve second (latest) fetch
     const latestMentors = [{ ...mockInitialMentors[0], user_id: 100 }];
     await act(async () => {
       resolveFetch2({ mentors: latestMentors, nextCursor: null });
@@ -299,7 +367,6 @@ describe('useMentorPool', () => {
   });
 
   it('scrolls to load more, appends results, and deduplicates existing user_id items', async () => {
-    // We want the mock initial state to think hasMore is true, so set initialMentors.length to PAGE_LIMIT
     const largeInitialMentors = Array.from({ length: PAGE_LIMIT }, (_, i) => ({
       ...mockInitialMentors[0],
       user_id: i + 1,
@@ -308,11 +375,11 @@ describe('useMentorPool', () => {
     const paginatedMentors: MentorType[] = [
       {
         ...mockInitialMentors[0],
-        user_id: 5, // Duplicate user_id (already exists in initial)
+        user_id: 5,
       },
       {
         ...mockInitialMentors[0],
-        user_id: 21, // New user_id
+        user_id: 21,
         have_topic: ['topic_b'],
       },
     ];
@@ -327,8 +394,7 @@ describe('useMentorPool', () => {
         initialMentors: largeInitialMentors,
         initialNextCursor: 'opaque-next-cursor',
         initialMentorCount: PAGE_LIMIT,
-        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
-        labelMap: testLabelMap,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
       })
     );
 
@@ -336,12 +402,11 @@ describe('useMentorPool', () => {
       await result.current.handleScrollToBottom();
     });
 
-    // Should filter out duplicate user_id 5, appending only user_id 21. Total mentors = PAGE_LIMIT + 1 = 10.
     expect(result.current.mentors.length).toBe(PAGE_LIMIT + 1);
     expect(result.current.mentors.find((m) => m.user_id === 21)).toBeDefined();
     expect(
       result.current.mentors.find((m) => m.user_id === 21)?.have_topic
-    ).toEqual(['Localized Topic B']);
+    ).toEqual(['topic_b']);
     expect(result.current.mentorCount).toBe(PAGE_LIMIT + 1);
     expect(mockFetchMentors).toHaveBeenCalledWith(
       expect.objectContaining({ cursor: 'opaque-next-cursor' }),
@@ -365,8 +430,7 @@ describe('useMentorPool', () => {
         initialMentors: largeInitialMentors,
         initialNextCursor: 'opaque-next-cursor',
         initialMentorCount: PAGE_LIMIT,
-        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
-        labelMap: testLabelMap,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
       })
     );
 
@@ -374,9 +438,8 @@ describe('useMentorPool', () => {
       await result.current.handleScrollToBottom();
     });
 
-    // Loading should be reset to false
     expect(result.current.isLoading).toBe(false);
-    expect(result.current.isNoResults).toBe(false); // Should NOT lock infinite scroll
+    expect(result.current.isNoResults).toBe(false);
     expect(mockToast).toHaveBeenCalledWith({
       variant: 'destructive',
       title: '載入失敗',
@@ -388,7 +451,6 @@ describe('useMentorPool', () => {
   });
 
   it('directly restores initialMentors and bypasses API fetch when filters are cleared', async () => {
-    // 1. Mount with parameters (filtered conditions)
     mockSearchParams.toString.mockReturnValue('q=react');
     mockSearchParams.get.mockImplementation((key) => {
       if (key === 'q') return 'react';
@@ -412,30 +474,24 @@ describe('useMentorPool', () => {
       useMentorPool({
         initialMentors: mockInitialMentors,
         initialMentorCount: 1,
-        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
-        labelMap: testLabelMap,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
       })
     );
 
-    // Wait for the query load to complete
     await act(async () => {});
 
     expect(result.current.mentors[0].name).toBe('Filtered Mentor');
     expect(mockFetchMentors).toHaveBeenCalledTimes(1);
 
-    // 2. Clear filters (go from filtered to unfiltered)
     mockSearchParams.toString.mockReturnValue('');
     mockSearchParams.get.mockReturnValue(null);
     mockFetchMentors.mockClear();
 
     rerender();
 
-    // It should synchronously restore initialMentors
     expect(result.current.mentors[0].name).toBe('Initial Mentor');
-    expect(result.current.mentors[0].have_topic).toEqual(['Localized Topic A']);
+    expect(result.current.mentors[0].have_topic).toEqual(['topic_a']);
     expect(result.current.isLoading).toBe(false);
-
-    // API fetch should NOT be called during filter-clearing
     expect(mockFetchMentors).not.toHaveBeenCalled();
   });
 
@@ -456,7 +512,6 @@ describe('useMentorPool', () => {
       resolveFetch2 = resolve;
     });
 
-    // Mock first (failing) and second (successful) fetches
     mockFetchMentors
       .mockReturnValueOnce(fetchPromise1)
       .mockReturnValueOnce(fetchPromise2);
@@ -469,12 +524,10 @@ describe('useMentorPool', () => {
       useMentorPool({
         initialMentors: mockInitialMentors,
         initialMentorCount: 1,
-        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
-        labelMap: testLabelMap,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
       })
     );
 
-    // Trigger second request immediately
     mockSearchParams.toString.mockReturnValue('q=nextjs');
     mockSearchParams.get.mockImplementation((key) => {
       if (key === 'q') return 'nextjs';
@@ -482,7 +535,6 @@ describe('useMentorPool', () => {
     });
     rerender();
 
-    // Reject first (obsolete) fetch
     await act(async () => {
       rejectFetch1(new Error('Obsolete request failure'));
       try {
@@ -492,11 +544,9 @@ describe('useMentorPool', () => {
       }
     });
 
-    // Error should be ignored: no toast shown, isLoading remains true
     expect(mockToast).not.toHaveBeenCalled();
     expect(result.current.isLoading).toBe(true);
 
-    // Resolve second (latest) fetch
     const latestMentors = [{ ...mockInitialMentors[0], user_id: 100 }];
     await act(async () => {
       resolveFetch2({ mentors: latestMentors, nextCursor: null });
@@ -526,7 +576,6 @@ describe('useMentorPool', () => {
       resolveFetch2 = resolve;
     });
 
-    // Mock first (slow) and second (fast) fetches
     mockFetchMentors
       .mockReturnValueOnce(fetchPromise1)
       .mockReturnValueOnce(fetchPromise2);
@@ -535,12 +584,10 @@ describe('useMentorPool', () => {
       useMentorPool({
         initialMentors: mockInitialMentors,
         initialMentorCount: 1,
-        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
-        labelMap: testLabelMap,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
       })
     );
 
-    // Trigger second request immediately
     mockSearchParams.toString.mockReturnValue('q=nextjs');
     mockSearchParams.get.mockImplementation((key) => {
       if (key === 'q') return 'nextjs';
@@ -548,7 +595,6 @@ describe('useMentorPool', () => {
     });
     rerender();
 
-    // Resolve second (latest) fetch first
     const latestMentors = [
       { ...mockInitialMentors[0], user_id: 100, name: 'Latest Mentor' },
     ];
@@ -561,7 +607,6 @@ describe('useMentorPool', () => {
     expect(result.current.mentors[0].user_id).toBe(100);
     expect(result.current.mentors[0].name).toBe('Latest Mentor');
 
-    // Resolve first (stale) fetch last
     const staleMentors = [
       { ...mockInitialMentors[0], user_id: 50, name: 'Stale Mentor' },
     ];
@@ -570,7 +615,6 @@ describe('useMentorPool', () => {
       await fetchPromise1;
     });
 
-    // It should NOT overwrite the latest results
     expect(result.current.isLoading).toBe(false);
     expect(result.current.mentors[0].user_id).toBe(100);
     expect(result.current.mentors[0].name).toBe('Latest Mentor');
@@ -581,8 +625,7 @@ describe('useMentorPool', () => {
       useMentorPool({
         initialMentors: [],
         initialMentorCount: 0,
-        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
-        labelMap: testLabelMap,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
         initialError: true,
       })
     );
@@ -612,8 +655,7 @@ describe('useMentorPool', () => {
       useMentorPool({
         initialMentors: [],
         initialMentorCount: 0,
-        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
-        labelMap: testLabelMap,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
       })
     );
 
@@ -642,7 +684,6 @@ describe('useMentorPool', () => {
   });
 
   it('clears existing mentors and sets hasError=true when changing filters fails', async () => {
-    // 1. Start with initial mentors pre-loaded (unfiltered state)
     mockSearchParams.toString.mockReturnValue('');
     mockSearchParams.get.mockReturnValue(null);
 
@@ -650,15 +691,13 @@ describe('useMentorPool', () => {
       useMentorPool({
         initialMentors: mockInitialMentors,
         initialMentorCount: 1,
-        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
-        labelMap: testLabelMap,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
       })
     );
 
     expect(result.current.mentors.length).toBe(1);
     expect(result.current.hasError).toBe(false);
 
-    // 2. Change filters, mock query failure
     mockSearchParams.toString.mockReturnValue('q=react');
     mockSearchParams.get.mockImplementation((key) => {
       if (key === 'q') return 'react';
@@ -672,11 +711,9 @@ describe('useMentorPool', () => {
 
     rerender();
 
-    // Settle the mock failure promise
     await act(async () => {});
 
     expect(result.current.isLoading).toBe(false);
-    // CRITICAL ASSERTIONS: mentors must be empty, and hasError must be true!
     expect(result.current.mentors).toEqual([]);
     expect(result.current.hasError).toBe(true);
     expect(result.current.mentorCount).toBe(0);
@@ -704,8 +741,7 @@ describe('useMentorPool', () => {
         initialMentors: largeInitialMentors,
         initialNextCursor: 'opaque-next-cursor',
         initialMentorCount: PAGE_LIMIT,
-        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
-        labelMap: testLabelMap,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
       })
     );
 
@@ -749,8 +785,7 @@ describe('useMentorPool', () => {
       useMentorPool({
         initialMentors: [],
         initialMentorCount: 0,
-        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
-        labelMap: testLabelMap,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
       })
     );
 
@@ -759,7 +794,6 @@ describe('useMentorPool', () => {
     expect(result.current.hasError).toBe(true);
     expect(mockFetchMentors).toHaveBeenCalledTimes(1);
 
-    // Use a manual pending promise for the second fetch (retry) to test transition states
     let resolveRetryFetch!: (value: MentorPage) => void;
     const retryPromise = new Promise<MentorPage>((resolve) => {
       resolveRetryFetch = resolve;
@@ -787,7 +821,6 @@ describe('useMentorPool', () => {
   });
 
   it('triggers a fetch on retry when no parameters are present if initialError is true', async () => {
-    // 1. Initialized with SSR error and no filters
     mockSearchParams.toString.mockReturnValue('');
     mockSearchParams.get.mockReturnValue(null);
 
@@ -795,8 +828,7 @@ describe('useMentorPool', () => {
       useMentorPool({
         initialMentors: [],
         initialMentorCount: 0,
-        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
-        labelMap: testLabelMap,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
         initialError: true,
       })
     );
@@ -805,19 +837,16 @@ describe('useMentorPool', () => {
     expect(result.current.mentors).toEqual([]);
     expect(mockFetchMentors).not.toHaveBeenCalled();
 
-    // Use a manual pending promise for the retry fetch to test transition states
     let resolveRetryFetch!: (value: MentorPage) => void;
     const retryPromise = new Promise<MentorPage>((resolve) => {
       resolveRetryFetch = resolve;
     });
     mockFetchMentors.mockReturnValueOnce(retryPromise);
 
-    // 2. Click retry
     await act(async () => {
       result.current.handleRetry();
     });
 
-    // Should not early return, but instead trigger API fetch
     expect(result.current.isLoading).toBe(true);
     expect(result.current.hasError).toBe(false);
 
@@ -834,7 +863,6 @@ describe('useMentorPool', () => {
   });
 
   it('does not fall back to SSR error state on clearing filters if client-side fetches have been performed', async () => {
-    // 1. Initialized with SSR error and no filters
     mockSearchParams.toString.mockReturnValue('');
     mockSearchParams.get.mockReturnValue(null);
 
@@ -842,8 +870,7 @@ describe('useMentorPool', () => {
       useMentorPool({
         initialMentors: [],
         initialMentorCount: 0,
-        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
-        labelMap: testLabelMap,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
         initialError: true,
       })
     );
@@ -851,7 +878,6 @@ describe('useMentorPool', () => {
     expect(result.current.hasError).toBe(true);
     expect(result.current.mentors).toEqual([]);
 
-    // 2. Simulate client-side query by adding query params
     mockSearchParams.toString.mockReturnValue('q=react');
     mockSearchParams.get.mockImplementation((key) => {
       if (key === 'q') return 'react';
@@ -868,20 +894,16 @@ describe('useMentorPool', () => {
 
     rerender();
 
-    // Settle the mock promise
     await act(async () => {});
 
     expect(result.current.hasError).toBe(false);
     expect(result.current.mentors[0].name).toBe('Client Mentor');
     expect(mockFetchMentors).toHaveBeenCalledTimes(1);
 
-    // 3. Clear parameters (go back to empty params)
     mockSearchParams.toString.mockReturnValue('');
     mockSearchParams.get.mockReturnValue(null);
     mockFetchMentors.mockClear();
 
-    // Since client fetch was performed, it should NOT early return to SSR error.
-    // It should perform a fresh fetch client-side for unfiltered listing!
     mockFetchMentors.mockResolvedValueOnce({
       mentors: mockInitialMentors,
       nextCursor: null,
@@ -889,11 +911,9 @@ describe('useMentorPool', () => {
 
     rerender();
 
-    // Fetching starts
     expect(result.current.isLoading).toBe(true);
     expect(result.current.hasError).toBe(false);
 
-    // Settle the fetch
     await act(async () => {});
 
     expect(result.current.isLoading).toBe(false);
@@ -907,8 +927,7 @@ describe('useMentorPool', () => {
       useMentorPool({
         initialMentors: mockInitialMentors,
         initialMentorCount: 1,
-        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
-        labelMap: testLabelMap,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
       })
     );
 
@@ -926,14 +945,12 @@ describe('useMentorPool', () => {
       useMentorPool({
         initialMentors: mockInitialMentors,
         initialMentorCount: 1,
-        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
-        labelMap: testLabelMap,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
       })
     );
 
     expect(result.current.isLoading).toBe(true);
 
-    // 1. Change search params immediately (second unique filter)
     mockSearchParams.toString.mockReturnValue('q=vue');
     mockSearchParams.get.mockImplementation((key) => {
       if (key === 'q') return 'vue';
@@ -943,11 +960,10 @@ describe('useMentorPool', () => {
 
     await act(async () => {});
 
-    // Both unique params changes should trigger fetchMentors successfully without being blocked
     expect(mockFetchMentors).toHaveBeenCalledTimes(2);
   });
 
-  it('prevents concurrent loads when fetchMoreMentors is called multiple times rapidly due to preventConcurrent: true', async () => {
+  it('prevents concurrent loads when handleScrollToBottom is called multiple times rapidly', async () => {
     let resolveFetch: (v: MentorPage) => void = () => {};
     const fetchPromise = new Promise<MentorPage>((resolve) => {
       resolveFetch = resolve;
@@ -964,17 +980,16 @@ describe('useMentorPool', () => {
         initialMentors: largeInitialMentors,
         initialNextCursor: 'opaque-next-cursor',
         initialMentorCount: PAGE_LIMIT,
-        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
-        labelMap: testLabelMap,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
       })
     );
 
     act(() => {
-      result.current.handleScrollToBottom();
+      void result.current.handleScrollToBottom();
     });
 
     act(() => {
-      result.current.handleScrollToBottom();
+      void result.current.handleScrollToBottom();
     });
 
     await act(async () => {
@@ -989,7 +1004,6 @@ describe('useMentorPool', () => {
       });
     });
 
-    // fetchMentors should ONLY be called once because the second load-more was blocked
     expect(mockFetchMentors).toHaveBeenCalledTimes(1);
   });
 
@@ -1013,8 +1027,7 @@ describe('useMentorPool', () => {
       useMentorPool({
         initialMentors: mockInitialMentors,
         initialMentorCount: 1,
-        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
-        labelMap: testLabelMap,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
       })
     );
 
@@ -1022,7 +1035,6 @@ describe('useMentorPool', () => {
     expect(result.current.mentors[0].name).toBe('React Mentor');
     expect(mockFetchMentors).toHaveBeenCalledTimes(1);
 
-    // Switch to q=vue
     mockSearchParams.toString.mockReturnValue('q=vue');
     mockSearchParams.get.mockImplementation((key) =>
       key === 'q' ? 'vue' : null
@@ -1032,7 +1044,6 @@ describe('useMentorPool', () => {
     expect(result.current.mentors[0].name).toBe('Vue Mentor');
     expect(mockFetchMentors).toHaveBeenCalledTimes(2);
 
-    // Switch back to q=react -> must serve cached state synchronously without a 3rd fetch!
     mockSearchParams.toString.mockReturnValue('q=react');
     mockSearchParams.get.mockImplementation((key) =>
       key === 'q' ? 'react' : null
@@ -1072,12 +1083,10 @@ describe('useMentorPool', () => {
         initialMentors: largeInitialMentors,
         initialNextCursor: 'opaque-next-cursor',
         initialMentorCount: PAGE_LIMIT,
-        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
-        labelMap: testLabelMap,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
       })
     );
 
-    // Start loadMore while unfiltered
     let scrollDonePromise!: Promise<void>;
     act(() => {
       scrollDonePromise = result.current.handleScrollToBottom();
@@ -1086,7 +1095,6 @@ describe('useMentorPool', () => {
     expect(capturedSignal).toBeDefined();
     expect(capturedSignal?.aborted).toBe(false);
 
-    // Switch filter conditions while loadMore is still in flight
     mockSearchParams.toString.mockReturnValue('q=filtered');
     mockSearchParams.get.mockImplementation((key) =>
       key === 'q' ? 'filtered' : null
@@ -1095,7 +1103,6 @@ describe('useMentorPool', () => {
 
     expect(capturedSignal?.aborted).toBe(true);
 
-    // Reject the aborted loadMore promise and verify no error toast is triggered
     await act(async () => {
       rejectLoadMore(new Error('Network cancelled'));
       await scrollDonePromise.catch(() => {});
@@ -1105,7 +1112,7 @@ describe('useMentorPool', () => {
     expect(result.current.mentors[0].name).toBe('Filtered Mentor');
   });
 
-  it('preserves multi-page state accumulated via appendPage when switching between filter conditions and back (#786)', async () => {
+  it('preserves multi-page state accumulated via loadMore when switching between filter conditions and back (#786)', async () => {
     mockSearchParams.toString.mockReturnValue('q=multi');
     mockSearchParams.get.mockImplementation((key) =>
       key === 'q' ? 'multi' : null
@@ -1143,22 +1150,19 @@ describe('useMentorPool', () => {
       useMentorPool({
         initialMentors: mockInitialMentors,
         initialMentorCount: 1,
-        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
-        labelMap: testLabelMap,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
       })
     );
 
     await act(async () => {});
     expect(result.current.mentors.length).toBe(PAGE_LIMIT);
 
-    // Append page 2 via infinite scroll
     await act(async () => {
       await result.current.handleScrollToBottom();
     });
     expect(result.current.mentors.length).toBe(PAGE_LIMIT + 1);
     expect(result.current.mentorCount).toBe(PAGE_LIMIT + 1);
 
-    // Navigate to q=other
     mockSearchParams.toString.mockReturnValue('q=other');
     mockSearchParams.get.mockImplementation((key) =>
       key === 'q' ? 'other' : null
@@ -1169,7 +1173,6 @@ describe('useMentorPool', () => {
     expect(result.current.mentors[0].name).toBe('Other Filter Mentor');
     expect(mockFetchMentors).toHaveBeenCalledTimes(3);
 
-    // Navigate back to q=multi -> all PAGE_LIMIT + 1 mentors and mentorCount are preserved without a 4th fetch
     mockSearchParams.toString.mockReturnValue('q=multi');
     mockSearchParams.get.mockImplementation((key) =>
       key === 'q' ? 'multi' : null
@@ -1192,7 +1195,6 @@ describe('useMentorPool', () => {
         initialMentors: [],
         initialMentorCount: 0,
         params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
-        labelMap: testLabelMap,
       })
     );
 
@@ -1210,7 +1212,6 @@ describe('useMentorPool', () => {
         initialNextCursor: '',
         initialMentorCount: 1,
         params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
-        labelMap: testLabelMap,
       })
     );
 
@@ -1222,7 +1223,7 @@ describe('useMentorPool', () => {
   });
 
   it('sets hasMore=false in buildInitialUnfilteredState when initialMentors is empty even if initialNextCursor is non-empty', () => {
-    const state = mentorPoolStore.buildInitialUnfilteredState({
+    const state = mentorPoolReadModel.buildInitialUnfilteredState({
       initialMentors: [],
       initialNextCursor: 'opaque-stale-cursor',
       initialMentorCount: 0,
@@ -1357,7 +1358,6 @@ describe('applyMentorPage', () => {
     };
     const nextState = applyMentorPage(state, action);
 
-    // Should deduplicate, adding only newMentor (user_id 11)
     expect(nextState.mentors).toEqual([sampleMentor, newMentor]);
     expect(nextState.nextCursor).toBe('opaque-next');
     expect(nextState.mentorCount).toBe(2);

@@ -47,6 +47,7 @@ interface UIProps {
     };
   };
   selectedFilters: SelectFilters;
+  labelMap?: ReadonlyMap<string, string>;
   isReplacing: boolean;
   onFilterChange: (filters: SelectFilters) => void;
   onRemoveFilter: (key: string) => void;
@@ -190,7 +191,7 @@ describe('MentorPoolContainer - initial state wiring', () => {
     });
   });
 
-  it('passes useMentorPool the raw params, initial page data, and a label map built from the tag catalog', () => {
+  it('passes useMentorPool raw params and initial page data without labelMap, and forwards labelMap to MentorPoolUI', () => {
     currentSearchParams = new URLSearchParams('filter_skills=skill_fe');
     renderContainer({
       have_skill: [
@@ -203,8 +204,9 @@ describe('MentorPoolContainer - initial state wiring', () => {
     expect(call.initialMentors).toEqual([]);
     expect(call.initialMentorCount).toBe(0);
     expect(call.initialError).toBeUndefined();
-    expect(call.labelMap).toBeInstanceOf(Map);
-    expect(call.labelMap.get('skill_fe')).toBe('前端工程');
+    expect('labelMap' in call).toBe(false);
+    expect(latestUIProps().labelMap).toBeInstanceOf(Map);
+    expect(latestUIProps().labelMap?.get('skill_fe')).toBe('前端工程');
   });
 
   it('does not leave isReplacing stuck true once a filter-driven transition settles', () => {

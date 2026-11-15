@@ -106,7 +106,12 @@ module.exports = {
       },
     },
     {
-      files: ['src/lib/profile/saveProfile.ts'],
+      files: ['src/lib/**/*.{ts,tsx}', 'src/services/**/*.{ts,tsx}'],
+      excludedFiles: [
+        '**/*.test.{ts,tsx}',
+        '**/*.spec.{ts,tsx}',
+        '**/*.stories.{ts,tsx}',
+      ],
       rules: {
         'no-restricted-imports': [
           'error',
@@ -115,24 +120,24 @@ module.exports = {
               {
                 name: 'react',
                 message:
-                  'saveProfile.ts is a deep module and should not import react.',
+                  'src/lib and src/services are deep modules and must not import react.',
               },
               {
                 name: 'next/navigation',
                 message:
-                  'saveProfile.ts is a deep module and should not import next/navigation.',
+                  'src/lib and src/services are deep modules and must not import next/navigation.',
               },
               {
                 name: 'next-auth/react',
                 message:
-                  'saveProfile.ts is a deep module and should not import next-auth/react.',
+                  'src/lib and src/services are deep modules and must not import next-auth/react.',
               },
             ],
             patterns: [
               {
                 group: ['@/hooks/**'],
                 message:
-                  'saveProfile.ts is a deep module and should not import from the hooks layer.',
+                  'src/lib and src/services are deep modules and must not import from the hooks layer.',
               },
             ],
           },

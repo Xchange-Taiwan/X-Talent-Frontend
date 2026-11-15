@@ -76,6 +76,7 @@ export function MentorBookmarkButton({
     >
       <button
         type="button"
+        data-testid="mentor-bookmark-button"
         aria-label={actionLabel}
         aria-pressed={isFavorited}
         aria-busy={isPending || undefined}

@@ -69,6 +69,17 @@ export const WithPaginationOverTen: Story = {
   },
 };
 
+export const ControlledPaginationPageTwo: Story = {
+  args: {
+    items: paginatedItems.slice(10, 12),
+    totalRatingCount: 12,
+    ratingAverage: 8.5,
+    page: 2,
+    pageSize: 10,
+    onPageChange: () => {},
+  },
+};
+
 export const EmptyZeroReviews: Story = {
   args: {
     items: [],

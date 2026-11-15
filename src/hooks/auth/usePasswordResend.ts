@@ -2,6 +2,8 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
+import { getPendingPasswordResetEmail } from '@/lib/auth/authFlowStorage';
+import { PASSWORD_FORGOT_HREF } from '@/lib/routes';
 import { resetPassword } from '@/services/auth/resetPasswordByEmail';
 
 export default function usePasswordResend() {
@@ -11,7 +13,7 @@ export default function usePasswordResend() {
   const { toast } = useToast();
 
   useEffect(() => {
-    const storedEmail = sessionStorage.getItem('pending_reset_email');
+    const storedEmail = getPendingPasswordResetEmail();
     if (storedEmail) {
       setEmail(storedEmail);
     }
@@ -48,7 +50,7 @@ export default function usePasswordResend() {
   };
 
   const handleChangeEmail = () => {
-    router.push('/auth/password-forgot');
+    router.push(PASSWORD_FORGOT_HREF);
   };
 
   return { email, isResending, handleResend, handleChangeEmail };

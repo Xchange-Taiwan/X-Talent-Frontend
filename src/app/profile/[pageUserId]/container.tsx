@@ -7,6 +7,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import MentorScheduleDialog from '@/components/profile/reservation/MentorScheduleDialog';
 import { Button } from '@/components/ui/button';
+import { useConsumePendingFavorite } from '@/hooks/favorites';
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
 import { useMentorFeedback } from '@/hooks/user/feedback/useMentorFeedback';
@@ -87,6 +88,13 @@ export default function ProfilePageContainer({
     initialDto,
     initialCatalogs ?? undefined
   );
+
+  useConsumePendingFavorite({
+    pageUserId,
+    loginUserId,
+    userData,
+    userLoading,
+  });
 
   const feedback = useMentorFeedback({
     mentorId: pageUserIdNumber,

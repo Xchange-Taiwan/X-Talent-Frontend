@@ -193,19 +193,27 @@ describe('MentorCardList tag merging, deduplication, and filter prioritization (
     expect(tags).toEqual(['TypeScript', '職涯諮詢', '產品規劃', 'Figma']);
   });
 
-  it('renders skill tags and prioritizes active skill filter badge on MentorCard in MentorPoolUI', () => {
+  it('renders skill tags from raw subject_group codes via labelMap and prioritizes active skill filter badge on MentorCard in MentorPoolUI', () => {
     render(
       <MentorPoolUI
         {...defaultProps}
         mentors={[
           {
             ...mockMentors[0],
-            have_topic: ['UI/UX 設計', '使用者研究'],
-            have_skill: ['UI/UX 設計', 'Figma', 'Prototyping'],
+            have_topic: ['ui_ux_design', 'user_research'],
+            have_skill: ['ui_ux_design', 'figma', 'prototyping'],
           },
         ]}
         mentorCount={1}
         listStatus="success"
+        labelMap={
+          new Map([
+            ['ui_ux_design', 'UI/UX 設計'],
+            ['user_research', '使用者研究'],
+            ['figma', 'Figma'],
+            ['prototyping', 'Prototyping'],
+          ])
+        }
         selectedFilters={{
           filter_skills: { name: '專業技能', value: 'prototyping' },
         }}

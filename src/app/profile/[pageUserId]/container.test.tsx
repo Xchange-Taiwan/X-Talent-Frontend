@@ -72,7 +72,18 @@ vi.mock('@/hooks/user/reservation/useBookingConfirmation', () => ({
   }),
 }));
 
+import { Toaster } from '@/components/ui/toaster';
+import { clearToasts } from '@/components/ui/use-toast';
+import { FAVORITE_SELF_BLOCKED_TOAST_MESSAGE } from '@/hooks/favorites';
+import {
+  getPendingFavoriteMentorId,
+  savePendingFavoriteMentor,
+} from '@/lib/favorites';
 import { EMPTY_TAG_CATALOGS } from '@/services/profile/tagCatalog';
+import {
+  favoriteMentorStore,
+  resetFavoriteMentorStore,
+} from '@/stores/favoriteMentorStore';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
 
@@ -84,11 +95,14 @@ const initialDto = fromPartial<MentorProfileVO>({ user_id: 123 });
 
 function renderContainer(catalogs: TagCatalogsByBucket | null = emptyCatalogs) {
   return render(
-    <ProfilePageContainer
-      pageUserId={PAGE_USER_ID}
-      initialDto={initialDto}
-      initialCatalogs={catalogs}
-    />
+    <>
+      <ProfilePageContainer
+        pageUserId={PAGE_USER_ID}
+        initialDto={initialDto}
+        initialCatalogs={catalogs}
+      />
+      <Toaster />
+    </>
   );
 }
 
@@ -124,9 +138,24 @@ function identity({
 describe('ProfilePageContainer - owner-editor injection gating', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
+    clearToasts();
+    resetFavoriteMentorStore();
     currentSearchParams = new URLSearchParams();
     mockUseUserData.mockReturnValue({
-      userData: { user_id: 123, name: 'Test Mentor', is_mentor: true },
+      userData: {
+        user_id: 123,
+        name: 'Test Mentor',
+        avatar: '',
+        job_title: 'Senior PM',
+        company: 'XChange',
+        is_mentor: true,
+        want_position: [],
+        want_skill: [],
+        want_topic: [],
+        have_skill: [],
+        have_topic: [],
+      },
       isLoading: false,
       error: null,
       refetch: vi.fn(),
@@ -401,5 +430,60 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
       enabled: true,
     });
     mentorRender.unmount();
+  });
+
+  it('consumes pendingFavoriteMentor for owner by showing "無法收藏自己" toast without calling favorite API (#756)', async () => {
+    const addFavoriteMock = vi.fn().mockResolvedValue(undefined);
+    favoriteMentorStore.setAdapter({
+      fetchFavoriteMentors: vi.fn().mockResolvedValue([]),
+      addFavoriteMentor: addFavoriteMock,
+      removeFavoriteMentor: vi.fn().mockResolvedValue(undefined),
+    });
+    savePendingFavoriteMentor(123);
+
+    mockUseResolvedIdentity.mockReturnValue(
+      identity({
+        sessionSettled: true,
+        hasFullUser: true,
+        userId: PAGE_USER_ID,
+      })
+    );
+
+    renderContainer();
+
+    expect(
+      await screen.findByText(FAVORITE_SELF_BLOCKED_TOAST_MESSAGE)
+    ).toBeVisible();
+    expect(addFavoriteMock).not.toHaveBeenCalled();
+    expect(getPendingFavoriteMentorId()).toBeNull();
+  });
+
+  it('consumes pendingFavoriteMentor for non-owner member and automatically completes favorite (#756)', async () => {
+    const addFavoriteMock = vi.fn().mockResolvedValue(undefined);
+    favoriteMentorStore.setAdapter({
+      fetchFavoriteMentors: vi.fn().mockResolvedValue([]),
+      addFavoriteMentor: addFavoriteMock,
+      removeFavoriteMentor: vi.fn().mockResolvedValue(undefined),
+    });
+    savePendingFavoriteMentor(123);
+
+    mockUseResolvedIdentity.mockReturnValue(
+      identity({
+        sessionSettled: true,
+        hasFullUser: true,
+        userId: '999',
+      })
+    );
+
+    renderContainer();
+
+    await vi.waitFor(() => {
+      expect(addFavoriteMock).toHaveBeenCalledWith(123);
+    });
+    expect(favoriteMentorStore.isFavorited(123)).toBe(true);
+    expect(getPendingFavoriteMentorId()).toBeNull();
+    expect(
+      screen.queryByText(FAVORITE_SELF_BLOCKED_TOAST_MESSAGE)
+    ).not.toBeInTheDocument();
   });
 });

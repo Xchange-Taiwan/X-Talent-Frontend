@@ -22,275 +22,7 @@ env:
   GEMINI_MAX_OUTPUT_TOKENS: '32768'
 
 jobs:
-  planner:
-    runs-on: ubuntu-latest
-    name: 'AI Review: Planner'
-    outputs:
-      plan: ${{ steps.run.outputs.plan }}
-    steps:
-      - name: Checkout base branch (trusted scripts)
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.base.sha }}
-
-      - name: Set up AI review agent
-        uses: ./.github/actions/setup-ai-agent
-        with:
-          base-ref: ${{ github.event.pull_request.base.ref }}
-          head-sha: ${{ github.event.pull_request.head.sha }}
-
-      - name: Run planner agent
-        id: run
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN }}
-          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
-        run: node scripts/ai-review/planner.mjs
-
-  security:
-    needs: planner
-    runs-on: ubuntu-latest
-    name: 'AI Review: Security'
-    outputs:
-      findings: ${{ steps.run.outputs.findings }}
-    steps:
-      - name: Checkout base branch (trusted scripts)
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.base.sha }}
-
-      - name: Set up AI review agent
-        uses: ./.github/actions/setup-ai-agent
-        with:
-          base-ref: ${{ github.event.pull_request.base.ref }}
-          head-sha: ${{ github.event.pull_request.head.sha }}
-
-      - name: Run security agent
-        id: run
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PLAN_B64: ${{ needs.planner.outputs.plan }}
-        run: node scripts/ai-review/security.mjs
-
-  correctness:
-    needs: planner
-    runs-on: ubuntu-latest
-    name: 'AI Review: Correctness / Regression'
-    outputs:
-      findings: ${{ steps.run.outputs.findings }}
-    steps:
-      - name: Checkout base branch (trusted scripts)
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.base.sha }}
-
-      - name: Set up AI review agent
-        uses: ./.github/actions/setup-ai-agent
-        with:
-          base-ref: ${{ github.event.pull_request.base.ref }}
-          head-sha: ${{ github.event.pull_request.head.sha }}
-
-      - name: Run correctness agent
-        id: run
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PLAN_B64: ${{ needs.planner.outputs.plan }}
-        run: node scripts/ai-review/correctness.mjs
-
-  business_logic:
-    needs: planner
-    runs-on: ubuntu-latest
-    name: 'AI Review: Business Logic'
-    outputs:
-      findings: ${{ steps.run.outputs.findings }}
-    steps:
-      - name: Checkout base branch (trusted scripts)
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.base.sha }}
-
-      - name: Set up AI review agent
-        uses: ./.github/actions/setup-ai-agent
-        with:
-          base-ref: ${{ github.event.pull_request.base.ref }}
-          head-sha: ${{ github.event.pull_request.head.sha }}
-
-      - name: Run business-logic agent
-        id: run
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PLAN_B64: ${{ needs.planner.outputs.plan }}
-        run: node scripts/ai-review/business-logic.mjs
-
-  performance:
-    needs: planner
-    runs-on: ubuntu-latest
-    name: 'AI Review: Performance'
-    outputs:
-      findings: ${{ steps.run.outputs.findings }}
-    steps:
-      - name: Checkout base branch (trusted scripts)
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.base.sha }}
-
-      - name: Set up AI review agent
-        uses: ./.github/actions/setup-ai-agent
-        with:
-          base-ref: ${{ github.event.pull_request.base.ref }}
-          head-sha: ${{ github.event.pull_request.head.sha }}
-
-      - name: Run performance agent
-        id: run
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PLAN_B64: ${{ needs.planner.outputs.plan }}
-        run: node scripts/ai-review/performance.mjs
-
-  testing:
-    needs: planner
-    runs-on: ubuntu-latest
-    name: 'AI Review: Testing'
-    outputs:
-      findings: ${{ steps.run.outputs.findings }}
-    steps:
-      - name: Checkout base branch (trusted scripts)
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.base.sha }}
-
-      - name: Set up AI review agent
-        uses: ./.github/actions/setup-ai-agent
-        with:
-          base-ref: ${{ github.event.pull_request.base.ref }}
-          head-sha: ${{ github.event.pull_request.head.sha }}
-
-      - name: Run testing agent
-        id: run
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PLAN_B64: ${{ needs.planner.outputs.plan }}
-        run: node scripts/ai-review/testing.mjs
-
-  architecture:
-    needs: planner
-    runs-on: ubuntu-latest
-    name: 'AI Review: Architecture'
-    outputs:
-      findings: ${{ steps.run.outputs.findings }}
-    steps:
-      - name: Checkout base branch (trusted scripts)
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.base.sha }}
-
-      - name: Set up AI review agent
-        uses: ./.github/actions/setup-ai-agent
-        with:
-          base-ref: ${{ github.event.pull_request.base.ref }}
-          head-sha: ${{ github.event.pull_request.head.sha }}
-
-      - name: Run architecture agent
-        id: run
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PLAN_B64: ${{ needs.planner.outputs.plan }}
-        run: node scripts/ai-review/architecture.mjs
-
-  visual_parity:
-    needs: planner
-    runs-on: ubuntu-latest
-    name: 'AI Review: Visual / Design Parity'
-    outputs:
-      findings: ${{ steps.run.outputs.findings }}
-    steps:
-      - name: Checkout base branch (trusted scripts)
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.base.sha }}
-
-      - name: Set up AI review agent
-        uses: ./.github/actions/setup-ai-agent
-        with:
-          base-ref: ${{ github.event.pull_request.base.ref }}
-          head-sha: ${{ github.event.pull_request.head.sha }}
-
-      - name: Run visual & Design Hub parity agent
-        id: run
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PLAN_B64: ${{ needs.planner.outputs.plan }}
-        run: node scripts/ai-review/visual-parity.mjs
-
-  review_guide:
-    needs: planner
-    runs-on: ubuntu-latest
-    name: 'AI Review: Review Guide'
-    outputs:
-      guide: ${{ steps.run.outputs.guide }}
-    steps:
-      - name: Checkout base branch (trusted scripts)
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.base.sha }}
-
-      - name: Set up AI review agent
-        uses: ./.github/actions/setup-ai-agent
-        with:
-          base-ref: ${{ github.event.pull_request.base.ref }}
-          head-sha: ${{ github.event.pull_request.head.sha }}
-
-      - name: Run review-guide agent
-        id: run
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PLAN_B64: ${{ needs.planner.outputs.plan }}
-        run: node scripts/ai-review/review-guide.mjs
-
   summary:
-    needs:
-      [
-        planner,
-        security,
-        correctness,
-        business_logic,
-        visual_parity,
-        performance,
-        testing,
-        architecture,
-        review_guide,
-      ]
     runs-on: ubuntu-latest
     name: 'AI Review: Final Summary'
     if: ${{ !cancelled() }}
@@ -301,28 +33,70 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.base.sha }}
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
+      - name: Set up AI review agent
+        uses: ./.github/actions/setup-ai-agent
         with:
-          node-version: 24
+          base-ref: ${{ github.event.pull_request.base.ref }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
+          node-version: '24'
 
-      - name: Generate final summary comment
+      - name: Run unified multimodal AI review pipeline
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PLAN_B64: ${{ needs.planner.outputs.plan }}
-          SECURITY_FINDINGS_B64: ${{ needs.security.outputs.findings }}
-          CORRECTNESS_FINDINGS_B64: ${{ needs.correctness.outputs.findings }}
-          BUSINESS_LOGIC_FINDINGS_B64: ${{ needs.business_logic.outputs.findings }}
-          VISUAL_PARITY_FINDINGS_B64: ${{ needs.visual_parity.outputs.findings }}
-          PERFORMANCE_FINDINGS_B64: ${{ needs.performance.outputs.findings }}
-          TESTING_FINDINGS_B64: ${{ needs.testing.outputs.findings }}
-          ARCHITECTURE_FINDINGS_B64: ${{ needs.architecture.outputs.findings }}
-          REVIEW_GUIDE_B64: ${{ needs.review_guide.outputs.guide }}
-        run: node scripts/ai-review/generate-summary.mjs
-
-      - name: Post PR comment
-        env:
+          TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: node scripts/ai-review/post-comment.mjs
+        run: |
+          if [ -f scripts/ai-review/run-ci.mjs ]; then
+            node scripts/ai-review/run-ci.mjs
+          else
+            TMP_OUT_DIR="$(mktemp -d)"
+            GITHUB_OUTPUT="$TMP_OUT_DIR/planner.out" node scripts/ai-review/planner.mjs || true
+            PLAN_B64="$(sed -n 's/^plan=//p' "$TMP_OUT_DIR/planner.out" | tail -n 1)"
+            export PLAN_B64
+
+            if [ -n "$PLAN_B64" ]; then
+              run_legacy_stage() {
+                local script_name="$1"
+                local out_file="$TMP_OUT_DIR/${script_name%.mjs}.out"
+                GITHUB_OUTPUT="$out_file" node "scripts/ai-review/$script_name"
+              }
+
+              run_legacy_stage security.mjs &
+              PID_SEC=$!
+              run_legacy_stage correctness.mjs &
+              PID_COR=$!
+              run_legacy_stage business-logic.mjs &
+              PID_BIZ=$!
+              run_legacy_stage visual-parity.mjs &
+              PID_VIS=$!
+              wait "$PID_SEC" "$PID_COR" "$PID_BIZ" "$PID_VIS" || true
+
+              run_legacy_stage performance.mjs &
+              PID_PERF=$!
+              run_legacy_stage testing.mjs &
+              PID_TEST=$!
+              run_legacy_stage architecture.mjs &
+              PID_ARCH=$!
+              run_legacy_stage review-guide.mjs &
+              PID_GUIDE=$!
+              wait "$PID_PERF" "$PID_TEST" "$PID_ARCH" "$PID_GUIDE" || true
+
+              SECURITY_FINDINGS_B64="$(sed -n 's/^findings=//p' "$TMP_OUT_DIR/security.out" 2>/dev/null | tail -n 1)"
+              CORRECTNESS_FINDINGS_B64="$(sed -n 's/^findings=//p' "$TMP_OUT_DIR/correctness.out" 2>/dev/null | tail -n 1)"
+              BUSINESS_LOGIC_FINDINGS_B64="$(sed -n 's/^findings=//p' "$TMP_OUT_DIR/business-logic.out" 2>/dev/null | tail -n 1)"
+              VISUAL_PARITY_FINDINGS_B64="$(sed -n 's/^findings=//p' "$TMP_OUT_DIR/visual-parity.out" 2>/dev/null | tail -n 1)"
+              PERFORMANCE_FINDINGS_B64="$(sed -n 's/^findings=//p' "$TMP_OUT_DIR/performance.out" 2>/dev/null | tail -n 1)"
+              TESTING_FINDINGS_B64="$(sed -n 's/^findings=//p' "$TMP_OUT_DIR/testing.out" 2>/dev/null | tail -n 1)"
+              ARCHITECTURE_FINDINGS_B64="$(sed -n 's/^findings=//p' "$TMP_OUT_DIR/architecture.out" 2>/dev/null | tail -n 1)"
+              REVIEW_GUIDE_B64="$(sed -n 's/^guide=//p' "$TMP_OUT_DIR/review-guide.out" 2>/dev/null | tail -n 1)"
+              export SECURITY_FINDINGS_B64 CORRECTNESS_FINDINGS_B64 BUSINESS_LOGIC_FINDINGS_B64 VISUAL_PARITY_FINDINGS_B64
+              export PERFORMANCE_FINDINGS_B64 TESTING_FINDINGS_B64 ARCHITECTURE_FINDINGS_B64 REVIEW_GUIDE_B64
+            fi
+
+            node scripts/ai-review/generate-summary.mjs
+            node scripts/ai-review/post-comment.mjs
+          fi

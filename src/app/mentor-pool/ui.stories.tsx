@@ -44,9 +44,19 @@ export const DefaultSuccess: Story = {
 
 export const WithActiveFilterBadges: Story = {
   args: {
-    mentors: mockMentors.slice(0, 3),
+    mentors: mockMentors.slice(0, 3).map((mentor) => ({
+      ...mentor,
+      have_topic: ['career_planning', 'resume_review'],
+      have_skill: ['ui_ux_design', 'react_nextjs'],
+    })),
     mentorCount: 3,
     listStatus: 'success',
+    labelMap: new Map([
+      ['career_planning', '職涯規劃與轉職諮詢'],
+      ['resume_review', '履歷健檢與優化'],
+      ['ui_ux_design', 'UI / UX 設計'],
+      ['react_nextjs', 'React / Next.js'],
+    ]),
     selectedFilters: {
       filter_skills: { name: '技能', value: 'react_nextjs' },
       filter_industries: { name: '產業', value: 'software_internet' },

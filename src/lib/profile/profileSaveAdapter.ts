@@ -1,3 +1,4 @@
+import { hasAvatarVersionConverged } from '@/lib/avatar/avatarUrl';
 import { encode } from '@/lib/profile/experienceCodec';
 import {
   MentorExperiencePayload,
@@ -5,6 +6,7 @@ import {
 } from '@/lib/profile/parseUserExperiences';
 import { readIndustryTag } from '@/lib/profile/readIndustryTag';
 import { defaultValues, ProfileFormValues } from '@/schemas/profileSchema';
+import type { IndustryOption } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
 
 export type ProfileDirtyFields = Partial<
@@ -161,6 +163,41 @@ export function mapFormValuesToPayload(
 }
 
 /**
+ * Resolves the optimistic enriched `industry` field for `MentorProfileVO`
+ * against `industryCatalog`, avoiding copying a stale `currentIndustry.subject`
+ * onto a newly edited `subject_group` code.
+ */
+export function resolveOptimisticIndustry(
+  industryCode: string | null | undefined,
+  industryCatalog?: readonly IndustryOption[],
+  currentIndustry?: MentorProfileVO['industry'] | null,
+  industryDirty?: boolean
+): MentorProfileVO['industry'] {
+  const normalizedCode = industryCode?.trim() ?? '';
+  if (!normalizedCode) {
+    if (industryDirty) {
+      return null;
+    }
+    return currentIndustry ?? null;
+  }
+
+  const existingTag = readIndustryTag(currentIndustry);
+  const isSameCode = existingTag?.subject_group === normalizedCode;
+  const catalogMatch = industryCatalog?.find(
+    (option) => option.subject_group === normalizedCode
+  );
+
+  const resolvedSubject =
+    catalogMatch?.subject ?? (isSameCode ? (existingTag?.subject ?? '') : '');
+
+  return {
+    ...(isSameCode ? existingTag : {}),
+    subject_group: normalizedCode,
+    subject: resolvedSubject,
+  } as unknown as MentorProfileVO['industry'];
+}
+
+/**
  * Verifies if the latest MentorProfileVO fetched from the backend matches the submitted form values.
  */
 export function isProfileSynced(
@@ -180,6 +217,6 @@ export function isProfileSynced(
     (values.industry ?? '')
   )
     return false;
-  if (avatar && latest.avatar !== avatar) return false;
+  if (avatar && !hasAvatarVersionConverged(avatar, latest.avatar)) return false;
   return true;
 }

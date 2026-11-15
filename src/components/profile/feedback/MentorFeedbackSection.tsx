@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { sortFeedbackItems } from '@/hooks/user/feedback/useMentorFeedback';
+import { sortFeedbackItems } from '@/lib/feedback/mentorFeedbackReadModel';
 import {
   formatFeedbackDate,
   formatRatingScoreValue,
@@ -114,8 +114,11 @@ export function MentorFeedbackSection({
   const formattedAverage = formatRatingScoreValue(ratingAverage);
 
   const displayedItems = useMemo(() => {
+    if (onPageChange) {
+      return items;
+    }
     const sorted = sortFeedbackItems(items);
-    if (!onPageChange && sorted.length > safePageSize) {
+    if (sorted.length > safePageSize) {
       const start = (resolvedPage - 1) * safePageSize;
       return sorted.slice(start, start + safePageSize);
     }

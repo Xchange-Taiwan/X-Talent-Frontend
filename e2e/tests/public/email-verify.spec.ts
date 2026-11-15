@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 
+import { captureEvidence } from '../../helpers/evidence';
 import { mockApiRoute } from '../../helpers/route';
 
 test.describe('Email Verification Flow', () => {
@@ -103,6 +104,7 @@ test.describe('Email Verification Flow', () => {
 
     // Verify the email verification heading is shown
     await expect(page.getByRole('heading', { name: '驗證信箱' })).toBeVisible();
+    await captureEvidence(page, '885-email-verify-pending-email-loaded');
 
     // 5. Click the "點此重新寄送" link
     await page.getByText('點此重新寄送').click();

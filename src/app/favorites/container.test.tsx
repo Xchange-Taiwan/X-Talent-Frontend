@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mockMentors } from '@/components/mentor-pool/__mocks__/mentors.mock';
 import { Toaster } from '@/components/ui/toaster';
 import { FAVORITE_MENTOR_ERROR_TOAST_MESSAGE } from '@/hooks/favorites';
+import * as analyticsModule from '@/lib/analytics';
 import {
   type FavoriteMentorServiceAdapter,
   favoriteMentorStore,
@@ -178,6 +179,7 @@ describe('FavoritesPageContainer', () => {
 
   it('translates tag codes via useTagCatalog, removes mentor immediately on unbookmark, and switches to empty state after removing the last mentor', async () => {
     const user = userEvent.setup();
+    const trackEventSpy = vi.spyOn(analyticsModule, 'trackEvent');
     fetchMock.mockResolvedValue([
       {
         ...mockMentors[0],
@@ -217,6 +219,14 @@ describe('FavoritesPageContainer', () => {
     );
 
     expect(removeMock).toHaveBeenCalledWith(101);
+    expect(trackEventSpy).toHaveBeenCalledWith({
+      name: 'mentor_bookmark_toggle',
+      feature: 'favorites',
+      metadata: {
+        mentor_id: 101,
+        action: 'remove',
+      },
+    });
     expect(screen.getByText('已收藏 1 位導師')).toBeInTheDocument();
     expect(screen.getAllByRole('article')).toHaveLength(1);
     expect(

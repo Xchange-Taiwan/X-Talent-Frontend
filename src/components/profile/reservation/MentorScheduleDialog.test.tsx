@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { fromPartial } from '@total-typescript/shoehorn';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -6,7 +6,9 @@ import {
   BookingCalendarReader,
   MentorScheduleEditor,
   ParsedMentorTimeslot,
+  projectEditorOccurrences,
 } from '@/lib/profile/bookingAvailability';
+import { mockRouter } from '@/test/mocks/navigation';
 import { mockToast } from '@/test/mocks/useToast';
 
 import MentorScheduleDialog from './MentorScheduleDialog';
@@ -99,15 +101,31 @@ const mockReader: BookingCalendarReader = {
   hasError: false,
 };
 
-const mockSchedule: MentorScheduleEditor = {
-  draftForSelectedDate: mockDraftForSelectedDate,
-  addSlotForSelectedDate: vi.fn().mockReturnValue({ added: 1, skipped: 0 }),
-  updateDraftSlot: vi.fn().mockReturnValue({ success: true }),
-  deleteDraftSlot: vi.fn(),
-  confirmChanges: vi.fn().mockResolvedValue({ ok: true }),
-  resetChanges: vi.fn(),
-  reservations: [],
-};
+const fixedNowSec = Math.floor(
+  new Date('2026-07-26T08:00:00').getTime() / 1000
+);
+
+function createMockSchedule(
+  overrides: Partial<MentorScheduleEditor> = {}
+): MentorScheduleEditor {
+  const draft = overrides.draftForSelectedDate ?? mockDraftForSelectedDate;
+  const reservations = overrides.reservations ?? [];
+  const projected = projectEditorOccurrences(draft, reservations, fixedNowSec);
+  return {
+    draftForSelectedDate: draft,
+    slotsWithMeta: projected.slotsWithMeta,
+    futureSlots: projected.futureSlots,
+    addSlotForSelectedDate: vi.fn().mockReturnValue({ added: 1, skipped: 0 }),
+    updateDraftSlot: vi.fn().mockReturnValue({ success: true }),
+    deleteDraftSlot: vi.fn(),
+    confirmChanges: vi.fn().mockResolvedValue({ ok: true }),
+    resetChanges: vi.fn(),
+    reservations,
+    ...overrides,
+  };
+}
+
+const mockSchedule: MentorScheduleEditor = createMockSchedule();
 
 describe('MentorScheduleDialog', () => {
   beforeEach(() => {
@@ -452,8 +470,7 @@ describe('MentorScheduleDialog', () => {
 
   it('populates the matched mentee name and does not leak it into an unrelated prompt after closing', () => {
     const bookedSlot = mockDraftForSelectedDate[1]!; // id: 2, ALLOW slot at 11:00-11:30 backing the BOOKED placeholder
-    const mockScheduleWithReservation: MentorScheduleEditor = {
-      ...mockSchedule,
+    const mockScheduleWithReservation = createMockSchedule({
       reservations: [
         {
           id: 'res-1',
@@ -470,7 +487,7 @@ describe('MentorScheduleDialog', () => {
           version: 0,
         },
       ],
-    };
+    });
 
     render(
       <MentorScheduleDialog
@@ -513,12 +530,11 @@ describe('MentorScheduleDialog', () => {
   });
 
   it('does not treat a positive-id BOOKED/PENDING row as a read-only blocker (only id < 0 counts)', () => {
-    const mockScheduleWithPositiveId: MentorScheduleEditor = {
-      ...mockSchedule,
+    const mockScheduleWithPositiveId = createMockSchedule({
       draftForSelectedDate: mockDraftForSelectedDate.map((s) =>
         s.type === 'BOOKED' ? { ...s, id: Math.abs(s.id) } : s
       ),
-    };
+    });
 
     render(
       <MentorScheduleDialog
@@ -561,5 +577,143 @@ describe('MentorScheduleDialog', () => {
       .getAllByRole('button', { name: '關閉' })
       .find((el) => !el.classList.contains('absolute'));
     expect(closeButton).toBeInTheDocument();
+  });
+
+  it('navigates to /reservation/mentor and closes dialogs when clicking 前往預約管理 in ReservationBlockPromptDialog', () => {
+    const mockOnOpenChange = vi.fn();
+    render(
+      <MentorScheduleDialog
+        open={true}
+        onOpenChange={mockOnOpenChange}
+        reader={mockReader}
+        schedule={mockSchedule}
+      />
+    );
+
+    const bookedSlotEl = screen
+      .getByText('11:00 – 11:30')
+      .closest('[role="button"]');
+    fireEvent.click(bookedSlotEl!);
+
+    const promptDialog = screen.getByRole('dialog', { name: '此時段已有預約' });
+    fireEvent.click(
+      within(promptDialog).getByRole('button', { name: '前往預約管理' })
+    );
+
+    expect(mockOnOpenChange).toHaveBeenCalledWith(false);
+    expect(mockRouter.push).toHaveBeenCalledWith('/reservation/mentor');
+  });
+
+  it('previews remaining weekday occurrences in AddSlotModal and formats selected calendar dates via toDateKey', () => {
+    const setSelectedDate = vi.fn();
+    const readerEarlyMonth: BookingCalendarReader = {
+      ...mockReader,
+      year: 2026,
+      month: 7,
+      selectedDate: '2026-07-17',
+      setSelectedDate,
+    };
+    const addSlotSpy = vi.fn().mockReturnValue({ added: 3, skipped: 0 });
+    const scheduleForAdd = createMockSchedule({
+      draftForSelectedDate: [],
+      addSlotForSelectedDate: addSlotSpy,
+    });
+
+    render(
+      <MentorScheduleDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        reader={readerEarlyMonth}
+        schedule={scheduleForAdd}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('day-2026-07-28'));
+    expect(setSelectedDate).toHaveBeenCalledWith('2026-07-28');
+
+    const plusIcon = document.querySelector('.lucide-plus');
+    fireEvent.click(plusIcon!.closest('button')!);
+
+    const addDialog = screen.getByRole('dialog', { name: '新增可預約時段' });
+    fireEvent.click(within(addDialog).getByRole('checkbox'));
+    expect(
+      within(addDialog).getByText('將建立 3 個時段:7/17、7/24、7/31')
+    ).toBeInTheDocument();
+
+    fireEvent.click(within(addDialog).getByRole('button', { name: '建立' }));
+    expect(addSlotSpy).toHaveBeenCalledWith({
+      startTime: '09:00',
+      durationMinutes: 30,
+      weeklyWithinMonth: true,
+    });
+  });
+
+  it('recovers from unexpected confirmChanges rejection by resetting saving state and showing failure toast', async () => {
+    const mockOnOpenChange = vi.fn();
+    const rejectingConfirm = vi
+      .fn()
+      .mockRejectedValue(new Error('unexpected network crash'));
+    const scheduleWithRejection = createMockSchedule({
+      confirmChanges: rejectingConfirm,
+    });
+
+    render(
+      <MentorScheduleDialog
+        open={true}
+        onOpenChange={mockOnOpenChange}
+        reader={mockReader}
+        schedule={scheduleWithRejection}
+      />
+    );
+
+    const saveButton = screen.getByRole('button', { name: '儲存' });
+    await act(async () => {
+      fireEvent.click(saveButton);
+    });
+
+    expect(rejectingConfirm).toHaveBeenCalledTimes(1);
+    expect(mockToast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      description: '儲存失敗,請稍後再試',
+    });
+    expect(mockOnOpenChange).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: '儲存' })).not.toBeDisabled();
+  });
+
+  it('resets unsaved duration edits in EditSlotModal when cancelled and re-opened on the same slot', () => {
+    const updateSpy = vi.fn().mockReturnValue({ success: true });
+    const scheduleForEdit = createMockSchedule({
+      updateDraftSlot: updateSpy,
+    });
+
+    render(
+      <MentorScheduleDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        reader={mockReader}
+        schedule={scheduleForEdit}
+      />
+    );
+
+    const firstSlot = screen
+      .getByText('10:00 – 10:30')
+      .closest('[role="button"]');
+    fireEvent.click(firstSlot!);
+
+    const editDialog = screen.getByRole('dialog', { name: '編輯時段' });
+    fireEvent.click(within(editDialog).getByRole('button', { name: '60 分' }));
+    fireEvent.click(within(editDialog).getByRole('button', { name: '取消' }));
+
+    // Re-open the exact same slot and submit immediately: duration must reset back to 30m
+    fireEvent.click(firstSlot!);
+    const reopenedDialog = screen.getByRole('dialog', { name: '編輯時段' });
+    fireEvent.click(
+      within(reopenedDialog).getByRole('button', { name: '完成' })
+    );
+
+    expect(updateSpy).toHaveBeenCalledWith(1, 1785000000, {
+      startTime: '10:00',
+      durationMinutes: 30,
+    });
   });
 });

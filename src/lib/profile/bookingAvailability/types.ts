@@ -83,9 +83,9 @@ export type MentorScheduleEditor = {
   /** All parsed draft occurrences across loaded months (for editor/test inspection). */
   draftOccurrences?: ParsedMentorTimeslot[];
   /** Pre-projected editor slots for the selected date (including virtual slots and matched reservations). */
-  slotsWithMeta?: EditorSlotWithMeta[];
+  slotsWithMeta: EditorSlotWithMeta[];
   /** Future-only ALLOW occurrences on the selected date for AddSlotModal defaults. */
-  futureSlots?: ParsedMentorTimeslot[];
+  futureSlots: ParsedMentorTimeslot[];
   /**
    * Add one ALLOW entry at `startTime` for `durationMinutes`. If
    * `weeklyWithinMonth` is true, the entry is a single row with a weekly

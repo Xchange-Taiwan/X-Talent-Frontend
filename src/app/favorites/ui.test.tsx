@@ -83,12 +83,27 @@ describe('FavoritesPageUI', () => {
 
     const cards = screen.getAllByRole('article');
     expect(cards).toHaveLength(2);
+    expect(cards[0]).toHaveClass('w-[334px]', 'md:w-full', 'md:max-w-[413px]');
+    expect(cards[0]).not.toHaveClass('xl:w-[413px]');
 
-    expect(
-      within(cards[0]).getByRole('link', {
-        name: '前往 陳怡君 Jane 的個人頁面',
-      })
-    ).toHaveAttribute('href', '/profile/101');
+    const gridContainer = cards[0].parentElement;
+    expect(gridContainer).toHaveClass(
+      'grid',
+      'w-full',
+      'grid-cols-1',
+      'justify-items-center',
+      'gap-6',
+      'md:grid-cols-2',
+      'md:justify-items-start',
+      'md:gap-5',
+      'lg:grid-cols-3'
+    );
+
+    const cardLink = within(cards[0]).getByRole('link', {
+      name: '前往 陳怡君 Jane 的個人頁面',
+    });
+    expect(cardLink).toHaveAttribute('href', '/profile/101');
+    expect(cardLink).toHaveAttribute('data-analytics-feature', 'favorites');
 
     const firstBookmark = within(cards[0]).getByRole('button', {
       name: '取消收藏 陳怡君 Jane',

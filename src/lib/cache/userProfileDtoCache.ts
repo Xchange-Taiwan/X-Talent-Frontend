@@ -1,4 +1,6 @@
 import { AsyncReadManager } from '@/lib/asyncReadManager';
+import { hasAvatarVersionConverged } from '@/lib/avatar/avatarUrl';
+import { readIndustryTag } from '@/lib/profile/readIndustryTag';
 import type { MentorProfileVO } from '@/types/user';
 
 export const USER_PROFILE_DTO_CACHE_TTL_MS = 60_000;
@@ -85,27 +87,30 @@ export function hasDtoConverged(
   primed: MentorProfileVO,
   incoming: MentorProfileVO
 ): boolean {
-  const avatarConverged =
-    primed.avatar === undefined
-      ? true
-      : !primed.avatar
-        ? !incoming.avatar
-        : typeof incoming.avatar === 'string' &&
-          incoming.avatar.startsWith(primed.avatar);
+  const avatarConverged = hasAvatarVersionConverged(
+    primed.avatar,
+    incoming.avatar
+  );
 
   const experiencesConverged =
     primed.experiences === undefined ||
     JSON.stringify(incoming.experiences ?? null) ===
       JSON.stringify(primed.experiences ?? null);
 
+  const industryConverged =
+    primed.industry === undefined ||
+    (readIndustryTag(incoming.industry)?.subject_group ?? null) ===
+      (readIndustryTag(primed.industry)?.subject_group ?? null);
+
   return (
-    (incoming.name ?? null) === (primed.name ?? null) &&
+    (incoming.name || null) === (primed.name || null) &&
     Boolean(incoming.is_mentor) === Boolean(primed.is_mentor) &&
     Boolean(incoming.onboarding) === Boolean(primed.onboarding) &&
-    (incoming.job_title ?? null) === (primed.job_title ?? null) &&
-    (incoming.company ?? null) === (primed.company ?? null) &&
+    (incoming.job_title || null) === (primed.job_title || null) &&
+    (incoming.company || null) === (primed.company || null) &&
     avatarConverged &&
-    experiencesConverged
+    experiencesConverged &&
+    industryConverged
   );
 }
 

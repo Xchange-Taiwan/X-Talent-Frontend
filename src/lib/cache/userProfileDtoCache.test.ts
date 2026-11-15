@@ -1,4 +1,4 @@
-import { fromPartial } from '@total-typescript/shoehorn';
+import { fromAny, fromPartial } from '@total-typescript/shoehorn';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { MentorProfileVO } from '@/types/user';
@@ -7,6 +7,7 @@ import {
   clearUserProfileDtoCache,
   getEffectiveInitialDto,
   getUserProfileDtoFromCache,
+  hasDtoConverged,
   isOptimisticTransitionActive,
   primeUserProfileDtoCache,
   resolveUserProfileDtoFetch,
@@ -278,6 +279,50 @@ describe('userProfileDtoCache (src/lib/cache)', () => {
 
       clearUserProfileDtoCache(62, 'zh_TW');
       clearUserProfileDtoCache(63, 'zh_TW');
+    });
+  });
+
+  describe('hasDtoConverged', () => {
+    it('validates ?v= upload version equality across &cb= cache-busters and guards optimistic industry edits', () => {
+      const primed = fromPartial<MentorProfileVO>({
+        user_id: 70,
+        name: 'Mentor',
+        avatar: 'https://s3.amazonaws.com/bucket/files/70/avatar?v=1754',
+        industry: fromAny({ subject_group: 'FINANCE', subject: '金融業' }),
+        is_mentor: true,
+        onboarding: true,
+      });
+
+      const staleAvatarVersion = fromPartial<MentorProfileVO>({
+        ...primed,
+        avatar: 'https://s3.amazonaws.com/bucket/files/70/avatar?v=1753&cb=now',
+      });
+      expect(hasDtoConverged(primed, staleAvatarVersion)).toBe(false);
+
+      const prefixTrapAvatar = fromPartial<MentorProfileVO>({
+        ...primed,
+        avatar: 'https://s3.amazonaws.com/bucket/files/70/avatar?v=175499',
+      });
+      expect(hasDtoConverged(primed, prefixTrapAvatar)).toBe(false);
+
+      const staleIndustry = fromPartial<MentorProfileVO>({
+        ...primed,
+        industry: fromAny({ subject_group: 'TECH', subject: '科技業' }),
+      });
+      expect(hasDtoConverged(primed, staleIndustry)).toBe(false);
+
+      const converged = fromPartial<MentorProfileVO>({
+        ...primed,
+        avatar:
+          'https://s3.amazonaws.com/bucket/files/70/avatar?v=1754&cb=2026-11-14T00%3A00%3A00Z',
+        industry: fromAny({
+          id: 9,
+          kind: 'industry',
+          subject_group: 'FINANCE',
+          subject: '金融業',
+        }),
+      });
+      expect(hasDtoConverged(primed, converged)).toBe(true);
     });
   });
 });

@@ -548,4 +548,94 @@ describe('auth.config', () => {
       expect(cookieJar.get('g_oauth_rt')).toBeUndefined();
     });
   });
+
+  describe('SSR_API_URL ?? NEXT_PUBLIC_API_URL resolution & BFF user normalization (#885)', () => {
+    const originalSsrUrl = process.env.SSR_API_URL;
+    const originalPublicUrl = process.env.NEXT_PUBLIC_API_URL;
+
+    afterEach(() => {
+      if (originalSsrUrl === undefined) {
+        delete process.env.SSR_API_URL;
+      } else {
+        process.env.SSR_API_URL = originalSsrUrl;
+      }
+      if (originalPublicUrl === undefined) {
+        delete process.env.NEXT_PUBLIC_API_URL;
+      } else {
+        process.env.NEXT_PUBLIC_API_URL = originalPublicUrl;
+      }
+    });
+
+    it('prefers SSR_API_URL over NEXT_PUBLIC_API_URL in credentials authorize and googleCallback', async () => {
+      process.env.SSR_API_URL = 'http://internal-bff:8000/api';
+      process.env.NEXT_PUBLIC_API_URL = 'https://public-bff.example.com/api';
+
+      const credentialsProvider = authOptions.providers.find(
+        (p) => p.id === 'credentials' && p.options?.id !== 'custom-google-token'
+      );
+      expect(credentialsProvider).toBeDefined();
+
+      mockFetch.mockResolvedValueOnce(
+        fromPartial<Response>({
+          ok: true,
+          headers: new Headers({
+            'set-cookie': 'refresh_token=rt_ssr; Path=/; HttpOnly',
+          }),
+          json: async () => ({
+            data: {
+              auth: {
+                user_id: 301,
+                token: 'jwt_ssr',
+                email: 'ssr@example.com',
+              },
+              user: {
+                user_id: 301,
+                name: 'SSR User',
+                onboarding: true,
+                is_mentor: false,
+                experiences: [],
+              },
+            },
+          }),
+        })
+      );
+
+      const credUser = await credentialsProvider!.options.authorize(
+        { email: 'ssr@example.com', password: 'Password1!' },
+        fromPartial({})
+      );
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://internal-bff:8000/api/v1/auth/login',
+        expect.objectContaining({ method: 'POST' })
+      );
+      expect(credUser).toMatchObject({
+        id: '301',
+        token: 'jwt_ssr',
+        refreshToken: 'rt_ssr',
+        email: 'ssr@example.com',
+        name: 'SSR User',
+        onBoarding: true,
+        isMentor: false,
+        jobTitle: '',
+        company: '',
+        personalLinks: [],
+      });
+
+      mockFetch.mockResolvedValueOnce(
+        fromPartial<Response>({
+          ok: true,
+          headers: new Headers(),
+          json: async () => ({ code: '0', data: null }),
+        })
+      );
+
+      await googleCallback('oauth_code', 'oauth_state');
+
+      expect(mockFetch).toHaveBeenLastCalledWith(
+        'http://internal-bff:8000/api/v2/oauth/google/callback',
+        expect.objectContaining({ method: 'POST' })
+      );
+    });
+  });
 });
