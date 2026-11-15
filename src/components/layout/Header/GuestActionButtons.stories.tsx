@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import React from 'react';
 
+import { buildDesktopGuestAuth } from '@/hooks/layout/useHeaderNavigation';
 import { GUEST_IDENTITY, UNKNOWN_IDENTITY } from '@/test/mocks/identity';
 
 import { AuthHintProvider } from './AuthHintGate';
@@ -57,6 +58,16 @@ export const ProvidedViaAuthHintContext: Story = {
       </AuthHintProvider>
     ),
   ],
+};
+
+const signInActiveAuth = buildDesktopGuestAuth('/auth/signin');
+
+export const SignInActiveRoute: Story = {
+  args: {
+    identity: GUEST_IDENTITY,
+    signup: signInActiveAuth.signup,
+    signin: signInActiveAuth.signin,
+  },
 };
 
 export const HiddenForConfirmedMember: Story = {

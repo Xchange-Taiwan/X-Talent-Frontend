@@ -6,12 +6,28 @@ import {
   waitFor,
   within,
 } from '@testing-library/react';
+import type { CSSProperties } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/image', () => ({
-  default: ({ src, alt }: { src: string | { src: string }; alt: string }) => (
+  default: ({
+    src,
+    alt,
+    className,
+    style,
+  }: {
+    src: string | { src: string };
+    alt: string;
+    className?: string;
+    style?: CSSProperties;
+  }) => (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={typeof src === 'string' ? src : src.src} alt={alt} />
+    <img
+      src={typeof src === 'string' ? src : src.src}
+      alt={alt}
+      className={className}
+      style={style}
+    />
   ),
 }));
 
@@ -344,6 +360,10 @@ describe('Header', () => {
     });
     mockUseResolvedIdentity.mockReturnValue(AUTHENTICATED_MATCHING_IDENTITY);
     render(<Header />);
+
+    const logoImg = screen.getByAltText('X-Talent Logo');
+    expect(logoImg).toHaveClass('w-auto');
+    expect(logoImg).not.toHaveAttribute('style');
 
     const logoLink = screen.getByRole('link', { name: 'Go to homepage' });
     const findMentorLink = screen.getByRole('link', { name: '尋找導師' });

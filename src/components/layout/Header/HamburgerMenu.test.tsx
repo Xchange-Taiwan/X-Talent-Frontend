@@ -36,11 +36,15 @@ describe('HamburgerMenu', () => {
     render(<HamburgerMenuHarness identity={GUEST_IDENTITY} />);
 
     const triggerButton = screen.getByRole('button', { name: '開啟導航選單' });
-    expect(triggerButton.querySelector('svg')).toHaveClass('size-6');
+    const triggerIcon = triggerButton.querySelector('svg');
+    expect(triggerIcon).toHaveClass('size-6');
+    expect(triggerIcon).not.toHaveClass('size-8');
 
     fireEvent.click(triggerButton);
 
-    expect(screen.getByRole('dialog')).toHaveClass('h-dvh');
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveClass('h-dvh');
+    expect(dialog).not.toHaveClass('h-screen');
 
     const becomeMentorLink = screen.getByRole('link', { name: '成為導師' });
     expect(becomeMentorLink).toHaveAttribute('href', '/auth/signup');

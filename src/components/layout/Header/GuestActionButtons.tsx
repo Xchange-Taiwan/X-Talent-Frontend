@@ -54,7 +54,7 @@ export function GuestActionButtons({
         </Link>
       </Button>
 
-      <Button variant="default" asChild>
+      <Button className="bg-brand-500 hover:bg-brand-500" asChild>
         <Link
           href={signin.href}
           aria-current={signin.isCurrent ? 'page' : undefined}
