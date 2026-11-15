@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 
+import { readCachedTicketBundle } from '../cloud/ticket-bundle.mjs';
 import { extractExistingEvidenceUrls } from '../generate-pr-description.mjs';
 import {
   downloadVerifiedImage,
@@ -17,6 +18,7 @@ import { callGemini } from './lib/gemini.mjs';
 import { upsertComment } from './lib/pr-comment.mjs';
 import { buildPrompt } from './lib/prompt.mjs';
 import {
+  extractTicketNumber,
   fetchFullTicketContext,
   fetchRawArchitectureKb,
   formatArchitectureKnowledgeBase,
@@ -173,8 +175,10 @@ function resolveLocalGithubToken() {
 export function createLocalContextPort({
   ticketImagesDir,
   evidenceDir,
+  bundleFile = '.agents/tmp/ticket-bundle.json',
   fetchImpl = fetch,
 } = {}) {
+  const canUseDiskCache = fetchImpl === fetch || bundleFile !== '.agents/tmp/ticket-bundle.json';
   return {
     resolveBranch() {
       return execFileSync('git', ['branch', '--show-current'], {
@@ -185,6 +189,23 @@ export function createLocalContextPort({
       return getWorkingTreeDiff(baseRef);
     },
     async loadIssueContext({ branch, ticketNumber }) {
+      const expectedNum = extractTicketNumber(branch, ticketNumber);
+      if (canUseDiskCache && expectedNum) {
+        const cached = readCachedTicketBundle(bundleFile, expectedNum, fs);
+        if (cached?.issue) {
+          return {
+            ticketFound: true,
+            number: cached.ticketNumber,
+            title: cached.issue.title ?? '',
+            body: cached.issue.body ?? '',
+            comments: (cached.issue.comments ?? []).map((c) => ({
+              author: c?.author?.login ?? c?.author ?? 'unknown',
+              body: c?.body ?? '',
+            })),
+            htmlBlocks: cached.htmlBlocks ?? [],
+          };
+        }
+      }
       const ghToken = resolveLocalGithubToken();
       if (!ghToken) {
         return { ticketFound: false };
@@ -193,8 +214,14 @@ export function createLocalContextPort({
         fetchImpl,
       });
     },
-    loadArchitectureKb(query) {
-      return fetchRawArchitectureKb(query);
+    loadArchitectureKb(query, { ticket } = {}) {
+      if (canUseDiskCache && ticket?.number) {
+        const cached = readCachedTicketBundle(bundleFile, ticket.number, fs);
+        if (cached?.archKb) {
+          return cached.archKb;
+        }
+      }
+      return fetchRawArchitectureKb(query, { fetchImpl });
     },
     loadVisualAssets() {
       return loadReviewVisualAssets({ ticketImagesDir, evidenceDir });

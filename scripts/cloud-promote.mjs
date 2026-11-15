@@ -1,20 +1,15 @@
-#!/usr/bin/env node
-/**
- * Local-to-Cloud Promote CLI (`pnpm cloud:promote`)
- *
- * Allows an engineer who finished coding or prompting locally to push their
- * current feature branch and immediately trigger `cloud-implement.yml` on
- * GitHub Actions to run:
- *   - Up to 20 rounds of free Gemini (`gemini-4-carbon`) 7-Agent AI Review
- *   - Playwright E2E (`pnpm test:e2e:mock` + changed specs) self-healing
- *   - UI evidence capture & Pull Request creation / board status sync
- */
-import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+  createDefaultCommandPort,
+  redactCredentials,
+} from '../.agents/scripts/tracker-ops.mjs';
 import { extractTicketNumber } from './ai-review/lib/ticket.mjs';
+import { unstageCloudWorkspaceLocks } from './cloud/workspace-guard.mjs';
 import { clampMaxRounds } from './cloud-converge-loop.mjs';
+
+const LF = String.fromCharCode(10);
 
 const SAFE_BRANCH_REGEX = /^[A-Za-z0-9._/-]+$/;
 const PROTECTED_BRANCHES = new Set(['develop', 'main', 'master', 'HEAD']);
@@ -114,11 +109,18 @@ export function buildWorkflowDispatchArgs({
   return args;
 }
 
-function runGit(args) {
-  return execFileSync('git', args, { encoding: 'utf8' }).trim();
-}
+export function promoteLocalBranchToCloud(
+  argv = process.argv.slice(2),
+  options = {}
+) {
+  const cwd = path.resolve(options.cwd || process.cwd());
+  const env = options.env || process.env;
+  const port =
+    options.port || createDefaultCommandPort({ repoRoot: cwd, env });
+  const log = options.log || ((msg) => console.log(msg));
 
-export function promoteLocalBranchToCloud(argv = process.argv.slice(2)) {
+  const runGit = (args) => String(port.git(args, { cwd, env }) ?? '').trim();
+
   const currentBranch = runGit(['branch', '--show-current']);
   const branchCheck = validateBranchForPromote(currentBranch);
   if (!branchCheck.valid) {
@@ -134,13 +136,16 @@ export function promoteLocalBranchToCloud(argv = process.argv.slice(2)) {
 
   const statusOutput = runGit(['status', '--porcelain']);
   if (statusOutput && !parsed.noCommit) {
-    console.log(
-      '[cloud-promote] Uncommitted local changes detected; staging source changes (excluding .env*)...'
+    log(
+      '[cloud-promote] Uncommitted local changes detected; staging source changes (excluding secret .env files while preserving .env.example/.env.template)...'
     );
     runGit(['add', '-A']);
-    try {
-      runGit(['reset', 'HEAD', '--', '.env*', '*/.env*']);
-    } catch {}
+    unstageCloudWorkspaceLocks({
+      cwd,
+      env,
+      port,
+      includeWorkspaceLocks: false,
+    });
     const stagedDiff = runGit(['diff', '--cached', '--name-only']);
     if (stagedDiff) {
       runGit([
@@ -151,20 +156,20 @@ export function promoteLocalBranchToCloud(argv = process.argv.slice(2)) {
     }
   }
 
-  console.log(
-    `[cloud-promote] Pushing branch '${parsed.branchName}' to origin...`
-  );
+  log(`[cloud-promote] Pushing branch '${parsed.branchName}' to origin...`);
   runGit(['push', '-u', 'origin', parsed.branchName]);
 
   const ghArgs = buildWorkflowDispatchArgs(parsed);
-  console.log(
+  log(
     `[cloud-promote] Triggering Cloud AI Implement + ${parsed.maxRounds}-Round AI Review + E2E workflow for Ticket #${parsed.ticketNumber}...`
   );
-  execFileSync('gh', ghArgs, { stdio: 'inherit' });
+  port.gh(ghArgs, { cwd, env });
 
-  console.log(
-    `\n[cloud-promote] Triggered successfully! View runs at:\nhttps://github.com/Xchange-Taiwan/X-Talent-Frontend/actions/workflows/cloud-implement.yml`
+  log(
+    `${LF}[cloud-promote] Triggered successfully! View runs at:${LF}https://github.com/Xchange-Taiwan/X-Talent-Frontend/actions/workflows/cloud-implement.yml`
   );
+
+  return parsed;
 }
 
 const isMain =
@@ -176,7 +181,8 @@ if (isMain) {
   try {
     promoteLocalBranchToCloud(process.argv.slice(2));
   } catch (err) {
-    console.error(`[cloud-promote] Error: ${err.message}`);
+    const safeMsg = redactCredentials(err?.message || String(err));
+    console.error(`[cloud-promote] Error: ${safeMsg}`);
     process.exit(1);
   }
 }

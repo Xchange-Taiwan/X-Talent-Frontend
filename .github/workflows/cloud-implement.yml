@@ -134,8 +134,8 @@ jobs:
           BRANCH_NAME: ${{ env.SAFE_BRANCH_NAME }}
         run: |
           mkdir -p .agents/tmp
-          rm -f .agents/tmp/ticket-scope.json .agents/tmp/scope-guidance.md
-          GH_TOKEN="${TRACKER_READ_TOKEN:-$GH_TOKEN}" node scripts/export-ticket-spec.mjs --ticket="$TICKET_NUMBER" --repo="Xchange-Taiwan/X-Talent-Tracker" --out=.agents/tmp/ticket-spec.md 2>/dev/null || true
+          rm -f .agents/tmp/ticket-bundle.json .agents/tmp/ticket-spec.md .agents/tmp/ticket-scope.json .agents/tmp/scope-guidance.md
+          node scripts/cloud/ticket-bundle.mjs --ticket="$TICKET_NUMBER" --skip-visuals=true --skip-kb=true || true
           node scripts/check-ticket-scope.mjs \
             --spec-file=.agents/tmp/ticket-spec.md \
             --branch="$BRANCH_NAME" \
@@ -216,7 +216,7 @@ jobs:
             echo "::error::Failed to create or switch to a dedicated ticket branch (currently on '${ACTIVE_BR}')."
             exit 1
           fi
-          bash .agents/scripts/setup-cloud-env.sh
+          node scripts/cloud/workspace-guard.mjs setup
 
       - name: Run Gemini CLI to implement or complete ticket requirements (Phase 1)
         if: env.SCOPE_SKIPPED != 'true'
@@ -232,12 +232,7 @@ jobs:
           EXTRA_PROMPT: ${{ inputs.extra_prompt }}
         run: |
           mkdir -p .agents/tmp
-          if [ ! -s .agents/tmp/ticket-spec.md ]; then
-            GH_TOKEN="${TRACKER_READ_TOKEN:-$GH_TOKEN}" node scripts/export-ticket-spec.mjs --ticket="$TICKET_NUMBER" --repo="Xchange-Taiwan/X-Talent-Tracker" --out=.agents/tmp/ticket-spec.md 2>/dev/null || true
-          fi
-          ARCH_QUERY="#${TICKET_NUMBER} $(head -n 25 .agents/tmp/ticket-spec.md 2>/dev/null | tr '\n' ' ' || echo '')"
-          jq -n --arg q "$ARCH_QUERY" '{query: $q}' | curl -sS -X POST "https://x-talent-discord-mention-notify.x-talent.workers.dev/__arch-kb" -H "Content-Type: application/json" -d @- | jq -r 'if .kb then "\n\n## X-Talent 跨專案架構知識庫 (Cloudflare KV Architecture KB)\n```json\n" + (.kb | tojson) + "\n```" else "" end' >> .agents/tmp/ticket-spec.md 2>/dev/null || true
-          node scripts/prefetch-ticket-visuals.mjs --ticket="$TICKET_NUMBER" || true
+          node scripts/cloud/ticket-bundle.mjs --ticket="$TICKET_NUMBER" || true
           SCOPE_GUIDANCE=""
           if [ -s .agents/tmp/scope-guidance.md ]; then
             SCOPE_GUIDANCE=$(cat .agents/tmp/scope-guidance.md)
@@ -267,30 +262,7 @@ jobs:
           printf '\n%s\n%s\n' "$SCOPE_GUIDANCE" "$EXTRA_PROMPT" >> "$PROMPT_FILE"
           timeout --kill-after=30s 33m npx gemini -m "$GEMINI_MODEL" --approval-mode=yolo --skip-trust -p "$(cat "$PROMPT_FILE")" < /dev/null || echo "::warning::Phase 1 exited non-zero or hit 33m soft limit; handing off workspace changes to Phase 2 convergence loop."
           rm -f "$PROMPT_FILE"
-          if [ -s .agents/tmp/delete-files.txt ]; then
-            repo_root=$(pwd -P)
-            while IFS= read -r raw_del || [ -n "$raw_del" ]; do
-              del_path=$(printf '%s' "$raw_del" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-              if [ -n "$del_path" ] && [[ "$del_path" != /* ]] && [[ "$del_path" != ".." && "$del_path" != "../"* && "$del_path" != *"/../"* && "$del_path" != *"/.." ]]; then
-                parent_real=$(realpath -e -- "$(dirname -- "$del_path")" 2>/dev/null || true)
-                base_name=$(basename -- "$del_path")
-                if [ -n "$parent_real" ] && [ "$base_name" != "." ] && [ "$base_name" != ".." ]; then
-                  target_path="${parent_real}/${base_name}"
-                  rel_target="${target_path#"${repo_root}/"}"
-                  if [[ "$target_path" == "${repo_root}/"* ]] && [[ "$rel_target" != .git* ]] && [[ "$rel_target" != .agents && "$rel_target" != .agents/* ]] && [[ "$base_name" != .env* ]]; then
-                    if [ -L "$target_path" ] || [ -f "$target_path" ]; then
-                      if rm -f -- "$target_path"; then
-                        echo "[phase1-delete] Removed $rel_target"
-                      fi
-                    elif [ -d "$target_path" ]; then
-                      echo "::warning::[phase1-delete] Skipped directory $rel_target (files only)"
-                    fi
-                  fi
-                fi
-              fi
-            done < .agents/tmp/delete-files.txt
-            rm -f .agents/tmp/delete-files.txt
-          fi
+          node scripts/cloud/workspace-guard.mjs apply-deletes
 
       - name: Run Fast Funnel Deterministic & Playwright E2E Verification Loop (Phase 2)
         if: env.SCOPE_SKIPPED != 'true'
@@ -319,7 +291,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER }}
-        run: bash .agents/scripts/cloud-submit-pr.sh implement
+        run: node scripts/cloud/submit-pr.mjs implement
 
       - name: Finalize and notify Discord Worker (Suggestion 4 auto-recovery & Vercel limit detection)
         if: always()

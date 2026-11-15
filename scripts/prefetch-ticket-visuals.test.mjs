@@ -1,4 +1,7 @@
 // @vitest-environment node
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -11,6 +14,7 @@ import {
   isAllowedTicketImageUrl,
   parsePrefetchArgs,
   prioritizeIssueAndCommentBlocks,
+  runPrefetchVisuals,
   sniffImageMimeType,
 } from './prefetch-ticket-visuals.mjs';
 
@@ -292,6 +296,80 @@ describe('prefetch-ticket-visuals', () => {
       expect(md).toContain('ticket-img-01.png');
       expect(md).toContain('prototype-01-dom.md');
       expect(md).toContain('read_file');
+    });
+
+    it('paginates >100 comments in standalone runPrefetchVisuals so page-2 mockups are not dropped', async () => {
+      const tmpOut = fs.mkdtempSync(path.join(os.tmpdir(), 'prefetch-page2-'));
+      try {
+        const page2Url =
+          'https://api.github.com/repos/Xchange-Taiwan/X-Talent-Tracker/issues/907/comments?per_page=100&page=2';
+        const imgUrl =
+          'https://private-user-images.githubusercontent.com/99/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.png?jwt=sig';
+        const fetchImpl = vi.fn(async (rawUrl) => {
+          const url = String(rawUrl);
+          if (url.endsWith('/issues/907')) {
+            return {
+              ok: true,
+              status: 200,
+              headers: new Headers(),
+              json: async () => ({ body: 'No image on top', body_html: '' }),
+            };
+          }
+          if (url.includes('/issues/907/comments') && !url.includes('page=2')) {
+            return {
+              ok: true,
+              status: 200,
+              headers: new Headers({ link: `<${page2Url}>; rel="next"` }),
+              json: async () =>
+                Array.from({ length: 100 }, () => ({ body: 'old', body_html: '' })),
+            };
+          }
+          if (url === page2Url) {
+            return {
+              ok: true,
+              status: 200,
+              headers: new Headers(),
+              json: async () => [
+                {
+                  body: `<img alt="第101則附圖" src="${imgUrl}" />`,
+                  body_html: `<p><img alt="第101則附圖" src="${imgUrl}"></p>`,
+                },
+              ],
+            };
+          }
+          if (url === imgUrl) {
+            return {
+              ok: true,
+              status: 200,
+              url,
+              headers: new Headers({ 'content-type': 'image/png' }),
+              arrayBuffer: async () =>
+                VALID_PNG.buffer.slice(
+                  VALID_PNG.byteOffset,
+                  VALID_PNG.byteOffset + VALID_PNG.byteLength
+                ),
+            };
+          }
+          return { ok: false, status: 404, headers: new Headers() };
+        });
+
+        const manifest = await runPrefetchVisuals({
+          ticketNumber: '907',
+          outDir: path.join(tmpOut, 'images'),
+          specFile: '',
+          manifestFile: path.join(tmpOut, 'manifest.json'),
+          skipPrototypes: true,
+          ghToken: 'ghp_tok',
+          fetchImpl,
+        });
+
+        expect(manifest.downloadedImages).toHaveLength(1);
+        expect(manifest.downloadedImages[0].alt).toBe(
+          '第101則附圖 (留言附圖，若與頂部最新規格衝突請以頂部規格與 Design Hub 為準)'
+        );
+      } finally {
+        fs.rmSync(tmpOut, { recursive: true, force: true });
+      }
     });
   });
 });

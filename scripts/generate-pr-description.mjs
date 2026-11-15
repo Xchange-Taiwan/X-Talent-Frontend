@@ -1,36 +1,63 @@
-#!/usr/bin/env node
-/**
- * Generates high-signal Traditional Chinese Pull Request descriptions
- * (`## What Does This PR Do?`, `## Demo`, labeled `## Screenshot`, and
- * convergence summary) for Cloud AI workflows (`cloud-submit-pr.sh`) via a
- * single fast `gemini-4-carbon` JSON call (~2-4s), falling back gracefully
- * if `GEMINI_API_KEY` is unavailable.
- */
-
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { callGemini } from './ai-review/lib/gemini.mjs';
+import { formatIssueJsonToSpecMarkdown } from './export-ticket-spec.mjs';
+
+const LF = String.fromCharCode(10);
+const CR = String.fromCharCode(13);
+const BT = String.fromCharCode(96);
 
 const MAX_SPEC_CHARS = 12_000;
 const MAX_DIFF_CHARS = 60_000;
 
-export function stripArchKbFromSpec(rawSpec = '') {
-  const marker = '## X-Talent 跨專案架構知識庫';
-  const idx = rawSpec.indexOf(marker);
-  const cleaned = idx >= 0 ? rawSpec.slice(0, idx) : rawSpec;
-  return cleaned.trim().slice(0, MAX_SPEC_CHARS);
+function splitLines(raw = '') {
+  return String(raw ?? '').replaceAll(CR, '').split(LF);
+}
+
+export function extractSpecExcerptFromBundle(bundleOrRaw = '') {
+  if (bundleOrRaw && typeof bundleOrRaw === 'object') {
+    if (
+      typeof bundleOrRaw.cleanSpecMarkdown === 'string' &&
+      bundleOrRaw.cleanSpecMarkdown.trim()
+    ) {
+      return bundleOrRaw.cleanSpecMarkdown.trim().slice(0, MAX_SPEC_CHARS);
+    }
+    if (bundleOrRaw.issue && typeof bundleOrRaw.issue === 'object') {
+      return formatIssueJsonToSpecMarkdown(bundleOrRaw.issue)
+        .trim()
+        .slice(0, MAX_SPEC_CHARS);
+    }
+    return '';
+  }
+  return String(bundleOrRaw ?? '')
+    .trim()
+    .slice(0, MAX_SPEC_CHARS);
+}
+
+function extractScreenshotSection(markdown = '') {
+  const lines = splitLines(markdown);
+  const startIdx = lines.findIndex((line) =>
+    /^##\s*Screenshot(\s|$)/i.test(line.trim())
+  );
+  if (startIdx < 0) {
+    return String(markdown ?? '');
+  }
+  const collected = [];
+  for (let i = startIdx + 1; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (/^##\s+/.test(trimmed) || /^Ref:\s+/i.test(trimmed)) {
+      break;
+    }
+    collected.push(lines[i]);
+  }
+  return collected.join(LF);
 }
 
 export function extractExistingEvidenceUrls(markdown = '') {
-  const text = String(markdown ?? '');
-  const screenshotMatch = text.match(
-    /##\s*Screenshot\b([\s\S]*?)(?=\n##\s+|\nRef:\s+|$)/i
-  );
-  const scope = screenshotMatch ? screenshotMatch[1] : text;
-
+  const scope = extractScreenshotSection(markdown);
   const urls = [];
   const seen = new Set();
   const urlRegex =
@@ -48,7 +75,9 @@ export function extractExistingEvidenceUrls(markdown = '') {
 
 export function sanitizeImageAlt(text = '') {
   return String(text ?? '')
-    .replace(/[\[\]\r\n]+/g, ' ')
+    .replaceAll(CR, ' ')
+    .replaceAll(LF, ' ')
+    .replace(/\[|\]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -88,10 +117,8 @@ export function ensurePrTitleTag(rawTitle, branch, ticket) {
       .trim();
     title = `${prefix}: ${slug || 'update implementation'}`;
   }
-  // Remove accidental trailing period
   title = title.replace(/\.\s*$/, '');
   if (ticket) {
-    // Strip existing (#123) or (X-Tracker #123) at the end and normalize to (X-Tracker #<ticket>)
     title = title.replace(/\s*\((?:X-Tracker\s*)?#\d+\)\s*$/i, '').trim();
     title = `${title} (X-Tracker #${ticket})`;
   }
@@ -113,28 +140,31 @@ export function buildPrDescriptionPrompt({
             (u, i) =>
               `${i + 1}. 檔名：${u.split('/').pop()}（預設標籤：${humanizeEvidenceSlug(u, i)}）`
           )
-          .join('\n')
+          .join(LF)
       : '（無截圖）';
 
+  const diffFenceStart = `${BT}${BT}${BT}diff`;
+  const fenceEnd = `${BT}${BT}${BT}`;
+
   return [
-    '你是一位資深前端工程師，請根據下方的 Ticket 規格與實際 `git diff`，撰寫清楚、具體、讓團隊一眼看懂「這個 PR 到底做了什麼與為什麼這樣做」的繁體中文 PR 說明（不要只列檔案清單！）。',
+    `你是一位資深前端工程師，請根據下方的 Ticket 規格與實際 ${BT}git diff${BT}，撰寫清楚、具體、讓團隊一眼看懂「這個 PR 到底做了什麼與為什麼這樣做」的繁體中文 PR 說明（不要只列檔案清單！）。`,
     '',
-    `分支名稱：\`${branch}\``,
+    `分支名稱：${BT}${branch}${BT}`,
     ticket ? `對應 Ticket：X-Talent-Tracker #${ticket}` : '對應 Ticket：無',
     '',
     '### Ticket 需求摘要',
     specExcerpt || '（無 Ticket 文字，請直接依據 git diff 歸納）',
     '',
     '### 變更檔案清單',
-    diffFiles.map((f) => `- ${f}`).join('\n') || '（無）',
+    diffFiles.map((f) => `- ${f}`).join(LF) || '（無）',
     '',
     '### 已擷取之畫面證據檔名清單',
     evidenceHint,
     '',
     '### Git Diff 內容',
-    '```diff',
+    diffFenceStart,
     diffText,
-    '```',
+    fenceEnd,
     '',
     '請只回傳符合以下結構的 JSON 物件（不要加 Markdown code fence 或額外文字）：',
     JSON.stringify(
@@ -161,7 +191,25 @@ export function buildPrDescriptionPrompt({
       null,
       2
     ),
-  ].join('\n');
+  ].join(LF);
+}
+
+function collapseExcessBlankLines(text = '') {
+  const lines = splitLines(text);
+  const out = [];
+  let blankRun = 0;
+  for (const line of lines) {
+    if (line === '') {
+      blankRun += 1;
+      if (blankRun <= 1) {
+        out.push(line);
+      }
+    } else {
+      blankRun = 0;
+      out.push(line);
+    }
+  }
+  return out.join(LF).trim();
 }
 
 export function renderPrMarkdown({
@@ -192,7 +240,7 @@ export function renderPrMarkdown({
         Array.isArray(item.files) && item.files.length > 0
           ? ` (${item.files
               .slice(0, 4)
-              .map((f) => `\`${f}\``)
+              .map((f) => `${BT}${f}${BT}`)
               .join(', ')})`
           : '';
       whatParts.push(
@@ -206,7 +254,6 @@ export function renderPrMarkdown({
       }
     });
   } else if (diffFiles.length > 0) {
-    // Fallback grouped summary when Gemini API is unavailable
     const uiFiles = diffFiles.filter(
       (f) =>
         (f.startsWith('src/app/') || f.startsWith('src/components/')) &&
@@ -228,19 +275,19 @@ export function renderPrMarkdown({
 
     if (uiFiles.length > 0) {
       whatParts.push(
-        `- **畫面與 UI 元件實作**：更新 ${uiFiles.map((f) => `\`${f}\``).join('、')}。`
+        `- **畫面與 UI 元件實作**：更新 ${uiFiles.map((f) => `${BT}${f}${BT}`).join('、')}。`
       );
     }
     if (dataFiles.length > 0) {
       whatParts.push(
-        `- **資料轉換、狀態與型別定義**：更新 ${dataFiles.map((f) => `\`${f}\``).join('、')}。`
+        `- **資料轉換、狀態與型別定義**：更新 ${dataFiles.map((f) => `${BT}${f}${BT}`).join('、')}。`
       );
     }
     if (testAndStoryFiles.length > 0) {
       whatParts.push(
         `- **Storybook 與自動化測試覆蓋**：補齊 ${testAndStoryFiles
           .slice(0, 8)
-          .map((f) => `\`${f}\``)
+          .map((f) => `${BT}${f}${BT}`)
           .join('、')}。`
       );
     }
@@ -250,11 +297,11 @@ export function renderPrMarkdown({
       testAndStoryFiles.length === 0
     ) {
       for (const f of diffFiles.slice(0, 20)) {
-        whatParts.push(`- \`${f}\``);
+        whatParts.push(`- ${BT}${f}${BT}`);
       }
     }
   } else {
-    whatParts.push(`- Branch \`${branch}\``);
+    whatParts.push(`- Branch ${BT}${branch}${BT}`);
   }
 
   const demoRoutes = Array.isArray(generated?.demoRoutes)
@@ -263,7 +310,7 @@ export function renderPrMarkdown({
   if (demoRoutes.length > 0) {
     whatParts.push('', '## Demo', '');
     for (const route of demoRoutes) {
-      whatParts.push(`- \`${route}\``);
+      whatParts.push(`- ${BT}${route}${BT}`);
     }
   }
 
@@ -275,7 +322,8 @@ export function renderPrMarkdown({
     evidenceUrls.forEach((url, idx) => {
       const caption =
         String(captions[idx] || '')
-          .replace(/[\r\n]+/g, ' ')
+          .replaceAll(CR, ' ')
+          .replaceAll(LF, ' ')
           .trim() || humanizeEvidenceSlug(url, idx);
       const safeAlt = sanitizeImageAlt(caption) || `evidence-${idx + 1}`;
       whatParts.push(`### ${idx + 1}. ${caption}`, `![${safeAlt}](${url})`, '');
@@ -294,10 +342,7 @@ export function renderPrMarkdown({
     );
   }
 
-  return `${whatParts
-    .join('\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()}\n`;
+  return `${collapseExcessBlankLines(whatParts.join(LF))}${LF}`;
 }
 
 function parseCliArgs(argv = []) {
@@ -309,6 +354,7 @@ function parseCliArgs(argv = []) {
     ticket: get('--ticket=').replace(/^#/, '').trim(),
     branch: get('--branch=').trim(),
     lastSubject: get('--last-subject=').trim(),
+    bundleFile: get('--bundle-file=').trim(),
     specFile: get('--spec-file=').trim(),
     summaryFile: get('--summary-file=').trim(),
     evidenceFile: get('--evidence-file=').trim(),
@@ -319,51 +365,80 @@ function parseCliArgs(argv = []) {
   };
 }
 
+function loadStructuredBundle(bundle, bundleFile, fsImpl) {
+  if (bundle && typeof bundle === 'object') {
+    return bundle;
+  }
+  if (bundleFile && fsImpl.existsSync(bundleFile)) {
+    try {
+      return JSON.parse(fsImpl.readFileSync(bundleFile, 'utf8'));
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 export async function runGeneratePrDescription(opts = {}) {
   const {
     ticket = '',
     branch = '',
     lastSubject = '',
+    bundle = null,
+    bundleFile = '.agents/tmp/ticket-bundle.json',
+    rawSpec: directRawSpec = '',
     specFile = '',
+    summaryText: directSummaryText = '',
     summaryFile = '',
+    evidenceUrls: directEvidenceUrls = null,
     evidenceFile = '',
+    existingBody: directExistingBody = '',
     existingBodyFile = '',
     baseRef = 'origin/develop',
     titleOut = '',
     bodyOut = '',
+    port = null,
+    cwd = process.cwd(),
+    env = process.env,
+    fsImpl = fs,
+    fetchImpl = fetch,
     callGeminiImpl = callGemini,
   } = opts;
 
-  const rawSpec =
-    specFile && fs.existsSync(specFile)
-      ? fs.readFileSync(specFile, 'utf8')
-      : '';
-  const specExcerpt = stripArchKbFromSpec(rawSpec);
+  const parsedBundle = loadStructuredBundle(bundle, bundleFile, fsImpl);
+  const fallbackRawSpec =
+    directRawSpec ||
+    (specFile && fsImpl.existsSync(specFile)
+      ? fsImpl.readFileSync(specFile, 'utf8')
+      : '');
+  const specExcerpt = parsedBundle
+    ? extractSpecExcerptFromBundle(parsedBundle)
+    : extractSpecExcerptFromBundle(fallbackRawSpec);
 
   const summaryText =
-    summaryFile && fs.existsSync(summaryFile)
-      ? fs.readFileSync(summaryFile, 'utf8').trim()
-      : '';
+    directSummaryText ||
+    (summaryFile && fsImpl.existsSync(summaryFile)
+      ? fsImpl.readFileSync(summaryFile, 'utf8').trim()
+      : '');
 
-  let evidenceUrls =
-    evidenceFile && fs.existsSync(evidenceFile)
-      ? fs
-          .readFileSync(evidenceFile, 'utf8')
-          .split(/\r?\n/)
+  let evidenceUrls = Array.isArray(directEvidenceUrls)
+    ? [...directEvidenceUrls]
+    : evidenceFile && fsImpl.existsSync(evidenceFile)
+      ? splitLines(fsImpl.readFileSync(evidenceFile, 'utf8'))
           .map((s) => s.trim())
           .filter(Boolean)
       : [];
 
   let resolvedTicket = ticket;
-  let existingBody = '';
-  if (existingBodyFile && fs.existsSync(existingBodyFile)) {
-    existingBody = fs.readFileSync(existingBodyFile, 'utf8');
-    if (!resolvedTicket) {
-      const ticketMatch = existingBody.match(
-        /X-Talent-Tracker\/issues\/(\d+)|\(X-Tracker\s*#(\d+)\)/i
-      );
-      resolvedTicket = ticketMatch?.[1] || ticketMatch?.[2] || '';
-    }
+  let existingBody = directExistingBody;
+  if (!existingBody && existingBodyFile && fsImpl.existsSync(existingBodyFile)) {
+    existingBody = fsImpl.readFileSync(existingBodyFile, 'utf8');
+  }
+  if (!resolvedTicket && existingBody) {
+    const ticketMatch = existingBody.match(
+      /X-Talent-Tracker\/issues\/(\d+)|\(X-Tracker\s*#(\d+)\)/i
+    );
+    resolvedTicket = ticketMatch?.[1] || ticketMatch?.[2] || '';
   }
 
   if (evidenceUrls.length === 0 && existingBody) {
@@ -373,27 +448,36 @@ export async function runGeneratePrDescription(opts = {}) {
   let diffFiles = [];
   let diffText = '';
   try {
-    const namesRaw = execFileSync(
-      'git',
-      ['diff', '--name-only', `${baseRef}...HEAD`],
-      { encoding: 'utf8', maxBuffer: 5 * 1024 * 1024 }
-    );
-    diffFiles = namesRaw
-      .split(/\r?\n/)
+    const namesRaw =
+      port && typeof port.git === 'function'
+        ? port.git(['diff', '--name-only', `${baseRef}...HEAD`], { cwd, env })
+        : execFileSync('git', ['diff', '--name-only', `${baseRef}...HEAD`], {
+            cwd,
+            env,
+            encoding: 'utf8',
+            maxBuffer: 5 * 1024 * 1024,
+          });
+    diffFiles = splitLines(namesRaw)
       .map((s) => s.trim())
       .filter(Boolean);
 
-    const fullDiff = execFileSync('git', ['diff', `${baseRef}...HEAD`], {
-      encoding: 'utf8',
-      maxBuffer: 12 * 1024 * 1024,
-    });
-    diffText = fullDiff.slice(0, MAX_DIFF_CHARS);
+    const fullDiff =
+      port && typeof port.git === 'function'
+        ? port.git(['diff', `${baseRef}...HEAD`], { cwd, env })
+        : execFileSync('git', ['diff', `${baseRef}...HEAD`], {
+            cwd,
+            env,
+            encoding: 'utf8',
+            maxBuffer: 12 * 1024 * 1024,
+          });
+    diffText = String(fullDiff ?? '').slice(0, MAX_DIFF_CHARS);
   } catch {
     // Fallback if git diff fails in isolated test context
   }
 
   let generated = null;
-  if (process.env.GEMINI_API_KEY && (diffText || specExcerpt)) {
+  const geminiApiKey = env?.GEMINI_API_KEY || '';
+  if (geminiApiKey && (diffText || specExcerpt)) {
     try {
       const prompt = buildPrDescriptionPrompt({
         ticket: resolvedTicket,
@@ -403,7 +487,11 @@ export async function runGeneratePrDescription(opts = {}) {
         diffText,
         evidenceUrls,
       });
-      generated = await callGeminiImpl(prompt, { maxOutputTokens: 8192 });
+      generated = await callGeminiImpl(prompt, {
+        maxOutputTokens: 8192,
+        apiKey: geminiApiKey,
+        fetchImpl,
+      });
     } catch (err) {
       console.warn(
         `[generate-pr-description] Gemini synthesis skipped (${err.message}); using grouped fallback.`
@@ -427,10 +515,10 @@ export async function runGeneratePrDescription(opts = {}) {
   });
 
   if (titleOut) {
-    fs.writeFileSync(titleOut, finalTitle, 'utf8');
+    fsImpl.writeFileSync(titleOut, finalTitle, 'utf8');
   }
   if (bodyOut) {
-    fs.writeFileSync(bodyOut, finalBody, 'utf8');
+    fsImpl.writeFileSync(bodyOut, finalBody, 'utf8');
   }
 
   return { title: finalTitle, body: finalBody };

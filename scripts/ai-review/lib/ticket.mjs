@@ -144,10 +144,14 @@ export async function fetchFullTicketContext(
     ticketFound: true,
     number,
     title: issue.title ?? '',
+    state: String(issue.state ?? 'OPEN').toUpperCase(),
+    author: issue.user?.login ?? issue.author?.login ?? '',
+    labels: Array.isArray(issue.labels) ? issue.labels : [],
     body: issue.body ?? '',
     bodyHtml: issue.body_html ?? '',
     comments: rawComments.map((c) => ({
       author: c.user?.login ?? 'unknown',
+      createdAt: c.created_at ?? c.createdAt ?? '',
       body: c.body ?? '',
       bodyHtml: c.body_html ?? '',
     })),
@@ -165,9 +169,12 @@ const ARCH_KB_ENDPOINT =
  * and Figma Route Mappings) from the Cloudflare KV Worker endpoint.
  * Fails gracefully (returns null) if offline or unreachable.
  */
-export async function fetchRawArchitectureKb(queryText) {
+export async function fetchRawArchitectureKb(
+  queryText,
+  { fetchImpl = fetch, endpoint = ARCH_KB_ENDPOINT } = {}
+) {
   try {
-    const res = await fetch(ARCH_KB_ENDPOINT, {
+    const res = await fetchImpl(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: String(queryText || '').slice(0, 1000) }),
