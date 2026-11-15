@@ -17,8 +17,14 @@ vi.mock('@/services/auth/authClient', () => ({
   },
 }));
 
+vi.mock('@/lib/monitoring', () => ({
+  captureFlowFailure: vi.fn(),
+  sanitize: (val: string) => val,
+}));
+
 import { ApiError } from '@/lib/apiClient';
 import { PENDING_VERIFICATION_EMAIL_KEY } from '@/lib/auth/authFlowStorage';
+import { captureFlowFailure } from '@/lib/monitoring';
 import { authClient } from '@/services/auth/authClient';
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockToast } from '@/test/mocks/useToast';
@@ -28,6 +34,7 @@ import { useEmailVerify } from './useEmailVerify';
 const mockResendVerificationEmail = vi.mocked(
   authClient.resendVerificationEmail
 );
+const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 
 describe('useEmailVerify', () => {
   beforeEach(() => {
@@ -39,24 +46,40 @@ describe('useEmailVerify', () => {
     const { result } = renderHook(() => useEmailVerify());
 
     expect(result.current.email).toBeNull();
+    expect(result.current.isResending).toBe(false);
     expect(mockRouter.push).toHaveBeenCalledWith('/');
   });
 
-  it('resends verification email via authClient and shows success toast', async () => {
+  it('exposes isResending while resending verification email via authClient and shows success toast', async () => {
     window.sessionStorage.setItem(
       PENDING_VERIFICATION_EMAIL_KEY,
       'pending@example.com'
     );
-    mockResendVerificationEmail.mockResolvedValueOnce(undefined);
+
+    let resolveResend!: () => void;
+    const resendPromise = new Promise<void>((resolve) => {
+      resolveResend = resolve;
+    });
+    mockResendVerificationEmail.mockReturnValueOnce(resendPromise);
 
     const { result } = renderHook(() => useEmailVerify());
 
     expect(result.current.email).toBe('pending@example.com');
+    expect(result.current.isResending).toBe(false);
 
-    await act(async () => {
-      await result.current.handleResendEmail();
+    let pendingCall!: Promise<void>;
+    act(() => {
+      pendingCall = result.current.handleResendEmail();
     });
 
+    expect(result.current.isResending).toBe(true);
+
+    await act(async () => {
+      resolveResend();
+      await pendingCall;
+    });
+
+    expect(result.current.isResending).toBe(false);
     expect(mockResendVerificationEmail).toHaveBeenCalledWith(
       'pending@example.com'
     );
@@ -67,7 +90,7 @@ describe('useEmailVerify', () => {
     });
   });
 
-  it('surfaces ApiError message on resend failure and navigates home on handleNavigateHome', async () => {
+  it('surfaces ApiError message, logs structured captureFlowFailure without email PII, and navigates home on handleNavigateHome', async () => {
     window.sessionStorage.setItem(
       PENDING_VERIFICATION_EMAIL_KEY,
       'pending@example.com'
@@ -82,11 +105,25 @@ describe('useEmailVerify', () => {
       await result.current.handleResendEmail();
     });
 
-    expect(mockToast).toHaveBeenCalledWith({
-      variant: 'destructive',
-      title: '寄送失敗',
-      description: '請稍後再重新寄送驗證信',
-    });
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'email_verification',
+        step: 'resend',
+        message: '請稍後再重新寄送驗證信',
+        errorCode: '429',
+        level: 'info',
+      })
+    );
+    expect(JSON.stringify(mockCaptureFlowFailure.mock.calls)).not.toContain(
+      'pending@example.com'
+    );
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'destructive',
+        title: '寄送失敗',
+        description: '請稍後再重新寄送驗證信',
+      })
+    );
 
     act(() => {
       result.current.handleNavigateHome();

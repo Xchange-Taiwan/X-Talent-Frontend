@@ -17,7 +17,13 @@ vi.mock('@/services/auth/authClient', () => ({
   },
 }));
 
-import { PENDING_AUTH_CALLBACK_URL_KEY } from '@/lib/auth/callbackUrl';
+vi.mock('@/lib/monitoring', () => ({
+  captureFlowFailure: vi.fn(),
+  sanitize: (val: string) => val,
+}));
+
+import { PENDING_AUTH_CALLBACK_URL_KEY } from '@/lib/auth/authFlowStorage';
+import { captureFlowFailure } from '@/lib/monitoring';
 import { authClient } from '@/services/auth/authClient';
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockToast } from '@/test/mocks/useToast';
@@ -25,6 +31,7 @@ import { mockToast } from '@/test/mocks/useToast';
 import { useGoogleAuth } from './useGoogleAuth';
 
 const mockGetGoogleAuthorizeUrl = vi.mocked(authClient.getGoogleAuthorizeUrl);
+const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 
 describe('useGoogleAuth', () => {
   beforeEach(() => {
@@ -74,7 +81,7 @@ describe('useGoogleAuth', () => {
     expect(result.current.isPending).toBe(true);
   });
 
-  it('should trigger destructive toast when login request fails', async () => {
+  it('should trigger destructive toast and captureFlowFailure when login request fails', async () => {
     mockGetGoogleAuthorizeUrl.mockRejectedValueOnce(new Error('API error'));
 
     const { result } = renderHook(() => useGoogleAuth());
@@ -85,6 +92,13 @@ describe('useGoogleAuth', () => {
 
     expect(mockGetGoogleAuthorizeUrl).toHaveBeenCalledWith('login');
     expect(mockRouter.push).not.toHaveBeenCalled();
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'google_oauth',
+        step: 'authorize_login',
+        level: 'warning',
+      })
+    );
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
         variant: 'destructive',
@@ -95,7 +109,7 @@ describe('useGoogleAuth', () => {
     expect(result.current.isPending).toBe(false);
   });
 
-  it('should trigger destructive toast when signup request fails', async () => {
+  it('should trigger destructive toast and captureFlowFailure when signup request fails', async () => {
     mockGetGoogleAuthorizeUrl.mockRejectedValueOnce(new Error('API error'));
 
     const { result } = renderHook(() => useGoogleAuth());
@@ -106,6 +120,13 @@ describe('useGoogleAuth', () => {
 
     expect(mockGetGoogleAuthorizeUrl).toHaveBeenCalledWith('signup');
     expect(mockRouter.push).not.toHaveBeenCalled();
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'google_oauth',
+        step: 'authorize_signup',
+        level: 'warning',
+      })
+    );
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
         variant: 'destructive',

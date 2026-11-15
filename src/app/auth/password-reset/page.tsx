@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import usePasswordResetForm from '@/hooks/auth/usePasswordResetForm';
+import { SIGNIN_HREF } from '@/lib/routes';
 
 function PasswordResetForm() {
   const { form, isSubmitting, onSubmit } = usePasswordResetForm();
@@ -92,7 +93,7 @@ export default function Page() {
           <PasswordResetForm />
         </Suspense>
 
-        <Link href="/auth/signin" className={linkStyle}>
+        <Link href={SIGNIN_HREF} className={linkStyle}>
           返回登入頁
         </Link>
       </div>

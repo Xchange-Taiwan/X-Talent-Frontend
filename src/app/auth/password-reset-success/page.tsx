@@ -7,6 +7,7 @@ import EmailVerifiedIconUrl from '@/assets/auth/email-verified-icon.svg';
 import AuthMessageCard from '@/components/auth/AuthMessageCard';
 import { linkStyle } from '@/components/auth/constants';
 import { Button } from '@/components/ui/button';
+import { HOME_HREF, SIGNIN_HREF } from '@/lib/routes';
 
 export default function Page() {
   const router = useRouter();
@@ -22,12 +23,12 @@ export default function Page() {
       <Button
         shape="pill"
         className="min-w-[135px] px-6"
-        onClick={() => router.push('/auth/signin')}
+        onClick={() => router.push(SIGNIN_HREF)}
       >
         前往登入
       </Button>
 
-      <Link href="/" className={linkStyle}>
+      <Link href={HOME_HREF} className={linkStyle}>
         回首頁
       </Link>
     </AuthMessageCard>
