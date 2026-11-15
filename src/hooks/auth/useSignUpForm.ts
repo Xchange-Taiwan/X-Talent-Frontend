@@ -43,6 +43,7 @@ export default function useSignUpForm(): AuthFormProps<SignUpValues> {
       },
       {
         throwError: false,
+        resetPendingOnSuccess: false,
         captureFailure: {
           flow: 'sign_up',
           step: 'submit',

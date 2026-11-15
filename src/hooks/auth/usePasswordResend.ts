@@ -3,12 +3,12 @@ import { useEffect, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
 import useAsyncAction from '@/hooks/useAsyncAction';
-import { ApiError } from '@/lib/apiClient';
 import { getPendingPasswordResetEmail } from '@/lib/auth/authFlowStorage';
 import {
   PasswordResetLifecycleError,
   resendPasswordReset,
 } from '@/lib/auth/sessionLifecycle';
+import { getErrorMessage } from '@/lib/errorUtils';
 import { PASSWORD_FORGOT_HREF } from '@/lib/routes';
 
 export default function usePasswordResend() {
@@ -46,11 +46,11 @@ export default function usePasswordResend() {
           message: (err) =>
             err instanceof PasswordResetLifecycleError
               ? err.logMessage
-              : err instanceof Error
-                ? err.message
-                : 'Failed to resend password reset email',
+              : getErrorMessage(err),
           errorCode: (err) =>
-            err instanceof ApiError ? String(err.status) : undefined,
+            err instanceof PasswordResetLifecycleError
+              ? err.errorCode
+              : undefined,
         },
         toastOnError: {
           title: (err) =>
@@ -58,7 +58,9 @@ export default function usePasswordResend() {
               ? err.title
               : '信件寄送失敗',
           description: (err) =>
-            err instanceof Error ? err.message : '發生錯誤，請稍後再試。',
+            err instanceof PasswordResetLifecycleError
+              ? err.message
+              : getErrorMessage(err),
         },
       }
     );

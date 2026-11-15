@@ -1236,6 +1236,21 @@ describe('sessionLifecycle (#885)', () => {
         })
       ).rejects.toBeInstanceOf(PasswordResetLifecycleError);
 
+      await expect(
+        requestPasswordReset('reset-pii@example.com', {
+          navigate,
+          storage,
+          requestPasswordResetEmailFn: vi
+            .fn()
+            .mockRejectedValue(new ApiError(429, '請稍後再試')),
+        })
+      ).rejects.toMatchObject({
+        name: 'PasswordResetLifecycleError',
+        title: '信件寄送失敗',
+        step: 'request_email',
+        errorCode: '429',
+      });
+
       // 1. Request password reset stores email and navigates to success page
       await requestPasswordReset('reset-pii@example.com', {
         navigate,
@@ -1248,14 +1263,28 @@ describe('sessionLifecycle (#885)', () => {
       );
       expect(navigate).toHaveBeenCalledWith('/auth/password-forgot-success');
 
-      // 2. Resend reads stored email and calls requestPasswordResetEmailFn
+      // 2. Resend reads stored email and calls requestPasswordResetEmailFn (wrapping ApiError on failure)
+      await expect(
+        resendPasswordReset({
+          storage,
+          requestPasswordResetEmailFn: vi
+            .fn()
+            .mockRejectedValue(new ApiError(500, '寄信服務異常')),
+        })
+      ).rejects.toMatchObject({
+        name: 'PasswordResetLifecycleError',
+        title: '信件寄送失敗',
+        step: 'resend_email',
+        errorCode: '500',
+      });
+
       await resendPasswordReset({
         storage,
         requestPasswordResetEmailFn: requestEmailFn,
       });
       expect(requestEmailFn).toHaveBeenCalledTimes(2);
 
-      // 3. Missing token on completePasswordReset throws without clearing PII
+      // 3. Missing or invalid token on completePasswordReset throws without clearing PII
       await expect(
         completePasswordReset(
           {
@@ -1268,6 +1297,28 @@ describe('sessionLifecycle (#885)', () => {
       ).rejects.toMatchObject({
         title: '驗證失敗',
         step: 'missing_token',
+      });
+
+      await expect(
+        completePasswordReset(
+          {
+            verifyToken: 'expired-reset-tok',
+            password: 'NewPassword123',
+            confirmPassword: 'NewPassword123',
+          },
+          {
+            navigate,
+            storage,
+            resetPasswordWithTokenFn: vi
+              .fn()
+              .mockRejectedValue(new ApiError(400, '重設連結已失效')),
+          }
+        )
+      ).rejects.toMatchObject({
+        name: 'PasswordResetLifecycleError',
+        title: '密碼重設失敗',
+        step: 'submit_new_password',
+        errorCode: '400',
       });
       expect(getPendingPasswordResetEmail(storage)).toBe(
         'reset-pii@example.com'

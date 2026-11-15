@@ -27,23 +27,7 @@ export function useConfirmRegister() {
     }
     processedTokenRef.current = token;
 
-    if (!token) {
-      setStatus('failure');
-      captureFlowFailure({
-        flow: 'email_verification',
-        step: 'missing_token',
-        message: 'Missing signup confirmation token',
-        level: 'info',
-      });
-      toast({
-        variant: 'destructive',
-        title: '驗證失敗',
-        description: '缺少驗證 Token，請重新申請驗證信。',
-      });
-      return;
-    }
-
-    setStatus('loading');
+    setStatus(token ? 'loading' : 'failure');
 
     const confirmSignup = async () => {
       try {
@@ -69,10 +53,10 @@ export function useConfirmRegister() {
               error instanceof ConfirmSignUpLifecycleError
                 ? error.level
                 : 'info',
-            errorCode:
-              error instanceof ConfirmSignUpLifecycleError
-                ? error.errorCode
-                : undefined,
+            ...(error instanceof ConfirmSignUpLifecycleError &&
+            error.errorCode !== undefined
+              ? { errorCode: error.errorCode }
+              : {}),
           });
           toast({
             variant: 'destructive',

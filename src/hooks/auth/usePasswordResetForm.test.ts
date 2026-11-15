@@ -69,6 +69,7 @@ describe('usePasswordResetForm', () => {
     );
     expect(mockResetPassword).not.toHaveBeenCalled();
     expect(mockRouter.push).not.toHaveBeenCalled();
+    expect(result.current.isSubmitting).toBe(false);
   });
 
   it('URL has token + resetPassword resolves → clears pending_reset_email PII from sessionStorage and redirects to success page (#904)', async () => {
@@ -100,6 +101,7 @@ describe('usePasswordResetForm', () => {
       '/auth/password-reset-success'
     );
     expect(mockToast).not.toHaveBeenCalled();
+    expect(result.current.isSubmitting).toBe(true);
   });
 
   it('URL has token + resetPassword throws → logs captureFlowFailure without token/password PII and shows toast', async () => {
@@ -137,5 +139,6 @@ describe('usePasswordResetForm', () => {
       })
     );
     expect(mockRouter.push).not.toHaveBeenCalled();
+    expect(result.current.isSubmitting).toBe(false);
   });
 });

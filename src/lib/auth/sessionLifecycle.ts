@@ -32,6 +32,7 @@ import {
   signInWithGoogleToken,
 } from '@/lib/auth/oauthOutcome';
 import { clearSessionHint as defaultClearSessionHint } from '@/lib/auth/sessionHint';
+import { getErrorMessage } from '@/lib/errorUtils';
 import {
   clearPendingFavoriteMentor,
   getPendingFavoriteProfilePath,
@@ -683,7 +684,22 @@ export async function requestPasswordReset(
     storage,
   } = adapters;
 
-  await requestPasswordResetEmailFn(email);
+  try {
+    await requestPasswordResetEmailFn(email);
+  } catch (error) {
+    const message = getErrorMessage(error);
+    throw new PasswordResetLifecycleError(
+      message,
+      '信件寄送失敗',
+      'request_email',
+      error instanceof Error
+        ? error.message
+        : 'Failed to request password reset email',
+      'info',
+      error instanceof ApiError ? String(error.status) : undefined
+    );
+  }
+
   setPendingPasswordResetEmail(email, storage);
   navigate(PASSWORD_FORGOT_SUCCESS_HREF);
 }
@@ -714,7 +730,21 @@ export async function resendPasswordReset(
     );
   }
 
-  await requestPasswordResetEmailFn(targetEmail);
+  try {
+    await requestPasswordResetEmailFn(targetEmail);
+  } catch (error) {
+    const message = getErrorMessage(error);
+    throw new PasswordResetLifecycleError(
+      message,
+      '信件寄送失敗',
+      'resend_email',
+      error instanceof Error
+        ? error.message
+        : 'Failed to resend password reset email',
+      'info',
+      error instanceof ApiError ? String(error.status) : undefined
+    );
+  }
 }
 
 export interface CompletePasswordResetInput {
@@ -749,11 +779,24 @@ export async function completePasswordReset(
     );
   }
 
-  await resetPasswordWithTokenFn({
-    verifyToken: input.verifyToken,
-    password: input.password,
-    confirmPassword: input.confirmPassword,
-  });
+  try {
+    await resetPasswordWithTokenFn({
+      verifyToken: input.verifyToken,
+      password: input.password,
+      confirmPassword: input.confirmPassword,
+    });
+  } catch (error) {
+    const message = getErrorMessage(error);
+    throw new PasswordResetLifecycleError(
+      message,
+      '密碼重設失敗',
+      'submit_new_password',
+      message,
+      'info',
+      error instanceof ApiError ? String(error.status) : undefined
+    );
+  }
+
   clearPendingPasswordResetEmail(storage);
   navigate(PASSWORD_RESET_SUCCESS_HREF);
 }

@@ -97,6 +97,7 @@ describe('useSignUpForm', () => {
     });
     expect(sessionStorage.getItem('email')).toBe(validValues.email);
     expect(mockRouter.push).toHaveBeenCalledWith('/auth/email-verify');
+    expect(result.current.isSubmitting).toBe(true);
   });
 
   it('handles general non-ApiError during submission', async () => {
@@ -125,6 +126,7 @@ describe('useSignUpForm', () => {
       })
     );
     expect(mockRouter.push).not.toHaveBeenCalled();
+    expect(result.current.isSubmitting).toBe(false);
   });
 
   it('handles ApiError 422 (validation error)', async () => {

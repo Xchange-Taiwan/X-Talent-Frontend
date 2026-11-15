@@ -118,6 +118,7 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
       },
       {
         throwError: false,
+        resetPendingOnSuccess: false,
         captureFailure: {
           flow: 'delete_account',
           step: 'google_reauth_authorize',

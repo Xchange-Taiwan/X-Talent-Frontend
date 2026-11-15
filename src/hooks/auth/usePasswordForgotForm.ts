@@ -4,8 +4,11 @@ import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
 import useAsyncAction from '@/hooks/useAsyncAction';
-import { ApiError } from '@/lib/apiClient';
-import { requestPasswordReset } from '@/lib/auth/sessionLifecycle';
+import {
+  PasswordResetLifecycleError,
+  requestPasswordReset,
+} from '@/lib/auth/sessionLifecycle';
+import { getErrorMessage } from '@/lib/errorUtils';
 import { PasswordForgotSchema } from '@/schemas/auth';
 
 type PasswordForgotValues = z.infer<typeof PasswordForgotSchema>;
@@ -33,15 +36,30 @@ export default function usePasswordForgotForm() {
         resetPendingOnSuccess: false,
         captureFailure: {
           flow: 'password_reset',
-          step: 'request_email',
-          level: 'info',
+          step: (err) =>
+            err instanceof PasswordResetLifecycleError
+              ? err.step
+              : 'request_email',
+          level: (err) =>
+            err instanceof PasswordResetLifecycleError ? err.level : 'info',
+          message: (err) =>
+            err instanceof PasswordResetLifecycleError
+              ? err.logMessage
+              : getErrorMessage(err),
           errorCode: (err) =>
-            err instanceof ApiError ? String(err.status) : undefined,
+            err instanceof PasswordResetLifecycleError
+              ? err.errorCode
+              : undefined,
         },
         toastOnError: {
-          title: '信件寄送失敗',
+          title: (err) =>
+            err instanceof PasswordResetLifecycleError
+              ? err.title
+              : '信件寄送失敗',
           description: (err) =>
-            err instanceof Error ? err.message : '發生錯誤，請稍後再試。',
+            err instanceof PasswordResetLifecycleError
+              ? err.message
+              : getErrorMessage(err),
         },
       }
     );

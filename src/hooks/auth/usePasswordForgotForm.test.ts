@@ -58,6 +58,7 @@ describe('usePasswordForgotForm', () => {
     expect(mockRouter.push).toHaveBeenCalledWith(
       '/auth/password-forgot-success'
     );
+    expect(result.current.isSubmitting).toBe(true);
   });
 
   it('handles ApiError / general error, logs captureFlowFailure without email PII, and triggers toast', async () => {
@@ -90,5 +91,6 @@ describe('usePasswordForgotForm', () => {
       })
     );
     expect(mockRouter.push).not.toHaveBeenCalled();
+    expect(result.current.isSubmitting).toBe(false);
   });
 });

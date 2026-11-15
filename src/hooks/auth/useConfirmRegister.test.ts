@@ -40,10 +40,14 @@ describe('useConfirmRegister', () => {
     mockSearchParams.get.mockReturnValue(null);
   });
 
-  it('no token on URL → status is failure, logs structured failure without token PII, and calls toast with "缺少驗證 Token"', () => {
+  it('no token on URL → status is failure, logs structured failure without token PII, and calls toast with "缺少驗證 Token"', async () => {
     mockSearchParams.get.mockReturnValue(null);
 
     const { result } = renderHook(() => useConfirmRegister());
+
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     expect(result.current.status).toBe('failure');
     expect(mockCaptureFlowFailure).toHaveBeenCalledWith({
@@ -173,6 +177,10 @@ describe('useConfirmRegister', () => {
 
     mockSearchParams.get.mockReturnValue(null);
     rerender();
+
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     expect(result.current.status).toBe('failure');
     expect(mockToast).toHaveBeenCalledWith(

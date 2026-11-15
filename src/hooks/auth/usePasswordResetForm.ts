@@ -4,7 +4,6 @@ import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
 import useAsyncAction from '@/hooks/useAsyncAction';
-import { ApiError } from '@/lib/apiClient';
 import {
   completePasswordReset,
   PasswordResetLifecycleError,
@@ -45,6 +44,7 @@ export default function usePasswordResetForm() {
       },
       {
         throwError: false,
+        resetPendingOnSuccess: false,
         captureFailure: {
           flow: 'password_reset',
           step: (err) =>
@@ -58,7 +58,9 @@ export default function usePasswordResetForm() {
               ? err.logMessage
               : getErrorMessage(err),
           errorCode: (err) =>
-            err instanceof ApiError ? String(err.status) : undefined,
+            err instanceof PasswordResetLifecycleError
+              ? err.errorCode
+              : undefined,
         },
         toastOnError: {
           title: (err) =>
