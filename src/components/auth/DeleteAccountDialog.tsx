@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/input';
 import useDeleteAccountForm, {
   DeleteAccountMode,
 } from '@/hooks/auth/useDeleteAccountForm';
+import { RESERVATION_MENTEE_HREF } from '@/lib/routes';
 import { DeleteAccountXCSchema } from '@/schemas/auth';
 
 interface DeleteAccountDialogProps {
@@ -82,7 +83,7 @@ export function DeleteAccountDialogView({
               className="ml-1 underline"
               onClick={() => {
                 handleClose();
-                router.push('/reservation/mentee');
+                router.push(RESERVATION_MENTEE_HREF);
               }}
             >
               前往預約管理

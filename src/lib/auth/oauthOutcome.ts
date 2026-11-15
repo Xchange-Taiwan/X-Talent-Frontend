@@ -1,12 +1,5 @@
 import type { components } from '@/types/api';
 
-import {
-  clearPendingDeleteAccountEmail,
-  getPendingDeleteAccountEmail,
-} from './authFlowStorage';
-
-export { clearPendingDeleteAccountEmail, getPendingDeleteAccountEmail };
-
 type GoogleCallbackVO = components['schemas']['GoogleCallbackVO'];
 type OAuthCallbackResponse =
   components['schemas']['ApiResponse_GoogleCallbackVO_'];

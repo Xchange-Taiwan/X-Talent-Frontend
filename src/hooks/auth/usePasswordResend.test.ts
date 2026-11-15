@@ -17,6 +17,12 @@ vi.mock('@/services/auth/authClient', () => ({
   },
 }));
 
+vi.mock('@/lib/monitoring', () => ({
+  captureFlowFailure: vi.fn(),
+  sanitize: (val: string) => val,
+}));
+
+import { captureFlowFailure } from '@/lib/monitoring';
 import { authClient } from '@/services/auth/authClient';
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockToast } from '@/test/mocks/useToast';
@@ -24,6 +30,7 @@ import { mockToast } from '@/test/mocks/useToast';
 import usePasswordResend from './usePasswordResend';
 
 const mockResetPassword = vi.mocked(authClient.requestPasswordResetEmail);
+const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 
 describe('usePasswordResend', () => {
   beforeEach(() => {
@@ -37,18 +44,28 @@ describe('usePasswordResend', () => {
     expect(result.current.email).toBe('user@example.com');
   });
 
-  it('triggers failure toast when email is not available', async () => {
+  it('triggers failure toast and captureFlowFailure when email is not available', async () => {
     const { result } = renderHook(() => usePasswordResend());
 
     await act(async () => {
       await result.current.handleResend();
     });
 
-    expect(mockToast).toHaveBeenCalledWith({
-      variant: 'destructive',
-      title: '發送失敗',
-      description: '找不到您的電子郵件地址，請嘗試重新操作。',
-    });
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'password_reset',
+        step: 'missing_email',
+        message: 'Missing pending password reset email',
+        level: 'info',
+      })
+    );
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'destructive',
+        title: '發送失敗',
+        description: '找不到您的電子郵件地址，請嘗試重新操作。',
+      })
+    );
     expect(mockResetPassword).not.toHaveBeenCalled();
   });
 
@@ -69,7 +86,7 @@ describe('usePasswordResend', () => {
     });
   });
 
-  it('handles resend errors and triggers toast', async () => {
+  it('handles resend errors, logs captureFlowFailure without email PII, and triggers toast', async () => {
     sessionStorage.setItem('pending_reset_email', 'user@example.com');
     mockResetPassword.mockRejectedValueOnce(new Error('Resend link blocked'));
 
@@ -79,11 +96,24 @@ describe('usePasswordResend', () => {
       await result.current.handleResend();
     });
 
-    expect(mockToast).toHaveBeenCalledWith({
-      variant: 'destructive',
-      title: '信件寄送失敗',
-      description: 'Resend link blocked',
-    });
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'password_reset',
+        step: 'resend_email',
+        message: 'Resend link blocked',
+        level: 'info',
+      })
+    );
+    expect(JSON.stringify(mockCaptureFlowFailure.mock.calls)).not.toContain(
+      'user@example.com'
+    );
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'destructive',
+        title: '信件寄送失敗',
+        description: 'Resend link blocked',
+      })
+    );
   });
 
   it('redirects to password forgot on handleChangeEmail', () => {

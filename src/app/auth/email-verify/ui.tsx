@@ -3,11 +3,13 @@ import AuthMessageCard from '@/components/auth/AuthMessageCard';
 import { Button } from '@/components/ui/button';
 
 interface EmailVerificationPageProps {
+  isResending?: boolean;
   onResendEmail: () => void;
   onNavigateHome: () => void;
 }
 
 export default function EmailVerificationPage({
+  isResending = false,
   onResendEmail,
   onNavigateHome,
 }: EmailVerificationPageProps) {
@@ -33,10 +35,11 @@ export default function EmailVerificationPage({
         沒有收到信嗎？{' '}
         <button
           type="button"
-          className="text-text-tertiary hover:text-text-secondary inline cursor-pointer border-0 bg-transparent p-0 text-xs underline decoration-1"
+          disabled={isResending}
+          className="text-text-tertiary hover:text-text-secondary inline cursor-pointer border-0 bg-transparent p-0 text-xs underline decoration-1 disabled:cursor-not-allowed disabled:opacity-50"
           onClick={onResendEmail}
         >
-          點此重新寄送
+          {isResending ? '重新寄送中...' : '點此重新寄送'}
         </button>
       </p>
     </AuthMessageCard>

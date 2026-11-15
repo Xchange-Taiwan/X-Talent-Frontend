@@ -6,6 +6,7 @@ import SignInLink from '@/components/auth/AuthLink';
 import { AuthFormFieldType } from '@/components/auth/types';
 import { AuthFormProps } from '@/components/auth/types';
 import { Form } from '@/components/ui/form';
+import { SIGNIN_HREF } from '@/lib/routes';
 import { SignUpSchema } from '@/schemas/auth';
 
 import { formFieldData } from './constants';
@@ -37,7 +38,7 @@ export default function SignUpForm({
           <SignInLink
             prefixText="已經有帳號了?"
             text="登入 X-Talent"
-            href="/auth/signin"
+            href={SIGNIN_HREF}
           />
         </form>
       </Form>
