@@ -162,7 +162,9 @@ describe('Design Token Generator & Parity Suite (#903)', () => {
       expect(result.errors).toEqual(
         expect.arrayContaining([
           expect.stringContaining('semantic variable "--background" drifted'),
-          expect.stringContaining('missing semantic color variable "--primary"'),
+          expect.stringContaining(
+            'missing semantic color variable "--primary"'
+          ),
           expect.stringContaining(
             'unregistered semantic color alias "--unregistered-semantic'
           ),
@@ -171,9 +173,9 @@ describe('Design Token Generator & Parity Suite (#903)', () => {
           ),
         ])
       );
-      expect(
-        result.errors.some((msg) => msg.includes('does-not-exist'))
-      ).toBe(false);
+      expect(result.errors.some((msg) => msg.includes('does-not-exist'))).toBe(
+        false
+      );
     });
 
     it('detects missing / <alpha-value> (e.g. broken bg-background/80) or extra keys in tailwind.config.js theme.colors', () => {
