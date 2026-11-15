@@ -420,7 +420,7 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
       'Test Mentee',
       { timeout: 15_000 }
     );
-    expect(presignedRequested).toBe(true);
+    await expect.poll(() => presignedRequested, { timeout: 15_000 }).toBe(true);
 
     await cropAndConfirmAvatar(page);
 

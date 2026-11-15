@@ -14,6 +14,7 @@ export interface RawMentorFeedbackItem {
 
 export interface RawMentorFeedbackResponse {
   total_rating_count?: number | null;
+  total_count?: number | null;
   total?: number | null;
   rating_count?: number | null;
   rating_average?: number | null;

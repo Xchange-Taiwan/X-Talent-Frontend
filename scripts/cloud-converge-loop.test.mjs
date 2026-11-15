@@ -1479,5 +1479,178 @@ describe('cloud-converge-loop', () => {
         'restore:snap-before-gemini',
       ]);
     });
+
+    it('skips Playwright completely (0s skip) when runE2e=false and diff contains no .spec.ts files (#909)', async () => {
+      const executedCmds = [];
+      const execStep = vi.fn((cmd, args) => {
+        executedCmds.push(`${cmd} ${args.join(' ')}`);
+        if (cmd === 'git' && args[0] === 'diff') {
+          return {
+            ok: true,
+            stdout: 'src/services/profile/feedback.ts\n',
+            stderr: '',
+          };
+        }
+        return { ok: true, stdout: '', stderr: '' };
+      });
+
+      const res = await runConvergeLoop(
+        {
+          maxRounds: 3,
+          ticketNumber: '909',
+          runE2e: false,
+          runAiReview: false,
+        },
+        {
+          execStep,
+          writeFile: () => {},
+          log: () => {},
+          fileExists: () => true,
+        }
+      );
+
+      expect(res.converged).toBe(true);
+      expect(res.roundsRun).toBe(1);
+      expect(
+        executedCmds.some(
+          (c) => c.includes('test:e2e:mock') || c.includes('playwright')
+        )
+      ).toBe(false);
+      expect(res.summaryMd).toContain('略過 (--run-e2e=false)');
+    });
+
+    it('enforces targeted E2E specs even when runE2e=false if git diff includes .spec.ts files, blocking convergence on failure (#909)', async () => {
+      let mockSpecAttempt = 0;
+      const executedPnpmCalls = [];
+      const geminiPrompts = [];
+
+      const execStep = vi.fn((cmd, args) => {
+        if (cmd === 'git' && args[0] === 'diff') {
+          return {
+            ok: true,
+            stdout: [
+              'src/components/Foo.tsx',
+              'e2e/helpers/route.ts',
+              'e2e/tests/profile/mentor-feedback.spec.ts',
+              'e2e/tests/profile/profile-view.spec.ts',
+              'e2e/tests/onboarding/onboarding.spec.ts',
+            ].join('\n'),
+            stderr: '',
+          };
+        }
+        if (cmd === 'pnpm') {
+          executedPnpmCalls.push(args);
+          if (args[0] === 'test:e2e:mock') {
+            mockSpecAttempt += 1;
+            if (mockSpecAttempt === 1) {
+              return {
+                ok: false,
+                stderr:
+                  'TimeoutError: page.getByRole("button", { name: "第 2 頁" })',
+                combined:
+                  'TimeoutError: page.getByRole("button", { name: "第 2 頁" })',
+              };
+            }
+          }
+        }
+        if (cmd === 'npx' && args[0] === 'gemini') {
+          const promptIdx = args.indexOf('-p');
+          if (promptIdx !== -1) {
+            geminiPrompts.push(args[promptIdx + 1]);
+          }
+        }
+        return { ok: true, stdout: '', stderr: '' };
+      });
+
+      const res = await runConvergeLoop(
+        {
+          maxRounds: 3,
+          ticketNumber: '909',
+          runE2e: false,
+          runAiReview: false,
+          requireUiEvidence: true,
+        },
+        {
+          execStep,
+          writeFile: () => {},
+          log: () => {},
+          fileExists: () => true,
+          clearEvidence: () => {},
+          listEvidence: () => [],
+        }
+      );
+
+      expect(res.converged).toBe(true);
+      expect(res.roundsRun).toBe(2);
+      // Must ONLY run targeted specs (never full `['test:e2e:mock', '--workers=4', '--retries=1']`) and never fail UI Evidence Gate
+      expect(executedPnpmCalls).not.toContainEqual([
+        'test:e2e:mock',
+        '--workers=4',
+        '--retries=1',
+      ]);
+      expect(executedPnpmCalls).toContainEqual([
+        'test:e2e:mock',
+        '--workers=4',
+        '--retries=1',
+        'e2e/tests/profile/mentor-feedback.spec.ts',
+      ]);
+      expect(executedPnpmCalls).toContainEqual([
+        'playwright',
+        'test',
+        '--project=chromium-backend-readonly',
+        '--retries=1',
+        'e2e/tests/profile/profile-view.spec.ts',
+      ]);
+      expect(executedPnpmCalls).toContainEqual([
+        'playwright',
+        'test',
+        '--project=chromium-onboarding',
+        '--retries=1',
+        'e2e/tests/onboarding/onboarding.spec.ts',
+      ]);
+      expect(geminiPrompts[0]).toContain('第 2 頁');
+      expect(res.summaryMd).toContain(
+        '通過 (強制執行 3 個變更 Spec；--run-e2e=false)'
+      );
+
+      // Verify persistent failure under runE2e=false still blocks convergence and exits non-zero
+      const failingRes = await runConvergeLoop(
+        {
+          maxRounds: 1,
+          ticketNumber: '909',
+          runE2e: false,
+          runAiReview: false,
+        },
+        {
+          execStep: (cmd, args) => {
+            if (cmd === 'git' && args[0] === 'diff') {
+              return {
+                ok: true,
+                stdout: 'e2e/tests/profile/mentor-feedback.spec.ts\n',
+                stderr: '',
+              };
+            }
+            if (cmd === 'pnpm' && args[0] === 'test:e2e:mock') {
+              return {
+                ok: false,
+                stderr: 'Playwright spec failed',
+                combined: 'Playwright spec failed',
+              };
+            }
+            return { ok: true, stdout: '', stderr: '' };
+          },
+          writeFile: () => {},
+          log: () => {},
+          fileExists: () => true,
+        }
+      );
+
+      expect(failingRes.converged).toBe(false);
+      expect(failingRes.evaluation.e2ePassed).toBe(false);
+      expect(resolveConvergeExitCode(failingRes)).toBe(1);
+      expect(failingRes.summaryMd).toContain(
+        '未完全通過 (強制執行 1 個變更 Spec；--run-e2e=false)'
+      );
+    });
   });
 });

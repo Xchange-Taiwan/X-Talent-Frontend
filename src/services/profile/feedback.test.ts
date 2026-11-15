@@ -179,4 +179,48 @@ describe('fetchMentorFeedback service (#736 / #760)', () => {
     expect(allPrivate.totalRatingCount).toBe(0);
     expect(allPrivate.ratingAverage).toBeNull();
   });
+
+  it('defensively maps total_count and preserves precedence total_rating_count > total_count > total > rating_count (#909)', () => {
+    const page1Items = Array.from({ length: 10 }, (_, idx) => ({
+      id: `fb-${idx + 1}`,
+      author_name: '陳**',
+      rating: 9,
+      content: `評價 ${idx + 1}`,
+      created_at: '2026-10-28T10:00:00Z',
+    }));
+
+    const fromTotalCount = mapMentorFeedbackResponse({
+      total_count: 12,
+      page: 1,
+      page_size: 10,
+      rating_average: 8.5,
+      completed_meeting_count: 128,
+      feedbacks: page1Items,
+    });
+    expect(fromTotalCount.totalRatingCount).toBe(12);
+
+    const withTotalRatingCount = mapMentorFeedbackResponse({
+      total_rating_count: 15,
+      total_count: 12,
+      total: 11,
+      rating_count: 10,
+      feedbacks: page1Items,
+    });
+    expect(withTotalRatingCount.totalRatingCount).toBe(15);
+
+    const withTotalCountOverTotal = mapMentorFeedbackResponse({
+      total_count: 14,
+      total: 11,
+      rating_count: 10,
+      feedbacks: page1Items,
+    });
+    expect(withTotalCountOverTotal.totalRatingCount).toBe(14);
+
+    const withTotalOverRatingCount = mapMentorFeedbackResponse({
+      total: 13,
+      rating_count: 10,
+      feedbacks: page1Items,
+    });
+    expect(withTotalOverRatingCount.totalRatingCount).toBe(13);
+  });
 });
