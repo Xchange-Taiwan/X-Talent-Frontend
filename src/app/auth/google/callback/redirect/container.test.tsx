@@ -18,7 +18,7 @@ import {
   getPendingFavoriteMentorId,
   savePendingFavoriteMentor,
 } from '@/lib/favorites';
-import { deleteAccount } from '@/services/auth/deleteAccount';
+import { authClient } from '@/services/auth/authClient';
 import type { components } from '@/types/api';
 
 import GoogleOAuthRedirectPage from './container';
@@ -89,12 +89,14 @@ vi.mock('@/lib/actions/googleCallback', () => ({
   googleCallback: vi.fn(),
 }));
 
-vi.mock('@/services/auth/deleteAccount', () => ({
-  deleteAccount: vi.fn(),
+vi.mock('@/services/auth/authClient', () => ({
+  authClient: {
+    deleteAccount: vi.fn(),
+  },
 }));
 
 const mockGoogleCallback = vi.mocked(googleCallback);
-const mockDeleteAccount = vi.mocked(deleteAccount);
+const mockDeleteAccount = vi.mocked(authClient.deleteAccount);
 const mockRevalidateProfilePathAfterDelete = vi.mocked(
   revalidateProfilePathAfterDelete
 );

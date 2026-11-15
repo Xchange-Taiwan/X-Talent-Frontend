@@ -6,8 +6,10 @@ vi.mock('next/navigation', async () => {
   return navigationMockFactory();
 });
 
-vi.mock('@/services/auth/confirmRegister', () => ({
-  confirmRegister: vi.fn(),
+vi.mock('@/services/auth/authClient', () => ({
+  authClient: {
+    confirmSignUp: vi.fn(),
+  },
 }));
 
 vi.mock('@/components/ui/use-toast', async () => {
@@ -15,13 +17,13 @@ vi.mock('@/components/ui/use-toast', async () => {
   return useToastMockFactory();
 });
 
-import { confirmRegister } from '@/services/auth/confirmRegister';
+import { authClient } from '@/services/auth/authClient';
 import { mockSearchParams } from '@/test/mocks/navigation';
 import { mockToast } from '@/test/mocks/useToast';
 
 import { useConfirmRegister } from './useConfirmRegister';
 
-const mockConfirmRegister = vi.mocked(confirmRegister);
+const mockConfirmRegister = vi.mocked(authClient.confirmSignUp);
 
 describe('useConfirmRegister', () => {
   beforeEach(() => {

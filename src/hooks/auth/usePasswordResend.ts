@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import { getPendingPasswordResetEmail } from '@/lib/auth/authFlowStorage';
 import { PASSWORD_FORGOT_HREF } from '@/lib/routes';
-import { resetPassword } from '@/services/auth/resetPasswordByEmail';
+import { authClient } from '@/services/auth/authClient';
 
 export default function usePasswordResend() {
   const [isResending, setIsResending] = useState(false);
@@ -32,7 +32,7 @@ export default function usePasswordResend() {
     setIsResending(true);
 
     try {
-      await resetPassword(email);
+      await authClient.requestPasswordResetEmail(email);
       toast({
         title: '已成功重新發送',
         description: '請至您的電子郵箱查看。',

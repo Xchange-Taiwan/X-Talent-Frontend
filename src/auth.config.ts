@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers';
-import type { NextAuthOptions } from 'next-auth';
+import type { NextAuthOptions, Session } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 
 import {
@@ -106,9 +106,14 @@ export const jwtCallback: NonNullable<
   return token;
 };
 
-export const sessionCallback: NonNullable<
-  NextAuthOptions['callbacks']
->['session'] = async ({ session, token }) => {
+type SessionCallbackParams = Parameters<
+  NonNullable<NonNullable<NextAuthOptions['callbacks']>['session']>
+>[0];
+
+export const sessionCallback = async ({
+  session,
+  token,
+}: SessionCallbackParams): Promise<Session> => {
   session.user = {
     id: (token.id as string | undefined) ?? undefined,
     name: (token.name as string | null | undefined) ?? undefined,
@@ -122,7 +127,10 @@ export const sessionCallback: NonNullable<
     msg: (token.msg as string | undefined) ?? undefined,
   };
 
-  session.accessToken = (token.token as string | undefined) ?? undefined;
+  session.accessToken =
+    token.error === 'RefreshTokenError'
+      ? undefined
+      : ((token.token as string | undefined) ?? undefined);
   session.user.provider = (token.provider as string | undefined) ?? undefined;
   session.user.email = (token.email as string | undefined) ?? undefined;
   session.error = token.error;
@@ -153,7 +161,10 @@ const authOptions = {
           body: JSON.stringify({ email, password }),
         });
 
-        const response = (await res.json()) as {
+        if (!res.ok) return null;
+
+        const response = (await res.json().catch(() => null)) as {
+          code?: string;
           data?: {
             auth: {
               user_id: string | number;
@@ -162,8 +173,15 @@ const authOptions = {
             };
             user: BffUserPayload;
           };
-        };
-        if (!res.ok || !response?.data) return null;
+        } | null;
+        if (
+          !response ||
+          (response.code !== undefined && response.code !== '0') ||
+          !response.data?.auth?.token ||
+          !response.data?.user
+        ) {
+          return null;
+        }
 
         return normalizeBffAuthUser({
           userId: response.data.auth.user_id,

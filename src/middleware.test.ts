@@ -922,4 +922,44 @@ describe('middleware public routes', () => {
     expect(mentorRes.status).toBe(200);
     expect(mentorRes.cookies.get(SESSION_HINT_COOKIE)?.value).toBe('1|79');
   });
+
+  it.each([
+    { path: '/auth/signin', method: 'GET' },
+    { path: '/auth/signin', method: 'POST' },
+    { path: '/auth/signup', method: 'GET' },
+    { path: '/about', method: 'GET' },
+  ])(
+    'scrubs next-auth.session-token, __Secure-next-auth.session-token, and session-hint on $method $path when token has RefreshTokenError (#895)',
+    async ({ path, method }) => {
+      mockGetToken.mockResolvedValue(
+        fromPartial({
+          id: '88',
+          onBoarding: true,
+          isMentor: true,
+          error: 'RefreshTokenError',
+        })
+      );
+
+      const req = new NextRequest(`https://example.com${path}`, {
+        method,
+        headers: {
+          cookie: [
+            'next-auth.session-token=stale-jwe',
+            '__Secure-next-auth.session-token=stale-secure-jwe',
+            `${SESSION_HINT_COOKIE}=1%7C88`,
+          ].join('; '),
+        },
+      });
+
+      const response = await middleware(req);
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('location')).toBeNull();
+
+      const setCookieHeader = response.headers.get('set-cookie') ?? '';
+      expect(setCookieHeader).toContain('next-auth.session-token=;');
+      expect(setCookieHeader).toContain('__Secure-next-auth.session-token=;');
+      expect(setCookieHeader).toContain(`${SESSION_HINT_COOKIE}=;`);
+    }
+  );
 });

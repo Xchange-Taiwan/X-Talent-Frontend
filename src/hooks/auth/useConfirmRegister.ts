@@ -2,7 +2,7 @@ import { useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
-import { confirmRegister } from '@/services/auth/confirmRegister';
+import { authClient } from '@/services/auth/authClient';
 
 export function useConfirmRegister() {
   const searchParams = useSearchParams();
@@ -37,7 +37,7 @@ export function useConfirmRegister() {
 
     const confirmSignup = async () => {
       try {
-        await confirmRegister(token);
+        await authClient.confirmSignUp(token);
         if (processedTokenRef.current === token) {
           setStatus('success');
         }

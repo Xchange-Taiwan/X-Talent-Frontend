@@ -11,17 +11,19 @@ vi.mock('@/components/ui/use-toast', async () => {
   return useToastMockFactory();
 });
 
-vi.mock('@/services/auth/resetPasswordByEmail', () => ({
-  resetPassword: vi.fn(),
+vi.mock('@/services/auth/authClient', () => ({
+  authClient: {
+    requestPasswordResetEmail: vi.fn(),
+  },
 }));
 
-import { resetPassword } from '@/services/auth/resetPasswordByEmail';
+import { authClient } from '@/services/auth/authClient';
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockToast } from '@/test/mocks/useToast';
 
 import usePasswordResend from './usePasswordResend';
 
-const mockResetPassword = vi.mocked(resetPassword);
+const mockResetPassword = vi.mocked(authClient.requestPasswordResetEmail);
 
 describe('usePasswordResend', () => {
   beforeEach(() => {

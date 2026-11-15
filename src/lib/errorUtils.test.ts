@@ -66,6 +66,20 @@ describe('isAbortError', () => {
     expect(isAbortError(error)).toBe(true);
   });
 
+  it('returns true for DOMException TimeoutError from AbortSignal.timeout', () => {
+    const error = new DOMException(
+      'The operation was aborted due to timeout',
+      'TimeoutError'
+    );
+    expect(isAbortError(error)).toBe(true);
+  });
+
+  it('returns true for standard Error with name TimeoutError', () => {
+    const error = new Error('Timed out');
+    error.name = 'TimeoutError';
+    expect(isAbortError(error)).toBe(true);
+  });
+
   it('returns false for other errors', () => {
     const error = new Error('Normal error');
     expect(isAbortError(error)).toBe(false);

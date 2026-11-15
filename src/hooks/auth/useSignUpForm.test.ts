@@ -11,8 +11,10 @@ vi.mock('@/components/ui/use-toast', async () => {
   return useToastMockFactory();
 });
 
-vi.mock('@/services/auth/signUp', () => ({
-  signUp: vi.fn(),
+vi.mock('@/services/auth/authClient', () => ({
+  authClient: {
+    signUp: vi.fn(),
+  },
 }));
 
 vi.mock('@/lib/monitoring', () => ({
@@ -27,13 +29,13 @@ import { trackEvent } from '@/lib/analytics';
 import { ApiError } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { SignUpSchema } from '@/schemas/auth';
-import { signUp } from '@/services/auth/signUp';
+import { authClient } from '@/services/auth/authClient';
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockToast } from '@/test/mocks/useToast';
 
 import useSignUpForm from './useSignUpForm';
 
-const mockSignUp = vi.mocked(signUp);
+const mockSignUp = vi.mocked(authClient.signUp);
 const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 const mockTrackEvent = vi.mocked(trackEvent);
 

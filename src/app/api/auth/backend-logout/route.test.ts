@@ -1,19 +1,10 @@
+import { fromPartial } from '@total-typescript/shoehorn';
 import { NextRequest } from 'next/server';
-import { getToken } from 'next-auth/jwt';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-const { mockBaseUrl } = vi.hoisted(() => ({
-  mockBaseUrl: { value: 'https://api.example.com' },
-}));
+import { getToken, type JWT } from 'next-auth/jwt';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next-auth/jwt', () => ({
   getToken: vi.fn(),
-}));
-
-vi.mock('@/lib/apiClient', () => ({
-  get BASE_URL() {
-    return mockBaseUrl.value;
-  },
 }));
 
 vi.mock('@/services/auth/backendLogout.server', () => ({
@@ -34,16 +25,35 @@ function makeRequest(): NextRequest {
 }
 
 describe('POST /api/auth/backend-logout', () => {
+  const originalSsrUrl = process.env.SSR_API_URL;
+  const originalPublicUrl = process.env.NEXT_PUBLIC_API_URL;
+
   beforeEach(() => {
     vi.clearAllMocks();
-    mockBaseUrl.value = 'https://api.example.com';
+    process.env.SSR_API_URL = 'https://api.example.com';
+    delete process.env.NEXT_PUBLIC_API_URL;
+  });
+
+  afterEach(() => {
+    if (originalSsrUrl === undefined) {
+      delete process.env.SSR_API_URL;
+    } else {
+      process.env.SSR_API_URL = originalSsrUrl;
+    }
+    if (originalPublicUrl === undefined) {
+      delete process.env.NEXT_PUBLIC_API_URL;
+    } else {
+      process.env.NEXT_PUBLIC_API_URL = originalPublicUrl;
+    }
   });
 
   it('revokes the BFF session when the token carries a refresh token and numeric userId', async () => {
-    mockGetToken.mockResolvedValue({
-      refreshToken: 'refresh-abc',
-      id: '123',
-    } as never);
+    mockGetToken.mockResolvedValue(
+      fromPartial<JWT>({
+        refreshToken: 'refresh-abc',
+        id: '123',
+      })
+    );
     mockRevokeBffSession.mockResolvedValue(undefined);
 
     const response = await POST(makeRequest());
@@ -53,7 +63,7 @@ describe('POST /api/auth/backend-logout', () => {
   });
 
   it('returns 204 without calling the BFF when there is no refresh token', async () => {
-    mockGetToken.mockResolvedValue({ id: '123' } as never);
+    mockGetToken.mockResolvedValue(fromPartial<JWT>({ id: '123' }));
 
     const response = await POST(makeRequest());
 
@@ -62,10 +72,12 @@ describe('POST /api/auth/backend-logout', () => {
   });
 
   it('returns 204 without calling the BFF when userId is not numeric', async () => {
-    mockGetToken.mockResolvedValue({
-      refreshToken: 'refresh-abc',
-      id: 'not-a-number',
-    } as never);
+    mockGetToken.mockResolvedValue(
+      fromPartial<JWT>({
+        refreshToken: 'refresh-abc',
+        id: 'not-a-number',
+      })
+    );
 
     const response = await POST(makeRequest());
 
@@ -73,12 +85,15 @@ describe('POST /api/auth/backend-logout', () => {
     expect(mockRevokeBffSession).not.toHaveBeenCalled();
   });
 
-  it('returns 204 without calling the BFF when BASE_URL is not configured', async () => {
-    mockBaseUrl.value = '';
-    mockGetToken.mockResolvedValue({
-      refreshToken: 'refresh-abc',
-      id: '123',
-    } as never);
+  it('returns 204 without calling the BFF when neither SSR_API_URL nor NEXT_PUBLIC_API_URL is configured', async () => {
+    delete process.env.SSR_API_URL;
+    delete process.env.NEXT_PUBLIC_API_URL;
+    mockGetToken.mockResolvedValue(
+      fromPartial<JWT>({
+        refreshToken: 'refresh-abc',
+        id: '123',
+      })
+    );
 
     const response = await POST(makeRequest());
 
@@ -87,10 +102,12 @@ describe('POST /api/auth/backend-logout', () => {
   });
 
   it('still returns 204 and completes when the BFF call throws', async () => {
-    mockGetToken.mockResolvedValue({
-      refreshToken: 'refresh-abc',
-      id: '123',
-    } as never);
+    mockGetToken.mockResolvedValue(
+      fromPartial<JWT>({
+        refreshToken: 'refresh-abc',
+        id: '123',
+      })
+    );
     mockRevokeBffSession.mockRejectedValue(new Error('BFF unavailable'));
 
     const response = await POST(makeRequest());

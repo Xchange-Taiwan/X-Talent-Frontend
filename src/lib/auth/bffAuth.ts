@@ -52,11 +52,17 @@ function isPersonalLink(item: unknown): item is PersonalLink {
 }
 
 /**
- * Resolves the canonical server-side BFF base URL, preferring container-internal
+ * Resolves the canonical BFF base URL, preferring container-internal
  * `SSR_API_URL` over public `NEXT_PUBLIC_API_URL`.
+ *
+ * Uses direct `process.env.NEXT_PUBLIC_API_URL` access when `env` is omitted so
+ * Next.js / Turbopack client bundles statically inline the public BFF URL.
  */
-export function resolveBffBaseUrl(env: BffEnvSource = process.env): string {
-  return env.SSR_API_URL ?? env.NEXT_PUBLIC_API_URL ?? '';
+export function resolveBffBaseUrl(env?: BffEnvSource): string {
+  if (env !== undefined) {
+    return env.SSR_API_URL ?? env.NEXT_PUBLIC_API_URL ?? '';
+  }
+  return process.env.SSR_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? '';
 }
 
 export function resolveMentorExperienceLinks(

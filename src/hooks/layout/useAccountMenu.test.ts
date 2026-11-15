@@ -14,9 +14,17 @@ vi.mock('next-auth/react', async () => {
 });
 
 const mockPostBackendLogout = vi.fn();
-vi.mock('@/services/auth/backendLogout', () => ({
-  postBackendLogout: () => mockPostBackendLogout(),
-}));
+vi.mock('@/services/auth/authClient', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/services/auth/authClient')>();
+  return {
+    ...actual,
+    authClient: {
+      ...actual.authClient,
+      postBackendLogout: () => mockPostBackendLogout(),
+    },
+  };
+});
 
 vi.mock('@/lib/analytics', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/analytics')>();

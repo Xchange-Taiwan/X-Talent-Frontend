@@ -1185,5 +1185,37 @@ describe('sessionLifecycle (#885)', () => {
 
       expect(navigate).toHaveBeenCalledWith('/mentor-pool');
     });
+
+    it('coalesces concurrent refresh_token_error teardowns across apiClient and SessionErrorWatcher into a single signOut call (#895)', async () => {
+      let resolveSignOut: () => void = () => {};
+      const signOut = vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveSignOut = resolve;
+          })
+      );
+      const clearAnalyticsUser = vi.fn();
+      const clearSessionHint = vi.fn();
+
+      const t1 = terminateClientSession('refresh_token_error', {
+        signOut,
+        clearAnalyticsUser,
+        clearSessionHint,
+      });
+      const t2 = terminateClientSession('refresh_token_error', {
+        signOut,
+        clearAnalyticsUser,
+        clearSessionHint,
+      });
+
+      expect(signOut).toHaveBeenCalledTimes(1);
+      expect(signOut).toHaveBeenCalledWith({ callbackUrl: '/auth/signin' });
+
+      resolveSignOut();
+      await Promise.all([t1, t2]);
+
+      expect(clearAnalyticsUser).toHaveBeenCalledTimes(1);
+      expect(clearSessionHint).toHaveBeenCalledTimes(1);
+    });
   });
 });
