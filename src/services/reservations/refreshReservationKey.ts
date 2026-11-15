@@ -1,6 +1,10 @@
 import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
 
-import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
+import {
+  type ScheduleReadKey,
+  scheduleReadModel,
+} from '@/lib/mentor-schedule/scheduleReadModel';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   type ReservationReadKey,
@@ -12,6 +16,8 @@ import {
   fetchAllReservationsForState,
   fetchReservations,
 } from './reservationService';
+
+dayjs.extend(utc);
 
 export function isAbortSignalTriggered(
   err: unknown,
@@ -62,9 +68,14 @@ export function refreshReservationKey(key: ReservationReadKey): Promise<void> {
 }
 
 /**
- * Synchronize the affected `(mentorId, year, month)` slice in
+ * Synchronize the affected `(mentorId, year, month)` slice(s) in
  * `MentorScheduleReadModel` after a reservation booking or status transition
  * (`createReservation`, `acceptReservation`, `rejectOrCancelReservation`).
+ *
+ * Computes `{ year, month }` in both `dayjs.utc(dtstart * 1000)` and local
+ * `dayjs(dtstart * 1000)` and deduplicates by `${year}-${month}` so
+ * cross-timezone month boundaries (e.g. UTC vs. Asia/Taipei) safely
+ * synchronize both candidate month slices.
  */
 export async function refreshMentorScheduleForReservation(
   mentorId: string | number | undefined,
@@ -79,25 +90,38 @@ export async function refreshMentorScheduleForReservation(
   ) {
     return;
   }
-  const date = dayjs(dtstart * 1000);
-  const ref = {
-    userId: String(mentorId),
-    year: date.year(),
-    month: date.month() + 1,
-  };
-  await scheduleReadModel.invalidateOrRefresh(ref, async (signal) => {
-    try {
-      return await loadMonthSchedule(ref, signal);
-    } catch (err) {
-      if (!isAbortSignalTriggered(err, signal)) {
-        captureFlowFailure({
-          flow: 'reservation_mutation_invalidate',
-          step: 'refresh_mentor_schedule',
-          message: err instanceof Error ? err.message : String(err),
-          level: 'warning',
-        });
-      }
-      throw err;
+
+  const userId = String(mentorId);
+  const utcDate = dayjs.utc(dtstart * 1000);
+  const localDate = dayjs(dtstart * 1000);
+
+  const refsByMonth = new Map<string, ScheduleReadKey>();
+  for (const date of [utcDate, localDate]) {
+    const year = date.year();
+    const month = date.month() + 1;
+    const monthKey = `${year}-${month}`;
+    if (!refsByMonth.has(monthKey)) {
+      refsByMonth.set(monthKey, { userId, year, month });
     }
-  });
+  }
+
+  await Promise.all(
+    Array.from(refsByMonth.values()).map((ref) =>
+      scheduleReadModel.invalidateOrRefresh(ref, async (signal) => {
+        try {
+          return await loadMonthSchedule(ref, signal);
+        } catch (err) {
+          if (!isAbortSignalTriggered(err, signal)) {
+            captureFlowFailure({
+              flow: 'reservation_mutation_invalidate',
+              step: 'refresh_mentor_schedule',
+              message: err instanceof Error ? err.message : String(err),
+              level: 'warning',
+            });
+          }
+          throw err;
+        }
+      })
+    )
+  );
 }
