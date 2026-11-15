@@ -20,7 +20,7 @@ describe('LandingPage', () => {
     mockUseResolvedIdentity.mockReturnValue(GUEST_IDENTITY);
   });
 
-  it('renders the hero section with relative, isolate, and overflow-hidden positioning for the fill background image', () => {
+  it('renders the responsive HomePageHero section without fixed-height or object-center cropping (#892)', () => {
     render(<LandingPage />);
 
     const heading = screen.getByRole('heading', {
@@ -30,30 +30,40 @@ describe('LandingPage', () => {
     const heroSection = heading.closest('section');
 
     expect(heroSection).not.toBeNull();
+    expect(heroSection).toHaveAttribute('data-testid', 'homepage-hero');
     expect(heroSection).toHaveClass(
       'relative',
       'isolate',
       'overflow-hidden',
-      'bg-center',
-      'lg:pt-[180px]',
-      'lg:pb-16'
+      'min-h-[clamp(360px,calc(100svh-70px),520px)]',
+      'lg:min-h-[clamp(480px,calc(100svh-70px),600px)]',
+      'lg:py-16'
     );
-    expect(heading).toHaveClass('mb-6', 'text-3xl', 'sm:text-4xl');
+    expect(heading).toHaveClass('text-3xl', 'sm:text-4xl', 'md:text-5xl');
 
     const subtitle = screen.getByText(
       'Find your Mentor/Mentee to build up connections, break up limits.'
     );
     expect(subtitle).toHaveClass(
       'max-w-[320px]',
-      'sm:max-w-[460px]',
-      'lg:max-w-[500px]'
+      'md:max-w-[420px]',
+      'lg:max-w-[520px]',
+      'lg:text-2xl'
     );
 
     const heroImage = screen.getByAltText(
       'X-Talent 平台主視覺：專業工作者交流情境'
     );
     expect(heroImage).toBeInTheDocument();
-    expect(heroImage).toHaveClass('-z-10', 'object-cover', 'object-center');
+    expect(heroImage).toHaveClass(
+      'h-full',
+      'max-h-[532px]',
+      'w-auto',
+      'lg:h-auto',
+      'lg:max-h-none',
+      'lg:w-[clamp(720px,calc(100vw-304px),1320px)]',
+      'max-w-none'
+    );
   });
 
   it.each([
