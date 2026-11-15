@@ -13,7 +13,7 @@ import {
 } from '@/lib/profile/socialLinks';
 import { defaultValues, ProfileFormValues } from '@/schemas/profileSchema';
 import type { IndustryOption } from '@/types/tagCatalog';
-import type { MentorProfileVO } from '@/types/user';
+import type { MentorIndustryVO, MentorProfileVO } from '@/types/user';
 
 export type ProfileDirtyFields = Partial<
   Record<keyof ProfileFormValues, unknown>
@@ -181,32 +181,32 @@ export function resolveOptimisticIndustry(
   industryCatalog: readonly IndustryOption[] | undefined,
   currentIndustry: MentorProfileVO['industry'] | undefined,
   industryDirty: boolean
-): MentorProfileVO['industry'] {
+): MentorIndustryVO | null {
   const normalizedCode = industryCode?.trim() ?? '';
   if (!normalizedCode) {
-    return industryDirty
-      ? (null as unknown as MentorProfileVO['industry'])
-      : (currentIndustry ?? ({} as MentorProfileVO['industry']));
+    return industryDirty ? null : (currentIndustry ?? null);
   }
 
   const existingTag = readIndustryTag(currentIndustry);
   const catalogMatch = industryCatalog?.find(
     (item) => item.subject_group === normalizedCode
   );
-  const isSameCode = existingTag?.subject_group === normalizedCode;
+  const isSameCode =
+    existingTag !== null && existingTag.subject_group === normalizedCode;
 
   if (isSameCode && !catalogMatch && currentIndustry) {
     return currentIndustry;
   }
 
   const resolvedSubject =
-    catalogMatch?.subject ?? (isSameCode ? (existingTag?.subject ?? '') : '');
+    catalogMatch?.subject ??
+    (isSameCode && existingTag ? (existingTag.subject ?? '') : '');
 
   return {
-    ...(isSameCode ? existingTag : {}),
+    ...(isSameCode && existingTag ? existingTag : {}),
     subject_group: normalizedCode,
     subject: resolvedSubject,
-  } as unknown as MentorProfileVO['industry'];
+  };
 }
 
 /**

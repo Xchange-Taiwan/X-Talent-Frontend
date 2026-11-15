@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { fromAny, fromPartial } from '@total-typescript/shoehorn';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -90,11 +90,6 @@ vi.mock('@/components/profile/edit/JobExperienceSection', () => ({
 vi.mock('@/components/profile/edit/educationSection/educationSection', () => ({
   EducationSection: () => <div data-testid="education-section" />,
 }));
-vi.mock('@/components/profile/edit/LinkSection', () => ({
-  LinksSection: ({ id }: { id?: string }) => (
-    <div id={id} data-testid="links-section" />
-  ),
-}));
 
 import EditProfileContainer from './container';
 
@@ -161,11 +156,8 @@ describe('EditProfileContainer schema-driven period validation & scroll guards',
       <EditProfileContainer pageUserId="1" initialTagCatalog={emptyCatalog} />
     );
 
-    const formEl = await waitFor(() => {
-      const el = container.querySelector('form');
-      expect(el).not.toBeNull();
-      return el!;
-    });
+    await screen.findByLabelText('LinkedIn');
+    const formEl = container.querySelector('form')!;
 
     fireEvent.submit(formEl);
 
@@ -211,17 +203,54 @@ describe('EditProfileContainer schema-driven period validation & scroll guards',
       <EditProfileContainer pageUserId="1" initialTagCatalog={emptyCatalog} />
     );
 
-    const formEl = await waitFor(() => {
-      const el = container.querySelector('form');
-      expect(el).not.toBeNull();
-      return el!;
-    });
+    await screen.findByLabelText('LinkedIn');
+    const formEl = container.querySelector('form')!;
 
     fireEvent.submit(formEl);
 
     await waitFor(() => {
       expect(scrolledIds).toContain('educations');
     });
+    expect(mockOnSubmit).not.toHaveBeenCalled();
+  });
+
+  it('stops submission, renders platform error, and scrolls to links when links.linkedin is invalid', async () => {
+    const mockOnSubmit = vi.fn();
+    mockUseProfileSubmit.mockReturnValue({
+      onSubmit: mockOnSubmit,
+      isSaving: false,
+    });
+    mockUseEditProfileData.mockReturnValue({
+      userDto: createValidBaseUserDto([]),
+      isMentor: false,
+      isError: false,
+    });
+
+    const scrolledIds: string[] = [];
+    Element.prototype.scrollIntoView = function (this: HTMLElement) {
+      if (this.id) scrolledIds.push(this.id);
+    };
+
+    const { container } = render(
+      <EditProfileContainer pageUserId="1" initialTagCatalog={emptyCatalog} />
+    );
+
+    const linkedinInput = await screen.findByLabelText('LinkedIn');
+    fireEvent.change(linkedinInput, {
+      target: { value: 'https://evil-linkedin.com/in/test' },
+    });
+
+    const formEl = container.querySelector('form')!;
+    fireEvent.submit(formEl);
+
+    await waitFor(() => {
+      expect(scrolledIds).toContain('links');
+    });
+    expect(
+      await screen.findByText(
+        '請輸入有效的 LinkedIn HTTPS 網址（允許網域：linkedin.com）'
+      )
+    ).toBeInTheDocument();
     expect(mockOnSubmit).not.toHaveBeenCalled();
   });
 });

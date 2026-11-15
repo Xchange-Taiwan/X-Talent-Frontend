@@ -141,6 +141,46 @@ describe('createProfileFormSchema conditional validations (Mentor vs Mentee)', (
     });
     expect(result.success).toBe(true);
   });
+
+  it('enforces max 20 characters on name', () => {
+    const atLimit = createProfileFormSchema(false).safeParse({
+      ...baseData,
+      name: '王'.repeat(20),
+    });
+    expect(atLimit.success).toBe(true);
+
+    const overLimit = createProfileFormSchema(false).safeParse({
+      ...baseData,
+      name: '王'.repeat(21),
+    });
+    expect(overLimit.success).toBe(false);
+    expect(
+      overLimit.error?.issues.some(
+        (i) => i.path[0] === 'name' && i.message === '最多不可超過 20 字'
+      )
+    ).toBe(true);
+  });
+
+  it('enforces max 10 items on have_topic and have_skill for mentees', () => {
+    const elevenItems = Array.from({ length: 11 }, (_, idx) => `item-${idx}`);
+    const result = createProfileFormSchema(false).safeParse({
+      ...baseData,
+      have_topic: elevenItems,
+      have_skill: elevenItems,
+    });
+    expect(result.success).toBe(false);
+    const issues = result.error!.issues;
+    expect(
+      issues.some(
+        (i) => i.path[0] === 'have_topic' && i.message === '最多選 10 個'
+      )
+    ).toBe(true);
+    expect(
+      issues.some(
+        (i) => i.path[0] === 'have_skill' && i.message === '最多選 10 個'
+      )
+    ).toBe(true);
+  });
 });
 
 const baseEducation = {

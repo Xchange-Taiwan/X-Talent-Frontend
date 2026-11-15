@@ -177,4 +177,100 @@ describe('useRepeatablePeriodSection', () => {
     });
     expect(result.current.hookResult.fields).toHaveLength(1);
   });
+
+  it('createPeriodChangeHandlers triggers end-field validation when end year is populated or changed', () => {
+    const result = setupWorkHook({
+      work_experiences: [
+        {
+          id: 1,
+          job: 'Engineer',
+          company: 'XChange',
+          job_period_start: '',
+          job_period_end: '',
+          industry: 'Tech',
+          job_location: 'TWN',
+          description: 'Backend',
+          is_primary: true,
+        },
+      ],
+    });
+
+    const triggerSpy = vi.spyOn(result.current.form, 'trigger');
+    const onStartChange = vi.fn((val: string) => {
+      result.current.form.setValue('work_experiences.0.job_period_start', val);
+    });
+    const onEndChange = vi.fn((val: string) => {
+      result.current.form.setValue('work_experiences.0.job_period_end', val);
+    });
+
+    const { handleStartYearChange, handleEndYearChange } =
+      result.current.hookResult.createPeriodChangeHandlers(0);
+
+    // End year is empty -> changing start year does not prematurely trigger end-field error
+    act(() => {
+      handleStartYearChange(onStartChange)('2024');
+    });
+    expect(onStartChange).toHaveBeenCalledWith('2024');
+    expect(triggerSpy).not.toHaveBeenCalled();
+
+    // Changing end year always triggers end-field validation
+    act(() => {
+      handleEndYearChange(onEndChange)('2022');
+    });
+    expect(onEndChange).toHaveBeenCalledWith('2022');
+    expect(triggerSpy).toHaveBeenCalledWith(
+      'work_experiences.0.job_period_end'
+    );
+
+    triggerSpy.mockClear();
+
+    // Now that end year is populated, changing start year re-triggers end-field validation
+    act(() => {
+      handleStartYearChange(onStartChange)('2020');
+    });
+    expect(triggerSpy).toHaveBeenCalledWith(
+      'work_experiences.0.job_period_end'
+    );
+  });
+
+  it('createPeriodChangeHandlers targets education_period_end when configured for educations', () => {
+    const { result } = renderHook(() => {
+      const form = useForm<ProfileFormInput, unknown, ProfileFormValues>({
+        defaultValues: {
+          ...defaultValues,
+          educations: [
+            {
+              id: 1,
+              subject: 'CS',
+              school: 'NTU',
+              education_period_start: '2018',
+              education_period_end: '2022',
+            },
+          ],
+        },
+      });
+      const hookResult = useRepeatablePeriodSection(form, {
+        arrayName: 'educations',
+        isIncompleteForAppend: (last) => !last?.school,
+        incompleteAlertMessage: 'Incomplete education',
+      });
+      return { hookResult, form };
+    });
+
+    const triggerSpy = vi.spyOn(result.current.form, 'trigger');
+    const onStartChange = vi.fn((val: string) => {
+      result.current.form.setValue('educations.0.education_period_start', val);
+    });
+
+    act(() => {
+      result.current.hookResult
+        .createPeriodChangeHandlers(0)
+        .handleStartYearChange(onStartChange)('2019');
+    });
+
+    expect(onStartChange).toHaveBeenCalledWith('2019');
+    expect(triggerSpy).toHaveBeenCalledWith(
+      'educations.0.education_period_end'
+    );
+  });
 });

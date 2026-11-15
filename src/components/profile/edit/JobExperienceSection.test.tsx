@@ -162,6 +162,40 @@ describe('JobExperienceSection', () => {
     ).toBeInTheDocument();
   });
 
+  it('revalidates job_period_end when changing start year Select above and then below end year', async () => {
+    const initial = [
+      createMockExperience({
+        job_period_start: '2021',
+        job_period_end: '2022',
+        description: '負責後端系統開發',
+      }),
+    ];
+
+    render(<Harness defaultValue={initial} />);
+
+    expect(
+      screen.queryByText('開始年份不可大於結束年份')
+    ).not.toBeInTheDocument();
+
+    // Select start year 2025 (> 2022) without submitting the form
+    fireEvent.click(screen.getByLabelText('開始年份'));
+    fireEvent.click(screen.getByRole('option', { name: '2025' }));
+
+    expect(
+      await screen.findByText('開始年份不可大於結束年份')
+    ).toBeInTheDocument();
+
+    // Select start year 2020 (< 2022) and verify the error clears automatically
+    fireEvent.click(screen.getByLabelText('開始年份'));
+    fireEvent.click(screen.getByRole('option', { name: '2020' }));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText('開始年份不可大於結束年份')
+      ).not.toBeInTheDocument();
+    });
+  });
+
   it('does not flag a "至今" (ongoing) position as an invalid date range, regardless of start year', async () => {
     const ongoing = [
       createMockExperience({

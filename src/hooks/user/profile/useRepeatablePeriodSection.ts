@@ -20,6 +20,19 @@ export const YEAR_OPTIONS = Array.from(
   (_, i) => (CURRENT_YEAR - i).toString()
 );
 
+type PeriodEndPath =
+  | `work_experiences.${number}.job_period_end`
+  | `educations.${number}.education_period_end`;
+
+function getPeriodEndPath(
+  arrayName: RepeatableArrayPath,
+  index: number
+): PeriodEndPath {
+  return arrayName === 'work_experiences'
+    ? `work_experiences.${index}.job_period_end`
+    : `educations.${index}.education_period_end`;
+}
+
 export function useRepeatablePeriodSection<K extends RepeatableArrayPath>(
   form: ProfileFormContext,
   config: RepeatablePeriodConfig<K>
@@ -47,10 +60,30 @@ export function useRepeatablePeriodSection<K extends RepeatableArrayPath>(
     append(defaultValue as Parameters<typeof append>[0]);
   };
 
+  const createPeriodChangeHandlers = (index: number) => {
+    const endPath = getPeriodEndPath(config.arrayName, index);
+
+    return {
+      handleStartYearChange:
+        (onChange: (value: string) => void) => (value: string) => {
+          onChange(value);
+          if (form.getValues(endPath)) {
+            void form.trigger(endPath);
+          }
+        },
+      handleEndYearChange:
+        (onChange: (value: string) => void) => (value: string) => {
+          onChange(value);
+          void form.trigger(endPath);
+        },
+    };
+  };
+
   return {
     fields,
     move,
     tryAppend,
     remove,
+    createPeriodChangeHandlers,
   };
 }

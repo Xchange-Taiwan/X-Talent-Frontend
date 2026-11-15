@@ -159,7 +159,7 @@ export const createProfileFormSchema = (isMentor: boolean) =>
             ),
           '只允許 jpg / png / gif / webp'
         ),
-      name: z.string().min(1, '請輸入姓名'),
+      name: z.string().min(1, '請輸入姓名').max(20, '最多不可超過 20 字'),
       location: z.string().min(1, '請選擇地區'),
       statement: z.string().optional(),
       about: isMentor
@@ -184,13 +184,13 @@ export const createProfileFormSchema = (isMentor: boolean) =>
             .array(z.string())
             .min(1, '請至少選擇一個主題')
             .max(10, '最多選 10 個')
-        : z.array(z.string()),
+        : z.array(z.string()).max(10, '最多選 10 個'),
       have_skill: isMentor
         ? z
             .array(z.string())
             .min(1, '請至少選擇一個技能')
             .max(10, '最多選 10 個')
-        : z.array(z.string()),
+        : z.array(z.string()).max(10, '最多選 10 個'),
 
       want_position: z
         .array(z.string())

@@ -78,6 +78,58 @@ describe('experienceCodec', () => {
     expect(workExperiences[0].is_primary).toBe(true);
   });
 
+  it('decode & encode: multiple work experiences with none marked is_primary default to the first entry', () => {
+    const experiences = [
+      payloadFor(ExperienceType.WORK, [
+        { job: 'Lead Engineer', company: 'FirstCo', is_primary: false },
+        { job: 'Engineer', company: 'SecondCo', is_primary: false },
+      ]),
+    ];
+
+    const { workExperiences } = decode(experiences);
+
+    expect(workExperiences).toHaveLength(2);
+    expect(workExperiences[0].is_primary).toBe(true);
+    expect(workExperiences[1].is_primary).toBe(false);
+
+    const encoded = encode({
+      workExperiences: [
+        { job: 'Lead Engineer', company: 'FirstCo', is_primary: false },
+        { job: 'Engineer', company: 'SecondCo', is_primary: false },
+      ],
+      educations: [],
+      personalLinks: [],
+    });
+
+    expect(encoded.job_title).toBe('Lead Engineer');
+    expect(encoded.company).toBe('FirstCo');
+  });
+
+  it('decode: merges multiple payloads of the same category without dropping later items', () => {
+    const experiences = [
+      payloadFor(ExperienceType.WORK, [{ job: 'First Job', company: 'Co A' }]),
+      payloadFor(ExperienceType.WORK, [{ job: 'Second Job', company: 'Co B' }]),
+      payloadFor(ExperienceType.LINK, [
+        { platform: 'linkedin', url: 'https://linkedin.com/in/me' },
+      ]),
+      payloadFor(ExperienceType.LINK, [
+        { platform: 'website', url: 'https://example.com' },
+      ]),
+    ];
+
+    const decoded = decode(experiences);
+
+    expect(decoded.workExperiences).toHaveLength(2);
+    expect(decoded.workExperiences[0].job).toBe('First Job');
+    expect(decoded.workExperiences[0].is_primary).toBe(true);
+    expect(decoded.workExperiences[1].job).toBe('Second Job');
+    expect(decoded.workExperiences[1].is_primary).toBe(false);
+    expect(decoded.personalLinks).toEqual([
+      { platform: 'linkedin', url: 'https://linkedin.com/in/me' },
+      { platform: 'website', url: 'https://example.com' },
+    ]);
+  });
+
   it('decode: filters out unsafe URLs (e.g. javascript:) from personal links', () => {
     const experiences = [
       payloadFor(ExperienceType.LINK, [

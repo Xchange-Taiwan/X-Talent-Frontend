@@ -4,8 +4,8 @@ import { readIndustryTag } from '@/lib/profile/readIndustryTag';
 import {
   isSocialPlatformKey,
   type SocialPlatformKey,
+  validatePlatformUrl,
 } from '@/lib/profile/socialLinks';
-import { isSafeUrl } from '@/lib/url/isSafeUrl';
 import type { MentorProfileVO } from '@/types/user';
 
 interface PublicPersonalLink {
@@ -72,14 +72,18 @@ function pickPublicLinks(
     const platform = link.platform;
     const url = link.url;
     if (
-      platform &&
-      isSocialPlatformKey(platform) &&
-      url &&
-      isSafeUrl(url) &&
-      !seen.has(platform)
+      !platform ||
+      !isSocialPlatformKey(platform) ||
+      !url ||
+      seen.has(platform)
     ) {
+      continue;
+    }
+
+    const validation = validatePlatformUrl(platform, url);
+    if (validation.valid && validation.normalizedUrl) {
       seen.add(platform);
-      result.push({ platform, url });
+      result.push({ platform, url: validation.normalizedUrl });
     }
   }
 

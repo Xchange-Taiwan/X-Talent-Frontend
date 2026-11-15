@@ -5,8 +5,15 @@ import type {
 } from '@/lib/profile/experienceCodec';
 import type { components } from '@/types/api';
 import type { MentorStats, RawMentorStats } from '@/types/mentor';
+import type { TagVO } from '@/types/tag';
 
-export type MentorProfileVO = components['schemas']['MentorProfileVO'] & {
+export type MentorIndustryVO = Partial<TagVO> | Record<string, never>;
+
+export type MentorProfileVO = Omit<
+  components['schemas']['MentorProfileVO'],
+  'industry'
+> & {
+  industry?: MentorIndustryVO | null;
   stats?: RawMentorStats | null;
   completed_meeting_count?: number | null;
   total_rating_count?: number | null;

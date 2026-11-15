@@ -420,6 +420,9 @@ describe('profileSaveAdapter', () => {
       expect(
         resolveOptimisticIndustry('', catalog, currentIndustry, false)
       ).toBe(currentIndustry);
+      expect(
+        resolveOptimisticIndustry('', catalog, undefined, false)
+      ).toBeNull();
     });
   });
 

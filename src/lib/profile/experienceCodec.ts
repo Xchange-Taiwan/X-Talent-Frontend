@@ -81,17 +81,21 @@ function getMetadataArray<T>(
   experiences: MentorExperiencePayload[] | undefined,
   category: ExperienceType
 ): T[] {
-  const found = experiences?.find((exp) => exp.category === category);
-  const rawData = found?.mentor_experiences_metadata?.data;
-  return Array.isArray(rawData) ? (rawData as T[]) : [];
+  if (!experiences) return [];
+  return experiences
+    .filter((exp) => exp.category === category)
+    .flatMap((exp) => {
+      const rawData = exp.mentor_experiences_metadata?.data;
+      return Array.isArray(rawData) ? (rawData as T[]) : [];
+    });
 }
 
 /**
  * Single decoder from wire `MentorExperiencePayload[]` into domain arrays.
  *
  * Encapsulates every read-side invariant in one place:
- * - Single work experience with no `is_primary` flag defaults to primary
- *   (legacy records predate the flag).
+ * - Work experiences with no `is_primary` flag default the first entry to
+ *   primary (legacy records predate the flag).
  * - Personal link URLs pass `isSafeUrl` so `javascript:` / `data:` schemes
  *   stored in the DB never reach an `<a href>`.
  * - Missing fields fall back to empty strings so UI/form consumers never see
@@ -119,7 +123,7 @@ export function decode(
   }));
 
   if (
-    workExperiences.length === 1 &&
+    workExperiences.length > 0 &&
     !workExperiences.some((w) => w.is_primary)
   ) {
     workExperiences[0].is_primary = true;
@@ -192,12 +196,14 @@ export function toFormValues(
  * Symmetric encoder: builds the three-category `experiences` batch for
  * `PUT /v1/mentors/{id}/profile` and derives the canonical `job_title` /
  * `company` mirrored onto the top-level profile record from the primary work
- * experience (empty strings when none is marked primary, so clearing works).
+ * experience (falling back to the first entry when none is marked primary, or
+ * empty strings when workExperiences is empty).
  */
 export function encode(input: EncodeInput): EncodeResult {
   const { workExperiences, educations, personalLinks } = input;
 
-  const primary = workExperiences.find((w) => w.is_primary);
+  const primary =
+    workExperiences.find((w) => w.is_primary) ?? workExperiences[0];
   const job_title = primary?.job ?? '';
   const company = primary?.company ?? '';
 
