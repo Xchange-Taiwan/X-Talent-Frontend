@@ -1,32 +1,19 @@
-import { redirect } from 'next/navigation';
-import { getServerSession } from 'next-auth/next';
-
 import CoverImgUrl from '@/assets/auth/signIn-cover.webp';
-import authOptions from '@/auth.config';
-import { hasUserProperties } from '@/lib/auth/userGuard';
-import { resolveAuthSurfaceRedirect } from '@/lib/routes';
 
-export default async function AuthOperationLayout({
+const coverImageSrc =
+  typeof CoverImgUrl === 'string' ? CoverImgUrl : CoverImgUrl.src;
+
+export default function AuthOperationLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user;
-  const redirectTarget = resolveAuthSurfaceRedirect(
-    'sign_shell',
-    hasUserProperties(user) ? user : null
-  );
-  if (redirectTarget) {
-    redirect(redirectTarget);
-  }
-
   return (
     <div className="flex lg:min-h-screen">
       <div className="flex-1 basis-1/2">{children}</div>
       <div
         className="box-border hidden flex-1 basis-1/2 flex-col items-center justify-center bg-cover bg-center bg-no-repeat px-8 py-16 text-center lg:sticky lg:top-0 lg:flex lg:h-screen lg:self-start xl:px-20 xl:py-32"
-        style={{ backgroundImage: `url(${CoverImgUrl.src})` }}
+        style={{ backgroundImage: `url(${coverImageSrc})` }}
       >
         <div className="text-text-white flex max-w-md flex-col gap-6 xl:gap-8">
           <p className="text-2xl font-bold lg:text-3xl xl:text-4xl">

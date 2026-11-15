@@ -136,8 +136,7 @@ export async function middleware(req: NextRequest) {
     const response = NextResponse.redirect(redirectUrl);
 
     if (hasRefreshError) {
-      response.cookies.delete('next-auth.session-token');
-      response.cookies.delete('__Secure-next-auth.session-token');
+      scrubBrokenSessionCookies(response);
     }
 
     if (!isLoggedIn && currentHint !== undefined) {
@@ -149,6 +148,10 @@ export async function middleware(req: NextRequest) {
 
   // -------- 4. Preserve ADR-0001 Session-Hint Cookie Sync --------
   const response = NextResponse.next();
+
+  if (hasRefreshError) {
+    scrubBrokenSessionCookies(response);
+  }
 
   if (decision.syncSessionHint) {
     if (isLoggedIn) {
@@ -172,9 +175,16 @@ export async function middleware(req: NextRequest) {
     } else if (currentHint !== undefined) {
       response.cookies.delete(SESSION_HINT_COOKIE);
     }
+  } else if (hasRefreshError && currentHint !== undefined) {
+    response.cookies.delete(SESSION_HINT_COOKIE);
   }
 
   return response;
+}
+
+function scrubBrokenSessionCookies(response: NextResponse): void {
+  response.cookies.delete('next-auth.session-token');
+  response.cookies.delete('__Secure-next-auth.session-token');
 }
 
 export const config = {

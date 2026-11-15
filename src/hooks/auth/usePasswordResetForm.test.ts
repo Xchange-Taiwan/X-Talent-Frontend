@@ -6,8 +6,10 @@ vi.mock('next/navigation', async () => {
   return navigationMockFactory();
 });
 
-vi.mock('@/services/auth/resetPassword', () => ({
-  resetPassword: vi.fn(),
+vi.mock('@/services/auth/authClient', () => ({
+  authClient: {
+    resetPasswordWithToken: vi.fn(),
+  },
 }));
 
 vi.mock('@/components/ui/use-toast', async () => {
@@ -15,13 +17,13 @@ vi.mock('@/components/ui/use-toast', async () => {
   return useToastMockFactory();
 });
 
-import { resetPassword } from '@/services/auth/resetPassword';
+import { authClient } from '@/services/auth/authClient';
 import { mockRouter, mockSearchParams } from '@/test/mocks/navigation';
 import { mockToast } from '@/test/mocks/useToast';
 
 import usePasswordResetForm from './usePasswordResetForm';
 
-const mockResetPassword = vi.mocked(resetPassword);
+const mockResetPassword = vi.mocked(authClient.resetPasswordWithToken);
 
 describe('usePasswordResetForm', () => {
   beforeEach(() => {
@@ -64,11 +66,11 @@ describe('usePasswordResetForm', () => {
       });
     });
 
-    expect(mockResetPassword).toHaveBeenCalledWith(
-      'valid-token',
-      'NewPass1!',
-      'NewPass1!'
-    );
+    expect(mockResetPassword).toHaveBeenCalledWith({
+      verifyToken: 'valid-token',
+      password: 'NewPass1!',
+      confirmPassword: 'NewPass1!',
+    });
     expect(mockRouter.push).toHaveBeenCalledWith(
       '/auth/password-reset-success'
     );

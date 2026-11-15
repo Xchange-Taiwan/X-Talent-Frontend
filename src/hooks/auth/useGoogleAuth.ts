@@ -6,10 +6,7 @@ import {
   clearPendingCallbackUrl,
   persistPendingCallbackUrlFromSearch,
 } from '@/lib/auth/callbackUrl';
-import {
-  getGoogleAuthorizeLoginUrl,
-  getGoogleAuthorizeSignupUrl,
-} from '@/services/auth/googleAuthorize';
+import { authClient } from '@/services/auth/authClient';
 
 export function useGoogleAuth() {
   const router = useRouter();
@@ -19,9 +16,9 @@ export function useGoogleAuth() {
   const handleGoogleAuth = async (isSignIn: boolean) => {
     setIsPending(true);
     try {
-      const { authorization_url } = isSignIn
-        ? await getGoogleAuthorizeLoginUrl()
-        : await getGoogleAuthorizeSignupUrl();
+      const { authorization_url } = await authClient.getGoogleAuthorizeUrl(
+        isSignIn ? 'login' : 'signup'
+      );
       if (typeof window !== 'undefined') {
         if (isSignIn) {
           persistPendingCallbackUrlFromSearch(

@@ -12,7 +12,7 @@ import { setPendingVerificationEmail } from '@/lib/auth/authFlowStorage';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { EMAIL_VERIFY_HREF } from '@/lib/routes';
 import { SignUpSchema } from '@/schemas/auth';
-import { signUp } from '@/services/auth/signUp';
+import { authClient } from '@/services/auth/authClient';
 
 type SignUpValues = z.infer<typeof SignUpSchema>;
 
@@ -40,7 +40,7 @@ export default function useSignUpForm(): AuthFormProps<SignUpValues> {
     setIsSubmitting(true);
 
     try {
-      await signUp(values);
+      await authClient.signUp(values);
       trackEvent({
         name: 'sign_up',
         feature: 'auth',

@@ -20,12 +20,11 @@ vi.mock('@/actions/auth', () => ({
   revalidateProfilePathAfterDelete: vi.fn(),
 }));
 
-vi.mock('@/services/auth/deleteAccount', () => ({
-  deleteAccount: vi.fn(),
-}));
-
-vi.mock('@/services/auth/googleAuthorize', () => ({
-  getGoogleAuthorizeLoginUrl: vi.fn(),
+vi.mock('@/services/auth/authClient', () => ({
+  authClient: {
+    deleteAccount: vi.fn(),
+    getGoogleAuthorizeUrl: vi.fn(),
+  },
 }));
 
 vi.mock('@/lib/monitoring', () => ({
@@ -55,8 +54,7 @@ import {
 import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
-import { deleteAccount } from '@/services/auth/deleteAccount';
-import { getGoogleAuthorizeLoginUrl } from '@/services/auth/googleAuthorize';
+import { authClient } from '@/services/auth/authClient';
 import { notificationStoreManager } from '@/stores/notificationStore';
 import { mockRouter } from '@/test/mocks/navigation';
 import {
@@ -68,8 +66,10 @@ import { mockToast } from '@/test/mocks/useToast';
 
 import useDeleteAccountForm from './useDeleteAccountForm';
 
-const mockDeleteAccount = vi.mocked(deleteAccount);
-const mockGetGoogleAuthorizeLoginUrl = vi.mocked(getGoogleAuthorizeLoginUrl);
+const mockDeleteAccount = vi.mocked(authClient.deleteAccount);
+const mockGetGoogleAuthorizeLoginUrl = vi.mocked(
+  authClient.getGoogleAuthorizeUrl
+);
 const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 const mockClearAnalyticsUser = vi.mocked(clearAnalyticsUser);
 const mockTrackEvent = vi.mocked(trackEvent);

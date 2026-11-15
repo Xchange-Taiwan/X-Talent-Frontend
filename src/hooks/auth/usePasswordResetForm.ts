@@ -7,7 +7,7 @@ import { useToast } from '@/components/ui/use-toast';
 import useAsyncAction from '@/hooks/useAsyncAction';
 import { getErrorMessage } from '@/lib/errorUtils';
 import { PasswordResetSchema } from '@/schemas/auth';
-import { resetPassword } from '@/services/auth/resetPassword';
+import { authClient } from '@/services/auth/authClient';
 
 type PasswordResetValues = z.infer<typeof PasswordResetSchema>;
 
@@ -39,11 +39,11 @@ export default function usePasswordResetForm() {
 
     await run(
       async () => {
-        await resetPassword(
+        await authClient.resetPasswordWithToken({
           verifyToken,
-          values.password,
-          values.confirm_password
-        );
+          password: values.password,
+          confirmPassword: values.confirm_password,
+        });
         router.push('/auth/password-reset-success');
       },
       {

@@ -201,7 +201,37 @@ test.describe('UserDropdown (Share Profile & Logout) & Google OAuth Callback E2E
       onBoarding: true,
       isMentor: true,
       token: 'expired-access-token',
-      error: 'RefreshTokenError',
+    });
+
+    await page.route(/\/api\/auth\/session(\?|$)/, async (route) => {
+      const cookies = await page.context().cookies();
+      const hasSessionCookie = cookies.some(
+        (c) =>
+          c.name === 'next-auth.session-token' ||
+          c.name === '__Secure-next-auth.session-token'
+      );
+      if (!hasSessionCookie) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({}),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          user: {
+            id: USER_ID,
+            name: 'Alice Chen',
+            onBoarding: true,
+            isMentor: true,
+          },
+          expires: '2099-01-01T00:00:00.000Z',
+          error: 'RefreshTokenError',
+        }),
+      });
     });
 
     await page.goto('/about');

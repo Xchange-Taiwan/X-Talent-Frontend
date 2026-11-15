@@ -8,7 +8,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { setPendingPasswordResetEmail } from '@/lib/auth/authFlowStorage';
 import { PASSWORD_FORGOT_SUCCESS_HREF } from '@/lib/routes';
 import { PasswordForgotSchema } from '@/schemas/auth';
-import { resetPassword } from '@/services/auth/resetPasswordByEmail';
+import { authClient } from '@/services/auth/authClient';
 
 type PasswordForgotValues = z.infer<typeof PasswordForgotSchema>;
 
@@ -28,7 +28,7 @@ export default function usePasswordForgotForm() {
     setIsSubmitting(true);
 
     try {
-      await resetPassword(values.email);
+      await authClient.requestPasswordResetEmail(values.email);
       setPendingPasswordResetEmail(values.email);
       router.push(PASSWORD_FORGOT_SUCCESS_HREF);
     } catch (error) {

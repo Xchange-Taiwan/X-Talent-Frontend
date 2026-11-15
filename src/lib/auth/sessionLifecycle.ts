@@ -41,14 +41,25 @@ import {
   sanitizeCallbackUrl,
   SIGNIN_HREF,
 } from '@/lib/routes';
+import { singleFlight } from '@/lib/singleFlight';
 import { SignInSchema } from '@/schemas/auth';
-import { postBackendLogout } from '@/services/auth/backendLogout';
 import {
-  deleteAccount as defaultDeleteAccount,
+  authClient,
+  type DeleteAccountDTO,
   type DeleteAccountResult,
-} from '@/services/auth/deleteAccount';
-import { getGoogleAuthorizeLoginUrl } from '@/services/auth/googleAuthorize';
+  type GoogleAuthorizeVO,
+} from '@/services/auth/authClient';
 import { notificationStoreManager } from '@/stores/notificationStore';
+
+const defaultDeleteAccount = (
+  payload: DeleteAccountDTO
+): Promise<DeleteAccountResult> => authClient.deleteAccount(payload);
+
+const getGoogleAuthorizeLoginUrl = (): Promise<GoogleAuthorizeVO> =>
+  authClient.getGoogleAuthorizeUrl('login');
+
+const defaultPostBackendLogout = (): Promise<void> =>
+  authClient.postBackendLogout();
 
 export type SignInLifecycleStep =
   'validate_credentials' | 'authenticate' | 'get_session';
@@ -114,17 +125,9 @@ function resolveDefaultTeardownCallbackUrl(
   }
 }
 
-/**
- * Atomically tears down all client-side session artifacts across every sign-out
- * path (`logout`, `refresh_token_error`, `delete_account_xc`, `delete_account_google`):
- * 1. `sessionHint` cookie & DOM attributes (ADR-0001)
- * 2. GA4 / Clarity user context
- * 3. Pending auth `sessionStorage` keys (`authFlowStorage`) & pending favorite `localStorage` (`clearPendingFavoriteMentor`)
- * 4. User-scoped in-memory stores (`notificationStoreManager`, `reservationReadModel`, `scheduleReadModel`)
- * 5. Reason-specific best-effort server cleanup (`postBackendLogout` or `revalidateAfterDelete`)
- * 6. NextAuth `signOut`
- */
-export async function terminateClientSession(
+const inflightRefreshTeardown = new Map<'refresh_token_error', Promise<void>>();
+
+async function executeTerminateClientSession(
   reason: SessionTeardownReason,
   adapters: TerminateClientSessionAdapters
 ): Promise<void> {
@@ -132,7 +135,7 @@ export async function terminateClientSession(
     signOut,
     callbackUrl,
     storage,
-    revokeBackendSession = postBackendLogout,
+    revokeBackendSession = defaultPostBackendLogout,
     revalidateAfterDelete,
     clearSessionHint = defaultClearSessionHint,
     clearAnalyticsUser = defaultClearAnalyticsUser,
@@ -182,6 +185,28 @@ export async function terminateClientSession(
   } else {
     await signOut();
   }
+}
+
+/**
+ * Atomically tears down all client-side session artifacts across every sign-out
+ * path (`logout`, `refresh_token_error`, `delete_account_xc`, `delete_account_google`):
+ * 1. `sessionHint` cookie & DOM attributes (ADR-0001)
+ * 2. GA4 / Clarity user context
+ * 3. Pending auth `sessionStorage` keys (`authFlowStorage`) & pending favorite `localStorage` (`clearPendingFavoriteMentor`)
+ * 4. User-scoped in-memory stores (`notificationStoreManager`, `reservationReadModel`, `scheduleReadModel`)
+ * 5. Reason-specific best-effort server cleanup (`postBackendLogout` or `revalidateAfterDelete`)
+ * 6. NextAuth `signOut`
+ */
+export async function terminateClientSession(
+  reason: SessionTeardownReason,
+  adapters: TerminateClientSessionAdapters
+): Promise<void> {
+  if (reason === 'refresh_token_error') {
+    return singleFlight(inflightRefreshTeardown, 'refresh_token_error', () =>
+      executeTerminateClientSession(reason, adapters)
+    );
+  }
+  return executeTerminateClientSession(reason, adapters);
 }
 
 export interface ResolvePostAuthRedirectOptions {

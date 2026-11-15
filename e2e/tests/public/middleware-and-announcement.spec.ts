@@ -1,5 +1,6 @@
 import { expect, Page, test } from '@playwright/test';
 
+import { captureEvidence } from '../../helpers/evidence';
 import { mockApiRoute } from '../../helpers/route';
 import {
   setSignedMaintenanceCookie,
@@ -52,16 +53,34 @@ test.describe('Middleware (RefreshTokenError & Maintenance Mode) & AnnouncementB
     expect(cookieNames).not.toContain('session-hint');
   });
 
-  test('RefreshTokenError 造訪公開路由 → Middleware 清除過期 session-hint 且 SessionErrorWatcher 自動觸發 signOut 導向 /auth/signin', async ({
+  test('RefreshTokenError 造訪 /auth/signin 與公開路由 → Middleware 直接清除損壞的 session cookie 與 session-hint 且不陷入重導向迴圈 (#895)', async ({
     page,
   }) => {
-    await mockApiRoute(
-      page,
-      new RegExp(`/v1/users/${USER_ID}/notifications/unread-count`),
-      {
-        body: { code: '0', msg: 'ok', data: { unread_count: 0 } },
-      }
-    );
+    await seedStaleSessionHint(page);
+    await setSignedSessionCookie(page, {
+      id: USER_ID,
+      name: 'Expired SignIn User',
+      onBoarding: true,
+      isMentor: true,
+      token: 'expired-access-token',
+      error: 'RefreshTokenError',
+    });
+
+    await page.goto('/auth/signin');
+
+    await expect(page).toHaveURL(/\/auth\/signin$/, { timeout: 15_000 });
+    await expect(
+      page.getByRole('heading', { name: '登入 X-Talent 帳戶' })
+    ).toBeVisible();
+
+    const signInCookies = await page.context().cookies();
+    const signInCookieNames = signInCookies.map((c) => c.name);
+    expect(signInCookieNames).not.toContain('next-auth.session-token');
+    expect(signInCookieNames).not.toContain('__Secure-next-auth.session-token');
+    expect(signInCookieNames).not.toContain('session-hint');
+
+    await captureEvidence(page, '895-signin-refresh-token-error-scrubbed');
+
     await seedStaleSessionHint(page);
     await setSignedSessionCookie(page, {
       id: USER_ID,
@@ -74,13 +93,38 @@ test.describe('Middleware (RefreshTokenError & Maintenance Mode) & AnnouncementB
 
     await page.goto('/about');
 
-    await expect(page).toHaveURL(/\/auth\/signin/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/about$/, { timeout: 15_000 });
 
-    const cookies = await page.context().cookies();
-    const cookieNames = cookies.map((c) => c.name);
-    expect(cookieNames).not.toContain('next-auth.session-token');
-    expect(cookieNames).not.toContain('__Secure-next-auth.session-token');
-    expect(cookieNames).not.toContain('session-hint');
+    const publicCookies = await page.context().cookies();
+    const publicCookieNames = publicCookies.map((c) => c.name);
+    expect(publicCookieNames).not.toContain('next-auth.session-token');
+    expect(publicCookieNames).not.toContain('__Secure-next-auth.session-token');
+    expect(publicCookieNames).not.toContain('session-hint');
+  });
+
+  test('HTTP-200 非零 BFF 錯誤信封於 /auth/email-verified → AuthClient 拒絕假陽性成功並呈現「驗證失敗」 (#895)', async ({
+    page,
+  }) => {
+    await mockApiRoute(page, /\/v1\/auth\/signup\/confirm/, {
+      status: 200,
+      body: {
+        code: '400',
+        msg: '驗證連結已失效',
+        data: null,
+      },
+    });
+
+    await page.goto('/auth/email-verified?token=expired-signup-token');
+
+    await expect(page.getByRole('heading', { name: '驗證失敗' })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByRole('heading', { name: '驗證成功' })).toBeHidden();
+
+    await captureEvidence(
+      page,
+      '895-email-verified-bff-nonzero-envelope-failure'
+    );
   });
 
   test('非維護模式下直接造訪 /maintenance → 自動重導向回首頁 /', async ({
