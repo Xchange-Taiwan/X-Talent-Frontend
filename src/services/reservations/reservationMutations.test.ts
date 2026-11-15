@@ -615,14 +615,15 @@ describe('submitReservationFeedback (#730)', () => {
     );
     expect(
       reservationReadModel.get({ userId: '10', state: 'MENTEE_HISTORY' })
-    ).toBeUndefined();
+        ?.items[0]?.feedback?.rating?.content
+    ).toBe('收穫良多！');
     expect(
       reservationReadModel.get({ userId: '20', state: 'MENTOR_HISTORY' })
     ).toBeUndefined();
     expect(clearPoolSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('posts meeting_happened=false with not_happened_reason, invalidates both parties HISTORY slices, and does not clear mentorPoolReadManager', async () => {
+  it('posts meeting_happened=false with not_happened_reason, patches caller HISTORY in place, invalidates counterparty HISTORY, and does not clear mentorPoolReadManager', async () => {
     const reservation = makeMockReservation({
       id: 'res-730-absent',
       senderUserId: '10',
@@ -663,7 +664,8 @@ describe('submitReservationFeedback (#730)', () => {
     );
     expect(
       reservationReadModel.get({ userId: '10', state: 'MENTEE_HISTORY' })
-    ).toBeUndefined();
+        ?.items[0]?.feedback?.meetingHappened
+    ).toBe(false);
     expect(
       reservationReadModel.get({ userId: '20', state: 'MENTOR_HISTORY' })
     ).toBeUndefined();
@@ -1013,7 +1015,8 @@ describe('updateReservationFeedback (#731)', () => {
         nextStep: null,
       });
 
-      expect(mockGet).toHaveBeenCalledWith(
+      // Caller's own MENTEE_HISTORY is patched in place — no Page-1 GET overwrite!
+      expect(mockGet).not.toHaveBeenCalledWith(
         '/v1/users/10/reservations',
         expect.objectContaining({
           params: expect.objectContaining({ state: 'MENTEE_HISTORY' }),
@@ -1406,10 +1409,11 @@ describe('5-store atomic invalidation & in-memory transport adapter (#888)', () 
       },
     ]);
 
-    // 1. reservationReadModel invalidated for both parties
+    // 1. reservationReadModel patched in place for caller & invalidated for counterparty
     expect(
       reservationReadModel.get({ userId: '10', state: 'MENTEE_HISTORY' })
-    ).toBeUndefined();
+        ?.items[0]?.feedback?.rating?.content
+    ).toBe('使用記憶體 transport 測試送出');
     expect(
       reservationReadModel.get({
         userId: String(TARGET_MENTOR_ID),
@@ -1623,7 +1627,10 @@ describe('5-store atomic invalidation & in-memory transport adapter (#888)', () 
       reservationReadModel.get({
         userId: String(TARGET_MENTOR_ID),
         state: 'MENTOR_HISTORY',
-      })
+      })?.items[0]?.feedback?.meetingHappened
+    ).toBe(false);
+    expect(
+      reservationReadModel.get({ userId: '10', state: 'MENTEE_HISTORY' })
     ).toBeUndefined();
     expect(
       mentorPoolReadModel.get(UNFILTERED_MENTOR_POOL_QUERY)
@@ -1667,6 +1674,13 @@ describe('5-store atomic invalidation & in-memory transport adapter (#888)', () 
 
     expect(
       reservationReadModel.get({ userId: '10', state: 'MENTEE_HISTORY' })
+        ?.items[0]?.feedback?.meetingHappened
+    ).toBe(false);
+    expect(
+      reservationReadModel.get({
+        userId: String(TARGET_MENTOR_ID),
+        state: 'MENTOR_HISTORY',
+      })
     ).toBeUndefined();
     expect(
       mentorPoolReadModel.get(UNFILTERED_MENTOR_POOL_QUERY)
@@ -1786,5 +1800,207 @@ describe('5-store atomic invalidation & in-memory transport adapter (#888)', () 
     ).toBeUndefined();
     expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'zh_TW')).toBeNull();
     expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'en_US')).toBeNull();
+  });
+});
+
+describe('Read-model multi-page retention, scheduleReadModel sync & abort safety (#899)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    reservationReadModel.clear();
+  });
+
+  it('retains Page 2+ History items and next_dtend on caller myHistoryKey across submitReservationFeedback and updateReservationFeedback', async () => {
+    const page1Items = Array.from({ length: 10 }, (_, idx) =>
+      makeMockReservation({
+        id: `res-p1-${idx + 1}`,
+        senderUserId: '10',
+        participantUserId: '20',
+      })
+    );
+    const page2Target = makeMockReservation({
+      id: 'res-p2-11',
+      senderUserId: '10',
+      participantUserId: '20',
+      feedback: {
+        meetingHappened: null,
+        myMeetingHappened: null,
+        rating: null,
+        nextStep: 'ANSWER',
+      },
+    });
+    const page2Sibling = makeMockReservation({
+      id: 'res-p2-12',
+      senderUserId: '10',
+      participantUserId: '20',
+    });
+
+    const menteeHistoryKey = {
+      userId: '10',
+      state: 'MENTEE_HISTORY',
+    } as const;
+    reservationReadModel.set(menteeHistoryKey, {
+      items: [...page1Items, page2Target, page2Sibling],
+      next_dtend: 1700099999,
+    });
+
+    const unsub = reservationReadModel.subscribe(
+      menteeHistoryKey,
+      () => new Promise(() => {}),
+      () => {}
+    );
+
+    try {
+      await submitReservationFeedback({
+        reservation: page2Target,
+        myUserId: '10',
+        myRole: 'mentee',
+        payload: {
+          meeting_happened: true,
+          feedback: { rating: 9, content: '第二頁初次評分' },
+        },
+        transport: {
+          submitFeedback: async () => ({ ok: true }),
+        },
+      });
+
+      const afterSubmit = reservationReadModel.get(menteeHistoryKey);
+      expect(afterSubmit?.items).toHaveLength(12);
+      expect(afterSubmit?.next_dtend).toBe(1700099999);
+      expect(afterSubmit?.items[10]?.feedback?.rating?.content).toBe(
+        '第二頁初次評分'
+      );
+
+      await updateReservationFeedback({
+        reservation: afterSubmit!.items[10]!,
+        myUserId: '10',
+        myRole: 'mentee',
+        payload: { rating: 10, content: '第二頁編輯後評分' },
+        transport: {
+          updateFeedback: async () => ({ ok: true }),
+        },
+      });
+
+      const afterEdit = reservationReadModel.get(menteeHistoryKey);
+      expect(afterEdit?.items).toHaveLength(12);
+      expect(afterEdit?.next_dtend).toBe(1700099999);
+      expect(afterEdit?.items[10]?.feedback?.rating).toEqual(
+        expect.objectContaining({
+          rating: 10,
+          content: '第二頁編輯後評分',
+        })
+      );
+      expect(afterEdit?.items[11]?.id).toBe('res-p2-12');
+      expect(mockGet).not.toHaveBeenCalled();
+    } finally {
+      unsub();
+    }
+  });
+
+  it('invalidates/refreshes the affected scheduleReadModel month on acceptReservation and rejectOrCancelReservation, and aborts refreshes on clear()', async () => {
+    const { scheduleReadModel } =
+      await import('@/lib/mentor-schedule/scheduleReadModel');
+    scheduleReadModel.clear();
+
+    const dtstart = 1784296800; // July 2026
+    const d = new Date(dtstart * 1000);
+    const scheduleKey = {
+      userId: '10',
+      year: d.getFullYear(),
+      month: d.getMonth() + 1,
+    };
+
+    const reservation = makeMockReservation({
+      id: 'res-899-sync',
+      senderUserId: '10',
+      participantUserId: '20',
+      dtstart,
+      dtend: dtstart + 1800,
+    });
+
+    // 1. Unsubscribed schedule month is invalidated on acceptReservation
+    scheduleReadModel.set(scheduleKey, [
+      {
+        id: -1,
+        type: 'PENDING',
+        dtstart,
+        dtend: dtstart + 1800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ]);
+    mockPut.mockResolvedValueOnce({ ok: true });
+
+    await acceptReservation({
+      message: '歡迎',
+      reservation,
+      myUserId: '10',
+      myRole: 'mentor',
+    });
+    expect(scheduleReadModel.get(scheduleKey)).toBeUndefined();
+
+    // 2. Mentee cancelling Upcoming reservation invalidates mentor's schedule month
+    const menteeViewRes = makeMockReservation({
+      id: 'res-899-cancel',
+      senderUserId: '20',
+      participantUserId: '10',
+      dtstart,
+      dtend: dtstart + 1800,
+    });
+    scheduleReadModel.set(scheduleKey, [
+      {
+        id: -2,
+        type: 'BOOKED',
+        dtstart,
+        dtend: dtstart + 1800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ]);
+    mockPut.mockResolvedValueOnce({ ok: true });
+
+    await rejectOrCancelReservation({
+      text: '改期',
+      reservation: menteeViewRes,
+      myUserId: '20',
+      myRole: 'mentee',
+    });
+    expect(scheduleReadModel.get(scheduleKey)).toBeUndefined();
+
+    // 3. Subscribed reservation slice refresh receives AbortSignal and aborts on clear()
+    const mentorUpcomingKey = {
+      userId: '10',
+      state: 'MENTOR_UPCOMING',
+    } as const;
+    reservationReadModel.set(mentorUpcomingKey, { items: [], next_dtend: 0 });
+    const unsubUpcoming = reservationReadModel.subscribe(
+      mentorUpcomingKey,
+      () => new Promise(() => {}),
+      () => {}
+    );
+
+    let capturedSignal: AbortSignal | undefined;
+    mockGet.mockImplementation((_path: string, opts?: unknown) => {
+      const record = opts as { signal?: AbortSignal } | undefined;
+      if (record?.signal) {
+        capturedSignal = record.signal;
+      }
+      return new Promise(() => {});
+    });
+    mockPut.mockResolvedValueOnce({ ok: true });
+
+    await acceptReservation({
+      message: '',
+      reservation,
+      myUserId: '10',
+      myRole: 'mentor',
+    });
+
+    expect(capturedSignal).toBeDefined();
+    expect(capturedSignal?.aborted).toBe(false);
+
+    reservationReadModel.clear();
+    expect(capturedSignal?.aborted).toBe(true);
+    unsubUpcoming();
+    scheduleReadModel.clear();
   });
 });

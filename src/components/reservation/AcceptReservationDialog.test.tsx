@@ -118,4 +118,45 @@ describe('AcceptReservationDialog', () => {
 
     expect(onAccept).toHaveBeenCalledWith({ id: 'res-201', message: '' });
   });
+
+  it('validates reply against quickReplyFormSchema, showing inline error and disabling submit when exceeding 500 characters', () => {
+    const onAccept = vi.fn();
+    render(
+      <AcceptReservationDialog
+        reservation={mockReservation}
+        myUserId="user-mentor"
+        onAccept={onAccept}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '接受' }));
+    fireEvent.click(screen.getByText('附上回覆訊息（選填）'));
+
+    const textarea = screen.getByPlaceholderText(
+      '例如：屆時於 Google Meet 見,請先準備一份履歷。'
+    );
+    fireEvent.change(textarea, { target: { value: 'A'.repeat(501) } });
+
+    expect(screen.getByText('回覆訊息請勿超過 500 字')).toBeInTheDocument();
+
+    const acceptButtons = screen.getAllByRole('button', { name: '接受' });
+    const confirmButton = acceptButtons[acceptButtons.length - 1];
+    expect(confirmButton).toBeDisabled();
+
+    fireEvent.click(confirmButton);
+    expect(onAccept).not.toHaveBeenCalled();
+
+    // Trimming down to <= 500 characters clears the error and re-enables accept
+    fireEvent.change(textarea, { target: { value: '  期待見面！  ' } });
+    expect(
+      screen.queryByText('回覆訊息請勿超過 500 字')
+    ).not.toBeInTheDocument();
+    expect(confirmButton).not.toBeDisabled();
+
+    fireEvent.click(confirmButton);
+    expect(onAccept).toHaveBeenCalledWith({
+      id: 'res-201',
+      message: '期待見面！',
+    });
+  });
 });

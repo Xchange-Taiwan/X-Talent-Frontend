@@ -5,7 +5,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { useAsyncRead } from '@/hooks/useAsyncRead';
 import { trackEvent } from '@/lib/analytics';
-import { isAbortError } from '@/lib/errorUtils';
+import { getSafeErrorMessage, isAbortError } from '@/lib/errorUtils';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { partitionReservationTabSlices } from '@/lib/reservation/reservationLifecyclePolicy';
 import {
@@ -255,37 +255,39 @@ export function useReservationData({
       if (!myUserId) return;
       const key = toReservationReadKey(myUserId, states[tab])!;
       const currentData = reservationReadModel.get(key);
-      if (!currentData) return;
-      const cursor = currentData.next_dtend;
-      if (cursor === 0) return;
+      if (!currentData || currentData.next_dtend === 0) return;
 
       setLoadingMoreStates((prev) => ({ ...prev, [tab]: true }));
       try {
-        const result = await fetchReservations({
-          userId: myUserId,
-          state: states[tab],
-          nextDtend: cursor,
-        });
+        const appended = await reservationReadModel.loadNextPage(
+          key,
+          (cursor, signal) =>
+            fetchReservations({
+              userId: myUserId,
+              state: states[tab],
+              nextDtend: cursor,
+              signal,
+            })
+        );
 
-        reservationReadModel.update(key, (current) => {
-          const base = current ?? currentData;
-          return {
-            items: [...base.items, ...result.items],
-            next_dtend: result.next_dtend,
-          };
-        });
-
-        trackEvent({ name: 'reservation_load_more', feature: 'reservation' });
+        if (appended) {
+          trackEvent({ name: 'reservation_load_more', feature: 'reservation' });
+        }
       } catch (err) {
-        captureFlowFailure({
-          flow: 'reservation_load_more',
-          step: 'fetch_page',
-          message:
-            err instanceof Error
-              ? err.message
-              : 'Failed to load more reservations',
-        });
-        console.error('[useReservationData] loadMore error:', err);
+        if (!isAbortError(err)) {
+          captureFlowFailure({
+            flow: 'reservation_load_more',
+            step: 'fetch_page',
+            message:
+              err instanceof Error
+                ? err.message
+                : 'Failed to load more reservations',
+          });
+          console.error(
+            '[useReservationData] loadMore error:',
+            getSafeErrorMessage(err)
+          );
+        }
       } finally {
         setLoadingMoreStates((prev) => ({ ...prev, [tab]: false }));
       }

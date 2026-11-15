@@ -20,6 +20,7 @@ import { useProfileLinkClick } from '@/hooks/reservation/useProfileLinkClick';
 import { trackEvent } from '@/lib/analytics';
 import { resolveReservationViewer } from '@/lib/reservation/reservationViewerModel';
 import { cn } from '@/lib/utils';
+import { quickReplyFormSchema } from '@/schemas/quickReplySchema';
 import type { Reservation } from '@/types/reservation';
 
 interface Props {
@@ -41,6 +42,11 @@ export default function AcceptReservationDialog({
 }: Props) {
   const [replyOpen, setReplyOpen] = useState(false);
   const [reply, setReply] = useState('');
+
+  const parsedReply = quickReplyFormSchema.safeParse({ reply });
+  const replyError = parsedReply.success
+    ? undefined
+    : parsedReply.error.issues[0]?.message;
 
   const { open, isSubmitting, onOpenChange, setOpen, execute } =
     useConfirmActionDialog({
@@ -66,12 +72,16 @@ export default function AcceptReservationDialog({
   });
 
   const handleAccept = () => {
+    const validated = quickReplyFormSchema.safeParse({ reply });
+    if (!validated.success) return;
+    const trimmedReply = (validated.data.reply ?? '').trim();
+
     execute(async () => {
-      await onAccept?.({ id: reservation.id, message: reply.trim() });
+      await onAccept?.({ id: reservation.id, message: trimmedReply });
       trackEvent({
         name: 'reservation_accepted',
         feature: 'reservation',
-        metadata: { has_reply: reply.trim().length > 0 },
+        metadata: { has_reply: trimmedReply.length > 0 },
       });
     });
   };
@@ -123,6 +133,7 @@ export default function AcceptReservationDialog({
               open={replyOpen}
               onOpen={() => setReplyOpen(true)}
               disabled={isSubmitting}
+              error={replyError}
               textareaProps={{
                 value: reply,
                 onChange: (e) => setReply(e.target.value),
@@ -146,7 +157,7 @@ export default function AcceptReservationDialog({
               type="button"
               className="w-full sm:w-auto"
               onClick={handleAccept}
-              disabled={isSubmitting || disabled}
+              disabled={isSubmitting || disabled || Boolean(replyError)}
             >
               {isSubmitting && <Loader2 className="mr-2 size-4 animate-spin" />}
               接受

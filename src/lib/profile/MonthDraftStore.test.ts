@@ -1309,4 +1309,119 @@ describe('MonthDraftStore Unit Tests', () => {
       expect(res).toEqual({ success: false, added: 0, skipped: 0 });
     });
   });
+
+  describe('discardChanges() & commitChanges() generation safety', () => {
+    it('discardChanges() synchronously restores savedByMonth across single and cross-month edits with zero async work', () => {
+      const julySaved: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW',
+          dtstart: dayjs('2026-07-26T10:00:00').unix(),
+          dtend: dayjs('2026-07-26T10:30:00').unix(),
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      const augustCached: RawMentorTimeslot[] = [
+        {
+          id: 202,
+          type: 'ALLOW',
+          dtstart: dayjs('2026-08-05T09:00:00').unix(),
+          dtend: dayjs('2026-08-05T09:30:00').unix(),
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      const store = new MonthDraftStore(undefined, {
+        getCachedMonthSchedule: (ref) =>
+          ref.year === 2026 && ref.month === 8 ? augustCached : undefined,
+      });
+      store.ensureMonthLoaded('2026-07', julySaved);
+
+      // Add a new slot in July + delete saved slot 101 + add a slot in unloaded Sept
+      store.add({
+        startTime: '14:00',
+        durationMinutes: 30,
+        selectedDate: '2026-07-26',
+      });
+      store.delete(101, julySaved[0].dtstart);
+      store.add({
+        startTime: '11:00',
+        durationMinutes: 30,
+        selectedDate: '2026-09-01',
+      });
+
+      expect(store.snapshot().dirtyMonths.size).toBe(2);
+      expect(store.snapshot().pendingDeleteByMonth.get('2026-07')).toEqual([
+        101,
+      ]);
+
+      store.discardChanges();
+
+      const snap = store.snapshot();
+      expect(snap.dirtyMonths.size).toBe(0);
+      expect(snap.pendingDeleteByMonth.size).toBe(0);
+      expect(snap.draftByMonth.get('2026-07')).toEqual(julySaved);
+      expect(snap.draftByMonth.has('2026-09')).toBe(false);
+    });
+
+    it('commitChanges() commits synced outcomes when generation is unchanged and skips commit if clearAll() or discardChanges() ran mid-flight', async () => {
+      const julySaved: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW',
+          dtstart: dayjs('2026-07-26T10:00:00').unix(),
+          dtend: dayjs('2026-07-26T10:30:00').unix(),
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      const store = new MonthDraftStore();
+      store.ensureMonthLoaded('2026-07', julySaved);
+      store.add({
+        startTime: '15:00',
+        durationMinutes: 30,
+        selectedDate: '2026-07-26',
+      });
+
+      let resolveSync!: (
+        res: Awaited<ReturnType<Parameters<typeof store.commitChanges>[1]>>
+      ) => void;
+      const syncFn = vi.fn(
+        () =>
+          new Promise<
+            Awaited<ReturnType<Parameters<typeof store.commitChanges>[1]>>
+          >((resolve) => {
+            resolveSync = resolve;
+          })
+      );
+
+      const savePromise = store.commitChanges('userA', syncFn);
+      expect(syncFn).toHaveBeenCalledTimes(1);
+
+      // Simulate A -> B -> A account switch (clearAll called while save in flight)
+      store.clearAll();
+
+      const syncedRaws: RawMentorTimeslot[] = [
+        ...julySaved,
+        {
+          id: 555,
+          type: 'ALLOW',
+          dtstart: dayjs('2026-07-26T15:00:00').unix(),
+          dtend: dayjs('2026-07-26T15:30:00').unix(),
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      resolveSync([
+        { monthKey: '2026-07', outcome: { ok: true, raws: syncedRaws } },
+      ]);
+
+      const result = await savePromise;
+      expect(result).toEqual({ ok: true });
+      // Store must remain empty — stale pre-clearAll save must not commit!
+      expect(store.snapshot().savedByMonth.size).toBe(0);
+      expect(store.snapshot().draftByMonth.size).toBe(0);
+    });
+  });
 });

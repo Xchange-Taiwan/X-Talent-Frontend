@@ -546,4 +546,39 @@ describe('useReservationData (mentor)', () => {
       'stale-upcoming-cancelled',
     ]);
   });
+
+  it('aborts in-flight loadMore via reservationReadModel.loadNextPage when clear() runs on account switch (#899)', async () => {
+    let capturedSignal: AbortSignal | undefined;
+    mockFetch.mockImplementation(({ state, nextDtend, signal }) => {
+      if (state === 'MENTEE_UPCOMING' && nextDtend === 777) {
+        capturedSignal = signal;
+        return new Promise(() => {});
+      }
+      return Promise.resolve({
+        items: [makeReservation('initial-upcoming')],
+        next_dtend: state === 'MENTEE_UPCOMING' ? 777 : 0,
+      });
+    });
+
+    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    let loadMoreDone = false;
+    act(() => {
+      void result.current.loadMore('upcoming').then(() => {
+        loadMoreDone = true;
+      });
+    });
+
+    expect(capturedSignal).toBeDefined();
+    expect(capturedSignal?.aborted).toBe(false);
+
+    await act(async () => {
+      reservationReadModel.clear();
+      await Promise.resolve();
+    });
+
+    expect(capturedSignal?.aborted).toBe(true);
+    expect(loadMoreDone).toBe(true);
+  });
 });

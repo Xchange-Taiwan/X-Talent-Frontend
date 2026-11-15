@@ -1,3 +1,4 @@
+import { fromPartial } from '@total-typescript/shoehorn';
 import dayjs from 'dayjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -19,6 +20,7 @@ vi.mock('@/lib/monitoring', () => ({
 }));
 
 import { apiClient, ApiError } from '@/lib/apiClient';
+import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
 import { components } from '@/types/api';
@@ -30,7 +32,6 @@ import {
   fetchReservationMeetLink,
   fetchReservations,
   formatPendingFeedbackDateTime,
-  invalidateReservationRead,
   mapToReservation,
   postReservationFeedback,
   putReservationFeedback,
@@ -78,6 +79,7 @@ describe('reservationService API Error Handling', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     reservationReadModel.clear();
+    scheduleReadModel.clear();
   });
 
   describe('createReservation', () => {
@@ -131,11 +133,33 @@ describe('reservationService API Error Handling', () => {
         { items: [], next_dtend: 0 }
       );
 
+      const slotStartUnix = dayjs('2026-07-17T14:00:00').unix();
+      const slotEndUnix = slotStartUnix + 1800;
+      const targetScheduleMonth = {
+        userId: '456',
+        year: dayjs(slotStartUnix * 1000).year(),
+        month: dayjs(slotStartUnix * 1000).month() + 1,
+      };
+      scheduleReadModel.set(targetScheduleMonth, [
+        {
+          id: 101,
+          type: 'ALLOW',
+          dtstart: slotStartUnix,
+          dtend: slotEndUnix,
+          rrule: undefined,
+          exdate: [],
+        },
+      ]);
+
       await createReservation({
         userId: 123,
         body: {
+          my_user_id: 123,
           user_id: 456,
-        } as unknown as components['schemas']['ReservationDTO'],
+          schedule_id: 101,
+          dtstart: slotStartUnix,
+          dtend: slotEndUnix,
+        },
       });
 
       expect(
@@ -144,53 +168,111 @@ describe('reservationService API Error Handling', () => {
       expect(
         reservationReadModel.get({ userId: '456', state: 'MENTOR_PENDING' })
       ).toBeUndefined();
-    });
-  });
-
-  describe('invalidateReservationRead', () => {
-    it('drops the cache entry directly when nothing is subscribed to it', () => {
-      const key = { userId: '1', state: 'MENTEE_PENDING' } as const;
-      reservationReadModel.set(key, { items: [], next_dtend: 0 });
-
-      invalidateReservationRead(key);
-
-      expect(reservationReadModel.get(key)).toBeUndefined();
-      expect(mockGet).not.toHaveBeenCalled();
+      expect(scheduleReadModel.get(targetScheduleMonth)).toBeUndefined();
     });
 
-    it('refreshes the key in place with a fresh fetch when a component is actively subscribed', async () => {
-      const key = { userId: '1', state: 'MENTEE_PENDING' } as const;
-      reservationReadModel.set(key, { items: [], next_dtend: 0 });
-      const unsubscribe = reservationReadModel.subscribe(
-        key,
+    it('refreshes actively subscribed PENDING and mentor schedule slices in place after createReservation', async () => {
+      const slotStartUnix = dayjs('2026-07-20T10:00:00').unix();
+      const slotEndUnix = slotStartUnix + 1800;
+      const menteePendingKey = {
+        userId: '123',
+        state: 'MENTEE_PENDING',
+      } as const;
+      const scheduleKey = {
+        userId: '456',
+        year: dayjs(slotStartUnix * 1000).year(),
+        month: dayjs(slotStartUnix * 1000).month() + 1,
+      };
+
+      reservationReadModel.set(menteePendingKey, { items: [], next_dtend: 0 });
+      scheduleReadModel.set(scheduleKey, []);
+
+      const unsubPending = reservationReadModel.subscribe(
+        menteePendingKey,
         () => new Promise(() => {}),
         () => {}
       );
-      mockGet.mockResolvedValue({
-        reservations: [makeApiReservation({ id: 42 })],
-        next_dtend: 0,
+      const unsubSchedule = scheduleReadModel.subscribe(
+        scheduleKey,
+        () => new Promise(() => {}),
+        () => {}
+      );
+
+      mockPost.mockResolvedValue({ id: 77 });
+      mockGet.mockImplementation(async (path: string) => {
+        if (path.includes('/schedule')) {
+          return {
+            segments: [
+              {
+                id: -101,
+                dt_type: 'PENDING',
+                dt_year: scheduleKey.year,
+                dt_month: scheduleKey.month,
+                dtstart: slotStartUnix,
+                dtend: slotEndUnix,
+              },
+            ],
+          };
+        }
+        return {
+          reservations: [
+            makeApiReservation({
+              id: 77,
+              dtstart: slotStartUnix,
+              dtend: slotEndUnix,
+            }),
+          ],
+          next_dtend: 0,
+        };
       });
 
-      invalidateReservationRead(key);
+      await createReservation({
+        userId: 123,
+        body: {
+          my_user_id: 123,
+          user_id: 456,
+          schedule_id: 101,
+          dtstart: slotStartUnix,
+          dtend: slotEndUnix,
+        },
+      });
 
       await vi.waitFor(() => {
-        expect(reservationReadModel.get(key)?.items).toHaveLength(1);
+        expect(reservationReadModel.get(menteePendingKey)?.items).toHaveLength(
+          1
+        );
+        expect(scheduleReadModel.get(scheduleKey)).toHaveLength(1);
       });
-      expect(reservationReadModel.get(key)?.items[0].id).toBe('42');
+      expect(scheduleReadModel.get(scheduleKey)?.[0]?.type).toBe('PENDING');
 
-      unsubscribe();
+      unsubPending();
+      unsubSchedule();
     });
 
-    it('reports (and swallows) a failed background refresh via captureFlowFailure', async () => {
-      const key = { userId: '1', state: 'MENTEE_PENDING' } as const;
-      const unsubscribe = reservationReadModel.subscribe(
-        key,
+    it('reports non-abort background refresh failures via captureFlowFailure', async () => {
+      const menteePendingKey = {
+        userId: '123',
+        state: 'MENTEE_PENDING',
+      } as const;
+      reservationReadModel.set(menteePendingKey, { items: [], next_dtend: 0 });
+      const unsub = reservationReadModel.subscribe(
+        menteePendingKey,
         () => new Promise(() => {}),
         () => {}
       );
+      mockPost.mockResolvedValue({ id: 88 });
       mockGet.mockRejectedValue(new Error('network down'));
 
-      invalidateReservationRead(key);
+      await createReservation({
+        userId: 123,
+        body: fromPartial<components['schemas']['ReservationDTO']>({
+          my_user_id: 123,
+          user_id: 456,
+          schedule_id: 101,
+          dtstart: 1784124000,
+          dtend: 1784125800,
+        }),
+      });
 
       await vi.waitFor(() => {
         expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
@@ -201,36 +283,7 @@ describe('reservationService API Error Handling', () => {
         );
       });
 
-      unsubscribe();
-    });
-
-    it('refreshes subscribed month-scoped calendar slices when invalidated with an unscoped key', async () => {
-      const scopedKey = {
-        userId: '1',
-        state: 'MENTOR_PENDING',
-        endOfMonthUnix: 2000,
-      } as const;
-      reservationReadModel.set(scopedKey, { items: [], next_dtend: 0 });
-      const unsubscribe = reservationReadModel.subscribe(
-        scopedKey,
-        () => new Promise(() => {}),
-        () => {}
-      );
-      mockGet.mockResolvedValue({
-        reservations: [
-          makeApiReservation({ id: 99, dtstart: 100, dtend: 200 }),
-        ],
-        next_dtend: 0,
-      });
-
-      invalidateReservationRead({ userId: '1', state: 'MENTOR_PENDING' });
-
-      await vi.waitFor(() => {
-        expect(reservationReadModel.get(scopedKey)?.items).toHaveLength(1);
-      });
-      expect(reservationReadModel.get(scopedKey)?.items[0].id).toBe('99');
-
-      unsubscribe();
+      unsub();
     });
   });
 
@@ -410,22 +463,38 @@ describe('reservationService API Error Handling', () => {
       expect(mockGet).toHaveBeenCalledTimes(1);
     });
 
-    it('swallows a fetch failure, returns items already collected, and reports via captureFlowFailure', async () => {
+    it('propagates a fetch failure after reporting via captureFlowFailure so callers hold reservationsLoaded false', async () => {
       mockGet.mockRejectedValue(new Error('network down'));
 
-      const result = await fetchAllReservationsForState(
-        '123',
-        'MENTOR_UPCOMING',
-        1000
-      );
+      await expect(
+        fetchAllReservationsForState('123', 'MENTOR_PENDING', 1000)
+      ).rejects.toThrow('network down');
 
-      expect(result).toEqual([]);
       expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
         expect.objectContaining({
           flow: 'mentor_schedule_reservations_fetch',
-          step: 'fetch_MENTOR_UPCOMING',
+          step: 'fetch_MENTOR_PENDING',
         })
       );
+    });
+
+    it('skips captureFlowFailure when fetchAllReservationsForState is aborted via AbortSignal', async () => {
+      const controller = new AbortController();
+      controller.abort();
+      const abortErr = new Error('The operation was aborted.');
+      abortErr.name = 'AbortError';
+      mockGet.mockRejectedValue(abortErr);
+
+      await expect(
+        fetchAllReservationsForState(
+          '123',
+          'MENTOR_PENDING',
+          1000,
+          controller.signal
+        )
+      ).rejects.toThrow('aborted');
+
+      expect(mockCaptureFlowFailure).not.toHaveBeenCalled();
     });
 
     it('stops after MAX_PAGES when the cursor keeps advancing without repeating or crossing the month boundary, and reports it', async () => {
