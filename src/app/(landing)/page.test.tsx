@@ -56,8 +56,12 @@ describe('LandingPage', () => {
     );
     expect(heroImage).toBeInTheDocument();
     expect(heroImage).toHaveClass(
-      'h-auto',
-      'w-[clamp(760px,calc(100vw-264px),1320px)]',
+      'h-full',
+      'max-h-[532px]',
+      'w-auto',
+      'lg:h-auto',
+      'lg:max-h-none',
+      'lg:w-[clamp(720px,calc(100vw-304px),1320px)]',
       'max-w-none'
     );
   });

@@ -76,60 +76,88 @@ describe('HomePageHero (#892)', () => {
     );
   });
 
-  it('renders edge-anchored left/right responsive artwork layers without object-cover center cropping', () => {
-    render(<HomePageHero />);
+  it('renders edge-anchored left/right art-directed <picture> layers without redundant multi-breakpoint <img> mounts or object-cover center cropping', () => {
+    const { container } = render(<HomePageHero />);
 
-    const primaryDesktopImage = screen.getByAltText(
+    expect(container.querySelectorAll('picture')).toHaveLength(2);
+    expect(container.querySelectorAll('img')).toHaveLength(2);
+    expect(document.head.querySelectorAll('link[rel="preload"]')).toHaveLength(
+      0
+    );
+
+    const leftClip = screen.getByTestId('homepage-hero-clip-left');
+    const rightClip = screen.getByTestId('homepage-hero-clip-right');
+    expect(leftClip).toHaveClass(
+      'left-0',
+      'w-1/2',
+      'max-w-[180px]',
+      'sm:max-w-[384px]',
+      'lg:max-w-[660px]'
+    );
+    expect(rightClip).toHaveClass(
+      'right-0',
+      'w-1/2',
+      'max-w-[180px]',
+      'sm:max-w-[384px]',
+      'lg:max-w-[660px]'
+    );
+
+    const leftImage = screen.getByAltText(
       'X-Talent 平台主視覺：專業工作者交流情境'
     );
-    expect(primaryDesktopImage).toHaveAttribute(
+    expect(leftImage).toHaveAttribute(
       'data-testid',
-      'homepage-hero-desktop-left'
+      'homepage-hero-artwork-left'
     );
-    expect(primaryDesktopImage).toHaveClass(
-      'h-auto',
-      'w-[clamp(760px,calc(100vw-264px),1320px)]',
+    expect(leftImage).toHaveAttribute('loading', 'eager');
+    expect(leftImage).toHaveAttribute('fetchpriority', 'high');
+    expect(leftImage.getAttribute('src')).toContain(
+      '/landing/home-page-hero-sm.svg'
+    );
+    expect(leftImage).toHaveClass(
+      'h-full',
+      'max-h-[532px]',
+      'w-auto',
+      'lg:h-auto',
+      'lg:max-h-none',
+      'lg:w-[clamp(720px,calc(100vw-304px),1320px)]',
       'max-w-none'
     );
-    expect(primaryDesktopImage).not.toHaveClass(
-      'object-cover',
-      'object-center'
-    );
+    expect(leftImage).not.toHaveClass('object-cover', 'object-center');
 
-    const rightDesktopImage = screen.getByTestId('homepage-hero-desktop-right');
-    expect(rightDesktopImage).toHaveAttribute('alt', '');
-    expect(rightDesktopImage).toHaveClass(
-      'absolute',
-      'top-0',
-      'right-0',
-      'h-auto',
-      'w-[clamp(760px,calc(100vw-264px),1320px)]',
-      'max-w-none'
-    );
-
-    const tabletLeft = screen.getByTestId('homepage-hero-tablet-left');
-    const tabletRight = screen.getByTestId('homepage-hero-tablet-right');
-    expect(tabletLeft).toHaveClass('h-full', 'max-h-[532px]', 'w-auto');
-    expect(tabletRight).toHaveClass(
+    const rightImage = screen.getByTestId('homepage-hero-artwork-right');
+    expect(rightImage).toHaveAttribute('alt', '');
+    expect(rightImage).toHaveAttribute('loading', 'eager');
+    expect(rightImage).not.toHaveAttribute('fetchpriority');
+    expect(rightImage).toHaveClass(
       'absolute',
       'top-0',
       'right-0',
       'h-full',
       'max-h-[532px]',
-      'w-auto'
+      'w-auto',
+      'lg:h-auto',
+      'lg:max-h-none',
+      'lg:w-[clamp(720px,calc(100vw-304px),1320px)]',
+      'max-w-none'
     );
 
-    const mobileLeft = screen.getByTestId('homepage-hero-mobile-left');
-    const mobileRight = screen.getByTestId('homepage-hero-mobile-right');
-    expect(mobileLeft).toHaveClass('h-full', 'max-h-[532px]', 'w-auto');
-    expect(mobileRight).toHaveClass(
-      'absolute',
-      'top-0',
-      'right-0',
-      'h-full',
-      'max-h-[532px]',
-      'w-auto'
-    );
+    for (const picture of Array.from(container.querySelectorAll('picture'))) {
+      const sources = picture.querySelectorAll('source');
+      expect(sources).toHaveLength(2);
+      expect(sources[0]).toHaveAttribute('media', '(min-width: 1024px)');
+      expect(sources[0]).toHaveAttribute(
+        'sizes',
+        '(min-width: 1624px) 1320px, calc(100vw - 304px)'
+      );
+      expect(sources[0].getAttribute('srcset')).toContain(
+        'home-page-hero.webp'
+      );
+      expect(sources[1]).toHaveAttribute('media', '(min-width: 640px)');
+      expect(sources[1].getAttribute('srcset')).toContain(
+        '/landing/home-page-hero-md.svg'
+      );
+    }
   });
 
   it.each([

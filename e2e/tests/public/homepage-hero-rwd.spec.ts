@@ -24,16 +24,37 @@ interface HeroLayoutMetrics {
   ctaRect: BoxRect;
   headingFontSize: string;
   subtitleFontSize: string;
-  desktopLeftRect: BoxRect | null;
-  desktopRightRect: BoxRect | null;
-  tabletLeftRect: BoxRect | null;
-  tabletRightRect: BoxRect | null;
+  leftClipRect: BoxRect | null;
+  rightClipRect: BoxRect | null;
+  artworkLeftRect: BoxRect | null;
+  artworkRightRect: BoxRect | null;
 }
 
 function boxesOverlap(a: BoxRect, b: BoxRect): boolean {
   return (
     a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
   );
+}
+
+async function waitForHeroArtworkLoaded(
+  page: Page,
+  expectedAsset: string
+): Promise<void> {
+  await page.waitForFunction((asset: string) => {
+    const selectors = [
+      '[data-testid="homepage-hero-artwork-left"]',
+      '[data-testid="homepage-hero-artwork-right"]',
+    ];
+    return selectors.every((selector) => {
+      const el = document.querySelector(selector);
+      if (!(el instanceof HTMLImageElement)) return false;
+      const rect = el.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return false;
+      if (!el.complete || el.naturalWidth <= 0) return false;
+      const resolvedSrc = decodeURIComponent(el.currentSrc || el.src);
+      return resolvedSrc.includes(asset);
+    });
+  }, expectedAsset);
 }
 
 async function collectHeroMetrics(page: Page): Promise<HeroLayoutMetrics> {
@@ -81,17 +102,17 @@ async function collectHeroMetrics(page: Page): Promise<HeroLayoutMetrics> {
       ctaRect,
       headingFontSize: window.getComputedStyle(headingEl).fontSize,
       subtitleFontSize: window.getComputedStyle(subtitleEl).fontSize,
-      desktopLeftRect: toRect(
-        document.querySelector('[data-testid="homepage-hero-desktop-left"]')
+      leftClipRect: toRect(
+        document.querySelector('[data-testid="homepage-hero-clip-left"]')
       ),
-      desktopRightRect: toRect(
-        document.querySelector('[data-testid="homepage-hero-desktop-right"]')
+      rightClipRect: toRect(
+        document.querySelector('[data-testid="homepage-hero-clip-right"]')
       ),
-      tabletLeftRect: toRect(
-        document.querySelector('[data-testid="homepage-hero-tablet-left"]')
+      artworkLeftRect: toRect(
+        document.querySelector('[data-testid="homepage-hero-artwork-left"]')
       ),
-      tabletRightRect: toRect(
-        document.querySelector('[data-testid="homepage-hero-tablet-right"]')
+      artworkRightRect: toRect(
+        document.querySelector('[data-testid="homepage-hero-artwork-right"]')
       ),
     };
   });
@@ -101,13 +122,12 @@ function assertDesktopAvatarsUncroppedAndClear(
   metrics: HeroLayoutMetrics
 ): void {
   const {
-    desktopLeftRect,
-    desktopRightRect,
+    artworkLeftRect: desktopLeftRect,
+    artworkRightRect: desktopRightRect,
     heroRect,
     headingRect,
     subtitleRect,
     ctaRect,
-    viewportWidth,
   } = metrics;
 
   expect(desktopLeftRect).not.toBeNull();
@@ -141,18 +161,18 @@ function assertDesktopAvatarsUncroppedAndClear(
     height: 0.2 * desktopRightRect.height,
   };
 
-  const leftClipLimit = Math.min(viewportWidth / 2, 660);
-  const rightClipStart = viewportWidth - Math.min(viewportWidth / 2, 660);
+  const leftClipLimit = heroRect.left + Math.min(heroRect.width / 2, 660);
+  const rightClipStart = heroRect.right - Math.min(heroRect.width / 2, 660);
 
   for (const avatar of [topLeftWoman, middleLeftWoman]) {
-    expect(avatar.left).toBeGreaterThanOrEqual(0);
+    expect(avatar.left).toBeGreaterThanOrEqual(heroRect.left);
     expect(avatar.right).toBeLessThanOrEqual(leftClipLimit);
     expect(avatar.top).toBeGreaterThanOrEqual(heroRect.top);
     expect(avatar.bottom).toBeLessThanOrEqual(heroRect.bottom);
   }
 
   expect(topRightMan.left).toBeGreaterThanOrEqual(rightClipStart);
-  expect(topRightMan.right).toBeLessThanOrEqual(viewportWidth);
+  expect(topRightMan.right).toBeLessThanOrEqual(heroRect.right);
   expect(topRightMan.top).toBeGreaterThanOrEqual(heroRect.top);
   expect(topRightMan.bottom).toBeLessThanOrEqual(heroRect.bottom);
 
@@ -167,8 +187,8 @@ function assertTabletAvatarsUncroppedAndClear(
   metrics: HeroLayoutMetrics
 ): void {
   const {
-    tabletLeftRect,
-    tabletRightRect,
+    artworkLeftRect: tabletLeftRect,
+    artworkRightRect: tabletRightRect,
     heroRect,
     headingRect,
     subtitleRect,
@@ -213,6 +233,47 @@ function assertTabletAvatarsUncroppedAndClear(
   }
 }
 
+function assertMobileArtworkAnchoredAndContained(
+  metrics: HeroLayoutMetrics
+): void {
+  const {
+    artworkLeftRect: mobileLeftRect,
+    artworkRightRect: mobileRightRect,
+    leftClipRect,
+    rightClipRect,
+    heroRect,
+    ctaRect,
+  } = metrics;
+
+  expect(mobileLeftRect).not.toBeNull();
+  expect(mobileRightRect).not.toBeNull();
+  expect(leftClipRect).not.toBeNull();
+  expect(rightClipRect).not.toBeNull();
+  if (!mobileLeftRect || !mobileRightRect || !leftClipRect || !rightClipRect) {
+    return;
+  }
+
+  expect(Math.abs(mobileLeftRect.left - heroRect.left)).toBeLessThanOrEqual(1);
+  expect(Math.abs(mobileRightRect.right - heroRect.right)).toBeLessThanOrEqual(
+    1
+  );
+  expect(mobileLeftRect.top).toBeGreaterThanOrEqual(heroRect.top - 1);
+  expect(mobileLeftRect.bottom).toBeLessThanOrEqual(heroRect.bottom + 1);
+  expect(mobileRightRect.top).toBeGreaterThanOrEqual(heroRect.top - 1);
+  expect(mobileRightRect.bottom).toBeLessThanOrEqual(heroRect.bottom + 1);
+
+  const mobileClipLimit = Math.min(heroRect.width / 2, 180);
+  expect(leftClipRect.right).toBeLessThanOrEqual(
+    heroRect.left + mobileClipLimit + 1
+  );
+  expect(rightClipRect.left).toBeGreaterThanOrEqual(
+    heroRect.right - mobileClipLimit - 1
+  );
+
+  expect(ctaRect.left).toBeGreaterThanOrEqual(heroRect.left + 16);
+  expect(ctaRect.right).toBeLessThanOrEqual(heroRect.right - 16);
+}
+
 function assertVerticalBalanceAndNoHorizontalScroll(
   metrics: HeroLayoutMetrics,
   options: { requireAboveFoldCta?: boolean } = {}
@@ -231,11 +292,13 @@ function assertVerticalBalanceAndNoHorizontalScroll(
 }
 
 test.describe('首頁 Hero 多尺寸 RWD 與瀏覽器縮放等價 Viewport 回歸測試 (#892)', () => {
-  test('Desktop 與縮小縮放等價尺寸（1024px–2560px）人物頭像完整顯示、字級無跳變且短視窗首屏可見 CTA', async ({
+  test('Desktop 與縮小縮放等價尺寸（1024px–2560px 含極矮視窗）人物頭像完整顯示、字級無跳變且短視窗首屏可見 CTA', async ({
     page,
   }) => {
     const desktopViewports = [
+      { width: 1024, height: 550, evidence: null },
       { width: 1024, height: 768, evidence: 'homepage-hero-1024x768-guest' },
+      { width: 1280, height: 600, evidence: null },
       { width: 1280, height: 720, evidence: null },
       { width: 1440, height: 900, evidence: 'homepage-hero-1440x900-guest' },
       { width: 1536, height: 864, evidence: null },
@@ -252,6 +315,7 @@ test.describe('首頁 Hero 多尺寸 RWD 與瀏覽器縮放等價 Viewport 回�
       await expect(cta).toBeVisible();
       await expect(cta).toHaveText('加入 X-Talent');
 
+      await waitForHeroArtworkLoaded(page, 'home-page-hero.webp');
       const metrics = await collectHeroMetrics(page);
       assertVerticalBalanceAndNoHorizontalScroll(metrics, {
         requireAboveFoldCta: true,
@@ -331,6 +395,10 @@ test.describe('首頁 Hero 多尺寸 RWD 與瀏覽器縮放等價 Viewport 回�
       await expect(cta).toBeVisible();
       await expect(cta).toHaveText('加入 X-Talent');
 
+      await waitForHeroArtworkLoaded(
+        page,
+        vp.hasTabletSvg ? 'home-page-hero-md.svg' : 'home-page-hero-sm.svg'
+      );
       const metrics = await collectHeroMetrics(page);
       assertVerticalBalanceAndNoHorizontalScroll(metrics, {
         requireAboveFoldCta: vp.aboveFold,
@@ -339,10 +407,7 @@ test.describe('首頁 Hero 多尺寸 RWD 與瀏覽器縮放等價 Viewport 回�
       if (vp.hasTabletSvg) {
         assertTabletAvatarsUncroppedAndClear(metrics);
       } else {
-        expect(metrics.ctaRect.left).toBeGreaterThanOrEqual(16);
-        expect(metrics.ctaRect.right).toBeLessThanOrEqual(
-          metrics.viewportWidth - 16
-        );
+        assertMobileArtworkAnchoredAndContained(metrics);
       }
 
       if (vp.evidence) {
@@ -369,6 +434,7 @@ test.describe('首頁 Hero 多尺寸 RWD 與瀏覽器縮放等價 Viewport 回�
     await page.goto('/');
 
     const memberViewports = [
+      { width: 1280, height: 600, mode: 'desktop', evidence: null },
       {
         width: 1280,
         height: 720,
@@ -388,6 +454,14 @@ test.describe('首頁 Hero 多尺寸 RWD 與瀏覽器縮放等價 Viewport 回�
       await expect(cta).toHaveText('尋找導師');
       await expect(cta).toHaveAttribute('href', '/mentor-pool');
 
+      const expectedAsset =
+        vp.mode === 'desktop'
+          ? 'home-page-hero.webp'
+          : vp.mode === 'tablet'
+            ? 'home-page-hero-md.svg'
+            : 'home-page-hero-sm.svg';
+      await waitForHeroArtworkLoaded(page, expectedAsset);
+
       const metrics = await collectHeroMetrics(page);
       assertVerticalBalanceAndNoHorizontalScroll(metrics, {
         requireAboveFoldCta: true,
@@ -397,6 +471,8 @@ test.describe('首頁 Hero 多尺寸 RWD 與瀏覽器縮放等價 Viewport 回�
         assertDesktopAvatarsUncroppedAndClear(metrics);
       } else if (vp.mode === 'tablet') {
         assertTabletAvatarsUncroppedAndClear(metrics);
+      } else {
+        assertMobileArtworkAnchoredAndContained(metrics);
       }
 
       if (vp.evidence) {
