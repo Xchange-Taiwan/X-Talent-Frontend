@@ -116,11 +116,18 @@ export default function FavoritesPageUI({
                 aria-hidden="true"
               />
             </div>
-            <p className="text-text-primary text-xl font-semibold md:text-2xl">
+            <p className="text-text-secondary text-base font-medium">
               還沒有收藏的導師
             </p>
             <Button asChild size="lg" className="mt-2">
-              <Link href={FIND_MENTOR_HREF}>尋找導師</Link>
+              <Link
+                href={FIND_MENTOR_HREF}
+                data-analytics-click="favorites_empty_explore_mentors"
+                data-analytics-feature="favorites"
+                data-analytics-location="favorites_empty_state"
+              >
+                尋找導師
+              </Link>
             </Button>
           </div>
         )}

@@ -19,6 +19,7 @@ import {
 
 import {
   FAVORITE_SELF_BLOCKED_TOAST_MESSAGE,
+  toMentorSnapshot,
   useConsumePendingFavorite,
   type UseConsumePendingFavoriteOptions,
 } from './useConsumePendingFavorite';
@@ -339,5 +340,27 @@ describe('useConsumePendingFavorite', () => {
     expect(addMock).toHaveBeenCalledTimes(1);
     expect(addMock).toHaveBeenCalledWith(101);
     expect(getPendingFavoriteMentorId()).toBeNull();
+  });
+
+  it('maps UserType fields and tag display labels into a complete MentorType snapshot', () => {
+    const mentorData = buildMentorUserData({
+      user_id: 303,
+      name: 'Zahra Mirzakhani',
+      job_title: 'Senior UX Designer',
+      company: 'CreativeUX',
+      about: 'Design systems mentor',
+    });
+
+    const snapshot = toMentorSnapshot(mentorData);
+
+    expect(snapshot).toMatchObject({
+      user_id: 303,
+      name: 'Zahra Mirzakhani',
+      job_title: 'Senior UX Designer',
+      company: 'CreativeUX',
+      about: 'Design systems mentor',
+      have_skill: ['產品設計'],
+      have_topic: ['職涯規劃'],
+    });
   });
 });

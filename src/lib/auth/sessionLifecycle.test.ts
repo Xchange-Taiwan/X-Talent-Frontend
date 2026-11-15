@@ -353,6 +353,27 @@ describe('sessionLifecycle (#885)', () => {
       });
 
       expect(navigate).toHaveBeenCalledWith('/auth/onboarding');
+
+      // Case 3: pendingFavoriteMentor without explicit callbackUrl -> routes to /profile/:id and retains pending favorite
+      navigate.mockClear();
+      savePendingFavoriteMentor(101);
+      await signInWithCredentials(validCredentials, {
+        signIn,
+        getSession: vi.fn().mockResolvedValue(
+          fromPartial<Session>({
+            accessToken: 'jwt_3',
+            user: { id: '79', onBoarding: true, isMentor: false },
+          })
+        ),
+        navigate,
+        currentOrigin: 'https://xtalent.tw',
+        storage,
+        setAnalyticsUserContext,
+        trackEvent,
+      });
+
+      expect(navigate).toHaveBeenCalledWith('/profile/101');
+      expect(getPendingFavoriteMentorId()).toBe(101);
     });
 
     it('resolves pendingFavoriteMentor redirect, preserves intent during onboarding, and clears stale intent on conflicting callbackUrl (#756)', async () => {

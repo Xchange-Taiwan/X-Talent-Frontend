@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from '@/components/ui/use-toast';
 import { trackEvent } from '@/lib/analytics';
 import { savePendingFavoriteMentor } from '@/lib/favorites';
 import { favoriteMentorStore } from '@/stores/favoriteMentorStore';
@@ -53,7 +53,6 @@ export function useFavoriteMentor({
   const { confirmedUserId, isIdentityUnresolved, isAuthenticated } =
     useFavoriteSessionAuth();
   const router = useOptionalRouter();
-  const { toast } = useToast();
 
   useEffect(() => {
     if (confirmedUserId) {
@@ -139,15 +138,14 @@ export function useFavoriteMentor({
       });
     }
   }, [
+    feature,
     isSelf,
     isIdentityUnresolved,
     isAuthenticated,
     confirmedUserId,
-    feature,
     mentorId,
     mentorSnapshot,
     router,
-    toast,
   ]);
 
   return {

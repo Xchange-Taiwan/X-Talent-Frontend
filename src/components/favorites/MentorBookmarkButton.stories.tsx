@@ -44,6 +44,7 @@ const meta: Meta<typeof SeededBookmarkPreview> = {
   args: {
     mentorId: 101,
     mentorName: '陳宥廷 Austin',
+    feature: 'mentor_pool',
     variant: 'overlay',
     tooltipSide: 'top',
     tooltipAlign: 'center',
@@ -70,6 +71,7 @@ export const FavoritedOverlay: Story = {
 export const ProfileHeaderOutline: Story = {
   args: {
     initialFavorited: false,
+    feature: 'profile',
     variant: 'outline',
   },
 };
@@ -77,6 +79,7 @@ export const ProfileHeaderOutline: Story = {
 export const ProfileHeaderOutlineFavorited: Story = {
   args: {
     initialFavorited: true,
+    feature: 'profile',
     variant: 'outline',
   },
 };
@@ -84,10 +87,17 @@ export const ProfileHeaderOutlineFavorited: Story = {
 export const GuestUnauthenticated: Story = {
   parameters: {
     nextAuth: { session: null },
+    docs: {
+      description: {
+        story:
+          '未登入訪客點擊書籤時，會寫入 30 分鐘 TTL 的 pendingFavoriteStorage 並導向 `/auth/signin?callbackUrl=/profile/:id`。',
+      },
+    },
   },
   args: {
     userId: null,
     initialFavorited: false,
+    feature: 'profile',
     variant: 'outline',
   },
 };

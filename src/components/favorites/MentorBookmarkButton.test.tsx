@@ -5,6 +5,7 @@ import { Profiler, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Toaster } from '@/components/ui/toaster';
+import { clearToasts } from '@/components/ui/use-toast';
 import { FAVORITE_MENTOR_ERROR_TOAST_MESSAGE } from '@/hooks/favorites';
 import * as analyticsModule from '@/lib/analytics';
 import { getPendingFavoriteMentorId } from '@/lib/favorites';
@@ -80,6 +81,7 @@ describe('MentorBookmarkButton', () => {
 
   beforeEach(() => {
     window.localStorage.clear();
+    clearToasts();
     resetFavoriteMentorStore();
     vi.clearAllMocks();
     document.cookie = 'session-hint=; path=/; max-age=0';
@@ -93,7 +95,7 @@ describe('MentorBookmarkButton', () => {
     });
   });
 
-  it('toggles icon fill/color, updates aria-label & tooltip, stops card propagation, and fires analytics without PII', async () => {
+  it('toggles icon fill/color, updates aria-label & tooltip, stops card propagation, and fires analytics without PII or duplicate declarative attributes', async () => {
     const user = userEvent.setup();
     const onParentCardClick = vi.fn();
     const trackEventSpy = vi.spyOn(analyticsModule, 'trackEvent');
@@ -113,11 +115,15 @@ describe('MentorBookmarkButton', () => {
 
     const button = screen.getByRole('button', { name: '收藏 陳宥廷 Austin' });
     expect(button).toHaveAttribute('aria-pressed', 'false');
+    expect(button).toHaveClass('border-background-border/60');
+    expect(button).toHaveClass('bg-background-white/90');
     expect(button).not.toHaveAttribute('data-analytics-event');
+    expect(button).not.toHaveAttribute('data-analytics-feature');
     expect(button.textContent).toBe('');
 
     const svgBefore = button.querySelector('svg');
     expect(svgBefore).not.toHaveClass('fill-current');
+    expect(svgBefore).toHaveClass('hover:text-text-primary');
 
     // Hover reveals accessible tooltip
     await user.hover(button);
@@ -139,6 +145,7 @@ describe('MentorBookmarkButton', () => {
       screen.queryByText(FAVORITE_MENTOR_ERROR_TOAST_MESSAGE)
     ).not.toBeInTheDocument();
 
+    expect(trackEventSpy).toHaveBeenCalledTimes(1);
     expect(trackEventSpy).toHaveBeenCalledWith({
       name: 'mentor_bookmark_toggle',
       feature: 'mentor_pool',
@@ -164,27 +171,92 @@ describe('MentorBookmarkButton', () => {
     });
   });
 
-  it('rolls back icon state and shows destructive toast when API mutation fails', async () => {
+  it('supports keyboard Tab focus and Enter / Space activation to toggle aria-pressed, aria-label, and mentor_bookmark_toggle without triggering outer container', async () => {
     const user = userEvent.setup();
-    addMock.mockRejectedValueOnce(new Error('500 Internal Error'));
+    const onParentCardClick = vi.fn();
+    const onParentCardKeyDown = vi.fn();
+    const onParentCardKeyUp = vi.fn();
+    const trackEventSpy = vi.spyOn(analyticsModule, 'trackEvent');
     favoriteMentorStore.seedFavorites('999', []);
 
     renderWithSession(
-      <MentorBookmarkButton mentorId={101} mentorName="陳宥廷 Austin" />
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label="導師卡片外層容器"
+        onClick={onParentCardClick}
+        onKeyDown={onParentCardKeyDown}
+        onKeyUp={onParentCardKeyUp}
+      >
+        <MentorBookmarkButton mentorId={101} mentorName="陳宥廷 Austin" />
+      </div>
     );
 
+    const outerContainer = screen.getByRole('button', {
+      name: '導師卡片外層容器',
+    });
     const button = screen.getByRole('button', { name: '收藏 陳宥廷 Austin' });
-    await user.click(button);
 
+    await user.tab();
+    expect(outerContainer).toHaveFocus();
+
+    await user.tab();
+    expect(button).toHaveFocus();
+    expect(screen.getByRole('tooltip')).toHaveTextContent('收藏 陳宥廷 Austin');
+    expect(onParentCardClick).not.toHaveBeenCalled();
+    onParentCardKeyDown.mockClear();
+    onParentCardKeyUp.mockClear();
+
+    await user.keyboard('{Enter}');
+
+    expect(onParentCardClick).not.toHaveBeenCalled();
+    expect(onParentCardKeyDown).not.toHaveBeenCalled();
+    expect(onParentCardKeyUp).not.toHaveBeenCalled();
+    const favoritedButton = screen.getByRole('button', {
+      name: '取消收藏 陳宥廷 Austin',
+    });
+    expect(favoritedButton).toHaveFocus();
+    expect(favoritedButton).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('tooltip')).toHaveTextContent(
+      '取消收藏 陳宥廷 Austin'
+    );
     await waitFor(() => {
-      expect(
-        screen.getByRole('button', { name: '收藏 陳宥廷 Austin' })
-      ).toHaveAttribute('aria-pressed', 'false');
+      expect(favoritedButton).not.toHaveAttribute('aria-busy');
+    });
+    expect(addMock).toHaveBeenCalledWith(101);
+    expect(trackEventSpy).toHaveBeenCalledTimes(1);
+    expect(trackEventSpy).toHaveBeenLastCalledWith({
+      name: 'mentor_bookmark_toggle',
+      feature: 'mentor_pool',
+      metadata: {
+        mentor_id: 101,
+        action: 'add',
+      },
     });
 
-    expect(
-      await screen.findByText(FAVORITE_MENTOR_ERROR_TOAST_MESSAGE)
-    ).toBeVisible();
+    await user.keyboard(' ');
+
+    expect(onParentCardClick).not.toHaveBeenCalled();
+    expect(onParentCardKeyDown).not.toHaveBeenCalled();
+    expect(onParentCardKeyUp).not.toHaveBeenCalled();
+    const unfavoritedButton = screen.getByRole('button', {
+      name: '收藏 陳宥廷 Austin',
+    });
+    expect(unfavoritedButton).toHaveFocus();
+    expect(unfavoritedButton).toHaveAttribute('aria-pressed', 'false');
+    await waitFor(() => {
+      expect(unfavoritedButton).not.toHaveAttribute('aria-busy');
+    });
+    expect(removeMock).toHaveBeenCalledWith(101);
+    expect(trackEventSpy).toHaveBeenCalledTimes(2);
+    expect(trackEventSpy).toHaveBeenLastCalledWith({
+      name: 'mentor_bookmark_toggle',
+      feature: 'mentor_pool',
+      metadata: {
+        mentor_id: 101,
+        action: 'remove',
+      },
+    });
   });
 
   it('persists pendingFavoriteMentor in localStorage and redirects unauthenticated guest to /auth/signin with encoded profile callbackUrl without firing toggle analytics (#756)', async () => {
@@ -228,10 +300,17 @@ describe('MentorBookmarkButton', () => {
       </>
     );
 
-    await user.click(
-      screen.getByRole('button', { name: '收藏 陳宥廷 Austin' })
-    );
+    const profileButton = screen.getByRole('button', {
+      name: '收藏 陳宥廷 Austin',
+    });
+    expect(profileButton).toHaveClass('border-background-border');
+    expect(profileButton).toHaveClass('bg-background-white');
 
+    await user.click(profileButton);
+
+    expect(
+      screen.getByRole('button', { name: '取消收藏 陳宥廷 Austin' })
+    ).toHaveAttribute('aria-pressed', 'true');
     expect(trackEventSpy).toHaveBeenCalledWith({
       name: 'mentor_bookmark_toggle',
       feature: 'profile',
@@ -281,6 +360,29 @@ describe('MentorBookmarkButton', () => {
 
     expect(favoriteMentorStore.isFavorited(202)).toBe(true);
     expect(renderCount).toBe(baselineRenders);
+  });
+
+  it('rolls back icon state and shows destructive toast when API mutation fails', async () => {
+    const user = userEvent.setup();
+    addMock.mockRejectedValueOnce(new Error('500 Internal Error'));
+    favoriteMentorStore.seedFavorites('999', []);
+
+    renderWithSession(
+      <MentorBookmarkButton mentorId={101} mentorName="陳宥廷 Austin" />
+    );
+
+    const button = screen.getByRole('button', { name: '收藏 陳宥廷 Austin' });
+    await user.click(button);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: '收藏 陳宥廷 Austin' })
+      ).toHaveAttribute('aria-pressed', 'false');
+    });
+
+    expect(
+      await screen.findByText(FAVORITE_MENTOR_ERROR_TOAST_MESSAGE)
+    ).toBeVisible();
   });
 
   it('renders nothing when logged-in mentor views their own mentor card/profile', () => {
@@ -342,5 +444,35 @@ describe('MentorBookmarkButton', () => {
         screen.getByRole('button', { name: '取消收藏 陳宥廷 Austin' })
       ).not.toHaveAttribute('aria-busy');
     });
+  });
+
+  it('suppresses failure toast when an in-flight favorite mutation rejects after logout', async () => {
+    const user = userEvent.setup();
+    let rejectPut!: (reason?: unknown) => void;
+    addMock.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectPut = reject;
+        })
+    );
+    favoriteMentorStore.seedFavorites('999', []);
+
+    renderWithSession(
+      <MentorBookmarkButton mentorId={101} mentorName="陳宥廷 Austin" />
+    );
+
+    const button = screen.getByRole('button', { name: '收藏 陳宥廷 Austin' });
+    await user.click(button);
+
+    await favoriteMentorStore.syncUser(null);
+    rejectPut(new Error('Aborted on logout'));
+
+    await waitFor(() => {
+      expect(favoriteMentorStore.getState().pendingMentorIds.size).toBe(0);
+    });
+
+    expect(
+      screen.queryByText(FAVORITE_MENTOR_ERROR_TOAST_MESSAGE)
+    ).not.toBeInTheDocument();
   });
 });

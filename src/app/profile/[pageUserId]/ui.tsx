@@ -19,6 +19,7 @@ import { platformLabelMap } from '@/components/profile/social-links/platformLabe
 import { ProfileBadgeSection } from '@/components/profile/view/ProfileBadgeSection';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toMentorSnapshot } from '@/hooks/favorites';
 import type { MentorFeedbackState } from '@/hooks/user/feedback/useMentorFeedback';
 import { UserType } from '@/hooks/user/user-data/useUserData';
 import { resolveLocationLabel } from '@/lib/mentor/mentorStats';
@@ -237,6 +238,11 @@ export default function ProfilePageUI({
     return normalized ? `#${normalized}` : null;
   }, [userData]);
 
+  const mentorSnapshot = useMemo(
+    () => (userData?.is_mentor ? toMentorSnapshot(userData) : undefined),
+    [userData]
+  );
+
   return (
     <div>
       <ProfileBanner />
@@ -299,6 +305,7 @@ export default function ProfilePageUI({
                     <MentorBookmarkButton
                       mentorId={userData.user_id}
                       mentorName={userData.name}
+                      mentorSnapshot={mentorSnapshot}
                       feature="profile"
                       variant="outline"
                       tooltipSide="top"

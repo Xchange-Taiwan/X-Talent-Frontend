@@ -192,24 +192,19 @@ describe('favoriteMentorStore', () => {
     const deleteSettledAdd = createDeferred<void>();
 
     fetchMock.mockReturnValueOnce(initialFetch.promise);
-    // 1st PUT (mentor 101, actually already favorited on server) stays in flight until after GET resolves, then fails
     addMock.mockReturnValueOnce(putAlreadyOnServer.promise);
-    // 2nd PUT (mentor 303, not on server) stays in flight until after GET resolves, then fails
     addMock.mockReturnValueOnce(putNewMentor.promise);
-    // 3rd PUT (mentor 404) settles immediately while GET is still in flight, then user removes 404 while GET is still in flight
     addMock.mockResolvedValueOnce(undefined);
     removeMock.mockReturnValueOnce(deleteSettledAdd.promise);
 
     const syncPromise = favoriteMentorStore.syncUser('user-1');
 
-    // Trigger optimistic add for 101 and 303 before initial GET settles
     const toggle101Promise = favoriteMentorStore.toggleFavorite(101);
     const toggle303Promise = favoriteMentorStore.toggleFavorite(
       303,
       buildMentor({ user_id: 303, name: 'Zahra' })
     );
 
-    // Add 404 (settles) and then optimistically remove 404 while initial GET is still in flight
     await favoriteMentorStore.toggleFavorite(
       404,
       buildMentor({ user_id: 404, name: 'Settled Mentor' })
@@ -220,7 +215,6 @@ describe('favoriteMentorStore', () => {
     expect(favoriteMentorStore.isFavorited(303)).toBe(true);
     expect(favoriteMentorStore.isFavorited(404)).toBe(false);
 
-    // Initial GET resolves: server actually has 101 and 404 favorited, plus 202
     initialFetch.resolve([
       buildMentor({ user_id: 101, name: 'Server Austin' }),
       buildMentor({ user_id: 202, name: 'Server Mentor 202' }),
@@ -228,13 +222,11 @@ describe('favoriteMentorStore', () => {
     ]);
     await syncPromise;
 
-    // Optimistic states must not be clobbered by initial GET completion
     expect(favoriteMentorStore.isFavorited(101)).toBe(true);
     expect(favoriteMentorStore.isFavorited(202)).toBe(true);
     expect(favoriteMentorStore.isFavorited(303)).toBe(true);
     expect(favoriteMentorStore.isFavorited(404)).toBe(false);
 
-    // Now PUT 101 fails — must roll back to server truth (TRUE + Server Austin), NOT stale pre-GET false!
     putAlreadyOnServer.reject(new Error('500 Transient Failure'));
     const outcome101 = await toggle101Promise;
     expect(outcome101.status).toBe('failed');
@@ -247,7 +239,6 @@ describe('favoriteMentorStore', () => {
         .favoriteMentors.find((mentor) => mentor.user_id === 101)?.name
     ).toBe('Server Austin');
 
-    // PUT 303 fails — not on server, so rolls back to false
     putNewMentor.reject(new Error('500 Transient Failure'));
     const outcome303 = await toggle303Promise;
     expect(outcome303.status).toBe('failed');
@@ -255,7 +246,6 @@ describe('favoriteMentorStore', () => {
     expect(favoriteMentorStore.isFavorited(303)).toBe(false);
     expect(favoriteMentorStore.isPending(303)).toBe(false);
 
-    // DELETE 404 settles — remains removed
     deleteSettledAdd.resolve();
     const outcome404 = await remove404Promise;
     expect(outcome404).toEqual({ status: 'removed', nextFavorited: false });
@@ -276,7 +266,6 @@ describe('favoriteMentorStore', () => {
       buildMentor({ user_id: 101, name: 'User 1 Mentor' })
     );
 
-    // Switch to user-2 while user-1 GET and PUT are still in flight
     fetchMock.mockResolvedValueOnce([
       buildMentor({ user_id: 202, name: 'User 2 Mentor' }),
     ]);
@@ -306,7 +295,6 @@ describe('favoriteMentorStore', () => {
         .favoriteMentors.map((mentor) => mentor.user_id)
     ).toEqual([202]);
 
-    // Start a pending toggle on user-2, then log out before it resolves
     addMock.mockReturnValueOnce(user2Put.promise);
     const toggleUser2 = favoriteMentorStore.toggleFavorite(
       303,

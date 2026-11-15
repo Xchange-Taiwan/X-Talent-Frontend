@@ -1,7 +1,7 @@
 'use client';
 
 import { Bookmark } from 'lucide-react';
-import type { MouseEvent } from 'react';
+import type { KeyboardEvent, MouseEvent } from 'react';
 
 import {
   Tooltip,
@@ -66,6 +66,18 @@ export function MentorBookmarkButton({
     void handleToggleFavorite();
   };
 
+  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.stopPropagation();
+    }
+  };
+
+  const handleKeyUp = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.stopPropagation();
+    }
+  };
+
   return (
     <Tooltip
       content={actionLabel}
@@ -81,6 +93,8 @@ export function MentorBookmarkButton({
         aria-pressed={isFavorited}
         aria-busy={isPending || undefined}
         onClick={handleClick}
+        onKeyDown={handleKeyDown}
+        onKeyUp={handleKeyUp}
         className={cn(
           'inline-flex size-10 shrink-0 items-center justify-center rounded-full transition-colors',
           variant === 'overlay'

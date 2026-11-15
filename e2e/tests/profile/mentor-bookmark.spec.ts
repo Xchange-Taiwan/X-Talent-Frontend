@@ -184,17 +184,29 @@ async function setupCommonSupportRoutes(page: Page) {
     },
   });
 
-  await mockApiRoute(page, /\/v1\/notifications\/unread-count/, {
-    body: { code: '0', msg: 'ok', data: { unread_count: 0 } },
-  });
+  await mockApiRoute(
+    page,
+    /\/v1\/(?:users\/[^/]+\/)?notifications\/unread-count/,
+    {
+      body: { code: '0', msg: 'ok', data: { unread_count: 0 } },
+    }
+  );
 
-  await mockApiRoute(page, /\/v1\/notifications(\?|$)/, {
+  await mockApiRoute(page, /\/v1\/(?:users\/[^/]+\/)?notifications(\?|$)/, {
     body: {
       code: '0',
       msg: 'ok',
       data: { notifications: [], next_cursor: null },
     },
   });
+
+  await mockApiRoute(
+    page,
+    /\/v1\/users\/[^/]+\/reservations\/pending-feedback$/,
+    {
+      body: { code: '0', msg: 'ok', data: { reservations: [] } },
+    }
+  );
 
   await mockApiRoute(
     page,

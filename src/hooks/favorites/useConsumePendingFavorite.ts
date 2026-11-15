@@ -20,7 +20,7 @@ export interface UseConsumePendingFavoriteOptions {
   userLoading: boolean;
 }
 
-function toMentorSnapshot(userData: UserType): MentorType {
+export function toMentorSnapshot(userData: UserType): MentorType {
   return {
     user_id: userData.user_id,
     name: userData.name,
