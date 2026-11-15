@@ -6,16 +6,13 @@ import {
 } from '@/lib/mentor/mentorStats';
 import {
   decode,
-  type EducationExperienceMetadata,
   type MentorExperiencePayload,
-  type PersonalLinkMetadata,
   type WorkExperienceMetadata,
 } from '@/lib/profile/experienceCodec';
 import { readIndustryTag } from '@/lib/profile/readIndustryTag';
 import { buildTagLabelMap } from '@/lib/profile/tagLabelMap';
-import type { MentorStats } from '@/types/mentor';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
-import type { MentorProfileVO } from '@/types/user';
+import type { MentorProfileVO, TagDisplay, UserType } from '@/types/user';
 
 import {
   clearUserProfileDtoCache,
@@ -24,40 +21,13 @@ import {
   useUserProfileDto,
 } from './useUserProfileDto';
 
+export type { TagDisplay, UserType };
+
 // Re-exported under the historical names so existing callers (e.g.
 // useProfileSubmit, useUserData.test) continue to work without churn.
 export const clearUserDataCache = clearUserProfileDtoCache;
 export const primeUserDataCache = primeUserProfileDtoCache;
 export const USER_DATA_CACHE_TTL_MS = USER_PROFILE_DTO_CACHE_TTL_MS;
-
-export interface TagDisplay {
-  subject_group: string;
-  subject: string;
-}
-
-export interface UserType {
-  user_id: number;
-  name: string;
-  avatar: string;
-  job_title: string;
-  company: string;
-  is_mentor: boolean;
-  about?: string;
-  personal_statement?: string;
-  years_of_experience?: string;
-  location?: string;
-  industry?: string;
-  industries?: TagDisplay[];
-  stats?: MentorStats | null;
-  want_position: TagDisplay[];
-  want_skill: TagDisplay[];
-  want_topic: TagDisplay[];
-  have_skill: TagDisplay[];
-  have_topic: TagDisplay[];
-  workExperiences?: WorkExperienceMetadata[];
-  educations?: EducationExperienceMetadata[];
-  personalLinks?: PersonalLinkMetadata[];
-}
 
 // Subject_group codes shipped by the BFF round-trip directly back to writes,
 // so resolve them to display labels via the localized catalog. Catalog miss
@@ -141,6 +111,11 @@ function parseUserDtoToUserType(
     workExperiences,
     labelMap
   );
+  const rawUpdatedAt = userDto.updated_at;
+  const updatedAt =
+    rawUpdatedAt === null || rawUpdatedAt === undefined || rawUpdatedAt === ''
+      ? null
+      : String(rawUpdatedAt);
 
   return {
     user_id: userDto.user_id,
@@ -156,9 +131,11 @@ function parseUserDtoToUserType(
           userDto.years_of_experience as keyof typeof TotalWorkSpanEnum
         ] ?? userDto.years_of_experience)
       : undefined,
+    seniority_level: userDto.seniority_level ?? '',
     location,
     industry: industrySubject,
     industries,
+    updated_at: updatedAt,
     stats: normalizeMentorStats(userDto),
     want_position: toTagDisplay(userDto.want_position, labelMap),
     want_skill: toTagDisplay(userDto.want_skill, labelMap),

@@ -32,16 +32,6 @@ export default function FavoritesPageContainer() {
   const tagCatalog = useTagCatalog('zh_TW');
   const labelMap = useMemo(() => buildTagLabelMap(tagCatalog), [tagCatalog]);
 
-  const mentors = useMemo(
-    () =>
-      favoriteMentors.map((mentor) => ({
-        ...mentor,
-        have_topic: mentor.have_topic.map((code) => labelMap.get(code) ?? code),
-        have_skill: mentor.have_skill.map((code) => labelMap.get(code) ?? code),
-      })),
-    [favoriteMentors, labelMap]
-  );
-
   const listStatus: FavoritesListStatus = useMemo(() => {
     if (!isStoreReadyForUser) {
       return 'loading';
@@ -49,8 +39,8 @@ export default function FavoritesPageContainer() {
     if (error) {
       return 'error';
     }
-    return mentors.length > 0 ? 'success' : 'empty';
-  }, [error, isStoreReadyForUser, mentors.length]);
+    return favoriteMentors.length > 0 ? 'success' : 'empty';
+  }, [error, favoriteMentors.length, isStoreReadyForUser]);
 
   const handleRetry = useCallback(() => {
     void retry();
@@ -58,8 +48,9 @@ export default function FavoritesPageContainer() {
 
   return (
     <FavoritesPageUI
-      mentors={mentors}
-      mentorCount={mentors.length}
+      mentors={favoriteMentors}
+      mentorCount={favoriteMentors.length}
+      labelMap={labelMap}
       listStatus={listStatus}
       onRetry={handleRetry}
     />

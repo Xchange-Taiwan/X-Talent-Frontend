@@ -4,7 +4,6 @@ import { AlertCircle, Bookmark } from 'lucide-react';
 import Link from 'next/link';
 
 import { MentorCard } from '@/components/mentor-pool/mentor-card';
-import { buildMentorCardTags } from '@/components/mentor-pool/mentor-card-list';
 import { Button } from '@/components/ui/button';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { FIND_MENTOR_HREF } from '@/lib/routes';
@@ -15,6 +14,7 @@ export type FavoritesListStatus = 'loading' | 'error' | 'empty' | 'success';
 export interface FavoritesPageUIProps {
   mentors: MentorType[];
   mentorCount: number;
+  labelMap?: ReadonlyMap<string, string>;
   listStatus: FavoritesListStatus;
   onRetry?: () => void;
 }
@@ -22,6 +22,7 @@ export interface FavoritesPageUIProps {
 export default function FavoritesPageUI({
   mentors,
   mentorCount,
+  labelMap,
   listStatus,
   onRetry,
 }: FavoritesPageUIProps) {
@@ -52,20 +53,9 @@ export default function FavoritesPageUI({
             {mentors.map((mentor, index) => (
               <MentorCard
                 key={mentor.user_id}
-                id={mentor.user_id}
-                avatar={mentor.avatar}
-                years={mentor.years_of_experience}
-                name={mentor.name}
-                job_title={mentor.job_title}
-                company={mentor.company}
-                about={mentor.about}
-                haveTopicLabels={buildMentorCardTags(mentor)}
-                ratingAverage={mentor.stats?.rating_average ?? null}
-                completedMeetingCount={
-                  mentor.stats?.completed_meeting_count ?? null
-                }
+                mentor={mentor}
+                labelMap={labelMap}
                 priority={index === 0}
-                mentorSnapshot={mentor}
                 feature="favorites"
                 analyticsLocation="favorites_list"
               />

@@ -4,9 +4,10 @@ import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import avatarImage from '@/assets/default-avatar.png';
+import { buildMentorCardTags } from '@/lib/mentor/mentorCardModel';
 import type { MentorType } from '@/types/mentor';
 
-import { buildMentorCardTags, MentorCardList } from './index';
+import { MentorCardList } from './index';
 
 function makeMentor(
   userId: number,
@@ -71,8 +72,6 @@ describe('buildMentorCardTags (#886)', () => {
   });
 
   it('does not match localized label strings when prioritizedCodes holds raw subject_group codes', () => {
-    // Only raw code `skill_typescript` is prioritized; passing localized label
-    // `'Figma'` in prioritizedCodes must not match raw code `'skill_figma'`.
     const tags = buildMentorCardTags(
       {
         have_topic: ['topic_career'],
@@ -99,7 +98,7 @@ describe('buildMentorCardTags (#886)', () => {
   });
 });
 
-describe('MentorCardList (#886)', () => {
+describe('MentorCardList (#886, #896)', () => {
   it('prioritizes active skill/topic filter badges by code and renders localized labels while ignoring industry badges', () => {
     const mentor = makeMentor(1, {
       have_topic: ['topic_career'],
@@ -135,7 +134,7 @@ describe('MentorCardList (#886)', () => {
     expect(renderedLabels).toEqual(['TypeScript', '職涯諮詢', 'Figma']);
   });
 
-  it('reuses cached tag label arrays per mentor across pagination appends so React.memo(MentorCard) props stay stable', () => {
+  it('preserves MentorCard referential stability across pagination appends', () => {
     const mentor1 = makeMentor(1);
     const mentor2 = makeMentor(2);
     const mentor3 = makeMentor(3);
@@ -174,7 +173,7 @@ describe('MentorCardList (#886)', () => {
     expect(articlesAfter[0]).toBe(firstCardBefore);
   });
 
-  it('supports comma-separated filter badge values and preserves tag cache across fresh activeFilterBadges array instances', () => {
+  it('supports comma-separated filter badge values and keeps prioritizedCodes Set reference stable across fresh activeFilterBadges array instances', () => {
     const mentor = makeMentor(1, {
       have_topic: ['topic_career'],
       have_skill: ['skill_figma', 'skill_typescript'],
@@ -202,7 +201,6 @@ describe('MentorCardList (#886)', () => {
       Array.from(displayContainer.children).map((el) => el.textContent)
     ).toEqual(['Figma', 'TypeScript', '職涯諮詢']);
 
-    // Rerender with a freshly allocated activeFilterBadges array containing the same codes
     rerender(
       <MentorCardList
         mentors={[mentor]}

@@ -187,4 +187,40 @@ describe('FavoritesPageUI', () => {
     await user.click(screen.getByRole('button', { name: '重新載入' }));
     expect(onRetryMock).toHaveBeenCalledTimes(1);
   });
+
+  it('projects localized tags via labelMap and guarantees non-empty fallback avatar when mentor avatar is empty (#896)', () => {
+    const codeMentors = [
+      {
+        ...mockMentors[0],
+        user_id: 201,
+        name: '林冠宇 Alex',
+        avatar: '',
+        have_topic: ['portfolio_review'],
+        have_skill: ['product_design'],
+      },
+    ];
+    favoriteMentorStore.seedFavorites('9001', codeMentors);
+
+    renderWithSession(
+      <FavoritesPageUI
+        mentors={codeMentors}
+        mentorCount={1}
+        labelMap={
+          new Map([
+            ['portfolio_review', '作品集健檢'],
+            ['product_design', '產品設計'],
+          ])
+        }
+        listStatus="success"
+      />
+    );
+
+    const avatarImg = screen.getByRole('img', { name: '林冠宇 Alex 的頭像' });
+    expect(avatarImg.getAttribute('src')).toBeTruthy();
+    expect(
+      Array.from(screen.getByTestId('display-container').children).map(
+        (el) => el.textContent
+      )
+    ).toEqual(['作品集健檢', '產品設計']);
+  });
 });

@@ -1003,13 +1003,15 @@ describe('ProfilePageUI - mentor bookmark button gating (#758)', () => {
       await waitFor(() => {
         expect(favoriteMentorStore.isFavorited(123)).toBe(true);
       });
-      expect(favoriteMentorStore.getState().favoriteMentors[0]).toMatchObject({
+      const storedMentor = favoriteMentorStore.getState().favoriteMentors[0];
+      expect(storedMentor).toMatchObject({
         user_id: 123,
         name: 'Zahra Mirzakhani',
         job_title: 'Senior UX Designer',
         company: 'CreativeUX Design Studio',
-        have_topic: ['職涯規劃'],
+        have_topic: ['CAREER'],
       });
+      expect(storedMentor?.avatar).toBeTruthy();
     } finally {
       resetFavoriteMentorStore();
     }

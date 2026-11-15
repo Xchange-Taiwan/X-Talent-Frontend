@@ -540,4 +540,23 @@ describe('useUserData caching', () => {
     ]);
     unmount();
   });
+
+  it('forwards updated_at and seniority_level from MentorProfileVO onto userData (#896)', () => {
+    const userId = 9007;
+    const ssrDto = fromPartial<MentorProfileVO>({
+      user_id: userId,
+      name: 'Avatar Versioned Mentor',
+      is_mentor: true,
+      seniority_level: 'SENIOR',
+      updated_at: '2026-11-15T08:00:00Z',
+    });
+
+    const { result, unmount } = renderHook(() =>
+      useUserData(userId, 'zh_TW', ssrDto)
+    );
+
+    expect(result.current.userData?.seniority_level).toBe('SENIOR');
+    expect(result.current.userData?.updated_at).toBe('2026-11-15T08:00:00Z');
+    unmount();
+  });
 });

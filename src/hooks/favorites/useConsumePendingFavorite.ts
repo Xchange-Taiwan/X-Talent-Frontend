@@ -6,8 +6,8 @@ import { toast } from '@/components/ui/use-toast';
 import type { UserType } from '@/hooks/user/user-data/useUserData';
 import { trackEvent } from '@/lib/analytics';
 import { consumePendingFavoriteMentorForPage } from '@/lib/favorites';
+import { normalizeMentorFromProfile } from '@/lib/mentor/mentorCardModel';
 import { favoriteMentorStore } from '@/stores/favoriteMentorStore';
-import type { MentorType } from '@/types/mentor';
 
 import { FAVORITE_MENTOR_ERROR_TOAST_MESSAGE } from './useFavoriteMentor';
 
@@ -18,29 +18,6 @@ export interface UseConsumePendingFavoriteOptions {
   loginUserId: string;
   userData: UserType | null;
   userLoading: boolean;
-}
-
-export function toMentorSnapshot(userData: UserType): MentorType {
-  return {
-    user_id: userData.user_id,
-    name: userData.name,
-    avatar: userData.avatar,
-    job_title: userData.job_title,
-    company: userData.company,
-    years_of_experience: userData.years_of_experience ?? '',
-    location: userData.location ?? '',
-    personal_statement: userData.personal_statement ?? '',
-    about: userData.about ?? '',
-    seniority_level: '',
-    industry: userData.industry ?? null,
-    want_position: userData.want_position.map((tag) => tag.subject),
-    want_skill: userData.want_skill.map((tag) => tag.subject),
-    want_topic: userData.want_topic.map((tag) => tag.subject),
-    have_skill: userData.have_skill.map((tag) => tag.subject),
-    have_topic: userData.have_topic.map((tag) => tag.subject),
-    updated_at: null,
-    stats: userData.stats ?? null,
-  };
 }
 
 export function useConsumePendingFavorite({
@@ -83,7 +60,7 @@ export function useConsumePendingFavorite({
       return;
     }
 
-    const snapshot = toMentorSnapshot(userData);
+    const snapshot = normalizeMentorFromProfile(userData);
 
     void (async () => {
       const wasAlreadyFavorited =

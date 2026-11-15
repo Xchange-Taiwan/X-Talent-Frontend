@@ -268,25 +268,33 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
     expect(sliderStories.Default).toBeDefined();
   });
 
-  it('exposes and renders MentorCard and Information Option B rating stories (#737)', () => {
+  it('exposes and renders MentorCard and Information Option B rating stories (#737, #896)', () => {
     expect(mentorCardStories.default.title).toBe(
       '業務模組元件/導師池(MentorPool)/MentorCard'
     );
-    expect(mentorCardStories.Default.args?.ratingAverage).toBe(9.8);
-    expect(mentorCardStories.Default.args?.completedMeetingCount).toBe(18);
+    expect(mentorCardStories.Default.args?.mentor?.stats?.rating_average).toBe(
+      9.8
+    );
     expect(
-      mentorCardStories.StaffProductManager.args?.ratingAverage
+      mentorCardStories.Default.args?.mentor?.stats?.completed_meeting_count
+    ).toBe(18);
+    expect(
+      mentorCardStories.StaffProductManager.args?.mentor?.stats?.rating_average
     ).toBeNull();
     expect(
-      mentorCardStories.StaffProductManager.args?.completedMeetingCount
+      mentorCardStories.StaffProductManager.args?.mentor?.stats
+        ?.completed_meeting_count
     ).toBe(5);
     expect(
-      mentorCardStories.NoRatingsOrSessions.args?.ratingAverage
+      mentorCardStories.NoRatingsOrSessions.args?.mentor?.stats?.rating_average
     ).toBeNull();
     expect(
-      mentorCardStories.NoRatingsOrSessions.args?.completedMeetingCount
+      mentorCardStories.NoRatingsOrSessions.args?.mentor?.stats
+        ?.completed_meeting_count
     ).toBe(0);
     expect(mentorCardStories.LongNameWithRating).toBeDefined();
+    expect(mentorCardStories.CodeMappedWithPrioritizedSkill).toBeDefined();
+    expect(mentorCardStories.FallbackAvatarWhenEmpty).toBeDefined();
 
     expect(informationStories.default.title).toBe(
       '業務模組元件/導師池(MentorPool)/Information'
@@ -303,8 +311,8 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
         company={defaultInfoArgs.company!}
         about={defaultInfoArgs.about!}
         haveTopicLabels={defaultInfoArgs.haveTopicLabels!}
-        ratingAverage={defaultInfoArgs.ratingAverage}
-        completedMeetingCount={defaultInfoArgs.completedMeetingCount}
+        ratingLabel={defaultInfoArgs.ratingLabel}
+        completedMeetingsLabel={defaultInfoArgs.completedMeetingsLabel}
       />
     );
     expect(screen.getByText('9.8 / 10')).toBeInTheDocument();

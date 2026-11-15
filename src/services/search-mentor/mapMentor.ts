@@ -1,5 +1,4 @@
-import avatarImage from '@/assets/default-avatar.png';
-import { withAvatarVersion } from '@/lib/avatar/avatarUrl';
+import { resolveMentorAvatar } from '@/lib/mentor/mentorCardModel';
 import { normalizeMentorStats } from '@/lib/mentor/mentorStats';
 import type {
   MentorListWireResponse,
@@ -10,6 +9,7 @@ import type {
   RawMentorStats,
 } from '@/types/mentor';
 
+export { resolveMentorAvatar };
 export type { MentorListWireResponse, MentorStats, RawMentor, RawMentorStats };
 
 function readCodes(codes: ReadonlyArray<string> | null | undefined): string[] {
@@ -55,18 +55,6 @@ export function mapMentor(raw: RawMentor): MentorType {
   };
 
   return resolveMentorAvatar(mapped);
-}
-
-// Cache-busts the avatar URL by updated_at so a re-uploaded photo isn't
-// served stale; shared by SSR and client fetches so both render identically.
-export function resolveMentorAvatar(mentor: MentorType): MentorType {
-  return {
-    ...mentor,
-    avatar:
-      typeof mentor.avatar === 'string' && mentor.avatar
-        ? withAvatarVersion(mentor.avatar, mentor.updated_at, 'cb')
-        : avatarImage,
-  };
 }
 
 export function mapMentorPage(

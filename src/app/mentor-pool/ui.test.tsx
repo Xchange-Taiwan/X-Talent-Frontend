@@ -8,7 +8,7 @@ vi.mock('next/navigation', async () => {
 
 import type { FilterOptions } from '@/components/filter/MentorFilterDropdown';
 import { mockMentors } from '@/components/mentor-pool/__mocks__/mentors.mock';
-import { buildMentorCardTags } from '@/components/mentor-pool/mentor-card-list';
+import { buildMentorCardTags } from '@/lib/mentor/mentorCardModel';
 
 import MentorPoolUI from './ui';
 
