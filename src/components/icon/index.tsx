@@ -1,4 +1,5 @@
 export { default as FacebookColor } from './color/facebook';
+export { default as GithubColor } from './color/github';
 export { default as GoogleColor } from './color/google';
 export { default as InstagramColor } from './color/instagram';
 export { default as LinkedinColor } from './color/linkedin';

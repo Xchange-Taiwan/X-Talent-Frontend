@@ -23,6 +23,10 @@ export const SOCIAL_PLATFORM_SPECS = {
     label: 'YouTube',
     allowedHosts: ['youtube.com', 'youtu.be'],
   },
+  github: {
+    label: 'GitHub',
+    allowedHosts: ['github.com'],
+  },
   website: {
     label: '個人網站',
     allowedHosts: null,

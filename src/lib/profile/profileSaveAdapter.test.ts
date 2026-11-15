@@ -156,6 +156,7 @@ describe('profileSaveAdapter', () => {
         instagram: '',
         twitter: '',
         youtube: '',
+        github: '',
         website: '',
       });
       expect(result.have_topic).toEqual([]);
@@ -176,8 +177,16 @@ describe('profileSaveAdapter', () => {
                   url: 'https://www.linkedin.com/in/john',
                 },
                 {
+                  platform: 'facebook',
+                  url: 'https://www.facebook.com/john',
+                },
+                {
                   platform: 'twitter',
                   url: 'https://evil-twitter.com/john',
+                },
+                {
+                  platform: 'github',
+                  url: 'https://github.com/john',
                 },
                 {
                   platform: 'website',
@@ -192,10 +201,11 @@ describe('profileSaveAdapter', () => {
       const result = mapVoToFormValues(voWithLinks, false);
       expect(result.links).toEqual({
         linkedin: 'https://www.linkedin.com/in/john',
-        facebook: '',
+        facebook: 'https://www.facebook.com/john',
         instagram: '',
         twitter: '',
         youtube: '',
+        github: 'https://github.com/john',
         website: 'https://johndoe.dev',
       });
     });

@@ -123,6 +123,7 @@ const mockMentorUserData: UserType = {
   ],
   personalLinks: [
     { platform: 'linkedin', url: 'https://www.linkedin.com/in/jane-chen' },
+    { platform: 'github', url: 'https://github.com/jane-chen' },
     { platform: 'website', url: 'https://janechen.design' },
   ],
 };

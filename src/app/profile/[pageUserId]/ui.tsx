@@ -15,7 +15,7 @@ import {
 import { ProfileBanner } from '@/components/profile/profile-banner';
 import { BookingForm } from '@/components/profile/reservation/BookingForm';
 import { ScheduleCalendar } from '@/components/profile/reservation/ScheduleCalendar';
-import { platformLabelMap } from '@/components/profile/social-links/platformLabelMap';
+import { resolveDisplaySocialLinks } from '@/components/profile/social-links/platformLabelMap';
 import { ProfileBadgeSection } from '@/components/profile/view/ProfileBadgeSection';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -31,7 +31,6 @@ import {
   formatSelectedDate,
   toDateKey,
 } from '@/lib/profile/scheduleFormatters';
-import { isSafeUrl } from '@/lib/url/isSafeUrl';
 import { cn } from '@/lib/utils';
 
 import {
@@ -244,6 +243,11 @@ export default function ProfilePageUI({
     [userData]
   );
 
+  const safePersonalLinks = useMemo(
+    () => resolveDisplaySocialLinks(userData?.personalLinks),
+    [userData?.personalLinks]
+  );
+
   return (
     <div>
       <ProfileBanner />
@@ -271,34 +275,30 @@ export default function ProfilePageUI({
                     <p className="text-2xl font-semibold break-words">
                       {userData.name}
                     </p>
-                    {!!userData.personalLinks?.length && (
+                    {safePersonalLinks.length > 0 && (
                       <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-                        {userData.personalLinks
-                          .filter((link) => isSafeUrl(link.url))
-                          .map((link) => (
-                            <a
-                              key={link.platform}
-                              href={link.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              data-analytics-click="profile_social_link"
-                              data-analytics-event="profile_social_link_click"
-                              data-analytics-feature="profile"
-                              data-analytics-location="profile_header"
-                              data-analytics-omit-destination="true"
-                              data-analytics-param-platform={link.platform}
-                              data-analytics-param-mentor-id={String(
-                                userData.user_id
-                              )}
-                              className="text-text-secondary hover:text-brand-500"
-                              title={
-                                platformLabelMap[link.platform]?.label ||
-                                link.platform
-                              }
-                            >
-                              {platformLabelMap[link.platform]?.icon}
-                            </a>
-                          ))}
+                        {safePersonalLinks.map((link, index) => (
+                          <a
+                            key={`${link.platform}-${index}`}
+                            href={link.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label={link.label}
+                            title={link.label}
+                            data-analytics-click="profile_social_link"
+                            data-analytics-event="profile_social_link_click"
+                            data-analytics-feature="profile"
+                            data-analytics-location="profile_header"
+                            data-analytics-omit-destination="true"
+                            data-analytics-param-platform={link.platform}
+                            data-analytics-param-mentor-id={String(
+                              userData.user_id
+                            )}
+                            className="text-text-secondary hover:text-brand-500"
+                          >
+                            {link.icon}
+                          </a>
+                        ))}
                       </div>
                     )}
                   </div>

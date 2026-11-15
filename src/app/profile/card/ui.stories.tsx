@@ -68,6 +68,7 @@ export const MenteeCompletedView: Story = {
     isMentor: false,
     personalLinks: [
       { platform: 'linkedin', url: 'https://www.linkedin.com/in/alex-chen' },
+      { platform: 'github', url: 'https://github.com/alex-chen' },
       { platform: 'website', url: 'https://alexchen.dev' },
     ],
     onBecomeMentor: () => {},
@@ -84,6 +85,7 @@ export const MentorCompletedView: Story = {
       { platform: 'linkedin', url: 'https://www.linkedin.com/in/hana-lin' },
       { platform: 'twitter', url: 'https://x.com/hanalin' },
       { platform: 'youtube', url: 'https://www.youtube.com/@hanalin' },
+      { platform: 'github', url: 'https://github.com/hanalin' },
       { platform: 'website', url: 'https://hanalin.dev' },
     ],
     onBecomeMentor: () => {},

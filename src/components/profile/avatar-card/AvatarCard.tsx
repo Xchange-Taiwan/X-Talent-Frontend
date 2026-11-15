@@ -4,13 +4,8 @@ import Image from 'next/image';
 import type { FC } from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
-import { getPlatformLabelEntry } from '@/components/profile/social-links/platformLabelMap';
-import {
-  isSocialPlatformKey,
-  type PersonalLink,
-  validatePlatformUrl,
-} from '@/lib/profile/socialLinks';
-import { isSafeUrl } from '@/lib/url/isSafeUrl';
+import { resolveDisplaySocialLinks } from '@/components/profile/social-links/platformLabelMap';
+import type { PersonalLink } from '@/lib/profile/socialLinks';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -30,24 +25,7 @@ export const AvatarCard: FC<Props> = ({
   jobTitle,
   companyName,
 }) => {
-  const safePersonalLinks = (personalLinks ?? []).flatMap((link) => {
-    if (!isSafeUrl(link.url)) return [];
-    const normalizedPlatform =
-      typeof link.platform === 'string'
-        ? link.platform.trim().toLowerCase()
-        : '';
-    if (!isSocialPlatformKey(normalizedPlatform)) return [];
-    const validation = validatePlatformUrl(normalizedPlatform, link.url);
-    if (!validation.valid || !validation.normalizedUrl) return [];
-    const entry = getPlatformLabelEntry(normalizedPlatform);
-    if (!entry) return [];
-    return [
-      {
-        link: { platform: normalizedPlatform, url: validation.normalizedUrl },
-        entry,
-      },
-    ];
-  });
+  const safePersonalLinks = resolveDisplaySocialLinks(personalLinks);
 
   return (
     <div
@@ -69,17 +47,17 @@ export const AvatarCard: FC<Props> = ({
 
           {safePersonalLinks.length > 0 && (
             <div className="flex flex-wrap items-center gap-2">
-              {safePersonalLinks.map(({ link, entry }, index) => (
+              {safePersonalLinks.map((item, index) => (
                 <a
-                  key={`${link.platform}-${index}`}
-                  href={link.url}
+                  key={`${item.platform}-${index}`}
+                  href={item.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label={entry.label}
-                  title={entry.label}
+                  aria-label={item.label}
+                  title={item.label}
                   className="inline-flex shrink-0 items-center"
                 >
-                  {entry.icon}
+                  {item.icon}
                 </a>
               ))}
             </div>
