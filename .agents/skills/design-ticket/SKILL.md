@@ -26,8 +26,8 @@ All output must match the project's existing visual language:
 
 ### 0. Fetch and parse configuration
 
-- **Bash**: `source .agents/scripts/load-config.sh || exit 1`
-- **PowerShell**: `. .agents/scripts/load-config.ps1`
+- **Bash**: `eval "$(node .agents/scripts/tracker-ops.mjs load-config --format=sh)" || exit 1`
+- **PowerShell**: `Invoke-Expression ((& node .agents/scripts/tracker-ops.mjs load-config --format=ps1) -join "`n")`
 
 ### 1. Fetch the ticket
 

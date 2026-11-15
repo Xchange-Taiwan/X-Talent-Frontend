@@ -65,14 +65,14 @@ Publish the approved tickets. **How** depends on the tracker `/setup-matt-pocock
   **Automated Project Board Addition & Backlog Assignment Flow**:
   For GitHub issue tracking, after creating each issue, dynamically add it to the project board and move its status to "Backlog" using the parsed configuration:
   1. **Fetch and Parse Configuration**:
-     Load the centralized configuration by sourcing the shared loading scripts:
+     Load the centralized configuration via the unified cross-platform Node tracker module:
      - **On macOS/Linux (Bash/Zsh)**:
        ```bash
-       source .agents/scripts/load-config.sh || exit 1
+       eval "$(node .agents/scripts/tracker-ops.mjs load-config --format=sh)" || exit 1
        ```
      - **On Windows (PowerShell)**:
        ```powershell
-       . .agents/scripts/load-config.ps1
+       Invoke-Expression ((& node .agents/scripts/tracker-ops.mjs load-config --format=ps1) -join "`n")
        ```
 
   2. **Create Issue and Programmatically Add & Move to Backlog**:

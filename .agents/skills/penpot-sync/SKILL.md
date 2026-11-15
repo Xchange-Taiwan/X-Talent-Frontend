@@ -32,8 +32,8 @@ Input is either free-text requirement or a URL containing one (most commonly an 
 
 - Plain text → use directly as the requirement.
 - A tracker issue URL → extract the issue number, validate `^[0-9]+$`, then:
-  - **Bash**: `source .agents/scripts/load-config.sh || exit 1`
-  - **PowerShell**: `. .agents/scripts/load-config.ps1`
+  - **Bash**: `eval "$(node .agents/scripts/tracker-ops.mjs load-config --format=sh)" || exit 1`
+  - **PowerShell**: `Invoke-Expression ((& node .agents/scripts/tracker-ops.mjs load-config --format=ps1) -join "`n")`
   - `gh issue view <issue-number> --repo "$ORG/$TRACKER_REPO" --json number,title,body,comments,labels`
 - Any other URL (Figma, Notion, etc.) → fetch and read it for requirement text; don't assume it's directly actionable beyond that.
 

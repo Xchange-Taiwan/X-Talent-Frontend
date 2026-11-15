@@ -137,6 +137,10 @@ jobs:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           touch .evidence-markdown.txt
+          SMOKE_FILE=$(mktemp)
+          printf 'smoke' > "$SMOKE_FILE"
+          GITHUB_HEAD_REF="${GITHUB_HEAD_REF:-smoke/dry-run}" node .agents/scripts/tracker-ops.mjs publish-evidence --dry-run "$SMOKE_FILE" >/dev/null
+          rm -f "$SMOKE_FILE"
           if [ -z "$PREVIEW_URL" ]; then exit 0; fi
 
           # Skip blind visitor fallback capture if the PR body already embeds
@@ -172,7 +176,7 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             export EVIDENCE_BRANCH="pr-evidence"
-            URLS=$(bash .agents/scripts/publish-evidence.sh .agents/tmp/evidence/*.png || true)
+            URLS=$(node .agents/scripts/tracker-ops.mjs publish-evidence .agents/tmp/evidence/*.png || true)
             for u in $URLS; do
               label=$(basename "$u" .png)
               echo "![${label}](${u})" >> .evidence-markdown.txt

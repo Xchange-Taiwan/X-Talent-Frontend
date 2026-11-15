@@ -40,11 +40,11 @@ CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo "")
 if [ "$MODE" = "implement" ]; then
   if [ -z "$CURRENT_BRANCH" ] || [ "$CURRENT_BRANCH" = "develop" ] || [ "$CURRENT_BRANCH" = "main" ]; then
     if [ -n "$CLEAN_TICKET" ]; then
-      bash .agents/scripts/link-ticket-branch.sh "$CLEAN_TICKET" || true
+      node .agents/scripts/tracker-ops.mjs link-ticket-branch "$CLEAN_TICKET" || true
       CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo "")
     fi
   elif [ -n "$CLEAN_TICKET" ]; then
-    bash .agents/scripts/link-ticket-branch.sh "$CLEAN_TICKET" "$CURRENT_BRANCH" --no-checkout --no-board-update || true
+    node .agents/scripts/tracker-ops.mjs link-ticket-branch "$CLEAN_TICKET" "$CURRENT_BRANCH" --no-checkout --no-board-update || true
   fi
 fi
 
@@ -58,7 +58,7 @@ shopt -s nullglob
 EVIDENCE_FILES=(.agents/tmp/evidence/*.png .agents/tmp/evidence/*.jpg .agents/tmp/evidence/*.jpeg .agents/tmp/evidence/*.webp)
 shopt -u nullglob
 if [ "${#EVIDENCE_FILES[@]}" -gt 0 ]; then
-  bash .agents/scripts/publish-evidence.sh "${EVIDENCE_FILES[@]}" > "$TMP_EVIDENCE_URLS" || true
+  node .agents/scripts/tracker-ops.mjs publish-evidence "${EVIDENCE_FILES[@]}" > "$TMP_EVIDENCE_URLS" || true
 fi
 
 # 3. Clean up temporary cloud files and restore skip-worktree files individually from HEAD before staging
@@ -205,5 +205,5 @@ else
 fi
 
 if [ "$MODE" = "implement" ]; then
-  node .agents/scripts/hooks/gemini-verify-board-status.mjs --claude || true
+  node .agents/scripts/tracker-ops.mjs verify-board-status --dialect=claude || true
 fi
