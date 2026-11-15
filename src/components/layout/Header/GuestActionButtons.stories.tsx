@@ -1,6 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import React from 'react';
 
+import { GUEST_IDENTITY, UNKNOWN_IDENTITY } from '@/test/mocks/identity';
+
+import { AuthHintProvider } from './AuthHintGate';
 import { GuestActionButtons } from './GuestActionButtons';
 
 const meta: Meta<typeof GuestActionButtons> = {
@@ -11,7 +14,7 @@ const meta: Meta<typeof GuestActionButtons> = {
     docs: {
       description: {
         component:
-          '未登入訪客於桌機版 Header 顯示之「註冊 / 登入」行動呼籲按鈕，內建低侵入式 `data-analytics-click` 屬性供 GA4 事件委派追蹤。',
+          '未登入訪客於桌機版 Header 顯示之「註冊 / 登入」行動呼籲按鈕，透過 `<AuthHintGate>` 封裝 ADR-0001 預渲染狀態，並附帶 GA4 事件追蹤屬性。',
       },
     },
   },
@@ -29,29 +32,29 @@ type Story = StoryObj<typeof GuestActionButtons>;
 
 export const ConfirmedGuest: Story = {
   args: {
-    identity: {
-      state: 'confirmed-guest',
-      userId: undefined,
-      avatar: undefined,
-      isMentor: false,
-    },
+    identity: GUEST_IDENTITY,
   },
 };
 
 export const UnknownPreHydrationGuest: Story = {
   args: {
-    identity: {
-      state: 'unknown',
-      userId: undefined,
-      avatar: undefined,
-      isMentor: false,
-    },
+    identity: UNKNOWN_IDENTITY,
   },
   decorators: [
     (Story) => (
       <div className="group/auth-state" data-auth-state="guest">
         <Story />
       </div>
+    ),
+  ],
+};
+
+export const ProvidedViaAuthHintContext: Story = {
+  decorators: [
+    (Story) => (
+      <AuthHintProvider identity={GUEST_IDENTITY}>
+        <Story />
+      </AuthHintProvider>
     ),
   ],
 };

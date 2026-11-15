@@ -8,6 +8,7 @@ import {
   UNKNOWN_IDENTITY,
 } from '@/test/mocks/identity';
 
+import { AuthHintProvider } from './AuthHintGate';
 import { GuestActionButtons } from './GuestActionButtons';
 
 describe('GuestActionButtons', () => {
@@ -32,7 +33,6 @@ describe('GuestActionButtons', () => {
       <GuestActionButtons identity={UNKNOWN_IDENTITY} />
     );
 
-    // The wrapper div should have the required classes
     expect(container.firstElementChild).toHaveClass(
       'hidden',
       'items-center',
@@ -40,21 +40,19 @@ describe('GuestActionButtons', () => {
       'group-data-[auth-state=guest]/auth-state:flex'
     );
 
-    // Buttons should be rendered inside
     expect(screen.getByRole('link', { name: '註冊' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '登入' })).toBeInTheDocument();
   });
 
-  it('renders buttons directly without wrapper when state is confirmed-guest', () => {
+  it('reads identity from AuthHintProvider context and renders buttons directly when confirmed-guest', () => {
     const { container } = render(
-      <GuestActionButtons identity={GUEST_IDENTITY} />
+      <AuthHintProvider identity={GUEST_IDENTITY}>
+        <GuestActionButtons />
+      </AuthHintProvider>
     );
 
-    // The wrapper should NOT be there (no hidden class)
     expect(container.firstElementChild).not.toHaveClass('hidden');
 
-    expect(screen.getByRole('link', { name: '註冊' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '登入' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '註冊' })).toHaveAttribute(
       'data-analytics-click',
       'header_signup'

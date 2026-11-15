@@ -3,7 +3,22 @@ import React, { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 
-import { ShareProfileDialog } from './ShareProfileDialog';
+import {
+  ShareProfileDialog,
+  type ShareProfileDialogProps,
+} from './ShareProfileDialog';
+
+function InteractiveShareProfileHarness(
+  args: ShareProfileDialogProps
+): JSX.Element {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="p-8">
+      <Button onClick={() => setOpen(true)}>點擊開啟分享彈窗</Button>
+      <ShareProfileDialog {...args} open={open} onOpenChange={setOpen} />
+    </div>
+  );
+}
 
 const meta: Meta<typeof ShareProfileDialog> = {
   title: '佈局元件/Header/ShareProfileDialog',
@@ -11,6 +26,7 @@ const meta: Meta<typeof ShareProfileDialog> = {
   tags: ['autodocs'],
   args: {
     open: true,
+    onOpenChange: () => {},
     name: '王小明',
     avatarSrc:
       'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&h=150&q=80',
@@ -47,15 +63,20 @@ export const WithoutSubtitleOrLinks: Story = {
   },
 };
 
-export const Interactive: Story = {
-  render: (args) => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const [open, setOpen] = useState(false);
-    return (
-      <div className="p-8">
-        <Button onClick={() => setOpen(true)}>點擊開啟分享彈窗</Button>
-        <ShareProfileDialog {...args} open={open} onOpenChange={setOpen} />
-      </div>
-    );
+export const LongMetadataCompactViewport: Story = {
+  args: {
+    open: true,
+    name: 'Dr. Katherine Johnson-Mirzakhani',
+    subtitle:
+      'Distinguished Staff Research Scientist & Principal Engineering Lead at X-Talent Global Mentorship Network',
+    personalLinks: [
+      { platform: 'linkedin', url: 'https://linkedin.com/in/username' },
+      { platform: 'github', url: 'https://github.com/username' },
+      { platform: 'website', url: 'https://example.com' },
+    ],
   },
+};
+
+export const Interactive: Story = {
+  render: (args) => <InteractiveShareProfileHarness {...args} />,
 };

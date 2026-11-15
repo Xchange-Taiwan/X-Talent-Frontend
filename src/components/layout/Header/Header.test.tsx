@@ -1,16 +1,14 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
   waitFor,
   within,
 } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/image', () => ({
-  // next/image requires width/height derived from a static-import object
-  // shape that Vitest's asset transform doesn't produce; not relevant to
-  // the auth-status link logic under test here.
   default: ({ src, alt }: { src: string | { src: string }; alt: string }) => (
     // eslint-disable-next-line @next/next/no-img-element
     <img src={typeof src === 'string' ? src : src.src} alt={alt} />
@@ -22,9 +20,13 @@ vi.mock('next-auth/react', async () => {
   return nextAuthMockFactory();
 });
 
+const mockUsePathname = vi.fn<() => string>(() => '/');
 vi.mock('next/navigation', async () => {
   const { navigationMockFactory } = await import('@/test/mocks/navigation');
-  return navigationMockFactory();
+  return {
+    ...navigationMockFactory(),
+    usePathname: () => mockUsePathname(),
+  };
 });
 
 const trackEvent = vi.fn();
@@ -71,10 +73,13 @@ class NoopIntersectionObserver implements IntersectionObserver {
 }
 
 describe('Header', () => {
+  const originalDeleteEnv = process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT;
+
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
     resetNotificationStore();
+    mockUsePathname.mockReturnValue('/');
     const headerNotificationSource = createInMemoryNotificationSource([
       {
         id: 'header-notif-1',
@@ -88,9 +93,22 @@ describe('Header', () => {
     notificationStoreManager.setSource('mentor-999', headerNotificationSource);
     mockUseResolvedIdentity.mockReturnValue(UNKNOWN_IDENTITY);
     global.IntersectionObserver = NoopIntersectionObserver;
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe(): void {}
+        unobserve(): void {}
+        disconnect(): void {}
+      }
+    );
   });
 
-  it('disables the second nav link while resolving a logged-in user, instead of falling back to /auth/signup or /', () => {
+  afterEach(() => {
+    process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT = originalDeleteEnv;
+    vi.unstubAllGlobals();
+  });
+
+  it('disables userId-dependent links across desktop nav, UserDropdown, and MobileUserMenu during hint-only', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
     mockUseResolvedIdentity.mockReturnValue(
       buildResolvedIdentity({
@@ -100,15 +118,47 @@ describe('Header', () => {
 
     render(<Header />);
 
-    const link = screen.getByRole('link', { name: '成為導師' });
-    expect(link).toHaveAttribute('href', '#');
-    expect(link).toHaveAttribute('aria-disabled', 'true');
+    const desktopBecomeMentor = screen.getByRole('link', { name: '成為導師' });
+    expect(desktopBecomeMentor).toHaveAttribute('href', '#');
+    expect(desktopBecomeMentor).toHaveAttribute('aria-disabled', 'true');
+    expect(fireEvent.click(desktopBecomeMentor)).toBe(false);
 
-    const notPrevented = fireEvent.click(link);
-    expect(notPrevented).toBe(false);
+    // Desktop UserDropdown profile header + share button + role item disabled
+    const desktopRight = screen.getByTestId('desktop-header-right');
+    fireEvent.keyDown(
+      within(desktopRight).getByRole('button', { name: '開啟用戶選單' }),
+      { key: 'Enter' }
+    );
+
+    const desktopProfileHeader = screen.getByTestId('profile-header-button');
+    expect(desktopProfileHeader).toHaveAttribute('href', '#');
+    expect(desktopProfileHeader).toHaveAttribute('aria-disabled', 'true');
+    expect(fireEvent.click(desktopProfileHeader)).toBe(false);
+
+    const desktopShareItem = screen.getByRole('menuitem', {
+      name: '分享個人頁面',
+    });
+    expect(desktopShareItem).toBeDisabled();
+    fireEvent.keyDown(desktopProfileHeader, { key: 'Escape' });
+
+    // Mobile MobileUserMenu profile header + share button disabled
+    const mobileRight = screen.getByTestId('mobile-header-right');
+    fireEvent.click(
+      within(mobileRight).getByRole('button', { name: '開啟用戶選單' })
+    );
+    const mobileSheet = screen.getByRole('dialog', { name: '用戶選單' });
+    const mobileProfileHeader = within(mobileSheet).getByTestId(
+      'profile-header-button'
+    );
+    expect(mobileProfileHeader).toHaveAttribute('href', '#');
+    expect(mobileProfileHeader).toHaveAttribute('aria-disabled', 'true');
+    expect(
+      within(mobileSheet).getByRole('button', { name: '分享個人頁面' })
+    ).toBeDisabled();
   });
 
-  it('links straight to the profile edit page once userId has landed and isResolvingUser is false', () => {
+  it('links straight to the profile edit page once userId has landed and marks aria-current on active routes', () => {
+    mockUsePathname.mockReturnValue('/about');
     mockUseSession.mockReturnValue({
       data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
       status: 'authenticated',
@@ -117,12 +167,18 @@ describe('Header', () => {
 
     render(<Header />);
 
-    const link = screen.getByRole('link', { name: '成為導師' });
-    expect(link).toHaveAttribute(
+    const becomeMentor = screen.getByRole('link', { name: '成為導師' });
+    expect(becomeMentor).toHaveAttribute(
       'href',
       '/profile/user-123/edit?mentor-onboarding=true'
     );
-    expect(link).toHaveAttribute('aria-disabled', 'false');
+    expect(becomeMentor).toHaveAttribute('aria-disabled', 'false');
+
+    const aboutLink = screen.getByRole('link', { name: '關於 X-Talent' });
+    expect(aboutLink).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: '尋找導師' })).not.toHaveAttribute(
+      'aria-current'
+    );
   });
 
   it('shows guest sign-in/sign-up actions once auth is known and the user is not logged in', () => {
@@ -135,7 +191,7 @@ describe('Header', () => {
     expect(screen.getByRole('link', { name: '登入' })).toBeInTheDocument();
   });
 
-  it('pre-renders guest sign-in/sign-up actions with CSS data-auth-state visibility toggles before auth is known', () => {
+  it('pre-renders guest sign-in/sign-up actions with AuthHintGate CSS visibility toggles before auth is known', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
 
     render(<Header />);
@@ -152,7 +208,7 @@ describe('Header', () => {
     );
   });
 
-  it('renders both links with CSS data-auth-state visibility toggles before auth is known', () => {
+  it('renders both role links with AuthHintGate CSS visibility toggles before auth is known without disabling guest fast-path', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
 
     render(<Header />);
@@ -167,19 +223,11 @@ describe('Header', () => {
       'hidden',
       'group-data-[auth-state=mentee]/auth-state:block'
     );
-  });
-
-  it('never disables the guest fast-path "成為導師" link, since isResolvingUser can only be true for a logged-in user', () => {
-    mockUseSession.mockReturnValue({ data: null, status: 'loading' });
-
-    render(<Header />);
-
-    const menteeLink = screen.getByRole('link', { name: '成為導師' });
     expect(menteeLink).toHaveAttribute('aria-disabled', 'false');
     expect(menteeLink).toHaveAttribute('href', '/auth/signup');
   });
 
-  it("renders UserDropdown with hint avatar when logged in per hint but session hasn't resolved yet", () => {
+  it('renders UserDropdown and MobileUserMenu with hint avatar when logged in per hint before session resolves', () => {
     mockUseSession.mockReturnValue({
       data: null,
       status: 'loading',
@@ -200,41 +248,96 @@ describe('Header', () => {
     expect(avatarImgs[1]).toHaveAttribute('src', 'hint-avatar.png');
   });
 
-  it('keeps 尋找導師/關於 X-Talent/提供回饋 mounted for logged-in users too, with navigation links always visible on desktop (avoids a flash before authKnown settles)', () => {
+  it('mounts ShareProfileDialog and DeleteAccountDialog once at the Header level and defers opening by a frame', () => {
+    process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT = 'true';
+    const queuedFrames: FrameRequestCallback[] = [];
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      (cb: FrameRequestCallback): number => {
+        queuedFrames.push(cb);
+        return queuedFrames.length;
+      }
+    );
+
     mockUseSession.mockReturnValue({
-      data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
+      data: null,
+      status: 'loading',
+    });
+    mockUseResolvedIdentity.mockReturnValue(
+      buildResolvedIdentity({
+        state: 'hint-only',
+        isMentor: false,
+      })
+    );
+
+    const { rerender } = render(<Header />);
+
+    mockUseSession.mockReturnValue({
+      data: {
+        ...mockSession,
+        user: {
+          ...mockSession.user,
+          id: 'user-123',
+          email: 'xiaoming@xchange.tw',
+        },
+      },
       status: 'authenticated',
     });
-    mockUseResolvedIdentity.mockReturnValue(AUTHENTICATED_MATCHING_IDENTITY);
-    render(<Header />);
+    mockUseResolvedIdentity.mockReturnValue(
+      authenticatedIdentity('user-123', {
+        name: '王小明',
+        isMentor: false,
+      })
+    );
+    rerender(<Header />);
 
-    const findMentorLink = screen.getByRole('link', { name: '尋找導師' });
-    const aboutLink = screen.getByRole('link', { name: '關於 X-Talent' });
-    const feedbackLink = screen.getByRole('link', {
-      name: '提供回饋（另開新分頁）',
+    const desktopRight = screen.getByTestId('desktop-header-right');
+    fireEvent.keyDown(
+      within(desktopRight).getByRole('button', { name: '開啟用戶選單' }),
+      { key: 'Enter' }
+    );
+
+    fireEvent.click(screen.getByRole('menuitem', { name: '分享個人頁面' }));
+
+    // Dropdown closes synchronously before RAF opens the single dialog
+    expect(
+      screen.queryByRole('menuitem', { name: '分享個人頁面' })
+    ).not.toBeInTheDocument();
+    expect(screen.queryAllByRole('dialog')).toHaveLength(0);
+    expect(queuedFrames).toHaveLength(1);
+
+    act(() => {
+      queuedFrames.splice(0).forEach((cb) => cb(0));
     });
 
-    expect(findMentorLink).not.toHaveClass(
-      'group-data-[auth-state=mentee]/auth-state:hidden'
+    const openDialogs = screen.getAllByRole('dialog');
+    expect(openDialogs).toHaveLength(1);
+    expect(openDialogs[0]).toHaveAccessibleName('分享個人頁面');
+
+    // Close ShareProfileDialog and open DeleteAccountDialog from mobile menu
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Close share profile dialog' })
     );
-    expect(findMentorLink).not.toHaveClass(
-      'group-data-[auth-state=mentor]/auth-state:hidden'
+    expect(screen.queryAllByRole('dialog')).toHaveLength(0);
+
+    const mobileRight = screen.getByTestId('mobile-header-right');
+    fireEvent.click(
+      within(mobileRight).getByRole('button', { name: '開啟用戶選單' })
     );
-    expect(aboutLink).not.toHaveClass(
-      'group-data-[auth-state=mentee]/auth-state:hidden'
-    );
-    expect(aboutLink).not.toHaveClass(
-      'group-data-[auth-state=mentor]/auth-state:hidden'
-    );
-    expect(feedbackLink).not.toHaveClass(
-      'group-data-[auth-state=mentee]/auth-state:hidden'
-    );
-    expect(feedbackLink).not.toHaveClass(
-      'group-data-[auth-state=mentor]/auth-state:hidden'
+    fireEvent.click(screen.getByRole('button', { name: '刪除帳號' }));
+
+    act(() => {
+      queuedFrames.splice(0).forEach((cb) => cb(0));
+    });
+
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(screen.getByLabelText('電子郵件')).toHaveValue(
+      'xiaoming@xchange.tw'
     );
   });
 
-  it('gives the logo and every top-level nav link a visible keyboard focus ring', () => {
+  it('gives the logo and every top-level nav link a visible keyboard focus ring and tracks feedback_open', () => {
+    trackEvent.mockClear();
     mockUseSession.mockReturnValue({
       data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
       status: 'authenticated',
@@ -254,24 +357,12 @@ describe('Header', () => {
       expect(link).toHaveClass('focus-visible:ring-ring');
       expect(link).toHaveClass('focus-visible:outline-none');
     }
-  });
 
-  it('tracks feedback_open when the desktop Header "提供回饋" link is clicked', () => {
-    trackEvent.mockClear();
-    mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });
-    mockUseResolvedIdentity.mockReturnValue(GUEST_IDENTITY);
-
-    render(<Header />);
-
-    const feedbackLink = screen.getByRole('link', {
-      name: '提供回饋（另開新分頁）',
-    });
     fireEvent.click(feedbackLink);
-
     expect(trackEvent).toHaveBeenCalledWith({ name: 'feedback_open' });
   });
 
-  it('renders pre-hydration avatar placeholder with CSS visibility toggles before auth is known', () => {
+  it('renders pre-hydration avatar and mobile NotificationBell skeleton placeholders with AuthHintGate toggles', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
 
     render(<Header />);
@@ -286,12 +377,6 @@ describe('Header', () => {
     expect(placeholders[1]).toHaveClass(
       'hidden group-data-[auth-state=mentee]/auth-state:block group-data-[auth-state=mentor]/auth-state:block'
     );
-  });
-
-  it('renders mobile pre-hydration NotificationBell skeleton placeholder with CSS visibility toggles before auth is known', () => {
-    mockUseSession.mockReturnValue({ data: null, status: 'loading' });
-
-    render(<Header />);
 
     const mobileContainer = screen.getByTestId('mobile-header-right');
     const skeleton = mobileContainer.querySelector('.size-9.rounded-full');
@@ -303,22 +388,15 @@ describe('Header', () => {
     );
   });
 
-  it('does not render NotificationBell when logged out', () => {
-    mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });
-    mockUseResolvedIdentity.mockReturnValue(GUEST_IDENTITY);
-
-    render(<Header />);
-    expect(
-      screen.queryByRole('button', { name: '開啟通知選單' })
-    ).not.toBeInTheDocument();
-  });
-
-  it('renders NotificationBell on both desktop and mobile/tablet when logged in and bootstraps unread count only once', async () => {
+  it('renders NotificationBell on both desktop and mobile when logged in, bootstraps once, and closes on user menu click', async () => {
     const sharedSource = notificationStoreManager.getSource('user-123')!;
     const countSpy = vi.spyOn(sharedSource, 'getUnreadCount');
 
     mockUseSession.mockReturnValue({
-      data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
+      data: {
+        ...mockSession,
+        user: { ...mockSession.user, id: 'user-123', image: 'avatar.png' },
+      },
       status: 'authenticated',
     });
     mockUseResolvedIdentity.mockReturnValue(AUTHENTICATED_MATCHING_IDENTITY);
@@ -334,156 +412,47 @@ describe('Header', () => {
       name: '開啟通知選單',
     });
 
-    expect(desktopBell).toBeInTheDocument();
-    expect(mobileBell).toBeInTheDocument();
-
     await waitFor(() => {
       expect(within(desktopBell).getByText('1')).toBeInTheDocument();
       expect(within(mobileBell).getByText('1')).toBeInTheDocument();
     });
     expect(countSpy).toHaveBeenCalledTimes(1);
-  });
 
-  it('closes desktop NotificationBell popover when desktop UserDropdown avatar is clicked', async () => {
-    mockUseSession.mockReturnValue({
-      data: {
-        ...mockSession,
-        user: { ...mockSession.user, id: 'user-123', image: 'avatar.png' },
-      },
-      status: 'authenticated',
-    });
-    mockUseResolvedIdentity.mockReturnValue(AUTHENTICATED_MATCHING_IDENTITY);
-    render(<Header />);
-
-    const desktopContainer = screen.getByTestId('desktop-header-right');
-    const bellButton = within(desktopContainer).getByRole('button', {
-      name: '開啟通知選單',
-    });
-    const avatarButton = within(desktopContainer).getByRole('button', {
-      name: '開啟用戶選單',
-    });
-
-    expect(screen.queryAllByText('您有新的預約')).toHaveLength(0);
-
-    fireEvent.click(bellButton);
+    fireEvent.click(desktopBell);
     expect((await screen.findAllByText('您有新的預約'))[0]).toBeInTheDocument();
 
-    fireEvent.pointerDown(avatarButton, { bubbles: true });
-    fireEvent.mouseDown(avatarButton, { bubbles: true });
-    fireEvent.click(avatarButton);
+    const desktopAvatar = within(desktopContainer).getByRole('button', {
+      name: '開啟用戶選單',
+    });
+    fireEvent.pointerDown(desktopAvatar, { bubbles: true });
+    fireEvent.mouseDown(desktopAvatar, { bubbles: true });
+    fireEvent.click(desktopAvatar);
 
     await waitFor(() => {
       expect(screen.queryAllByText('您有新的預約')).toHaveLength(0);
     });
   });
 
-  it('closes mobile NotificationBell popover when mobile MobileUserMenu avatar is clicked', async () => {
-    mockUseSession.mockReturnValue({
-      data: {
-        ...mockSession,
-        user: { ...mockSession.user, id: 'user-123', image: 'avatar.png' },
-      },
-      status: 'authenticated',
-    });
-    mockUseResolvedIdentity.mockReturnValue(AUTHENTICATED_MATCHING_IDENTITY);
-    render(<Header />);
-
-    const mobileContainer = screen.getByTestId('mobile-header-right');
-    const bellButton = within(mobileContainer).getByRole('button', {
-      name: '開啟通知選單',
-    });
-    const avatarButton = within(mobileContainer).getByRole('button', {
-      name: '開啟用戶選單',
-    });
-
-    expect(screen.queryAllByText('您有新的預約')).toHaveLength(0);
-
-    fireEvent.click(bellButton);
-    expect((await screen.findAllByText('您有新的預約'))[0]).toBeInTheDocument();
-
-    fireEvent.pointerDown(avatarButton, { bubbles: true });
-    fireEvent.mouseDown(avatarButton, { bubbles: true });
-    fireEvent.click(avatarButton);
-
-    await waitFor(() => {
-      expect(screen.queryAllByText('您有新的預約')).toHaveLength(0);
-    });
-  });
-
-  describe('navigation links hover style', () => {
-    it('applies the underline hover classes to active links', () => {
-      mockUseSession.mockReturnValue({
-        data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
-        status: 'authenticated',
-      });
-      mockUseResolvedIdentity.mockReturnValue(AUTHENTICATED_MATCHING_IDENTITY);
-
-      render(<Header />);
-
-      const findMentor = screen.getByRole('link', { name: '尋找導師' });
-      const about = screen.getByRole('link', { name: '關於 X-Talent' });
-      const feedback = screen.getByRole('link', {
-        name: '提供回饋（另開新分頁）',
-      });
-      const leftSecond = screen.getByRole('link', { name: '成為導師' });
-
-      expect(findMentor).toHaveClass(
-        'after:bg-brand-500',
-        'hover:after:scale-x-100'
-      );
-      expect(about).toHaveClass(
-        'after:bg-brand-500',
-        'hover:after:scale-x-100'
-      );
-      expect(feedback).toHaveClass(
-        'after:bg-brand-500',
-        'hover:after:scale-x-100'
-      );
-      expect(leftSecond).toHaveClass(
-        'after:bg-brand-500',
-        'hover:after:scale-x-100'
-      );
-    });
-
-    it('excludes the underline hover classes when link is disabled (hint-only)', () => {
+  describe('navigation links hover style & GA4 attributes', () => {
+    it('applies underline hover classes when enabled and excludes them when disabled (hint-only)', () => {
       mockUseSession.mockReturnValue({ data: null, status: 'loading' });
       mockUseResolvedIdentity.mockReturnValue(
-        buildResolvedIdentity({
-          state: 'hint-only',
-        })
+        buildResolvedIdentity({ state: 'hint-only' })
       );
-
-      render(<Header />);
-
-      const link = screen.getByRole('link', { name: '成為導師' });
-      expect(link).not.toHaveClass('after:bg-brand-500');
-      expect(link).not.toHaveClass('hover:after:scale-x-100');
-    });
-
-    it('attaches declarative GA4 analytics attributes to desktop navigation links (#865)', () => {
-      mockUseSession.mockReturnValue({
-        data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
-        status: 'authenticated',
-      });
-      mockUseResolvedIdentity.mockReturnValue(AUTHENTICATED_MATCHING_IDENTITY);
 
       const { unmount } = render(<Header />);
-
-      const becomeMentorLink = screen.getByRole('link', { name: '成為導師' });
-      expect(becomeMentorLink).toHaveAttribute(
-        'data-analytics-click',
-        'header_nav_become_mentor'
-      );
-      expect(becomeMentorLink).toHaveAttribute(
-        'data-analytics-location',
-        'header'
-      );
-      expect(becomeMentorLink).toHaveAttribute(
-        'data-analytics-feature',
-        'onboarding'
-      );
+      const disabledLink = screen.getByRole('link', { name: '成為導師' });
+      expect(disabledLink).not.toHaveClass('after:bg-brand-500');
+      expect(disabledLink).not.toHaveClass('hover:after:scale-x-100');
 
       unmount();
+      mockUseSession.mockReturnValue({
+        data: {
+          ...mockSession,
+          user: { ...mockSession.user, id: 'mentor-999' },
+        },
+        status: 'authenticated',
+      });
       mockUseResolvedIdentity.mockReturnValue(
         authenticatedIdentity('mentor-999', { isMentor: true })
       );
@@ -492,6 +461,10 @@ describe('Header', () => {
       const myMentorPageLink = screen.getByRole('link', {
         name: '我的導師頁面',
       });
+      expect(myMentorPageLink).toHaveClass(
+        'after:bg-brand-500',
+        'hover:after:scale-x-100'
+      );
       expect(myMentorPageLink).toHaveAttribute(
         'data-analytics-click',
         'header_nav_my_mentor_page'

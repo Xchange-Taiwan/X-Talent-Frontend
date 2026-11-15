@@ -60,4 +60,26 @@ describe('buildResolvedIdentity', () => {
     expect(authId.state).toBe('confirmed-member');
     expect(authId.userId).toBe('user-789');
   });
+
+  it('forwards summary fields on confirmed-member and normalizes null overrides to undefined', () => {
+    const member = authenticatedIdentity('mentor-42', {
+      isMentor: true,
+      name: 'Ada Lovelace',
+      avatar: null,
+      jobTitle: 'Architect',
+      company: 'Analytical Engine',
+      personalLinks: [{ platform: 'github', url: 'https://github.com/ada' }],
+    });
+
+    expect(member).toEqual({
+      state: 'confirmed-member',
+      userId: 'mentor-42',
+      avatar: undefined,
+      isMentor: true,
+      name: 'Ada Lovelace',
+      jobTitle: 'Architect',
+      company: 'Analytical Engine',
+      personalLinks: [{ platform: 'github', url: 'https://github.com/ada' }],
+    });
+  });
 });

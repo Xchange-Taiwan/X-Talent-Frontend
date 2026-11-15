@@ -1,13 +1,48 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
+import type { Session } from 'next-auth';
 import React from 'react';
 
-import { authenticatedIdentity } from '@/test/mocks/identity';
+import { useHeaderNavigation } from '@/hooks/layout/useHeaderNavigation';
+import type { ResolvedIdentity } from '@/lib/auth/sessionHint';
+import {
+  authenticatedIdentity,
+  buildResolvedIdentity,
+} from '@/test/mocks/identity';
 
+import { ShareProfileDialog } from './ShareProfileDialog';
 import { UserDropdown } from './UserDropdown';
 
-const meta: Meta<typeof UserDropdown> = {
+type UserDropdownStoryArgs = {
+  identity: ResolvedIdentity;
+  user?: Session['user'];
+};
+
+function UserDropdownStoryHarness({
+  identity,
+  user,
+}: UserDropdownStoryArgs): JSX.Element {
+  const navigation = useHeaderNavigation({ identity, user });
+  return (
+    <>
+      <UserDropdown navigation={navigation} />
+      <ShareProfileDialog
+        open={navigation.activeDialog === 'share-profile'}
+        onOpenChange={(open) =>
+          navigation.setActiveDialog(open ? 'share-profile' : null)
+        }
+        name={navigation.profileHeader.displayName}
+        avatarSrc={navigation.profileHeader.avatarSrc}
+        subtitle={navigation.profileHeader.subtitle}
+        profilePath={navigation.profileHeader.href}
+        personalLinks={navigation.profileHeader.personalLinks}
+      />
+    </>
+  );
+}
+
+const meta: Meta<typeof UserDropdownStoryHarness> = {
   title: '佈局元件/Header/UserDropdown',
-  component: UserDropdown,
+  component: UserDropdownStoryHarness,
   tags: ['autodocs'],
   parameters: {
     nextjs: {
@@ -16,7 +51,7 @@ const meta: Meta<typeof UserDropdown> = {
     docs: {
       description: {
         component:
-          '桌機版已登入會員選單，個人頁面、分享名片、導師預約管理／成為導師、我的預約、我的收藏與登出皆具備 `data-analytics-click`（`location="user_dropdown"`），且嚴格不攜帶 `userId`、姓名或 Email。',
+          '桌機版已登入會員選單，由 `useHeaderNavigation` 驅動語意化 `<Link href>` 導覽項目、`aria-current="page"`、`hint-only` 禁用防護與 GA4 宣告式埋點。',
       },
     },
   },
@@ -30,9 +65,9 @@ const meta: Meta<typeof UserDropdown> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof UserDropdown>;
+type Story = StoryObj<typeof UserDropdownStoryHarness>;
 
-const mockMentorUser = {
+const mockMentorUser: Session['user'] = {
   id: 'mentor-123',
   email: 'mentor@xchange.tw',
   name: '陳導師 (Mentor)',
@@ -48,7 +83,7 @@ const mockMentorUser = {
   ],
 };
 
-const mockMenteeUser = {
+const mockMenteeUser: Session['user'] = {
   id: 'mentee-456',
   email: 'mentee@xchange.tw',
   name: '林學員 (Mentee)',
@@ -64,7 +99,14 @@ const mockMenteeUser = {
 // 1. Mentor Session
 export const MentorSession: Story = {
   args: {
-    identity: authenticatedIdentity('mentor-123', { isMentor: true }),
+    identity: authenticatedIdentity('mentor-123', {
+      isMentor: true,
+      name: mockMentorUser.name,
+      avatar: mockMentorUser.avatar,
+      jobTitle: mockMentorUser.jobTitle,
+      company: mockMentorUser.company,
+      personalLinks: mockMentorUser.personalLinks,
+    }),
     user: mockMentorUser,
   },
 };
@@ -72,7 +114,13 @@ export const MentorSession: Story = {
 // 2. Mentee Session
 export const MenteeSession: Story = {
   args: {
-    identity: authenticatedIdentity('mentee-456', { isMentor: false }),
+    identity: authenticatedIdentity('mentee-456', {
+      isMentor: false,
+      name: mockMenteeUser.name,
+      avatar: mockMenteeUser.avatar,
+      jobTitle: mockMenteeUser.jobTitle,
+      company: mockMenteeUser.company,
+    }),
     user: mockMenteeUser,
   },
 };
@@ -95,7 +143,11 @@ export const AnonymousSession: Story = {
 // 4. Active Favorites Route
 export const FavoritesActiveRoute: Story = {
   args: {
-    identity: authenticatedIdentity('mentee-456', { isMentor: false }),
+    identity: authenticatedIdentity('mentee-456', {
+      isMentor: false,
+      name: mockMenteeUser.name,
+      avatar: mockMenteeUser.avatar,
+    }),
     user: mockMenteeUser,
   },
   parameters: {
@@ -105,5 +157,16 @@ export const FavoritesActiveRoute: Story = {
         pathname: '/favorites',
       },
     },
+  },
+};
+
+// 5. Hint-Only Pre-Resolution Disabled Guard
+export const HintOnlyDisabledState: Story = {
+  args: {
+    identity: buildResolvedIdentity({
+      state: 'hint-only',
+      isMentor: false,
+      avatar: mockMenteeUser.avatar,
+    }),
   },
 };
