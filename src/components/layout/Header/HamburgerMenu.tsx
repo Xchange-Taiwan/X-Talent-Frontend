@@ -37,18 +37,19 @@ export function HamburgerMenu({
     <AuthHintGate when={['guest']} identity={identity} defaultVisible>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger asChild>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             aria-label="開啟導航選單"
             data-analytics-click="mobile_menu_open"
             data-analytics-location="mobile_menu"
             data-analytics-feature="navigation"
-            className={`inline-flex items-center justify-center rounded-md ${FOCUS_RING_CLASSES}`}
           >
-            <HamburgerMenuIcon className="size-8" aria-hidden="true" />
-          </button>
+            <HamburgerMenuIcon className="size-6" aria-hidden="true" />
+          </Button>
         </SheetTrigger>
-        <SheetContent side="right" className="h-screen w-screen">
+        <SheetContent side="right" className="h-dvh w-screen">
           <SheetTitle className="sr-only">導航選單</SheetTitle>
           <div className="flex h-full flex-col overflow-y-auto">
             <SheetClose asChild>
@@ -63,7 +64,7 @@ export function HamburgerMenu({
                 />
               </button>
             </SheetClose>
-            <nav className="flex flex-col space-y-6 pt-8 pb-6 text-xl">
+            <nav className="flex flex-1 flex-col items-center justify-center gap-8 py-6 text-2xl">
               {mobileGuestMenu.navItems.map((item) => {
                 if (item.kind === 'external-link') {
                   return (
@@ -100,12 +101,8 @@ export function HamburgerMenu({
               })}
             </nav>
 
-            <div className="flex flex-col space-y-6 pt-4">
-              <Button
-                variant="outline"
-                className="h-14 rounded-full text-xl font-medium"
-                asChild
-              >
+            <div className="mt-auto flex flex-col items-center gap-5 pb-2">
+              <Button variant="default" className="w-40" asChild>
                 <Link
                   href={mobileGuestMenu.signin.href}
                   aria-current={
@@ -120,8 +117,8 @@ export function HamburgerMenu({
                 </Link>
               </Button>
               <Button
-                variant="default"
-                className="h-14 rounded-full text-xl font-medium"
+                variant="outline"
+                className="border-brand-500 text-brand-500 hover:text-brand-500 w-40"
                 asChild
               >
                 <Link

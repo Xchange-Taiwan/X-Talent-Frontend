@@ -30,15 +30,17 @@ function HamburgerMenuHarness({
   return <HamburgerMenu navigation={navigation} />;
 }
 
-function openMenu(): void {
-  fireEvent.click(screen.getByRole('button', { name: '開啟導航選單' }));
-}
-
 describe('HamburgerMenu', () => {
   it('renders guest navigation links, aria-current, external aria-label, and closes sheet on click', () => {
     mockUsePathname.mockReturnValue('/about');
     render(<HamburgerMenuHarness identity={GUEST_IDENTITY} />);
-    openMenu();
+
+    const triggerButton = screen.getByRole('button', { name: '開啟導航選單' });
+    expect(triggerButton.querySelector('svg')).toHaveClass('size-6');
+
+    fireEvent.click(triggerButton);
+
+    expect(screen.getByRole('dialog')).toHaveClass('h-dvh');
 
     const becomeMentorLink = screen.getByRole('link', { name: '成為導師' });
     expect(becomeMentorLink).toHaveAttribute('href', '/auth/signup');
@@ -50,8 +52,11 @@ describe('HamburgerMenu', () => {
     expect(
       screen.getByRole('link', { name: '提供回饋（另開新分頁）' })
     ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '登入' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '註冊' })).toBeInTheDocument();
+
+    const signin = screen.getByRole('link', { name: '登入' });
+    const signup = screen.getByRole('link', { name: '註冊' });
+    expect(signin).toHaveClass('bg-brand-500', 'text-text-primary', 'w-40');
+    expect(signup).toHaveClass('border-brand-500', 'text-brand-500', 'w-40');
 
     fireEvent.click(becomeMentorLink);
     expect(

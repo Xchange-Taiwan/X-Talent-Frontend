@@ -4,41 +4,15 @@ import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
 import {
+  buildDesktopGuestAuth,
   getNavAnalyticsAttributes,
   type HeaderLinkDescriptor,
 } from '@/hooks/layout/useHeaderNavigation';
 import { type ResolvedIdentity } from '@/lib/auth/sessionHint';
-import { SIGNIN_HREF, SIGNUP_HREF } from '@/lib/routes';
 
 import { AuthHintGate } from './AuthHintGate';
 
-const DEFAULT_SIGNUP_DESCRIPTOR: HeaderLinkDescriptor = {
-  id: 'signup',
-  kind: 'link',
-  label: '註冊',
-  href: SIGNUP_HREF,
-  isCurrent: false,
-  disabled: false,
-  analytics: {
-    click: 'header_signup',
-    location: 'header',
-    feature: 'auth',
-  },
-};
-
-const DEFAULT_SIGNIN_DESCRIPTOR: HeaderLinkDescriptor = {
-  id: 'signin',
-  kind: 'link',
-  label: '登入',
-  href: SIGNIN_HREF,
-  isCurrent: false,
-  disabled: false,
-  analytics: {
-    click: 'header_signin',
-    location: 'header',
-    feature: 'auth',
-  },
-};
+const DEFAULT_DESKTOP_GUEST_AUTH = buildDesktopGuestAuth();
 
 export type GuestActionButtonsProps = {
   identity?: ResolvedIdentity;
@@ -56,8 +30,8 @@ export type GuestActionButtonsProps = {
  */
 export function GuestActionButtons({
   identity,
-  signup = DEFAULT_SIGNUP_DESCRIPTOR,
-  signin = DEFAULT_SIGNIN_DESCRIPTOR,
+  signup = DEFAULT_DESKTOP_GUEST_AUTH.signup,
+  signin = DEFAULT_DESKTOP_GUEST_AUTH.signin,
 }: GuestActionButtonsProps): JSX.Element | null {
   return (
     <AuthHintGate
@@ -67,8 +41,8 @@ export function GuestActionButtons({
       className="items-center gap-3"
     >
       <Button
-        variant="default"
-        className="h-10 rounded-full px-6 py-2.5 text-base font-medium"
+        variant="outline"
+        className="border-brand-500 text-brand-500 hover:text-brand-500"
         asChild
       >
         <Link
@@ -80,11 +54,7 @@ export function GuestActionButtons({
         </Link>
       </Button>
 
-      <Button
-        variant="outline"
-        className="h-10 rounded-full px-6 py-2.5 text-base font-medium"
-        asChild
-      >
+      <Button variant="default" asChild>
         <Link
           href={signin.href}
           aria-current={signin.isCurrent ? 'page' : undefined}

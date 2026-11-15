@@ -53,13 +53,20 @@ describe('GuestActionButtons', () => {
 
     expect(container.firstElementChild).not.toHaveClass('hidden');
 
-    expect(screen.getByRole('link', { name: '註冊' })).toHaveAttribute(
-      'data-analytics-click',
-      'header_signup'
+    const links = screen.getAllByRole('link');
+    expect(links.map((link) => link.textContent)).toEqual(['註冊', '登入']);
+
+    const signup = screen.getByRole('link', { name: '註冊' });
+    const signin = screen.getByRole('link', { name: '登入' });
+
+    expect(signup).toHaveClass(
+      'border-brand-500',
+      'text-brand-500',
+      'bg-background-white'
     );
-    expect(screen.getByRole('link', { name: '登入' })).toHaveAttribute(
-      'data-analytics-click',
-      'header_signin'
-    );
+    expect(signin).toHaveClass('bg-brand-500', 'text-text-primary');
+
+    expect(signup).toHaveAttribute('data-analytics-click', 'header_signup');
+    expect(signin).toHaveAttribute('data-analytics-click', 'header_signin');
   });
 });

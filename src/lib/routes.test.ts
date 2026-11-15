@@ -8,12 +8,14 @@ import {
   classifyPathname,
   DEFAULT_LOGIN,
   evaluateMiddlewareGate,
+  FAVORITES_HREF,
   FIND_MENTOR_HREF,
   getBecomeMentorHref,
   getMentorOnboardingUrl,
   getMentorScheduleManagementUrl,
   getOpenScheduleHref,
   getProfileEditUrl,
+  getProfileHref,
   getPublicProfileUrl,
   getReservationRoleUrl,
   getSignInUrl,
@@ -69,6 +71,7 @@ describe('src/lib/routes', () => {
       expect(SIGNUP_HREF).toBe('/auth/signup');
       expect(ONBOARDING_HREF).toBe('/auth/onboarding');
       expect(PROFILE_CARD_HREF).toBe('/profile/card');
+      expect(FAVORITES_HREF).toBe('/favorites');
       expect(RESERVATION_INDEX_HREF).toBe('/reservation');
       expect(RESERVATION_MENTEE_HREF).toBe('/reservation/mentee');
       expect(RESERVATION_MENTOR_HREF).toBe('/reservation/mentor');
@@ -83,6 +86,8 @@ describe('src/lib/routes', () => {
     it('builds profile and mentor onboarding URLs consistently', () => {
       expect(getPublicProfileUrl('u1')).toBe('/profile/u1');
       expect(getPublicProfileUrl(42)).toBe('/profile/42');
+      expect(getProfileHref('u1')).toBe('/profile/u1');
+      expect(getProfileHref(undefined)).toBe('/');
       expect(getProfileEditUrl('u1')).toBe('/profile/u1/edit');
       expect(getProfileEditUrl(42)).toBe('/profile/42/edit');
       expect(getMentorOnboardingUrl('u1')).toBe(

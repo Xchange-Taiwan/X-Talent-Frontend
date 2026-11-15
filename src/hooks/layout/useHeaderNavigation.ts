@@ -11,10 +11,11 @@ import { type ResolvedIdentity } from '@/lib/auth/sessionHint';
 import { terminateClientSession } from '@/lib/auth/sessionLifecycle';
 import {
   ABOUT_HREF,
+  FAVORITES_HREF,
   FIND_MENTOR_HREF,
   getBecomeMentorHref,
   getMentorOnboardingUrl,
-  HOME_HREF,
+  getProfileHref,
   RESERVATION_MENTEE_HREF,
   RESERVATION_MENTOR_HREF,
   SIGNIN_HREF,
@@ -22,14 +23,7 @@ import {
 } from '@/lib/routes';
 import type { PersonalLink } from '@/types/types';
 
-export { FEEDBACK_FORM_URL, FIND_MENTOR_HREF, getBecomeMentorHref };
-
-export const FAVORITES_HREF = '/favorites';
 export const EXTERNAL_FEEDBACK_ARIA_LABEL = '提供回饋（另開新分頁）';
-
-export function getProfileHref(userId: string | undefined): string {
-  return userId ? `/profile/${userId}` : HOME_HREF;
-}
 
 export type NavAnalyticsFeature =
   'navigation' | 'onboarding' | 'profile' | 'reservation' | 'auth';
@@ -150,6 +144,40 @@ export function getNavAnalyticsAttributes(
     ...(analytics.omitDestination
       ? { 'data-analytics-omit-destination': 'true' }
       : {}),
+  };
+}
+
+export function buildDesktopGuestAuth(pathname: string | null = null): {
+  signup: HeaderLinkDescriptor;
+  signin: HeaderLinkDescriptor;
+} {
+  return {
+    signup: {
+      id: 'signup',
+      kind: 'link',
+      label: '註冊',
+      href: SIGNUP_HREF,
+      isCurrent: pathname === SIGNUP_HREF,
+      disabled: false,
+      analytics: {
+        click: 'header_signup',
+        location: 'header',
+        feature: 'auth',
+      },
+    },
+    signin: {
+      id: 'signin',
+      kind: 'link',
+      label: '登入',
+      href: SIGNIN_HREF,
+      isCurrent: pathname === SIGNIN_HREF,
+      disabled: false,
+      analytics: {
+        click: 'header_signin',
+        location: 'header',
+        feature: 'auth',
+      },
+    },
   };
 }
 
@@ -488,34 +516,9 @@ export function useHeaderNavigation({
         },
         feedback: feedbackItem,
       },
-      desktopGuestAuth: {
-        signup: {
-          id: 'signup',
-          kind: 'link',
-          label: '註冊',
-          href: SIGNUP_HREF,
-          isCurrent: isOnSignup,
-          disabled: false,
-          analytics: {
-            click: 'header_signup',
-            location: 'header',
-            feature: 'auth',
-          },
-        },
-        signin: {
-          id: 'signin',
-          kind: 'link',
-          label: '登入',
-          href: SIGNIN_HREF,
-          isCurrent: isOnSignin,
-          disabled: false,
-          analytics: {
-            click: 'header_signin',
-            location: 'header',
-            feature: 'auth',
-          },
-        },
-      },
+      desktopGuestAuth: buildDesktopGuestAuth(
+        isOnSignup ? SIGNUP_HREF : isOnSignin ? SIGNIN_HREF : null
+      ),
       mobileGuestMenu: {
         navItems: [
           {

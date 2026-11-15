@@ -40,6 +40,7 @@ vi.mock('@/lib/analytics', async (importOriginal) => {
   };
 });
 
+import { FEEDBACK_FORM_URL } from '@/constant/externalLinks';
 import { clearAnalyticsUser } from '@/lib/analytics';
 import { PENDING_AUTH_CALLBACK_URL_KEY } from '@/lib/auth/authFlowStorage';
 import {
@@ -49,6 +50,7 @@ import {
 } from '@/lib/auth/sessionHint';
 import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
 import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
+import { getBecomeMentorHref, getProfileHref } from '@/lib/routes';
 import { notificationStoreManager } from '@/stores/notificationStore';
 import {
   authenticatedIdentity,
@@ -59,11 +61,9 @@ import {
 import { mockSignOut } from '@/test/mocks/nextAuth';
 
 import {
+  buildDesktopGuestAuth,
   EXTERNAL_FEEDBACK_ARIA_LABEL,
-  FEEDBACK_FORM_URL,
-  getBecomeMentorHref,
   getNavAnalyticsAttributes,
-  getProfileHref,
   useHeaderNavigation,
 } from './useHeaderNavigation';
 
@@ -104,6 +104,19 @@ describe('useHeaderNavigation', () => {
         '/profile/user-123/edit?mentor-onboarding=true'
       );
       expect(getBecomeMentorHref(undefined)).toBe('/auth/signup');
+    });
+
+    it('builds desktop guest auth descriptors with active route awareness', () => {
+      const defaultAuth = buildDesktopGuestAuth();
+      expect(defaultAuth.signup.isCurrent).toBe(false);
+      expect(defaultAuth.signin.isCurrent).toBe(false);
+      expect(defaultAuth.signup.analytics.click).toBe('header_signup');
+      expect(defaultAuth.signin.analytics.click).toBe('header_signin');
+
+      const signupAuth = buildDesktopGuestAuth('/auth/signup');
+      const signinAuth = buildDesktopGuestAuth('/auth/signin');
+      expect(signupAuth.signup.isCurrent).toBe(true);
+      expect(signinAuth.signin.isCurrent).toBe(true);
     });
 
     it('maps NavAnalyticsMetadata to data-analytics-* attributes including omitDestination', () => {

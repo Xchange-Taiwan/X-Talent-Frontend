@@ -54,7 +54,7 @@ export function Header(): JSX.Element {
                 alt="X-Talent Logo"
                 width={158}
                 height={33}
-                style={{ width: 'auto' }}
+                className="h-auto w-auto"
                 priority
               />
             </Link>
