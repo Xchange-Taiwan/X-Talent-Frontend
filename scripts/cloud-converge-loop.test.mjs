@@ -1545,7 +1545,8 @@ describe('cloud-converge-loop', () => {
             if (mockSpecAttempt === 1) {
               return {
                 ok: false,
-                stderr: 'TimeoutError: page.getByRole("button", { name: "第 2 頁" })',
+                stderr:
+                  'TimeoutError: page.getByRole("button", { name: "第 2 頁" })',
                 combined:
                   'TimeoutError: page.getByRole("button", { name: "第 2 頁" })',
               };

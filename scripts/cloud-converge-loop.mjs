@@ -1134,8 +1134,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
 
     const forceTargetedE2eForChangedSpecs =
       !config.runE2e && allChangedSpecs.length > 0;
-    const shouldRunE2ePhase =
-      config.runE2e || forceTargetedE2eForChangedSpecs;
+    const shouldRunE2ePhase = config.runE2e || forceTargetedE2eForChangedSpecs;
 
     if (!shouldRunE2ePhase) {
       lastE2ePassed = true;
