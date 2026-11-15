@@ -285,6 +285,7 @@ describe('useDeleteAccountForm', () => {
       'test@example.com'
     );
     expect(mockRouter.push).toHaveBeenCalledWith('https://google-auth-url.com');
+    expect(result.current.isSubmitting).toBe(true);
   });
 
   it('initiateGoogleReauth failure flow', async () => {
@@ -299,10 +300,19 @@ describe('useDeleteAccountForm', () => {
     });
 
     expect(sessionStorage.getItem(PENDING_DELETE_ACCOUNT_EMAIL_KEY)).toBeNull();
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'delete_account',
+        step: 'google_reauth_authorize',
+        message: 'API failed',
+        level: 'warning',
+      })
+    );
     expect(mockToast).toHaveBeenCalledWith({
       variant: 'destructive',
       description: '無法取得 Google 授權連結，請稍後再試',
       duration: 3000,
     });
+    expect(result.current.isSubmitting).toBe(false);
   });
 });

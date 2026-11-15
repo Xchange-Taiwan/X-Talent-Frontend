@@ -7,7 +7,8 @@ import { useEmailVerify } from '@/hooks/auth/useEmailVerify';
 const EmailVerificationPage = dynamic(() => import('./ui'));
 
 export default function EmailVerificationContainer() {
-  const { email, handleResendEmail, handleNavigateHome } = useEmailVerify();
+  const { email, isResending, handleResendEmail, handleNavigateHome } =
+    useEmailVerify();
 
   if (!email) {
     return null;
@@ -15,6 +16,7 @@ export default function EmailVerificationContainer() {
 
   return (
     <EmailVerificationPage
+      isResending={isResending}
       onResendEmail={handleResendEmail}
       onNavigateHome={handleNavigateHome}
     />

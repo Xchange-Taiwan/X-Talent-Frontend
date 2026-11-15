@@ -7,6 +7,7 @@ import { formFieldData } from '@/components/auth/signin/constants';
 import ForgotPasswordLink from '@/components/auth/signin/ForgotPasswordLink';
 import { AuthFormFieldType, AuthFormProps } from '@/components/auth/types';
 import { Form } from '@/components/ui/form';
+import { SIGNUP_HREF } from '@/lib/routes';
 import { SignInSchema } from '@/schemas/auth';
 
 type SignInValues = z.infer<typeof SignInSchema>;
@@ -38,7 +39,7 @@ export default function SignInForm({
           <SignUpLink
             prefixText="還不是會員?"
             text="註冊 X-Talent"
-            href="/auth/signup"
+            href={SIGNUP_HREF}
           />
         </form>
       </Form>

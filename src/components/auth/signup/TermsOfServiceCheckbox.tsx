@@ -4,6 +4,7 @@ import * as z from 'zod';
 
 import { Checkbox } from '@/components/ui/checkbox';
 import { FormField, FormMessage } from '@/components/ui/form';
+import { PRIVACY_HREF, TERMS_HREF } from '@/lib/routes';
 import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 import { SignUpSchema } from '@/schemas/auth';
@@ -30,7 +31,7 @@ export default function TermsOfServiceCheckbox({
           <span className="text-text-secondary text-sm leading-none font-medium">
             我同意 X-Talent{' '}
             <Link
-              href="/privacy"
+              href={PRIVACY_HREF}
               target="_blank"
               rel="noreferrer"
               className={TERMS_LINK_CLASSES}
@@ -39,7 +40,7 @@ export default function TermsOfServiceCheckbox({
             </Link>
             和
             <Link
-              href="/terms"
+              href={TERMS_HREF}
               target="_blank"
               rel="noreferrer"
               className={TERMS_LINK_CLASSES}

@@ -17,6 +17,13 @@ vi.mock('@/components/ui/use-toast', async () => {
   return useToastMockFactory();
 });
 
+vi.mock('@/lib/monitoring', () => ({
+  captureFlowFailure: vi.fn(),
+  sanitize: (val: string) => val,
+}));
+
+import { PENDING_VERIFICATION_EMAIL_KEY } from '@/lib/auth/authFlowStorage';
+import { captureFlowFailure } from '@/lib/monitoring';
 import { authClient } from '@/services/auth/authClient';
 import { mockSearchParams } from '@/test/mocks/navigation';
 import { mockToast } from '@/test/mocks/useToast';
@@ -24,19 +31,31 @@ import { mockToast } from '@/test/mocks/useToast';
 import { useConfirmRegister } from './useConfirmRegister';
 
 const mockConfirmRegister = vi.mocked(authClient.confirmSignUp);
+const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 
 describe('useConfirmRegister', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.sessionStorage.clear();
     mockSearchParams.get.mockReturnValue(null);
   });
 
-  it('no token on URL → status is failure, calls toast with "缺少驗證 Token"', () => {
+  it('no token on URL → status is failure, logs structured failure without token PII, and calls toast with "缺少驗證 Token"', async () => {
     mockSearchParams.get.mockReturnValue(null);
 
     const { result } = renderHook(() => useConfirmRegister());
 
+    await act(async () => {
+      await Promise.resolve();
+    });
+
     expect(result.current.status).toBe('failure');
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith({
+      flow: 'email_verification',
+      step: 'missing_token',
+      message: 'Missing signup confirmation token',
+      level: 'info',
+    });
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
         variant: 'destructive',
@@ -47,7 +66,11 @@ describe('useConfirmRegister', () => {
     expect(mockConfirmRegister).not.toHaveBeenCalled();
   });
 
-  it('token on URL + confirmRegister succeeds → status transitions from loading to success', async () => {
+  it('token on URL + confirmRegister succeeds → status transitions to success and clears pending verification email PII from sessionStorage (#904)', async () => {
+    window.sessionStorage.setItem(
+      PENDING_VERIFICATION_EMAIL_KEY,
+      'pending-user@example.com'
+    );
     mockSearchParams.get.mockReturnValue('valid-token');
 
     let resolvePromise!: () => void;
@@ -58,10 +81,8 @@ describe('useConfirmRegister', () => {
 
     const { result } = renderHook(() => useConfirmRegister());
 
-    // Initial state should be loading
     expect(result.current.status).toBe('loading');
 
-    // Resolve the promise
     await act(async () => {
       resolvePromise();
       await apiPromise;
@@ -69,22 +90,37 @@ describe('useConfirmRegister', () => {
 
     expect(result.current.status).toBe('success');
     expect(mockConfirmRegister).toHaveBeenCalledWith('valid-token');
+    expect(
+      window.sessionStorage.getItem(PENDING_VERIFICATION_EMAIL_KEY)
+    ).toBeNull();
     expect(mockToast).not.toHaveBeenCalled();
   });
 
-  it('token on URL + confirmRegister fails → status transitions from loading to failure and shows toast', async () => {
-    mockSearchParams.get.mockReturnValue('invalid-token');
+  it('token on URL + confirmRegister fails → status transitions from loading to failure, logs captureFlowFailure without raw token, and shows toast', async () => {
+    mockSearchParams.get.mockReturnValue('secret-invalid-token-999');
     mockConfirmRegister.mockRejectedValueOnce(new Error('驗證連結已失效'));
 
     const { result } = renderHook(() => useConfirmRegister());
 
-    // Wait for the hook to finish processing the async confirmRegister call
     await act(async () => {
-      await Promise.resolve(); // allow microtasks to flush
+      await Promise.resolve();
     });
 
     expect(result.current.status).toBe('failure');
-    expect(mockConfirmRegister).toHaveBeenCalledWith('invalid-token');
+    expect(mockConfirmRegister).toHaveBeenCalledWith(
+      'secret-invalid-token-999'
+    );
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'email_verification',
+        step: 'confirm_token',
+        message: '驗證連結已失效',
+        level: 'info',
+      })
+    );
+    expect(JSON.stringify(mockCaptureFlowFailure.mock.calls)).not.toContain(
+      'secret-invalid-token-999'
+    );
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
         variant: 'destructive',
@@ -100,14 +136,12 @@ describe('useConfirmRegister', () => {
 
     const { rerender } = renderHook(() => useConfirmRegister());
 
-    // Simulate strict mode unmount & remount by rerendering (effects are re-run)
     rerender();
 
     await act(async () => {
       await Promise.resolve();
     });
 
-    // API should only be called once
     expect(mockConfirmRegister).toHaveBeenCalledTimes(1);
   });
 
@@ -120,11 +154,9 @@ describe('useConfirmRegister', () => {
     expect(mockConfirmRegister).toHaveBeenCalledWith('token-1');
     expect(result.current.status).toBe('loading');
 
-    // Dynamically change token and rerender
     mockSearchParams.get.mockReturnValue('token-2');
     rerender();
 
-    // Verification state should reset to loading while token-2 is being verified
     expect(result.current.status).toBe('loading');
 
     await act(async () => {
@@ -143,11 +175,13 @@ describe('useConfirmRegister', () => {
 
     expect(result.current.status).toBe('loading');
 
-    // Dynamically remove token and rerender
     mockSearchParams.get.mockReturnValue(null);
     rerender();
 
-    // State should immediately become failure and trigger the toast
+    await act(async () => {
+      await Promise.resolve();
+    });
+
     expect(result.current.status).toBe('failure');
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -159,7 +193,6 @@ describe('useConfirmRegister', () => {
   });
 
   it('handles race conditions: ignores stale API responses', async () => {
-    // 1. Initial token: token-1
     mockSearchParams.get.mockReturnValue('token-1');
 
     let resolve1!: () => void;
@@ -172,7 +205,6 @@ describe('useConfirmRegister', () => {
 
     expect(result.current.status).toBe('loading');
 
-    // 2. Dynamically change token to token-2
     mockSearchParams.get.mockReturnValue('token-2');
 
     let resolve2!: () => void;
@@ -181,9 +213,8 @@ describe('useConfirmRegister', () => {
     });
     mockConfirmRegister.mockReturnValueOnce(promise2);
 
-    rerender(); // Trigger effect for token-2
+    rerender();
 
-    // 3. Resolve promise2 first (the newer request)
     await act(async () => {
       resolve2();
       await promise2;
@@ -191,13 +222,11 @@ describe('useConfirmRegister', () => {
 
     expect(result.current.status).toBe('success');
 
-    // 4. Resolve promise1 last (the older/stale request)
     await act(async () => {
       resolve1();
       await promise1;
     });
 
-    // It should still be 'success' (from token-2), NOT overwritten by the stale token-1 response!
     expect(result.current.status).toBe('success');
     expect(mockToast).not.toHaveBeenCalled();
   });

@@ -7,6 +7,7 @@ import EmailVerifiedFailuredIconUrl from '@/assets/auth/email-verified-failed-ic
 import EmailVerifiedIconUrl from '@/assets/auth/email-verified-icon.svg';
 import { PageLoading } from '@/components/ui/loading-spinner';
 import { useConfirmRegister } from '@/hooks/auth/useConfirmRegister';
+import { SIGNIN_HREF, SIGNUP_HREF } from '@/lib/routes';
 
 const EmailVerifiedPresentation = dynamic(() => import('./ui'));
 
@@ -25,14 +26,14 @@ export default function EmailVerifiedContainer() {
       content:
         '你的帳號已完成註冊。現在可以開始建立你的個人頁面和尋找 Mentors 了！',
       btnContent: '設定個人資訊',
-      redirectUrl: '/auth/signin',
+      redirectUrl: SIGNIN_HREF,
     },
     failure: {
       icon: EmailVerifiedFailuredIconUrl.src,
       title: '驗證失敗',
       content: '您的驗證連結已失效，請重新輸入Email再次驗證',
       btnContent: '返回重試',
-      redirectUrl: '/auth/signup',
+      redirectUrl: SIGNUP_HREF,
     },
   };
 

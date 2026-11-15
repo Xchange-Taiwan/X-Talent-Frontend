@@ -31,7 +31,7 @@ vi.mock('@/lib/analytics', async (importOriginal) => {
 });
 
 import { setAnalyticsUserContext, trackEvent } from '@/lib/analytics';
-import { PENDING_AUTH_CALLBACK_URL_KEY } from '@/lib/auth/callbackUrl';
+import { PENDING_AUTH_CALLBACK_URL_KEY } from '@/lib/auth/authFlowStorage';
 import {
   getPendingFavoriteMentorId,
   PENDING_FAVORITE_TTL_MS,

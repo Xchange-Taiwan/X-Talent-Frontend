@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 
+import { captureEvidence } from '../../helpers/evidence';
 import { mockApiRoute } from '../../helpers/route';
 
 test('enter email on /auth/password-forgot and submit → redirects to /auth/password-forgot-success and renders AuthMessageCard', async ({
@@ -28,11 +29,23 @@ test('enter email on /auth/password-forgot and submit → redirects to /auth/pas
   ).toBeVisible();
   await expect(page.getByRole('button', { name: '重新寄送' })).toBeVisible();
   await expect(page.getByRole('button', { name: '更換信箱' })).toBeVisible();
+
+  const storedResetEmail = await page.evaluate(() =>
+    sessionStorage.getItem('pending_reset_email')
+  );
+  expect(storedResetEmail).toBe('user@example.com');
+
+  await captureEvidence(page, '904-password-forgot-success-card');
 });
 
-test('visit /auth/password-reset?token=<valid>, enter matching passwords and submit → redirects to /auth/password-reset-success, renders AuthMessageCard, and navigates to /auth/signin (#805)', async ({
+test('visit /auth/password-reset?token=<valid>, enter matching passwords and submit → clears pending_reset_email PII, redirects to /auth/password-reset-success, and navigates to /auth/signin (#805 / #904)', async ({
   page,
 }) => {
+  await page.goto('/');
+  await page.evaluate(() => {
+    sessionStorage.setItem('pending_reset_email', 'user@example.com');
+  });
+
   await page.goto('/auth/password-reset?token=test-valid-token');
 
   await mockApiRoute(page, /\/v1\/auth\/password\/reset/, {
@@ -52,8 +65,15 @@ test('visit /auth/password-reset?token=<valid>, enter matching passwords and sub
   ).toBeVisible();
   await expect(page.getByText('您現在可以使用新密碼登入。')).toBeVisible();
 
+  const storedResetEmailAfterSuccess = await page.evaluate(() =>
+    sessionStorage.getItem('pending_reset_email')
+  );
+  expect(storedResetEmailAfterSuccess).toBeNull();
+
   const signInButton = page.getByRole('button', { name: '前往登入' });
   await expect(signInButton).toBeVisible();
+  await captureEvidence(page, '904-password-reset-success-clears-pii');
+
   await signInButton.click();
 
   await expect(page).toHaveURL('/auth/signin', { timeout: 10_000 });

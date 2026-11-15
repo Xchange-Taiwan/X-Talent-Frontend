@@ -1,13 +1,10 @@
 import { fromPartial } from '@total-typescript/shoehorn';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createInMemorySessionStorage } from '@/lib/auth/authFlowStorage';
 import type { components } from '@/types/api';
 
 import {
-  clearPendingDeleteAccountEmail,
   type ClientSignInFn,
-  getPendingDeleteAccountEmail,
   type GoogleOAuthCodeExchanger,
   resolveOAuthOutcome,
   signInWithGoogleToken,
@@ -17,32 +14,6 @@ type GoogleCallbackVO = components['schemas']['GoogleCallbackVO'];
 type ProfileVO = components['schemas']['ProfileVO'];
 type OAuthCallbackResponse =
   components['schemas']['ApiResponse_GoogleCallbackVO_'];
-
-describe('getPendingDeleteAccountEmail & clearPendingDeleteAccountEmail', () => {
-  it('returns null when storage is empty', () => {
-    const storage = createInMemorySessionStorage();
-    expect(getPendingDeleteAccountEmail(storage)).toBeNull();
-  });
-
-  it('retrieves the email without removing it from storage', () => {
-    const storage = createInMemorySessionStorage({
-      delete_account_email: 'user@example.com',
-    });
-
-    expect(getPendingDeleteAccountEmail(storage)).toBe('user@example.com');
-    expect(storage.getItem('delete_account_email')).toBe('user@example.com');
-  });
-
-  it('removes the email when clearPendingDeleteAccountEmail is called', () => {
-    const storage = createInMemorySessionStorage({
-      delete_account_email: 'user@example.com',
-    });
-
-    clearPendingDeleteAccountEmail(storage);
-
-    expect(storage.getItem('delete_account_email')).toBeNull();
-  });
-});
 
 describe('signInWithGoogleToken', () => {
   it('calls injected signIn adapter with custom-google-token options', async () => {
