@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/navigation', async () => {
@@ -293,5 +293,60 @@ describe('MentorCardList tag merging, deduplication, and filter prioritization (
 
     expect(articles[2]).not.toHaveTextContent('/ 10');
     expect(articles[2]).not.toHaveTextContent('已完成');
+  });
+
+  it('splits comma-separated selectedFilters into individual localized badges, skips whitespace-only filters, and passes (key, value) on remove (#897)', () => {
+    const onRemoveFilter = vi.fn();
+    render(
+      <MentorPoolUI
+        {...defaultProps}
+        mentors={mockMentors.slice(0, 1)}
+        mentorCount={1}
+        listStatus="success"
+        filterOptions={{
+          filter_skills: {
+            name: '技能',
+            options: [
+              { label: 'TypeScript', value: 'skill_typescript' },
+              { label: 'Figma', value: 'skill_figma' },
+            ],
+          },
+          filter_topics: {
+            name: '主題',
+            options: [],
+          },
+          filter_industries: {
+            name: '產業',
+            options: [],
+          },
+        }}
+        selectedFilters={{
+          filter_skills: {
+            name: '技能',
+            value: 'skill_typescript, skill_figma',
+          },
+          filter_topics: {
+            name: '主題',
+            value: '   ',
+          },
+        }}
+        onRemoveFilter={onRemoveFilter}
+      />
+    );
+
+    expect(screen.getByText('技能: TypeScript')).toBeInTheDocument();
+    expect(screen.getByText('技能: Figma')).toBeInTheDocument();
+    expect(
+      screen.queryByText('技能: skill_typescript, skill_figma')
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/^主題:/)).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: '移除「技能：TypeScript」篩選' })
+    );
+    expect(onRemoveFilter).toHaveBeenCalledWith(
+      'filter_skills',
+      'skill_typescript'
+    );
   });
 });

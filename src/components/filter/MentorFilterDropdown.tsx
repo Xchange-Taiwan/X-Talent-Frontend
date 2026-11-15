@@ -4,20 +4,12 @@ import React, { useCallback, useEffect, useState } from 'react';
 
 import FilterSelect from '@/components/filter/FilterSelect';
 import { Button } from '@/components/ui/button';
+import type {
+  FilterOptions,
+  SelectFilters,
+} from '@/lib/mentor/mentorPoolQuery';
 
-export type FilterOptions = {
-  [key: string]: {
-    name: string;
-    options: { label: string; value: string }[];
-  };
-};
-
-export interface SelectFilters {
-  [key: string]: {
-    name: string;
-    value: string;
-  };
-}
+export type { FilterOptions, SelectFilters };
 
 interface MentorFilterDropdownProps {
   onChange: (filters: SelectFilters) => void;
