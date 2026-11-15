@@ -7,70 +7,56 @@ import {
   FormField,
   FormItem,
   FormLabel,
+  FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { ProfileFormContext } from '@/hooks/user/profile/useEditProfileForm';
-import { ProfileFormValues } from '@/schemas/profileSchema';
+import { SOCIAL_PLATFORM_KEYS } from '@/lib/profile/socialLinks';
 
 import { platformLabelMap } from '../social-links/platformLabelMap';
 import { Section } from './Section';
 
-const SOCIAL_LINKS = Object.entries(platformLabelMap).map(([key, value]) => ({
-  name: key as keyof ProfileFormValues,
-  label: value.label,
-  icon: value.icon,
+const SOCIAL_LINKS = SOCIAL_PLATFORM_KEYS.map((platform) => ({
+  platform,
+  label: platformLabelMap[platform].label,
+  icon: platformLabelMap[platform].icon,
 }));
 
 interface Props {
+  id?: string;
   form: ProfileFormContext;
 }
 
-/**
- * Links section component
- * - Renders input fields for social and website links
- */
-export const LinksSection = ({ form }: Props) => (
-  <Section title="個人連結">
-    {SOCIAL_LINKS.map(({ name, label, icon }) => (
+export const LinksSection = ({ id = 'links', form }: Props) => (
+  <Section id={id} title="個人連結">
+    {SOCIAL_LINKS.map(({ platform, label, icon }) => (
       <FormField
-        key={name}
+        key={platform}
         control={form.control}
-        name={name}
-        render={({ field }) => {
-          const urlErrorMessage = (
-            form.formState.errors[name] as
-              { url?: { message?: string } } | undefined
-          )?.url?.message;
-
-          return (
-            <FormItem className="mb-4">
-              <FormLabel>{label}</FormLabel>
-              <div className="flex items-center">
-                <div className="mr-3 flex size-5 shrink-0 items-center justify-center">
-                  {icon}
-                </div>
-                <FormControl>
-                  <Input
-                    placeholder="請填入您的連結"
-                    value={field.value?.url || ''}
-                    onChange={(e) =>
-                      field.onChange({ ...field.value, url: e.target.value })
-                    }
-                    onBlur={field.onBlur}
-                    name={field.name}
-                    ref={field.ref}
-                    className="!m-auto"
-                  />
-                </FormControl>
+        name={`links.${platform}`}
+        render={({ field }) => (
+          <FormItem className="mb-4">
+            <FormLabel>
+              <div className="flex items-center gap-2">
+                {icon}
+                <span>{label}</span>
               </div>
-              {urlErrorMessage && (
-                <p className="text-status-error-default text-sm font-medium">
-                  {urlErrorMessage}
-                </p>
-              )}
-            </FormItem>
-          );
-        }}
+            </FormLabel>
+            <FormControl>
+              <Input
+                type="text"
+                inputMode="url"
+                placeholder=""
+                value={field.value ?? ''}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                name={field.name}
+                ref={field.ref}
+              />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
       />
     ))}
   </Section>

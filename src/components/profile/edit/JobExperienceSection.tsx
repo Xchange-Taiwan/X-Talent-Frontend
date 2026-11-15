@@ -47,7 +47,6 @@ interface Props {
   }[];
   form: ProfileFormContext;
   isMentor: boolean;
-  onValidationChange: (hasError: boolean) => void;
 }
 
 export const JobExperienceSection = ({
@@ -55,7 +54,6 @@ export const JobExperienceSection = ({
   locations,
   form,
   isMentor,
-  onValidationChange,
 }: Props) => {
   const {
     control,
@@ -64,22 +62,16 @@ export const JobExperienceSection = ({
     formState: { errors },
   } = form;
 
-  const { fields, move, isInvalidPeriod, tryAppend, remove } =
-    useRepeatablePeriodSection(
-      form,
-      {
-        arrayName: 'work_experiences',
-        periodStartKey: 'job_period_start',
-        periodEndKey: 'job_period_end',
-        isIncompleteForAppend: (last) =>
-          !last?.job ||
-          !last?.company ||
-          !last?.job_period_start ||
-          !last?.job_period_end,
-        incompleteAlertMessage: '請先完成上一筆工作經驗再新增',
-      },
-      onValidationChange
-    );
+  const { fields, move, tryAppend, remove, createPeriodChangeHandlers } =
+    useRepeatablePeriodSection(form, {
+      arrayName: 'work_experiences',
+      isIncompleteForAppend: (last) =>
+        !last?.job ||
+        !last?.company ||
+        !last?.job_period_start ||
+        !last?.job_period_end,
+      incompleteAlertMessage: '請先完成上一筆工作經驗再新增',
+    });
 
   const setPrimary = (targetIndex: number) => {
     const experiences = getValues('work_experiences') ?? [];
@@ -120,7 +112,8 @@ export const JobExperienceSection = ({
   return (
     <Section title="工作經驗" required={isMentor}>
       {fields.map((field, index) => {
-        const invalidPeriod = isInvalidPeriod(index);
+        const { handleStartYearChange, handleEndYearChange } =
+          createPeriodChangeHandlers(index);
 
         return (
           <div key={field.id} className="mb-4 rounded-lg border p-4">
@@ -185,7 +178,7 @@ export const JobExperienceSection = ({
                   <FormItem className="mb-4 grow basis-1/2 md:mb-0">
                     <FormLabel>開始年份</FormLabel>
                     <Select
-                      onValueChange={field.onChange}
+                      onValueChange={handleStartYearChange(field.onChange)}
                       defaultValue={field.value}
                     >
                       <FormControl>
@@ -220,7 +213,7 @@ export const JobExperienceSection = ({
                       &nbsp;
                     </FormLabel>
                     <Select
-                      onValueChange={field.onChange}
+                      onValueChange={handleEndYearChange(field.onChange)}
                       defaultValue={field.value}
                     >
                       <FormControl>
@@ -242,12 +235,6 @@ export const JobExperienceSection = ({
                 )}
               />
             </div>
-
-            {invalidPeriod && (
-              <p className="text-status-error-default mb-4 text-sm font-medium">
-                開始年份不可大於結束年份
-              </p>
-            )}
 
             {/* Industry & Location */}
             <div className="mb-6 gap-6 md:flex">
@@ -340,9 +327,11 @@ export const JobExperienceSection = ({
         <PlusIcon className="mr-2 size-5" />
         新增
       </Button>
-      {errors.work_experiences?.message && (
+      {(errors.work_experiences?.message ??
+        errors.work_experiences?.root?.message) && (
         <p className="text-status-error-default mt-2 text-sm font-medium">
-          {errors.work_experiences?.message as string}
+          {errors.work_experiences?.message ??
+            errors.work_experiences?.root?.message}
         </p>
       )}
     </Section>

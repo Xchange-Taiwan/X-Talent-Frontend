@@ -1,13 +1,18 @@
+import { zodResolver } from '@hookform/resolvers/zod';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { fromPartial } from '@total-typescript/shoehorn';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
 
 import { Form } from '@/components/ui/form';
-import type { ProfileFormContext } from '@/hooks/user/profile/useEditProfileForm';
-import type { jobSchema } from '@/schemas/profileSchema';
+import {
+  createProfileFormSchema,
+  defaultValues,
+  type jobSchema,
+  type ProfileFormInput,
+  type ProfileFormValues,
+} from '@/schemas/profileSchema';
 
 import { JobExperienceSection } from './JobExperienceSection';
 
@@ -38,17 +43,27 @@ function createMockExperience(
 function Harness({
   defaultValue = [],
   isMentor = true,
-  onValidationChange = () => {},
+  validateOnMount = false,
 }: {
   defaultValue?: JobExperience[];
   isMentor?: boolean;
-  onValidationChange?: (hasError: boolean) => void;
+  validateOnMount?: boolean;
 }) {
-  const form = useForm({
+  const form = useForm<ProfileFormInput, unknown, ProfileFormValues>({
+    resolver: zodResolver(createProfileFormSchema(isMentor)),
     defaultValues: {
+      ...defaultValues,
+      is_mentor: isMentor,
       work_experiences: defaultValue,
     },
   });
+
+  const { trigger } = form;
+  useEffect(() => {
+    if (validateOnMount) {
+      void trigger('work_experiences');
+    }
+  }, [trigger, validateOnMount]);
 
   const industries = [{ subject: '科技業', subject_group: 'TECH' }];
   const locations = [{ value: 'TWN', text: '台灣' }];
@@ -59,9 +74,8 @@ function Harness({
         <JobExperienceSection
           industries={industries}
           locations={locations}
-          form={fromPartial<ProfileFormContext>(form)}
+          form={form}
           isMentor={isMentor}
-          onValidationChange={onValidationChange}
         />
       </form>
     </Form>
@@ -137,29 +151,67 @@ describe('JobExperienceSection', () => {
       createMockExperience({
         job_period_start: '2023',
         job_period_end: '2020', // End before Start!
-        description: '',
+        description: '負責後端系統開發',
       }),
     ];
 
-    render(<Harness defaultValue={invalidDates} />);
+    render(<Harness defaultValue={invalidDates} validateOnMount />);
 
-    expect(screen.getByText('開始年份不可大於結束年份')).toBeInTheDocument();
+    expect(
+      await screen.findByText('開始年份不可大於結束年份')
+    ).toBeInTheDocument();
   });
 
-  it('does not flag a "至今" (ongoing) position as an invalid date range, regardless of start year', () => {
-    const ongoing = [
+  it('revalidates job_period_end when changing start year Select above and then below end year', async () => {
+    const initial = [
       createMockExperience({
-        job_period_start: '2023',
-        job_period_end: 'now',
-        description: '',
+        job_period_start: '2021',
+        job_period_end: '2022',
+        description: '負責後端系統開發',
       }),
     ];
 
-    render(<Harness defaultValue={ongoing} />);
+    render(<Harness defaultValue={initial} />);
 
     expect(
       screen.queryByText('開始年份不可大於結束年份')
     ).not.toBeInTheDocument();
+
+    // Select start year 2025 (> 2022) without submitting the form
+    fireEvent.click(screen.getByLabelText('開始年份'));
+    fireEvent.click(screen.getByRole('option', { name: '2025' }));
+
+    expect(
+      await screen.findByText('開始年份不可大於結束年份')
+    ).toBeInTheDocument();
+
+    // Select start year 2020 (< 2022) and verify the error clears automatically
+    fireEvent.click(screen.getByLabelText('開始年份'));
+    fireEvent.click(screen.getByRole('option', { name: '2020' }));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText('開始年份不可大於結束年份')
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it('does not flag a "至今" (ongoing) position as an invalid date range, regardless of start year', async () => {
+    const ongoing = [
+      createMockExperience({
+        job_period_start: '2023',
+        job_period_end: 'now',
+        description: '負責後端系統開發',
+      }),
+    ];
+
+    render(<Harness defaultValue={ongoing} validateOnMount />);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText('開始年份不可大於結束年份')
+      ).not.toBeInTheDocument();
+    });
   });
 
   it('deletes work experiences on trash button click and reassigns primary', async () => {

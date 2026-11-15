@@ -198,11 +198,16 @@ describe('sanitizePublicProfile', () => {
           order: 1,
           mentor_experiences_metadata: {
             data: [
+              {
+                platform: 'linkedin',
+                url: 'https://evil-linkedin.com/in/attacker',
+              }, // lookalike host rejected before deduplicating valid linkedin
               { platform: 'linkedin', url: 'https://linkedin.com/in/first' },
               {
                 platform: 'linkedin',
                 url: 'https://linkedin.com/in/duplicate',
               }, // duplicate platform
+              { platform: 'twitter', url: 'http://x.com/insecure' }, // explicit http:// rejected
               { platform: 'facebook', url: 'javascript:alert(1)' }, // unsafe URL
               { platform: 'unsupported', url: 'https://unsupported.com' }, // non-whitelisted platform
               { platform: 'facebook', url: 'https://facebook.com/me' }, // whitelisted platform

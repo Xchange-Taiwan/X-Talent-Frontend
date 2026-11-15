@@ -4,6 +4,7 @@ import type { FC, ReactNode } from 'react';
 
 import { ProfileBanner } from '@/components/profile/profile-banner';
 import { TagDisplay } from '@/hooks/user/user-data/useUserData';
+import type { PersonalLink } from '@/lib/profile/socialLinks';
 
 import { AvatarCard } from '../avatar-card';
 
@@ -26,7 +27,7 @@ interface Props {
   avatarImgUrl?: string;
   jobTitle?: string;
   company?: string;
-  linkedinUrl?: string;
+  personalLinks?: PersonalLink[];
 
   interestedRole?: TagDisplay[];
   skillEnhancementTarget?: TagDisplay[];
@@ -64,7 +65,7 @@ export const ProfileCard: FC<Props> = ({
   avatarImgUrl,
   company,
   jobTitle,
-  linkedinUrl,
+  personalLinks,
   interestedRole,
   skillEnhancementTarget,
   talkTopic,
@@ -80,7 +81,7 @@ export const ProfileCard: FC<Props> = ({
           avatarImgUrl={avatarImgUrl}
           jobTitle={jobTitle}
           companyName={company}
-          linkedinUrl={linkedinUrl}
+          personalLinks={personalLinks}
         />
       </ProfileBanner>
 
