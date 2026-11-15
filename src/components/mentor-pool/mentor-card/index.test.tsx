@@ -14,14 +14,14 @@ import {
 } from '@/stores/favoriteMentorStore';
 import type { MentorType } from '@/types/mentor';
 
-import { MentorCard, type MentorCardProps } from './index';
+import { MentorCard } from './index';
 
 vi.mock('next/navigation', async () => {
   const { navigationMockFactory } = await import('@/test/mocks/navigation');
   return navigationMockFactory();
 });
 
-function buildMentorSnapshot(overrides: Partial<MentorType> = {}): MentorType {
+function buildMentor(overrides: Partial<MentorType> = {}): MentorType {
   return fromPartial<MentorType>({
     user_id: 101,
     name: 'Zahra Mirzakhani',
@@ -30,30 +30,16 @@ function buildMentorSnapshot(overrides: Partial<MentorType> = {}): MentorType {
     company: 'CreativeUX Design Studio',
     years_of_experience: 'FIVE_TO_TEN',
     about: '累積超過七年的數位產品設計經驗。',
-    have_topic: ['作品集健檢'],
-    have_skill: ['產品設計'],
+    have_topic: ['portfolio_review'],
+    have_skill: ['product_design'],
+    updated_at: '2026-11-15T00:00:00Z',
+    stats: {
+      completed_meeting_count: 24,
+      rating_count: 10,
+      rating_average: 9.6,
+    },
     ...overrides,
   });
-}
-
-function buildCardProps(
-  overrides: Partial<MentorCardProps> = {}
-): MentorCardProps {
-  const snapshot = buildMentorSnapshot();
-  return {
-    id: 101,
-    avatar: avatarImage,
-    years: 'FIVE_TO_TEN',
-    name: 'Zahra Mirzakhani',
-    job_title: 'Senior UX Designer',
-    company: 'CreativeUX Design Studio',
-    about: '累積超過七年的數位產品設計經驗。',
-    haveTopicLabels: ['作品集健檢', '產品設計'],
-    ratingAverage: 9.6,
-    completedMeetingCount: 24,
-    mentorSnapshot: snapshot,
-    ...overrides,
-  };
 }
 
 function renderWithSession(ui: ReactNode, userId: string | null = null) {
@@ -84,7 +70,7 @@ function renderWithSession(ui: ReactNode, userId: string | null = null) {
   );
 }
 
-describe('MentorCard (#757)', () => {
+describe('MentorCard (#757, #896)', () => {
   const fetchMock =
     vi.fn<FavoriteMentorServiceAdapter['fetchFavoriteMentors']>();
   const addMock = vi.fn<FavoriteMentorServiceAdapter['addFavoriteMentor']>();
@@ -113,7 +99,7 @@ describe('MentorCard (#757)', () => {
     const onDocumentKeyUp = vi.fn();
     favoriteMentorStore.seedFavorites('9001', []);
 
-    renderWithSession(<MentorCard {...buildCardProps()} />, '9001');
+    renderWithSession(<MentorCard mentor={buildMentor()} />, '9001');
     document.addEventListener('click', onDocumentClick);
     document.addEventListener('keydown', onDocumentKeyDown);
     document.addEventListener('keyup', onDocumentKeyUp);
@@ -220,10 +206,11 @@ describe('MentorCard (#757)', () => {
     const user = userEvent.setup();
     const trackEventSpy = vi.spyOn(analyticsModule, 'trackEvent');
     const onLinkClick = vi.fn((event: Event) => event.preventDefault());
-    favoriteMentorStore.seedFavorites('9001', [101]);
+    const mentor = buildMentor();
+    favoriteMentorStore.seedFavorites('9001', [mentor]);
 
     renderWithSession(
-      <MentorCard {...buildCardProps({ feature: 'favorites' })} />,
+      <MentorCard mentor={mentor} feature="favorites" />,
       '9001'
     );
 
@@ -276,10 +263,9 @@ describe('MentorCard (#757)', () => {
   it('uses explicit analyticsLocation prop when provided', () => {
     renderWithSession(
       <MentorCard
-        {...buildCardProps({
-          feature: 'mentor_pool',
-          analyticsLocation: 'favorites_list',
-        })}
+        mentor={buildMentor()}
+        feature="mentor_pool"
+        analyticsLocation="favorites_list"
       />
     );
 
@@ -291,5 +277,58 @@ describe('MentorCard (#757)', () => {
       'data-analytics-location',
       'favorites_list'
     );
+  });
+
+  it('projects localized tags via labelMap + prioritizedCodes, resolves empty avatar to fallback image, and preserves raw subject_group codes on bookmark snapshot (#896)', async () => {
+    const user = userEvent.setup();
+    favoriteMentorStore.seedFavorites('9001', []);
+    const labelMap = new Map<string, string>([
+      ['portfolio_review', '作品集健檢'],
+      ['product_design', '產品設計'],
+    ]);
+
+    renderWithSession(
+      <MentorCard
+        mentor={buildMentor({
+          avatar: '',
+          have_topic: ['portfolio_review'],
+          have_skill: ['product_design'],
+          stats: {
+            completed_meeting_count: 8,
+            rating_count: 0,
+            rating_average: 9.5,
+          },
+        })}
+        labelMap={labelMap}
+        prioritizedCodes={new Set(['product_design'])}
+      />,
+      '9001'
+    );
+
+    const avatarImg = screen.getByRole('img', {
+      name: 'Zahra Mirzakhani 的頭像',
+    });
+    expect(avatarImg.getAttribute('src')).toBeTruthy();
+
+    const displayContainer = screen.getByTestId('display-container');
+    expect(
+      Array.from(displayContainer.children).map((el) => el.textContent)
+    ).toEqual(['產品設計', '作品集健檢']);
+    expect(screen.queryByText(/\/ 10/)).not.toBeInTheDocument();
+    expect(screen.getByText('已完成 8 場 1-on-1')).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole('button', { name: '收藏 Zahra Mirzakhani' })
+    );
+
+    await waitFor(() => {
+      expect(favoriteMentorStore.isFavorited(101)).toBe(true);
+    });
+    expect(favoriteMentorStore.getState().favoriteMentors[0]).toMatchObject({
+      user_id: 101,
+      avatar: avatarImage,
+      have_topic: ['portfolio_review'],
+      have_skill: ['product_design'],
+    });
   });
 });

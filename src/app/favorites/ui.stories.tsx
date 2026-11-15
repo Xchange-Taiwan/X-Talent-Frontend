@@ -8,6 +8,13 @@ import type { MentorType } from '@/types/mentor';
 
 import FavoritesPageUI from './ui';
 
+const FAVORITES_STORY_LABEL_MAP = new Map<string, string>([
+  ['portfolio_review', '作品集健檢'],
+  ['career_planning', '職涯規劃'],
+  ['product_design', '產品設計'],
+  ['design_system', '設計系統'],
+]);
+
 function FavoritesStoreSeedBoundary({
   mentors,
   children,
@@ -63,6 +70,22 @@ export const PopulatedList: Story = {
   args: {
     mentors: mockMentors.slice(0, 3),
     mentorCount: 3,
+    listStatus: 'success',
+  },
+};
+
+export const CodeMappedCatalogTags: Story = {
+  args: {
+    mentors: [
+      {
+        ...mockMentors[0],
+        avatar: '',
+        have_topic: ['portfolio_review', 'career_planning'],
+        have_skill: ['product_design', 'design_system'],
+      },
+    ],
+    mentorCount: 1,
+    labelMap: FAVORITES_STORY_LABEL_MAP,
     listStatus: 'success',
   },
 };

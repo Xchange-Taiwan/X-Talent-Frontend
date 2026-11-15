@@ -495,4 +495,85 @@ test.describe('我的收藏頁 /favorites (#755)', () => {
     await expect(emptyStateCta).toBeVisible();
     await expect(emptyStateCta).toHaveAttribute('href', '/mentor-pool');
   });
+
+  test('從無自訂頭像之導師個人頁點擊書籤收藏並切往 /favorites 時，卡片穩定呈現預設頭像、分類標籤與評分資訊 (#896)', async ({
+    page,
+  }) => {
+    await setupAuthenticatedViewer(page);
+    await setupCommonSupportRoutes(page);
+
+    await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
+      return fulfillJsonWithCors(route, 200, {
+        code: '0',
+        msg: 'ok',
+        data: { mentors: [] },
+      });
+    });
+
+    await page.route(/\/v1\/mentors\/\d+\/favorite$/, (route) => {
+      const method = route.request().method();
+      if (method === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
+      if (method === 'PUT' || method === 'DELETE') {
+        return fulfillJsonWithCors(route, 200, {
+          code: '0',
+          msg: 'ok',
+          data: null,
+        });
+      }
+      return route.continue();
+    });
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto(`/profile/${FIRST_MENTOR_ID_STR}`);
+
+    const profileBookmarkBtn = page.getByRole('button', {
+      name: '收藏 Zahra Mirzakhani',
+    });
+    await expect(profileBookmarkBtn).toBeVisible();
+
+    const putFavoritePromise = page.waitForResponse(
+      (res) =>
+        res.url().includes(`/v1/mentors/${FIRST_MENTOR_ID_STR}/favorite`) &&
+        res.request().method() === 'PUT'
+    );
+    await profileBookmarkBtn.click();
+    await putFavoritePromise;
+
+    await expect(
+      page.getByRole('button', { name: '取消收藏 Zahra Mirzakhani' })
+    ).toBeVisible();
+
+    await page
+      .getByTestId('desktop-header-right')
+      .getByRole('button', { name: '開啟用戶選單' })
+      .click();
+    const myFavoritesMenuItem = page.getByRole('menuitem', {
+      name: '我的收藏',
+    });
+    await expect(myFavoritesMenuItem).toBeVisible();
+    await myFavoritesMenuItem.click();
+
+    await expect(page).toHaveURL(/\/favorites$/);
+    await expect(page.getByText('已收藏 1 位導師')).toBeVisible();
+
+    const card = page.locator('article').first();
+    await expect(card).toBeVisible();
+    await expect(
+      card.getByRole('heading', { name: 'Zahra Mirzakhani' })
+    ).toBeVisible();
+
+    const cardAvatar = card.getByRole('img', {
+      name: 'Zahra Mirzakhani 的頭像',
+    });
+    await expect(cardAvatar).toBeVisible();
+    const avatarSrc = await cardAvatar.getAttribute('src');
+    expect(avatarSrc).toBeTruthy();
+
+    await captureEvidence(page, 'favorites-card-normalized-from-profile');
+  });
 });

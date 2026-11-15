@@ -21,9 +21,8 @@ const meta: Meta<typeof Information> = {
     company: mockMentors[0].company,
     about: mockMentors[0].about,
     haveTopicLabels: mockMentors[0].have_topic,
-    ratingAverage: mockMentors[0].stats?.rating_average ?? null,
-    completedMeetingCount:
-      mockMentors[0].stats?.completed_meeting_count ?? null,
+    ratingLabel: '9.8 / 10',
+    completedMeetingsLabel: '已完成 18 場 1-on-1',
   },
 };
 
@@ -37,8 +36,8 @@ export const Default: Story = {
     company: mockMentors[0].company,
     about: mockMentors[0].about,
     haveTopicLabels: mockMentors[0].have_topic,
-    ratingAverage: 9.8,
-    completedMeetingCount: 18,
+    ratingLabel: '9.8 / 10',
+    completedMeetingsLabel: '已完成 18 場 1-on-1',
   },
 };
 
@@ -49,8 +48,8 @@ export const CompletedSessionsWithoutRating: Story = {
     company: mockMentors[2].company,
     about: mockMentors[2].about,
     haveTopicLabels: mockMentors[2].have_topic,
-    ratingAverage: null,
-    completedMeetingCount: 5,
+    ratingLabel: null,
+    completedMeetingsLabel: '已完成 5 場 1-on-1',
   },
 };
 
@@ -61,8 +60,8 @@ export const NoRatingsAndNoSessions: Story = {
     company: mockMentors[3].company,
     about: mockMentors[3].about,
     haveTopicLabels: mockMentors[3].have_topic,
-    ratingAverage: null,
-    completedMeetingCount: 0,
+    ratingLabel: null,
+    completedMeetingsLabel: null,
   },
 };
 
@@ -80,8 +79,8 @@ export const MobileLongNameTruncation: Story = {
     company: 'CreativeUX Design Studio',
     about: mockMentors[0].about,
     haveTopicLabels: mockMentors[0].have_topic,
-    ratingAverage: 9.8,
-    completedMeetingCount: 12,
+    ratingLabel: '9.8 / 10',
+    completedMeetingsLabel: '已完成 12 場 1-on-1',
   },
 };
 
@@ -92,6 +91,8 @@ export const ShortAboutAndFewTags: Story = {
     company: mockMentors[1].company,
     about: '專注於 React/Next.js 前端開發與效能優化。',
     haveTopicLabels: ['Frontend', 'React', 'TypeScript'],
+    ratingLabel: null,
+    completedMeetingsLabel: null,
   },
 };
 
@@ -111,6 +112,8 @@ export const LongCompanyAndManyTags: Story = {
       'Career Coaching',
       'Cross-functional Alignment',
     ],
+    ratingLabel: null,
+    completedMeetingsLabel: null,
   },
 };
 
@@ -121,5 +124,7 @@ export const MissingRoleAndShortAbout: Story = {
     company: '',
     about: '單行簡短自介。',
     haveTopicLabels: ['UI/UX 設計', 'Figma', 'Prototyping'],
+    ratingLabel: null,
+    completedMeetingsLabel: null,
   },
 };

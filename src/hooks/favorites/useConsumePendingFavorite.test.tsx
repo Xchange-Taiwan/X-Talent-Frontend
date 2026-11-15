@@ -3,6 +3,7 @@ import { fromPartial } from '@total-typescript/shoehorn';
 import { StrictMode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import avatarImage from '@/assets/default-avatar.png';
 import { Toaster } from '@/components/ui/toaster';
 import { clearToasts } from '@/components/ui/use-toast';
 import type { UserType } from '@/hooks/user/user-data/useUserData';
@@ -19,7 +20,6 @@ import {
 
 import {
   FAVORITE_SELF_BLOCKED_TOAST_MESSAGE,
-  toMentorSnapshot,
   useConsumePendingFavorite,
   type UseConsumePendingFavoriteOptions,
 } from './useConsumePendingFavorite';
@@ -342,25 +342,39 @@ describe('useConsumePendingFavorite', () => {
     expect(getPendingFavoriteMentorId()).toBeNull();
   });
 
-  it('maps UserType fields and tag display labels into a complete MentorType snapshot', () => {
+  it('stores normalized MentorType snapshot with fallback avatar and raw subject_group codes via normalizeMentorFromProfile (#896)', async () => {
+    savePendingFavoriteMentor(303);
     const mentorData = buildMentorUserData({
       user_id: 303,
       name: 'Zahra Mirzakhani',
+      avatar: '',
       job_title: 'Senior UX Designer',
       company: 'CreativeUX',
       about: 'Design systems mentor',
+      updated_at: null,
     });
 
-    const snapshot = toMentorSnapshot(mentorData);
+    render(
+      <Harness
+        pageUserId="303"
+        loginUserId="999"
+        userData={mentorData}
+        userLoading={false}
+      />
+    );
 
-    expect(snapshot).toMatchObject({
+    await waitFor(() => {
+      expect(favoriteMentorStore.isFavorited(303)).toBe(true);
+    });
+    expect(favoriteMentorStore.getState().favoriteMentors[0]).toMatchObject({
       user_id: 303,
       name: 'Zahra Mirzakhani',
+      avatar: avatarImage,
       job_title: 'Senior UX Designer',
       company: 'CreativeUX',
       about: 'Design systems mentor',
-      have_skill: ['產品設計'],
-      have_topic: ['職涯規劃'],
+      have_skill: ['UX'],
+      have_topic: ['CAREER'],
     });
   });
 });

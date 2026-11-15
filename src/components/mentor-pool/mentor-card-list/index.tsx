@@ -12,52 +12,7 @@ interface MentorCardListProps {
   labelMap?: ReadonlyMap<string, string>;
 }
 
-interface CachedCardTags {
-  prioritizedCodes: ReadonlySet<string>;
-  labelMap: ReadonlyMap<string, string> | undefined;
-  tags: string[];
-}
-
 const EMPTY_PRIORITIZED_CODES: ReadonlySet<string> = new Set();
-
-export function buildMentorCardTags(
-  mentor: Pick<MentorType, 'have_topic' | 'have_skill'>,
-  prioritizedCodes?: ReadonlySet<string>,
-  labelMap?: ReadonlyMap<string, string>
-): string[] {
-  const combinedCodes = Array.from(
-    new Set([...(mentor.have_topic ?? []), ...(mentor.have_skill ?? [])])
-  ).filter(Boolean);
-
-  let orderedCodes = combinedCodes;
-  if (prioritizedCodes && prioritizedCodes.size > 0) {
-    const matched: string[] = [];
-    const rest: string[] = [];
-    for (const code of combinedCodes) {
-      if (prioritizedCodes.has(code)) {
-        matched.push(code);
-      } else {
-        rest.push(code);
-      }
-    }
-    orderedCodes = [...matched, ...rest];
-  }
-
-  if (!labelMap || labelMap.size === 0) {
-    return orderedCodes;
-  }
-
-  const resolvedLabels: string[] = [];
-  const seenLabels = new Set<string>();
-  for (const code of orderedCodes) {
-    const label = labelMap.get(code) ?? code;
-    if (label && !seenLabels.has(label)) {
-      seenLabels.add(label);
-      resolvedLabels.push(label);
-    }
-  }
-  return resolvedLabels;
-}
 
 const MentorCardListBase = ({
   mentors,
@@ -69,9 +24,6 @@ const MentorCardListBase = ({
   const lastCardRef = useRef<HTMLElement | null>(null);
   const onScrollToBottomRef = useRef(onScrollToBottom);
   onScrollToBottomRef.current = onScrollToBottom;
-  const tagCacheRef = useRef<WeakMap<MentorType, CachedCardTags>>(
-    new WeakMap()
-  );
 
   const prioritizedCodesKey = (activeFilterBadges ?? [])
     .filter(
@@ -95,24 +47,6 @@ const MentorCardListBase = ({
         : EMPTY_PRIORITIZED_CODES,
     [prioritizedCodesKey]
   );
-
-  const getMentorCardTags = (mentor: MentorType): string[] => {
-    const cached = tagCacheRef.current.get(mentor);
-    if (
-      cached &&
-      cached.prioritizedCodes === prioritizedCodes &&
-      cached.labelMap === labelMap
-    ) {
-      return cached.tags;
-    }
-    const tags = buildMentorCardTags(mentor, prioritizedCodes, labelMap);
-    tagCacheRef.current.set(mentor, {
-      prioritizedCodes,
-      labelMap,
-      tags,
-    });
-    return tags;
-  };
 
   const lastMentorId = mentors.at(-1)?.user_id;
 
@@ -149,20 +83,10 @@ const MentorCardListBase = ({
           <MentorCard
             ref={index === mentors.length - 1 ? lastCardRef : null}
             key={mentor.user_id}
-            id={mentor.user_id}
-            avatar={mentor.avatar}
-            years={mentor.years_of_experience}
-            name={mentor.name}
-            job_title={mentor.job_title}
-            company={mentor.company}
-            about={mentor.about}
-            haveTopicLabels={getMentorCardTags(mentor)}
-            ratingAverage={mentor.stats?.rating_average ?? null}
-            completedMeetingCount={
-              mentor.stats?.completed_meeting_count ?? null
-            }
+            mentor={mentor}
+            prioritizedCodes={prioritizedCodes}
+            labelMap={labelMap}
             priority={index === 0}
-            mentorSnapshot={mentor}
           />
         ))}
       </div>

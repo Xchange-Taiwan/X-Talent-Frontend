@@ -203,6 +203,7 @@ describe('FavoritesPageContainer', () => {
     expect(mockUseTagCatalog).toHaveBeenCalledWith('zh_TW');
 
     const initialCards = screen.getAllByRole('article');
+    const secondCardBefore = initialCards[1];
     expect(initialCards).toHaveLength(2);
     expect(
       within(initialCards[0]).getByRole('link', {
@@ -215,6 +216,10 @@ describe('FavoritesPageContainer', () => {
     expect(
       within(initialCards[0]).getAllByText('產品設計').length
     ).toBeGreaterThan(0);
+    expect(favoriteMentorStore.getState().favoriteMentors[0]).toMatchObject({
+      have_topic: ['portfolio_review', 'career_planning'],
+      have_skill: ['product_design'],
+    });
 
     // Unbookmark first mentor -> immediately removed and count becomes 1
     await user.click(
@@ -233,7 +238,14 @@ describe('FavoritesPageContainer', () => {
       },
     });
     expect(screen.getByText('已收藏 1 位導師')).toBeInTheDocument();
-    expect(screen.getAllByRole('article')).toHaveLength(1);
+    const remainingCards = screen.getAllByRole('article');
+    expect(remainingCards).toHaveLength(1);
+    expect(remainingCards[0]).toBe(secondCardBefore);
+    expect(favoriteMentorStore.getState().favoriteMentors[0]).toMatchObject({
+      user_id: 102,
+      have_topic: ['career_planning'],
+      have_skill: [],
+    });
     expect(
       screen.queryByRole('link', {
         name: '前往 Zahra Mirzakhani 的個人頁面',
