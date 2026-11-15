@@ -194,10 +194,7 @@ describe('scripts/cloud/workspace-guard', () => {
         expect(updatedGitignore).toContain('node_modules/');
 
         const updatedSettings = JSON.parse(
-          fs.readFileSync(
-            path.join(tmpDir, '.gemini', 'settings.json'),
-            'utf8'
-          )
+          fs.readFileSync(path.join(tmpDir, '.gemini', 'settings.json'), 'utf8')
         );
         expect(updatedSettings.mcpServers).toBeUndefined();
         expect(updatedSettings.hooks).toBeUndefined();

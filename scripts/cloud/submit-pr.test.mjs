@@ -205,9 +205,9 @@ describe('scripts/cloud/submit-pr', () => {
         ghCalls.some((c) => c.startsWith('pr create --draft --base develop'))
       ).toBe(true);
       expect(verifyBoardSpy).toHaveBeenCalledTimes(1);
-      expect(
-        fs.existsSync(path.join(tmpRepo, '.env.development.local'))
-      ).toBe(false);
+      expect(fs.existsSync(path.join(tmpRepo, '.env.development.local'))).toBe(
+        false
+      );
       expect(fs.existsSync(path.join(tmpRepo, '.agents', 'tmp'))).toBe(false);
     } finally {
       fs.rmSync(tmpRepo, { recursive: true, force: true });
@@ -292,9 +292,7 @@ describe('scripts/cloud/submit-pr', () => {
     const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'submit-pr-guard-'));
     try {
       const developPort = {
-        git: vi.fn((args) =>
-          args[0] === 'branch' ? 'develop' : ''
-        ),
+        git: vi.fn((args) => (args[0] === 'branch' ? 'develop' : '')),
         gh: vi.fn(() => ''),
       };
 

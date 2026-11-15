@@ -81,9 +81,7 @@ describe('scripts/cloud/ticket-bundle', () => {
 
       const fetchImpl = vi.fn(async (rawUrl) => {
         const url = String(rawUrl);
-        if (
-          url.endsWith('/repos/Xchange-Taiwan/X-Talent-Tracker/issues/907')
-        ) {
+        if (url.endsWith('/repos/Xchange-Taiwan/X-Talent-Tracker/issues/907')) {
           issueApiCalls += 1;
           return {
             ok: true,

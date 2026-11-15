@@ -14,7 +14,9 @@ const MAX_SPEC_CHARS = 12_000;
 const MAX_DIFF_CHARS = 60_000;
 
 function splitLines(raw = '') {
-  return String(raw ?? '').replaceAll(CR, '').split(LF);
+  return String(raw ?? '')
+    .replaceAll(CR, '')
+    .split(LF);
 }
 
 export function extractSpecExcerptFromBundle(bundleOrRaw = '') {
@@ -431,7 +433,11 @@ export async function runGeneratePrDescription(opts = {}) {
 
   let resolvedTicket = ticket;
   let existingBody = directExistingBody;
-  if (!existingBody && existingBodyFile && fsImpl.existsSync(existingBodyFile)) {
+  if (
+    !existingBody &&
+    existingBodyFile &&
+    fsImpl.existsSync(existingBodyFile)
+  ) {
     existingBody = fsImpl.readFileSync(existingBodyFile, 'utf8');
   }
   if (!resolvedTicket && existingBody) {

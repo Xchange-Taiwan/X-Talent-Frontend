@@ -115,8 +115,7 @@ export function promoteLocalBranchToCloud(
 ) {
   const cwd = path.resolve(options.cwd || process.cwd());
   const env = options.env || process.env;
-  const port =
-    options.port || createDefaultCommandPort({ repoRoot: cwd, env });
+  const port = options.port || createDefaultCommandPort({ repoRoot: cwd, env });
   const log = options.log || ((msg) => console.log(msg));
 
   const runGit = (args) => String(port.git(args, { cwd, env }) ?? '').trim();

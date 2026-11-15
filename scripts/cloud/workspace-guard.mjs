@@ -41,15 +41,21 @@ const OPTIONAL_PASSTHROUGH_ENV_KEYS = Object.freeze([
 ]);
 
 function splitLines(raw = '') {
-  return String(raw ?? '').replaceAll(CR, '').split(LF);
+  return String(raw ?? '')
+    .replaceAll(CR, '')
+    .split(LF);
 }
 
 function sanitizeEnvValue(raw = '') {
-  return String(raw ?? '').replaceAll(CR, '').replaceAll(LF, '');
+  return String(raw ?? '')
+    .replaceAll(CR, '')
+    .replaceAll(LF, '');
 }
 
 function normalizeSlashes(raw = '') {
-  return String(raw ?? '').split(BS).join('/');
+  return String(raw ?? '')
+    .split(BS)
+    .join('/');
 }
 
 function resolveGitRunner({
@@ -592,7 +598,7 @@ export async function setupCloudEnvironment(options = {}) {
 
   const hasExplicitApiEnv = Boolean(
     sanitizeEnvValue(env?.BFF_OPENAPI_URL) ||
-      sanitizeEnvValue(env?.NEXT_PUBLIC_API_URL)
+    sanitizeEnvValue(env?.NEXT_PUBLIC_API_URL)
   );
   const resolvedApiUrl = resolveCloudApiUrl(
     hasExplicitApiEnv ? env : existingEnv

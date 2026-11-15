@@ -61,7 +61,8 @@ export function parseTicketBundleArgs(argv = [], env = process.env) {
     getArg('--ticket=') ?? env.TICKET_NUMBER ?? ''
   ).replace(/^#/, '');
   const ticketNumber = /^\d+$/.test(rawTicket.trim()) ? rawTicket.trim() : '';
-  const branchName = getArg('--branch=') || String(env.BRANCH_NAME || '').trim();
+  const branchName =
+    getArg('--branch=') || String(env.BRANCH_NAME || '').trim();
   const prRaw = String(getArg('--pr=') ?? env.PR_NUMBER ?? '').replace(
     /^#/,
     ''
@@ -71,8 +72,7 @@ export function parseTicketBundleArgs(argv = [], env = process.env) {
     getArg('--frontend-repo=') || String(env.GITHUB_REPOSITORY || '').trim();
   const trackerRepo =
     getArg('--tracker-repo=') || 'Xchange-Taiwan/X-Talent-Tracker';
-  const bundleOut =
-    getArg('--bundle-out=') || '.agents/tmp/ticket-bundle.json';
+  const bundleOut = getArg('--bundle-out=') || '.agents/tmp/ticket-bundle.json';
   const specOut = getArg('--spec-out=') || '.agents/tmp/ticket-spec.md';
   const imagesOutDir =
     getArg('--images-out-dir=') || '.agents/tmp/ticket-images';
@@ -130,7 +130,11 @@ export function fetchFixPrSupplementalMarkdown({
 } = {}) {
   const cleanPr = String(prNumber || '').trim();
   const cleanRepo = String(frontendRepo || '').trim();
-  if (!cleanPr || !/^\d+$/.test(cleanPr) || !SAFE_REPO_SLUG_RE.test(cleanRepo)) {
+  if (
+    !cleanPr ||
+    !/^\d+$/.test(cleanPr) ||
+    !SAFE_REPO_SLUG_RE.test(cleanRepo)
+  ) {
     return '';
   }
   const activePort = port || createDefaultCommandPort({ repoRoot: cwd, env });
@@ -203,7 +207,9 @@ export function fetchFixPrSupplementalMarkdown({
                 .trim()
                 .slice(0, 400);
               const loc = `${BT}${a.path}:${a.start_line || 1}${BT}`;
-              lines.push(`- ${loc} [${a.annotation_level}] ${titlePrefix}${msg}`);
+              lines.push(
+                `- ${loc} [${a.annotation_level}] ${titlePrefix}${msg}`
+              );
             }
           } catch {}
         }
@@ -237,8 +243,7 @@ export async function buildTicketBundle(options = {}) {
   const env = options.env || process.env;
   const fsImpl = options.fsImpl || fs;
   const fetchImpl = options.fetchImpl || fetch;
-  const port =
-    options.port || createDefaultCommandPort({ repoRoot: cwd, env });
+  const port = options.port || createDefaultCommandPort({ repoRoot: cwd, env });
 
   const resolvedNum = extractTicketNumber(
     options.branchName || '',
@@ -448,7 +453,11 @@ export async function buildTicketBundle(options = {}) {
   };
 
   fsImpl.mkdirSync(path.dirname(bundleOut), { recursive: true });
-  fsImpl.writeFileSync(bundleOut, `${JSON.stringify(bundle, null, 2)}${LF}`, 'utf8');
+  fsImpl.writeFileSync(
+    bundleOut,
+    `${JSON.stringify(bundle, null, 2)}${LF}`,
+    'utf8'
+  );
 
   fsImpl.mkdirSync(path.dirname(specOut), { recursive: true });
   fsImpl.writeFileSync(specOut, fullSpecMarkdown, 'utf8');

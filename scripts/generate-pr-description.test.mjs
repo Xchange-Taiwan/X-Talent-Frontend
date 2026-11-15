@@ -16,11 +16,9 @@ describe('generate-pr-description', () => {
   it('reads cleanSpecMarkdown directly from structured ticket-bundle without magic-heading scraping', () => {
     const bundle = {
       ticketNumber: 737,
-      cleanSpecMarkdown: [
-        'title: [Feature] 導師卡平均分',
-        '',
-        '內容段落',
-      ].join(LF),
+      cleanSpecMarkdown: ['title: [Feature] 導師卡平均分', '', '內容段落'].join(
+        LF
+      ),
       archKb: { huge: true },
     };
     expect(extractSpecExcerptFromBundle(bundle)).toBe(
@@ -93,7 +91,9 @@ describe('generate-pr-description', () => {
       ].join(LF),
     });
 
-    expect(md).toContain(`實作尋找導師頁（${BT}/mentor-pool${BT}）導師卡片方案 B`);
+    expect(md).toContain(
+      `實作尋找導師頁（${BT}/mentor-pool${BT}）導師卡片方案 B`
+    );
     expect(md).toContain(
       `1. **導師卡片方案 B 排版與條件渲染** (${BT}src/components/mentor-pool/mentor-card/Information.tsx${BT})：`
     );

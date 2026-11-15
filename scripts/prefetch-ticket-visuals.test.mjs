@@ -321,7 +321,10 @@ describe('prefetch-ticket-visuals', () => {
               status: 200,
               headers: new Headers({ link: `<${page2Url}>; rel="next"` }),
               json: async () =>
-                Array.from({ length: 100 }, () => ({ body: 'old', body_html: '' })),
+                Array.from({ length: 100 }, () => ({
+                  body: 'old',
+                  body_html: '',
+                })),
             };
           }
           if (url === page2Url) {

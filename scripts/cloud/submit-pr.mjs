@@ -19,7 +19,9 @@ const LF = String.fromCharCode(10);
 const CR = String.fromCharCode(13);
 
 function splitLines(raw = '') {
-  return String(raw ?? '').replaceAll(CR, '').split(LF);
+  return String(raw ?? '')
+    .replaceAll(CR, '')
+    .split(LF);
 }
 
 function createNoopStream() {
@@ -58,7 +60,10 @@ export function parseSubmitPrArgs(argv = [], env = process.env) {
   };
 }
 
-export function extractIssueTitleFromBundleOrSpec(bundle = null, specText = '') {
+export function extractIssueTitleFromBundleOrSpec(
+  bundle = null,
+  specText = ''
+) {
   if (bundle?.issue?.title && String(bundle.issue.title).trim()) {
     return String(bundle.issue.title).trim();
   }
@@ -526,15 +531,7 @@ export async function submitCloudPr(rawOptions = {}) {
     } else if (existingPr) {
       if (mode === 'implement') {
         execGh(
-          [
-            'pr',
-            'edit',
-            existingPr,
-            '--title',
-            prTitle,
-            '--body-file',
-            '-',
-          ],
+          ['pr', 'edit', existingPr, '--title', prTitle, '--body-file', '-'],
           { allowFail: true, input: prBody }
         );
         prAction = 'updated';

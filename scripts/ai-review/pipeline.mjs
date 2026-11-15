@@ -178,7 +178,8 @@ export function createLocalContextPort({
   bundleFile = '.agents/tmp/ticket-bundle.json',
   fetchImpl = fetch,
 } = {}) {
-  const canUseDiskCache = fetchImpl === fetch || bundleFile !== '.agents/tmp/ticket-bundle.json';
+  const canUseDiskCache =
+    fetchImpl === fetch || bundleFile !== '.agents/tmp/ticket-bundle.json';
   return {
     resolveBranch() {
       return execFileSync('git', ['branch', '--show-current'], {
