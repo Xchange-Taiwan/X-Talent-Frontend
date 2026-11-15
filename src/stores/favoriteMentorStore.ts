@@ -10,6 +10,7 @@ export interface FavoriteMentorState {
   favoriteMentors: MentorType[];
   loadedUserId: string | null;
   isLoading: boolean;
+  loadError: Error | null;
   pendingMentorIds: ReadonlySet<number>;
 }
 
@@ -40,8 +41,29 @@ function createInitialFavoriteState(): FavoriteMentorState {
     favoriteMentors: [],
     loadedUserId: null,
     isLoading: false,
+    loadError: null,
     pendingMentorIds: new Set<number>(),
   };
+}
+
+function isNotFoundError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'status' in error &&
+    error.status === 404
+  );
+}
+
+function toLoadError(error: unknown): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+  return new Error(
+    typeof error === 'string' && error.trim()
+      ? error
+      : 'Failed to load favorite mentors'
+  );
 }
 
 const SERVER_SNAPSHOT: FavoriteMentorState = createInitialFavoriteState();
@@ -131,6 +153,7 @@ class FavoriteMentorStoreManager {
       if (
         this.activeUserId !== null ||
         this.state.loadedUserId !== null ||
+        this.state.loadError !== null ||
         this.state.favoriteMentorIds.size > 0 ||
         this.state.pendingMentorIds.size > 0 ||
         this.state.isLoading
@@ -162,11 +185,55 @@ class FavoriteMentorStoreManager {
     } else if (this.loadPromise) {
       return this.loadPromise;
     } else {
-      this.setState({ isLoading: true });
+      this.setState({ isLoading: true, loadError: null });
     }
 
     const requestEpoch = this.userEpoch;
     const targetUserId = normalizedUserId;
+
+    const applyResolvedMentors = (fetchedMentors: MentorType[]) => {
+      this.serverMentorMap.clear();
+      for (const mentor of fetchedMentors) {
+        this.serverMentorMap.set(mentor.user_id, mentor);
+      }
+
+      const mergedIds = new Set<number>(this.serverMentorMap.keys());
+      const mentorMap = new Map<number, MentorType>(this.serverMentorMap);
+
+      // Preserve any optimistic mutations initiated while initial GET was in flight
+      this.optimisticOverrides.forEach((override, id) => {
+        if (override.favorited) {
+          mergedIds.add(id);
+          if (!mentorMap.has(id)) {
+            mentorMap.set(id, override.mentor ?? buildPlaceholderMentor(id));
+          }
+        } else {
+          mergedIds.delete(id);
+          mentorMap.delete(id);
+        }
+
+        if (!this.state.pendingMentorIds.has(id)) {
+          if (override.favorited) {
+            const settledMentor =
+              mentorMap.get(id) ??
+              override.mentor ??
+              buildPlaceholderMentor(id);
+            this.serverMentorMap.set(id, settledMentor);
+          } else {
+            this.serverMentorMap.delete(id);
+          }
+          this.optimisticOverrides.delete(id);
+        }
+      });
+
+      this.setState({
+        favoriteMentorIds: mergedIds,
+        favoriteMentors: Array.from(mentorMap.values()),
+        loadedUserId: targetUserId,
+        isLoading: false,
+        loadError: null,
+      });
+    };
 
     const promise = this.adapter
       .fetchFavoriteMentors()
@@ -177,53 +244,17 @@ class FavoriteMentorStoreManager {
         ) {
           return;
         }
-
-        this.serverMentorMap.clear();
-        for (const mentor of fetchedMentors) {
-          this.serverMentorMap.set(mentor.user_id, mentor);
-        }
-
-        const mergedIds = new Set<number>(this.serverMentorMap.keys());
-        const mentorMap = new Map<number, MentorType>(this.serverMentorMap);
-
-        // Preserve any optimistic mutations initiated while initial GET was in flight
-        this.optimisticOverrides.forEach((override, id) => {
-          if (override.favorited) {
-            mergedIds.add(id);
-            if (!mentorMap.has(id)) {
-              mentorMap.set(id, override.mentor ?? buildPlaceholderMentor(id));
-            }
-          } else {
-            mergedIds.delete(id);
-            mentorMap.delete(id);
-          }
-
-          if (!this.state.pendingMentorIds.has(id)) {
-            if (override.favorited) {
-              const settledMentor =
-                mentorMap.get(id) ??
-                override.mentor ??
-                buildPlaceholderMentor(id);
-              this.serverMentorMap.set(id, settledMentor);
-            } else {
-              this.serverMentorMap.delete(id);
-            }
-            this.optimisticOverrides.delete(id);
-          }
-        });
-
-        this.setState({
-          favoriteMentorIds: mergedIds,
-          favoriteMentors: Array.from(mentorMap.values()),
-          loadedUserId: targetUserId,
-          isLoading: false,
-        });
+        applyResolvedMentors(fetchedMentors);
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (
           this.userEpoch !== requestEpoch ||
           this.activeUserId !== targetUserId
         ) {
+          return;
+        }
+        if (isNotFoundError(error)) {
+          applyResolvedMentors([]);
           return;
         }
         this.optimisticOverrides.forEach((override, id) => {
@@ -246,6 +277,7 @@ class FavoriteMentorStoreManager {
         this.setState({
           loadedUserId: targetUserId,
           isLoading: false,
+          loadError: toLoadError(error),
         });
       })
       .finally(() => {
@@ -256,6 +288,25 @@ class FavoriteMentorStoreManager {
 
     this.loadPromise = promise;
     return promise;
+  }
+
+  /**
+   * Forces a fresh sync of favorite mentors for `rawUserId` after a load failure.
+   */
+  retrySync(rawUserId: string | null | undefined): Promise<void> {
+    const normalizedUserId = rawUserId?.trim() ? rawUserId.trim() : null;
+    if (!normalizedUserId || this.activeUserId !== normalizedUserId) {
+      return this.syncUser(normalizedUserId);
+    }
+    if (this.loadPromise) {
+      return this.loadPromise;
+    }
+    this.state = {
+      ...this.state,
+      loadedUserId: null,
+      loadError: null,
+    };
+    return this.syncUser(normalizedUserId);
   }
 
   /**
@@ -486,6 +537,7 @@ class FavoriteMentorStoreManager {
       favoriteMentors: mentors,
       loadedUserId: normalizedUserId,
       isLoading: false,
+      loadError: null,
       pendingMentorIds: new Set<number>(),
     };
     this.emit();

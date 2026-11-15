@@ -157,6 +157,7 @@ describe('favoriteMentorStore', () => {
     fetchMock.mockResolvedValueOnce([buildMentor({ user_id: 101 })]);
     addMock.mockResolvedValueOnce(undefined);
 
+    // Already favorited on server -> syncs and keeps favorited without calling PUT or DELETE
     const existingOutcome = await favoriteMentorStore.ensureFavorite(
       'user-1',
       101
@@ -170,6 +171,7 @@ describe('favoriteMentorStore', () => {
     expect(removeMock).not.toHaveBeenCalled();
     expect(favoriteMentorStore.isFavorited(101)).toBe(true);
 
+    // Not yet favorited -> adds via PUT
     const addedOutcome = await favoriteMentorStore.ensureFavorite(
       'user-1',
       202,
@@ -274,11 +276,15 @@ describe('favoriteMentorStore', () => {
     expect(favoriteMentorStore.isFavorited(202)).toBe(true);
     expect(favoriteMentorStore.getState().pendingMentorIds.size).toBe(0);
 
+    // Stale user-1 GET resolves and PUT rejects — must return skipped and NOT pollute user-2 state
     user1Fetch.resolve([buildMentor({ user_id: 999, name: 'Stale Mentor' })]);
     user1Put.reject(new Error('Stale PUT failure'));
-    const [, staleOutcome] = await Promise.all([syncUser1, toggleUser1]);
+    const [, toggleUser1Outcome] = await Promise.all([syncUser1, toggleUser1]);
+    expect(toggleUser1Outcome).toEqual({
+      status: 'skipped',
+      nextFavorited: false,
+    });
 
-    expect(staleOutcome).toEqual({ status: 'skipped', nextFavorited: false });
     expect(favoriteMentorStore.getState().loadedUserId).toBe('user-2');
     expect(favoriteMentorStore.isFavorited(999)).toBe(false);
     expect(favoriteMentorStore.isFavorited(101)).toBe(false);
@@ -300,12 +306,165 @@ describe('favoriteMentorStore', () => {
     expect(favoriteMentorStore.getState().favoriteMentorIds.size).toBe(0);
 
     user2Put.resolve();
-    const logoutOutcome = await toggleUser2;
+    const toggleUser2Outcome = await toggleUser2;
+    expect(toggleUser2Outcome).toEqual({
+      status: 'skipped',
+      nextFavorited: false,
+    });
 
-    expect(logoutOutcome).toEqual({ status: 'skipped', nextFavorited: false });
     expect(favoriteMentorStore.getState().loadedUserId).toBeNull();
     expect(favoriteMentorStore.getState().favoriteMentorIds.size).toBe(0);
     expect(favoriteMentorStore.getState().favoriteMentors).toEqual([]);
     expect(favoriteMentorStore.getState().pendingMentorIds.size).toBe(0);
+  });
+
+  it('ensureFavorite returns skipped and does not call addFavoriteMentor when logout or account switch occurs during initial sync', async () => {
+    // 1. Logout while initial fetchFavoriteMentors is in flight
+    const logoutFetch = createDeferred<MentorType[]>();
+    fetchMock.mockReturnValueOnce(logoutFetch.promise);
+
+    const ensureBeforeLogout = favoriteMentorStore.ensureFavorite(
+      'user-1',
+      101,
+      buildMentor({ user_id: 101 })
+    );
+
+    await favoriteMentorStore.syncUser(null);
+    logoutFetch.resolve([]);
+
+    const logoutOutcome = await ensureBeforeLogout;
+    expect(logoutOutcome).toEqual({
+      status: 'skipped',
+      nextFavorited: false,
+    });
+    expect(addMock).not.toHaveBeenCalled();
+    expect(favoriteMentorStore.getState().loadedUserId).toBeNull();
+    expect(favoriteMentorStore.getState().favoriteMentorIds.size).toBe(0);
+
+    // 2. Account switch while initial fetchFavoriteMentors is in flight
+    const switchFetchUser1 = createDeferred<MentorType[]>();
+    fetchMock.mockReturnValueOnce(switchFetchUser1.promise);
+
+    const ensureBeforeSwitch = favoriteMentorStore.ensureFavorite(
+      'user-1',
+      101,
+      buildMentor({ user_id: 101 })
+    );
+
+    fetchMock.mockResolvedValueOnce([
+      buildMentor({ user_id: 202, name: 'User 2 Mentor' }),
+    ]);
+    await favoriteMentorStore.syncUser('user-2');
+    switchFetchUser1.resolve([]);
+
+    const switchOutcome = await ensureBeforeSwitch;
+    expect(switchOutcome).toEqual({
+      status: 'skipped',
+      nextFavorited: false,
+    });
+    expect(addMock).not.toHaveBeenCalled();
+    expect(favoriteMentorStore.getState().loadedUserId).toBe('user-2');
+    expect(
+      Array.from(favoriteMentorStore.getState().favoriteMentorIds)
+    ).toEqual([202]);
+    expect(favoriteMentorStore.getState().pendingMentorIds.size).toBe(0);
+  });
+
+  it('toggleFavorite returns skipped on in-flight account switch (both resolve and reject) without polluting the new account state', async () => {
+    favoriteMentorStore.seedFavorites('user-1', [
+      buildMentor({ user_id: 505, name: 'User 1 Existing' }),
+    ]);
+
+    const inFlightAdd = createDeferred<void>();
+    const inFlightRemove = createDeferred<void>();
+    addMock.mockReturnValueOnce(inFlightAdd.promise);
+    removeMock.mockReturnValueOnce(inFlightRemove.promise);
+
+    const pendingAddPromise = favoriteMentorStore.toggleFavorite(
+      101,
+      buildMentor({ user_id: 101, name: 'User 1 Optimistic Add' })
+    );
+    const pendingRemovePromise = favoriteMentorStore.toggleFavorite(505);
+
+    expect(favoriteMentorStore.isPending(101)).toBe(true);
+    expect(favoriteMentorStore.isPending(505)).toBe(true);
+
+    // Switch to user-2 while user-1 PUT(101) and DELETE(505) are still in flight
+    fetchMock.mockResolvedValueOnce([
+      buildMentor({ user_id: 202, name: 'User 2 Mentor' }),
+    ]);
+    await favoriteMentorStore.syncUser('user-2');
+
+    // Resolve user-1 PUT(101) and reject user-1 DELETE(505) after switching to user-2
+    inFlightAdd.resolve();
+    inFlightRemove.reject(new Error('Network failure on stale account'));
+
+    const [addOutcome, removeOutcome] = await Promise.all([
+      pendingAddPromise,
+      pendingRemovePromise,
+    ]);
+
+    expect(addOutcome).toEqual({ status: 'skipped', nextFavorited: false });
+    expect(removeOutcome).toEqual({ status: 'skipped', nextFavorited: false });
+    expect(favoriteMentorStore.getState().loadedUserId).toBe('user-2');
+    expect(favoriteMentorStore.getState().pendingMentorIds.size).toBe(0);
+    expect(
+      Array.from(favoriteMentorStore.getState().favoriteMentorIds)
+    ).toEqual([202]);
+    expect(
+      favoriteMentorStore
+        .getState()
+        .favoriteMentors.map((mentor) => mentor.user_id)
+    ).toEqual([202]);
+  });
+
+  it('records loadError on non-404 syncUser failure, clears it on retrySync success, and resets it on logout or account switch', async () => {
+    // 1. Non-404 failure sets loadError and finishes loading without refetch loop
+    fetchMock.mockRejectedValueOnce(new Error('500 Internal Server Error'));
+    await favoriteMentorStore.syncUser('user-1');
+
+    expect(favoriteMentorStore.getState().loadedUserId).toBe('user-1');
+    expect(favoriteMentorStore.getState().isLoading).toBe(false);
+    expect(favoriteMentorStore.getState().loadError?.message).toBe(
+      '500 Internal Server Error'
+    );
+    expect(favoriteMentorStore.getState().favoriteMentors).toEqual([]);
+
+    // Repeated syncUser with same userId does not trigger an infinite refetch loop
+    await favoriteMentorStore.syncUser('user-1');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // 2. retrySync refetches and clears loadError on success
+    fetchMock.mockResolvedValueOnce([
+      buildMentor({ user_id: 101, name: 'Zahra' }),
+    ]);
+    await favoriteMentorStore.retrySync('user-1');
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(favoriteMentorStore.getState().loadError).toBeNull();
+    expect(favoriteMentorStore.getState().loadedUserId).toBe('user-1');
+    expect(
+      favoriteMentorStore.getState().favoriteMentors.map((m) => m.user_id)
+    ).toEqual([101]);
+
+    // 3. Switching to user-2 fails, then logging out clears loadError
+    fetchMock.mockRejectedValueOnce(new Error('Network offline'));
+    await favoriteMentorStore.syncUser('user-2');
+    expect(favoriteMentorStore.getState().loadError?.message).toBe(
+      'Network offline'
+    );
+
+    await favoriteMentorStore.syncUser(null);
+    expect(favoriteMentorStore.getState().loadError).toBeNull();
+    expect(favoriteMentorStore.getState().loadedUserId).toBeNull();
+
+    // 4. 404 error is treated as empty state without loadError
+    fetchMock.mockRejectedValueOnce(
+      Object.assign(new Error('Not Found'), { status: 404 })
+    );
+    await favoriteMentorStore.syncUser('user-3');
+    expect(favoriteMentorStore.getState().loadError).toBeNull();
+    expect(favoriteMentorStore.getState().loadedUserId).toBe('user-3');
+    expect(favoriteMentorStore.getState().favoriteMentors).toEqual([]);
   });
 });

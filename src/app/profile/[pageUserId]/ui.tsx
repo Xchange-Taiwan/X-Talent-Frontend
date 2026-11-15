@@ -299,7 +299,7 @@ export default function ProfilePageUI({
                     <MentorBookmarkButton
                       mentorId={userData.user_id}
                       mentorName={userData.name}
-                      analyticsFeature="profile"
+                      feature="profile"
                       variant="outline"
                       tooltipSide="top"
                       tooltipAlign="end"

@@ -1,4 +1,6 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Page, type Route, test } from '@playwright/test';
+
+import { encodeSessionHint, SESSION_HINT_COOKIE } from '@/lib/auth/sessionHint';
 
 import { captureEvidence } from '../../helpers/evidence';
 import { mockApiRoute } from '../../helpers/route';
@@ -12,6 +14,30 @@ test.use({ timezoneId: 'Asia/Taipei' });
 const TARGET_MENTOR_ID = 7482008160728084;
 const TARGET_MENTOR_ID_STR = String(TARGET_MENTOR_ID);
 const SECOND_MENTOR_ID = 102;
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+function fulfillCorsOptions(route: Route) {
+  return route.fulfill({
+    status: 204,
+    headers: CORS_HEADERS,
+  });
+}
+
+function fulfillJsonWithCors(route: Route, status: number, body: unknown) {
+  return route.fulfill({
+    status,
+    contentType: 'application/json',
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+    },
+    body: JSON.stringify(body),
+  });
+}
 
 interface NormalizedGaEvent {
   name: string;
@@ -182,6 +208,10 @@ async function setupAuthenticatedViewer(
     isMentor: false,
   }
 ) {
+  if (!process.env.NEXTAUTH_SECRET) {
+    process.env.NEXTAUTH_SECRET = 'secret';
+  }
+
   await seedMockAuthSession(page, {
     id: user.id,
     name: user.name,
@@ -189,6 +219,19 @@ async function setupAuthenticatedViewer(
     onBoarding: true,
     token: 'mock-auth-token',
   });
+
+  const baseUrl = new URL(process.env.BASE_URL ?? 'http://localhost:3000');
+  await page.context().addCookies([
+    {
+      name: SESSION_HINT_COOKIE,
+      value: encodeSessionHint({ isMentor: user.isMentor, userId: user.id }),
+      domain: baseUrl.hostname,
+      path: '/',
+      httpOnly: false,
+      secure: baseUrl.protocol === 'https:',
+      sameSite: 'Lax',
+    },
+  ]);
 }
 
 async function setupCommonSupportRoutes(
@@ -227,44 +270,45 @@ async function setupCommonSupportRoutes(
   await page.route(
     /\/v1\/(?:users\/[^/]+\/)?notifications\/unread-count/,
     (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
       if (route.request().method() !== 'GET' && sideEffectCounter) {
         sideEffectCounter.notificationMutations += 1;
       }
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          code: '0',
-          msg: 'ok',
-          data: { unread_count: 0 },
-        }),
+      return fulfillJsonWithCors(route, 200, {
+        code: '0',
+        msg: 'ok',
+        data: { unread_count: 0 },
       });
     }
   );
 
   await page.route(/\/v1\/(?:users\/[^/]+\/)?notifications(\?|$)/, (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      return fulfillCorsOptions(route);
+    }
     if (route.request().method() !== 'GET' && sideEffectCounter) {
       sideEffectCounter.notificationMutations += 1;
     }
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        code: '0',
-        msg: 'ok',
-        data: { notifications: [], next_cursor: null },
-      }),
+    return fulfillJsonWithCors(route, 200, {
+      code: '0',
+      msg: 'ok',
+      data: { notifications: [], next_cursor: null },
     });
   });
 
   await page.route(/\/v1\/.*(?:email|subscribe|alert)/i, (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      return fulfillCorsOptions(route);
+    }
     if (sideEffectCounter) {
       sideEffectCounter.emailMutations += 1;
     }
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
+    return fulfillJsonWithCors(route, 200, {
+      code: '0',
+      msg: 'ok',
+      data: null,
     });
   });
 
@@ -290,7 +334,7 @@ async function setupCommonSupportRoutes(
       String.raw`/v1/mentors/${TARGET_MENTOR_ID_STR}/schedule/y/\d+/m/\d+`
     ),
     {
-      body: { code: '0', msg: 'ok', data: { dtstart: [] } },
+      body: { code: '0', msg: 'ok', data: { segments: [], dtstart: [] } },
     }
   );
 
@@ -302,6 +346,7 @@ async function setupCommonSupportRoutes(
         code: '0',
         msg: 'ok',
         data: {
+          feedbacks: [],
           items: [],
           total_rating_count: 10,
           rating_average: 9.6,
@@ -342,7 +387,7 @@ async function setupCommonSupportRoutes(
 }
 
 test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合驗證 (#757)', () => {
-  test('Mentor Pool 與導師個人頁跨頁收藏同步、GA4 mentor_bookmark_toggle 無 PII 埋點與零通知/Email 副作用', async ({
+  test('已登入會員於導師池、桌面帳號選單、/favorites 與導師個人頁跨畫面狀態同步、GA4 埋點與零通知副作用', async ({
     page,
   }) => {
     const favoritedSet = new Set<number>();
@@ -358,20 +403,26 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     await setupCommonSupportRoutes(page, sideEffects);
 
     await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
       const mentors = Array.from(favoritedSet).map((id) =>
         makePoolMentor(id, {
           name: id === TARGET_MENTOR_ID ? 'Zahra Mirzakhani' : '陳宥廷 Austin',
         })
       );
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ code: '0', msg: 'ok', data: { mentors } }),
+      return fulfillJsonWithCors(route, 200, {
+        code: '0',
+        msg: 'ok',
+        data: { mentors },
       });
     });
 
     await page.route(/\/v1\/mentors\/\d+\/favorite$/, (route) => {
       const method = route.request().method();
+      if (method === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
       const match = route
         .request()
         .url()
@@ -381,20 +432,20 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
       if (method === 'PUT') {
         putCount += 1;
         favoritedSet.add(mentorId);
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
+        return fulfillJsonWithCors(route, 200, {
+          code: '0',
+          msg: 'ok',
+          data: null,
         });
       }
 
       if (method === 'DELETE') {
         deleteCount += 1;
         favoritedSet.delete(mentorId);
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
+        return fulfillJsonWithCors(route, 200, {
+          code: '0',
+          msg: 'ok',
+          data: null,
         });
       }
 
@@ -413,7 +464,12 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     await expect(poolAddBtn).toBeVisible();
     await expect(poolAddBtn).toHaveAttribute('aria-pressed', 'false');
 
-    // 1. Mentor Pool 點擊加入收藏 -> 驗證 API PUT、實心狀態與 GA4 mentor_bookmark_toggle (add)
+    // 1. 導師池卡片書籤與 Tooltip 顯示並擷取證據圖 (#1)
+    await poolAddBtn.hover();
+    await expect(page.getByRole('tooltip')).toHaveText('收藏 Zahra Mirzakhani');
+    await captureEvidence(page, 'favorites-sync-mentor-pool-bookmark-tooltip');
+
+    // 點擊加入收藏 -> 驗證 API PUT、實心狀態與 GA4 mentor_bookmark_toggle (feature: 'mentor_pool', action: 'add')
     const putPromise = page.waitForResponse(
       (res) =>
         res.url().includes(`/v1/mentors/${TARGET_MENTOR_ID_STR}/favorite`) &&
@@ -429,10 +485,6 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     await expect(poolRemoveBtn).toBeVisible();
     await expect(poolRemoveBtn).toHaveAttribute('aria-pressed', 'true');
 
-    await page.mouse.move(10, 10);
-    await poolRemoveBtn.evaluate((el: HTMLElement) => el.blur());
-    await captureEvidence(page, 'favorites-mentor-pool-bookmarked');
-
     await expect
       .poll(async () => {
         const events = await getDataLayerEvents(page);
@@ -446,12 +498,50 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     expect(String(addToggleEvent?.params.mentor_id)).toBe(TARGET_MENTOR_ID_STR);
     expect(addToggleEvent?.params.action).toBe('add');
     expect(addToggleEvent?.params.feature).toBe('mentor_pool');
-    expect(addToggleEvent?.params.button_location).toBe('mentor_pool_list');
     expect(addToggleEvent?.params.user_id).toBe('9001');
     expect(addToggleEvent?.params.user_role).toBe('mentee');
 
-    // 2. 點擊導師卡片進入個人頁 -> 驗證 mentor_card_click 與跨頁狀態同步為已收藏並擷取證據圖
-    await firstCard
+    // 2. 展開桌面帳號選單顯示「我的收藏」並擷取證據圖 (#2)，點擊進入 /favorites
+    await page.mouse.move(10, 10);
+    const userMenuTrigger = page.getByRole('button', { name: '開啟用戶選單' });
+    await expect(userMenuTrigger).toBeVisible();
+    await userMenuTrigger.click();
+
+    const myFavoritesMenuItem = page.getByRole('menuitem', {
+      name: '我的收藏',
+    });
+    await expect(myFavoritesMenuItem).toBeVisible();
+    await captureEvidence(page, 'favorites-sync-desktop-account-menu');
+
+    await myFavoritesMenuItem.click();
+    await expect(page).toHaveURL(/\/favorites$/);
+
+    await expect
+      .poll(async () => {
+        const events = await getDataLayerEvents(page);
+        return events.find(
+          (e) =>
+            e.name === 'button_click' &&
+            e.params.button_id === 'user_menu_my_favorites'
+        );
+      })
+      .toMatchObject({
+        name: 'button_click',
+        params: {
+          button_id: 'user_menu_my_favorites',
+          feature: 'navigation',
+          button_location: 'user_dropdown',
+        },
+      });
+
+    // 3. /favorites 有收藏清單顯示並擷取證據圖 (#3)
+    await expect(page.getByText('已收藏 1 位導師')).toBeVisible();
+    const favoriteCard = page.locator('article').first();
+    await expect(favoriteCard).toBeVisible();
+    await captureEvidence(page, 'favorites-sync-list-populated');
+
+    // 4. 點擊 /favorites 收藏卡片進入導師個人頁 -> 驗證 mentor_card_click 與導師個人頁書籤證據圖 (#4)
+    await favoriteCard
       .getByRole('link', { name: '前往 Zahra Mirzakhani 的個人頁面' })
       .click();
     await expect(page).toHaveURL(
@@ -461,14 +551,17 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     await expect
       .poll(async () => {
         const events = await getDataLayerEvents(page);
-        return events.find((e) => e.name === 'mentor_card_click');
+        return events.find(
+          (e) =>
+            e.name === 'mentor_card_click' && e.params.feature === 'favorites'
+        );
       })
       .toMatchObject({
         name: 'mentor_card_click',
         params: {
           mentor_id: TARGET_MENTOR_ID_STR,
-          feature: 'mentor_pool',
-          button_location: 'mentor_pool_list',
+          feature: 'favorites',
+          button_location: 'favorites_list',
         },
       });
 
@@ -490,22 +583,75 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     expect(sideEffects.notificationMutations).toBe(0);
     expect(sideEffects.emailMutations).toBe(0);
 
-    await captureEvidence(page, 'favorites-cross-page-ga4-verified');
+    await captureEvidence(page, 'favorites-sync-profile-bookmarked');
 
-    // 3. 於個人頁點擊取消收藏 -> 驗證 DELETE 與 GA4 mentor_bookmark_toggle (remove)
-    const deletePromise = page.waitForResponse(
+    // 於個人頁切換取消收藏再重新收藏，驗證 feature: 'profile' 之 remove / add 事件
+    const profileDeletePromise = page.waitForResponse(
       (res) =>
         res.url().includes(`/v1/mentors/${TARGET_MENTOR_ID_STR}/favorite`) &&
         res.request().method() === 'DELETE'
     );
     await profileBookmarkBtn.click();
-    await deletePromise;
+    await profileDeletePromise;
     expect(deleteCount).toBe(1);
     await expect(profileBookmarkBtn).toHaveAttribute('aria-pressed', 'false');
-    await expect(profileBookmarkBtn).toHaveAttribute(
-      'aria-label',
-      /^收藏\s+.+/
+
+    const profileReAddPromise = page.waitForResponse(
+      (res) =>
+        res.url().includes(`/v1/mentors/${TARGET_MENTOR_ID_STR}/favorite`) &&
+        res.request().method() === 'PUT'
     );
+    await profileBookmarkBtn.click();
+    await profileReAddPromise;
+    expect(putCount).toBe(2);
+    await expect(profileBookmarkBtn).toHaveAttribute('aria-pressed', 'true');
+
+    // 5. 前往 /favorites 移除收藏 -> 切換為空狀態並擷取證據圖 (#5)，再驗證空狀態 CTA 點擊追蹤
+    await page.goto('/favorites');
+    await expect(page.getByText('已收藏 1 位導師')).toBeVisible();
+
+    const favoritesRemovePromise = page.waitForResponse(
+      (res) =>
+        res.url().includes(`/v1/mentors/${TARGET_MENTOR_ID_STR}/favorite`) &&
+        res.request().method() === 'DELETE'
+    );
+    await page
+      .locator('article')
+      .first()
+      .getByRole('button', { name: '取消收藏 Zahra Mirzakhani' })
+      .click();
+    await favoritesRemovePromise;
+    expect(deleteCount).toBe(2);
+
+    await expect(page.getByText('已收藏 0 位導師')).toBeVisible();
+    await expect(page.getByText('還沒有收藏的導師')).toBeVisible();
+    const emptyStateCta = page
+      .locator('main')
+      .getByRole('link', { name: '尋找導師' });
+    await expect(emptyStateCta).toBeVisible();
+    await captureEvidence(page, 'favorites-sync-list-empty-state');
+
+    await emptyStateCta.click();
+    await expect(page).toHaveURL(/\/mentor-pool$/);
+
+    await expect
+      .poll(async () => {
+        const events = await getDataLayerEvents(page);
+        return events.find(
+          (e) =>
+            e.name === 'button_click' &&
+            e.params.button_id === 'favorites_empty_explore_mentors'
+        );
+      })
+      .toMatchObject({
+        name: 'button_click',
+        params: {
+          button_id: 'favorites_empty_explore_mentors',
+          feature: 'favorites',
+          button_location: 'favorites_empty_state',
+          link_url: '/mentor-pool',
+        },
+      });
 
     await expect
       .poll(async () => {
@@ -516,7 +662,6 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
             mentor_id: String(e.params.mentor_id),
             action: e.params.action,
             feature: e.params.feature,
-            button_location: e.params.button_location,
           }));
       })
       .toEqual([
@@ -524,17 +669,25 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
           mentor_id: TARGET_MENTOR_ID_STR,
           action: 'add',
           feature: 'mentor_pool',
-          button_location: 'mentor_pool_list',
         },
         {
           mentor_id: TARGET_MENTOR_ID_STR,
           action: 'remove',
           feature: 'profile',
-          button_location: 'profile_header',
+        },
+        {
+          mentor_id: TARGET_MENTOR_ID_STR,
+          action: 'add',
+          feature: 'profile',
+        },
+        {
+          mentor_id: TARGET_MENTOR_ID_STR,
+          action: 'remove',
+          feature: 'favorites',
         },
       ]);
 
-    // 4. 個資（Zero-PII）檢查：確認整份 dataLayer 絕不含導師姓名、會員姓名、Email 或 Token
+    // 6. 個資（Zero-PII）與導師池狀態同步最終確認
     const serializedDataLayer = JSON.stringify(await getDataLayerEvents(page));
     expect(serializedDataLayer).not.toContain('Zahra Mirzakhani');
     expect(serializedDataLayer).not.toContain('Mentee Viewer');
@@ -543,8 +696,6 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
       /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i
     );
 
-    // 5. 返回 Mentor Pool 確認狀態同步回復為未收藏，且全程零通知副作用
-    await page.goto('/mentor-pool?q=design');
     await expect(
       page
         .locator('article')
@@ -565,24 +716,26 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     await setupAuthenticatedViewer(page);
     await setupCommonSupportRoutes(page);
 
-    await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          code: '0',
-          msg: 'ok',
-          data: {
-            mentors: Array.from(favoritedSet).map((id) =>
-              makePoolMentor(id, { name: 'Zahra Mirzakhani' })
-            ),
-          },
-        }),
-      })
-    );
+    await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
+      return fulfillJsonWithCors(route, 200, {
+        code: '0',
+        msg: 'ok',
+        data: {
+          mentors: Array.from(favoritedSet).map((id) =>
+            makePoolMentor(id, { name: 'Zahra Mirzakhani' })
+          ),
+        },
+      });
+    });
 
     await page.route(/\/v1\/mentors\/\d+\/favorite$/, (route) => {
       const method = route.request().method();
+      if (method === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
       if (method === 'PUT') {
         putCount += 1;
         favoritedSet.add(TARGET_MENTOR_ID);
@@ -590,10 +743,10 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
         deleteCount += 1;
         favoritedSet.delete(TARGET_MENTOR_ID);
       }
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
+      return fulfillJsonWithCors(route, 200, {
+        code: '0',
+        msg: 'ok',
+        data: null,
       });
     });
 
@@ -622,8 +775,6 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     await expect(bookmarkBtn).toBeFocused();
     await expect(page.getByRole('tooltip')).toHaveText('收藏 Zahra Mirzakhani');
     await expect(page.getByText(/新時段通知|Email/i)).toHaveCount(0);
-
-    await captureEvidence(page, 'favorites-a11y-keyboard-tooltip');
 
     // 2. 鍵盤按下 Enter 觸發收藏，不會誤觸卡片連結導頁
     await bookmarkBtn.focus();
@@ -674,24 +825,29 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     await setupAuthenticatedViewer(page);
     await setupCommonSupportRoutes(page);
 
-    await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ code: '0', msg: 'ok', data: { mentors: [] } }),
-      })
-    );
+    await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
+      return fulfillJsonWithCors(route, 200, {
+        code: '0',
+        msg: 'ok',
+        data: { mentors: [] },
+      });
+    });
 
     await page.route(/\/v1\/mentors\/\d+\/favorite$/, async (route) => {
       const method = route.request().method();
+      if (method === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
 
       if (shouldFailWith500) {
         if (method === 'PUT') putCount += 1;
         if (method === 'DELETE') deleteCount += 1;
-        return route.fulfill({
-          status: 500,
-          contentType: 'application/json',
-          body: JSON.stringify({ code: '500', msg: 'Internal Server Error' }),
+        return fulfillJsonWithCors(route, 500, {
+          code: '500',
+          msg: 'Internal Server Error',
         });
       }
 
@@ -702,19 +858,19 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
             firstPutGate.release = resolve;
           });
         }
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
+        return fulfillJsonWithCors(route, 200, {
+          code: '0',
+          msg: 'ok',
+          data: null,
         });
       }
 
       if (method === 'DELETE') {
         deleteCount += 1;
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
+        return fulfillJsonWithCors(route, 200, {
+          code: '0',
+          msg: 'ok',
+          data: null,
         });
       }
 
@@ -760,7 +916,7 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     expect(bookmarkEventsAfterRapidClicks).toHaveLength(1);
     expect(bookmarkEventsAfterRapidClicks[0]?.params.action).toBe('add');
 
-    // 2. 模擬後續 DELETE 回傳 HTTP 500 -> 驗證樂觀取消後自動回滾回已收藏並顯示錯誤 Toast
+    // 2. 模擬後續 DELETE 回傳 HTTP 500 -> 驗證樂觀取消後自動回滾回已收藏並顯示錯誤 Toast (#6)
     shouldFailWith500 = true;
     const failedDeletePromise = page.waitForResponse(
       (res) =>
@@ -775,7 +931,7 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     await expect(
       page.getByText('收藏操作失敗，請稍後再試', { exact: true })
     ).toBeVisible();
-    await captureEvidence(page, 'favorites-error-rollback-toast', {
+    await captureEvidence(page, 'favorites-sync-error-rollback-toast', {
       settleDelayMs: 100,
     });
   });
@@ -790,12 +946,10 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     await setupCommonSupportRoutes(page);
 
     await page.route(/\/api\/auth\/callback\/credentials/, async (route) => {
-      await seedMockAuthSession(page, {
+      await setupAuthenticatedViewer(page, {
         id: '9001',
         name: 'Mentee Viewer',
-        onBoarding: true,
         isMentor: false,
-        token: 'mock-auth-token',
       });
       return route.fulfill({
         status: 200,
@@ -804,31 +958,33 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
       });
     });
 
-    await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          code: '0',
-          msg: 'ok',
-          data: {
-            mentors: Array.from(favoritedSet).map((id) =>
-              makePoolMentor(id, { name: 'Zahra Mirzakhani' })
-            ),
-          },
-        }),
-      })
-    );
+    await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
+      return fulfillJsonWithCors(route, 200, {
+        code: '0',
+        msg: 'ok',
+        data: {
+          mentors: Array.from(favoritedSet).map((id) =>
+            makePoolMentor(id, { name: 'Zahra Mirzakhani' })
+          ),
+        },
+      });
+    });
 
     await page.route(/\/v1\/mentors\/\d+\/favorite$/, (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
       if (route.request().method() === 'PUT') {
         putCount += 1;
         favoritedSet.add(TARGET_MENTOR_ID);
       }
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
+      return fulfillJsonWithCors(route, 200, {
+        code: '0',
+        msg: 'ok',
+        data: null,
       });
     });
 
@@ -848,12 +1004,13 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
       )
     );
     expect(putCount).toBe(0);
+
     const guestBookmarkEvents = (await getDataLayerEvents(page)).filter(
       (e) => e.name === 'mentor_bookmark_toggle'
     );
     expect(guestBookmarkEvents).toHaveLength(0);
 
-    // 2. 完成登入返回 /profile/:id -> 自動完成收藏並觸發單筆 mentor_bookmark_toggle (add) 且無 PII
+    // 2. 完成登入返回 /profile/:id -> 自動完成收藏並觸發單筆 mentor_bookmark_toggle (feature: 'profile', action: 'add') 且無 PII
     const autoPutPromise = page.waitForResponse(
       (res) =>
         res.url().includes(`/v1/mentors/${TARGET_MENTOR_ID_STR}/favorite`) &&
@@ -882,9 +1039,9 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
       .toMatchObject({
         name: 'mentor_bookmark_toggle',
         params: {
+          mentor_id: TARGET_MENTOR_ID,
           feature: 'profile',
           action: 'add',
-          button_location: 'profile_header',
         },
       });
 
@@ -902,12 +1059,10 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     ).toHaveAttribute('aria-pressed', 'true');
 
     // 3. 切換為導師本人身分檢視：Mentor Pool 自己的卡片與個人頁皆不顯示收藏按鈕或任何收藏者名單
-    await seedMockAuthSession(page, {
+    await setupAuthenticatedViewer(page, {
       id: TARGET_MENTOR_ID_STR,
       name: 'Zahra Mirzakhani',
       isMentor: true,
-      onBoarding: true,
-      token: 'mock-mentor-token',
     });
 
     await page.goto('/mentor-pool?q=design');
@@ -920,9 +1075,16 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
       cards.nth(1).getByRole('button', { name: '收藏 陳宥廷 Austin' })
     ).toBeVisible();
 
-    const selfProfileRes = await page.goto(`/profile/${TARGET_MENTOR_ID_STR}`);
-    if (selfProfileRes && selfProfileRes.status() >= 400) {
-      await page.reload();
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const res = await page.goto(`/profile/${TARGET_MENTOR_ID_STR}`);
+      const isNotFoundHeadingVisible = await page
+        .getByRole('heading', { name: '404', exact: true })
+        .isVisible()
+        .catch(() => false);
+      if ((!res || res.status() < 400) && !isNotFoundHeadingVisible) {
+        break;
+      }
+      await page.waitForTimeout(500);
     }
     await expect(
       page.getByRole('button', { name: '編輯個人資訊' })

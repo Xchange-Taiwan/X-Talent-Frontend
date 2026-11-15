@@ -16,14 +16,10 @@ import type { MentorType } from '@/types/mentor';
 
 import { MentorCard, type MentorCardProps } from './index';
 
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: vi.fn(),
-    replace: vi.fn(),
-    prefetch: vi.fn(),
-    back: vi.fn(),
-  }),
-}));
+vi.mock('next/navigation', async () => {
+  const { navigationMockFactory } = await import('@/test/mocks/navigation');
+  return navigationMockFactory();
+});
 
 function buildMentorSnapshot(overrides: Partial<MentorType> = {}): MentorType {
   return fromPartial<MentorType>({
@@ -60,22 +56,28 @@ function buildCardProps(
   };
 }
 
-function renderWithAuthenticatedSession(ui: ReactNode, userId = '9001') {
-  const contextValue: SessionContextValue = {
-    data: {
-      user: {
-        id: userId,
-        email: 'mentee@example.com',
-        name: 'Mentee Viewer',
-        onBoarding: true,
-        isMentor: false,
-      },
-      accessToken: 'mock-token',
-      expires: '2099-01-01T00:00:00.000Z',
-    },
-    status: 'authenticated',
-    update: async () => null,
-  };
+function renderWithSession(ui: ReactNode, userId: string | null = null) {
+  const contextValue = userId
+    ? fromPartial<SessionContextValue>({
+        data: {
+          user: {
+            id: userId,
+            email: 'mentee@example.com',
+            name: 'Mentee Viewer',
+            onBoarding: true,
+            isMentor: false,
+          },
+          accessToken: 'mock-token',
+          expires: '2099-01-01T00:00:00.000Z',
+        },
+        status: 'authenticated',
+        update: async () => null,
+      })
+    : fromPartial<SessionContextValue>({
+        data: null,
+        status: 'unauthenticated',
+        update: async () => null,
+      });
 
   return render(
     <SessionContext.Provider value={contextValue}>{ui}</SessionContext.Provider>
@@ -102,7 +104,7 @@ describe('MentorCard (#757)', () => {
     });
   });
 
-  it('defaults analyticsLocation to "mentor_pool_list" on card Link and embedded bookmark toggle without triggering Link or card click bubbling', async () => {
+  it('defaults feature to "mentor_pool" and analyticsLocation to "mentor_pool_list", and isolates bookmark mouse & keyboard Enter/Space toggles from Link bubbling', async () => {
     const user = userEvent.setup();
     const trackEventSpy = vi.spyOn(analyticsModule, 'trackEvent');
     const onLinkClick = vi.fn((event: Event) => event.preventDefault());
@@ -111,7 +113,7 @@ describe('MentorCard (#757)', () => {
     const onDocumentKeyUp = vi.fn();
     favoriteMentorStore.seedFavorites('9001', []);
 
-    renderWithAuthenticatedSession(<MentorCard {...buildCardProps()} />);
+    renderWithSession(<MentorCard {...buildCardProps()} />, '9001');
     document.addEventListener('click', onDocumentClick);
     document.addEventListener('keydown', onDocumentKeyDown);
     document.addEventListener('keyup', onDocumentKeyUp);
@@ -151,7 +153,6 @@ describe('MentorCard (#757)', () => {
         metadata: {
           mentor_id: 101,
           action: 'add',
-          button_location: 'mentor_pool_list',
         },
       });
 
@@ -176,7 +177,6 @@ describe('MentorCard (#757)', () => {
         metadata: {
           mentor_id: 101,
           action: 'remove',
-          button_location: 'mentor_pool_list',
         },
       });
 
@@ -201,7 +201,6 @@ describe('MentorCard (#757)', () => {
         metadata: {
           mentor_id: 101,
           action: 'add',
-          button_location: 'mentor_pool_list',
         },
       });
 
@@ -217,16 +216,15 @@ describe('MentorCard (#757)', () => {
     }
   });
 
-  it('forwards analyticsLocation="favorites_list" to both card Link and embedded bookmark button toggle analytics without triggering Link click', async () => {
+  it('derives data-analytics-location as "favorites_list" when feature="favorites" and forwards feature="favorites" to bookmark toggle analytics', async () => {
     const user = userEvent.setup();
     const trackEventSpy = vi.spyOn(analyticsModule, 'trackEvent');
     const onLinkClick = vi.fn((event: Event) => event.preventDefault());
     favoriteMentorStore.seedFavorites('9001', [101]);
 
-    renderWithAuthenticatedSession(
-      <MentorCard
-        {...buildCardProps({ analyticsLocation: 'favorites_list' })}
-      />
+    renderWithSession(
+      <MentorCard {...buildCardProps({ feature: 'favorites' })} />,
+      '9001'
     );
 
     const cardLink = screen.getByRole('link', {
@@ -236,6 +234,7 @@ describe('MentorCard (#757)', () => {
       name: '取消收藏 Zahra Mirzakhani',
     });
 
+    expect(cardLink).toHaveAttribute('data-analytics-feature', 'favorites');
     expect(cardLink).toHaveAttribute(
       'data-analytics-location',
       'favorites_list'
@@ -245,7 +244,7 @@ describe('MentorCard (#757)', () => {
     ).toEqual({
       buttonId: 'mentor_card',
       eventName: 'mentor_card_click',
-      feature: 'mentor_pool',
+      feature: 'favorites',
       location: 'favorites_list',
       destination: '/profile/101',
       metadata: {
@@ -260,11 +259,10 @@ describe('MentorCard (#757)', () => {
     expect(removeMock).toHaveBeenCalledWith(101);
     expect(trackEventSpy).toHaveBeenCalledWith({
       name: 'mentor_bookmark_toggle',
-      feature: 'mentor_pool',
+      feature: 'favorites',
       metadata: {
         mentor_id: 101,
         action: 'remove',
-        button_location: 'favorites_list',
       },
     });
 
@@ -273,5 +271,25 @@ describe('MentorCard (#757)', () => {
         screen.getByRole('button', { name: '收藏 Zahra Mirzakhani' })
       ).not.toHaveAttribute('aria-busy');
     });
+  });
+
+  it('uses explicit analyticsLocation prop when provided', () => {
+    renderWithSession(
+      <MentorCard
+        {...buildCardProps({
+          feature: 'mentor_pool',
+          analyticsLocation: 'favorites_list',
+        })}
+      />
+    );
+
+    const cardLink = screen.getByRole('link', {
+      name: '前往 Zahra Mirzakhani 的個人頁面',
+    });
+    expect(cardLink).toHaveAttribute('data-analytics-feature', 'mentor_pool');
+    expect(cardLink).toHaveAttribute(
+      'data-analytics-location',
+      'favorites_list'
+    );
   });
 });

@@ -44,6 +44,7 @@ const meta: Meta<typeof SeededBookmarkPreview> = {
   args: {
     mentorId: 101,
     mentorName: '陳宥廷 Austin',
+    feature: 'mentor_pool',
     variant: 'overlay',
     tooltipSide: 'top',
     tooltipAlign: 'center',
@@ -70,6 +71,7 @@ export const FavoritedOverlay: Story = {
 export const ProfileHeaderOutline: Story = {
   args: {
     initialFavorited: false,
+    feature: 'profile',
     variant: 'outline',
   },
 };
@@ -77,6 +79,7 @@ export const ProfileHeaderOutline: Story = {
 export const ProfileHeaderOutlineFavorited: Story = {
   args: {
     initialFavorited: true,
+    feature: 'profile',
     variant: 'outline',
   },
 };
@@ -94,6 +97,7 @@ export const GuestUnauthenticated: Story = {
   args: {
     userId: null,
     initialFavorited: false,
+    feature: 'profile',
     variant: 'outline',
   },
 };

@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { fromPartial } from '@total-typescript/shoehorn';
+import { StrictMode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Toaster } from '@/components/ui/toaster';
@@ -118,7 +119,6 @@ describe('useConsumePendingFavorite', () => {
         metadata: {
           mentor_id: 101,
           action: 'add',
-          button_location: 'profile_header',
         },
       });
     });
@@ -288,5 +288,56 @@ describe('useConsumePendingFavorite', () => {
     expect(
       screen.queryByText(FAVORITE_MENTOR_ERROR_TOAST_MESSAGE)
     ).not.toBeInTheDocument();
+  });
+
+  it('clears pending favorite without calling addFavoriteMentor or showing toast when target profile has is_mentor: false', () => {
+    savePendingFavoriteMentor(101);
+    const nonMentorData = buildMentorUserData({
+      user_id: 101,
+      is_mentor: false,
+    });
+
+    render(
+      <Harness
+        pageUserId="101"
+        loginUserId="999"
+        userData={nonMentorData}
+        userLoading={false}
+      />
+    );
+
+    expect(getPendingFavoriteMentorId()).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(addMock).not.toHaveBeenCalled();
+    expect(favoriteMentorStore.isFavorited(101)).toBe(false);
+    expect(
+      screen.queryByText(FAVORITE_SELF_BLOCKED_TOAST_MESSAGE)
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(FAVORITE_MENTOR_ERROR_TOAST_MESSAGE)
+    ).not.toBeInTheDocument();
+  });
+
+  it('calls addFavoriteMentor only once and preserves favorited state when wrapped in React.StrictMode', async () => {
+    savePendingFavoriteMentor(101);
+    const mentorData = buildMentorUserData({ user_id: 101 });
+
+    render(
+      <StrictMode>
+        <Harness
+          pageUserId="101"
+          loginUserId="999"
+          userData={mentorData}
+          userLoading={false}
+        />
+      </StrictMode>
+    );
+
+    await waitFor(() => {
+      expect(favoriteMentorStore.isFavorited(101)).toBe(true);
+    });
+    expect(addMock).toHaveBeenCalledTimes(1);
+    expect(addMock).toHaveBeenCalledWith(101);
+    expect(getPendingFavoriteMentorId()).toBeNull();
   });
 });

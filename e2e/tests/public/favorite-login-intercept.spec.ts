@@ -1,4 +1,4 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Page, type Route, test } from '@playwright/test';
 
 import { captureEvidence } from '../../helpers/evidence';
 import { mockApiRoute } from '../../helpers/route';
@@ -12,6 +12,30 @@ test.use({ timezoneId: 'Asia/Taipei' });
 const TARGET_MENTOR_ID = 7482008160728084;
 const TARGET_MENTOR_ID_STR = String(TARGET_MENTOR_ID);
 const SECOND_MENTOR_ID = 102;
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+function fulfillCorsOptions(route: Route) {
+  return route.fulfill({
+    status: 204,
+    headers: CORS_HEADERS,
+  });
+}
+
+function fulfillJsonWithCors(route: Route, status: number, body: unknown) {
+  return route.fulfill({
+    status,
+    contentType: 'application/json',
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+    },
+    body: JSON.stringify(body),
+  });
+}
 
 function makePoolMentor(
   id: number,
@@ -169,7 +193,7 @@ async function setupCommonSupportRoutes(page: Page) {
     }
   );
 
-  await mockApiRoute(page, /\/v1\/(?:users\/[^/]+\/)?notifications(\?|$)/, {
+  await mockApiRoute(page, /\/v1\/notifications(\?|$)/, {
     body: {
       code: '0',
       msg: 'ok',
@@ -199,7 +223,7 @@ async function setupCommonSupportRoutes(page: Page) {
       String.raw`/v1/mentors/${TARGET_MENTOR_ID_STR}/schedule/y/\d+/m/\d+`
     ),
     {
-      body: { code: '0', msg: 'ok', data: { dtstart: [] } },
+      body: { code: '0', msg: 'ok', data: { segments: [], dtstart: [] } },
     }
   );
 
@@ -211,6 +235,7 @@ async function setupCommonSupportRoutes(page: Page) {
         code: '0',
         msg: 'ok',
         data: {
+          feedbacks: [],
           items: [],
           total_rating_count: 10,
           rating_average: 9.6,
@@ -277,20 +302,26 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
     });
 
     await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
       const mentors = Array.from(favoritedSet).map((id) =>
         makePoolMentor(id, {
           name: id === TARGET_MENTOR_ID ? 'Zahra Mirzakhani' : '陳宥廷 Austin',
         })
       );
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ code: '0', msg: 'ok', data: { mentors } }),
+      return fulfillJsonWithCors(route, 200, {
+        code: '0',
+        msg: 'ok',
+        data: { mentors },
       });
     });
 
     await page.route(/\/v1\/mentors\/\d+\/favorite$/, (route) => {
       const method = route.request().method();
+      if (method === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
       const match = route
         .request()
         .url()
@@ -300,20 +331,20 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
       if (method === 'PUT') {
         putCount += 1;
         favoritedSet.add(mentorId);
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
+        return fulfillJsonWithCors(route, 200, {
+          code: '0',
+          msg: 'ok',
+          data: null,
         });
       }
 
       if (method === 'DELETE') {
         deleteCount += 1;
         favoritedSet.delete(mentorId);
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
+        return fulfillJsonWithCors(route, 200, {
+          code: '0',
+          msg: 'ok',
+          data: null,
         });
       }
 
@@ -330,6 +361,7 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
       name: '收藏 Zahra Mirzakhani',
     });
     await expect(guestBookmarkBtn).toBeVisible();
+    await captureEvidence(page, 'favorite-mentor-pool-guest-card');
     await guestBookmarkBtn.click();
 
     await expect(page).toHaveURL(
@@ -380,6 +412,7 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
       .getByRole('button', { name: '取消收藏 Zahra Mirzakhani' });
     await expect(syncedCardBtn).toBeVisible();
     await expect(syncedCardBtn).toHaveAttribute('aria-pressed', 'true');
+    await captureEvidence(page, 'favorite-mentor-pool-synced-card');
 
     const deletePromise = page.waitForResponse(
       (res) =>
@@ -422,31 +455,42 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
       });
     });
 
-    await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ code: '0', msg: 'ok', data: { mentors: [] } }),
-      })
-    );
+    await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
+      return fulfillJsonWithCors(route, 200, {
+        code: '0',
+        msg: 'ok',
+        data: { mentors: [] },
+      });
+    });
 
     await page.route(/\/v1\/mentors\/\d+\/favorite$/, (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
       if (route.request().method() === 'PUT') {
         putCount += 1;
       }
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
+      return fulfillJsonWithCors(route, 200, {
+        code: '0',
+        msg: 'ok',
+        data: null,
       });
     });
 
     await page.setViewportSize({ width: 1280, height: 800 });
-    const initialProfileRes = await page.goto(
-      `/profile/${TARGET_MENTOR_ID_STR}`
-    );
-    if (initialProfileRes && initialProfileRes.status() >= 400) {
-      await page.reload();
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const res = await page.goto(`/profile/${TARGET_MENTOR_ID_STR}`);
+      const isNotFoundHeadingVisible = await page
+        .getByRole('heading', { name: '404', exact: true })
+        .isVisible()
+        .catch(() => false);
+      if ((!res || res.status() < 400) && !isNotFoundHeadingVisible) {
+        break;
+      }
+      await page.waitForTimeout(500);
     }
 
     const guestProfileBookmarkBtn = page.locator(
@@ -491,8 +535,22 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
     await clearMockAuthSession(page);
     await setupCommonSupportRoutes(page);
 
-    await mockApiRoute(page, /\/v1\/mentors\/9002\/profile$/, {
-      body: { code: '0', msg: 'ok', data: null },
+    await page.route(/\/v1\/mentors\/9002\/profile$/, async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
+      await seedMockAuthSession(page, {
+        id: '9002',
+        name: 'New Mentee',
+        onBoarding: true,
+        isMentor: false,
+        token: 'mock-new-mentee-token',
+      });
+      return fulfillJsonWithCors(route, 200, {
+        code: '0',
+        msg: 'ok',
+        data: null,
+      });
     });
 
     await page.route(/\/api\/auth\/callback\/credentials/, async (route) => {
@@ -511,18 +569,24 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
     });
 
     await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
       const mentors = Array.from(favoritedSet).map((id) =>
         makePoolMentor(id, { name: 'Zahra Mirzakhani' })
       );
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ code: '0', msg: 'ok', data: { mentors } }),
+      return fulfillJsonWithCors(route, 200, {
+        code: '0',
+        msg: 'ok',
+        data: { mentors },
       });
     });
 
     await page.route(/\/v1\/mentors\/\d+\/favorite$/, (route) => {
       const method = route.request().method();
+      if (method === 'OPTIONS') {
+        return fulfillCorsOptions(route);
+      }
       const match = route
         .request()
         .url()
@@ -532,10 +596,10 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
       if (method === 'PUT') {
         putCount += 1;
         favoritedSet.add(mentorId);
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
+        return fulfillJsonWithCors(route, 200, {
+          code: '0',
+          msg: 'ok',
+          data: null,
         });
       }
       return route.continue();
