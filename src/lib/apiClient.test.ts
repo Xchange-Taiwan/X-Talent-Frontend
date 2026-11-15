@@ -159,6 +159,77 @@ describe('apiClient', () => {
       }
     });
 
+    it('non-2xx response with numeric error code → preserves stringified code on ApiError (#895)', async () => {
+      mockFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: 500,
+            msg: 'Internal server error',
+            data: null,
+          }),
+          { status: 500 }
+        )
+      );
+
+      await expect(
+        apiClient.get('/v1/test', { auth: false })
+      ).rejects.toMatchObject({
+        name: 'ApiError',
+        status: 500,
+        code: '500',
+        message: 'Internal server error',
+      });
+    });
+
+    it('strips inline query parameters and hash fragments from path before reporting to captureApiFailure (#895)', async () => {
+      vi.mocked(captureApiFailure).mockClear();
+      const rawPath =
+        '/v1/auth/password/reset/email?email=secret%40example.com#frag';
+
+      mockFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: 502,
+            msg: 'Bad gateway',
+            data: null,
+          }),
+          { status: 502 }
+        )
+      );
+
+      await expect(
+        apiClient.get(rawPath, { auth: false })
+      ).rejects.toMatchObject({
+        status: 502,
+        code: '502',
+      });
+
+      expect(captureApiFailure).toHaveBeenCalledOnce();
+      expect(captureApiFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endpoint: '/v1/auth/password/reset/email',
+          method: 'GET',
+          status: 502,
+        })
+      );
+
+      vi.mocked(captureApiFailure).mockClear();
+      mockFetch.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+      await expect(apiClient.get(rawPath, { auth: false })).rejects.toThrow(
+        'Failed to fetch'
+      );
+
+      expect(captureApiFailure).toHaveBeenCalledOnce();
+      expect(captureApiFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endpoint: '/v1/auth/password/reset/email',
+          method: 'GET',
+          status: 0,
+        })
+      );
+    });
+
     it('503 response with X-Maintenance-Mode header on client-side → redirects to /maintenance and does not throw', async () => {
       const originalLocation = window.location;
       Object.defineProperty(window, 'location', {
@@ -498,6 +569,41 @@ describe('apiClient', () => {
           method: 'POST',
           status: 503,
           message: 'Upstream BFF degraded',
+        })
+      );
+    });
+
+    it('normalizes numeric HTTP-200 BFF envelope error codes and strips inline query params from captureApiFailure (#895)', async () => {
+      vi.mocked(captureApiFailure).mockClear();
+      const rawPath =
+        '/v1/auth/password/reset?verify_token=secret-reset-token#section';
+
+      mockFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: 500,
+            msg: 'Password reset service error',
+            data: null,
+          }),
+          { status: 200 }
+        )
+      );
+
+      await expect(
+        apiClient.putUnwrapped(rawPath, {}, { auth: false })
+      ).rejects.toMatchObject({
+        status: 500,
+        code: '500',
+        message: 'Password reset service error',
+      });
+
+      expect(captureApiFailure).toHaveBeenCalledOnce();
+      expect(captureApiFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endpoint: '/v1/auth/password/reset',
+          method: 'PUT',
+          status: 500,
+          message: 'Password reset service error',
         })
       );
     });

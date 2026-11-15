@@ -37,6 +37,18 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function normalizeErrorCode(code: unknown): string | undefined {
+  if (code === undefined || code === null || typeof code === 'object') {
+    return undefined;
+  }
+  return String(code);
+}
+
+function sanitizeEndpointPath(path: string): string {
+  const queryOrHashIndex = path.search(/[?#]/);
+  return queryOrHashIndex === -1 ? path : path.slice(0, queryOrHashIndex);
+}
+
 function extractFastApiDetailMessage(detail: unknown): string | undefined {
   if (typeof detail === 'string' && detail.trim().length > 0) {
     return detail.trim();
@@ -87,7 +99,7 @@ class MaintenanceError extends Error {
 }
 
 interface ApiResponseEnvelope<T> {
-  code: string;
+  code: string | number;
   msg: string;
   data: T | null | undefined;
 }
@@ -171,7 +183,8 @@ function buildUrl(
   });
 
   const qs = query.toString();
-  return qs ? `${url}?${qs}` : url;
+  if (!qs) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}${qs}`;
 }
 
 async function resolveRequestAuth(overrideAccessToken?: string): Promise<{
@@ -257,7 +270,7 @@ async function request<T>(
     }
     // fetch() itself threw — DNS failure, connection refused, etc.
     captureApiFailure({
-      endpoint: path,
+      endpoint: sanitizeEndpointPath(path),
       method,
       status: 0,
       message:
@@ -312,7 +325,7 @@ async function request<T>(
       extractFastApiDetailMessage(errorRecord.detail) ||
       `Request failed with status ${response.status}`;
     captureApiFailure({
-      endpoint: path,
+      endpoint: sanitizeEndpointPath(path),
       method,
       status: response.status,
       message,
@@ -321,7 +334,7 @@ async function request<T>(
     throw new ApiError(
       response.status,
       message,
-      typeof errorRecord.code === 'string' ? errorRecord.code : undefined,
+      normalizeErrorCode(errorRecord.code),
       errorRecord.data,
       errorRecord.detail
     );
@@ -352,13 +365,8 @@ async function executeRequestUnwrapped<T>(
   );
   if (!result) return undefined;
 
-  if (result.code !== '0') {
-    const rawCode =
-      typeof result.code === 'string'
-        ? result.code
-        : result.code !== undefined && result.code !== null
-          ? String(result.code)
-          : undefined;
+  const rawCode = normalizeErrorCode(result.code);
+  if (rawCode !== '0') {
     const numericStatus = rawCode !== undefined ? Number(rawCode) : NaN;
     const validStatus =
       !isNaN(numericStatus) && numericStatus >= 400 && numericStatus < 600
@@ -373,7 +381,7 @@ async function executeRequestUnwrapped<T>(
 
     if (validStatus >= 500 && validStatus < 600) {
       captureApiFailure({
-        endpoint: path,
+        endpoint: sanitizeEndpointPath(path),
         method,
         status: validStatus,
         message,

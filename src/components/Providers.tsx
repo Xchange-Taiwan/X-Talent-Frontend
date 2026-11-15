@@ -19,7 +19,7 @@ setOnRefreshTokenError(() =>
 
 export function NextAuthProvider({ children }: { children: React.ReactNode }) {
   return (
-    <SessionProvider refetchOnWindowFocus={false}>
+    <SessionProvider>
       <AnalyticsUserSync />
       <GlobalErrorMonitor />
       <PageViewTracker />
