@@ -1,4 +1,4 @@
-Evidence branch for PR screenshots, published by .agents/scripts/publish-evidence.sh.
+Evidence branch for PR screenshots, published by .agents/scripts/tracker-ops.mjs.
 
 This is an orphan branch: it shares no history with the repository code
 branches. Pull request bodies link into it by commit sha, so links stay
