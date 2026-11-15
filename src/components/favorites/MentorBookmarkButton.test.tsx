@@ -207,18 +207,25 @@ describe('MentorBookmarkButton', () => {
     expect(trackEventSpy).not.toHaveBeenCalled();
   });
 
-  it('forwards actual feature source (profile) to trackEvent', async () => {
+  it('forwards actual feature source (profile and favorites) to trackEvent', async () => {
     const user = userEvent.setup();
     const trackEventSpy = vi.spyOn(analyticsModule, 'trackEvent');
-    favoriteMentorStore.seedFavorites('999', []);
+    favoriteMentorStore.seedFavorites('999', [202]);
 
     renderWithSession(
-      <MentorBookmarkButton
-        mentorId={101}
-        mentorName="陳宥廷 Austin"
-        feature="profile"
-        variant="outline"
-      />
+      <>
+        <MentorBookmarkButton
+          mentorId={101}
+          mentorName="陳宥廷 Austin"
+          feature="profile"
+          variant="outline"
+        />
+        <MentorBookmarkButton
+          mentorId={202}
+          mentorName="Zahra Mirzakhani"
+          feature="favorites"
+        />
+      </>
     );
 
     await user.click(
@@ -231,6 +238,19 @@ describe('MentorBookmarkButton', () => {
       metadata: {
         mentor_id: 101,
         action: 'add',
+      },
+    });
+
+    await user.click(
+      screen.getByRole('button', { name: '取消收藏 Zahra Mirzakhani' })
+    );
+
+    expect(trackEventSpy).toHaveBeenLastCalledWith({
+      name: 'mentor_bookmark_toggle',
+      feature: 'favorites',
+      metadata: {
+        mentor_id: 202,
+        action: 'remove',
       },
     });
   });

@@ -15,6 +15,7 @@ export const ANALYTICS_FEATURES = [
   'onboarding',
   'mentor_pool',
   'profile',
+  'favorites',
   'reservation',
   'feedback',
   'performance',

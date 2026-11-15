@@ -10,3 +10,7 @@ export {
   type UseFavoriteMentorOptions,
   type UseFavoriteMentorResult,
 } from './useFavoriteMentor';
+export {
+  useFavoriteMentors,
+  type UseFavoriteMentorsResult,
+} from './useFavoriteMentors';

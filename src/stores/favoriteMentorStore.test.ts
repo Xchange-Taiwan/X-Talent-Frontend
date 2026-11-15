@@ -429,4 +429,54 @@ describe('favoriteMentorStore', () => {
         .favoriteMentors.map((mentor) => mentor.user_id)
     ).toEqual([202]);
   });
+
+  it('records loadError on non-404 syncUser failure, clears it on retrySync success, and resets it on logout or account switch', async () => {
+    // 1. Non-404 failure sets loadError and finishes loading without refetch loop
+    fetchMock.mockRejectedValueOnce(new Error('500 Internal Server Error'));
+    await favoriteMentorStore.syncUser('user-1');
+
+    expect(favoriteMentorStore.getState().loadedUserId).toBe('user-1');
+    expect(favoriteMentorStore.getState().isLoading).toBe(false);
+    expect(favoriteMentorStore.getState().loadError?.message).toBe(
+      '500 Internal Server Error'
+    );
+    expect(favoriteMentorStore.getState().favoriteMentors).toEqual([]);
+
+    // Repeated syncUser with same userId does not trigger an infinite refetch loop
+    await favoriteMentorStore.syncUser('user-1');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // 2. retrySync refetches and clears loadError on success
+    fetchMock.mockResolvedValueOnce([
+      buildMentor({ user_id: 101, name: 'Zahra' }),
+    ]);
+    await favoriteMentorStore.retrySync('user-1');
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(favoriteMentorStore.getState().loadError).toBeNull();
+    expect(favoriteMentorStore.getState().loadedUserId).toBe('user-1');
+    expect(
+      favoriteMentorStore.getState().favoriteMentors.map((m) => m.user_id)
+    ).toEqual([101]);
+
+    // 3. Switching to user-2 fails, then logging out clears loadError
+    fetchMock.mockRejectedValueOnce(new Error('Network offline'));
+    await favoriteMentorStore.syncUser('user-2');
+    expect(favoriteMentorStore.getState().loadError?.message).toBe(
+      'Network offline'
+    );
+
+    await favoriteMentorStore.syncUser(null);
+    expect(favoriteMentorStore.getState().loadError).toBeNull();
+    expect(favoriteMentorStore.getState().loadedUserId).toBeNull();
+
+    // 4. 404 error is treated as empty state without loadError
+    fetchMock.mockRejectedValueOnce(
+      Object.assign(new Error('Not Found'), { status: 404 })
+    );
+    await favoriteMentorStore.syncUser('user-3');
+    expect(favoriteMentorStore.getState().loadError).toBeNull();
+    expect(favoriteMentorStore.getState().loadedUserId).toBe('user-3');
+    expect(favoriteMentorStore.getState().favoriteMentors).toEqual([]);
+  });
 });
