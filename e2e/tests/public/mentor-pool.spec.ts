@@ -863,3 +863,145 @@ test('帶 utm_* 追蹤參數進入搜尋並滾動分頁後，移除追蹤參數�
 
   await captureEvidence(page, 'mentor-pool-canonical-cache-hit');
 });
+
+test('多選逗號分隔篩選標籤逐一解析為在地化膠囊並忽略空白參數，且清除所有條件一併重置 sort_by 並保留 utm_* (#897)', async ({
+  page,
+}) => {
+  const initialMentors = Array.from({ length: 3 }, (_, i) =>
+    makeMentor(i + 1, {
+      have_topic: ['職涯規劃'],
+      have_skill: ['前端開發', 'TypeScript'],
+    })
+  );
+
+  await page.route(/\/v1\/users\/zh_TW\/tags\/catalog/, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        code: '0000',
+        msg: 'ok',
+        data: {
+          ...MOCK_TAG_CATALOG,
+          have_skill: [
+            {
+              subject_group: 'DEV',
+              subject: '軟體開發',
+              language: 'zh_TW',
+              leaves: [
+                {
+                  tag_id: 2,
+                  subject_group: 'FRONTEND',
+                  subject: '前端開發',
+                  language: 'zh_TW',
+                },
+                {
+                  tag_id: 4,
+                  subject_group: 'TYPESCRIPT',
+                  subject: 'TypeScript',
+                  language: 'zh_TW',
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    })
+  );
+
+  await page.route(/\/v1\/mentors/, (route, request) => {
+    const searchParams = new URL(request.url()).searchParams;
+    const keyword = searchParams.get('search_pattern');
+    const data = keyword === 'xyznotfound897' ? [] : initialMentors;
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(mentorResponse(data)),
+    });
+  });
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+
+  // 先開啟篩選器讀取環境實際渲染的前兩個技能選項（同時支援真實 SSR 目錄或 Mock 目錄）
+  await page.goto('/mentor-pool?q=probe');
+  await expect(page.locator('article')).toHaveCount(3);
+
+  await page.getByRole('button', { name: /篩選/ }).click();
+  await page.getByRole('combobox').first().click();
+  const options = page.getByRole('option');
+  const optionCount = await options.count();
+  const firstLabel = ((await options.nth(0).textContent()) ?? '').trim();
+  const secondLabel =
+    optionCount > 1
+      ? ((await options.nth(1).textContent()) ?? '').trim()
+      : '未知代碼測試';
+
+  await options.nth(0).click();
+  await page.getByRole('button', { name: '套用' }).click();
+  await expect(page).toHaveURL(/filter_skills=/);
+  const firstCode =
+    new URL(page.url()).searchParams.get('filter_skills') ?? 'FRONTEND';
+
+  let secondCode = 'UNKNOWN_SKILL_CODE';
+  if (optionCount > 1) {
+    await page.getByRole('button', { name: /篩選/ }).click();
+    await page.getByRole('combobox').first().click();
+    await page.getByRole('option').nth(1).click();
+    await page.getByRole('button', { name: '套用' }).click();
+    await expect
+      .poll(() => new URL(page.url()).searchParams.get('filter_skills'))
+      .not.toBe(firstCode);
+    secondCode =
+      new URL(page.url()).searchParams.get('filter_skills') ??
+      'UNKNOWN_SKILL_CODE';
+  }
+
+  // 1. 驗證逗號分隔多選代碼各自顯示為獨立在地化膠囊，且空白 filter_topics=%20 不產生空白膠囊
+  const multiFilterUrl = `/mentor-pool?utm_source=newsletter&filter_skills=${encodeURIComponent(`${firstCode}, ${secondCode}`)}&filter_topics=%20&sort_by=popularity`;
+  await page.goto(multiFilterUrl);
+  await expect(page.locator('article')).toHaveCount(3);
+
+  const firstBadge = page.getByText(`技能: ${firstLabel}`);
+  const secondBadge = page.getByText(`技能: ${secondLabel}`);
+  await expect(firstBadge).toBeVisible();
+  await expect(secondBadge).toBeVisible();
+  await expect(page.getByText(`技能: ${firstCode}, ${secondCode}`)).toHaveCount(
+    0
+  );
+  await expect(page.getByText(/^主題:/)).toHaveCount(0);
+
+  await captureEvidence(page, 'mentor-pool-multi-value-filter-badges');
+
+  // 2. 點擊移除第一個膠囊僅移除該代碼，保留第二個膠囊與 utm_source
+  await page
+    .getByRole('button', { name: `移除「技能：${firstLabel}」篩選` })
+    .click();
+  await expect(firstBadge).toHaveCount(0);
+  await expect(secondBadge).toBeVisible();
+  expect(new URL(page.url()).searchParams.get('filter_skills')).toBe(
+    secondCode
+  );
+  expect(new URL(page.url()).searchParams.get('utm_source')).toBe('newsletter');
+
+  // 3. 進入無結果狀態後點擊「清除所有條件」：同時清除 q、filter_* 與 sort_by，並保留 utm_source
+  await page.goto(
+    `/mentor-pool?utm_source=newsletter&q=xyznotfound897&filter_skills=${encodeURIComponent(secondCode)}&sort_by=popularity`
+  );
+  const clearAllBtn = page.getByRole('button', { name: '清除所有條件' });
+  await expect(clearAllBtn).toBeVisible();
+
+  await clearAllBtn.click();
+  await expect(page).toHaveURL(/\/mentor-pool\?utm_source=newsletter$/);
+
+  const clearedParams = new URL(page.url()).searchParams;
+  expect(clearedParams.get('q')).toBeNull();
+  expect(clearedParams.get('filter_skills')).toBeNull();
+  expect(clearedParams.get('sort_by')).toBeNull();
+  expect(clearedParams.get('utm_source')).toBe('newsletter');
+  await expect(page.locator('article')).toHaveCount(3);
+
+  await captureEvidence(
+    page,
+    'mentor-pool-clear-all-preserves-utm-clears-sort'
+  );
+});

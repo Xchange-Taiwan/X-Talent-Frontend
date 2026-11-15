@@ -1,7 +1,7 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { PAGE_LIMIT } from '@/app/mentor-pool/constants';
 import { useToast } from '@/components/ui/use-toast';
@@ -11,14 +11,9 @@ import {
   applyMentorPage,
   EMPTY_MENTOR_POOL_STATE,
   fetchMentorPoolPageOne,
-  isUnfilteredMentorPoolQuery,
   type MentorPageAction,
   type MentorPoolPageState,
-  type MentorPoolQuery,
   mentorPoolReadModel,
-  parseMentorPoolQuery,
-  toMentorPoolCacheKey,
-  UNFILTERED_MENTOR_POOL_QUERY,
 } from '@/lib/mentor/mentorPoolReadModel';
 import { fetchMentors } from '@/services/search-mentor/mentors';
 import type { MentorType } from '@/types/mentor';
@@ -51,71 +46,32 @@ export function useMentorPool({
     });
   }, [toast]);
 
-  const parsedQuery = parseMentorPoolQuery(params);
-  const canonicalKey = toMentorPoolCacheKey(parsedQuery);
-  // useAsyncRead compares keys by reference to detect a key-change edge during
-  // render, so stabilize the query object by its canonical cache key.
-  const query = useMemo<MentorPoolQuery>(
-    () => parsedQuery,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [canonicalKey]
-  );
-  const hasConditions = !isUnfilteredMentorPoolQuery(query);
+  const query = mentorPoolReadModel.resolveQuery(params);
+  const initialQueryRef = useRef(query);
 
-  const initialUnfilteredState = useMemo(
+  const initialData = useMemo(
     () =>
-      mentorPoolReadModel.buildInitialUnfilteredState({
+      mentorPoolReadModel.resolveSSRInitialData(query, {
         initialMentors,
         initialNextCursor,
         initialMentorCount,
-        hasInitialFilters: hasConditions,
         initialError,
+        initialQuery: initialQueryRef.current,
       }),
-    [
+    [query, initialMentors, initialNextCursor, initialMentorCount, initialError]
+  );
+
+  // Client-only SSR hydration: never mutates the singleton during SSR render
+  // ([DEPLOY-04]), while seeding the unfiltered cache slot on client mount.
+  useEffect(() => {
+    mentorPoolReadModel.primeUnfilteredFromSSR({
       initialMentors,
       initialNextCursor,
       initialMentorCount,
-      hasConditions,
       initialError,
-    ]
-  );
-
-  // Client-only cache priming: never mutates the singleton during SSR render,
-  // so consecutive SSR renders on a warm Node process after ISR revalidation
-  // always reflect fresh `initialMentors`, while landing on a filtered URL and
-  // later clearing filters on the client still hits the initial unfiltered page.
-  useEffect(() => {
-    if (
-      !initialError &&
-      initialMentors.length > 0 &&
-      mentorPoolReadModel.get(UNFILTERED_MENTOR_POOL_QUERY) === undefined
-    ) {
-      mentorPoolReadModel.set(
-        UNFILTERED_MENTOR_POOL_QUERY,
-        mentorPoolReadModel.buildInitialUnfilteredState({
-          initialMentors,
-          initialNextCursor,
-          initialMentorCount,
-          hasInitialFilters: false,
-          initialError: false,
-        })
-      );
-    }
-  }, [initialError, initialMentors, initialNextCursor, initialMentorCount]);
-
-  // Track whether any client-side filter navigation or retry has occurred so
-  // clearing filters after an SSR initialError fetches fresh instead of
-  // falling back to the stale SSR error state.
-  const [hasClientActivity, setHasClientActivity] = useState(hasConditions);
-  useEffect(() => {
-    if (hasConditions && !hasClientActivity) {
-      setHasClientActivity(true);
-    }
-  }, [hasConditions, hasClientActivity]);
-
-  const shouldHoldInitialError =
-    Boolean(initialError) && !hasConditions && !hasClientActivity;
-  const activeQuery = shouldHoldInitialError ? null : query;
+      initialQuery: initialQueryRef.current,
+    });
+  }, [initialMentors, initialNextCursor, initialMentorCount, initialError]);
 
   const fetcher = useCallback(
     (signal: AbortSignal) =>
@@ -135,17 +91,11 @@ export function useMentorPool({
     isLoading,
     error: pageError,
     refetch,
-  } = useAsyncRead(mentorPoolReadModel, activeQuery, fetcher, {
-    initialData:
-      !hasConditions && !initialError && initialMentors.length > 0
-        ? initialUnfilteredState
-        : undefined,
+  } = useAsyncRead(mentorPoolReadModel, query, fetcher, {
+    initialData,
   });
 
   const pageState = useMemo<MentorPoolPageState>(() => {
-    if (shouldHoldInitialError) {
-      return initialUnfilteredState;
-    }
     if (cachedPageState) {
       return cachedPageState;
     }
@@ -160,35 +110,18 @@ export function useMentorPool({
       ...EMPTY_MENTOR_POOL_STATE,
       hasMore: false,
     };
-  }, [
-    shouldHoldInitialError,
-    initialUnfilteredState,
-    cachedPageState,
-    pageError,
-  ]);
+  }, [cachedPageState, pageError]);
 
   const handleScrollToBottom = useCallback(async () => {
-    if (!activeQuery || !pageState.hasMore || isLoading) return;
-    const outcome = await mentorPoolReadModel.loadMore(
-      activeQuery,
-      fetchMentors,
-      {
-        limit: PAGE_LIMIT,
-        fallbackState: pageState,
-      }
-    );
+    if (!pageState.hasMore || isLoading) return;
+    const outcome = await mentorPoolReadModel.loadMore(query, fetchMentors, {
+      limit: PAGE_LIMIT,
+      fallbackState: pageState,
+    });
     if (outcome.status === 'error' && !outcome.deduplicated) {
       showErrorToast();
     }
-  }, [activeQuery, pageState, isLoading, showErrorToast]);
-
-  const handleRetry = useCallback(() => {
-    if (shouldHoldInitialError) {
-      setHasClientActivity(true);
-      return;
-    }
-    refetch();
-  }, [shouldHoldInitialError, refetch]);
+  }, [query, pageState, isLoading, showErrorToast]);
 
   const listStatus = useMemo<'loading' | 'error' | 'empty' | 'success'>(() => {
     if (pageState.mentors.length > 0) return 'success';
@@ -211,6 +144,6 @@ export function useMentorPool({
     hasError: pageState.hasError,
     listStatus,
     handleScrollToBottom,
-    handleRetry,
+    handleRetry: refetch,
   };
 }

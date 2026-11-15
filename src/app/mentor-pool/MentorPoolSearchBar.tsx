@@ -1,10 +1,10 @@
 'use client';
 
 import SearchBar from '@/components/ui/search-bar';
-import { useMentorPoolFilters } from '@/hooks/useMentorPoolFilters';
+import { useMentorPoolSearchQuery } from '@/hooks/useMentorPoolFilters';
 
 export default function MentorPoolSearchBar() {
-  const { searchQuery: currentQ, setSearchQuery } = useMentorPoolFilters();
+  const { searchQuery: currentQ, setSearchQuery } = useMentorPoolSearchQuery();
 
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
