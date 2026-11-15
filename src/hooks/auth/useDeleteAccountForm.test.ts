@@ -299,6 +299,14 @@ describe('useDeleteAccountForm', () => {
     });
 
     expect(sessionStorage.getItem(PENDING_DELETE_ACCOUNT_EMAIL_KEY)).toBeNull();
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'delete_account',
+        step: 'google_reauth_authorize',
+        message: 'API failed',
+        level: 'warning',
+      })
+    );
     expect(mockToast).toHaveBeenCalledWith({
       variant: 'destructive',
       description: '無法取得 Google 授權連結，請稍後再試',

@@ -2,7 +2,11 @@ import { useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
-import { authClient } from '@/services/auth/authClient';
+import {
+  ConfirmSignUpLifecycleError,
+  confirmSignUpToken,
+} from '@/lib/auth/sessionLifecycle';
+import { captureFlowFailure } from '@/lib/monitoring';
 
 export function useConfirmRegister() {
   const searchParams = useSearchParams();
@@ -25,6 +29,12 @@ export function useConfirmRegister() {
 
     if (!token) {
       setStatus('failure');
+      captureFlowFailure({
+        flow: 'email_verification',
+        step: 'missing_token',
+        message: 'Missing signup confirmation token',
+        level: 'info',
+      });
       toast({
         variant: 'destructive',
         title: '驗證失敗',
@@ -37,15 +47,39 @@ export function useConfirmRegister() {
 
     const confirmSignup = async () => {
       try {
-        await authClient.confirmSignUp(token);
+        await confirmSignUpToken(token);
         if (processedTokenRef.current === token) {
           setStatus('success');
         }
       } catch (error) {
         if (processedTokenRef.current === token) {
+          captureFlowFailure({
+            flow: 'email_verification',
+            step:
+              error instanceof ConfirmSignUpLifecycleError
+                ? error.step
+                : 'confirm_token',
+            message:
+              error instanceof ConfirmSignUpLifecycleError
+                ? error.logMessage
+                : error instanceof Error
+                  ? error.message
+                  : 'Failed to confirm signup token',
+            level:
+              error instanceof ConfirmSignUpLifecycleError
+                ? error.level
+                : 'info',
+            errorCode:
+              error instanceof ConfirmSignUpLifecycleError
+                ? error.errorCode
+                : undefined,
+          });
           toast({
             variant: 'destructive',
-            title: '註冊失敗',
+            title:
+              error instanceof ConfirmSignUpLifecycleError
+                ? error.title
+                : '註冊失敗',
             description:
               error instanceof Error ? error.message : '註冊失敗，請稍後再試。',
           });
@@ -54,7 +88,7 @@ export function useConfirmRegister() {
       }
     };
 
-    confirmSignup();
+    void confirmSignup();
   }, [token, toast]);
 
   return { status };

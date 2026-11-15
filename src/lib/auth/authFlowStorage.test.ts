@@ -1,20 +1,105 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  clearAuthFlowStorage,
   clearPendingCallbackUrl,
+  clearPendingDeleteAccountEmail,
+  clearPendingPasswordResetEmail,
+  clearPendingVerificationEmail,
   consumePendingCallbackUrl,
-  isDisallowedCallbackPathname,
+  createInMemorySessionStorage,
+  getPendingDeleteAccountEmail,
+  getPendingPasswordResetEmail,
+  getPendingVerificationEmail,
   PENDING_AUTH_CALLBACK_URL_KEY,
+  PENDING_DELETE_ACCOUNT_EMAIL_KEY,
+  PENDING_PASSWORD_RESET_EMAIL_KEY,
+  PENDING_VERIFICATION_EMAIL_KEY,
   persistPendingCallbackUrlFromSearch,
+  setPendingDeleteAccountEmail,
+  setPendingPasswordResetEmail,
+  setPendingVerificationEmail,
+} from '@/lib/auth/authFlowStorage';
+import {
+  isDisallowedCallbackPathname,
   sanitizeCallbackUrl,
-} from './callbackUrl';
+} from '@/lib/routes';
 
-describe('callbackUrl helpers (#733 / #878)', () => {
+describe('authFlowStorage & callbackUrl helpers (#733 / #878 / #904)', () => {
   beforeEach(() => {
     window.sessionStorage.clear();
   });
 
-  describe('sanitizeCallbackUrl', () => {
+  describe('pending email & delete-account storage helpers', () => {
+    it('manages verification, password-reset, and delete-account email keys in memory', () => {
+      const storage = createInMemorySessionStorage();
+
+      expect(getPendingVerificationEmail(storage)).toBeNull();
+      expect(getPendingPasswordResetEmail(storage)).toBeNull();
+      expect(getPendingDeleteAccountEmail(storage)).toBeNull();
+
+      setPendingVerificationEmail('verify@example.com', storage);
+      setPendingPasswordResetEmail('reset@example.com', storage);
+      setPendingDeleteAccountEmail('delete@example.com', storage);
+
+      expect(getPendingVerificationEmail(storage)).toBe('verify@example.com');
+      expect(getPendingPasswordResetEmail(storage)).toBe('reset@example.com');
+      expect(getPendingDeleteAccountEmail(storage)).toBe('delete@example.com');
+
+      clearPendingVerificationEmail(storage);
+      expect(getPendingVerificationEmail(storage)).toBeNull();
+      expect(getPendingPasswordResetEmail(storage)).toBe('reset@example.com');
+
+      clearPendingPasswordResetEmail(storage);
+      expect(getPendingPasswordResetEmail(storage)).toBeNull();
+      expect(getPendingDeleteAccountEmail(storage)).toBe('delete@example.com');
+
+      clearPendingDeleteAccountEmail(storage);
+      expect(getPendingDeleteAccountEmail(storage)).toBeNull();
+    });
+
+    it('clears only auth-flow storage keys while preserving unrelated entries', () => {
+      const storage = createInMemorySessionStorage({
+        [PENDING_VERIFICATION_EMAIL_KEY]: 'verify@example.com',
+        [PENDING_PASSWORD_RESET_EMAIL_KEY]: 'reset@example.com',
+        [PENDING_DELETE_ACCOUNT_EMAIL_KEY]: 'delete@example.com',
+        [PENDING_AUTH_CALLBACK_URL_KEY]: '/mentor-pool',
+        other_feature_flag: 'keep-me',
+      });
+
+      clearAuthFlowStorage(storage);
+
+      expect(storage.dump()).toEqual({
+        other_feature_flag: 'keep-me',
+      });
+    });
+
+    it('gracefully handles null storage or throwing storage implementations', () => {
+      expect(getPendingVerificationEmail(null)).toBeNull();
+      setPendingVerificationEmail('x@example.com', null);
+      clearPendingVerificationEmail(null);
+
+      const brokenStorage = {
+        getItem(): string | null {
+          throw new Error('SecurityError');
+        },
+        setItem(): void {
+          throw new Error('QuotaExceededError');
+        },
+        removeItem(): void {
+          throw new Error('SecurityError');
+        },
+      };
+
+      expect(getPendingVerificationEmail(brokenStorage)).toBeNull();
+      expect(() =>
+        setPendingVerificationEmail('x@example.com', brokenStorage)
+      ).not.toThrow();
+      expect(() => clearPendingVerificationEmail(brokenStorage)).not.toThrow();
+    });
+  });
+
+  describe('sanitizeCallbackUrl (from @/lib/routes)', () => {
     it('preserves relative internal paths along with full query string and hash', () => {
       expect(
         sanitizeCallbackUrl('/reservation/mentee?tab=history&reservationId=101')

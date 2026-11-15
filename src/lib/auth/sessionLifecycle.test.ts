@@ -4,6 +4,7 @@ import type { Session } from 'next-auth';
 import path from 'path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ApiError } from '@/lib/apiClient';
 import {
   AUTH_FLOW_STORAGE_KEYS,
   clearAuthFlowStorage,
@@ -36,13 +37,22 @@ import {
   SESSION_HINT_COOKIE,
 } from '@/lib/auth/sessionHint';
 import {
+  completePasswordReset,
+  ConfirmSignUpLifecycleError,
+  confirmSignUpToken,
   executeDeleteAccountXC,
   executeGoogleOAuthCallback,
-  initiateGoogleDeleteAccountReauth,
+  initiateGoogleAuth,
+  PasswordResetLifecycleError,
+  requestPasswordReset,
+  resendPasswordReset,
+  resendVerificationEmailForPendingUser,
   resolvePostAuthRedirect,
   type SessionTeardownReason,
   SignInLifecycleError,
   signInWithCredentials,
+  SignUpLifecycleError,
+  signUpWithCredentials,
   terminateClientSession,
 } from '@/lib/auth/sessionLifecycle';
 import {
@@ -943,18 +953,81 @@ describe('sessionLifecycle (#885)', () => {
       expect(okSignOut).toHaveBeenCalledWith({ callbackUrl: '/' });
     });
 
-    it('persists delete_account_email before Google reauth redirect and cleans it up on error', async () => {
-      const storage = createInMemorySessionStorage();
+    it('unifies Google OAuth initiation across login, signup, and delete_account_reauth intents with failure rollback (#904)', async () => {
+      const storage = createInMemorySessionStorage({
+        [PENDING_DELETE_ACCOUNT_EMAIL_KEY]: 'stale-delete@example.com',
+      });
       const navigate = vi.fn();
 
-      await initiateGoogleDeleteAccountReauth('g@example.com', {
-        navigate,
-        storage,
-        getAuthorizeUrl: vi.fn().mockResolvedValue({
-          authorization_url: 'https://accounts.google.com/o/oauth2/auth',
-          state: 'st',
-        }),
-      });
+      // 1. intent: 'login' persists sanitized callbackUrl and clears stale delete_account_email
+      await initiateGoogleAuth(
+        {
+          intent: 'login',
+          search:
+            '?callbackUrl=%2Freservation%2Fmentee%3Ftab%3Dhistory%26reservationId%3D101',
+          currentOrigin: 'https://xtalent.tw',
+        },
+        {
+          navigate,
+          storage,
+          getAuthorizeUrl: vi.fn().mockResolvedValue({
+            authorization_url: 'https://accounts.google.com/o/oauth2/login',
+            state: 'st-login',
+          }),
+        }
+      );
+
+      expect(getPendingDeleteAccountEmail(storage)).toBeNull();
+      expect(storage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)).toBe(
+        '/reservation/mentee?tab=history&reservationId=101'
+      );
+      expect(navigate).toHaveBeenCalledWith(
+        'https://accounts.google.com/o/oauth2/login'
+      );
+
+      // Failed login initiation clears stale pendingCallbackUrl
+      await expect(
+        initiateGoogleAuth(
+          { intent: 'login', search: '?callbackUrl=%2Fmentor-pool' },
+          {
+            navigate,
+            storage,
+            getAuthorizeUrl: vi.fn().mockRejectedValue(new Error('login-down')),
+          }
+        )
+      ).rejects.toThrow('login-down');
+      expect(storage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)).toBeNull();
+
+      // 2. intent: 'signup' clears residual pendingCallbackUrl and redirects
+      storage.setItem(PENDING_AUTH_CALLBACK_URL_KEY, '/mentor-pool');
+      await initiateGoogleAuth(
+        { intent: 'signup' },
+        {
+          navigate,
+          storage,
+          getAuthorizeUrl: vi.fn().mockResolvedValue({
+            authorization_url: 'https://accounts.google.com/o/oauth2/signup',
+            state: 'st-signup',
+          }),
+        }
+      );
+      expect(storage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)).toBeNull();
+      expect(navigate).toHaveBeenCalledWith(
+        'https://accounts.google.com/o/oauth2/signup'
+      );
+
+      // 3. intent: 'delete_account_reauth' persists delete_account_email and rolls back on error
+      await initiateGoogleAuth(
+        { intent: 'delete_account_reauth', email: 'g@example.com' },
+        {
+          navigate,
+          storage,
+          getAuthorizeUrl: vi.fn().mockResolvedValue({
+            authorization_url: 'https://accounts.google.com/o/oauth2/auth',
+            state: 'st',
+          }),
+        }
+      );
 
       expect(getPendingDeleteAccountEmail(storage)).toBe('g@example.com');
       expect(navigate).toHaveBeenCalledWith(
@@ -962,14 +1035,266 @@ describe('sessionLifecycle (#885)', () => {
       );
 
       await expect(
-        initiateGoogleDeleteAccountReauth('g@example.com', {
-          navigate,
-          storage,
-          getAuthorizeUrl: vi.fn().mockRejectedValue(new Error('down')),
-        })
+        initiateGoogleAuth(
+          { intent: 'delete_account_reauth', email: 'g@example.com' },
+          {
+            navigate,
+            storage,
+            getAuthorizeUrl: vi.fn().mockRejectedValue(new Error('down')),
+          }
+        )
       ).rejects.toThrow('down');
 
       expect(getPendingDeleteAccountEmail(storage)).toBeNull();
+    });
+  });
+
+  describe('signUp, email verification, and password reset lifecycles (#904)', () => {
+    it('signUpWithCredentials tracks sign_up, writes pendingVerificationEmail, navigates to EMAIL_VERIFY_HREF, and maps ApiError codes', async () => {
+      const storage = createInMemorySessionStorage();
+      const navigate = vi.fn();
+      const trackEvent = vi.fn();
+      const signUpFn = vi.fn().mockResolvedValue(undefined);
+
+      await signUpWithCredentials(
+        {
+          email: 'new-user@example.com',
+          password: 'Password1!',
+          confirm_password: 'Password1!',
+        },
+        {
+          navigate,
+          signUpFn,
+          storage,
+          trackEvent,
+        }
+      );
+
+      expect(signUpFn).toHaveBeenCalledWith({
+        email: 'new-user@example.com',
+        password: 'Password1!',
+        confirm_password: 'Password1!',
+      });
+      expect(trackEvent).toHaveBeenCalledWith({
+        name: 'sign_up',
+        feature: 'auth',
+        metadata: {
+          method: 'Email',
+          user_role: 'guest',
+        },
+      });
+      expect(getPendingVerificationEmail(storage)).toBe('new-user@example.com');
+      expect(navigate).toHaveBeenCalledWith('/auth/email-verify');
+
+      // Status-specific SignUpLifecycleError mapping
+      await expect(
+        signUpWithCredentials(
+          {
+            email: 'a@example.com',
+            password: 'Password1!',
+            confirm_password: 'Password1!',
+          },
+          {
+            navigate,
+            storage,
+            trackEvent,
+            signUpFn: vi
+              .fn()
+              .mockRejectedValue(new ApiError(422, '欄位格式錯誤')),
+          }
+        )
+      ).rejects.toMatchObject({
+        name: 'SignUpLifecycleError',
+        title: '驗證失敗',
+        message: '欄位格式錯誤',
+        errorCode: '422',
+      });
+
+      await expect(
+        signUpWithCredentials(
+          {
+            email: 'a@example.com',
+            password: 'Password1!',
+            confirm_password: 'Password1!',
+          },
+          {
+            navigate,
+            storage,
+            trackEvent,
+            signUpFn: vi.fn().mockRejectedValue(new ApiError(406, '')),
+          }
+        )
+      ).rejects.toMatchObject({
+        title: '註冊失敗',
+        message: '此電子郵件已被註冊。請使用其他電子郵件或登錄。',
+        errorCode: '406',
+      });
+
+      await expect(
+        signUpWithCredentials(
+          {
+            email: 'a@example.com',
+            password: 'Password1!',
+            confirm_password: 'Password1!',
+          },
+          {
+            navigate,
+            storage,
+            trackEvent,
+            signUpFn: vi.fn().mockRejectedValue(new ApiError(429, '')),
+          }
+        )
+      ).rejects.toMatchObject({
+        title: '請求過於頻繁',
+        errorCode: '429',
+      });
+
+      await expect(
+        signUpWithCredentials(
+          {
+            email: 'a@example.com',
+            password: 'Password1!',
+            confirm_password: 'Password1!',
+          },
+          {
+            navigate,
+            storage,
+            trackEvent,
+            signUpFn: vi.fn().mockRejectedValue(new ApiError(503, 'Down')),
+          }
+        )
+      ).rejects.toBeInstanceOf(SignUpLifecycleError);
+    });
+
+    it('confirmSignUpToken clears pendingVerificationEmail PII on success and preserves/guards on missing or invalid token', async () => {
+      const storage = createInMemorySessionStorage({
+        [PENDING_VERIFICATION_EMAIL_KEY]: 'pending-pii@example.com',
+      });
+
+      await expect(
+        confirmSignUpToken(null, { storage })
+      ).rejects.toBeInstanceOf(ConfirmSignUpLifecycleError);
+      expect(getPendingVerificationEmail(storage)).toBe(
+        'pending-pii@example.com'
+      );
+
+      await expect(
+        confirmSignUpToken('expired-tok', {
+          storage,
+          confirmSignUpFn: vi
+            .fn()
+            .mockRejectedValue(new ApiError(400, '驗證連結已失效')),
+        })
+      ).rejects.toMatchObject({
+        title: '註冊失敗',
+        step: 'confirm_token',
+        errorCode: '400',
+      });
+      // Still preserved when confirmation fails
+      expect(getPendingVerificationEmail(storage)).toBe(
+        'pending-pii@example.com'
+      );
+
+      const confirmSignUpFn = vi.fn().mockResolvedValue(undefined);
+      await confirmSignUpToken('valid-tok', {
+        storage,
+        confirmSignUpFn,
+      });
+
+      expect(confirmSignUpFn).toHaveBeenCalledWith('valid-tok');
+      expect(getPendingVerificationEmail(storage)).toBeNull();
+    });
+
+    it('resendVerificationEmailForPendingUser reads from storage or explicit email and throws when absent', async () => {
+      const emptyStorage = createInMemorySessionStorage();
+      await expect(
+        resendVerificationEmailForPendingUser({ storage: emptyStorage })
+      ).rejects.toThrow('找不到待驗證的電子郵件地址');
+
+      const storage = createInMemorySessionStorage({
+        [PENDING_VERIFICATION_EMAIL_KEY]: 'stored@example.com',
+      });
+      const resendFn = vi.fn().mockResolvedValue(undefined);
+
+      await resendVerificationEmailForPendingUser({
+        storage,
+        resendVerificationEmailFn: resendFn,
+      });
+      expect(resendFn).toHaveBeenCalledWith('stored@example.com');
+    });
+
+    it('requestPasswordReset, resendPasswordReset, and completePasswordReset manage pendingPasswordResetEmail and clear PII after completion', async () => {
+      const storage = createInMemorySessionStorage();
+      const navigate = vi.fn();
+      const requestEmailFn = vi.fn().mockResolvedValue(undefined);
+
+      // Missing email on resend throws PasswordResetLifecycleError
+      await expect(
+        resendPasswordReset({
+          storage,
+          requestPasswordResetEmailFn: requestEmailFn,
+        })
+      ).rejects.toBeInstanceOf(PasswordResetLifecycleError);
+
+      // 1. Request password reset stores email and navigates to success page
+      await requestPasswordReset('reset-pii@example.com', {
+        navigate,
+        storage,
+        requestPasswordResetEmailFn: requestEmailFn,
+      });
+      expect(requestEmailFn).toHaveBeenCalledWith('reset-pii@example.com');
+      expect(getPendingPasswordResetEmail(storage)).toBe(
+        'reset-pii@example.com'
+      );
+      expect(navigate).toHaveBeenCalledWith('/auth/password-forgot-success');
+
+      // 2. Resend reads stored email and calls requestPasswordResetEmailFn
+      await resendPasswordReset({
+        storage,
+        requestPasswordResetEmailFn: requestEmailFn,
+      });
+      expect(requestEmailFn).toHaveBeenCalledTimes(2);
+
+      // 3. Missing token on completePasswordReset throws without clearing PII
+      await expect(
+        completePasswordReset(
+          {
+            verifyToken: null,
+            password: 'NewPassword123',
+            confirmPassword: 'NewPassword123',
+          },
+          { navigate, storage }
+        )
+      ).rejects.toMatchObject({
+        title: '驗證失敗',
+        step: 'missing_token',
+      });
+      expect(getPendingPasswordResetEmail(storage)).toBe(
+        'reset-pii@example.com'
+      );
+
+      // 4. Valid completePasswordReset clears pendingPasswordResetEmail PII and navigates to PASSWORD_RESET_SUCCESS_HREF
+      const resetPasswordWithTokenFn = vi.fn().mockResolvedValue(undefined);
+      await completePasswordReset(
+        {
+          verifyToken: 'reset-tok-1',
+          password: 'NewPassword123',
+          confirmPassword: 'NewPassword123',
+        },
+        {
+          navigate,
+          storage,
+          resetPasswordWithTokenFn,
+        }
+      );
+
+      expect(resetPasswordWithTokenFn).toHaveBeenCalledWith({
+        verifyToken: 'reset-tok-1',
+        password: 'NewPassword123',
+        confirmPassword: 'NewPassword123',
+      });
+      expect(getPendingPasswordResetEmail(storage)).toBeNull();
+      expect(navigate).toHaveBeenCalledWith('/auth/password-reset-success');
     });
   });
 

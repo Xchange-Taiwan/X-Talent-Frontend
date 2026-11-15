@@ -3,6 +3,7 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 
 import { Form } from '@/components/ui/form';
+import { PASSWORD_FORGOT_HREF } from '@/lib/routes';
 
 import AuthFormInput from './AuthFormInput';
 
@@ -102,7 +103,7 @@ export const Password: Story = {
       forgotPasswordLink={
         <div className="text-right text-xs">
           <a
-            href="/forgot-password"
+            href={PASSWORD_FORGOT_HREF}
             className="text-text-tertiary hover:underline"
           >
             忘記密碼？

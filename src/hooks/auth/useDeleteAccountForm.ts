@@ -8,9 +8,10 @@ import * as z from 'zod';
 import { revalidateProfilePathAfterDelete } from '@/actions/auth';
 import { useToast } from '@/components/ui/use-toast';
 import useAsyncAction from '@/hooks/useAsyncAction';
+import { ApiError } from '@/lib/apiClient';
 import {
   executeDeleteAccountXC,
-  initiateGoogleDeleteAccountReauth,
+  initiateGoogleAuth,
 } from '@/lib/auth/sessionLifecycle';
 import { DeleteAccountXCSchema } from '@/schemas/auth';
 
@@ -105,12 +106,25 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
 
     await run(
       async () => {
-        await initiateGoogleDeleteAccountReauth(session?.user?.email ?? '', {
-          navigate: (url) => router.push(url),
-        });
+        await initiateGoogleAuth(
+          {
+            intent: 'delete_account_reauth',
+            email: session?.user?.email ?? '',
+          },
+          {
+            navigate: (url) => router.push(url),
+          }
+        );
       },
       {
         throwError: false,
+        captureFailure: {
+          flow: 'delete_account',
+          step: 'google_reauth_authorize',
+          level: 'warning',
+          errorCode: (err) =>
+            err instanceof ApiError ? String(err.status) : undefined,
+        },
         toastOnError: {
           description: '無法取得 Google 授權連結，請稍後再試',
           duration: 3000,

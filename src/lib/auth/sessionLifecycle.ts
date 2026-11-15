@@ -6,14 +6,21 @@ import {
   setAnalyticsUserContext as defaultSetAnalyticsUserContext,
   trackEvent as defaultTrackEvent,
 } from '@/lib/analytics';
+import { ApiError } from '@/lib/apiClient';
 import {
   clearAuthFlowStorage,
   clearPendingCallbackUrl,
   clearPendingDeleteAccountEmail,
+  clearPendingPasswordResetEmail,
+  clearPendingVerificationEmail,
   consumePendingCallbackUrl,
   getPendingDeleteAccountEmail,
+  getPendingPasswordResetEmail,
+  getPendingVerificationEmail,
+  persistPendingCallbackUrlFromSearch,
   type SessionStorageLike,
   setPendingDeleteAccountEmail,
+  setPendingPasswordResetEmail,
   setPendingVerificationEmail,
 } from '@/lib/auth/authFlowStorage';
 import {
@@ -37,6 +44,8 @@ import {
   FIND_MENTOR_HREF,
   HOME_HREF,
   ONBOARDING_HREF,
+  PASSWORD_FORGOT_SUCCESS_HREF,
+  PASSWORD_RESET_SUCCESS_HREF,
   RESERVATION_MENTEE_HREF,
   sanitizeCallbackUrl,
   SIGNIN_HREF,
@@ -48,15 +57,34 @@ import {
   type DeleteAccountDTO,
   type DeleteAccountResult,
   type GoogleAuthorizeVO,
+  type ResetPasswordWithTokenInput,
+  type SignUpInput,
 } from '@/services/auth/authClient';
 import { notificationStoreManager } from '@/stores/notificationStore';
+
+const defaultSignUp = (input: SignUpInput): Promise<void> =>
+  authClient.signUp(input);
+
+const defaultConfirmSignUp = (token: string): Promise<void> =>
+  authClient.confirmSignUp(token);
+
+const defaultResendVerificationEmail = (email: string): Promise<void> =>
+  authClient.resendVerificationEmail(email);
+
+const defaultRequestPasswordResetEmail = (email: string): Promise<void> =>
+  authClient.requestPasswordResetEmail(email);
+
+const defaultResetPasswordWithToken = (
+  input: ResetPasswordWithTokenInput
+): Promise<void> => authClient.resetPasswordWithToken(input);
+
+const defaultGetGoogleAuthorizeUrl = (
+  intent: 'login' | 'signup'
+): Promise<GoogleAuthorizeVO> => authClient.getGoogleAuthorizeUrl(intent);
 
 const defaultDeleteAccount = (
   payload: DeleteAccountDTO
 ): Promise<DeleteAccountResult> => authClient.deleteAccount(payload);
-
-const getGoogleAuthorizeLoginUrl = (): Promise<GoogleAuthorizeVO> =>
-  authClient.getGoogleAuthorizeUrl('login');
 
 const defaultPostBackendLogout = (): Promise<void> =>
   authClient.postBackendLogout();
@@ -74,6 +102,65 @@ export class SignInLifecycleError extends Error {
   ) {
     super(message);
     this.name = 'SignInLifecycleError';
+  }
+}
+
+export class SignUpLifecycleError extends Error {
+  public readonly title: string;
+  public readonly logMessage: string;
+  public readonly level: 'info' | 'warning' | 'error';
+  public readonly errorCode?: string;
+
+  constructor(options: {
+    title: string;
+    description: string;
+    logMessage: string;
+    level?: 'info' | 'warning' | 'error';
+    errorCode?: string;
+  }) {
+    super(options.description);
+    this.name = 'SignUpLifecycleError';
+    this.title = options.title;
+    this.logMessage = options.logMessage;
+    this.level = options.level ?? 'info';
+    this.errorCode = options.errorCode;
+  }
+}
+
+export type ConfirmSignUpLifecycleStep = 'missing_token' | 'confirm_token';
+
+export class ConfirmSignUpLifecycleError extends Error {
+  constructor(
+    message: string,
+    public readonly title: string,
+    public readonly step: ConfirmSignUpLifecycleStep,
+    public readonly logMessage: string,
+    public readonly level: 'info' | 'warning' | 'error' = 'info',
+    public readonly errorCode?: string
+  ) {
+    super(message);
+    this.name = 'ConfirmSignUpLifecycleError';
+  }
+}
+
+export type PasswordResetLifecycleStep =
+  | 'missing_email'
+  | 'missing_token'
+  | 'request_email'
+  | 'resend_email'
+  | 'submit_new_password';
+
+export class PasswordResetLifecycleError extends Error {
+  constructor(
+    message: string,
+    public readonly title: string,
+    public readonly step: PasswordResetLifecycleStep,
+    public readonly logMessage: string,
+    public readonly level: 'info' | 'warning' | 'error' = 'info',
+    public readonly errorCode?: string
+  ) {
+    super(message);
+    this.name = 'PasswordResetLifecycleError';
   }
 }
 
@@ -364,6 +451,313 @@ export async function signInWithCredentials(
   });
 }
 
+function buildSignUpLifecycleError(error: unknown): SignUpLifecycleError {
+  const logMessage =
+    error instanceof Error ? error.message : 'Unexpected sign-up error';
+
+  if (error instanceof ApiError) {
+    const errorCode = String(error.status);
+    if (error.status === 422) {
+      return new SignUpLifecycleError({
+        title: '驗證失敗',
+        description: error.message || '驗證錯誤。請確保所有欄位均正確填寫。',
+        logMessage,
+        errorCode,
+      });
+    }
+    if (error.status === 406) {
+      return new SignUpLifecycleError({
+        title: '註冊失敗',
+        description:
+          error.message || '此電子郵件已被註冊。請使用其他電子郵件或登錄。',
+        logMessage,
+        errorCode,
+      });
+    }
+    if (error.status === 429) {
+      return new SignUpLifecycleError({
+        title: '請求過於頻繁',
+        description: error.message || '您已超出最大註冊嘗試次數。請稍後再試。',
+        logMessage,
+        errorCode,
+      });
+    }
+    return new SignUpLifecycleError({
+      title: '註冊失敗',
+      description: `${error.message || '發生錯誤。'} - HTTP狀態碼: ${error.status}。`,
+      logMessage,
+      errorCode,
+    });
+  }
+
+  return new SignUpLifecycleError({
+    title: '註冊失敗',
+    description:
+      error instanceof Error ? error.message : '系統錯誤，請稍後再試',
+    logMessage,
+  });
+}
+
+export interface SignUpWithCredentialsAdapters {
+  navigate: (href: string) => void;
+  signUpFn?: typeof defaultSignUp;
+  storage?: SessionStorageLike | null;
+  trackEvent?: typeof defaultTrackEvent;
+}
+
+export async function signUpWithCredentials(
+  values: SignUpInput,
+  adapters: SignUpWithCredentialsAdapters
+): Promise<void> {
+  const {
+    navigate,
+    signUpFn = defaultSignUp,
+    storage,
+    trackEvent = defaultTrackEvent,
+  } = adapters;
+
+  try {
+    await signUpFn(values);
+  } catch (error) {
+    throw buildSignUpLifecycleError(error);
+  }
+
+  trackEvent({
+    name: 'sign_up',
+    feature: 'auth',
+    metadata: {
+      method: 'Email',
+      user_role: 'guest',
+    },
+  });
+  setPendingVerificationEmail(values.email, storage);
+  navigate(EMAIL_VERIFY_HREF);
+}
+
+export type GoogleAuthIntent = 'login' | 'signup' | 'delete_account_reauth';
+
+export type InitiateGoogleAuthParams =
+  | {
+      intent: 'login';
+      search?: string;
+      currentOrigin?: string;
+    }
+  | {
+      intent: 'signup';
+    }
+  | {
+      intent: 'delete_account_reauth';
+      email: string;
+    };
+
+export interface InitiateGoogleAuthAdapters {
+  navigate: (url: string) => void;
+  storage?: SessionStorageLike | null;
+  getAuthorizeUrl?: typeof defaultGetGoogleAuthorizeUrl;
+}
+
+export async function initiateGoogleAuth(
+  params: InitiateGoogleAuthParams,
+  adapters: InitiateGoogleAuthAdapters
+): Promise<void> {
+  const {
+    navigate,
+    storage,
+    getAuthorizeUrl = defaultGetGoogleAuthorizeUrl,
+  } = adapters;
+
+  if (params.intent === 'delete_account_reauth') {
+    clearPendingCallbackUrl(storage);
+    setPendingDeleteAccountEmail(params.email, storage);
+    try {
+      const { authorization_url } = await getAuthorizeUrl('login');
+      navigate(authorization_url);
+    } catch (error) {
+      clearPendingDeleteAccountEmail(storage);
+      throw error;
+    }
+    return;
+  }
+
+  clearPendingDeleteAccountEmail(storage);
+
+  if (params.intent === 'login') {
+    try {
+      const { authorization_url } = await getAuthorizeUrl('login');
+      persistPendingCallbackUrlFromSearch(
+        params.search ?? '',
+        params.currentOrigin,
+        storage
+      );
+      navigate(authorization_url);
+    } catch (error) {
+      clearPendingCallbackUrl(storage);
+      throw error;
+    }
+    return;
+  }
+
+  try {
+    const { authorization_url } = await getAuthorizeUrl('signup');
+    clearPendingCallbackUrl(storage);
+    navigate(authorization_url);
+  } catch (error) {
+    clearPendingCallbackUrl(storage);
+    throw error;
+  }
+}
+
+export interface ConfirmSignUpTokenAdapters {
+  confirmSignUpFn?: typeof defaultConfirmSignUp;
+  storage?: SessionStorageLike | null;
+}
+
+export async function confirmSignUpToken(
+  token: string | null,
+  adapters: ConfirmSignUpTokenAdapters = {}
+): Promise<void> {
+  const { confirmSignUpFn = defaultConfirmSignUp, storage } = adapters;
+
+  if (!token) {
+    throw new ConfirmSignUpLifecycleError(
+      '缺少驗證 Token，請重新申請驗證信。',
+      '驗證失敗',
+      'missing_token',
+      'Missing signup confirmation token',
+      'info'
+    );
+  }
+
+  try {
+    await confirmSignUpFn(token);
+  } catch (error) {
+    throw new ConfirmSignUpLifecycleError(
+      error instanceof Error ? error.message : '註冊失敗，請稍後再試。',
+      '註冊失敗',
+      'confirm_token',
+      error instanceof Error ? error.message : 'Failed to confirm signup token',
+      'info',
+      error instanceof ApiError ? String(error.status) : undefined
+    );
+  }
+
+  clearPendingVerificationEmail(storage);
+}
+
+export interface ResendVerificationEmailAdapters {
+  email?: string | null;
+  resendVerificationEmailFn?: typeof defaultResendVerificationEmail;
+  storage?: SessionStorageLike | null;
+}
+
+export async function resendVerificationEmailForPendingUser(
+  adapters: ResendVerificationEmailAdapters = {}
+): Promise<void> {
+  const {
+    email,
+    resendVerificationEmailFn = defaultResendVerificationEmail,
+    storage,
+  } = adapters;
+
+  const targetEmail = email || getPendingVerificationEmail(storage);
+  if (!targetEmail) {
+    throw new Error('找不到待驗證的電子郵件地址，請重新註冊。');
+  }
+
+  await resendVerificationEmailFn(targetEmail);
+}
+
+export interface RequestPasswordResetAdapters {
+  navigate: (href: string) => void;
+  requestPasswordResetEmailFn?: typeof defaultRequestPasswordResetEmail;
+  storage?: SessionStorageLike | null;
+}
+
+export async function requestPasswordReset(
+  email: string,
+  adapters: RequestPasswordResetAdapters
+): Promise<void> {
+  const {
+    navigate,
+    requestPasswordResetEmailFn = defaultRequestPasswordResetEmail,
+    storage,
+  } = adapters;
+
+  await requestPasswordResetEmailFn(email);
+  setPendingPasswordResetEmail(email, storage);
+  navigate(PASSWORD_FORGOT_SUCCESS_HREF);
+}
+
+export interface ResendPasswordResetAdapters {
+  email?: string | null;
+  requestPasswordResetEmailFn?: typeof defaultRequestPasswordResetEmail;
+  storage?: SessionStorageLike | null;
+}
+
+export async function resendPasswordReset(
+  adapters: ResendPasswordResetAdapters = {}
+): Promise<void> {
+  const {
+    email,
+    requestPasswordResetEmailFn = defaultRequestPasswordResetEmail,
+    storage,
+  } = adapters;
+
+  const targetEmail = email || getPendingPasswordResetEmail(storage);
+  if (!targetEmail) {
+    throw new PasswordResetLifecycleError(
+      '找不到您的電子郵件地址，請嘗試重新操作。',
+      '發送失敗',
+      'missing_email',
+      'Missing pending password reset email',
+      'info'
+    );
+  }
+
+  await requestPasswordResetEmailFn(targetEmail);
+}
+
+export interface CompletePasswordResetInput {
+  verifyToken: string | null;
+  password: string;
+  confirmPassword: string;
+}
+
+export interface CompletePasswordResetAdapters {
+  navigate: (href: string) => void;
+  resetPasswordWithTokenFn?: typeof defaultResetPasswordWithToken;
+  storage?: SessionStorageLike | null;
+}
+
+export async function completePasswordReset(
+  input: CompletePasswordResetInput,
+  adapters: CompletePasswordResetAdapters
+): Promise<void> {
+  const {
+    navigate,
+    resetPasswordWithTokenFn = defaultResetPasswordWithToken,
+    storage,
+  } = adapters;
+
+  if (!input.verifyToken) {
+    throw new PasswordResetLifecycleError(
+      '缺少驗證 Token，請重新申請密碼重設。',
+      '驗證失敗',
+      'missing_token',
+      'Missing password reset verification token',
+      'info'
+    );
+  }
+
+  await resetPasswordWithTokenFn({
+    verifyToken: input.verifyToken,
+    password: input.password,
+    confirmPassword: input.confirmPassword,
+  });
+  clearPendingPasswordResetEmail(storage);
+  navigate(PASSWORD_RESET_SUCCESS_HREF);
+}
+
 export interface ExecuteDeleteAccountXCAdapters {
   signOut: ClientSignOutFn;
   revalidateAfterDelete?: () => Promise<unknown>;
@@ -408,32 +802,6 @@ export async function executeDeleteAccountXC(
   }
 
   return result;
-}
-
-export interface InitiateGoogleDeleteReauthAdapters {
-  navigate: (url: string) => void;
-  storage?: SessionStorageLike | null;
-  getAuthorizeUrl?: typeof getGoogleAuthorizeLoginUrl;
-}
-
-export async function initiateGoogleDeleteAccountReauth(
-  email: string,
-  adapters: InitiateGoogleDeleteReauthAdapters
-): Promise<void> {
-  const {
-    navigate,
-    storage,
-    getAuthorizeUrl = getGoogleAuthorizeLoginUrl,
-  } = adapters;
-
-  setPendingDeleteAccountEmail(email, storage);
-  try {
-    const { authorization_url } = await getAuthorizeUrl();
-    navigate(authorization_url);
-  } catch (error) {
-    clearPendingDeleteAccountEmail(storage);
-    throw error;
-  }
 }
 
 export interface ExecuteGoogleOAuthCallbackAdapters {

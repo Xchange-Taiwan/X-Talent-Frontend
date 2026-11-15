@@ -104,13 +104,25 @@ describe('AuthCard & AuthMessageCard consistency (#805)', () => {
   });
 
   it('renders /auth/email-verify, /auth/email-verified, and /auth/password-forgot-success with consistent button widths and card spacing', () => {
-    const { unmount: unmount1 } = render(
+    const { rerender, unmount: unmount1 } = render(
       <EmailVerificationPage onResendEmail={vi.fn()} onNavigateHome={vi.fn()} />
     );
     expect(screen.getByRole('button', { name: '回首頁' })).toHaveClass(
       'min-w-[135px]',
       'px-6'
     );
+    expect(screen.getByRole('button', { name: '點此重新寄送' })).toBeEnabled();
+
+    rerender(
+      <EmailVerificationPage
+        isResending={true}
+        onResendEmail={vi.fn()}
+        onNavigateHome={vi.fn()}
+      />
+    );
+    expect(
+      screen.getByRole('button', { name: '重新寄送中...' })
+    ).toBeDisabled();
     unmount1();
 
     const { unmount: unmount2 } = render(
