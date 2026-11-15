@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useSyncExternalStore } from 'react';
 
 import { favoriteMentorStore } from '@/stores/favoriteMentorStore';
 import type { MentorType } from '@/types/mentor';
@@ -14,6 +14,8 @@ export interface UseFavoriteMentorsResult {
   isIdentityUnresolved: boolean;
   isStoreReadyForUser: boolean;
   isLoading: boolean;
+  error: Error | null;
+  retry: () => Promise<void>;
 }
 
 export function useFavoriteMentors(): UseFavoriteMentorsResult {
@@ -44,6 +46,15 @@ export function useFavoriteMentors(): UseFavoriteMentorsResult {
     favoriteState.loadedUserId === confirmedUserId &&
     !favoriteState.isLoading;
 
+  const error = isStoreReadyForUser ? favoriteState.loadError : null;
+
+  const retry = useCallback(async () => {
+    if (isIdentityUnresolved || !isAuthenticated || !confirmedUserId) {
+      return;
+    }
+    await favoriteMentorStore.retrySync(confirmedUserId);
+  }, [confirmedUserId, isAuthenticated, isIdentityUnresolved]);
+
   return {
     favoriteMentors: isStoreReadyForUser ? favoriteState.favoriteMentors : [],
     confirmedUserId,
@@ -51,5 +62,7 @@ export function useFavoriteMentors(): UseFavoriteMentorsResult {
     isIdentityUnresolved,
     isStoreReadyForUser,
     isLoading: isIdentityUnresolved || !isStoreReadyForUser,
+    error,
+    retry,
   };
 }

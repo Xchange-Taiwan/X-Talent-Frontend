@@ -205,6 +205,11 @@ describe('FavoritesPageContainer', () => {
     const initialCards = screen.getAllByRole('article');
     expect(initialCards).toHaveLength(2);
     expect(
+      within(initialCards[0]).getByRole('link', {
+        name: '前往 Zahra Mirzakhani 的個人頁面',
+      })
+    ).toHaveAttribute('data-analytics-location', 'favorites_list');
+    expect(
       within(initialCards[0]).getAllByText('作品集健檢').length
     ).toBeGreaterThan(0);
     expect(
@@ -288,5 +293,37 @@ describe('FavoritesPageContainer', () => {
     ).toBeVisible();
     expect(screen.getByText('已收藏 1 位導師')).toBeInTheDocument();
     expect(screen.getAllByRole('article')).toHaveLength(1);
+  });
+
+  it('renders error state on non-404 initial load failure and reloads favorites when clicking 重新載入', async () => {
+    const user = userEvent.setup();
+    fetchMock.mockRejectedValueOnce(new Error('500 Internal Server Error'));
+
+    renderWithSession(<FavoritesPageContainer />);
+
+    expect(
+      await screen.findByText('載入收藏清單時發生連線錯誤')
+    ).toBeInTheDocument();
+    expect(screen.queryByText('還沒有收藏的導師')).not.toBeInTheDocument();
+    expect(screen.queryByText('已收藏 0 位導師')).not.toBeInTheDocument();
+
+    fetchMock.mockResolvedValueOnce([
+      {
+        ...mockMentors[0],
+        user_id: 101,
+        name: 'Zahra Mirzakhani',
+        have_topic: ['portfolio_review'],
+        have_skill: ['product_design'],
+      },
+    ]);
+
+    await user.click(screen.getByRole('button', { name: '重新載入' }));
+
+    expect(await screen.findByText('已收藏 1 位導師')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(screen.getAllByRole('article')).toHaveLength(1);
+    expect(
+      screen.queryByText('載入收藏清單時發生連線錯誤')
+    ).not.toBeInTheDocument();
   });
 });

@@ -83,6 +83,14 @@ export const EmptyState: Story = {
   },
 };
 
+export const ErrorState: Story = {
+  args: {
+    mentors: [],
+    mentorCount: 0,
+    listStatus: 'error',
+  },
+};
+
 export const LoadingState: Story = {
   args: {
     mentors: [],

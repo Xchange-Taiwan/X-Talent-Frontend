@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 
 import { useFavoriteMentors } from '@/hooks/favorites';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
@@ -19,6 +19,8 @@ export default function FavoritesPageContainer() {
     isAuthenticated,
     isIdentityUnresolved,
     isStoreReadyForUser,
+    error,
+    retry,
   } = useFavoriteMentors();
 
   useEffect(() => {
@@ -44,14 +46,22 @@ export default function FavoritesPageContainer() {
     if (!isStoreReadyForUser) {
       return 'loading';
     }
+    if (error) {
+      return 'error';
+    }
     return mentors.length > 0 ? 'success' : 'empty';
-  }, [isStoreReadyForUser, mentors.length]);
+  }, [error, isStoreReadyForUser, mentors.length]);
+
+  const handleRetry = useCallback(() => {
+    void retry();
+  }, [retry]);
 
   return (
     <FavoritesPageUI
       mentors={mentors}
       mentorCount={mentors.length}
       listStatus={listStatus}
+      onRetry={handleRetry}
     />
   );
 }

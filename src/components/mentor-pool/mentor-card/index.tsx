@@ -12,6 +12,8 @@ import type { MentorType } from '@/types/mentor';
 import { AvatarWithBadge } from './AvatarWithBadge';
 import { Information } from './Information';
 
+export type MentorCardAnalyticsLocation = 'mentor_pool_list' | 'favorites_list';
+
 export interface MentorCardProps {
   id: number;
   avatar: string | StaticImageData;
@@ -26,6 +28,7 @@ export interface MentorCardProps {
   priority?: boolean;
   mentorSnapshot?: MentorType;
   feature?: FavoriteMentorFeature;
+  analyticsLocation?: MentorCardAnalyticsLocation;
 }
 
 const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
@@ -44,9 +47,14 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
       priority = false,
       mentorSnapshot,
       feature = 'mentor_pool',
+      analyticsLocation,
     }: MentorCardProps,
     ref
   ) => {
+    const resolvedAnalyticsLocation: MentorCardAnalyticsLocation =
+      analyticsLocation ??
+      (feature === 'favorites' ? 'favorites_list' : 'mentor_pool_list');
+
     return (
       <article
         ref={ref}
@@ -62,7 +70,7 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
           data-analytics-click="mentor_card"
           data-analytics-event="mentor_card_click"
           data-analytics-feature={feature}
-          data-analytics-location="mentor_pool_list"
+          data-analytics-location={resolvedAnalyticsLocation}
           data-analytics-param-mentor-id={String(id)}
           className="absolute inset-0 z-10"
         ></Link>

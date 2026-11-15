@@ -146,4 +146,40 @@ describe('useFavoriteMentors', () => {
     expect(removeMock).toHaveBeenCalledWith(101);
     expect(result.current.favoriteMentors.map((m) => m.user_id)).toEqual([102]);
   });
+
+  it('exposes non-404 load error and recovers via retry()', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('500 Server Error'));
+
+    const { result } = renderHook(() => useFavoriteMentors(), {
+      wrapper: createSessionWrapper({
+        userId: '9001',
+        status: 'authenticated',
+      }),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isStoreReadyForUser).toBe(true);
+    });
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.error?.message).toBe('500 Server Error');
+    expect(result.current.favoriteMentors).toEqual([]);
+
+    fetchMock.mockResolvedValueOnce([
+      fromPartial<MentorType>({
+        user_id: 101,
+        name: 'Zahra Mirzakhani',
+        have_topic: [],
+        have_skill: [],
+      }),
+    ]);
+
+    await act(async () => {
+      await result.current.retry();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.current.error).toBeNull();
+    expect(result.current.favoriteMentors.map((m) => m.user_id)).toEqual([101]);
+  });
 });

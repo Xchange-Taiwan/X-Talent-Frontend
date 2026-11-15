@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { fromPartial } from '@total-typescript/shoehorn';
 import { SessionContext, type SessionContextValue } from 'next-auth/react';
 import type { ReactNode } from 'react';
@@ -104,6 +105,10 @@ describe('FavoritesPageUI', () => {
     });
     expect(cardLink).toHaveAttribute('href', '/profile/101');
     expect(cardLink).toHaveAttribute('data-analytics-feature', 'favorites');
+    expect(cardLink).toHaveAttribute(
+      'data-analytics-location',
+      'favorites_list'
+    );
 
     const firstBookmark = within(cards[0]).getByRole('button', {
       name: '取消收藏 陳怡君 Jane',
@@ -157,5 +162,29 @@ describe('FavoritesPageUI', () => {
     ).toBe(true);
     expect(screen.queryByText('已收藏 0 位導師')).not.toBeInTheDocument();
     expect(screen.queryByText('還沒有收藏的導師')).not.toBeInTheDocument();
+  });
+
+  it('renders distinct error state with retry button and omits empty-state copy when listStatus is error', async () => {
+    const user = userEvent.setup();
+    const onRetryMock = vi.fn();
+
+    renderWithSession(
+      <FavoritesPageUI
+        mentors={[]}
+        mentorCount={0}
+        listStatus="error"
+        onRetry={onRetryMock}
+      />
+    );
+
+    expect(
+      screen.getByRole('heading', { level: 1, name: '我的收藏' })
+    ).toBeInTheDocument();
+    expect(screen.getByText('載入收藏清單時發生連線錯誤')).toBeInTheDocument();
+    expect(screen.queryByText('已收藏 0 位導師')).not.toBeInTheDocument();
+    expect(screen.queryByText('還沒有收藏的導師')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '重新載入' }));
+    expect(onRetryMock).toHaveBeenCalledTimes(1);
   });
 });
