@@ -1,13 +1,13 @@
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const colors = require('./src/design/tokens/color');
+const { buildTailwindColors } = require('./src/design/tokens/color-values.ts');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const shadows = require('./src/design/tokens/shadow');
+const shadows = require('./src/design/tokens/shadow.ts');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const fonts = require('./src/design/tokens/font');
+const fonts = require('./src/design/tokens/font.ts');
 
-export const content = ['./src/**/*.{js,jsx,ts,tsx}'];
+const content = ['./src/**/*.{js,jsx,ts,tsx}'];
 
-export const theme = {
+const theme = {
   container: {
     center: true,
     padding: '2rem',
@@ -15,7 +15,7 @@ export const theme = {
       '2xl': '1400px',
     },
   },
-  colors,
+  colors: buildTailwindColors(),
   extend: {
     fontFamily: {
       'open-sans': fonts.openSans,
@@ -102,4 +102,11 @@ export const theme = {
     },
   },
 };
-export const plugins = [require('tailwindcss-animate')];
+
+const plugins = [require('tailwindcss-animate')];
+
+module.exports = {
+  content,
+  theme,
+  plugins,
+};
