@@ -606,20 +606,30 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     expect(putCount).toBe(2);
     await expect(profileBookmarkBtn).toHaveAttribute('aria-pressed', 'true');
 
-    // 5. 前往 /favorites 移除收藏 -> 切換為空狀態並擷取證據圖 (#5)，再驗證空狀態 CTA 點擊追蹤
-    await page.goto('/favorites');
+    // 5. 透過桌面帳號選單 SPA 前往 /favorites 移除收藏 -> 保留同頁會話 dataLayer、切換為空狀態並擷取證據圖 (#5)
+    await page.mouse.move(10, 10);
+    await expect(userMenuTrigger).toBeVisible();
+    await userMenuTrigger.click();
+    await page.getByRole('menuitem', { name: '我的收藏' }).click();
+    await expect(page).toHaveURL(/\/favorites$/);
     await expect(page.getByText('已收藏 1 位導師')).toBeVisible();
+
+    const favoritesRemoveBtn = page
+      .locator('article')
+      .first()
+      .locator('button[data-testid="mentor-bookmark-button"]');
+    await expect(favoritesRemoveBtn).toHaveAttribute('aria-pressed', 'true');
+    await expect(favoritesRemoveBtn).toHaveAttribute(
+      'aria-label',
+      /^取消收藏\s+.+/
+    );
 
     const favoritesRemovePromise = page.waitForResponse(
       (res) =>
         res.url().includes(`/v1/mentors/${TARGET_MENTOR_ID_STR}/favorite`) &&
         res.request().method() === 'DELETE'
     );
-    await page
-      .locator('article')
-      .first()
-      .getByRole('button', { name: '取消收藏 Zahra Mirzakhani' })
-      .click();
+    await favoritesRemoveBtn.click();
     await favoritesRemovePromise;
     expect(deleteCount).toBe(2);
 
@@ -696,12 +706,19 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
       /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i
     );
 
+    // SPA 導覽切回相同搜尋條件 q=design 時會命中 mentorPoolReadModel 記憶體快取，不重送 GET /v1/mentors
+    const searchTextbox = page.getByRole('textbox', { name: '搜尋' });
+    await expect(searchTextbox).toBeVisible({ timeout: 15_000 });
+    await searchTextbox.fill('design');
+    await page.getByRole('button', { name: '搜尋' }).click();
+    await expect(page).toHaveURL(/\/mentor-pool\?q=design$/);
+
     await expect(
       page
         .locator('article')
         .first()
         .getByRole('button', { name: '收藏 Zahra Mirzakhani' })
-    ).toHaveAttribute('aria-pressed', 'false');
+    ).toHaveAttribute('aria-pressed', 'false', { timeout: 15_000 });
     expect(sideEffects.notificationMutations).toBe(0);
     expect(sideEffects.emailMutations).toBe(0);
   });

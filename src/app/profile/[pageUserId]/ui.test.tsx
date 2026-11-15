@@ -1,9 +1,14 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { SessionContext, type SessionContextValue } from 'next-auth/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { UserType } from '@/hooks/user/user-data/useUserData';
 import type { BookingCalendarReader } from '@/lib/profile/bookingAvailability';
+import {
+  favoriteMentorStore,
+  resetFavoriteMentorStore,
+} from '@/stores/favoriteMentorStore';
 
 // next/image requires width/height derived from a static-import object shape
 // that Vitest's asset transform doesn't produce; irrelevant to the
@@ -942,5 +947,71 @@ describe('ProfilePageUI - mentor bookmark button gating (#758)', () => {
     expect(
       screen.queryByRole('button', { name: /收藏 Zahra Mirzakhani/ })
     ).not.toBeInTheDocument();
+  });
+
+  it('stores a complete mentorSnapshot in favoriteMentorStore when toggling bookmark from profile page (#757)', async () => {
+    resetFavoriteMentorStore();
+    favoriteMentorStore.setAdapter({
+      fetchFavoriteMentors: vi.fn().mockResolvedValue([]),
+      addFavoriteMentor: vi.fn().mockResolvedValue(undefined),
+      removeFavoriteMentor: vi.fn().mockResolvedValue(undefined),
+    });
+    favoriteMentorStore.seedFavorites('999', []);
+
+    const sessionContextValue: SessionContextValue = {
+      data: {
+        user: {
+          id: '999',
+          email: 'mentee@example.com',
+          name: 'Mentee Viewer',
+          onBoarding: true,
+          isMentor: false,
+        },
+        accessToken: 'mock-token',
+        expires: '2099-01-01T00:00:00.000Z',
+      },
+      status: 'authenticated',
+      update: async () => null,
+    };
+
+    try {
+      const user = userEvent.setup();
+      render(
+        <SessionContext.Provider value={sessionContextValue}>
+          <ProfilePageUI
+            {...baseProps({
+              userData: buildUserData({
+                user_id: 123,
+                name: 'Zahra Mirzakhani',
+                job_title: 'Senior UX Designer',
+                company: 'CreativeUX Design Studio',
+                is_mentor: true,
+                have_topic: [{ subject_group: 'CAREER', subject: '職涯規劃' }],
+              }),
+              loginUserId: '999',
+              isIdentityResolved: true,
+              canShowOwnerControls: false,
+            })}
+          />
+        </SessionContext.Provider>
+      );
+
+      await user.click(
+        screen.getByRole('button', { name: '收藏 Zahra Mirzakhani' })
+      );
+
+      await waitFor(() => {
+        expect(favoriteMentorStore.isFavorited(123)).toBe(true);
+      });
+      expect(favoriteMentorStore.getState().favoriteMentors[0]).toMatchObject({
+        user_id: 123,
+        name: 'Zahra Mirzakhani',
+        job_title: 'Senior UX Designer',
+        company: 'CreativeUX Design Studio',
+        have_topic: ['職涯規劃'],
+      });
+    } finally {
+      resetFavoriteMentorStore();
+    }
   });
 });
