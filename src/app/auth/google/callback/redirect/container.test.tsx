@@ -14,6 +14,10 @@ import {
   PENDING_DELETE_ACCOUNT_EMAIL_KEY,
   PENDING_VERIFICATION_EMAIL_KEY,
 } from '@/lib/auth/authFlowStorage';
+import {
+  getPendingFavoriteMentorId,
+  savePendingFavoriteMentor,
+} from '@/lib/favorites';
 import { deleteAccount } from '@/services/auth/deleteAccount';
 import type { components } from '@/types/api';
 
@@ -101,6 +105,7 @@ const mockTrackEvent = vi.mocked(trackEvent);
 describe('GoogleOAuthRedirectPage Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
     searchParamsState.code = 'mock_code';
     searchParamsState.state = 'mock_state';
     mockSignIn.mockResolvedValue({ error: undefined, ok: true });
@@ -407,6 +412,174 @@ describe('GoogleOAuthRedirectPage Component', () => {
         expect(pushMock).toHaveBeenCalledWith(
           '/reservation/mentee?tab=history&reservationId=101'
         );
+        expect(
+          sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+        ).toBeNull();
+      });
+    });
+
+    it('redirects to /profile/:id when unexpired pendingFavoriteMentor exists on LOGIN with onBoarding: true and preserves it for profile consumption (#756)', async () => {
+      savePendingFavoriteMentor(101);
+      mockGoogleCallback.mockResolvedValue(
+        fromPartial<OAuthCallbackResponse>({
+          data: {
+            auth_type: 'LOGIN',
+            auth: { token: 'tok_2', email: 'user@example.com' },
+            user: fromPartial<ProfileVO>({ user_id: 456 }),
+          },
+        })
+      );
+
+      mockGetSession.mockResolvedValue({
+        accessToken: 'tok_2',
+        user: { onBoarding: true },
+      });
+
+      render(<GoogleOAuthRedirectPage />);
+
+      await waitFor(() => {
+        expect(pushMock).toHaveBeenCalledWith('/profile/101');
+        expect(getPendingFavoriteMentorId()).toBe(101);
+      });
+    });
+
+    it('prioritizes explicit conflicting pending_auth_callback_url over stale pendingFavoriteMentor and clears stale pendingFavoriteMentor (#756)', async () => {
+      savePendingFavoriteMentor(101);
+      sessionStorage.setItem(
+        PENDING_AUTH_CALLBACK_URL_KEY,
+        '/reservation/mentee?tab=history&reservationId=888'
+      );
+      mockGoogleCallback.mockResolvedValue(
+        fromPartial<OAuthCallbackResponse>({
+          data: {
+            auth_type: 'LOGIN',
+            auth: { token: 'tok_2', email: 'user@example.com' },
+            user: fromPartial<ProfileVO>({ user_id: 456 }),
+          },
+        })
+      );
+
+      mockGetSession.mockResolvedValue({
+        accessToken: 'tok_2',
+        user: { onBoarding: true },
+      });
+
+      render(<GoogleOAuthRedirectPage />);
+
+      await waitFor(() => {
+        expect(pushMock).toHaveBeenCalledWith(
+          '/reservation/mentee?tab=history&reservationId=888'
+        );
+        expect(getPendingFavoriteMentorId()).toBeNull();
+        expect(
+          sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+        ).toBeNull();
+      });
+    });
+
+    it('redirects to /profile/:id and preserves pendingFavoriteMentor when pending_auth_callback_url matches pendingFavoritePath (#756)', async () => {
+      savePendingFavoriteMentor(101);
+      sessionStorage.setItem(PENDING_AUTH_CALLBACK_URL_KEY, '/profile/101');
+      mockGoogleCallback.mockResolvedValue(
+        fromPartial<OAuthCallbackResponse>({
+          data: {
+            auth_type: 'LOGIN',
+            auth: { token: 'tok_2', email: 'user@example.com' },
+            user: fromPartial<ProfileVO>({ user_id: 456 }),
+          },
+        })
+      );
+
+      mockGetSession.mockResolvedValue({
+        accessToken: 'tok_2',
+        user: { onBoarding: true },
+      });
+
+      render(<GoogleOAuthRedirectPage />);
+
+      await waitFor(() => {
+        expect(pushMock).toHaveBeenCalledWith('/profile/101');
+        expect(getPendingFavoriteMentorId()).toBe(101);
+        expect(
+          sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+        ).toBeNull();
+      });
+    });
+
+    it('preserves pendingFavoriteMentor across SIGNUP and LOGIN with onBoarding: false (#756)', async () => {
+      savePendingFavoriteMentor(101);
+      mockGoogleCallback.mockResolvedValueOnce(
+        fromPartial<OAuthCallbackResponse>({
+          data: {
+            auth_type: 'SIGNUP',
+            auth: { token: 'tok_1', email: 'newuser@example.com' },
+            user: null,
+          },
+        })
+      );
+
+      const { unmount } = render(<GoogleOAuthRedirectPage />);
+
+      await waitFor(() => {
+        expect(pushMock).toHaveBeenCalledWith('/auth/email-verify');
+        expect(getPendingFavoriteMentorId()).toBe(101);
+      });
+
+      unmount();
+      pushMock.mockClear();
+      sessionStorage.setItem(PENDING_AUTH_CALLBACK_URL_KEY, '/profile/101');
+
+      mockGoogleCallback.mockResolvedValueOnce(
+        fromPartial<OAuthCallbackResponse>({
+          data: {
+            auth_type: 'LOGIN',
+            auth: { token: 'tok_2', email: 'newuser@example.com' },
+            user: fromPartial<ProfileVO>({ user_id: 456 }),
+          },
+        })
+      );
+      mockGetSession.mockResolvedValueOnce({
+        accessToken: 'tok_2',
+        user: { onBoarding: false },
+      });
+
+      render(<GoogleOAuthRedirectPage />);
+
+      await waitFor(() => {
+        expect(pushMock).toHaveBeenCalledWith('/auth/onboarding');
+        expect(getPendingFavoriteMentorId()).toBe(101);
+        expect(
+          sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+        ).toBeNull();
+      });
+    });
+
+    it('clears stale pendingFavoriteMentor when pending_auth_callback_url conflicts even when onBoarding is false (#756)', async () => {
+      savePendingFavoriteMentor(101);
+      sessionStorage.setItem(
+        PENDING_AUTH_CALLBACK_URL_KEY,
+        '/reservation/mentee?tab=history&reservationId=888'
+      );
+
+      mockGoogleCallback.mockResolvedValueOnce(
+        fromPartial<OAuthCallbackResponse>({
+          data: {
+            auth_type: 'LOGIN',
+            auth: { token: 'tok_2', email: 'newuser@example.com' },
+            user: fromPartial<ProfileVO>({ user_id: 456 }),
+          },
+        })
+      );
+      mockGetSession.mockResolvedValueOnce({
+        accessToken: 'tok_2',
+        user: { onBoarding: false },
+      });
+
+      render(<GoogleOAuthRedirectPage />);
+
+      await waitFor(() => {
+        expect(pushMock).toHaveBeenCalledWith('/auth/onboarding');
+        expect(getPendingFavoriteMentorId()).toBeNull();
         expect(
           sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
         ).toBeNull();

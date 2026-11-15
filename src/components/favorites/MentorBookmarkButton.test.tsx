@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Toaster } from '@/components/ui/toaster';
 import { FAVORITE_MENTOR_ERROR_TOAST_MESSAGE } from '@/hooks/favorites';
 import * as analyticsModule from '@/lib/analytics';
+import { getPendingFavoriteMentorId } from '@/lib/favorites';
 import {
   type FavoriteMentorServiceAdapter,
   favoriteMentorStore,
@@ -78,6 +79,7 @@ describe('MentorBookmarkButton', () => {
     vi.fn<FavoriteMentorServiceAdapter['removeFavoriteMentor']>();
 
   beforeEach(() => {
+    window.localStorage.clear();
     resetFavoriteMentorStore();
     vi.clearAllMocks();
     document.cookie = 'session-hint=; path=/; max-age=0';
@@ -185,7 +187,7 @@ describe('MentorBookmarkButton', () => {
     ).toBeVisible();
   });
 
-  it('redirects unauthenticated guest to /auth/signin with encoded profile callbackUrl without firing toggle analytics', async () => {
+  it('persists pendingFavoriteMentor in localStorage and redirects unauthenticated guest to /auth/signin with encoded profile callbackUrl without firing toggle analytics (#756)', async () => {
     const user = userEvent.setup();
     const trackEventSpy = vi.spyOn(analyticsModule, 'trackEvent');
 
@@ -197,6 +199,7 @@ describe('MentorBookmarkButton', () => {
     const button = screen.getByRole('button', { name: '收藏 陳宥廷 Austin' });
     await user.click(button);
 
+    expect(getPendingFavoriteMentorId()).toBe(101);
     expect(routerPushMock).toHaveBeenCalledWith(
       '/auth/signin?callbackUrl=%2Fprofile%2F101'
     );

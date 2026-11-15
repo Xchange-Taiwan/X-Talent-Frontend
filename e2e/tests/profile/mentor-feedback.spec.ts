@@ -210,6 +210,22 @@ async function setupBaseMentorMocks(
     token: 'mock-mentee-token',
   });
 
+  await mockApiRoute(page, /\/v1\/me\/favorite-mentors(\?|$)/, {
+    body: {
+      code: '0',
+      msg: 'ok',
+      data: { mentors: [] },
+    },
+  });
+
+  await mockApiRoute(page, /\/v1\/users\/.*\/notifications\/unread-count/, {
+    body: {
+      code: '0',
+      msg: 'ok',
+      data: { unread_count: 0 },
+    },
+  });
+
   await mockApiRoute(
     page,
     new RegExp(`/v1/(?:mentors|users)/${REAL_MENTOR_ID}/zh_TW/profile`),
@@ -370,21 +386,37 @@ async function revalidateClientProfileViaSpa(
   page: Page,
   nextClockIso: string
 ): Promise<void> {
-  // 先等待初始 /profile 頁面的動態 UI 與 useAsyncRead initialDto 快取寫入完成，
-  // 確保舊時間戳已寫入快取後才推進時鐘，避免返回時快取未過期而不發送 /profile 請求
-  await expect(page.locator('main img[alt^="Avatar of "]').first()).toBeVisible(
+  // 先等待初始 /profile 頁面的動態 UI、Header 與 useAsyncRead initialDto 快取寫入完成，
+  // 確保舊時間戳已寫入快取且 SPA 導覽就緒後才推進時鐘，避免返回時不發送 /profile 請求
+  const avatarImg = page.locator('main img[alt^="Avatar of "]');
+  const menuBtn = page.getByRole('button', { name: '開啟用戶選單' });
+  await expect(avatarImg.first()).toBeVisible({ timeout: 30_000 });
+  await expect(menuBtn).toBeVisible({ timeout: 30_000 });
+  await page.waitForFunction(
+    () => {
+      const hasProps = (el: Element | null) => {
+        if (!el) return false;
+        return Object.keys(el).some((k) => k.startsWith('__reactProps$'));
+      };
+      const img = document.querySelector('main img[alt^="Avatar of "]');
+      const selector = 'header a[aria-label="Go to homepage"]';
+      const link = document.querySelector(selector);
+      return hasProps(img) && hasProps(link);
+    },
+    undefined,
     { timeout: 30_000 }
   );
   await page.evaluate(
     () =>
       new Promise<void>((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+        requestAnimationFrame(() => setTimeout(resolve, 0))
       )
   );
 
   await page.clock.setFixedTime(new Date(nextClockIso));
   await page.getByRole('link', { name: 'Go to homepage' }).click();
   await expect(page).toHaveURL('/', { timeout: 30_000 });
+  await expect(avatarImg).toHaveCount(0, { timeout: 30_000 });
 
   const profileResponse = page.waitForResponse(
     new RegExp(`/v1/(?:mentors|users)/${REAL_MENTOR_ID}/zh_TW/profile`),

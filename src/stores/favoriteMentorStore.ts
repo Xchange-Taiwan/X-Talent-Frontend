@@ -324,93 +324,101 @@ class FavoriteMentorStoreManager {
         await this.adapter.removeFavoriteMentor(mentorId);
       }
 
-      if (this.userEpoch === requestEpoch) {
-        const updatedPending = new Set(this.state.pendingMentorIds);
-        updatedPending.delete(mentorId);
-        if (this.state.loadedUserId !== null) {
-          if (nextFavorited) {
-            const currentEntry =
-              this.state.favoriteMentors.find(
-                (item) => item.user_id === mentorId
-              ) ??
-              mentorSnapshot ??
-              this.serverMentorMap.get(mentorId) ??
-              buildPlaceholderMentor(mentorId);
-            this.serverMentorMap.set(mentorId, currentEntry);
-          } else {
-            this.serverMentorMap.delete(mentorId);
-          }
-          this.optimisticOverrides.delete(mentorId);
-        }
-        this.setState({ pendingMentorIds: updatedPending });
+      if (this.userEpoch !== requestEpoch) {
+        return {
+          status: 'skipped',
+          nextFavorited: this.isFavorited(mentorId),
+        };
       }
+
+      const updatedPending = new Set(this.state.pendingMentorIds);
+      updatedPending.delete(mentorId);
+      if (this.state.loadedUserId !== null) {
+        if (nextFavorited) {
+          const currentEntry =
+            this.state.favoriteMentors.find(
+              (item) => item.user_id === mentorId
+            ) ??
+            mentorSnapshot ??
+            this.serverMentorMap.get(mentorId) ??
+            buildPlaceholderMentor(mentorId);
+          this.serverMentorMap.set(mentorId, currentEntry);
+        } else {
+          this.serverMentorMap.delete(mentorId);
+        }
+        this.optimisticOverrides.delete(mentorId);
+      }
+      this.setState({ pendingMentorIds: updatedPending });
 
       return nextFavorited
         ? { status: 'added', nextFavorited: true }
         : { status: 'removed', nextFavorited: false };
     } catch (error) {
-      let rolledBackToFavorited = currentlyFavorited;
-
-      if (this.userEpoch === requestEpoch) {
-        rolledBackToFavorited =
-          previousOverride !== undefined
-            ? previousOverride.favorited
-            : this.state.loadedUserId !== null
-              ? this.serverMentorMap.has(mentorId)
-              : currentlyFavorited;
-
-        const rolledBackIds = new Set(this.state.favoriteMentorIds);
-        let rolledBackMentors: MentorType[];
-
-        if (rolledBackToFavorited) {
-          rolledBackIds.add(mentorId);
-          const restoredEntry =
-            previousOverride?.mentor ??
-            this.serverMentorMap.get(mentorId) ??
-            previousMentorEntry ??
-            mentorSnapshot ??
-            buildPlaceholderMentor(mentorId);
-          const withoutCurrent = this.state.favoriteMentors.filter(
-            (item) => item.user_id !== mentorId
-          );
-          rolledBackMentors = [restoredEntry, ...withoutCurrent];
-        } else {
-          rolledBackIds.delete(mentorId);
-          rolledBackMentors = this.state.favoriteMentors.filter(
-            (item) => item.user_id !== mentorId
-          );
-        }
-
-        const updatedPending = new Set(this.state.pendingMentorIds);
-        updatedPending.delete(mentorId);
-
-        if (previousOverride) {
-          if (this.state.loadedUserId !== null) {
-            if (previousOverride.favorited) {
-              const settledEntry =
-                previousOverride.mentor ??
-                this.serverMentorMap.get(mentorId) ??
-                previousMentorEntry ??
-                mentorSnapshot ??
-                buildPlaceholderMentor(mentorId);
-              this.serverMentorMap.set(mentorId, settledEntry);
-            } else {
-              this.serverMentorMap.delete(mentorId);
-            }
-            this.optimisticOverrides.delete(mentorId);
-          } else {
-            this.optimisticOverrides.set(mentorId, previousOverride);
-          }
-        } else {
-          this.optimisticOverrides.delete(mentorId);
-        }
-
-        this.setState({
-          favoriteMentorIds: rolledBackIds,
-          favoriteMentors: rolledBackMentors,
-          pendingMentorIds: updatedPending,
-        });
+      if (this.userEpoch !== requestEpoch) {
+        return {
+          status: 'skipped',
+          nextFavorited: this.isFavorited(mentorId),
+        };
       }
+
+      const rolledBackToFavorited =
+        previousOverride !== undefined
+          ? previousOverride.favorited
+          : this.state.loadedUserId !== null
+            ? this.serverMentorMap.has(mentorId)
+            : currentlyFavorited;
+
+      const rolledBackIds = new Set(this.state.favoriteMentorIds);
+      let rolledBackMentors: MentorType[];
+
+      if (rolledBackToFavorited) {
+        rolledBackIds.add(mentorId);
+        const restoredEntry =
+          previousOverride?.mentor ??
+          this.serverMentorMap.get(mentorId) ??
+          previousMentorEntry ??
+          mentorSnapshot ??
+          buildPlaceholderMentor(mentorId);
+        const withoutCurrent = this.state.favoriteMentors.filter(
+          (item) => item.user_id !== mentorId
+        );
+        rolledBackMentors = [restoredEntry, ...withoutCurrent];
+      } else {
+        rolledBackIds.delete(mentorId);
+        rolledBackMentors = this.state.favoriteMentors.filter(
+          (item) => item.user_id !== mentorId
+        );
+      }
+
+      const updatedPending = new Set(this.state.pendingMentorIds);
+      updatedPending.delete(mentorId);
+
+      if (previousOverride) {
+        if (this.state.loadedUserId !== null) {
+          if (previousOverride.favorited) {
+            const settledEntry =
+              previousOverride.mentor ??
+              this.serverMentorMap.get(mentorId) ??
+              previousMentorEntry ??
+              mentorSnapshot ??
+              buildPlaceholderMentor(mentorId);
+            this.serverMentorMap.set(mentorId, settledEntry);
+          } else {
+            this.serverMentorMap.delete(mentorId);
+          }
+          this.optimisticOverrides.delete(mentorId);
+        } else {
+          this.optimisticOverrides.set(mentorId, previousOverride);
+        }
+      } else {
+        this.optimisticOverrides.delete(mentorId);
+      }
+
+      this.setState({
+        favoriteMentorIds: rolledBackIds,
+        favoriteMentors: rolledBackMentors,
+        pendingMentorIds: updatedPending,
+      });
 
       return {
         status: 'failed',
@@ -418,6 +426,34 @@ class FavoriteMentorStoreManager {
         error,
       };
     }
+  }
+
+  /**
+   * Ensures `mentorId` is favorited for `userId` after synchronizing the user's
+   * server favorites. Unlike `toggleFavorite`, if `mentorId` is already in
+   * `favoriteMentorIds`, this method keeps it favorited without removing it.
+   */
+  async ensureFavorite(
+    userId: string,
+    mentorId: number,
+    mentorSnapshot?: MentorType
+  ): Promise<ToggleFavoriteOutcome> {
+    const normalizedUserId = userId.trim();
+    if (!normalizedUserId || !Number.isFinite(mentorId) || mentorId <= 0) {
+      return { status: 'skipped', nextFavorited: false };
+    }
+
+    await this.syncUser(normalizedUserId);
+
+    if (this.activeUserId !== normalizedUserId) {
+      return { status: 'skipped', nextFavorited: false };
+    }
+
+    if (this.state.favoriteMentorIds.has(mentorId)) {
+      return { status: 'skipped', nextFavorited: true };
+    }
+
+    return this.toggleFavorite(mentorId, mentorSnapshot);
   }
 
   /**

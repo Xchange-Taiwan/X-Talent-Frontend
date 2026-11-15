@@ -25,6 +25,10 @@ import {
   signInWithGoogleToken,
 } from '@/lib/auth/oauthOutcome';
 import { clearSessionHint as defaultClearSessionHint } from '@/lib/auth/sessionHint';
+import {
+  clearPendingFavoriteMentor,
+  getPendingFavoriteProfilePath,
+} from '@/lib/favorites';
 import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
 import { captureFlowFailure as defaultCaptureFlowFailure } from '@/lib/monitoring';
 import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
@@ -115,7 +119,7 @@ function resolveDefaultTeardownCallbackUrl(
  * path (`logout`, `refresh_token_error`, `delete_account_xc`, `delete_account_google`):
  * 1. `sessionHint` cookie & DOM attributes (ADR-0001)
  * 2. GA4 / Clarity user context
- * 3. Pending auth `sessionStorage` keys (`authFlowStorage`)
+ * 3. Pending auth `sessionStorage` keys (`authFlowStorage`) & pending favorite `localStorage` (`clearPendingFavoriteMentor`)
  * 4. User-scoped in-memory stores (`notificationStoreManager`, `reservationReadModel`, `scheduleReadModel`)
  * 5. Reason-specific best-effort server cleanup (`postBackendLogout` or `revalidateAfterDelete`)
  * 6. NextAuth `signOut`
@@ -141,6 +145,7 @@ export async function terminateClientSession(
   clearSessionHint();
   clearAnalyticsUser();
   clearAuthFlowStorage(storage);
+  clearPendingFavoriteMentor();
   clearNotifications();
   clearReservations();
   clearSchedules();
@@ -177,6 +182,30 @@ export async function terminateClientSession(
   } else {
     await signOut();
   }
+}
+
+export interface ResolvePostAuthRedirectOptions {
+  explicitCallbackUrl: string | null;
+  isOnboarded: boolean;
+  now?: number;
+}
+
+export function resolvePostAuthRedirect({
+  explicitCallbackUrl,
+  isOnboarded,
+  now = Date.now(),
+}: ResolvePostAuthRedirectOptions): string {
+  const pendingFavoritePath = getPendingFavoriteProfilePath(now);
+
+  if (explicitCallbackUrl && explicitCallbackUrl !== pendingFavoritePath) {
+    clearPendingFavoriteMentor();
+  }
+
+  if (!isOnboarded) {
+    return ONBOARDING_HREF;
+  }
+
+  return explicitCallbackUrl ?? pendingFavoritePath ?? FIND_MENTOR_HREF;
 }
 
 interface PostLoginChoreographyOptions {
@@ -248,11 +277,12 @@ async function completePostLoginChoreography({
     safeCallbackUrl = consumePendingCallbackUrl(currentOrigin, storage);
   }
 
-  if (session.user?.onBoarding === false) {
-    navigate(ONBOARDING_HREF);
-  } else {
-    navigate(safeCallbackUrl ?? FIND_MENTOR_HREF);
-  }
+  navigate(
+    resolvePostAuthRedirect({
+      explicitCallbackUrl: safeCallbackUrl,
+      isOnboarded: session.user?.onBoarding !== false,
+    })
+  );
 }
 
 export interface SignInWithCredentialsAdapters {
