@@ -41,10 +41,7 @@ export function redactCredentials(value = '') {
       /(?<![A-Za-z0-9_])(gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+)(?![A-Za-z0-9_])/g,
       '***'
     )
-    .replace(
-      /(Authorization:\s*(?:Bearer|token|Basic)\s+)[^\s"']+/gi,
-      '$1***'
-    )
+    .replace(/(Authorization:\s*(?:Bearer|token|Basic)\s+)[^\s"']+/gi, '$1***')
     .replace(/([?&](?:access_token|token)=)[^&\s"']+/gi, '$1***');
 }
 
@@ -1553,8 +1550,7 @@ export async function publishEvidence(filesOrArgv = [], options = {}) {
     let isFile = false;
     try {
       isFile =
-        rt.fsImpl.existsSync(filePath) &&
-        rt.fsImpl.statSync(filePath).isFile();
+        rt.fsImpl.existsSync(filePath) && rt.fsImpl.statSync(filePath).isFile();
     } catch {
       isFile = false;
     }
