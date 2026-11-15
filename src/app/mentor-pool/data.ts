@@ -1,23 +1,9 @@
-import { FilterOptions } from '@/components/filter/MentorFilterDropdown';
+import {
+  DEFAULT_MENTOR_FILTER_OPTIONS,
+  type FilterOptions,
+} from '@/lib/mentor/mentorPoolQuery';
 
-// Option lists are populated at runtime in container.tsx from the shared
-// tag catalog (skills/topics from the bucketed groups, industries from the
-// flat industry list). We keep the keys + display name here so server-side
-// searchParams parsing has a stable shape without touching the client caches.
-export const filterOptions: FilterOptions = {
-  filter_skills: {
-    name: '技能',
-    options: [],
-  },
-  filter_topics: {
-    name: '主題',
-    options: [],
-  },
-  filter_industries: {
-    name: '產業',
-    options: [],
-  },
-};
+export const filterOptions: FilterOptions = DEFAULT_MENTOR_FILTER_OPTIONS;
 
 // Hardcoded fallback until the backend exposes a popular-position ranking
 // endpoint. Replacing this with a fetch is a one-line swap in container.tsx.

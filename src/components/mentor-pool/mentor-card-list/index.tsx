@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useRef } from 'react';
 
-import type { ActiveFilterBadge } from '@/app/mentor-pool/searchParams';
+import type { ActiveFilterBadge } from '@/lib/mentor/mentorPoolQuery';
 import type { MentorType } from '@/types/mentor';
 
 import { MentorCard } from '../mentor-card';

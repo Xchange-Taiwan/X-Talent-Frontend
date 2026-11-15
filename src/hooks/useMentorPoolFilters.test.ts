@@ -1,4 +1,5 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, render, renderHook } from '@testing-library/react';
+import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/navigation', async () => {
@@ -11,25 +12,33 @@ vi.mock('@/lib/analytics', () => ({
   trackEvent: (...args: unknown[]) => mockTrackEvent(...args),
 }));
 
+import MentorPoolSearchBar from '@/app/mentor-pool/MentorPoolSearchBar';
+import PopularPositionChips from '@/app/mentor-pool/PopularPositionChips';
+import * as mentorPoolQuery from '@/lib/mentor/mentorPoolQuery';
 import { mockRouter, mockSearchParams } from '@/test/mocks/navigation';
 
 import {
   resolveActiveFilterBadges,
   useMentorPoolFilters,
+  useMentorPoolSearchQuery,
 } from './useMentorPoolFilters';
 
-describe('useMentorPoolFilters (#786)', () => {
+describe('useMentorPoolFilters & useMentorPoolSearchQuery (#786, #897)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSearchParams.toString.mockReturnValue('');
     mockSearchParams.get.mockReturnValue(null);
   });
 
-  it('projects localized activeFilterBadges from selectedFilters and filterOptions', () => {
+  it('projects localized activeFilterBadges from single and comma-separated selectedFilters and ignores whitespace', () => {
     const badges = resolveActiveFilterBadges(
       {
         filter_industries: { name: '產業', value: 'culture_education' },
-        filter_skills: { name: '專業能力', value: 'unknown_code' },
+        filter_skills: {
+          name: '專業能力',
+          value: 'skill_typescript, unknown_code',
+        },
+        filter_topics: { name: '主題', value: '   ' },
       },
       {
         filter_industries: {
@@ -38,6 +47,10 @@ describe('useMentorPoolFilters (#786)', () => {
         },
         filter_skills: {
           name: '專業能力',
+          options: [{ label: 'TypeScript', value: 'skill_typescript' }],
+        },
+        filter_topics: {
+          name: '主題',
           options: [],
         },
       }
@@ -53,19 +66,28 @@ describe('useMentorPoolFilters (#786)', () => {
       {
         key: 'filter_skills',
         name: '專業能力',
+        value: 'skill_typescript',
+        label: 'TypeScript',
+      },
+      {
+        key: 'filter_skills',
+        name: '專業能力',
         value: 'unknown_code',
         label: 'unknown_code',
       },
     ]);
   });
 
-  it('encapsulates URL query reading/writing for searchQuery, filters, removeFilter, and clearAll', () => {
+  it('encapsulates URL query reading/writing, single-token removal, and clearAll (clearing q, filter_*, and sort_by while preserving utm_*)', () => {
     mockSearchParams.toString.mockReturnValue(
-      'q=frontend&filter_industries=tech'
+      'utm_source=discord&q=frontend&filter_skills=skill_ts,skill_fe&filter_industries=tech&sort_by=popularity'
     );
     mockSearchParams.get.mockImplementation((key) => {
+      if (key === 'utm_source') return 'discord';
       if (key === 'q') return 'frontend';
+      if (key === 'filter_skills') return 'skill_ts,skill_fe';
       if (key === 'filter_industries') return 'tech';
+      if (key === 'sort_by') return 'popularity';
       return null;
     });
 
@@ -76,18 +98,21 @@ describe('useMentorPoolFilters (#786)', () => {
     expect(result.current.selectedFilters.filter_industries?.value).toBe(
       'tech'
     );
+    expect('fetchConditions' in result.current).toBe(false);
 
     act(() => {
       result.current.setSearchQuery('backend');
     });
     expect(mockRouter.push).toHaveBeenLastCalledWith(
-      '/mentor-pool?q=backend&filter_industries=tech'
+      '/mentor-pool?utm_source=discord&q=backend&filter_skills=skill_ts%2Cskill_fe&filter_industries=tech&sort_by=popularity'
     );
 
     act(() => {
-      result.current.removeFilter('filter_industries');
+      result.current.removeFilter('filter_skills', 'skill_ts');
     });
-    expect(mockRouter.push).toHaveBeenLastCalledWith('/mentor-pool?q=frontend');
+    expect(mockRouter.push).toHaveBeenLastCalledWith(
+      '/mentor-pool?utm_source=discord&q=frontend&filter_skills=skill_fe&filter_industries=tech&sort_by=popularity'
+    );
 
     act(() => {
       result.current.clearAll();
@@ -95,6 +120,37 @@ describe('useMentorPoolFilters (#786)', () => {
     expect(mockTrackEvent).toHaveBeenCalledWith({
       name: 'mentor_pool_clear_all_filters_click',
     });
-    expect(mockRouter.push).toHaveBeenLastCalledWith('/mentor-pool');
+    expect(mockRouter.push).toHaveBeenLastCalledWith(
+      '/mentor-pool?utm_source=discord'
+    );
+  });
+
+  it('does not run parseFiltersFromParams or resolveActiveFilterBadges when rendering MentorPoolSearchBar or PopularPositionChips (#897)', () => {
+    const spyParseFilters = vi.spyOn(mentorPoolQuery, 'parseFiltersFromParams');
+    const spyResolveBadges = vi.spyOn(
+      mentorPoolQuery,
+      'resolveActiveFilterBadges'
+    );
+
+    mockSearchParams.toString.mockReturnValue(
+      'q=react&filter_skills=skill_ts,skill_fe'
+    );
+    mockSearchParams.get.mockImplementation((key) => {
+      if (key === 'q') return 'react';
+      if (key === 'filter_skills') return 'skill_ts,skill_fe';
+      return null;
+    });
+
+    const { result } = renderHook(() => useMentorPoolSearchQuery());
+    expect(result.current.searchQuery).toBe('react');
+
+    render(React.createElement(MentorPoolSearchBar));
+    render(React.createElement(PopularPositionChips));
+
+    expect(spyParseFilters).not.toHaveBeenCalled();
+    expect(spyResolveBadges).not.toHaveBeenCalled();
+
+    spyParseFilters.mockRestore();
+    spyResolveBadges.mockRestore();
   });
 });

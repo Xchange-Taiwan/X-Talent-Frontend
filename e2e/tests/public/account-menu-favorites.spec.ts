@@ -108,32 +108,33 @@ test.describe('帳號選單「我的收藏」入口 E2E (#754)', () => {
     const userSheet = page.getByRole('dialog', { name: '用戶選單' });
     await expect(userSheet).toBeVisible();
 
-    const myReservationBtn = userSheet.getByRole('button', {
+    const myReservationLink = userSheet.getByRole('link', {
       name: '我的預約',
     });
-    const myFavoritesBtn = userSheet.getByRole('button', { name: '我的收藏' });
+    const myFavoritesLink = userSheet.getByRole('link', { name: '我的收藏' });
     const findMentorLink = userSheet.getByRole('link', { name: '尋找導師' });
 
-    await expect(myReservationBtn).toBeVisible();
-    await expect(myFavoritesBtn).toBeVisible();
+    await expect(myReservationLink).toBeVisible();
+    await expect(myFavoritesLink).toBeVisible();
     await expect(findMentorLink).toBeVisible();
 
-    await expect(myFavoritesBtn).toHaveText('我的收藏');
-    await expect(myFavoritesBtn).toHaveAttribute(
+    await expect(myFavoritesLink).toHaveText('我的收藏');
+    await expect(myFavoritesLink).toHaveAttribute('href', '/favorites');
+    await expect(myFavoritesLink).toHaveAttribute(
       'data-analytics-click',
       'mobile_user_menu_my_favorites'
     );
-    await expect(myFavoritesBtn).toHaveAttribute(
+    await expect(myFavoritesLink).toHaveAttribute(
       'data-analytics-location',
       'mobile_user_menu'
     );
-    await expect(myFavoritesBtn).toHaveAttribute(
+    await expect(myFavoritesLink).toHaveAttribute(
       'data-analytics-feature',
       'navigation'
     );
 
-    const reservationBox = await myReservationBtn.boundingBox();
-    const favoritesBox = await myFavoritesBtn.boundingBox();
+    const reservationBox = await myReservationLink.boundingBox();
+    const favoritesBox = await myFavoritesLink.boundingBox();
     const findMentorBox = await findMentorLink.boundingBox();
     expect(reservationBox).not.toBeNull();
     expect(favoritesBox).not.toBeNull();
@@ -143,7 +144,7 @@ test.describe('帳號選單「我的收藏」入口 E2E (#754)', () => {
 
     await captureEvidence(page, 'account-menu-favorites');
 
-    await myFavoritesBtn.click();
+    await myFavoritesLink.click();
     await expect(userSheet).toBeHidden();
     await expect(page).toHaveURL(/\/favorites$/, { timeout: 15_000 });
   });
@@ -178,12 +179,12 @@ test.describe('帳號選單「我的收藏」入口 E2E (#754)', () => {
     await mobileTrigger.click();
 
     const userSheet = page.getByRole('dialog', { name: '用戶選單' });
-    const mentorResBtn = userSheet.getByRole('button', {
+    const mentorResLink = userSheet.getByRole('link', {
       name: '導師預約管理',
     });
-    const mobileFavBtn = userSheet.getByRole('button', { name: '我的收藏' });
-    await expect(mentorResBtn).toBeVisible();
-    await expect(mobileFavBtn).toBeVisible();
+    const mobileFavLink = userSheet.getByRole('link', { name: '我的收藏' });
+    await expect(mentorResLink).toBeVisible();
+    await expect(mobileFavLink).toBeVisible();
   });
 
   test('未登入訪客於桌面與手機皆不顯示帳號選單與「我的收藏」入口', async ({

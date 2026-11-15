@@ -1,108 +1,96 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+const mockUsePathname = vi.fn<() => string>(() => '/');
+vi.mock('next/navigation', async () => {
+  const { navigationMockFactory } = await import('@/test/mocks/navigation');
+  return {
+    ...navigationMockFactory(),
+    usePathname: () => mockUsePathname(),
+  };
+});
+
+import { useHeaderNavigation } from '@/hooks/layout/useHeaderNavigation';
+import type { ResolvedIdentity } from '@/lib/auth/sessionHint';
 import {
   authenticatedIdentity,
+  buildResolvedIdentity,
   GUEST_IDENTITY,
   UNKNOWN_IDENTITY,
 } from '@/test/mocks/identity';
 
 import { HamburgerMenu } from './HamburgerMenu';
 
-function openMenu(): void {
-  fireEvent.click(screen.getByRole('button', { name: '開啟導航選單' }));
+function HamburgerMenuHarness({
+  identity,
+}: {
+  identity: ResolvedIdentity;
+}): JSX.Element {
+  const navigation = useHeaderNavigation({ identity });
+  return (
+    <HamburgerMenu menu={navigation.mobileGuestMenu} identity={identity} />
+  );
 }
 
 describe('HamburgerMenu', () => {
-  it('renders guest navigation options when state is confirmed-guest', () => {
-    render(<HamburgerMenu identity={GUEST_IDENTITY} />);
-    openMenu();
+  it('renders guest navigation links, aria-current, external aria-label, and closes sheet on click', () => {
+    mockUsePathname.mockReturnValue('/about');
+    render(<HamburgerMenuHarness identity={GUEST_IDENTITY} />);
 
-    const link = screen.getByRole('link', { name: '成為導師' });
-    expect(link).toHaveAttribute('href', '/auth/signup');
-    expect(link).toHaveAttribute('aria-disabled', 'false');
+    const triggerButton = screen.getByRole('button', { name: '開啟導航選單' });
+    const triggerIcon = triggerButton.querySelector('svg');
+    expect(triggerIcon).toHaveClass('size-6');
+    expect(triggerIcon).not.toHaveClass('size-8');
 
-    expect(screen.getByRole('link', { name: '登入' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '註冊' })).toBeInTheDocument();
-  });
+    fireEvent.click(triggerButton);
 
-  it('renders pre-hydration state when unknown and wraps in CSS toggles', () => {
-    render(<HamburgerMenu identity={UNKNOWN_IDENTITY} />);
-    openMenu();
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveClass('h-dvh', 'w-screen', 'p-0');
+    expect(dialog).not.toHaveClass('h-screen');
+    expect(dialog).not.toHaveClass('p-6');
+    expect(dialog.querySelector('.overflow-y-auto')).toHaveClass('p-6');
 
-    const link = screen.getByRole('link', { name: '成為導師' });
-    // In unknown state, isResolvingUser is false, so disabled is false
-    expect(link).toHaveAttribute('href', '/auth/signup');
-    expect(link).toHaveAttribute('aria-disabled', 'false');
-  });
+    const becomeMentorLink = screen.getByRole('link', { name: '成為導師' });
+    expect(becomeMentorLink).toHaveAttribute('href', '/auth/signup');
+    expect(becomeMentorLink).toHaveAttribute('aria-disabled', 'false');
 
-  it('closes the sheet when a normal link is clicked', () => {
-    render(<HamburgerMenu identity={GUEST_IDENTITY} />);
-    openMenu();
+    const aboutLink = screen.getByRole('link', { name: '關於 X-Talent' });
+    expect(aboutLink).toHaveAttribute('aria-current', 'page');
 
-    fireEvent.click(screen.getByRole('link', { name: '成為導師' }));
+    expect(
+      screen.getByRole('link', { name: '提供回饋（另開新分頁）' })
+    ).toBeInTheDocument();
 
+    const signin = screen.getByRole('link', { name: '登入' });
+    const signup = screen.getByRole('link', { name: '註冊' });
+    expect(signin).toHaveClass('bg-brand-500', 'text-text-primary', 'w-40');
+    expect(signup).toHaveClass('border-brand-500', 'text-brand-500', 'w-40');
+
+    fireEvent.click(becomeMentorLink);
     expect(
       screen.queryByRole('link', { name: '成為導師' })
     ).not.toBeInTheDocument();
   });
 
-  it('returns null and does not render when identity is logged in', () => {
-    const { container } = render(
-      <HamburgerMenu identity={authenticatedIdentity('user-123')} />
+  it('wraps in AuthHintGate pre-hydration toggles when unknown and returns null when logged in or hint-only', () => {
+    const { container, rerender } = render(
+      <HamburgerMenuHarness identity={UNKNOWN_IDENTITY} />
     );
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  it('does not render login/signup buttons when state is hint-only', () => {
-    render(
-      <HamburgerMenu
-        identity={{
-          state: 'hint-only',
-          userId: undefined,
-          avatar: undefined,
-          isMentor: false,
-        }}
-      />
+    expect(container.firstElementChild).toHaveClass(
+      'group-data-[auth-state=mentee]/auth-state:hidden',
+      'group-data-[auth-state=mentor]/auth-state:hidden'
     );
-    expect(
-      screen.queryByRole('link', { name: '登入' })
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('link', { name: '註冊' })
-    ).not.toBeInTheDocument();
-  });
 
-  it('does not render the menu at all (returns null) when state is hint-only', () => {
-    const { container } = render(
-      <HamburgerMenu
-        identity={{
-          state: 'hint-only',
-          userId: undefined,
-          avatar: undefined,
-          isMentor: false,
-        }}
+    rerender(
+      <HamburgerMenuHarness
+        identity={buildResolvedIdentity({ state: 'hint-only' })}
       />
     );
     expect(container).toBeEmptyDOMElement();
-  });
 
-  it('does not render login/signup buttons when state is confirmed-member', () => {
-    render(
-      <HamburgerMenu
-        identity={{
-          state: 'confirmed-member',
-          userId: 'user-123',
-          avatar: undefined,
-          isMentor: false,
-        }}
-      />
+    rerender(
+      <HamburgerMenuHarness identity={authenticatedIdentity('user-123')} />
     );
-    expect(
-      screen.queryByRole('link', { name: '登入' })
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('link', { name: '註冊' })
-    ).not.toBeInTheDocument();
+    expect(container).toBeEmptyDOMElement();
   });
 });

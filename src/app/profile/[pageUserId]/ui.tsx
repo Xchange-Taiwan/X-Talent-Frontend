@@ -553,7 +553,6 @@ export default function ProfilePageUI({
                       onReservation={onReservation}
                       onConfirmReservation={onConfirmReservation}
                       myUserId={loginUserId}
-                      onMutationSuccess={schedule.reload}
                     />
                   )}
                   {editorDialog}

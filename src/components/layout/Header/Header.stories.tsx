@@ -144,3 +144,23 @@ export const ResolvingMentorV2HintState: Story = {
     },
   },
 };
+
+// 7. Active Route State (aria-current="page" on 關於 X-Talent)
+export const AboutActiveRouteState: Story = {
+  parameters: {
+    nextjs: {
+      appDirectory: true,
+      navigation: {
+        pathname: '/about',
+      },
+    },
+    auth: {
+      status: 'authenticated',
+      session: {
+        user: mockMentorUser,
+        expires: '2099-01-01T00:00:00.000Z',
+      },
+      sessionHint: mentorV2SessionHint,
+    },
+  },
+};

@@ -3,7 +3,7 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { useMentorPoolFilters } from '@/hooks/useMentorPoolFilters';
+import { useMentorPoolSearchQuery } from '@/hooks/useMentorPoolFilters';
 import { computeOverflowFit } from '@/lib/overflowFit';
 import { HOVER_CLICKABLE_CHIP_CLASSES } from '@/lib/ui/hoverStyles';
 
@@ -17,7 +17,7 @@ const DESKTOP_WIDTH = 846;
 const GAP_PX = 8;
 
 export default function PopularPositionChips() {
-  const { setSearchQuery } = useMentorPoolFilters();
+  const { setSearchQuery } = useMentorPoolSearchQuery();
   const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [visibleCount, setVisibleCount] = useState(POPULAR_POSITIONS.length);

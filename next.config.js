@@ -102,6 +102,10 @@ const nextConfig = {
   experimental: {
     optimizeCss: false,
     optimizePackageImports: ['lucide-react'],
+    // Disable persistent Turbopack dev cache in CI / Playwright E2E so abrupt
+    // webServer teardown across rounds never leaves stale TaskId references.
+    turbopackFileSystemCacheForDev:
+      !process.env.CI && process.env.PLAYWRIGHT_USE_TURBO !== '1',
   },
   async headers() {
     const baseHeaders = [

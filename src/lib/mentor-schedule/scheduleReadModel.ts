@@ -5,63 +5,78 @@ import type { RawMentorTimeslot } from '@/lib/profile/scheduleHelpers';
 export interface ScheduleReadKey {
   userId: string;
   year: number;
-  month: number; // 1-12
+  /** 1-12. */
+  month: number;
 }
 
-/**
- * How a month's rows are actually fetched. The read model owns caching,
- * de-duplication and cancellation; it deliberately does not own the network
- * call itself, so `src/services/mentor-schedule` stays the only place that
- * knows the schedule endpoint (mirroring `ReservationReadModel`).
- */
-type ScheduleFetcher = (signal: AbortSignal) => Promise<RawMentorTimeslot[]>;
+export type ScheduleFetcher = (
+  signal: AbortSignal
+) => Promise<RawMentorTimeslot[]>;
 
-function toCacheKey({ userId, year, month }: ScheduleReadKey): string {
-  return `${userId}:${year}-${month}`;
+export interface ScheduleReadOptions {
+  force?: boolean;
+  initialData?: RawMentorTimeslot[];
 }
 
-// Private to this module: nothing outside MentorScheduleReadModel may reach
-// the schedule manager directly, so the key shape and the cache policy live in
-// exactly one place. Months carry no TTL - a mentor's own schedule only
-// changes through this app's own writes (save, discard, explicit reload), all
-// of which come back through `set()` / `refresh()` below. See CONTEXT.md
-// ("Staleness Contract").
 const manager = new AsyncReadManager<string, RawMentorTimeslot[]>();
 
+const toCacheKey = (key: ScheduleReadKey): string =>
+  `${key.userId}_${key.year}_${String(key.month).padStart(2, '0')}`;
+
+/**
+ * Narrow, mentor-schedule-scoped facade over a private `AsyncReadManager`
+ * instance. Callers only ever pass `{ userId, year, month }` - the manager
+ * and its string cache keys are hidden inside this module.
+ *
+ * Staleness contract: no TTL. Cached months never expire on their own; they
+ * stay valid until an explicit write (`set` / `refresh` / `invalidate` /
+ * `invalidateOrRefresh`, i.e. after a save, a reservation status mutation, or
+ * a manual reload). Unlike reservation reads, a mentor's schedule segments
+ * change through schedule saves or reservation bookings/status transitions,
+ * all of which synchronize back into this model.
+ */
 export interface MentorScheduleReadModel {
-  /** Synchronous cached-snapshot read; does not trigger a fetch. */
+  /**
+   * Synchronous read of an already-cached month, or `undefined` when that
+   * month has not been loaded yet. Never triggers a fetch. Used where a
+   * caller needs a month's rows without subscribing (e.g. a cross-month
+   * draft edit checking whether the target month is already in memory).
+   */
   get(key: ScheduleReadKey): RawMentorTimeslot[] | undefined;
   /**
-   * Direct write - the read-your-writes path for a save/discard that already
-   * fetched the month itself. Cancels any fetch in flight for `key` so a
-   * slower response cannot clobber it, and publishes the new rows to every
-   * live subscriber.
+   * Direct write for callers that have just fetched a month themselves (e.g.
+   * post-save reload). Cancels any in-flight fetch for `key` and notifies
+   * active subscribers with the new rows.
    */
   set(key: ScheduleReadKey, value: RawMentorTimeslot[]): void;
-  /**
-   * The live read path: serves a cache hit synchronously, de-dupes
-   * concurrent fetches for the same key, cancels the fetch when the last
-   * subscriber goes away (unmount, or a month/account switch), and notifies
-   * `onUpdate` with `{ data, isLoading, error }` as the fetch resolves.
-   */
   subscribe(
     key: ScheduleReadKey,
     fetcher: ScheduleFetcher,
     onUpdate: (result: AsyncReadResult<RawMentorTimeslot[]>) => void,
-    options?: { force?: boolean; initialData?: RawMentorTimeslot[] }
+    options?: ScheduleReadOptions
   ): () => void;
   /**
-   * Refetch `key` from the network even on a cache hit, publish the result
-   * to every live subscriber, and resolve once it has landed - so a caller
-   * that must not act until the calendar reflects the new rows (e.g. closing
-   * a quick-reply dialog after an accept) can await it.
-   *
-   * Resolves with the published `{ data, isLoading, error }`, or `null` when
-   * the refresh was superseded before publishing (its key was cleared or
+   * Force a fresh network read for `key` and publish it to every active
+   * subscriber. Resolves with the published result, or `null` when the
+   * refresh was superseded before publishing (its key was cleared or
    * overwritten mid-flight - an account switch, say), which is exactly the
    * case where the caller should stay quiet rather than report a failure.
    */
   refresh(
+    key: ScheduleReadKey,
+    fetcher: ScheduleFetcher
+  ): Promise<AsyncReadResult<RawMentorTimeslot[]> | null>;
+  /**
+   * Drops the cached month immediately and cancels any in-flight fetch for
+   * `key` without starting a new request.
+   */
+  invalidate(key: ScheduleReadKey): void;
+  /**
+   * Drops `key` immediately when nothing is subscribed to that month (0
+   * network calls), or refreshes `key` in place via `AsyncReadManager.refresh`
+   * when a calendar view is actively mounted on it.
+   */
+  invalidateOrRefresh(
     key: ScheduleReadKey,
     fetcher: ScheduleFetcher
   ): Promise<AsyncReadResult<RawMentorTimeslot[]> | null>;
@@ -92,6 +107,17 @@ export const scheduleReadModel: MentorScheduleReadModel = {
   },
   refresh(key, fetcher) {
     return manager.refresh(toCacheKey(key), fetcher);
+  },
+  invalidate(key) {
+    manager.invalidate(toCacheKey(key));
+  },
+  invalidateOrRefresh(key, fetcher) {
+    const ck = toCacheKey(key);
+    if (manager.getListenerCount(ck) > 0) {
+      return manager.refresh(ck, fetcher);
+    }
+    manager.invalidate(ck);
+    return Promise.resolve(null);
   },
   prefetch(key, fetcher) {
     void manager.prefetch(toCacheKey(key), fetcher);

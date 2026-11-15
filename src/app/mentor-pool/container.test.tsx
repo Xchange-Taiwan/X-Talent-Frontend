@@ -50,7 +50,7 @@ interface UIProps {
   labelMap?: ReadonlyMap<string, string>;
   isReplacing: boolean;
   onFilterChange: (filters: SelectFilters) => void;
-  onRemoveFilter: (key: string) => void;
+  onRemoveFilter: (key: string, value?: string) => void;
   onClearAll: () => void;
 }
 
@@ -259,9 +259,9 @@ describe('MentorPoolContainer - filter routing', () => {
     );
   });
 
-  it('derives the next URL and pushes it when all filters are cleared', () => {
+  it('derives the next URL and pushes it when all filters are cleared, including sort_by while preserving unrelated params (#897)', () => {
     currentSearchParams = new URLSearchParams(
-      'q=test&filter_skills=skill_fe&filter_topics=topic_mgmt&filter_industries=industry_tech'
+      'utm_source=line&q=test&filter_skills=skill_fe&filter_topics=topic_mgmt&filter_industries=industry_tech&sort_by=popularity'
     );
     renderContainer();
 
@@ -269,7 +269,22 @@ describe('MentorPoolContainer - filter routing', () => {
       latestUIProps().onClearAll();
     });
 
-    expect(mockPush).toHaveBeenCalledWith('/mentor-pool');
+    expect(mockPush).toHaveBeenCalledWith('/mentor-pool?utm_source=line');
+  });
+
+  it('removes only the clicked token from a comma-separated filter when onRemoveFilter receives a value (#897)', () => {
+    currentSearchParams = new URLSearchParams(
+      'filter_skills=skill_fe,skill_ts&q=test'
+    );
+    renderContainer();
+
+    act(() => {
+      latestUIProps().onRemoveFilter('filter_skills', 'skill_fe');
+    });
+
+    expect(mockPush).toHaveBeenCalledWith(
+      '/mentor-pool?filter_skills=skill_ts&q=test'
+    );
   });
 
   it('fires the clear-all tracking event exclusively on clear-all, not on change or single removal', () => {

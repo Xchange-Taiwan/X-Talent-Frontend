@@ -1,14 +1,24 @@
 'use client';
 
-import * as Dialog from '@radix-ui/react-dialog';
 import Image from 'next/image';
 import * as React from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import { platformLabelMap } from '@/components/profile/social-links/platformLabelMap';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogClose,
+  DialogContentFrame,
+  DialogDescription,
+  DialogOverlay,
+  DialogPortal,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { trackEvent } from '@/lib/analytics';
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { isSafeUrl } from '@/lib/url/isSafeUrl';
+import { cn } from '@/lib/utils';
 import type { PersonalLink } from '@/types/types';
 
 async function copyToClipboard(text: string): Promise<boolean> {
@@ -32,7 +42,7 @@ async function copyToClipboard(text: string): Promise<boolean> {
   }
 }
 
-type ShareProfileDialogProps = {
+export type ShareProfileDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   name: string;
@@ -55,30 +65,34 @@ export function ShareProfileDialog({
   // Seed with the SSR-safe relative path so the server and the first client
   // render agree, then swap in the absolute URL once `window` exists.
   const [profileUrl, setProfileUrl] = React.useState(profilePath);
+  const copyTimerRef = React.useRef<number | null>(null);
 
   React.useEffect(() => {
     setProfileUrl(`${window.location.origin}${profilePath}`);
   }, [profilePath]);
 
   React.useEffect(() => {
-    if (open) {
-      setCopied(false);
-      trackEvent({
-        name: 'feature_opened',
-        feature: 'profile',
-        metadata: { dialog: 'share_profile' },
-      });
-      document.documentElement.style.setProperty(
-        'overflow',
-        'hidden',
-        'important'
-      );
-    } else {
-      document.documentElement.style.removeProperty('overflow');
-    }
     return () => {
-      document.documentElement.style.removeProperty('overflow');
+      if (copyTimerRef.current !== null) {
+        window.clearTimeout(copyTimerRef.current);
+      }
     };
+  }, []);
+
+  React.useEffect(() => {
+    if (!open) {
+      if (copyTimerRef.current !== null) {
+        window.clearTimeout(copyTimerRef.current);
+        copyTimerRef.current = null;
+      }
+      return;
+    }
+    setCopied(false);
+    trackEvent({
+      name: 'feature_opened',
+      feature: 'profile',
+      metadata: { dialog: 'share_profile' },
+    });
   }, [open]);
 
   const handleCopy = async (): Promise<void> => {
@@ -86,110 +100,121 @@ export function ShareProfileDialog({
     if (!ok) return;
 
     setCopied(true);
-
-    window.setTimeout(() => {
+    if (copyTimerRef.current !== null) {
+      window.clearTimeout(copyTimerRef.current);
+    }
+    copyTimerRef.current = window.setTimeout(() => {
       setCopied(false);
+      copyTimerRef.current = null;
     }, 1500);
   };
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="bg-dark/70 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 fixed inset-0 z-[100]" />
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogPortal>
+        <DialogOverlay className="bg-dark/70 z-[100]" />
 
-        <Dialog.Content className="border-background-border bg-light fixed top-1/2 left-1/2 z-[101] w-[calc(100%-32px)] max-w-screen-sm -translate-x-1/2 -translate-y-1/2 rounded-[24px] border shadow-2xl focus:outline-none">
-          <Dialog.Description className="sr-only">
+        <DialogContentFrame className="border-background-border bg-light z-[101] block w-[calc(100%-32px)] max-w-screen-sm gap-0 rounded-[24px] px-6 pt-6 pb-8 shadow-2xl focus:outline-none sm:rounded-[24px] sm:px-8">
+          <DialogDescription className="sr-only">
             複製個人頁面連結以分享給他人
-          </Dialog.Description>
-          <div className="bg-light rounded-[24px] px-6 pt-6 pb-8 sm:px-8">
-            <div className="relative mb-8 flex items-center justify-center">
-              <Dialog.Title className="text-36 text-text-primary text-center leading-none font-semibold">
-                分享個人頁面
-              </Dialog.Title>
+          </DialogDescription>
 
-              <Dialog.Close asChild>
-                <button
-                  type="button"
-                  className="text-28 text-text-primary absolute top-1/2 right-0 -translate-y-1/2 leading-none"
-                  aria-label="Close share profile dialog"
-                >
-                  ×
-                </button>
-              </Dialog.Close>
-            </div>
+          <div className="relative mb-8 flex items-center justify-center">
+            <DialogTitle className="text-36 text-text-primary px-8 text-center leading-none font-semibold tracking-normal">
+              分享個人頁面
+            </DialogTitle>
 
-            <div className="border-background-border bg-light mb-5 rounded-[20px] border px-6 py-5 shadow-sm">
-              <div className="flex items-center gap-4">
-                <div className="bg-background-bottom relative size-16 shrink-0 overflow-hidden rounded-full">
-                  <Image
-                    src={avatarSrc || DefaultAvatarImgUrl}
-                    alt={`Avatar of ${name}`}
-                    fill
-                    sizes="64px"
-                    className="object-cover"
-                  />
-                </div>
-
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-18 text-text-primary truncate font-semibold">
-                      {name}
-                    </p>
-
-                    {personalLinks
-                      ?.filter((link) => isSafeUrl(link.url))
-                      .map((link) => (
-                        <a
-                          key={link.platform}
-                          href={link.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          aria-label={`前往 ${platformLabelMap[link.platform]?.label ?? link.platform} 頁面`}
-                          className="shrink-0"
-                        >
-                          {platformLabelMap[link.platform]?.icon}
-                        </a>
-                      ))}
-                  </div>
-
-                  {subtitle ? (
-                    <p className="text-14 text-text-primary mt-1 font-medium">
-                      {subtitle}
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label
-                htmlFor="share-profile-link"
-                className="text-14 text-text-primary mb-2 block font-medium"
+            <DialogClose asChild>
+              <button
+                type="button"
+                className={cn(
+                  'text-28 text-text-primary absolute top-1/2 right-0 -translate-y-1/2 rounded-sm leading-none',
+                  FOCUS_RING_CLASSES
+                )}
+                aria-label="Close share profile dialog"
               >
-                個人頁面連結
-              </label>
+                ×
+              </button>
+            </DialogClose>
+          </div>
 
-              <div className="border-background-border bg-light flex items-center gap-3 rounded-[14px] border px-4 py-3">
-                <input
-                  id="share-profile-link"
-                  value={profileUrl}
-                  readOnly
-                  className="text-text-primary focus-visible:ring-ring md:text-14 w-full min-w-0 flex-1 rounded-sm border-0 bg-transparent text-base outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+          <div className="border-background-border bg-light mb-5 rounded-[20px] border px-6 py-5 shadow-sm">
+            <div className="flex items-center gap-4">
+              <div className="bg-background-bottom relative size-16 shrink-0 overflow-hidden rounded-full">
+                <Image
+                  src={avatarSrc || DefaultAvatarImgUrl}
+                  alt={`Avatar of ${name}`}
+                  fill
+                  sizes="64px"
+                  className="object-cover"
                 />
+              </div>
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleCopy}
-                  className="border-background-border bg-light text-14 text-text-primary hover:bg-background-bottom-secondary h-10 shrink-0 rounded-[10px] border px-4 font-medium"
-                >
-                  {copied ? '已複製' : '複製'}
-                </Button>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-18 text-text-primary truncate font-semibold">
+                    {name}
+                  </p>
+
+                  {personalLinks
+                    ?.filter((link) => isSafeUrl(link.url))
+                    .map((link) => (
+                      <a
+                        key={link.platform}
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`前往 ${platformLabelMap[link.platform]?.label ?? link.platform} 頁面`}
+                        className={cn(
+                          'shrink-0 rounded-sm',
+                          FOCUS_RING_CLASSES
+                        )}
+                      >
+                        {platformLabelMap[link.platform]?.icon}
+                      </a>
+                    ))}
+                </div>
+
+                {subtitle ? (
+                  <p className="text-14 text-text-primary mt-1 font-medium">
+                    {subtitle}
+                  </p>
+                ) : null}
               </div>
             </div>
           </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+
+          <div>
+            <label
+              htmlFor="share-profile-link"
+              className="text-14 text-text-primary mb-2 block font-medium"
+            >
+              個人頁面連結
+            </label>
+
+            <div className="border-background-border bg-light flex items-center gap-3 rounded-[14px] border px-4 py-3">
+              <input
+                id="share-profile-link"
+                value={profileUrl}
+                readOnly
+                className={cn(
+                  'text-text-primary md:text-14 w-full min-w-0 flex-1 rounded-sm border-0 bg-transparent text-base outline-none',
+                  FOCUS_RING_CLASSES
+                )}
+              />
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCopy}
+                className="border-background-border bg-light text-14 text-text-primary hover:bg-background-bottom-secondary h-10 shrink-0 rounded-[10px] border px-4 font-medium"
+              >
+                {copied ? '已複製' : '複製'}
+              </Button>
+            </div>
+          </div>
+        </DialogContentFrame>
+      </DialogPortal>
+    </Dialog>
   );
 }

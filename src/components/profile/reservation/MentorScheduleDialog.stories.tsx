@@ -301,3 +301,18 @@ export const Loading: Story = {
     schedule: buildScheduleMock([], mockReservations),
   },
 };
+
+export const OverlapDraftEditError: Story = {
+  render: (args) => (
+    <DialogWrapper reader={args.reader} schedule={args.schedule} />
+  ),
+  args: {
+    open: true,
+    onOpenChange: () => {},
+    reader: defaultReaderMock,
+    schedule: {
+      ...defaultScheduleMock,
+      updateDraftSlot: () => ({ success: false, reason: 'OVERLAP' }),
+    },
+  },
+};

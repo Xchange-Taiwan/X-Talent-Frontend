@@ -596,7 +596,11 @@ export function formatConvergenceSummaryMarkdown({
       : '達到最大輪數上限 (Max Rounds Reached)';
 
   const e2eText = !runE2e
-    ? '略過 (--run-e2e=false)'
+    ? changedSpecs.length === 0
+      ? '略過 (--run-e2e=false)'
+      : e2ePassed
+        ? `通過 (強制執行 ${changedSpecs.length} 個變更 Spec；--run-e2e=false)`
+        : `未完全通過 (強制執行 ${changedSpecs.length} 個變更 Spec；--run-e2e=false)`
     : e2ePassed
       ? `通過 (pnpm test:e2e:mock${changedSpecs.length > 0 ? ` + ${changedSpecs.length} 個變更 Spec` : ''})`
       : '未完全通過';
@@ -767,6 +771,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
   let bestRoundScore = -Infinity;
   let bestEvaluation = null;
   let bestE2ePassed = false;
+  let bestChangedSpecs = [];
   let bestRequiresUiEvidence = false;
   let bestEvidenceIntact = true;
 
@@ -877,28 +882,38 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
     }
     let deterministicPassed = deterministicErrors.length === 0;
 
-    // 2. Playwright E2E verification (only when static + unit tests pass)
+    // 2. Playwright E2E verification (only when static + unit tests pass;
+    //    even when --run-e2e=false, changed E2E specs are still enforced)
     const e2eErrors = [];
     let e2eReportForReviewer = '未執行 E2E (--run-e2e=false)';
     let roundRequiresUiEvidence = false;
 
-    if (config.runE2e && !deterministicPassed) {
+    const {
+      allChangedSpecs,
+      changedMockSpecs,
+      changedReadonlySpecs,
+      extraNonMockSpecs,
+      hasAppCodeChanges,
+      hasUiSurfaceChanges,
+      hasSharedE2eChanges,
+    } = detectChangedE2eSpecs(diffFiles);
+    lastChangedSpecs = allChangedSpecs;
+
+    const forceTargetedE2eForChangedSpecs =
+      !config.runE2e && allChangedSpecs.length > 0;
+    const shouldRunE2ePhase = config.runE2e || forceTargetedE2eForChangedSpecs;
+
+    if (!shouldRunE2ePhase) {
+      lastE2ePassed = true;
+    } else if (!deterministicPassed) {
       lastE2ePassed = false;
     }
 
-    if (config.runE2e && deterministicPassed) {
-      const {
-        allChangedSpecs,
-        changedMockSpecs,
-        changedReadonlySpecs,
-        extraNonMockSpecs,
-        hasAppCodeChanges,
-        hasUiSurfaceChanges,
-        hasSharedE2eChanges,
-      } = detectChangedE2eSpecs(diffFiles);
-      lastChangedSpecs = allChangedSpecs;
+    if (shouldRunE2ePhase && deterministicPassed) {
       roundRequiresUiEvidence =
-        Boolean(config.requireUiEvidence) && Boolean(hasUiSurfaceChanges);
+        Boolean(config.runE2e) &&
+        Boolean(config.requireUiEvidence) &&
+        Boolean(hasUiSurfaceChanges);
 
       if (roundRequiresUiEvidence) {
         clearEvidence();
@@ -907,7 +922,8 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         }
       }
       const useTargetedSpecs =
-        !hasSharedE2eChanges && allChangedSpecs.length > 0;
+        forceTargetedE2eForChangedSpecs ||
+        (!hasSharedE2eChanges && allChangedSpecs.length > 0);
       const e2eEnv = {
         ...process.env,
         CAPTURE_EVIDENCE: '1',
@@ -916,15 +932,26 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         E2E_SKIP_FULL_WARMUP: useTargetedSpecs ? '1' : '0',
       };
 
+      const activeFs = deps.fsImpl || fs;
+      if (typeof activeFs.rmSync === 'function') {
+        try {
+          activeFs.rmSync(path.join(repoRoot, '.next/dev/cache/turbopack'), {
+            recursive: true,
+            force: true,
+          });
+        } catch {}
+      }
+
       // When a ticket provides targeted E2E specs (and didn't touch shared
       // E2E helpers/config), run only those changed specs so we don't compile
       // all 14 unrelated routes on every round. If no E2E specs were modified
       // on a runtime app code change (or shared E2E helpers changed), fall back
-      // to running the full mock suite. Pure unit-test / Storybook diffs skip E2E.
+      // to running the full mock suite only when config.runE2e is true.
       const shouldRunFullMockSuite =
-        hasSharedE2eChanges ||
-        (hasAppCodeChanges && allChangedSpecs.length === 0) ||
-        (diffFiles.length === 0 && !hasAppCodeChanges);
+        Boolean(config.runE2e) &&
+        (hasSharedE2eChanges ||
+          (hasAppCodeChanges && allChangedSpecs.length === 0) ||
+          (diffFiles.length === 0 && !hasAppCodeChanges));
 
       if (shouldRunFullMockSuite || changedMockSpecs.length > 0) {
         const mockArgs =
@@ -990,11 +1017,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         }
       }
 
-      if (
-        config.requireUiEvidence &&
-        hasUiSurfaceChanges &&
-        e2eErrors.length === 0
-      ) {
+      if (roundRequiresUiEvidence && e2eErrors.length === 0) {
         const capturedShots = listEvidence();
         if (capturedShots.length === 0) {
           log(
@@ -1007,10 +1030,9 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       }
 
       lastE2ePassed = e2eErrors.length === 0;
-      const evidenceNote =
-        config.requireUiEvidence && hasUiSurfaceChanges
-          ? `（已擷取 ${listEvidence().length} 張互動 UI 證據截圖）`
-          : '';
+      const evidenceNote = roundRequiresUiEvidence
+        ? `（已擷取 ${listEvidence().length} 張互動 UI 證據截圖）`
+        : '';
       e2eReportForReviewer = lastE2ePassed
         ? `Playwright E2E 測試已通過（已執行 E2E 驗證${allChangedSpecs.length > 0 ? `，涵蓋變更 Spec：${allChangedSpecs.join(', ')}` : ''}${evidenceNote}）。`
         : `Playwright E2E 測試失敗：\n${e2eErrors.join('\n').slice(0, 1500)}`;
@@ -1176,6 +1198,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         bestRoundScore = currentRoundScore;
         bestEvaluation = lastEvaluation;
         bestE2ePassed = lastE2ePassed;
+        bestChangedSpecs = lastChangedSpecs;
         bestRequiresUiEvidence = roundRequiresUiEvidence;
         bestEvidenceIntact =
           !roundRequiresUiEvidence || listEvidence().length > 0;
@@ -1187,6 +1210,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       if (bestEvaluation && (!bestRequiresUiEvidence || bestEvidenceIntact)) {
         lastEvaluation = bestEvaluation;
         lastE2ePassed = bestE2ePassed;
+        lastChangedSpecs = bestChangedSpecs;
       }
     };
 

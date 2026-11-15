@@ -98,7 +98,10 @@ export function mapMentorFeedbackResponse(
   const filteredOutCount = rawItems.length - items.length;
   const rawTotal = Array.isArray(raw)
     ? undefined
-    : (raw.total_rating_count ?? raw.total ?? raw.rating_count);
+    : (raw.total_rating_count ??
+      raw.total_count ??
+      raw.total ??
+      raw.rating_count);
   const parsedBackendTotal =
     rawTotal !== undefined && rawTotal !== null
       ? toNonNegativeInt(rawTotal)

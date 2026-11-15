@@ -11,12 +11,11 @@ import {
   isUnfilteredMentorPoolQuery,
   type MentorPageFetcher,
   type MentorPoolPageState,
+  type MentorPoolQuery,
   mentorPoolReadModel,
   normalizeMentorPoolQuery,
   parseMentorPoolQuery,
-  toMentorPoolCacheKey,
   toMentorRequest,
-  UNFILTERED_MENTOR_POOL_KEY,
   UNFILTERED_MENTOR_POOL_QUERY,
 } from './mentorPoolReadModel';
 
@@ -47,6 +46,7 @@ function makeMentor(
 }
 
 interface InMemoryDatasetEntry {
+  query: MentorPoolQuery;
   mentors: MentorType[];
 }
 
@@ -55,7 +55,7 @@ interface InMemoryDatasetEntry {
  * pagination (`cursor:<offset>`), request logging, and AbortSignal inspection.
  */
 function createInMemoryMentorPageFetcher(
-  datasetByKey: Record<string, InMemoryDatasetEntry>
+  dataset: ReadonlyArray<InMemoryDatasetEntry>
 ): {
   fetchPage: MentorPageFetcher;
   requests: MentorRequest[];
@@ -68,14 +68,17 @@ function createInMemoryMentorPageFetcher(
       throw new DOMException('Aborted', 'AbortError');
     }
 
-    const key = toMentorPoolCacheKey({
+    const requestQuery = mentorPoolReadModel.internQuery({
       search_pattern: request.search_pattern,
       filter_skills: request.filter_skills,
       filter_topics: request.filter_topics,
       filter_industries: request.filter_industries,
       sort_by: request.sort_by,
     });
-    const allMentors = datasetByKey[key]?.mentors ?? [];
+    const matched = dataset.find(
+      (entry) => mentorPoolReadModel.internQuery(entry.query) === requestQuery
+    );
+    const allMentors = matched?.mentors ?? [];
     const offset = request.cursor
       ? Number(request.cursor.replace('cursor:', ''))
       : 0;
@@ -136,22 +139,22 @@ describe('mentorPoolReadModel', () => {
     mentorPoolReadModel.clear();
   });
 
-  describe('MentorPoolQuery canonicalization', () => {
-    it('maps empty queries and tracking-only URL params to UNFILTERED_MENTOR_POOL_KEY', () => {
-      expect(toMentorPoolCacheKey()).toBe(UNFILTERED_MENTOR_POOL_KEY);
-      expect(toMentorPoolCacheKey(UNFILTERED_MENTOR_POOL_QUERY)).toBe(
-        UNFILTERED_MENTOR_POOL_KEY
-      );
-      expect(toMentorPoolCacheKey({ search_pattern: '' })).toBe(
-        UNFILTERED_MENTOR_POOL_KEY
+  describe('canonical MentorPoolQuery interning (#897)', () => {
+    it('maps empty, whitespace, and tracking-only URL params to UNFILTERED_MENTOR_POOL_QUERY singleton', () => {
+      expect(mentorPoolReadModel.internQuery()).toBe(
+        UNFILTERED_MENTOR_POOL_QUERY
       );
       expect(
-        toMentorPoolCacheKey(
-          parseMentorPoolQuery(
-            '?utm_source=discord&utm_medium=social&fbclid=abc123'
-          )
+        mentorPoolReadModel.internQuery(UNFILTERED_MENTOR_POOL_QUERY)
+      ).toBe(UNFILTERED_MENTOR_POOL_QUERY);
+      expect(mentorPoolReadModel.internQuery({ search_pattern: '   ' })).toBe(
+        UNFILTERED_MENTOR_POOL_QUERY
+      );
+      expect(
+        mentorPoolReadModel.resolveQuery(
+          '?utm_source=discord&utm_medium=social&fbclid=abc123'
         )
-      ).toBe(UNFILTERED_MENTOR_POOL_KEY);
+      ).toBe(UNFILTERED_MENTOR_POOL_QUERY);
       expect(
         isUnfilteredMentorPoolQuery(
           parseMentorPoolQuery(new URLSearchParams('utm_campaign=launch'))
@@ -159,33 +162,33 @@ describe('mentorPoolReadModel', () => {
       ).toBe(true);
     });
 
-    it('produces identical canonical keys regardless of parameter order or utm_* tracking params', () => {
-      const fromUtmUrl = parseMentorPoolQuery(
+    it('interns canonically equivalent queries to the exact same frozen object reference across utm_* and reordered params', () => {
+      const fromUtmUrl = mentorPoolReadModel.resolveQuery(
         '?utm_source=discord&filter_topics=topic_career&q=react&filter_skills=skill_ts'
       );
-      const fromReorderedUrl = parseMentorPoolQuery(
+      const fromReorderedUrl = mentorPoolReadModel.resolveQuery(
         new URLSearchParams(
           'filter_skills=skill_ts&q=react&filter_topics=topic_career&gclid=999'
         )
       );
-      const fromObjectA = {
+      const fromObjectA = mentorPoolReadModel.internQuery({
         filter_topics: 'topic_career',
         search_pattern: 'react',
         filter_skills: 'skill_ts',
-      };
-      const fromObjectB = {
+      });
+      const fromObjectB = mentorPoolReadModel.internQuery({
         search_pattern: 'react',
         filter_skills: 'skill_ts',
         filter_topics: 'topic_career',
-      };
+      });
 
-      const expectedKey = toMentorPoolCacheKey(fromObjectA);
-      expect(toMentorPoolCacheKey(fromUtmUrl)).toBe(expectedKey);
-      expect(toMentorPoolCacheKey(fromReorderedUrl)).toBe(expectedKey);
-      expect(toMentorPoolCacheKey(fromObjectB)).toBe(expectedKey);
+      expect(Object.isFrozen(fromObjectA)).toBe(true);
+      expect(fromUtmUrl).toBe(fromObjectA);
+      expect(fromReorderedUrl).toBe(fromObjectA);
+      expect(fromObjectB).toBe(fromObjectA);
     });
 
-    it('normalizes comma-separated filter values and strips empty filter values', () => {
+    it('normalizes comma-separated filter values and strips empty filter values into identical interned references', () => {
       const queryA = normalizeMentorPoolQuery({
         search_pattern: 'react',
         filter_skills: 'skill_ts, skill_react',
@@ -196,7 +199,9 @@ describe('mentorPoolReadModel', () => {
         filter_skills: 'skill_react,skill_ts',
       });
 
-      expect(toMentorPoolCacheKey(queryA)).toBe(toMentorPoolCacheKey(queryB));
+      expect(mentorPoolReadModel.internQuery(queryA)).toBe(
+        mentorPoolReadModel.internQuery(queryB)
+      );
       expect(toMentorRequest(queryA, { limit: 9 })).toEqual({
         search_pattern: 'react',
         filter_skills: 'skill_react,skill_ts',
@@ -204,39 +209,265 @@ describe('mentorPoolReadModel', () => {
       });
     });
 
-    it('percent-encodes delimiters so crafted values never collide across distinct fields', () => {
-      const injected = { search_pattern: 'a&filter_skills=b' };
-      const separate = { filter_skills: 'b', search_pattern: 'a' };
+    it('percent-encodes delimiters internally so crafted values never collide across distinct fields', () => {
+      const model = createMentorPoolReadModel();
+      const injected = model.internQuery({
+        search_pattern: 'a&filter_skills=b',
+      });
+      const separate = model.internQuery({
+        filter_skills: 'b',
+        search_pattern: 'a',
+      });
 
-      expect(toMentorPoolCacheKey(injected)).not.toBe(
-        toMentorPoolCacheKey(separate)
-      );
+      expect(injected).not.toBe(separate);
+
+      model.set(injected, {
+        mentors: [makeMentor(1)],
+        nextCursor: null,
+        hasMore: false,
+        mentorCount: 1,
+        isNoResults: false,
+        hasError: false,
+      });
+      expect(model.get(separate)).toBeUndefined();
     });
   });
 
-  describe('stateless buildInitialUnfilteredState', () => {
-    it('builds page state purely without mutating the read model cache across consecutive SSR calls', () => {
+  describe('stateless resolveSSRInitialData & primeUnfilteredFromSSR (#897)', () => {
+    it('builds SSR initial data purely without mutating the read model cache across consecutive SSR calls', () => {
       const model = createMentorPoolReadModel();
       const mentorA = makeMentor(1, { name: 'Warm SSR Mentor A' });
       const mentorB = makeMentor(2, { name: 'Revalidated SSR Mentor B' });
 
-      const firstSsrState = model.buildInitialUnfilteredState({
-        initialMentors: [mentorA],
-        initialNextCursor: 'cursor:1',
-        initialMentorCount: 1,
-      });
-      expect(firstSsrState.mentors[0].name).toBe('Warm SSR Mentor A');
-      expect(firstSsrState.hasMore).toBe(true);
+      const firstSsrState = model.resolveSSRInitialData(
+        UNFILTERED_MENTOR_POOL_QUERY,
+        {
+          initialMentors: [mentorA],
+          initialNextCursor: 'cursor:1',
+          initialMentorCount: 1,
+        }
+      );
+      expect(firstSsrState?.mentors[0].name).toBe('Warm SSR Mentor A');
+      expect(firstSsrState?.hasMore).toBe(true);
       expect(model.get(UNFILTERED_MENTOR_POOL_QUERY)).toBeUndefined();
 
-      const secondSsrState = model.buildInitialUnfilteredState({
-        initialMentors: [mentorB],
+      const secondSsrState = model.resolveSSRInitialData(
+        UNFILTERED_MENTOR_POOL_QUERY,
+        {
+          initialMentors: [mentorB],
+          initialNextCursor: null,
+          initialMentorCount: 1,
+        }
+      );
+      expect(secondSsrState?.mentors[0].name).toBe('Revalidated SSR Mentor B');
+      expect(secondSsrState?.hasMore).toBe(false);
+      expect(model.get(UNFILTERED_MENTOR_POOL_QUERY)).toBeUndefined();
+    });
+
+    it('primes the unfiltered slot via primeUnfilteredFromSSR without overwriting existing fresh client data', () => {
+      const model = createMentorPoolReadModel();
+      const ssrMentor = makeMentor(1, { name: 'SSR Seed' });
+      const freshClientMentor = makeMentor(2, { name: 'Fresh Client' });
+
+      model.primeUnfilteredFromSSR({
+        initialMentors: [ssrMentor],
+        initialNextCursor: null,
+        initialMentorCount: 1,
+        initialQuery: { search_pattern: 'react' },
+      });
+
+      expect(model.get(UNFILTERED_MENTOR_POOL_QUERY)?.mentors[0].name).toBe(
+        'SSR Seed'
+      );
+
+      model.set(UNFILTERED_MENTOR_POOL_QUERY, {
+        mentors: [freshClientMentor],
+        nextCursor: null,
+        hasMore: false,
+        mentorCount: 1,
+        isNoResults: false,
+        hasError: false,
+      });
+
+      // Subsequent primeUnfilteredFromSSR must respect ifEmpty and leave freshClientMentor intact
+      model.primeUnfilteredFromSSR({
+        initialMentors: [ssrMentor],
         initialNextCursor: null,
         initialMentorCount: 1,
       });
-      expect(secondSsrState.mentors[0].name).toBe('Revalidated SSR Mentor B');
-      expect(secondSsrState.hasMore).toBe(false);
-      expect(model.get(UNFILTERED_MENTOR_POOL_QUERY)).toBeUndefined();
+
+      expect(model.get(UNFILTERED_MENTOR_POOL_QUERY)?.mentors[0].name).toBe(
+        'Fresh Client'
+      );
+    });
+
+    it('holds transient SSR initialError only until unsubscribe or force retry, never permanently polluting unfiltered cache', async () => {
+      const model = createMentorPoolReadModel();
+      model.primeUnfilteredFromSSR({
+        initialMentors: [],
+        initialMentorCount: 0,
+        initialError: true,
+        initialQuery: UNFILTERED_MENTOR_POOL_QUERY,
+      });
+
+      let fetchCalls = 0;
+      const updates: AsyncReadResult<MentorPoolPageState>[] = [];
+      const unsub = model.subscribe(
+        UNFILTERED_MENTOR_POOL_QUERY,
+        async () => {
+          fetchCalls += 1;
+          return {
+            mentors: [makeMentor(9)],
+            nextCursor: null,
+            hasMore: false,
+            mentorCount: 1,
+            isNoResults: false,
+            hasError: false,
+          };
+        },
+        (res) => updates.push(res)
+      );
+
+      // Serves error state without calling fetcher on mount
+      expect(fetchCalls).toBe(0);
+      expect(updates).toHaveLength(1);
+      expect(updates[0].data?.hasError).toBe(true);
+
+      // Navigating away (unsubscribing) drops the transient SSR error
+      unsub();
+
+      const freshUpdates: AsyncReadResult<MentorPoolPageState>[] = [];
+      const unsub2 = model.subscribe(
+        UNFILTERED_MENTOR_POOL_QUERY,
+        async () => {
+          fetchCalls += 1;
+          return {
+            mentors: [makeMentor(9)],
+            nextCursor: null,
+            hasMore: false,
+            mentorCount: 1,
+            isNoResults: false,
+            hasError: false,
+          };
+        },
+        (res) => freshUpdates.push(res)
+      );
+
+      await vi.waitFor(() => {
+        expect(freshUpdates.at(-1)?.data?.mentors[0].user_id).toBe(9);
+      });
+      expect(fetchCalls).toBe(1);
+      unsub2();
+    });
+
+    it('does not re-arm SSR initialError on repeated primeUnfilteredFromSSR calls once client-side fetches have occurred, while surviving StrictMode remounts on initial mount', async () => {
+      const model = createMentorPoolReadModel();
+      const ssrErrorSeed = {
+        initialMentors: [],
+        initialMentorCount: 0,
+        initialError: true,
+        initialQuery: UNFILTERED_MENTOR_POOL_QUERY,
+      };
+
+      // Simulate React 18 StrictMode: mount -> cleanup -> remount before any client fetch
+      model.primeUnfilteredFromSSR(ssrErrorSeed);
+      let unfilteredFetchCalls = 0;
+      const unsubStrict1 = model.subscribe(
+        UNFILTERED_MENTOR_POOL_QUERY,
+        async () => {
+          unfilteredFetchCalls += 1;
+          return {
+            mentors: [makeMentor(1)],
+            nextCursor: null,
+            hasMore: false,
+            mentorCount: 1,
+            isNoResults: false,
+            hasError: false,
+          };
+        },
+        () => {}
+      );
+      unsubStrict1();
+
+      model.primeUnfilteredFromSSR(ssrErrorSeed);
+      const strictUpdates: AsyncReadResult<MentorPoolPageState>[] = [];
+      const unsubStrict2 = model.subscribe(
+        UNFILTERED_MENTOR_POOL_QUERY,
+        async () => {
+          unfilteredFetchCalls += 1;
+          return {
+            mentors: [makeMentor(1)],
+            nextCursor: null,
+            hasMore: false,
+            mentorCount: 1,
+            isNoResults: false,
+            hasError: false,
+          };
+        },
+        (res) => strictUpdates.push(res)
+      );
+      expect(unfilteredFetchCalls).toBe(0);
+      expect(strictUpdates[0]?.data?.hasError).toBe(true);
+
+      // Navigate to a filtered query (simulating rerender with inline initialMentors=[])
+      unsubStrict2();
+      model.primeUnfilteredFromSSR({
+        ...ssrErrorSeed,
+        initialMentors: [],
+      });
+      const filteredQuery = model.resolveQuery('?q=react');
+      const unsubFiltered = model.subscribe(
+        filteredQuery,
+        async () => ({
+          mentors: [makeMentor(2)],
+          nextCursor: null,
+          hasMore: false,
+          mentorCount: 1,
+          isNoResults: false,
+          hasError: false,
+        }),
+        () => {}
+      );
+      await vi.waitFor(() => {
+        expect(model.get(filteredQuery)?.mentors[0].user_id).toBe(2);
+      });
+      unsubFiltered();
+
+      // Clear filters back to unfiltered while parent re-renders with fresh initialMentors=[]
+      expect(
+        model.resolveSSRInitialData(UNFILTERED_MENTOR_POOL_QUERY, {
+          ...ssrErrorSeed,
+          initialMentors: [],
+        })
+      ).toBeUndefined();
+      model.primeUnfilteredFromSSR({
+        ...ssrErrorSeed,
+        initialMentors: [],
+      });
+
+      const clearedUpdates: AsyncReadResult<MentorPoolPageState>[] = [];
+      const unsubCleared = model.subscribe(
+        UNFILTERED_MENTOR_POOL_QUERY,
+        async () => {
+          unfilteredFetchCalls += 1;
+          return {
+            mentors: [makeMentor(3)],
+            nextCursor: null,
+            hasMore: false,
+            mentorCount: 1,
+            isNoResults: false,
+            hasError: false,
+          };
+        },
+        (res) => clearedUpdates.push(res)
+      );
+
+      await vi.waitFor(() => {
+        expect(clearedUpdates.at(-1)?.data?.mentors[0].user_id).toBe(3);
+      });
+      expect(unfilteredFetchCalls).toBe(1);
+      expect(clearedUpdates.at(-1)?.data?.hasError).toBe(false);
+      unsubCleared();
     });
 
     it('sets hasMore=false when initialMentors is empty even if initialNextCursor is non-empty', () => {
@@ -266,12 +497,12 @@ describe('mentorPoolReadModel', () => {
 
   describe('subscribe, cache reuse, and raw subject_group code preservation', () => {
     it('hits the same cache slot across utm_* and reordered query params without duplicate fetches', async () => {
-      const reactKey = toMentorPoolCacheKey({
-        search_pattern: 'react',
-        filter_skills: 'skill_fe',
-      });
-      const { fetchPage, requests } = createInMemoryMentorPageFetcher({
-        [reactKey]: {
+      const { fetchPage, requests } = createInMemoryMentorPageFetcher([
+        {
+          query: {
+            search_pattern: 'react',
+            filter_skills: 'skill_fe',
+          },
           mentors: [
             makeMentor(1, {
               have_topic: ['topic_architecture'],
@@ -279,9 +510,9 @@ describe('mentorPoolReadModel', () => {
             }),
           ],
         },
-      });
+      ]);
 
-      const queryWithUtm = parseMentorPoolQuery(
+      const queryWithUtm = mentorPoolReadModel.resolveQuery(
         '?utm_source=discord&filter_skills=skill_fe&q=react'
       );
       const updates1: AsyncReadResult<MentorPoolPageState>[] = [];
@@ -305,9 +536,11 @@ describe('mentorPoolReadModel', () => {
       expect(updates1[1].data?.mentors[0].have_skill).toEqual(['skill_fe']);
 
       // Subscribe with reordered params and no utm_source -> synchronous cache hit!
-      const cleanReorderedQuery = parseMentorPoolQuery(
+      const cleanReorderedQuery = mentorPoolReadModel.resolveQuery(
         '?q=react&filter_skills=skill_fe'
       );
+      expect(cleanReorderedQuery).toBe(queryWithUtm);
+
       const updates2: AsyncReadResult<MentorPoolPageState>[] = [];
       const unsub2 = mentorPoolReadModel.subscribe(
         cleanReorderedQuery,
@@ -333,10 +566,9 @@ describe('mentorPoolReadModel', () => {
         makeMentor(4),
         makeMentor(5),
       ];
-      const reactKey = toMentorPoolCacheKey({ search_pattern: 'react' });
-      const { fetchPage, requests } = createInMemoryMentorPageFetcher({
-        [reactKey]: { mentors: allMentors },
-      });
+      const { fetchPage, requests } = createInMemoryMentorPageFetcher([
+        { query: { search_pattern: 'react' }, mentors: allMentors },
+      ]);
 
       const query = { search_pattern: 'react' };
       const updates: AsyncReadResult<MentorPoolPageState>[] = [];

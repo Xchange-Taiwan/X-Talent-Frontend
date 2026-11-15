@@ -910,4 +910,22 @@ describe('computeBookingAvailability', () => {
       expect(model.slotsWithMeta[0].reservationBlock).toBeNull();
     });
   });
+
+  describe('resolveScheduleDraftErrorMessage', () => {
+    it('maps each UpdateDraftSlotResult reason to its canonical Chinese toast copy', async () => {
+      const { resolveScheduleDraftErrorMessage } = await import('./index');
+      expect(resolveScheduleDraftErrorMessage('TARGET_MONTH_NOT_LOADED')).toBe(
+        '目標月份排程尚未載入，請先在行事曆中切換至目標月份。'
+      );
+      expect(resolveScheduleDraftErrorMessage('OVERLAP')).toBe(
+        '此時段與其他時段重疊'
+      );
+      expect(resolveScheduleDraftErrorMessage('READ_ONLY')).toBe(
+        '此時段已被預約引用，無法編輯，請改為新增新時段'
+      );
+      expect(resolveScheduleDraftErrorMessage(undefined)).toBe(
+        '更新時段失敗，發生未知的錯誤，請稍後再試。'
+      );
+    });
+  });
 });

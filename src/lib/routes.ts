@@ -20,6 +20,7 @@ export const EMAIL_VERIFY_HREF = '/auth/email-verify';
 export const EMAIL_VERIFIED_HREF = '/auth/email-verified';
 
 export const PROFILE_CARD_HREF = '/profile/card';
+export const FAVORITES_HREF = '/favorites';
 
 export const RESERVATION_INDEX_HREF = '/reservation';
 export const RESERVATION_MENTEE_HREF = '/reservation/mentee';
@@ -204,6 +205,10 @@ export type MiddlewareGateDecision =
 
 export function getPublicProfileUrl(userId: string | number): string {
   return `/profile/${userId}`;
+}
+
+export function getProfileHref(userId: string | undefined): string {
+  return userId ? getPublicProfileUrl(userId) : HOME_HREF;
 }
 
 export function getProfileEditUrl(userId: string | number): string {

@@ -258,7 +258,7 @@ describe('useReservationActions', () => {
       expect(result.current.isMutating).toBe(false);
     });
 
-    it('should trigger correct cancel success toast when action is cancel', async () => {
+    it('should trigger correct cancel success toast and reservation_cancelled analytics event when action is cancel', async () => {
       mockRejectService.mockResolvedValue();
 
       const { result } = renderHook(() =>
@@ -281,6 +281,14 @@ describe('useReservationActions', () => {
 
       await promise;
 
+      expect(mockTrackEvent).toHaveBeenCalledWith({
+        name: 'reservation_cancelled',
+        feature: 'reservation',
+      });
+      expect(mockTrackEvent).not.toHaveBeenCalledWith({
+        name: 'reservation_rejected',
+        feature: 'reservation',
+      });
       expect(mockToast).toHaveBeenCalledWith({
         description: '已取消預約',
       });

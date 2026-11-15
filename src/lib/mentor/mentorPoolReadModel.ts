@@ -1,4 +1,5 @@
 import {
+  type AsyncPrimeOptions,
   AsyncReadManager,
   type AsyncReadOptions,
   type AsyncReadResult,
@@ -7,23 +8,30 @@ import {
 import { getSafeErrorMessage, isAbortError } from '@/lib/errorUtils';
 import type { MentorPage, MentorRequest, MentorType } from '@/types/mentor';
 
-export const DEFAULT_MENTOR_PAGE_LIMIT = 9;
-export const UNFILTERED_MENTOR_POOL_KEY = '__unfiltered__';
+import {
+  DEFAULT_MENTOR_PAGE_LIMIT,
+  isUnfilteredMentorPoolQuery,
+  type MentorPoolQuery,
+  normalizeMentorPoolQuery,
+  parseMentorPoolQuery,
+  type SearchParamReader,
+  toMentorRequest,
+  UNFILTERED_MENTOR_POOL_QUERY,
+} from './mentorPoolQuery';
 
-export interface SearchParamReader {
-  get(name: string): string | null;
-}
+export {
+  DEFAULT_MENTOR_PAGE_LIMIT,
+  isUnfilteredMentorPoolQuery,
+  type MentorPoolQuery,
+  normalizeMentorPoolQuery,
+  parseMentorPoolQuery,
+  type SearchParamReader,
+  toMentorRequest,
+  UNFILTERED_MENTOR_POOL_QUERY,
+};
 
-export interface MentorPoolQuery {
-  search_pattern?: string;
-  filter_skills?: string;
-  filter_topics?: string;
-  filter_industries?: string;
-  sort_by?: 'recent' | 'popularity';
-}
-
-export const UNFILTERED_MENTOR_POOL_QUERY: Readonly<MentorPoolQuery> =
-  Object.freeze({});
+const UNFILTERED_MENTOR_POOL_KEY = '__unfiltered__';
+const MAX_INTERNED_QUERIES = 256;
 
 export type MentorPageFetcher = (
   request: MentorRequest,
@@ -101,93 +109,12 @@ export function applyMentorPage(
   }
 }
 
-function normalizeFilterValue(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  if (!value.includes(',')) {
-    const trimmed = value.trim();
-    return trimmed || undefined;
-  }
-  const tokens = Array.from(
-    new Set(
-      value
-        .split(',')
-        .map((token) => token.trim())
-        .filter(Boolean)
-    )
-  ).sort();
-  return tokens.length > 0 ? tokens.join(',') : undefined;
-}
-
-export function normalizeMentorPoolQuery(
-  query?: MentorPoolQuery | null
-): MentorPoolQuery {
-  if (!query) {
-    return UNFILTERED_MENTOR_POOL_QUERY;
-  }
-
-  const searchPattern = query.search_pattern ? query.search_pattern : undefined;
-  const filterIndustries = normalizeFilterValue(query.filter_industries);
-  const filterSkills = normalizeFilterValue(query.filter_skills);
-  const filterTopics = normalizeFilterValue(query.filter_topics);
-  const sortBy =
-    query.sort_by === 'recent' || query.sort_by === 'popularity'
-      ? query.sort_by
-      : undefined;
-
-  if (
-    !searchPattern &&
-    !filterIndustries &&
-    !filterSkills &&
-    !filterTopics &&
-    !sortBy
-  ) {
-    return UNFILTERED_MENTOR_POOL_QUERY;
-  }
-
-  const normalized: MentorPoolQuery = {};
-  if (filterIndustries) {
-    normalized.filter_industries = filterIndustries;
-  }
-  if (filterSkills) {
-    normalized.filter_skills = filterSkills;
-  }
-  if (filterTopics) {
-    normalized.filter_topics = filterTopics;
-  }
-  if (searchPattern) {
-    normalized.search_pattern = searchPattern;
-  }
-  if (sortBy) {
-    normalized.sort_by = sortBy;
-  }
-  return normalized;
-}
-
-export function parseMentorPoolQuery(
-  params: SearchParamReader | string | null | undefined
-): MentorPoolQuery {
-  if (!params) {
-    return UNFILTERED_MENTOR_POOL_QUERY;
-  }
-  const reader: SearchParamReader =
-    typeof params === 'string' ? new URLSearchParams(params) : params;
-  const rawSortBy = reader.get('sort_by');
-  const sortBy =
-    rawSortBy === 'recent' || rawSortBy === 'popularity'
-      ? rawSortBy
-      : undefined;
-
-  return normalizeMentorPoolQuery({
-    search_pattern: reader.get('q') ?? undefined,
-    filter_skills: reader.get('filter_skills') ?? undefined,
-    filter_topics: reader.get('filter_topics') ?? undefined,
-    filter_industries: reader.get('filter_industries') ?? undefined,
-    sort_by: sortBy,
-  });
-}
-
-export function toMentorPoolCacheKey(query?: MentorPoolQuery | null): string {
+function toCacheKey(query?: MentorPoolQuery | null): string {
   const normalized = normalizeMentorPoolQuery(query);
+  if (normalized === UNFILTERED_MENTOR_POOL_QUERY) {
+    return UNFILTERED_MENTOR_POOL_KEY;
+  }
+
   const canonicalParams = new URLSearchParams();
 
   if (normalized.filter_industries) {
@@ -210,39 +137,6 @@ export function toMentorPoolCacheKey(query?: MentorPoolQuery | null): string {
   return serialized ? serialized : UNFILTERED_MENTOR_POOL_KEY;
 }
 
-export function isUnfilteredMentorPoolQuery(
-  query?: MentorPoolQuery | null
-): boolean {
-  return toMentorPoolCacheKey(query) === UNFILTERED_MENTOR_POOL_KEY;
-}
-
-export function toMentorRequest(
-  query: MentorPoolQuery,
-  options: { limit?: number; cursor?: string | null } = {}
-): MentorRequest {
-  const normalized = normalizeMentorPoolQuery(query);
-  const request: MentorRequest = {
-    search_pattern: normalized.search_pattern ?? '',
-    limit: options.limit ?? DEFAULT_MENTOR_PAGE_LIMIT,
-  };
-  if (normalized.filter_industries) {
-    request.filter_industries = normalized.filter_industries;
-  }
-  if (normalized.filter_skills) {
-    request.filter_skills = normalized.filter_skills;
-  }
-  if (normalized.filter_topics) {
-    request.filter_topics = normalized.filter_topics;
-  }
-  if (normalized.sort_by) {
-    request.sort_by = normalized.sort_by;
-  }
-  if (options.cursor) {
-    request.cursor = options.cursor;
-  }
-  return request;
-}
-
 export async function fetchMentorPoolPageOne(
   query: MentorPoolQuery,
   fetchPage: MentorPageFetcher,
@@ -262,6 +156,15 @@ export interface BuildInitialUnfilteredStateOptions {
   initialMentorCount: number;
   hasInitialFilters?: boolean;
   initialError?: boolean;
+}
+
+export interface MentorPoolSSRSeed {
+  initialMentors: MentorType[];
+  initialNextCursor?: string | null;
+  initialMentorCount: number;
+  initialError?: boolean;
+  hasInitialFilters?: boolean;
+  initialQuery?: MentorPoolQuery | null;
 }
 
 export interface LoadMoreMentorPoolOptions {
@@ -296,8 +199,22 @@ export interface MentorPoolReadModel extends AsyncReadSource<
   MentorPoolQuery,
   MentorPoolPageState
 > {
+  internQuery(query?: MentorPoolQuery | null): Readonly<MentorPoolQuery>;
+  resolveQuery(
+    params: SearchParamReader | string | null | undefined
+  ): Readonly<MentorPoolQuery>;
+  resolveSSRInitialData(
+    query: MentorPoolQuery | null | undefined,
+    seed: MentorPoolSSRSeed
+  ): MentorPoolPageState | undefined;
+  primeUnfilteredFromSSR(seed: MentorPoolSSRSeed): void;
   get(query: MentorPoolQuery): MentorPoolPageState | undefined;
   set(query: MentorPoolQuery, value: MentorPoolPageState, ttlMs?: number): void;
+  prime(
+    query: MentorPoolQuery,
+    value: MentorPoolPageState,
+    options?: AsyncPrimeOptions
+  ): void;
   subscribe(
     query: MentorPoolQuery,
     fetcher: (
@@ -323,13 +240,34 @@ interface InflightLoadMoreEntry {
   controller: AbortController;
 }
 
+function buildUnfilteredState({
+  initialMentors,
+  initialNextCursor = null,
+  initialMentorCount,
+  hasInitialFilters = false,
+  initialError = false,
+}: BuildInitialUnfilteredStateOptions): MentorPoolPageState {
+  const nextCursor = initialNextCursor || null;
+  return {
+    mentors: initialMentors,
+    nextCursor,
+    hasMore: initialMentors.length > 0 && nextCursor !== null,
+    mentorCount: initialMentorCount,
+    isNoResults: initialMentors.length === 0,
+    hasError: hasInitialFilters ? false : initialError,
+  };
+}
+
 export function createMentorPoolReadModel(): MentorPoolReadModel {
   const manager = new AsyncReadManager<string, MentorPoolPageState>();
+  const internedQueries = new Map<string, Readonly<MentorPoolQuery>>();
   const inflightLoadMore = new Map<string, InflightLoadMoreEntry>();
   const loadMoreListeners = new Map<
     string,
     Set<(result: AsyncReadResult<MentorPoolPageState>) => void>
   >();
+  let transientUnfilteredError: MentorPoolPageState | null = null;
+  let hasClientActivity = false;
 
   function notifyLoadMoreListeners(
     cacheKey: string,
@@ -352,22 +290,171 @@ export function createMentorPoolReadModel(): MentorPoolReadModel {
     }
   }
 
+  function internQuery(
+    query?: MentorPoolQuery | null
+  ): Readonly<MentorPoolQuery> {
+    const normalized = normalizeMentorPoolQuery(query);
+    if (normalized === UNFILTERED_MENTOR_POOL_QUERY) {
+      return UNFILTERED_MENTOR_POOL_QUERY;
+    }
+
+    const cacheKey = toCacheKey(normalized);
+    const existing = internedQueries.get(cacheKey);
+    if (existing !== undefined) {
+      return existing;
+    }
+
+    if (internedQueries.size >= MAX_INTERNED_QUERIES) {
+      const oldestKey = internedQueries.keys().next().value;
+      if (oldestKey !== undefined) {
+        internedQueries.delete(oldestKey);
+      }
+    }
+
+    internedQueries.set(cacheKey, normalized);
+    return normalized;
+  }
+
   return {
+    internQuery,
+
+    resolveQuery(params) {
+      return internQuery(parseMentorPoolQuery(params));
+    },
+
+    resolveSSRInitialData(query, seed) {
+      if (!isUnfilteredMentorPoolQuery(query)) {
+        return undefined;
+      }
+      const hasInitialFilters =
+        seed.hasInitialFilters ??
+        (seed.initialQuery !== undefined
+          ? !isUnfilteredMentorPoolQuery(seed.initialQuery)
+          : false);
+      if (seed.initialError) {
+        if (
+          hasInitialFilters ||
+          hasClientActivity ||
+          manager.has(UNFILTERED_MENTOR_POOL_KEY)
+        ) {
+          return undefined;
+        }
+        return buildUnfilteredState({
+          initialMentors: seed.initialMentors,
+          initialNextCursor: seed.initialNextCursor,
+          initialMentorCount: seed.initialMentorCount,
+          hasInitialFilters: false,
+          initialError: true,
+        });
+      }
+      if (seed.initialMentors.length > 0) {
+        return buildUnfilteredState({
+          initialMentors: seed.initialMentors,
+          initialNextCursor: seed.initialNextCursor,
+          initialMentorCount: seed.initialMentorCount,
+          hasInitialFilters: false,
+          initialError: false,
+        });
+      }
+      return undefined;
+    },
+
+    primeUnfilteredFromSSR(seed) {
+      const hasInitialFilters =
+        seed.hasInitialFilters ??
+        (seed.initialQuery !== undefined
+          ? !isUnfilteredMentorPoolQuery(seed.initialQuery)
+          : false);
+
+      if (seed.initialError) {
+        if (
+          !hasInitialFilters &&
+          !hasClientActivity &&
+          !manager.has(UNFILTERED_MENTOR_POOL_KEY)
+        ) {
+          transientUnfilteredError = buildUnfilteredState({
+            initialMentors: seed.initialMentors,
+            initialNextCursor: seed.initialNextCursor,
+            initialMentorCount: seed.initialMentorCount,
+            hasInitialFilters: false,
+            initialError: true,
+          });
+        }
+        return;
+      }
+
+      if (seed.initialMentors.length === 0) {
+        return;
+      }
+
+      transientUnfilteredError = null;
+      manager.prime(
+        UNFILTERED_MENTOR_POOL_KEY,
+        buildUnfilteredState({
+          initialMentors: seed.initialMentors,
+          initialNextCursor: seed.initialNextCursor,
+          initialMentorCount: seed.initialMentorCount,
+          hasInitialFilters: false,
+          initialError: false,
+        }),
+        { ifEmpty: true }
+      );
+    },
+
     get(query) {
-      return manager.get(toMentorPoolCacheKey(query));
+      return manager.get(toCacheKey(query));
     },
 
     set(query, value, ttlMs) {
-      const cacheKey = toMentorPoolCacheKey(query);
+      const cacheKey = toCacheKey(query);
+      hasClientActivity = true;
+      transientUnfilteredError = null;
       cancelInflightLoadMore(cacheKey);
       manager.set(cacheKey, value, ttlMs);
     },
 
+    prime(query, value, options) {
+      if (value.hasError) {
+        return;
+      }
+      const cacheKey = toCacheKey(query);
+      if (cacheKey === UNFILTERED_MENTOR_POOL_KEY) {
+        transientUnfilteredError = null;
+      }
+      manager.prime(cacheKey, value, options);
+    },
+
     subscribe(query, fetcher, onUpdate, options) {
-      const cacheKey = toMentorPoolCacheKey(query);
+      const cacheKey = toCacheKey(query);
       if (options?.force) {
+        hasClientActivity = true;
+        if (cacheKey === UNFILTERED_MENTOR_POOL_KEY) {
+          transientUnfilteredError = null;
+        }
         cancelInflightLoadMore(cacheKey);
       }
+
+      if (
+        cacheKey === UNFILTERED_MENTOR_POOL_KEY &&
+        transientUnfilteredError !== null &&
+        !options?.force
+      ) {
+        const errorSnapshot = transientUnfilteredError;
+        onUpdate({ data: errorSnapshot, isLoading: false, error: null });
+        const unobserve = manager.observe(cacheKey, () => {
+          const latest = manager.peek(cacheKey);
+          if (latest !== undefined) {
+            onUpdate({ data: latest, isLoading: false, error: null });
+          }
+        });
+        return () => {
+          transientUnfilteredError = null;
+          unobserve();
+        };
+      }
+
+      hasClientActivity = true;
+      transientUnfilteredError = null;
 
       let listenerSet = loadMoreListeners.get(cacheKey);
       if (!listenerSet) {
@@ -405,7 +492,9 @@ export function createMentorPoolReadModel(): MentorPoolReadModel {
     },
 
     loadMore(query, fetchPage, options) {
-      const cacheKey = toMentorPoolCacheKey(query);
+      const cacheKey = toCacheKey(query);
+      hasClientActivity = true;
+      transientUnfilteredError = null;
       const existing = inflightLoadMore.get(cacheKey);
       if (existing && !existing.controller.signal.aborted) {
         return existing.promise.then((res) => ({
@@ -528,26 +617,13 @@ export function createMentorPoolReadModel(): MentorPoolReadModel {
       return promise;
     },
 
-    buildInitialUnfilteredState({
-      initialMentors,
-      initialNextCursor = null,
-      initialMentorCount,
-      hasInitialFilters = false,
-      initialError = false,
-    }) {
-      const nextCursor = initialNextCursor || null;
-      return {
-        mentors: initialMentors,
-        nextCursor,
-        hasMore: initialMentors.length > 0 && nextCursor !== null,
-        mentorCount: initialMentorCount,
-        isNoResults: initialMentors.length === 0,
-        hasError: hasInitialFilters ? false : initialError,
-      };
-    },
+    buildInitialUnfilteredState: buildUnfilteredState,
 
     clear() {
       const activeLoadMore = Array.from(inflightLoadMore.values());
+      transientUnfilteredError = null;
+      hasClientActivity = false;
+      internedQueries.clear();
       inflightLoadMore.clear();
       loadMoreListeners.clear();
       activeLoadMore.forEach((entry) => entry.controller.abort());

@@ -336,11 +336,15 @@ test.describe('GA4 會員身分識別 user_id、user_role 與 login/sign_up 認�
 
     // 3. 點開右上角會員選單，確認選單已展開顯示「登出」並驗證整份 dataLayer 零個資外洩，擷取 UI 證據截圖
     const menuTrigger = page.getByRole('button', { name: '開啟用戶選單' });
-    await expect(menuTrigger).toBeVisible({ timeout: 15_000 });
-    await menuTrigger.click();
-
     const logoutMenuItem = page.getByRole('menuitem', { name: '登出' });
-    await expect(logoutMenuItem).toBeVisible();
+    await expect(menuTrigger).toBeVisible({ timeout: 15_000 });
+    await expect(async () => {
+      if (!(await logoutMenuItem.isVisible())) {
+        await expect(menuTrigger).toBeVisible({ timeout: 2_000 });
+        await menuTrigger.click();
+      }
+      await expect(logoutMenuItem).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 15_000 });
 
     const { rawEntries: loggedInRawEntries } = await readPageDataLayer(page);
     const serializedLoggedIn = JSON.stringify(loggedInRawEntries);
