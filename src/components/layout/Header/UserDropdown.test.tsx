@@ -1,12 +1,7 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import type { Session } from 'next-auth';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/image', () => ({
-  // next/image requires width/height derived from a static-import object
-  // shape that Vitest's asset transform doesn't produce; not relevant to
-  // the share-dialog timing behavior under test here. className is forwarded
-  // so tests can assert the interactive hover/focus classes UserAvatar applies.
   default: ({
     src,
     alt,
@@ -39,36 +34,28 @@ vi.mock('next/navigation', async () => {
   };
 });
 
-const trackEvent = vi.fn();
-vi.mock('@/lib/analytics', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/analytics')>();
-  return {
-    ...actual,
-    trackEvent: (...args: unknown[]) => trackEvent(...args),
-  };
-});
-
-import { authenticatedIdentity, GUEST_IDENTITY } from '@/test/mocks/identity';
-import { mockRouter } from '@/test/mocks/navigation';
-import { mockSession } from '@/test/mocks/nextAuth';
+import { useHeaderNavigation } from '@/hooks/layout/useHeaderNavigation';
+import type { ResolvedIdentity } from '@/lib/auth/sessionHint';
+import { authenticatedIdentity } from '@/test/mocks/identity';
 
 import { UserDropdown } from './UserDropdown';
 
-function buildUser(overrides: Partial<Session['user']> = {}): Session['user'] {
-  return {
-    ...mockSession.user,
-    id: 'user-1',
-    isMentor: false,
-    ...overrides,
-  };
+function UserDropdownHarness({
+  identity,
+}: {
+  identity: ResolvedIdentity;
+}): JSX.Element {
+  const navigation = useHeaderNavigation({ identity });
+  return (
+    <UserDropdown
+      profileHeader={navigation.profileHeader}
+      menu={navigation.desktopAccountMenu}
+    />
+  );
 }
 
-describe('UserDropdown share flow', () => {
-  let queuedFrames: FrameRequestCallback[];
-
+describe('UserDropdown shell', () => {
   beforeEach(() => {
-    queuedFrames = [];
-    mockRouter.push.mockClear();
     mockUsePathname.mockReturnValue('/');
     vi.stubGlobal(
       'ResizeObserver',
@@ -78,126 +65,58 @@ describe('UserDropdown share flow', () => {
         disconnect(): void {}
       }
     );
-    vi.stubGlobal(
-      'requestAnimationFrame',
-      (cb: FrameRequestCallback): number => {
-        queuedFrames.push(cb);
-        return queuedFrames.length;
-      }
-    );
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  function flushRaf(): void {
-    const frames = queuedFrames;
-    queuedFrames = [];
-    act(() => {
-      frames.forEach((cb) => cb(0));
-    });
-  }
-
   function openMenu(): void {
     const trigger = screen.getByRole('button', { name: '開啟用戶選單' });
     fireEvent.keyDown(trigger, { key: 'Enter' });
   }
 
-  it('closes the dropdown immediately but defers opening the share dialog to the next frame', () => {
+  it('wires trigger and profile-header avatars with expected hover and group-focus classes', () => {
     render(
-      <UserDropdown
-        identity={authenticatedIdentity('user-1', { isMentor: false })}
-        user={buildUser()}
+      <UserDropdownHarness
+        identity={authenticatedIdentity('user-1', {
+          name: 'Test User',
+          isMentor: false,
+        })}
       />
     );
 
-    openMenu();
-    // The share trigger is a DropdownMenuItemSlot-wrapped Button, so within
-    // the open menu its accessible role is `menuitem` (per the ARIA menu
-    // pattern), not `button` - the underlying DOM node is still a <button>.
-    const shareButton = screen.getByRole('menuitem', { name: '分享個人頁面' });
-
-    fireEvent.click(shareButton);
-
-    // The dropdown closes synchronously — its content leaves the tree,
-    // taking the share trigger with it, before the dialog appears.
-    expect(
-      screen.queryByRole('menuitem', { name: '分享個人頁面' })
-    ).not.toBeInTheDocument();
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(queuedFrames).toHaveLength(1);
-
-    flushRaf();
-
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-  });
-
-  it('does not queue a frame or open the dialog when there is no userId', () => {
-    render(
-      <UserDropdown
-        identity={GUEST_IDENTITY}
-        user={buildUser({ id: undefined })}
-      />
-    );
-
-    openMenu();
-    const shareButton = screen.getByRole('menuitem', { name: '分享個人頁面' });
-    expect(shareButton).toBeDisabled();
-  });
-
-  it('wires the trigger avatar with the hover/focus classes that depend on the parent group', () => {
-    render(
-      <UserDropdown
-        identity={authenticatedIdentity('user-1', { isMentor: false })}
-        user={buildUser({ name: 'Test User' })}
-      />
-    );
-
-    // The focus/hover feedback relies on `group-hover:`/`group-focus-visible:`
-    // on the avatar image responding to `group` on the trigger button - both
-    // sides of that coupling must hold for keyboard focus and mouse hover to
-    // show any visual feedback at all.
     const trigger = screen.getByRole('button', { name: '開啟用戶選單' });
     expect(trigger).toHaveClass('group');
 
-    const avatarImg = screen.getByRole('img', { name: 'Test User 的頭像' });
-    expect(avatarImg).toHaveClass('group-hover:opacity-80');
-    expect(avatarImg).toHaveClass('group-focus-visible:ring-2');
-  });
-
-  it('wires the profile-header avatar with a self-scoped hover class and a group-focus class', () => {
-    render(
-      <UserDropdown
-        identity={authenticatedIdentity('user-1', { isMentor: false })}
-        user={buildUser({ name: 'Test User' })}
-      />
+    const triggerAvatar = screen.getByRole('img', { name: 'Test User 的頭像' });
+    expect(triggerAvatar).toHaveClass(
+      'group-hover:opacity-80',
+      'group-focus-visible:ring-2'
     );
 
     openMenu();
 
-    // Both the trigger and the profile-header button render an avatar with
-    // the same alt text - scope the query to the profile-header button via
-    // its data-testid rather than matching on className.
-    const profileButton = screen.getByTestId('profile-header-button');
-    expect(profileButton).toHaveClass('group');
+    const profileLink = screen.getByTestId('profile-header-button');
+    expect(profileLink.tagName).toBe('A');
+    expect(profileLink).toHaveAttribute('href', '/profile/user-1');
+    expect(profileLink).toHaveClass('group');
 
-    const profileAvatarImg = within(profileButton).getByRole('img', {
+    const profileAvatar = within(profileLink).getByRole('img', {
       name: 'Test User 的頭像',
     });
-    // The button spans the avatar plus the name/company text, but the
-    // hover fade should only trigger when the pointer is over the avatar
-    // itself - so this uses a plain `hover:` rather than `group-hover:`.
-    expect(profileAvatarImg).toHaveClass('hover:opacity-80');
-    expect(profileAvatarImg).not.toHaveClass('group-hover:opacity-80');
-    expect(profileAvatarImg).toHaveClass('group-focus-visible:ring-2');
+    expect(profileAvatar).toHaveClass(
+      'hover:opacity-80',
+      'group-focus-visible:ring-2'
+    );
+    expect(profileAvatar).not.toHaveClass('group-hover:opacity-80');
   });
 
-  it('does not render the merged header navigation links (尋找導師, 關於 X-Talent, 提供回饋) inside the desktop dropdown menu', () => {
+  it('renders navigable items as semantic anchor menuitems and omits mobile-only general nav links', () => {
+    mockUsePathname.mockReturnValue('/favorites');
     render(
-      <UserDropdown
+      <UserDropdownHarness
         identity={authenticatedIdentity('user-1', { isMentor: false })}
-        user={buildUser()}
       />
     );
 
@@ -210,70 +129,17 @@ describe('UserDropdown share flow', () => {
       screen.queryByRole('menuitem', { name: '關於 X-Talent' })
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('menuitem', { name: '提供回饋' })
+      screen.queryByRole('menuitem', { name: /提供回饋/ })
     ).not.toBeInTheDocument();
-  });
-
-  it.each([false, true])(
-    'renders 我的收藏 between 我的預約 and 登出 with GA4 attributes for isMentor=%s and navigates to /favorites',
-    (isMentor) => {
-      render(
-        <UserDropdown
-          identity={authenticatedIdentity('user-1', { isMentor })}
-          user={buildUser({ isMentor })}
-        />
-      );
-
-      openMenu();
-
-      const menuItems = screen.getAllByRole('menuitem');
-      const labels = menuItems.map((el) => el.textContent?.trim());
-      const myReservationIdx = labels.indexOf('我的預約');
-      const myFavoritesIdx = labels.indexOf('我的收藏');
-      const logoutIdx = labels.indexOf('登出');
-
-      expect(myReservationIdx).toBeGreaterThanOrEqual(0);
-      expect(myFavoritesIdx).toBe(myReservationIdx + 1);
-      expect(logoutIdx).toBe(myFavoritesIdx + 1);
-
-      const favoritesItem = screen.getByRole('menuitem', { name: '我的收藏' });
-      expect(favoritesItem).toHaveTextContent(/^我的收藏$/);
-      expect(favoritesItem).not.toHaveAttribute('aria-current');
-      expect(favoritesItem).toHaveAttribute(
-        'data-analytics-click',
-        'user_menu_my_favorites'
-      );
-      expect(favoritesItem).toHaveAttribute(
-        'data-analytics-location',
-        'user_dropdown'
-      );
-      expect(favoritesItem).toHaveAttribute(
-        'data-analytics-feature',
-        'navigation'
-      );
-
-      fireEvent.click(favoritesItem);
-
-      expect(
-        screen.queryByRole('menuitem', { name: '我的收藏' })
-      ).not.toBeInTheDocument();
-      expect(mockRouter.push).toHaveBeenCalledWith('/favorites');
-    }
-  );
-
-  it('sets aria-current="page" on 我的收藏 when on /favorites', () => {
-    mockUsePathname.mockReturnValue('/favorites');
-
-    render(
-      <UserDropdown
-        identity={authenticatedIdentity('user-1', { isMentor: false })}
-        user={buildUser()}
-      />
-    );
-
-    openMenu();
 
     const favoritesItem = screen.getByRole('menuitem', { name: '我的收藏' });
+    expect(favoritesItem.tagName).toBe('A');
+    expect(favoritesItem).toHaveAttribute('href', '/favorites');
     expect(favoritesItem).toHaveAttribute('aria-current', 'page');
+
+    fireEvent.click(favoritesItem);
+    expect(
+      screen.queryByRole('menuitem', { name: '我的收藏' })
+    ).not.toBeInTheDocument();
   });
 });

@@ -1,11 +1,8 @@
 'use client';
 
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { usePathname } from 'next/navigation';
-import type { Session } from 'next-auth';
 import * as React from 'react';
 
-import { DeleteAccountDialog } from '@/components/auth/DeleteAccountDialog';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -14,217 +11,142 @@ import {
   DropdownMenuItemSlot,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useAccountMenu } from '@/hooks/layout/useAccountMenu';
-import { ResolvedIdentity } from '@/lib/auth/sessionHint';
+import {
+  type DesktopAccountMenuModel,
+  getNavAnalyticsAttributes,
+  type ProfileHeaderDescriptor,
+} from '@/hooks/layout/useHeaderNavigation';
 import { GROUP_FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
+import { cn } from '@/lib/utils';
 
-import { ShareProfileDialog } from './ShareProfileDialog';
+import { DisabledAwareLink } from './DisabledAwareLink';
 import { UserAvatar } from './UserAvatar';
 
 export type UserDropdownProps = {
-  identity: ResolvedIdentity;
-  user?: Session['user'];
+  profileHeader: ProfileHeaderDescriptor;
+  menu: DesktopAccountMenuModel;
 };
 
 export const UserDropdown = React.memo(function UserDropdown({
-  identity,
-  user,
+  profileHeader,
+  menu,
 }: UserDropdownProps): JSX.Element {
-  const pathname = usePathname();
   const [menuOpen, setMenuOpen] = React.useState(false);
-
   const closeMenu = React.useCallback(() => setMenuOpen(false), []);
-  const {
-    userId,
-    isMentor,
-    canDeleteAccount,
-    name,
-    avatarSrc,
-    subtitle,
-    personalLinks,
-    profilePath,
-    shareDialogOpen,
-    setShareDialogOpen,
-    deleteDialogOpen,
-    setDeleteDialogOpen,
-    handleGoProfile,
-    handleShareProfile,
-    handleAsMentor,
-    handleMyReservation,
-    handleMyFavorites,
-    handleDeleteAccount,
-    handleLogout,
-  } = useAccountMenu({ identity, user, closeMenu });
 
-  const isOnProfile = Boolean(userId) && pathname === profilePath;
-  const isOnMentorReservation =
-    pathname?.startsWith('/reservation/mentor') ?? false;
-  const isOnMenteeReservation =
-    pathname?.startsWith('/reservation/mentee') ?? false;
-  const isOnFavorites = pathname?.startsWith('/favorites') ?? false;
-
-  // The share dialog mounts on top of the closing dropdown, so open it a
-  // frame after the close starts to avoid the two animations racing.
-  const handleShareProfileClick = React.useCallback((): void => {
-    closeMenu();
-    requestAnimationFrame(handleShareProfile);
-  }, [closeMenu, handleShareProfile]);
+  const { shareProfile, navItems, accountActions } = menu;
 
   return (
-    <>
-      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            className="group flex items-center gap-2 focus-visible:outline-none"
-            aria-label="開啟用戶選單"
+    <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="group flex items-center gap-2 focus-visible:outline-none"
+          aria-label="開啟用戶選單"
+        >
+          <UserAvatar
+            src={profileHeader.avatarSrc}
+            name={profileHeader.name}
+            size={30}
+            className={`size-[30px] transition-opacity group-hover:opacity-80 ${GROUP_FOCUS_RING_CLASSES}`}
+            priority
+          />
+          {menuOpen ? (
+            <ChevronUp className="size-5" aria-hidden="true" />
+          ) : (
+            <ChevronDown className="size-5" aria-hidden="true" />
+          )}
+        </button>
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent
+        align="end"
+        collisionPadding={8}
+        className="max-h-[var(--radix-dropdown-menu-content-available-height)] w-[360px] overflow-y-auto rounded-2xl p-0"
+      >
+        <DropdownMenuItemSlot asChild disabled={profileHeader.disabled}>
+          <DisabledAwareLink
+            href={profileHeader.href}
+            disabled={profileHeader.disabled}
+            aria-current={profileHeader.isCurrent ? 'page' : undefined}
+            data-testid="profile-header-button"
+            {...getNavAnalyticsAttributes(profileHeader.analytics.desktop)}
+            className="group flex w-full items-center gap-4 px-6 pt-6 pb-4 text-left focus-visible:outline-none"
           >
             <UserAvatar
-              src={avatarSrc}
-              name={name}
-              size={30}
-              className={`size-[30px] transition-opacity group-hover:opacity-80 ${GROUP_FOCUS_RING_CLASSES}`}
-              priority
+              src={profileHeader.avatarSrc}
+              name={profileHeader.name}
+              size={56}
+              className={`size-14 transition-opacity hover:opacity-80 ${GROUP_FOCUS_RING_CLASSES}`}
             />
-            {menuOpen ? (
-              <ChevronUp className="size-5" aria-hidden="true" />
-            ) : (
-              <ChevronDown className="size-5" aria-hidden="true" />
-            )}
-          </button>
-        </DropdownMenuTrigger>
 
-        <DropdownMenuContent
-          align="end"
-          collisionPadding={8}
-          className="max-h-[var(--radix-dropdown-menu-content-available-height)] w-[360px] overflow-y-auto rounded-2xl p-0"
-        >
-          <DropdownMenuItemSlot asChild>
-            <button
-              type="button"
-              onClick={handleGoProfile}
-              aria-current={isOnProfile ? 'page' : undefined}
-              data-testid="profile-header-button"
-              data-analytics-click="user_menu_profile"
-              data-analytics-location="user_dropdown"
-              data-analytics-feature="navigation"
-              className="group flex w-full items-center gap-4 px-6 pt-6 pb-4 text-left focus-visible:outline-none"
-            >
-              <UserAvatar
-                src={avatarSrc}
-                name={name}
-                size={56}
-                className={`size-14 transition-opacity hover:opacity-80 ${GROUP_FOCUS_RING_CLASSES}`}
-              />
-
-              <div className="min-w-0">
-                <div className="text-text-primary truncate text-3xl font-semibold">
-                  {name || '我的個人頁面'}
-                </div>
-                {subtitle ? (
-                  <div className="text-text-tertiary mt-1 truncate text-sm">
-                    {subtitle}
-                  </div>
-                ) : null}
+            <div className="min-w-0">
+              <div className="text-text-primary truncate text-3xl font-semibold">
+                {profileHeader.displayName}
               </div>
-            </button>
+              {profileHeader.subtitle ? (
+                <div className="text-text-tertiary mt-1 truncate text-sm">
+                  {profileHeader.subtitle}
+                </div>
+              ) : null}
+            </div>
+          </DisabledAwareLink>
+        </DropdownMenuItemSlot>
+
+        <div className="px-6 pb-5">
+          <DropdownMenuItemSlot asChild disabled={shareProfile.disabled}>
+            <Button
+              variant="outline"
+              className="h-14 w-full rounded-2xl text-2xl font-semibold"
+              onClick={() => shareProfile.onSelect(closeMenu)}
+              disabled={shareProfile.disabled}
+              {...getNavAnalyticsAttributes(shareProfile.analytics)}
+            >
+              {shareProfile.label}
+            </Button>
           </DropdownMenuItemSlot>
+        </div>
 
-          <div className="px-6 pb-5">
-            <DropdownMenuItemSlot asChild disabled={!userId}>
-              <Button
-                variant="outline"
-                className="h-14 w-full rounded-2xl text-2xl font-semibold"
-                onClick={handleShareProfileClick}
-                disabled={!userId}
-                data-analytics-click="user_menu_share_profile"
-                data-analytics-location="user_dropdown"
-                data-analytics-feature="profile"
+        <div className="bg-background-bottom h-px w-full" />
+
+        <div className="px-2 py-3">
+          {navItems.map((item) => (
+            <DropdownMenuItem
+              key={item.id}
+              asChild
+              disabled={item.disabled}
+              className="cursor-pointer px-4 py-3 text-2xl"
+            >
+              <DisabledAwareLink
+                href={item.href}
+                disabled={item.disabled}
+                aria-current={item.isCurrent ? 'page' : undefined}
+                {...getNavAnalyticsAttributes(item.analytics)}
               >
-                分享個人頁面
-              </Button>
-            </DropdownMenuItemSlot>
-          </div>
-
-          <div className="bg-background-bottom h-px w-full" />
-
-          <div className="px-2 py-3">
-            <DropdownMenuItem
-              className="px-4 py-3 text-2xl"
-              onClick={handleAsMentor}
-              disabled={!userId}
-              aria-current={
-                isMentor && isOnMentorReservation ? 'page' : undefined
-              }
-              data-analytics-click={
-                isMentor
-                  ? 'user_menu_mentor_reservations'
-                  : 'user_menu_become_mentor'
-              }
-              data-analytics-location="user_dropdown"
-              data-analytics-feature={isMentor ? 'reservation' : 'onboarding'}
-            >
-              {isMentor ? '導師預約管理' : '成為導師'}
+                {item.label}
+              </DisabledAwareLink>
             </DropdownMenuItem>
+          ))}
 
+          {accountActions.map((action) => (
             <DropdownMenuItem
-              className="px-4 py-3 text-2xl"
-              onClick={handleMyReservation}
-              aria-current={isOnMenteeReservation ? 'page' : undefined}
-              data-analytics-click="user_menu_my_reservations"
-              data-analytics-location="user_dropdown"
-              data-analytics-feature="reservation"
+              key={action.id}
+              disabled={action.disabled}
+              className={cn(
+                'px-4 py-3 text-2xl',
+                action.tone === 'destructive' &&
+                  'text-status-error-default focus:text-status-error-default'
+              )}
+              onClick={() => {
+                void action.onSelect(closeMenu);
+              }}
+              {...getNavAnalyticsAttributes(action.analytics)}
             >
-              我的預約
+              {action.label}
             </DropdownMenuItem>
-
-            <DropdownMenuItem
-              className="px-4 py-3 text-2xl"
-              onClick={handleMyFavorites}
-              aria-current={isOnFavorites ? 'page' : undefined}
-              data-analytics-click="user_menu_my_favorites"
-              data-analytics-location="user_dropdown"
-              data-analytics-feature="navigation"
-            >
-              我的收藏
-            </DropdownMenuItem>
-
-            <DropdownMenuItem
-              className="px-4 py-3 text-2xl"
-              onClick={handleLogout}
-              data-analytics-click="user_menu_logout"
-              data-analytics-location="user_dropdown"
-              data-analytics-feature="auth"
-            >
-              登出
-            </DropdownMenuItem>
-
-            {canDeleteAccount && (
-              <DropdownMenuItem
-                className="text-status-error-default focus:text-status-error-default px-4 py-3 text-2xl"
-                onClick={handleDeleteAccount}
-              >
-                刪除帳號
-              </DropdownMenuItem>
-            )}
-          </div>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <DeleteAccountDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-      />
-
-      <ShareProfileDialog
-        open={shareDialogOpen}
-        onOpenChange={setShareDialogOpen}
-        name={name || '我的個人頁面'}
-        avatarSrc={avatarSrc}
-        subtitle={subtitle}
-        profilePath={profilePath}
-        personalLinks={personalLinks}
-      />
-    </>
+          ))}
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 });

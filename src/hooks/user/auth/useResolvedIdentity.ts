@@ -93,10 +93,18 @@ export function useResolvedIdentity(): ResolvedIdentity {
         identity.isMentor ? 'mentor' : 'mentee'
       );
       updateAvatarStyle(identity.avatar);
-    } else {
-      clearAuthDOMState();
-      document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'guest');
+      return;
     }
+
+    if (
+      identity.state === 'unknown' &&
+      decodeSessionHint(readCookie(SESSION_HINT_COOKIE)) !== null
+    ) {
+      return;
+    }
+
+    clearAuthDOMState();
+    document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'guest');
   }, [identity]);
 
   return identity;

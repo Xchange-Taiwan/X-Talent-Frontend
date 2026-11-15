@@ -1,11 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { fromPartial } from '@total-typescript/shoehorn';
-import type { Session } from 'next-auth';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/image', () => ({
-  // className is forwarded so tests can assert the interactive hover/focus
-  // classes UserAvatar applies.
   default: ({
     src,
     alt,
@@ -29,9 +25,13 @@ vi.mock('next-auth/react', async () => {
   return nextAuthMockFactory();
 });
 
+const mockUsePathname = vi.fn<() => string>(() => '/');
 vi.mock('next/navigation', async () => {
   const { navigationMockFactory } = await import('@/test/mocks/navigation');
-  return navigationMockFactory();
+  return {
+    ...navigationMockFactory(),
+    usePathname: () => mockUsePathname(),
+  };
 });
 
 const trackEvent = vi.fn();
@@ -43,201 +43,113 @@ vi.mock('@/lib/analytics', async (importOriginal) => {
   };
 });
 
+import { useHeaderNavigation } from '@/hooks/layout/useHeaderNavigation';
+import type { ResolvedIdentity } from '@/lib/auth/sessionHint';
 import { authenticatedIdentity } from '@/test/mocks/identity';
-import { mockRouter } from '@/test/mocks/navigation';
-import { mockSession } from '@/test/mocks/nextAuth';
 
 import { MobileUserMenu } from './MobileUserMenu';
 
-function buildUser(overrides: Partial<Session['user']> = {}): Session['user'] {
-  return fromPartial({
-    ...mockSession.user,
-    id: 'user-1',
-    isMentor: false,
-    ...overrides,
-  });
+function MobileUserMenuHarness({
+  identity,
+}: {
+  identity: ResolvedIdentity;
+}): JSX.Element {
+  const navigation = useHeaderNavigation({ identity });
+  return (
+    <MobileUserMenu
+      profileHeader={navigation.profileHeader}
+      menu={navigation.mobileAccountMenu}
+    />
+  );
 }
 
-describe('MobileUserMenu', () => {
+describe('MobileUserMenu shell', () => {
   beforeEach(() => {
-    mockRouter.push.mockClear();
+    trackEvent.mockClear();
+    mockUsePathname.mockReturnValue('/');
   });
 
-  it('renders correctly with default mock user showing proper alt text', () => {
-    render(
-      <MobileUserMenu
-        identity={authenticatedIdentity('user-1', { isMentor: false })}
-        user={buildUser({ name: 'Ada Lovelace' })}
-      />
-    );
-    const avatarImg = screen.getByRole('img', { name: 'Ada Lovelace 的頭像' });
-    expect(avatarImg).toBeInTheDocument();
-  });
-
-  it('renders correctly with mentor user showing proper alt text', () => {
-    render(
-      <MobileUserMenu
-        identity={authenticatedIdentity('user-1', { isMentor: true })}
-        user={buildUser({ name: '陳導師 (Mentor)', isMentor: true })}
-      />
-    );
-    const avatarImg = screen.getByRole('img', {
-      name: '陳導師 (Mentor) 的頭像',
-    });
-    expect(avatarImg).toBeInTheDocument();
-  });
-
-  it('wires the trigger avatar with the hover/focus classes that depend on the parent group', () => {
-    render(
-      <MobileUserMenu
-        identity={authenticatedIdentity('user-1', { isMentor: false })}
-        user={buildUser({ name: 'Ada Lovelace' })}
+  it('wires trigger and profile-header avatars with hover/focus classes and fallback alt text', () => {
+    const { rerender } = render(
+      <MobileUserMenuHarness
+        identity={authenticatedIdentity('user-1', {
+          name: 'Ada Lovelace',
+          isMentor: false,
+        })}
       />
     );
 
-    // The focus/hover feedback relies on `group-hover:`/`group-focus-visible:`
-    // on the avatar image responding to `group` on the trigger button - both
-    // sides of that coupling must hold for keyboard focus and mouse hover to
-    // show any visual feedback at all.
     const trigger = screen.getByRole('button', { name: '開啟用戶選單' });
     expect(trigger).toHaveClass('group');
 
-    const avatarImg = screen.getByRole('img', { name: 'Ada Lovelace 的頭像' });
-    expect(avatarImg).toHaveClass('group-hover:opacity-80');
-    expect(avatarImg).toHaveClass('group-focus-visible:ring-2');
+    const triggerAvatar = screen.getByRole('img', {
+      name: 'Ada Lovelace 的頭像',
+    });
+    expect(triggerAvatar).toHaveClass(
+      'group-hover:opacity-80',
+      'group-focus-visible:ring-2'
+    );
+
+    fireEvent.click(trigger);
+
+    const profileLink = screen.getByTestId('profile-header-button');
+    expect(profileLink.tagName).toBe('A');
+    expect(profileLink).toHaveAttribute('href', '/profile/user-1');
+
+    const profileAvatar = within(profileLink).getByRole('img', {
+      name: 'Ada Lovelace 的頭像',
+    });
+    expect(profileAvatar).toHaveClass(
+      'hover:opacity-80',
+      'group-focus-visible:ring-2'
+    );
+    expect(profileAvatar).not.toHaveClass('group-hover:opacity-80');
+
+    rerender(
+      <MobileUserMenuHarness
+        identity={authenticatedIdentity('user-1', {
+          name: undefined,
+          avatar: undefined,
+          isMentor: false,
+        })}
+      />
+    );
+    expect(
+      screen.getAllByRole('img', { name: '我的頭像' }).length
+    ).toBeGreaterThanOrEqual(1);
   });
 
-  it('wires the profile-header avatar with a self-scoped hover class and a group-focus class', () => {
+  it('renders navigable account & general items as semantic links with aria-current and external aria-label', () => {
+    mockUsePathname.mockReturnValue('/favorites');
     render(
-      <MobileUserMenu
+      <MobileUserMenuHarness
         identity={authenticatedIdentity('user-1', { isMentor: false })}
-        user={buildUser({ name: 'Ada Lovelace' })}
       />
     );
 
     fireEvent.click(screen.getByRole('button', { name: '開啟用戶選單' }));
 
-    // Both the trigger and the profile-header button render an avatar with
-    // the same alt text - scope the query to the profile-header button via
-    // its data-testid rather than matching on className.
-    const profileButton = screen.getByTestId('profile-header-button');
-    expect(profileButton).toHaveClass('group');
+    const dialog = screen.getByRole('dialog', { name: '用戶選單' });
+    expect(dialog).toHaveClass('h-dvh', 'w-screen', 'p-0');
+    expect(dialog).not.toHaveClass('p-6');
+    expect(dialog.querySelector('.overflow-y-auto')).toHaveClass('p-6');
 
-    const profileAvatarImg = within(profileButton).getByRole('img', {
-      name: 'Ada Lovelace 的頭像',
+    const favoritesLink = screen.getByRole('link', { name: '我的收藏' });
+    expect(favoritesLink).toHaveAttribute('href', '/favorites');
+    expect(favoritesLink).toHaveAttribute('aria-current', 'page');
+
+    const feedbackLink = screen.getByRole('link', {
+      name: '提供回饋（另開新分頁）',
     });
-    // The button spans the avatar plus the name/company text, but the
-    // hover fade should only trigger when the pointer is over the avatar
-    // itself - so this uses a plain `hover:` rather than `group-hover:`.
-    expect(profileAvatarImg).toHaveClass('hover:opacity-80');
-    expect(profileAvatarImg).not.toHaveClass('group-hover:opacity-80');
-    expect(profileAvatarImg).toHaveClass('group-focus-visible:ring-2');
-  });
-
-  it('renders with anonymous user safely with fallback alt text', () => {
-    render(
-      <MobileUserMenu
-        identity={authenticatedIdentity('user-1', { isMentor: false })}
-        user={buildUser({
-          name: null,
-          avatar: null,
-        })}
-      />
-    );
-    const fallbackImg = screen.getByRole('img', { name: '我的頭像' });
-    expect(fallbackImg).toBeInTheDocument();
-  });
-
-  it('renders the merged header navigation links (尋找導師, 關於 X-Talent, 提供回饋) inside the mobile user menu after opening it', () => {
-    render(
-      <MobileUserMenu
-        identity={authenticatedIdentity('user-1', { isMentor: false })}
-        user={buildUser()}
-      />
-    );
-
-    const trigger = screen.getByRole('button', { name: '開啟用戶選單' });
-    fireEvent.click(trigger);
-
-    const findMentorLink = screen.getByRole('link', { name: '尋找導師' });
-    const aboutLink = screen.getByRole('link', { name: '關於 X-Talent' });
-    const feedbackLink = screen.getByRole('link', { name: '提供回饋' });
-
-    expect(findMentorLink).toBeInTheDocument();
-    expect(findMentorLink).toHaveAttribute('href', '/mentor-pool');
-
-    expect(aboutLink).toBeInTheDocument();
-    expect(aboutLink).toHaveAttribute('href', '/about');
-
-    expect(feedbackLink).toBeInTheDocument();
     expect(feedbackLink).toHaveAttribute(
       'href',
       'https://forms.gle/594hMVdTyoR3Pgtg9'
     );
-  });
-
-  it('tracks feedback_open and closes the sheet when 提供回饋 is clicked', () => {
-    trackEvent.mockClear();
-    render(
-      <MobileUserMenu
-        identity={authenticatedIdentity('user-1', { isMentor: false })}
-        user={buildUser()}
-      />
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: '開啟用戶選單' }));
-    const feedbackLink = screen.getByRole('link', { name: '提供回饋' });
 
     fireEvent.click(feedbackLink);
-
     expect(trackEvent).toHaveBeenCalledWith({ name: 'feedback_open' });
     expect(
-      screen.queryByRole('link', { name: '提供回饋' })
+      screen.queryByRole('link', { name: '我的收藏' })
     ).not.toBeInTheDocument();
   });
-
-  it.each([false, true])(
-    'renders 我的收藏 directly below 我的預約 for isMentor=%s, closes the sheet, and navigates to /favorites',
-    (isMentor) => {
-      render(
-        <MobileUserMenu
-          identity={authenticatedIdentity('user-1', { isMentor })}
-          user={buildUser({ isMentor })}
-        />
-      );
-
-      fireEvent.click(screen.getByRole('button', { name: '開啟用戶選單' }));
-
-      const nav = screen.getByRole('navigation');
-      const navItems = Array.from(nav.children);
-      const navChildren = navItems.map((el) => el.textContent?.trim());
-      const myReservationIdx = navChildren.indexOf('我的預約');
-      const myFavoritesIdx = navChildren.indexOf('我的收藏');
-
-      expect(myReservationIdx).toBeGreaterThanOrEqual(0);
-      expect(myFavoritesIdx).toBe(myReservationIdx + 1);
-
-      const favoritesButton = screen.getByRole('button', { name: '我的收藏' });
-      expect(favoritesButton).toHaveTextContent(/^我的收藏$/);
-      expect(favoritesButton).toHaveAttribute(
-        'data-analytics-click',
-        'mobile_user_menu_my_favorites'
-      );
-      expect(favoritesButton).toHaveAttribute(
-        'data-analytics-location',
-        'mobile_user_menu'
-      );
-      expect(favoritesButton).toHaveAttribute(
-        'data-analytics-feature',
-        'navigation'
-      );
-
-      fireEvent.click(favoritesButton);
-
-      expect(
-        screen.queryByRole('button', { name: '我的收藏' })
-      ).not.toBeInTheDocument();
-      expect(mockRouter.push).toHaveBeenCalledWith('/favorites');
-    }
-  );
 });
