@@ -522,4 +522,60 @@ test.describe('GA4 事件追蹤：page_view、scroll_depth [25,50,75,100]、核�
     );
     expect(aboutPageView?.params.user_id).toBeUndefined();
   });
+
+  test('註冊頁初次掛載 sign_up_started 預設附帶 user_role: guest、支援 Clarity 預先佇列且不含危險 inline Clarity 腳本 (#902)', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      if (typeof window.clarity !== 'function') {
+        const stub: NonNullable<Window['clarity']> = function clarity() {
+          const queue = stub.q ?? [];
+          stub.q = queue;
+          // eslint-disable-next-line prefer-rest-params
+          queue.push(arguments);
+        };
+        stub.q = [];
+        window.clarity = stub;
+      }
+    });
+
+    await page.goto('/auth/signup');
+    await expect(page.getByText('註冊 X-Talent 帳戶')).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // Ensure no inline dangerouslySetInnerHTML Clarity snippet exists in DOM
+    const hasInlineClaritySnippet = await page.evaluate(() =>
+      Array.from(document.scripts).some((script) =>
+        (script.textContent ?? '').includes('www.clarity.ms/tag/')
+      )
+    );
+    expect(hasInlineClaritySnippet).toBe(false);
+
+    // Mount-time sign_up_started carries default user_role: 'guest'
+    await expect
+      .poll(async () => {
+        const events = await getDataLayerEvents(page);
+        return events.find((e) => e.name === 'sign_up_started');
+      })
+      .toMatchObject({
+        name: 'sign_up_started',
+        params: {
+          feature: 'auth',
+          user_role: 'guest',
+        },
+      });
+
+    // Pre-script Clarity queue receives sign_up_started and user_role: 'guest'
+    const clarityQueue = await page.evaluate(() =>
+      (window.clarity?.q ?? []).map((entry) =>
+        Array.isArray(entry) ? entry : Array.from(entry)
+      )
+    );
+    expect(clarityQueue).toContainEqual(['event', 'sign_up_started']);
+    expect(clarityQueue).toContainEqual(['set', 'feature', 'auth']);
+    expect(clarityQueue).toContainEqual(['set', 'user_role', 'guest']);
+
+    await captureEvidence(page, 'analytics-signup-started-guest-role');
+  });
 });

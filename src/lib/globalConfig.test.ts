@@ -5,6 +5,7 @@ import {
   getAnnouncement,
   getMaintenanceBypassToken,
   getMaintenanceMode,
+  isValidAnnouncementData,
 } from '@/lib/globalConfig';
 import { captureApiFailure } from '@/lib/monitoring';
 
@@ -196,6 +197,30 @@ describe('globalConfig module', () => {
       const result = await getAnnouncement();
       expect(result).toEqual({ success: true, value: mockAnnouncement });
       expect(mockGet).toHaveBeenCalledWith('announcement');
+      expect(mockCaptureApiFailure).not.toHaveBeenCalled();
+    });
+
+    it('treats missing or malformed Global Config payloads as { success: true, value: null } without reporting failure (#902)', async () => {
+      expect(isValidAnnouncementData(mockAnnouncement)).toBe(true);
+
+      for (const malformed of [
+        null,
+        undefined,
+        'string-payload',
+        true,
+        123,
+        [mockAnnouncement],
+        {},
+        { enabled: 'true', message: 'Test', maintenanceTime: '' },
+        { enabled: true, message: 42, maintenanceTime: '' },
+        { enabled: true, message: 'Test' },
+      ]) {
+        expect(isValidAnnouncementData(malformed)).toBe(false);
+        mockGet.mockResolvedValueOnce(malformed);
+        const result = await getAnnouncement();
+        expect(result).toEqual({ success: true, value: null });
+      }
+
       expect(mockCaptureApiFailure).not.toHaveBeenCalled();
     });
 

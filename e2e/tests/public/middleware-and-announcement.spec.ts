@@ -238,9 +238,13 @@ test.describe('Middleware (RefreshTokenError & Maintenance Mode) & AnnouncementB
       })
       .toBeGreaterThan(0);
 
+    await captureEvidence(page, 'announcement-banner-active');
+
     await page.getByRole('button', { name: '關閉公告' }).click();
 
     await expect(banner).toBeHidden();
+    await expect(page.getByTestId('desktop-header-right')).toBeVisible();
+    await captureEvidence(page, 'announcement-banner-dismissed');
 
     const dismissedState = await page.evaluate(() => ({
       storage: sessionStorage.getItem('announcement-dismissed'),
@@ -253,6 +257,65 @@ test.describe('Middleware (RefreshTokenError & Maintenance Mode) & AnnouncementB
     // Reloading in the same session should keep the announcement hidden
     await page.reload();
     await expect(banner).toBeHidden();
+  });
+
+  test('AnnouncementBanner 在受限環境 sessionStorage 拋出 SecurityError 時不觸發崩潰且仍可正常顯示與關閉 (#902)', async ({
+    page,
+  }) => {
+    const pageErrors: string[] = [];
+    page.on('pageerror', (err) => {
+      pageErrors.push(err.message);
+    });
+
+    await page.addInitScript(() => {
+      const origGetItem = Storage.prototype.getItem;
+      const origSetItem = Storage.prototype.setItem;
+      Storage.prototype.getItem = function (key: string) {
+        if (key === 'announcement-dismissed') {
+          throw new DOMException('Access is denied', 'SecurityError');
+        }
+        return origGetItem.call(this, key);
+      };
+      Storage.prototype.setItem = function (key: string, value: string) {
+        if (key === 'announcement-dismissed') {
+          throw new DOMException('Access is denied', 'SecurityError');
+        }
+        origSetItem.call(this, key, value);
+      };
+    });
+
+    const futureTime = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const restrictedNotice =
+      '受限瀏覽器環境維護公告：系統將於週日凌晨進行例行升級。';
+
+    await page.route(/\/api\/announcement/, async (route) => {
+      if (route.request().method() === 'GET') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            enabled: true,
+            message: restrictedNotice,
+            maintenanceTime: futureTime,
+          }),
+        });
+      }
+      return route.continue();
+    });
+
+    await page.goto('/about');
+
+    const banner = page.locator(
+      '[role="alert"]:not(#__next-route-announcer__)'
+    );
+    await expect(banner).toBeVisible({ timeout: 15_000 });
+    await expect(banner).toContainText(restrictedNotice);
+
+    await captureEvidence(page, 'announcement-banner-storage-restricted');
+
+    await page.getByRole('button', { name: '關閉公告' }).click();
+    await expect(banner).toBeHidden();
+    expect(pageErrors).toEqual([]);
   });
 
   test('AnnouncementBanner maintenanceTime 已過期 → 不顯示公告橫幅', async ({

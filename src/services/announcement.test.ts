@@ -1,11 +1,44 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { apiClient } from '@/lib/apiClient';
 
 import {
+  fetchAnnouncement,
   getMaintenanceTimeRemaining,
   isMaintenanceExpired,
 } from './announcement';
 
+vi.mock('@/lib/apiClient', () => ({
+  apiClient: {
+    get: vi.fn(),
+  },
+}));
+
 describe('announcement service tests', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('fetchAnnouncement', () => {
+    it('returns AnnouncementData when API payload is valid', async () => {
+      const payload = {
+        enabled: true,
+        message: 'Scheduled maintenance',
+        maintenanceTime: '2026-11-15T04:00:00.000Z',
+      };
+      vi.mocked(apiClient.get).mockResolvedValueOnce(payload);
+
+      await expect(fetchAnnouncement()).resolves.toEqual(payload);
+    });
+
+    it('returns null when API payload is null or malformed', async () => {
+      for (const invalid of [null, undefined, {}, { enabled: 'yes' }, []]) {
+        vi.mocked(apiClient.get).mockResolvedValueOnce(invalid);
+        await expect(fetchAnnouncement()).resolves.toBeNull();
+      }
+    });
+  });
+
   describe('isMaintenanceExpired', () => {
     it('returns false if data or maintenanceTime is nullish', () => {
       expect(isMaintenanceExpired(null)).toBe(false);

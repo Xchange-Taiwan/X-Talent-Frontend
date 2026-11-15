@@ -1,7 +1,31 @@
 import { get } from '@vercel/global-config';
 
 import { captureApiFailure, sanitize } from '@/lib/monitoring';
-import type { AnnouncementData } from '@/services/announcement';
+
+export interface AnnouncementData {
+  enabled: boolean;
+  message: string;
+  maintenanceTime: string;
+}
+
+/**
+ * Runtime shape validator for `AnnouncementData` stored in Vercel Global Config.
+ */
+export function isValidAnnouncementData(
+  value: unknown
+): value is AnnouncementData {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    'enabled' in value &&
+    typeof value.enabled === 'boolean' &&
+    'message' in value &&
+    typeof value.message === 'string' &&
+    'maintenanceTime' in value &&
+    typeof value.maintenanceTime === 'string'
+  );
+}
 
 /**
  * ============================================================================
@@ -143,6 +167,7 @@ export async function getMaintenanceMode(
 
 /**
  * Fetches the announcement banner data from Global Config.
+ * Malformed or missing payloads resolve to `{ success: true, value: null }`.
  */
 export async function getAnnouncement(
   timeoutMs = 500
@@ -150,10 +175,15 @@ export async function getAnnouncement(
   if (!isConfigured()) {
     return { success: true, value: null };
   }
-  return readWithTimeoutAndReporting<AnnouncementData>(
+  const result = await readWithTimeoutAndReporting<unknown>(
     'announcement',
     timeoutMs
   );
+  if (!result.success) {
+    return { success: false, value: null };
+  }
+  const value = isValidAnnouncementData(result.value) ? result.value : null;
+  return { success: true, value };
 }
 
 /**
