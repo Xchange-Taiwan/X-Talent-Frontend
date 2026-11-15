@@ -2,15 +2,17 @@ import '../styles/global.css';
 
 import * as Sentry from '@sentry/nextjs';
 import type { Metadata } from 'next';
-import Script from 'next/script';
 
-import Ga4Bootstrap from '@/components/Ga4Bootstrap';
+import AnalyticsBootstrap from '@/components/AnalyticsBootstrap';
 import { AnnouncementBanner } from '@/components/layout/AnnouncementBanner';
 import { Footer } from '@/components/layout/Footer';
 import { Header } from '@/components/layout/Header';
 import Providers from '@/components/Providers';
 import { Toaster } from '@/components/ui/toaster';
-import { isValidGaMeasurementId } from '@/lib/analytics';
+import {
+  isValidClarityProjectId,
+  isValidGaMeasurementId,
+} from '@/lib/analytics';
 import { SESSION_HINT_INLINE_SCRIPT } from '@/lib/auth/sessionHint';
 import { getSiteUrl } from '@/lib/site-url';
 
@@ -58,6 +60,10 @@ export default function RootLayout({
 }) {
   const rawGaId = process.env.NEXT_PUBLIC_GA_ID?.trim() ?? '';
   const gaMeasurementId = isValidGaMeasurementId(rawGaId) ? rawGaId : null;
+  const rawClarityId = process.env.NEXT_PUBLIC_CLARITY_ID?.trim() ?? '';
+  const clarityProjectId = isValidClarityProjectId(rawClarityId)
+    ? rawClarityId
+    : null;
 
   return (
     <html lang="zh-TW" className={`${notoSansTC.className} group/auth-state`}>
@@ -81,7 +87,7 @@ export default function RootLayout({
             crossOrigin="anonymous"
           />
         )}
-        {process.env.NEXT_PUBLIC_CLARITY_ID && (
+        {clarityProjectId && (
           <>
             <link
               rel="preconnect"
@@ -110,33 +116,13 @@ export default function RootLayout({
         >
           跳至主要內容
         </a>
-        {/* Google Analytics 4 — Ga4Bootstrap initializes the typed dataLayer/gtag
-            queue in a client module (no inline script), and external gtag.js loads
-            non-blockingly via afterInteractive. */}
-        {gaMeasurementId && (
-          <>
-            <Ga4Bootstrap gaId={gaMeasurementId} />
-            <Script
-              src={`https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(gaMeasurementId)}`}
-              strategy="afterInteractive"
-            />
-          </>
-        )}
-
-        {/* Microsoft Clarity — behavior tracking for testing phase.
-            Only loads when NEXT_PUBLIC_CLARITY_ID is set.
-            strategy="afterInteractive" ensures it never blocks page render. */}
-        {process.env.NEXT_PUBLIC_CLARITY_ID && (
-          <Script
-            id="microsoft-clarity"
-            strategy="afterInteractive"
-            dangerouslySetInnerHTML={{
-              __html: `(function(c,l,a,r,i,t,y){
-                c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-                t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
-                y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-              })(window,document,"clarity","script","${process.env.NEXT_PUBLIC_CLARITY_ID}");`,
-            }}
+        {/* Google Analytics 4 & Microsoft Clarity — AnalyticsBootstrap initializes
+            the typed dataLayer/gtag and clarity.q command queues in a client module
+            (no inline script interpolation), loading external scripts via afterInteractive. */}
+        {(gaMeasurementId || clarityProjectId) && (
+          <AnalyticsBootstrap
+            gaId={gaMeasurementId}
+            clarityId={clarityProjectId}
           />
         )}
         <Providers>

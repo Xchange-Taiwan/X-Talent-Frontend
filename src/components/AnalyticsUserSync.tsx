@@ -10,7 +10,7 @@ import {
 } from '@/lib/analytics';
 
 export interface AnalyticsUserSyncProps {
-  /** Optional GA4 Measurement ID override (defaults to active Ga4Bootstrap ID or NEXT_PUBLIC_GA_ID). */
+  /** Optional GA4 Measurement ID override (defaults to active AnalyticsBootstrap ID or NEXT_PUBLIC_GA_ID). */
   gaId?: string;
 }
 

@@ -20,7 +20,11 @@ type Story = StoryObj<typeof AnnouncementBanner>;
 
 function renderWithAnnouncement(announcement: AnnouncementData | null) {
   if (typeof window !== 'undefined') {
-    window.sessionStorage.removeItem('announcement-dismissed');
+    try {
+      window.sessionStorage.removeItem('announcement-dismissed');
+    } catch {
+      // Ignore storage access errors in restricted iframe sandboxes
+    }
   }
   announcementReadManager.set('global', announcement);
   return (
@@ -46,5 +50,14 @@ export const HiddenWhenDisabled: Story = {
       enabled: false,
       message: '',
       maintenanceTime: '',
+    }),
+};
+
+export const HiddenWhenExpired: Story = {
+  render: () =>
+    renderWithAnnouncement({
+      enabled: true,
+      message: '此公告的維護時間已過，將自動隱藏不顯示。',
+      maintenanceTime: '2020-01-01T00:00:00.000Z',
     }),
 };

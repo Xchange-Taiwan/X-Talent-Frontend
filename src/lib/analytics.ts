@@ -10,6 +10,8 @@
  * from URLs, page titles, and event metadata before leaving the application layer.
  */
 
+import type { ClarityFunction } from '@/types/clarity';
+
 export const ANALYTICS_FEATURES = [
   'auth',
   'onboarding',
@@ -39,7 +41,7 @@ export interface AnalyticsUserContext {
 }
 
 export interface SetAnalyticsUserContextOptions {
-  /** Explicit GA4 Measurement ID override (defaults to active Ga4Bootstrap ID or NEXT_PUBLIC_GA_ID) */
+  /** Explicit GA4 Measurement ID override (defaults to active AnalyticsBootstrap ID or NEXT_PUBLIC_GA_ID) */
   gaId?: string;
 }
 
@@ -82,8 +84,6 @@ export interface ButtonClickParams {
   metadata?: Record<string, string | number | boolean>;
 }
 
-type ClarityFn = (...args: unknown[]) => void;
-
 const VALID_ANALYTICS_FEATURES: ReadonlySet<string> = new Set<string>(
   ANALYTICS_FEATURES
 );
@@ -92,6 +92,7 @@ const VALID_ANALYTICS_USER_ROLES: ReadonlySet<string> = new Set<string>(
 );
 
 const GA_MEASUREMENT_ID_PATTERN = /^G-[A-Z0-9]+$/i;
+const CLARITY_PROJECT_ID_PATTERN = /^[a-z0-9]{4,32}$/i;
 const VALID_EVENT_NAME_PATTERN = /^[a-z][a-z0-9_]{1,48}$/;
 const VALID_PARAM_KEY_PATTERN = /^[a-z][a-z0-9_]{0,39}$/;
 const SAFE_INTERNAL_USER_ID_PATTERN = /^(?=.*[A-Za-z0-9])[A-Za-z0-9_-]{1,64}$/;
@@ -123,9 +124,11 @@ const MAX_NESTED_URL_SANITIZE_DEPTH = 3;
 const MAX_URI_DECODE_PASSES = 3;
 
 let configuredGaTargetsByFn = new WeakMap<object, Set<string>>();
+let configuredClarityTargetsByFn = new WeakMap<object, Set<string>>();
 let lastSyncedUserKeyByTarget = new WeakMap<object, Map<string, string>>();
 
 let activeGaMeasurementId: string | null = null;
+let activeClarityProjectId: string | null = null;
 let currentAnalyticsUserId: string | null = null;
 let currentAnalyticsUserRole: AnalyticsUserRole | null = null;
 
@@ -202,6 +205,17 @@ export function isValidGaMeasurementId(
 ): rawGaId is string {
   if (typeof rawGaId !== 'string') return false;
   return GA_MEASUREMENT_ID_PATTERN.test(rawGaId.trim());
+}
+
+/**
+ * Allowlist validation for Microsoft Clarity project IDs (alphanumeric token, 4–32 chars).
+ * Rejects empty strings, hyphens, path segments, quotes, or script injection payloads.
+ */
+export function isValidClarityProjectId(
+  rawClarityId: string | null | undefined
+): rawClarityId is string {
+  if (typeof rawClarityId !== 'string') return false;
+  return CLARITY_PROJECT_ID_PATTERN.test(rawClarityId.trim());
 }
 
 /**
@@ -308,13 +322,13 @@ export function sanitizeAnalyticsMetadata(
           ? sanitizeAnalyticsUserId(value)
           : null;
       if (safeUid) {
-        clean[trimmedKey] = safeUid;
+        clean.user_id = safeUid;
       }
       continue;
     }
     if (lowerKey === 'user_role') {
       if (isAnalyticsUserRole(value)) {
-        clean[trimmedKey] = value;
+        clean.user_role = value;
       }
       continue;
     }
@@ -530,7 +544,55 @@ export function initGa4(gaId: string): boolean {
   return true;
 }
 
-function getClarity(): ClarityFn | undefined {
+/**
+ * Initializes the client-side `window.clarity` command queue (`window.clarity.q`)
+ * without inline `<script>` interpolation so mount-time `trackEvent` / `setAnalyticsTag`
+ * calls are buffered in `window.clarity.q` before external `clarity.ms/tag/<id>` loads.
+ */
+export function initClarity(clarityId: string): boolean {
+  if (typeof window === 'undefined') return false;
+  const trimmedId = clarityId.trim();
+  if (!isValidClarityProjectId(trimmedId)) return false;
+
+  activeClarityProjectId = trimmedId;
+
+  if (typeof window.clarity !== 'function') {
+    const clarityStub: ClarityFunction = function clarity() {
+      const queue = clarityStub.q ?? [];
+      clarityStub.q = queue;
+      // eslint-disable-next-line prefer-rest-params
+      queue.push(arguments);
+    };
+    clarityStub.q = [];
+    window.clarity = clarityStub;
+  } else if (!Array.isArray(window.clarity.q)) {
+    window.clarity.q = [];
+  }
+
+  let configuredTargets = configuredClarityTargetsByFn.get(window.clarity);
+  if (!configuredTargets) {
+    configuredTargets = new Set<string>();
+    configuredClarityTargetsByFn.set(window.clarity, configuredTargets);
+  }
+
+  if (!configuredTargets.has(trimmedId)) {
+    configuredTargets.add(trimmedId);
+    if (currentAnalyticsUserRole) {
+      setAnalyticsTag('user_role', currentAnalyticsUserRole);
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Returns the currently active Clarity project ID initialized by `initClarity`, if any.
+ */
+export function getActiveClarityProjectId(): string | null {
+  return activeClarityProjectId;
+}
+
+function getClarity(): ClarityFunction | undefined {
   if (typeof window === 'undefined') return undefined;
   const fn = window.clarity;
   return typeof fn === 'function' ? fn : undefined;
@@ -669,9 +731,11 @@ export function getAnalyticsUserContext(): {
  */
 export function resetAnalyticsUserState(): void {
   activeGaMeasurementId = null;
+  activeClarityProjectId = null;
   currentAnalyticsUserId = null;
   currentAnalyticsUserRole = null;
   configuredGaTargetsByFn = new WeakMap<object, Set<string>>();
+  configuredClarityTargetsByFn = new WeakMap<object, Set<string>>();
   lastSyncedUserKeyByTarget = new WeakMap<object, Map<string, string>>();
 }
 
@@ -684,9 +748,7 @@ function dispatchGa4Event(
   const payload: Record<string, string | number | boolean> = {
     ...resolveDefaultGaPageContext(),
     ...(currentAnalyticsUserId ? { user_id: currentAnalyticsUserId } : {}),
-    ...(currentAnalyticsUserRole
-      ? { user_role: currentAnalyticsUserRole }
-      : {}),
+    user_role: currentAnalyticsUserRole ?? 'guest',
     ...params,
   };
 
@@ -733,43 +795,57 @@ export function setAnalyticsTag(key: string, value: string): void {
 /**
  * Fire a custom analytics event to both GA4 (`gtag` / `window.dataLayer`) and Clarity.
  *
- * Safe to call anywhere — SSR-safe and automatically scrubs PII metadata.
+ * Validates `event.name` against `VALID_EVENT_NAME_PATTERN`, defaults `user_role` to
+ * `currentAnalyticsUserRole ?? 'guest'`, and automatically scrubs PII metadata.
  */
 export function trackEvent(
   event: AnalyticsEvent,
   options?: TrackEventOptions
 ): void {
+  const trimmedName = typeof event.name === 'string' ? event.name.trim() : '';
+  if (!VALID_EVENT_NAME_PATTERN.test(trimmedName)) {
+    return;
+  }
+
   const safeMetadata = sanitizeAnalyticsMetadata(event.metadata);
+  const effectiveUserRole: AnalyticsUserRole = isAnalyticsUserRole(
+    safeMetadata.user_role
+  )
+    ? safeMetadata.user_role
+    : (currentAnalyticsUserRole ?? 'guest');
   const gaParams: Record<string, string | number | boolean> = {
     ...(event.feature ? { feature: event.feature } : {}),
+    user_role: effectiveUserRole,
     ...safeMetadata,
   };
 
-  dispatchGa4Event(event.name, gaParams);
+  dispatchGa4Event(trimmedName, gaParams);
 
   // Microsoft Clarity — custom event + scrubbed session tags for session replay filtering
   if (!options?.skipClarity) {
     const clarity = getClarity();
     if (clarity) {
-      clarity('event', event.name);
+      clarity('event', trimmedName);
       if (event.feature) {
         setAnalyticsTag('feature', event.feature);
       }
+      setAnalyticsTag('user_role', effectiveUserRole);
       for (const [key, value] of Object.entries(safeMetadata)) {
-        if (key.toLowerCase() === 'user_id') continue;
+        const lower = key.toLowerCase();
+        if (lower === 'user_id' || lower === 'user_role') continue;
         setAnalyticsTag(key, String(value));
       }
     }
   }
 
   if (process.env.NODE_ENV === 'development') {
-    console.debug('[analytics] trackEvent', event.name, gaParams, options);
+    console.debug('[analytics] trackEvent', trimmedName, gaParams, options);
   }
 }
 
 /**
  * Track initial page load and SPA route changes in GA4 via explicit `page_view` events.
- * Works in tandem with `{ send_page_view: false }` initialized by `Ga4Bootstrap`.
+ * Works in tandem with `{ send_page_view: false }` initialized by `AnalyticsBootstrap`.
  */
 export function trackPageView(
   path: string,

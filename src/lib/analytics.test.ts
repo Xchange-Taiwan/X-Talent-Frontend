@@ -3,10 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ANALYTICS_FEATURES,
   clearAnalyticsUser,
+  getActiveClarityProjectId,
   getAnalyticsClickPayloadFromElement,
   getAnalyticsUserContext,
+  initClarity,
   initGa4,
   isAllowedAnalyticsUrl,
+  isValidClarityProjectId,
   isValidGaMeasurementId,
   resetAnalyticsUserState,
   resolveAnalyticsUserRole,
@@ -37,6 +40,10 @@ function toDataLayerTuple(entry: unknown): unknown[] {
     throw new Error('Expected dataLayer entry to be array-like');
   }
   return Array.from(entry);
+}
+
+function clearWindowClarity(): void {
+  delete window.clarity;
 }
 
 describe('analytics', () => {
@@ -129,8 +136,52 @@ describe('analytics', () => {
           page_path: '/mentor-pool?filter_skills=frontend',
           page_location: `${window.location.origin}/mentor-pool?filter_skills=frontend`,
           page_title: '尋找導師 | XChange Talent Pool',
+          user_role: 'guest',
         },
       ]);
+    });
+
+    it('validates Clarity project IDs via allowlist and queues pre-script commands in window.clarity.q (#902)', () => {
+      clearWindowClarity();
+
+      expect(isValidClarityProjectId('k8v2x9p1q0')).toBe(true);
+      expect(isValidClarityProjectId('CLARITY902')).toBe(true);
+      expect(isValidClarityProjectId(null)).toBe(false);
+      expect(isValidClarityProjectId(undefined)).toBe(false);
+      expect(isValidClarityProjectId('')).toBe(false);
+      expect(isValidClarityProjectId('abc')).toBe(false);
+      expect(isValidClarityProjectId('a'.repeat(33))).toBe(false);
+      expect(isValidClarityProjectId('invalid-id')).toBe(false);
+      expect(isValidClarityProjectId('../evil')).toBe(false);
+      expect(
+        isValidClarityProjectId('clarity"><script>alert(1)</script>')
+      ).toBe(false);
+
+      expect(initClarity('clarity"><script>alert(1)</script>')).toBe(false);
+      expect(window.clarity).toBeUndefined();
+      expect(getActiveClarityProjectId()).toBeNull();
+
+      expect(initClarity('k8v2x9p1q0')).toBe(true);
+      expect(getActiveClarityProjectId()).toBe('k8v2x9p1q0');
+      expect(typeof window.clarity).toBe('function');
+      expect(window.clarity?.q).toEqual([]);
+
+      // Mount-time trackEvent before external clarity.ms tag script loads buffers IArguments in window.clarity.q
+      trackEvent({ name: 'sign_up_started', feature: 'auth' });
+
+      expect(window.clarity?.q).toHaveLength(3);
+      expect(Object.prototype.toString.call(window.clarity?.q?.[0])).toBe(
+        '[object Arguments]'
+      );
+      expect((window.clarity?.q ?? []).map(toDataLayerTuple)).toEqual([
+        ['event', 'sign_up_started'],
+        ['set', 'feature', 'auth'],
+        ['set', 'user_role', 'guest'],
+      ]);
+
+      // Subsequent initClarity with same ID is idempotent and preserves existing queued commands
+      expect(initClarity('k8v2x9p1q0')).toBe(true);
+      expect(window.clarity?.q).toHaveLength(3);
     });
   });
 
@@ -142,6 +193,7 @@ describe('analytics', () => {
         page_path: '/mentor-pool',
         page_location: 'https://xtalent.tw/mentor-pool',
         page_title: 'X-Talent | 站在前輩的肩膀上',
+        user_role: 'guest',
       });
     });
 
@@ -158,6 +210,7 @@ describe('analytics', () => {
           page_path: '/about',
           page_location: `${window.location.origin}/about`,
           page_title: '關於 X-Talent',
+          user_role: 'guest',
         },
       ]);
     });
@@ -172,6 +225,7 @@ describe('analytics', () => {
         page_path: '/profile/7482008160728084',
         page_location: 'https://xtalent.tw/profile/7482008160728084',
         page_title: 'User Profile',
+        user_role: 'guest',
       });
 
       mockGtag.mockClear();
@@ -184,6 +238,7 @@ describe('analytics', () => {
         page_location:
           'https://xtalent.tw/profile/7482008160728084/edit?mentor-onboarding=true',
         page_title: 'Profile Edit',
+        user_role: 'guest',
       });
 
       expect(
@@ -211,6 +266,7 @@ describe('analytics', () => {
         page_path: '/mentor-pool',
         page_location: `${window.location.origin}/`,
         page_title: 'X-Talent | 站在前輩的肩膀上',
+        user_role: 'guest',
       });
       expect(mockClarity).not.toHaveBeenCalled();
     });
@@ -242,9 +298,11 @@ describe('analytics', () => {
         page_path: '/',
         page_location: `${window.location.origin}/`,
         page_title: 'X-Talent | 站在前輩的肩膀上',
+        user_role: 'guest',
       });
       expect(mockClarity).toHaveBeenCalledWith('event', 'button_click');
       expect(mockClarity).toHaveBeenCalledWith('set', 'feature', 'auth');
+      expect(mockClarity).toHaveBeenCalledWith('set', 'user_role', 'guest');
       expect(mockClarity).toHaveBeenCalledWith(
         'set',
         'button_id',
@@ -342,6 +400,7 @@ describe('analytics', () => {
         page_path: '/',
         page_location: `${window.location.origin}/`,
         page_title: 'X-Talent | 站在前輩的肩膀上',
+        user_role: 'guest',
       });
 
       const socialPayload = getAnalyticsClickPayloadFromElement(
@@ -595,6 +654,38 @@ describe('analytics', () => {
       expect(mockGtag).toHaveBeenCalledTimes(1);
     });
 
+    it('validates VALID_EVENT_NAME_PATTERN and attaches user_role: guest by default in trackEvent (#902)', () => {
+      for (const invalidName of [
+        '',
+        '   ',
+        'a',
+        'Login',
+        '123_event',
+        '_leading_underscore',
+        'event-with-hyphen',
+        'event with space',
+        'leak@example.com',
+        'a'.repeat(50),
+      ]) {
+        trackEvent({ name: invalidName, feature: 'auth' });
+      }
+
+      expect(mockGtag).not.toHaveBeenCalled();
+      expect(mockClarity).not.toHaveBeenCalled();
+
+      trackEvent({ name: 'sign_up_started', feature: 'auth' });
+
+      expect(mockGtag).toHaveBeenCalledWith('event', 'sign_up_started', {
+        feature: 'auth',
+        user_role: 'guest',
+        page_location: `${window.location.origin}/`,
+        page_title: 'X-Talent | 站在前輩的肩膀上',
+      });
+      expect(mockClarity).toHaveBeenCalledWith('event', 'sign_up_started');
+      expect(mockClarity).toHaveBeenCalledWith('set', 'feature', 'auth');
+      expect(mockClarity).toHaveBeenCalledWith('set', 'user_role', 'guest');
+    });
+
     it('overrides page_location and page_title on non-page_view events so gtag never reads raw URL secrets or profile names', () => {
       window.history.replaceState(
         {},
@@ -615,6 +706,7 @@ describe('analytics', () => {
         mentor_id: '7482008160728084',
         page_location: `${window.location.origin}/profile/7482008160728084`,
         page_title: 'User Profile',
+        user_role: 'guest',
       });
     });
 
@@ -637,6 +729,7 @@ describe('analytics', () => {
           rating: 'good',
           page_location: `${window.location.origin}/`,
           page_title: 'X-Talent | 站在前輩的肩膀上',
+          user_role: 'guest',
         }
       );
       expect(mockClarity).not.toHaveBeenCalled();
@@ -656,6 +749,7 @@ describe('analytics', () => {
       try {
         expect(() => {
           expect(initGa4('G-TEST123456')).toBe(false);
+          expect(initClarity('k8v2x9p1q0')).toBe(false);
           trackPageView('/');
           trackScrollDepth(50, '/');
           trackButtonClick({ buttonId: 'cta_hero' });
