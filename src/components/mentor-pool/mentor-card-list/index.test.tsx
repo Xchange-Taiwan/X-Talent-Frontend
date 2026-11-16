@@ -1,7 +1,29 @@
-import { render, screen } from '@testing-library/react';
+import {
+  render as rtlRender,
+  type RenderOptions,
+  screen,
+} from '@testing-library/react';
 import { fromPartial } from '@total-typescript/shoehorn';
+import { SessionContext, type SessionContextValue } from 'next-auth/react';
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
+
+const defaultGuestSession: SessionContextValue = {
+  data: null,
+  status: 'unauthenticated',
+  update: vi.fn(),
+};
+
+function DefaultGuestWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <SessionContext.Provider value={defaultGuestSession}>
+      {children}
+    </SessionContext.Provider>
+  );
+}
+
+const render = (ui: React.ReactElement, options?: RenderOptions) =>
+  rtlRender(ui, { wrapper: DefaultGuestWrapper, ...options });
 
 import avatarImage from '@/assets/default-avatar.png';
 import { buildMentorCardTags } from '@/lib/mentor/mentorCardModel';
