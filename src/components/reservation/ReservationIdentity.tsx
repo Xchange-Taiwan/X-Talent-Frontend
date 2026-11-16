@@ -157,7 +157,7 @@ export function ReservationIdentityHeader({
     ) : null;
 
   return (
-    <div className={style.containerClassName}>
+    <div data-clarity-mask="true" className={style.containerClassName}>
       <ProfileLinkWrapper
         href={href}
         onClick={onProfileLinkClick}
@@ -168,7 +168,7 @@ export function ReservationIdentityHeader({
         )}
         ariaLabel={`查看 ${reservation.name} 的個人資料`}
       >
-        <Avatar className={style.avatarClassName}>
+        <Avatar data-clarity-mask="true" className={style.avatarClassName}>
           <AvatarImage
             src={
               reservation.avatar
@@ -190,7 +190,10 @@ export function ReservationIdentityHeader({
             disabled={disabled}
             className={style.nameLinkClassName}
           >
-            <div className={style.nameClassName(Boolean(href))}>
+            <div
+              data-clarity-mask="true"
+              className={style.nameClassName(Boolean(href))}
+            >
               {reservation.name}
             </div>
             {style.roleLineInsideLink ? (

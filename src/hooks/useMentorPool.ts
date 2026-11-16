@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { PAGE_LIMIT } from '@/app/mentor-pool/constants';
 import { useToast } from '@/components/ui/use-toast';
 import { useAsyncRead } from '@/hooks/useAsyncRead';
+import { trackEvent } from '@/lib/analytics';
 import { isAbortError } from '@/lib/errorUtils';
 import {
   applyMentorPage,
@@ -134,6 +135,75 @@ export function useMentorPool({
     isLoading,
     pageState.hasError,
     pageState.isNoResults,
+  ]);
+
+  const lastTrackedSearchKeyRef = useRef<string | null>(null);
+  const hasKeyword = Boolean(query.search_pattern?.trim());
+  const activeFilterCount = useMemo(() => {
+    const countItems = (csv?: string) =>
+      csv
+        ? csv
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean).length
+        : 0;
+    return (
+      countItems(query.filter_skills) +
+      countItems(query.filter_topics) +
+      countItems(query.filter_industries)
+    );
+  }, [query.filter_industries, query.filter_skills, query.filter_topics]);
+
+  useEffect(() => {
+    if (!hasKeyword && activeFilterCount === 0) {
+      lastTrackedSearchKeyRef.current = null;
+      return;
+    }
+    if (isLoading || pageState.hasError) return;
+    if (listStatus !== 'success' && listStatus !== 'empty') return;
+
+    const searchIdentityKey = JSON.stringify({
+      q: query.search_pattern?.trim() ?? '',
+      s: query.filter_skills ?? '',
+      t: query.filter_topics ?? '',
+      i: query.filter_industries ?? '',
+      sort: query.sort_by ?? '',
+    });
+    if (lastTrackedSearchKeyRef.current === searchIdentityKey) return;
+    lastTrackedSearchKeyRef.current = searchIdentityKey;
+
+    trackEvent({
+      name: 'view_search_results',
+      feature: 'mentor_pool',
+      metadata: {
+        result_count: pageState.mentorCount,
+        has_keyword: hasKeyword,
+        active_filter_count: activeFilterCount,
+      },
+    });
+
+    if (listStatus === 'empty' || pageState.mentorCount === 0) {
+      trackEvent({
+        name: 'mentor_search_zero_results',
+        feature: 'mentor_pool',
+        metadata: {
+          has_keyword: hasKeyword,
+          active_filter_count: activeFilterCount,
+        },
+      });
+    }
+  }, [
+    activeFilterCount,
+    hasKeyword,
+    isLoading,
+    listStatus,
+    pageState.hasError,
+    pageState.mentorCount,
+    query.filter_industries,
+    query.filter_skills,
+    query.filter_topics,
+    query.search_pattern,
+    query.sort_by,
   ]);
 
   return {

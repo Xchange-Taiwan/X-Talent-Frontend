@@ -2,6 +2,7 @@
 
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { useEffect, useRef } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -27,6 +28,7 @@ interface MenteeBookingFormProps {
   selectedDate: string | null;
   onConfirmReservation: (question?: string) => Promise<boolean>;
   isAuthenticated: boolean;
+  isIdentityResolved?: boolean;
 }
 
 export function MenteeBookingForm({
@@ -39,11 +41,40 @@ export function MenteeBookingForm({
   selectedDate,
   onConfirmReservation,
   isAuthenticated,
+  isIdentityResolved = true,
 }: MenteeBookingFormProps) {
   const normalizedMentorId =
     mentorId !== undefined && String(mentorId).trim() !== ''
       ? String(mentorId).trim()
       : undefined;
+  const parsedMentorId =
+    normalizedMentorId !== undefined ? Number(normalizedMentorId) : Number.NaN;
+  const numericMentorId =
+    Number.isSafeInteger(parsedMentorId) && parsedMentorId > 0
+      ? parsedMentorId
+      : undefined;
+
+  const trackedGateViewKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isIdentityResolved || isAuthenticated) return;
+    const dedupKey =
+      numericMentorId !== undefined ? String(numericMentorId) : '__unknown__';
+    if (trackedGateViewKeyRef.current === dedupKey) return;
+    trackedGateViewKeyRef.current = dedupKey;
+
+    trackEvent({
+      name: 'auth_gate_triggered',
+      feature: 'reservation',
+      metadata: {
+        gate_feature: 'reservation',
+        trigger_type: 'impression',
+        ...(numericMentorId !== undefined
+          ? { mentor_id: numericMentorId }
+          : {}),
+      },
+    });
+  }, [isAuthenticated, isIdentityResolved, numericMentorId]);
 
   const {
     register,
@@ -107,15 +138,26 @@ export function MenteeBookingForm({
             >
               <Link
                 href="/auth/signin"
-                onClick={() =>
+                onClick={() => {
                   trackEvent({
                     name: 'reservation_signin_prompt_click',
                     feature: 'reservation',
                     ...(normalizedMentorId
                       ? { metadata: { mentor_id: normalizedMentorId } }
                       : {}),
-                  })
-                }
+                  });
+                  trackEvent({
+                    name: 'auth_gate_triggered',
+                    feature: 'reservation',
+                    metadata: {
+                      gate_feature: 'reservation',
+                      trigger_type: 'click_cta',
+                      ...(numericMentorId !== undefined
+                        ? { mentor_id: numericMentorId }
+                        : {}),
+                    },
+                  });
+                }}
               >
                 前往登入
               </Link>
@@ -146,6 +188,7 @@ export function MenteeBookingForm({
         </label>
         <Textarea
           id="booking-question"
+          data-clarity-mask="true"
           placeholder="請在此輸入你的問題..."
           className={cn(
             'border-background-border h-[156px] w-full rounded-lg',

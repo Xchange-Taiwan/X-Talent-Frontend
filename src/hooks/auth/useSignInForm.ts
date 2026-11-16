@@ -6,6 +6,7 @@ import * as z from 'zod';
 
 import { AuthFormProps } from '@/components/auth/types';
 import useAsyncAction from '@/hooks/useAsyncAction';
+import { trackEvent } from '@/lib/analytics';
 import {
   SignInLifecycleError,
   signInWithCredentials,
@@ -40,6 +41,17 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
       },
       {
         throwError: false,
+        onError: (err) => {
+          trackEvent({
+            name: 'auth_flow_failed',
+            feature: 'auth',
+            metadata: {
+              flow: 'login',
+              error_type:
+                err instanceof SignInLifecycleError ? err.step : 'unexpected',
+            },
+          });
+        },
         captureFailure: {
           flow: 'sign_in',
           step: (err) =>

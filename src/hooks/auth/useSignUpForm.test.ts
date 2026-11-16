@@ -242,7 +242,32 @@ describe('useSignUpForm', () => {
         description: 'Internal DB crash - HTTP狀態碼: 500。',
       })
     );
+    expect(mockTrackEvent).toHaveBeenCalledWith({
+      name: 'auth_flow_failed',
+      feature: 'auth',
+      metadata: {
+        flow: 'sign_up',
+        error_type: '500',
+      },
+    });
     expect(mockRouter.push).not.toHaveBeenCalled();
+
+    mockTrackEvent.mockClear();
+    mockSignUp.mockRejectedValueOnce(new Error('Raw secret error'));
+    await act(async () => {
+      await result.current.onSubmit(validValues);
+    });
+    expect(mockTrackEvent).toHaveBeenCalledWith({
+      name: 'auth_flow_failed',
+      feature: 'auth',
+      metadata: {
+        flow: 'sign_up',
+        error_type: 'submit_failed',
+      },
+    });
+    const serialized = JSON.stringify(mockTrackEvent.mock.calls);
+    expect(serialized).not.toContain(validValues.email);
+    expect(serialized).not.toContain('Raw secret error');
   });
 
   it('initializes confirm_password in defaultValues and produces Traditional Chinese validation errors instead of "Required" (#804)', async () => {

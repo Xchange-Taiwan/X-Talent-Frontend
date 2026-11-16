@@ -5,8 +5,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ReservationList } from '@/components/reservation/ReservationList';
 import { useReservationData } from '@/hooks/user/reservation/useReservationData';
+import { trackEvent } from '@/lib/analytics';
 
 import { ReservationDashboard } from './ReservationDashboard';
+
+vi.mock('@/lib/analytics', () => ({
+  trackEvent: vi.fn(),
+}));
 
 // Mock next/navigation
 const mockReplace = vi.fn();
@@ -339,10 +344,15 @@ describe('ReservationDashboard', () => {
     const pendingTrigger = screen.getByTestId('trigger-pending-mentor');
     fireEvent.click(pendingTrigger);
 
-    // It should replace the URL with tab=pending
+    // It should replace the URL with tab=pending and track reservation_tab_changed
     expect(mockReplace).toHaveBeenCalledWith(
       expect.stringContaining('tab=pending')
     );
+    expect(trackEvent).toHaveBeenCalledWith({
+      name: 'reservation_tab_changed',
+      feature: 'reservation',
+      metadata: { role: 'mentor', tab: 'pending' },
+    });
   });
 
   it('preserves existing badge counts for upcoming and pending tabs while history is loading (#860)', () => {

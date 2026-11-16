@@ -91,7 +91,7 @@ export default function ReservationConversationDialog({
       <DialogContent className="flex max-h-[85vh] w-[92vw] max-w-[480px] flex-col gap-0 p-0 sm:max-w-lg">
         <DialogHeader className="space-y-3 border-b p-4 sm:p-6">
           <div className="flex items-center gap-3">
-            <Avatar className="size-10 shrink-0">
+            <Avatar data-clarity-mask="true" className="size-10 shrink-0">
               {reservation.avatar ? (
                 <AvatarImage
                   src={getAvatarThumbUrl(reservation.avatar)}
@@ -104,7 +104,7 @@ export default function ReservationConversationDialog({
               <DialogTitle className="truncate text-base">
                 完整對話紀錄
               </DialogTitle>
-              <DialogDescription className="truncate">
+              <DialogDescription data-clarity-mask="true" className="truncate">
                 {reservation.name}
                 {reservation.roleLine ? ` · ${reservation.roleLine}` : ''}
               </DialogDescription>
@@ -122,7 +122,10 @@ export default function ReservationConversationDialog({
           </div>
         </DialogHeader>
 
-        <div className="flex-1 space-y-3 overflow-y-auto p-4 sm:p-6">
+        <div
+          data-clarity-mask="true"
+          className="flex-1 space-y-3 overflow-y-auto p-4 sm:p-6"
+        >
           {systemCancelNotice ? (
             <div
               role="note"

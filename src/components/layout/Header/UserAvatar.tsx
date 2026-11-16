@@ -20,6 +20,7 @@ export function UserAvatar({
 }: UserAvatarProps): JSX.Element {
   return (
     <Image
+      data-clarity-mask="true"
       src={src || DefaultAvatarImgUrl}
       alt={name ? `${name} 的頭像` : '我的頭像'}
       width={size}

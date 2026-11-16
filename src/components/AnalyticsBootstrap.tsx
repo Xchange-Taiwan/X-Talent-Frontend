@@ -8,6 +8,7 @@ import {
   initGa4,
   isValidClarityProjectId,
   isValidGaMeasurementId,
+  registerClarityMetadataListener,
 } from '@/lib/analytics';
 
 export interface AnalyticsBootstrapProps {
@@ -64,6 +65,9 @@ export default function AnalyticsBootstrap({
           id="microsoft-clarity"
           src={`https://www.clarity.ms/tag/${encodeURIComponent(safeClarityId)}`}
           strategy="afterInteractive"
+          onLoad={() => {
+            registerClarityMetadataListener();
+          }}
         />
       )}
     </>

@@ -157,6 +157,9 @@ describe('useBookingConfirmation', () => {
     expect(mockTrackEvent).toHaveBeenCalledWith({
       name: 'reservation_booking_confirmed',
       feature: 'reservation',
+      metadata: {
+        mentor_id: 123,
+      },
     });
     expect(mockToast).toHaveBeenCalledWith({
       title: '預約已送出，等待導師回復',
@@ -227,6 +230,14 @@ describe('useBookingConfirmation', () => {
       step: 'create_reservation',
       message: 'Server Crashed',
     });
+    expect(mockTrackEvent).toHaveBeenCalledWith({
+      name: 'booking_submit_failed',
+      feature: 'reservation',
+      metadata: {
+        mentor_id: 123,
+        error_type: 'api_error',
+      },
+    });
     expect(mockToast).toHaveBeenCalledWith({
       title: '預約失敗',
       description: 'Server Crashed',
@@ -260,6 +271,14 @@ describe('useBookingConfirmation', () => {
       step: 'create_reservation',
       message: conflictError.message,
       level: 'info',
+    });
+    expect(mockTrackEvent).toHaveBeenCalledWith({
+      name: 'booking_submit_failed',
+      feature: 'reservation',
+      metadata: {
+        mentor_id: 123,
+        error_type: 'slot_conflict',
+      },
     });
     expect(mockToast).toHaveBeenCalledWith({
       title: '預約時間重疊',

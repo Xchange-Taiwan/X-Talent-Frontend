@@ -217,7 +217,10 @@ export function ReservationFeedbackBlock({
           </div>
 
           {hasContent ? (
-            <p className="text-text-secondary mt-1.5 text-xs leading-relaxed whitespace-pre-line sm:text-sm">
+            <p
+              data-clarity-mask="true"
+              className="text-text-secondary mt-1.5 text-xs leading-relaxed whitespace-pre-line sm:text-sm"
+            >
               {trimmedContent}
             </p>
           ) : (
@@ -258,7 +261,10 @@ export function ReservationFeedbackBlock({
           data-testid="mentor-feedback-meta"
           className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs sm:text-sm"
         >
-          <span className="text-text-primary font-semibold">
+          <span
+            data-clarity-mask="true"
+            className="text-text-primary font-semibold"
+          >
             {model.authorMaskedName}
           </span>
           <span className="text-text-tertiary" aria-hidden="true">
@@ -284,7 +290,10 @@ export function ReservationFeedbackBlock({
         </div>
 
         {hasContent ? (
-          <p className="text-text-primary mt-1.5 text-xs leading-relaxed whitespace-pre-line sm:text-sm">
+          <p
+            data-clarity-mask="true"
+            className="text-text-primary mt-1.5 text-xs leading-relaxed whitespace-pre-line sm:text-sm"
+          >
             {trimmedContent}
           </p>
         ) : (
@@ -319,7 +328,10 @@ export function ReservationFeedbackBlock({
       </div>
 
       {hasContent ? (
-        <p className="text-text-primary mt-1.5 text-xs leading-relaxed whitespace-pre-line sm:text-sm">
+        <p
+          data-clarity-mask="true"
+          className="text-text-primary mt-1.5 text-xs leading-relaxed whitespace-pre-line sm:text-sm"
+        >
           {trimmedContent}
         </p>
       ) : (

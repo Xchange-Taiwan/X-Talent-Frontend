@@ -79,15 +79,17 @@ export function ConfirmedReservationDialog({
             </DialogTitle>
           </DialogHeader>
 
-          <ReservationIdentity
-            reservation={reservation}
-            profileHref={profileHref}
-            onProfileLinkClick={handleProfileLinkClick}
-            disabled={isMutating || isJoiningMeet}
-            showStatusBadge
-            density="compact"
-            sourceRole="mentor"
-          />
+          <div data-clarity-mask="true">
+            <ReservationIdentity
+              reservation={reservation}
+              profileHref={profileHref}
+              onProfileLinkClick={handleProfileLinkClick}
+              disabled={isMutating || isJoiningMeet}
+              showStatusBadge
+              density="compact"
+              sourceRole="mentor"
+            />
+          </div>
 
           {/* Footer action buttons */}
           <div className="mt-6 flex w-full items-center gap-2 sm:justify-end">

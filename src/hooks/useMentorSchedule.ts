@@ -215,6 +215,10 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
   const monthLoaded =
     scheduleKey !== null && !scheduleRead.isLoading && !isReloadingSchedule;
+  const isMonthSynced =
+    monthLoaded &&
+    monthRaws !== null &&
+    storeState.savedByMonth.get(currentMonthKey) === monthRaws;
   const isFetching = scheduleRead.isLoading || isReloadingSchedule;
   const hasError = !isReloadingSchedule && scheduleRead.error !== null;
 
@@ -674,6 +678,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       bookedDates,
       earliestSelectableDate,
       slotsSnapshot,
+      isMonthSynced,
       getDayBookingStatus,
       isFetching,
       reload,
@@ -692,6 +697,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       bookedDates,
       earliestSelectableDate,
       slotsSnapshot,
+      isMonthSynced,
       getDayBookingStatus,
       isFetching,
       reload,

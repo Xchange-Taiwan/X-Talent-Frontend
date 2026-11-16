@@ -13,6 +13,7 @@ import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
 import { useMentorFeedback } from '@/hooks/user/feedback/useMentorFeedback';
 import { useBookingConfirmation } from '@/hooks/user/reservation/useBookingConfirmation';
 import useUserData from '@/hooks/user/user-data/useUserData';
+import { useTrackMentorNoAvailableSlots } from '@/hooks/useTrackMentorNoAvailableSlots';
 import { isFeedbackEnabled } from '@/lib/featureFlags';
 import { getMentorOnboardingUrl, OPEN_SCHEDULE_DIALOG_KEY } from '@/lib/routes';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
@@ -95,6 +96,22 @@ export default function ProfilePageContainer({
     loginUserId,
     userData,
     userLoading,
+  });
+
+  useTrackMentorNoAvailableSlots({
+    isIdentityResolved,
+    isOwnProfile,
+    userLoading,
+    isMentor: Boolean(userData?.is_mentor),
+    mentorId: pageUserIdNumber,
+    loaded,
+    monthLoaded:
+      reader.isMonthSynced ?? reader.slotsSnapshot?.monthLoaded ?? loaded,
+    isFetching: Boolean(reader.isFetching),
+    hasError: Boolean(reader.hasError),
+    year: reader.year,
+    month: reader.month,
+    allowedDates: reader.allowedDates,
   });
 
   const feedback = useMentorFeedback({

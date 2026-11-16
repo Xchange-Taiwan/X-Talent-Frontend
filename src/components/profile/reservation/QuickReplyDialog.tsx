@@ -125,7 +125,7 @@ export function QuickReplyDialog({
             sourceRole="mentor"
           />
 
-          <div className="mt-6">
+          <div data-clarity-mask="true" className="mt-6">
             <ReplyMessageField
               open={replyOpen}
               onOpen={() => setReplyOpen(true)}

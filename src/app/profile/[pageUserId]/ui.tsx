@@ -572,6 +572,7 @@ export default function ProfilePageUI({
                       isOwnMentorProfile={isOwnMentorProfile}
                       isUserDataLoading={userLoading || !isIdentityResolved}
                       isAuthenticated={!!loginUserId}
+                      isIdentityResolved={isIdentityResolved}
                       mentorId={userData?.user_id}
                       slotsSnapshot={schedule.slotsSnapshot}
                       selectedSlot={resolvedSelectedSlot}
