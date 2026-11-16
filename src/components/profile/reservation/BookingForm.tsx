@@ -15,6 +15,7 @@ interface BookingFormProps {
   isOwnMentorProfile: boolean;
   isUserDataLoading: boolean;
   isAuthenticated: boolean;
+  isIdentityResolved?: boolean;
   mentorId?: number | string;
   slotsSnapshot: SlotsSnapshot;
   selectedSlot: BookingSlot | null;
@@ -31,6 +32,7 @@ export function BookingForm({
   isOwnMentorProfile,
   isUserDataLoading,
   isAuthenticated,
+  isIdentityResolved = true,
   mentorId,
   slotsSnapshot,
   selectedSlot,
@@ -89,6 +91,7 @@ export function BookingForm({
           selectedDate={selectedDate}
           onConfirmReservation={onConfirmReservation}
           isAuthenticated={isAuthenticated}
+          isIdentityResolved={isIdentityResolved}
         />
       )}
     </div>

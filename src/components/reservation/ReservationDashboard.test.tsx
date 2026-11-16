@@ -351,7 +351,7 @@ describe('ReservationDashboard', () => {
     expect(trackEvent).toHaveBeenCalledWith({
       name: 'reservation_tab_changed',
       feature: 'reservation',
-      metadata: { tab: 'pending-mentor' },
+      metadata: { role: 'mentor', tab: 'pending' },
     });
   });
 

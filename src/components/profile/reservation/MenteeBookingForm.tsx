@@ -28,6 +28,7 @@ interface MenteeBookingFormProps {
   selectedDate: string | null;
   onConfirmReservation: (question?: string) => Promise<boolean>;
   isAuthenticated: boolean;
+  isIdentityResolved?: boolean;
 }
 
 export function MenteeBookingForm({
@@ -40,6 +41,7 @@ export function MenteeBookingForm({
   selectedDate,
   onConfirmReservation,
   isAuthenticated,
+  isIdentityResolved = true,
 }: MenteeBookingFormProps) {
   const normalizedMentorId =
     mentorId !== undefined && String(mentorId).trim() !== ''
@@ -55,7 +57,7 @@ export function MenteeBookingForm({
   const trackedGateViewKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (isAuthenticated) return;
+    if (!isIdentityResolved || isAuthenticated) return;
     const dedupKey =
       numericMentorId !== undefined ? String(numericMentorId) : '__unknown__';
     if (trackedGateViewKeyRef.current === dedupKey) return;
@@ -72,7 +74,7 @@ export function MenteeBookingForm({
           : {}),
       },
     });
-  }, [isAuthenticated, numericMentorId]);
+  }, [isAuthenticated, isIdentityResolved, numericMentorId]);
 
   const {
     register,

@@ -81,4 +81,24 @@ describe('MenteeBookingForm analytics & Clarity masking', () => {
     const textarea = screen.getByRole('textbox');
     expect(textarea.closest('[data-clarity-mask="true"]')).not.toBeNull();
   });
+
+  it('waits until isIdentityResolved is true before firing guest auth_gate_triggered impression', () => {
+    const { rerender } = render(
+      <MenteeBookingForm
+        {...baseProps}
+        isAuthenticated={false}
+        isIdentityResolved={false}
+      />
+    );
+    expect(trackEvent).not.toHaveBeenCalled();
+
+    rerender(
+      <MenteeBookingForm
+        {...baseProps}
+        isAuthenticated={false}
+        isIdentityResolved={true}
+      />
+    );
+    expect(trackEvent).toHaveBeenCalledTimes(1);
+  });
 });

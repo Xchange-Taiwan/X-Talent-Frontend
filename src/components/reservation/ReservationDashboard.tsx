@@ -261,7 +261,10 @@ export function ReservationDashboardView({
     trackEvent({
       name: 'reservation_tab_changed',
       feature: 'reservation',
-      metadata: { tab: value },
+      metadata: {
+        role: userRole,
+        tab: URL_PARAM_MAPPING[value] ?? value,
+      },
     });
     if (value !== 'history') {
       clearDeepLinkFocus();

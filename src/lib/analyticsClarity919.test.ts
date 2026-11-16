@@ -153,4 +153,45 @@ describe('Clarity session identity, playback URL, and failure upgrade (#919)', (
     upgradeClaritySession('booking_submit_failed');
     expect(claritySpy).toHaveBeenCalledWith('upgrade', 'booking_submit_failed');
   });
+
+  it('queues early calls in window.clarity.q before external script loads, then idempotently registers metadata on script onLoad', () => {
+    expect(window.clarity).toBeUndefined();
+
+    // 1. Bootstrap initializes stub queue while external script is still downloading
+    expect(initClarity('vwimm8rumd')).toBe(true);
+    expect(typeof window.clarity).toBe('function');
+    expect(Array.isArray(window.clarity?.q)).toBe(true);
+    // Stub queue must NOT eagerly invoke metadata registration before real script arrives
+    expect(window.clarity?.q).toHaveLength(0);
+
+    // Early user context sync buffers into window.clarity.q
+    setAnalyticsUserContext({ userId: '998877', userRole: 'mentee' });
+    const queuedCommands = (window.clarity?.q ?? []).map((entry) =>
+      Array.from(entry as ArrayLike<unknown>)
+    );
+    expect(queuedCommands).toContainEqual(['set', 'user_role', 'mentee']);
+    expect(queuedCommands).toContainEqual(['identify', '998877']);
+
+    // 2. External script finishes loading and replaces window.clarity
+    const realClarity = vi.fn((cmd: string, cb?: unknown) => {
+      if (cmd === 'metadata' && typeof cb === 'function') {
+        (cb as (d: unknown) => void)({
+          projectId: 'vwimm8rumd',
+          userId: 'live_u1',
+          sessionId: 'live_s1',
+        });
+      }
+    });
+    window.clarity = realClarity as unknown as typeof window.clarity;
+
+    // 3. AnalyticsBootstrap onLoad calls registerClarityMetadataListener() idempotently
+    expect(registerClarityMetadataListener()).toBe(true);
+    expect(registerClarityMetadataListener()).toBe(true);
+    expect(
+      realClarity.mock.calls.filter((c) => c[0] === 'metadata')
+    ).toHaveLength(1);
+    expect(getActiveClarityPlaybackUrl()).toBe(
+      'https://clarity.microsoft.com/player/vwimm8rumd/live_u1/live_s1'
+    );
+  });
 });

@@ -69,15 +69,14 @@ describe('#919 Clarity DOM masking across all 10 sensitive components', () => {
     vi.clearAllMocks();
   });
 
-  it('masks Avatar (including img alt) and participant name in ReservationIdentity', () => {
+  it('masks Avatar (including img alt and outer aria-label link) and participant name in ReservationIdentity', () => {
     const Stories = composeStories(IdentityStories);
     const FirstStory = Object.values(Stories)[0];
     const { container } = render(<FirstStory />);
 
-    const maskedNodes = container.querySelectorAll(
-      '[data-clarity-mask="true"]'
-    );
-    expect(maskedNodes.length).toBeGreaterThanOrEqual(2);
+    const ariaLink = container.querySelector('[aria-label*="個人資料"]');
+    expect(ariaLink).not.toBeNull();
+    expect(ariaLink!.closest('[data-clarity-mask="true"]')).not.toBeNull();
 
     const imgs = Array.from(container.querySelectorAll('img'));
     for (const img of imgs) {
@@ -111,10 +110,12 @@ describe('#919 Clarity DOM masking across all 10 sensitive components', () => {
     await user.click(triggerBtn);
 
     const dialog = screen.getByRole('dialog');
-    const maskedInsideDialog = dialog.querySelectorAll(
-      '[data-clarity-mask="true"]'
-    );
-    expect(maskedInsideDialog.length).toBeGreaterThanOrEqual(3);
+    const descEl = dialog.querySelector('p');
+    expect(descEl).not.toBeNull();
+    expect(descEl!.closest('[data-clarity-mask="true"]')).not.toBeNull();
+    for (const img of Array.from(dialog.querySelectorAll('img'))) {
+      expect(img.closest('[data-clarity-mask="true"]')).not.toBeNull();
+    }
     unmount();
   });
 
@@ -128,27 +129,39 @@ describe('#919 Clarity DOM masking across all 10 sensitive components', () => {
     expect(acceptTrigger).not.toBeNull();
     await user.click(acceptTrigger!);
     const acceptDialog = screen.getByRole('dialog');
-    expect(
-      acceptDialog.querySelectorAll('[data-clarity-mask="true"]').length
-    ).toBeGreaterThanOrEqual(2);
+    const questionHeader = screen.getByText('學員所提出的問題');
+    const questionBox = questionHeader.nextElementSibling;
+    expect(questionBox).not.toBeNull();
+    expect(questionBox!.closest('[data-clarity-mask="true"]')).not.toBeNull();
+    for (const img of Array.from(acceptDialog.querySelectorAll('img'))) {
+      expect(img.closest('[data-clarity-mask="true"]')).not.toBeNull();
+    }
     u1();
 
     const QuickStories = composeStories(QuickReplyStories);
     const FirstQuick = Object.values(QuickStories)[0];
     const { unmount: u2 } = render(<FirstQuick open={true} />);
     const quickDialog = screen.getByRole('dialog');
+    const quickProfileLink = quickDialog.querySelector(
+      '[aria-label*="個人資料"]'
+    );
+    expect(quickProfileLink).not.toBeNull();
     expect(
-      quickDialog.querySelectorAll('[data-clarity-mask="true"]').length
-    ).toBeGreaterThanOrEqual(2);
+      quickProfileLink!.closest('[data-clarity-mask="true"]')
+    ).not.toBeNull();
     u2();
 
     const ConfirmedStories = composeStories(ConfirmedReservationStories);
     const FirstConfirmed = Object.values(ConfirmedStories)[0];
     const { unmount: u3 } = render(<FirstConfirmed open={true} />);
     const confirmedDialog = screen.getByRole('dialog');
+    const confirmedProfileLink = confirmedDialog.querySelector(
+      '[aria-label*="個人資料"]'
+    );
+    expect(confirmedProfileLink).not.toBeNull();
     expect(
-      confirmedDialog.querySelectorAll('[data-clarity-mask="true"]').length
-    ).toBeGreaterThanOrEqual(1);
+      confirmedProfileLink!.closest('[data-clarity-mask="true"]')
+    ).not.toBeNull();
     u3();
   });
 
@@ -170,14 +183,17 @@ describe('#919 Clarity DOM masking across all 10 sensitive components', () => {
     const DialogStories = composeStories(MeetingFeedbackStories);
     const FirstDialog = Object.values(DialogStories)[0];
     const { unmount: uDialog } = render(<FirstDialog defaultOpen={true} />);
-    const fbDialog = screen.getByRole('dialog');
-    expect(
-      fbDialog.querySelectorAll('[data-clarity-mask="true"]').length
-    ).toBeGreaterThanOrEqual(3);
+    const fbHeader = screen.getByTestId('feedback-mentor-header');
+    const headerName = fbHeader.querySelector('p');
+    expect(headerName).not.toBeNull();
+    expect(headerName!.closest('[data-clarity-mask="true"]')).not.toBeNull();
+    for (const img of Array.from(fbHeader.querySelectorAll('img'))) {
+      expect(img.closest('[data-clarity-mask="true"]')).not.toBeNull();
+    }
     uDialog();
   });
 
-  it('opens UserDropdown & MobileUserMenu via userEvent to verify displayName/email masking, and tracks share_profile_link_copied', async () => {
+  it('opens UserDropdown & MobileUserMenu via userEvent to verify UserAvatar img and displayName/email masking, and tracks share_profile_link_copied', async () => {
     const user = userEvent.setup();
 
     const DropdownStories = composeStories(UserDropdownStories);
@@ -185,12 +201,22 @@ describe('#919 Clarity DOM masking across all 10 sensitive components', () => {
     const { unmount: uDrop } = render(<FirstDropdown />);
     const dropTrigger = document.body.querySelector('button');
     expect(dropTrigger).not.toBeNull();
+    const triggerAvatarImg = dropTrigger!.querySelector('img');
+    expect(triggerAvatarImg).not.toBeNull();
+    expect(
+      triggerAvatarImg!.closest('[data-clarity-mask="true"]')
+    ).not.toBeNull();
     await user.click(dropTrigger!);
 
     const menuEl = screen.getByRole('menu');
-    expect(
-      menuEl.querySelectorAll('[data-clarity-mask="true"]').length
-    ).toBeGreaterThanOrEqual(2);
+    const menuAvatarImg = menuEl.querySelector('img');
+    expect(menuAvatarImg).not.toBeNull();
+    expect(menuAvatarImg!.closest('[data-clarity-mask="true"]')).not.toBeNull();
+    const emailNode = Array.from(menuEl.querySelectorAll('div')).find((d) =>
+      (d.textContent ?? '').includes('@')
+    );
+    expect(emailNode).toBeDefined();
+    expect(emailNode!.closest('[data-clarity-mask="true"]')).not.toBeNull();
     uDrop();
 
     const MobileStories = composeStories(MobileUserMenuStories);
@@ -201,9 +227,14 @@ describe('#919 Clarity DOM masking across all 10 sensitive components', () => {
     await user.click(mobTrigger!);
 
     const sheetDialog = screen.getByRole('dialog');
-    expect(
-      sheetDialog.querySelectorAll('[data-clarity-mask="true"]').length
-    ).toBeGreaterThanOrEqual(2);
+    const mobAvatarImg = sheetDialog.querySelector('img');
+    expect(mobAvatarImg).not.toBeNull();
+    expect(mobAvatarImg!.closest('[data-clarity-mask="true"]')).not.toBeNull();
+    const mobEmailNode = Array.from(sheetDialog.querySelectorAll('div')).find(
+      (d) => (d.textContent ?? '').includes('@')
+    );
+    expect(mobEmailNode).toBeDefined();
+    expect(mobEmailNode!.closest('[data-clarity-mask="true"]')).not.toBeNull();
     uMob();
 
     const writeTextSpy = vi.fn().mockResolvedValue(undefined);

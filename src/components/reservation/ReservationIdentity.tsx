@@ -157,7 +157,7 @@ export function ReservationIdentityHeader({
     ) : null;
 
   return (
-    <div className={style.containerClassName}>
+    <div data-clarity-mask="true" className={style.containerClassName}>
       <ProfileLinkWrapper
         href={href}
         onClick={onProfileLinkClick}
