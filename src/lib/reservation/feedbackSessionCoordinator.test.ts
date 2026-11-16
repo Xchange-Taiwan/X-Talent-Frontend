@@ -78,6 +78,28 @@ describe('createFeedbackSessionCoordinator (#906)', () => {
     });
     expect(abortedResult).toBeNull();
     expect(coordinator2.getSessionState('10').checked).toBe(false);
+
+    // Non-aborted fetch error reports to onError callback without writing checked=true
+    const onError = vi.fn();
+    const failingCoordinator = createFeedbackSessionCoordinator({
+      storage: createInMemoryFeedbackSessionStoragePort(),
+      lookup: {
+        fetchPendingFeedbackReservations: vi
+          .fn()
+          .mockRejectedValueOnce(new Error('503 Unavailable')),
+      },
+      onError,
+    });
+    expect(
+      await failingCoordinator.loadLoginQueue({
+        userId: '10',
+        isMentor: false,
+      })
+    ).toBeNull();
+    expect(onError).toHaveBeenCalledWith(expect.any(Error), {
+      step: 'load_login_queue',
+      userId: '10',
+    });
   });
 
   it('persists skipped and submitted reservations, keeps presented array stable while presenting, and prunes on yield or dismiss', async () => {

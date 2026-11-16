@@ -335,4 +335,20 @@ describe('notificationUtils', () => {
       '/reservation/mentor?tab=history&reservationId=205'
     );
   });
+
+  it('prefers pre-resolved item.targetHref from mapNotificationVOToItem and falls back cleanly via reservationRoutes (#906)', () => {
+    const preResolved = buildItem({
+      type: 'feedback_reminder',
+      targetHref: '/reservation/mentor?tab=history&reservationId=777',
+    });
+    expect(getNotificationHref(preResolved)).toBe(
+      '/reservation/mentor?tab=history&reservationId=777'
+    );
+
+    const unknownWithoutTarget = buildItem({
+      type: 'future_unrecognized_event' as NotificationItem['type'],
+      targetHref: undefined,
+    });
+    expect(getNotificationHref(unknownWithoutTarget)).toBe('/');
+  });
 });

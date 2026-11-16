@@ -1,3 +1,4 @@
+import { captureFlowFailure } from '@/lib/monitoring';
 import { isEligibleForPendingFeedbackQueue } from '@/lib/reservation/reservationLifecyclePolicy';
 import {
   buildReservationHistoryRedirectHref,
@@ -60,6 +61,10 @@ export interface CreateFeedbackSessionCoordinatorOptions {
   lookup?: FeedbackSessionLookupPort;
   now?: () => number;
   seedTtlMs?: number;
+  onError?: (
+    error: unknown,
+    context: { step: 'load_login_queue'; userId: string }
+  ) => void;
 }
 
 export type ConsumedLookupSeed =
@@ -250,6 +255,19 @@ export function createFeedbackSessionCoordinator(
   const defaultLookup = options.lookup;
   const now = options.now ?? (() => Date.now());
   const seedTtlMs = options.seedTtlMs ?? DEFAULT_LOOKUP_SEED_TTL_MS;
+  const reportError =
+    options.onError ??
+    ((
+      error: unknown,
+      context: { step: 'load_login_queue'; userId: string }
+    ) => {
+      void captureFlowFailure({
+        flow: 'pending_feedback_queue',
+        step: context.step,
+        message: error instanceof Error ? error.message : String(error),
+        level: 'warning',
+      });
+    });
 
   const stateListeners = new Set<() => void>();
   const submittedListeners = new Set<
@@ -600,13 +618,14 @@ export function createFeedbackSessionCoordinator(
 
       notifyStateChange();
       return loginRuntime.presentedItems;
-    } catch {
+    } catch (error) {
       if (!signal?.aborted) {
         loginRuntime.trackedUserId = userId;
         loginRuntime.fetchedUserId = userId;
         loginRuntime.activeIds = [];
         loginRuntime.presentedItems = null;
         notifyStateChange();
+        reportError(error, { step: 'load_login_queue', userId });
       }
       return null;
     }
