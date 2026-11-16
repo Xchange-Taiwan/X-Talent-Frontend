@@ -56,8 +56,6 @@ export function evaluateReservationTimePhase(
   return { status: 'imminent', label: '即將開始' };
 }
 
-export const computeReservationTimeInfo = evaluateReservationTimePhase;
-
 /* ============================================================================
  * 2. Cancellation & SYSTEM 24-Hour Auto-Cancel Policy (#321 / #587)
  * ========================================================================== */
@@ -183,7 +181,7 @@ export function canOpenHistoryConversation(
  * suits HISTORY, whereas UPCOMING and PENDING tabs lead with the meeting
  * closest to now (`dtstart` ascending).
  */
-export function sortReservationsByDtstartAsc(
+function sortReservationsByDtstartAsc(
   items: readonly Reservation[]
 ): Reservation[] {
   return [...items].sort((a, b) => a.dtstart - b.dtstart);

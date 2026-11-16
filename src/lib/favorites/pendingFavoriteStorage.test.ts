@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   clearPendingFavoriteMentor,
-  consumePendingFavoriteMentorForPage,
   getPendingFavoriteMentorId,
   getPendingFavoriteProfilePath,
   PENDING_FAVORITE_MENTOR_STORAGE_KEY,
@@ -42,28 +41,6 @@ describe('pendingFavoriteStorage', () => {
     expect(
       window.localStorage.getItem(PENDING_FAVORITE_MENTOR_STORAGE_KEY)
     ).toBeNull();
-  });
-
-  it('consumes and clears pending favorite only when pageMentorId matches', () => {
-    const baseTime = 1_760_000_000_000;
-    savePendingFavoriteMentor(101, baseTime);
-
-    // Visiting a different mentor profile preserves pending favorite
-    expect(consumePendingFavoriteMentorForPage(202, baseTime + 1000)).toBe(
-      false
-    );
-    expect(getPendingFavoriteMentorId(baseTime + 1000)).toBe(101);
-
-    // Visiting matching mentor profile consumes and clears atomically
-    expect(consumePendingFavoriteMentorForPage(101, baseTime + 2000)).toBe(
-      true
-    );
-    expect(getPendingFavoriteMentorId(baseTime + 2000)).toBeNull();
-
-    // Subsequent consumption for same mentor returns false
-    expect(consumePendingFavoriteMentorForPage(101, baseTime + 3000)).toBe(
-      false
-    );
   });
 
   it('ignores invalid mentorId inputs and cleans up malformed localStorage payloads', () => {

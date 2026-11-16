@@ -99,18 +99,3 @@ export function getPendingFavoriteProfilePath(
   const mentorId = getPendingFavoriteMentorId(now);
   return mentorId !== null ? `/profile/${mentorId}` : null;
 }
-
-export function consumePendingFavoriteMentorForPage(
-  pageMentorId: number,
-  now: number = Date.now()
-): boolean {
-  if (!isValidMentorId(pageMentorId)) return false;
-
-  const pendingMentorId = getPendingFavoriteMentorId(now);
-  if (pendingMentorId === null || pendingMentorId !== pageMentorId) {
-    return false;
-  }
-
-  clearPendingFavoriteMentor();
-  return true;
-}

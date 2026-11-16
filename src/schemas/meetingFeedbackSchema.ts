@@ -16,33 +16,33 @@ export const MAX_MEETING_RATING = 10;
 export const MAX_FEEDBACK_CONTENT_LENGTH = 1000;
 export const MAX_NOT_HAPPENED_NOTE_LENGTH = 1000;
 
-export const FEEDBACK_CONTENT_MAX_ERROR = `評論內容不可超過 ${MAX_FEEDBACK_CONTENT_LENGTH} 字`;
-export const NOT_HAPPENED_NOTE_MAX_ERROR = `補充說明不可超過 ${MAX_NOT_HAPPENED_NOTE_LENGTH} 字`;
+const FEEDBACK_CONTENT_MAX_ERROR = `評論內容不可超過 ${MAX_FEEDBACK_CONTENT_LENGTH} 字`;
+const NOT_HAPPENED_NOTE_MAX_ERROR = `補充說明不可超過 ${MAX_NOT_HAPPENED_NOTE_LENGTH} 字`;
 export const MENTOR_NOT_HAPPENED_WARNING_TEXT =
   '送出後不能修改。這場會談不會計入已完成場次，學員的評價也不會公開。';
 
-export const meetingRatingFieldSchema = z
+const meetingRatingFieldSchema = z
   .number()
   .int('評分須為整數')
   .min(MIN_MEETING_RATING, `評分最低為 ${MIN_MEETING_RATING} 分`)
   .max(MAX_MEETING_RATING, `評分最高為 ${MAX_MEETING_RATING} 分`);
 
-export const feedbackContentFieldSchema = z
+const feedbackContentFieldSchema = z
   .string()
   .max(MAX_FEEDBACK_CONTENT_LENGTH, FEEDBACK_CONTENT_MAX_ERROR);
 
-export const notHappenedNoteFieldSchema = z
+const notHappenedNoteFieldSchema = z
   .string()
   .max(MAX_NOT_HAPPENED_NOTE_LENGTH, NOT_HAPPENED_NOTE_MAX_ERROR);
 
-export const notHappenedReasonFieldSchema = z.enum(NOT_HAPPENED_REASONS);
+const notHappenedReasonFieldSchema = z.enum(NOT_HAPPENED_REASONS);
 
-export const happenedFeedbackFieldsSchema = z.object({
+const happenedFeedbackFieldsSchema = z.object({
   rating: meetingRatingFieldSchema,
   content: feedbackContentFieldSchema,
 });
 
-export const notHappenedFeedbackFieldsSchema = z
+const notHappenedFeedbackFieldsSchema = z
   .object({
     notHappenedReason: notHappenedReasonFieldSchema,
     notHappenedNote: z.string(),
@@ -63,7 +63,7 @@ export const notHappenedFeedbackFieldsSchema = z
     }
   });
 
-export const updateMeetingFeedbackSchema = happenedFeedbackFieldsSchema;
+const updateMeetingFeedbackSchema = happenedFeedbackFieldsSchema;
 
 const meetingFeedbackFormBaseSchema = z.object({
   meetingHappened: z.boolean().nullable(),
@@ -129,9 +129,6 @@ export function createMeetingFeedbackFormSchema(
     }
   });
 }
-
-export const meetingFeedbackFormSchema =
-  createMeetingFeedbackFormSchema('mentee');
 
 export type MeetingFeedbackFormValues = z.infer<
   typeof meetingFeedbackFormBaseSchema

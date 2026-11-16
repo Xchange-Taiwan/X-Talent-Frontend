@@ -3,14 +3,12 @@
 import { useSyncExternalStore } from 'react';
 
 import {
-  computeReservationTimeInfo,
   evaluateReservationTimePhase,
   type ReservationTimeInfo,
   type ReservationTimeStatus,
 } from '@/lib/reservation/reservationLifecyclePolicy';
 
 export {
-  computeReservationTimeInfo,
   evaluateReservationTimePhase,
   type ReservationTimeInfo,
   type ReservationTimeStatus,

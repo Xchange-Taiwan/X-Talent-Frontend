@@ -1,12 +1,12 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { getLastPrimedTime } from '@/lib/cache/userProfileDtoCache';
 import { fetchUserById } from '@/services/profile/user';
 import { mockUserDTO } from '@/test/fixtures/profile';
 
 import {
   clearUserProfileDtoCache,
-  getLastPrimedTime,
   hasDtoConverged,
   primeUserProfileDtoCache,
   useUserProfileDto,

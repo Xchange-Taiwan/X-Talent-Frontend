@@ -28,7 +28,6 @@ export const RESERVATION_MENTOR_HREF = '/reservation/mentor';
 export const RESERVATION_HISTORY_HREF = '/reservation/history';
 
 export const API_AUTH_PREFIX = '/api/auth';
-export const apiAuthPrefix: string = API_AUTH_PREFIX;
 export const API_ANNOUNCEMENT_HREF = '/api/announcement';
 export const MONITORING_HREF = '/monitoring';
 
@@ -37,30 +36,6 @@ export const OPEN_SCHEDULE_DIALOG_KEY = 'open-schedule';
 
 const INTERNAL_BASE_ORIGIN = 'https://x-talent-internal.local';
 const SLASH_BACKSLASH_PREFIX = `/${String.fromCharCode(92)}`;
-
-/**
- * Canonical public route templates (kept for declarative inspection; runtime
- * classification uses precompiled matchers below). Note that `/profile/card`
- * and `/profile/[pageUserId]/edit` take precedence over `/profile/[pageUserId]`.
- */
-export const publicRoutes: readonly string[] = [
-  HOME_HREF,
-  ABOUT_HREF,
-  SIGNIN_HREF,
-  SIGNUP_HREF,
-  GOOGLE_OAUTH_CALLBACK_HREF,
-  PASSWORD_FORGOT_HREF,
-  PASSWORD_FORGOT_SUCCESS_HREF,
-  PASSWORD_RESET_HREF,
-  PASSWORD_RESET_SUCCESS_HREF,
-  EMAIL_VERIFY_HREF,
-  EMAIL_VERIFIED_HREF,
-  '/profile/[pageUserId]',
-  FIND_MENTOR_HREF,
-  PRIVACY_HREF,
-  TERMS_HREF,
-  API_ANNOUNCEMENT_HREF,
-];
 
 function safeDecodeSegment(value: string): string {
   try {
@@ -231,10 +206,6 @@ export function getMentorScheduleManagementUrl(
 
 export function getOpenScheduleHref(userId: string | undefined): string {
   return userId ? getMentorScheduleManagementUrl(userId) : HOME_HREF;
-}
-
-export function getReservationRoleUrl(role: 'mentee' | 'mentor'): string {
-  return role === 'mentor' ? RESERVATION_MENTOR_HREF : RESERVATION_MENTEE_HREF;
 }
 
 export function getSignInUrl(callbackUrl?: string | null): string {

@@ -4,7 +4,6 @@ import {
   ABOUT_HREF,
   API_ANNOUNCEMENT_HREF,
   API_AUTH_PREFIX,
-  apiAuthPrefix,
   classifyPathname,
   DEFAULT_LOGIN,
   evaluateMiddlewareGate,
@@ -17,7 +16,6 @@ import {
   getProfileEditUrl,
   getProfileHref,
   getPublicProfileUrl,
-  getReservationRoleUrl,
   getSignInUrl,
   HOME_HREF,
   isDisallowedCallbackPathname,
@@ -77,7 +75,6 @@ describe('src/lib/routes', () => {
       expect(RESERVATION_MENTOR_HREF).toBe('/reservation/mentor');
       expect(RESERVATION_HISTORY_HREF).toBe('/reservation/history');
       expect(API_AUTH_PREFIX).toBe('/api/auth');
-      expect(apiAuthPrefix).toBe('/api/auth');
       expect(API_ANNOUNCEMENT_HREF).toBe('/api/announcement');
       expect(MENTOR_ONBOARDING_KEY).toBe('mentor-onboarding');
       expect(OPEN_SCHEDULE_DIALOG_KEY).toBe('open-schedule');
@@ -104,9 +101,7 @@ describe('src/lib/routes', () => {
       expect(getOpenScheduleHref(undefined)).toBe('/');
     });
 
-    it('builds reservation role URLs and sanitized sign-in callback URLs', () => {
-      expect(getReservationRoleUrl('mentee')).toBe('/reservation/mentee');
-      expect(getReservationRoleUrl('mentor')).toBe('/reservation/mentor');
+    it('builds sanitized sign-in callback URLs', () => {
       expect(getSignInUrl()).toBe('/auth/signin');
       expect(getSignInUrl(null)).toBe('/auth/signin');
       expect(getSignInUrl('/maintenance')).toBe('/auth/signin');
