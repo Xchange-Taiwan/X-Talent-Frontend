@@ -1,6 +1,7 @@
-import { fromAny, fromPartial } from '@total-typescript/shoehorn';
+import { fromPartial } from '@total-typescript/shoehorn';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { encode, toWireExperiences } from '@/lib/profile/experienceCodec';
 import type { MentorProfileVO } from '@/types/user';
 
 import {
@@ -8,6 +9,7 @@ import {
   getEffectiveInitialDto,
   getUserProfileDtoFromCache,
   hasDtoConverged,
+  hasProfileDtoConverged,
   isOptimisticTransitionActive,
   primeUserProfileDtoCache,
   resolveUserProfileDtoFetch,
@@ -164,6 +166,118 @@ describe('userProfileDtoCache (src/lib/cache)', () => {
       clearUserProfileDtoCache(60, 'zh_TW');
     });
 
+    it('guards every editable scalar, tag bucket, and experience field against stale SWR overwrite during optimistic window', async () => {
+      const { experiences } = encode({
+        workExperiences: [
+          {
+            job: 'Principal Engineer',
+            company: 'Acme',
+            job_period_start: '2022',
+            job_period_end: 'now',
+            industry: 'tech',
+            job_location: 'TWN',
+            description: 'Architecture',
+            is_primary: true,
+          },
+        ],
+        educations: [
+          {
+            school: 'NTU',
+            subject: 'CS',
+            education_period_start: '2014',
+            education_period_end: '2018',
+          },
+        ],
+        personalLinks: [
+          { platform: 'github', url: 'https://github.com/janedoe' },
+        ],
+      });
+
+      const primedDto: MentorProfileVO = {
+        user_id: 65,
+        name: 'Jane Doe',
+        avatar: 'https://s3.amazonaws.com/bucket/files/65/avatar?v=1754000000',
+        job_title: 'Principal Engineer',
+        company: 'Acme',
+        years_of_experience: '5_10',
+        location: 'TWN',
+        onboarding: true,
+        is_mentor: true,
+        language: 'zh_TW',
+        personal_statement: 'Updated statement',
+        about: 'Updated about bio',
+        seniority_level: null,
+        industry: {
+          id: 3,
+          kind: 'industry',
+          subject_group: 'tech',
+          subject: '軟體與科技',
+        },
+        experiences: toWireExperiences(experiences),
+        have_skill: ['typescript', 'system_design'],
+        have_topic: ['career'],
+        want_position: ['staff_engineer'],
+        want_skill: ['leadership'],
+        want_topic: ['management'],
+      };
+
+      primeUserProfileDtoCache(65, 'zh_TW', primedDto);
+
+      const staleMutations: Array<Partial<MentorProfileVO>> = [
+        { about: 'Old about bio' },
+        { personal_statement: 'Old statement' },
+        { location: 'USA' },
+        { years_of_experience: '1_3' },
+        {
+          industry: {
+            id: 4,
+            kind: 'industry',
+            subject_group: 'finance',
+            subject: '金融業',
+          },
+        },
+        {
+          avatar:
+            'https://s3.amazonaws.com/bucket/files/65/avatar?v=1753999999',
+        },
+        { experiences: [] },
+        { have_skill: ['typescript'] },
+        { have_topic: [] },
+        { want_position: ['junior_engineer'] },
+        { want_skill: [] },
+        { want_topic: ['interview'] },
+      ];
+
+      for (const staleOverride of staleMutations) {
+        const staleCandidate: MentorProfileVO = {
+          ...primedDto,
+          ...staleOverride,
+        };
+        const result = await resolveUserProfileDtoFetch(
+          '65-zh_TW',
+          async () => staleCandidate,
+          new AbortController().signal
+        );
+        expect(result).toBe(primedDto);
+      }
+
+      const convergedBackendDto: MentorProfileVO = {
+        ...primedDto,
+        avatar:
+          'https://s3.amazonaws.com/bucket/files/65/avatar?v=1754000000&cb=2026-11-16T00%3A00%3A00Z',
+        have_skill: ['system_design', 'typescript'],
+      };
+
+      const convergedResult = await resolveUserProfileDtoFetch(
+        '65-zh_TW',
+        async () => convergedBackendDto,
+        new AbortController().signal
+      );
+      expect(convergedResult).toBe(convergedBackendDto);
+
+      clearUserProfileDtoCache(65, 'zh_TW');
+    });
+
     it('retains stale primed DTO via peek() during optimistic transition window when entry TTL has elapsed and incoming DTO has not converged', async () => {
       const primedDto = fromPartial<MentorProfileVO>({
         user_id: 64,
@@ -282,13 +396,15 @@ describe('userProfileDtoCache (src/lib/cache)', () => {
     });
   });
 
-  describe('hasDtoConverged', () => {
-    it('validates ?v= upload version equality across &cb= cache-busters and guards optimistic industry edits', () => {
+  describe('hasProfileDtoConverged & hasDtoConverged alias', () => {
+    it('shares canonical reference with hasProfileDtoConverged and validates ?v= upload version equality across &cb= cache-busters and industry edits', () => {
+      expect(hasDtoConverged).toBe(hasProfileDtoConverged);
+
       const primed = fromPartial<MentorProfileVO>({
         user_id: 70,
         name: 'Mentor',
         avatar: 'https://s3.amazonaws.com/bucket/files/70/avatar?v=1754',
-        industry: fromAny({ subject_group: 'FINANCE', subject: '金融業' }),
+        industry: { subject_group: 'FINANCE', subject: '金融業' },
         is_mentor: true,
         onboarding: true,
       });
@@ -297,32 +413,32 @@ describe('userProfileDtoCache (src/lib/cache)', () => {
         ...primed,
         avatar: 'https://s3.amazonaws.com/bucket/files/70/avatar?v=1753&cb=now',
       });
-      expect(hasDtoConverged(primed, staleAvatarVersion)).toBe(false);
+      expect(hasProfileDtoConverged(primed, staleAvatarVersion)).toBe(false);
 
       const prefixTrapAvatar = fromPartial<MentorProfileVO>({
         ...primed,
         avatar: 'https://s3.amazonaws.com/bucket/files/70/avatar?v=175499',
       });
-      expect(hasDtoConverged(primed, prefixTrapAvatar)).toBe(false);
+      expect(hasProfileDtoConverged(primed, prefixTrapAvatar)).toBe(false);
 
       const staleIndustry = fromPartial<MentorProfileVO>({
         ...primed,
-        industry: fromAny({ subject_group: 'TECH', subject: '科技業' }),
+        industry: { subject_group: 'TECH', subject: '科技業' },
       });
-      expect(hasDtoConverged(primed, staleIndustry)).toBe(false);
+      expect(hasProfileDtoConverged(primed, staleIndustry)).toBe(false);
 
       const converged = fromPartial<MentorProfileVO>({
         ...primed,
         avatar:
           'https://s3.amazonaws.com/bucket/files/70/avatar?v=1754&cb=2026-11-14T00%3A00%3A00Z',
-        industry: fromAny({
+        industry: {
           id: 9,
           kind: 'industry',
           subject_group: 'FINANCE',
           subject: '金融業',
-        }),
+        },
       });
-      expect(hasDtoConverged(primed, converged)).toBe(true);
+      expect(hasProfileDtoConverged(primed, converged)).toBe(true);
     });
   });
 });

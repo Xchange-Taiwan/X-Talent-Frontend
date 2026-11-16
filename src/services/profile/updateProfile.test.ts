@@ -3,8 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { apiClient } from '@/lib/apiClient';
 
-import type { UpdateProfileInput } from './updateProfile';
-import { updateProfile } from './updateProfile';
+import {
+  type MentorProfileWritePayload,
+  updateProfile,
+  type UpdateProfileInput,
+} from './updateProfile';
 
 vi.mock('@/lib/apiClient', () => ({
   apiClient: {
@@ -24,7 +27,38 @@ describe('updateProfile service', () => {
     );
   });
 
-  it('successfully updates profile with a valid numeric userId', async () => {
+  it('successfully updates profile with a canonical MentorProfileWritePayload and numeric userId', async () => {
+    vi.mocked(apiClient.put).mockResolvedValue({ code: '0', msg: 'success' });
+
+    const payload: MentorProfileWritePayload = {
+      name: 'Jane Doe',
+      avatar: 'https://s3.amazonaws.com/bucket/files/42/avatar?v=1754000000000',
+      location: 'TWN',
+      years_of_experience: '3_5',
+      industry: 'tech',
+      language: 'zh_TW',
+      is_mentor: true,
+      onboarding: true,
+      about: 'Experienced frontend engineer',
+      personal_statement: 'Welcome to book a session',
+      job_title: 'Software Engineer',
+      company: 'Acme',
+      want_position: ['engineer'],
+      want_skill: ['typescript'],
+      want_topic: ['career'],
+      have_skill: ['react_nextjs'],
+      have_topic: ['frontend'],
+    };
+
+    await updateProfile('42', payload);
+
+    expect(apiClient.put).toHaveBeenCalledWith('/v1/mentors/42/profile', {
+      ...payload,
+      user_id: 42,
+    });
+  });
+
+  it('supports partial UpdateProfileInput during transitional compatibility', async () => {
     vi.mocked(apiClient.put).mockResolvedValue({ code: '0', msg: 'success' });
 
     const dummyProfileData = fromPartial<UpdateProfileInput>({

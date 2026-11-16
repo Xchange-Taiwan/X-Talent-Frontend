@@ -1,7 +1,7 @@
-import { hasAvatarVersionConverged } from '@/lib/avatar/avatarUrl';
+import { hasProfileDtoConverged } from '@/lib/profile/convergence';
 import {
   encode,
-  type MentorExperiencePayload,
+  fromWireExperiences,
   type PersonalLinkMetadata,
   toFormValues,
 } from '@/lib/profile/experienceCodec';
@@ -12,6 +12,7 @@ import {
   validatePlatformUrl,
 } from '@/lib/profile/socialLinks';
 import { defaultValues, ProfileFormValues } from '@/schemas/profileSchema';
+import type { MentorProfileWritePayload } from '@/services/profile/updateProfile';
 import type { IndustryOption } from '@/types/tagCatalog';
 import type { MentorIndustryVO, MentorProfileVO } from '@/types/user';
 
@@ -38,8 +39,7 @@ export function mapVoToFormValues(
   isMentorOnboarding: boolean
 ): ProfileFormValues {
   const mentorFlag = Boolean(userDto.is_mentor || isMentorOnboarding);
-  const experiences =
-    userDto.experiences as unknown as MentorExperiencePayload[];
+  const experiences = fromWireExperiences(userDto.experiences);
 
   const {
     workExperiences: parsedExperiences,
@@ -137,13 +137,19 @@ export function extractValidLinks(
 }
 
 /**
- * Maps ProfileFormValues into the payload needed for the updateProfile API.
+ * Maps `ProfileFormValues` into a canonical `MentorProfileWritePayload` for
+ * `PUT /v1/mentors/{id}/profile`, ensuring `about` is normalized to `string`,
+ * zero UI-only RHF keys (`work_experiences`, `educations`, `links`, `statement`,
+ * `avatarFile`) leak onto the wire, and `personal_statement` conversion is
+ * isolated on a single compatibility line.
  */
 export function mapFormValuesToPayload(
   values: ProfileFormValues,
   avatar: string | undefined,
-  experiencesDirty: boolean
-) {
+  experiencesDirty: boolean,
+  currentDto?: MentorProfileVO | null,
+  isMentorOnboarding = false
+): MentorProfileWritePayload {
   const links = extractValidLinks(values);
 
   const {
@@ -156,12 +162,30 @@ export function mapFormValuesToPayload(
     personalLinks: links,
   });
 
+  // Single compatibility line for backend #891 removal of personal_statement
+  const personalStatement =
+    values.statement ?? currentDto?.personal_statement ?? '';
+
   return {
-    ...values,
-    avatar,
-    avatarFile: undefined,
+    name: values.name,
+    ...(avatar !== undefined ? { avatar } : {}),
+    location: values.location ?? '',
+    years_of_experience: values.years_of_experience ?? '',
+    industry: values.industry ?? '',
+    language: 'zh_TW',
+    is_mentor: isMentorOnboarding ? true : Boolean(values.is_mentor),
+    ...(isMentorOnboarding || values.onboarding !== undefined
+      ? { onboarding: isMentorOnboarding ? true : Boolean(values.onboarding) }
+      : {}),
+    about: values.about ?? '',
+    personal_statement: personalStatement,
     job_title,
     company: companyFromPrimary,
+    want_position: values.want_position ?? [],
+    want_skill: values.want_skill ?? [],
+    want_topic: values.want_topic ?? [],
+    have_skill: values.have_skill ?? [],
+    have_topic: values.have_topic ?? [],
     // Three-state semantic on the wire: omit when no experience section
     // changed (backend leaves the column alone); include the full set
     // when any section is dirty (backend overwrites). Replace semantics:
@@ -210,25 +234,26 @@ export function resolveOptimisticIndustry(
 }
 
 /**
- * Verifies if the latest MentorProfileVO fetched from the backend matches the submitted form values.
+ * Compatibility wrapper verifying whether a backend `MentorProfileVO` matches
+ * submitted form scalar fields via canonical `hasProfileDtoConverged`.
  */
 export function isProfileSynced(
   values: ProfileFormValues,
   latest: MentorProfileVO,
   avatar: string
 ): boolean {
-  if (latest.name !== values.name) return false;
-  if ((latest.location ?? '') !== (values.location ?? '')) return false;
-  if ((latest.personal_statement ?? '') !== (values.statement ?? ''))
-    return false;
-  if ((latest.about ?? '') !== (values.about ?? '')) return false;
-  if ((latest.years_of_experience ?? '') !== (values.years_of_experience ?? ''))
-    return false;
-  if (
-    (readIndustryTag(latest.industry)?.subject_group ?? '') !==
-    (values.industry ?? '')
-  )
-    return false;
-  if (avatar && !hasAvatarVersionConverged(avatar, latest.avatar)) return false;
-  return true;
+  return hasProfileDtoConverged(
+    {
+      name: values.name,
+      avatar: avatar || undefined,
+      location: values.location ?? '',
+      personal_statement: values.statement ?? '',
+      about: values.about ?? '',
+      years_of_experience: values.years_of_experience ?? '',
+      industry: values.industry
+        ? { subject_group: values.industry, subject: '' }
+        : null,
+    },
+    latest
+  );
 }

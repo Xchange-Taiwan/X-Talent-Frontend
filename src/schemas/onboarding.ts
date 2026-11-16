@@ -43,3 +43,5 @@ export const formSchema = step1Schema
   .merge(step3Schema)
   .merge(step4Schema)
   .merge(step5Schema);
+
+export type OnboardingFormValues = z.infer<typeof formSchema>;
