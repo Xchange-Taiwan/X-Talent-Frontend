@@ -524,15 +524,26 @@ async function fetchIssueWithHtml(ticketNumber, token, fetchImpl = fetch) {
   }
   const issue = await issueRes.json();
 
-  const commentsRes = await fetchImpl(`${baseUrl}/comments?per_page=100`, {
-    headers,
-    signal: AbortSignal.timeout(15000),
-  });
-  const comments = commentsRes.ok ? await commentsRes.json() : [];
+  const comments = [];
+  let nextUrl = `${baseUrl}/comments?per_page=100`;
+  for (let page = 0; page < 20 && nextUrl; page++) {
+    const commentsRes = await fetchImpl(nextUrl, {
+      headers,
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!commentsRes.ok) break;
+    const pageItems = await commentsRes.json();
+    if (Array.isArray(pageItems)) {
+      comments.push(...pageItems);
+    }
+    const linkHeader = commentsRes.headers?.get?.('link') || '';
+    const nextMatch = String(linkHeader).match(/<([^>]+)>;\s*rel="next"/i);
+    nextUrl = nextMatch?.[1] || '';
+  }
 
   return {
     issue,
-    comments: Array.isArray(comments) ? comments : [],
+    comments,
   };
 }
 
@@ -945,6 +956,9 @@ export async function runPrefetchVisuals(options = {}) {
     specFile = '.agents/tmp/ticket-spec.md',
     manifestFile = '.agents/tmp/visual-manifest.json',
     skipPrototypes = false,
+    ticketContext = null,
+    fetchImpl = fetch,
+    fsImpl = fs,
     ghToken = process.env.TRACKER_READ_TOKEN ||
       process.env.GH_TOKEN ||
       process.env.GITHUB_TOKEN ||
@@ -955,20 +969,36 @@ export async function runPrefetchVisuals(options = {}) {
     return { downloadedImages: [], capturedPrototypes: [] };
   }
 
-  fs.mkdirSync(outDir, { recursive: true });
+  fsImpl.mkdirSync(outDir, { recursive: true });
+  const bsChar = String.fromCharCode(92);
 
   let blocks = [];
   let rawTexts = [];
-  try {
-    const { issue, comments } = await fetchIssueWithHtml(ticketNumber, ghToken);
-    blocks = prioritizeIssueAndCommentBlocks(issue, comments);
+  if (
+    ticketContext &&
+    Array.isArray(ticketContext.htmlBlocks) &&
+    ticketContext.htmlBlocks.length > 0
+  ) {
+    blocks = ticketContext.htmlBlocks;
     rawTexts = blocks.map((b) => b?.body ?? '');
-  } catch (err) {
-    console.warn(`[prefetch-visuals] GitHub API fetch skipped: ${err.message}`);
-    if (fs.existsSync(specFile)) {
-      const fallbackText = fs.readFileSync(specFile, 'utf8');
-      blocks = [{ body: fallbackText, body_html: '' }];
-      rawTexts = [fallbackText];
+  } else {
+    try {
+      const { issue, comments } = await fetchIssueWithHtml(
+        ticketNumber,
+        ghToken,
+        fetchImpl
+      );
+      blocks = prioritizeIssueAndCommentBlocks(issue, comments);
+      rawTexts = blocks.map((b) => b?.body ?? '');
+    } catch (err) {
+      console.warn(
+        `[prefetch-visuals] GitHub API fetch skipped: ${err.message}`
+      );
+      if (specFile && fsImpl.existsSync(specFile)) {
+        const fallbackText = fsImpl.readFileSync(specFile, 'utf8');
+        blocks = [{ body: fallbackText, body_html: '' }];
+        rawTexts = [fallbackText];
+      }
     }
   }
 
@@ -978,13 +1008,17 @@ export async function runPrefetchVisuals(options = {}) {
   for (let i = 0; i < imageCandidates.length; i++) {
     const candidate = imageCandidates[i];
     try {
-      const result = await downloadVerifiedImage(candidate.url, ghToken);
+      const result = await downloadVerifiedImage(
+        candidate.url,
+        ghToken,
+        fetchImpl
+      );
       if (!result) continue;
       const fileName = `ticket-img-${String(downloadedImages.length + 1).padStart(2, '0')}${result.ext}`;
       const fullPath = path.join(outDir, fileName);
-      fs.writeFileSync(fullPath, result.buffer);
+      fsImpl.writeFileSync(fullPath, result.buffer);
       downloadedImages.push({
-        path: fullPath.replace(/\\/g, '/'),
+        path: fullPath.split(bsChar).join('/'),
         mimeType: result.mimeType,
         alt: candidate.alt,
       });
@@ -993,7 +1027,7 @@ export async function runPrefetchVisuals(options = {}) {
     }
   }
 
-  const designHubKb = await fetchDesignHubKb();
+  const designHubKb = await fetchDesignHubKb(fetchImpl);
   const { prototypeUrls, skippedProtectedUrls } = extractDesignUrlsFromTexts(
     rawTexts,
     ticketNumber,
@@ -1016,11 +1050,17 @@ export async function runPrefetchVisuals(options = {}) {
     skippedProtectedUrls,
   };
 
-  fs.mkdirSync(path.dirname(manifestFile), { recursive: true });
-  fs.writeFileSync(manifestFile, JSON.stringify(manifest, null, 2), 'utf8');
+  if (manifestFile) {
+    fsImpl.mkdirSync(path.dirname(manifestFile), { recursive: true });
+    fsImpl.writeFileSync(
+      manifestFile,
+      JSON.stringify(manifest, null, 2),
+      'utf8'
+    );
+  }
 
   const markdownAppend = formatVisualManifestMarkdown(manifest);
-  if (markdownAppend && fs.existsSync(specFile)) {
+  if (markdownAppend && specFile && fsImpl.existsSync(specFile)) {
     fs.appendFileSync(specFile, `${markdownAppend}\n`, 'utf8');
   }
 

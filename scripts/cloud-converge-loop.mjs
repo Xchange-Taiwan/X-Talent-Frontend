@@ -8,6 +8,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+  applyDeleteFilesManifest as applySandboxedDeleteManifest,
+  applyHeadlessWorkspaceLocks,
+  isSecretEnvFile,
+  mergeHeadlessGeminiSettings,
+  unstageCloudWorkspaceLocks,
+} from './cloud/workspace-guard.mjs';
+
 const REVIEW_CATEGORIES = [
   'security',
   'correctness',
@@ -329,75 +337,7 @@ export function ensurePhase2GeminiToolExclusions(
   settingsPath = '.gemini/settings.json',
   fsImpl = fs
 ) {
-  if (!fsImpl.existsSync(settingsPath)) return false;
-  try {
-    const parsed = JSON.parse(fsImpl.readFileSync(settingsPath, 'utf8'));
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return false;
-    }
-    const nextConfig = { ...parsed };
-    delete nextConfig.mcpServers;
-    delete nextConfig.hooks;
-
-    const existing = Array.isArray(nextConfig?.tools?.exclude)
-      ? nextConfig.tools.exclude
-      : [];
-    const mergedExclude = [
-      ...new Set([
-        ...existing,
-        'run_shell_command',
-        'web_fetch',
-        'google_web_search',
-      ]),
-    ];
-
-    const prevFiltering =
-      nextConfig.fileFiltering && typeof nextConfig.fileFiltering === 'object'
-        ? nextConfig.fileFiltering
-        : {};
-    const prevContext =
-      nextConfig.context && typeof nextConfig.context === 'object'
-        ? nextConfig.context
-        : {};
-    const prevCtxFiltering =
-      prevContext.fileFiltering && typeof prevContext.fileFiltering === 'object'
-        ? prevContext.fileFiltering
-        : {};
-
-    const updated = {
-      ...nextConfig,
-      tools: {
-        ...(nextConfig.tools && typeof nextConfig.tools === 'object'
-          ? nextConfig.tools
-          : {}),
-        exclude: mergedExclude,
-      },
-      fileFiltering: {
-        ...prevFiltering,
-        // Keep respectGitIgnore: true so Gemini CLI never scans node_modules/
-        // or .next/ (~200k files). `.agents/tmp/` is removed from `.gitignore`
-        // in-memory during cloud runs so `.agents/tmp/ticket-spec.md` stays readable.
-        respectGitIgnore: true,
-        respectGeminiIgnore: false,
-      },
-      context: {
-        ...prevContext,
-        fileFiltering: {
-          ...prevCtxFiltering,
-          respectGitIgnore: true,
-          respectGeminiIgnore: false,
-        },
-      },
-    };
-    fsImpl.writeFileSync(
-      settingsPath,
-      `${JSON.stringify(updated, null, 2)}\n`,
-      'utf8'
-    );
-    return true;
-  } catch {
-    return false;
-  }
+  return mergeHeadlessGeminiSettings(settingsPath, fsImpl);
 }
 
 export function applyPhase2HeadlessWorkspaceLocks({
@@ -405,37 +345,7 @@ export function applyPhase2HeadlessWorkspaceLocks({
   fsImpl = fs,
   execGit = execFileSync,
 } = {}) {
-  const gitignorePath = path.join(cwd, '.gitignore');
-  if (fsImpl.existsSync(gitignorePath)) {
-    try {
-      const giRaw = fsImpl.readFileSync(gitignorePath, 'utf8');
-      const giFiltered = giRaw
-        .split(/\r?\n/)
-        .filter((line) => line.trim() !== '/.agents/tmp/')
-        .join('\n');
-      if (giFiltered !== giRaw) {
-        fsImpl.writeFileSync(gitignorePath, giFiltered, 'utf8');
-      }
-      execGit('git', ['update-index', '--skip-worktree', '.gitignore'], {
-        cwd,
-        stdio: 'ignore',
-      });
-    } catch {}
-  }
-
-  const settingsPath = path.join(cwd, '.gemini', 'settings.json');
-  if (ensurePhase2GeminiToolExclusions(settingsPath, fsImpl)) {
-    try {
-      execGit(
-        'git',
-        ['update-index', '--skip-worktree', '.gemini/settings.json'],
-        {
-          cwd,
-          stdio: 'ignore',
-        }
-      );
-    } catch {}
-  }
+  applyHeadlessWorkspaceLocks({ cwd, fsImpl, execGit });
 }
 
 export function createSnapshotSaver({
@@ -456,48 +366,12 @@ export function createSnapshotSaver({
         stdio: 'ignore',
       });
       execGit('git', ['add', '-A'], { cwd, env: snapEnv, stdio: 'ignore' });
-      try {
-        const cachedNames = execGit(
-          'git',
-          ['diff', '--cached', '--name-only'],
-          {
-            cwd,
-            env: snapEnv,
-            encoding: 'utf8',
-            stdio: ['ignore', 'pipe', 'ignore'],
-          }
-        )
-          .split(/\r?\n/)
-          .map((s) => s.trim())
-          .filter(Boolean);
-        for (const f of cachedNames) {
-          if (
-            /(^|\/)\.env(\..+)?$/.test(f) &&
-            !/\.env\.(example|sample|template)$/.test(f)
-          ) {
-            try {
-              execGit('git', ['reset', '--', f], {
-                cwd,
-                env: snapEnv,
-                stdio: 'ignore',
-              });
-            } catch {}
-          }
-        }
-      } catch {}
-      for (const spec of [
-        '.agents/tmp*',
-        '.gitignore',
-        '.gemini/settings.json',
-      ]) {
-        try {
-          execGit('git', ['reset', '--', spec], {
-            cwd,
-            env: snapEnv,
-            stdio: 'ignore',
-          });
-        } catch {}
-      }
+      unstageCloudWorkspaceLocks({
+        cwd,
+        gitEnv: snapEnv,
+        execGit,
+        restoreWorktree: false,
+      });
       const treeSha = execGit('git', ['write-tree'], {
         cwd,
         env: snapEnv,
@@ -818,111 +692,7 @@ function defaultExecStep(cmd, args, options = {}) {
 }
 
 function applyDeleteFilesManifest(repoRoot, log, fsImpl = fs) {
-  const manifestPath = path.join(repoRoot, '.agents/tmp/delete-files.txt');
-  if (!fsImpl.existsSync(manifestPath)) {
-    return;
-  }
-
-  let rawContent = '';
-  try {
-    const manifestStat = fsImpl.lstatSync(manifestPath);
-    if (!manifestStat.isFile()) {
-      fsImpl.unlinkSync(manifestPath);
-      return;
-    }
-    rawContent = fsImpl.readFileSync(manifestPath, 'utf8');
-  } catch (err) {
-    const msg = err?.message || err;
-    log(`[cloud-converge] Failed to read delete-files.txt: ${msg}`);
-    try {
-      fsImpl.unlinkSync(manifestPath);
-    } catch {}
-    return;
-  }
-
-  try {
-    const lines = rawContent
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean);
-
-    for (const rawLine of lines) {
-      const isUnsafePath =
-        rawLine.includes('\0') ||
-        path.isAbsolute(rawLine) ||
-        rawLine.startsWith('/') ||
-        rawLine.startsWith('\\') ||
-        /^[a-zA-Z]:/.test(rawLine);
-      if (isUnsafePath) {
-        log(`[cloud-converge] Skipping unsafe delete entry: ${rawLine}`);
-        continue;
-      }
-
-      const relPath = rawLine.replace(/\\/g, '/').replace(/^\.\//, '');
-      const segments = relPath.split('/');
-      const hasForbiddenSegment = segments.some(
-        (seg) =>
-          !seg ||
-          seg === '.' ||
-          seg === '..' ||
-          seg === '.git' ||
-          seg === '.agents' ||
-          seg === '.gemini' ||
-          seg.startsWith('.env')
-      );
-      if (!relPath || relPath === '.gitignore' || hasForbiddenSegment) {
-        log(`[cloud-converge] Skipping forbidden delete entry: ${rawLine}`);
-        continue;
-      }
-
-      const resolvedPath = path.resolve(repoRoot, relPath);
-      const relFromRoot = path.relative(repoRoot, resolvedPath);
-      const isOutsideRoot =
-        !relFromRoot ||
-        relFromRoot.startsWith('..') ||
-        path.isAbsolute(relFromRoot);
-      if (isOutsideRoot) {
-        log(`[cloud-converge] Skipping out-of-repo delete entry: ${rawLine}`);
-        continue;
-      }
-
-      try {
-        let hasInvalidParent = false;
-        let walkDir = repoRoot;
-        for (let i = 0; i < segments.length - 1; i++) {
-          walkDir = path.join(walkDir, segments[i]);
-          const dirStat = fsImpl.lstatSync(walkDir);
-          if (dirStat.isSymbolicLink() || !dirStat.isDirectory()) {
-            hasInvalidParent = true;
-            break;
-          }
-        }
-        if (hasInvalidParent) {
-          log(`[cloud-converge] Skipping symlink-parent entry: ${relPath}`);
-          continue;
-        }
-
-        const targetStat = fsImpl.lstatSync(resolvedPath);
-        if (!targetStat.isFile() && !targetStat.isSymbolicLink()) {
-          log(`[cloud-converge] Skipping non-file delete entry: ${relPath}`);
-          continue;
-        }
-
-        fsImpl.unlinkSync(resolvedPath);
-        log(`[cloud-converge] Deleted file via manifest: ${relPath}`);
-      } catch (err) {
-        if (err?.code === 'ENOENT') {
-          continue;
-        }
-        const msg = err?.message || err;
-        log(`[cloud-converge] Failed to delete ${relPath}: ${msg}`);
-      }
-    }
-  } finally {
-    try {
-      fsImpl.unlinkSync(manifestPath);
-    } catch {}
-  }
+  applySandboxedDeleteManifest({ cwd: repoRoot, log, fsImpl });
 }
 
 export async function runConvergeLoop(rawOptions = {}, deps = {}) {
@@ -1026,10 +796,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
           .filter(
             (relPath) =>
               relPath &&
-              !(
-                /(^|\/)\.env(\..+)?$/.test(relPath) &&
-                !/\.env\.(example|sample|template)$/.test(relPath)
-              ) &&
+              !isSecretEnvFile(relPath) &&
               relPath !== '.agents/tmp' &&
               !relPath.startsWith('.agents/tmp/')
           )

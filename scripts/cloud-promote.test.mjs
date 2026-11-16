@@ -1,11 +1,17 @@
 // @vitest-environment node
-import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   buildWorkflowDispatchArgs,
   parsePromoteArgs,
+  promoteLocalBranchToCloud,
   validateBranchForPromote,
 } from './cloud-promote.mjs';
+
+const LF = String.fromCharCode(10);
 
 describe('cloud-promote', () => {
   describe('validateBranchForPromote', () => {
@@ -72,5 +78,59 @@ describe('cloud-promote', () => {
         'extra_prompt=check RWD',
       ]);
     });
+  });
+
+  describe('promoteLocalBranchToCloud', () => {
+    it('unstages secret .env* files while preserving .env.example and .env.template before committing and dispatching workflow', () => {
+      const gitCalls = [];
+      const ghCalls = [];
+      const port = {
+        git: vi.fn((args) => {
+          gitCalls.push(args.join(' '));
+          if (args[0] === 'branch' && args[1] === '--show-current') {
+            return 'feat/907-cloud-guard';
+          }
+          if (args[0] === 'status' && args[1] === '--porcelain') {
+            return ['M .env.example', '?? .env.development.local'].join(LF);
+          }
+          if (args[0] === 'diff' && args[1] === '--cached') {
+            return [
+              '.env.development.local',
+              '.env.example',
+              '.env.template',
+              'src/app.ts',
+            ].join(LF);
+          }
+          return '';
+        }),
+        gh: vi.fn((args) => {
+          ghCalls.push(args.join(' '));
+          return '';
+        }),
+      };
+
+      promoteLocalBranchToCloud([], {
+        cwd: '/repo',
+        port,
+        log: () => {},
+      });
+
+      expect(gitCalls).toContain('add -A');
+      expect(gitCalls).toContain('reset -- .env.development.local');
+      expect(gitCalls).not.toContain('reset -- .env.example');
+      expect(gitCalls).not.toContain('reset -- .env.template');
+      expect(gitCalls).not.toContain('reset -- .gitignore');
+      expect(gitCalls).toContain('push -u origin feat/907-cloud-guard');
+      expect(ghCalls[0]).toContain('workflow run cloud-implement.yml');
+    });
+  });
+
+  it('preserves #!/usr/bin/env node shebang at line 1 for direct CLI execution', () => {
+    const scriptPath = path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      'cloud-promote.mjs'
+    );
+    const raw = fs.readFileSync(scriptPath, 'utf8');
+    expect(raw.startsWith(`#!/usr/bin/env node${LF}`)).toBe(true);
   });
 });

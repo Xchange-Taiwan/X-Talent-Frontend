@@ -93,10 +93,11 @@ async function callGeminiOnce(
     apiKey,
     images = [],
     timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+    fetchImpl = fetch,
   }
 ) {
   const parts = buildGeminiParts(promptText, images);
-  const res = await fetch(
+  const res = await fetchImpl(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
       method: 'POST',
@@ -183,7 +184,7 @@ async function callGeminiOnce(
  * identical call" — not worth failing an entire pipeline run over.
  */
 export async function callGemini(promptText, options = {}) {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = options.apiKey || process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY is not set');
   }
@@ -197,6 +198,8 @@ export async function callGemini(promptText, options = {}) {
   const images = Array.isArray(options.images) ? options.images : [];
   const sleepFn =
     typeof options.sleepFn === 'function' ? options.sleepFn : sleep;
+  const fetchImpl =
+    typeof options.fetchImpl === 'function' ? options.fetchImpl : fetch;
 
   let effectiveTokens = maxOutputTokens;
   let lastErr;
@@ -208,6 +211,7 @@ export async function callGemini(promptText, options = {}) {
         apiKey,
         images,
         timeoutMs,
+        fetchImpl,
       });
     } catch (err) {
       lastErr = err;
@@ -256,6 +260,7 @@ export async function callGemini(promptText, options = {}) {
         apiKey,
         images,
         timeoutMs,
+        fetchImpl,
       });
     } catch (fallbackErr) {
       console.warn(
