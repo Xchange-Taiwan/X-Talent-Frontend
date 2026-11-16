@@ -27,6 +27,10 @@ jobs:
         with:
           node-version: 24
 
+      - name: Install Worker dependencies
+        run: |
+          if [ -f package-lock.json ]; then npm ci; elif [ -f package.json ]; then npm install; fi
+
       - name: Run Worker unit tests
         run: node --test --experimental-strip-types test/discord-mention-worker.test.ts
 
