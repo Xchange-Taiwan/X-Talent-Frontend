@@ -1,46 +1,26 @@
-export interface FeatureFlagEnvOverrides {
-  rawValue?: string | undefined;
+export interface FeatureFlagEnvironment {
+  sentryEnv?: string | undefined;
+  vercelEnv?: string | undefined;
+  apiUrl?: string | undefined;
   nodeEnv?: string | undefined;
 }
 
-export interface FeatureFlagRuntimeOverrides {
-  favorites?: boolean;
-  feedback?: boolean;
-}
-
-declare global {
-  interface Window {
-    __E2E_FEATURE_FLAGS__?: FeatureFlagRuntimeOverrides;
-  }
-}
-
-let runtimeOverrides: FeatureFlagRuntimeOverrides | null = null;
+const DEV_API_STAGE_SUFFIX_REGEX = /\/dev(?:\/api)?\/?$/i;
 
 /**
- * Sets in-memory feature flag overrides for Storybook stories and isolated tests.
- * Pass `null` or call `resetFeatureFlagOverrides()` to restore default resolution.
- */
-export function setFeatureFlagOverrides(
-  overrides: FeatureFlagRuntimeOverrides | null
-): void {
-  runtimeOverrides = overrides ? { ...overrides } : null;
-}
-
-export function resetFeatureFlagOverrides(): void {
-  runtimeOverrides = null;
-}
-
-/**
- * Resolves a boolean feature flag from a raw environment string:
- * - Explicit `'true'` / `'1'` (case-insensitive, trimmed) -> `true`
- * - Explicit `'false'` / `'0'` (case-insensitive, trimmed) -> `false`
- * - Unset, blank, or unrecognized values:
- *   - `nodeEnv === 'production'` -> `false` (Fail-Closed on production)
- *   - Otherwise (`development` / `test`) -> `true`
+ * Resolves a boolean feature flag from a raw environment string and runtime context:
+ * 1. Explicit `'true'` / `'1'` (case-insensitive, trimmed) -> `true`
+ * 2. Explicit `'false'` / `'0'` (case-insensitive, trimmed) -> `false`
+ * 3. When unset or empty:
+ *    - `sentryEnv === 'production'` -> `false` (Fail-Closed on production)
+ *    - `nodeEnv !== 'production'` (local `pnpm dev` & Vitest) -> `true`
+ *    - `sentryEnv === 'staging'` or `vercelEnv === 'preview'` -> `true`
+ *    - `apiUrl` ending with `/dev` or `/dev/api` (`xtalentdev` & PR Previews) -> `true`
+ *    - All other production builds (`xtalent` prod & local `pnpm build`) -> `false`
  */
 export function resolveFeatureFlag(
   rawValue: string | undefined,
-  nodeEnv: string | undefined = process.env.NODE_ENV
+  env: FeatureFlagEnvironment = {}
 ): boolean {
   const normalized =
     typeof rawValue === 'string' ? rawValue.trim().toLowerCase() : '';
@@ -53,78 +33,52 @@ export function resolveFeatureFlag(
     return false;
   }
 
-  return nodeEnv === 'production' ? false : true;
-}
-
-function getNonProductionBrowserOverride(
-  flag: keyof FeatureFlagRuntimeOverrides
-): boolean | undefined {
-  if (
-    process.env.NODE_ENV !== 'production' &&
-    typeof window !== 'undefined' &&
-    typeof window.__E2E_FEATURE_FLAGS__?.[flag] === 'boolean'
-  ) {
-    return window.__E2E_FEATURE_FLAGS__[flag];
+  const sentryEnv = env.sentryEnv?.trim().toLowerCase();
+  if (sentryEnv === 'production') {
+    return false;
   }
-  return undefined;
+
+  if (env.nodeEnv !== undefined && env.nodeEnv !== 'production') {
+    return true;
+  }
+
+  const vercelEnv = env.vercelEnv?.trim().toLowerCase();
+  if (sentryEnv === 'staging' || vercelEnv === 'preview') {
+    return true;
+  }
+
+  const apiUrl = env.apiUrl?.trim() ?? '';
+  if (apiUrl && DEV_API_STAGE_SUFFIX_REGEX.test(apiUrl)) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
  * Controls the Mentor Favorites module (`107-mentor-favorites`).
- * Uses static dot access (`process.env.NEXT_PUBLIC_ENABLE_FAVORITES`) so Next.js
- * can inline the value into client bundles at build time.
+ * Reads `process.env.*` via literal static dot-property expressions on each call
+ * so Next.js inlines values cleanly in client bundles while remaining testable via `vi.stubEnv`.
  */
-export function isFavoritesEnabled(
-  overrides?: FeatureFlagEnvOverrides
-): boolean {
-  if (overrides !== undefined) {
-    return resolveFeatureFlag(
-      overrides.rawValue,
-      overrides.nodeEnv ?? process.env.NODE_ENV
-    );
-  }
-
-  if (runtimeOverrides?.favorites !== undefined) {
-    return runtimeOverrides.favorites;
-  }
-
-  const browserOverride = getNonProductionBrowserOverride('favorites');
-  if (browserOverride !== undefined) {
-    return browserOverride;
-  }
-
-  return resolveFeatureFlag(
-    process.env.NEXT_PUBLIC_ENABLE_FAVORITES,
-    process.env.NODE_ENV
-  );
+export function isFavoritesEnabled(): boolean {
+  return resolveFeatureFlag(process.env.NEXT_PUBLIC_ENABLE_FAVORITES, {
+    sentryEnv: process.env.NEXT_PUBLIC_SENTRY_ENV,
+    vercelEnv: process.env.NEXT_PUBLIC_VERCEL_ENV,
+    apiUrl: process.env.NEXT_PUBLIC_API_URL,
+    nodeEnv: process.env.NODE_ENV,
+  });
 }
 
 /**
- * Controls the Meeting Feedback & Reviews module (`58-feedback-system`).
- * Uses static dot access (`process.env.NEXT_PUBLIC_ENABLE_FEEDBACK`) so Next.js
- * can inline the value into client bundles at build time.
+ * Controls the Meeting Feedback & Reviews module (`58-meeting-feedback`).
+ * Reads `process.env.*` via literal static dot-property expressions on each call
+ * so Next.js inlines values cleanly in client bundles while remaining testable via `vi.stubEnv`.
  */
-export function isFeedbackEnabled(
-  overrides?: FeatureFlagEnvOverrides
-): boolean {
-  if (overrides !== undefined) {
-    return resolveFeatureFlag(
-      overrides.rawValue,
-      overrides.nodeEnv ?? process.env.NODE_ENV
-    );
-  }
-
-  if (runtimeOverrides?.feedback !== undefined) {
-    return runtimeOverrides.feedback;
-  }
-
-  const browserOverride = getNonProductionBrowserOverride('feedback');
-  if (browserOverride !== undefined) {
-    return browserOverride;
-  }
-
-  return resolveFeatureFlag(
-    process.env.NEXT_PUBLIC_ENABLE_FEEDBACK,
-    process.env.NODE_ENV
-  );
+export function isFeedbackEnabled(): boolean {
+  return resolveFeatureFlag(process.env.NEXT_PUBLIC_ENABLE_FEEDBACK, {
+    sentryEnv: process.env.NEXT_PUBLIC_SENTRY_ENV,
+    vercelEnv: process.env.NEXT_PUBLIC_VERCEL_ENV,
+    apiUrl: process.env.NEXT_PUBLIC_API_URL,
+    nodeEnv: process.env.NODE_ENV,
+  });
 }

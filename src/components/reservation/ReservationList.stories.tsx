@@ -483,3 +483,13 @@ export const MenteeFeedbackQueueDialog: Story = {
     ],
   },
 };
+
+export const HistoryFeedbackDisabled: Story = {
+  args: {
+    items: [mockReservations[6], mockReservations[7]],
+    variant: 'history',
+    sourceRole: 'mentee',
+    myUserId: 'user-mentee-current',
+    feedbackEnabled: false,
+  },
+};

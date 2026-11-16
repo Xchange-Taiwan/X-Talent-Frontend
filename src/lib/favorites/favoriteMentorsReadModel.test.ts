@@ -278,3 +278,62 @@ describe('createFavoriteMentorsReadModel (#908)', () => {
     expect(model.getMentorState('user-1', 101).isFavorited).toBe(true);
   });
 });
+
+describe('favoriteMentorsReadModel disabled flag guard (#913)', () => {
+  it('short-circuits subscribe, toggle, replayPendingForPage, and retry with zero transport calls when favorites flag is disabled', async () => {
+    vi.stubEnv('NEXT_PUBLIC_ENABLE_FAVORITES', 'false');
+    try {
+      const fetchMock = vi.fn();
+      const addMock = vi.fn();
+      const removeMock = vi.fn();
+      const clearPendingMock = vi.fn();
+
+      const model = createFavoriteMentorsReadModel({
+        transport: {
+          fetchFavoriteMentors: fetchMock,
+          addFavoriteMentor: addMock,
+          removeFavoriteMentor: removeMock,
+        },
+        storage: {
+          savePending: vi.fn(),
+          getPendingMentorId: () => 101,
+          clearPending: clearPendingMock,
+        },
+        trackAnalytics: vi.fn(),
+      });
+
+      const updates: unknown[] = [];
+      const unsub = model.subscribe('user-1', (res) => updates.push(res));
+      expect(updates).toHaveLength(1);
+      unsub();
+
+      const toggleRes = await model.toggle({
+        userId: 'user-1',
+        mentorId: 101,
+        feature: 'mentor_pool',
+      });
+      expect(toggleRes).toEqual({ status: 'noop', nextFavorited: false });
+
+      const replayRes = await model.replayPendingForPage({
+        userId: 'user-1',
+        pageMentorId: 101,
+        mentor: { isMentor: true },
+      });
+      expect(replayRes).toEqual({ status: 'noop', nextFavorited: false });
+      expect(clearPendingMock).toHaveBeenCalledTimes(1);
+
+      await model.retry('user-1');
+      expect(model.getMentorState('user-1', 101)).toEqual({
+        isFavorited: false,
+        isPending: false,
+        isSelf: false,
+      });
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(addMock).not.toHaveBeenCalled();
+      expect(removeMock).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});

@@ -58,9 +58,10 @@ export interface HistoryFeedbackState {
 }
 
 export function filterPendingFeedbackQueueItems(
-  items: readonly Reservation[]
+  items: readonly Reservation[],
+  includeFeedback: boolean = isFeedbackEnabled()
 ): Reservation[] {
-  if (!isFeedbackEnabled()) {
+  if (!includeFeedback) {
     return [];
   }
   return items.filter((item) => isEligibleForPendingFeedbackQueue(item));
@@ -70,8 +71,10 @@ export function resolveHistoryFeedbackState(opts: {
   reservation: Reservation;
   sourceRole: 'mentee' | 'mentor';
   cancelledByLabel?: string;
+  includeFeedback?: boolean;
 }): HistoryFeedbackState {
   const { reservation, sourceRole, cancelledByLabel } = opts;
+  const includeFeedback = opts.includeFeedback ?? isFeedbackEnabled();
   const effectiveCancelledLabel =
     cancelledByLabel ?? resolveCancelledByLabel(reservation.cancelledBy);
 
@@ -82,7 +85,7 @@ export function resolveHistoryFeedbackState(opts: {
     };
   }
 
-  if (!isFeedbackEnabled()) {
+  if (!includeFeedback) {
     return {
       headerAction: { kind: 'badge', label: '已結束' },
       feedbackBlock: null,

@@ -12,7 +12,6 @@ import {
   buildCleanedFeedbackQueueHref,
   isFeedbackQueueQueryRequested,
   type ReservationRouteRole,
-  stripFeedbackQueueQueryParam,
 } from '@/lib/reservation/reservationRoutes';
 import type { Reservation } from '@/types/reservation';
 
@@ -53,7 +52,9 @@ export function useFeedbackQueueParam({
   const feedbackEnabled = isFeedbackEnabled();
   const resolvedRole: ReservationRouteRole =
     role ?? (isMentee === false ? 'mentor' : 'mentee');
-  const isFeedbackQueueRequested = isFeedbackQueueQueryRequested(searchParams);
+  const isFeedbackQueueRequested = feedbackEnabled
+    ? isFeedbackQueueQueryRequested(searchParams)
+    : false;
 
   const pendingItems = useMemo(
     () =>
@@ -80,26 +81,11 @@ export function useFeedbackQueueParam({
   const [dismissed, setDismissed] = useState(false);
 
   const clearFeedbackQueueParam = useCallback(() => {
-    const rawSearch = searchParams.toString();
-    if (!feedbackEnabled) {
-      const incoming = new URLSearchParams(rawSearch);
-      if (!isFeedbackQueueQueryRequested(incoming)) {
-        return;
-      }
-      const cleaned = new URLSearchParams(
-        stripFeedbackQueueQueryParam(rawSearch)
-      );
-      if (!cleaned.get('tab')) {
-        cleaned.set('tab', 'history');
-      }
-      const nextQuery = cleaned.toString();
-      router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, {
-        scroll: false,
-      });
-      return;
-    }
-
-    const nextHref = buildCleanedFeedbackQueueHref(pathname, rawSearch);
+    if (!feedbackEnabled) return;
+    const nextHref = buildCleanedFeedbackQueueHref(
+      pathname,
+      searchParams.toString()
+    );
     if (!nextHref) return;
     router.replace(nextHref, { scroll: false });
   }, [feedbackEnabled, pathname, router, searchParams]);
@@ -122,8 +108,8 @@ export function useFeedbackQueueParam({
       if (latchedQueue !== null) {
         setLatchedQueue(null);
       }
-      if (isFeedbackQueueRequested) {
-        clearFeedbackQueueParam();
+      if (dismissed) {
+        setDismissed(false);
       }
       return;
     }

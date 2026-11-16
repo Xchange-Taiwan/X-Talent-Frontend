@@ -15,6 +15,8 @@ import {
 import {
   classifyPathname,
   evaluateMiddlewareGate,
+  FIND_MENTOR_HREF,
+  isFavoritesPathname,
   shouldVerifyMiddlewareSession,
 } from '@/lib/routes';
 
@@ -85,6 +87,17 @@ export async function middleware(req: NextRequest) {
     isInMaintenanceMode = false;
   }
 
+  const favoritesEnabled = isFavoritesEnabled();
+
+  // -------- 1b. Short-circuit disabled /favorites before getToken() --------
+  if (
+    !isInMaintenanceMode &&
+    !favoritesEnabled &&
+    isFavoritesPathname(pathname)
+  ) {
+    return NextResponse.redirect(new URL(FIND_MENTOR_HREF, nextUrl));
+  }
+
   // -------- 2. Short-circuit /api/auth/* & maintenance before getToken() --------
   const needsSessionCheck = shouldVerifyMiddlewareSession(
     route,
@@ -107,27 +120,13 @@ export async function middleware(req: NextRequest) {
       ? safeDecodeURIComponent(rawCurrentHint)
       : undefined;
 
-  const e2eFeatureFlagsCookie = req.cookies.get('__e2e_feature_flags')?.value;
-  const e2eFeatureFlagsOverride =
-    e2eFeatureFlagsCookie && process.env.NEXTAUTH_SECRET
-      ? await decode({
-          token: e2eFeatureFlagsCookie,
-          secret: process.env.NEXTAUTH_SECRET,
-        }).catch(() => null)
-      : null;
-
-  const effectiveFavoritesEnabled =
-    typeof e2eFeatureFlagsOverride?.favorites === 'boolean'
-      ? e2eFeatureFlagsOverride.favorites
-      : isFavoritesEnabled();
-
   // -------- 3. Delegate Gate Decision --------
   const decision = evaluateMiddlewareGate({
     pathname,
     search: nextUrl.search,
     method: req.method,
     isInMaintenanceMode,
-    isFavoritesEnabled: effectiveFavoritesEnabled,
+    isFavoritesEnabled: favoritesEnabled,
     session: isLoggedIn
       ? {
           isAuthenticated: true,

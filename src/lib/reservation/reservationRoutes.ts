@@ -1,3 +1,4 @@
+import { isFeedbackEnabled } from '@/lib/featureFlags';
 import { FIND_MENTOR_HREF, HOME_HREF } from '@/lib/routes';
 
 export type ReservationRouteRole = 'mentee' | 'mentor';
@@ -191,12 +192,30 @@ export function buildReservationTabHref(
   return `${basePath}?${params.toString()}`;
 }
 
+export function stripAllFeedbackQueryParams(searchString: string): string {
+  const params = new URLSearchParams(searchString);
+  params.delete('feedback');
+  for (let i = 0; i < FEEDBACK_DEEP_LINK_ID_KEYS.length; i += 1) {
+    params.delete(FEEDBACK_DEEP_LINK_ID_KEYS[i]);
+  }
+  return params.toString();
+}
+
+export interface BuildReservationHistoryRedirectOptions {
+  feedbackEnabled?: boolean;
+}
+
 export function buildReservationHistoryRedirectHref(
   role: ReservationRouteRole,
-  rawSearch: string
+  rawSearch: string,
+  options?: BuildReservationHistoryRedirectOptions
 ): string {
+  const feedbackEnabled = options?.feedbackEnabled ?? isFeedbackEnabled();
+  const effectiveSearch = feedbackEnabled
+    ? rawSearch
+    : stripAllFeedbackQueryParams(rawSearch);
   const basePath = getReservationRolePathname(role);
-  const incoming = new URLSearchParams(rawSearch);
+  const incoming = new URLSearchParams(effectiveSearch);
   const nextParams = new URLSearchParams();
   nextParams.set('tab', 'history');
 
@@ -211,9 +230,16 @@ export function buildReservationHistoryRedirectHref(
 }
 
 export function buildReservationHistorySignInCallbackHref(
-  rawSearch: string
+  rawSearch: string,
+  options?: BuildReservationHistoryRedirectOptions
 ): string {
-  const cleaned = rawSearch.startsWith('?') ? rawSearch.slice(1) : rawSearch;
+  const feedbackEnabled = options?.feedbackEnabled ?? isFeedbackEnabled();
+  const effectiveSearch = feedbackEnabled
+    ? rawSearch
+    : stripAllFeedbackQueryParams(rawSearch);
+  const cleaned = effectiveSearch.startsWith('?')
+    ? effectiveSearch.slice(1)
+    : effectiveSearch;
   const callbackTarget = cleaned
     ? `${RESERVATION_HISTORY_HREF}?${cleaned}`
     : RESERVATION_HISTORY_HREF;

@@ -135,6 +135,8 @@ interface Props {
   isSubmitting: boolean;
   onConfirmReservation: (question?: string) => Promise<boolean>;
   editorDialog?: React.ReactNode;
+  showBookmark?: boolean;
+  feedbackEnabled?: boolean;
 }
 
 export default function ProfilePageUI({
@@ -158,6 +160,8 @@ export default function ProfilePageUI({
   isSubmitting,
   onConfirmReservation,
   editorDialog,
+  showBookmark,
+  feedbackEnabled: feedbackEnabledProp,
 }: Props) {
   const { selectedDate, setSelectedDate, getDayBookingStatus } = schedule;
   const resolvedAllowedDates = allowedDates ?? schedule.allowedDates;
@@ -176,8 +180,8 @@ export default function ProfilePageUI({
   // keeps this in lockstep with the owner-only UI gating above instead of
   // being a second, independently-computed ownership check that could
   // silently diverge from it.
-  const favoritesEnabled = isFavoritesEnabled();
-  const feedbackEnabled = isFeedbackEnabled();
+  const favoritesEnabled = showBookmark ?? isFavoritesEnabled();
+  const feedbackEnabled = feedbackEnabledProp ?? isFeedbackEnabled();
 
   const isOwnMentorProfile =
     !!userData && userData.is_mentor && canShowOwnerControls;
@@ -373,6 +377,7 @@ export default function ProfilePageUI({
                 completedMeetingCount={effectiveCompletedMeetings}
                 yearsOfExperience={userData.years_of_experience}
                 location={resolvedLocation}
+                includeRating={feedbackEnabled}
               />
             )}
           </>
@@ -384,96 +389,89 @@ export default function ProfilePageUI({
               <ProfileContentSkeleton />
             ) : userData ? (
               userData.is_mentor ? (
-                feedbackEnabled ? (
-                  <Tabs defaultValue={defaultTab}>
-                    <TabsList
-                      aria-label="導師頁面分頁"
-                      className="border-background-border flex h-auto justify-start gap-8 rounded-none border-b bg-transparent p-0"
-                    >
-                      <TabsTrigger
-                        value="about"
-                        data-analytics-click="profile_tab_about"
-                        data-analytics-event="profile_tab_click"
-                        data-analytics-feature="profile"
-                        data-analytics-location="profile_tabs"
-                        data-analytics-param-tab-name="about"
-                        data-analytics-param-mentor-id={String(
-                          userData.user_id
-                        )}
-                        className="text-text-secondary hover:text-text-primary data-[state=active]:border-brand-700 data-[state=active]:text-brand-700 -mb-px rounded-none border-b-2 border-transparent bg-transparent px-1 pt-2 pb-3 text-base font-medium shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-                      >
-                        簡介
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="feedback"
-                        data-analytics-click="profile_tab_feedback"
-                        data-analytics-event="profile_tab_click"
-                        data-analytics-feature="profile"
-                        data-analytics-location="profile_tabs"
-                        data-analytics-param-tab-name="feedback"
-                        data-analytics-param-mentor-id={String(
-                          userData.user_id
-                        )}
-                        className="group text-text-secondary hover:text-text-primary data-[state=active]:border-brand-700 data-[state=active]:text-brand-700 -mb-px inline-flex items-baseline gap-1.5 rounded-none border-b-2 border-transparent bg-transparent px-1 pt-2 pb-3 text-base font-medium shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-                      >
-                        <span>評價</span>
-                        <span className="text-text-tertiary group-data-[state=active]:text-brand-700 text-xs font-normal tabular-nums">
-                          {effectiveRatingCount}
-                        </span>
-                      </TabsTrigger>
-                    </TabsList>
+                (() => {
+                  const mentorIntroSections = (
+                    <ProfileIntroSections
+                      userData={userData}
+                      industryHashtag={mentorIndustryHashtag}
+                      badgeSections={
+                        <>
+                          <ProfileBadgeSection
+                            title="專業能力"
+                            items={userData.have_skill}
+                          />
+                          <ProfileBadgeSection
+                            title="我能提供的服務"
+                            items={userData.have_topic}
+                          />
+                        </>
+                      }
+                    />
+                  );
 
-                    <TabsContent value="about" className="mt-6">
-                      <ProfileIntroSections
-                        userData={userData}
-                        industryHashtag={mentorIndustryHashtag}
-                        badgeSections={
-                          <>
-                            <ProfileBadgeSection
-                              title="專業能力"
-                              items={userData.have_skill}
-                            />
-                            <ProfileBadgeSection
-                              title="我能提供的服務"
-                              items={userData.have_topic}
-                            />
-                          </>
-                        }
-                      />
-                    </TabsContent>
+                  if (!feedbackEnabled) {
+                    return mentorIntroSections;
+                  }
 
-                    <TabsContent value="feedback" className="mt-0">
-                      <MentorFeedbackSection
-                        items={feedback?.items ?? []}
-                        totalRatingCount={effectiveRatingCount}
-                        ratingAverage={effectiveRatingAverage}
-                        page={feedback?.page}
-                        pageSize={feedback?.pageSize}
-                        isLoading={Boolean(feedback?.isLoading)}
-                        error={feedback?.error ?? null}
-                        onPageChange={feedback?.setPage}
-                        onRetry={feedback?.reload}
-                      />
-                    </TabsContent>
-                  </Tabs>
-                ) : (
-                  <ProfileIntroSections
-                    userData={userData}
-                    industryHashtag={mentorIndustryHashtag}
-                    badgeSections={
-                      <>
-                        <ProfileBadgeSection
-                          title="專業能力"
-                          items={userData.have_skill}
+                  return (
+                    <Tabs defaultValue={defaultTab}>
+                      <TabsList
+                        aria-label="導師頁面分頁"
+                        className="border-background-border flex h-auto justify-start gap-8 rounded-none border-b bg-transparent p-0"
+                      >
+                        <TabsTrigger
+                          value="about"
+                          data-analytics-click="profile_tab_about"
+                          data-analytics-event="profile_tab_click"
+                          data-analytics-feature="profile"
+                          data-analytics-location="profile_tabs"
+                          data-analytics-param-tab-name="about"
+                          data-analytics-param-mentor-id={String(
+                            userData.user_id
+                          )}
+                          className="text-text-secondary hover:text-text-primary data-[state=active]:border-brand-700 data-[state=active]:text-brand-700 -mb-px rounded-none border-b-2 border-transparent bg-transparent px-1 pt-2 pb-3 text-base font-medium shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                        >
+                          簡介
+                        </TabsTrigger>
+                        <TabsTrigger
+                          value="feedback"
+                          data-analytics-click="profile_tab_feedback"
+                          data-analytics-event="profile_tab_click"
+                          data-analytics-feature="profile"
+                          data-analytics-location="profile_tabs"
+                          data-analytics-param-tab-name="feedback"
+                          data-analytics-param-mentor-id={String(
+                            userData.user_id
+                          )}
+                          className="group text-text-secondary hover:text-text-primary data-[state=active]:border-brand-700 data-[state=active]:text-brand-700 -mb-px inline-flex items-baseline gap-1.5 rounded-none border-b-2 border-transparent bg-transparent px-1 pt-2 pb-3 text-base font-medium shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                        >
+                          <span>評價</span>
+                          <span className="text-text-tertiary group-data-[state=active]:text-brand-700 text-xs font-normal tabular-nums">
+                            {effectiveRatingCount}
+                          </span>
+                        </TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent value="about" className="mt-6">
+                        {mentorIntroSections}
+                      </TabsContent>
+
+                      <TabsContent value="feedback" className="mt-0">
+                        <MentorFeedbackSection
+                          items={feedback?.items ?? []}
+                          totalRatingCount={effectiveRatingCount}
+                          ratingAverage={effectiveRatingAverage}
+                          page={feedback?.page}
+                          pageSize={feedback?.pageSize}
+                          isLoading={Boolean(feedback?.isLoading)}
+                          error={feedback?.error ?? null}
+                          onPageChange={feedback?.setPage}
+                          onRetry={feedback?.reload}
                         />
-                        <ProfileBadgeSection
-                          title="我能提供的服務"
-                          items={userData.have_topic}
-                        />
-                      </>
-                    }
-                  />
-                )
+                      </TabsContent>
+                    </Tabs>
+                  );
+                })()
               ) : (
                 <ProfileIntroSections
                   userData={userData}

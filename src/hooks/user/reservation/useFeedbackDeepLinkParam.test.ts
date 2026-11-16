@@ -731,3 +731,38 @@ describe('useFeedbackDeepLinkParam (#733)', () => {
     expect(lookupSingleFeedback).not.toHaveBeenCalled();
   });
 });
+
+describe('useFeedbackDeepLinkParam disabled flag guard (#913)', () => {
+  it('returns idle defaults without paginating history, calling lookupSingleFeedback, firing toasts, or calling router.replace when feedback flag is disabled', () => {
+    vi.stubEnv('NEXT_PUBLIC_ENABLE_FEEDBACK', 'false');
+    try {
+      currentQuery = 'tab=history&reservation_id=999';
+      const onLoadMoreHistory = vi.fn();
+      const lookupSingleFeedback = vi.fn();
+
+      const { result } = renderHook(() =>
+        useFeedbackDeepLinkParam({
+          userRole: 'mentee',
+          myUserId: 'user-1',
+          history: [],
+          isHistoryLoaded: true,
+          isLoadingHistory: false,
+          hasMoreHistory: true,
+          onLoadMoreHistory,
+          lookupSingleFeedback,
+        })
+      );
+
+      expect(result.current.hasDeepLinkTarget).toBe(false);
+      expect(result.current.deepLinkDialogReservation).toBeNull();
+      expect(result.current.highlightedReservationId).toBeNull();
+      expect(result.current.autoExpandedReservationId).toBeNull();
+      expect(onLoadMoreHistory).not.toHaveBeenCalled();
+      expect(lookupSingleFeedback).not.toHaveBeenCalled();
+      expect(mockToast).not.toHaveBeenCalled();
+      expect(mockReplace).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});

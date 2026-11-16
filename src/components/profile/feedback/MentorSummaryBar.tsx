@@ -17,6 +17,7 @@ export interface MentorSummaryBarProps {
   completedMeetingCount?: number | null;
   yearsOfExperience?: string;
   location?: string;
+  includeRating?: boolean;
   className?: string;
 }
 
@@ -67,9 +68,10 @@ export function MentorSummaryBar({
   completedMeetingCount = 0,
   yearsOfExperience,
   location,
+  includeRating,
   className,
 }: MentorSummaryBarProps) {
-  const feedbackEnabled = isFeedbackEnabled();
+  const feedbackEnabled = includeRating ?? isFeedbackEnabled();
   const safeRatingCount = feedbackEnabled ? toNonNegativeInt(ratingCount) : 0;
   const formattedScore =
     safeRatingCount > 0 ? formatRatingScoreValue(ratingAverage) : null;

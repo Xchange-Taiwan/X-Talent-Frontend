@@ -25,16 +25,25 @@ import { UserAvatar } from './UserAvatar';
 export type UserDropdownProps = {
   profileHeader: ProfileHeaderDescriptor;
   menu: DesktopAccountMenuModel;
+  showFavorites?: boolean;
 };
 
 export const UserDropdown = React.memo(function UserDropdown({
   profileHeader,
   menu,
+  showFavorites,
 }: UserDropdownProps): JSX.Element {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const closeMenu = React.useCallback(() => setMenuOpen(false), []);
 
-  const { shareProfile, navItems, accountActions } = menu;
+  const { shareProfile, navItems: rawNavItems, accountActions } = menu;
+  const navItems = React.useMemo(
+    () =>
+      showFavorites === false
+        ? rawNavItems.filter((item) => item.id !== 'my-favorites')
+        : rawNavItems,
+    [rawNavItems, showFavorites]
+  );
 
   return (
     <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>

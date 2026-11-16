@@ -14,8 +14,6 @@ import {
   buildReservationHistorySignInCallbackHref,
   extractDeepLinkReservationId,
   type ReservationRouteRole,
-  stripDeepLinkQueryParams,
-  stripFeedbackQueueQueryParam,
 } from '@/lib/reservation/reservationRoutes';
 import { fetchSingleReservationFeedback } from '@/services/reservations';
 
@@ -38,15 +36,11 @@ export function useReservationHistoryRedirect(
       return;
     }
 
-    const sanitizedSearchWhenDisabled = stripFeedbackQueueQueryParam(
-      stripDeepLinkQueryParams(rawSearch)
-    );
-
     if (status === 'unauthenticated') {
       router.replace(
-        buildReservationHistorySignInCallbackHref(
-          feedbackEnabled ? rawSearch : sanitizedSearchWhenDisabled
-        ),
+        buildReservationHistorySignInCallbackHref(rawSearch, {
+          feedbackEnabled,
+        }),
         {
           scroll: false,
         }
@@ -64,22 +58,12 @@ export function useReservationHistoryRedirect(
       return;
     }
 
-    if (!feedbackEnabled) {
+    if (!feedbackEnabled || !targetReservationId || !userId) {
       redirectedKeyRef.current = effectKey;
       router.replace(
-        buildReservationHistoryRedirectHref(
-          fallbackRole,
-          sanitizedSearchWhenDisabled
-        ),
-        { scroll: false }
-      );
-      return;
-    }
-
-    if (!targetReservationId || !userId) {
-      redirectedKeyRef.current = effectKey;
-      router.replace(
-        buildReservationHistoryRedirectHref(fallbackRole, rawSearch),
+        buildReservationHistoryRedirectHref(fallbackRole, rawSearch, {
+          feedbackEnabled,
+        }),
         { scroll: false }
       );
       return;

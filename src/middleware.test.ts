@@ -963,3 +963,37 @@ describe('middleware public routes', () => {
     }
   );
 });
+
+describe('middleware favorites feature-flag gate (#913)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGet.mockResolvedValue(false as never);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('redirects unauthenticated and authenticated requests on /favorites and /favorites/* to FIND_MENTOR_HREF before calling getToken() when favorites flag is disabled', async () => {
+    vi.stubEnv('NEXT_PUBLIC_ENABLE_FAVORITES', 'false');
+
+    for (const targetPath of ['/favorites', '/favorites/subpath']) {
+      const res = await middleware(makeRequest(targetPath));
+      expect(res.status).toBe(307);
+      expect(res.headers.get('location')).toBe(
+        'https://example.com/mentor-pool'
+      );
+      expect(mockGetToken).not.toHaveBeenCalled();
+      expect(mockDecode).not.toHaveBeenCalled();
+    }
+  });
+
+  it('still prioritizes /maintenance redirect over disabled /favorites gate during maintenance mode', async () => {
+    vi.stubEnv('NEXT_PUBLIC_ENABLE_FAVORITES', 'false');
+    vi.stubEnv('MAINTENANCE_MODE', 'true');
+
+    const res = await middleware(makeRequest('/favorites'));
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toBe('https://example.com/maintenance');
+  });
+});

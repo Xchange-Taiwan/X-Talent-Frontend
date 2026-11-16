@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   ABOUT_HREF,
@@ -730,5 +730,44 @@ describe('src/lib/routes', () => {
         expect(sanitizeCallbackUrl(raw, origin)).toBe(expected);
       }
     );
+  });
+
+  describe('favorites feature flag route gating (#913)', () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it('redirects both guest and authenticated users from /favorites and /favorites/* to FIND_MENTOR_HREF when disabled', () => {
+      expect(
+        evaluateMiddlewareGate({
+          pathname: FAVORITES_HREF,
+          isFavoritesEnabled: false,
+          session: VISITOR_SESSION,
+        })
+      ).toEqual({
+        action: 'redirect',
+        destination: FIND_MENTOR_HREF,
+        syncSessionHint: false,
+      });
+
+      expect(
+        evaluateMiddlewareGate({
+          pathname: `${FAVORITES_HREF}/saved`,
+          isFavoritesEnabled: false,
+          session: MENTEE_ONBOARDED,
+        })
+      ).toEqual({
+        action: 'redirect',
+        destination: FIND_MENTOR_HREF,
+        syncSessionHint: false,
+      });
+    });
+
+    it('rejects /favorites as callbackUrl when NEXT_PUBLIC_ENABLE_FAVORITES=false', () => {
+      vi.stubEnv('NEXT_PUBLIC_ENABLE_FAVORITES', 'false');
+      expect(isDisallowedCallbackPathname('/favorites')).toBe(true);
+      expect(isDisallowedCallbackPathname('/favorites/list')).toBe(true);
+      expect(sanitizeCallbackUrl('/favorites')).toBeNull();
+    });
   });
 });

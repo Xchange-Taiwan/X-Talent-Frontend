@@ -1,3 +1,4 @@
+import { isFeedbackEnabled } from '@/lib/featureFlags';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { isEligibleForPendingFeedbackQueue } from '@/lib/reservation/reservationLifecyclePolicy';
 import {
@@ -731,10 +732,24 @@ export function createFeedbackSessionCoordinator(
     userId: string;
     fallbackRole: ReservationRouteRole;
     rawSearch: string;
+    feedbackEnabled?: boolean;
     signal?: AbortSignal;
     lookupSingleFeedback?: FeedbackSessionLookupPort['fetchSingleReservationFeedback'];
   }): Promise<ResolvedHistoryRedirect> {
     const { fallbackRole, rawSearch, signal } = opts;
+    const feedbackEnabled = opts.feedbackEnabled ?? isFeedbackEnabled();
+    if (!feedbackEnabled) {
+      return {
+        redirectHref: buildReservationHistoryRedirectHref(
+          fallbackRole,
+          rawSearch,
+          { feedbackEnabled: false }
+        ),
+        resolvedRole: fallbackRole,
+        seeded: null,
+      };
+    }
+
     const cleanUserId = opts.userId.trim();
     const targetReservationId = extractDeepLinkReservationId(
       new URLSearchParams(rawSearch)
@@ -744,7 +759,8 @@ export function createFeedbackSessionCoordinator(
       return {
         redirectHref: buildReservationHistoryRedirectHref(
           fallbackRole,
-          rawSearch
+          rawSearch,
+          { feedbackEnabled: true }
         ),
         resolvedRole: fallbackRole,
         seeded: null,
@@ -758,7 +774,8 @@ export function createFeedbackSessionCoordinator(
       return {
         redirectHref: buildReservationHistoryRedirectHref(
           fallbackRole,
-          rawSearch
+          rawSearch,
+          { feedbackEnabled: true }
         ),
         resolvedRole: fallbackRole,
         seeded: null,
@@ -785,7 +802,8 @@ export function createFeedbackSessionCoordinator(
       return {
         redirectHref: buildReservationHistoryRedirectHref(
           resolvedRole,
-          rawSearch
+          rawSearch,
+          { feedbackEnabled: true }
         ),
         resolvedRole,
         seeded: lookup,
@@ -794,7 +812,8 @@ export function createFeedbackSessionCoordinator(
       return {
         redirectHref: buildReservationHistoryRedirectHref(
           fallbackRole,
-          rawSearch
+          rawSearch,
+          { feedbackEnabled: true }
         ),
         resolvedRole: fallbackRole,
         seeded: null,

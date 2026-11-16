@@ -94,6 +94,7 @@ export interface ProfileHeaderDescriptor {
 export interface UseHeaderNavigationOptions {
   identity: ResolvedIdentity;
   user?: Session['user'];
+  showFavorites?: boolean;
 }
 
 export interface DesktopNavModel {
@@ -200,6 +201,7 @@ function isPrefixCurrent(pathname: string | null, prefix: string): boolean {
 export function useHeaderNavigation({
   identity,
   user,
+  showFavorites,
 }: UseHeaderNavigationOptions): HeaderNavigationModel {
   const pathname = usePathname();
   const [activeDialog, setActiveDialog] =
@@ -543,7 +545,7 @@ export function useHeaderNavigation({
     [feedbackItem, isOnAbout, isOnFindMentor, isOnSignin, isOnSignup]
   );
 
-  const favoritesEnabled = isFavoritesEnabled();
+  const favoritesEnabled = showFavorites ?? isFavoritesEnabled();
 
   const buildAccountCommonLinks = React.useCallback(
     (

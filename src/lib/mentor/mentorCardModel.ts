@@ -15,6 +15,7 @@ import type { TagDisplay, UserType } from '@/types/user';
 export interface MentorCardProjectionOptions {
   labelMap?: ReadonlyMap<string, string>;
   prioritizedCodes?: ReadonlySet<string>;
+  includeRating?: boolean;
 }
 
 export interface MentorCardViewModel {
@@ -216,6 +217,8 @@ export function projectMentorCard(
   const yearsOfExperienceLabel =
     TotalWorkSpanEnum[years as keyof typeof TotalWorkSpanEnum] ?? years;
 
+  const includeRating = options?.includeRating ?? isFeedbackEnabled();
+
   return {
     id: normalizedMentor.user_id,
     name: normalizedMentor.name,
@@ -229,7 +232,7 @@ export function projectMentorCard(
       options?.prioritizedCodes,
       options?.labelMap
     ),
-    ratingLabel: isFeedbackEnabled()
+    ratingLabel: includeRating
       ? formatMentorRating(
           normalizedMentor.stats?.rating_average,
           normalizedMentor.stats?.rating_count

@@ -182,9 +182,9 @@ export default defineConfig({
         env: {
           NEXTAUTH_SECRET: localNextAuthSecret,
           NEXT_PUBLIC_ENABLE_FAVORITES:
-            process.env.NEXT_PUBLIC_ENABLE_FAVORITES ?? 'true',
+            process.env.NEXT_PUBLIC_ENABLE_FAVORITES?.trim() || 'true',
           NEXT_PUBLIC_ENABLE_FEEDBACK:
-            process.env.NEXT_PUBLIC_ENABLE_FEEDBACK ?? 'true',
+            process.env.NEXT_PUBLIC_ENABLE_FEEDBACK?.trim() || 'true',
         },
         reuseExistingServer:
           process.env.PLAYWRIGHT_REUSE_SERVER === '1' || !process.env.CI,

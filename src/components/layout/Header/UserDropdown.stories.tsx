@@ -15,13 +15,15 @@ import { UserDropdown } from './UserDropdown';
 type UserDropdownStoryArgs = {
   identity: ResolvedIdentity;
   user?: Session['user'];
+  showFavorites?: boolean;
 };
 
 function UserDropdownStoryHarness({
   identity,
   user,
+  showFavorites,
 }: UserDropdownStoryArgs): JSX.Element {
-  const navigation = useHeaderNavigation({ identity, user });
+  const navigation = useHeaderNavigation({ identity, user, showFavorites });
   return (
     <>
       <UserDropdown
@@ -171,5 +173,12 @@ export const HintOnlyDisabledState: Story = {
       isMentor: false,
       avatar: mockMenteeUser.avatar,
     }),
+  },
+};
+
+export const FavoritesFeatureDisabled: Story = {
+  args: {
+    ...MenteeSession.args,
+    showFavorites: false,
   },
 };

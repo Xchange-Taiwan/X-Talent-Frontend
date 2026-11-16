@@ -23,6 +23,7 @@ export interface MentorCardProps extends MentorCardProjectionOptions {
   priority?: boolean;
   feature?: FavoriteMentorFeature;
   analyticsLocation?: MentorCardAnalyticsLocation;
+  showBookmark?: boolean;
 }
 
 const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
@@ -31,17 +32,24 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
       mentor,
       labelMap,
       prioritizedCodes,
+      includeRating,
+      showBookmark,
       priority = false,
       feature = 'mentor_pool',
       analyticsLocation,
     }: MentorCardProps,
     ref
   ) => {
-    const favoritesEnabled = isFavoritesEnabled();
-    const feedbackEnabled = isFeedbackEnabled();
+    const favoritesEnabled = showBookmark ?? isFavoritesEnabled();
+    const effectiveIncludeRating = includeRating ?? isFeedbackEnabled();
     const viewModel = useMemo(
-      () => projectMentorCard(mentor, { labelMap, prioritizedCodes }),
-      [feedbackEnabled, labelMap, mentor, prioritizedCodes]
+      () =>
+        projectMentorCard(mentor, {
+          labelMap,
+          prioritizedCodes,
+          includeRating: effectiveIncludeRating,
+        }),
+      [effectiveIncludeRating, labelMap, mentor, prioritizedCodes]
     );
 
     const resolvedAnalyticsLocation: MentorCardAnalyticsLocation =

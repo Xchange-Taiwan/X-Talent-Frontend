@@ -101,3 +101,10 @@ export const GuestUnauthenticated: Story = {
     variant: 'outline',
   },
 };
+
+export const FeatureDisabled: Story = {
+  args: {
+    initialFavorited: false,
+    enabled: false,
+  },
+};

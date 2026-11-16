@@ -29,6 +29,7 @@ export interface MentorBookmarkButtonProps {
   tooltipAlign?: TooltipAlign;
   wrapperClassName?: string;
   className?: string;
+  enabled?: boolean;
 }
 
 export function MentorBookmarkButton({
@@ -41,7 +42,9 @@ export function MentorBookmarkButton({
   tooltipAlign = 'end',
   wrapperClassName,
   className,
+  enabled,
 }: MentorBookmarkButtonProps) {
+  const favoritesEnabled = enabled ?? isFavoritesEnabled();
   const {
     isFavorited,
     isPending,
@@ -54,7 +57,7 @@ export function MentorBookmarkButton({
     feature,
   });
 
-  if (!isFavoritesEnabled() || isSelf || identityState === 'hint-only') {
+  if (!favoritesEnabled || isSelf || identityState === 'hint-only') {
     return null;
   }
 

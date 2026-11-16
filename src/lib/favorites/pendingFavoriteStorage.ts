@@ -103,6 +103,10 @@ export function getPendingFavoriteMentorId(
 export function getPendingFavoriteProfilePath(
   now: number = Date.now()
 ): string | null {
+  if (!isFavoritesEnabled()) {
+    clearPendingFavoriteMentor();
+    return null;
+  }
   const mentorId = getPendingFavoriteMentorId(now);
   return mentorId !== null ? `/profile/${mentorId}` : null;
 }

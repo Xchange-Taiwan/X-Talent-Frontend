@@ -53,3 +53,14 @@ export const NewMentorZeroSessionsAndZeroRatings: Story = {
     location: '台灣',
   },
 };
+
+export const RatingHiddenWhenFeedbackDisabled: Story = {
+  args: {
+    ratingAverage: 9.2,
+    ratingCount: 18,
+    completedMeetingCount: 128,
+    yearsOfExperience: '5~10 年',
+    location: '台灣',
+    includeRating: false,
+  },
+};

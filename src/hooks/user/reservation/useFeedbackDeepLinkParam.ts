@@ -73,7 +73,9 @@ export function useFeedbackDeepLinkParam({
   const { toast } = useToast();
 
   const feedbackEnabled = isFeedbackEnabled();
-  const targetReservationId = extractDeepLinkReservationId(searchParams);
+  const targetReservationId = feedbackEnabled
+    ? extractDeepLinkReservationId(searchParams)
+    : null;
   const hasDeepLinkTarget = targetReservationId !== null;
 
   const [latchedDialogReservation, setLatchedDialogReservation] =
@@ -112,13 +114,14 @@ export function useFeedbackDeepLinkParam({
   }, []);
 
   const clearDeepLinkParams = useCallback(() => {
+    if (!feedbackEnabled) return;
     const nextHref = buildCleanedDeepLinkHref(
       pathname,
       searchParams.toString()
     );
     if (!nextHref) return;
     router.replace(nextHref, { scroll: false });
-  }, [pathname, router, searchParams]);
+  }, [feedbackEnabled, pathname, router, searchParams]);
 
   const dismissDeepLinkDialog = useCallback(() => {
     setLatchedDialogReservation(null);
@@ -209,9 +212,6 @@ export function useFeedbackDeepLinkParam({
       }
       if (autoExpandedReservationId !== null) {
         setAutoExpandedReservationId(null);
-      }
-      if (targetReservationId) {
-        clearDeepLinkParams();
       }
       return;
     }

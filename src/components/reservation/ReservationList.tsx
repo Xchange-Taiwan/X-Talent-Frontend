@@ -87,6 +87,7 @@ function ReservationItem({
   variant,
   sourceRole,
   myUserId,
+  feedbackEnabled = isFeedbackEnabled(),
   isHighlighted = false,
   shouldAutoExpandFeedback = false,
   deepLinkTriggerSeq = 0,
@@ -95,6 +96,7 @@ function ReservationItem({
   variant: Variant;
   sourceRole: SourceRole;
   myUserId: string | undefined;
+  feedbackEnabled?: boolean;
   isHighlighted?: boolean;
   shouldAutoExpandFeedback?: boolean;
   deepLinkTriggerSeq?: number;
@@ -138,6 +140,7 @@ function ReservationItem({
           reservation,
           sourceRole,
           cancelledByLabel: viewer.cancelledByLabel,
+          includeFeedback: feedbackEnabled,
         })
       : null;
 
@@ -314,6 +317,7 @@ export function ReservationList({
   highlightedReservationId = null,
   autoExpandedReservationId = null,
   deepLinkTriggerSeq = 0,
+  feedbackEnabled: feedbackEnabledProp,
 }: {
   items: Reservation[];
   variant: Variant;
@@ -330,6 +334,7 @@ export function ReservationList({
   highlightedReservationId?: string | null;
   autoExpandedReservationId?: string | null;
   deepLinkTriggerSeq?: number;
+  feedbackEnabled?: boolean;
 }) {
   const { submitFeedback, isMutating } = useReservationActions({
     myUserId,
@@ -338,7 +343,7 @@ export function ReservationList({
   });
   const emptyState = resolveEmptyStateContent(sourceRole, variant, myUserId);
 
-  const feedbackEnabled = isFeedbackEnabled();
+  const feedbackEnabled = feedbackEnabledProp ?? isFeedbackEnabled();
 
   const hostFeedbackDialog = !feedbackEnabled
     ? null
@@ -398,13 +403,20 @@ export function ReservationList({
           variant={variant}
           sourceRole={sourceRole}
           myUserId={myUserId}
+          feedbackEnabled={feedbackEnabled}
           isHighlighted={
-            variant === 'history' && highlightedReservationId === it.id
+            feedbackEnabled &&
+            variant === 'history' &&
+            highlightedReservationId === it.id
           }
           shouldAutoExpandFeedback={
-            variant === 'history' && autoExpandedReservationId === it.id
+            feedbackEnabled &&
+            variant === 'history' &&
+            autoExpandedReservationId === it.id
           }
-          deepLinkTriggerSeq={variant === 'history' ? deepLinkTriggerSeq : 0}
+          deepLinkTriggerSeq={
+            feedbackEnabled && variant === 'history' ? deepLinkTriggerSeq : 0
+          }
         />
       ))}
 
