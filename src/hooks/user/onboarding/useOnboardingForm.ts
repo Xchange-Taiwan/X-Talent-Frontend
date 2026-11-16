@@ -144,12 +144,30 @@ export function useOnboardingForm({
   );
 
   const submitOnboarding = useCallback(async (): Promise<void> => {
-    const isValid = await form.trigger(STEP_FIELDS[5]);
-    if (!isValid) {
+    const isValid = await form.trigger();
+    const rawValues = form.getValues();
+    const parsed = formSchema.safeParse(rawValues);
+
+    if (!isValid || !parsed.success) {
+      const errorFieldNames = new Set<string>([
+        ...Object.keys(form.formState.errors),
+        ...(parsed.success
+          ? []
+          : parsed.error.issues
+              .map((issue) => String(issue.path[0] ?? ''))
+              .filter(Boolean)),
+      ]);
+      const orderedSteps: OnboardingStepNumber[] = [1, 2, 3, 4, 5];
+      const earliestStep = orderedSteps.find((step) =>
+        STEP_FIELDS[step].some((field) => errorFieldNames.has(field))
+      );
+      if (earliestStep && earliestStep !== currentStep) {
+        setCurrentStep(earliestStep);
+      }
       return;
     }
 
-    const values: OnboardingFormValues = { ...form.getValues() };
+    const values: OnboardingFormValues = { ...parsed.data };
 
     try {
       setIsSubmitting(true);
@@ -200,7 +218,7 @@ export function useOnboardingForm({
     } finally {
       setIsSubmitting(false);
     }
-  }, [avatarUpload, form, industries, savePort, session, toast]);
+  }, [avatarUpload, currentStep, form, industries, savePort, session, toast]);
 
   const handleGoToPrev = useCallback(() => {
     setCurrentStep((s) => Math.max(1, s - 1) as OnboardingStepNumber);

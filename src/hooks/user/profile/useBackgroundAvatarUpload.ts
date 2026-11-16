@@ -114,7 +114,8 @@ export function useBackgroundAvatarUpload(
       job.promise = updateAvatar(
         file,
         userIdRef.current,
-        controller.signal
+        controller.signal,
+        presignedCacheRef.current ?? undefined
       ).then(
         (url) => {
           job.status = 'completed';
@@ -150,7 +151,12 @@ export function useBackgroundAvatarUpload(
         jobRef.current = null;
         return current.promise;
       }
-      return updateAvatar(file, userIdRef.current);
+      return updateAvatar(
+        file,
+        userIdRef.current,
+        undefined,
+        presignedCacheRef.current ?? undefined
+      );
     },
     []
   );
@@ -190,7 +196,12 @@ export function useBackgroundAvatarUpload(
       const restoreFile = new File([oldBytes], 'avatar', {
         type: oldBytes.type || 'image/jpeg',
       });
-      await updateAvatar(restoreFile, userIdRef.current);
+      await updateAvatar(
+        restoreFile,
+        userIdRef.current,
+        undefined,
+        presignedCacheRef.current ?? undefined
+      );
     } catch (err) {
       // Best-effort: the form is already navigating away on cancel, surfacing
       // a hard error here would be confusing. Log for monitoring instead.

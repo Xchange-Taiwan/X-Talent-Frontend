@@ -311,4 +311,49 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
     expect(mockConsume).not.toHaveBeenCalled();
     expect(mockWriteProfile).toHaveBeenCalledTimes(2);
   });
+
+  it('enforces full formSchema validation on submitOnboarding and rewinds to the earliest failing step if an earlier step field is invalid', async () => {
+    const { result } = renderHook(() => {
+      const s = useOnboardingForm({
+        industries: mockIndustries,
+        port: buildPort(),
+      });
+      void s.form.formState.errors;
+      return s;
+    });
+
+    // Advance cleanly to Step 5, then corrupt Step 1's `name` directly before submitOnboarding
+    act(() => {
+      result.current.form.reset({
+        name: 'Valid User',
+        avatar: '',
+        avatarFile: undefined,
+        language: 'zh_TW',
+        location: 'TWN',
+        years_of_experience: '1_3',
+        industry: 'TECH',
+        want_position: ['pos1'],
+        want_skill: ['skill1'],
+        want_topic: ['topic1'],
+      });
+    });
+
+    for (let i = 0; i < 4; i += 1) {
+      await act(async () => {
+        await result.current.advanceStep();
+      });
+    }
+    expect(result.current.currentStep).toBe(5);
+
+    act(() => {
+      result.current.form.setValue('name', '');
+    });
+
+    await act(async () => {
+      await result.current.submitOnboarding();
+    });
+
+    expect(mockWriteProfile).not.toHaveBeenCalled();
+    expect(result.current.currentStep).toBe(1);
+  });
 });

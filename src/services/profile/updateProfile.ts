@@ -31,34 +31,9 @@ export interface MentorProfileWritePayload {
   experiences?: MentorExperiencePayload[];
 }
 
-/**
- * Transitional input contract retained for Stage 1 backward compatibility
- * until `useOnboardingSubmit` is replaced by `commitProfileMutation` in Stage 2.
- */
-export interface UpdateProfileInput {
-  name: string;
-  avatar?: string;
-  location: string;
-  years_of_experience: string;
-  industry?: string;
-  language?: string;
-  is_mentor?: boolean;
-  onboarding?: boolean;
-  about?: string;
-  personal_statement?: string;
-  job_title?: string;
-  company?: string;
-  want_position: string[];
-  want_skill: string[];
-  want_topic: string[];
-  have_skill?: string[];
-  have_topic?: string[];
-  experiences?: MentorExperiencePayload[];
-}
-
 export async function updateProfile(
   userId: string | undefined,
-  profileData: MentorProfileWritePayload | UpdateProfileInput
+  profileData: MentorProfileWritePayload
 ): Promise<void> {
   if (!userId) {
     throw new Error('未找到使用者 ID。請重新登入。');

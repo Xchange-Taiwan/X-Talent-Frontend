@@ -3,11 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { apiClient } from '@/lib/apiClient';
 
-import {
-  type MentorProfileWritePayload,
-  updateProfile,
-  type UpdateProfileInput,
-} from './updateProfile';
+import { type MentorProfileWritePayload, updateProfile } from './updateProfile';
 
 vi.mock('@/lib/apiClient', () => ({
   apiClient: {
@@ -21,7 +17,7 @@ describe('updateProfile service', () => {
   });
 
   it('throws an error if userId is missing', async () => {
-    const emptyInput = fromPartial<UpdateProfileInput>({});
+    const emptyInput = fromPartial<MentorProfileWritePayload>({});
     await expect(updateProfile(undefined, emptyInput)).rejects.toThrow(
       '未找到使用者 ID。請重新登入。'
     );
@@ -58,23 +54,8 @@ describe('updateProfile service', () => {
     });
   });
 
-  it('supports partial UpdateProfileInput during transitional compatibility', async () => {
-    vi.mocked(apiClient.put).mockResolvedValue({ code: '0', msg: 'success' });
-
-    const dummyProfileData = fromPartial<UpdateProfileInput>({
-      job_title: 'Software Engineer',
-    });
-
-    await updateProfile('42', dummyProfileData);
-
-    expect(apiClient.put).toHaveBeenCalledWith('/v1/mentors/42/profile', {
-      job_title: 'Software Engineer',
-      user_id: 42,
-    });
-  });
-
   it('throws an error if userId is an invalid non-numeric string', async () => {
-    const emptyInput = fromPartial<UpdateProfileInput>({});
+    const emptyInput = fromPartial<MentorProfileWritePayload>({});
     await expect(updateProfile('abc', emptyInput)).rejects.toThrow(
       '使用者 ID 格式無效。'
     );
@@ -85,7 +66,7 @@ describe('updateProfile service', () => {
       new TypeError('Failed to fetch')
     );
 
-    const emptyInput = fromPartial<UpdateProfileInput>({});
+    const emptyInput = fromPartial<MentorProfileWritePayload>({});
     await expect(updateProfile('42', emptyInput)).rejects.toThrow(
       '無法連接到伺服器。請檢查您的網絡連接。'
     );
@@ -96,7 +77,7 @@ describe('updateProfile service', () => {
       new Error('Internal Server Error')
     );
 
-    const emptyInput = fromPartial<UpdateProfileInput>({});
+    const emptyInput = fromPartial<MentorProfileWritePayload>({});
     await expect(updateProfile('42', emptyInput)).rejects.toThrow(
       'Internal Server Error'
     );

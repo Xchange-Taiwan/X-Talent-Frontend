@@ -2,7 +2,13 @@
 
 import { useSession } from 'next-auth/react';
 import React from 'react';
-import { Control, FieldValues, Path, useWatch } from 'react-hook-form';
+import {
+  Control,
+  FieldValues,
+  Path,
+  useFormState,
+  useWatch,
+} from 'react-hook-form';
 
 import AvatarUpload from '@/components/ui/avatar-upload';
 
@@ -26,12 +32,21 @@ export const AvatarSection = <T extends FieldValues>({
   id,
 }: AvatarSectionProps<T>) => {
   const { data: session } = useSession();
+  const resolvedAvatarField = avatarUrlField ?? ('avatar' as Path<T>);
   const watchedAvatar = useWatch({
     control,
-    name: avatarUrlField ?? ('avatar' as Path<T>),
+    name: resolvedAvatarField,
   });
+  const { dirtyFields } = useFormState({
+    control,
+    name: resolvedAvatarField,
+  });
+  const isAvatarDirty = Boolean(
+    (dirtyFields as Record<string, unknown>)[String(resolvedAvatarField)]
+  );
   const avatarUrl =
-    typeof watchedAvatar === 'string'
+    typeof watchedAvatar === 'string' &&
+    (watchedAvatar.length > 0 || isAvatarDirty)
       ? watchedAvatar
       : (session?.user?.avatar ?? '');
 

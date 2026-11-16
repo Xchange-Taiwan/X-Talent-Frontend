@@ -56,7 +56,11 @@ describe('useBackgroundAvatarUpload', () => {
     expect(mockUpdateAvatar).toHaveBeenCalledWith(
       file,
       TEST_USER_ID,
-      expect.any(AbortSignal)
+      expect.any(AbortSignal),
+      expect.objectContaining({
+        prefetch: expect.any(Function),
+        consume: expect.any(Function),
+      })
     );
   });
 
@@ -170,7 +174,15 @@ describe('useBackgroundAvatarUpload', () => {
     });
 
     expect(returnedUrl).toBe(mockUrl);
-    expect(mockUpdateAvatar).toHaveBeenCalledWith(file, TEST_USER_ID);
+    expect(mockUpdateAvatar).toHaveBeenCalledWith(
+      file,
+      TEST_USER_ID,
+      undefined,
+      expect.objectContaining({
+        prefetch: expect.any(Function),
+        consume: expect.any(Function),
+      })
+    );
   });
 
   it('should abort active upload on rollback', async () => {
@@ -396,7 +408,11 @@ describe('useBackgroundAvatarUpload', () => {
     expect(mockUpdateAvatar).toHaveBeenCalledWith(
       file,
       undefined,
-      expect.any(AbortSignal)
+      expect.any(AbortSignal),
+      expect.objectContaining({
+        prefetch: expect.any(Function),
+        consume: expect.any(Function),
+      })
     );
 
     // Attach the consumer before rejecting so the rejection is never
@@ -471,5 +487,36 @@ describe('useBackgroundAvatarUpload', () => {
     const restoredFile = mockUpdateAvatar.mock.calls[1][0];
     expect(restoredFile.name).toBe('avatar');
     expect(restoredFile.type).toBe('image/jpeg');
+  });
+
+  it('uses explicit userId over session user.id and passes the same per-instance PresignedUrlCache to updateAvatar across kickOff and rollback (#905)', async () => {
+    const file = new File(['new-avatar-bytes'], 'avatar.png', {
+      type: 'image/png',
+    });
+    mockUpdateAvatar.mockResolvedValue(
+      'https://s3.amazonaws.com/bucket/avatar.png?v=1001'
+    );
+    mockGetAvatarSnapshot.mockResolvedValue(
+      new Blob(['original-bytes'], { type: 'image/png' })
+    );
+
+    const { result } = renderHook(() => useBackgroundAvatarUpload('999'));
+
+    await act(async () => {
+      result.current.kickOff(file, 'https://old-avatar.com/old.png');
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      await result.current.rollback();
+    });
+
+    expect(mockUpdateAvatar).toHaveBeenCalledTimes(2);
+    expect(mockUpdateAvatar.mock.calls[0][1]).toBe(999);
+    expect(mockUpdateAvatar.mock.calls[1][1]).toBe(999);
+    const cacheInstance0 = mockUpdateAvatar.mock.calls[0][3];
+    const cacheInstance1 = mockUpdateAvatar.mock.calls[1][3];
+    expect(cacheInstance0).toBeDefined();
+    expect(cacheInstance0).toBe(cacheInstance1);
   });
 });
