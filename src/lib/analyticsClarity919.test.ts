@@ -62,8 +62,24 @@ describe('Clarity session identity, playback URL, and failure upgrade (#919)', (
     expect(identifyCalls).toHaveLength(1);
     expect(identifyCalls[0]).toEqual(['identify', '7488864558908473']);
 
-    // Logout clears cached identify key so re-login re-identifies cleanly
+    // Logout clears cached identify key and active playback URL so re-login starts fresh
+    const clarityWithMeta = vi.fn((cmd: string, cb?: unknown) => {
+      if (cmd === 'metadata' && typeof cb === 'function') {
+        (cb as (d: unknown) => void)({
+          projectId: 'vwimm8rumd',
+          userId: 'u9',
+          sessionId: 's9',
+        });
+      }
+    });
+    window.clarity = clarityWithMeta as unknown as typeof window.clarity;
+    registerClarityMetadataListener();
+    expect(getActiveClarityPlaybackUrl()).not.toBeNull();
+
     clearAnalyticsUser();
+    expect(getActiveClarityPlaybackUrl()).toBeNull();
+
+    window.clarity = claritySpy as unknown as typeof window.clarity;
     setAnalyticsUserContext({ userId: '7488864558908473', userRole: 'mentor' });
     const identifyCallsAfterRelogin = claritySpy.mock.calls.filter(
       (args) => args[0] === 'identify'

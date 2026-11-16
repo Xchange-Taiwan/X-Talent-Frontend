@@ -168,8 +168,6 @@ export function useMentorPool({
       t: query.filter_topics ?? '',
       i: query.filter_industries ?? '',
       sort: query.sort_by ?? '',
-      count: pageState.mentorCount,
-      empty: listStatus === 'empty',
     });
     if (lastTrackedSearchKeyRef.current === searchIdentityKey) return;
     lastTrackedSearchKeyRef.current = searchIdentityKey;

@@ -806,6 +806,10 @@ export function setAnalyticsUserContext(
     setAnalyticsTag('user_role', resolvedRole);
   }
 
+  if (!safeUserId) {
+    activeClaritySessionUrl = null;
+  }
+
   const clarity = getClarity();
   if (clarity) {
     if (safeUserId) {

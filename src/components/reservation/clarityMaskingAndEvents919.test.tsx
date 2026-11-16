@@ -113,6 +113,9 @@ describe('#919 Clarity DOM masking across all 10 sensitive components', () => {
     const descEl = dialog.querySelector('p');
     expect(descEl).not.toBeNull();
     expect(descEl!.closest('[data-clarity-mask="true"]')).not.toBeNull();
+    const scrollBody = dialog.querySelector('.overflow-y-auto');
+    expect(scrollBody).not.toBeNull();
+    expect(scrollBody!.closest('[data-clarity-mask="true"]')).not.toBeNull();
     for (const img of Array.from(dialog.querySelectorAll('img'))) {
       expect(img.closest('[data-clarity-mask="true"]')).not.toBeNull();
     }
@@ -133,6 +136,13 @@ describe('#919 Clarity DOM masking across all 10 sensitive components', () => {
     const questionBox = questionHeader.nextElementSibling;
     expect(questionBox).not.toBeNull();
     expect(questionBox!.closest('[data-clarity-mask="true"]')).not.toBeNull();
+    const acceptReplyBtn = Array.from(
+      acceptDialog.querySelectorAll('button')
+    ).find((b) => /回覆|留言/.test(b.textContent ?? ''));
+    expect(acceptReplyBtn).toBeDefined();
+    expect(
+      acceptReplyBtn!.closest('[data-clarity-mask="true"]')
+    ).not.toBeNull();
     for (const img of Array.from(acceptDialog.querySelectorAll('img'))) {
       expect(img.closest('[data-clarity-mask="true"]')).not.toBeNull();
     }
@@ -149,6 +159,11 @@ describe('#919 Clarity DOM masking across all 10 sensitive components', () => {
     expect(
       quickProfileLink!.closest('[data-clarity-mask="true"]')
     ).not.toBeNull();
+    const quickReplyBtn = Array.from(
+      quickDialog.querySelectorAll('button')
+    ).find((b) => /回覆|留言/.test(b.textContent ?? ''));
+    expect(quickReplyBtn).toBeDefined();
+    expect(quickReplyBtn!.closest('[data-clarity-mask="true"]')).not.toBeNull();
     u2();
 
     const ConfirmedStories = composeStories(ConfirmedReservationStories);
@@ -183,10 +198,16 @@ describe('#919 Clarity DOM masking across all 10 sensitive components', () => {
     const DialogStories = composeStories(MeetingFeedbackStories);
     const FirstDialog = Object.values(DialogStories)[0];
     const { unmount: uDialog } = render(<FirstDialog defaultOpen={true} />);
+    const fbDialog = screen.getByRole('dialog');
     const fbHeader = screen.getByTestId('feedback-mentor-header');
     const headerName = fbHeader.querySelector('p');
     expect(headerName).not.toBeNull();
     expect(headerName!.closest('[data-clarity-mask="true"]')).not.toBeNull();
+    const fbFormScrollBody = fbDialog.querySelector('form .overflow-y-auto');
+    expect(fbFormScrollBody).not.toBeNull();
+    expect(
+      fbFormScrollBody!.closest('[data-clarity-mask="true"]')
+    ).not.toBeNull();
     for (const img of Array.from(fbHeader.querySelectorAll('img'))) {
       expect(img.closest('[data-clarity-mask="true"]')).not.toBeNull();
     }
@@ -321,6 +342,92 @@ describe('#919 Search zero-results, Email verification, OAuth failures, and sche
 
     const serializedCalls = JSON.stringify(vi.mocked(trackEvent).mock.calls);
     expect(serializedCalls).not.toContain('secret-keyword');
+  });
+
+  it('covers unfiltered no-op, non-zero results without zero_results event, pagination deduplication, error guard, and filter clear reset', async () => {
+    type ParamsType = ReturnType<
+      typeof import('next/navigation').useSearchParams
+    >;
+
+    // 1. Unfiltered browse does not fire view_search_results
+    const emptyParams = new URLSearchParams('') as unknown as ParamsType;
+    const { rerender } = renderHook(
+      ({ p }: { p: ParamsType }) =>
+        useMentorPool({
+          initialMentors: [],
+          initialMentorCount: 5,
+          params: p,
+        }),
+      { initialProps: { p: emptyParams } }
+    );
+    expect(trackEvent).not.toHaveBeenCalled();
+
+    // 2. Non-zero filtered result fires ONLY view_search_results (not mentor_search_zero_results) and deduplicates across pagination count updates
+    const filteredParams = new URLSearchParams(
+      'filter_topics=career_transition'
+    ) as unknown as ParamsType;
+    const qObj = mentorPoolReadModel.resolveQuery(filteredParams);
+    await act(async () => {
+      mentorPoolReadModel.prime(qObj, {
+        mentors: [{ user_id: 1 } as never],
+        nextCursor: 'c2',
+        hasMore: true,
+        mentorCount: 1,
+        isNoResults: false,
+        hasError: false,
+      });
+    });
+
+    rerender({ p: filteredParams });
+    await waitFor(() => {
+      expect(trackEvent).toHaveBeenCalledTimes(1);
+    });
+    expect(trackEvent).toHaveBeenCalledWith({
+      name: 'view_search_results',
+      feature: 'mentor_pool',
+      metadata: {
+        result_count: 1,
+        has_keyword: false,
+        active_filter_count: 1,
+      },
+    });
+
+    // Simulate loadMore updating mentorCount for same query -> must NOT re-fire view_search_results
+    await act(async () => {
+      mentorPoolReadModel.prime(qObj, {
+        mentors: [{ user_id: 1 } as never, { user_id: 2 } as never],
+        nextCursor: null,
+        hasMore: false,
+        mentorCount: 2,
+        isNoResults: false,
+        hasError: false,
+      });
+    });
+    rerender({ p: filteredParams });
+    expect(trackEvent).toHaveBeenCalledTimes(1);
+
+    // 3. Clearing filters resets dedup ref so re-applying the same filter fires again
+    rerender({ p: emptyParams });
+    rerender({ p: filteredParams });
+    await waitFor(() => {
+      expect(trackEvent).toHaveBeenCalledTimes(2);
+    });
+
+    // 4. Error state does NOT fire view_search_results
+    vi.mocked(trackEvent).mockClear();
+    const errParams = new URLSearchParams('q=boom') as unknown as ParamsType;
+    await act(async () => {
+      mentorPoolReadModel.prime(mentorPoolReadModel.resolveQuery(errParams), {
+        mentors: [],
+        nextCursor: null,
+        hasMore: false,
+        mentorCount: 0,
+        isNoResults: false,
+        hasError: true,
+      });
+    });
+    rerender({ p: errParams });
+    expect(trackEvent).not.toHaveBeenCalled();
   });
 
   it('tracks email_verified on confirmSignUpToken success and auth_flow_failed on error', async () => {
