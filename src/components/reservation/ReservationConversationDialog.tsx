@@ -91,16 +91,14 @@ export default function ReservationConversationDialog({
       <DialogContent className="flex max-h-[85vh] w-[92vw] max-w-[480px] flex-col gap-0 p-0 sm:max-w-lg">
         <DialogHeader className="space-y-3 border-b p-4 sm:p-6">
           <div className="flex items-center gap-3">
-            <Avatar className="size-10 shrink-0">
+            <Avatar data-clarity-mask="true" className="size-10 shrink-0">
               {reservation.avatar ? (
                 <AvatarImage
                   src={getAvatarThumbUrl(reservation.avatar)}
                   alt={reservation.name}
                 />
               ) : null}
-              <AvatarFallback data-clarity-mask="true">
-                {initials}
-              </AvatarFallback>
+              <AvatarFallback>{initials}</AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1 text-left">
               <DialogTitle className="truncate text-base">

@@ -125,15 +125,15 @@ const MAX_URI_DECODE_PASSES = 3;
 
 const CLARITY_SAFE_TOKEN_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;
 
-const CLARITY_SESSION_URL_DIAGNOSTIC_EVENTS: ReadonlySet<string> = new Set([
+const CLARITY_PLAYBACK_URL_DIAGNOSTIC_EVENTS: ReadonlySet<string> = new Set([
+  'mentor_no_available_slots',
+  'auth_gate_triggered',
+  'mentor_search_zero_results',
   'booking_submit_failed',
   'auth_flow_failed',
-  'mentor_no_available_slots',
 ]);
 
 const CLARITY_AUTO_UPGRADE_EVENTS: ReadonlySet<string> = new Set([
-  'reservation_booking_confirmed',
-  'onboarding_completed',
   'booking_submit_failed',
   'auth_flow_failed',
 ]);
@@ -568,7 +568,7 @@ export function initGa4(gaId: string): boolean {
  * callback payload. Returns `null` if any identifier is missing or fails strict
  * character allowlisting (`^[a-zA-Z0-9_-]{1,64}$`).
  */
-export function buildSafeClaritySessionUrl(
+export function buildSafeClarityPlaybackUrl(
   payload: ClarityMetadataPayload | null | undefined
 ): string | null {
   if (!payload || typeof payload !== 'object') return null;
@@ -583,19 +583,19 @@ export function buildSafeClaritySessionUrl(
   ) {
     return null;
   }
-  return `https://clarity.microsoft.com/projects/view/${projectId}/impressions?cid=${userId}&sid=${sessionId}`;
+  return `https://clarity.microsoft.com/player/${projectId}/${userId}/${sessionId}`;
 }
 
 /**
- * Returns the latest validated Clarity session replay URL captured from Clarity `metadata`, if any.
+ * Returns the latest validated Clarity playback URL captured from Clarity `metadata`, if any.
  */
-export function getActiveClaritySessionUrl(): string | null {
+export function getActiveClarityPlaybackUrl(): string | null {
   return activeClaritySessionUrl;
 }
 
 /**
- * Idempotently registers `window.clarity('metadata', callback, false, false)` on the
- * current `window.clarity` function to capture the active Clarity session replay URL.
+ * Idempotently registers `window.clarity('metadata', callback, false)` on the
+ * current `window.clarity` function to capture the active Clarity playback URL.
  */
 export function registerClarityMetadataListener(): boolean {
   const clarity = getClarity();
@@ -606,12 +606,11 @@ export function registerClarityMetadataListener(): boolean {
   clarity(
     'metadata',
     (data) => {
-      const safeUrl = buildSafeClaritySessionUrl(data);
+      const safeUrl = buildSafeClarityPlaybackUrl(data);
       if (safeUrl) {
         activeClaritySessionUrl = safeUrl;
       }
     },
-    false,
     false
   );
   return true;
@@ -935,7 +934,7 @@ export function trackEvent(
     ? safeMetadata.user_role
     : (currentAnalyticsUserRole ?? 'guest');
   const shouldAttachClarityUrl =
-    CLARITY_SESSION_URL_DIAGNOSTIC_EVENTS.has(trimmedName) &&
+    CLARITY_PLAYBACK_URL_DIAGNOSTIC_EVENTS.has(trimmedName) &&
     activeClaritySessionUrl !== null &&
     isAllowedAnalyticsUrl(activeClaritySessionUrl);
 
@@ -944,7 +943,7 @@ export function trackEvent(
     user_role: effectiveUserRole,
     ...safeMetadata,
     ...(shouldAttachClarityUrl && activeClaritySessionUrl
-      ? { clarity_session_url: activeClaritySessionUrl }
+      ? { clarity_playback_url: activeClaritySessionUrl }
       : {}),
   };
 
@@ -961,7 +960,13 @@ export function trackEvent(
       setAnalyticsTag('user_role', effectiveUserRole);
       for (const [key, value] of Object.entries(safeMetadata)) {
         const lower = key.toLowerCase();
-        if (lower === 'user_id' || lower === 'user_role') continue;
+        if (
+          lower === 'user_id' ||
+          lower === 'user_role' ||
+          lower === 'clarity_playback_url'
+        ) {
+          continue;
+        }
         setAnalyticsTag(key, String(value));
       }
       if (CLARITY_AUTO_UPGRADE_EVENTS.has(trimmedName)) {

@@ -168,7 +168,7 @@ export function ReservationIdentityHeader({
         )}
         ariaLabel={`查看 ${reservation.name} 的個人資料`}
       >
-        <Avatar className={style.avatarClassName}>
+        <Avatar data-clarity-mask="true" className={style.avatarClassName}>
           <AvatarImage
             src={
               reservation.avatar
@@ -177,10 +177,7 @@ export function ReservationIdentityHeader({
             }
             alt={reservation.name}
           />
-          <AvatarFallback
-            data-clarity-mask="true"
-            className={style.avatarFallbackClassName}
-          >
+          <AvatarFallback className={style.avatarFallbackClassName}>
             {initials}
           </AvatarFallback>
         </Avatar>

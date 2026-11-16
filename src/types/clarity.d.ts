@@ -12,8 +12,7 @@ export interface ClarityFunction {
     command: 'identify',
     customId: string,
     customSessionId?: string,
-    customPageId?: string,
-    friendlyName?: string
+    customPageId?: string
   ): void;
   (
     command: 'metadata',
@@ -28,7 +27,13 @@ export interface ClarityFunction {
   (command: 'upgrade', reason: string): void;
   (command: 'set', key: string, value: string | string[]): void;
   (command: 'event', eventName: string): void;
-  (...args: unknown[]): void;
+  <TCommand extends string>(
+    command: Exclude<
+      TCommand,
+      'identify' | 'metadata' | 'upgrade' | 'set' | 'event'
+    >,
+    ...args: unknown[]
+  ): void;
   q?: ClarityQueueEntry[];
 }
 

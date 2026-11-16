@@ -676,7 +676,10 @@ export default function MeetingFeedbackDialog({
                 className="flex items-center justify-between gap-3"
               >
                 <div className="flex min-w-0 items-center gap-3">
-                  <Avatar className="border-avatar-border/50 size-10 shrink-0 border">
+                  <Avatar
+                    data-clarity-mask="true"
+                    className="border-avatar-border/50 size-10 shrink-0 border"
+                  >
                     <AvatarImage
                       src={
                         activeReservation.avatar?.trim()
@@ -685,10 +688,7 @@ export default function MeetingFeedbackDialog({
                       }
                       alt={activeReservation.name}
                     />
-                    <AvatarFallback
-                      data-clarity-mask="true"
-                      className="text-text-primary text-xs font-medium"
-                    >
+                    <AvatarFallback className="text-text-primary text-xs font-medium">
                       {getInitials(activeReservation.name)}
                     </AvatarFallback>
                   </Avatar>

@@ -13,7 +13,7 @@ import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
 import { useMentorFeedback } from '@/hooks/user/feedback/useMentorFeedback';
 import { useBookingConfirmation } from '@/hooks/user/reservation/useBookingConfirmation';
 import useUserData from '@/hooks/user/user-data/useUserData';
-import { trackEvent } from '@/lib/analytics';
+import { useTrackMentorNoAvailableSlots } from '@/hooks/useTrackMentorNoAvailableSlots';
 import { isFeedbackEnabled } from '@/lib/featureFlags';
 import { getMentorOnboardingUrl, OPEN_SCHEDULE_DIALOG_KEY } from '@/lib/routes';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
@@ -98,66 +98,20 @@ export default function ProfilePageContainer({
     userLoading,
   });
 
-  const trackedNoSlotsKeysRef = useRef<Set<string>>(new Set());
-  const viewedYear = reader.year;
-  const viewedMonth = reader.month;
-  const scheduleMonthLoaded = reader.slotsSnapshot?.monthLoaded ?? loaded;
-  const scheduleIsFetching = Boolean(reader.isFetching);
-  const scheduleHasError = Boolean(reader.hasError);
-
-  useEffect(() => {
-    if (!isIdentityResolved || isOwnProfile) return;
-    if (userLoading || !userData?.is_mentor) return;
-    if (
-      !loaded ||
-      !scheduleMonthLoaded ||
-      scheduleIsFetching ||
-      scheduleHasError
-    ) {
-      return;
-    }
-    if (
-      !Number.isSafeInteger(pageUserIdNumber) ||
-      pageUserIdNumber <= 0 ||
-      typeof viewedYear !== 'number' ||
-      typeof viewedMonth !== 'number'
-    ) {
-      return;
-    }
-
-    const monthPrefix = `${viewedYear}-${String(viewedMonth).padStart(2, '0')}-`;
-    const hasAvailableDatesInMonth = reader.allowedDates.some((dateKey) =>
-      dateKey.startsWith(monthPrefix)
-    );
-    if (hasAvailableDatesInMonth) return;
-
-    const dedupKey = `${pageUserIdNumber}:${viewedYear}-${viewedMonth}`;
-    if (trackedNoSlotsKeysRef.current.has(dedupKey)) return;
-    trackedNoSlotsKeysRef.current.add(dedupKey);
-
-    trackEvent({
-      name: 'mentor_no_available_slots',
-      feature: 'reservation',
-      metadata: {
-        mentor_id: pageUserIdNumber,
-        viewed_year: viewedYear,
-        viewed_month: viewedMonth,
-      },
-    });
-  }, [
+  useTrackMentorNoAvailableSlots({
     isIdentityResolved,
     isOwnProfile,
-    loaded,
-    pageUserIdNumber,
-    reader.allowedDates,
-    scheduleHasError,
-    scheduleIsFetching,
-    scheduleMonthLoaded,
-    userData?.is_mentor,
     userLoading,
-    viewedMonth,
-    viewedYear,
-  ]);
+    isMentor: Boolean(userData?.is_mentor),
+    mentorId: pageUserIdNumber,
+    loaded,
+    monthLoaded: reader.slotsSnapshot?.monthLoaded ?? loaded,
+    isFetching: Boolean(reader.isFetching),
+    hasError: Boolean(reader.hasError),
+    year: reader.year,
+    month: reader.month,
+    allowedDates: reader.allowedDates,
+  });
 
   const feedback = useMentorFeedback({
     mentorId: pageUserIdNumber,

@@ -59,6 +59,9 @@ export function useBookingConfirmation({
         trackEvent({
           name: 'reservation_booking_confirmed',
           feature: 'reservation',
+          metadata: {
+            mentor_id: userData.user_id,
+          },
         });
 
         toast({
@@ -73,6 +76,15 @@ export function useBookingConfirmation({
 
         const isDuplicate = error instanceof ApiError && error.status === 409;
         const msg = error instanceof Error ? error.message : 'Unknown error';
+
+        trackEvent({
+          name: 'booking_submit_failed',
+          feature: 'reservation',
+          metadata: {
+            mentor_id: userData.user_id,
+            error_type: isDuplicate ? 'slot_conflict' : 'api_error',
+          },
+        });
 
         captureFlowFailure({
           flow: 'reservation_create',

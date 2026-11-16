@@ -274,7 +274,18 @@ describe('MentorBookmarkButton', () => {
       '/auth/signin?callbackUrl=%2Fprofile%2F101'
     );
     expect(addMock).not.toHaveBeenCalled();
-    expect(trackEventSpy).not.toHaveBeenCalled();
+    expect(trackEventSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'mentor_bookmark_toggle' })
+    );
+    expect(trackEventSpy).toHaveBeenCalledWith({
+      name: 'auth_gate_triggered',
+      feature: 'favorites',
+      metadata: {
+        gate_feature: 'favorites',
+        trigger_type: 'click_cta',
+        mentor_id: 101,
+      },
+    });
   });
 
   it('forwards actual feature source (profile and favorites) to trackEvent', async () => {

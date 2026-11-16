@@ -52,19 +52,24 @@ export function MenteeBookingForm({
       ? parsedMentorId
       : undefined;
 
-  const trackedGateViewMentorIdRef = useRef<number | null>(null);
+  const trackedGateViewKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (isAuthenticated || numericMentorId === undefined) return;
-    if (trackedGateViewMentorIdRef.current === numericMentorId) return;
-    trackedGateViewMentorIdRef.current = numericMentorId;
+    if (isAuthenticated) return;
+    const dedupKey =
+      numericMentorId !== undefined ? String(numericMentorId) : '__unknown__';
+    if (trackedGateViewKeyRef.current === dedupKey) return;
+    trackedGateViewKeyRef.current = dedupKey;
 
     trackEvent({
       name: 'auth_gate_triggered',
       feature: 'reservation',
       metadata: {
-        gate_source: 'booking_form_view',
-        mentor_id: numericMentorId,
+        gate_feature: 'reservation',
+        trigger_type: 'impression',
+        ...(numericMentorId !== undefined
+          ? { mentor_id: numericMentorId }
+          : {}),
       },
     });
   }, [isAuthenticated, numericMentorId]);
@@ -139,16 +144,17 @@ export function MenteeBookingForm({
                       ? { metadata: { mentor_id: normalizedMentorId } }
                       : {}),
                   });
-                  if (numericMentorId !== undefined) {
-                    trackEvent({
-                      name: 'auth_gate_triggered',
-                      feature: 'reservation',
-                      metadata: {
-                        gate_source: 'booking_signin_click',
-                        mentor_id: numericMentorId,
-                      },
-                    });
-                  }
+                  trackEvent({
+                    name: 'auth_gate_triggered',
+                    feature: 'reservation',
+                    metadata: {
+                      gate_feature: 'reservation',
+                      trigger_type: 'click_cta',
+                      ...(numericMentorId !== undefined
+                        ? { mentor_id: numericMentorId }
+                        : {}),
+                    },
+                  });
                 }}
               >
                 前往登入
@@ -180,6 +186,7 @@ export function MenteeBookingForm({
         </label>
         <Textarea
           id="booking-question"
+          data-clarity-mask="true"
           placeholder="請在此輸入你的問題..."
           className={cn(
             'border-background-border h-[156px] w-full rounded-lg',
