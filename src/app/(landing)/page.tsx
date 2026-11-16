@@ -3,7 +3,8 @@ import Image from 'next/image';
 
 import { FeatureItem } from '@/components/landing/FeatureItem';
 import { HomePageCtaButton } from '@/components/landing/HomePageCtaButton';
-import { HomePageSliderClient } from '@/components/landing/HomePageSliderClient';
+import { HomePageHero } from '@/components/landing/HomePageHero';
+import { HomePageSlider } from '@/components/landing/HomePageSlider';
 
 import { featureData } from './data';
 
@@ -52,28 +53,7 @@ const ROLE_CHIPS = [
 export default function Page() {
   return (
     <>
-      <section className="relative isolate flex h-[532px] flex-col items-center justify-center overflow-hidden bg-[url('/landing/home-page-hero-sm.svg')] bg-cover bg-center bg-no-repeat px-6 text-center sm:bg-[url('/landing/home-page-hero-md.svg')] sm:px-0 lg:h-[640px] lg:bg-none lg:pt-[180px] lg:pb-16">
-        <h1 className="text-navy mb-6 text-3xl leading-[44px] font-bold sm:text-4xl sm:leading-normal 2xl:text-5xl">
-          交流讓
-          <br className="md:hidden" />
-          改變發生
-        </h1>
-        <p className="text-text-primary max-w-[320px] text-lg leading-7 sm:max-w-[460px] sm:text-xl sm:leading-normal lg:max-w-[500px] 2xl:max-w-[630px] 2xl:text-2xl">
-          Find your Mentor/Mentee to build up connections, break up limits.
-        </p>
-        <div className="mt-8">
-          <HomePageCtaButton variant="hero" />
-        </div>
-
-        <Image
-          src="/landing/home-page-hero.webp"
-          alt="X-Talent 平台主視覺：專業工作者交流情境"
-          fill
-          sizes="1800px"
-          priority
-          className="-z-10 hidden w-[1800px] object-cover object-center lg:block"
-        />
-      </section>
+      <HomePageHero />
 
       <section className="flex py-10 sm:py-20">
         <div className="flex w-full flex-col items-center justify-center">
@@ -304,7 +284,7 @@ export default function Page() {
 
       <section className="bg-background-bottom-secondary flex items-center justify-center">
         <div className="w-full max-w-[600px] py-10 lg:max-w-6xl">
-          <HomePageSliderClient />
+          <HomePageSlider />
         </div>
       </section>
 

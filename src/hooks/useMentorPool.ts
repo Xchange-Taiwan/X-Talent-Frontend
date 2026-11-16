@@ -1,26 +1,20 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { PAGE_LIMIT } from '@/app/mentor-pool/constants';
-import {
-  hasAnyCondition,
-  paramsToFetchConditions,
-} from '@/app/mentor-pool/searchParams';
 import { useToast } from '@/components/ui/use-toast';
-import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useAsyncRead } from '@/hooks/useAsyncRead';
+import { isAbortError } from '@/lib/errorUtils';
 import {
   applyMentorPage,
   EMPTY_MENTOR_POOL_STATE,
+  fetchMentorPoolPageOne,
   type MentorPageAction,
   type MentorPoolPageState,
-  mentorPoolReadManager,
-  mentorPoolStore,
-  toMentorPoolConditionKey,
-} from '@/lib/cache/mentorPoolCache';
-import { isAbortError } from '@/lib/errorUtils';
+  mentorPoolReadModel,
+} from '@/lib/mentor/mentorPoolReadModel';
 import { fetchMentors } from '@/services/search-mentor/mentors';
 import type { MentorType } from '@/types/mentor';
 
@@ -31,7 +25,6 @@ interface UseMentorPoolProps {
   initialNextCursor?: string | null;
   initialMentorCount: number;
   params: ReturnType<typeof useSearchParams>;
-  labelMap: Map<string, string>;
   initialError?: boolean;
 }
 
@@ -40,7 +33,6 @@ export function useMentorPool({
   initialNextCursor = null,
   initialMentorCount,
   params,
-  labelMap,
   initialError,
 }: UseMentorPoolProps) {
   const { toast } = useToast();
@@ -54,90 +46,57 @@ export function useMentorPool({
     });
   }, [toast]);
 
-  const hasConditions = hasAnyCondition(params);
-  const paramsString = params?.toString() ?? '';
-  const conditionKey = toMentorPoolConditionKey(paramsString, hasConditions);
+  const query = mentorPoolReadModel.resolveQuery(params);
+  const initialQueryRef = useRef(query);
 
-  const initialUnfilteredState = useMemo(
+  const initialData = useMemo(
     () =>
-      mentorPoolStore.seedInitialUnfiltered({
+      mentorPoolReadModel.resolveSSRInitialData(query, {
         initialMentors,
         initialNextCursor,
         initialMentorCount,
-        hasInitialFilters: hasConditions,
         initialError,
+        initialQuery: initialQueryRef.current,
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [initialMentors, initialMentorCount, initialError]
+    [query, initialMentors, initialNextCursor, initialMentorCount, initialError]
   );
 
-  // Track whether any client-side filter navigation or retry has occurred so
-  // clearing filters after an SSR initialError fetches fresh instead of
-  // falling back to the stale SSR error state.
-  const [hasClientActivity, setHasClientActivity] = useState(hasConditions);
+  // Client-only SSR hydration: never mutates the singleton during SSR render
+  // ([DEPLOY-04]), while seeding the unfiltered cache slot on client mount.
   useEffect(() => {
-    if (hasConditions && !hasClientActivity) {
-      setHasClientActivity(true);
-    }
-  }, [hasConditions, hasClientActivity]);
-
-  const shouldHoldInitialError =
-    Boolean(initialError) && !hasConditions && !hasClientActivity;
-  const activeKey = shouldHoldInitialError ? null : conditionKey;
-
-  const latestKeyRef = useRef(activeKey);
-  const loadMoreAbortRef = useRef<AbortController | null>(null);
-  useEffect(() => {
-    latestKeyRef.current = activeKey;
-    loadMoreAbortRef.current?.abort();
-    loadMoreAbortRef.current = null;
-  }, [activeKey]);
+    mentorPoolReadModel.primeUnfilteredFromSSR({
+      initialMentors,
+      initialNextCursor,
+      initialMentorCount,
+      initialError,
+      initialQuery: initialQueryRef.current,
+    });
+  }, [initialMentors, initialNextCursor, initialMentorCount, initialError]);
 
   const fetcher = useCallback(
-    (signal: AbortSignal) => {
-      const conditions = paramsToFetchConditions(params);
-      return mentorPoolStore
-        .fetchPageOne(
-          (limit, sig) => fetchMentors({ ...conditions, limit }, sig),
-          signal,
-          PAGE_LIMIT
-        )
-        .catch((err) => {
+    (signal: AbortSignal) =>
+      fetchMentorPoolPageOne(query, fetchMentors, signal, PAGE_LIMIT).catch(
+        (err) => {
           if (!isAbortError(err, signal)) {
             showErrorToast();
           }
           throw err;
-        });
-    },
-    [params, showErrorToast]
+        }
+      ),
+    [query, showErrorToast]
   );
 
   const {
     data: cachedPageState,
-    isLoading: isPageLoading,
+    isLoading,
     error: pageError,
     refetch,
-  } = useAsyncRead(mentorPoolReadManager, activeKey, fetcher, {
-    initialData:
-      !hasConditions && !initialError && initialMentors.length > 0
-        ? initialUnfilteredState
-        : undefined,
+  } = useAsyncRead(mentorPoolReadModel, query, fetcher, {
+    initialData,
   });
 
-  const { run: runLoadMore, isPending: isLoadMorePending } = useAsyncAction();
-  const [loadMoreErrorKey, setLoadMoreErrorKey] = useState<string | null>(null);
-
   const pageState = useMemo<MentorPoolPageState>(() => {
-    if (shouldHoldInitialError) {
-      return initialUnfilteredState;
-    }
     if (cachedPageState) {
-      if (
-        loadMoreErrorKey === activeKey &&
-        cachedPageState.mentors.length === 0
-      ) {
-        return { ...cachedPageState, hasError: true };
-      }
       return cachedPageState;
     }
     if (pageError) {
@@ -151,81 +110,18 @@ export function useMentorPool({
       ...EMPTY_MENTOR_POOL_STATE,
       hasMore: false,
     };
-  }, [
-    shouldHoldInitialError,
-    initialUnfilteredState,
-    cachedPageState,
-    pageError,
-    loadMoreErrorKey,
-    activeKey,
-  ]);
-
-  const isLoading = isPageLoading || isLoadMorePending;
-
-  const fetchMoreMentors = useCallback(async () => {
-    const currentKey = activeKey;
-    if (!currentKey) return;
-    const conditions = paramsToFetchConditions(params);
-    const param = {
-      ...conditions,
-      limit: PAGE_LIMIT,
-      cursor: pageState.nextCursor ?? undefined,
-    };
-
-    const controller = new AbortController();
-    loadMoreAbortRef.current = controller;
-
-    const rtnList = await runLoadMore(
-      () => fetchMentors(param, controller.signal),
-      {
-        preventConcurrent: true,
-        throwError: false,
-        onError: (err) => {
-          if (
-            latestKeyRef.current === currentKey &&
-            !isAbortError(err, controller.signal)
-          ) {
-            showErrorToast();
-            if (pageState.mentors.length === 0) {
-              setLoadMoreErrorKey(currentKey);
-            }
-          }
-        },
-      }
-    );
-
-    if (!rtnList) return;
-    if (latestKeyRef.current === currentKey) {
-      setLoadMoreErrorKey(null);
-      mentorPoolStore.appendPage(currentKey, pageState, rtnList);
-    }
-  }, [activeKey, params, pageState, runLoadMore, showErrorToast]);
+  }, [cachedPageState, pageError]);
 
   const handleScrollToBottom = useCallback(async () => {
     if (!pageState.hasMore || isLoading) return;
-    await fetchMoreMentors();
-  }, [pageState.hasMore, fetchMoreMentors, isLoading]);
-
-  const handleRetry = useCallback(() => {
-    setLoadMoreErrorKey(null);
-    if (shouldHoldInitialError) {
-      setHasClientActivity(true);
-      return;
+    const outcome = await mentorPoolReadModel.loadMore(query, fetchMentors, {
+      limit: PAGE_LIMIT,
+      fallbackState: pageState,
+    });
+    if (outcome.status === 'error' && !outcome.deduplicated) {
+      showErrorToast();
     }
-    refetch();
-  }, [shouldHoldInitialError, refetch]);
-
-  // Dynamically translate tag labels inside useMemo on return. This preserves dynamic localization
-  // updates (e.g. language switching) without coupling translation state updates to useEffect fetching.
-  const mentorsForUI = useMemo(
-    () =>
-      pageState.mentors.map((m) => ({
-        ...m,
-        have_topic: m.have_topic.map((c) => labelMap.get(c) ?? c),
-        have_skill: m.have_skill.map((c) => labelMap.get(c) ?? c),
-      })),
-    [pageState.mentors, labelMap]
-  );
+  }, [query, pageState, isLoading, showErrorToast]);
 
   const listStatus = useMemo<'loading' | 'error' | 'empty' | 'success'>(() => {
     if (pageState.mentors.length > 0) return 'success';
@@ -241,13 +137,13 @@ export function useMentorPool({
   ]);
 
   return {
-    mentors: mentorsForUI,
+    mentors: pageState.mentors,
     mentorCount: pageState.mentorCount,
     isLoading,
     isNoResults: pageState.isNoResults,
     hasError: pageState.hasError,
     listStatus,
     handleScrollToBottom,
-    handleRetry,
+    handleRetry: refetch,
   };
 }

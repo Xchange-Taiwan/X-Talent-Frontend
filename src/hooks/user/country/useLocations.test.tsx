@@ -1,12 +1,12 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { fromPartial } from '@total-typescript/shoehorn';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getCountries } from '@/services/profile/countries';
 import type { LocationType } from '@/types/location';
 
 import useLocations, {
-  locationsCache,
+  LOCATIONS_CACHE_TTL_MS,
   locationsReadManager,
 } from './useLocations';
 
@@ -23,8 +23,11 @@ vi.mock('@/services/profile/countries', async () => {
 describe('useLocations', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    locationsCache.clear();
     locationsReadManager.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('fetches location data on mount and updates state', async () => {
@@ -54,12 +57,12 @@ describe('useLocations', () => {
     ];
     vi.mocked(getCountries).mockResolvedValueOnce(mockData);
 
-    // Warm the cache
-    await locationsCache.fetch('zh_TW', () => getCountries('zh_TW'));
+    await locationsReadManager.prefetch('zh_TW', (signal) =>
+      getCountries('zh_TW', signal)
+    );
 
     const { result } = renderHook(() => useLocations('zh_TW'));
 
-    // Should load synchronously from cache (isLoading = false initially)
     expect(result.current.isLoading).toBe(false);
     expect(result.current.locations).toEqual(mockData);
     expect(getCountries).toHaveBeenCalledTimes(1);
@@ -70,21 +73,18 @@ describe('useLocations', () => {
       fromPartial<LocationType>({ value: 'TWN', text: 'Taiwan' }),
     ];
 
-    // Controlled unresolved promise to mimic concurrent requests
     let resolveFetch: (value: LocationType[]) => void = () => {};
     const delayPromise = new Promise<LocationType[]>((resolve) => {
       resolveFetch = resolve;
     });
     vi.mocked(getCountries).mockReturnValueOnce(delayPromise);
 
-    // Render hook multiple times concurrently
     const { result: r1 } = renderHook(() => useLocations('zh_TW'));
     const { result: r2 } = renderHook(() => useLocations('zh_TW'));
 
     expect(r1.current.isLoading).toBe(true);
     expect(r2.current.isLoading).toBe(true);
 
-    // Resolve the single promise
     resolveFetch(mockData);
 
     await waitFor(() => {
@@ -110,7 +110,6 @@ describe('useLocations', () => {
 
     expect(result.current.error).toBe('Failed to load location options');
 
-    // Unmount so we can remount and trigger a fresh fetch
     unmount();
 
     const mockData = [
@@ -128,7 +127,7 @@ describe('useLocations', () => {
     expect(getCountries).toHaveBeenCalledTimes(2);
   });
 
-  it('correctly expires the cache after TTL and triggers a new fetch', async () => {
+  it('serves stale locations immediately without loading flash after TTL and revalidates in background', async () => {
     vi.useFakeTimers();
 
     const mockData1 = [
@@ -142,7 +141,6 @@ describe('useLocations', () => {
       .mockResolvedValueOnce(mockData1)
       .mockResolvedValueOnce(mockData2);
 
-    // Initial render and fetch
     const { result, unmount } = renderHook(() => useLocations('zh_TW'));
 
     expect(result.current.isLoading).toBe(true);
@@ -153,26 +151,20 @@ describe('useLocations', () => {
     expect(result.current.locations).toEqual(mockData1);
     expect(getCountries).toHaveBeenCalledTimes(1);
 
-    // Unmount so we can test next mounting
     unmount();
 
-    // Fast-forward time past 24 hours (24 * 60 * 60 * 1000)
-    vi.advanceTimersByTime(24 * 60 * 60 * 1000 + 1);
+    vi.advanceTimersByTime(LOCATIONS_CACHE_TTL_MS + 1);
 
-    // Remount the hook for the same language
     const { result: retryResult } = renderHook(() => useLocations('zh_TW'));
 
-    // Cache should be expired, so it should load and fetch again
-    expect(retryResult.current.isLoading).toBe(true);
-
-    await vi.waitFor(() => {
-      expect(retryResult.current.isLoading).toBe(false);
-    });
-
-    expect(retryResult.current.locations).toEqual(mockData2);
+    // Non-destructive SWR: stale mockData1 renders immediately with isLoading=false while revalidating
+    expect(retryResult.current.isLoading).toBe(false);
+    expect(retryResult.current.locations).toEqual(mockData1);
     expect(getCountries).toHaveBeenCalledTimes(2);
 
-    vi.useRealTimers();
+    await vi.waitFor(() => {
+      expect(retryResult.current.locations).toEqual(mockData2);
+    });
   });
 
   it('handles unmounting while a fetch is pending and prevents state updates', async () => {
@@ -186,19 +178,14 @@ describe('useLocations', () => {
 
     expect(result.current.isLoading).toBe(true);
 
-    // Unmount while the promise is still pending
     unmount();
 
-    // Resolve the promise now that the hook is unmounted
     const mockData = [
       fromPartial<LocationType>({ value: 'TWN', text: 'Taiwan' }),
     ];
     resolveFetch(mockData);
 
-    // Give microtasks a chance to run
     await new Promise((resolve) => setTimeout(resolve, 0));
-
-    // The test should pass without any React warnings or errors
   });
 
   it('correctly shifts state synchronously and triggers a new fetch when language prop changes', async () => {
@@ -217,7 +204,6 @@ describe('useLocations', () => {
       initialProps: 'zh_TW',
     });
 
-    // Initial load for zh_TW
     expect(result.current.isLoading).toBe(true);
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
@@ -229,15 +215,12 @@ describe('useLocations', () => {
       expect.any(AbortSignal)
     );
 
-    // Change language dynamically to en_US
     rerender('en_US');
 
-    // Due to derived state, isLoading must shift to true immediately synchronously during render
     expect(result.current.isLoading).toBe(true);
     expect(result.current.locations).toEqual([]);
     expect(result.current.error).toBeNull();
 
-    // Wait for the new fetch to resolve
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
     });
@@ -250,30 +233,25 @@ describe('useLocations', () => {
   });
 
   it('clears the previous error state immediately when shifting to a cached language', async () => {
-    // 1. Warm cache for 'en_US'
     const enData = [
       fromPartial<LocationType>({ value: 'USA', text: 'United States' }),
     ];
-    locationsCache.set('en_US', enData);
+    locationsReadManager.set('en_US', enData);
 
-    // 2. Set up getCountries to fail for 'zh_TW'
     vi.mocked(getCountries).mockRejectedValueOnce(new Error('Fetch failed'));
 
     const { result, rerender } = renderHook((lang) => useLocations(lang), {
       initialProps: 'zh_TW',
     });
 
-    // Initial load for zh_TW fails
     expect(result.current.isLoading).toBe(true);
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
     });
     expect(result.current.error).toBe('Failed to load location options');
 
-    // 3. Shift language to 'en_US' which is in cache
     rerender('en_US');
 
-    // It should immediately synchronously clear the error and load cached locations
     expect(result.current.isLoading).toBe(false);
     expect(result.current.error).toBeNull();
     expect(result.current.locations).toEqual(enData);

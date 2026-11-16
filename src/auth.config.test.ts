@@ -386,7 +386,7 @@ describe('auth.config', () => {
 
   describe('sessionCallback', () => {
     it('sets session user attributes and accessToken from JWT token', async () => {
-      const result = await sessionCallback!(
+      const result = await sessionCallback(
         fromPartial({
           session: {
             user: {},
@@ -425,9 +425,23 @@ describe('auth.config', () => {
         email: 'user@example.com',
       });
 
-      const resultAny = result as unknown as Record<string, unknown>;
-      expect(resultAny.accessToken).toBe('jwt-access-token');
-      expect(resultAny.error).toBe('RefreshTokenError');
+      expect(result.accessToken).toBeUndefined();
+      expect(result.error).toBe('RefreshTokenError');
+
+      const healthyResult = await sessionCallback(
+        fromPartial({
+          session: {
+            user: {},
+            expires: '2026-12-31T23:59:59.999Z',
+          },
+          token: {
+            id: 'user-123',
+            token: 'jwt-access-token',
+          },
+        })
+      );
+      expect(healthyResult.accessToken).toBe('jwt-access-token');
+      expect(healthyResult.error).toBeUndefined();
     });
   });
 
@@ -546,6 +560,141 @@ describe('auth.config', () => {
 
       // Verify that the cookie is completely deleted afterward
       expect(cookieJar.get('g_oauth_rt')).toBeUndefined();
+    });
+  });
+
+  describe('SSR_API_URL ?? NEXT_PUBLIC_API_URL resolution & BFF user normalization (#885)', () => {
+    const originalSsrUrl = process.env.SSR_API_URL;
+    const originalPublicUrl = process.env.NEXT_PUBLIC_API_URL;
+
+    afterEach(() => {
+      if (originalSsrUrl === undefined) {
+        delete process.env.SSR_API_URL;
+      } else {
+        process.env.SSR_API_URL = originalSsrUrl;
+      }
+      if (originalPublicUrl === undefined) {
+        delete process.env.NEXT_PUBLIC_API_URL;
+      } else {
+        process.env.NEXT_PUBLIC_API_URL = originalPublicUrl;
+      }
+    });
+
+    it('prefers SSR_API_URL over NEXT_PUBLIC_API_URL in credentials authorize and googleCallback', async () => {
+      process.env.SSR_API_URL = 'http://internal-bff:8000/api';
+      process.env.NEXT_PUBLIC_API_URL = 'https://public-bff.example.com/api';
+
+      const credentialsProvider = authOptions.providers.find(
+        (p) => p.id === 'credentials' && p.options?.id !== 'custom-google-token'
+      );
+      expect(credentialsProvider).toBeDefined();
+
+      mockFetch.mockResolvedValueOnce(
+        fromPartial<Response>({
+          ok: true,
+          headers: new Headers({
+            'set-cookie': 'refresh_token=rt_ssr; Path=/; HttpOnly',
+          }),
+          json: async () => ({
+            data: {
+              auth: {
+                user_id: 301,
+                token: 'jwt_ssr',
+                email: 'ssr@example.com',
+              },
+              user: {
+                user_id: 301,
+                name: 'SSR User',
+                onboarding: true,
+                is_mentor: false,
+                experiences: [],
+              },
+            },
+          }),
+        })
+      );
+
+      const credUser = await credentialsProvider!.options.authorize(
+        { email: 'ssr@example.com', password: 'Password1!' },
+        fromPartial({})
+      );
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://internal-bff:8000/api/v1/auth/login',
+        expect.objectContaining({ method: 'POST' })
+      );
+      expect(credUser).toMatchObject({
+        id: '301',
+        token: 'jwt_ssr',
+        refreshToken: 'rt_ssr',
+        email: 'ssr@example.com',
+        name: 'SSR User',
+        onBoarding: true,
+        isMentor: false,
+        jobTitle: '',
+        company: '',
+        personalLinks: [],
+      });
+
+      mockFetch.mockResolvedValueOnce(
+        fromPartial<Response>({
+          ok: true,
+          headers: new Headers(),
+          json: async () => ({ code: '0', data: null }),
+        })
+      );
+
+      await googleCallback('oauth_code', 'oauth_state');
+
+      expect(mockFetch).toHaveBeenLastCalledWith(
+        'http://internal-bff:8000/api/v2/oauth/google/callback',
+        expect.objectContaining({ method: 'POST' })
+      );
+    });
+
+    it('guards res.ok before parsing JSON and rejects HTTP-200 non-zero BFF envelopes in credentials.authorize (#895)', async () => {
+      process.env.SSR_API_URL = 'http://internal-bff:8000/api';
+
+      const credentialsProvider = authOptions.providers.find(
+        (p) => p.id === 'credentials' && p.options?.id !== 'custom-google-token'
+      );
+      expect(credentialsProvider).toBeDefined();
+
+      const jsonSpy = vi.fn().mockRejectedValue(new SyntaxError('HTML 502'));
+      mockFetch.mockResolvedValueOnce(
+        fromPartial<Response>({
+          ok: false,
+          status: 502,
+          json: jsonSpy,
+        })
+      );
+
+      const gatewayErrorResult = await credentialsProvider!.options.authorize(
+        { email: 'ssr@example.com', password: 'Password1!' },
+        fromPartial({})
+      );
+      expect(gatewayErrorResult).toBeNull();
+      expect(jsonSpy).not.toHaveBeenCalled();
+
+      mockFetch.mockResolvedValueOnce(
+        fromPartial<Response>({
+          ok: true,
+          status: 200,
+          headers: new Headers(),
+          json: async () => ({
+            code: '401',
+            msg: '帳號或密碼錯誤',
+            data: null,
+          }),
+        })
+      );
+
+      const nonZeroEnvelopeResult =
+        await credentialsProvider!.options.authorize(
+          { email: 'ssr@example.com', password: 'Password1!' },
+          fromPartial({})
+        );
+      expect(nonZeroEnvelopeResult).toBeNull();
     });
   });
 });

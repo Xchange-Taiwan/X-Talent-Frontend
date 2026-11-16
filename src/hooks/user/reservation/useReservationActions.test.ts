@@ -23,6 +23,8 @@ vi.mock('@/services/reservations', async (importOriginal) => {
     ...actual,
     acceptReservation: vi.fn(),
     rejectOrCancelReservation: vi.fn(),
+    submitReservationFeedback: vi.fn(),
+    updateReservationFeedback: vi.fn(),
   };
 });
 
@@ -30,6 +32,8 @@ import {
   acceptReservation,
   rejectOrCancelReservation,
   ReservationVersionConflictError,
+  submitReservationFeedback,
+  updateReservationFeedback,
 } from '@/services/reservations';
 import type { Reservation } from '@/types/reservation';
 
@@ -37,6 +41,8 @@ import { useReservationActions } from './useReservationActions';
 
 const mockAcceptService = vi.mocked(acceptReservation);
 const mockRejectService = vi.mocked(rejectOrCancelReservation);
+const mockSubmitFeedbackService = vi.mocked(submitReservationFeedback);
+const mockUpdateFeedbackService = vi.mocked(updateReservationFeedback);
 
 const mockReservation: Reservation = {
   id: 'res-abc',
@@ -252,7 +258,7 @@ describe('useReservationActions', () => {
       expect(result.current.isMutating).toBe(false);
     });
 
-    it('should trigger correct cancel success toast when action is cancel', async () => {
+    it('should trigger correct cancel success toast and reservation_cancelled analytics event when action is cancel', async () => {
       mockRejectService.mockResolvedValue();
 
       const { result } = renderHook(() =>
@@ -275,6 +281,14 @@ describe('useReservationActions', () => {
 
       await promise;
 
+      expect(mockTrackEvent).toHaveBeenCalledWith({
+        name: 'reservation_cancelled',
+        feature: 'reservation',
+      });
+      expect(mockTrackEvent).not.toHaveBeenCalledWith({
+        name: 'reservation_rejected',
+        feature: 'reservation',
+      });
       expect(mockToast).toHaveBeenCalledWith({
         description: '已取消預約',
       });
@@ -391,6 +405,81 @@ describe('useReservationActions', () => {
 
       expect(mockToast).not.toHaveBeenCalled();
       expect(mockOnMutationSuccess).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('submitFeedback (#730)', () => {
+    it('calls submitReservationFeedback, tracks analytics without PII, and triggers onMutationSuccess', async () => {
+      mockSubmitFeedbackService.mockResolvedValueOnce();
+
+      const { result } = renderHook(() =>
+        useReservationActions({
+          myUserId: 'user-123',
+          variant: 'history',
+          myRole: 'mentee',
+          onMutationSuccess: mockOnMutationSuccess,
+        })
+      );
+
+      await act(async () => {
+        await result.current.submitFeedback(mockReservation, {
+          meeting_happened: true,
+          feedback: { rating: 10, content: '收穫良多' },
+        });
+      });
+
+      expect(mockSubmitFeedbackService).toHaveBeenCalledWith({
+        reservation: mockReservation,
+        myUserId: 'user-123',
+        myRole: 'mentee',
+        payload: {
+          meeting_happened: true,
+          feedback: { rating: 10, content: '收穫良多' },
+        },
+      });
+      expect(mockTrackEvent).toHaveBeenCalledWith({
+        name: 'reservation_feedback_submitted',
+        feature: 'reservation',
+        metadata: { meeting_happened: true },
+      });
+      expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc');
+    });
+  });
+
+  describe('updateFeedback (#731)', () => {
+    it('calls updateReservationFeedback, tracks reservation_feedback_updated without PII, and triggers onMutationSuccess', async () => {
+      mockUpdateFeedbackService.mockResolvedValueOnce();
+
+      const { result } = renderHook(() =>
+        useReservationActions({
+          myUserId: 'user-123',
+          variant: 'history',
+          myRole: 'mentee',
+          onMutationSuccess: mockOnMutationSuccess,
+        })
+      );
+
+      await act(async () => {
+        await result.current.updateFeedback(mockReservation, {
+          rating: 8,
+          content: '更新後的回饋內容',
+        });
+      });
+
+      expect(mockUpdateFeedbackService).toHaveBeenCalledWith({
+        reservation: mockReservation,
+        myUserId: 'user-123',
+        myRole: 'mentee',
+        payload: {
+          rating: 8,
+          content: '更新後的回饋內容',
+        },
+      });
+      expect(mockTrackEvent).toHaveBeenCalledWith({
+        name: 'reservation_feedback_updated',
+        feature: 'reservation',
+      });
+      expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc');
     });
   });
 });

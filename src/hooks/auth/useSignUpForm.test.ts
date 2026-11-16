@@ -11,12 +11,15 @@ vi.mock('@/components/ui/use-toast', async () => {
   return useToastMockFactory();
 });
 
-vi.mock('@/services/auth/signUp', () => ({
-  signUp: vi.fn(),
+vi.mock('@/services/auth/authClient', () => ({
+  authClient: {
+    signUp: vi.fn(),
+  },
 }));
 
 vi.mock('@/lib/monitoring', () => ({
   captureFlowFailure: vi.fn(),
+  sanitize: (val: string) => val,
 }));
 
 vi.mock('@/lib/analytics', () => ({
@@ -27,13 +30,13 @@ import { trackEvent } from '@/lib/analytics';
 import { ApiError } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { SignUpSchema } from '@/schemas/auth';
-import { signUp } from '@/services/auth/signUp';
+import { authClient } from '@/services/auth/authClient';
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockToast } from '@/test/mocks/useToast';
 
 import useSignUpForm from './useSignUpForm';
 
-const mockSignUp = vi.mocked(signUp);
+const mockSignUp = vi.mocked(authClient.signUp);
 const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 const mockTrackEvent = vi.mocked(trackEvent);
 
@@ -47,7 +50,6 @@ const validValues = {
 describe('useSignUpForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Setup standard sessionStorage mock
     const store: Record<string, string> = {};
     const mockStorage = {
       getItem: (key: string) => store[key] || null,
@@ -86,11 +88,16 @@ describe('useSignUpForm', () => {
 
     expect(mockSignUp).toHaveBeenCalledWith(validValues);
     expect(mockTrackEvent).toHaveBeenCalledWith({
-      name: 'sign_up_succeeded',
+      name: 'sign_up',
       feature: 'auth',
+      metadata: {
+        method: 'Email',
+        user_role: 'guest',
+      },
     });
     expect(sessionStorage.getItem('email')).toBe(validValues.email);
     expect(mockRouter.push).toHaveBeenCalledWith('/auth/email-verify');
+    expect(result.current.isSubmitting).toBe(true);
   });
 
   it('handles general non-ApiError during submission', async () => {
@@ -111,12 +118,15 @@ describe('useSignUpForm', () => {
         level: 'info',
       })
     );
-    expect(mockToast).toHaveBeenCalledWith({
-      variant: 'destructive',
-      title: '註冊失敗',
-      description: 'Unexpected network error',
-    });
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'destructive',
+        title: '註冊失敗',
+        description: 'Unexpected network error',
+      })
+    );
     expect(mockRouter.push).not.toHaveBeenCalled();
+    expect(result.current.isSubmitting).toBe(false);
   });
 
   it('handles ApiError 422 (validation error)', async () => {
@@ -138,11 +148,13 @@ describe('useSignUpForm', () => {
         level: 'info',
       })
     );
-    expect(mockToast).toHaveBeenCalledWith({
-      variant: 'destructive',
-      title: '驗證失敗',
-      description: '輸入欄位驗證錯誤',
-    });
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'destructive',
+        title: '驗證失敗',
+        description: '輸入欄位驗證錯誤',
+      })
+    );
     expect(mockRouter.push).not.toHaveBeenCalled();
   });
 
@@ -165,11 +177,13 @@ describe('useSignUpForm', () => {
         level: 'info',
       })
     );
-    expect(mockToast).toHaveBeenCalledWith({
-      variant: 'destructive',
-      title: '註冊失敗',
-      description: '電子郵件已被佔用',
-    });
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'destructive',
+        title: '註冊失敗',
+        description: '電子郵件已被佔用',
+      })
+    );
     expect(mockRouter.push).not.toHaveBeenCalled();
   });
 
@@ -192,11 +206,13 @@ describe('useSignUpForm', () => {
         level: 'info',
       })
     );
-    expect(mockToast).toHaveBeenCalledWith({
-      variant: 'destructive',
-      title: '請求過於頻繁',
-      description: 'Too many requests',
-    });
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'destructive',
+        title: '請求過於頻繁',
+        description: 'Too many requests',
+      })
+    );
     expect(mockRouter.push).not.toHaveBeenCalled();
   });
 
@@ -219,11 +235,13 @@ describe('useSignUpForm', () => {
         level: 'info',
       })
     );
-    expect(mockToast).toHaveBeenCalledWith({
-      variant: 'destructive',
-      title: '註冊失敗',
-      description: 'Internal DB crash - HTTP狀態碼: 500。',
-    });
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'destructive',
+        title: '註冊失敗',
+        description: 'Internal DB crash - HTTP狀態碼: 500。',
+      })
+    );
     expect(mockRouter.push).not.toHaveBeenCalled();
   });
 
@@ -249,7 +267,6 @@ describe('useSignUpForm', () => {
     expect(errors.confirm_password?.message).toBe('密碼至少需為 8 個字');
     expect(errors.hasReadTermsOfService?.message).toBe('請確認並同意服務條款');
 
-    // Also verify SignUpSchema.safeParse({}) when fields are undefined never returns English "Required"
     const parsed = SignUpSchema.safeParse({});
     expect(parsed.success).toBe(false);
     if (!parsed.success) {

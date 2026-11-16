@@ -1,12 +1,17 @@
 import { render, screen } from '@testing-library/react';
 import * as React from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { firePointer } from '@/test/pointerEvents';
 
 import { Toast, ToastProvider, ToastTitle, ToastViewport } from './toast';
+import { Toaster } from './toaster';
+import { clearToasts, useToast } from './use-toast';
 
 describe('Toast', () => {
+  afterEach(() => {
+    clearToasts();
+  });
   it('still dismisses on a left swipe when rendered through the full component', () => {
     const onOpenChange = vi.fn();
     render(
@@ -76,5 +81,39 @@ describe('Toast', () => {
     firePointer(toast, 'pointerup', { clientX: 100 });
 
     expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it('positions ToastViewport as a fixed floating layer below the top bar instead of bottom-right', () => {
+    render(
+      <ToastProvider>
+        <ToastViewport data-testid="toast-viewport" />
+      </ToastProvider>
+    );
+
+    const viewport = screen.getByTestId('toast-viewport');
+    expect(viewport.className).toContain('fixed');
+    expect(viewport.className).toContain(
+      'top-[calc(70px_+_var(--banner-height,0px))]'
+    );
+    expect(viewport.className).not.toContain('sm:bottom-0');
+  });
+
+  it('renders a toast dispatched synchronously inside an earlier sibling mount useEffect before Toaster mounts (#756)', async () => {
+    function SiblingTrigger() {
+      const { toast } = useToast();
+      React.useEffect(() => {
+        toast({ variant: 'destructive', title: '無法收藏自己' });
+      }, [toast]);
+      return <div data-testid="sibling-trigger" />;
+    }
+
+    render(
+      <>
+        <SiblingTrigger />
+        <Toaster />
+      </>
+    );
+
+    expect(await screen.findByText('無法收藏自己')).toBeVisible();
   });
 });

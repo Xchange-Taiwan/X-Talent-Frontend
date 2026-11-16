@@ -2,41 +2,48 @@
 
 import { ChevronLeft, Loader2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import type { FormEvent } from 'react';
 import { UseFormReturn } from 'react-hook-form';
-import * as z from 'zod';
 
 import { WhoAreYou } from '@/components/onboarding/steps';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
-import {
-  step1Schema,
-  step2Schema,
-  step3Schema,
-  step4Schema,
-  step5Schema,
-} from '@/schemas/onboarding';
+import type { OnboardingFormValues } from '@/schemas/onboarding';
 import type { LocationType } from '@/types/location';
 import type { IndustryOption, TagCatalogGroupVO } from '@/types/tagCatalog';
 
-// Steps 2-5 are only rendered after the user completes step 1.
-// Lazy-load them so their code is excluded from the initial bundle and
-// downloaded in the background while the user fills in step 1.
-const PersonalInfo = dynamic(() =>
+const PersonalInfo = dynamic<{
+  form: UseFormReturn<OnboardingFormValues>;
+  locationOptions: LocationType[];
+  industryOptions: IndustryOption[];
+}>(() =>
   import('@/components/onboarding/steps/PersonalInfo').then((m) => ({
     default: m.PersonalInfo,
   }))
 );
-const InterestedPosition = dynamic(() =>
+const InterestedPosition = dynamic<{
+  form: UseFormReturn<OnboardingFormValues>;
+  wantPositionGroups: TagCatalogGroupVO[];
+  maxSelected?: number;
+}>(() =>
   import('@/components/onboarding/steps/InterestedPosition').then((m) => ({
     default: m.InterestedPosition,
   }))
 );
-const SkillsToImprove = dynamic(() =>
+const SkillsToImprove = dynamic<{
+  form: UseFormReturn<OnboardingFormValues>;
+  wantSkillGroups: TagCatalogGroupVO[];
+  maxSelected?: number;
+}>(() =>
   import('@/components/onboarding/steps/SkillsToImprove').then((m) => ({
     default: m.SkillsToImprove,
   }))
 );
-const TopicsToDiscuss = dynamic(() =>
+const TopicsToDiscuss = dynamic<{
+  form: UseFormReturn<OnboardingFormValues>;
+  wantTopicGroups: TagCatalogGroupVO[];
+  maxSelected?: number;
+}>(() =>
   import('@/components/onboarding/steps/TopicsToDiscuss').then((m) => ({
     default: m.TopicsToDiscuss,
   }))
@@ -46,11 +53,7 @@ interface Props {
   currentStep: number;
   stepsTotal: number;
   stepTitle: readonly string[];
-  step1Form: UseFormReturn<z.infer<typeof step1Schema>>;
-  step2Form: UseFormReturn<z.infer<typeof step2Schema>>;
-  step3Form: UseFormReturn<z.infer<typeof step3Schema>>;
-  step4Form: UseFormReturn<z.infer<typeof step4Schema>>;
-  step5Form: UseFormReturn<z.infer<typeof step5Schema>>;
+  form: UseFormReturn<OnboardingFormValues>;
   locations: LocationType[];
   industries: IndustryOption[];
   wantPositionGroups: TagCatalogGroupVO[];
@@ -58,11 +61,8 @@ interface Props {
   wantTopicGroups: TagCatalogGroupVO[];
   isSubmitting: boolean;
   onGoToPrev: () => void;
-  onSubmitStep1: (data: z.infer<typeof step1Schema>) => void;
-  onSubmitStep2: (data: z.infer<typeof step2Schema>) => void;
-  onSubmitStep3: (data: z.infer<typeof step3Schema>) => void;
-  onSubmitStep4: (data: z.infer<typeof step4Schema>) => void;
-  onSubmitStep5: (data: z.infer<typeof step5Schema>) => Promise<void>;
+  onNextStep: () => Promise<boolean>;
+  onSubmit: () => Promise<void>;
 }
 
 function StepHeader({
@@ -97,11 +97,7 @@ export default function OnboardingUI({
   currentStep,
   stepsTotal,
   stepTitle,
-  step1Form,
-  step2Form,
-  step3Form,
-  step4Form,
-  step5Form,
+  form,
   locations,
   industries,
   wantPositionGroups,
@@ -109,126 +105,57 @@ export default function OnboardingUI({
   wantTopicGroups,
   isSubmitting,
   onGoToPrev,
-  onSubmitStep1,
-  onSubmitStep2,
-  onSubmitStep3,
-  onSubmitStep4,
-  onSubmitStep5,
+  onNextStep,
+  onSubmit,
 }: Props) {
+  const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (currentStep < stepsTotal) {
+      void onNextStep();
+    } else {
+      void onSubmit();
+    }
+  };
+
   return (
     <div className="flex-1">
       <div className="mx-auto max-w-[600px] px-5 py-20">
-        {currentStep === 1 && (
-          <Form {...step1Form}>
-            <form
-              onSubmit={step1Form.handleSubmit(onSubmitStep1)}
-              className="space-y-10"
-            >
-              <StepHeader
-                currentStep={currentStep}
-                stepsTotal={stepsTotal}
-                stepTitle={stepTitle}
-                showBack={false}
-                onGoToPrev={onGoToPrev}
-              />
-              <WhoAreYou form={step1Form} />
-              <Button className="rounded-xl px-12" type="submit">
-                下一步
-              </Button>
-            </form>
-          </Form>
-        )}
+        <Form {...form}>
+          <form onSubmit={handleFormSubmit} className="space-y-10">
+            <StepHeader
+              currentStep={currentStep}
+              stepsTotal={stepsTotal}
+              stepTitle={stepTitle}
+              showBack={currentStep > 1}
+              onGoToPrev={onGoToPrev}
+            />
 
-        {currentStep === 2 && (
-          <Form {...step2Form}>
-            <form
-              onSubmit={step2Form.handleSubmit(onSubmitStep2)}
-              className="space-y-10"
-            >
-              <StepHeader
-                currentStep={currentStep}
-                stepsTotal={stepsTotal}
-                stepTitle={stepTitle}
-                showBack={true}
-                onGoToPrev={onGoToPrev}
-              />
+            {currentStep === 1 && <WhoAreYou form={form} />}
+            {currentStep === 2 && (
               <PersonalInfo
-                form={step2Form}
+                form={form}
                 locationOptions={locations}
                 industryOptions={industries}
               />
-              <Button className="rounded-xl px-12" type="submit">
-                下一步
-              </Button>
-            </form>
-          </Form>
-        )}
-
-        {currentStep === 3 && (
-          <Form {...step3Form}>
-            <form
-              onSubmit={step3Form.handleSubmit(onSubmitStep3)}
-              className="space-y-10"
-            >
-              <StepHeader
-                currentStep={currentStep}
-                stepsTotal={stepsTotal}
-                stepTitle={stepTitle}
-                showBack={true}
-                onGoToPrev={onGoToPrev}
-              />
+            )}
+            {currentStep === 3 && (
               <InterestedPosition
-                form={step3Form}
+                form={form}
                 wantPositionGroups={wantPositionGroups}
               />
+            )}
+            {currentStep === 4 && (
+              <SkillsToImprove form={form} wantSkillGroups={wantSkillGroups} />
+            )}
+            {currentStep === 5 && (
+              <TopicsToDiscuss form={form} wantTopicGroups={wantTopicGroups} />
+            )}
+
+            {currentStep < stepsTotal ? (
               <Button className="rounded-xl px-12" type="submit">
                 下一步
               </Button>
-            </form>
-          </Form>
-        )}
-
-        {currentStep === 4 && (
-          <Form {...step4Form}>
-            <form
-              onSubmit={step4Form.handleSubmit(onSubmitStep4)}
-              className="space-y-10"
-            >
-              <StepHeader
-                currentStep={currentStep}
-                stepsTotal={stepsTotal}
-                stepTitle={stepTitle}
-                showBack={true}
-                onGoToPrev={onGoToPrev}
-              />
-              <SkillsToImprove
-                form={step4Form}
-                wantSkillGroups={wantSkillGroups}
-              />
-              <Button className="rounded-xl px-12" type="submit">
-                下一步
-              </Button>
-            </form>
-          </Form>
-        )}
-
-        {currentStep === 5 && (
-          <Form {...step5Form}>
-            <form
-              onSubmit={step5Form.handleSubmit(onSubmitStep5)}
-              className="space-y-10"
-            >
-              <StepHeader
-                currentStep={currentStep}
-                stepsTotal={stepsTotal}
-                stepTitle={stepTitle}
-                showBack={true}
-                onGoToPrev={onGoToPrev}
-              />
-              <TopicsToDiscuss
-                form={step5Form}
-                wantTopicGroups={wantTopicGroups}
-              />
+            ) : (
               <Button
                 className="rounded-xl px-12"
                 type="submit"
@@ -243,9 +170,9 @@ export default function OnboardingUI({
                   '提交'
                 )}
               </Button>
-            </form>
-          </Form>
-        )}
+            )}
+          </form>
+        </Form>
       </div>
     </div>
   );

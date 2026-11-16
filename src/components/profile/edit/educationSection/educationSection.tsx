@@ -32,7 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ProfileFormContext } from '@/hooks/user/profile/useEditProfileForm';
+import { ProfileFormContext } from '@/hooks/user/profile/useProfileEditorSession';
 import {
   useRepeatablePeriodSection,
   YEAR_OPTIONS,
@@ -127,35 +127,24 @@ export function SchoolComboboxField({
 interface Props {
   form: ProfileFormContext;
   isMentor: boolean;
-  onValidationChange: (hasError: boolean) => void;
 }
 
-export const EducationSection = ({
-  form,
-  isMentor,
-  onValidationChange,
-}: Props) => {
+export const EducationSection = ({ form, isMentor }: Props) => {
   const {
     control,
     formState: { errors },
   } = form;
 
-  const { fields, move, isInvalidPeriod, tryAppend, remove } =
-    useRepeatablePeriodSection(
-      form,
-      {
-        arrayName: 'educations',
-        periodStartKey: 'education_period_start',
-        periodEndKey: 'education_period_end',
-        isIncompleteForAppend: (last) =>
-          !last?.subject ||
-          !last?.school ||
-          !last?.education_period_start ||
-          !last?.education_period_end,
-        incompleteAlertMessage: '請先完成上一筆教育資料再新增',
-      },
-      onValidationChange
-    );
+  const { fields, move, tryAppend, remove, createPeriodChangeHandlers } =
+    useRepeatablePeriodSection(form, {
+      arrayName: 'educations',
+      isIncompleteForAppend: (last) =>
+        !last?.subject ||
+        !last?.school ||
+        !last?.education_period_start ||
+        !last?.education_period_end,
+      incompleteAlertMessage: '請先完成上一筆教育資料再新增',
+    });
 
   const addEducation = () => {
     tryAppend({
@@ -170,7 +159,8 @@ export const EducationSection = ({
   return (
     <Section title="教育經歷" required={isMentor}>
       {fields.map((field, index) => {
-        const invalidPeriod = isInvalidPeriod(index);
+        const { handleStartYearChange, handleEndYearChange } =
+          createPeriodChangeHandlers(index);
 
         return (
           <div key={field.id} className="mb-4 rounded-lg border p-4">
@@ -225,7 +215,7 @@ export const EducationSection = ({
                   <FormItem className="mb-4 grow basis-1/2 md:mb-0">
                     <FormLabel>開始年份</FormLabel>
                     <Select
-                      onValueChange={field.onChange}
+                      onValueChange={handleStartYearChange(field.onChange)}
                       defaultValue={field.value}
                     >
                       <FormControl>
@@ -260,7 +250,7 @@ export const EducationSection = ({
                       &nbsp;
                     </FormLabel>
                     <Select
-                      onValueChange={field.onChange}
+                      onValueChange={handleEndYearChange(field.onChange)}
                       defaultValue={field.value}
                     >
                       <FormControl>
@@ -282,12 +272,6 @@ export const EducationSection = ({
                 )}
               />
             </div>
-
-            {invalidPeriod && (
-              <p className="text-status-error-default mb-4 text-sm font-medium">
-                開始年份不可大於結束年份
-              </p>
-            )}
 
             {fields.length > 1 && (
               <ConfirmDialog
@@ -314,9 +298,9 @@ export const EducationSection = ({
         <PlusIcon className="mr-2 size-5" />
         新增
       </Button>
-      {errors.educations?.message && (
+      {(errors.educations?.message ?? errors.educations?.root?.message) && (
         <p className="text-status-error-default mt-2 text-sm font-medium">
-          {errors.educations?.message as string}
+          {errors.educations?.message ?? errors.educations?.root?.message}
         </p>
       )}
     </Section>

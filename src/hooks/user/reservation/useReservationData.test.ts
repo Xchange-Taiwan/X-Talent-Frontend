@@ -509,4 +509,76 @@ describe('useReservationData (mentor)', () => {
       'stale-pending',
     ]);
   });
+
+  it('filters cancelled reservations out of upcomingSorted and derives them into history without duplicates (#881)', async () => {
+    mockFetch.mockImplementation(({ state }) => {
+      if (state === 'MENTOR_UPCOMING') {
+        return Promise.resolve({
+          items: [
+            {
+              ...makeReservation('upcoming-later'),
+              dtstart: 1700007200,
+            },
+            {
+              ...makeReservation('stale-upcoming-cancelled'),
+              dtstart: 1700001800,
+              cancelledBy: 'MENTEE' as const,
+            },
+            {
+              ...makeReservation('upcoming-sooner'),
+              dtstart: 1700003600,
+            },
+          ],
+          next_dtend: 0,
+        });
+      }
+      return Promise.resolve({ items: [], next_dtend: 0 });
+    });
+
+    const { result } = renderHook(() => useReservationData({ role: 'mentor' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.data?.upcoming.map((it) => it.id)).toEqual([
+      'upcoming-sooner',
+      'upcoming-later',
+    ]);
+    expect(result.current.data?.history.map((it) => it.id)).toEqual([
+      'stale-upcoming-cancelled',
+    ]);
+  });
+
+  it('aborts in-flight loadMore via reservationReadModel.loadNextPage when clear() runs on account switch (#899)', async () => {
+    let capturedSignal: AbortSignal | undefined;
+    mockFetch.mockImplementation(({ state, nextDtend, signal }) => {
+      if (state === 'MENTEE_UPCOMING' && nextDtend === 777) {
+        capturedSignal = signal;
+        return new Promise(() => {});
+      }
+      return Promise.resolve({
+        items: [makeReservation('initial-upcoming')],
+        next_dtend: state === 'MENTEE_UPCOMING' ? 777 : 0,
+      });
+    });
+
+    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    let loadMoreDone = false;
+    act(() => {
+      void result.current.loadMore('upcoming').then(() => {
+        loadMoreDone = true;
+      });
+    });
+
+    expect(capturedSignal).toBeDefined();
+    expect(capturedSignal?.aborted).toBe(false);
+
+    await act(async () => {
+      reservationReadModel.clear();
+      await Promise.resolve();
+    });
+
+    expect(capturedSignal?.aborted).toBe(true);
+    expect(loadMoreDone).toBe(true);
+  });
 });

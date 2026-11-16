@@ -6,7 +6,7 @@ export async function revokeBffSession(
   refreshToken: string,
   userId: number
 ): Promise<void> {
-  await apiClient.post(
+  await apiClient.postUnwrapped<null>(
     '/v1/auth/logout',
     { user_id: userId },
     {

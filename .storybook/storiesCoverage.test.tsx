@@ -15,19 +15,37 @@ import * as guestActionButtonsStories from '@/components/layout/Header/GuestActi
 import * as notificationBellStories from '@/components/layout/Header/NotificationBell.stories';
 import { UserAvatar } from '@/components/layout/Header/UserAvatar';
 import * as userAvatarStories from '@/components/layout/Header/UserAvatar.stories';
+import * as mentorCardStories from '@/components/mentor-pool/mentor-card/index.stories';
+import { Information } from '@/components/mentor-pool/mentor-card/Information';
+import * as informationStories from '@/components/mentor-pool/mentor-card/Information.stories';
 import * as confirmedReservationDialogStories from '@/components/profile/reservation/ConfirmedReservationDialog.stories';
 import * as menteeBookingFormStories from '@/components/profile/reservation/MenteeBookingForm.stories';
 import * as quickReplyDialogStories from '@/components/profile/reservation/QuickReplyDialog.stories';
+import { FeedbackStarRating } from '@/components/reservation/FeedbackStarRating';
+import * as feedbackStarRatingStories from '@/components/reservation/FeedbackStarRating.stories';
 import { JoinMeetButton } from '@/components/reservation/JoinMeetButton';
 import * as joinMeetButtonStories from '@/components/reservation/JoinMeetButton.stories';
+import * as feedbackRadioOptionStories from '@/components/reservation/meeting-feedback/FeedbackRadioOption.stories';
+import * as meetingFeedbackStepsStories from '@/components/reservation/meeting-feedback/MeetingFeedbackSteps.stories';
+import * as meetingFeedbackDialogStories from '@/components/reservation/MeetingFeedbackDialog.stories';
 import { ReplyMessageField } from '@/components/reservation/ReplyMessageField';
 import * as replyMessageFieldStories from '@/components/reservation/ReplyMessageField.stories';
 import * as reservationCardStories from '@/components/reservation/ReservationCard.stories';
 import * as reservationConversationDialogStories from '@/components/reservation/ReservationConversationDialog.stories';
 import * as reservationDashboardStories from '@/components/reservation/ReservationDashboard.stories';
+import { ReservationFeedbackBlock } from '@/components/reservation/ReservationFeedbackBlock';
+import * as reservationFeedbackBlockStories from '@/components/reservation/ReservationFeedbackBlock.stories';
 import * as reservationListStories from '@/components/reservation/ReservationList.stories';
 import * as reservationMessagePreviewStories from '@/components/reservation/ReservationMessagePreview.stories';
 import * as sliderStories from '@/components/ui/slider.stories';
+import * as tooltipStories from '@/components/ui/tooltip.stories';
+
+type ViteGlobImportMeta = {
+  glob<T = unknown>(
+    pattern: string,
+    options?: { eager?: boolean }
+  ): Record<string, T>;
+};
 
 describe('Storybook stories coverage for recent commits (#849)', () => {
   it('exposes all identity states for HomePageCtaButton and FeatureItem stories (#709)', () => {
@@ -141,6 +159,14 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
     expect(confirmedReservationDialogStories.Default).toBeDefined();
     expect(quickReplyDialogStories.Default).toBeDefined();
     expect(joinMeetButtonStories.Default).toBeDefined();
+    expect(joinMeetButtonStories.MentorReservationCard.args).toMatchObject({
+      sourceRole: 'mentor',
+      analyticsLocation: 'reservation_card',
+    });
+    expect(joinMeetButtonStories.MenteeConfirmedDialog.args).toMatchObject({
+      sourceRole: 'mentee',
+      analyticsLocation: 'confirmed_reservation_dialog',
+    });
     expect(joinMeetButtonStories.PendingState.args?.isPending).toBe(true);
 
     render(
@@ -207,6 +233,15 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
         }),
       ])
     );
+    expect(
+      notificationBellStories.FeedbackReceivedForMentor.args
+        ?.initialNotifications?.[0]
+    ).toMatchObject({
+      type: 'feedback_received',
+      role: 'mentor',
+      menteeName: 'Zahra Mirzakhani',
+      reservationId: '201',
+    });
 
     expect(announcementBannerStories.ActiveMaintenanceNotice).toBeDefined();
     expect(guestActionButtonsStories.ConfirmedGuest).toBeDefined();
@@ -229,5 +264,170 @@ describe('Storybook stories coverage for recent commits (#849)', () => {
     expect(screen.getByAltText('林學員 (Mentee) 的頭像')).toBeInTheDocument();
 
     expect(sliderStories.Default).toBeDefined();
+  });
+
+  it('exposes and renders MentorCard and Information Option B rating stories (#737, #896)', () => {
+    expect(mentorCardStories.default.title).toBe(
+      '業務模組元件/導師池(MentorPool)/MentorCard'
+    );
+    expect(mentorCardStories.Default.args?.mentor?.stats?.rating_average).toBe(
+      9.8
+    );
+    expect(
+      mentorCardStories.Default.args?.mentor?.stats?.completed_meeting_count
+    ).toBe(18);
+    expect(
+      mentorCardStories.StaffProductManager.args?.mentor?.stats?.rating_average
+    ).toBeNull();
+    expect(
+      mentorCardStories.StaffProductManager.args?.mentor?.stats
+        ?.completed_meeting_count
+    ).toBe(5);
+    expect(
+      mentorCardStories.NoRatingsOrSessions.args?.mentor?.stats?.rating_average
+    ).toBeNull();
+    expect(
+      mentorCardStories.NoRatingsOrSessions.args?.mentor?.stats
+        ?.completed_meeting_count
+    ).toBe(0);
+    expect(mentorCardStories.LongNameWithRating).toBeDefined();
+    expect(mentorCardStories.CodeMappedWithPrioritizedSkill).toBeDefined();
+    expect(mentorCardStories.FallbackAvatarWhenEmpty).toBeDefined();
+
+    expect(informationStories.default.title).toBe(
+      '業務模組元件/導師池(MentorPool)/Information'
+    );
+    expect(informationStories.CompletedSessionsWithoutRating).toBeDefined();
+    expect(informationStories.NoRatingsAndNoSessions).toBeDefined();
+    expect(informationStories.MobileLongNameTruncation).toBeDefined();
+
+    const defaultInfoArgs = informationStories.Default.args!;
+    render(
+      <Information
+        name={defaultInfoArgs.name!}
+        job_title={defaultInfoArgs.job_title!}
+        company={defaultInfoArgs.company!}
+        about={defaultInfoArgs.about!}
+        haveTopicLabels={defaultInfoArgs.haveTopicLabels!}
+        ratingLabel={defaultInfoArgs.ratingLabel}
+        completedMeetingsLabel={defaultInfoArgs.completedMeetingsLabel}
+      />
+    );
+    expect(screen.getByText('9.8 / 10')).toBeInTheDocument();
+    expect(screen.getByText('已完成 18 場 1-on-1')).toBeInTheDocument();
+  });
+
+  it('exposes and renders MeetingFeedbackDialog and ReservationFeedbackBlock stories (#730)', () => {
+    expect(feedbackStarRatingStories.default.title).toBe(
+      '業務模組元件/預約管理(Reservation)/FeedbackStarRating'
+    );
+    expect(feedbackStarRatingStories.DefaultFullScore).toBeDefined();
+    expect(feedbackStarRatingStories.PartialScoreEight).toBeDefined();
+    expect(feedbackStarRatingStories.DisabledState).toBeDefined();
+
+    render(
+      <FeedbackStarRating
+        value={feedbackStarRatingStories.DefaultFullScore.args!.value!}
+        onChange={() => {}}
+      />
+    );
+    expect(
+      screen.getByRole('radiogroup', { name: '整體滿意度' })
+    ).toBeInTheDocument();
+
+    expect(meetingFeedbackDialogStories.default.title).toBe(
+      '業務模組元件/預約管理(Reservation)/MeetingFeedbackDialog'
+    );
+    expect(meetingFeedbackDialogStories.ClosedTrigger).toBeDefined();
+    expect(meetingFeedbackDialogStories.StepAttendanceOpen).toBeDefined();
+    expect(meetingFeedbackDialogStories.StepRatingStarsOpen).toBeDefined();
+    expect(meetingFeedbackDialogStories.StepRatingSliderOpen).toBeDefined();
+    expect(meetingFeedbackDialogStories.StepNotHappenedOpen).toBeDefined();
+    expect(meetingFeedbackDialogStories.MultiSessionQueueOpen).toBeDefined();
+    expect(meetingFeedbackDialogStories.EditTriggerClosed).toBeDefined();
+    expect(meetingFeedbackDialogStories.EditModePrefilledOpen).toBeDefined();
+
+    expect(reservationFeedbackBlockStories.default.title).toBe(
+      '業務模組元件/預約管理(Reservation)/ReservationFeedbackBlock'
+    );
+    expect(reservationFeedbackBlockStories.MenteePublicRating).toBeDefined();
+    expect(
+      reservationFeedbackBlockStories.MenteeEmptyCommentFallback
+    ).toBeDefined();
+    expect(reservationFeedbackBlockStories.MentorPublicRating).toBeDefined();
+    expect(
+      reservationFeedbackBlockStories.MenteeUnpublicizedRating
+    ).toBeDefined();
+    expect(
+      reservationFeedbackBlockStories.CollapsibleUnpublicizedToggleDemo
+    ).toBeDefined();
+
+    expect(reservationCardStories.HistoryMenteeNeedsFeedback).toBeDefined();
+    expect(reservationCardStories.HistoryMenteeRatedPublic).toBeDefined();
+    expect(reservationCardStories.HistoryMenteeRatedUnpublicized).toBeDefined();
+    expect(reservationCardStories.HistoryMenteeNotHappened).toBeDefined();
+    expect(reservationListStories.MenteeHistoryFeedbackStates).toBeDefined();
+    expect(tooltipStories.DefaultHover).toBeDefined();
+    expect(tooltipStories.ClickToPin).toBeDefined();
+    expect(feedbackRadioOptionStories.Unselected).toBeDefined();
+    expect(feedbackRadioOptionStories.Selected).toBeDefined();
+    expect(meetingFeedbackStepsStories.Step1Attendance).toBeDefined();
+    expect(meetingFeedbackStepsStories.Step2Rating).toBeDefined();
+    expect(meetingFeedbackStepsStories.Step2NotHappened).toBeDefined();
+    expect(
+      meetingFeedbackStepsStories.Step2NotHappenedOtherExpanded
+    ).toBeDefined();
+    expect(meetingFeedbackStepsStories.MentorStep1Unselected).toBeDefined();
+    expect(meetingFeedbackStepsStories.MentorStep1Happened).toBeDefined();
+    expect(meetingFeedbackStepsStories.MentorStep1NotHappened).toBeDefined();
+    expect(
+      meetingFeedbackStepsStories.MentorStep2NotHappenedWithWarning
+    ).toBeDefined();
+    expect(
+      meetingFeedbackStepsStories.MentorStep2NotHappenedOtherExpanded
+    ).toBeDefined();
+    expect(meetingFeedbackDialogStories.MentorStepAttendanceOpen).toBeDefined();
+    expect(
+      meetingFeedbackDialogStories.MentorStepNotHappenedOpen
+    ).toBeDefined();
+    expect(
+      meetingFeedbackDialogStories.MentorMultiSessionQueueOpen
+    ).toBeDefined();
+    expect(reservationListStories.MenteeFeedbackQueueDialog).toBeDefined();
+    expect(reservationListStories.MentorFeedbackQueueDialog).toBeDefined();
+
+    render(
+      <ReservationFeedbackBlock
+        model={
+          reservationFeedbackBlockStories.MenteeUnpublicizedRating.args!.model!
+        }
+      />
+    );
+    expect(
+      screen.getByTestId('reservation-feedback-unpublicized')
+    ).toBeInTheDocument();
+  });
+
+  it('dynamically discovers all src/components/**/*.stories.tsx files via Vite import.meta.glob without requiring manual per-PR imports', () => {
+    const storyModules = (import.meta as unknown as ViteGlobImportMeta).glob<
+      Record<string, unknown>
+    >('../src/components/**/*.stories.{ts,tsx}', {
+      eager: true,
+    });
+    const entries = Object.entries(storyModules);
+    expect(entries.length).toBeGreaterThan(20);
+
+    for (const [relPath, mod] of entries) {
+      const defaultMeta = mod.default as { title?: string } | undefined;
+      expect(
+        defaultMeta?.title,
+        `Missing default meta.title in ${relPath}`
+      ).toBeTruthy();
+      const namedStories = Object.keys(mod).filter((k) => k !== 'default');
+      expect(
+        namedStories.length,
+        `Expected at least one named Story export in ${relPath}`
+      ).toBeGreaterThan(0);
+    }
   });
 });

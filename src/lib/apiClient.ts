@@ -1,25 +1,94 @@
 import type { Session } from 'next-auth';
 
+import { resolveBffBaseUrl } from '@/lib/auth/bffAuth';
+import { isAbortError } from '@/lib/errorUtils';
 import { captureApiFailure } from '@/lib/monitoring';
 
 import { singleFlight } from './singleFlight';
 
 let sessionGetter: () => Promise<Session | null> = () => Promise.resolve(null);
+let onRefreshTokenErrorHandler: (() => Promise<void> | void) | null = null;
 
 export function setSessionGetter(getter: () => Promise<Session | null>) {
   sessionGetter = getter;
 }
 
+export function setOnRefreshTokenError(
+  handler: (() => Promise<void> | void) | null
+) {
+  onRefreshTokenErrorHandler = handler;
+}
+
 // ─── Custom Errors ───────────────────────────────────────────────────────────
-export class ApiError extends Error {
+export class ApiError<TData = unknown> extends Error {
   constructor(
     public readonly status: number,
     message: string,
-    public readonly code?: string
+    public readonly code?: string,
+    public readonly data?: TData,
+    public readonly detail?: unknown
   ) {
     super(message);
     this.name = 'ApiError';
   }
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeErrorCode(code: unknown): string | undefined {
+  if (code === undefined || code === null || typeof code === 'object') {
+    return undefined;
+  }
+  return String(code);
+}
+
+function sanitizeEndpointPath(path: string): string {
+  const queryOrHashIndex = path.search(/[?#]/);
+  return queryOrHashIndex === -1 ? path : path.slice(0, queryOrHashIndex);
+}
+
+function extractFastApiDetailMessage(detail: unknown): string | undefined {
+  if (typeof detail === 'string' && detail.trim().length > 0) {
+    return detail.trim();
+  }
+  if (!Array.isArray(detail) || detail.length === 0) {
+    return undefined;
+  }
+  const parts = detail
+    .map((item) => {
+      if (typeof item === 'string') {
+        return item.trim();
+      }
+      if (!isPlainRecord(item)) {
+        return '';
+      }
+      const msg = typeof item.msg === 'string' ? item.msg.trim() : '';
+      const loc = Array.isArray(item.loc)
+        ? item.loc
+            .filter(
+              (seg) =>
+                (typeof seg === 'string' || typeof seg === 'number') &&
+                seg !== 'body'
+            )
+            .join('.')
+        : '';
+      return loc && msg ? `${loc}: ${msg}` : msg;
+    })
+    .filter(Boolean);
+
+  return parts.length > 0 ? parts.join('; ') : undefined;
+}
+
+function extractNestedDataMessage(data: unknown): string | undefined {
+  if (!isPlainRecord(data)) {
+    return undefined;
+  }
+  const msg = data.message;
+  return typeof msg === 'string' && msg.trim().length > 0
+    ? msg.trim()
+    : undefined;
 }
 
 class MaintenanceError extends Error {
@@ -30,51 +99,41 @@ class MaintenanceError extends Error {
 }
 
 interface ApiResponseEnvelope<T> {
-  code: string;
+  code: string | number;
   msg: string;
   data: T | null | undefined;
 }
 
-// SSR_API_URL is preferred when set, so server-side fetches inside a
-// Docker container can reach the BFF via the docker network DNS name
-// (e.g. http://bff:8000/api), while the browser bundle still uses
-// NEXT_PUBLIC_API_URL (e.g. http://localhost:8006/api).
-export const BASE_URL =
-  process.env.SSR_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? '';
+// Retained for backward compatibility with server-side callers that inspect
+// build-time BFF availability; `buildUrl` always resolves dynamically via
+// `resolveBffBaseUrl()` on each request.
+export const BASE_URL = resolveBffBaseUrl();
 
 export type RequestOptions = Omit<RequestInit, 'body' | 'headers'> & {
-  /** Attach Bearer token from NextAuth session. Respects JWT_ENABLED flag. Default: true */
+  /** Attach Bearer token from NextAuth session. Default: true */
   auth?: boolean;
   /** Query string params — undefined/null values are omitted */
   params?: Record<string, string | number | boolean | undefined | null>;
   /** Extra headers merged on top of defaults */
   headers?: Record<string, string>;
-  /** Treat `path` as a local Next.js API route — skip prefixing BASE_URL. Default: false */
+  /** Treat `path` as a local Next.js API route — skip prefixing BFF base URL. Default: false */
   isLocal?: boolean;
   /** Internal/External option to throw on maintenance mode instead of returning an unsettled promise */
   throwOnMaintenance?: boolean;
 };
 
-function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === 'AbortError';
+interface InternalRetryState {
+  isRetry?: boolean;
+  overrideAccessToken?: string;
 }
 
 // Deduplicate concurrent session lookups. `sessionGetter` (next-auth's
 // imperative `getSession()`) always issues a fresh, uncached network
 // request - unlike the `useSession()` hook, it doesn't share the
-// SessionProvider's client-side state. A page that fires several
-// authenticated requests at once (e.g. loading multiple lists in
-// parallel) would otherwise trigger one `/api/auth/session` round trip
-// per request; singleFlight collapses concurrent callers onto the same
-// in-flight lookup so only the slowest response in a burst is paid once.
-//
-// Routine lookups and 401 refreshes use separate maps rather than sharing
-// one: a 401 refresh must always start a lookup that begins *after* the
-// 401 was observed. If it instead joined a routine lookup already in
-// flight (started before the 401 happened), it could get back the same
-// stale token that just failed, retry with it, and 401 again.
+// SessionProvider's client-side state.
 const sessionLookupMap = new Map<'session', Promise<Session | null>>();
 const refreshMap = new Map<'refresh', Promise<Session | null>>();
+const refreshTeardownMap = new Map<'teardown', Promise<void>>();
 
 function getSharedSession(): Promise<Session | null> {
   if (typeof window === 'undefined') return Promise.resolve(null);
@@ -83,16 +142,21 @@ function getSharedSession(): Promise<Session | null> {
 
 function refreshSession(): Promise<Session | null> {
   if (typeof window === 'undefined') return Promise.resolve(null);
-  // Once a refresh completes, drop any routine lookup entry so the 401
-  // handler's retry (which calls getAuthHeader() -> getSharedSession())
-  // is forced to start a fresh lookup instead of possibly joining a
-  // routine lookup that was already in flight before the refresh even
-  // started, and could still resolve to the pre-refresh, stale token.
   return singleFlight(refreshMap, 'refresh', () => sessionGetter()).finally(
     () => {
       sessionLookupMap.delete('session');
     }
   );
+}
+
+function notifyRefreshTokenError(): void {
+  const handler = onRefreshTokenErrorHandler;
+  if (!handler || typeof window === 'undefined') return;
+  void singleFlight(refreshTeardownMap, 'teardown', async () => {
+    await handler();
+  }).catch(() => {
+    // Best-effort teardown hook; avoid unhandled promise rejections in callers.
+  });
 }
 
 function isAbsoluteUrl(path: string): boolean {
@@ -107,7 +171,8 @@ function buildUrl(
   params?: RequestOptions['params'],
   isLocal = false
 ): string {
-  const url = isAbsoluteUrl(path) || isLocal ? path : `${BASE_URL}${path}`;
+  const baseUrl = resolveBffBaseUrl();
+  const url = isAbsoluteUrl(path) || isLocal ? path : `${baseUrl}${path}`;
   if (!params) return url;
 
   const query = new URLSearchParams();
@@ -118,15 +183,38 @@ function buildUrl(
   });
 
   const qs = query.toString();
-  return qs ? `${url}?${qs}` : url;
+  if (!qs) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}${qs}`;
 }
 
-async function getAuthHeader(): Promise<Record<string, string>> {
-  if (typeof window === 'undefined') return {};
+async function resolveRequestAuth(overrideAccessToken?: string): Promise<{
+  authHeader: Record<string, string>;
+  usedToken?: string;
+}> {
+  if (overrideAccessToken) {
+    return {
+      authHeader: { Authorization: `Bearer ${overrideAccessToken}` },
+      usedToken: overrideAccessToken,
+    };
+  }
+  if (typeof window === 'undefined') {
+    return { authHeader: {} };
+  }
+
   const session = await getSharedSession();
+  if (session?.error === 'RefreshTokenError') {
+    notifyRefreshTokenError();
+    return { authHeader: {} };
+  }
+
   const token = session?.accessToken;
-  if (!token) return {};
-  return { Authorization: `Bearer ${token}` };
+  if (!token) {
+    return { authHeader: {} };
+  }
+  return {
+    authHeader: { Authorization: `Bearer ${token}` },
+    usedToken: token,
+  };
 }
 
 async function request<T>(
@@ -134,7 +222,7 @@ async function request<T>(
   path: string,
   body?: unknown,
   options: RequestOptions = {},
-  isRetry = false
+  retryState: InternalRetryState = {}
 ): Promise<T> {
   const {
     auth = true,
@@ -144,6 +232,7 @@ async function request<T>(
     isLocal = false,
     ...restOptions
   } = options;
+  const { isRetry = false, overrideAccessToken } = retryState;
 
   // Never attach the user's session token to an absolute external URL —
   // only relative paths (our own backend) are trusted to receive it.
@@ -155,7 +244,9 @@ async function request<T>(
     );
   }
 
-  const authHeader = effectiveAuth ? await getAuthHeader() : {};
+  const { authHeader, usedToken } = effectiveAuth
+    ? await resolveRequestAuth(overrideAccessToken)
+    : { authHeader: {}, usedToken: undefined };
 
   const startTime = Date.now();
   let response: Response;
@@ -173,13 +264,13 @@ async function request<T>(
       ...restOptions,
     });
   } catch (networkError) {
-    // Caller-driven cancellation — not an error worth reporting.
-    if (isAbortError(networkError)) {
+    // Caller-driven cancellation or AbortSignal.timeout — not an error worth reporting.
+    if (isAbortError(networkError, signal ?? undefined)) {
       throw networkError;
     }
-    // fetch() itself threw — DNS failure, connection refused, timeout, etc.
+    // fetch() itself threw — DNS failure, connection refused, etc.
     captureApiFailure({
-      endpoint: path,
+      endpoint: sanitizeEndpointPath(path),
       method,
       status: 0,
       message:
@@ -189,10 +280,18 @@ async function request<T>(
     throw networkError;
   }
 
-  if (response.status === 401 && auth && !isRetry) {
+  if (response.status === 401 && effectiveAuth && !isRetry) {
     const freshSession = await refreshSession();
-    if (freshSession?.accessToken && !freshSession.error) {
-      return request<T>(method, path, body, options, true);
+    if (freshSession?.error === 'RefreshTokenError') {
+      notifyRefreshTokenError();
+    } else if (
+      freshSession?.accessToken &&
+      freshSession.accessToken !== usedToken
+    ) {
+      return request<T>(method, path, body, options, {
+        isRetry: true,
+        overrideAccessToken: freshSession.accessToken,
+      });
     }
   }
 
@@ -212,13 +311,21 @@ async function request<T>(
       }
     }
 
-    const errorBody = await response.json().catch(() => ({}));
+    const errorBody: unknown = await response.json().catch(() => ({}));
+    const errorRecord: Record<string, unknown> = isPlainRecord(errorBody)
+      ? errorBody
+      : {};
+    const topMsg =
+      (typeof errorRecord.msg === 'string' && errorRecord.msg.trim()) ||
+      (typeof errorRecord.message === 'string' && errorRecord.message.trim()) ||
+      undefined;
     const message =
-      (errorBody as Record<string, string>).msg ||
-      (errorBody as Record<string, string>).message ||
+      topMsg ||
+      extractNestedDataMessage(errorRecord.data) ||
+      extractFastApiDetailMessage(errorRecord.detail) ||
       `Request failed with status ${response.status}`;
     captureApiFailure({
-      endpoint: path,
+      endpoint: sanitizeEndpointPath(path),
       method,
       status: response.status,
       message,
@@ -227,110 +334,131 @@ async function request<T>(
     throw new ApiError(
       response.status,
       message,
-      errorBody?.code ? String(errorBody.code) : undefined
+      normalizeErrorCode(errorRecord.code),
+      errorRecord.data,
+      errorRecord.detail
     );
   }
 
-  // Handle 204 No Content and other empty responses
   const text = await response.text();
-  if (!text) {
-    return undefined as T;
+  if (!text) return undefined as T;
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new ApiError(response.status, 'Invalid JSON response from server');
   }
-  const parsed = JSON.parse(text) as T;
-  return parsed;
 }
 
-// Helper to perform unwrapped requests and handle code checks centrally
 async function executeRequestUnwrapped<T>(
   method: string,
   path: string,
   body?: unknown,
-  options?: RequestOptions
-): Promise<T | null | undefined> {
+  options: RequestOptions = {}
+): Promise<T | undefined> {
+  const startTime = Date.now();
   const result = await request<ApiResponseEnvelope<T>>(
     method,
     path,
     body,
     options
   );
+  if (!result) return undefined;
 
-  if (!result) {
-    return undefined;
-  }
-
-  if (result.code !== '0') {
-    const rawCode = result.code;
-    const numericStatus = Number(rawCode);
+  const rawCode = normalizeErrorCode(result.code);
+  if (rawCode !== '0') {
+    const numericStatus = rawCode !== undefined ? Number(rawCode) : NaN;
     const validStatus =
       !isNaN(numericStatus) && numericStatus >= 400 && numericStatus < 600
         ? numericStatus
         : 400;
+    const message =
+      (typeof result.msg === 'string' && result.msg.trim()) ||
+      extractNestedDataMessage(result.data) ||
+      (rawCode !== undefined
+        ? `Request failed with code ${rawCode}`
+        : 'Unexpected API response envelope');
 
-    throw new ApiError(validStatus, result.msg, rawCode);
+    if (validStatus >= 500 && validStatus < 600) {
+      captureApiFailure({
+        endpoint: sanitizeEndpointPath(path),
+        method,
+        status: validStatus,
+        message,
+        duration: Date.now() - startTime,
+      });
+    }
+
+    throw new ApiError(validStatus, message, rawCode, result.data);
   }
 
-  return result.data;
+  return result.data ?? undefined;
 }
 
-// ─── Public API ──────────────────────────────────────────────────────────────
 export const apiClient = {
   get: <T>(path: string, options?: RequestOptions) =>
     request<T>('GET', path, undefined, options),
 
-  getUnwrapped: async <T>(
-    path: string,
-    options?: RequestOptions
-  ): Promise<T | null | undefined> => {
-    return executeRequestUnwrapped<T>('GET', path, undefined, options);
-  },
-
   post: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('POST', path, body, options),
-
-  postUnwrapped: async <T>(
-    path: string,
-    body?: unknown,
-    options?: RequestOptions
-  ): Promise<T | null | undefined> => {
-    return executeRequestUnwrapped<T>('POST', path, body, options);
-  },
 
   put: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('PUT', path, body, options),
 
-  putUnwrapped: async <T>(
-    path: string,
-    body?: unknown,
-    options?: RequestOptions
-  ): Promise<T | null | undefined> => {
-    return executeRequestUnwrapped<T>('PUT', path, body, options);
-  },
-
   patch: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('PATCH', path, body, options),
-
-  patchUnwrapped: async <T>(
-    path: string,
-    body?: unknown,
-    options?: RequestOptions
-  ): Promise<T | null | undefined> => {
-    return executeRequestUnwrapped<T>('PATCH', path, body, options);
-  },
 
   delete: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('DELETE', path, body, options),
 
-  deleteUnwrapped: async <T>(
+  getUnwrapped: <T>(path: string, options?: RequestOptions) =>
+    executeRequestUnwrapped<T>('GET', path, undefined, options),
+
+  postUnwrapped: <T>(path: string, body?: unknown, options?: RequestOptions) =>
+    executeRequestUnwrapped<T>('POST', path, body, options),
+
+  putUnwrapped: <T>(path: string, body?: unknown, options?: RequestOptions) =>
+    executeRequestUnwrapped<T>('PUT', path, body, options),
+
+  patchUnwrapped: <T>(path: string, body?: unknown, options?: RequestOptions) =>
+    executeRequestUnwrapped<T>('PATCH', path, body, options),
+
+  deleteUnwrapped: <T>(
     path: string,
     body?: unknown,
     options?: RequestOptions
-  ): Promise<T | null | undefined> => {
-    return executeRequestUnwrapped<T>('DELETE', path, body, options);
+  ) => executeRequestUnwrapped<T>('DELETE', path, body, options),
+
+  /**
+   * Upload binary data to an external presigned URL (e.g. S3).
+   * Bypasses BASE_URL, JSON serialization, and Authorization headers intentionally.
+   */
+  putExternalBinary: async (
+    presignedUrl: string,
+    body: Blob | ArrayBuffer,
+    contentType: string,
+    options?: Omit<RequestInit, 'method' | 'body' | 'headers'>
+  ): Promise<void> => {
+    const response = await fetch(presignedUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': contentType,
+      },
+      body,
+      ...options,
+    });
+    if (!response.ok) {
+      throw new Error(`Upload to presigned URL failed: ${response.status}`);
+    }
   },
 
+  /**
+   * Fetch an external image or binary resource as a Blob (e.g. for canvas editing).
+   * Bypasses BASE_URL and Authorization headers intentionally.
+   */
   getExternalBlob: async (
     url: string,
-    options?: RequestOptions
+    options?: Omit<RequestInit, 'method' | 'body' | 'headers'>
   ): Promise<Blob> => {
     const { signal, ...restOptions } = options ?? {};
     const response = await fetch(url, {

@@ -1,3 +1,5 @@
+import { fromPartial } from '@total-typescript/shoehorn';
+import dayjs from 'dayjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/apiClient', async (importActual) => {
@@ -18,6 +20,7 @@ vi.mock('@/lib/monitoring', () => ({
 }));
 
 import { apiClient, ApiError } from '@/lib/apiClient';
+import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
 import { components } from '@/types/api';
@@ -25,9 +28,13 @@ import { components } from '@/types/api';
 import {
   createReservation,
   fetchAllReservationsForState,
+  fetchPendingFeedbackReservations,
   fetchReservationMeetLink,
   fetchReservations,
-  invalidateReservationRead,
+  formatPendingFeedbackDateTime,
+  mapToReservation,
+  postReservationFeedback,
+  putReservationFeedback,
   updateReservationStatus,
 } from './reservationService';
 
@@ -72,6 +79,7 @@ describe('reservationService API Error Handling', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     reservationReadModel.clear();
+    scheduleReadModel.clear();
   });
 
   describe('createReservation', () => {
@@ -125,11 +133,33 @@ describe('reservationService API Error Handling', () => {
         { items: [], next_dtend: 0 }
       );
 
+      const slotStartUnix = dayjs('2026-07-17T14:00:00').unix();
+      const slotEndUnix = slotStartUnix + 1800;
+      const targetScheduleMonth = {
+        userId: '456',
+        year: dayjs(slotStartUnix * 1000).year(),
+        month: dayjs(slotStartUnix * 1000).month() + 1,
+      };
+      scheduleReadModel.set(targetScheduleMonth, [
+        {
+          id: 101,
+          type: 'ALLOW',
+          dtstart: slotStartUnix,
+          dtend: slotEndUnix,
+          rrule: undefined,
+          exdate: [],
+        },
+      ]);
+
       await createReservation({
         userId: 123,
         body: {
+          my_user_id: 123,
           user_id: 456,
-        } as unknown as components['schemas']['ReservationDTO'],
+          schedule_id: 101,
+          dtstart: slotStartUnix,
+          dtend: slotEndUnix,
+        },
       });
 
       expect(
@@ -138,53 +168,111 @@ describe('reservationService API Error Handling', () => {
       expect(
         reservationReadModel.get({ userId: '456', state: 'MENTOR_PENDING' })
       ).toBeUndefined();
-    });
-  });
-
-  describe('invalidateReservationRead', () => {
-    it('drops the cache entry directly when nothing is subscribed to it', () => {
-      const key = { userId: '1', state: 'MENTEE_PENDING' } as const;
-      reservationReadModel.set(key, { items: [], next_dtend: 0 });
-
-      invalidateReservationRead(key);
-
-      expect(reservationReadModel.get(key)).toBeUndefined();
-      expect(mockGet).not.toHaveBeenCalled();
+      expect(scheduleReadModel.get(targetScheduleMonth)).toBeUndefined();
     });
 
-    it('refreshes the key in place with a fresh fetch when a component is actively subscribed', async () => {
-      const key = { userId: '1', state: 'MENTEE_PENDING' } as const;
-      reservationReadModel.set(key, { items: [], next_dtend: 0 });
-      const unsubscribe = reservationReadModel.subscribe(
-        key,
+    it('refreshes actively subscribed PENDING and mentor schedule slices in place after createReservation', async () => {
+      const slotStartUnix = dayjs('2026-07-20T10:00:00').unix();
+      const slotEndUnix = slotStartUnix + 1800;
+      const menteePendingKey = {
+        userId: '123',
+        state: 'MENTEE_PENDING',
+      } as const;
+      const scheduleKey = {
+        userId: '456',
+        year: dayjs(slotStartUnix * 1000).year(),
+        month: dayjs(slotStartUnix * 1000).month() + 1,
+      };
+
+      reservationReadModel.set(menteePendingKey, { items: [], next_dtend: 0 });
+      scheduleReadModel.set(scheduleKey, []);
+
+      const unsubPending = reservationReadModel.subscribe(
+        menteePendingKey,
         () => new Promise(() => {}),
         () => {}
       );
-      mockGet.mockResolvedValue({
-        reservations: [makeApiReservation({ id: 42 })],
-        next_dtend: 0,
+      const unsubSchedule = scheduleReadModel.subscribe(
+        scheduleKey,
+        () => new Promise(() => {}),
+        () => {}
+      );
+
+      mockPost.mockResolvedValue({ id: 77 });
+      mockGet.mockImplementation(async (path: string) => {
+        if (path.includes('/schedule')) {
+          return {
+            segments: [
+              {
+                id: -101,
+                dt_type: 'PENDING',
+                dt_year: scheduleKey.year,
+                dt_month: scheduleKey.month,
+                dtstart: slotStartUnix,
+                dtend: slotEndUnix,
+              },
+            ],
+          };
+        }
+        return {
+          reservations: [
+            makeApiReservation({
+              id: 77,
+              dtstart: slotStartUnix,
+              dtend: slotEndUnix,
+            }),
+          ],
+          next_dtend: 0,
+        };
       });
 
-      invalidateReservationRead(key);
+      await createReservation({
+        userId: 123,
+        body: {
+          my_user_id: 123,
+          user_id: 456,
+          schedule_id: 101,
+          dtstart: slotStartUnix,
+          dtend: slotEndUnix,
+        },
+      });
 
       await vi.waitFor(() => {
-        expect(reservationReadModel.get(key)?.items).toHaveLength(1);
+        expect(reservationReadModel.get(menteePendingKey)?.items).toHaveLength(
+          1
+        );
+        expect(scheduleReadModel.get(scheduleKey)).toHaveLength(1);
       });
-      expect(reservationReadModel.get(key)?.items[0].id).toBe('42');
+      expect(scheduleReadModel.get(scheduleKey)?.[0]?.type).toBe('PENDING');
 
-      unsubscribe();
+      unsubPending();
+      unsubSchedule();
     });
 
-    it('reports (and swallows) a failed background refresh via captureFlowFailure', async () => {
-      const key = { userId: '1', state: 'MENTEE_PENDING' } as const;
-      const unsubscribe = reservationReadModel.subscribe(
-        key,
+    it('reports non-abort background refresh failures via captureFlowFailure', async () => {
+      const menteePendingKey = {
+        userId: '123',
+        state: 'MENTEE_PENDING',
+      } as const;
+      reservationReadModel.set(menteePendingKey, { items: [], next_dtend: 0 });
+      const unsub = reservationReadModel.subscribe(
+        menteePendingKey,
         () => new Promise(() => {}),
         () => {}
       );
+      mockPost.mockResolvedValue({ id: 88 });
       mockGet.mockRejectedValue(new Error('network down'));
 
-      invalidateReservationRead(key);
+      await createReservation({
+        userId: 123,
+        body: fromPartial<components['schemas']['ReservationDTO']>({
+          my_user_id: 123,
+          user_id: 456,
+          schedule_id: 101,
+          dtstart: 1784124000,
+          dtend: 1784125800,
+        }),
+      });
 
       await vi.waitFor(() => {
         expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
@@ -195,36 +283,7 @@ describe('reservationService API Error Handling', () => {
         );
       });
 
-      unsubscribe();
-    });
-
-    it('refreshes subscribed month-scoped calendar slices when invalidated with an unscoped key', async () => {
-      const scopedKey = {
-        userId: '1',
-        state: 'MENTOR_PENDING',
-        endOfMonthUnix: 2000,
-      } as const;
-      reservationReadModel.set(scopedKey, { items: [], next_dtend: 0 });
-      const unsubscribe = reservationReadModel.subscribe(
-        scopedKey,
-        () => new Promise(() => {}),
-        () => {}
-      );
-      mockGet.mockResolvedValue({
-        reservations: [
-          makeApiReservation({ id: 99, dtstart: 100, dtend: 200 }),
-        ],
-        next_dtend: 0,
-      });
-
-      invalidateReservationRead({ userId: '1', state: 'MENTOR_PENDING' });
-
-      await vi.waitFor(() => {
-        expect(reservationReadModel.get(scopedKey)?.items).toHaveLength(1);
-      });
-      expect(reservationReadModel.get(scopedKey)?.items[0].id).toBe('99');
-
-      unsubscribe();
+      unsub();
     });
   });
 
@@ -404,22 +463,38 @@ describe('reservationService API Error Handling', () => {
       expect(mockGet).toHaveBeenCalledTimes(1);
     });
 
-    it('swallows a fetch failure, returns items already collected, and reports via captureFlowFailure', async () => {
+    it('propagates a fetch failure after reporting via captureFlowFailure so callers hold reservationsLoaded false', async () => {
       mockGet.mockRejectedValue(new Error('network down'));
 
-      const result = await fetchAllReservationsForState(
-        '123',
-        'MENTOR_UPCOMING',
-        1000
-      );
+      await expect(
+        fetchAllReservationsForState('123', 'MENTOR_PENDING', 1000)
+      ).rejects.toThrow('network down');
 
-      expect(result).toEqual([]);
       expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
         expect.objectContaining({
           flow: 'mentor_schedule_reservations_fetch',
-          step: 'fetch_MENTOR_UPCOMING',
+          step: 'fetch_MENTOR_PENDING',
         })
       );
+    });
+
+    it('skips captureFlowFailure when fetchAllReservationsForState is aborted via AbortSignal', async () => {
+      const controller = new AbortController();
+      controller.abort();
+      const abortErr = new Error('The operation was aborted.');
+      abortErr.name = 'AbortError';
+      mockGet.mockRejectedValue(abortErr);
+
+      await expect(
+        fetchAllReservationsForState(
+          '123',
+          'MENTOR_PENDING',
+          1000,
+          controller.signal
+        )
+      ).rejects.toThrow('aborted');
+
+      expect(mockCaptureFlowFailure).not.toHaveBeenCalled();
     });
 
     it('stops after MAX_PAGES when the cursor keeps advancing without repeating or crossing the month boundary, and reports it', async () => {
@@ -455,6 +530,498 @@ describe('reservationService API Error Handling', () => {
           step: 'fetch_MENTOR_UPCOMING_max_pages_exceeded',
         })
       );
+    });
+  });
+
+  describe('feedback mapping & postReservationFeedback (#730)', () => {
+    it('maps feedback with rating, is_public, and next_step when present and omits feedback gracefully when absent', () => {
+      const withoutFeedback = mapToReservation(makeApiReservation(), 1);
+      expect(withoutFeedback.feedback).toBeUndefined();
+
+      const withUnpublicizedFeedback = mapToReservation(
+        {
+          ...makeApiReservation(),
+          feedback: {
+            meeting_happened: false,
+            rating: {
+              rating: 8,
+              content: '感謝分享',
+              created_at: 1760000000,
+              updated_at: 1760000500,
+              author_name: '王＊明',
+              is_public: false,
+            },
+            next_step: null,
+          },
+        },
+        1
+      );
+
+      expect(withUnpublicizedFeedback.feedback).toEqual({
+        meetingHappened: false,
+        myMeetingHappened: false,
+        rating: {
+          rating: 8,
+          content: '感謝分享',
+          createdAt: 1760000000,
+          updatedAt: 1760000500,
+          authorName: '王＊明',
+          isPublic: false,
+        },
+        nextStep: null,
+      });
+
+      const withPendingRateStep = mapToReservation(
+        {
+          ...makeApiReservation(),
+          feedback: {
+            meeting_happened: true,
+            rating: null,
+            next_step: 'RATE',
+          },
+        },
+        1
+      );
+
+      expect(withPendingRateStep.feedback).toEqual({
+        meetingHappened: true,
+        myMeetingHappened: true,
+        rating: null,
+        nextStep: 'RATE',
+      });
+    });
+
+    it('calls POST /v1/users/:userId/reservations/:reservationId/feedback via apiClient.postUnwrapped', async () => {
+      mockPost.mockResolvedValueOnce({ ok: true });
+
+      await postReservationFeedback({
+        userId: '1',
+        reservationId: '42',
+        body: {
+          meeting_happened: true,
+          feedback: { rating: 10, content: '非常棒！' },
+        },
+      });
+
+      expect(mockPost).toHaveBeenCalledWith(
+        '/v1/users/1/reservations/42/feedback',
+        {
+          meeting_happened: true,
+          feedback: { rating: 10, content: '非常棒！' },
+        }
+      );
+    });
+
+    it('calls PUT /v1/users/:userId/reservations/:reservationId/feedback with { rating, content } via apiClient.putUnwrapped (#731)', async () => {
+      mockPut.mockResolvedValueOnce({ ok: true });
+
+      await putReservationFeedback({
+        userId: '1',
+        reservationId: '42',
+        body: {
+          rating: 8,
+          content: '更新後的回饋內容',
+        },
+      });
+
+      expect(mockPut).toHaveBeenCalledWith(
+        '/v1/users/1/reservations/42/feedback',
+        {
+          rating: 8,
+          content: '更新後的回饋內容',
+        }
+      );
+    });
+
+    it('fetches GET /v1/users/:userId/reservations/pending-feedback, filters answered/cancelled items, and sorts oldest-first (#740)', async () => {
+      mockGet.mockResolvedValueOnce({
+        reservations: [
+          {
+            ...makeApiReservation({
+              id: 303,
+              dtstart: 1762000000,
+              dtend: 1762001800,
+            }),
+            feedback: {
+              meeting_happened: null,
+              rating: null,
+              next_step: 'ANSWER',
+            },
+          },
+          {
+            id: 101,
+            dtstart: 1760000000,
+            dtend: 1760001800,
+            viewer_role: 'MENTOR',
+            counterparty: {
+              user_id: 88,
+              name: 'Emily Chen',
+              job_title: 'UI/UX 設計師',
+              years_of_experience: 'FIVE_TO_TEN',
+            },
+          },
+          {
+            ...makeApiReservation({
+              id: 202,
+              dtstart: 1761000000,
+              dtend: 1761001800,
+            }),
+            cancelled_by: 'SYSTEM',
+          },
+          {
+            ...makeApiReservation({
+              id: 404,
+              dtstart: 1761500000,
+              dtend: 1761501800,
+            }),
+            feedback: {
+              meeting_happened: true,
+              rating: null,
+              next_step: null,
+            },
+          },
+        ],
+      });
+
+      const items = await fetchPendingFeedbackReservations({ userId: '1' });
+
+      expect(mockGet).toHaveBeenCalledWith(
+        '/v1/users/1/reservations/pending-feedback',
+        { signal: undefined }
+      );
+      expect(items.map((it) => it.id)).toEqual(['101', '303']);
+      expect(items[0]).toMatchObject({
+        id: '101',
+        name: 'Emily Chen',
+        viewerRole: 'MENTOR',
+        date: dayjs.unix(1760000000).format('YYYY/MM/DD'),
+        time: `${dayjs.unix(1760000000).format('HH:mm')}–${dayjs.unix(1760001800).format('HH:mm')}`,
+      });
+      expect(items[1]).toMatchObject({
+        id: '303',
+        viewerRole: 'MENTEE',
+        date: dayjs.unix(1762000000).format('YYYY/MM/DD'),
+        time: `${dayjs.unix(1762000000).format('HH:mm')}–${dayjs.unix(1762001800).format('HH:mm')}`,
+      });
+      expect(formatPendingFeedbackDateTime(1760266800, 1760268600)).toEqual({
+        date: dayjs.unix(1760266800).format('YYYY/MM/DD'),
+        time: `${dayjs.unix(1760266800).format('HH:mm')}–${dayjs.unix(1760268600).format('HH:mm')}`,
+      });
+    });
+
+    it('gracefully falls back to [] when pending-feedback endpoint returns 404 or null, and rethrows transient errors (#740)', async () => {
+      mockGet.mockRejectedValueOnce(new ApiError(404, 'Not Found', '404'));
+      const on404 = await fetchPendingFeedbackReservations({ userId: '1' });
+      expect(on404).toEqual([]);
+      expect(mockCaptureFlowFailure).not.toHaveBeenCalled();
+
+      mockGet.mockResolvedValueOnce(null);
+      const onEmpty = await fetchPendingFeedbackReservations({ userId: '1' });
+      expect(onEmpty).toEqual([]);
+
+      mockGet.mockRejectedValueOnce(
+        new ApiError(503, 'Service Unavailable', '503')
+      );
+      await expect(
+        fetchPendingFeedbackReservations({ userId: '1' })
+      ).rejects.toThrow('Service Unavailable');
+      expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          flow: 'reservation_pending_feedback',
+          step: 'get_pending_feedback',
+          level: 'warning',
+        })
+      );
+
+      mockGet.mockRejectedValueOnce(new Error('Network timeout'));
+      await expect(
+        fetchPendingFeedbackReservations({ userId: '1' })
+      ).rejects.toThrow('Network timeout');
+    });
+
+    it('applies fallbackViewerRole when simplified pending-feedback items omit viewer_role while preserving explicit per-item roles (#740)', async () => {
+      mockGet.mockResolvedValueOnce({
+        reservations: [
+          {
+            id: 501,
+            dtstart: 1760000000,
+            dtend: 1760001800,
+            counterparty: {
+              user_id: 88,
+              name: 'Mentee Without Role Field',
+            },
+          },
+          {
+            id: 502,
+            dtstart: 1761000000,
+            dtend: 1761001800,
+            viewer_role: 'MENTEE',
+            counterparty: {
+              user_id: 99,
+              name: 'Explicit Mentee Session',
+            },
+          },
+        ],
+      });
+
+      const items = await fetchPendingFeedbackReservations({
+        userId: '1',
+        fallbackViewerRole: 'MENTOR',
+      });
+
+      expect(items).toHaveLength(2);
+      expect(items[0]).toMatchObject({
+        id: '501',
+        viewerRole: 'MENTOR',
+        senderUserId: 88,
+        participantUserId: 1,
+      });
+      expect(items[1]).toMatchObject({
+        id: '502',
+        viewerRole: 'MENTEE',
+        senderUserId: 1,
+        participantUserId: 99,
+      });
+    });
+
+    it('maps my_meeting_happened and mentor_meeting_happened into feedback.myMeetingHappened (#735)', async () => {
+      mockGet.mockResolvedValueOnce({
+        reservations: [
+          {
+            id: 601,
+            sender: {
+              user_id: 88,
+              role: 'MENTEE',
+              status: 'ACCEPT',
+              name: 'Mentee A',
+              avatar: '',
+              job_title: 'Designer',
+              years_of_experience: 'ONE_TO_THREE',
+            },
+            participant: {
+              user_id: 1,
+              role: 'MENTOR',
+              status: 'ACCEPT',
+              name: 'Mentor Me',
+              avatar: '',
+              job_title: 'Staff Designer',
+              years_of_experience: 'FIVE_TO_TEN',
+            },
+            schedule_id: 601,
+            dtstart: 1760000000,
+            dtend: 1760001800,
+            previous_reserve: null,
+            messages: [],
+            feedback: {
+              meeting_happened: false,
+              my_meeting_happened: true,
+              rating: null,
+              next_step: null,
+            },
+          },
+          {
+            id: 602,
+            sender: {
+              user_id: 89,
+              role: 'MENTEE',
+              status: 'ACCEPT',
+              name: 'Mentee B',
+              avatar: '',
+              job_title: 'Engineer',
+              years_of_experience: 'ONE_TO_THREE',
+            },
+            participant: {
+              user_id: 1,
+              role: 'MENTOR',
+              status: 'ACCEPT',
+              name: 'Mentor Me',
+              avatar: '',
+              job_title: 'Staff Designer',
+              years_of_experience: 'FIVE_TO_TEN',
+            },
+            schedule_id: 602,
+            dtstart: 1760100000,
+            dtend: 1760101800,
+            previous_reserve: null,
+            messages: [],
+            feedback: {
+              meeting_happened: false,
+              mentor_meeting_happened: false,
+              rating: null,
+              next_step: null,
+            },
+          },
+          {
+            id: 603,
+            sender: {
+              user_id: 90,
+              role: 'MENTEE',
+              status: 'ACCEPT',
+              name: 'Mentee C',
+              avatar: '',
+              job_title: 'PM',
+              years_of_experience: 'ONE_TO_THREE',
+            },
+            participant: {
+              user_id: 1,
+              role: 'MENTOR',
+              status: 'ACCEPT',
+              name: 'Mentor Me',
+              avatar: '',
+              job_title: 'Staff Designer',
+              years_of_experience: 'FIVE_TO_TEN',
+            },
+            schedule_id: 603,
+            dtstart: 1760200000,
+            dtend: 1760201800,
+            previous_reserve: null,
+            messages: [],
+            feedback: {
+              meeting_happened: true,
+              my_meeting_happened: null,
+              rating: null,
+              next_step: null,
+            },
+          },
+        ],
+        next_dtend: 0,
+      });
+
+      const pageResult = await fetchReservations({
+        userId: '1',
+        state: 'MENTOR_HISTORY',
+      });
+
+      expect(pageResult.items[0]?.feedback).toEqual({
+        meetingHappened: false,
+        myMeetingHappened: true,
+        rating: null,
+        nextStep: null,
+      });
+      expect(pageResult.items[1]?.feedback).toEqual({
+        meetingHappened: false,
+        myMeetingHappened: false,
+        rating: null,
+        nextStep: null,
+      });
+      expect(pageResult.items[2]?.feedback).toEqual({
+        meetingHappened: true,
+        myMeetingHappened: null,
+        rating: null,
+        nextStep: null,
+      });
+    });
+
+    it('maps #760 §6 counterpart { name, avatar: "", job_title, company } and §3.1 feedback.meeting_happened fallback', async () => {
+      mockGet.mockResolvedValueOnce({
+        reservations: [
+          {
+            reservation_id: 901,
+            role: 'MENTEE',
+            dtstart: 1760000000,
+            dtend: 1760001800,
+            cancelled_by: null,
+            counterpart: {
+              name: 'Zahra Mirzakhani',
+              avatar: '',
+              job_title: 'Staff UX Researcher',
+              company: 'Google Taiwan',
+            },
+            feedback: {
+              next_step: 'ANSWER',
+              meeting_happened: null,
+              rating: null,
+            },
+          },
+          {
+            reservation_id: 902,
+            role: 'MENTOR',
+            dtstart: 1760000500,
+            dtend: 1760001200,
+            cancelled_by: null,
+            counterpart: {
+              name: 'Alex Wang',
+              avatar: '   ',
+              job_title: 'Product Designer',
+              company: '',
+              years_of_experience: 'ONE_TO_THREE',
+            },
+            feedback: {
+              next_step: 'ANSWER',
+              meeting_happened: null,
+              rating: null,
+            },
+          },
+        ],
+      });
+
+      const pendingItems = await fetchPendingFeedbackReservations({
+        userId: '1',
+      });
+      // Sorted by dtend ascending (902 dtend=1760001200 < 901 dtend=1760001800)
+      expect(pendingItems.map((it) => it.id)).toEqual(['902', '901']);
+      expect(pendingItems[0]).toMatchObject({
+        id: '902',
+        name: 'Alex Wang',
+        avatar: undefined,
+        roleLine: 'Product Designer, 1~3 年',
+        viewerRole: 'MENTOR',
+      });
+      expect(pendingItems[1]).toMatchObject({
+        id: '901',
+        name: 'Zahra Mirzakhani',
+        avatar: undefined,
+        roleLine: 'Staff UX Researcher, Google Taiwan',
+        viewerRole: 'MENTEE',
+      });
+
+      mockGet.mockResolvedValueOnce({
+        reservations: [
+          {
+            id: 604,
+            sender: {
+              user_id: 91,
+              role: 'MENTEE',
+              status: 'ACCEPT',
+              name: 'Mentee D',
+              avatar: '',
+              job_title: 'Designer',
+              years_of_experience: 'ONE_TO_THREE',
+            },
+            participant: {
+              user_id: 1,
+              role: 'MENTOR',
+              status: 'ACCEPT',
+              name: 'Mentor Me',
+              avatar: '',
+              job_title: 'Staff Designer',
+              years_of_experience: 'FIVE_TO_TEN',
+            },
+            schedule_id: 604,
+            dtstart: 1760300000,
+            dtend: 1760301800,
+            previous_reserve: null,
+            messages: [],
+            feedback: {
+              meeting_happened: true,
+              rating: null,
+              next_step: null,
+            },
+          },
+        ],
+        next_dtend: 0,
+      });
+
+      const listRes = await fetchReservations({
+        userId: '1',
+        state: 'MENTOR_HISTORY',
+      });
+      expect(listRes.items[0]?.feedback).toEqual({
+        meetingHappened: true,
+        myMeetingHappened: true,
+        rating: null,
+        nextStep: null,
+      });
     });
   });
 });

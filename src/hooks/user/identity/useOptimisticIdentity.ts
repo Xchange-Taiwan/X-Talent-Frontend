@@ -7,7 +7,7 @@ import {
   isOptimisticTransitionActive,
   subscribeTransition,
   subscribeUserProfileDtoCache,
-} from '@/hooks/user/user-data/userProfileDtoCache';
+} from '@/lib/cache/userProfileDtoCache';
 import {
   optimisticIdentityFromDto,
   type OptimisticIdentityProjection,

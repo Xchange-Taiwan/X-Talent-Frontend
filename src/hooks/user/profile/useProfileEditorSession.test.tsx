@@ -11,31 +11,40 @@ vi.mock('next-auth/react', async () => {
   return nextAuthMockFactory();
 });
 
-const mockUseEditProfileData = vi.fn();
-vi.mock('./useEditProfileData', () => ({
-  useEditProfileData: (...args: unknown[]) => mockUseEditProfileData(...args),
+const mockUseUserProfileDto = vi.fn();
+vi.mock('@/hooks/user/user-data/useUserProfileDto', () => ({
+  useUserProfileDto: (...args: unknown[]) => mockUseUserProfileDto(...args),
 }));
 
-const mockOnSubmit = vi.fn().mockResolvedValue({});
-vi.mock('./useProfileSubmit', () => ({
-  useProfileSubmit: () => ({
-    onSubmit: mockOnSubmit,
-    isSaving: false,
-  }),
-}));
+const mockCommitProfileMutation = vi.fn().mockResolvedValue({});
+vi.mock('@/lib/profile/saveProfile', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/profile/saveProfile')>();
+  return {
+    ...actual,
+    commitProfileMutation: (...args: unknown[]) =>
+      mockCommitProfileMutation(...args),
+  };
+});
 
+const mockOnError = vi.fn();
 const mockScrollToField = vi.fn();
 vi.mock('./useFormErrorScroll', () => ({
   useFormErrorScroll: () => ({
     formRef: { current: null },
-    onError: vi.fn(),
+    onError: mockOnError,
     scrollToField: mockScrollToField,
   }),
 }));
 
-vi.mock('@/services/profile/updateAvatar', () => ({
-  updateAvatar: vi.fn(),
-}));
+vi.mock('@/services/profile/updateAvatar', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/services/profile/updateAvatar')>();
+  return {
+    ...actual,
+    updateAvatar: vi.fn(),
+  };
+});
 
 vi.mock('@/services/profile/getAvatarSnapshot', () => ({
   getAvatarSnapshot: vi.fn(),
@@ -50,13 +59,18 @@ import { useProfileEditorSession } from './useProfileEditorSession';
 const mockUpdateAvatar = vi.mocked(updateAvatar);
 const mockGetAvatarSnapshot = vi.mocked(getAvatarSnapshot);
 
-describe('useProfileEditorSession (#787)', () => {
+describe('useProfileEditorSession (#787 / #905)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseEditProfileData.mockReturnValue({
-      userDto: { ...mockUserDTO, user_id: 1, name: 'Initial Name' },
-      isMentor: false,
-      isError: false,
+    mockCommitProfileMutation.mockResolvedValue({});
+    mockUseUserProfileDto.mockReturnValue({
+      userDto: {
+        ...mockUserDTO,
+        user_id: 1,
+        name: 'Initial Name',
+        is_mentor: false,
+      },
+      error: null,
     });
   });
 
@@ -83,14 +97,13 @@ describe('useProfileEditorSession (#787)', () => {
     expect(result.current.form.getValues('name')).toBe('Dirty Edited Name');
 
     // Background SWR revalidation delivers a new DTO object reference for the same user
-    mockUseEditProfileData.mockReturnValue({
+    mockUseUserProfileDto.mockReturnValue({
       userDto: {
         ...mockUserDTO,
         user_id: 1,
         name: 'Background Refetched Name',
       },
-      isMentor: false,
-      isError: false,
+      error: null,
     });
     rerender({ pageUserId: '1' });
 
@@ -102,10 +115,9 @@ describe('useProfileEditorSession (#787)', () => {
     expect(result.current.isHydrating).toBe(true);
 
     // Once user 2's DTO arrives, hydration completes for pageUserId '2'
-    mockUseEditProfileData.mockReturnValue({
+    mockUseUserProfileDto.mockReturnValue({
       userDto: { ...mockUserDTO, user_id: 2, name: 'Second User Name' },
-      isMentor: false,
-      isError: false,
+      error: null,
     });
     rerender({ pageUserId: '2' });
 
@@ -113,14 +125,16 @@ describe('useProfileEditorSession (#787)', () => {
     expect(result.current.form.getValues('name')).toBe('Second User Name');
   });
 
-  it('blocks submit and scrolls to work_experiences or educations when section validation flags an error, and delegates to onSubmit once errors clear', async () => {
-    const { result } = renderHook(() =>
-      useProfileEditorSession({
+  it('blocks submit and surfaces formState.errors when work_experiences or educations have start > end periods, and delegates to onSubmit once valid', async () => {
+    const { result } = renderHook(() => {
+      const session = useProfileEditorSession({
         pageUserId: '1',
         isAuthorized: true,
         isMentorOnboarding: false,
-      })
-    );
+      });
+      void session.form.formState.errors;
+      return session;
+    });
 
     act(() => {
       result.current.form.reset({
@@ -131,42 +145,79 @@ describe('useProfileEditorSession (#787)', () => {
         want_position: ['frontend'],
         want_skill: ['react'],
         want_topic: ['career'],
+        work_experiences: [
+          {
+            id: 0,
+            job: 'Engineer',
+            company: 'Acme',
+            job_period_start: '2024',
+            job_period_end: '2020',
+            industry: 'tech',
+            job_location: 'TWN',
+            description: 'Building products',
+            is_primary: true,
+          },
+        ],
       });
-      result.current.setJobSectionError(true);
     });
 
     await act(async () => {
       await result.current.handleFormSubmit();
     });
 
-    expect(mockScrollToField).toHaveBeenCalledWith('work_experiences');
-    expect(mockOnSubmit).not.toHaveBeenCalled();
+    expect(mockOnError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        work_experiences: expect.anything(),
+      }),
+      undefined
+    );
+    expect(
+      result.current.form.formState.errors.work_experiences?.[0]?.job_period_end
+        ?.message
+    ).toBe('開始年份不可大於結束年份');
+    expect(mockCommitProfileMutation).not.toHaveBeenCalled();
 
-    mockScrollToField.mockClear();
+    mockOnError.mockClear();
     act(() => {
-      result.current.setJobSectionError(false);
-      result.current.setEducationSectionError(true);
+      result.current.form.setValue('work_experiences.0.job_period_end', '2024');
+      result.current.form.setValue('educations', [
+        {
+          id: 0,
+          subject: 'CS',
+          school: '國立臺灣大學',
+          education_period_start: '2025',
+          education_period_end: '2021',
+        },
+      ]);
     });
 
     await act(async () => {
       await result.current.handleFormSubmit();
     });
 
-    expect(mockScrollToField).toHaveBeenCalledWith('educations');
-    expect(mockOnSubmit).not.toHaveBeenCalled();
+    expect(mockOnError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        educations: expect.anything(),
+      }),
+      undefined
+    );
+    expect(
+      result.current.form.formState.errors.educations?.[0]?.education_period_end
+        ?.message
+    ).toBe('開始年份不可大於結束年份');
+    expect(mockCommitProfileMutation).not.toHaveBeenCalled();
 
-    // Clearing both section errors allows handleFormSubmit to invoke onSubmit
-    mockScrollToField.mockClear();
+    mockOnError.mockClear();
     act(() => {
-      result.current.setEducationSectionError(false);
+      result.current.form.setValue('educations.0.education_period_end', 'now');
     });
 
     await act(async () => {
       await result.current.handleFormSubmit();
     });
 
-    expect(mockScrollToField).not.toHaveBeenCalled();
-    expect(mockOnSubmit).toHaveBeenCalledTimes(1);
+    expect(mockOnError).not.toHaveBeenCalled();
+    expect(mockCommitProfileMutation).toHaveBeenCalledTimes(1);
   });
 
   it('automatically rolls back an unconsumed S3 avatar upload when the session unmounts', async () => {
@@ -239,5 +290,51 @@ describe('useProfileEditorSession (#787)', () => {
 
     // Must remain 2 (1 initial upload + 1 rollback), never a 3rd duplicate rollback
     expect(mockUpdateAvatar).toHaveBeenCalledTimes(2);
+  });
+
+  it('forwards hydrated userDto, industryCatalog, and explicit pageUserId into commitProfileMutation (#889 / #905)', async () => {
+    const industryCatalog = [
+      { subject_group: 'finance', subject: '金融與銀行' },
+    ];
+
+    const { result } = renderHook(() =>
+      useProfileEditorSession({
+        pageUserId: '1',
+        isAuthorized: true,
+        isMentorOnboarding: false,
+        industryCatalog,
+      })
+    );
+
+    act(() => {
+      result.current.form.reset({
+        ...result.current.form.getValues(),
+        name: 'Initial Name',
+        location: 'TWN',
+        years_of_experience: '1_3',
+        want_position: ['frontend'],
+        want_skill: ['react'],
+        want_topic: ['career'],
+      });
+    });
+
+    await act(async () => {
+      await result.current.handleFormSubmit();
+    });
+
+    expect(mockCommitProfileMutation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'edit',
+        currentDto: expect.objectContaining({
+          user_id: 1,
+          name: 'Initial Name',
+        }),
+      }),
+      expect.objectContaining({
+        pageUserId: '1',
+        industryCatalog,
+      }),
+      expect.any(Object)
+    );
   });
 });

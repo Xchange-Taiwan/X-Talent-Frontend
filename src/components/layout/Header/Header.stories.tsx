@@ -13,6 +13,12 @@ const meta: Meta<typeof Header> = {
     nextjs: {
       appDirectory: true,
     },
+    docs: {
+      description: {
+        component:
+          '全站頂部導覽列，支援預渲染身分提示與導覽連結低侵入式 `data-analytics-click` GA4 點擊埋點。',
+      },
+    },
   },
   decorators: [
     (Story) => (
@@ -134,6 +140,26 @@ export const ResolvingMentorV2HintState: Story = {
     auth: {
       status: 'loading',
       session: null,
+      sessionHint: mentorV2SessionHint,
+    },
+  },
+};
+
+// 7. Active Route State (aria-current="page" on 關於 X-Talent)
+export const AboutActiveRouteState: Story = {
+  parameters: {
+    nextjs: {
+      appDirectory: true,
+      navigation: {
+        pathname: '/about',
+      },
+    },
+    auth: {
+      status: 'authenticated',
+      session: {
+        user: mockMentorUser,
+        expires: '2099-01-01T00:00:00.000Z',
+      },
       sessionHint: mentorV2SessionHint,
     },
   },

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { getAnnouncement } from '@/lib/globalConfig';
-import type { AnnouncementData } from '@/services/announcement';
+import { type AnnouncementData, getAnnouncement } from '@/lib/globalConfig';
 
 export const dynamic = 'force-dynamic';
 

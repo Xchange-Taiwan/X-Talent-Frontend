@@ -164,3 +164,332 @@ export const CancelledHistoryWithReason: Story = {
     myUserId: 'user-mentee-jolin',
   },
 };
+
+// 8. Mentee History Feedback States (#730: Needs Feedback, Public Rating, Unpublicized Rating, Not Happened)
+export const MenteeHistoryFeedbackStates: Story = {
+  args: {
+    items: [
+      {
+        ...mockReservations[6],
+        id: 'res-feedback-answer',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+      {
+        ...mockReservations[6],
+        id: 'res-feedback-public',
+        name: '陳大文 (David Chen)',
+        feedback: {
+          meetingHappened: true,
+          rating: {
+            rating: 10,
+            content: '非常實用的職涯與系統設計建議，收穫良多！',
+            createdAt: 1760000000,
+            updatedAt: 1760000000,
+            authorName: 'Jay',
+            isPublic: true,
+          },
+          nextStep: null,
+        },
+      },
+      {
+        ...mockReservations[6],
+        id: 'res-feedback-unpublicized',
+        name: '林佳穎 (Emily Lin)',
+        feedback: {
+          meetingHappened: false,
+          rating: {
+            rating: 8,
+            content: '謝謝分享。',
+            createdAt: 1760000000,
+            updatedAt: 1760000000,
+            authorName: 'Jay',
+            isPublic: false,
+          },
+          nextStep: null,
+        },
+      },
+      {
+        ...mockReservations[6],
+        id: 'res-feedback-not-happened',
+        name: '蘇元貞 (Julie Su)',
+        feedback: {
+          meetingHappened: false,
+          rating: null,
+          nextStep: null,
+        },
+      },
+    ],
+    variant: 'history',
+    sourceRole: 'mentee',
+    myUserId: 'user-mentee-jay',
+  },
+};
+
+// 11. Deep-Link Highlighted & Auto-Expanded History Card (#733)
+export const DeepLinkTargetHighlightedAndAutoExpanded: Story = {
+  args: {
+    items: [
+      {
+        ...mockReservations[6],
+        id: 'res-deeplink-rated',
+        name: '陳大文 (David Chen)',
+        feedback: {
+          meetingHappened: true,
+          rating: {
+            rating: 10,
+            content: '非常實用的職涯與系統設計建議，收穫良多！',
+            createdAt: 1760000000,
+            updatedAt: 1760000000,
+            authorName: 'Jay',
+            isPublic: true,
+          },
+          nextStep: null,
+        },
+      },
+      mockReservations[6],
+    ],
+    variant: 'history',
+    sourceRole: 'mentee',
+    myUserId: 'user-mentee-jay',
+    highlightedReservationId: 'res-deeplink-rated',
+    autoExpandedReservationId: 'res-deeplink-rated',
+  },
+};
+
+// 12. Mentor History Confirm-Session & Public Feedback States (#735)
+export const MentorHistoryFeedbackStates: Story = {
+  args: {
+    items: [
+      {
+        ...mockReservations[6],
+        id: 'mentor-res-confirmed-rated',
+        name: 'Zahra Mirzakhani',
+        roleLine: 'Senior UX Designer · 5–10 年工作經驗',
+        viewerRole: 'MENTOR',
+        feedback: {
+          meetingHappened: true,
+          myMeetingHappened: true,
+          rating: {
+            rating: 10,
+            content: '謝謝導師清楚拆解設計系統與跨職能溝通策略！',
+            createdAt: 1761609600,
+            updatedAt: 1761609600,
+            authorName: 'Z***',
+            isPublic: true,
+          },
+          nextStep: null,
+        },
+      },
+      {
+        ...mockReservations[6],
+        id: 'mentor-res-needs-confirm',
+        name: 'Emily Chen',
+        roleLine: 'UI/UX 設計師 · 5–10 年工作經驗',
+        viewerRole: 'MENTOR',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+      {
+        ...mockReservations[6],
+        id: 'mentor-res-not-happened',
+        name: 'Alex Wang',
+        roleLine: '後端工程師 · 5–10 年工作經驗',
+        viewerRole: 'MENTOR',
+        feedback: {
+          meetingHappened: false,
+          myMeetingHappened: false,
+          rating: null,
+          nextStep: null,
+        },
+      },
+      mockReservations[7],
+    ],
+    variant: 'history',
+    sourceRole: 'mentor',
+    myUserId: 'user-mentor-current',
+  },
+};
+
+// 13. SYSTEM 24h Auto-Cancelled vs Participant-Cancelled History Mix (#881)
+export const SystemAutoCancelledHistoryList: Story = {
+  args: {
+    items: [
+      {
+        ...mockReservations[6],
+        id: 'mentor-res-system-auto-cancelled',
+        name: '王小明 (Ming Wang)',
+        messages: [],
+        menteeMessage: undefined,
+        mentorMessage: undefined,
+        cancelledBy: 'SYSTEM',
+      },
+      mockReservations[7],
+      mockReservations[8],
+    ],
+    variant: 'history',
+    sourceRole: 'mentor',
+    myUserId: 'user-mentor-current',
+  },
+};
+
+// 14. Mentee Deep-Link Dialog Opening Directly on Step 2 Rating (#881: nextStep === 'RATE')
+export const MenteeDeepLinkResumeRatingDialog: Story = {
+  args: {
+    items: [
+      {
+        ...mockReservations[6],
+        id: 'mentee-res-deeplink-rate',
+        name: '陳大文 (David Chen)',
+        feedback: {
+          meetingHappened: true,
+          rating: null,
+          nextStep: 'RATE',
+        },
+      },
+    ],
+    variant: 'history',
+    sourceRole: 'mentee',
+    myUserId: 'user-mentee-jay',
+    deepLinkDialogReservation: {
+      ...mockReservations[6],
+      id: 'mentee-res-deeplink-rate',
+      name: '陳大文 (David Chen)',
+      feedback: {
+        meetingHappened: true,
+        rating: null,
+        nextStep: 'RATE',
+      },
+    },
+  },
+};
+
+// 15. Bilateral Feedback Queue Host Dialog — Mentor Confirm-Session Queue (#906)
+export const MentorFeedbackQueueDialog: Story = {
+  args: {
+    items: [
+      {
+        ...mockReservations[6],
+        id: 'mentor-queue-oldest',
+        name: 'Emily Chen',
+        viewerRole: 'MENTOR',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+      {
+        ...mockReservations[6],
+        id: 'mentor-queue-newer',
+        name: 'Alex Wang',
+        viewerRole: 'MENTOR',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+    ],
+    variant: 'history',
+    sourceRole: 'mentor',
+    myUserId: 'user-mentor-current',
+    feedbackQueueItems: [
+      {
+        ...mockReservations[6],
+        id: 'mentor-queue-oldest',
+        name: 'Emily Chen',
+        viewerRole: 'MENTOR',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+      {
+        ...mockReservations[6],
+        id: 'mentor-queue-newer',
+        name: 'Alex Wang',
+        viewerRole: 'MENTOR',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+    ],
+  },
+};
+
+// 16. Bilateral Feedback Queue Host Dialog — Mentee Rating Queue (#906)
+export const MenteeFeedbackQueueDialog: Story = {
+  args: {
+    items: [
+      {
+        ...mockReservations[6],
+        id: 'mentee-queue-oldest',
+        name: '陳大文 (David Chen)',
+        viewerRole: 'MENTEE',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+      {
+        ...mockReservations[6],
+        id: 'mentee-queue-newer',
+        name: '林佳穎 (Emily Lin)',
+        viewerRole: 'MENTEE',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+    ],
+    variant: 'history',
+    sourceRole: 'mentee',
+    myUserId: 'user-mentee-jay',
+    feedbackQueueItems: [
+      {
+        ...mockReservations[6],
+        id: 'mentee-queue-oldest',
+        name: '陳大文 (David Chen)',
+        viewerRole: 'MENTEE',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+      {
+        ...mockReservations[6],
+        id: 'mentee-queue-newer',
+        name: '林佳穎 (Emily Lin)',
+        viewerRole: 'MENTEE',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+    ],
+  },
+};
+
+export const HistoryFeedbackDisabled: Story = {
+  args: {
+    items: [mockReservations[6], mockReservations[7]],
+    variant: 'history',
+    sourceRole: 'mentee',
+    myUserId: 'user-mentee-current',
+    feedbackEnabled: false,
+  },
+};

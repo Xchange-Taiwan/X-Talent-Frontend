@@ -86,8 +86,20 @@ describe('MentorFilterDropdown', () => {
     const option = screen.getByText('前端開發');
     fireEvent.click(option);
 
-    // Click Apply button ("套用")
+    // Click Apply button ("套用") and verify declarative analytics attributes
     const applyBtn = screen.getByRole('button', { name: '套用' });
+    expect(applyBtn).toHaveAttribute(
+      'data-analytics-event',
+      'mentor_pool_filter_apply'
+    );
+    expect(applyBtn).toHaveAttribute(
+      'data-analytics-param-filter-type',
+      'filter_skills'
+    );
+    expect(applyBtn).toHaveAttribute(
+      'data-analytics-param-filter-value',
+      'frontend'
+    );
     fireEvent.click(applyBtn);
 
     // Verify change is propagated with selected option

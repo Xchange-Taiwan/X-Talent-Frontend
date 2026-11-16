@@ -5,13 +5,15 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
+import { revalidateProfilePathAfterDelete } from '@/actions/auth';
 import { useToast } from '@/components/ui/use-toast';
 import useAsyncAction from '@/hooks/useAsyncAction';
-import { trackEvent } from '@/lib/analytics';
-import { dispatchDeleteAccountRevalidate } from '@/lib/auth/dispatchDeleteAccountRevalidate';
+import { ApiError } from '@/lib/apiClient';
+import {
+  executeDeleteAccountXC,
+  initiateGoogleAuth,
+} from '@/lib/auth/sessionLifecycle';
 import { DeleteAccountXCSchema } from '@/schemas/auth';
-import { deleteAccount } from '@/services/auth/deleteAccount';
-import { getGoogleAuthorizeLoginUrl } from '@/services/auth/googleAuthorize';
 
 type XCValues = z.infer<typeof DeleteAccountXCSchema>;
 
@@ -54,15 +56,18 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
     setBlockedByReservations(false);
     await run(
       async () => {
-        const result = await deleteAccount({
-          email: values.email,
-          password: values.password,
-        });
+        const result = await executeDeleteAccountXC(
+          {
+            email: values.email,
+            password: values.password,
+          },
+          {
+            signOut,
+            revalidateAfterDelete: revalidateProfilePathAfterDelete,
+          }
+        );
 
         if (result.status === 'success') {
-          trackEvent({ name: 'delete_account_succeeded', feature: 'auth' });
-          await dispatchDeleteAccountRevalidate();
-          await signOut({ callbackUrl: '/' });
           return;
         }
 
@@ -101,17 +106,25 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
 
     await run(
       async () => {
-        sessionStorage.setItem(
-          'delete_account_email',
-          session?.user?.email ?? ''
+        await initiateGoogleAuth(
+          {
+            intent: 'delete_account_reauth',
+            email: session?.user?.email ?? '',
+          },
+          {
+            navigate: (url) => router.push(url),
+          }
         );
-        const { authorization_url } = await getGoogleAuthorizeLoginUrl();
-        router.push(authorization_url);
       },
       {
         throwError: false,
-        onError: () => {
-          sessionStorage.removeItem('delete_account_email');
+        resetPendingOnSuccess: false,
+        captureFailure: {
+          flow: 'delete_account',
+          step: 'google_reauth_authorize',
+          level: 'warning',
+          errorCode: (err) =>
+            err instanceof ApiError ? String(err.status) : undefined,
         },
         toastOnError: {
           description: '無法取得 Google 授權連結，請稍後再試',

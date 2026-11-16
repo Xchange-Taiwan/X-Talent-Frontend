@@ -8,6 +8,20 @@ import type {
   AsyncReadSource,
 } from '@/lib/asyncReadManager';
 
+function readCachedSnapshot<K, V>(
+  manager: AsyncReadSource<K, V>,
+  key: K
+): V | undefined {
+  if (manager.getSnapshot) {
+    const snapshot = manager.getSnapshot(key);
+    return snapshot ? snapshot.value : undefined;
+  }
+  if (manager.peek) {
+    return manager.peek(key);
+  }
+  return manager.get(key);
+}
+
 function getInitialResultState<K, V>(
   key: K | null | undefined,
   manager: AsyncReadSource<K, V>,
@@ -16,7 +30,7 @@ function getInitialResultState<K, V>(
   if (key === null || key === undefined) {
     return { data: null, isLoading: false, error: null };
   }
-  const cached = manager.get(key);
+  const cached = readCachedSnapshot(manager, key);
   if (cached !== undefined) {
     return {
       data: cached,
@@ -42,7 +56,7 @@ export function useAsyncRead<K, V>(
   manager: AsyncReadSource<K, V>,
   key: K | null | undefined,
   fetcher: (signal: AbortSignal, context?: { force?: boolean }) => Promise<V>,
-  options?: AsyncReadOptions<K, V>
+  options?: AsyncReadOptions<V>
 ): AsyncReadResult<V> & { refetch: () => void } {
   const initialDataRef = useRef<V | undefined>(options?.initialData);
   const initialKeyRef = useRef<K | null | undefined>(key);
@@ -79,7 +93,20 @@ export function useAsyncRead<K, V>(
   // Sync cache with initialData on mount or key changes in useEffect to avoid SSR pollution
   useEffect(() => {
     if (activeInitialData !== undefined && key !== null && key !== undefined) {
-      manager.set(key, activeInitialData);
+      if (
+        readCachedSnapshot(manager, key) === undefined &&
+        (!optionsRef.current?.shouldCache ||
+          optionsRef.current.shouldCache(activeInitialData))
+      ) {
+        if (manager.prime) {
+          manager.prime(key, activeInitialData, {
+            ifEmpty: true,
+            ttlMs: optionsRef.current?.ttlMs,
+          });
+        } else if (manager.get(key) === undefined) {
+          manager.set(key, activeInitialData, optionsRef.current?.ttlMs);
+        }
+      }
       initialDataRef.current = undefined;
     }
   }, [manager, key, activeInitialData]);

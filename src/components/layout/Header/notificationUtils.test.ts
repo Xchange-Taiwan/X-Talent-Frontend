@@ -205,4 +205,150 @@ describe('notificationUtils', () => {
       '/reservation/mentor?tab=history'
     );
   });
+
+  it('maps feedback_reminder and reservation_feedback_reminder for Mentor ("留下您的會談紀錄") and Mentee ("留下您的會談回饋") with optional reservationId (#733)', () => {
+    const mentorReminder = buildItem({
+      type: 'feedback_reminder',
+      role: 'mentor',
+      menteeName: '林學員',
+      reservationId: '201',
+    });
+    expect(getNotificationContent(mentorReminder)).toEqual({
+      title: '留下您的會談紀錄',
+      body: '您與 林學員 的會談已結束，前往留下紀錄。',
+    });
+    expect(getNotificationHref(mentorReminder)).toBe(
+      '/reservation/mentor?tab=history&reservationId=201'
+    );
+
+    const mentorWithoutReservationId = buildItem({
+      type: 'reservation_feedback_reminder',
+      role: 'mentor',
+      menteeName: '張同學',
+    });
+    expect(getNotificationContent(mentorWithoutReservationId)).toEqual({
+      title: '留下您的會談紀錄',
+      body: '您與 張同學 的會談已結束，前往留下紀錄。',
+    });
+    expect(getNotificationHref(mentorWithoutReservationId)).toBe(
+      '/reservation/mentor?tab=history'
+    );
+
+    const menteeReminder = buildItem({
+      type: 'feedback_reminder',
+      role: 'mentee',
+      mentorName: 'Emily Chen',
+      reservationId: '101',
+    });
+    expect(getNotificationContent(menteeReminder)).toEqual({
+      title: '留下您的會談回饋',
+      body: '您與 Emily Chen 的會談已結束，前往留下回饋。',
+    });
+    expect(getNotificationHref(menteeReminder)).toBe(
+      '/reservation/mentee?tab=history&reservationId=101'
+    );
+
+    const menteeWithoutReservationId = buildItem({
+      type: 'meeting_feedback_reminder',
+      role: 'mentee',
+      mentorName: '王導師',
+    });
+    expect(getNotificationContent(menteeWithoutReservationId)).toEqual({
+      title: '留下您的會談回饋',
+      body: '您與 王導師 的會談已結束，前往留下回饋。',
+    });
+    expect(getNotificationHref(menteeWithoutReservationId)).toBe(
+      '/reservation/mentee?tab=history'
+    );
+  });
+
+  it('maps feedback_received variants for Mentor ("您收到新的回饋") using full menteeName and /reservation/mentor?tab=history&reservationId=<id> (#734)', () => {
+    const mentorFeedbackReceived = buildItem({
+      type: 'feedback_received',
+      role: 'mentor',
+      menteeName: 'Zahra Mirzakhani',
+      reservationId: '201',
+    });
+    expect(getNotificationContent(mentorFeedbackReceived)).toEqual({
+      title: '您收到新的回饋',
+      body: 'Zahra Mirzakhani 為您留下了一則會談回饋，前往查看。',
+    });
+    expect(getNotificationHref(mentorFeedbackReceived)).toBe(
+      '/reservation/mentor?tab=history&reservationId=201'
+    );
+
+    const chineseFullNameWithoutRole = buildItem({
+      type: 'reservation_feedback_received',
+      role: undefined,
+      menteeName: '王小明',
+      reservationId: '305',
+    });
+    expect(getNotificationContent(chineseFullNameWithoutRole)).toEqual({
+      title: '您收到新的回饋',
+      body: '王小明 為您留下了一則會談回饋，前往查看。',
+    });
+    expect(getNotificationHref(chineseFullNameWithoutRole)).toBe(
+      '/reservation/mentor?tab=history&reservationId=305'
+    );
+
+    const fallbackWithoutNameOrReservationId = buildItem({
+      type: 'meeting_feedback_received',
+      role: undefined,
+      menteeName: undefined,
+      reservationId: '   ',
+    });
+    expect(getNotificationContent(fallbackWithoutNameOrReservationId)).toEqual({
+      title: '您收到新的回饋',
+      body: 'Mentee 為您留下了一則會談回饋，前往查看。',
+    });
+    expect(getNotificationHref(fallbackWithoutNameOrReservationId)).toBe(
+      '/reservation/mentor?tab=history'
+    );
+  });
+
+  it('maps #760 §7 official notification types reservation_feedback_requested and reservation_attendance_requested (#875)', () => {
+    const menteeRequested = buildItem({
+      type: 'reservation_feedback_requested',
+      role: 'mentee',
+      mentorName: 'Emily Chen',
+      reservationId: '101',
+    });
+    expect(getNotificationContent(menteeRequested)).toEqual({
+      title: '留下您的會談回饋',
+      body: '您與 Emily Chen 的會談已結束，前往留下回饋。',
+    });
+    expect(getNotificationHref(menteeRequested)).toBe(
+      '/reservation/mentee?tab=history&reservationId=101'
+    );
+
+    const mentorAttendanceRequested = buildItem({
+      type: 'reservation_attendance_requested',
+      role: 'mentor',
+      menteeName: '林學員',
+      reservationId: '205',
+    });
+    expect(getNotificationContent(mentorAttendanceRequested)).toEqual({
+      title: '留下您的會談紀錄',
+      body: '您與 林學員 的會談已結束，前往留下紀錄。',
+    });
+    expect(getNotificationHref(mentorAttendanceRequested)).toBe(
+      '/reservation/mentor?tab=history&reservationId=205'
+    );
+  });
+
+  it('prefers pre-resolved item.targetHref from mapNotificationVOToItem and falls back cleanly via reservationRoutes (#906)', () => {
+    const preResolved = buildItem({
+      type: 'feedback_reminder',
+      targetHref: '/reservation/mentor?tab=history&reservationId=777',
+    });
+    expect(getNotificationHref(preResolved)).toBe(
+      '/reservation/mentor?tab=history&reservationId=777'
+    );
+
+    const unknownWithoutTarget = buildItem({
+      type: 'future_unrecognized_event' as NotificationItem['type'],
+      targetHref: undefined,
+    });
+    expect(getNotificationHref(unknownWithoutTarget)).toBe('/');
+  });
 });

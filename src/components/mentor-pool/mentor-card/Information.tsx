@@ -7,12 +7,14 @@ import { computeOverflowFit } from '@/lib/overflowFit';
 
 import { Tag } from './Tag';
 
-interface InformationProps {
+export interface InformationProps {
   name: string;
   job_title: string;
   company: string;
   about: string;
   haveTopicLabels: string[];
+  ratingLabel?: string | null;
+  completedMeetingsLabel?: string | null;
 }
 
 const TAG_GAP_PX = 8;
@@ -24,6 +26,8 @@ export const Information = ({
   company,
   about,
   haveTopicLabels = [],
+  ratingLabel = null,
+  completedMeetingsLabel = null,
 }: InformationProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
@@ -68,16 +72,33 @@ export const Information = ({
 
   return (
     <div className="flex h-full flex-1 flex-col gap-4">
-      <div>
-        <h3 className="text-base font-bold tracking-[0.5px]">{name}</h3>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="min-w-0 truncate text-base font-bold tracking-[0.5px]">
+            {name}
+          </h3>
+          {ratingLabel && (
+            <span
+              aria-label={`平均評分 ${ratingLabel}`}
+              className="text-text-primary shrink-0 text-sm font-bold tracking-[0.5px] whitespace-nowrap xl:text-base"
+            >
+              {ratingLabel}
+            </span>
+          )}
+        </div>
         {(job_title || company) && (
-          <div className="flex gap-[6px] text-sm font-normal tracking-wide">
+          <div className="flex flex-wrap gap-x-[6px] text-sm font-normal tracking-wide">
             {job_title}
             {job_title && company && (
               <span className="text-text-tertiary">at</span>
             )}
             {company}
           </div>
+        )}
+        {completedMeetingsLabel && (
+          <p className="text-text-primary text-sm font-normal tracking-wide">
+            {completedMeetingsLabel}
+          </p>
         )}
       </div>
       <p className="text-text-tertiary line-clamp-2 min-h-[40px] text-sm font-normal tracking-wide">

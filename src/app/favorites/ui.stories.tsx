@@ -1,0 +1,123 @@
+import type { Meta, StoryObj } from '@storybook/nextjs';
+import { type ReactNode, useLayoutEffect } from 'react';
+
+import { mockMentors } from '@/components/mentor-pool/__mocks__/mentors.mock';
+import { Toaster } from '@/components/ui/toaster';
+import { favoriteMentorsReadModel } from '@/lib/favorites';
+import type { MentorType } from '@/types/mentor';
+
+import FavoritesPageUI from './ui';
+
+const FAVORITES_STORY_LABEL_MAP = new Map<string, string>([
+  ['portfolio_review', '作品集健檢'],
+  ['career_planning', '職涯規劃'],
+  ['product_design', '產品設計'],
+  ['design_system', '設計系統'],
+]);
+
+function FavoritesStoreSeedBoundary({
+  mentors,
+  children,
+}: {
+  mentors: MentorType[];
+  children: ReactNode;
+}) {
+  useLayoutEffect(() => {
+    favoriteMentorsReadModel.setTransport({
+      fetchFavoriteMentors: async () => mentors,
+      addFavoriteMentor: async () => {},
+      removeFavoriteMentor: async () => {},
+    });
+    favoriteMentorsReadModel.seed('test-user-id', mentors);
+  }, [mentors]);
+
+  return (
+    <>
+      {children}
+      <Toaster />
+    </>
+  );
+}
+
+const meta: Meta<typeof FavoritesPageUI> = {
+  title: '業務模組元件/收藏導師(Favorites)/FavoritesPageUI',
+  component: FavoritesPageUI,
+  tags: ['autodocs'],
+  parameters: {
+    layout: 'fullscreen',
+    nextjs: {
+      appDirectory: true,
+    },
+  },
+  decorators: [
+    (Story, context) => (
+      <FavoritesStoreSeedBoundary mentors={context.args.mentors ?? []}>
+        <Story />
+      </FavoritesStoreSeedBoundary>
+    ),
+  ],
+  args: {
+    mentors: mockMentors.slice(0, 3),
+    mentorCount: 3,
+    listStatus: 'success',
+  },
+};
+
+export default meta;
+type Story = StoryObj<typeof FavoritesPageUI>;
+
+export const PopulatedList: Story = {
+  args: {
+    mentors: mockMentors.slice(0, 3),
+    mentorCount: 3,
+    listStatus: 'success',
+  },
+};
+
+export const CodeMappedCatalogTags: Story = {
+  args: {
+    mentors: [
+      {
+        ...mockMentors[0],
+        avatar: '',
+        have_topic: ['portfolio_review', 'career_planning'],
+        have_skill: ['product_design', 'design_system'],
+      },
+    ],
+    mentorCount: 1,
+    labelMap: FAVORITES_STORY_LABEL_MAP,
+    listStatus: 'success',
+  },
+};
+
+export const SingleMentor: Story = {
+  args: {
+    mentors: mockMentors.slice(0, 1),
+    mentorCount: 1,
+    listStatus: 'success',
+  },
+};
+
+export const EmptyState: Story = {
+  args: {
+    mentors: [],
+    mentorCount: 0,
+    listStatus: 'empty',
+  },
+};
+
+export const ErrorState: Story = {
+  args: {
+    mentors: [],
+    mentorCount: 0,
+    listStatus: 'error',
+  },
+};
+
+export const LoadingState: Story = {
+  args: {
+    mentors: [],
+    mentorCount: 0,
+    listStatus: 'loading',
+  },
+};

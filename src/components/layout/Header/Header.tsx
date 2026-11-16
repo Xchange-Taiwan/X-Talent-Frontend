@@ -2,173 +2,293 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { memo } from 'react';
 
 import LogoImgUrl from '@/assets/logo.svg';
+import { DeleteAccountDialog } from '@/components/auth/DeleteAccountDialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  getNavAnalyticsAttributes,
+  useHeaderNavigation,
+} from '@/hooks/layout/useHeaderNavigation';
 import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
-import { trackEvent } from '@/lib/analytics';
 import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { HOVER_NAV_UNDERLINE_CLASSES } from '@/lib/ui/hoverStyles';
 import { cn } from '@/lib/utils';
 
-import { FEEDBACK_FORM_URL, FIND_MENTOR_HREF } from './constants';
+import { AuthHintGate, AuthHintProvider } from './AuthHintGate';
 import { DisabledAwareLink } from './DisabledAwareLink';
 import { GuestActionButtons } from './GuestActionButtons';
 import { HamburgerMenu } from './HamburgerMenu';
 import { MobileUserMenu } from './MobileUserMenu';
-import { getBecomeMentorHref, getProfileHref } from './navHrefs';
 import { NotificationBell } from './NotificationBell';
+import { ShareProfileDialog } from './ShareProfileDialog';
 import { UserDropdown } from './UserDropdown';
 
-const NAV_LINK_CLASSES = cn(
-  'text-text-primary rounded-sm font-open-sans text-base',
-  FOCUS_RING_CLASSES
-);
-// The header's nav labels are always single-line, so the underline treatment is safe here -
-// see HOVER_NAV_UNDERLINE_CLASSES' doc for why it isn't the general-purpose text-link tier.
-const NAV_LINK_HOVER_CLASSES = HOVER_NAV_UNDERLINE_CLASSES;
+const DESKTOP_NAV_LINK_BASE = `text-text-primary font-open-sans rounded-sm text-base ${FOCUS_RING_CLASSES}`;
+const DESKTOP_NAV_LINK = `${DESKTOP_NAV_LINK_BASE} ${HOVER_NAV_UNDERLINE_CLASSES}`;
 
-function HeaderComponent(): JSX.Element {
+export function Header(): JSX.Element {
   const identity = useResolvedIdentity();
-
-  const isHintOnly = identity.state === 'hint-only';
-
-  // `userId` only ever comes from the real session, never the hint — while
-  // the state is hint-only these hrefs are unused (the link is disabled).
-  const leftSecondNav = identity.isMentor
-    ? { label: '我的導師頁面', href: getProfileHref(identity.userId) }
-    : { label: '成為導師', href: getBecomeMentorHref(identity.userId) };
-
-  const dynamicHoverClass = isHintOnly ? '' : NAV_LINK_HOVER_CLASSES;
+  const navigation = useHeaderNavigation({ identity });
+  const {
+    desktopAccountMenu,
+    desktopGuestAuth,
+    desktopNav,
+    mobileAccountMenu,
+    mobileGuestMenu,
+    profileHeader,
+  } = navigation;
+  const isMemberState =
+    identity.state === 'confirmed-member' || identity.state === 'hint-only';
+  const isConfirmedMember = identity.state === 'confirmed-member';
 
   return (
-    <header className="bg-light fixed inset-x-0 top-[var(--banner-height,0px)] z-50 px-5">
-      <div className="flex h-[70px] items-center justify-between">
-        <div className="flex items-center gap-10">
-          <Link
-            href="/"
-            aria-label="Go to homepage"
-            className={cn('rounded-sm', FOCUS_RING_CLASSES)}
-          >
-            <Image src={LogoImgUrl} alt="logo" />
-          </Link>
-
-          <nav className="hidden items-center gap-7 lg:flex">
+    <AuthHintProvider identity={identity}>
+      <header className="bg-light fixed inset-x-0 top-[var(--banner-height,0px)] z-50 px-5">
+        <div className="flex h-[70px] items-center justify-between">
+          {/* Left: Logo + Nav */}
+          <div className="flex items-center gap-10">
             <Link
-              href={FIND_MENTOR_HREF}
-              className={cn(NAV_LINK_CLASSES, NAV_LINK_HOVER_CLASSES)}
+              href="/"
+              aria-label="Go to homepage"
+              data-analytics-click="header_logo"
+              data-analytics-location="header"
+              data-analytics-feature="navigation"
+              className={`rounded-sm ${FOCUS_RING_CLASSES}`}
             >
-              尋找導師
+              <Image
+                src={LogoImgUrl}
+                alt="X-Talent Logo"
+                width={158}
+                height={33}
+                className="h-auto w-auto"
+                priority
+              />
             </Link>
 
-            {identity.state === 'unknown' ? (
-              <>
-                <Skeleton className="h-6 w-24 group-data-[auth-state=guest]/auth-state:hidden group-data-[auth-state=mentee]/auth-state:hidden group-data-[auth-state=mentor]/auth-state:hidden" />
-                <DisabledAwareLink
-                  href={getProfileHref(identity.userId)}
-                  disabled={isHintOnly}
-                  className={cn(
-                    NAV_LINK_CLASSES,
-                    dynamicHoverClass,
-                    'hidden group-data-[auth-state=mentor]/auth-state:block'
-                  )}
-                >
-                  我的導師頁面
-                </DisabledAwareLink>
-                <DisabledAwareLink
-                  href={getBecomeMentorHref(identity.userId)}
-                  disabled={isHintOnly}
-                  className={cn(
-                    NAV_LINK_CLASSES,
-                    dynamicHoverClass,
-                    'hidden group-data-[auth-state=guest]/auth-state:block group-data-[auth-state=mentee]/auth-state:block'
-                  )}
-                >
-                  成為導師
-                </DisabledAwareLink>
-              </>
-            ) : (
-              <DisabledAwareLink
-                href={leftSecondNav.href}
-                disabled={isHintOnly}
-                className={cn(NAV_LINK_CLASSES, dynamicHoverClass)}
+            <nav className="hidden items-center gap-7 lg:flex">
+              <Link
+                href={desktopNav.findMentor.href}
+                aria-current={
+                  desktopNav.findMentor.isCurrent ? 'page' : undefined
+                }
+                {...getNavAnalyticsAttributes(desktopNav.findMentor.analytics)}
+                className={DESKTOP_NAV_LINK}
               >
-                {leftSecondNav.label}
-              </DisabledAwareLink>
-            )}
+                {desktopNav.findMentor.label}
+              </Link>
 
-            <Link
-              href="/about"
-              className={cn(NAV_LINK_CLASSES, NAV_LINK_HOVER_CLASSES)}
-            >
-              關於 X-Talent
-            </Link>
+              {identity.state === 'unknown' ? (
+                <>
+                  <AuthHintGate asChild when="unhinted">
+                    <Skeleton className="h-6 w-24" />
+                  </AuthHintGate>
+                  <AuthHintGate asChild when={['mentor']}>
+                    <DisabledAwareLink
+                      href={desktopNav.mentorRoleCandidate.href}
+                      disabled={desktopNav.mentorRoleCandidate.disabled}
+                      aria-current={
+                        desktopNav.mentorRoleCandidate.isCurrent
+                          ? 'page'
+                          : undefined
+                      }
+                      {...getNavAnalyticsAttributes(
+                        desktopNav.mentorRoleCandidate.analytics
+                      )}
+                      className={cn(
+                        DESKTOP_NAV_LINK_BASE,
+                        !desktopNav.mentorRoleCandidate.disabled &&
+                          HOVER_NAV_UNDERLINE_CLASSES
+                      )}
+                    >
+                      {desktopNav.mentorRoleCandidate.label}
+                    </DisabledAwareLink>
+                  </AuthHintGate>
+                  <AuthHintGate asChild when={['mentee']}>
+                    <DisabledAwareLink
+                      href={desktopNav.menteeRoleCandidate.href}
+                      disabled={desktopNav.menteeRoleCandidate.disabled}
+                      aria-current={
+                        desktopNav.menteeRoleCandidate.isCurrent
+                          ? 'page'
+                          : undefined
+                      }
+                      {...getNavAnalyticsAttributes(
+                        desktopNav.menteeRoleCandidate.analytics
+                      )}
+                      className={cn(
+                        DESKTOP_NAV_LINK_BASE,
+                        !desktopNav.menteeRoleCandidate.disabled &&
+                          HOVER_NAV_UNDERLINE_CLASSES
+                      )}
+                    >
+                      {desktopNav.menteeRoleCandidate.label}
+                    </DisabledAwareLink>
+                  </AuthHintGate>
+                  <AuthHintGate asChild when={['guest']}>
+                    <DisabledAwareLink
+                      href={desktopNav.guestRoleCandidate.href}
+                      disabled={desktopNav.guestRoleCandidate.disabled}
+                      aria-current={
+                        desktopNav.guestRoleCandidate.isCurrent
+                          ? 'page'
+                          : undefined
+                      }
+                      {...getNavAnalyticsAttributes(
+                        desktopNav.guestRoleCandidate.analytics
+                      )}
+                      className={cn(
+                        DESKTOP_NAV_LINK_BASE,
+                        !desktopNav.guestRoleCandidate.disabled &&
+                          HOVER_NAV_UNDERLINE_CLASSES
+                      )}
+                    >
+                      {desktopNav.guestRoleCandidate.label}
+                    </DisabledAwareLink>
+                  </AuthHintGate>
+                </>
+              ) : (
+                <DisabledAwareLink
+                  href={desktopNav.resolvedRoleItem.href}
+                  disabled={desktopNav.resolvedRoleItem.disabled}
+                  aria-current={
+                    desktopNav.resolvedRoleItem.isCurrent ? 'page' : undefined
+                  }
+                  {...getNavAnalyticsAttributes(
+                    desktopNav.resolvedRoleItem.analytics
+                  )}
+                  className={cn(
+                    DESKTOP_NAV_LINK_BASE,
+                    !desktopNav.resolvedRoleItem.disabled &&
+                      HOVER_NAV_UNDERLINE_CLASSES
+                  )}
+                >
+                  {desktopNav.resolvedRoleItem.label}
+                </DisabledAwareLink>
+              )}
 
-            <a
-              href={FEEDBACK_FORM_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="提供回饋（另開新分頁）"
-              onClick={() => trackEvent({ name: 'feedback_open' })}
-              className={cn(NAV_LINK_CLASSES, NAV_LINK_HOVER_CLASSES)}
-            >
-              提供回饋
-            </a>
-          </nav>
-        </div>
+              <Link
+                href={desktopNav.about.href}
+                aria-current={desktopNav.about.isCurrent ? 'page' : undefined}
+                {...getNavAnalyticsAttributes(desktopNav.about.analytics)}
+                className={DESKTOP_NAV_LINK}
+              >
+                {desktopNav.about.label}
+              </Link>
 
-        <div className="flex items-center gap-3 lg:mr-20">
-          <div
-            className="hidden items-center gap-3 lg:flex"
-            data-testid="desktop-header-right"
-          >
-            {identity.state === 'unknown' ? (
-              <>
-                <div className="group-data-[auth-state=guest]/auth-state:hidden group-data-[auth-state=mentee]/auth-state:hidden group-data-[auth-state=mentor]/auth-state:hidden">
-                  <Skeleton className="size-9 rounded-full" />
-                </div>
-                <div className="hidden size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center group-data-[auth-state=mentee]/auth-state:block group-data-[auth-state=mentor]/auth-state:block" />
-                <GuestActionButtons identity={identity} />
-              </>
-            ) : identity.state === 'confirmed-guest' ? (
-              <GuestActionButtons identity={identity} />
-            ) : (
-              <>
-                <NotificationBell
-                  className="hidden lg:flex"
-                  userId={identity.userId}
-                  key={identity.userId ?? 'guest'}
-                />
-                <UserDropdown identity={identity} />
-              </>
-            )}
+              <a
+                href={desktopNav.feedback.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={desktopNav.feedback.ariaLabel}
+                onClick={desktopNav.feedback.onClick}
+                className={DESKTOP_NAV_LINK}
+              >
+                {desktopNav.feedback.label}
+              </a>
+            </nav>
           </div>
 
-          <div
-            className="flex items-center gap-3 lg:hidden"
-            data-testid="mobile-header-right"
-          >
-            {identity.state === 'unknown' ? (
-              <>
-                <Skeleton className="hidden size-9 rounded-full group-data-[auth-state=mentee]/auth-state:block group-data-[auth-state=mentor]/auth-state:block" />
-                <div className="hidden size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center group-data-[auth-state=mentee]/auth-state:block group-data-[auth-state=mentor]/auth-state:block" />
-              </>
-            ) : identity.state === 'confirmed-guest' ? null : (
-              <>
-                <NotificationBell
-                  userId={identity.userId}
-                  key={identity.userId ?? 'guest'}
-                />
-                <MobileUserMenu identity={identity} />
-              </>
-            )}
-            <HamburgerMenu identity={identity} />
+          {/* Right: Auth buttons / User menu / Mobile menus */}
+          <div className="flex items-center gap-3 lg:mr-20">
+            {/* Desktop */}
+            <div
+              className="hidden items-center gap-3 lg:flex"
+              data-testid="desktop-header-right"
+            >
+              <AuthHintGate when="unhinted">
+                <Skeleton className="size-9 rounded-full" />
+              </AuthHintGate>
+              <AuthHintGate
+                asChild
+                when={['mentee', 'mentor']}
+                onlyWhileUnknown
+              >
+                <div className="size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center" />
+              </AuthHintGate>
+
+              <GuestActionButtons
+                signup={desktopGuestAuth.signup}
+                signin={desktopGuestAuth.signin}
+              />
+
+              {isMemberState && (
+                <>
+                  <NotificationBell
+                    className="hidden lg:flex"
+                    userId={identity.userId}
+                    key={identity.userId ?? 'guest'}
+                  />
+                  <UserDropdown
+                    profileHeader={profileHeader}
+                    menu={desktopAccountMenu}
+                  />
+                </>
+              )}
+            </div>
+
+            {/* Mobile + Tablet */}
+            <div
+              className="flex items-center gap-3 lg:hidden"
+              data-testid="mobile-header-right"
+            >
+              <AuthHintGate
+                asChild
+                when={['mentee', 'mentor']}
+                onlyWhileUnknown
+              >
+                <Skeleton className="size-9 rounded-full" />
+              </AuthHintGate>
+              <AuthHintGate
+                asChild
+                when={['mentee', 'mentor']}
+                onlyWhileUnknown
+              >
+                <div className="size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center" />
+              </AuthHintGate>
+
+              {isMemberState && (
+                <>
+                  <NotificationBell
+                    userId={identity.userId}
+                    key={identity.userId ?? 'guest'}
+                  />
+                  <MobileUserMenu
+                    profileHeader={profileHeader}
+                    menu={mobileAccountMenu}
+                  />
+                </>
+              )}
+              <HamburgerMenu menu={mobileGuestMenu} />
+            </div>
           </div>
         </div>
-      </div>
-    </header>
+      </header>
+
+      {isConfirmedMember && navigation.canDeleteAccount && (
+        <DeleteAccountDialog
+          key={identity.userId}
+          open={navigation.activeDialog === 'delete-account'}
+          onOpenChange={(open) =>
+            navigation.setActiveDialog(open ? 'delete-account' : null)
+          }
+        />
+      )}
+
+      {isConfirmedMember && (
+        <ShareProfileDialog
+          key={identity.userId}
+          open={navigation.activeDialog === 'share-profile'}
+          onOpenChange={(open) =>
+            navigation.setActiveDialog(open ? 'share-profile' : null)
+          }
+          name={profileHeader.displayName}
+          avatarSrc={profileHeader.avatarSrc}
+          subtitle={profileHeader.subtitle}
+          profilePath={profileHeader.href}
+          personalLinks={profileHeader.personalLinks}
+        />
+      )}
+    </AuthHintProvider>
   );
 }
-
-export const Header = memo(HeaderComponent);

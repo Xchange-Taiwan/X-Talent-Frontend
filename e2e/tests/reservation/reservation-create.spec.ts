@@ -1,7 +1,7 @@
 import { expect, Page, test } from '@playwright/test';
 
 import { mockApiRoute } from '../../helpers/route';
-import { setSignedSessionCookie } from '../../helpers/session';
+import { seedMockAuthSession } from '../../helpers/session';
 
 // Specify timezone locally to guarantee identical time behaviours across local & CI
 test.use({ timezoneId: 'Asia/Taipei' });
@@ -29,20 +29,6 @@ const DTEND = 1784284800; // 1 hour slot, 16:00:00
 const DTSTART2 = 1784288400;
 const DTEND2 = 1784292000; // 1 hour slot, 18:00:00
 
-// Helper to construct a flat NextAuth JWT Payload
-function makeJWTPayload(userId: string, isMentor: boolean) {
-  return {
-    id: userId,
-    name: 'Test Own User',
-    isMentor,
-    onBoarding: true,
-    jobTitle: 'Software Engineer',
-    company: 'Own Company',
-    personalLinks: [],
-    token: 'mock-access-token',
-  };
-}
-
 // ─── Shared Helpers ──────────────────────────────────────────────────────────
 
 /**
@@ -50,30 +36,13 @@ function makeJWTPayload(userId: string, isMentor: boolean) {
  */
 async function setupTestSession(page: Page, isMentor: boolean): Promise<void> {
   const userId = isMentor ? REAL_MENTOR_ID : REAL_MENTEE_ID;
-  await setSignedSessionCookie(page, makeJWTPayload(userId, isMentor));
-
-  await page.route(/\/api\/auth\/session/, (route) => {
-    if (route.request().method() === 'GET') {
-      const session = {
-        user: {
-          id: userId,
-          name: 'Test Own User',
-          isMentor,
-          onBoarding: true,
-          jobTitle: 'Software Engineer',
-          company: 'Own Company',
-          personalLinks: [],
-        },
-        accessToken: 'mock-access-token',
-        expires: '2099-01-01T00:00:00.000Z',
-      };
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(session),
-      });
-    }
-    return route.continue();
+  await seedMockAuthSession(page, {
+    id: userId,
+    name: 'Test Own User',
+    isMentor,
+    onBoarding: true,
+    jobTitle: 'Software Engineer',
+    company: 'Own Company',
   });
 }
 

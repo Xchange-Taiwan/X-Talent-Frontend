@@ -16,16 +16,15 @@ vi.mock('@/components/ui/use-toast', async () => {
   return useToastMockFactory();
 });
 
-vi.mock('@/lib/auth/dispatchDeleteAccountRevalidate', () => ({
-  dispatchDeleteAccountRevalidate: vi.fn(),
+vi.mock('@/actions/auth', () => ({
+  revalidateProfilePathAfterDelete: vi.fn(),
 }));
 
-vi.mock('@/services/auth/deleteAccount', () => ({
-  deleteAccount: vi.fn(),
-}));
-
-vi.mock('@/services/auth/googleAuthorize', () => ({
-  getGoogleAuthorizeLoginUrl: vi.fn(),
+vi.mock('@/services/auth/authClient', () => ({
+  authClient: {
+    deleteAccount: vi.fn(),
+    getGoogleAuthorizeUrl: vi.fn(),
+  },
 }));
 
 vi.mock('@/lib/monitoring', () => ({
@@ -33,15 +32,30 @@ vi.mock('@/lib/monitoring', () => ({
   sanitize: (val: string) => val,
 }));
 
-vi.mock('@/lib/analytics', () => ({
-  trackEvent: vi.fn(),
-}));
+vi.mock('@/lib/analytics', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/analytics')>();
+  return {
+    ...actual,
+    clearAnalyticsUser: vi.fn(),
+    trackEvent: vi.fn(),
+  };
+});
 
-import { trackEvent } from '@/lib/analytics';
-import { dispatchDeleteAccountRevalidate } from '@/lib/auth/dispatchDeleteAccountRevalidate';
+import { revalidateProfilePathAfterDelete } from '@/actions/auth';
+import { clearAnalyticsUser, trackEvent } from '@/lib/analytics';
+import {
+  PENDING_AUTH_CALLBACK_URL_KEY,
+  PENDING_DELETE_ACCOUNT_EMAIL_KEY,
+} from '@/lib/auth/authFlowStorage';
+import {
+  DOM_AUTH_STATE_ATTR,
+  SESSION_HINT_COOKIE,
+} from '@/lib/auth/sessionHint';
+import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
 import { captureFlowFailure } from '@/lib/monitoring';
-import { deleteAccount } from '@/services/auth/deleteAccount';
-import { getGoogleAuthorizeLoginUrl } from '@/services/auth/googleAuthorize';
+import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
+import { authClient } from '@/services/auth/authClient';
+import { notificationStoreManager } from '@/stores/notificationStore';
 import { mockRouter } from '@/test/mocks/navigation';
 import {
   mockSession,
@@ -52,12 +66,15 @@ import { mockToast } from '@/test/mocks/useToast';
 
 import useDeleteAccountForm from './useDeleteAccountForm';
 
-const mockDeleteAccount = vi.mocked(deleteAccount);
-const mockGetGoogleAuthorizeLoginUrl = vi.mocked(getGoogleAuthorizeLoginUrl);
+const mockDeleteAccount = vi.mocked(authClient.deleteAccount);
+const mockGetGoogleAuthorizeLoginUrl = vi.mocked(
+  authClient.getGoogleAuthorizeUrl
+);
 const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
+const mockClearAnalyticsUser = vi.mocked(clearAnalyticsUser);
 const mockTrackEvent = vi.mocked(trackEvent);
-const mockDispatchDeleteAccountRevalidate = vi.mocked(
-  dispatchDeleteAccountRevalidate
+const mockRevalidateProfilePathAfterDelete = vi.mocked(
+  revalidateProfilePathAfterDelete
 );
 
 describe('useDeleteAccountForm', () => {
@@ -65,7 +82,10 @@ describe('useDeleteAccountForm', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockDispatchDeleteAccountRevalidate.mockResolvedValue(undefined);
+    notificationStoreManager.clear();
+    reservationReadModel.clear();
+    scheduleReadModel.clear();
+    mockRevalidateProfilePathAfterDelete.mockResolvedValue(undefined);
     process.env = { ...originalEnv, NEXT_PUBLIC_CAN_DELETE_ACCOUNT: 'true' };
     mockUseSession.mockReturnValue({
       data: mockSession,
@@ -73,7 +93,6 @@ describe('useDeleteAccountForm', () => {
       update: vi.fn(),
     });
 
-    // Mock sessionStorage
     const store: Record<string, string> = {};
     vi.stubGlobal('sessionStorage', {
       getItem: (key: string) => store[key] || null,
@@ -130,7 +149,19 @@ describe('useDeleteAccountForm', () => {
     expect(mockDeleteAccount).not.toHaveBeenCalled();
   });
 
-  it('onSubmitXC success flow', async () => {
+  it('onSubmitXC success flow atomically clears sessionHint, authFlowStorage, stores, and revalidates before signOut', async () => {
+    document.cookie = `${SESSION_HINT_COOKIE}=1||`;
+    document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'mentee');
+    sessionStorage.setItem(
+      PENDING_AUTH_CALLBACK_URL_KEY,
+      '/reservation/mentee'
+    );
+    notificationStoreManager.getOrCreateState('test-user-id');
+    notificationStoreManager.setInitialData('test-user-id', 3, [], null);
+    expect(
+      notificationStoreManager.getOrCreateState('test-user-id').unreadCountState
+    ).toBe(3);
+
     mockDeleteAccount.mockResolvedValueOnce({
       status: 'success',
     });
@@ -148,18 +179,26 @@ describe('useDeleteAccountForm', () => {
       name: 'delete_account_succeeded',
       feature: 'auth',
     });
-    // id/name are no longer passed from the client — the server action
-    // derives them from the caller's own session (see actions.ts).
-    expect(mockDispatchDeleteAccountRevalidate).toHaveBeenCalledWith();
+    expect(mockClearAnalyticsUser).toHaveBeenCalledTimes(1);
+    expect(mockRevalidateProfilePathAfterDelete).toHaveBeenCalledWith();
     expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: '/' });
 
-    // Must resolve before signOut, but dispatchDeleteAccountRevalidate
-    // never throws and the underlying action returns immediately (the
-    // poll-until-synced wait runs server-side, after the response — see
-    // actions.ts), so this never delays sign-out.
+    expect(document.cookie).not.toContain(`${SESSION_HINT_COOKIE}=`);
+    expect(
+      document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)
+    ).toBeNull();
+    expect(sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)).toBeNull();
+    expect(
+      notificationStoreManager.getOrCreateState('test-user-id').unreadCountState
+    ).toBe(0);
+
+    const trackOrder = mockTrackEvent.mock.invocationCallOrder[0];
+    const clearOrder = mockClearAnalyticsUser.mock.invocationCallOrder[0];
     const dispatchOrder =
-      mockDispatchDeleteAccountRevalidate.mock.invocationCallOrder[0];
+      mockRevalidateProfilePathAfterDelete.mock.invocationCallOrder[0];
     const signOutOrder = mockSignOut.mock.invocationCallOrder[0];
+    expect(trackOrder).toBeLessThan(clearOrder);
+    expect(clearOrder).toBeLessThan(signOutOrder);
     expect(dispatchOrder).toBeLessThan(signOutOrder);
   });
 
@@ -180,6 +219,7 @@ describe('useDeleteAccountForm', () => {
     });
 
     expect(result.current.blockedByReservations).toBe(true);
+    expect(mockClearAnalyticsUser).not.toHaveBeenCalled();
     expect(mockSignOut).not.toHaveBeenCalled();
   });
 
@@ -204,6 +244,7 @@ describe('useDeleteAccountForm', () => {
       message: 'invalid password',
       level: 'info',
     });
+    expect(mockClearAnalyticsUser).not.toHaveBeenCalled();
     expect(mockToast).toHaveBeenCalledWith({
       variant: 'destructive',
       description: 'invalid password',
@@ -240,10 +281,11 @@ describe('useDeleteAccountForm', () => {
       await result.current.initiateGoogleReauth();
     });
 
-    expect(sessionStorage.getItem('delete_account_email')).toBe(
+    expect(sessionStorage.getItem(PENDING_DELETE_ACCOUNT_EMAIL_KEY)).toBe(
       'test@example.com'
     );
     expect(mockRouter.push).toHaveBeenCalledWith('https://google-auth-url.com');
+    expect(result.current.isSubmitting).toBe(true);
   });
 
   it('initiateGoogleReauth failure flow', async () => {
@@ -257,11 +299,20 @@ describe('useDeleteAccountForm', () => {
       await result.current.initiateGoogleReauth();
     });
 
-    expect(sessionStorage.getItem('delete_account_email')).toBeNull();
+    expect(sessionStorage.getItem(PENDING_DELETE_ACCOUNT_EMAIL_KEY)).toBeNull();
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'delete_account',
+        step: 'google_reauth_authorize',
+        message: 'API failed',
+        level: 'warning',
+      })
+    );
     expect(mockToast).toHaveBeenCalledWith({
       variant: 'destructive',
       description: '無法取得 Google 授權連結，請稍後再試',
       duration: 3000,
     });
+    expect(result.current.isSubmitting).toBe(false);
   });
 });

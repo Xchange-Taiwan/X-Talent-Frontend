@@ -2,22 +2,21 @@
 
 import { AlertCircle, SearchXIcon, XIcon } from 'lucide-react';
 
-import MentorFilterDropdown from '@/components/filter/MentorFilterDropdown';
-import {
-  FilterOptions,
-  SelectFilters,
+import MentorFilterDropdown, {
+  type FilterOptions,
+  type SelectFilters,
 } from '@/components/filter/MentorFilterDropdown';
 import { MentorCardList } from '@/components/mentor-pool/mentor-card-list';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import type { MentorType } from '@/types/mentor';
-
-import PopularPositionChips from './PopularPositionChips';
 import {
   type ActiveFilterBadge,
   resolveActiveFilterBadges,
-} from './searchParams';
+} from '@/lib/mentor/mentorPoolQuery';
+import type { MentorType } from '@/types/mentor';
+
+import PopularPositionChips from './PopularPositionChips';
 
 interface Props {
   mentors: MentorType[];
@@ -28,8 +27,9 @@ interface Props {
   selectedFilters: SelectFilters;
   activeFilterBadges?: ActiveFilterBadge[];
   filterOptions: FilterOptions;
+  labelMap?: ReadonlyMap<string, string>;
   onFilterChange: (opts: SelectFilters) => void;
-  onRemoveFilter: (key: string) => void;
+  onRemoveFilter: (key: string, value?: string) => void;
   onClearAll: () => void;
   onScrollToBottom: () => Promise<void>;
   onRetry: () => void;
@@ -44,6 +44,7 @@ export default function MentorPoolUI({
   selectedFilters,
   activeFilterBadges,
   filterOptions,
+  labelMap,
   onFilterChange,
   onRemoveFilter,
   onClearAll,
@@ -79,9 +80,9 @@ export default function MentorPoolUI({
           </div>
         </div>
         <div className="mb-5 flex flex-wrap gap-3">
-          {badges.map(({ key, name, label }) => (
+          {badges.map(({ key, name, value, label }) => (
             <Badge
-              key={key}
+              key={`${key}:${value}`}
               variant={'filter'}
               className="text-sm leading-5 font-medium"
             >
@@ -92,9 +93,15 @@ export default function MentorPoolUI({
                 type="button"
                 onClick={(event) => {
                   event.stopPropagation();
-                  onRemoveFilter(key);
+                  onRemoveFilter(key, value);
                 }}
                 aria-label={`移除「${name}：${label}」篩選`}
+                data-analytics-click="mentor_pool_filter_remove"
+                data-analytics-event="mentor_pool_filter_remove"
+                data-analytics-feature="mentor_pool"
+                data-analytics-location="active_filter_badges"
+                data-analytics-param-filter-type={key}
+                data-analytics-param-filter-value={value}
                 className="focus-visible:ring-ring inline-flex items-center rounded-sm bg-transparent p-0 hover:opacity-70 focus:outline-none focus-visible:ring-2"
               >
                 <XIcon className="size-4" aria-hidden />
@@ -108,6 +115,7 @@ export default function MentorPoolUI({
               mentors={mentors}
               onScrollToBottom={onScrollToBottom}
               activeFilterBadges={badges}
+              labelMap={labelMap}
             />
             {showOverlay && (
               <div

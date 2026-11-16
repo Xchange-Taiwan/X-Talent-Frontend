@@ -15,21 +15,24 @@ vi.mock('next-auth/react', () => ({
 }));
 
 // mock other hooks to isolate our container test
-const mockUseEditProfileData = vi.fn().mockReturnValue({
+const mockUseUserProfileDto = vi.fn().mockReturnValue({
   userDto: null,
-  isMentor: false,
-  isError: false,
+  error: null,
 });
-vi.mock('@/hooks/user/profile/useEditProfileData', () => ({
-  useEditProfileData: (options: unknown) => mockUseEditProfileData(options),
+vi.mock('@/hooks/user/user-data/useUserProfileDto', () => ({
+  useUserProfileDto: (...args: unknown[]) => mockUseUserProfileDto(...args),
 }));
 
-const mockUseProfileSubmit = vi
-  .fn()
-  .mockReturnValue({ onSubmit: vi.fn(), isSaving: false });
-vi.mock('@/hooks/user/profile/useProfileSubmit', () => ({
-  useProfileSubmit: (options: unknown) => mockUseProfileSubmit(options),
-}));
+const mockCommitProfileMutation = vi.fn().mockResolvedValue({});
+vi.mock('@/lib/profile/saveProfile', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/profile/saveProfile')>();
+  return {
+    ...actual,
+    commitProfileMutation: (...args: unknown[]) =>
+      mockCommitProfileMutation(...args),
+  };
+});
 
 const mockUseProfileAuth = vi.fn().mockReturnValue({ isAuthorized: true });
 vi.mock('@/hooks/user/auth/useProfileAuth', () => ({
@@ -95,7 +98,10 @@ vi.mock('@/components/profile/edit/educationSection/educationSection', () => ({
   ),
 }));
 vi.mock('@/components/profile/edit/Fields', () => ({
-  TextField: () => <div />,
+  TextField: ({ name }: { name?: string }) => {
+    const ctx = useFormContextMock(name);
+    return <div data-testid={`textfield-${name ?? ''}`} data-value={ctx} />;
+  },
   TextareaField: () => <div />,
   SelectField: () => <div />,
   ComboboxField: () => <div />,
@@ -131,13 +137,21 @@ vi.mock('@/components/profile/edit/LinkSection', () => ({
   LinksSection: () => <div data-testid="links-section" />,
 }));
 
-import * as useEditProfileFormModule from '@/hooks/user/profile/useEditProfileForm';
-import { ProfileFormContext } from '@/hooks/user/profile/useEditProfileForm';
+import { useFormContext } from 'react-hook-form';
+
+import * as useProfileEditorSessionModule from '@/hooks/user/profile/useProfileEditorSession';
 import { MENTOR_ONBOARDING_KEY } from '@/lib/routes';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import { MentorProfileVO } from '@/types/user';
 
 import EditProfileContainer from './container';
+
+function useFormContextMock(name?: string): string {
+  const form = useFormContext();
+  if (!form || !name) return '';
+  const val = form.watch(name);
+  return typeof val === 'string' ? val : '';
+}
 
 describe('EditProfileContainer isMentorOnboarding parsing', () => {
   it('correctly parses isMentorOnboarding as true when query param is true', () => {
@@ -146,6 +160,11 @@ describe('EditProfileContainer isMentorOnboarding parsing', () => {
       return null;
     });
 
+    const spy = vi.spyOn(
+      useProfileEditorSessionModule,
+      'useProfileEditorSession'
+    );
+
     render(
       <EditProfileContainer
         pageUserId="1"
@@ -153,12 +172,12 @@ describe('EditProfileContainer isMentorOnboarding parsing', () => {
       />
     );
 
-    // Check that useProfileSubmit was called with isMentorOnboarding: true
-    expect(mockUseProfileSubmit).toHaveBeenCalledWith(
+    expect(spy).toHaveBeenCalledWith(
       expect.objectContaining({
         isMentorOnboarding: true,
       })
     );
+    spy.mockRestore();
   });
 
   it('correctly parses isMentorOnboarding as true when the legacy onboarding query param is true (backwards compatibility)', () => {
@@ -167,6 +186,11 @@ describe('EditProfileContainer isMentorOnboarding parsing', () => {
       return null;
     });
 
+    const spy = vi.spyOn(
+      useProfileEditorSessionModule,
+      'useProfileEditorSession'
+    );
+
     render(
       <EditProfileContainer
         pageUserId="1"
@@ -174,16 +198,22 @@ describe('EditProfileContainer isMentorOnboarding parsing', () => {
       />
     );
 
-    expect(mockUseProfileSubmit).toHaveBeenCalledWith(
+    expect(spy).toHaveBeenCalledWith(
       expect.objectContaining({
         isMentorOnboarding: true,
       })
     );
+    spy.mockRestore();
   });
 
   it('correctly parses isMentorOnboarding as false when query param is absent', () => {
     mockSearchParamsGet.mockImplementation(() => null);
 
+    const spy = vi.spyOn(
+      useProfileEditorSessionModule,
+      'useProfileEditorSession'
+    );
+
     render(
       <EditProfileContainer
         pageUserId="1"
@@ -191,21 +221,21 @@ describe('EditProfileContainer isMentorOnboarding parsing', () => {
       />
     );
 
-    expect(mockUseProfileSubmit).toHaveBeenCalledWith(
+    expect(spy).toHaveBeenCalledWith(
       expect.objectContaining({
         isMentorOnboarding: false,
       })
     );
+    spy.mockRestore();
   });
 });
 
 describe('EditProfileContainer mentor-only section visibility', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseEditProfileData.mockReturnValue({
-      userDto: {} as unknown as MentorProfileVO,
-      isMentor: false,
-      isError: false,
+    mockUseUserProfileDto.mockReturnValue({
+      userDto: { is_mentor: false } as unknown as MentorProfileVO,
+      error: null,
     });
   });
 
@@ -244,18 +274,16 @@ describe('EditProfileContainer mentor-only section visibility', () => {
 describe('EditProfileContainer error handling and scrolling', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseEditProfileData.mockReturnValue({
+    mockUseUserProfileDto.mockReturnValue({
       userDto: null,
-      isMentor: false,
-      isError: false,
+      error: null,
     });
   });
 
-  it('shows error screen when useEditProfileData returns isError: true', () => {
-    mockUseEditProfileData.mockReturnValue({
+  it('shows error screen when useUserProfileDto returns fatal error without userDto', () => {
+    mockUseUserProfileDto.mockReturnValue({
       userDto: null,
-      isMentor: false,
-      isError: true,
+      error: new Error('500 failed'),
     });
 
     const { getByText } = render(
@@ -269,10 +297,9 @@ describe('EditProfileContainer error handling and scrolling', () => {
   });
 
   it('triggers scroll to the correct topmost error element when validation fails', async () => {
-    mockUseEditProfileData.mockReturnValue({
-      userDto: {} as unknown as MentorProfileVO,
-      isMentor: true,
-      isError: false,
+    mockUseUserProfileDto.mockReturnValue({
+      userDto: { is_mentor: true } as unknown as MentorProfileVO,
+      error: null,
     });
 
     const scrolledIds: string[] = [];
@@ -357,10 +384,9 @@ describe('EditProfileContainer error handling and scrolling', () => {
   });
 
   it('does not crash or scroll if validation fails but corresponding DOM element does not exist', async () => {
-    mockUseEditProfileData.mockReturnValue({
-      userDto: {} as unknown as MentorProfileVO,
-      isMentor: true,
-      isError: false,
+    mockUseUserProfileDto.mockReturnValue({
+      userDto: { is_mentor: true } as unknown as MentorProfileVO,
+      error: null,
     });
 
     const scrolledIds: string[] = [];
@@ -418,98 +444,57 @@ describe('EditProfileContainer error handling and scrolling', () => {
   });
 
   it('resets the form with mapped values when userDto is successfully fetched', () => {
-    const mockUserDto = {
-      id: 1,
-      name: 'Loaded Test Name',
-      is_mentor: false,
-    };
-
-    mockUseEditProfileData.mockReturnValue({
-      userDto: mockUserDto,
-      isMentor: false,
-      isError: false,
+    mockUseUserProfileDto.mockReturnValue({
+      userDto: {
+        user_id: 1,
+        name: 'Loaded Test Name',
+        is_mentor: false,
+      },
+      error: null,
     });
 
-    const mockReset = vi.fn();
-    const mockForm = {
-      reset: mockReset,
-      control: {},
-      formState: { dirtyFields: {} },
-      handleSubmit: vi.fn().mockReturnValue(vi.fn()),
-    } as unknown as ProfileFormContext;
-
-    const useEditProfileFormSpy = vi
-      .spyOn(useEditProfileFormModule, 'useEditProfileForm')
-      .mockReturnValue({ form: mockForm });
-
-    render(
+    const { getByTestId } = render(
       <EditProfileContainer
         pageUserId="1"
         initialTagCatalog={{} as unknown as TagCatalogsByBucket}
       />
     );
 
-    // Verify form.reset was called with values mapped from mockUserDto
-    expect(mockReset).toHaveBeenCalled();
-    expect(mockReset).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: 'Loaded Test Name',
-      })
+    expect(getByTestId('textfield-name')).toHaveAttribute(
+      'data-value',
+      'Loaded Test Name'
     );
-
-    useEditProfileFormSpy.mockRestore();
   });
 
   it('does not trigger form reset a second time when userDto updates after initial loading', () => {
-    const mockUserDtoFirst = {
-      user_id: 1,
-      name: 'Initial Loaded Name',
-      is_mentor: false,
-    };
-
-    const mockUserDtoSecond = {
-      user_id: 1,
-      name: 'Background Revalidated Name',
-      is_mentor: false,
-    };
-
-    mockUseEditProfileData.mockReturnValue({
-      userDto: mockUserDtoFirst,
-      isMentor: false,
-      isError: false,
+    mockUseUserProfileDto.mockReturnValue({
+      userDto: {
+        user_id: 1,
+        name: 'Initial Loaded Name',
+        is_mentor: false,
+      },
+      error: null,
     });
 
-    const mockReset = vi.fn();
-    const mockForm = {
-      reset: mockReset,
-      control: {},
-      formState: { dirtyFields: {} },
-      handleSubmit: vi.fn().mockReturnValue(vi.fn()),
-    } as unknown as ProfileFormContext;
-
-    const useEditProfileFormSpy = vi
-      .spyOn(useEditProfileFormModule, 'useEditProfileForm')
-      .mockReturnValue({ form: mockForm });
-
-    const { rerender } = render(
+    const { getByTestId, rerender } = render(
       <EditProfileContainer
         pageUserId="1"
         initialTagCatalog={{} as unknown as TagCatalogsByBucket}
       />
     );
 
-    expect(mockReset).toHaveBeenCalledTimes(1);
-    expect(mockReset).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: 'Initial Loaded Name',
-      })
+    expect(getByTestId('textfield-name')).toHaveAttribute(
+      'data-value',
+      'Initial Loaded Name'
     );
 
-    // Mock background revalidation success
-    mockUseEditProfileData.mockReturnValue({
-      userDto: mockUserDtoSecond,
-      isMentor: false,
-      isError: false,
+    mockUseUserProfileDto.mockReturnValue({
+      userDto: {
+        user_id: 1,
+        name: 'Background Revalidated Name',
+        is_mentor: false,
+      },
+      error: null,
     });
 
     rerender(
@@ -519,63 +504,41 @@ describe('EditProfileContainer error handling and scrolling', () => {
       />
     );
 
-    // It should not reset the form a second time
-    expect(mockReset).toHaveBeenCalledTimes(1);
-
-    useEditProfileFormSpy.mockRestore();
+    expect(getByTestId('textfield-name')).toHaveAttribute(
+      'data-value',
+      'Initial Loaded Name'
+    );
   });
 
   it('resets the form again when pageUserId route parameter switches to a different user', () => {
-    const mockUserDtoFirst = {
-      user_id: 1,
-      name: 'User One Name',
-      is_mentor: false,
-    };
-
-    const mockUserDtoSecond = {
-      user_id: 2,
-      name: 'User Two Name',
-      is_mentor: false,
-    };
-
-    // 1) Render for first user
-    mockUseEditProfileData.mockReturnValue({
-      userDto: mockUserDtoFirst,
-      isMentor: false,
-      isError: false,
+    mockUseUserProfileDto.mockReturnValue({
+      userDto: {
+        user_id: 1,
+        name: 'User One Name',
+        is_mentor: false,
+      },
+      error: null,
     });
 
-    const mockReset = vi.fn();
-    const mockForm = {
-      reset: mockReset,
-      control: {},
-      formState: { dirtyFields: {} },
-      handleSubmit: vi.fn().mockReturnValue(vi.fn()),
-    } as unknown as ProfileFormContext;
-
-    const useEditProfileFormSpy = vi
-      .spyOn(useEditProfileFormModule, 'useEditProfileForm')
-      .mockReturnValue({ form: mockForm });
-
-    const { rerender } = render(
+    const { getByTestId, rerender } = render(
       <EditProfileContainer
         pageUserId="1"
         initialTagCatalog={{} as unknown as TagCatalogsByBucket}
       />
     );
 
-    expect(mockReset).toHaveBeenCalledTimes(1);
-    expect(mockReset).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: 'User One Name',
-      })
+    expect(getByTestId('textfield-name')).toHaveAttribute(
+      'data-value',
+      'User One Name'
     );
 
-    // 2) Re-render/routing switches to second user
-    mockUseEditProfileData.mockReturnValue({
-      userDto: mockUserDtoSecond,
-      isMentor: false,
-      isError: false,
+    mockUseUserProfileDto.mockReturnValue({
+      userDto: {
+        user_id: 2,
+        name: 'User Two Name',
+        is_mentor: false,
+      },
+      error: null,
     });
 
     rerender(
@@ -585,15 +548,10 @@ describe('EditProfileContainer error handling and scrolling', () => {
       />
     );
 
-    // It should trigger reset a second time since user ID has changed (from 1 to 2)!
-    expect(mockReset).toHaveBeenCalledTimes(2);
-    expect(mockReset).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        name: 'User Two Name',
-      })
+    expect(getByTestId('textfield-name')).toHaveAttribute(
+      'data-value',
+      'User Two Name'
     );
-
-    useEditProfileFormSpy.mockRestore();
   });
 });
 
@@ -629,16 +587,14 @@ describe('EditProfileContainer isMentorRole logic', () => {
         return null;
       });
 
-      mockUseEditProfileData.mockReturnValue({
-        userDto: { user_id: 1, name: 'Test' } as unknown as MentorProfileVO,
-        isMentor: isMentorDb,
-        isError: false,
+      mockUseUserProfileDto.mockReturnValue({
+        userDto: {
+          user_id: 1,
+          name: 'Test',
+          is_mentor: isMentorDb,
+        } as unknown as MentorProfileVO,
+        error: null,
       });
-
-      const useEditProfileFormSpy = vi.spyOn(
-        useEditProfileFormModule,
-        'useEditProfileForm'
-      );
 
       const { getByTestId, queryByTestId } = render(
         <EditProfileContainer
@@ -646,9 +602,6 @@ describe('EditProfileContainer isMentorRole logic', () => {
           initialTagCatalog={{} as unknown as TagCatalogsByBucket}
         />
       );
-
-      // Verify useEditProfileForm parameter passing
-      expect(useEditProfileFormSpy).toHaveBeenCalledWith(expectedIsMentor);
 
       // Verify child props
       expect(getByTestId('avatar-section')).toHaveAttribute(
@@ -687,8 +640,6 @@ describe('EditProfileContainer isMentorRole logic', () => {
         expect(queryByTestId('section-have_topic')).not.toBeInTheDocument();
         expect(queryByTestId('section-have_skill')).not.toBeInTheDocument();
       }
-
-      useEditProfileFormSpy.mockRestore();
     }
   );
 });

@@ -1,4 +1,5 @@
 import { act, render, screen } from '@testing-library/react';
+import { fromPartial } from '@total-typescript/shoehorn';
 import React from 'react';
 import {
   afterAll,
@@ -41,33 +42,31 @@ describe('Information Component', () => {
       .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
       .mockImplementation(function (this: HTMLElement) {
         if (this.getAttribute('data-testid') === 'display-container') {
-          return {
+          return fromPartial<DOMRect>({
             width: displayWidth,
             height: 40,
             top: 0,
             left: 0,
             bottom: 0,
             right: 0,
-          } as DOMRect;
+          });
         }
-        return {
+        return fromPartial<DOMRect>({
           width: 40,
           height: 20,
           top: 0,
           left: 0,
           bottom: 0,
           right: 0,
-        } as DOMRect;
+        });
       });
   };
 
   beforeAll(() => {
-    // Safely mock global ResizeObserver without direct contamination or any casting
     vi.stubGlobal('ResizeObserver', MockResizeObserver);
   });
 
   afterAll(() => {
-    // Unstub globals after all tests complete
     vi.unstubAllGlobals();
   });
 
@@ -76,7 +75,6 @@ describe('Information Component', () => {
   });
 
   afterEach(() => {
-    // Restore all mocked spies automatically (like getBoundingClientRect)
     vi.restoreAllMocks();
   });
 
@@ -109,7 +107,6 @@ describe('Information Component', () => {
   it('renders all tag labels on initial mount (both measurement and display copies)', () => {
     render(<Information {...defaultProps} />);
 
-    // Each tag is rendered twice: once in the measure container and once in the display container
     expect(screen.getAllByText('React')).toHaveLength(2);
     expect(screen.getAllByText('TypeScript')).toHaveLength(2);
     expect(screen.getAllByText('Node.js')).toHaveLength(2);
@@ -119,7 +116,6 @@ describe('Information Component', () => {
     render(<Information {...defaultProps} haveTopicLabels={[]} />);
 
     expect(screen.getByText('Jane Doe')).toBeInTheDocument();
-    // No tag elements should be rendered on screen for tags list
     const measureContainer = screen.getByTestId('measure-container');
     expect(measureContainer).toBeEmptyDOMElement();
   });
@@ -129,47 +125,86 @@ describe('Information Component', () => {
 
     render(<Information {...defaultProps} />);
 
-    // Under 100px width:
-    // computeOverflowFit will fit 'React' (40px + reserve 52px = 92px <= 100px)
-    // 'TypeScript' will overflow.
-    // So 'React' and '+2' should be rendered in the displayed tag list.
-    expect(screen.getAllByText('React')).toHaveLength(2); // 1 in measure, 1 in display
+    expect(screen.getAllByText('React')).toHaveLength(2);
     expect(screen.getByText('+2')).toBeInTheDocument();
-
-    // 'TypeScript' and 'Node.js' should only be in the measure container, NOT in the display list.
-    // So they should each only have 1 instance overall (the measure instance).
     expect(screen.getAllByText('TypeScript')).toHaveLength(1);
     expect(screen.getAllByText('Node.js')).toHaveLength(1);
   });
 
   it('dynamically updates visible tags and "+N" badge when ResizeObserver triggers a size change', () => {
-    let mockedContainerWidth = 500; // start with a wide width fitting all tags
+    let mockedContainerWidth = 500;
     setupMockClientRect(mockedContainerWidth);
 
     render(<Information {...defaultProps} />);
 
-    // Initially wide: fits all tags. So 2 copies of each tag are rendered, and NO "+N" extra badge.
     expect(screen.getAllByText('React')).toHaveLength(2);
     expect(screen.getAllByText('TypeScript')).toHaveLength(2);
     expect(screen.getAllByText('Node.js')).toHaveLength(2);
     expect(screen.queryByText(/^\+/)).not.toBeInTheDocument();
 
-    // Now, simulate a container resize down to 100px
     mockedContainerWidth = 100;
     expect(resizeCallback).not.toBeNull();
 
     act(() => {
-      // Cast the mocked entry and observer using type-safe unknown casting
       resizeCallback!(
-        [{ contentRect: { width: 100 } } as unknown as ResizeObserverEntry],
-        {} as unknown as ResizeObserver
+        [
+          fromPartial<ResizeObserverEntry>({
+            contentRect: fromPartial({ width: 100 }),
+          }),
+        ],
+        fromPartial<ResizeObserver>({})
       );
     });
 
-    // After resize, it should adapt dynamically and show '+2' extra tags
     expect(screen.getAllByText('React')).toHaveLength(2);
     expect(screen.getByText('+2')).toBeInTheDocument();
     expect(screen.getAllByText('TypeScript')).toHaveLength(1);
     expect(screen.getAllByText('Node.js')).toHaveLength(1);
+  });
+
+  it('renders projected ratingLabel on name row right without star or review count, and completedMeetingsLabel below job title (#737, #896)', () => {
+    render(
+      <Information
+        {...defaultProps}
+        ratingLabel="9.8 / 10"
+        completedMeetingsLabel="已完成 12 場 1-on-1"
+      />
+    );
+
+    const ratingEl = screen.getByText('9.8 / 10');
+    expect(ratingEl).toBeInTheDocument();
+    expect(ratingEl).toHaveAttribute('aria-label', '平均評分 9.8 / 10');
+    expect(ratingEl).toHaveClass('shrink-0', 'whitespace-nowrap');
+
+    const nameHeading = screen.getByRole('heading', { name: 'Jane Doe' });
+    expect(nameHeading).toHaveClass('min-w-0', 'truncate');
+    expect(nameHeading.parentElement).toContainElement(ratingEl);
+
+    expect(screen.getByText('已完成 12 場 1-on-1')).toBeInTheDocument();
+    expect(screen.queryByText(/則/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/[★⭐]/)).not.toBeInTheDocument();
+  });
+
+  it('hides rating block and completed sessions when projected labels are null (#737, #896)', () => {
+    const { rerender } = render(
+      <Information
+        {...defaultProps}
+        ratingLabel={null}
+        completedMeetingsLabel={null}
+      />
+    );
+
+    expect(screen.queryByText(/\/ 10/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/已完成/)).not.toBeInTheDocument();
+
+    rerender(
+      <Information
+        {...defaultProps}
+        ratingLabel={null}
+        completedMeetingsLabel="已完成 5 場 1-on-1"
+      />
+    );
+    expect(screen.queryByText(/\/ 10/)).not.toBeInTheDocument();
+    expect(screen.getByText('已完成 5 場 1-on-1')).toBeInTheDocument();
   });
 });

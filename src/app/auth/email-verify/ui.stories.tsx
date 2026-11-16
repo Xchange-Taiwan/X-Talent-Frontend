@@ -16,6 +16,15 @@ type Story = StoryObj<typeof EmailVerificationPage>;
 
 export const PendingVerification: Story = {
   args: {
+    isResending: false,
+    onResendEmail: () => {},
+    onNavigateHome: () => {},
+  },
+};
+
+export const Resending: Story = {
+  args: {
+    isResending: true,
     onResendEmail: () => {},
     onNavigateHome: () => {},
   },

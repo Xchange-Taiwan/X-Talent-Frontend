@@ -24,16 +24,9 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
   const {
     currentStep,
     isSubmitting,
-    step1Form,
-    step2Form,
-    step3Form,
-    step4Form,
-    step5Form,
-    onSubmitStep1,
-    onSubmitStep2,
-    onSubmitStep3,
-    onSubmitStep4,
-    onSubmitStep5,
+    form,
+    advanceStep,
+    submitOnboarding,
     handleGoToPrev,
   } = useOnboardingForm({ industries });
 
@@ -42,11 +35,7 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
       currentStep={currentStep}
       stepsTotal={STEPS_TOTAL}
       stepTitle={STEP_TITLE}
-      step1Form={step1Form}
-      step2Form={step2Form}
-      step3Form={step3Form}
-      step4Form={step4Form}
-      step5Form={step5Form}
+      form={form}
       locations={locations}
       industries={industries}
       wantPositionGroups={wantPositionGroups}
@@ -54,11 +43,8 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
       wantTopicGroups={wantTopicGroups}
       isSubmitting={isSubmitting}
       onGoToPrev={handleGoToPrev}
-      onSubmitStep1={onSubmitStep1}
-      onSubmitStep2={onSubmitStep2}
-      onSubmitStep3={onSubmitStep3}
-      onSubmitStep4={onSubmitStep4}
-      onSubmitStep5={onSubmitStep5}
+      onNextStep={advanceStep}
+      onSubmit={submitOnboarding}
     />
   );
 }

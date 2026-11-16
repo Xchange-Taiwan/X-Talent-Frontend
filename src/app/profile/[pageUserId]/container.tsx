@@ -7,11 +7,13 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import MentorScheduleDialog from '@/components/profile/reservation/MentorScheduleDialog';
 import { Button } from '@/components/ui/button';
+import { useConsumePendingFavorite } from '@/hooks/favorites';
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
+import { useMentorFeedback } from '@/hooks/user/feedback/useMentorFeedback';
 import { useBookingConfirmation } from '@/hooks/user/reservation/useBookingConfirmation';
-import { primeTagCatalogCacheIfEmpty } from '@/hooks/user/tags/useTagCatalog';
 import useUserData from '@/hooks/user/user-data/useUserData';
+import { isFeedbackEnabled } from '@/lib/featureFlags';
 import { getMentorOnboardingUrl, OPEN_SCHEDULE_DIALOG_KEY } from '@/lib/routes';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
@@ -47,21 +49,16 @@ function ScheduleAutoOpenWatcher({
 interface Props {
   pageUserId: string;
   initialDto: MentorProfileVO | null;
-  initialCatalogs: TagCatalogsByBucket;
+  initialCatalogs: TagCatalogsByBucket | null;
 }
 
 export default function ProfilePageContainer({
   pageUserId,
-  initialDto: _initialDto,
+  initialDto,
   initialCatalogs,
 }: Props) {
   const router = useRouter();
   const pageUserIdNumber = Number(pageUserId);
-
-  // Same idea for the tag catalog: SSR already fetched the localized labels,
-  // so seed the client cache here so useTagCatalog resolves subject_group
-  // codes to Chinese labels on first paint instead of flashing raw codes.
-  primeTagCatalogCacheIfEmpty('zh_TW', initialCatalogs);
 
   const identity = useResolvedIdentity();
   const isIdentityResolved =
@@ -86,7 +83,26 @@ export default function ProfilePageContainer({
     isLoading: userLoading,
     error,
     refetch,
-  } = useUserData(pageUserIdNumber, 'zh_TW', _initialDto);
+  } = useUserData(
+    pageUserIdNumber,
+    'zh_TW',
+    initialDto,
+    initialCatalogs ?? undefined
+  );
+
+  useConsumePendingFavorite({
+    pageUserId,
+    loginUserId,
+    userData,
+    userLoading,
+  });
+
+  const feedback = useMentorFeedback({
+    mentorId: pageUserIdNumber,
+    enabled: Boolean(
+      isFeedbackEnabled() && !userLoading && userData?.is_mentor
+    ),
+  });
 
   // Single source of truth for "should owner-only controls (edit button,
   // become-mentor button, schedule-management dialog) render" so ui.tsx
@@ -165,6 +181,7 @@ export default function ProfilePageContainer({
       userLoading={userLoading}
       schedule={reader}
       scheduleLoaded={loaded}
+      feedback={feedback}
       loginUserId={loginUserId}
       isIdentityResolved={isIdentityResolved}
       canShowOwnerControls={canShowOwnerControls}

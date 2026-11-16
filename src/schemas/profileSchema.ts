@@ -1,115 +1,184 @@
 import * as z from 'zod';
 
+import {
+  createEmptySocialLinks,
+  socialLinksFormSchema,
+} from '@/lib/profile/socialLinks';
+
 //--------------------------------------------------
 // 🗃️ Form Schema & Types
 //--------------------------------------------------
 
-export const educationSchema = z.object({
-  id: z.number().int(),
-  subject: z.string().min(1, '請輸入主修'),
-  school: z
-    .string()
-    .trim()
-    .min(1, '請選擇學校')
-    .max(100, '學校名稱不可超過 100 字'),
-  education_period_start: z.string().min(1, '請選擇開始年份'),
-  education_period_end: z.string().min(1, '請選擇結束年份'),
-});
+function isEndBeforeStart(start: string, end: string): boolean {
+  if (!start || !end || end === 'now') return false;
+  const startYear = Number(start);
+  const endYear = Number(end);
+  if (Number.isNaN(startYear) || Number.isNaN(endYear)) return false;
+  return startYear > endYear;
+}
 
-export const jobSchema = z.object({
-  id: z.number().int(),
-  job: z.string().min(1, '請輸入職稱'),
-  company: z.string().min(1, '請輸入公司名稱'),
-  job_period_start: z.string().min(1, '請選擇開始年份'),
-  job_period_end: z.string().min(1, '請選擇結束年份'),
-  industry: z.string().min(1, '請輸入產業類別'),
-  job_location: z.string().min(1, '請輸入工作地點'),
-  description: z.string().min(1, '請輸入工作內容'),
-  is_primary: z.boolean().optional(),
-});
-
-export const personLinkSchema = z.object({
-  id: z.number().int(),
-  platform: z.string(),
-  url: z.string(),
-});
-
-const createPlatformLinkSchema = (
-  allowedDomains: string[],
-  errorMessage: string
-) =>
-  z.object({
+export const educationSchema = z
+  .object({
     id: z.number().int(),
-    platform: z.string(),
-    url: z.string().refine(
-      (val) => {
-        if (!val) return true;
-        try {
-          const { hostname } = new URL(val);
-          return allowedDomains.some((domain) => hostname.endsWith(domain));
-        } catch {
-          return false;
-        }
-      },
-      { message: errorMessage }
-    ),
+    subject: z.string(),
+    school: z.string().trim(),
+    education_period_start: z.string(),
+    education_period_end: z.string(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.subject.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['subject'],
+        message: '請輸入主修',
+      });
+    }
+    if (data.school.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['school'],
+        message: '請選擇學校',
+      });
+    } else if (data.school.length > 100) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['school'],
+        message: '學校名稱不可超過 100 字',
+      });
+    }
+    if (data.education_period_start.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['education_period_start'],
+        message: '請選擇開始年份',
+      });
+    }
+    if (data.education_period_end.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['education_period_end'],
+        message: '請選擇結束年份',
+      });
+    } else if (
+      data.education_period_start.length > 0 &&
+      isEndBeforeStart(data.education_period_start, data.education_period_end)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['education_period_end'],
+        message: '開始年份不可大於結束年份',
+      });
+    }
   });
 
-const linkedinLinkSchema = createPlatformLinkSchema(
-  ['linkedin.com'],
-  '請輸入有效的 LinkedIn 網址（例如 https://www.linkedin.com/in/yourname）'
-);
-const facebookLinkSchema = createPlatformLinkSchema(
-  ['facebook.com', 'fb.com'],
-  '請輸入有效的 Facebook 網址（例如 https://www.facebook.com/yourname）'
-);
-const instagramLinkSchema = createPlatformLinkSchema(
-  ['instagram.com'],
-  '請輸入有效的 Instagram 網址（例如 https://www.instagram.com/yourname）'
-);
-const twitterLinkSchema = createPlatformLinkSchema(
-  ['twitter.com', 'x.com'],
-  '請輸入有效的 X (Twitter) 網址（例如 https://x.com/yourname）'
-);
-const youtubeLinkSchema = createPlatformLinkSchema(
-  ['youtube.com', 'youtu.be'],
-  '請輸入有效的 YouTube 網址（例如 https://www.youtube.com/@yourchannel）'
-);
-const websiteLinkSchema = z.object({
-  id: z.number().int(),
-  platform: z.string(),
-  url: z.string().refine((val) => !val || /^https?:\/\/.+/.test(val), {
-    message: '請輸入有效的網址（需以 http:// 或 https:// 開頭）',
-  }),
-});
+export const jobSchema = z
+  .object({
+    id: z.number().int(),
+    job: z.string(),
+    company: z.string(),
+    job_period_start: z.string(),
+    job_period_end: z.string(),
+    industry: z.string(),
+    job_location: z.string(),
+    description: z.string(),
+    is_primary: z.boolean().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.job.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['job'],
+        message: '請輸入職稱',
+      });
+    }
+    if (data.company.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['company'],
+        message: '請輸入公司名稱',
+      });
+    }
+    if (data.job_period_start.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['job_period_start'],
+        message: '請選擇開始年份',
+      });
+    }
+    if (data.job_period_end.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['job_period_end'],
+        message: '請選擇結束年份',
+      });
+    } else if (
+      data.job_period_start.length > 0 &&
+      isEndBeforeStart(data.job_period_start, data.job_period_end)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['job_period_end'],
+        message: '開始年份不可大於結束年份',
+      });
+    }
+    if (data.industry.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['industry'],
+        message: '請輸入產業類別',
+      });
+    }
+    if (data.job_location.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['job_location'],
+        message: '請輸入工作地點',
+      });
+    }
+    if (data.description.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['description'],
+        message: '請輸入工作內容',
+      });
+    }
+  });
 
-const isBrowser = typeof window !== 'undefined';
 export const createProfileFormSchema = (isMentor: boolean) =>
   z
     .object({
-      is_mentor: z.boolean(),
-      avatar: z.string().url().optional().or(z.literal('')),
-      avatarFile: isBrowser
-        ? z.instanceof(File).optional()
-        : z.any().optional(),
+      avatar: z.string().optional(),
+      avatarFile: z
+        .union([z.instanceof(File), z.undefined()])
+        .optional()
+        .refine(
+          (f) =>
+            !f ||
+            ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(
+              f.type
+            ),
+          '只允許 jpg / png / gif / webp'
+        ),
       name: z.string().min(1, '請輸入姓名').max(20, '最多不可超過 20 字'),
-      location: z.string({ required_error: '請選擇地區' }),
-      statement: z.string(),
+      location: z.string().min(1, '請選擇地區'),
+      statement: z.string().optional(),
       about: isMentor
         ? z.string().min(1, '請填寫關於我')
         : z.string().optional(),
       industry: isMentor
         ? z.string().min(1, '請選擇產業')
-        : z.string().optional().default(''),
+        : z.string().optional(),
       years_of_experience: z.string({ required_error: '請選擇經驗' }),
-      work_experiences: z.array(jobSchema),
-      educations: z.array(educationSchema),
-      linkedin: linkedinLinkSchema,
-      facebook: facebookLinkSchema,
-      instagram: instagramLinkSchema,
-      twitter: twitterLinkSchema,
-      youtube: youtubeLinkSchema,
-      website: websiteLinkSchema,
+      work_experiences: isMentor
+        ? z.array(jobSchema).min(1, '請填寫至少一項工作經歷')
+        : z.array(jobSchema),
+      educations: isMentor
+        ? z.array(educationSchema).min(1, '請填寫至少一項學歷')
+        : z.array(educationSchema),
+      links: socialLinksFormSchema,
+      is_mentor: z.boolean().optional(),
+      onboarding: z.boolean().optional(),
+
       have_topic: isMentor
         ? z
             .array(z.string())
@@ -122,6 +191,7 @@ export const createProfileFormSchema = (isMentor: boolean) =>
             .min(1, '請至少選擇一個技能')
             .max(10, '最多選 10 個')
         : z.array(z.string()).max(10, '最多選 10 個'),
+
       want_position: z
         .array(z.string())
         .min(1, '請至少選擇一個職位')
@@ -136,41 +206,20 @@ export const createProfileFormSchema = (isMentor: boolean) =>
         .max(10, '最多選 10 個'),
     })
     .superRefine((data, ctx) => {
-      if (isMentor) {
-        if (!data.avatar && !data.avatarFile) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['avatarFile'],
-            message: '請上傳個人頭像',
-          });
-        }
-        if (data.work_experiences.length < 1) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['work_experiences'],
-            message: '請填寫至少一項工作經歷',
-          });
-        }
-        if (data.educations.length < 1) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['educations'],
-            message: '請填寫至少一項學歷',
-          });
-        }
+      if (isMentor && !data.avatar && !data.avatarFile) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['avatarFile'],
+          message: '請上傳個人頭像',
+        });
       }
     });
 
-export type ProfileFormValues = z.infer<
-  ReturnType<typeof createProfileFormSchema>
->;
+export type ProfileFormSchema = ReturnType<typeof createProfileFormSchema>;
+export type ProfileFormInput = z.input<ProfileFormSchema>;
+export type ProfileFormValues = z.infer<ProfileFormSchema>;
 
-export type ProfileFormInput = z.input<
-  ReturnType<typeof createProfileFormSchema>
->;
-
-export const defaultValues: ProfileFormInput = {
-  is_mentor: false,
+export const defaultValues: ProfileFormValues = {
   avatar: '',
   avatarFile: undefined,
   name: '',
@@ -179,14 +228,11 @@ export const defaultValues: ProfileFormInput = {
   about: '',
   industry: '',
   years_of_experience: '',
+  is_mentor: false,
+  onboarding: false,
   work_experiences: [],
   educations: [],
-  linkedin: { id: -1, url: '', platform: 'linkedin' },
-  facebook: { id: -1, url: '', platform: 'facebook' },
-  instagram: { id: -1, url: '', platform: 'instagram' },
-  twitter: { id: -1, url: '', platform: 'twitter' },
-  youtube: { id: -1, url: '', platform: 'youtube' },
-  website: { id: -1, url: '', platform: 'website' },
+  links: createEmptySocialLinks(),
   have_topic: [],
   have_skill: [],
   want_position: [],

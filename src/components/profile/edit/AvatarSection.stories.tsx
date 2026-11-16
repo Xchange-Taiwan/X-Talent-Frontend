@@ -66,3 +66,30 @@ export const MentorRequiredState: Story = {
     </ProfileStoryWrapper>
   ),
 };
+
+export const HydratedFormAvatarOverridesStaleSession: Story = {
+  name: '已水合表單頭像覆寫舊 Session 頭像 (#905)',
+  parameters: {
+    nextAuth: {
+      user: {
+        avatar: 'https://example.com/stale-session-avatar.png',
+      },
+    },
+  },
+  render: () => (
+    <ProfileStoryWrapper
+      defaultValues={{
+        avatar:
+          'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&h=150&q=80',
+      }}
+    >
+      {(form) => (
+        <AvatarSection
+          control={form.control}
+          name="avatarFile"
+          isMentor={true}
+        />
+      )}
+    </ProfileStoryWrapper>
+  ),
+};

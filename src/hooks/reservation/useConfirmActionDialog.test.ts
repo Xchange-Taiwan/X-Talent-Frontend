@@ -157,4 +157,158 @@ describe('useConfirmActionDialog', () => {
       description: RESERVATION_CONFLICT_MESSAGE,
     });
   });
+
+  describe('controlled mode and closeOnSuccess', () => {
+    it('calls external onOpenChange(false) after successful execute when closeOnSuccess defaults to true', async () => {
+      const externalOnOpenChange = vi.fn();
+      const { result } = renderHook(() =>
+        useConfirmActionDialog({
+          errorMessage,
+          onOpen: onOpenMock,
+          open: true,
+          onOpenChange: externalOnOpenChange,
+        })
+      );
+
+      expect(result.current.open).toBe(true);
+
+      act(() => {
+        result.current.onOpenChange(true);
+      });
+      expect(externalOnOpenChange).toHaveBeenCalledWith(true);
+      expect(onOpenMock).toHaveBeenCalledTimes(1);
+      externalOnOpenChange.mockClear();
+
+      const action = vi.fn().mockResolvedValue(undefined);
+
+      await act(async () => {
+        await result.current.execute(action);
+      });
+
+      expect(action).toHaveBeenCalledTimes(1);
+      expect(result.current.isSubmitting).toBe(false);
+      expect(externalOnOpenChange).toHaveBeenCalledTimes(1);
+      expect(externalOnOpenChange).toHaveBeenCalledWith(false);
+    });
+
+    it('does not call external onOpenChange(false) or close dialog on success when closeOnSuccess is false', async () => {
+      const externalOnOpenChange = vi.fn();
+      const { result: controlledResult } = renderHook(() =>
+        useConfirmActionDialog({
+          errorMessage,
+          open: true,
+          onOpenChange: externalOnOpenChange,
+          closeOnSuccess: false,
+        })
+      );
+
+      const action = vi.fn().mockResolvedValue(undefined);
+
+      await act(async () => {
+        await controlledResult.current.execute(action);
+      });
+
+      expect(action).toHaveBeenCalledTimes(1);
+      expect(controlledResult.current.isSubmitting).toBe(false);
+      expect(externalOnOpenChange).not.toHaveBeenCalled();
+
+      // Also verify uncontrolled mode keeps open === true when closeOnSuccess is false
+      const { result: uncontrolledResult } = renderHook(() =>
+        useConfirmActionDialog({ errorMessage, closeOnSuccess: false })
+      );
+
+      act(() => {
+        uncontrolledResult.current.onOpenChange(true);
+      });
+      expect(uncontrolledResult.current.open).toBe(true);
+
+      await act(async () => {
+        await uncontrolledResult.current.execute(action);
+      });
+
+      expect(uncontrolledResult.current.isSubmitting).toBe(false);
+      expect(uncontrolledResult.current.open).toBe(true);
+    });
+
+    it('blocks external onOpenChange(false) while execute is submitting', async () => {
+      const externalOnOpenChange = vi.fn();
+      const { result } = renderHook(() =>
+        useConfirmActionDialog({
+          errorMessage,
+          open: true,
+          onOpenChange: externalOnOpenChange,
+        })
+      );
+
+      let resolveAction!: () => void;
+      const pendingAction = new Promise<void>((resolve) => {
+        resolveAction = resolve;
+      });
+
+      let executePromise!: Promise<void>;
+      act(() => {
+        executePromise = result.current.execute(() => pendingAction);
+      });
+
+      expect(result.current.isSubmitting).toBe(true);
+
+      act(() => {
+        result.current.onOpenChange(false);
+      });
+
+      expect(externalOnOpenChange).not.toHaveBeenCalled();
+
+      await act(async () => {
+        resolveAction();
+        await executePromise;
+      });
+
+      expect(result.current.isSubmitting).toBe(false);
+      expect(externalOnOpenChange).toHaveBeenCalledTimes(1);
+      expect(externalOnOpenChange).toHaveBeenCalledWith(false);
+    });
+
+    it('shows destructive toast via getReservationErrorMessage (conflict and fallback) and resets isSubmitting without closing in controlled mode', async () => {
+      const externalOnOpenChange = vi.fn();
+      const { result } = renderHook(() =>
+        useConfirmActionDialog({
+          errorMessage,
+          open: true,
+          onOpenChange: externalOnOpenChange,
+        })
+      );
+
+      const conflictAction = vi
+        .fn()
+        .mockRejectedValue(new ReservationVersionConflictError());
+
+      await act(async () => {
+        await result.current.execute(conflictAction);
+      });
+
+      expect(result.current.isSubmitting).toBe(false);
+      expect(externalOnOpenChange).not.toHaveBeenCalled();
+      expect(mockToast).toHaveBeenCalledWith({
+        variant: 'destructive',
+        description: RESERVATION_CONFLICT_MESSAGE,
+      });
+
+      mockToast.mockClear();
+
+      const genericErrorAction = vi
+        .fn()
+        .mockRejectedValue(new Error('Unexpected server failure'));
+
+      await act(async () => {
+        await result.current.execute(genericErrorAction);
+      });
+
+      expect(result.current.isSubmitting).toBe(false);
+      expect(externalOnOpenChange).not.toHaveBeenCalled();
+      expect(mockToast).toHaveBeenCalledWith({
+        variant: 'destructive',
+        description: errorMessage,
+      });
+    });
+  });
 });

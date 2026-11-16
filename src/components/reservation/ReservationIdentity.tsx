@@ -109,6 +109,8 @@ export interface ReservationIdentityHeaderProps {
   linkToProfile?: boolean;
   /** Whether to render the reservation status badge next to the name. Defaults to false. */
   showStatusBadge?: boolean;
+  /** Optional custom action/badge rendered in the top-right slot next to the name (e.g. History card's 填寫回饋 button or status badge). */
+  headerAction?: React.ReactNode;
   /** Makes the profile link inert (e.g. while a mutation is in flight). */
   disabled?: boolean;
   /** Which surface's layout/styling to render. Defaults to 'dialog'. */
@@ -129,6 +131,7 @@ export function ReservationIdentityHeader({
   onProfileLinkClick,
   linkToProfile = true,
   showStatusBadge = false,
+  headerAction,
   disabled = false,
   variant = 'dialog',
   children,
@@ -144,6 +147,14 @@ export function ReservationIdentityHeader({
       className={style.badgeClassName}
     />
   ) : null;
+
+  const rightSlot =
+    badge || headerAction ? (
+      <>
+        {badge}
+        {headerAction}
+      </>
+    ) : null;
 
   return (
     <div className={style.containerClassName}>
@@ -188,10 +199,10 @@ export function ReservationIdentityHeader({
               </div>
             ) : null}
           </ProfileLinkWrapper>
-          {badge && style.badgeWrapperClassName ? (
-            <div className={style.badgeWrapperClassName}>{badge}</div>
+          {rightSlot && style.badgeWrapperClassName ? (
+            <div className={style.badgeWrapperClassName}>{rightSlot}</div>
           ) : (
-            badge
+            rightSlot
           )}
         </div>
         {!style.roleLineInsideLink ? (

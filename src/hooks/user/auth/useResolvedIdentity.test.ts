@@ -1,16 +1,17 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useSession } from 'next-auth/react';
+import { createElement, type ReactNode, StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  clearUserProfileDtoCache,
-  primeUserProfileDtoCache,
-} from '@/hooks/user/user-data/userProfileDtoCache';
 import {
   DOM_AUTH_AVATAR_ATTR,
   DOM_AUTH_STATE_ATTR,
   SESSION_HINT_COOKIE,
 } from '@/lib/auth/sessionHint';
+import {
+  clearUserProfileDtoCache,
+  primeUserProfileDtoCache,
+} from '@/lib/cache/userProfileDtoCache';
 import type { MentorProfileVO } from '@/types/user';
 
 import { useResolvedIdentity } from './useResolvedIdentity';
@@ -88,6 +89,36 @@ describe('useResolvedIdentity', () => {
         state: 'hint-only',
         isMentor: false,
       })
+    );
+  });
+
+  it('preserves session-hint cookie and resolves to hint-only under React StrictMode while session is loading', async () => {
+    setCookie('1|7482008160728084|https%3A%2F%2Fexample.com%2Fmentor.png');
+    document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'mentor');
+
+    const strictWrapper = ({ children }: { children: ReactNode }) =>
+      createElement(StrictMode, null, children);
+
+    const { result } = renderHook(() => useResolvedIdentity(), {
+      wrapper: strictWrapper,
+    });
+
+    await waitFor(() =>
+      expect(result.current).toMatchObject({
+        state: 'hint-only',
+        isMentor: true,
+        userId: undefined,
+        avatar: 'https://example.com/mentor.png',
+      })
+    );
+    expect(document.cookie).toContain(
+      `${SESSION_HINT_COOKIE}=1|7482008160728084|https%3A%2F%2Fexample.com%2Fmentor.png`
+    );
+    expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
+      'mentor'
+    );
+    expect(document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)).toBe(
+      'https://example.com/mentor.png'
     );
   });
 

@@ -1,9 +1,15 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import React from 'react';
 
+import MeetingFeedbackDialog from '@/components/reservation/MeetingFeedbackDialog';
 import ReservationConversationDialog from '@/components/reservation/ReservationConversationDialog';
+import {
+  ReservationFeedbackBlock,
+  ReservationFeedbackHeaderToggle,
+} from '@/components/reservation/ReservationFeedbackBlock';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { UNPUBLICIZED_FEEDBACK_NOTICE } from '@/lib/reservation/resolveHistoryFeedbackState';
 
 import { mockReservation } from './mocks';
 import { ReservationCard } from './ReservationCard';
@@ -91,7 +97,7 @@ export const Reject: Story = {
       dtend: Math.floor(Date.now() / 1000) - 2 * 24 * 3600 + 3600,
       cancelledBy: 'MENTOR',
     },
-    actions: (
+    headerAction: (
       <Badge variant="secondary" className="px-2 py-1 text-xs">
         已由導師取消
       </Badge>
@@ -99,7 +105,7 @@ export const Reject: Story = {
   },
 };
 
-// 4. System Auto-Cancelled State: Reservation timed out without confirmation 24h before start.
+// 4. System Auto-Cancelled State (Mentee View): Reservation timed out without confirmation 24h before start.
 export const SystemAutoCancelled: Story = {
   args: {
     variant: 'history',
@@ -110,11 +116,6 @@ export const SystemAutoCancelled: Story = {
       dtend: Math.floor(Date.now() / 1000) - 23 * 3600,
       cancelledBy: 'SYSTEM',
     },
-    actions: (
-      <Badge variant="secondary" role="status">
-        系統自動取消
-      </Badge>
-    ),
     footer: (
       <ReservationConversationDialog
         reservation={{
@@ -122,6 +123,29 @@ export const SystemAutoCancelled: Story = {
           cancelledBy: 'SYSTEM',
         }}
         sourceRole="mentee"
+      />
+    ),
+  },
+};
+
+// 4b. System Auto-Cancelled State (Mentor View, #881): Uses canonical 已自動取消 badge + mentor 24h notice.
+export const SystemAutoCancelledMentorView: Story = {
+  args: {
+    variant: 'history',
+    sourceRole: 'mentor',
+    item: {
+      ...mockReservation,
+      dtstart: Math.floor(Date.now() / 1000) - 24 * 3600,
+      dtend: Math.floor(Date.now() / 1000) - 23 * 3600,
+      cancelledBy: 'SYSTEM',
+    },
+    footer: (
+      <ReservationConversationDialog
+        reservation={{
+          ...mockReservation,
+          cancelledBy: 'SYSTEM',
+        }}
+        sourceRole="mentor"
       />
     ),
   },
@@ -169,6 +193,321 @@ export const HistoryCompleted: Story = {
           },
         }}
         sourceRole="mentor"
+      />
+    ),
+  },
+};
+
+// 6. Mentee History - Needs Feedback (#730 Design Hub: top-right 填寫回饋 button)
+export const HistoryMenteeNeedsFeedback: Story = {
+  args: {
+    variant: 'history',
+    sourceRole: 'mentee',
+    item: {
+      ...mockReservation,
+      feedback: {
+        meetingHappened: null,
+        rating: null,
+        nextStep: 'ANSWER',
+      },
+    },
+    headerAction: (
+      <MeetingFeedbackDialog
+        reservation={mockReservation}
+        onSubmitFeedback={async () => {}}
+      />
+    ),
+    footer: (
+      <ReservationConversationDialog
+        reservation={mockReservation}
+        sourceRole="mentee"
+      />
+    ),
+  },
+};
+
+// 7. Mentee History - Public Rating Submitted (查看回饋 ⌄ collapsible toggle + 編輯)
+export const HistoryMenteeRatedPublic: Story = {
+  args: {
+    variant: 'history',
+    sourceRole: 'mentee',
+    item: {
+      ...mockReservation,
+      feedback: {
+        meetingHappened: true,
+        rating: {
+          rating: 10,
+          content: '導師給了非常具體的架構重構建議，收穫滿滿！',
+          createdAt: 1760000000,
+          updatedAt: 1760000000,
+          authorName: '王＊明',
+          isPublic: true,
+        },
+        nextStep: null,
+      },
+    },
+    headerAction: (
+      <ReservationFeedbackHeaderToggle
+        action={{ kind: 'feedback-toggle', label: '查看回饋' }}
+        isExpanded={true}
+        onToggle={() => {}}
+      />
+    ),
+    feedbackContent: (
+      <ReservationFeedbackBlock
+        model={{
+          kind: 'public-rating',
+          label: '我的回饋',
+          rating: 10,
+          content: '導師給了非常具體的架構重構建議，收穫滿滿！',
+          canEdit: true,
+        }}
+        editAction={
+          <MeetingFeedbackDialog
+            mode="edit"
+            reservation={{
+              ...mockReservation,
+              feedback: {
+                meetingHappened: true,
+                rating: {
+                  rating: 10,
+                  content: '導師給了非常具體的架構重構建議，收穫滿滿！',
+                  createdAt: 1760000000,
+                  updatedAt: 1760000000,
+                  authorName: '王＊明',
+                  isPublic: true,
+                },
+                nextStep: null,
+              },
+            }}
+            onUpdateFeedback={async () => {}}
+          />
+        }
+      />
+    ),
+  },
+};
+
+// 8. Mentee History - Unpublicized Rating (#734 warm-yellow 評價未公開 + chevron tooltip + expandable notice + #731 編輯)
+export const HistoryMenteeRatedUnpublicized: Story = {
+  args: {
+    variant: 'history',
+    sourceRole: 'mentee',
+    item: {
+      ...mockReservation,
+      feedback: {
+        meetingHappened: false,
+        rating: {
+          rating: 9,
+          content: '感謝導師分享。',
+          createdAt: 1760000000,
+          updatedAt: 1760000000,
+          authorName: '王＊明',
+          isPublic: false,
+        },
+        nextStep: null,
+      },
+    },
+    headerAction: (
+      <ReservationFeedbackHeaderToggle
+        action={{
+          kind: 'unpublicized-toggle',
+          badgeLabel: '評價未公開',
+          expandTooltip: '展開評價未公開說明',
+          collapseTooltip: '收合評價未公開說明',
+        }}
+        isExpanded={true}
+        onToggle={() => {}}
+      />
+    ),
+    feedbackContent: (
+      <ReservationFeedbackBlock
+        model={{
+          kind: 'unpublicized',
+          rating: 9,
+          content: '感謝導師分享。',
+          notice: UNPUBLICIZED_FEEDBACK_NOTICE,
+          canEdit: true,
+        }}
+        editAction={
+          <MeetingFeedbackDialog
+            mode="edit"
+            reservation={{
+              ...mockReservation,
+              feedback: {
+                meetingHappened: false,
+                rating: {
+                  rating: 9,
+                  content: '感謝導師分享。',
+                  createdAt: 1760000000,
+                  updatedAt: 1760000000,
+                  authorName: '王＊明',
+                  isPublic: false,
+                },
+                nextStep: null,
+              },
+            }}
+            onUpdateFeedback={async () => {}}
+          />
+        }
+      />
+    ),
+  },
+};
+
+// 9. Mentee History - Meeting Not Happened (未進行)
+export const HistoryMenteeNotHappened: Story = {
+  args: {
+    variant: 'history',
+    sourceRole: 'mentee',
+    item: {
+      ...mockReservation,
+      feedback: {
+        meetingHappened: false,
+        rating: null,
+        nextStep: null,
+      },
+    },
+    headerAction: (
+      <Badge variant="secondary" role="status">
+        未進行
+      </Badge>
+    ),
+  },
+};
+
+// 10. Mentor History - Needs Session Confirmation (#735 top-right 確認會談 button)
+export const HistoryMentorNeedsConfirmation: Story = {
+  args: {
+    variant: 'history',
+    sourceRole: 'mentor',
+    item: {
+      ...mockReservation,
+      viewerRole: 'MENTOR',
+      feedback: {
+        meetingHappened: null,
+        rating: null,
+        nextStep: 'ANSWER',
+      },
+    },
+    headerAction: (
+      <MeetingFeedbackDialog
+        viewerRole="mentor"
+        reservation={{
+          ...mockReservation,
+          viewerRole: 'MENTOR',
+        }}
+        onSubmitFeedback={async () => {}}
+      />
+    ),
+    footer: (
+      <ReservationConversationDialog
+        reservation={mockReservation}
+        sourceRole="mentor"
+      />
+    ),
+  },
+};
+
+// 11. Mentor History - Confirmed Session With Public Mentee Rating (#735 查看紀錄 ⌄ + 遮罩姓名 · 分數/10 · 日期)
+export const HistoryMentorConfirmedWithPublicRating: Story = {
+  args: {
+    variant: 'history',
+    sourceRole: 'mentor',
+    item: {
+      ...mockReservation,
+      viewerRole: 'MENTOR',
+      feedback: {
+        meetingHappened: true,
+        myMeetingHappened: true,
+        rating: {
+          rating: 9,
+          content: '問題拆解清晰、建議可立即落地，非常感謝導師撥空指導。',
+          createdAt: 1761609600,
+          updatedAt: 1761609600,
+          authorName: '王＊明',
+          isPublic: true,
+        },
+        nextStep: null,
+      },
+    },
+    headerAction: (
+      <ReservationFeedbackHeaderToggle
+        action={{ kind: 'feedback-toggle', label: '查看紀錄' }}
+        isExpanded={true}
+        onToggle={() => {}}
+      />
+    ),
+    feedbackContent: (
+      <ReservationFeedbackBlock
+        model={{
+          kind: 'public-rating',
+          label: '學員評價',
+          rating: 9,
+          content: '問題拆解清晰、建議可立即落地，非常感謝導師撥空指導。',
+          authorMaskedName: '王＊明',
+          formattedDate: '2025/10/28',
+          mentorAttendanceLabel: '已回報：有進行',
+          canEdit: false,
+        }}
+      />
+    ),
+    footer: (
+      <ReservationConversationDialog
+        reservation={mockReservation}
+        sourceRole="mentor"
+      />
+    ),
+  },
+};
+
+// 12. Mentor History - Session Reported Not Happened (#735 locked 未進行 badge)
+export const HistoryMentorNotHappened: Story = {
+  args: {
+    variant: 'history',
+    sourceRole: 'mentor',
+    item: {
+      ...mockReservation,
+      viewerRole: 'MENTOR',
+      feedback: {
+        meetingHappened: false,
+        myMeetingHappened: false,
+        rating: null,
+        nextStep: null,
+      },
+    },
+    headerAction: (
+      <Badge variant="secondary" role="status">
+        未進行
+      </Badge>
+    ),
+  },
+};
+
+// 13. Mentee History - Resume Rating Step (#881: nextStep === 'RATE' opens Step 2 directly via reservationLifecyclePolicy)
+export const HistoryMenteeResumeRateStep: Story = {
+  args: {
+    variant: 'history',
+    sourceRole: 'mentee',
+    item: {
+      ...mockReservation,
+      feedback: {
+        meetingHappened: true,
+        rating: null,
+        nextStep: 'RATE',
+      },
+    },
+    headerAction: (
+      <MeetingFeedbackDialog
+        reservation={{
+          ...mockReservation,
+          feedback: {
+            meetingHappened: true,
+            rating: null,
+            nextStep: 'RATE',
+          },
+        }}
+        onSubmitFeedback={async () => {}}
       />
     ),
   },

@@ -127,3 +127,28 @@ export const HistoryLoadingWithPreservedCounts: Story = {
     isHistoryLoaded: false,
   },
 };
+
+// 6. Mentee History Loaded With Pending & Completed Feedback Cards (#733)
+export const MenteeHistoryWithFeedbackItems: Story = {
+  args: {
+    userRole: 'mentee',
+    myUserId: 'user-mentee-current',
+    upcoming: [],
+    pending: [],
+    history: [
+      {
+        ...mockReservations[6],
+        id: 'res-733-pending',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+    ],
+    isLoadingUpcoming: false,
+    isLoadingPending: false,
+    isLoadingHistory: false,
+    isHistoryLoaded: true,
+  },
+};

@@ -2,20 +2,17 @@
 
 import { useAsyncRead } from '@/hooks/useAsyncRead';
 import { AsyncReadManager } from '@/lib/asyncReadManager';
-import { createKeyedCache } from '@/lib/createKeyedCache';
 import { getCountries } from '@/services/profile/countries';
 import type { LocationType } from '@/types/location';
 
-const LOCATIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
-
-export const locationsCache = createKeyedCache<string, LocationType[]>({
-  ttlMs: LOCATIONS_CACHE_TTL_MS,
-});
+export const LOCATIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 export const locationsReadManager = new AsyncReadManager<
   string,
   LocationType[]
->(locationsCache);
+>({
+  ttlMs: LOCATIONS_CACHE_TTL_MS,
+});
 
 const EMPTY_LOCATIONS: LocationType[] = [];
 

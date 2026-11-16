@@ -2,6 +2,11 @@ name: Deploy to Vercel (Pull Request Preview)
 
 on:
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
     branches:
       - '**'
     paths-ignore:
@@ -41,6 +46,7 @@ env:
 
 jobs:
   deploy-pr-preview:
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     name: Deploy PR Preview to Vercel
 
@@ -64,28 +70,44 @@ jobs:
         run: npm install --global vercel@51.2.1
 
       - name: Pull Vercel environment (preview)
-        run: vercel pull --yes --environment=preview --token=${{ env.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
 
       # Single build: vercel build runs next build internally with Vercel env vars
       - name: Build project with Vercel
         shell: bash
         run: |
           set -euo pipefail
-          if ! vercel build --token="${{ env.VERCEL_TOKEN }}" 2>&1 | tee .build-output.txt; then
+          if ! vercel build --token="$VERCEL_TOKEN" 2>&1 | tee .build-output.txt; then
             echo "Cached Vercel build failed; clearing .next/cache and retrying clean build..."
             rm -rf .next .vercel/output
-            vercel build --token="${{ env.VERCEL_TOKEN }}" 2>&1 | tee .build-output.txt
+            vercel build --token="$VERCEL_TOKEN" 2>&1 | tee .build-output.txt
           fi
 
       - name: Deploy PR preview
         id: vercel_preview
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           echo "🚀 Deploying PR preview..."
-          out="$(vercel deploy --prebuilt --archive=tgz --token="${{ env.VERCEL_TOKEN }}")"
+          err_file="$(mktemp)"
+          out="$(vercel deploy --prebuilt --archive=tgz --token="$VERCEL_TOKEN" 2>"$err_file")"
+          rc=$?
+          cat "$err_file" >&2
           echo "$out"
-          url="$(printf '%s\n' "$out" | tail -n 1)"
+          if [ "$rc" -ne 0 ]; then
+            if grep -qiE 'api-deployments-free-per-day|Resource is limited' "$err_file"; then
+              echo "::warning::Vercel Hobby daily deployment quota reached; marking PR comment without failing code gates."
+              gh pr comment "$PR_NUMBER" --body "<!-- vercel-quota-limit:sha=${HEAD_SHA} -->⚠️ **Vercel 每日免費預覽部署額度已達上限**（\`api-deployments-free-per-day\`），程式碼與測試檢查不受影響，待額度重置後可重新觸發預覽。" || true
+            fi
+            rm -f "$err_file"
+            exit "$rc"
+          fi
+          rm -f "$err_file"
+          url="$(printf '%s\n' "$out" | grep -Eo 'https://[^[:space:]]+' | tail -n 1)"
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
       - name: Extract bundle size report
@@ -110,12 +132,27 @@ jobs:
         continue-on-error: true
         env:
           PREVIEW_URL: ${{ steps.vercel_preview.outputs.url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           touch .evidence-markdown.txt
+          SMOKE_FILE=$(mktemp)
+          printf 'smoke' > "$SMOKE_FILE"
+          GITHUB_HEAD_REF="${GITHUB_HEAD_REF:-smoke/dry-run}" node .agents/scripts/tracker-ops.mjs publish-evidence --dry-run "$SMOKE_FILE" >/dev/null
+          rm -f "$SMOKE_FILE"
           if [ -z "$PREVIEW_URL" ]; then exit 0; fi
 
-          git fetch origin "${{ github.event.pull_request.base.ref }}" --depth=20 || true
-          CHANGED_UI=$(git diff --name-only "origin/${{ github.event.pull_request.base.ref }}...HEAD" -- 'src/app/' 'src/components/' 'src/styles/' | grep -vE '\.(test|spec|stories)\.(ts|tsx)$' || true)
+          # Skip blind visitor fallback capture if the PR body already embeds
+          # interactive Playwright E2E screenshots published to pr-evidence.
+          EXISTING_BODY=$(gh pr view "$PR_NUMBER" --json body --jq '.body // ""' 2>/dev/null || echo "")
+          if printf '%s' "$EXISTING_BODY" | grep -q 'pr-evidence'; then
+            echo "PR already embeds interactive pr-evidence screenshots; skipping visitor fallback capture."
+            exit 0
+          fi
+
+          git fetch origin "$BASE_REF" --depth=20 || true
+          CHANGED_UI=$(git diff --name-only "origin/${BASE_REF}...HEAD" -- 'src/app/' 'src/components/' 'src/styles/' | grep -vE '\.(test|spec|stories)\.(ts|tsx)$' || true)
           if [ -z "$CHANGED_UI" ]; then
             echo "No UI-facing files changed; skipping screenshot capture."
             exit 0
@@ -126,6 +163,10 @@ jobs:
           if [ -z "$ROUTES" ]; then ROUTES="/"; fi
 
           echo "Capturing UI evidence on $PREVIEW_URL for routes: $ROUTES"
+          mkdir -p ~/.local/share/fonts
+          curl -fsSL --retry 3 "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf" -o ~/.local/share/fonts/NotoSansTC.ttf || true
+          curl -fsSL --retry 3 "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/TraditionalChinese/NotoSansCJKtc-Regular.otf" -o ~/.local/share/fonts/NotoSansCJKtc-Regular.otf || true
+          fc-cache -f ~/.local/share/fonts || true
           npx playwright install chromium
           mkdir -p .agents/tmp/evidence
           node scripts/capture-ui-evidence.mjs --base-url "$PREVIEW_URL" --routes "$ROUTES" --role visitor --viewport desktop || true
@@ -135,7 +176,7 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             export EVIDENCE_BRANCH="pr-evidence"
-            URLS=$(bash .agents/scripts/publish-evidence.sh .agents/tmp/evidence/*.png || true)
+            URLS=$(node .agents/scripts/tracker-ops.mjs publish-evidence .agents/tmp/evidence/*.png || true)
             for u in $URLS; do
               label=$(basename "$u" .png)
               echo "![${label}](${u})" >> .evidence-markdown.txt
@@ -189,9 +230,12 @@ jobs:
                   repo: context.repo.repo,
                   pull_number: context.issue.number,
                 });
-                if (pr.body && /## Screenshot\s+N\/A/i.test(pr.body)) {
+                if (
+                  pr.body &&
+                  /## Screenshot\s+N\/A(?:\s*\([^)]*\))?/i.test(pr.body)
+                ) {
                   const updatedPrBody = pr.body.replace(
-                    /## Screenshot\s+N\/A/i,
+                    /## Screenshot\s+N\/A(?:\s*\([^)]*\))?/i,
                     `## Screenshot\n\n${evidenceMd}`
                   );
                   await github.rest.pulls.update({

@@ -31,7 +31,10 @@ export const WithMentorCard: Story = {
         avatarImgUrl="https://api.dicebear.com/7.x/adventurer/svg?seed=hana"
         jobTitle="Senior Frontend Engineer"
         companyName="Google"
-        linkedinUrl="https://www.linkedin.com/in/hana-lin"
+        personalLinks={[
+          { platform: 'linkedin', url: 'https://www.linkedin.com/in/hana-lin' },
+          { platform: 'website', url: 'https://hanalin.dev' },
+        ]}
       />
     </ProfileBanner>
   ),
@@ -46,7 +49,12 @@ export const WithMenteeCard: Story = {
         avatarImgUrl="https://api.dicebear.com/7.x/adventurer/svg?seed=alex"
         jobTitle="Junior Web Developer"
         companyName="Startup Studio"
-        linkedinUrl="https://www.linkedin.com/in/alex-chen"
+        personalLinks={[
+          {
+            platform: 'linkedin',
+            url: 'https://www.linkedin.com/in/alex-chen',
+          },
+        ]}
       />
     </ProfileBanner>
   ),

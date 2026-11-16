@@ -3,6 +3,7 @@ import React from 'react';
 
 import {
   FacebookColor,
+  GithubColor,
   GoogleColor,
   InstagramColor,
   LinkedinColor,
@@ -23,6 +24,7 @@ const ColorIconsGallery: React.FC<ColorIconsGalleryProps> = ({
 }) => {
   const iconsList = [
     { name: 'FacebookColor', Icon: FacebookColor },
+    { name: 'GithubColor', Icon: GithubColor },
     { name: 'GoogleColor', Icon: GoogleColor },
     { name: 'InstagramColor', Icon: InstagramColor },
     { name: 'LinkedinColor', Icon: LinkedinColor },
@@ -32,7 +34,7 @@ const ColorIconsGallery: React.FC<ColorIconsGalleryProps> = ({
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-4 p-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
+    <div className="grid grid-cols-2 gap-4 p-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8">
       {iconsList.map(({ name, Icon }) => (
         <div
           key={name}
@@ -125,6 +127,11 @@ export const FacebookIcon = createIconStory(
   'FacebookColor',
   FacebookColor,
   'Facebook 品牌圖標'
+);
+export const GithubIcon = createIconStory(
+  'GithubColor',
+  GithubColor,
+  'GitHub 品牌圖標'
 );
 export const GoogleIcon = createIconStory(
   'GoogleColor',

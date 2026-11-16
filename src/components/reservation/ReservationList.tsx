@@ -2,19 +2,30 @@
 
 import { CalendarX2 } from 'lucide-react';
 import Link from 'next/link';
-import type * as React from 'react';
+import * as React from 'react';
 
 import AcceptReservationDialog from '@/components/reservation/AcceptReservationDialog';
 import CancelReservationDialog from '@/components/reservation/CancelReservationDialog';
+import MeetingFeedbackDialog from '@/components/reservation/MeetingFeedbackDialog';
 import RejectReservationDialog from '@/components/reservation/RejectReservationDialog';
 import ReservationConversationDialog from '@/components/reservation/ReservationConversationDialog';
+import {
+  ReservationFeedbackBlock,
+  ReservationFeedbackHeaderToggle,
+} from '@/components/reservation/ReservationFeedbackBlock';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useProfileLinkClick } from '@/hooks/reservation/useProfileLinkClick';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { trackEvent } from '@/lib/analytics';
+import { isFeedbackEnabled } from '@/lib/featureFlags';
+import {
+  canOpenHistoryConversation,
+  resolveFeedbackInitialStep,
+} from '@/lib/reservation/reservationLifecyclePolicy';
 import { resolveReservationViewer } from '@/lib/reservation/reservationViewerModel';
+import { resolveHistoryFeedbackState } from '@/lib/reservation/resolveHistoryFeedbackState';
 import type { Reservation } from '@/types/reservation';
 
 import {
@@ -69,39 +80,74 @@ function resolveEmptyStateContent(
 }
 
 /**
- * Individual Reservation List Item holding its own independent loading and action state.
+ * Individual Reservation List Item holding its own independent loading, action, and collapsible feedback state.
  */
 function ReservationItem({
   reservation,
   variant,
   sourceRole,
   myUserId,
+  feedbackEnabled = isFeedbackEnabled(),
+  isHighlighted = false,
+  shouldAutoExpandFeedback = false,
+  deepLinkTriggerSeq = 0,
 }: {
   reservation: Reservation;
   variant: Variant;
   sourceRole: SourceRole;
   myUserId: string | undefined;
+  feedbackEnabled?: boolean;
+  isHighlighted?: boolean;
+  shouldAutoExpandFeedback?: boolean;
+  deepLinkTriggerSeq?: number;
 }) {
-  const { accept, rejectOrCancel, isMutating } = useReservationActions({
-    myUserId,
-    variant,
-    myRole: sourceRole,
-  });
+  const [isFeedbackExpanded, setIsFeedbackExpanded] = React.useState(
+    () => shouldAutoExpandFeedback
+  );
+  const feedbackPanelId = React.useId();
+  const cardWrapperRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (shouldAutoExpandFeedback) {
+      setIsFeedbackExpanded(true);
+    }
+  }, [shouldAutoExpandFeedback, deepLinkTriggerSeq]);
+
+  React.useEffect(() => {
+    if (isHighlighted && cardWrapperRef.current) {
+      cardWrapperRef.current.scrollIntoView?.({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+  }, [isHighlighted, deepLinkTriggerSeq]);
+
+  const { accept, rejectOrCancel, submitFeedback, updateFeedback, isMutating } =
+    useReservationActions({
+      myUserId,
+      variant,
+      myRole: sourceRole,
+    });
 
   const viewer = resolveReservationViewer({
     reservation,
     myUserId,
   });
 
+  const historyState =
+    variant === 'history'
+      ? resolveHistoryFeedbackState({
+          reservation,
+          sourceRole,
+          cancelledByLabel: viewer.cancelledByLabel,
+          includeFeedback: feedbackEnabled,
+        })
+      : null;
+
   const handleProfileLinkInvalidation = useProfileLinkClick({
     disabled: isMutating,
   });
 
-  // Tracked unconditionally on every non-disabled click, including a
-  // modifier-key/middle click that opens a new tab - the click-invalidation
-  // above only governs whether the link navigates in this render, not
-  // whether the view was attempted. Matches this list's pre-model behavior,
-  // which tracked every click with no modifier check at all.
   const handleProfileClick = (e: React.MouseEvent): void => {
     if (!isMutating) {
       trackEvent({
@@ -113,62 +159,145 @@ function ReservationItem({
     handleProfileLinkInvalidation(e);
   };
 
+  const renderHistoryHeaderAction = (): React.ReactNode => {
+    if (!historyState) return null;
+
+    if (historyState.headerAction.kind === 'answer-button') {
+      return (
+        <MeetingFeedbackDialog
+          viewerRole={sourceRole}
+          initialStep={resolveFeedbackInitialStep({
+            reservation,
+            role: sourceRole,
+          })}
+          reservation={reservation}
+          disabled={isMutating}
+          onSubmitFeedback={(payload) => submitFeedback(reservation, payload)}
+        />
+      );
+    }
+
+    if (
+      historyState.headerAction.kind === 'feedback-toggle' ||
+      historyState.headerAction.kind === 'unpublicized-toggle'
+    ) {
+      return (
+        <ReservationFeedbackHeaderToggle
+          action={historyState.headerAction}
+          isExpanded={isFeedbackExpanded}
+          panelId={feedbackPanelId}
+          onToggle={() => setIsFeedbackExpanded((prev) => !prev)}
+        />
+      );
+    }
+
+    return (
+      <Badge
+        variant="secondary"
+        role="status"
+        className="text-text-secondary rounded-md font-normal"
+      >
+        {historyState.headerAction.label}
+      </Badge>
+    );
+  };
+
+  const isCollapsibleFeedbackHeader =
+    historyState?.headerAction.kind === 'feedback-toggle' ||
+    historyState?.headerAction.kind === 'unpublicized-toggle';
+  const shouldRenderFeedbackBlock = Boolean(
+    historyState?.feedbackBlock &&
+    (!isCollapsibleFeedbackHeader || isFeedbackExpanded)
+  );
+
   return (
-    <ReservationCard
-      item={reservation}
-      myUserId={myUserId}
-      variant={cardVariantOf(variant)}
-      profileHref={viewer.profileHref}
-      onProfileClick={handleProfileClick}
-      disabled={isMutating}
-      sourceRole={sourceRole}
-      actions={
-        variant === 'history' ? (
-          viewer.cancelledByLabel ? (
-            <Badge variant="secondary" role="status">
-              {viewer.cancelledByLabel}
-            </Badge>
-          ) : null
-        ) : variant === 'pending-mentor' ? (
-          <div className="flex justify-end gap-2">
-            <RejectReservationDialog
-              reservation={reservation}
-              disabled={isMutating}
-              className="text-xs sm:text-sm"
-              onReject={async ({ reason }) =>
-                rejectOrCancel(reservation, reason, 'reject')
+    <div
+      ref={cardWrapperRef}
+      id={`reservation-card-${reservation.id}`}
+      data-reservation-id={reservation.id}
+      data-highlighted={isHighlighted ? 'true' : undefined}
+      className={
+        isHighlighted
+          ? 'ring-brand-500/60 rounded-xl ring-2 transition-shadow'
+          : undefined
+      }
+    >
+      <ReservationCard
+        item={reservation}
+        myUserId={myUserId}
+        variant={cardVariantOf(variant)}
+        profileHref={viewer.profileHref}
+        onProfileClick={handleProfileClick}
+        disabled={isMutating}
+        sourceRole={sourceRole}
+        headerAction={renderHistoryHeaderAction()}
+        feedbackContent={
+          historyState?.feedbackBlock && shouldRenderFeedbackBlock ? (
+            <ReservationFeedbackBlock
+              id={feedbackPanelId}
+              model={historyState.feedbackBlock}
+              editAction={
+                historyState.feedbackBlock.kind !== 'mentor-record' &&
+                historyState.feedbackBlock.canEdit ? (
+                  <MeetingFeedbackDialog
+                    mode="edit"
+                    reservation={reservation}
+                    disabled={isMutating}
+                    onUpdateFeedback={(payload) =>
+                      updateFeedback(reservation, payload)
+                    }
+                  />
+                ) : null
               }
             />
-            <AcceptReservationDialog
+          ) : null
+        }
+        actions={
+          variant === 'history' ? (
+            historyState?.bottomStatusLabel ? (
+              <Badge variant="secondary" role="status">
+                {historyState.bottomStatusLabel}
+              </Badge>
+            ) : null
+          ) : variant === 'pending-mentor' ? (
+            <div className="flex justify-end gap-2">
+              <RejectReservationDialog
+                reservation={reservation}
+                disabled={isMutating}
+                className="text-xs sm:text-sm"
+                onReject={async ({ reason }) =>
+                  rejectOrCancel(reservation, reason, 'reject')
+                }
+              />
+              <AcceptReservationDialog
+                reservation={reservation}
+                myUserId={myUserId}
+                disabled={isMutating}
+                className="text-xs sm:text-sm"
+                onAccept={async ({ message }) => accept(reservation, message)}
+              />
+            </div>
+          ) : (
+            <CancelReservationDialog
               reservation={reservation}
-              myUserId={myUserId}
               disabled={isMutating}
-              className="text-xs sm:text-sm"
-              onAccept={async ({ message }) => accept(reservation, message)}
+              className="w-full text-xs sm:w-auto sm:text-sm"
+              onConfirmCancel={async ({ reason }) =>
+                rejectOrCancel(reservation, reason, 'cancel')
+              }
             />
-          </div>
-        ) : (
-          <CancelReservationDialog
-            reservation={reservation}
-            disabled={isMutating}
-            className="w-full text-xs sm:w-auto sm:text-sm"
-            onConfirmCancel={async ({ reason }) =>
-              rejectOrCancel(reservation, reason, 'cancel')
-            }
-          />
-        )
-      }
-      footer={
-        variant === 'history' &&
-        (reservation.messages.length > 0 ||
-          reservation.cancelledBy === 'SYSTEM') ? (
-          <ReservationConversationDialog
-            reservation={reservation}
-            sourceRole={sourceRole}
-          />
-        ) : null
-      }
-    />
+          )
+        }
+        footer={
+          variant === 'history' && canOpenHistoryConversation(reservation) ? (
+            <ReservationConversationDialog
+              reservation={reservation}
+              sourceRole={sourceRole}
+            />
+          ) : null
+        }
+      />
+    </div>
   );
 }
 
@@ -180,6 +309,15 @@ export function ReservationList({
   hasMore = false,
   onLoadMore,
   isLoadingMore = false,
+  feedbackQueueItems = null,
+  onFeedbackQueueClose,
+  onSkipFeedbackQueueItem,
+  deepLinkDialogReservation = null,
+  onDeepLinkDialogClose,
+  highlightedReservationId = null,
+  autoExpandedReservationId = null,
+  deepLinkTriggerSeq = 0,
+  feedbackEnabled: feedbackEnabledProp,
 }: {
   items: Reservation[];
   variant: Variant;
@@ -188,11 +326,76 @@ export function ReservationList({
   hasMore?: boolean;
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
+  feedbackQueueItems?: Reservation[] | null;
+  onFeedbackQueueClose?: () => void;
+  onSkipFeedbackQueueItem?: (reservation: Reservation) => void;
+  deepLinkDialogReservation?: Reservation | null;
+  onDeepLinkDialogClose?: () => void;
+  highlightedReservationId?: string | null;
+  autoExpandedReservationId?: string | null;
+  deepLinkTriggerSeq?: number;
+  feedbackEnabled?: boolean;
 }) {
+  const { submitFeedback, isMutating } = useReservationActions({
+    myUserId,
+    variant: 'history',
+    myRole: sourceRole,
+  });
   const emptyState = resolveEmptyStateContent(sourceRole, variant, myUserId);
+
+  const feedbackEnabled = feedbackEnabledProp ?? isFeedbackEnabled();
+
+  const hostFeedbackDialog = !feedbackEnabled
+    ? null
+    : variant === 'history' && deepLinkDialogReservation
+      ? {
+          key: `deeplink-${sourceRole}-${deepLinkDialogReservation.id}`,
+          reservation: deepLinkDialogReservation,
+          queue: undefined,
+          initialStep: resolveFeedbackInitialStep({
+            reservation: deepLinkDialogReservation,
+            role: sourceRole,
+          }),
+          triggerLabel: '指定會談回饋視窗',
+          onSkipReservation: undefined,
+          onClose: onDeepLinkDialogClose,
+        }
+      : variant === 'history' &&
+          feedbackQueueItems &&
+          feedbackQueueItems.length > 0
+        ? {
+            key: `queue-${sourceRole}`,
+            reservation: feedbackQueueItems[0],
+            queue: feedbackQueueItems,
+            initialStep: undefined,
+            triggerLabel: '待填會談回饋佇列',
+            onSkipReservation: onSkipFeedbackQueueItem,
+            onClose: onFeedbackQueueClose,
+          }
+        : null;
 
   return (
     <div className="space-y-3 sm:space-y-4">
+      {hostFeedbackDialog ? (
+        <MeetingFeedbackDialog
+          key={hostFeedbackDialog.key}
+          defaultOpen
+          viewerRole={sourceRole}
+          initialStep={hostFeedbackDialog.initialStep}
+          reservation={hostFeedbackDialog.reservation}
+          queue={hostFeedbackDialog.queue}
+          disabled={isMutating}
+          trigger={
+            <span className="sr-only">{hostFeedbackDialog.triggerLabel}</span>
+          }
+          onSubmitFeedback={(payload, target) =>
+            submitFeedback(target, payload)
+          }
+          onSkipReservation={hostFeedbackDialog.onSkipReservation}
+          onClose={hostFeedbackDialog.onClose}
+        />
+      ) : null}
+
       {items.map((it) => (
         <ReservationItem
           key={it.id}
@@ -200,6 +403,20 @@ export function ReservationList({
           variant={variant}
           sourceRole={sourceRole}
           myUserId={myUserId}
+          feedbackEnabled={feedbackEnabled}
+          isHighlighted={
+            feedbackEnabled &&
+            variant === 'history' &&
+            highlightedReservationId === it.id
+          }
+          shouldAutoExpandFeedback={
+            feedbackEnabled &&
+            variant === 'history' &&
+            autoExpandedReservationId === it.id
+          }
+          deepLinkTriggerSeq={
+            feedbackEnabled && variant === 'history' ? deepLinkTriggerSeq : 0
+          }
         />
       ))}
 

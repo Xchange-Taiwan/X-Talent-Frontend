@@ -22,6 +22,7 @@ import {
   FOCUS_RING_NO_OFFSET_CLASSES,
 } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
+import type { NotificationSource } from '@/services/notifications/notificationSource';
 
 import {
   getNotificationContent,
@@ -43,17 +44,13 @@ export type NotificationBellProps = {
    */
   initialStatus?: 'loading' | 'error' | 'empty' | 'success';
   /**
-   * Initial list of notifications. If omitted, will default to mock notifications.
+   * Preloaded initial list of notifications for static fixtures/stories.
    */
   initialNotifications?: NotificationItem[];
   /**
-   * Optional callback fired when a single notification card is clicked and marked as read.
+   * Optional `NotificationSource` port injection for tests and Storybook stories.
    */
-  onMarkRead?: (id: string) => void | Promise<void>;
-  /**
-   * Optional callback fired when all notifications are marked as read at once.
-   */
-  onMarkAllRead?: (ids: string[]) => void | Promise<void>;
+  notificationSource?: NotificationSource;
 };
 
 type NotificationListProps = {
@@ -201,8 +198,7 @@ export const NotificationBell = React.memo(function NotificationBell({
   className,
   initialStatus = 'success',
   initialNotifications,
-  onMarkRead,
-  onMarkAllRead,
+  notificationSource,
 }: NotificationBellProps): JSX.Element {
   const {
     open,
@@ -226,8 +222,7 @@ export const NotificationBell = React.memo(function NotificationBell({
     userId,
     initialStatus,
     initialNotifications,
-    onMarkRead,
-    onMarkAllRead,
+    notificationSource,
   });
 
   const [scrollThumbHandlers, scrollThumb] = useScrollThumb();

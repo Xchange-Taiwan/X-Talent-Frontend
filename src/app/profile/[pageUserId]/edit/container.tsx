@@ -107,8 +107,6 @@ export default function EditProfileContainer({
     isSaving,
     handleAvatarFileChange,
     handleFormSubmit,
-    setJobSectionError,
-    setEducationSectionError,
     handleGoToPrev,
     isPromptOpen,
     cancelLeave,
@@ -117,6 +115,7 @@ export default function EditProfileContainer({
     pageUserId,
     isAuthorized,
     isMentorOnboarding,
+    industryCatalog: industries,
   });
 
   const haveTopicCategories = tagGroupsToCategories(tagCatalog.have_topic);
@@ -272,19 +271,14 @@ export default function EditProfileContainer({
               locations={locations}
               form={form}
               isMentor={isMentorRole}
-              onValidationChange={setJobSectionError}
             />
           </div>
 
           <div id="educations">
-            <EducationSection
-              form={form}
-              isMentor={isMentorRole}
-              onValidationChange={setEducationSectionError}
-            />
+            <EducationSection form={form} isMentor={isMentorRole} />
           </div>
 
-          <LinksSection form={form} />
+          <LinksSection id="links" form={form} />
         </form>
       </Form>
 

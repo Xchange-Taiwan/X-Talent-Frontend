@@ -15,6 +15,7 @@ import {
 import { trackEvent } from '@/lib/analytics';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 import { getInitials } from '@/lib/avatar/getInitials';
+import { resolveSystemAutoCancelNotice } from '@/lib/reservation/reservationLifecyclePolicy';
 import { resolveReservationMessages } from '@/lib/reservation/resolveReservationMessages';
 import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
@@ -48,6 +49,10 @@ export default function ReservationConversationDialog({
   const { messages: resolvedMessages, cancelReasonMessage } =
     resolveReservationMessages(reservation);
   const hasCancelReason = Boolean(cancelReasonMessage);
+  const systemCancelNotice = resolveSystemAutoCancelNotice(
+    reservation,
+    sourceRole
+  );
 
   function onOpenChange(next: boolean) {
     setOpen(next);
@@ -118,7 +123,7 @@ export default function ReservationConversationDialog({
         </DialogHeader>
 
         <div className="flex-1 space-y-3 overflow-y-auto p-4 sm:p-6">
-          {reservation.cancelledBy === 'SYSTEM' ? (
+          {systemCancelNotice ? (
             <div
               role="note"
               className="border-status-warning-default/40 bg-status-warning-active/15 text-text-primary flex items-start gap-2 rounded-lg border p-3 text-xs sm:text-sm"
@@ -127,11 +132,7 @@ export default function ReservationConversationDialog({
                 className="text-status-info-default mt-0.5 size-4 shrink-0"
                 aria-hidden
               />
-              <span>
-                {sourceRole === 'mentor'
-                  ? '因您未於預約開始前 24 小時前確認，系統已自動取消此預約。'
-                  : '因導師未於預約開始前 24 小時前確認，系統已自動取消此預約。'}
-              </span>
+              <span>{systemCancelNotice}</span>
             </div>
           ) : null}
 

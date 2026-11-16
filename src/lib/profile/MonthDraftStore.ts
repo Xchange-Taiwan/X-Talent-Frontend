@@ -21,6 +21,7 @@ import { TimeSlotDTO, utcYearMonth } from '@/services/mentor-schedule/schedule';
 import {
   MonthSyncRequest,
   MonthSyncResult,
+  type SyncResult,
 } from '@/services/mentor-schedule/sync';
 
 export type SlotDurationMinutes = 30 | 45 | 60;
@@ -61,6 +62,7 @@ export class MonthDraftStore {
   private listeners = new Set<StoreListener>();
   private getCachedMonthSchedule?: GetCachedMonthScheduleFn;
   private currentSnapshot: MonthDraftStoreSnapshot | null = null;
+  private generation = 0;
 
   constructor(
     initialData?: Partial<MonthDraftStoreSnapshot>,
@@ -225,6 +227,10 @@ export class MonthDraftStore {
       });
       if (!cached) {
         return null;
+      }
+      if (!this.savedByMonth.has(targetMonthKey)) {
+        this.savedByMonth = new Map(this.savedByMonth);
+        this.savedByMonth.set(targetMonthKey, cached);
       }
       targetDraft = cached;
     }
@@ -639,6 +645,32 @@ export class MonthDraftStore {
     this.emitChange();
   }
 
+  public async commitChanges(
+    userId: string,
+    syncFn: (requests: MonthSyncRequest[]) => Promise<MonthSyncResult[]>
+  ): Promise<SyncResult> {
+    if (!userId || this.dirtyMonths.size === 0) {
+      return { ok: true };
+    }
+    const generationAtStart = this.generation;
+    const requests = this.getSyncRequests(userId);
+    const results = await syncFn(requests);
+
+    if (this.generation === generationAtStart) {
+      this.commit(results);
+    }
+
+    const firstFail = results.find((r) => !r.outcome.ok);
+    if (firstFail && !firstFail.outcome.ok) {
+      return {
+        ok: false,
+        reason: firstFail.outcome.reason,
+        message: firstFail.outcome.message,
+      };
+    }
+    return { ok: true };
+  }
+
   public commit(results: MonthSyncResult[]): void {
     let changed = false;
     for (const r of results) {
@@ -662,6 +694,31 @@ export class MonthDraftStore {
   }
 
   /**
+   * Synchronously discard all uncommitted draft edits with zero network
+   * requests, restoring every dirty month in `draftByMonth` directly from
+   * `savedByMonth` and bumping the store generation so any in-flight save
+   * cannot overwrite the restored baseline.
+   */
+  public discardChanges(): void {
+    this.generation += 1;
+    if (this.dirtyMonths.size === 0 && this.pendingDeleteByMonth.size === 0) {
+      return;
+    }
+    this.draftByMonth = new Map(this.draftByMonth);
+    this.dirtyMonths.forEach((mk) => {
+      const saved = this.savedByMonth.get(mk);
+      if (saved !== undefined) {
+        this.draftByMonth.set(mk, saved);
+      } else {
+        this.draftByMonth.delete(mk);
+      }
+    });
+    this.pendingDeleteByMonth = new Map();
+    this.dirtyMonths = new Set();
+    this.emitChange();
+  }
+
+  /**
    * Discard drafted edits for the given months, restoring each to `raws`
    * (either freshly refetched, or the last known-saved snapshot as a
    * fallback). Months not listed are left untouched — this is a partial
@@ -669,6 +726,7 @@ export class MonthDraftStore {
    * account switch).
    */
   public reset(reloaded: (readonly [MonthKey, RawMentorTimeslot[]])[]): void {
+    this.generation += 1;
     this.savedByMonth = new Map(this.savedByMonth);
     this.draftByMonth = new Map(this.draftByMonth);
     this.pendingDeleteByMonth = new Map(this.pendingDeleteByMonth);
@@ -685,8 +743,9 @@ export class MonthDraftStore {
 
   /** Drop every buffered month. Buffers belong to a specific user, so this
    * is for a full account switch — not for discarding a subset of edits
-   * (see `reset()`). */
+   * (see `discardChanges()`). */
   public clearAll(): void {
+    this.generation += 1;
     this.savedByMonth = new Map();
     this.draftByMonth = new Map();
     this.pendingDeleteByMonth = new Map();

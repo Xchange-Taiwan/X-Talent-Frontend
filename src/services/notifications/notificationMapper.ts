@@ -1,3 +1,9 @@
+import {
+  type NotificationSemanticCategory,
+  type ReservationRouteRole,
+  resolveNotificationCategory,
+  resolveNotificationTargetHref,
+} from '@/lib/reservation/reservationRoutes';
 import { components } from '@/types/api';
 
 import type { NotificationItem } from './types';
@@ -7,28 +13,97 @@ import type { NotificationItem } from './types';
 // this many digits in the year 2286).
 const SECONDS_TIMESTAMP_MAX = 9999999999;
 
+function normalizeNotificationRole(
+  rawRole: unknown
+): ReservationRouteRole | undefined {
+  if (typeof rawRole !== 'string') return undefined;
+  const lowered = rawRole.trim().toLowerCase();
+  if (lowered === 'mentor' || lowered === 'mentee') {
+    return lowered;
+  }
+  return undefined;
+}
+
+function normalizeOptionalString(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed !== '' ? trimmed : undefined;
+}
+
+function resolveDefaultNotificationRole(
+  category: NotificationSemanticCategory,
+  explicitMenteeName: string | undefined,
+  explicitMentorName: string | undefined
+): ReservationRouteRole | undefined {
+  if (category === 'feedback_received' || category === 'attendance_requested') {
+    return 'mentor';
+  }
+  if (category === 'feedback_requested') {
+    return 'mentee';
+  }
+  if (category === 'feedback_reminder') {
+    return explicitMenteeName && !explicitMentorName ? 'mentor' : 'mentee';
+  }
+  return undefined;
+}
+
 /**
  * Converts a backend NotificationVO (API DTO) into the frontend's
- * NotificationItem domain model. Kept as a standalone, dependency-free
- * module so both the real notificationService and its test-only mock
- * counterpart can share the exact same conversion logic.
+ * NotificationItem domain model.
  */
 export function mapNotificationVOToItem(
   apiItem: components['schemas']['NotificationVO']
 ): NotificationItem {
   const isUnread = !apiItem.read_at;
+  const category = resolveNotificationCategory(apiItem.type);
   const metadata = (apiItem.metadata || {}) as {
-    role?: 'mentor' | 'mentee';
+    role?: 'mentor' | 'mentee' | 'MENTOR' | 'MENTEE';
     actor_role?: 'mentor' | 'mentee' | 'system';
     counterparty_name?: string;
+    mentee_name?: string;
+    menteeName?: string;
+    mentor_name?: string;
+    mentorName?: string;
+    reservation_id?: number | string | null;
+    reservationId?: number | string | null;
+    reserve_id?: number | string | null;
     dtstart?: number;
     dtend?: number;
   };
   const { role, actor_role, counterparty_name, dtstart, dtend } = metadata;
 
+  const explicitMenteeName =
+    normalizeOptionalString(metadata.mentee_name) ??
+    normalizeOptionalString(metadata.menteeName);
+  const explicitMentorName =
+    normalizeOptionalString(metadata.mentor_name) ??
+    normalizeOptionalString(metadata.mentorName);
+
+  const resolvedRole =
+    normalizeNotificationRole(role) ??
+    resolveDefaultNotificationRole(
+      category,
+      explicitMenteeName,
+      explicitMentorName
+    );
+
   // Map role and counterparty_name to menteeName/mentorName for frontend compatibility
-  const menteeName = role === 'mentor' ? counterparty_name : undefined;
-  const mentorName = role === 'mentee' ? counterparty_name : undefined;
+  const menteeName =
+    resolvedRole === 'mentor'
+      ? (normalizeOptionalString(counterparty_name) ?? explicitMenteeName)
+      : explicitMenteeName;
+  const mentorName =
+    resolvedRole === 'mentee'
+      ? (normalizeOptionalString(counterparty_name) ?? explicitMentorName)
+      : explicitMentorName;
+  const rawReservationId =
+    metadata.reservation_id ?? metadata.reservationId ?? metadata.reserve_id;
+  const normalizedReservationId =
+    typeof rawReservationId === 'number' && Number.isFinite(rawReservationId)
+      ? String(rawReservationId)
+      : typeof rawReservationId === 'string' && rawReservationId.trim() !== ''
+        ? rawReservationId.trim()
+        : undefined;
   const normalizedDtstart =
     typeof dtstart === 'number' && Number.isFinite(dtstart)
       ? dtstart
@@ -43,15 +118,28 @@ export function mapNotificationVOToItem(
   const ms = rawTime < SECONDS_TIMESTAMP_MAX ? rawTime * 1000 : rawTime;
   const createdAt = new Date(ms).toISOString();
 
+  const targetHref = resolveNotificationTargetHref({
+    type: apiItem.type,
+    category,
+    role: resolvedRole,
+    menteeName,
+    reservationId: normalizedReservationId,
+  });
+
   return {
     id: String(apiItem.id),
     type: apiItem.type as NotificationItem['type'],
+    category,
+    targetHref,
     createdAt,
     unread: isUnread,
-    role,
+    role: resolvedRole,
     actorRole: actor_role,
     menteeName,
     mentorName,
+    ...(normalizedReservationId !== undefined
+      ? { reservationId: normalizedReservationId }
+      : {}),
     ...(normalizedDtstart !== undefined ? { dtstart: normalizedDtstart } : {}),
     ...(normalizedDtend !== undefined ? { dtend: normalizedDtend } : {}),
   };

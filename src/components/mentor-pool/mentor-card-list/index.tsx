@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useRef } from 'react';
 
-import type { ActiveFilterBadge } from '@/app/mentor-pool/searchParams';
-import { MentorType } from '@/types/mentor';
+import type { ActiveFilterBadge } from '@/lib/mentor/mentorPoolQuery';
+import type { MentorType } from '@/types/mentor';
 
 import { MentorCard } from '../mentor-card';
 
@@ -9,52 +9,44 @@ interface MentorCardListProps {
   mentors: MentorType[];
   onScrollToBottom: () => Promise<void>;
   activeFilterBadges?: ActiveFilterBadge[];
+  labelMap?: ReadonlyMap<string, string>;
 }
 
-export function buildMentorCardTags(
-  mentor: Pick<MentorType, 'have_topic' | 'have_skill'>,
-  prioritizedLabels?: ReadonlySet<string>
-): string[] {
-  const combined = Array.from(
-    new Set([...(mentor.have_topic ?? []), ...(mentor.have_skill ?? [])])
-  ).filter(Boolean);
-
-  if (!prioritizedLabels || prioritizedLabels.size === 0) {
-    return combined;
-  }
-
-  const matched: string[] = [];
-  const rest: string[] = [];
-  for (const tag of combined) {
-    if (prioritizedLabels.has(tag)) {
-      matched.push(tag);
-    } else {
-      rest.push(tag);
-    }
-  }
-  return [...matched, ...rest];
-}
+const EMPTY_PRIORITIZED_CODES: ReadonlySet<string> = new Set();
 
 const MentorCardListBase = ({
   mentors,
   onScrollToBottom,
   activeFilterBadges,
+  labelMap,
 }: MentorCardListProps) => {
   const observer = useRef<IntersectionObserver | null>(null);
   const lastCardRef = useRef<HTMLElement | null>(null);
   const onScrollToBottomRef = useRef(onScrollToBottom);
   onScrollToBottomRef.current = onScrollToBottom;
 
-  const prioritizedLabels = useMemo(() => {
-    const set = new Set<string>();
-    for (const badge of activeFilterBadges ?? []) {
-      if (badge.key === 'filter_topics' || badge.key === 'filter_skills') {
-        if (badge.label) set.add(badge.label);
-        if (badge.value) set.add(badge.value);
-      }
-    }
-    return set;
-  }, [activeFilterBadges]);
+  const prioritizedCodesKey = (activeFilterBadges ?? [])
+    .filter(
+      (badge) =>
+        (badge.key === 'filter_topics' || badge.key === 'filter_skills') &&
+        Boolean(badge.value)
+    )
+    .flatMap((badge) =>
+      badge.value
+        .split(',')
+        .map((token) => token.trim())
+        .filter(Boolean)
+    )
+    .sort()
+    .join(',');
+
+  const prioritizedCodes = useMemo<ReadonlySet<string>>(
+    () =>
+      prioritizedCodesKey
+        ? new Set(prioritizedCodesKey.split(','))
+        : EMPTY_PRIORITIZED_CODES,
+    [prioritizedCodesKey]
+  );
 
   const lastMentorId = mentors.at(-1)?.user_id;
 
@@ -91,14 +83,9 @@ const MentorCardListBase = ({
           <MentorCard
             ref={index === mentors.length - 1 ? lastCardRef : null}
             key={mentor.user_id}
-            id={mentor.user_id}
-            avatar={mentor.avatar}
-            years={mentor.years_of_experience}
-            name={mentor.name}
-            job_title={mentor.job_title}
-            company={mentor.company}
-            about={mentor.about}
-            haveTopicLabels={buildMentorCardTags(mentor, prioritizedLabels)}
+            mentor={mentor}
+            prioritizedCodes={prioritizedCodes}
+            labelMap={labelMap}
             priority={index === 0}
           />
         ))}

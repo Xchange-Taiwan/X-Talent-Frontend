@@ -6,8 +6,14 @@ import { trackEvent } from '@/lib/analytics';
 import {
   acceptReservation,
   rejectOrCancelReservation,
+  submitReservationFeedback,
+  updateReservationFeedback,
 } from '@/services/reservations';
 import { Reservation } from '@/types/reservation';
+import type {
+  SubmitReservationFeedbackRequest,
+  UpdateReservationFeedbackRequest,
+} from '@/types/reservationFeedback';
 
 export type Variant =
   'upcoming' | 'pending-mentee' | 'pending-mentor' | 'history';
@@ -28,6 +34,14 @@ interface UseReservationActionsReturn {
     reservation: Reservation,
     text: string,
     action: 'reject' | 'cancel'
+  ) => Promise<void>;
+  submitFeedback: (
+    reservation: Reservation,
+    payload: SubmitReservationFeedbackRequest
+  ) => Promise<void>;
+  updateFeedback: (
+    reservation: Reservation,
+    payload: UpdateReservationFeedbackRequest
   ) => Promise<void>;
   isMutating: boolean;
 }
@@ -78,7 +92,13 @@ export function useReservationActions({
           myUserId,
           myRole,
         });
-        trackEvent({ name: 'reservation_rejected', feature: 'reservation' });
+        trackEvent({
+          name:
+            action === 'reject'
+              ? 'reservation_rejected'
+              : 'reservation_cancelled',
+          feature: 'reservation',
+        });
         const successMessage =
           action === 'reject' ? '已拒絕預約' : '已取消預約';
         toast({ description: successMessage });
@@ -88,9 +108,56 @@ export function useReservationActions({
     [run, myUserId, myRole, toast, onMutationSuccess]
   );
 
+  const submitFeedback = useCallback(
+    async (
+      reservation: Reservation,
+      payload: SubmitReservationFeedbackRequest
+    ) => {
+      await run(async () => {
+        await submitReservationFeedback({
+          reservation,
+          myUserId,
+          myRole,
+          payload,
+        });
+        trackEvent({
+          name: 'reservation_feedback_submitted',
+          feature: 'reservation',
+          metadata: { meeting_happened: payload.meeting_happened },
+        });
+        await onMutationSuccess?.(reservation.id);
+      });
+    },
+    [run, myUserId, myRole, onMutationSuccess]
+  );
+
+  const updateFeedback = useCallback(
+    async (
+      reservation: Reservation,
+      payload: UpdateReservationFeedbackRequest
+    ) => {
+      await run(async () => {
+        await updateReservationFeedback({
+          reservation,
+          myUserId,
+          myRole,
+          payload,
+        });
+        trackEvent({
+          name: 'reservation_feedback_updated',
+          feature: 'reservation',
+        });
+        await onMutationSuccess?.(reservation.id);
+      });
+    },
+    [run, myUserId, myRole, onMutationSuccess]
+  );
+
   return {
     accept,
     rejectOrCancel,
+    submitFeedback,
+    updateFeedback,
     isMutating,
   };
 }

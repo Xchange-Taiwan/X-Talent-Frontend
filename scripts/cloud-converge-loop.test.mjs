@@ -1,14 +1,26 @@
 // @vitest-environment node
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  applyPhase2HeadlessWorkspaceLocks,
   buildRoundFixPrompt,
   clampMaxRounds,
+  createSnapshotRestorer,
+  createSnapshotSaver,
   detectChangedE2eSpecs,
+  ensurePhase2GeminiToolExclusions,
   evaluateRoundConvergence,
   extractJsonObject,
   formatConvergenceSummaryMarkdown,
+  isFrontendApplicableCriterion,
+  normalizeErrorSignatures,
   parseConvergeArgs,
+  resolveConvergeExitCode,
   runConvergeLoop,
 } from './cloud-converge-loop.mjs';
 
@@ -25,15 +37,17 @@ describe('cloud-converge-loop', () => {
     it('parses CLI flags and environment variables accurately', () => {
       const parsed = parseConvergeArgs(
         ['--max-rounds=15', '--ticket=#822', '--run-e2e=true'],
-        { GEMINI_MODEL: 'gemini-4-argon' }
+        { GEMINI_MODEL: 'gemini-4-carbon' }
       );
       expect(parsed).toEqual({
         maxRounds: 15,
         ticketNumber: '822',
         runE2e: true,
+        runAiReview: true,
+        requireUiEvidence: false,
         baseRef: 'origin/develop',
         summaryOut: '.agents/tmp/cloud-converge-summary.md',
-        geminiModel: 'gemini-4-argon',
+        geminiModel: 'gemini-4-carbon',
       });
     });
 
@@ -177,6 +191,102 @@ describe('cloud-converge-loop', () => {
       expect(evalRes.converged).toBe(false);
       expect(evalRes.totalFindings).toBe(1);
       expect(evalRes.uncoveredCriteria).toHaveLength(1);
+    });
+
+    it('exempts out_of_repo / backend acceptance criteria (#733 & #734 email/cron rules) while still enforcing frontend routing criteria', () => {
+      expect(
+        isFrontendApplicableCriterion({
+          criterion: '會談結束後 15 分鐘內，mentee 收到站內通知與 email',
+          scope: 'out_of_repo',
+          covered: false,
+        })
+      ).toBe(false);
+
+      // Even if LLM omitted scope, pure backend email/cron/dedup ACs are auto-exempted
+      expect(
+        isFrontendApplicableCriterion({
+          criterion: '會談結束後 15 分鐘內，mentee 收到站內通知與 email',
+          covered: false,
+        })
+      ).toBe(false);
+      expect(
+        isFrontendApplicableCriterion({
+          criterion: 'Mentee 第一次送出回饋後，mentor 立即收到站內通知與 email',
+          covered: false,
+        })
+      ).toBe(false);
+      expect(
+        isFrontendApplicableCriterion({
+          criterion: '同一場只會收到一次；已填寫、已取消的預約不會收到',
+          covered: false,
+        })
+      ).toBe(false);
+      expect(
+        isFrontendApplicableCriterion({
+          criterion: '編輯不會再通知 mentor',
+          covered: false,
+        })
+      ).toBe(false);
+      expect(
+        isFrontendApplicableCriterion({
+          criterion: '通知發送失敗時，回饋仍正常儲存',
+          covered: false,
+        })
+      ).toBe(false);
+
+      // Mixed or frontend ACs touching click/route/page/modal/login redirect MUST remain enforced!
+      expect(
+        isFrontendApplicableCriterion({
+          criterion:
+            '點擊通知或 email 連結，會到歷史紀錄頁並自動開啟該場的回饋彈窗／回答入口',
+          covered: false,
+        })
+      ).toBe(true);
+      expect(
+        isFrontendApplicableCriterion({
+          criterion: '未登入時點擊連結，登入後回到該場',
+          covered: false,
+        })
+      ).toBe(true);
+      expect(
+        isFrontendApplicableCriterion({
+          criterion: '點擊通知或 email 連結，會到 mentor 歷史紀錄的該場卡片',
+          covered: false,
+        })
+      ).toBe(true);
+
+      // Convergence passes when all frontend ACs are covered and only backend ACs are uncovered
+      const evalMixedCovered = evaluateRoundConvergence({
+        deterministicPassed: true,
+        e2ePassed: true,
+        reviewResult: {
+          overallRisk: { level: 'low', reason: 'Frontend slice complete' },
+          requirementCoverage: [
+            {
+              criterion:
+                '點擊通知或 email 連結，會到歷史紀錄頁並自動開啟該場的回饋彈窗／回答入口',
+              scope: 'frontend',
+              covered: true,
+            },
+            {
+              criterion: '會談結束後 15 分鐘內，mentee 收到站內通知與 email',
+              scope: 'out_of_repo',
+              covered: false,
+              note: '屬後端排程寄信範圍',
+            },
+            {
+              criterion:
+                'Mentee 第一次送出回饋後，mentor 立即收到站內通知與 email',
+              covered: false,
+              note: '後端負責寄送通知信',
+            },
+          ],
+          findings: {},
+        },
+      });
+      expect(evalMixedCovered.converged).toBe(true);
+      expect(evalMixedCovered.uncoveredCriteria).toHaveLength(0);
+      expect(evalMixedCovered.exemptedCriteria).toHaveLength(2);
     });
   });
 
@@ -402,6 +512,1145 @@ describe('cloud-converge-loop', () => {
       });
       expect(md).toContain('Stall Guard');
       expect(md).toContain('src/sec.ts:1');
+    });
+
+    it('enforces UI Evidence Gate when requireUiEvidence=true and UI components changed without screenshots', async () => {
+      let currentEvidence = [];
+      let fixCalled = false;
+
+      const execStep = vi.fn((cmd, args) => {
+        if (cmd === 'git' && args[0] === 'diff') {
+          return {
+            ok: true,
+            stdout:
+              'src/components/layout/Header/NotificationBell.tsx\ne2e/tests/notification/notification-center.spec.ts\n',
+            stderr: '',
+          };
+        }
+        if (cmd === 'npx' && args[0] === 'gemini') {
+          fixCalled = true;
+          currentEvidence = ['desktop-notification-popover-open.png'];
+          return { ok: true, stdout: '', stderr: '' };
+        }
+        if (cmd === 'node' && args[0]?.includes('run-local.mjs')) {
+          return {
+            ok: true,
+            stdout: JSON.stringify({
+              overallRisk: { level: 'low', reason: 'Clean' },
+              requirementCoverage: [],
+              findings: {},
+            }),
+          };
+        }
+        return { ok: true, stdout: '', stderr: '' };
+      });
+
+      const res = await runConvergeLoop(
+        {
+          maxRounds: 5,
+          ticketNumber: '858',
+          runE2e: true,
+          requireUiEvidence: true,
+        },
+        {
+          execStep,
+          writeFile: () => {},
+          log: () => {},
+          clearEvidence: () => {},
+          listEvidence: () => currentEvidence,
+        }
+      );
+
+      expect(fixCalled).toBe(true);
+      expect(res.converged).toBe(true);
+      expect(res.roundsRun).toBe(2);
+    });
+
+    it('converges immediately when overallRisk is low and all tests/E2E/ACs pass even with minor advisory notes', () => {
+      const evalRes = evaluateRoundConvergence({
+        deterministicPassed: true,
+        e2ePassed: true,
+        reviewResult: {
+          overallRisk: { level: 'low', reason: 'Minor advisory style note' },
+          requirementCoverage: [{ criterion: 'AC 1', covered: true }],
+          findings: {
+            architecture: [
+              {
+                file: 'src/ui.tsx',
+                line: 20,
+                issue: 'Optional helper extraction',
+                why: 'Readability',
+                fix: 'Extract helper if desired',
+              },
+            ],
+          },
+        },
+      });
+      expect(evalRes.converged).toBe(true);
+    });
+
+    it('fast-fails static type-check errors without running full unit suite, and restores snapshot on Gemini timeout', async () => {
+      let roundNum = 0;
+      const restored = [];
+      const calls = [];
+
+      const execStep = vi.fn((cmd, args) => {
+        calls.push(`${cmd}:${args[0]}`);
+        if (cmd === 'git' && args[0] === 'diff') {
+          return { ok: true, stdout: 'src/foo.ts\n', stderr: '' };
+        }
+        if (cmd === 'pnpm' && args[0] === 'type-check') {
+          roundNum += 1;
+          if (roundNum <= 2) {
+            return {
+              ok: false,
+              stderr: 'TS2322: Type error',
+              combined: 'TS2322',
+            };
+          }
+          return { ok: true, stdout: '', stderr: '' };
+        }
+        if (cmd === 'npx' && args[0] === 'gemini') {
+          if (roundNum <= 2) {
+            return { ok: false, timedOut: true, stderr: 'Command timed out' };
+          }
+          return { ok: true, stdout: '', stderr: '' };
+        }
+        if (cmd === 'node' && args[0]?.includes('run-local.mjs')) {
+          return {
+            ok: true,
+            stdout: JSON.stringify({
+              overallRisk: { level: 'low', reason: 'Clean' },
+              requirementCoverage: [],
+              findings: {},
+            }),
+          };
+        }
+        return { ok: true, stdout: '', stderr: '' };
+      });
+
+      const res = await runConvergeLoop(
+        { maxRounds: 5, ticketNumber: '736', runE2e: false },
+        {
+          execStep,
+          writeFile: () => {},
+          log: () => {},
+          saveSnapshot: () => 'deadbeef1234',
+          restoreSnapshot: (sha) => restored.push(sha),
+          fileExists: () => true,
+        }
+      );
+
+      expect(restored).toEqual(['deadbeef1234']);
+      expect(res.converged).toBe(true);
+      expect(res.roundsRun).toBe(2);
+      // Round 2 used fast `npx:vitest` related check and then ran final `pnpm:test` gate once!
+      expect(calls).toContain('npx:vitest');
+      expect(calls.filter((c) => c === 'pnpm:test')).toHaveLength(1);
+    });
+
+    it('does NOT prematurely trigger Stall Guard on Round 2 when Round 1 fails lint and Round 2 fails vitest', async () => {
+      let roundNum = 0;
+
+      const execStep = vi.fn((cmd, args) => {
+        if (cmd === 'git' && args[0] === 'diff') {
+          return { ok: true, stdout: 'src/lib/analytics.ts\n', stderr: '' };
+        }
+        if (cmd === 'pnpm' && args[0] === 'lint') {
+          roundNum += 1;
+          if (roundNum === 1) {
+            return {
+              ok: false,
+              stderr: 'src/lib/analytics.ts:10:5 error Unused var',
+              combined: 'src/lib/analytics.ts:10:5 error Unused var',
+            };
+          }
+          return { ok: true, stdout: '', stderr: '' };
+        }
+        if (cmd === 'npx' && args[0] === 'vitest') {
+          if (roundNum === 2) {
+            return {
+              ok: false,
+              stderr:
+                'AssertionError: expected 1 to be 2 at src/lib/analytics.test.ts:30:5',
+              combined:
+                'AssertionError: expected 1 to be 2 at src/lib/analytics.test.ts:30:5',
+            };
+          }
+          return { ok: true, stdout: '', stderr: '' };
+        }
+        if (cmd === 'node' && args[0]?.includes('run-local.mjs')) {
+          return {
+            ok: true,
+            stdout: JSON.stringify({
+              overallRisk: { level: 'low', reason: 'Clean' },
+              requirementCoverage: [],
+              findings: {},
+            }),
+          };
+        }
+        return { ok: true, stdout: '', stderr: '' };
+      });
+
+      const res = await runConvergeLoop(
+        { maxRounds: 10, ticketNumber: '865', runE2e: false },
+        {
+          execStep,
+          writeFile: () => {},
+          log: () => {},
+          fileExists: () => true,
+        }
+      );
+
+      expect(
+        normalizeErrorSignatures(['\u001b[31mError in 42ms\u001b[39m'])
+      ).toEqual(['Error in <time>']);
+      expect(res.stalled).toBe(false);
+      expect(res.converged).toBe(true);
+      expect(res.roundsRun).toBe(3);
+    });
+    it('allows 2 fix retries (stallThreshold = 3) before triggering Stall Guard when identical test/E2E errors repeat with varying timestamps', async () => {
+      let roundIdx = 0;
+      const execStep = vi.fn((cmd, args) => {
+        if (cmd === 'git' && args[0] === 'diff') {
+          return { ok: true, stdout: 'src/lib/analytics.ts\n', stderr: '' };
+        }
+        if (cmd === 'npx' && args[0] === 'vitest') {
+          roundIdx += 1;
+          const ts = `2026-11-12T01:0${roundIdx}:00.123Z`;
+          const dur = `${roundIdx * 35}ms`;
+          const out = `${ts}\nAssertionError: expected 1 to be 2 at src/lib/analytics.test.ts:30:5\nDuration ${dur}`;
+          return { ok: false, stderr: out, combined: out };
+        }
+        return { ok: true, stdout: '', stderr: '' };
+      });
+
+      const res = await runConvergeLoop(
+        { maxRounds: 10, ticketNumber: '865', runE2e: false },
+        {
+          execStep,
+          writeFile: () => {},
+          log: () => {},
+          fileExists: () => true,
+        }
+      );
+
+      expect(
+        normalizeErrorSignatures([
+          '2026-11-12T01:01:00.123Z\nPlain custom failure text in 1.5s',
+        ])
+      ).toEqual(['Plain custom failure text in <time>']);
+      expect(res.converged).toBe(false);
+      expect(res.stalled).toBe(true);
+      expect(res.roundsRun).toBe(3);
+    });
+
+    it('excludes run_shell_command in Phase 2 settings and exits cleanly on soft wall-clock budget so Phase 3 can open PR', async () => {
+      let savedJson = '';
+      const updated = ensurePhase2GeminiToolExclusions(
+        '.gemini/settings.json',
+        {
+          existsSync: () => true,
+          readFileSync: () =>
+            JSON.stringify({
+              model: { name: 'gemini-4-carbon' },
+              tools: { exclude: ['web_fetch'] },
+            }),
+          writeFileSync: (_p, content) => {
+            savedJson = content;
+          },
+        }
+      );
+      expect(updated).toBe(true);
+      expect(JSON.parse(savedJson).tools.exclude).toEqual([
+        'web_fetch',
+        'run_shell_command',
+        'google_web_search',
+      ]);
+
+      let clockMs = 1000;
+      let geminiInvocations = 0;
+      const execStep = vi.fn((cmd, args) => {
+        if (cmd === 'git' && args[0] === 'diff') {
+          return { ok: true, stdout: 'src/a.ts\n', stderr: '' };
+        }
+        if (cmd === 'pnpm' && args[0] === 'lint') {
+          clockMs += 40 * 60 * 1000;
+          return {
+            ok: false,
+            stderr: `lint error at ${clockMs}`,
+            combined: `lint error at ${clockMs}`,
+          };
+        }
+        if (cmd === 'npx' && args[0] === 'gemini') {
+          geminiInvocations += 1;
+        }
+        return { ok: true, stdout: '', stderr: '' };
+      });
+
+      const res = await runConvergeLoop(
+        {
+          maxRounds: 20,
+          ticketNumber: '733',
+          runE2e: false,
+          maxDurationMs: 70 * 60 * 1000,
+        },
+        {
+          execStep,
+          writeFile: () => {},
+          log: () => {},
+          fileExists: () => true,
+          now: () => clockMs,
+        }
+      );
+
+      expect(geminiInvocations).toBe(1);
+      expect(res.converged).toBe(false);
+      expect(res.stalled).toBe(false);
+      expect(res.roundsRun).toBe(2);
+    });
+    it('defensively handles missing, null, malformed, and tool-less settings.json files and CONVERGE_MAX_DURATION_MS fallbacks', async () => {
+      expect(
+        ensurePhase2GeminiToolExclusions('missing.json', {
+          existsSync: () => false,
+        })
+      ).toBe(false);
+      expect(
+        ensurePhase2GeminiToolExclusions('null.json', {
+          existsSync: () => true,
+          readFileSync: () => 'null',
+        })
+      ).toBe(false);
+      expect(
+        ensurePhase2GeminiToolExclusions('bad.json', {
+          existsSync: () => true,
+          readFileSync: () => '{broken',
+        })
+      ).toBe(false);
+
+      let written = '';
+      expect(
+        ensurePhase2GeminiToolExclusions('bare.json', {
+          existsSync: () => true,
+          readFileSync: () =>
+            JSON.stringify({
+              model: { name: 'gemini-4-carbon' },
+              mcpServers: { genable: {} },
+              hooks: { AfterAgent: [] },
+            }),
+          writeFileSync: (_p, c) => {
+            written = c;
+          },
+        })
+      ).toBe(true);
+      const parsedBare = JSON.parse(written);
+      expect(parsedBare.mcpServers).toBeUndefined();
+      expect(parsedBare.hooks).toBeUndefined();
+      expect(parsedBare.tools.exclude).toEqual([
+        'run_shell_command',
+        'web_fetch',
+        'google_web_search',
+      ]);
+      expect(parsedBare.fileFiltering.respectGitIgnore).toBe(true);
+
+      // Verify CONVERGE_MAX_DURATION_MS env parsing & invalid fallback
+      const prevEnv = process.env.CONVERGE_MAX_DURATION_MS;
+      try {
+        process.env.CONVERGE_MAX_DURATION_MS = '120000';
+        let clock = 0;
+        const resEnv = await runConvergeLoop(
+          { maxRounds: 10, ticketNumber: '733', runE2e: false },
+          {
+            execStep: (cmd, args) => {
+              if (cmd === 'git' && args[0] === 'diff') {
+                return { ok: true, stdout: 'src/a.ts\n', stderr: '' };
+              }
+              if (cmd === 'pnpm' && args[0] === 'lint') {
+                clock += 130000;
+                return {
+                  ok: false,
+                  stderr: `err ${clock}`,
+                  combined: `err ${clock}`,
+                };
+              }
+              return { ok: true, stdout: '', stderr: '' };
+            },
+            writeFile: () => {},
+            log: () => {},
+            fileExists: () => true,
+            now: () => clock,
+          }
+        );
+        expect(resEnv.roundsRun).toBe(1);
+
+        for (const invalidVal of ['0', '-5', 'invalid']) {
+          process.env.CONVERGE_MAX_DURATION_MS = invalidVal;
+          let fallbackClock = 0;
+          const resFallback = await runConvergeLoop(
+            { maxRounds: 10, ticketNumber: '733', runE2e: false },
+            {
+              execStep: (cmd, args) => {
+                if (cmd === 'git' && args[0] === 'diff') {
+                  return { ok: true, stdout: 'src/a.ts\n', stderr: '' };
+                }
+                if (cmd === 'pnpm' && args[0] === 'lint') {
+                  fallbackClock += 40 * 60 * 1000;
+                  return {
+                    ok: false,
+                    stderr: `err ${fallbackClock}`,
+                    combined: `err ${fallbackClock}`,
+                  };
+                }
+                return { ok: true, stdout: '', stderr: '' };
+              },
+              writeFile: () => {},
+              log: () => {},
+              fileExists: () => true,
+              now: () => fallbackClock,
+            }
+          );
+          expect(resFallback.roundsRun).toBe(2);
+        }
+      } finally {
+        if (prevEnv === undefined) {
+          delete process.env.CONVERGE_MAX_DURATION_MS;
+        } else {
+          process.env.CONVERGE_MAX_DURATION_MS = prevEnv;
+        }
+      }
+    });
+
+    it('preserves Phase 2 tool exclusions and --skip-worktree across real Git snapshot rollbacks', () => {
+      const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'converge-snap-'));
+      try {
+        try {
+          execFileSync('git', ['init'], { cwd: tmpRepo, stdio: 'ignore' });
+        } catch {
+          // Restricted local Windows sandbox blocks git.exe mkdir; covered by Linux CI & mocked unit test below
+          return;
+        }
+        execFileSync('git', ['config', 'user.email', 'test@example.com'], {
+          cwd: tmpRepo,
+          stdio: 'ignore',
+        });
+        execFileSync('git', ['config', 'user.name', 'Test'], {
+          cwd: tmpRepo,
+          stdio: 'ignore',
+        });
+        execFileSync('git', ['config', 'core.autocrlf', 'false'], {
+          cwd: tmpRepo,
+          stdio: 'ignore',
+        });
+
+        fs.mkdirSync(path.join(tmpRepo, '.gemini'), { recursive: true });
+        fs.mkdirSync(path.join(tmpRepo, 'src'), { recursive: true });
+        fs.writeFileSync(
+          path.join(tmpRepo, '.gitignore'),
+          'node_modules/\n/.agents/tmp/\n',
+          'utf8'
+        );
+        fs.writeFileSync(
+          path.join(tmpRepo, '.gemini', 'settings.json'),
+          JSON.stringify({
+            model: { name: 'gemini-4-carbon' },
+            mcpServers: { genable: { command: 'npx' } },
+          }),
+          'utf8'
+        );
+        fs.writeFileSync(
+          path.join(tmpRepo, 'src', 'app.ts'),
+          'export const x = 1;\n',
+          'utf8'
+        );
+
+        execFileSync('git', ['add', '-A'], { cwd: tmpRepo, stdio: 'ignore' });
+        execFileSync('git', ['commit', '-m', 'init'], {
+          cwd: tmpRepo,
+          stdio: 'ignore',
+        });
+
+        applyPhase2HeadlessWorkspaceLocks({ cwd: tmpRepo });
+
+        const treeSha = execFileSync('git', ['write-tree'], {
+          cwd: tmpRepo,
+          encoding: 'utf8',
+        }).trim();
+
+        // Simulate broken timed-out edits to tracked HEAD file + untracked file
+        fs.writeFileSync(
+          path.join(tmpRepo, 'src', 'app.ts'),
+          'BROKEN SYNTAX {{{',
+          'utf8'
+        );
+        fs.writeFileSync(
+          path.join(tmpRepo, 'src', 'stray.ts'),
+          'broken',
+          'utf8'
+        );
+
+        const restore = createSnapshotRestorer({ cwd: tmpRepo });
+        restore(treeSha);
+
+        expect(
+          fs.readFileSync(path.join(tmpRepo, 'src', 'app.ts'), 'utf8')
+        ).toBe('export const x = 1;\n');
+        expect(fs.existsSync(path.join(tmpRepo, 'src', 'stray.ts'))).toBe(
+          false
+        );
+
+        const restoredSettings = JSON.parse(
+          fs.readFileSync(
+            path.join(tmpRepo, '.gemini', 'settings.json'),
+            'utf8'
+          )
+        );
+        expect(restoredSettings.mcpServers).toBeUndefined();
+        expect(restoredSettings.tools.exclude).toEqual([
+          'run_shell_command',
+          'web_fetch',
+          'google_web_search',
+        ]);
+        expect(
+          fs.readFileSync(path.join(tmpRepo, '.gitignore'), 'utf8')
+        ).not.toContain('/.agents/tmp/');
+
+        const statusOut = execFileSync('git', ['status', '--porcelain'], {
+          cwd: tmpRepo,
+          encoding: 'utf8',
+        }).trim();
+        expect(statusOut).toBe('');
+      } finally {
+        fs.rmSync(tmpRepo, { recursive: true, force: true });
+      }
+    });
+
+    it('supports fast 0-AI-Review funnel mode (--run-ai-review=false) converging immediately once lint, tests, and E2E pass', async () => {
+      const parsedFast = parseConvergeArgs(
+        [
+          '--max-rounds=3',
+          '--ticket=740',
+          '--run-e2e=true',
+          '--run-ai-review=false',
+        ],
+        {}
+      );
+      expect(parsedFast.runAiReview).toBe(false);
+      expect(parsedFast.maxRounds).toBe(3);
+
+      const calls = [];
+      const execStep = vi.fn((cmd, args) => {
+        calls.push(`${cmd} ${args.join(' ')}`);
+        if (cmd === 'git' && args[0] === 'diff') {
+          return {
+            ok: true,
+            stdout: 'src/components/Foo.tsx\ne2e/tests/public/foo.spec.ts\n',
+            stderr: '',
+          };
+        }
+        return { ok: true, stdout: '', stderr: '' };
+      });
+
+      const res = await runConvergeLoop(
+        {
+          maxRounds: 3,
+          ticketNumber: '740',
+          runE2e: true,
+          runAiReview: false,
+          requireUiEvidence: true,
+        },
+        {
+          execStep,
+          writeFile: () => {},
+          log: () => {},
+          fileExists: () => true,
+          clearEvidence: () => {},
+          listEvidence: () => ['0-desktop-foo.png'],
+        }
+      );
+
+      expect(res.converged).toBe(true);
+      expect(res.roundsRun).toBe(1);
+      expect(calls.some((c) => c.includes('run-local.mjs'))).toBe(false);
+      expect(calls.some((c) => c.includes('pnpm test'))).toBe(true);
+    });
+
+    it('fails closed when run-local.mjs crashes or returns fallback-ci, and restores best passing snapshot if a later round regresses', async () => {
+      let roundNum = 0;
+      const restoredShas = [];
+      const execStep = vi.fn((cmd, args) => {
+        if (cmd === 'git' && args[0] === 'diff') {
+          roundNum += 1;
+          return { ok: true, stdout: 'src/a.ts\n', stderr: '' };
+        }
+        if (cmd === 'pnpm' && args[0] === 'type-check') {
+          // Round 1 compiles cleanly; Round 2 breaks compilation!
+          return roundNum === 1
+            ? { ok: true, stdout: '', stderr: '' }
+            : {
+                ok: false,
+                stderr: 'TS2322 broken in round 2',
+                combined: 'TS2322 broken in round 2',
+              };
+        }
+        if (cmd === 'node' && String(args[0]).includes('run-local.mjs')) {
+          // Simulate silent API failure returning fallback-ci (must NOT falsely converge!)
+          return {
+            ok: true,
+            stdout: JSON.stringify({
+              mode: 'fallback-ci',
+              overallRisk: { level: 'low', reason: 'Deferred' },
+              requirementCoverage: [],
+              findings: {},
+            }),
+            stderr: '',
+          };
+        }
+        return { ok: true, stdout: '', stderr: '' };
+      });
+
+      const res = await runConvergeLoop(
+        { maxRounds: 2, ticketNumber: '740', runE2e: false, runAiReview: true },
+        {
+          execStep,
+          writeFile: () => {},
+          log: () => {},
+          fileExists: () => true,
+          saveSnapshot: () => `tree-round-${roundNum}`,
+          restoreSnapshot: (sha) => restoredShas.push(sha),
+        }
+      );
+
+      expect(res.converged).toBe(false);
+      expect(res.roundsRun).toBe(2);
+      expect(restoredShas).toContain('tree-round-1');
+      expect(res.evaluation.deterministicPassed).toBe(true);
+      expect(resolveConvergeExitCode(res)).toBe(0);
+    });
+
+    it('preserves Phase 2 working-tree locks (.gitignore and .gemini/settings.json) when createSnapshotSaver runs', () => {
+      const tmpRepo = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'converge-real-snap-')
+      );
+      try {
+        fs.mkdirSync(path.join(tmpRepo, '.gemini'), { recursive: true });
+        fs.writeFileSync(
+          path.join(tmpRepo, '.gitignore'),
+          'node_modules/\n/.agents/tmp/\n',
+          'utf8'
+        );
+        fs.writeFileSync(
+          path.join(tmpRepo, '.gemini', 'settings.json'),
+          JSON.stringify({ model: { name: 'gemini-4-carbon' } }),
+          'utf8'
+        );
+
+        const gitCmds = [];
+        const mockExecGit = vi.fn((_bin, args) => {
+          gitCmds.push(args.join(' '));
+          if (args[0] === 'diff' && args[1] === '--cached') {
+            return '.env.development.local\n.env.example\nsrc/app.tsx\n';
+          }
+          if (args[0] === 'write-tree') return 'deadbeef1234\n';
+          return '';
+        });
+
+        applyPhase2HeadlessWorkspaceLocks({
+          cwd: tmpRepo,
+          execGit: mockExecGit,
+        });
+        const save = createSnapshotSaver({
+          cwd: tmpRepo,
+          execGit: mockExecGit,
+        });
+        const sha = save();
+
+        expect(sha).toBe('deadbeef1234');
+        expect(gitCmds.some((c) => c.startsWith('checkout '))).toBe(false);
+        expect(gitCmds).toContain('reset -- .env.development.local');
+        expect(gitCmds).not.toContain('reset -- .env.example');
+        expect(gitCmds).toContain('reset -- .gitignore');
+        expect(gitCmds).toContain('reset -- .gemini/settings.json');
+
+        const gitignoreAfter = fs.readFileSync(
+          path.join(tmpRepo, '.gitignore'),
+          'utf8'
+        );
+        const settingsAfter = JSON.parse(
+          fs.readFileSync(
+            path.join(tmpRepo, '.gemini', 'settings.json'),
+            'utf8'
+          )
+        );
+        expect(gitignoreAfter).not.toContain('/.agents/tmp/');
+        expect(settingsAfter.context.fileFiltering.respectGitIgnore).toBe(true);
+        expect(settingsAfter.tools.exclude).toContain('run_shell_command');
+      } finally {
+        fs.rmSync(tmpRepo, { recursive: true, force: true });
+      }
+    });
+
+    it('exits non-zero when unconverged due to failing tests or E2E, preventing broken PRs', () => {
+      expect(resolveConvergeExitCode({ converged: true })).toBe(0);
+      expect(
+        resolveConvergeExitCode({
+          converged: false,
+          evaluation: { deterministicPassed: false, e2ePassed: true },
+        })
+      ).toBe(1);
+      expect(
+        resolveConvergeExitCode({
+          converged: false,
+          evaluation: { deterministicPassed: true, e2ePassed: false },
+        })
+      ).toBe(1);
+      expect(
+        resolveConvergeExitCode({
+          converged: false,
+          evaluation: { deterministicPassed: true, e2ePassed: true },
+        })
+      ).toBe(0);
+    });
+
+    it('restores bestEvaluation on non-UI diffs with requireUiEvidence', async () => {
+      let roundNum = 0;
+      const execStep = vi.fn((cmd, args) => {
+        if (cmd === 'git' && args[0] === 'diff') {
+          roundNum += 1;
+          return { ok: true, stdout: 'src/lib/apiClient.ts\n', stderr: '' };
+        }
+        if (cmd === 'pnpm' && args[0] === 'type-check') {
+          return roundNum === 1
+            ? { ok: true, stdout: '', stderr: '' }
+            : { ok: false, stderr: 'TS error', combined: 'TS error' };
+        }
+        if (cmd === 'node' && String(args[0]).includes('run-local.mjs')) {
+          return {
+            ok: true,
+            stdout: JSON.stringify({
+              mode: 'fallback-ci',
+              overallRisk: { level: 'low', reason: 'Deferred' },
+              requirementCoverage: [],
+              findings: {},
+            }),
+            stderr: '',
+          };
+        }
+        return { ok: true, stdout: '', stderr: '' };
+      });
+
+      const res = await runConvergeLoop(
+        {
+          maxRounds: 2,
+          ticketNumber: '874',
+          runE2e: true,
+          runAiReview: true,
+          requireUiEvidence: true,
+        },
+        {
+          execStep,
+          writeFile: () => {},
+          log: () => {},
+          fileExists: () => true,
+          clearEvidence: () => {},
+          listEvidence: () => [],
+          saveSnapshot: () => `snap-${roundNum}`,
+          restoreSnapshot: () => {},
+        }
+      );
+
+      expect(res.evaluation.deterministicPassed).toBe(true);
+      expect(res.evaluation.e2ePassed).toBe(true);
+      expect(resolveConvergeExitCode(res)).toBe(0);
+    });
+
+    it('fails closed when Round 2 clears UI evidence and E2E fails', async () => {
+      let roundNum = 0;
+      let shots = ['round1-shot.png'];
+      const execStep = vi.fn((cmd, args) => {
+        if (cmd === 'git' && args[0] === 'diff') {
+          roundNum += 1;
+          return {
+            ok: true,
+            stdout: 'src/components/Foo.tsx\ne2e/tests/public/foo.spec.ts\n',
+            stderr: '',
+          };
+        }
+        if (cmd === 'pnpm' && args[0] === 'test:e2e:mock') {
+          return roundNum === 1
+            ? { ok: true, stdout: '', stderr: '' }
+            : { ok: false, stderr: 'E2E fail', combined: 'E2E fail' };
+        }
+        if (cmd === 'node' && String(args[0]).includes('run-local.mjs')) {
+          return {
+            ok: true,
+            stdout: JSON.stringify({
+              mode: 'fallback-ci',
+              overallRisk: { level: 'low', reason: 'Deferred' },
+              requirementCoverage: [],
+              findings: {},
+            }),
+            stderr: '',
+          };
+        }
+        return { ok: true, stdout: '', stderr: '' };
+      });
+
+      const res = await runConvergeLoop(
+        {
+          maxRounds: 2,
+          ticketNumber: '875',
+          runE2e: true,
+          runAiReview: true,
+          requireUiEvidence: true,
+        },
+        {
+          execStep,
+          writeFile: () => {},
+          log: () => {},
+          fileExists: () => true,
+          clearEvidence: () => {
+            if (roundNum >= 2) shots = [];
+          },
+          listEvidence: () => shots,
+          saveSnapshot: () => `snap-ui-${roundNum}`,
+          restoreSnapshot: () => {},
+        }
+      );
+
+      expect(res.evaluation.e2ePassed).toBe(false);
+      expect(resolveConvergeExitCode(res)).toBe(1);
+    });
+
+    it('processes .agents/tmp/delete-files.txt safely, blocks traversal/protected/symlink-parent/dir targets, and cleans up on ENOENT or rollback', async () => {
+      const tmpRepo = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'converge-del-manifest-')
+      );
+      const inRepo = (...parts) => path.join(tmpRepo, ...parts);
+      const manifestFile = inRepo('.agents', 'tmp', 'delete-files.txt');
+      try {
+        fs.mkdirSync(inRepo('src', 'sub'), { recursive: true });
+        fs.mkdirSync(inRepo('.agents', 'tmp'), { recursive: true });
+        fs.mkdirSync(inRepo('.git'), { recursive: true });
+        fs.mkdirSync(inRepo('.gemini'), { recursive: true });
+
+        fs.writeFileSync(inRepo('src', 'legacy.ts'), 'old', 'utf8');
+        fs.writeFileSync(inRepo('.env.local'), 'sec', 'utf8');
+        fs.writeFileSync(inRepo('.gitignore'), 'dist/', 'utf8');
+        fs.writeFileSync(inRepo('.git', 'HEAD'), 'ref', 'utf8');
+        fs.writeFileSync(inRepo('.gemini', 'settings.json'), '{}', 'utf8');
+
+        const fixPrompt = buildRoundFixPrompt({
+          round: 1,
+          maxRounds: 3,
+          ticketNumber: '878',
+          deterministicErrors: ['err'],
+          e2eErrors: [],
+          evaluation: null,
+        });
+        expect(fixPrompt).toContain('.agents/tmp/delete-files.txt');
+
+        const logs = [];
+        let roundNum = 0;
+        const res = await runConvergeLoop(
+          { maxRounds: 2, runE2e: false, runAiReview: false },
+          {
+            cwd: tmpRepo,
+            log: (msg) => logs.push(msg),
+            writeFile: () => {},
+            saveSnapshot: () => '',
+            restoreSnapshot: () => {},
+            execStep: (cmd, args) => {
+              if (cmd === 'pnpm' && args[0] === 'lint') {
+                roundNum += 1;
+                if (roundNum === 1) {
+                  return {
+                    ok: false,
+                    stderr: 'lint failure detail tail',
+                    combined: 'lint failure detail tail',
+                  };
+                }
+                return { ok: true, stdout: '', stderr: '' };
+              }
+              if (cmd === 'npx' && args[0] === 'gemini') {
+                fs.writeFileSync(
+                  manifestFile,
+                  [
+                    'src/legacy.ts',
+                    './src/does-not-exist.ts',
+                    'src/sub',
+                    '../outside.txt',
+                    '/etc/passwd',
+                    'src/bad\0file.ts',
+                    '.env.local',
+                    '.git/HEAD',
+                    '.agents/tmp/keep.txt',
+                    '.gemini/settings.json',
+                    '.gitignore',
+                  ].join('\n'),
+                  'utf8'
+                );
+                return { ok: true, stdout: '', stderr: '' };
+              }
+              return { ok: true, stdout: '', stderr: '' };
+            },
+          }
+        );
+
+        expect(res.converged).toBe(true);
+        expect(logs).toContain('lint failure detail tail');
+        expect(fs.existsSync(inRepo('src', 'legacy.ts'))).toBe(false);
+        expect(fs.existsSync(manifestFile)).toBe(false);
+        expect(fs.existsSync(inRepo('src', 'sub'))).toBe(true);
+        expect(fs.existsSync(inRepo('.env.local'))).toBe(true);
+        expect(fs.existsSync(inRepo('.gitignore'))).toBe(true);
+        expect(fs.existsSync(inRepo('.git', 'HEAD'))).toBe(true);
+        expect(fs.existsSync(inRepo('.gemini', 'settings.json'))).toBe(true);
+      } finally {
+        fs.rmSync(tmpRepo, { recursive: true, force: true });
+      }
+
+      // Verify symlink-parent blocking and rollback ordering
+      const unlinked = [];
+      const eventOrder = [];
+      const mockFs = {
+        existsSync: (p) => String(p).endsWith('delete-files.txt'),
+        lstatSync: (p) => {
+          const norm = String(p).replace(/\\/g, '/');
+          if (norm.endsWith('delete-files.txt')) {
+            return {
+              isFile: () => true,
+              isSymbolicLink: () => false,
+              isDirectory: () => false,
+            };
+          }
+          if (norm.endsWith('/symlink-dir')) {
+            return {
+              isFile: () => false,
+              isSymbolicLink: () => true,
+              isDirectory: () => true,
+            };
+          }
+          return {
+            isFile: () => true,
+            isSymbolicLink: () => false,
+            isDirectory: () => true,
+          };
+        },
+        readFileSync: () => 'symlink-dir/secret.ts\nsrc/aborted.ts',
+        unlinkSync: (p) => {
+          const norm = String(p).replace(/\\/g, '/');
+          unlinked.push(norm);
+          eventOrder.push(`unlink:${path.posix.basename(norm)}`);
+        },
+      };
+
+      let abortRound = 0;
+      await runConvergeLoop(
+        { maxRounds: 2, runE2e: false, runAiReview: false },
+        {
+          cwd: '/repo',
+          fsImpl: mockFs,
+          log: () => {},
+          writeFile: () => {},
+          saveSnapshot: () => 'snap-before-gemini',
+          restoreSnapshot: (sha) => eventOrder.push(`restore:${sha}`),
+          execStep: (cmd, args) => {
+            if (cmd === 'pnpm' && args[0] === 'type-check') {
+              abortRound += 1;
+              if (abortRound <= 2) {
+                return { ok: false, stderr: 'TS error', combined: 'TS error' };
+              }
+              return { ok: true, stdout: '', stderr: '' };
+            }
+            if (cmd === 'npx' && args[0] === 'gemini') {
+              return { ok: false, timedOut: true, stderr: 'timed out' };
+            }
+            return { ok: true, stdout: '', stderr: '' };
+          },
+        }
+      );
+
+      expect(unlinked.some((p) => p.endsWith('secret.ts'))).toBe(false);
+      expect(unlinked.some((p) => p.endsWith('aborted.ts'))).toBe(true);
+      expect(unlinked.some((p) => p.endsWith('delete-files.txt'))).toBe(true);
+      expect(eventOrder).toEqual([
+        'unlink:aborted.ts',
+        'unlink:delete-files.txt',
+        'restore:snap-before-gemini',
+      ]);
+    });
+
+    it('skips Playwright completely (0s skip) when runE2e=false and diff contains no .spec.ts files (#909)', async () => {
+      const executedCmds = [];
+      const execStep = vi.fn((cmd, args) => {
+        executedCmds.push(`${cmd} ${args.join(' ')}`);
+        if (cmd === 'git' && args[0] === 'diff') {
+          return {
+            ok: true,
+            stdout: 'src/services/profile/feedback.ts\n',
+            stderr: '',
+          };
+        }
+        return { ok: true, stdout: '', stderr: '' };
+      });
+
+      const res = await runConvergeLoop(
+        {
+          maxRounds: 3,
+          ticketNumber: '909',
+          runE2e: false,
+          runAiReview: false,
+        },
+        {
+          execStep,
+          writeFile: () => {},
+          log: () => {},
+          fileExists: () => true,
+        }
+      );
+
+      expect(res.converged).toBe(true);
+      expect(res.roundsRun).toBe(1);
+      expect(
+        executedCmds.some(
+          (c) => c.includes('test:e2e:mock') || c.includes('playwright')
+        )
+      ).toBe(false);
+      expect(res.summaryMd).toContain('略過 (--run-e2e=false)');
+    });
+
+    it('enforces targeted E2E specs even when runE2e=false if git diff includes .spec.ts files, blocking convergence on failure (#909)', async () => {
+      let mockSpecAttempt = 0;
+      const executedPnpmCalls = [];
+      const geminiPrompts = [];
+
+      const execStep = vi.fn((cmd, args) => {
+        if (cmd === 'git' && args[0] === 'diff') {
+          return {
+            ok: true,
+            stdout: [
+              'src/components/Foo.tsx',
+              'e2e/helpers/route.ts',
+              'e2e/tests/profile/mentor-feedback.spec.ts',
+              'e2e/tests/profile/profile-view.spec.ts',
+              'e2e/tests/onboarding/onboarding.spec.ts',
+            ].join('\n'),
+            stderr: '',
+          };
+        }
+        if (cmd === 'pnpm') {
+          executedPnpmCalls.push(args);
+          if (args[0] === 'test:e2e:mock') {
+            mockSpecAttempt += 1;
+            if (mockSpecAttempt === 1) {
+              return {
+                ok: false,
+                stderr:
+                  'TimeoutError: page.getByRole("button", { name: "第 2 頁" })',
+                combined:
+                  'TimeoutError: page.getByRole("button", { name: "第 2 頁" })',
+              };
+            }
+          }
+        }
+        if (cmd === 'npx' && args[0] === 'gemini') {
+          const promptIdx = args.indexOf('-p');
+          if (promptIdx !== -1) {
+            geminiPrompts.push(args[promptIdx + 1]);
+          }
+        }
+        return { ok: true, stdout: '', stderr: '' };
+      });
+
+      const res = await runConvergeLoop(
+        {
+          maxRounds: 3,
+          ticketNumber: '909',
+          runE2e: false,
+          runAiReview: false,
+          requireUiEvidence: true,
+        },
+        {
+          execStep,
+          writeFile: () => {},
+          log: () => {},
+          fileExists: () => true,
+          clearEvidence: () => {},
+          listEvidence: () => [],
+        }
+      );
+
+      expect(res.converged).toBe(true);
+      expect(res.roundsRun).toBe(2);
+      // Must ONLY run targeted specs (never full `['test:e2e:mock', '--workers=4', '--retries=1']`) and never fail UI Evidence Gate
+      expect(executedPnpmCalls).not.toContainEqual([
+        'test:e2e:mock',
+        '--workers=4',
+        '--retries=1',
+      ]);
+      expect(executedPnpmCalls).toContainEqual([
+        'test:e2e:mock',
+        '--workers=4',
+        '--retries=1',
+        'e2e/tests/profile/mentor-feedback.spec.ts',
+      ]);
+      expect(executedPnpmCalls).toContainEqual([
+        'playwright',
+        'test',
+        '--project=chromium-backend-readonly',
+        '--retries=1',
+        'e2e/tests/profile/profile-view.spec.ts',
+      ]);
+      expect(executedPnpmCalls).toContainEqual([
+        'playwright',
+        'test',
+        '--project=chromium-onboarding',
+        '--retries=1',
+        'e2e/tests/onboarding/onboarding.spec.ts',
+      ]);
+      expect(geminiPrompts[0]).toContain('第 2 頁');
+      expect(res.summaryMd).toContain(
+        '通過 (強制執行 3 個變更 Spec；--run-e2e=false)'
+      );
+
+      // Verify persistent failure under runE2e=false still blocks convergence and exits non-zero
+      const failingRes = await runConvergeLoop(
+        {
+          maxRounds: 1,
+          ticketNumber: '909',
+          runE2e: false,
+          runAiReview: false,
+        },
+        {
+          execStep: (cmd, args) => {
+            if (cmd === 'git' && args[0] === 'diff') {
+              return {
+                ok: true,
+                stdout: 'e2e/tests/profile/mentor-feedback.spec.ts\n',
+                stderr: '',
+              };
+            }
+            if (cmd === 'pnpm' && args[0] === 'test:e2e:mock') {
+              return {
+                ok: false,
+                stderr: 'Playwright spec failed',
+                combined: 'Playwright spec failed',
+              };
+            }
+            return { ok: true, stdout: '', stderr: '' };
+          },
+          writeFile: () => {},
+          log: () => {},
+          fileExists: () => true,
+        }
+      );
+
+      expect(failingRes.converged).toBe(false);
+      expect(failingRes.evaluation.e2ePassed).toBe(false);
+      expect(resolveConvergeExitCode(failingRes)).toBe(1);
+      expect(failingRes.summaryMd).toContain(
+        '未完全通過 (強制執行 1 個變更 Spec；--run-e2e=false)'
+      );
     });
   });
 });

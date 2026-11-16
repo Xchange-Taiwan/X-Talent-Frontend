@@ -28,14 +28,17 @@ export function getErrorMessage(error: unknown): string {
 }
 
 /**
- * Checks if an error is an AbortError (either from DOMException or standard Error, or if the AbortSignal was aborted).
+ * Checks if an error is an AbortError or TimeoutError (either from DOMException,
+ * standard Error, or if the AbortSignal was aborted).
  */
 export function isAbortError(error: unknown, signal?: AbortSignal): boolean {
   if (signal?.aborted) {
     return true;
   }
   return (
-    (error instanceof DOMException && error.name === 'AbortError') ||
-    (error instanceof Error && error.name === 'AbortError')
+    (error instanceof DOMException &&
+      (error.name === 'AbortError' || error.name === 'TimeoutError')) ||
+    (error instanceof Error &&
+      (error.name === 'AbortError' || error.name === 'TimeoutError'))
   );
 }

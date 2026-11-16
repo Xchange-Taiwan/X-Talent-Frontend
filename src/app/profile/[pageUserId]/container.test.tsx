@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import { fromPartial } from '@total-typescript/shoehorn';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -40,12 +41,9 @@ vi.mock('@/hooks/user/user-data/useUserData', () => ({
   default: (...args: unknown[]) => mockUseUserData(...args),
 }));
 
-vi.mock('@/hooks/user/user-data/useUserProfileDto', () => ({
-  primeUserProfileDtoCacheIfEmpty: vi.fn(),
-}));
-
-vi.mock('@/hooks/user/tags/useTagCatalog', () => ({
-  primeTagCatalogCacheIfEmpty: vi.fn(),
+const mockUseMentorFeedback = vi.fn();
+vi.mock('@/hooks/user/feedback/useMentorFeedback', () => ({
+  useMentorFeedback: (...args: unknown[]) => mockUseMentorFeedback(...args),
 }));
 
 vi.mock('@/hooks/useMentorSchedule', () => ({
@@ -63,9 +61,6 @@ vi.mock('@/hooks/useMentorSchedule', () => ({
       allowedDates: [],
       reload: vi.fn(),
     },
-    // Always non-null here: the container additionally gates rendering the
-    // dialog on canShowOwnerControls (driven by the identity mocks below),
-    // so this stub's own truthiness never has to vary per test case.
     editor: {},
   }),
 }));
@@ -77,22 +72,35 @@ vi.mock('@/hooks/user/reservation/useBookingConfirmation', () => ({
   }),
 }));
 
+import { Toaster } from '@/components/ui/toaster';
+import { clearToasts } from '@/components/ui/use-toast';
+import { FAVORITE_SELF_BLOCKED_TOAST_MESSAGE } from '@/hooks/favorites';
+import {
+  favoriteMentorsReadModel,
+  getPendingFavoriteMentorId,
+  resetFavoriteMentorsReadModel,
+  savePendingFavoriteMentor,
+} from '@/lib/favorites';
+import { EMPTY_TAG_CATALOGS } from '@/services/profile/tagCatalog';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
 
 import ProfilePageContainer from './container';
 
 const PAGE_USER_ID = '123';
-const emptyCatalogs = {} as TagCatalogsByBucket;
-const initialDto = { user_id: 123 } as MentorProfileVO;
+const emptyCatalogs: TagCatalogsByBucket = EMPTY_TAG_CATALOGS;
+const initialDto = fromPartial<MentorProfileVO>({ user_id: 123 });
 
-function renderContainer() {
+function renderContainer(catalogs: TagCatalogsByBucket | null = emptyCatalogs) {
   return render(
-    <ProfilePageContainer
-      pageUserId={PAGE_USER_ID}
-      initialDto={initialDto}
-      initialCatalogs={emptyCatalogs}
-    />
+    <>
+      <ProfilePageContainer
+        pageUserId={PAGE_USER_ID}
+        initialDto={initialDto}
+        initialCatalogs={catalogs}
+      />
+      <Toaster />
+    </>
   );
 }
 
@@ -128,19 +136,59 @@ function identity({
 describe('ProfilePageContainer - owner-editor injection gating', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
+    clearToasts();
+    resetFavoriteMentorsReadModel();
     currentSearchParams = new URLSearchParams();
     mockUseUserData.mockReturnValue({
-      userData: { user_id: 123, name: 'Test Mentor', is_mentor: true },
+      userData: {
+        user_id: 123,
+        name: 'Test Mentor',
+        avatar: '',
+        job_title: 'Senior PM',
+        company: 'XChange',
+        is_mentor: true,
+        want_position: [],
+        want_skill: [],
+        want_topic: [],
+        have_skill: [],
+        have_topic: [],
+      },
       isLoading: false,
       error: null,
       refetch: vi.fn(),
     });
   });
 
+  it('forwards pageUserIdNumber, language, initialDto, and initialCatalogs directly into useUserData (#877)', () => {
+    mockUseResolvedIdentity.mockReturnValue(
+      identity({ sessionSettled: true, hasFullUser: false, userId: null })
+    );
+    const seededCatalogs: TagCatalogsByBucket = {
+      ...EMPTY_TAG_CATALOGS,
+      industry: [{ subject_group: 'SOFTWARE', subject: '軟體及網路相關業' }],
+    };
+
+    const { unmount } = renderContainer(seededCatalogs);
+
+    expect(mockUseUserData).toHaveBeenCalledWith(
+      123,
+      'zh_TW',
+      initialDto,
+      seededCatalogs
+    );
+    unmount();
+
+    renderContainer(null);
+    expect(mockUseUserData).toHaveBeenLastCalledWith(
+      123,
+      'zh_TW',
+      initialDto,
+      undefined
+    );
+  });
+
   it('withholds MentorScheduleDialog while the session has not settled, even for the profile owner', () => {
-    // The hint cookie can name the right user before useSession() confirms
-    // it; injecting the editor here is exactly the role flash the container
-    // gate exists to prevent.
     mockUseResolvedIdentity.mockReturnValue(
       identity({
         sessionSettled: false,
@@ -217,7 +265,6 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
   });
 
   it('covers a hinted member who settles to guest and asserts no owner control was ever rendered', () => {
-    // 1st render: Hint-only (hinted member)
     mockUseResolvedIdentity.mockReturnValueOnce(
       identity({
         sessionSettled: false,
@@ -226,7 +273,6 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
       })
     );
 
-    // 2nd render: Settles to guest
     mockUseResolvedIdentity.mockReturnValue(
       identity({
         sessionSettled: true,
@@ -237,12 +283,10 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
 
     const { rerender } = renderContainer();
 
-    // Verify no editor dialog is rendered initially
     expect(
       screen.queryByTestId('mentor-schedule-dialog')
     ).not.toBeInTheDocument();
 
-    // Re-render to simulate settling to guest
     rerender(
       <ProfilePageContainer
         pageUserId={PAGE_USER_ID}
@@ -251,7 +295,6 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
       />
     );
 
-    // Verify no editor dialog is rendered after settling to guest either
     expect(
       screen.queryByTestId('mentor-schedule-dialog')
     ).not.toBeInTheDocument();
@@ -326,5 +369,128 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
     );
     expect(mockClampSelectedDateToToday).not.toHaveBeenCalled();
     expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('enables useMentorFeedback only for resolved mentor profiles (#736)', () => {
+    mockUseMentorFeedback.mockClear();
+    mockUseResolvedIdentity.mockReturnValue(
+      identity({ sessionSettled: true, hasFullUser: false, userId: null })
+    );
+
+    mockUseUserData.mockReturnValue({
+      userData: null,
+      isLoading: true,
+      error: null,
+      refetch: vi.fn(),
+    });
+    const loadingEmptyRender = renderContainer();
+    expect(mockUseMentorFeedback).toHaveBeenLastCalledWith({
+      mentorId: 123,
+      enabled: false,
+    });
+    loadingEmptyRender.unmount();
+
+    mockUseUserData.mockReturnValue({
+      userData: { user_id: 123, name: 'Cached Mentor', is_mentor: true },
+      isLoading: true,
+      error: null,
+      refetch: vi.fn(),
+    });
+    const loadingCachedMentorRender = renderContainer();
+    expect(mockUseMentorFeedback).toHaveBeenLastCalledWith({
+      mentorId: 123,
+      enabled: false,
+    });
+    loadingCachedMentorRender.unmount();
+
+    mockUseUserData.mockReturnValue({
+      userData: { user_id: 123, name: 'Mentee', is_mentor: false },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    const menteeRender = renderContainer();
+    expect(mockUseMentorFeedback).toHaveBeenLastCalledWith({
+      mentorId: 123,
+      enabled: false,
+    });
+    menteeRender.unmount();
+
+    mockUseUserData.mockReturnValue({
+      userData: { user_id: 123, name: 'Mentor', is_mentor: true },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    const mentorRender = renderContainer();
+    expect(mockUseMentorFeedback).toHaveBeenLastCalledWith({
+      mentorId: 123,
+      enabled: true,
+    });
+    mentorRender.unmount();
+  });
+
+  it('consumes pendingFavoriteMentor for owner by showing "無法收藏自己" toast without calling favorite API (#756)', async () => {
+    resetFavoriteMentorsReadModel();
+    const addFavoriteMock = vi.fn().mockResolvedValue(undefined);
+    favoriteMentorsReadModel.setTransport({
+      fetchFavoriteMentors: vi.fn().mockResolvedValue([]),
+      addFavoriteMentor: addFavoriteMock,
+      removeFavoriteMentor: vi.fn().mockResolvedValue(undefined),
+    });
+    savePendingFavoriteMentor(123);
+
+    mockUseResolvedIdentity.mockReturnValue(
+      identity({
+        sessionSettled: true,
+        hasFullUser: true,
+        userId: PAGE_USER_ID,
+      })
+    );
+
+    renderContainer();
+
+    expect(
+      await screen.findByText(FAVORITE_SELF_BLOCKED_TOAST_MESSAGE)
+    ).toBeVisible();
+    expect(addFavoriteMock).not.toHaveBeenCalled();
+    expect(getPendingFavoriteMentorId()).toBeNull();
+  });
+
+  it('consumes pendingFavoriteMentor for non-owner member and automatically completes favorite (#756)', async () => {
+    resetFavoriteMentorsReadModel();
+    const addFavoriteMock = vi.fn().mockResolvedValue(undefined);
+    favoriteMentorsReadModel.setTransport({
+      fetchFavoriteMentors: vi.fn().mockResolvedValue([]),
+      addFavoriteMentor: addFavoriteMock,
+      removeFavoriteMentor: vi.fn().mockResolvedValue(undefined),
+    });
+    savePendingFavoriteMentor(123);
+
+    mockUseResolvedIdentity.mockReturnValue(
+      identity({
+        sessionSettled: true,
+        hasFullUser: true,
+        userId: '999',
+      })
+    );
+
+    renderContainer();
+
+    await vi.waitFor(() => {
+      expect(addFavoriteMock).toHaveBeenCalledWith(
+        123,
+        expect.any(AbortSignal)
+      );
+    });
+    await vi.waitFor(() => {
+      expect(
+        favoriteMentorsReadModel.getMentorState('999', 123).isFavorited
+      ).toBe(true);
+    });
+    expect(getPendingFavoriteMentorId()).toBeNull();
+    expect(
+      screen.queryByText(FAVORITE_SELF_BLOCKED_TOAST_MESSAGE)
+    ).not.toBeInTheDocument();
   });
 });

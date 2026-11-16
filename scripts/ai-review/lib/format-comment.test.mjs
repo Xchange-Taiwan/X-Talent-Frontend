@@ -1,6 +1,7 @@
 // @vitest-environment node
-import { describe, it, expect } from 'vitest';
-import { formatComment, AI_REVIEW_COMMENT_MARKER } from './format-comment.mjs';
+import { describe, expect, it } from 'vitest';
+
+import { AI_REVIEW_COMMENT_MARKER, formatComment } from './format-comment.mjs';
 
 const noFindings = {
   hasFindings: false,
@@ -100,6 +101,27 @@ describe('formatComment', () => {
       architecture: noFindings,
     });
     expect(comment).toContain('### 🧩 Correctness / Regression\n_（未執行）_');
+  });
+
+  it('renders a warning icon instead of a green check when a stage skipped due to transient API error', () => {
+    const comment = formatComment({
+      plan: basePlan,
+      security: noFindings,
+      correctness: noFindings,
+      visualParity: {
+        hasFindings: false,
+        skippedDueToError: true,
+        summary: '視覺審查因暫時性錯誤略過（Gemini API error 503）',
+        findings: [],
+      },
+      performance: noFindings,
+      testing: noFindings,
+      architecture: noFindings,
+    });
+    expect(comment).toContain(
+      '### 🎨 Visual / Design Parity\n⚠️ 視覺審查因暫時性錯誤略過（Gemini API error 503）'
+    );
+    expect(comment).not.toContain('✅ 視覺審查因暫時性錯誤略過');
   });
 
   it('handles a completely empty context object without throwing', () => {
@@ -334,5 +356,150 @@ describe('formatComment', () => {
     });
     expect(comment).toContain('這次變更把 X 功能拆成三層。');
     expect(comment).not.toContain('建議閱讀順序');
+  });
+
+  it('renders out_of_repo criteria as exempted (⏭️) instead of missing warnings (⚠️)', () => {
+    const comment = formatComment({
+      plan: {
+        ...basePlan,
+        outOfRepoCriteria: [
+          '會談結束後 15 分鐘內，mentee 收到站內通知與 email',
+        ],
+      },
+      security: noFindings,
+      correctness: noFindings,
+      performance: noFindings,
+      testing: noFindings,
+      architecture: noFindings,
+      summary: {
+        overallRisk: { level: 'low', reason: '前端範圍皆已覆蓋' },
+        mergeRecommendation: '可合併',
+        requirementCoverage: [
+          {
+            criterion:
+              '點擊通知或 email 連結，會到歷史紀錄頁並自動開啟回饋彈窗',
+            scope: 'frontend',
+            covered: true,
+            note: '已實作路由與 query 參數處理',
+          },
+          {
+            criterion: '同一場只會收到一次；已填寫、已取消的預約不會收到',
+            scope: 'out_of_repo',
+            covered: false,
+            note: '屬後端排程去重邏輯，前端 PR 豁免檢查',
+          },
+        ],
+      },
+    });
+
+    expect(comment).toContain(
+      '- ✅ 點擊通知或 email 連結，會到歷史紀錄頁並自動開啟回饋彈窗 — 已實作路由與 query 參數處理'
+    );
+    expect(comment).toContain(
+      '- ⏭️ 同一場只會收到一次；已填寫、已取消的預約不會收到 — 屬後端排程去重邏輯，前端 PR 豁免檢查'
+    );
+    expect(comment).toContain(
+      '- ⏭️ 會談結束後 15 分鐘內，mentee 收到站內通知與 email — 屬後端或外部系統範圍，本前端 PR 豁免檢查'
+    );
+    expect(comment).not.toContain('- ⚠️');
+  });
+
+  it('surfaces unjudged frontend acceptanceCriteria when summary fails on a mixed ticket with outOfRepoCriteria', () => {
+    const comment = formatComment({
+      plan: {
+        ...basePlan,
+        acceptanceCriteria: ['點擊通知連結導向歷史紀錄頁'],
+        outOfRepoCriteria: ['會談結束後 15 分鐘內收到 email'],
+      },
+      security: noFindings,
+      correctness: noFindings,
+      performance: noFindings,
+      testing: noFindings,
+      architecture: noFindings,
+      summary: undefined,
+    });
+
+    expect(comment).toContain(
+      '- ⚠️ 點擊通知連結導向歷史紀錄頁 — 無法判斷（Summary 未回傳覆蓋結果）'
+    );
+    expect(comment).toContain(
+      '- ⏭️ 會談結束後 15 分鐘內收到 email — 屬後端或外部系統範圍，本前端 PR 豁免檢查'
+    );
+  });
+
+  it('renders Visual / Design Parity findings section when visualParity is provided', () => {
+    const comment = formatComment({
+      plan: basePlan,
+      businessLogic: noFindings,
+      visualParity: {
+        hasFindings: true,
+        summary: '發現 1 處與 Design Hub 設計圖不符的版面落差',
+        findings: [
+          {
+            file: 'src/app/profile/[pageUserId]/ui.tsx',
+            line: 120,
+            category: 'Visual Drift - Missing or Partial Layout',
+            issue: '頂部摘要列僅顯示 2 格，漏掉經驗、地點與產業列',
+            why: '設計圖為滿寬 4 格摘要列加上產業膠囊列，目前右側大片留白',
+            fix: '將經驗、地點併入滿寬 4 欄摘要列並於下方固定顯示產業標籤列',
+          },
+        ],
+      },
+      security: noFindings,
+      correctness: noFindings,
+      performance: noFindings,
+      testing: noFindings,
+      architecture: noFindings,
+    });
+
+    expect(comment).toContain('### 🎨 Visual / Design Parity');
+    expect(comment).toContain('Visual Drift - Missing or Partial Layout');
+  });
+
+  it('elevates Overall Risk from low to medium (fail-closed) when any core review stage has skippedDueToError, while ignoring skipped reviewGuide', () => {
+    const elevated = formatComment({
+      plan: basePlan,
+      businessLogic: noFindings,
+      security: {
+        hasFindings: false,
+        skippedDueToError: true,
+        summary: '資安審查因 API 503 略過',
+        findings: [],
+      },
+      correctness: noFindings,
+      performance: noFindings,
+      testing: noFindings,
+      architecture: noFindings,
+      summary: {
+        overallRisk: { level: 'low', reason: '其餘領域無問題' },
+        mergeRecommendation: '可合併',
+      },
+      headSha: 'abc1234',
+    });
+
+    expect(elevated).toContain('<!-- ai-review-sha:abc1234 -->');
+    expect(elevated).toContain(
+      '**medium** — 核心審查領域因錯誤略過（Security）'
+    );
+    expect(elevated).not.toContain('**low**');
+
+    const guideOnlySkipped = formatComment({
+      plan: basePlan,
+      reviewGuide: {
+        skippedDueToError: true,
+        summary: '導讀略過',
+      },
+      businessLogic: noFindings,
+      security: noFindings,
+      correctness: noFindings,
+      performance: noFindings,
+      testing: noFindings,
+      architecture: noFindings,
+      summary: {
+        overallRisk: { level: 'low', reason: '全部核心領域通過' },
+        mergeRecommendation: '可合併',
+      },
+    });
+    expect(guideOnlySkipped).toContain('**low** — 全部核心領域通過');
   });
 });

@@ -18,18 +18,22 @@ vi.mock('next-auth/react', () => ({
   useSession: () => ({ data: { user: { id: '1' } }, update: vi.fn() }),
 }));
 
-const mockUseEditProfileData = vi.fn().mockReturnValue({
+const mockUseUserProfileDto = vi.fn().mockReturnValue({
   userDto: null,
-  isMentor: false,
-  isError: false,
+  error: null,
 });
-vi.mock('@/hooks/user/profile/useEditProfileData', () => ({
-  useEditProfileData: (options: unknown) => mockUseEditProfileData(options),
+vi.mock('@/hooks/user/user-data/useUserProfileDto', () => ({
+  useUserProfileDto: (...args: unknown[]) => mockUseUserProfileDto(...args),
 }));
 
-vi.mock('@/hooks/user/profile/useProfileSubmit', () => ({
-  useProfileSubmit: () => ({ onSubmit: vi.fn(), isSaving: false }),
-}));
+vi.mock('@/lib/profile/saveProfile', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/profile/saveProfile')>();
+  return {
+    ...actual,
+    commitProfileMutation: vi.fn().mockResolvedValue({}),
+  };
+});
 
 vi.mock('@/hooks/user/auth/useProfileAuth', () => ({
   useProfileAuth: () => ({ isAuthorized: true }),
@@ -99,10 +103,9 @@ describe('EditProfileContainer unsaved-changes interception (integration, real h
   beforeEach(() => {
     vi.clearAllMocks();
     mockSearchParamsGet.mockReturnValue(null);
-    mockUseEditProfileData.mockReturnValue({
+    mockUseUserProfileDto.mockReturnValue({
       userDto: {} as unknown as MentorProfileVO,
-      isMentor: false,
-      isError: false,
+      error: null,
     });
   });
 

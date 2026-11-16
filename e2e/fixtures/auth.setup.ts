@@ -1,14 +1,11 @@
 import { type Page, test as setup } from '@playwright/test';
 import path from 'path';
 
+import { realSignIn } from '../helpers/real-signin.mjs';
+
 const AUTH_FILE = path.join(__dirname, '../.auth/user.json');
 const MENTEE_AUTH_FILE = path.join(__dirname, '../.auth/mentee.json');
 const MENTOR_AUTH_FILE = path.join(__dirname, '../.auth/mentor.json');
-
-// The auth Lambda can cold-start; the first sign-in occasionally times out
-// even though the second one succeeds quickly. Retry per-attempt with a
-// shorter timeout instead of relying on a single long wait.
-const MAX_ATTEMPTS = 3;
 
 async function signInAndSaveState(
   page: Page,
@@ -16,25 +13,8 @@ async function signInAndSaveState(
   password: string,
   authFile: string
 ): Promise<void> {
-  let lastError: unknown;
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    try {
-      await page.goto('/auth/signin');
-      await page.fill('input[name="email"]', email);
-      await page.fill('input[name="password"]', password);
-      await page.click('button[type="submit"]');
-
-      await page.waitForURL((url) => !url.pathname.includes('/auth/signin'), {
-        timeout: 25_000,
-      });
-
-      await page.context().storageState({ path: authFile });
-      return;
-    } catch (err) {
-      lastError = err;
-    }
-  }
-  throw lastError;
+  await realSignIn(page, { email, password });
+  await page.context().storageState({ path: authFile });
 }
 
 // The single-account smoke test (chromium project, e2e/tests/authenticated/)

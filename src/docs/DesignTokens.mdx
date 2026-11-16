@@ -23,7 +23,7 @@ X-Talent 專案的設計系統基於 HSL 原生色值，透過 CSS 自定義屬�
    pnpm generate:tokens
    ```
 3. **加載至 Tailwind (Integration)**：
-   `src/design/tokens/color.ts` 透過 `hsl(var(--color-key) / <alpha-value>)` 格式封裝這些自定義屬性，並在 `tailwind.config.js` 的 `colors` 欄位中引用，從而使 Tailwind 完美支援透明度修飾符（如 `bg-brand-500/80`）。
+   `src/design/tokens/color-values.ts` 匯出的 `buildTailwindColors()` 透過 `hsl(var(--...) / <alpha-value>)` 格式自動封裝原始色票與語意別名，並在 `tailwind.config.js` 的 `colors` 欄位中直接引用，從而使 Tailwind 完美支援透明度修飾符（如 `bg-brand-500/80` 與 `bg-background/80`）。
 
 ---
 

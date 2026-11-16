@@ -26,15 +26,12 @@ import {
   BookingSlot,
   computeBookingAvailability,
   MentorScheduleEditor,
-  ParsedMentorTimeslot,
   SlotsSnapshot,
 } from '@/lib/profile/bookingAvailability';
 import { MonthDraftStore } from '@/lib/profile/MonthDraftStore';
 import { toDateKey } from '@/lib/profile/scheduleFormatters';
 import {
-  formatTimeslot,
   monthKeyFromYearMonth,
-  parseMonthKey,
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
 import {
@@ -45,7 +42,6 @@ import {
 } from '@/lib/reservation/reservationReadModel';
 import {
   loadMonthSchedule,
-  loadMonthScheduleFresh,
   prefetchMonthSchedule,
   syncMonths,
   SyncResult,
@@ -67,10 +63,9 @@ const useIsomorphicLayoutEffect =
 // it, so they expire on their own. Hoisted to module scope because
 // `useAsyncRead` keeps the options object in a ref - a fresh literal per
 // render would be pointless churn.
-const RESERVATIONS_READ_OPTIONS: AsyncReadOptions<
-  ReservationReadKey,
-  FetchReservationsResult
-> = { ttlMs: MENTOR_SCHEDULE_RESERVATIONS_TTL_MS };
+const RESERVATIONS_READ_OPTIONS: AsyncReadOptions<FetchReservationsResult> = {
+  ttlMs: MENTOR_SCHEDULE_RESERVATIONS_TTL_MS,
+};
 
 type Options = {
   backend: {
@@ -145,10 +140,16 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     useCallback(() => store.snapshot(), [store])
   );
 
-  const { dirtyMonths, allDraftSlots: allDraftRaws } = storeState;
+  const { allDraftSlots: allDraftRaws } = storeState;
 
   const [loaded, setLoaded] = useState(false);
-  const [selectedDate, setSelectedDateState] = useState<string | null>(
+  // Frozen instant contract (see CONTEXT.md): captured once when the schedule
+  // session starts and refreshed only on explicit reload or account switch so
+  // clicking between calendar dates never shifts the past/future boundary.
+  const [nowSec, setNowSec] = useState<number>(() =>
+    Math.floor(Date.now() / 1000)
+  );
+  const [selectedDate, setSelectedDateState] = useState<string | null>(() =>
     dayjs().format('YYYY-MM-DD')
   );
   const [selectedSlot, setSelectedSlot] = useState<BookingSlot | null>(null);
@@ -279,30 +280,32 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   );
 
   const createReservationsFetcher = useCallback(
-    (state: ReservationState) => async (): Promise<FetchReservationsResult> => {
-      if (!loginUserId) return { items: [], next_dtend: 0 };
-      try {
-        const items = await fetchAllReservationsForState(
-          loginUserId,
-          state,
-          endOfMonthUnix
-        );
-        return { items, next_dtend: 0 };
-      } catch (err) {
-        // fetchAllReservationsForState already swallows its own fetch errors
-        // internally (returning whatever it collected before failing, never
-        // rejecting), so this only fires for something unexpected -
-        // defense-in-depth. Rethrowing keeps the read model's result in the
-        // error state, which is what holds `reservationsLoaded` false.
-        captureFlowFailure({
-          flow: 'mentor_schedule_fetch_reservations',
-          step: 'fetch_all_reservations',
-          message: err instanceof Error ? err.message : String(err),
-          level: 'warning',
-        });
-        throw err;
-      }
-    },
+    (state: ReservationState) =>
+      async (signal: AbortSignal): Promise<FetchReservationsResult> => {
+        if (!loginUserId) return { items: [], next_dtend: 0 };
+        try {
+          const items = await fetchAllReservationsForState(
+            loginUserId,
+            state,
+            endOfMonthUnix,
+            signal
+          );
+          return { items, next_dtend: 0 };
+        } catch (err) {
+          if (
+            !signal.aborted &&
+            !(err instanceof Error && err.name === 'AbortError')
+          ) {
+            captureFlowFailure({
+              flow: 'mentor_schedule_fetch_reservations',
+              step: 'fetch_all_reservations',
+              message: err instanceof Error ? err.message : String(err),
+              level: 'warning',
+            });
+          }
+          throw err;
+        }
+      },
     [loginUserId, endOfMonthUnix]
   );
 
@@ -367,15 +370,18 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   // (The *read* paths need no such check: their keys carry the userId, so a
   // late response can only ever land on the account it belongs to.)
   const prevUserIdRef = useRef<string | null>(null);
+  const accountSwitchGenRef = useRef(0);
   useIsomorphicLayoutEffect(() => {
     if (
       prevUserIdRef.current !== null &&
       prevUserIdRef.current !== backend.userId
     ) {
+      accountSwitchGenRef.current += 1;
       scheduleReadModel.clear();
       reservationReadModel.clear();
       store.clearAll();
       setLoaded(false);
+      setNowSec(Math.floor(Date.now() / 1000));
       hasAutoSelectedRef.current = false;
     }
     prevUserIdRef.current = backend.userId;
@@ -403,38 +409,18 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   // Derived view models
   // --------------------------------------------------------------------
 
-  const parsedDraft = useMemo(() => {
-    const formatted = allDraftRaws.flatMap(formatTimeslot);
-    const seen = new Set<string>();
-    const out: ParsedMentorTimeslot[] = [];
-    for (const slot of formatted) {
-      if (!seen.has(slot.occurrenceId)) {
-        seen.add(slot.occurrenceId);
-        out.push(slot);
-      }
-    }
-    return out.sort((a, b) => a.start.getTime() - b.start.getTime());
-  }, [allDraftRaws]);
-
-  const draftForSelectedDate = useMemo(
+  // Compute month-level booking availability once per (allDraftRaws, nowSec,
+  // includeBookedDates) change — completely decoupled from selectedDate and
+  // reservations so clicking dates never re-expands RRules or re-reads Date.now().
+  const availabilityModel = useMemo(
     () =>
-      selectedDate
-        ? parsedDraft.filter((p) => p.dateKey === selectedDate)
-        : parsedDraft,
-    [parsedDraft, selectedDate]
+      computeBookingAvailability({
+        draftRows: allDraftRaws,
+        nowSec,
+        includeBookedDates,
+      }),
+    [allDraftRaws, nowSec, includeBookedDates]
   );
-
-  // Compute booking availability read model using our extracted pure non-React module
-  const availabilityModel = useMemo(() => {
-    const nowSec = Math.floor(Date.now() / 1000);
-    return computeBookingAvailability({
-      draftRows: allDraftRaws,
-      nowSec,
-      includeBookedDates,
-      selectedDate,
-      reservations,
-    });
-  }, [allDraftRaws, includeBookedDates, selectedDate, reservations]);
 
   const {
     allowedDates,
@@ -442,9 +428,21 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     bookedDates,
     earliestSelectableDate,
     bookingStatusByDate,
-    slotsWithMeta,
-    futureSlots,
+    parsedOccurrences: parsedDraft,
   } = availabilityModel;
+
+  const draftForSelectedDate = useMemo(
+    () =>
+      selectedDate
+        ? availabilityModel.getOccurrencesForDate(selectedDate)
+        : parsedDraft,
+    [availabilityModel, selectedDate, parsedDraft]
+  );
+
+  const { slotsWithMeta, futureSlots } = useMemo(
+    () => availabilityModel.projectEditorSlots(selectedDate, reservations),
+    [availabilityModel, selectedDate, reservations]
+  );
 
   // Initial earliest-date auto-selection once the schedule has loaded
   useEffect(() => {
@@ -559,81 +557,13 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     [store]
   );
 
-  const confirmChanges = useCallback(async (): Promise<SyncResult> => {
-    if (dirtyMonths.size === 0 || !backend.userId) return { ok: true };
-
-    const requests = store.getSyncRequests(backend.userId);
-
-    const userIdAtStart = backend.userId;
-    const results = await syncMonths(requests);
-
-    // The user may have switched accounts while syncMonths was in flight
-    // (which resets the store to the new user's empty buffers). Skip only
-    // the commit in that case - writing the old user's results into that
-    // store would corrupt it - but still report the real outcome below so a
-    // genuine save failure isn't swallowed as a false success.
-    if (prevUserIdRef.current === userIdAtStart) {
-      store.commit(results);
-    }
-
-    const firstFail = results.find((r) => !r.outcome.ok);
-    if (firstFail && !firstFail.outcome.ok) {
-      return {
-        ok: false,
-        reason: firstFail.outcome.reason,
-        message: firstFail.outcome.message,
-      };
-    }
-    return { ok: true };
-  }, [dirtyMonths, backend.userId, store]);
+  const confirmChanges = useCallback((): Promise<SyncResult> => {
+    return store.commitChanges(backend.userId, syncMonths);
+  }, [backend.userId, store]);
 
   const resetChanges = useCallback(() => {
-    if (!backend.userId || dirtyMonths.size === 0) return;
-    const monthKeys = Array.from(dirtyMonths);
-    const userIdAtStart = backend.userId;
-    // Captured synchronously, before the await below, so a fast
-    // A -> B -> A account switch during the refetch can't read this back
-    // as B's (or an intervening clearAll's empty) savedByMonth - only to
-    // find prevUserIdRef back at A and wrongly treat that empty state as
-    // "A has no saved data" once the catch fallback runs.
-    const originalSaved = new Map(store.snapshot().savedByMonth);
-    (async () => {
-      try {
-        const reloaded = await Promise.all(
-          monthKeys.map(async (mk) => {
-            const { year, month } = parseMonthKey(mk);
-            const raws = await loadMonthScheduleFresh({
-              userId: backend.userId,
-              year,
-              month,
-            });
-            return [mk, raws] as const;
-          })
-        );
-        // The user may have switched accounts while the refetch was in
-        // flight (which resets the store to the new user's empty buffers).
-        // Writing the old user's reloaded months now would corrupt it.
-        if (prevUserIdRef.current !== userIdAtStart) return;
-        store.reset(reloaded);
-      } catch (err) {
-        captureFlowFailure({
-          flow: 'mentor_schedule_reset',
-          step: 'reload_month_schedule',
-          message: err instanceof Error ? err.message : String(err),
-          level: 'warning',
-        });
-        if (prevUserIdRef.current !== userIdAtStart) return;
-        // Refetch failed: fall back to the pre-await saved snapshot for
-        // each dirty month so the draft still clears instead of leaving the
-        // UI stuck showing unsaved edits with no way to discard them.
-        const fallback = monthKeys.map(
-          (mk) => [mk, originalSaved.get(mk) ?? []] as const
-        );
-        store.reset(fallback);
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backend.userId, dirtyMonths, store]);
+    store.discardChanges();
+  }, [store]);
 
   // --------------------------------------------------------------------
   // Reload
@@ -643,10 +573,10 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     if (!upcomingKey || !pendingKey || !loginUserId) return;
 
     // Neither this month's cache entry nor any other surface's is touched by
-    // hand here (X-Tracker #651): the write path itself (acceptReservation /
-    // rejectOrCancelReservation / createReservation, see
-    // invalidateReservationRead) is what invalidates the reads its own
-    // mutation actually affects. This reload just re-fetches this hook's own
+    // hand here (X-Tracker #651 / #899): the write path itself
+    // (acceptReservation / rejectOrCancelReservation / createReservation via
+    // reservationReadModel.invalidateOrRefresh) is what invalidates or
+    // refreshes the reads its own mutation actually affects. This reload just re-fetches this hook's own
     // current month unconditionally and re-primes it below - a plain write,
     // not an invalidation - so this view reflects its own mutation
     // immediately instead of waiting out MENTOR_SCHEDULE_RESERVATIONS_TTL_MS.
@@ -657,6 +587,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     // whatever fetch was in flight for it, so a slower competing read - the
     // mount read for this very month, say - can neither win the race nor
     // leak into a month or an account the user has since moved on to.
+    const genAtStart = accountSwitchGenRef.current;
     try {
       const [upcoming, pending] = await Promise.all([
         fetchAllReservationsForState(
@@ -670,6 +601,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
           endOfMonthUnix
         ),
       ]);
+      if (accountSwitchGenRef.current !== genAtStart) return;
       reservationReadModel.set(
         upcomingKey,
         { items: upcoming, next_dtend: 0 },
@@ -681,6 +613,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         MENTOR_SCHEDULE_RESERVATIONS_TTL_MS
       );
     } catch (err) {
+      if (accountSwitchGenRef.current !== genAtStart) return;
       captureFlowFailure({
         flow: 'mentor_schedule_reload_reservations',
         step: 'reload_reservations_for_state',
@@ -701,6 +634,9 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       // `null` means the refresh never published - its month was cleared or
       // overwritten mid-flight (an account switch), so there is no failure to
       // report and nothing the user can act on.
+      if (published !== null) {
+        setNowSec(Math.floor(Date.now() / 1000));
+      }
       if (published?.error) {
         captureFlowFailure({
           flow: 'mentor_schedule_reload_schedule',

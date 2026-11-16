@@ -1,5 +1,29 @@
-import { render, screen } from '@testing-library/react';
+import {
+  fireEvent,
+  render as rtlRender,
+  type RenderOptions,
+  screen,
+} from '@testing-library/react';
+import { SessionContext, type SessionContextValue } from 'next-auth/react';
+import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
+
+const defaultGuestSession: SessionContextValue = {
+  data: null,
+  status: 'unauthenticated',
+  update: vi.fn(),
+};
+
+function DefaultGuestWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <SessionContext.Provider value={defaultGuestSession}>
+      {children}
+    </SessionContext.Provider>
+  );
+}
+
+const render = (ui: React.ReactElement, options?: RenderOptions) =>
+  rtlRender(ui, { wrapper: DefaultGuestWrapper, ...options });
 
 vi.mock('next/navigation', async () => {
   const { navigationMockFactory } = await import('@/test/mocks/navigation');
@@ -8,7 +32,7 @@ vi.mock('next/navigation', async () => {
 
 import type { FilterOptions } from '@/components/filter/MentorFilterDropdown';
 import { mockMentors } from '@/components/mentor-pool/__mocks__/mentors.mock';
-import { buildMentorCardTags } from '@/components/mentor-pool/mentor-card-list';
+import { buildMentorCardTags } from '@/lib/mentor/mentorCardModel';
 
 import MentorPoolUI from './ui';
 
@@ -193,19 +217,27 @@ describe('MentorCardList tag merging, deduplication, and filter prioritization (
     expect(tags).toEqual(['TypeScript', '職涯諮詢', '產品規劃', 'Figma']);
   });
 
-  it('renders skill tags and prioritizes active skill filter badge on MentorCard in MentorPoolUI', () => {
+  it('renders skill tags from raw subject_group codes via labelMap and prioritizes active skill filter badge on MentorCard in MentorPoolUI', () => {
     render(
       <MentorPoolUI
         {...defaultProps}
         mentors={[
           {
             ...mockMentors[0],
-            have_topic: ['UI/UX 設計', '使用者研究'],
-            have_skill: ['UI/UX 設計', 'Figma', 'Prototyping'],
+            have_topic: ['ui_ux_design', 'user_research'],
+            have_skill: ['ui_ux_design', 'figma', 'prototyping'],
           },
         ]}
         mentorCount={1}
         listStatus="success"
+        labelMap={
+          new Map([
+            ['ui_ux_design', 'UI/UX 設計'],
+            ['user_research', '使用者研究'],
+            ['figma', 'Figma'],
+            ['prototyping', 'Prototyping'],
+          ])
+        }
         selectedFilters={{
           filter_skills: { name: '專業技能', value: 'prototyping' },
         }}
@@ -232,5 +264,113 @@ describe('MentorCardList tag merging, deduplication, and filter prioritization (
 
     const article = screen.getByRole('article');
     expect(article).toHaveClass('flex', 'h-full', 'flex-col');
+  });
+
+  it('forwards mentor.stats to MentorCard Option B layout and hides zero/missing stats (#737)', () => {
+    render(
+      <MentorPoolUI
+        {...defaultProps}
+        mentors={[
+          {
+            ...mockMentors[0],
+            user_id: 101,
+            name: '陳宥廷 Austin',
+            stats: {
+              completed_meeting_count: 18,
+              rating_count: 12,
+              rating_average: 9.8,
+            },
+          },
+          {
+            ...mockMentors[1],
+            user_id: 102,
+            name: '林建宏 Alex',
+            stats: {
+              completed_meeting_count: 5,
+              rating_count: 0,
+              rating_average: null,
+            },
+          },
+          {
+            ...mockMentors[3],
+            user_id: 103,
+            name: '黃雅婷 Emily',
+            stats: null,
+          },
+        ]}
+        mentorCount={3}
+        listStatus="success"
+      />
+    );
+
+    const articles = screen.getAllByRole('article');
+    expect(articles).toHaveLength(3);
+
+    expect(articles[0]).toHaveTextContent('9.8 / 10');
+    expect(articles[0]).toHaveTextContent('已完成 18 場 1-on-1');
+    expect(articles[0]).not.toHaveTextContent('12 則');
+    expect(articles[0]).not.toHaveTextContent('★');
+    expect(articles[0]).not.toHaveTextContent('⭐');
+
+    expect(articles[1]).not.toHaveTextContent('/ 10');
+    expect(articles[1]).toHaveTextContent('已完成 5 場 1-on-1');
+
+    expect(articles[2]).not.toHaveTextContent('/ 10');
+    expect(articles[2]).not.toHaveTextContent('已完成');
+  });
+
+  it('splits comma-separated selectedFilters into individual localized badges, skips whitespace-only filters, and passes (key, value) on remove (#897)', () => {
+    const onRemoveFilter = vi.fn();
+    render(
+      <MentorPoolUI
+        {...defaultProps}
+        mentors={mockMentors.slice(0, 1)}
+        mentorCount={1}
+        listStatus="success"
+        filterOptions={{
+          filter_skills: {
+            name: '技能',
+            options: [
+              { label: 'TypeScript', value: 'skill_typescript' },
+              { label: 'Figma', value: 'skill_figma' },
+            ],
+          },
+          filter_topics: {
+            name: '主題',
+            options: [],
+          },
+          filter_industries: {
+            name: '產業',
+            options: [],
+          },
+        }}
+        selectedFilters={{
+          filter_skills: {
+            name: '技能',
+            value: 'skill_typescript, skill_figma',
+          },
+          filter_topics: {
+            name: '主題',
+            value: '   ',
+          },
+        }}
+        onRemoveFilter={onRemoveFilter}
+      />
+    );
+
+    expect(screen.getByText('技能: TypeScript')).toBeInTheDocument();
+    expect(screen.getByText('技能: Figma')).toBeInTheDocument();
+    expect(
+      screen.queryByText('技能: skill_typescript, skill_figma')
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/^主題:/)).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: '移除「技能：TypeScript」篩選' })
+    );
+    expect(onRemoveFilter).toHaveBeenCalledWith(
+      'filter_skills',
+      'skill_typescript'
+    );
   });
 });

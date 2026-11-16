@@ -2,7 +2,12 @@ import type { Session } from 'next-auth';
 import { getSession } from 'next-auth/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { apiClient, ApiError, setSessionGetter } from '@/lib/apiClient';
+import {
+  apiClient,
+  ApiError,
+  setOnRefreshTokenError,
+  setSessionGetter,
+} from '@/lib/apiClient';
 import { captureApiFailure } from '@/lib/monitoring';
 
 vi.mock('next-auth/react', () => ({
@@ -19,9 +24,11 @@ describe('apiClient', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', mockFetch);
     setSessionGetter(getSession);
+    setOnRefreshTokenError(null);
   });
 
   afterEach(() => {
+    setOnRefreshTokenError(null);
     vi.unstubAllGlobals();
     mockFetch.mockReset();
   });
@@ -32,7 +39,9 @@ describe('apiClient', () => {
 
   describe('URL / query string building', () => {
     beforeEach(() => {
-      mockFetch.mockResolvedValue(new Response('"ok"', { status: 200 }));
+      mockFetch.mockImplementation(
+        async () => new Response('"ok"', { status: 200 })
+      );
     });
 
     it('params with undefined or null values → those keys are omitted from query string', async () => {
@@ -99,6 +108,36 @@ describe('apiClient', () => {
       const [, requestInit] = mockFetch.mock.calls[0];
       expect(requestInit.headers.Authorization).toBeUndefined();
     });
+
+    it('resolves SSR_API_URL ?? NEXT_PUBLIC_API_URL dynamically on each request (#895)', async () => {
+      const prevSsr = process.env.SSR_API_URL;
+      const prevPublic = process.env.NEXT_PUBLIC_API_URL;
+
+      try {
+        process.env.SSR_API_URL = 'http://internal-bff:8000/api';
+        process.env.NEXT_PUBLIC_API_URL = 'https://public-bff.example.com/api';
+
+        await apiClient.get('/v1/mentors', { auth: false });
+        expect(mockFetch.mock.calls[0][0]).toBe(
+          'http://internal-bff:8000/api/v1/mentors'
+        );
+
+        delete process.env.SSR_API_URL;
+        await apiClient.get('/v1/mentors', { auth: false });
+        expect(mockFetch.mock.calls[1][0]).toBe(
+          'https://public-bff.example.com/api/v1/mentors'
+        );
+
+        delete process.env.NEXT_PUBLIC_API_URL;
+        await apiClient.get('/v1/mentors', { auth: false });
+        expect(mockFetch.mock.calls[2][0]).toBe('/v1/mentors');
+      } finally {
+        if (prevSsr === undefined) delete process.env.SSR_API_URL;
+        else process.env.SSR_API_URL = prevSsr;
+        if (prevPublic === undefined) delete process.env.NEXT_PUBLIC_API_URL;
+        else process.env.NEXT_PUBLIC_API_URL = prevPublic;
+      }
+    });
   });
 
   /* ================================
@@ -118,6 +157,77 @@ describe('apiClient', () => {
         expect(error).toBeInstanceOf(ApiError);
         expect((error as ApiError).status).toBe(404);
       }
+    });
+
+    it('non-2xx response with numeric error code → preserves stringified code on ApiError (#895)', async () => {
+      mockFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: 500,
+            msg: 'Internal server error',
+            data: null,
+          }),
+          { status: 500 }
+        )
+      );
+
+      await expect(
+        apiClient.get('/v1/test', { auth: false })
+      ).rejects.toMatchObject({
+        name: 'ApiError',
+        status: 500,
+        code: '500',
+        message: 'Internal server error',
+      });
+    });
+
+    it('strips inline query parameters and hash fragments from path before reporting to captureApiFailure (#895)', async () => {
+      vi.mocked(captureApiFailure).mockClear();
+      const rawPath =
+        '/v1/auth/password/reset/email?email=secret%40example.com#frag';
+
+      mockFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: 502,
+            msg: 'Bad gateway',
+            data: null,
+          }),
+          { status: 502 }
+        )
+      );
+
+      await expect(
+        apiClient.get(rawPath, { auth: false })
+      ).rejects.toMatchObject({
+        status: 502,
+        code: '502',
+      });
+
+      expect(captureApiFailure).toHaveBeenCalledOnce();
+      expect(captureApiFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endpoint: '/v1/auth/password/reset/email',
+          method: 'GET',
+          status: 502,
+        })
+      );
+
+      vi.mocked(captureApiFailure).mockClear();
+      mockFetch.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+      await expect(apiClient.get(rawPath, { auth: false })).rejects.toThrow(
+        'Failed to fetch'
+      );
+
+      expect(captureApiFailure).toHaveBeenCalledOnce();
+      expect(captureApiFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endpoint: '/v1/auth/password/reset/email',
+          method: 'GET',
+          status: 0,
+        })
+      );
     });
 
     it('503 response with X-Maintenance-Mode header on client-side → redirects to /maintenance and does not throw', async () => {
@@ -293,6 +403,24 @@ describe('apiClient', () => {
       expect(captureApiFailure).not.toHaveBeenCalled();
     });
 
+    it('TimeoutError from AbortSignal.timeout → re-thrown without calling captureApiFailure (#895)', async () => {
+      const timeoutError = new DOMException(
+        'The operation was aborted due to timeout',
+        'TimeoutError'
+      );
+      mockFetch.mockRejectedValue(timeoutError);
+
+      await expect(
+        apiClient.post('/api/auth/backend-logout', undefined, {
+          auth: false,
+          isLocal: true,
+          signal: AbortSignal.timeout(3000),
+        })
+      ).rejects.toBe(timeoutError);
+
+      expect(captureApiFailure).not.toHaveBeenCalled();
+    });
+
     it('non-abort network failure → still calls captureApiFailure', async () => {
       const realFailure = new TypeError('Failed to fetch');
       mockFetch.mockRejectedValue(realFailure);
@@ -381,6 +509,7 @@ describe('apiClient', () => {
     });
 
     it('sets status to matching HTTP code when code is a valid HTTP status like "422"', async () => {
+      vi.mocked(captureApiFailure).mockClear();
       mockFetch.mockResolvedValue(
         new Response(
           JSON.stringify({
@@ -395,6 +524,164 @@ describe('apiClient', () => {
       await expect(
         apiClient.getUnwrapped('/v1/test', { auth: false })
       ).rejects.toMatchObject({ status: 422, code: '422' });
+      expect(captureApiFailure).not.toHaveBeenCalled();
+    });
+
+    it('throws clean ApiError(400) when HTTP-200 response omits the envelope code field (#895)', async () => {
+      mockFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify({ unexpected: true }), { status: 200 })
+      );
+
+      await expect(
+        apiClient.getUnwrapped('/v1/test', { auth: false })
+      ).rejects.toMatchObject({
+        status: 400,
+        code: undefined,
+        message: 'Unexpected API response envelope',
+      });
+    });
+
+    it('reports HTTP-200 5xx BFF envelope failures to captureApiFailure consistently (#895)', async () => {
+      vi.mocked(captureApiFailure).mockClear();
+      mockFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: '503',
+            msg: 'Upstream BFF degraded',
+            data: null,
+          }),
+          { status: 200 }
+        )
+      );
+
+      await expect(
+        apiClient.postUnwrapped('/v1/auth/signup', {}, { auth: false })
+      ).rejects.toMatchObject({
+        status: 503,
+        code: '503',
+        message: 'Upstream BFF degraded',
+      });
+
+      expect(captureApiFailure).toHaveBeenCalledOnce();
+      expect(captureApiFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endpoint: '/v1/auth/signup',
+          method: 'POST',
+          status: 503,
+          message: 'Upstream BFF degraded',
+        })
+      );
+    });
+
+    it('normalizes numeric HTTP-200 BFF envelope error codes and strips inline query params from captureApiFailure (#895)', async () => {
+      vi.mocked(captureApiFailure).mockClear();
+      const rawPath =
+        '/v1/auth/password/reset?verify_token=secret-reset-token#section';
+
+      mockFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: 500,
+            msg: 'Password reset service error',
+            data: null,
+          }),
+          { status: 200 }
+        )
+      );
+
+      await expect(
+        apiClient.putUnwrapped(rawPath, {}, { auth: false })
+      ).rejects.toMatchObject({
+        status: 500,
+        code: '500',
+        message: 'Password reset service error',
+      });
+
+      expect(captureApiFailure).toHaveBeenCalledOnce();
+      expect(captureApiFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endpoint: '/v1/auth/password/reset',
+          method: 'PUT',
+          status: 500,
+          message: 'Password reset service error',
+        })
+      );
+    });
+
+    it('preserves data.type on error envelopes and extracts FastAPI 422 detail messages (#760 §0)', async () => {
+      mockFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: '409',
+            msg: '',
+            data: {
+              type: 'attendance_already_reported',
+              message: '已回報過出席狀態',
+            },
+          }),
+          { status: 409 }
+        )
+      );
+
+      await expect(
+        apiClient.postUnwrapped('/v1/feedback', {}, { auth: false })
+      ).rejects.toMatchObject({
+        status: 409,
+        code: '409',
+        message: '已回報過出席狀態',
+        data: {
+          type: 'attendance_already_reported',
+          message: '已回報過出席狀態',
+        },
+      });
+
+      mockFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            detail: [
+              {
+                loc: ['body', 'not_happened_reason'],
+                msg: "Input should be 'COUNTERPART_ABSENT'",
+                type: 'enum',
+              },
+            ],
+          }),
+          { status: 422 }
+        )
+      );
+
+      await expect(
+        apiClient.postUnwrapped('/v1/feedback', {}, { auth: false })
+      ).rejects.toMatchObject({
+        status: 422,
+        message: "not_happened_reason: Input should be 'COUNTERPART_ABSENT'",
+      });
+
+      mockFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: '409',
+            msg: '',
+            data: {
+              type: 'attendance_not_allowed',
+              message: '目前無法回報出席狀態',
+            },
+          }),
+          { status: 200 }
+        )
+      );
+
+      await expect(
+        apiClient.postUnwrapped('/v1/feedback', {}, { auth: false })
+      ).rejects.toMatchObject({
+        status: 409,
+        code: '409',
+        message: '目前無法回報出席狀態',
+        data: {
+          type: 'attendance_not_allowed',
+          message: '目前無法回報出席狀態',
+        },
+      });
     });
 
     it('returns undefined on empty 204 No Content response without throwing TypeError', async () => {
@@ -665,24 +952,20 @@ describe('apiClient', () => {
 
       // req1 initial (401), req2 initial (401), req1 retry, req2 retry
       expect(mockFetch).toHaveBeenCalledTimes(4);
+      expect(mockFetch.mock.calls[2][1].headers.Authorization).toBe(
+        'Bearer fresh-token'
+      );
+      expect(mockFetch.mock.calls[3][1].headers.Authorization).toBe(
+        'Bearer fresh-token'
+      );
 
-      // Exactly 3 distinct getSession calls for the whole flow - one per
-      // burst (initial lookup, 401 refresh, retry's own lookup) - not 6
-      // (one per request per burst), proving concurrent callers within
-      // each burst share a single call.
-      expect(vi.mocked(getSession)).toHaveBeenCalledTimes(3);
+      // Single-pass 401 token rotation (#895): only 2 distinct getSession
+      // calls occur (initial lookup + 401 refresh). The refreshed accessToken
+      // is passed directly to the retry without a redundant 3rd getSession().
+      expect(vi.mocked(getSession)).toHaveBeenCalledTimes(2);
     });
 
-    it('401 refresh and its retry do not join a routine lookup that was already in flight before the 401', async () => {
-      // Regression test for two races the shared-map version, then the
-      // two-map version, each had in turn: (1) if a routine getAuthHeader()
-      // lookup for one request is still in flight when a *different*
-      // request's 401 handler fires, the refresh must not join that pending
-      // lookup - it started before the 401 was known, so it could still
-      // resolve to the same stale token that just failed. (2) once the
-      // refresh has produced a fresh token, the *retry*'s own routine
-      // getAuthHeader() call must not join that same still-pending routine
-      // lookup either, or it would retry with the stale token anyway.
+    it('401 refresh passes rotated token directly and clears routine lookup map while an older routine lookup is still in flight', async () => {
       const staleSession: Session = {
         accessToken: 'stale-token',
         expires: '2099-01-01T00:00:00Z',
@@ -701,19 +984,11 @@ describe('apiClient', () => {
       let sessionCallCount = 0;
       vi.mocked(getSession).mockImplementation(() => {
         sessionCallCount += 1;
-        // Call #1: reqZ's own initial auth header lookup, resolves right away.
-        // Call #2: reqY's routine lookup, kept pending to simulate it still
-        // being in flight when reqZ's 401 arrives - and still pending even
-        // after the refresh (call #3) resolves.
-        // Call #3+: the 401 refresh and the retry's own lookup - both must
-        // be fresh calls, never a join of #2.
         if (sessionCallCount === 1) return Promise.resolve(staleSession);
         if (sessionCallCount === 2) return routineLookupPromise;
         return Promise.resolve(freshSession);
       });
 
-      // Base fallback for every fetch call except reqZ's first (below):
-      // reqZ's retry and reqY's own fetch both just need to succeed.
       mockFetch.mockImplementation(
         async () => new Response('"success"', { status: 200 })
       );
@@ -727,46 +1002,128 @@ describe('apiClient', () => {
 
       const pZ = apiClient.get('/v1/reqZ');
 
-      // reqZ's initial lookup (call #1) resolved and its fetch is now
-      // pending, waiting on resolveZFetch.
       await vi.waitFor(() => {
         expect(mockFetch).toHaveBeenCalledTimes(1);
       });
 
-      // Start reqY's routine lookup so it's genuinely in flight (call #2,
-      // pending) at the moment reqZ's 401 arrives below.
       const pY = apiClient.get('/v1/reqY');
       await vi.waitFor(() => {
         expect(getSession).toHaveBeenCalledTimes(2);
       });
 
-      // Now let reqZ's request come back as 401, triggering its refresh,
-      // then its retry - both while reqY's routine lookup (call #2) is
-      // still pending. Both the refresh and the retry's own getAuthHeader()
-      // must issue fresh getSession calls (#3 and #4) rather than joining
-      // that pending call #2 - the two invariants under test. Without the
-      // separate refreshMap, the refresh would join #2 and this would stay
-      // at 2; without clearing sessionLookupMap once the refresh completes,
-      // the retry would join #2 and this would stay at 3.
       resolveZFetch(new Response('Unauthorized', { status: 401 }));
-
-      await vi.waitFor(() => {
-        expect(getSession).toHaveBeenCalledTimes(4);
-      });
 
       const z = await pZ;
       expect(z).toBe('success');
 
-      // reqZ's retry used the fresh token its own lookup got, not whatever
-      // reqY's still-pending routine lookup eventually resolves to.
+      // Call #1 (reqZ initial), Call #2 (reqY routine), Call #3 (reqZ refresh);
+      // reqZ's retry uses freshSession.accessToken directly without a 4th call!
+      expect(getSession).toHaveBeenCalledTimes(3);
+
       const retryCall = mockFetch.mock.calls[1];
       expect(retryCall[1].headers.Authorization).toBe('Bearer fresh-token');
 
-      // Unblock reqY's routine lookup so the test doesn't leave a dangling
-      // unresolved promise.
+      // A brand-new request after refresh starts a fresh lookup (#4) rather
+      // than joining reqY's still-pending stale routine lookup (#2).
+      const pW = apiClient.get('/v1/reqW');
+      await expect(pW).resolves.toBe('success');
+      expect(getSession).toHaveBeenCalledTimes(4);
+
       resolveRoutineLookup(staleSession);
       const y = await pY;
       expect(y).toBe('success');
+    });
+
+    it('does not retry on 401 when refresh returns the identical dead accessToken (#895)', async () => {
+      const deadSession: Session = {
+        accessToken: 'dead-unchanged-token',
+        expires: '2099-01-01T00:00:00Z',
+        user: { id: 'test-user', name: 'Test User', email: 'test@example.com' },
+      };
+      vi.mocked(getSession).mockResolvedValue(deadSession);
+      mockFetch.mockImplementation(
+        async () =>
+          new Response(JSON.stringify({ msg: 'Token revoked' }), {
+            status: 401,
+          })
+      );
+
+      await expect(apiClient.get('/v1/protected')).rejects.toMatchObject({
+        status: 401,
+        message: 'Token revoked',
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(getSession).toHaveBeenCalledTimes(2);
+    });
+
+    it('invokes injected onRefreshTokenError handler once without retrying when 401 refresh yields RefreshTokenError (#895)', async () => {
+      const onRefreshError = vi.fn();
+      setOnRefreshTokenError(onRefreshError);
+
+      const initialSession: Session = {
+        accessToken: 'expired-token',
+        expires: '2099-01-01T00:00:00Z',
+        user: { id: 'test-user', name: 'Test User', email: 'test@example.com' },
+      };
+      const brokenSession: Session = {
+        accessToken: undefined,
+        error: 'RefreshTokenError',
+        expires: '2099-01-01T00:00:00Z',
+        user: { id: 'test-user', name: 'Test User', email: 'test@example.com' },
+      };
+
+      let call = 0;
+      vi.mocked(getSession).mockImplementation(async () => {
+        call += 1;
+        return call === 1 ? initialSession : brokenSession;
+      });
+
+      mockFetch.mockImplementation(
+        async () =>
+          new Response(JSON.stringify({ msg: 'Session expired' }), {
+            status: 401,
+          })
+      );
+
+      const [res1, res2] = await Promise.allSettled([
+        apiClient.get('/v1/req1'),
+        apiClient.get('/v1/req2'),
+      ]);
+
+      expect(res1.status).toBe('rejected');
+      expect(res2.status).toBe('rejected');
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(onRefreshError).toHaveBeenCalledTimes(1);
+    });
+
+    it('omits Authorization header, triggers onRefreshTokenError once, and absorbs handler rejections when initial session already has RefreshTokenError (#895)', async () => {
+      const onRefreshError = vi
+        .fn()
+        .mockRejectedValue(new Error('teardown failed'));
+      setOnRefreshTokenError(onRefreshError);
+
+      vi.mocked(getSession).mockResolvedValue({
+        accessToken: 'stale-leaked-token',
+        error: 'RefreshTokenError',
+        expires: '2099-01-01T00:00:00Z',
+        user: { id: 'test-user', name: 'Test User', email: 'test@example.com' },
+      });
+
+      mockFetch.mockImplementation(
+        async () => new Response('"public-ok"', { status: 200 })
+      );
+
+      const [r1, r2] = await Promise.all([
+        apiClient.get('/v1/semi-public-1'),
+        apiClient.get('/v1/semi-public-2'),
+      ]);
+
+      expect(r1).toBe('public-ok');
+      expect(r2).toBe('public-ok');
+      expect(mockFetch.mock.calls[0][1].headers.Authorization).toBeUndefined();
+      expect(mockFetch.mock.calls[1][1].headers.Authorization).toBeUndefined();
+      expect(onRefreshError).toHaveBeenCalledTimes(1);
     });
   });
 

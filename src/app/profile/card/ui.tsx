@@ -3,11 +3,12 @@
 import { ProfileCard } from '@/components/profile/profile-card';
 import { Button } from '@/components/ui/button';
 import { UserType } from '@/hooks/user/user-data/useUserData';
+import type { PersonalLink } from '@/lib/profile/socialLinks';
 
 interface Props {
   userData: UserType;
   isMentor: boolean;
-  linkedinUrl: string;
+  personalLinks?: PersonalLink[];
   onBecomeMentor: () => void;
   onGoToMentorPool: () => void;
   onBackToProfile: () => void;
@@ -16,11 +17,13 @@ interface Props {
 export default function ProfileCardUI({
   userData,
   isMentor,
-  linkedinUrl,
+  personalLinks,
   onBecomeMentor,
   onGoToMentorPool,
   onBackToProfile,
 }: Props) {
+  const resolvedPersonalLinks = personalLinks ?? userData.personalLinks;
+
   return (
     <div className="mx-auto w-11/12 max-w-[630px] pt-10 pb-20">
       <div className="text-center">
@@ -43,7 +46,7 @@ export default function ProfileCardUI({
             avatarImgUrl={userData.avatar}
             company={userData.company}
             jobTitle={userData.job_title}
-            linkedinUrl={linkedinUrl}
+            personalLinks={resolvedPersonalLinks}
             interestedRole={userData.want_position}
             skillEnhancementTarget={userData.want_skill}
             talkTopic={userData.want_topic}
@@ -56,7 +59,7 @@ export default function ProfileCardUI({
             avatarImgUrl={userData.avatar}
             company={userData.company}
             jobTitle={userData.job_title}
-            linkedinUrl={linkedinUrl}
+            personalLinks={resolvedPersonalLinks}
             expertise={userData.have_skill}
             whatIOffer={userData.have_topic}
           />

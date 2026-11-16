@@ -9,7 +9,6 @@ import {
   HOVER_NAV_UNDERLINE_CLASSES,
   HOVER_PRIMARY_CTA_CLASSES,
   HOVER_SECONDARY_OUTLINE_CLASSES,
-  HOVER_TEXT_LINK_CLASSES,
 } from './hoverStyles';
 
 test('hover style constants export correct Tailwind classes', () => {
@@ -23,8 +22,6 @@ test('hover style constants export correct Tailwind classes', () => {
 
   expect(HOVER_GHOST_CLASSES).toContain('hover:bg-background-bottom');
   expect(HOVER_GHOST_CLASSES).toContain('hover:text-text-primary');
-
-  expect(HOVER_TEXT_LINK_CLASSES).toBe('hover:text-brand-700');
 
   expect(HOVER_NAV_UNDERLINE_CLASSES).toContain('after:bg-brand-500');
   expect(HOVER_NAV_UNDERLINE_CLASSES).toContain('after:scale-x-0');

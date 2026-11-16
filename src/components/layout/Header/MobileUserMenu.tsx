@@ -1,11 +1,8 @@
 'use client';
 
 import { Cross2Icon } from '@radix-ui/react-icons';
-import Link from 'next/link';
-import type { Session } from 'next-auth';
 import * as React from 'react';
 
-import { DeleteAccountDialog } from '@/components/auth/DeleteAccountDialog';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -14,205 +11,183 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { useAccountMenu } from '@/hooks/layout/useAccountMenu';
-import { trackEvent } from '@/lib/analytics';
-import { ResolvedIdentity } from '@/lib/auth/sessionHint';
-import { GROUP_FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
+import {
+  getNavAnalyticsAttributes,
+  type MobileAccountMenuModel,
+  type ProfileHeaderDescriptor,
+} from '@/hooks/layout/useHeaderNavigation';
+import {
+  FOCUS_RING_CLASSES,
+  GROUP_FOCUS_RING_CLASSES,
+} from '@/lib/ui/focusRing';
+import { cn } from '@/lib/utils';
 
-import { FEEDBACK_FORM_URL, FIND_MENTOR_HREF } from './constants';
-import { ShareProfileDialog } from './ShareProfileDialog';
+import { DisabledAwareLink } from './DisabledAwareLink';
 import { UserAvatar } from './UserAvatar';
 
 export type MobileUserMenuProps = {
-  identity: ResolvedIdentity;
-  user?: Session['user'];
+  profileHeader: ProfileHeaderDescriptor;
+  menu: MobileAccountMenuModel;
+  showFavorites?: boolean;
 };
 
-export function MobileUserMenu({
-  identity,
-  user,
+export const MobileUserMenu = React.memo(function MobileUserMenu({
+  profileHeader,
+  menu,
+  showFavorites,
 }: MobileUserMenuProps): JSX.Element {
   const [open, setOpen] = React.useState(false);
-
   const closeMenu = React.useCallback(() => setOpen(false), []);
-  const {
-    userId,
-    isMentor,
-    canDeleteAccount,
-    name,
-    avatarSrc,
-    subtitle,
-    personalLinks,
-    profilePath,
-    shareDialogOpen,
-    setShareDialogOpen,
-    deleteDialogOpen,
-    setDeleteDialogOpen,
-    handleGoProfile,
-    handleShareProfile,
-    handleAsMentor,
-    handleMyReservation,
-    handleDeleteAccount,
-    handleLogout,
-  } = useAccountMenu({ identity, user, closeMenu });
+
+  const { shareProfile, navItems: rawNavItems, accountActions } = menu;
+  const navItems = React.useMemo(
+    () =>
+      showFavorites === false
+        ? rawNavItems.filter((item) => item.id !== 'my-favorites')
+        : rawNavItems,
+    [rawNavItems, showFavorites]
+  );
 
   return (
-    <>
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetTrigger asChild>
-          <button
-            type="button"
-            aria-label="開啟用戶選單"
-            className="group flex items-center focus-visible:outline-none"
-          >
-            <UserAvatar
-              src={avatarSrc}
-              name={name}
-              size={30}
-              className={`size-[30px] transition-opacity group-hover:opacity-80 ${GROUP_FOCUS_RING_CLASSES}`}
-              priority
-            />
-          </button>
-        </SheetTrigger>
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <button
+          type="button"
+          aria-label="開啟用戶選單"
+          className="group flex items-center focus-visible:outline-none"
+        >
+          <UserAvatar
+            src={profileHeader.avatarSrc}
+            name={profileHeader.name}
+            size={30}
+            className={`size-[30px] transition-opacity group-hover:opacity-80 ${GROUP_FOCUS_RING_CLASSES}`}
+            priority
+          />
+        </button>
+      </SheetTrigger>
 
-        <SheetContent side="right" className="h-screen w-screen">
-          <SheetTitle className="sr-only">用戶選單</SheetTitle>
-          <div className="flex h-full flex-col overflow-y-auto">
-            <SheetClose asChild>
-              <button
-                type="button"
-                aria-label="關閉用戶選單"
-                className="ml-auto"
-              >
-                <Cross2Icon
-                  className="text-brand-900 size-8"
-                  aria-hidden="true"
-                />
-              </button>
-            </SheetClose>
-
-            {/* Profile header */}
+      <SheetContent side="right" className="h-dvh w-screen p-0">
+        <SheetTitle className="sr-only">用戶選單</SheetTitle>
+        <div className="flex h-full flex-col overflow-y-auto p-6">
+          <SheetClose asChild>
             <button
               type="button"
-              onClick={handleGoProfile}
-              data-testid="profile-header-button"
-              className="group flex items-center gap-4 pt-4 pb-6 text-left focus-visible:outline-none"
+              aria-label="關閉用戶選單"
+              className={cn('ml-auto rounded-md', FOCUS_RING_CLASSES)}
             >
-              <UserAvatar
-                src={avatarSrc}
-                name={name}
-                size={56}
-                className={`size-14 transition-opacity hover:opacity-80 ${GROUP_FOCUS_RING_CLASSES}`}
+              <Cross2Icon
+                className="text-brand-900 size-8"
+                aria-hidden="true"
               />
-              <div className="min-w-0">
-                <div className="text-text-primary truncate text-2xl font-semibold">
-                  {name || '我的個人頁面'}
-                </div>
-                {subtitle ? (
-                  <div className="text-text-tertiary mt-1 truncate text-sm">
-                    {subtitle}
-                  </div>
-                ) : null}
-              </div>
             </button>
+          </SheetClose>
 
-            {/* Share Profile */}
-            <Button
-              variant="outline"
-              className="mb-6 h-12 w-full rounded-2xl text-base font-semibold"
-              onClick={handleShareProfile}
-              disabled={!userId}
-            >
-              分享個人頁面
-            </Button>
-
-            <div className="bg-background-bottom h-px w-full" />
-
-            {/* Account actions */}
-            <nav className="flex flex-col py-2">
-              <button
-                type="button"
-                onClick={handleAsMentor}
-                disabled={!userId}
-                className="text-text-primary py-4 text-left text-xl disabled:opacity-50"
-              >
-                {isMentor ? '導師預約管理' : '成為導師'}
-              </button>
-              <button
-                type="button"
-                onClick={handleMyReservation}
-                className="text-text-primary py-4 text-left text-xl"
-              >
-                我的預約
-              </button>
-
-              <Link
-                href={FIND_MENTOR_HREF}
-                onClick={closeMenu}
-                className="text-text-primary py-4 text-left text-xl"
-              >
-                尋找導師
-              </Link>
-              <Link
-                href="/about"
-                onClick={closeMenu}
-                className="text-text-primary py-4 text-left text-xl"
-              >
-                關於 X-Talent
-              </Link>
-              <a
-                href={FEEDBACK_FORM_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => {
-                  trackEvent({ name: 'feedback_open' });
-                  closeMenu();
-                }}
-                className="text-text-primary py-4 text-left text-xl"
-              >
-                提供回饋
-              </a>
-            </nav>
-
-            <div className="flex flex-col pb-6">
-              <button
-                type="button"
-                className="text-text-primary py-4 text-left text-xl"
-                onClick={handleLogout}
-              >
-                登出
-              </button>
-              {canDeleteAccount && (
-                <button
-                  type="button"
-                  className="text-status-error-default py-4 text-left text-xl"
-                  onClick={handleDeleteAccount}
-                >
-                  刪除帳號
-                </button>
-              )}
+          <DisabledAwareLink
+            href={profileHeader.href}
+            disabled={profileHeader.disabled}
+            aria-current={profileHeader.isCurrent ? 'page' : undefined}
+            onClick={closeMenu}
+            data-testid="profile-header-button"
+            {...getNavAnalyticsAttributes(profileHeader.analytics.mobile)}
+            className="group flex items-center gap-4 pt-4 pb-6 text-left focus-visible:outline-none"
+          >
+            <UserAvatar
+              src={profileHeader.avatarSrc}
+              name={profileHeader.name}
+              size={56}
+              className={`size-14 transition-opacity hover:opacity-80 ${GROUP_FOCUS_RING_CLASSES}`}
+            />
+            <div className="min-w-0">
+              <div className="text-text-primary truncate text-2xl font-semibold">
+                {profileHeader.displayName}
+              </div>
+              {profileHeader.subtitle ? (
+                <div className="text-text-tertiary mt-1 truncate text-sm">
+                  {profileHeader.subtitle}
+                </div>
+              ) : null}
             </div>
+          </DisabledAwareLink>
+
+          <Button
+            variant="outline"
+            className="mb-6 h-12 w-full rounded-2xl text-base font-semibold"
+            onClick={() => shareProfile.onSelect(closeMenu)}
+            disabled={shareProfile.disabled}
+            {...getNavAnalyticsAttributes(shareProfile.analytics)}
+          >
+            {shareProfile.label}
+          </Button>
+
+          <div className="bg-background-bottom h-px w-full" />
+
+          <nav className="flex flex-col py-2">
+            {navItems.map((item) => {
+              if (item.kind === 'external-link') {
+                return (
+                  <a
+                    key={item.id}
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={item.ariaLabel}
+                    onClick={() => {
+                      item.onClick();
+                      closeMenu();
+                    }}
+                    className={cn(
+                      'text-text-primary rounded-sm py-4 text-left text-xl',
+                      FOCUS_RING_CLASSES
+                    )}
+                  >
+                    {item.label}
+                  </a>
+                );
+              }
+
+              return (
+                <DisabledAwareLink
+                  key={item.id}
+                  href={item.href}
+                  disabled={item.disabled}
+                  aria-current={item.isCurrent ? 'page' : undefined}
+                  onClick={closeMenu}
+                  {...getNavAnalyticsAttributes(item.analytics)}
+                  className={cn(
+                    'text-text-primary rounded-sm py-4 text-left text-xl',
+                    FOCUS_RING_CLASSES
+                  )}
+                >
+                  {item.label}
+                </DisabledAwareLink>
+              );
+            })}
+          </nav>
+
+          <div className="flex flex-col pb-6">
+            {accountActions.map((action) => (
+              <button
+                key={action.id}
+                type="button"
+                disabled={action.disabled}
+                className={cn(
+                  'rounded-sm py-4 text-left text-xl',
+                  action.tone === 'destructive'
+                    ? 'text-status-error-default'
+                    : 'text-text-primary',
+                  FOCUS_RING_CLASSES
+                )}
+                onClick={() => {
+                  void action.onSelect(closeMenu);
+                }}
+                {...getNavAnalyticsAttributes(action.analytics)}
+              >
+                {action.label}
+              </button>
+            ))}
           </div>
-        </SheetContent>
-      </Sheet>
-
-      <DeleteAccountDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-      />
-
-      <ShareProfileDialog
-        open={shareDialogOpen}
-        onOpenChange={(nextOpen) => {
-          setShareDialogOpen(nextOpen);
-          if (!nextOpen) closeMenu();
-        }}
-        name={name || '我的個人頁面'}
-        avatarSrc={avatarSrc}
-        subtitle={subtitle}
-        profilePath={profilePath}
-        personalLinks={personalLinks}
-      />
-    </>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
-}
+});

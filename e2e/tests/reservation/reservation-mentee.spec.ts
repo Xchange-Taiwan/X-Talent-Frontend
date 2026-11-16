@@ -1,27 +1,11 @@
 import { expect, Page, test } from '@playwright/test';
 
-import { setSignedSessionCookie as setSharedSessionCookie } from '../../helpers/session';
+import { seedMockAuthSession } from '../../helpers/session';
 
 const USER_ID = '1';
 const PAGE_URL = '/reservation/mentee';
 
 // ─── Mock payloads ───────────────────────────────────────────────────────────
-
-function makeSession() {
-  return {
-    user: {
-      id: USER_ID,
-      name: 'Test Mentee',
-      isMentor: false,
-      onBoarding: true,
-      jobTitle: '',
-      company: '',
-      personalLinks: [],
-    },
-    accessToken: 'mock-token',
-    expires: '2099-01-01T00:00:00.000Z',
-  };
-}
 
 function makeReservationResponse(reservations: object[]) {
   return {
@@ -71,23 +55,12 @@ function makeReservation(id: number, mentorName: string) {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-async function setSignedSessionCookie(page: Page): Promise<void> {
-  await setSharedSessionCookie(page, {
-    ...makeSession().user,
-    token: 'mock-access-token',
-  });
-}
-
-async function mockSessionGet(page: Page): Promise<void> {
-  await page.route(/\/api\/auth\/session/, (route) => {
-    if (route.request().method() === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(makeSession()),
-      });
-    }
-    return route.continue();
+async function seedMentee(page: Page): Promise<void> {
+  await seedMockAuthSession(page, {
+    id: USER_ID,
+    name: 'Test Mentee',
+    isMentor: false,
+    onBoarding: true,
   });
 }
 
@@ -189,8 +162,7 @@ async function mockCancelReservationApi(
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 test('頁面載入 → 三個 Tab 可見', async ({ page }) => {
-  await setSignedSessionCookie(page);
-  await mockSessionGet(page);
+  await seedMentee(page);
   await mockReservationEndpoints(page);
 
   await page.goto(PAGE_URL);
@@ -203,8 +175,7 @@ test('頁面載入 → 三個 Tab 可見', async ({ page }) => {
 });
 
 test('點擊等待回覆 Tab → pending 預約卡片顯示', async ({ page }) => {
-  await setSignedSessionCookie(page);
-  await mockSessionGet(page);
+  await seedMentee(page);
   await mockReservationEndpoints(page, {
     MENTEE_PENDING: [makeReservation(1, 'Mentor Wang')],
   });
@@ -221,8 +192,7 @@ test('點擊等待回覆 Tab → pending 預約卡片顯示', async ({ page }) =
 });
 
 test('資料載入中 → Skeleton 顯示且不閃爍錯誤內容', async ({ page }) => {
-  await setSignedSessionCookie(page);
-  await mockSessionGet(page);
+  await seedMentee(page);
 
   // Delay all reservation responses so the skeleton is visible long enough to assert
   let resolveDelay!: () => void;
@@ -271,8 +241,7 @@ test.describe('歷史紀錄 Tab 測試', () => {
   test('歷史紀錄 Tab 中有/無訊息的預約卡片與取消 badge 顯示', async ({
     page,
   }) => {
-    await setSignedSessionCookie(page);
-    await mockSessionGet(page);
+    await seedMentee(page);
 
     const withMsg = {
       ...makeReservation(10, 'Mentor Wang'),
@@ -360,8 +329,7 @@ test.describe('歷史紀錄 Tab 測試', () => {
   test('SYSTEM 自動取消之預約於歷史紀錄顯示「已自動取消」標籤，且展開完整對話紀錄彈窗顯示系統自動取消提示', async ({
     page,
   }) => {
-    await setSignedSessionCookie(page);
-    await mockSessionGet(page);
+    await seedMentee(page);
 
     const cancelledBySystem = {
       ...makeReservation(14, 'Mentor AutoCancel'),
@@ -411,8 +379,7 @@ test.describe('歷史紀錄 Tab 測試', () => {
   test('逾時未回覆（距離 dtstart 小於 24 小時）的 PENDING 預約於讀取時自動收斂至「歷史紀錄」Tab', async ({
     page,
   }) => {
-    await setSignedSessionCookie(page);
-    await mockSessionGet(page);
+    await seedMentee(page);
 
     const nowUnix = Math.floor(Date.now() / 1000);
     const overduePending = {
@@ -455,35 +422,34 @@ test.describe('歷史紀錄 Tab 測試', () => {
 });
 
 test.describe('學員端空狀態情境文案與 CTA 導向測試', () => {
-  test('驗證三個 Tab（「即將到來」、「等待回覆」、「歷史紀錄」）空狀態情境文案，且點擊「前往尋找導師」導向 /mentor-pool', async ({
+  test('驗證三個 Tab（「等待回覆」、「即將到來」、「歷史紀錄」）空狀態情境文案，且點擊「前往尋找導師」導向 /mentor-pool', async ({
     page,
   }) => {
-    await setSignedSessionCookie(page);
-    await mockSessionGet(page);
+    await seedMentee(page);
     await mockReservationEndpoints(page);
 
     await page.goto(PAGE_URL);
 
-    // 1. 即將到來 Tab 空狀態
-    await expect(page.getByRole('tab', { name: /即將到來/ })).toBeVisible({
+    // 1. 等待回覆 Tab 空狀態（預設選中第一個分頁）
+    await expect(page.getByRole('tab', { name: /等待回覆/ })).toBeVisible({
       timeout: 15_000,
     });
     await expect(page.getByText('目前尚無資料')).toBeVisible();
     await expect(
       page.getByText(
-        '目前還沒有即將到來的預約，立即前往導師池尋找適合的導師吧！'
+        '目前還沒有等待回覆的預約，前往導師池探索並向導師提出預約申請吧！'
       )
     ).toBeVisible();
     await expect(
       page.getByRole('link', { name: '前往尋找導師' })
     ).toHaveAttribute('href', '/mentor-pool');
 
-    // 2. 等待回覆 Tab 空狀態
-    await page.getByRole('tab', { name: /等待回覆/ }).click();
+    // 2. 即將到來 Tab 空狀態
+    await page.getByRole('tab', { name: /即將到來/ }).click();
     await expect(page.getByText('目前尚無資料')).toBeVisible();
     await expect(
       page.getByText(
-        '目前還沒有等待回覆的預約，前往導師池探索並向導師提出預約申請吧！'
+        '目前還沒有即將到來的預約，立即前往導師池尋找適合的導師吧！'
       )
     ).toBeVisible();
     await expect(
@@ -509,8 +475,7 @@ test.describe('學員端空狀態情境文案與 CTA 導向測試', () => {
 
 test.describe('學員取消預約與即將到來 Tab 測試', () => {
   test('即將到來 Tab 的卡片內容渲染', async ({ page }) => {
-    await setSignedSessionCookie(page);
-    await mockSessionGet(page);
+    await seedMentee(page);
     await mockReservationEndpoints(page, {
       MENTEE_UPCOMING: [makeReservation(1, 'Mentor Wang')],
     });
@@ -520,6 +485,7 @@ test.describe('學員取消預約與即將到來 Tab 測試', () => {
     await expect(page.getByRole('tab', { name: /即將到來/ })).toBeVisible({
       timeout: 15_000,
     });
+    await page.getByRole('tab', { name: /即將到來/ }).click();
 
     // 驗證卡片內容
     await expect(page.getByText('Mentor Wang')).toBeVisible();
@@ -530,8 +496,7 @@ test.describe('學員取消預約與即將到來 Tab 測試', () => {
   test('在「等待回覆」tab 點擊取消 → 填寫取消原因並確認 → 卡片從 pending 列表消失', async ({
     page,
   }) => {
-    await setSignedSessionCookie(page);
-    await mockSessionGet(page);
+    await seedMentee(page);
 
     let putCalled = false;
 
@@ -597,8 +562,7 @@ test.describe('學員取消預約與即將到來 Tab 測試', () => {
   test('在「即將到來」tab 點擊取消已接受的預約 → 卡片從 upcoming 列表消失，並移入 history（含取消原因）', async ({
     page,
   }) => {
-    await setSignedSessionCookie(page);
-    await mockSessionGet(page);
+    await seedMentee(page);
 
     let putCalled = false;
 
@@ -647,10 +611,11 @@ test.describe('學員取消預約與即將到來 Tab 測試', () => {
 
     await page.goto(PAGE_URL);
 
-    // 驗證「即將到來」tab
+    // 切換並驗證「即將到來」tab
     await expect(page.getByRole('tab', { name: /即將到來/ })).toBeVisible({
       timeout: 15_000,
     });
+    await page.getByRole('tab', { name: /即將到來/ }).click();
     await expect(page.getByText('Mentor Chen')).toBeVisible({
       timeout: 10_000,
     });
@@ -692,8 +657,7 @@ test.describe('學員取消預約與即將到來 Tab 測試', () => {
   });
 
   test('取消 API 失敗 → 顯示錯誤提示，卡片維持原狀', async ({ page }) => {
-    await setSignedSessionCookie(page);
-    await mockSessionGet(page);
+    await seedMentee(page);
 
     // 攔截取消 PUT 請求並回傳 500 錯誤
     await mockCancelReservationApi(page, {
@@ -750,8 +714,7 @@ test.describe('預約管理頁 UX 細節與轉址驗證 (#860)', () => {
   test('直接造訪 /reservation → 自動轉址至 /reservation/mentee', async ({
     page,
   }) => {
-    await setSignedSessionCookie(page);
-    await mockSessionGet(page);
+    await seedMentee(page);
     await mockReservationEndpoints(page);
 
     await page.goto('/reservation');
@@ -766,8 +729,7 @@ test.describe('預約管理頁 UX 細節與轉址驗證 (#860)', () => {
   test('切換至「歷史紀錄」分頁載入期間，保留「即將到來 1」與「等待回覆 1」徽章計數不閃跳歸 0', async ({
     page,
   }) => {
-    await setSignedSessionCookie(page);
-    await mockSessionGet(page);
+    await seedMentee(page);
 
     let resolveHistory!: () => void;
     const historyDelay = new Promise<void>((res) => {
@@ -837,8 +799,7 @@ test.describe('預約管理頁 UX 細節與轉址驗證 (#860)', () => {
   test('歷史紀錄中已取消且含原始提問與取消原因之預約，卡片與完整對話彈窗清楚區分「學員留言／預約提問」與「取消原因」', async ({
     page,
   }) => {
-    await setSignedSessionCookie(page);
-    await mockSessionGet(page);
+    await seedMentee(page);
 
     const cancelledWithBothMsgs = {
       ...makeReservation(25, 'Mentor BothMessages'),

@@ -3,7 +3,7 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { useMentorPoolFilters } from '@/hooks/useMentorPoolFilters';
+import { useMentorPoolSearchQuery } from '@/hooks/useMentorPoolFilters';
 import { computeOverflowFit } from '@/lib/overflowFit';
 import { HOVER_CLICKABLE_CHIP_CLASSES } from '@/lib/ui/hoverStyles';
 
@@ -17,7 +17,7 @@ const DESKTOP_WIDTH = 846;
 const GAP_PX = 8;
 
 export default function PopularPositionChips() {
-  const { setSearchQuery } = useMentorPoolFilters();
+  const { setSearchQuery } = useMentorPoolSearchQuery();
   const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [visibleCount, setVisibleCount] = useState(POPULAR_POSITIONS.length);
@@ -76,6 +76,12 @@ export default function PopularPositionChips() {
             }}
             type="button"
             onClick={() => handleClick(position)}
+            data-analytics-click="mentor_pool_popular_chip"
+            data-analytics-event="mentor_pool_filter_apply"
+            data-analytics-feature="mentor_pool"
+            data-analytics-location="popular_positions"
+            data-analytics-param-filter-type="popular_position"
+            data-analytics-param-filter-value={position}
             className={`border-background-border bg-background-white text-text-primary ${HOVER_CLICKABLE_CHIP_CLASSES} focus-visible:ring-ring shrink-0 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none ${
               i >= visibleCount ? 'xl:hidden' : ''
             }`}

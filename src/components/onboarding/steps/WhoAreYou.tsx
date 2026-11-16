@@ -1,9 +1,13 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import { FC, useRef } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
-import * as z from 'zod';
+import { useRef } from 'react';
+import {
+  type Control,
+  type FieldValues,
+  type Path,
+  useWatch,
+} from 'react-hook-form';
 
 import AvatarUpload from '@/components/ui/avatar-upload';
 import {
@@ -14,32 +18,47 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { withAvatarVersion } from '@/lib/avatar/avatarUrl';
 
-import { step1Schema } from './index';
-
-interface Props {
-  form: ReturnType<typeof useForm<z.infer<typeof step1Schema>>>;
+interface WhoAreYouFormFields extends FieldValues {
+  name: string;
+  avatar?: string;
+  avatarFile?: File;
 }
 
-export const WhoAreYou: FC<Props> = ({ form }) => {
-  const watchedAvatar = useWatch({ control: form.control, name: 'avatar' });
+interface Props<T extends WhoAreYouFormFields> {
+  form: { control: Control<T> };
+}
+
+export const WhoAreYou = <T extends WhoAreYouFormFields>({
+  form,
+}: Props<T>) => {
+  const watchedAvatar = useWatch({
+    control: form.control,
+    name: 'avatar' as Path<T>,
+  });
   const { data: session } = useSession();
   const stableCacheBust = useRef(Date.now()).current;
-  const avatarDisplayUrl = watchedAvatar
-    ? `${watchedAvatar}${watchedAvatar.includes('?') ? '&' : '?'}cb=${session?.user?.avatarUpdatedAt ?? stableCacheBust}`
-    : '';
+  const avatarDisplayUrl =
+    typeof watchedAvatar === 'string' && watchedAvatar
+      ? withAvatarVersion(
+          watchedAvatar,
+          session?.user?.avatarUpdatedAt ?? stableCacheBust,
+          'cb'
+        )
+      : '';
 
   return (
     <>
       <AvatarUpload
         control={form.control}
-        name="avatarFile"
+        name={'avatarFile' as Path<T>}
         avatarUrl={avatarDisplayUrl}
       />
 
       <FormField
         control={form.control}
-        name="name"
+        name={'name' as Path<T>}
         render={({ field }) => (
           <FormItem>
             <FormLabel showErrorStyle={false}>輸入姓名</FormLabel>

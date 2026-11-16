@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
-import React from 'react';
+import React, { useEffect } from 'react';
 
+import type { ProfileFormContext } from '@/hooks/user/profile/useProfileEditorSession';
 import {
   createProfileFormSchema,
   defaultValues,
@@ -31,8 +32,6 @@ const meta: Meta<typeof JobExperienceSection> = {
     industries: industriesMock,
     locations: locationsMock,
     isMentor: false,
-    onValidationChange: (hasError) =>
-      console.log('Validation change:', hasError),
   },
 };
 
@@ -40,10 +39,35 @@ export default meta;
 
 type Story = StoryObj<typeof JobExperienceSection>;
 
+function JobSectionBody({
+  form,
+  isMentor,
+  triggerOnMount = false,
+}: {
+  form: ProfileFormContext;
+  isMentor: boolean;
+  triggerOnMount?: boolean;
+}) {
+  useEffect(() => {
+    if (triggerOnMount) {
+      void form.trigger('work_experiences');
+    }
+  }, [form, triggerOnMount]);
+
+  return (
+    <JobExperienceSection
+      industries={industriesMock}
+      locations={locationsMock}
+      form={form}
+      isMentor={isMentor}
+    />
+  );
+}
+
 const SectionWithForm = (props: {
   isMentor: boolean;
   initialExperiences?: ProfileFormValues['work_experiences'];
-  onValidationChange: (hasError: boolean) => void;
+  triggerOnMount?: boolean;
 }) => {
   const schema = createProfileFormSchema(props.isMentor);
 
@@ -57,12 +81,10 @@ const SectionWithForm = (props: {
       }}
     >
       {(form) => (
-        <JobExperienceSection
-          industries={industriesMock}
-          locations={locationsMock}
+        <JobSectionBody
           form={form}
           isMentor={props.isMentor}
-          onValidationChange={props.onValidationChange}
+          triggerOnMount={props.triggerOnMount}
         />
       )}
     </ProfileStoryWrapper>
@@ -71,11 +93,7 @@ const SectionWithForm = (props: {
 
 export const Empty: Story = {
   render: (args) => (
-    <SectionWithForm
-      isMentor={args.isMentor}
-      initialExperiences={[]}
-      onValidationChange={args.onValidationChange}
-    />
+    <SectionWithForm isMentor={args.isMentor} initialExperiences={[]} />
   ),
 };
 
@@ -100,7 +118,6 @@ export const Filled: Story = {
           is_primary: true,
         },
       ]}
-      onValidationChange={args.onValidationChange}
     />
   ),
 };
@@ -136,7 +153,32 @@ export const MultipleEntries: Story = {
           is_primary: false,
         },
       ]}
-      onValidationChange={args.onValidationChange}
+    />
+  ),
+};
+
+export const InvalidPeriod: Story = {
+  name: '起訖年份順序錯誤狀態',
+  args: {
+    isMentor: true,
+  },
+  render: (args) => (
+    <SectionWithForm
+      isMentor={args.isMentor}
+      triggerOnMount
+      initialExperiences={[
+        {
+          id: 1,
+          job: '資深前端工程師 (Senior Frontend Engineer)',
+          company: '創新科技股份有限公司',
+          job_period_start: '2025',
+          job_period_end: '2022',
+          industry: 'Software',
+          job_location: 'TWN',
+          description: '測試開始年份大於結束年份的驗證錯誤狀態。',
+          is_primary: true,
+        },
+      ]}
     />
   ),
 };

@@ -1,20 +1,20 @@
 import { apiClient } from '@/lib/apiClient';
+import {
+  type AnnouncementData,
+  isValidAnnouncementData,
+} from '@/lib/globalConfig';
 
-export interface AnnouncementData {
-  enabled: boolean;
-  message: string;
-  maintenanceTime: string;
-}
+export type { AnnouncementData };
 
 export async function fetchAnnouncement(
   signal?: AbortSignal
 ): Promise<AnnouncementData | null> {
-  const res = await apiClient.get<AnnouncementData>('/api/announcement', {
+  const res = await apiClient.get<unknown>('/api/announcement', {
     auth: false,
     isLocal: true,
     signal,
   });
-  return res || null;
+  return isValidAnnouncementData(res) ? res : null;
 }
 
 export function isMaintenanceExpired(

@@ -1,3 +1,4 @@
+import { fromPartial } from '@total-typescript/shoehorn';
 import { get } from '@vercel/global-config';
 import { NextRequest } from 'next/server';
 import { decode, getToken } from 'next-auth/jwt';
@@ -838,5 +839,161 @@ describe('middleware public routes', () => {
 
     expect(response.status).toBe(307);
     expect(response.headers.get('location')).toContain('/auth/signin');
+    expect(response.headers.get('location')).not.toContain('callbackUrl=');
+  });
+
+  it('preserves full pathname and query parameters in callbackUrl when redirecting unauthenticated users from History deep links (#733)', async () => {
+    mockGetToken.mockResolvedValue(null);
+
+    const response = await middleware(
+      makeRequest('/reservation/mentee?tab=history&reservationId=101')
+    );
+
+    expect(response.status).toBe(307);
+    const location = response.headers.get('location');
+    expect(location).not.toBeNull();
+    const redirectUrl = new URL(location!);
+    expect(redirectUrl.pathname).toBe('/auth/signin');
+    expect(redirectUrl.searchParams.get('callbackUrl')).toBe(
+      '/reservation/mentee?tab=history&reservationId=101'
+    );
+  });
+
+  it.each([
+    '/_next/static/css/main.css',
+    '/assets/logo.svg',
+    '/favicon.ico',
+    '/monitoring',
+    '/api/auth/session',
+    '/api/auth/callback/credentials',
+  ])(
+    'short-circuits %s before invoking getToken() (#878)',
+    async (shortCircuitPath) => {
+      const response = await middleware(makeRequest(shortCircuitPath));
+
+      expect(response.status).toBe(200);
+      expect(mockGetToken).not.toHaveBeenCalled();
+    }
+  );
+
+  it('treats /profile/card as a protected route and redirects visitors to /auth/signin with callbackUrl (#878)', async () => {
+    mockGetToken.mockResolvedValue(null);
+
+    const response = await middleware(makeRequest('/profile/card'));
+
+    expect(response.status).toBe(307);
+    const redirectUrl = new URL(response.headers.get('location')!);
+    expect(redirectUrl.pathname).toBe('/auth/signin');
+    expect(redirectUrl.searchParams.get('callbackUrl')).toBe('/profile/card');
+  });
+
+  it('delegates onboarding and role gate decisions to evaluateMiddlewareGate (#878)', async () => {
+    mockGetToken.mockResolvedValue(
+      fromPartial({ id: '77', onBoarding: false, isMentor: false })
+    );
+
+    const signInRes = await middleware(makeRequest('/auth/signin'));
+    expect(signInRes.status).toBe(307);
+    expect(new URL(signInRes.headers.get('location')!).pathname).toBe(
+      '/auth/onboarding'
+    );
+
+    const onboardingRes = await middleware(makeRequest('/auth/onboarding'));
+    expect(onboardingRes.status).toBe(200);
+    expect(onboardingRes.cookies.get(SESSION_HINT_COOKIE)?.value).toBe('0|77');
+
+    mockGetToken.mockResolvedValue(
+      fromPartial({ id: '78', onBoarding: true, isMentor: false })
+    );
+
+    const menteeOnMentorRes = await middleware(
+      makeRequest('/reservation/mentor')
+    );
+    expect(menteeOnMentorRes.status).toBe(307);
+    expect(new URL(menteeOnMentorRes.headers.get('location')!).pathname).toBe(
+      '/reservation/mentee'
+    );
+
+    mockGetToken.mockResolvedValue(
+      fromPartial({ id: '79', onBoarding: true, isMentor: true })
+    );
+
+    const mentorRes = await middleware(makeRequest('/reservation/mentor'));
+    expect(mentorRes.status).toBe(200);
+    expect(mentorRes.cookies.get(SESSION_HINT_COOKIE)?.value).toBe('1|79');
+  });
+
+  it.each([
+    { path: '/auth/signin', method: 'GET' },
+    { path: '/auth/signin', method: 'POST' },
+    { path: '/auth/signup', method: 'GET' },
+    { path: '/about', method: 'GET' },
+  ])(
+    'scrubs next-auth.session-token, __Secure-next-auth.session-token, and session-hint on $method $path when token has RefreshTokenError (#895)',
+    async ({ path, method }) => {
+      mockGetToken.mockResolvedValue(
+        fromPartial({
+          id: '88',
+          onBoarding: true,
+          isMentor: true,
+          error: 'RefreshTokenError',
+        })
+      );
+
+      const req = new NextRequest(`https://example.com${path}`, {
+        method,
+        headers: {
+          cookie: [
+            'next-auth.session-token=stale-jwe',
+            '__Secure-next-auth.session-token=stale-secure-jwe',
+            `${SESSION_HINT_COOKIE}=1%7C88`,
+          ].join('; '),
+        },
+      });
+
+      const response = await middleware(req);
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('location')).toBeNull();
+
+      const setCookieHeader = response.headers.get('set-cookie') ?? '';
+      expect(setCookieHeader).toContain('next-auth.session-token=;');
+      expect(setCookieHeader).toContain('__Secure-next-auth.session-token=;');
+      expect(setCookieHeader).toContain(`${SESSION_HINT_COOKIE}=;`);
+    }
+  );
+});
+
+describe('middleware favorites feature-flag gate (#913)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGet.mockResolvedValue(false as never);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('redirects unauthenticated and authenticated requests on /favorites and /favorites/* to FIND_MENTOR_HREF before calling getToken() when favorites flag is disabled', async () => {
+    vi.stubEnv('NEXT_PUBLIC_ENABLE_FAVORITES', 'false');
+
+    for (const targetPath of ['/favorites', '/favorites/subpath']) {
+      const res = await middleware(makeRequest(targetPath));
+      expect(res.status).toBe(307);
+      expect(res.headers.get('location')).toBe(
+        'https://example.com/mentor-pool'
+      );
+      expect(mockGetToken).not.toHaveBeenCalled();
+      expect(mockDecode).not.toHaveBeenCalled();
+    }
+  });
+
+  it('still prioritizes /maintenance redirect over disabled /favorites gate during maintenance mode', async () => {
+    vi.stubEnv('NEXT_PUBLIC_ENABLE_FAVORITES', 'false');
+    vi.stubEnv('MAINTENANCE_MODE', 'true');
+
+    const res = await middleware(makeRequest('/favorites'));
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toBe('https://example.com/maintenance');
   });
 });

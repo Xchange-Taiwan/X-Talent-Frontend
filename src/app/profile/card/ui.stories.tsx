@@ -66,7 +66,11 @@ export const MenteeCompletedView: Story = {
   args: {
     userData: mockMenteeUserData,
     isMentor: false,
-    linkedinUrl: 'https://www.linkedin.com/in/alex-chen',
+    personalLinks: [
+      { platform: 'linkedin', url: 'https://www.linkedin.com/in/alex-chen' },
+      { platform: 'github', url: 'https://github.com/alex-chen' },
+      { platform: 'website', url: 'https://alexchen.dev' },
+    ],
     onBecomeMentor: () => {},
     onGoToMentorPool: () => {},
     onBackToProfile: () => {},
@@ -77,7 +81,13 @@ export const MentorCompletedView: Story = {
   args: {
     userData: mockMentorUserData,
     isMentor: true,
-    linkedinUrl: 'https://www.linkedin.com/in/hana-lin',
+    personalLinks: [
+      { platform: 'linkedin', url: 'https://www.linkedin.com/in/hana-lin' },
+      { platform: 'twitter', url: 'https://x.com/hanalin' },
+      { platform: 'youtube', url: 'https://www.youtube.com/@hanalin' },
+      { platform: 'github', url: 'https://github.com/hanalin' },
+      { platform: 'website', url: 'https://hanalin.dev' },
+    ],
     onBecomeMentor: () => {},
     onGoToMentorPool: () => {},
     onBackToProfile: () => {},

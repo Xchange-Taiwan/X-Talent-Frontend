@@ -1,3 +1,5 @@
+import type { ReservationFeedback } from '@/types/reservationFeedback';
+
 export type MessageRole = 'MENTEE' | 'MENTOR';
 
 export type ReservationMessage = {
@@ -54,4 +56,8 @@ export type Reservation = {
   // (src/lib/reservation/reservationViewerModel.ts) so a caller never has to
   // hardcode which role it's rendering for.
   viewerRole?: 'MENTEE' | 'MENTOR';
+
+  // Post-meeting feedback & rating state (X-Tracker #730). Optional so
+  // pre-deployment responses without `feedback` degrade gracefully.
+  feedback?: ReservationFeedback;
 };

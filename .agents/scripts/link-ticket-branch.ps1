@@ -1,4 +1,2 @@
-# Thin PowerShell wrapper around the cross-platform Node.js implementation.
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-& node (Join-Path $ScriptDir "link-ticket-branch.mjs") @args
+& node (Join-Path $PSScriptRoot "tracker-ops.mjs") link-ticket-branch @args
 exit $LASTEXITCODE

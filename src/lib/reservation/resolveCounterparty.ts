@@ -1,5 +1,7 @@
 import { TotalWorkSpanEnum } from '@/constant/seniority';
+import { resolveCancelledBy } from '@/lib/reservation/reservationLifecyclePolicy';
 import type { components } from '@/types/api';
+import type { FeedbackViewerRole } from '@/types/reservationFeedback';
 
 export function formatExperience(yearsOfExperience?: string | null) {
   return (
@@ -31,6 +33,62 @@ export function resolveCounterpartyId(
     return reservation.participantUserId;
   }
   return reservation.senderUserId;
+}
+
+/**
+ * Resolves the positive numeric mentor user ID whose public profile / feedback cache
+ * may be affected by a reservation feedback mutation.
+ */
+export function resolveTargetMentorId(
+  reservation: CounterpartyResolvable,
+  myUserId: string | number,
+  myRole: FeedbackViewerRole
+): number | undefined {
+  const rawTargetId =
+    myRole === 'mentor'
+      ? Number(myUserId)
+      : Number(resolveCounterpartyId(reservation, myUserId));
+  return Number.isFinite(rawTargetId) && rawTargetId > 0
+    ? rawTargetId
+    : undefined;
+}
+
+/**
+ * Resolves the viewer's feedback role ('mentor' | 'mentee') for a reservation,
+ * preferring the explicit per-reservation `viewerRole` and falling back to
+ * session mentor identity when simplified backend items omit `viewer_role`.
+ */
+export function resolveFeedbackViewerRole(
+  viewerRole: 'MENTEE' | 'MENTOR' | null | undefined,
+  isMentorFallback = false
+): FeedbackViewerRole {
+  if (viewerRole === 'MENTOR') {
+    return 'mentor';
+  }
+  if (viewerRole === 'MENTEE') {
+    return 'mentee';
+  }
+  return isMentorFallback ? 'mentor' : 'mentee';
+}
+
+/**
+ * Ensures a reservation carries an explicit `viewerRole` ('MENTOR' | 'MENTEE'),
+ * preserving per-item roles in mixed queues while filling missing roles from
+ * `isMentorFallback`.
+ */
+export function normalizeReservationViewerRole<
+  T extends { viewerRole?: 'MENTEE' | 'MENTOR' },
+>(reservation: T, isMentorFallback: boolean): T {
+  if (
+    reservation.viewerRole === 'MENTOR' ||
+    reservation.viewerRole === 'MENTEE'
+  ) {
+    return reservation;
+  }
+  return {
+    ...reservation,
+    viewerRole: isMentorFallback ? 'MENTOR' : 'MENTEE',
+  };
 }
 
 export type ReservationInfoVOWithCancelledBy =
@@ -90,20 +148,13 @@ export function resolveCounterpartyProfile(
       ? reservation.sender
       : reservation.participant;
 
-  const explicitCancelledBy =
-    reservation.cancelled_by === 'MENTEE' ||
-    reservation.cancelled_by === 'MENTOR' ||
-    reservation.cancelled_by === 'SYSTEM'
-      ? reservation.cancelled_by
-      : undefined;
-
-  const cancelledBy =
-    explicitCancelledBy ??
-    (counterparty?.status === 'REJECT'
-      ? toRole(counterparty?.role)
-      : currentUserSide?.status === 'REJECT'
-        ? toRole(currentUserSide?.role)
-        : undefined);
+  const cancelledBy = resolveCancelledBy({
+    explicitCancelledBy: reservation.cancelled_by,
+    counterpartyRole: counterparty?.role,
+    counterpartyStatus: counterparty?.status,
+    currentUserRole: currentUserSide?.role,
+    currentUserStatus: currentUserSide?.status,
+  });
 
   // The viewer's own side is only meaningful when someone is actually
   // signed in - with no myUserId, `counterparty` was picked arbitrarily

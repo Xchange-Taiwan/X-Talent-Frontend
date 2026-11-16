@@ -1,5 +1,6 @@
 import { expect, Page, test } from '@playwright/test';
 
+import { captureEvidence } from '../../helpers/evidence';
 import { mockApiRoute } from '../../helpers/route';
 import {
   setSignedMaintenanceCookie,
@@ -52,16 +53,34 @@ test.describe('Middleware (RefreshTokenError & Maintenance Mode) & AnnouncementB
     expect(cookieNames).not.toContain('session-hint');
   });
 
-  test('RefreshTokenError 造訪公開路由 → Middleware 清除過期 session-hint 且 SessionErrorWatcher 自動觸發 signOut 導向 /auth/signin', async ({
+  test('RefreshTokenError 造訪 /auth/signin 與公開路由 → Middleware 直接清除損壞的 session cookie 與 session-hint 且不陷入重導向迴圈 (#895)', async ({
     page,
   }) => {
-    await mockApiRoute(
-      page,
-      new RegExp(`/v1/users/${USER_ID}/notifications/unread-count`),
-      {
-        body: { code: '0', msg: 'ok', data: { unread_count: 0 } },
-      }
-    );
+    await seedStaleSessionHint(page);
+    await setSignedSessionCookie(page, {
+      id: USER_ID,
+      name: 'Expired SignIn User',
+      onBoarding: true,
+      isMentor: true,
+      token: 'expired-access-token',
+      error: 'RefreshTokenError',
+    });
+
+    await page.goto('/auth/signin');
+
+    await expect(page).toHaveURL(/\/auth\/signin$/, { timeout: 15_000 });
+    await expect(
+      page.getByRole('heading', { name: '登入 X-Talent 帳戶' })
+    ).toBeVisible();
+
+    const signInCookies = await page.context().cookies();
+    const signInCookieNames = signInCookies.map((c) => c.name);
+    expect(signInCookieNames).not.toContain('next-auth.session-token');
+    expect(signInCookieNames).not.toContain('__Secure-next-auth.session-token');
+    expect(signInCookieNames).not.toContain('session-hint');
+
+    await captureEvidence(page, '895-signin-refresh-token-error-scrubbed');
+
     await seedStaleSessionHint(page);
     await setSignedSessionCookie(page, {
       id: USER_ID,
@@ -74,13 +93,38 @@ test.describe('Middleware (RefreshTokenError & Maintenance Mode) & AnnouncementB
 
     await page.goto('/about');
 
-    await expect(page).toHaveURL(/\/auth\/signin/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/about$/, { timeout: 15_000 });
 
-    const cookies = await page.context().cookies();
-    const cookieNames = cookies.map((c) => c.name);
-    expect(cookieNames).not.toContain('next-auth.session-token');
-    expect(cookieNames).not.toContain('__Secure-next-auth.session-token');
-    expect(cookieNames).not.toContain('session-hint');
+    const publicCookies = await page.context().cookies();
+    const publicCookieNames = publicCookies.map((c) => c.name);
+    expect(publicCookieNames).not.toContain('next-auth.session-token');
+    expect(publicCookieNames).not.toContain('__Secure-next-auth.session-token');
+    expect(publicCookieNames).not.toContain('session-hint');
+  });
+
+  test('HTTP-200 非零 BFF 錯誤信封於 /auth/email-verified → AuthClient 拒絕假陽性成功並呈現「驗證失敗」 (#895)', async ({
+    page,
+  }) => {
+    await mockApiRoute(page, /\/v1\/auth\/signup\/confirm/, {
+      status: 200,
+      body: {
+        code: '400',
+        msg: '驗證連結已失效',
+        data: null,
+      },
+    });
+
+    await page.goto('/auth/email-verified?token=expired-signup-token');
+
+    await expect(page.getByRole('heading', { name: '驗證失敗' })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByRole('heading', { name: '驗證成功' })).toBeHidden();
+
+    await captureEvidence(
+      page,
+      '895-email-verified-bff-nonzero-envelope-failure'
+    );
   });
 
   test('非維護模式下直接造訪 /maintenance → 自動重導向回首頁 /', async ({
@@ -194,9 +238,13 @@ test.describe('Middleware (RefreshTokenError & Maintenance Mode) & AnnouncementB
       })
       .toBeGreaterThan(0);
 
+    await captureEvidence(page, 'announcement-banner-active');
+
     await page.getByRole('button', { name: '關閉公告' }).click();
 
     await expect(banner).toBeHidden();
+    await expect(page.getByTestId('desktop-header-right')).toBeVisible();
+    await captureEvidence(page, 'announcement-banner-dismissed');
 
     const dismissedState = await page.evaluate(() => ({
       storage: sessionStorage.getItem('announcement-dismissed'),
@@ -209,6 +257,65 @@ test.describe('Middleware (RefreshTokenError & Maintenance Mode) & AnnouncementB
     // Reloading in the same session should keep the announcement hidden
     await page.reload();
     await expect(banner).toBeHidden();
+  });
+
+  test('AnnouncementBanner 在受限環境 sessionStorage 拋出 SecurityError 時不觸發崩潰且仍可正常顯示與關閉 (#902)', async ({
+    page,
+  }) => {
+    const pageErrors: string[] = [];
+    page.on('pageerror', (err) => {
+      pageErrors.push(err.message);
+    });
+
+    await page.addInitScript(() => {
+      const origGetItem = Storage.prototype.getItem;
+      const origSetItem = Storage.prototype.setItem;
+      Storage.prototype.getItem = function (key: string) {
+        if (key === 'announcement-dismissed') {
+          throw new DOMException('Access is denied', 'SecurityError');
+        }
+        return origGetItem.call(this, key);
+      };
+      Storage.prototype.setItem = function (key: string, value: string) {
+        if (key === 'announcement-dismissed') {
+          throw new DOMException('Access is denied', 'SecurityError');
+        }
+        origSetItem.call(this, key, value);
+      };
+    });
+
+    const futureTime = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const restrictedNotice =
+      '受限瀏覽器環境維護公告：系統將於週日凌晨進行例行升級。';
+
+    await page.route(/\/api\/announcement/, async (route) => {
+      if (route.request().method() === 'GET') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            enabled: true,
+            message: restrictedNotice,
+            maintenanceTime: futureTime,
+          }),
+        });
+      }
+      return route.continue();
+    });
+
+    await page.goto('/about');
+
+    const banner = page.locator(
+      '[role="alert"]:not(#__next-route-announcer__)'
+    );
+    await expect(banner).toBeVisible({ timeout: 15_000 });
+    await expect(banner).toContainText(restrictedNotice);
+
+    await captureEvidence(page, 'announcement-banner-storage-restricted');
+
+    await page.getByRole('button', { name: '關閉公告' }).click();
+    await expect(banner).toBeHidden();
+    expect(pageErrors).toEqual([]);
   });
 
   test('AnnouncementBanner maintenanceTime 已過期 → 不顯示公告橫幅', async ({

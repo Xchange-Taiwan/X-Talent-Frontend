@@ -7,6 +7,7 @@ import {
   encode,
   type EncodeInput,
   type MentorExperiencePayload,
+  toFormValues,
 } from './experienceCodec';
 
 function payloadFor(
@@ -75,6 +76,58 @@ describe('experienceCodec', () => {
 
     expect(workExperiences).toHaveLength(1);
     expect(workExperiences[0].is_primary).toBe(true);
+  });
+
+  it('decode & encode: multiple work experiences with none marked is_primary default to the first entry', () => {
+    const experiences = [
+      payloadFor(ExperienceType.WORK, [
+        { job: 'Lead Engineer', company: 'FirstCo', is_primary: false },
+        { job: 'Engineer', company: 'SecondCo', is_primary: false },
+      ]),
+    ];
+
+    const { workExperiences } = decode(experiences);
+
+    expect(workExperiences).toHaveLength(2);
+    expect(workExperiences[0].is_primary).toBe(true);
+    expect(workExperiences[1].is_primary).toBe(false);
+
+    const encoded = encode({
+      workExperiences: [
+        { job: 'Lead Engineer', company: 'FirstCo', is_primary: false },
+        { job: 'Engineer', company: 'SecondCo', is_primary: false },
+      ],
+      educations: [],
+      personalLinks: [],
+    });
+
+    expect(encoded.job_title).toBe('Lead Engineer');
+    expect(encoded.company).toBe('FirstCo');
+  });
+
+  it('decode: merges multiple payloads of the same category without dropping later items', () => {
+    const experiences = [
+      payloadFor(ExperienceType.WORK, [{ job: 'First Job', company: 'Co A' }]),
+      payloadFor(ExperienceType.WORK, [{ job: 'Second Job', company: 'Co B' }]),
+      payloadFor(ExperienceType.LINK, [
+        { platform: 'linkedin', url: 'https://linkedin.com/in/me' },
+      ]),
+      payloadFor(ExperienceType.LINK, [
+        { platform: 'website', url: 'https://example.com' },
+      ]),
+    ];
+
+    const decoded = decode(experiences);
+
+    expect(decoded.workExperiences).toHaveLength(2);
+    expect(decoded.workExperiences[0].job).toBe('First Job');
+    expect(decoded.workExperiences[0].is_primary).toBe(true);
+    expect(decoded.workExperiences[1].job).toBe('Second Job');
+    expect(decoded.workExperiences[1].is_primary).toBe(false);
+    expect(decoded.personalLinks).toEqual([
+      { platform: 'linkedin', url: 'https://linkedin.com/in/me' },
+      { platform: 'website', url: 'https://example.com' },
+    ]);
   });
 
   it('decode: filters out unsafe URLs (e.g. javascript:) from personal links', () => {
@@ -172,5 +225,43 @@ describe('experienceCodec', () => {
       experiences.find((e) => e.category === ExperienceType.WORK)
         ?.mentor_experiences_metadata.data
     ).toEqual([]);
+  });
+
+  it('toFormValues: normalizes legacy casing, applies last-writer-wins per platform, and drops lookalike hosts or malformed entries', () => {
+    const experiences = [
+      payloadFor(ExperienceType.WORK, [
+        null,
+        { job: 'Engineer', company: 'Acme' },
+      ]),
+      payloadFor(ExperienceType.LINK, [
+        null,
+        { url: 'https://example.com/missing-platform' },
+        { platform: 'LinkedIn', url: 'https://linkedin.com/in/first' },
+        { platform: 'linkedin', url: 'https://www.linkedin.com/in/latest' },
+        { platform: 'linkedin', url: 'https://evil-linkedin.com/in/ignored' },
+        { platform: 'GitHub', url: 'github.com/octocat' },
+        { platform: 'github', url: 'https://gitlab.com/ignored' },
+        { platform: 'website', url: 'https://portfolio.example.com' },
+      ]),
+    ];
+
+    const formValues = toFormValues(experiences);
+
+    expect(formValues.workExperiences).toHaveLength(1);
+    expect(formValues.workExperiences[0]).toMatchObject({
+      id: 0,
+      job: 'Engineer',
+      company: 'Acme',
+      is_primary: true,
+    });
+    expect(formValues.links).toEqual({
+      linkedin: 'https://www.linkedin.com/in/latest',
+      facebook: '',
+      instagram: '',
+      twitter: '',
+      youtube: '',
+      github: 'https://github.com/octocat',
+      website: 'https://portfolio.example.com',
+    });
   });
 });

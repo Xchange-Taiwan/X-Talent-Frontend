@@ -1,51 +1,31 @@
 import { cookies } from 'next/headers';
-import type { NextAuthOptions } from 'next-auth';
+import type { NextAuthOptions, Session } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 
+import {
+  type BffUserPayload,
+  type MentorExperience,
+  normalizeBffAuthUser,
+  type PersonalLink,
+  resolveBffBaseUrl,
+  resolveMentorExperienceLinks,
+} from '@/lib/auth/bffAuth';
 import { consumeOAuthRefreshBridge } from '@/lib/auth/oauthRefreshBridge';
 import { singleFlight } from '@/lib/singleFlight';
-import { isSafeUrl } from '@/lib/url/isSafeUrl';
 import { SignInSchema } from '@/schemas/auth';
 import {
-  refreshAccessToken,
   extractRefreshToken,
+  refreshAccessToken,
 } from '@/services/auth/refreshToken';
 
-export interface MentorExperience {
-  category: string;
-  mentor_experiences_metadata?: {
-    data?: unknown[];
-  };
-}
-
-export interface PersonalLink {
-  platform: string;
-  url: string;
-}
-
-function isPersonalLink(l: unknown): l is PersonalLink {
-  if (typeof l !== 'object' || l === null) return false;
-  const raw = l as Record<string, unknown>;
-  return (
-    typeof raw.url === 'string' &&
-    typeof raw.platform === 'string' &&
-    Boolean(raw.url) &&
-    isSafeUrl(raw.url)
-  );
-}
-
-export function resolveMentorExperienceLinks(
-  experiences: MentorExperience[] | undefined | null
-): PersonalLink[] {
-  if (!experiences) return [];
-  return experiences
-    .filter((exp) => exp.category === 'LINK')
-    .flatMap((exp) => {
-      const list = exp.mentor_experiences_metadata?.data;
-      return Array.isArray(list) ? list : [];
-    })
-    .filter(isPersonalLink);
-}
+export {
+  type BffUserPayload,
+  type MentorExperience,
+  normalizeBffAuthUser,
+  type PersonalLink,
+  resolveBffBaseUrl,
+  resolveMentorExperienceLinks,
+};
 
 export const REFRESH_SKEW_SECONDS = 300;
 
@@ -126,9 +106,14 @@ export const jwtCallback: NonNullable<
   return token;
 };
 
-export const sessionCallback: NonNullable<
-  NextAuthOptions['callbacks']
->['session'] = async ({ session, token }) => {
+type SessionCallbackParams = Parameters<
+  NonNullable<NonNullable<NextAuthOptions['callbacks']>['session']>
+>[0];
+
+export const sessionCallback = async ({
+  session,
+  token,
+}: SessionCallbackParams): Promise<Session> => {
   session.user = {
     id: (token.id as string | undefined) ?? undefined,
     name: (token.name as string | null | undefined) ?? undefined,
@@ -142,7 +127,10 @@ export const sessionCallback: NonNullable<
     msg: (token.msg as string | undefined) ?? undefined,
   };
 
-  session.accessToken = (token.token as string | undefined) ?? undefined;
+  session.accessToken =
+    token.error === 'RefreshTokenError'
+      ? undefined
+      : ((token.token as string | undefined) ?? undefined);
   session.user.provider = (token.provider as string | undefined) ?? undefined;
   session.user.email = (token.email as string | undefined) ?? undefined;
   session.error = token.error;
@@ -167,36 +155,41 @@ const authOptions = {
 
         const { email, password } = validated.data;
 
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/v1/auth/login`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password }),
-          }
-        );
+        const res = await fetch(`${resolveBffBaseUrl()}/v1/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
 
-        const response = await res.json();
-        if (!res.ok || !response?.data) return null;
+        if (!res.ok) return null;
 
-        const personalLinks = resolveMentorExperienceLinks(
-          response.data.user.experiences
-        );
+        const response = (await res.json().catch(() => null)) as {
+          code?: string;
+          data?: {
+            auth: {
+              user_id: string | number;
+              token: string;
+              email?: string | null;
+            };
+            user: BffUserPayload;
+          };
+        } | null;
+        if (
+          !response ||
+          (response.code !== undefined && response.code !== '0') ||
+          !response.data?.auth?.token ||
+          !response.data?.user
+        ) {
+          return null;
+        }
 
-        return {
-          id: String(response.data.auth.user_id),
+        return normalizeBffAuthUser({
+          userId: response.data.auth.user_id,
           token: response.data.auth.token,
-          refreshToken: extractRefreshToken(res.headers) ?? undefined,
+          refreshToken: extractRefreshToken(res.headers),
           email: response.data.auth.email,
-          onBoarding: response.data.user.onboarding,
-          isMentor: response.data.user.is_mentor,
-          name: response.data.user.name,
-          avatar: response.data.user.avatar,
-          avatarUpdatedAt: response.data.user.avatar_updated_at ?? undefined,
-          jobTitle: response.data.user.job_title ?? '',
-          company: response.data.user.company ?? '',
-          personalLinks,
-        };
+          user: response.data.user,
+        });
       },
     }),
 
@@ -212,27 +205,17 @@ const authOptions = {
         if (!credentials?.token || !credentials?.user) return null;
 
         try {
-          const user = JSON.parse(credentials.user as string);
+          const user = JSON.parse(credentials.user as string) as BffUserPayload;
 
           const cookieStore = await cookies();
           const refreshToken = consumeOAuthRefreshBridge(cookieStore);
 
-          const personalLinks = resolveMentorExperienceLinks(user.experiences);
-
-          return {
-            id: String(user.user_id),
+          return normalizeBffAuthUser({
             token: credentials.token,
-            refreshToken: refreshToken || undefined,
-            email: (credentials.email as string) || undefined,
-            name: user.name,
-            avatar: user.avatar,
-            avatarUpdatedAt: user.avatar_updated_at ?? undefined,
-            isMentor: user.is_mentor,
-            onBoarding: user.onboarding,
-            jobTitle: user.job_title ?? '',
-            company: user.company ?? '',
-            personalLinks,
-          };
+            refreshToken,
+            email: credentials.email as string,
+            user,
+          });
         } catch {
           return null;
         }

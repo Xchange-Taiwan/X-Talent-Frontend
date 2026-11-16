@@ -1,13 +1,31 @@
+import { hasAvatarVersionConverged } from '@/lib/avatar/avatarUrl';
 import { captureFlowFailure } from '@/lib/monitoring';
-import { isProfileSynced } from '@/lib/profile/profileSaveAdapter';
-import { ProfileFormValues } from '@/schemas/profileSchema';
+import { decode, fromWireExperiences } from '@/lib/profile/experienceCodec';
+import { readIndustryTag } from '@/lib/profile/readIndustryTag';
+import type { ProfileFormValues } from '@/schemas/profileSchema';
 import { fetchUserById } from '@/services/profile/user';
 import { fetchMentors } from '@/services/search-mentor/mentors';
-import type { MentorType } from '@/types/mentor';
+import type { MentorRequest, MentorType } from '@/types/mentor';
 import type { MentorProfileVO } from '@/types/user';
 
-// MENTOR_POOL_POLL_LIMIT constant
 const MENTOR_POOL_POLL_LIMIT = 20;
+
+export type FetchProfileRecordFn = (
+  userId: number,
+  language?: string
+) => Promise<MentorProfileVO | null>;
+
+export type SearchMentorsFn = (request: MentorRequest) => Promise<MentorType[]>;
+
+const defaultFetchProfileRecord: FetchProfileRecordFn = (
+  userId,
+  language = 'zh_TW'
+) => fetchUserById(userId, language, undefined, true);
+
+const defaultSearchMentors: SearchMentorsFn = async (request) => {
+  const result = await fetchMentors(request);
+  return result.mentors;
+};
 
 export interface MentorCardFields {
   name: string;
@@ -16,14 +34,170 @@ export interface MentorCardFields {
   about: string;
   yearsOfExperience: string;
   haveTopic: string[];
+  haveSkill: string[];
   avatar: string;
 }
 
-// Helper to compare arrays of topics
-function sameTopics(a: readonly string[], b: readonly string[]): boolean {
+function sameTagCodes(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false;
   const sortedB = [...b].sort();
-  return [...a].sort().every((topic, i) => topic === sortedB[i]);
+  return [...a].sort().every((code, i) => code === sortedB[i]);
+}
+
+function hasScalarTextConverged(
+  expected: string | null | undefined,
+  incoming: string | null | undefined
+): boolean {
+  if (expected === undefined) return true;
+  return (incoming ?? '') === (expected ?? '');
+}
+
+function hasNonStandardExperienceCategory(
+  list: MentorProfileVO['experiences']
+): boolean {
+  if (!list || list.length === 0) return false;
+  return list.some(
+    (item) =>
+      item.category !== 'WORK' &&
+      item.category !== 'EDUCATION' &&
+      item.category !== 'LINK'
+  );
+}
+
+function haveExperiencesConverged(
+  expected: MentorProfileVO['experiences'],
+  incoming: MentorProfileVO['experiences']
+): boolean {
+  if (expected === undefined) return true;
+  if (
+    hasNonStandardExperienceCategory(expected) ||
+    hasNonStandardExperienceCategory(incoming)
+  ) {
+    return (
+      JSON.stringify(incoming ?? null) === JSON.stringify(expected ?? null)
+    );
+  }
+  const decodedExpected = decode(fromWireExperiences(expected));
+  const decodedIncoming = decode(fromWireExperiences(incoming));
+  return JSON.stringify(decodedIncoming) === JSON.stringify(decodedExpected);
+}
+
+/**
+ * Canonical full-field convergence check verifying whether an incoming backend
+ * `MentorProfileVO` has caught up with an expected/optimistic profile state.
+ *
+ * Covers every editable profile field:
+ * - Identity & role flags: `name`, `is_mentor`, `onboarding`, `avatar` (`?v=` across `&cb=`)
+ * - Profile copy & metadata: `about`, `personal_statement`, `location`, `years_of_experience`, `industry`
+ * - Primary work mirror & structured experiences: `job_title`, `company`, `experiences`
+ * - Mentor & mentee tag buckets: `have_skill`, `have_topic`, `want_position`, `want_skill`, `want_topic`
+ *
+ * Fields left as `undefined` on `expected` impose no constraint, allowing both
+ * full optimistic DTOs and partial projections to share a single predicate.
+ */
+export function hasProfileDtoConverged(
+  expected: Partial<MentorProfileVO>,
+  incoming: MentorProfileVO
+): boolean {
+  if (!hasScalarTextConverged(expected.name, incoming.name)) return false;
+
+  if (
+    expected.is_mentor !== undefined &&
+    expected.is_mentor !== null &&
+    Boolean(incoming.is_mentor) !== Boolean(expected.is_mentor)
+  ) {
+    return false;
+  }
+
+  if (
+    expected.onboarding !== undefined &&
+    expected.onboarding !== null &&
+    Boolean(incoming.onboarding) !== Boolean(expected.onboarding)
+  ) {
+    return false;
+  }
+
+  if (!hasScalarTextConverged(expected.job_title, incoming.job_title)) {
+    return false;
+  }
+  if (!hasScalarTextConverged(expected.company, incoming.company)) {
+    return false;
+  }
+  if (!hasScalarTextConverged(expected.about, incoming.about)) {
+    return false;
+  }
+  if (
+    !hasScalarTextConverged(
+      expected.personal_statement,
+      incoming.personal_statement
+    )
+  ) {
+    return false;
+  }
+  if (!hasScalarTextConverged(expected.location, incoming.location)) {
+    return false;
+  }
+  if (
+    !hasScalarTextConverged(
+      expected.years_of_experience,
+      incoming.years_of_experience
+    )
+  ) {
+    return false;
+  }
+
+  if (expected.avatar === null) {
+    if (incoming.avatar) {
+      return false;
+    }
+  } else if (!hasAvatarVersionConverged(expected.avatar, incoming.avatar)) {
+    return false;
+  }
+
+  if (
+    expected.industry !== undefined &&
+    (readIndustryTag(incoming.industry)?.subject_group ?? null) !==
+      (readIndustryTag(expected.industry)?.subject_group ?? null)
+  ) {
+    return false;
+  }
+
+  if (!haveExperiencesConverged(expected.experiences, incoming.experiences)) {
+    return false;
+  }
+
+  if (
+    expected.have_skill !== undefined &&
+    !sameTagCodes(expected.have_skill ?? [], incoming.have_skill ?? [])
+  ) {
+    return false;
+  }
+  if (
+    expected.have_topic !== undefined &&
+    !sameTagCodes(expected.have_topic ?? [], incoming.have_topic ?? [])
+  ) {
+    return false;
+  }
+  if (
+    expected.want_position !== undefined &&
+    !sameTagCodes(expected.want_position ?? [], incoming.want_position ?? [])
+  ) {
+    return false;
+  }
+  if (
+    expected.want_skill !== undefined &&
+    !sameTagCodes(expected.want_skill ?? [], incoming.want_skill ?? [])
+  ) {
+    return false;
+  }
+  if (
+    expected.want_topic !== undefined &&
+    !sameTagCodes(expected.want_topic ?? [], incoming.want_topic ?? [])
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 /**
@@ -39,26 +213,85 @@ export interface ConvergenceAdapter<T> {
   };
 }
 
+function isLegacyFormValuesInput(
+  expectedOrValues: Partial<MentorProfileVO> | ProfileFormValues,
+  avatarOrFetch: string | FetchProfileRecordFn | undefined
+): expectedOrValues is ProfileFormValues {
+  return typeof avatarOrFetch === 'string';
+}
+
 /**
- * Adapter for the DB-backed profile record (queries fetchUserById).
+ * Adapter for the DB-backed profile record (queries fetchUserById by default).
+ * Evaluates full-field convergence via `hasProfileDtoConverged`.
  */
 export class ProfileRecordAdapter implements ConvergenceAdapter<MentorProfileVO> {
+  private readonly expectedDto: Partial<MentorProfileVO>;
+  private readonly fetchProfileFn: FetchProfileRecordFn;
+  private readonly language: string;
+
+  constructor(
+    userId: number,
+    expectedDto: Partial<MentorProfileVO>,
+    fetchProfileFn?: FetchProfileRecordFn,
+    language?: string
+  );
+  constructor(
+    userId: number,
+    values: ProfileFormValues,
+    avatar: string,
+    fetchProfileFn?: FetchProfileRecordFn,
+    language?: string
+  );
   constructor(
     private userId: number,
-    private values: ProfileFormValues,
-    private avatar: string
-  ) {}
+    expectedOrValues: Partial<MentorProfileVO> | ProfileFormValues,
+    avatarOrFetch?: string | FetchProfileRecordFn,
+    legacyFetchOrLanguage?: FetchProfileRecordFn | string,
+    legacyLanguage?: string
+  ) {
+    if (isLegacyFormValuesInput(expectedOrValues, avatarOrFetch)) {
+      const avatar = typeof avatarOrFetch === 'string' ? avatarOrFetch : '';
+      this.expectedDto = {
+        name: expectedOrValues.name,
+        avatar: avatar || undefined,
+        location: expectedOrValues.location ?? '',
+        personal_statement: expectedOrValues.statement ?? '',
+        about: expectedOrValues.about ?? '',
+        years_of_experience: expectedOrValues.years_of_experience ?? '',
+        industry: expectedOrValues.industry
+          ? { subject_group: expectedOrValues.industry, subject: '' }
+          : null,
+      };
+      this.fetchProfileFn =
+        typeof legacyFetchOrLanguage === 'function'
+          ? legacyFetchOrLanguage
+          : defaultFetchProfileRecord;
+      this.language = legacyLanguage || 'zh_TW';
+    } else {
+      this.expectedDto = expectedOrValues;
+      this.fetchProfileFn =
+        typeof avatarOrFetch === 'function'
+          ? avatarOrFetch
+          : defaultFetchProfileRecord;
+      this.language =
+        typeof legacyFetchOrLanguage === 'string' && legacyFetchOrLanguage
+          ? legacyFetchOrLanguage
+          : expectedOrValues.language || 'zh_TW';
+    }
+  }
 
   async fetch(): Promise<MentorProfileVO | null> {
     try {
-      return await fetchUserById(this.userId, 'zh_TW', undefined, true);
+      return this.language !== 'zh_TW'
+        ? await this.fetchProfileFn(this.userId, this.language)
+        : await this.fetchProfileFn(this.userId);
     } catch {
       return null;
     }
   }
 
   isCaughtUp(latest: MentorProfileVO): boolean {
-    return isProfileSynced(this.values, latest, this.avatar);
+    return hasProfileDtoConverged(this.expectedDto, latest);
   }
 
   getExhaustionMetadata() {
@@ -76,7 +309,10 @@ export class ProfileRecordAdapter implements ConvergenceAdapter<MentorProfileVO>
 abstract class BaseSearchIndexAdapter implements ConvergenceAdapter<
   MentorType[]
 > {
-  constructor(protected userId: number) {}
+  constructor(
+    protected userId: number,
+    private searchMentorsFn: SearchMentorsFn = defaultSearchMentors
+  ) {}
 
   abstract getSearchPattern(): string;
   abstract isCaughtUp(mentors: MentorType[]): boolean;
@@ -88,11 +324,10 @@ abstract class BaseSearchIndexAdapter implements ConvergenceAdapter<
 
   async fetch(): Promise<MentorType[] | null> {
     try {
-      const result = await fetchMentors({
+      return await this.searchMentorsFn({
         search_pattern: this.getSearchPattern(),
         limit: MENTOR_POOL_POLL_LIMIT,
       });
-      return result.mentors;
     } catch {
       return null;
     }
@@ -105,9 +340,10 @@ abstract class BaseSearchIndexAdapter implements ConvergenceAdapter<
 export class SearchIndexSyncAdapter extends BaseSearchIndexAdapter {
   constructor(
     userId: number,
-    private fields: MentorCardFields
+    private fields: MentorCardFields,
+    searchMentorsFn?: SearchMentorsFn
   ) {
-    super(userId);
+    super(userId, searchMentorsFn);
   }
 
   getSearchPattern(): string {
@@ -118,12 +354,9 @@ export class SearchIndexSyncAdapter extends BaseSearchIndexAdapter {
     const card = mentors.find((mentor) => mentor.user_id === this.userId);
     if (!card) return false;
 
-    // mapMentor appends `?cb=<updated_at>` to the avatar URL, so compare
-    // by prefix rather than exact equality.
     const avatarSynced =
       !this.fields.avatar ||
-      (typeof card.avatar === 'string' &&
-        card.avatar.startsWith(this.fields.avatar));
+      hasAvatarVersionConverged(this.fields.avatar, card.avatar);
 
     return (
       card.name === this.fields.name &&
@@ -131,7 +364,8 @@ export class SearchIndexSyncAdapter extends BaseSearchIndexAdapter {
       card.company === this.fields.company &&
       card.about === this.fields.about &&
       card.years_of_experience === this.fields.yearsOfExperience &&
-      sameTopics(card.have_topic, this.fields.haveTopic) &&
+      sameTagCodes(card.have_topic ?? [], this.fields.haveTopic) &&
+      sameTagCodes(card.have_skill ?? [], this.fields.haveSkill) &&
       avatarSynced
     );
   }
@@ -152,9 +386,10 @@ export class SearchIndexSyncAdapter extends BaseSearchIndexAdapter {
 export class SearchIndexDeleteAdapter extends BaseSearchIndexAdapter {
   constructor(
     userId: number,
-    private name?: string
+    private name?: string,
+    searchMentorsFn?: SearchMentorsFn
   ) {
-    super(userId);
+    super(userId, searchMentorsFn);
   }
 
   getSearchPattern(): string {

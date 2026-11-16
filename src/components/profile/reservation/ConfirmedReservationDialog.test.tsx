@@ -9,12 +9,16 @@ import { ConfirmedReservationDialog } from './ConfirmedReservationDialog';
 
 const mockAccept = vi.fn();
 const mockRejectOrCancel = vi.fn();
+const mockSubmitFeedback = vi.fn();
+const mockUpdateFeedback = vi.fn();
 const mockJoinMeet = vi.fn();
 
 vi.mock('@/hooks/user/reservation/useReservationActions', () => ({
   useReservationActions: vi.fn(() => ({
     accept: mockAccept,
     rejectOrCancel: mockRejectOrCancel,
+    submitFeedback: mockSubmitFeedback,
+    updateFeedback: mockUpdateFeedback,
     isMutating: false,
   })),
 }));
@@ -71,6 +75,8 @@ describe('ConfirmedReservationDialog', () => {
     vi.mocked(useReservationActions).mockReturnValue({
       accept: mockAccept,
       rejectOrCancel: mockRejectOrCancel,
+      submitFeedback: mockSubmitFeedback,
+      updateFeedback: mockUpdateFeedback,
       isMutating: false,
     });
     vi.mocked(useReservationMeetLink).mockReturnValue({
@@ -142,6 +148,8 @@ describe('ConfirmedReservationDialog', () => {
     vi.mocked(useReservationActions).mockReturnValueOnce({
       accept: vi.fn(),
       rejectOrCancel: mockRejectOrCancel,
+      submitFeedback: mockSubmitFeedback,
+      updateFeedback: mockUpdateFeedback,
       isMutating: true,
     });
 
@@ -175,6 +183,8 @@ describe('ConfirmedReservationDialog', () => {
     vi.mocked(useReservationActions).mockReturnValue({
       accept: mockAccept,
       rejectOrCancel: mockRejectOrCancel,
+      submitFeedback: mockSubmitFeedback,
+      updateFeedback: mockUpdateFeedback,
       isMutating: true,
     });
     const onOpenChange = vi.fn();

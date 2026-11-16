@@ -23,11 +23,6 @@ function loadShared() {
   };
 }
 
-/**
- * Loads an agent's prompt template (a URL, e.g. `new URL('../prompts/security.md', import.meta.url)`)
- * and fills in the shared fragments plus any agent-specific replacements.
- * Placeholders are `{{NAME}}` tokens; unknown placeholders are left as-is.
- */
 export function buildPrompt(templateUrl, replacements = {}) {
   const { projectContext, reviewDiscipline, businessRules, codeSmellBaseline } =
     loadShared();
@@ -38,6 +33,9 @@ export function buildPrompt(templateUrl, replacements = {}) {
     REVIEW_DISCIPLINE: reviewDiscipline,
     BUSINESS_RULES: businessRules,
     CODE_SMELL_BASELINE: codeSmellBaseline,
+    VISUAL_CONTEXT: '',
+    DESIGN_HUB_SPECS: '（無對應 Design Hub 規格）',
+    VISUAL_PARITY_FINDINGS_JSON: 'null',
     ...replacements,
   };
   for (const [key, value] of Object.entries(all)) {

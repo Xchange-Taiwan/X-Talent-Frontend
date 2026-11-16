@@ -47,9 +47,10 @@ interface UIProps {
     };
   };
   selectedFilters: SelectFilters;
+  labelMap?: ReadonlyMap<string, string>;
   isReplacing: boolean;
   onFilterChange: (filters: SelectFilters) => void;
-  onRemoveFilter: (key: string) => void;
+  onRemoveFilter: (key: string, value?: string) => void;
   onClearAll: () => void;
 }
 
@@ -190,7 +191,7 @@ describe('MentorPoolContainer - initial state wiring', () => {
     });
   });
 
-  it('passes useMentorPool the raw params, initial page data, and a label map built from the tag catalog', () => {
+  it('passes useMentorPool raw params and initial page data without labelMap, and forwards labelMap to MentorPoolUI', () => {
     currentSearchParams = new URLSearchParams('filter_skills=skill_fe');
     renderContainer({
       have_skill: [
@@ -203,8 +204,9 @@ describe('MentorPoolContainer - initial state wiring', () => {
     expect(call.initialMentors).toEqual([]);
     expect(call.initialMentorCount).toBe(0);
     expect(call.initialError).toBeUndefined();
-    expect(call.labelMap).toBeInstanceOf(Map);
-    expect(call.labelMap.get('skill_fe')).toBe('前端工程');
+    expect('labelMap' in call).toBe(false);
+    expect(latestUIProps().labelMap).toBeInstanceOf(Map);
+    expect(latestUIProps().labelMap?.get('skill_fe')).toBe('前端工程');
   });
 
   it('does not leave isReplacing stuck true once a filter-driven transition settles', () => {
@@ -257,9 +259,9 @@ describe('MentorPoolContainer - filter routing', () => {
     );
   });
 
-  it('derives the next URL and pushes it when all filters are cleared', () => {
+  it('derives the next URL and pushes it when all filters are cleared, including sort_by while preserving unrelated params (#897)', () => {
     currentSearchParams = new URLSearchParams(
-      'q=test&filter_skills=skill_fe&filter_topics=topic_mgmt&filter_industries=industry_tech'
+      'utm_source=line&q=test&filter_skills=skill_fe&filter_topics=topic_mgmt&filter_industries=industry_tech&sort_by=popularity'
     );
     renderContainer();
 
@@ -267,7 +269,22 @@ describe('MentorPoolContainer - filter routing', () => {
       latestUIProps().onClearAll();
     });
 
-    expect(mockPush).toHaveBeenCalledWith('/mentor-pool');
+    expect(mockPush).toHaveBeenCalledWith('/mentor-pool?utm_source=line');
+  });
+
+  it('removes only the clicked token from a comma-separated filter when onRemoveFilter receives a value (#897)', () => {
+    currentSearchParams = new URLSearchParams(
+      'filter_skills=skill_fe,skill_ts&q=test'
+    );
+    renderContainer();
+
+    act(() => {
+      latestUIProps().onRemoveFilter('filter_skills', 'skill_fe');
+    });
+
+    expect(mockPush).toHaveBeenCalledWith(
+      '/mentor-pool?filter_skills=skill_ts&q=test'
+    );
   });
 
   it('fires the clear-all tracking event exclusively on clear-all, not on change or single removal', () => {

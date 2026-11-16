@@ -1,12 +1,15 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AsyncReadManager } from '@/lib/asyncReadManager';
-import { createKeyedCache } from '@/lib/createKeyedCache';
 
 import { useAsyncRead } from './useAsyncRead';
 
 describe('useAsyncRead hook tests', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('correctly mounts, triggers subscription, and returns resolved value', async () => {
     const manager = new AsyncReadManager<string, string>();
     const fetcher = vi.fn().mockResolvedValue('hook-data');
@@ -33,18 +36,16 @@ describe('useAsyncRead hook tests', () => {
     expect(fetcher).toHaveBeenCalledOnce();
   });
 
-  it('synchronously updates state on key change (Derived State Pattern) without visual flicker', async () => {
-    const cache = createKeyedCache<string, string>();
-    cache.set('key1', 'cached-1');
-    cache.set('key2', 'cached-2');
-    const manager = new AsyncReadManager<string, string>(cache);
+  it('synchronously updates state on key change (Derived State Pattern) without visual flicker', () => {
+    const manager = new AsyncReadManager<string, string>();
+    manager.set('key1', 'cached-1');
+    manager.set('key2', 'cached-2');
 
     const { result, rerender } = renderHook(
       ({ key }) => useAsyncRead(manager, key, () => Promise.resolve('')),
       { initialProps: { key: 'key1' } }
     );
 
-    // Initial render synchronously uses cache-1
     expect(result.current).toEqual({
       data: 'cached-1',
       isLoading: false,
@@ -52,10 +53,8 @@ describe('useAsyncRead hook tests', () => {
       refetch: expect.any(Function),
     });
 
-    // Synchronously change key during render (Derived State)
     rerender({ key: 'key2' });
 
-    // Should synchronously yield cached-2 without needing any useEffect cycle
     expect(result.current).toEqual({
       data: 'cached-2',
       isLoading: false,
@@ -64,7 +63,52 @@ describe('useAsyncRead hook tests', () => {
     });
   });
 
-  it('aborts request and cleans up when component unmounts', async () => {
+  it('performs non-destructive TTL SWR revalidation without flashing a loading skeleton on render', async () => {
+    vi.useFakeTimers();
+    const manager = new AsyncReadManager<string, string>({ ttlMs: 1_000 });
+    manager.set('key', 'stale-value');
+
+    // Expire the entry before mounting
+    vi.advanceTimersByTime(1_001);
+
+    let resolveRevalidation: (value: string) => void = () => {};
+    const fetcher = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveRevalidation = resolve;
+        })
+    );
+
+    const renderedStates: Array<{ data: string | null; isLoading: boolean }> =
+      [];
+    const { result } = renderHook(() => {
+      const res = useAsyncRead(manager, 'key', fetcher);
+      renderedStates.push({ data: res.data, isLoading: res.isLoading });
+      return res;
+    });
+
+    // Synchronous first render AND post-effect subscription keep stale-value with isLoading: false
+    expect(renderedStates[0]).toEqual({
+      data: 'stale-value',
+      isLoading: false,
+    });
+    expect(result.current.data).toBe('stale-value');
+    expect(result.current.isLoading).toBe(false);
+    expect(fetcher).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      resolveRevalidation('fresh-value');
+      await Promise.resolve();
+    });
+
+    expect(result.current.data).toBe('fresh-value');
+    expect(result.current.isLoading).toBe(false);
+    expect(
+      renderedStates.every((snapshot) => snapshot.isLoading === false)
+    ).toBe(true);
+  });
+
+  it('aborts request and cleans up when component unmounts', () => {
     const manager = new AsyncReadManager<string, string>();
     let aborted = false;
     const fetcher = (signal: AbortSignal) => {
@@ -97,7 +141,7 @@ describe('useAsyncRead hook tests', () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
-  it('respects initialData and returns it synchronously on initial render', async () => {
+  it('respects initialData on initial render, warms the cache post-mount without redundant refetch, and preserves fresher client-primed entries', () => {
     const manager = new AsyncReadManager<string, string>();
     const fetcher = vi.fn().mockResolvedValue('hook-data');
 
@@ -107,7 +151,7 @@ describe('useAsyncRead hook tests', () => {
       error: string | null;
       refetch: () => void;
     }> = [];
-    const { result } = renderHook(() => {
+    const { unmount } = renderHook(() => {
       const res = useAsyncRead(manager, 'key', fetcher, {
         initialData: 'initial-data',
       });
@@ -115,26 +159,129 @@ describe('useAsyncRead hook tests', () => {
       return res;
     });
 
-    // The very first rendered value (during the synchronous render phase, before useEffect)
-    // should have data: 'initial-data' and isLoading: false.
     expect(renderedValues[0]).toEqual({
       data: 'initial-data',
       isLoading: false,
       error: null,
       refetch: expect.any(Function),
     });
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(manager.get('key')).toBe('initial-data');
 
-    // It should still eventually trigger fetcher and update data
-    await waitFor(() => {
-      expect(result.current.data).toBe('hook-data');
+    unmount();
+
+    // If a fresher client value is primed later, stale SSR initialData does not overwrite it
+    manager.prime('key', 'client-primed');
+    const { result: hydratedWithStaleSsr } = renderHook(() =>
+      useAsyncRead(manager, 'key', fetcher, {
+        initialData: 'stale-ssr-data',
+      })
+    );
+    expect(hydratedWithStaleSsr.current.data).toBe('client-primed');
+    expect(manager.get('key')).toBe('client-primed');
+  });
+
+  it('does not cache initialData when shouldCache returns false, still subscribes, and fetches valid network data', async () => {
+    const manager = new AsyncReadManager<string, string>();
+    let resolveFetch: (value: string) => void = () => {};
+    const fetcher = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveFetch = resolve;
+        })
+    );
+
+    const { result, unmount } = renderHook(() =>
+      useAsyncRead(manager, 'key', fetcher, {
+        initialData: 'invalid-ssr-data',
+        shouldCache: (val) => val !== 'invalid-ssr-data',
+      })
+    );
+
+    expect(result.current.data).toBe('invalid-ssr-data');
+    expect(result.current.isLoading).toBe(false);
+    expect(manager.get('key')).toBeUndefined();
+    expect(manager.peek('key')).toBeUndefined();
+    expect(manager.getListenerCount('key')).toBe(1);
+    expect(fetcher).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      resolveFetch('valid-network-data');
+      await Promise.resolve();
     });
 
+    expect(result.current.data).toBe('valid-network-data');
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.error).toBeNull();
+    expect(manager.get('key')).toBe('valid-network-data');
+
+    unmount();
+  });
+
+  it('preserves stale cache over SSR initialData without aborting SWR revalidation, then updates to fresh network value', async () => {
+    vi.useFakeTimers();
+    const manager = new AsyncReadManager<string, string>({ ttlMs: 1_000 });
+    manager.set('key', 'stale-value');
+
+    // Expire the entry before mounting with SSR initialData
+    vi.advanceTimersByTime(1_001);
+
+    let aborted = false;
+    let resolveRevalidation: (value: string) => void = () => {};
+    const fetcher = vi.fn((signal: AbortSignal) => {
+      signal.addEventListener('abort', () => {
+        aborted = true;
+      });
+      return new Promise<string>((resolve) => {
+        resolveRevalidation = resolve;
+      });
+    });
+
+    const renderedStates: Array<{ data: string | null; isLoading: boolean }> =
+      [];
+    const first = renderHook(() => {
+      const res = useAsyncRead(manager, 'key', fetcher, {
+        initialData: 'ssr-initial-data',
+      });
+      renderedStates.push({ data: res.data, isLoading: res.isLoading });
+      return res;
+    });
+
+    expect(renderedStates[0]).toEqual({
+      data: 'stale-value',
+      isLoading: false,
+    });
+    expect(first.result.current.data).toBe('stale-value');
+    expect(first.result.current.isLoading).toBe(false);
     expect(fetcher).toHaveBeenCalledOnce();
+    expect(aborted).toBe(false);
+    expect(manager.peek('key')).toBe('stale-value');
+
+    // Mounting another consumer with SSR initialData while SWR is in flight must not abort it
+    const second = renderHook(() =>
+      useAsyncRead(manager, 'key', fetcher, {
+        initialData: 'ssr-initial-data-2',
+      })
+    );
+    expect(second.result.current.data).toBe('stale-value');
+    expect(second.result.current.isLoading).toBe(false);
+    expect(aborted).toBe(false);
+    expect(fetcher).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      resolveRevalidation('fresh-network-value');
+      await Promise.resolve();
+    });
+
+    expect(aborted).toBe(false);
+    expect(first.result.current.data).toBe('fresh-network-value');
+    expect(first.result.current.isLoading).toBe(false);
+    expect(second.result.current.data).toBe('fresh-network-value');
+    expect(manager.get('key')).toBe('fresh-network-value');
   });
 
   it('triggers a fresh fetch with force: true options when refetch is called', async () => {
-    const cache = createKeyedCache<string, string>();
-    const manager = new AsyncReadManager<string, string>(cache);
+    const manager = new AsyncReadManager<string, string>();
     const fetcher = vi
       .fn()
       .mockResolvedValueOnce('data-1')
@@ -148,7 +295,6 @@ describe('useAsyncRead hook tests', () => {
 
     expect(fetcher).toHaveBeenCalledTimes(1);
 
-    // Trigger refetch
     act(() => {
       result.current.refetch();
     });
@@ -174,11 +320,9 @@ describe('useAsyncRead hook tests', () => {
       expect(result.current.data).toBe('data');
     });
 
-    // Check first subscribe options
     expect(subscribeSpy).toHaveBeenCalledTimes(1);
     expect(subscribeSpy.mock.calls[0][3]?.force).toBeUndefined();
 
-    // Trigger refetch
     act(() => {
       result.current.refetch();
     });
@@ -188,13 +332,11 @@ describe('useAsyncRead hook tests', () => {
     });
     expect(subscribeSpy.mock.calls[1][3]?.force).toBe(true);
 
-    // Rerender with a new key
     rerender({ key: 'key2' });
 
     await waitFor(() => {
       expect(subscribeSpy).toHaveBeenCalledTimes(3);
     });
-    // The force flag should NOT be passed for the new key!
     expect(subscribeSpy.mock.calls[2][3]?.force).not.toBe(true);
   });
 });

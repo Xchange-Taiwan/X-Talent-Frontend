@@ -13,7 +13,7 @@ const mockSubscribeTransition = vi.fn<(listener: () => void) => () => void>(
   () => vi.fn()
 );
 
-vi.mock('@/hooks/user/user-data/userProfileDtoCache', () => ({
+vi.mock('@/lib/cache/userProfileDtoCache', () => ({
   getUserProfileDtoFromCache: (userId: number, language: string) =>
     mockGetUserProfileDtoFromCache(userId, language),
   isOptimisticTransitionActive: () => mockIsOptimisticTransitionActive(),

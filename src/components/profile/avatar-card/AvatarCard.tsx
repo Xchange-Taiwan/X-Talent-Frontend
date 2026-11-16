@@ -1,16 +1,18 @@
 'use client';
+
 import Image from 'next/image';
 import type { FC } from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
-import { LinkedinColor } from '@/components/icon';
+import { resolveDisplaySocialLinks } from '@/components/profile/social-links/platformLabelMap';
+import type { PersonalLink } from '@/lib/profile/socialLinks';
 import { cn } from '@/lib/utils';
 
 interface Props {
   className?: string;
   name: string;
   avatarImgUrl?: string;
-  linkedinUrl?: string;
+  personalLinks?: PersonalLink[];
   jobTitle?: string;
   companyName?: string;
 }
@@ -19,13 +21,11 @@ export const AvatarCard: FC<Props> = ({
   className,
   name,
   avatarImgUrl,
-  linkedinUrl,
+  personalLinks,
   jobTitle,
   companyName,
 }) => {
-  const handleNavigateToLinkedin = (linkedinUrl: string) => {
-    window.open(linkedinUrl, '_blank');
-  };
+  const safePersonalLinks = resolveDisplaySocialLinks(personalLinks);
 
   return (
     <div
@@ -42,14 +42,25 @@ export const AvatarCard: FC<Props> = ({
       </div>
 
       <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-center gap-2 sm:justify-start">
+        <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
           <h1 className="text-base font-bold sm:text-2xl">{name}</h1>
 
-          {!!linkedinUrl && (
-            <LinkedinColor
-              className="size-5 cursor-pointer sm:size-6"
-              onClick={() => handleNavigateToLinkedin(linkedinUrl)}
-            />
+          {safePersonalLinks.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              {safePersonalLinks.map((item, index) => (
+                <a
+                  key={`${item.platform}-${index}`}
+                  href={item.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={item.label}
+                  title={item.label}
+                  className="inline-flex shrink-0 items-center"
+                >
+                  {item.icon}
+                </a>
+              ))}
+            </div>
           )}
         </div>
 

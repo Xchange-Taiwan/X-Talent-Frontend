@@ -1,55 +1,27 @@
 import { TotalWorkSpanEnum } from '@/constant/seniority';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import {
+  normalizeMentorStats,
+  resolveLocationLabel,
+} from '@/lib/mentor/mentorStats';
+import {
   decode,
-  type EducationExperienceMetadata,
   type MentorExperiencePayload,
-  type PersonalLinkMetadata,
   type WorkExperienceMetadata,
 } from '@/lib/profile/experienceCodec';
 import { readIndustryTag } from '@/lib/profile/readIndustryTag';
 import { buildTagLabelMap } from '@/lib/profile/tagLabelMap';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
-import type { MentorProfileVO } from '@/types/user';
+import type { MentorProfileVO, TagDisplay, UserType } from '@/types/user';
 
 import {
-  clearUserProfileDtoCache,
   primeUserProfileDtoCache,
-  USER_PROFILE_DTO_CACHE_TTL_MS,
   useUserProfileDto,
 } from './useUserProfileDto';
 
-// Re-exported under the historical names so existing callers (e.g.
-// useProfileSubmit, useUserData.test) continue to work without churn.
-export const clearUserDataCache = clearUserProfileDtoCache;
+export type { TagDisplay, UserType };
+
 export const primeUserDataCache = primeUserProfileDtoCache;
-export const USER_DATA_CACHE_TTL_MS = USER_PROFILE_DTO_CACHE_TTL_MS;
-
-export interface TagDisplay {
-  subject_group: string;
-  subject: string;
-}
-
-export interface UserType {
-  user_id: number;
-  name: string;
-  avatar: string;
-  job_title: string;
-  company: string;
-  is_mentor: boolean;
-  about?: string;
-  personal_statement?: string;
-  years_of_experience?: string;
-  industry?: string;
-  want_position: TagDisplay[];
-  want_skill: TagDisplay[];
-  want_topic: TagDisplay[];
-  have_skill: TagDisplay[];
-  have_topic: TagDisplay[];
-  workExperiences?: WorkExperienceMetadata[];
-  educations?: EducationExperienceMetadata[];
-  personalLinks?: PersonalLinkMetadata[];
-}
 
 // Subject_group codes shipped by the BFF round-trip directly back to writes,
 // so resolve them to display labels via the localized catalog. Catalog miss
@@ -68,9 +40,42 @@ function toTagDisplay(
     }));
 }
 
+function collectIndustries(
+  primaryIndustrySubject: string | undefined,
+  primaryIndustryCode: string | null | undefined,
+  workExperiences: WorkExperienceMetadata[],
+  labelMap: Map<string, string>
+): TagDisplay[] {
+  const seenSubjects = new Set<string>();
+  const result: TagDisplay[] = [];
+
+  if (primaryIndustrySubject) {
+    seenSubjects.add(primaryIndustrySubject);
+    result.push({
+      subject_group: primaryIndustryCode || primaryIndustrySubject,
+      subject: primaryIndustrySubject,
+    });
+  }
+
+  for (const exp of workExperiences) {
+    const rawCode = exp.industry?.trim();
+    if (!rawCode) continue;
+    const resolved = labelMap.get(rawCode) ?? rawCode;
+    if (seenSubjects.has(resolved)) continue;
+    seenSubjects.add(resolved);
+    result.push({
+      subject_group: rawCode,
+      subject: resolved,
+    });
+  }
+
+  return result;
+}
+
 function parseUserDtoToUserType(
   userDto: MentorProfileVO,
-  catalogs: TagCatalogsByBucket
+  catalogs: TagCatalogsByBucket,
+  language: string
 ): UserType {
   const labelMap = buildTagLabelMap(catalogs);
 
@@ -81,6 +86,30 @@ function parseUserDtoToUserType(
   // BFF emits industry enriched (TagVO-shaped); OpenAPI types it as
   // `Record<string, never>`. Pull subject through the local TagVO type.
   const industryTag = readIndustryTag(userDto.industry);
+  const industrySubject =
+    industryTag?.subject ||
+    (industryTag?.subject_group
+      ? (labelMap.get(industryTag.subject_group) ?? industryTag.subject_group)
+      : undefined);
+
+  const primaryWorkLocation =
+    workExperiences.find((exp) => exp.is_primary)?.job_location ||
+    workExperiences[0]?.job_location;
+  const location = resolveLocationLabel(
+    userDto.location || primaryWorkLocation,
+    language
+  );
+  const industries = collectIndustries(
+    industrySubject,
+    industryTag?.subject_group,
+    workExperiences,
+    labelMap
+  );
+  const rawUpdatedAt = userDto.updated_at;
+  const updatedAt =
+    rawUpdatedAt === null || rawUpdatedAt === undefined || rawUpdatedAt === ''
+      ? null
+      : String(rawUpdatedAt);
 
   return {
     user_id: userDto.user_id,
@@ -96,7 +125,12 @@ function parseUserDtoToUserType(
           userDto.years_of_experience as keyof typeof TotalWorkSpanEnum
         ] ?? userDto.years_of_experience)
       : undefined,
-    industry: industryTag?.subject ?? undefined,
+    seniority_level: userDto.seniority_level ?? '',
+    location,
+    industry: industrySubject,
+    industries,
+    updated_at: updatedAt,
+    stats: normalizeMentorStats(userDto),
     want_position: toTagDisplay(userDto.want_position, labelMap),
     want_skill: toTagDisplay(userDto.want_skill, labelMap),
     want_topic: toTagDisplay(userDto.want_topic, labelMap),
@@ -129,11 +163,11 @@ function useUserData(
   } = useUserProfileDto(userId, language, initialDto ?? undefined);
   // Catalog supplies localized labels for the raw subject_group arrays
   // (want_*, have_*) and for the enriched industry. Loads in parallel with
-  // the user dto and is cached app-wide via getTagCatalogCached.
+  // the user dto and is cached app-wide via tagCatalogReadManager.
   const tagCatalog = useTagCatalog(language, initialCatalogs);
 
   const userData: UserType | null = userDto
-    ? parseUserDtoToUserType(userDto, tagCatalog)
+    ? parseUserDtoToUserType(userDto, tagCatalog, language)
     : null;
 
   return { userData, isLoading: dtoLoading, error, refetch };

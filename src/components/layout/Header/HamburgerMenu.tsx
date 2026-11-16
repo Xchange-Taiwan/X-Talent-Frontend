@@ -12,123 +12,125 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { trackEvent } from '@/lib/analytics';
-import { ResolvedIdentity } from '@/lib/auth/sessionHint';
+import {
+  getNavAnalyticsAttributes,
+  type MobileGuestMenuModel,
+} from '@/hooks/layout/useHeaderNavigation';
+import { type ResolvedIdentity } from '@/lib/auth/sessionHint';
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 
-import { FEEDBACK_FORM_URL, FIND_MENTOR_HREF } from './constants';
+import { AuthHintGate } from './AuthHintGate';
 import { DisabledAwareLink } from './DisabledAwareLink';
-import { getBecomeMentorHref } from './navHrefs';
-
-function isHintOnlyState(state: ResolvedIdentity['state']): boolean {
-  return state === 'hint-only';
-}
-
-function isGuestOrUnknownState(state: ResolvedIdentity['state']): boolean {
-  return state === 'unknown' || state === 'confirmed-guest';
-}
 
 export type HamburgerMenuProps = {
-  identity: ResolvedIdentity;
+  menu: MobileGuestMenuModel;
+  identity?: ResolvedIdentity;
 };
 
-export function HamburgerMenu({
+export const HamburgerMenu = React.memo(function HamburgerMenu({
+  menu,
   identity,
 }: HamburgerMenuProps): JSX.Element | null {
   const [open, setOpen] = React.useState(false);
-  const close = (): void => setOpen(false);
+  const closeMenu = React.useCallback(() => setOpen(false), []);
 
-  if (identity.state === 'hint-only' || identity.state === 'confirmed-member') {
-    return null;
-  }
+  return (
+    <AuthHintGate when={['guest']} identity={identity} defaultVisible>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="開啟導航選單"
+            data-analytics-click="mobile_menu_open"
+            data-analytics-location="mobile_menu"
+            data-analytics-feature="navigation"
+          >
+            <HamburgerMenuIcon className="size-6" aria-hidden="true" />
+          </Button>
+        </SheetTrigger>
+        <SheetContent side="right" className="h-dvh w-screen p-0">
+          <SheetTitle className="sr-only">導航選單</SheetTitle>
+          <div className="flex h-full flex-col overflow-y-auto p-6">
+            <SheetClose asChild>
+              <button
+                type="button"
+                aria-label="關閉導航選單"
+                className={`ml-auto rounded-md ${FOCUS_RING_CLASSES}`}
+              >
+                <Cross2Icon
+                  className="text-brand-900 size-8"
+                  aria-hidden="true"
+                />
+              </button>
+            </SheetClose>
+            <nav className="flex flex-1 flex-col items-center justify-center gap-8 py-6 text-2xl">
+              {menu.navItems.map((item) => {
+                if (item.kind === 'external-link') {
+                  return (
+                    <a
+                      key={item.id}
+                      href={item.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={item.ariaLabel}
+                      onClick={() => {
+                        item.onClick();
+                        closeMenu();
+                      }}
+                      className={`rounded-sm ${FOCUS_RING_CLASSES}`}
+                    >
+                      {item.label}
+                    </a>
+                  );
+                }
 
-  const becomeMentorPath = getBecomeMentorHref(identity.userId);
-  const content = (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button variant="ghost" aria-label="開啟導航選單">
-          <HamburgerMenuIcon className="size-6" aria-hidden="true" />
-        </Button>
-      </SheetTrigger>
+                return (
+                  <DisabledAwareLink
+                    key={item.id}
+                    href={item.href}
+                    disabled={item.disabled}
+                    aria-current={item.isCurrent ? 'page' : undefined}
+                    onClick={closeMenu}
+                    {...getNavAnalyticsAttributes(item.analytics)}
+                    className={`rounded-sm ${FOCUS_RING_CLASSES}`}
+                  >
+                    {item.label}
+                  </DisabledAwareLink>
+                );
+              })}
+            </nav>
 
-      <SheetContent side="right" className="h-dvh w-screen">
-        <SheetTitle className="sr-only">導航選單</SheetTitle>
-        <div className="flex h-full flex-col">
-          <SheetClose asChild>
-            <button type="button" aria-label="關閉導航選單" className="ml-auto">
-              <Cross2Icon
-                className="text-brand-900 size-8"
-                aria-hidden="true"
-              />
-            </button>
-          </SheetClose>
-
-          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-8 text-2xl">
-            <Link
-              href={FIND_MENTOR_HREF}
-              onClick={close}
-              className="text-text-primary"
-            >
-              尋找導師
-            </Link>
-
-            <DisabledAwareLink
-              href={becomeMentorPath}
-              onClick={close}
-              disabled={isHintOnlyState(identity.state)}
-              className="text-text-primary"
-            >
-              成為導師
-            </DisabledAwareLink>
-
-            <Link href="/about" onClick={close} className="text-text-primary">
-              關於 X-Talent
-            </Link>
-
-            <a
-              href={FEEDBACK_FORM_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="提供回饋（另開新分頁）"
-              onClick={() => {
-                trackEvent({ name: 'feedback_open' });
-                close();
-              }}
-              className="text-text-primary"
-            >
-              提供回饋
-            </a>
-          </div>
-
-          {isGuestOrUnknownState(identity.state) && (
-            <div className="mt-auto flex flex-col items-center gap-6 pb-6">
-              <Button asChild className="bg-brand-500 hover:bg-brand-500 w-40">
-                <Link href="/auth/signin" onClick={close}>
-                  登入
+            <div className="mt-auto flex flex-col items-center gap-5 pb-2">
+              <Button variant="default" className="w-40" asChild>
+                <Link
+                  href={menu.signin.href}
+                  aria-current={menu.signin.isCurrent ? 'page' : undefined}
+                  onClick={closeMenu}
+                  {...getNavAnalyticsAttributes(menu.signin.analytics)}
+                >
+                  {menu.signin.label}
                 </Link>
               </Button>
               <Button
-                asChild
                 variant="outline"
                 className="border-brand-500 text-brand-500 hover:text-brand-500 w-40"
+                asChild
               >
-                <Link href="/auth/signup" onClick={close}>
-                  註冊
+                <Link
+                  href={menu.signup.href}
+                  aria-current={menu.signup.isCurrent ? 'page' : undefined}
+                  onClick={closeMenu}
+                  {...getNavAnalyticsAttributes(menu.signup.analytics)}
+                >
+                  {menu.signup.label}
                 </Link>
               </Button>
             </div>
-          )}
-        </div>
-      </SheetContent>
-    </Sheet>
+          </div>
+        </SheetContent>
+      </Sheet>
+    </AuthHintGate>
   );
-
-  if (identity.state === 'unknown') {
-    return (
-      <div className="group-data-[auth-state=mentee]/auth-state:hidden group-data-[auth-state=mentor]/auth-state:hidden">
-        {content}
-      </div>
-    );
-  }
-
-  return content;
-}
+});

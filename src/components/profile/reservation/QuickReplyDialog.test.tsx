@@ -20,11 +20,15 @@ vi.mock('@/components/ui/use-toast', async () => {
 
 const mockAccept = vi.fn();
 const mockRejectOrCancel = vi.fn();
+const mockSubmitFeedback = vi.fn();
+const mockUpdateFeedback = vi.fn();
 
 vi.mock('@/hooks/user/reservation/useReservationActions', () => ({
   useReservationActions: vi.fn(() => ({
     accept: mockAccept,
     rejectOrCancel: mockRejectOrCancel,
+    submitFeedback: mockSubmitFeedback,
+    updateFeedback: mockUpdateFeedback,
     isMutating: false,
   })),
 }));
@@ -83,6 +87,8 @@ describe('QuickReplyDialog', () => {
     vi.mocked(useReservationActions).mockReturnValue({
       accept: mockAccept,
       rejectOrCancel: mockRejectOrCancel,
+      submitFeedback: mockSubmitFeedback,
+      updateFeedback: mockUpdateFeedback,
       isMutating: false,
     });
   });
@@ -134,6 +140,8 @@ describe('QuickReplyDialog', () => {
         state.successCallback?.('res-103');
       }),
       rejectOrCancel: mockRejectOrCancel,
+      submitFeedback: mockSubmitFeedback,
+      updateFeedback: mockUpdateFeedback,
       isMutating: false,
     });
 
@@ -166,6 +174,8 @@ describe('QuickReplyDialog', () => {
     vi.mocked(useReservationActions).mockReturnValue({
       accept,
       rejectOrCancel: mockRejectOrCancel,
+      submitFeedback: mockSubmitFeedback,
+      updateFeedback: mockUpdateFeedback,
       isMutating: false,
     });
 
@@ -252,6 +262,8 @@ describe('QuickReplyDialog', () => {
       rejectOrCancel: vi.fn().mockImplementation(() => {
         state.successCallback?.('res-103');
       }),
+      submitFeedback: mockSubmitFeedback,
+      updateFeedback: mockUpdateFeedback,
       isMutating: false,
     });
 
@@ -283,6 +295,8 @@ describe('QuickReplyDialog', () => {
     vi.mocked(useReservationActions).mockReturnValue({
       accept: vi.fn().mockRejectedValue(new Error('accept failed')),
       rejectOrCancel: mockRejectOrCancel,
+      submitFeedback: mockSubmitFeedback,
+      updateFeedback: mockUpdateFeedback,
       isMutating: false,
     });
 
@@ -314,6 +328,8 @@ describe('QuickReplyDialog', () => {
     vi.mocked(useReservationActions).mockReturnValue({
       accept: vi.fn().mockRejectedValue(new ReservationVersionConflictError()),
       rejectOrCancel: mockRejectOrCancel,
+      submitFeedback: mockSubmitFeedback,
+      updateFeedback: mockUpdateFeedback,
       isMutating: false,
     });
 
@@ -364,6 +380,8 @@ describe('QuickReplyDialog', () => {
     vi.mocked(useReservationActions).mockReturnValue({
       accept: mockAccept,
       rejectOrCancel: vi.fn().mockRejectedValue(new Error('reject failed')),
+      submitFeedback: mockSubmitFeedback,
+      updateFeedback: mockUpdateFeedback,
       isMutating: false,
     });
 
@@ -389,6 +407,8 @@ describe('QuickReplyDialog', () => {
     vi.mocked(useReservationActions).mockReturnValue({
       accept: mockAccept,
       rejectOrCancel: mockRejectOrCancel,
+      submitFeedback: mockSubmitFeedback,
+      updateFeedback: mockUpdateFeedback,
       isMutating: true,
     });
     const onOpenChange = vi.fn();
@@ -405,6 +425,8 @@ describe('QuickReplyDialog', () => {
     vi.mocked(useReservationActions).mockReturnValue({
       accept: mockAccept,
       rejectOrCancel: mockRejectOrCancel,
+      submitFeedback: mockSubmitFeedback,
+      updateFeedback: mockUpdateFeedback,
       isMutating: false,
     });
     const onOpenChange = vi.fn();
@@ -421,6 +443,8 @@ describe('QuickReplyDialog', () => {
     vi.mocked(useReservationActions).mockReturnValue({
       accept: mockAccept,
       rejectOrCancel: mockRejectOrCancel,
+      submitFeedback: mockSubmitFeedback,
+      updateFeedback: mockUpdateFeedback,
       isMutating: true,
     });
 
@@ -448,5 +472,22 @@ describe('QuickReplyDialog', () => {
     fireEvent.click(nameLink);
 
     expect(mockOnOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('validates reply against quickReplyFormSchema and disables accept when reply exceeds 500 characters', () => {
+    render(<QuickReplyDialog {...defaultProps} />);
+
+    fireEvent.click(screen.getByText('附上回覆訊息（選填）'));
+    const textarea = screen.getByPlaceholderText(
+      '例如：屆時於 Google Meet 見,請先準備一份履歷。'
+    );
+    fireEvent.change(textarea, { target: { value: 'B'.repeat(501) } });
+
+    expect(screen.getByText('回覆訊息請勿超過 500 字')).toBeInTheDocument();
+
+    const acceptBtn = screen.getByRole('button', { name: '接受' });
+    expect(acceptBtn).toBeDisabled();
+    fireEvent.click(acceptBtn);
+    expect(mockAccept).not.toHaveBeenCalled();
   });
 });

@@ -1,7 +1,19 @@
-import { render, screen } from '@testing-library/react';
+import {
+  render as rtlRender,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { SessionContext, type SessionContextValue } from 'next-auth/react';
+import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { UserType } from '@/hooks/user/user-data/useUserData';
+import {
+  favoriteMentorsReadModel,
+  resetFavoriteMentorsReadModel,
+} from '@/lib/favorites';
 import type { BookingCalendarReader } from '@/lib/profile/bookingAvailability';
 
 // next/image requires width/height derived from a static-import object shape
@@ -34,6 +46,24 @@ vi.mock('@/components/profile/reservation/ScheduleCalendar', () => ({
 
 import { ProfilePageSkeleton } from './skeleton';
 import ProfilePageUI from './ui';
+
+const defaultGuestSession: SessionContextValue = {
+  data: null,
+  status: 'unauthenticated',
+  update: async () => null,
+};
+
+function DefaultGuestWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <SessionContext.Provider value={defaultGuestSession}>
+      {children}
+    </SessionContext.Provider>
+  );
+}
+
+function render(ui: React.ReactElement) {
+  return rtlRender(ui, { wrapper: DefaultGuestWrapper });
+}
 
 function buildSchedule(): BookingCalendarReader {
   return {
@@ -422,5 +452,676 @@ describe('ProfilePageUI - multiline text whitespace preservation (#857)', () => 
     const jobDescParagraph = jobTitleHeading.nextElementSibling;
     expect(jobDescParagraph).toHaveClass('whitespace-pre-line', 'break-words');
     expect(jobDescParagraph?.textContent).toBe(multilineJobDesc);
+  });
+});
+
+describe('ProfilePageUI - mentor summary bar and feedback tabs (#736)', () => {
+  it('renders full-width 4-cell summary bar without industry row, renders #hashtag under 關於我 above self-intro, and switches between 簡介 and 評價 N tabs while keeping booking panel visible (#736)', async () => {
+    const user = userEvent.setup();
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            about: '關於導師的介紹文字',
+            years_of_experience: '5~10 年',
+            location: '台灣',
+            industry: '設計及創意相關業',
+            industries: [
+              { subject_group: 'design', subject: '設計及創意相關業' },
+            ],
+            stats: {
+              completed_meeting_count: 128,
+              rating_count: 12,
+              rating_average: 8.5,
+            },
+          }),
+          feedback: {
+            items: [
+              {
+                id: 'fb-1',
+                authorName: '陳**',
+                rating: 9,
+                content: '分享了很具體的建議，也幫助我釐清下一步的方向。',
+                createdAt: '2026-10-28T10:00:00Z',
+              },
+            ],
+            totalRatingCount: 12,
+            ratingAverage: 8.5,
+            page: 1,
+            pageSize: 10,
+            hasLoaded: true,
+            isLoading: false,
+            error: null,
+          },
+          isIdentityResolved: true,
+        })}
+      />
+    );
+
+    const summaryRegion = screen.getByRole('region', { name: '導師摘要資訊' });
+    expect(summaryRegion).toBeInTheDocument();
+    expect(within(summaryRegion).queryByText('產業')).not.toBeInTheDocument();
+    expect(
+      within(summaryRegion).queryByText(/設計及創意相關業/)
+    ).not.toBeInTheDocument();
+
+    const aboutPanel = screen.getByRole('tabpanel', { name: '簡介' });
+    const aboutHeading = within(aboutPanel).getByText('關於我');
+    const hashtagEl = within(aboutPanel).getByTestId('mentor-industry-hashtag');
+    const aboutBody = within(aboutPanel).getByText('關於導師的介紹文字');
+
+    expect(aboutHeading).toHaveClass('mb-3', 'text-xl', 'font-bold');
+    expect(hashtagEl).toHaveTextContent('#設計及創意相關業');
+    expect(hashtagEl).toHaveClass(
+      'text-brand-700',
+      'text-sm',
+      'font-medium',
+      'mb-3'
+    );
+    expect(aboutHeading.nextElementSibling).toBe(hashtagEl);
+    expect(hashtagEl.nextElementSibling).toBe(aboutBody);
+    expect(aboutPanel).not.toHaveTextContent('經驗');
+    expect(within(aboutPanel).queryByText('產業')).not.toBeInTheDocument();
+    expect(screen.getByText('可預約日期')).toBeInTheDocument();
+
+    const feedbackTab = screen.getByRole('tab', { name: /評價\s*12/ });
+    await user.click(feedbackTab);
+
+    expect(screen.getByText('12 則會談評價')).toBeInTheDocument();
+    expect(
+      screen.getByText('分享了很具體的建議，也幫助我釐清下一步的方向。')
+    ).toBeInTheDocument();
+    expect(screen.getByText('可預約日期')).toBeInTheDocument();
+    expect(screen.getByTestId('schedule-calendar')).toBeInTheDocument();
+  });
+
+  it('normalizes leading # in mentor industry and falls back to industries[0] when industry string is empty (#736)', () => {
+    const { rerender } = render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            about: '自我介紹',
+            industry: '##軟體及網路相關業',
+          }),
+          isIdentityResolved: true,
+        })}
+      />
+    );
+
+    expect(screen.getByTestId('mentor-industry-hashtag')).toHaveTextContent(
+      '#軟體及網路相關業'
+    );
+
+    rerender(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            about: '自我介紹',
+            industry: '',
+            industries: [
+              { subject_group: 'design', subject: '設計及創意相關業' },
+            ],
+          }),
+          isIdentityResolved: true,
+        })}
+      />
+    );
+
+    expect(screen.getByTestId('mentor-industry-hashtag')).toHaveTextContent(
+      '#設計及創意相關業'
+    );
+  });
+
+  it('renders 關於我 with #hashtag (without empty bio paragraph) and keeps mt-10 on 給導生的話 when mentor about is empty, and hides 關於我 when industry contains only # and whitespace (#736)', () => {
+    const { rerender } = render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            about: '',
+            industry: '設計及創意相關業',
+            personal_statement: '歡迎帶著作品集來交流',
+          }),
+          isIdentityResolved: true,
+        })}
+      />
+    );
+
+    const aboutPanel = screen.getByRole('tabpanel', { name: '簡介' });
+    const aboutHeading = within(aboutPanel).getByText('關於我');
+    const hashtagEl = within(aboutPanel).getByTestId('mentor-industry-hashtag');
+    expect(aboutHeading).toBeInTheDocument();
+    expect(hashtagEl).toHaveTextContent('#設計及創意相關業');
+    expect(hashtagEl).not.toHaveClass('mb-3');
+    expect(hashtagEl.nextElementSibling).toBeNull();
+
+    const statementHeading = within(aboutPanel).getByText('給導生的話');
+    expect(statementHeading.parentElement).toHaveClass('mt-10');
+
+    rerender(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            about: '',
+            industry: '###   ',
+            personal_statement: '歡迎帶著作品集來交流',
+          }),
+          isIdentityResolved: true,
+        })}
+      />
+    );
+
+    expect(
+      within(aboutPanel).queryByTestId('mentor-industry-hashtag')
+    ).not.toBeInTheDocument();
+    expect(within(aboutPanel).queryByText('關於我')).not.toBeInTheDocument();
+    const updatedStatementHeading = within(aboutPanel).getByText('給導生的話');
+    expect(updatedStatementHeading.parentElement).not.toHaveClass('mt-10');
+  });
+
+  it('hides both rating and completed 1-on-1 cells when both are 0 and shows empty state in 評價 0 tab (#736)', async () => {
+    const user = userEvent.setup();
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            years_of_experience: '5~10 年',
+            location: '台灣',
+            stats: {
+              completed_meeting_count: 0,
+              rating_count: 0,
+              rating_average: null,
+            },
+          }),
+          feedback: {
+            items: [],
+            totalRatingCount: 0,
+            ratingAverage: null,
+            completedMeetingCount: 0,
+            hasLoaded: true,
+            isLoading: false,
+            error: null,
+          },
+          isIdentityResolved: true,
+        })}
+      />
+    );
+
+    const summaryRegion = screen.getByRole('region', { name: '導師摘要資訊' });
+    expect(within(summaryRegion).queryByText('評分')).not.toBeInTheDocument();
+    expect(
+      within(summaryRegion).queryByText('已完成 1-on-1')
+    ).not.toBeInTheDocument();
+    expect(within(summaryRegion).getByText('經驗')).toBeInTheDocument();
+    expect(within(summaryRegion).getByText('地點')).toBeInTheDocument();
+
+    const feedbackTab = screen.getByRole('tab', { name: /評價\s*0/ });
+    await user.click(feedbackTab);
+
+    expect(screen.getByText('目前還沒有評價')).toBeInTheDocument();
+    expect(
+      screen.getByText('完成會談後，學員的評價會顯示在這裡。')
+    ).toBeInTheDocument();
+  });
+
+  it('independently hides only rating cell when rating_count is 0 or only completed 1-on-1 cell when completed_meeting_count is 0 (#736)', () => {
+    const { rerender } = render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            years_of_experience: '5~10 年',
+            location: '台灣',
+            stats: {
+              completed_meeting_count: 25,
+              rating_count: 0,
+              rating_average: null,
+            },
+          }),
+          feedback: {
+            items: [],
+            totalRatingCount: 0,
+            ratingAverage: null,
+            completedMeetingCount: 25,
+            hasLoaded: true,
+            isLoading: false,
+            error: null,
+          },
+          isIdentityResolved: true,
+        })}
+      />
+    );
+
+    const summaryRegion = screen.getByRole('region', { name: '導師摘要資訊' });
+    expect(within(summaryRegion).queryByText('評分')).not.toBeInTheDocument();
+    expect(
+      within(summaryRegion).getByText('已完成 1-on-1')
+    ).toBeInTheDocument();
+    expect(within(summaryRegion).getByText('25')).toBeInTheDocument();
+
+    rerender(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            years_of_experience: '5~10 年',
+            location: '台灣',
+            stats: {
+              completed_meeting_count: 0,
+              rating_count: 6,
+              rating_average: 9.0,
+            },
+          }),
+          feedback: {
+            items: [
+              {
+                id: 'fb-solo',
+                authorName: '林**',
+                rating: 9,
+                content: '建議很具體。',
+                createdAt: '2026-10-28T10:00:00Z',
+              },
+            ],
+            totalRatingCount: 6,
+            ratingAverage: 9.0,
+            completedMeetingCount: 0,
+            hasLoaded: true,
+            isLoading: false,
+            error: null,
+          },
+          isIdentityResolved: true,
+        })}
+      />
+    );
+
+    expect(within(summaryRegion).getByText('評分')).toBeInTheDocument();
+    expect(within(summaryRegion).getByText('9.0')).toBeInTheDocument();
+    expect(
+      within(summaryRegion).queryByText('已完成 1-on-1')
+    ).not.toBeInTheDocument();
+  });
+
+  it('does not render mentor summary bar or feedback tabs on a mentee profile (is_mentor: false) (#736)', () => {
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: false,
+            about: '學員自我介紹',
+            years_of_experience: '1~3 年',
+            industry: '軟體及網路相關業',
+          }),
+          isIdentityResolved: true,
+        })}
+      />
+    );
+
+    expect(
+      screen.queryByRole('region', { name: '導師摘要資訊' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('tablist', { name: '導師頁面分頁' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('mentor-feedback-section')
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('mentor-industry-hashtag')
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('產業')).toBeInTheDocument();
+    expect(screen.getByText('學員自我介紹')).toBeInTheDocument();
+  });
+
+  it('keeps feedback strictly read-only when mentor views their own profile (canShowOwnerControls: true) (#736)', async () => {
+    const user = userEvent.setup();
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            stats: {
+              completed_meeting_count: 18,
+              rating_count: 2,
+              rating_average: 8.5,
+            },
+          }),
+          feedback: {
+            items: [
+              {
+                id: 'fb-owner-1',
+                authorName: '陳**',
+                rating: 9,
+                content: '導師給予非常實用的職涯方向建議。',
+                createdAt: '2026-10-28T10:00:00Z',
+              },
+            ],
+            totalRatingCount: 2,
+            ratingAverage: 8.5,
+            hasLoaded: true,
+            isLoading: false,
+            error: null,
+          },
+          loginUserId: '123',
+          isIdentityResolved: true,
+          canShowOwnerControls: true,
+        })}
+      />
+    );
+
+    expect(
+      screen.getByRole('button', { name: '編輯個人資訊' })
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: /評價\s*2/ }));
+
+    const feedbackSection = screen.getByTestId('mentor-feedback-section');
+    expect(
+      within(feedbackSection).getByText('導師給予非常實用的職涯方向建議。')
+    ).toBeInTheDocument();
+    expect(
+      within(feedbackSection).queryByRole('button', {
+        name: /修改|編輯|刪除|回覆|檢舉/,
+      })
+    ).not.toBeInTheDocument();
+  });
+
+  it('preserves SSR userData.stats and shows unavailable prompt without pagination when feedback endpoint returns 404 fallback empty state (#736)', async () => {
+    const user = userEvent.setup();
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            stats: {
+              completed_meeting_count: 64,
+              rating_count: 12,
+              rating_average: 9.2,
+            },
+          }),
+          feedback: {
+            items: [],
+            totalRatingCount: 0,
+            ratingAverage: null,
+            completedMeetingCount: null,
+            hasLoaded: true,
+            isFallbackEmpty: true,
+            isLoading: false,
+            error: null,
+          },
+          isIdentityResolved: true,
+        })}
+      />
+    );
+
+    expect(screen.getByText('9.2')).toBeInTheDocument();
+    expect(screen.getByText('64')).toBeInTheDocument();
+
+    const feedbackTab = screen.getByRole('tab', { name: /評價\s*12/ });
+    expect(feedbackTab).toBeInTheDocument();
+    await user.click(feedbackTab);
+
+    const feedbackSection = screen.getByTestId('mentor-feedback-section');
+    expect(within(feedbackSection).getByText('9.2')).toBeInTheDocument();
+    expect(
+      within(feedbackSection).getByText('12 則會談評價')
+    ).toBeInTheDocument();
+    expect(
+      within(feedbackSection).getByText('目前暫無法顯示評價內容，請稍後再試。')
+    ).toBeInTheDocument();
+    expect(
+      within(feedbackSection).queryByRole('list', { name: '會談評價列表' })
+    ).not.toBeInTheDocument();
+    expect(
+      within(feedbackSection).queryByRole('navigation', { name: '評價分頁' })
+    ).not.toBeInTheDocument();
+    expect(
+      within(feedbackSection).queryByRole('combobox', { name: '評價排序' })
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe('ProfilePageUI - mentor bookmark button gating (#758)', () => {
+  it('renders the bookmark button for a visitor viewing a mentor profile without Email/notification copy', () => {
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            user_id: 123,
+            name: 'Zahra Mirzakhani',
+            is_mentor: true,
+          }),
+          loginUserId: '999',
+          isIdentityResolved: true,
+          canShowOwnerControls: false,
+        })}
+      />
+    );
+
+    const bookmarkBtn = screen.getByRole('button', {
+      name: '收藏 Zahra Mirzakhani',
+    });
+    expect(bookmarkBtn).toBeInTheDocument();
+    expect(bookmarkBtn.textContent).toBe('');
+    expect(screen.queryByText(/新時段通知/)).not.toBeInTheDocument();
+  });
+
+  it('hides the bookmark button on the mentor owner profile', () => {
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            user_id: 123,
+            name: 'Zahra Mirzakhani',
+            is_mentor: true,
+          }),
+          loginUserId: '123',
+          isIdentityResolved: true,
+          canShowOwnerControls: true,
+        })}
+      />
+    );
+
+    expect(
+      screen.queryByRole('button', { name: /收藏 Zahra Mirzakhani/ })
+    ).not.toBeInTheDocument();
+  });
+
+  it('hides the bookmark button on a non-mentor profile', () => {
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            user_id: 456,
+            name: 'Alex Mentee',
+            is_mentor: false,
+          }),
+          loginUserId: '999',
+          isIdentityResolved: true,
+          canShowOwnerControls: false,
+        })}
+      />
+    );
+
+    expect(
+      screen.queryByRole('button', { name: /收藏 Alex Mentee/ })
+    ).not.toBeInTheDocument();
+  });
+
+  it('withholds the bookmark button while identity is still resolving', () => {
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            user_id: 123,
+            name: 'Zahra Mirzakhani',
+            is_mentor: true,
+          }),
+          loginUserId: '',
+          isIdentityResolved: false,
+          canShowOwnerControls: false,
+        })}
+      />
+    );
+
+    expect(
+      screen.queryByRole('button', { name: /收藏 Zahra Mirzakhani/ })
+    ).not.toBeInTheDocument();
+  });
+
+  it('stores a complete mentorSnapshot in favoriteMentorsReadModel when toggling bookmark from profile page (#757 / #908)', async () => {
+    resetFavoriteMentorsReadModel();
+    favoriteMentorsReadModel.setTransport({
+      fetchFavoriteMentors: vi.fn().mockResolvedValue([]),
+      addFavoriteMentor: vi.fn().mockResolvedValue(undefined),
+      removeFavoriteMentor: vi.fn().mockResolvedValue(undefined),
+    });
+    favoriteMentorsReadModel.seed('999', []);
+
+    const sessionContextValue: SessionContextValue = {
+      data: {
+        user: {
+          id: '999',
+          email: 'mentee@example.com',
+          name: 'Mentee Viewer',
+          onBoarding: true,
+          isMentor: false,
+        },
+        accessToken: 'mock-token',
+        expires: '2099-01-01T00:00:00.000Z',
+      },
+      status: 'authenticated',
+      update: async () => null,
+    };
+
+    try {
+      const user = userEvent.setup();
+      render(
+        <SessionContext.Provider value={sessionContextValue}>
+          <ProfilePageUI
+            {...baseProps({
+              userData: buildUserData({
+                user_id: 123,
+                name: 'Zahra Mirzakhani',
+                job_title: 'Senior UX Designer',
+                company: 'CreativeUX Design Studio',
+                is_mentor: true,
+                have_topic: [{ subject_group: 'CAREER', subject: '職涯規劃' }],
+              }),
+              loginUserId: '999',
+              isIdentityResolved: true,
+              canShowOwnerControls: false,
+            })}
+          />
+        </SessionContext.Provider>
+      );
+
+      await user.click(
+        screen.getByRole('button', { name: '收藏 Zahra Mirzakhani' })
+      );
+
+      await waitFor(() => {
+        expect(
+          favoriteMentorsReadModel.getMentorState('999', 123).isFavorited
+        ).toBe(true);
+      });
+      const storedMentor =
+        favoriteMentorsReadModel.getSnapshot('999')?.mentors[0];
+      expect(storedMentor).toMatchObject({
+        user_id: 123,
+        name: 'Zahra Mirzakhani',
+        job_title: 'Senior UX Designer',
+        company: 'CreativeUX Design Studio',
+        have_topic: ['CAREER'],
+      });
+      expect(storedMentor?.avatar).toBeTruthy();
+    } finally {
+      resetFavoriteMentorsReadModel();
+    }
+  });
+});
+
+describe('ProfilePageUI - personal links with GitHub (#862)', () => {
+  it.each([false, true])(
+    'renders GitHub between YouTube and 個人網站 alongside Facebook as external links when is_mentor=%s',
+    (isMentor) => {
+      render(
+        <ProfilePageUI
+          {...baseProps({
+            userData: buildUserData({
+              is_mentor: isMentor,
+              personalLinks: [
+                { platform: 'website', url: 'https://portfolio.dev' },
+                { platform: 'github', url: 'https://github.com/octocat' },
+                { platform: 'github', url: 'https://gitlab.com/imposter' },
+                { platform: 'youtube', url: 'https://youtube.com/@octocat' },
+                {
+                  platform: 'facebook',
+                  url: 'https://www.facebook.com/octocat',
+                },
+              ],
+            }),
+            isIdentityResolved: true,
+          })}
+        />
+      );
+
+      const links = screen.getAllByRole('link');
+      expect(links.map((el) => el.getAttribute('aria-label'))).toEqual([
+        'Facebook',
+        'YouTube',
+        'GitHub',
+        '個人網站',
+      ]);
+
+      const githubLink = screen.getByRole('link', { name: 'GitHub' });
+      expect(githubLink).toHaveAttribute('href', 'https://github.com/octocat');
+      expect(githubLink).toHaveAttribute('target', '_blank');
+      expect(githubLink).toHaveAttribute('rel', 'noopener noreferrer');
+      expect(githubLink).toHaveAttribute(
+        'data-analytics-param-platform',
+        'github'
+      );
+    }
+  );
+});
+
+describe('ProfilePageUI feature flags disabled behavior (#913)', () => {
+  it('hides bookmark button, rating score, and TabsList while preserving experience, location, completed meetings, and intro sections', () => {
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            about: '資深產品設計經驗分享',
+            years_of_experience: '5~10 年',
+            location: '台灣',
+            stats: {
+              completed_meeting_count: 18,
+              rating_count: 9,
+              rating_average: 9.5,
+            },
+          }),
+          isIdentityResolved: true,
+          showBookmark: false,
+          feedbackEnabled: false,
+        })}
+      />
+    );
+
+    expect(
+      screen.queryByRole('button', { name: /收藏/ })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('tablist', { name: '導師頁面分頁' })
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('評分')).not.toBeInTheDocument();
+    expect(screen.getByText('資深產品設計經驗分享')).toBeInTheDocument();
+    expect(screen.getByText('18')).toBeInTheDocument();
+    expect(screen.getByText('台灣')).toBeInTheDocument();
   });
 });

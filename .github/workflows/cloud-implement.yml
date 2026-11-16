@@ -13,9 +13,9 @@ on:
         default: ''
         type: string
       max_review_rounds:
-        description: 'Maximum pre-PR AI Review convergence rounds (1-20)'
+        description: 'Maximum deterministic + E2E self-healing rounds (1-10)'
         required: false
-        default: '20'
+        default: '3'
         type: string
       run_e2e:
         description: 'Run Playwright E2E suite in each pre-PR convergence round'
@@ -43,14 +43,14 @@ permissions:
   issues: write
 
 env:
-  GEMINI_MODEL: gemini-4-argon
+  GEMINI_MODEL: gemini-4-carbon
   GEMINI_CLI_TRUST_WORKSPACE: 'true'
   WORKER_CALLBACK_URL: 'https://x-talent-discord-mention-notify.x-talent.workers.dev/__cloud-callback'
 
 jobs:
   implement:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     name: 'Cloud AI Implement #${{ inputs.ticket_number }}'
     steps:
       - name: Validate inputs and notify Discord Worker (implement_started)
@@ -81,9 +81,9 @@ jobs:
 
           CLEAN_ROUNDS="${MAX_REVIEW_ROUNDS//[[:space:]]/}"
           if ! [[ "$CLEAN_ROUNDS" =~ ^[0-9]+$ ]] || [ "$CLEAN_ROUNDS" -lt 1 ]; then
-            CLEAN_ROUNDS="20"
-          elif [ "$CLEAN_ROUNDS" -gt 20 ]; then
-            CLEAN_ROUNDS="20"
+            CLEAN_ROUNDS="3"
+          elif [ "$CLEAN_ROUNDS" -gt 10 ]; then
+            CLEAN_ROUNDS="10"
           fi
           echo "SAFE_MAX_ROUNDS=${CLEAN_ROUNDS}" >> "$GITHUB_ENV"
 
@@ -125,10 +125,45 @@ jobs:
           node-version: 24
           cache: pnpm
 
+      - name: Pre-flight Ticket Scope Gate (skip pure backend / non-frontend tickets)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || github.token }}
+          GH_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || github.token }}
+          TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER }}
+          BRANCH_NAME: ${{ env.SAFE_BRANCH_NAME }}
+        run: |
+          mkdir -p .agents/tmp
+          rm -f .agents/tmp/ticket-bundle.json .agents/tmp/ticket-spec.md .agents/tmp/ticket-scope.json .agents/tmp/scope-guidance.md
+          node scripts/cloud/ticket-bundle.mjs --ticket="$TICKET_NUMBER" --skip-visuals=true --skip-kb=true || true
+          node scripts/check-ticket-scope.mjs \
+            --spec-file=.agents/tmp/ticket-spec.md \
+            --branch="$BRANCH_NAME" \
+            --out=.agents/tmp/ticket-scope.json \
+            --guidance-out=.agents/tmp/scope-guidance.md || true
+
+          ACTIONABLE=$(jq -r 'if .actionableInFrontendRepo == false then "false" else "true" end' .agents/tmp/ticket-scope.json 2>/dev/null || echo "true")
+          SCOPE_REASON=$(jq -r '.reason // ""' .agents/tmp/ticket-scope.json 2>/dev/null | tr '\r\n' ' ' || echo "")
+
+          if [ "$ACTIONABLE" = "false" ]; then
+            echo "SCOPE_SKIPPED=true" >> "$GITHUB_ENV"
+            EOF_MARKER="EOF_$(openssl rand -hex 16)"
+            {
+              echo "SCOPE_SKIP_REASON<<${EOF_MARKER}"
+              echo "$SCOPE_REASON"
+              echo "${EOF_MARKER}"
+            } >> "$GITHUB_ENV"
+            echo "::notice::Skipping frontend Cloud AI VM for #${TICKET_NUMBER}: ${SCOPE_REASON}"
+          else
+            echo "SCOPE_SKIPPED=false" >> "$GITHUB_ENV"
+          fi
+
       - name: Install dependencies
+        if: env.SCOPE_SKIPPED != 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Cache Playwright browsers (Suggestion 6)
+        if: env.SCOPE_SKIPPED != 'true'
         id: playwright-cache
         uses: actions/cache@v4
         with:
@@ -138,11 +173,25 @@ jobs:
             playwright-${{ runner.os }}-
 
       - name: Install Playwright Chromium
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        if: env.SCOPE_SKIPPED != 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm playwright install chromium
 
-      - name: Configure Git and local environment for UI evidence and E2E
+      - name: Install Noto CJK fonts for crisp Traditional Chinese rendering
+        if: env.SCOPE_SKIPPED != 'true'
+        continue-on-error: true
+        run: |
+          mkdir -p ~/.local/share/fonts
+          curl -fsSL --retry 3 "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf" -o ~/.local/share/fonts/NotoSansTC.ttf || true
+          curl -fsSL --retry 3 "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/TraditionalChinese/NotoSansCJKtc-Regular.otf" -o ~/.local/share/fonts/NotoSansCJKtc-Regular.otf || true
+          fc-cache -f ~/.local/share/fonts || true
+
+      - name: Prepare linked feature branch and configure local environment
+        if: env.SCOPE_SKIPPED != 'true'
         env:
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER }}
+          BRANCH_NAME: ${{ env.SAFE_BRANCH_NAME }}
           BFF_OPENAPI_URL: ${{ secrets.BFF_OPENAPI_URL || vars.BFF_OPENAPI_URL }}
           DESIGN_AUDIT_MENTOR_EMAIL: ${{ secrets.DESIGN_AUDIT_MENTOR_EMAIL || secrets.E2E_MENTOR_EMAIL }}
           DESIGN_AUDIT_MENTOR_PASSWORD: ${{ secrets.DESIGN_AUDIT_MENTOR_PASSWORD || secrets.E2E_MENTOR_PASSWORD }}
@@ -154,10 +203,25 @@ jobs:
           E2E_MENTEE_PASSWORD: ${{ secrets.E2E_MENTEE_PASSWORD || secrets.DESIGN_AUDIT_MENTEE_PASSWORD }}
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET_DEV }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: bash .agents/scripts/setup-cloud-env.sh
+        run: |
+          if [ -n "$BRANCH_NAME" ]; then
+            git fetch origin "$BRANCH_NAME"
+            git checkout "$BRANCH_NAME" || git checkout -b "$BRANCH_NAME" "origin/$BRANCH_NAME"
+            node .agents/scripts/link-ticket-branch.mjs "$TICKET_NUMBER" "$BRANCH_NAME"
+          else
+            node .agents/scripts/link-ticket-branch.mjs "$TICKET_NUMBER"
+          fi
+          ACTIVE_BR=$(git branch --show-current)
+          if [ -z "$ACTIVE_BR" ] || [ "$ACTIVE_BR" = "develop" ] || [ "$ACTIVE_BR" = "main" ]; then
+            echo "::error::Failed to create or switch to a dedicated ticket branch (currently on '${ACTIVE_BR}')."
+            exit 1
+          fi
+          node scripts/cloud/workspace-guard.mjs setup
 
       - name: Run Gemini CLI to implement or complete ticket requirements (Phase 1)
+        if: env.SCOPE_SKIPPED != 'true'
         id: gemini_implement
+        timeout-minutes: 38
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
@@ -168,32 +232,40 @@ jobs:
           EXTRA_PROMPT: ${{ inputs.extra_prompt }}
         run: |
           mkdir -p .agents/tmp
-          GH_TOKEN="${TRACKER_READ_TOKEN:-$GH_TOKEN}" gh issue view "$TICKET_NUMBER" --repo Xchange-Taiwan/X-Talent-Tracker --comments > .agents/tmp/ticket-spec.md 2>/dev/null || true
-          ARCH_QUERY="#${TICKET_NUMBER} $(head -n 25 .agents/tmp/ticket-spec.md 2>/dev/null | tr '\n' ' ' || echo '')"
-          jq -n --arg q "$ARCH_QUERY" '{query: $q}' | curl -sS -X POST "https://x-talent-discord-mention-notify.x-talent.workers.dev/__arch-kb" -H "Content-Type: application/json" -d @- | jq -r 'if .kb then "\n\n## X-Talent 跨專案架構知識庫 (Cloudflare KV Architecture KB)\n```json\n" + (.kb | tojson) + "\n```" else "" end' >> .agents/tmp/ticket-spec.md 2>/dev/null || true
-
-          if [ -n "$BRANCH_NAME" ]; then
-            git fetch origin "$BRANCH_NAME"
-            git checkout "$BRANCH_NAME" || git checkout -b "$BRANCH_NAME" "origin/$BRANCH_NAME"
-            bash .agents/scripts/link-ticket-branch.sh "$TICKET_NUMBER" "$BRANCH_NAME" || true
-            PROMPT="我們正在處理從本地 Promote 上雲端的分支 ${BRANCH_NAME}，對應 https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/${TICKET_NUMBER}（完整 Issue 規格與留言已預先下載至 .agents/tmp/ticket-spec.md）。
-            請依序執行：
-            1. 直接讀取 .agents/tmp/ticket-spec.md（請勿讀取 .git/config 或重新執行 gh auth），並檢查 git diff origin/develop 與 Issue #${TICKET_NUMBER} 的所有驗收條件（Acceptance Criteria）。
-            2. 若有尚未實作完畢的需求、缺少的 Vitest 單元測試、對應的 Playwright E2E (.spec.ts) 測試檔案，或當修改/新增 src/components/**/*.tsx 下元件時尚未同步更新的 Storybook (.stories.tsx) 檔案，請直接在同一分支補齊程式碼、測試與 .stories.tsx。
-            3. 僅執行快速的 pnpm type-check 與針對變更檔案的單元測試（npx vitest related \$(git diff --name-only origin/develop | tr '\n' ' ') --run）確保通過；請勿在此階段執行全量 pnpm test，全站單元測試將由下一步 Phase 2 統一執行。
-            4. 效能與流程限制：此階段嚴禁自行執行全量 pnpm test、pnpm test:e2e、npx playwright test、pnpm build 或啟動 pnpm dev，也請勿執行 gh pr create，因為下一步 Phase 2 (scripts/cloud-converge-loop.mjs) 會自動執行全量單元測試、Playwright E2E 驗證與最多 20 輪 AI Review 自癒收斂迴圈。
-            ${EXTRA_PROMPT}"
-          else
-            bash .agents/scripts/link-ticket-branch.sh "$TICKET_NUMBER" || true
-            PROMPT="請針對 https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/${TICKET_NUMBER} 執行第一階段程式碼與測試實作：
-            1. Issue #${TICKET_NUMBER} 的完整規格與留言已預先下載至 .agents/tmp/ticket-spec.md，且 Linked Branch 已預先建立並切換完成，請直接讀取 .agents/tmp/ticket-spec.md（請勿讀取 .git/config 或重新執行 gh auth）。
-            2. 根據 Issue #${TICKET_NUMBER} 需求完成程式碼、Vitest 單元測試與對應的 Playwright E2E (.spec.ts) 測試檔案撰寫；若涉及新增或修改 src/components/**/*.tsx 下的 UI 元件，必須同步在同一 PR 新增或更新對應的 Storybook (.stories.tsx) 檔案，並僅執行快速的 pnpm type-check 與針對變更檔案的單元測試（npx vitest related \$(git diff --name-only origin/develop | tr '\n' ' ') --run）確保通過。
-            3. 效能與流程限制：此階段嚴禁自行執行全量 pnpm test、pnpm test:e2e、npx playwright test、pnpm build 或啟動 pnpm dev，也請勿執行 gh pr create，因為下一步 Phase 2 (scripts/cloud-converge-loop.mjs) 會自動執行全量單元測試、Playwright E2E 驗證與最多 20 輪 AI Review 自癒收斂迴圈，收斂完成後由 Phase 3 自動提交與開立 PR。
-            ${EXTRA_PROMPT}"
+          node scripts/cloud/ticket-bundle.mjs --ticket="$TICKET_NUMBER" || true
+          SCOPE_GUIDANCE=""
+          if [ -s .agents/tmp/scope-guidance.md ]; then
+            SCOPE_GUIDANCE=$(cat .agents/tmp/scope-guidance.md)
           fi
-          npx gemini -m "$GEMINI_MODEL" --approval-mode=yolo --skip-trust -p "$PROMPT"
 
-      - name: Run Pre-PR Multi-Round AI Review & Playwright E2E Convergence Loop (Phase 2)
+          PROMPT_FILE=$(mktemp)
+          if [ -n "$BRANCH_NAME" ]; then
+            printf '我們正在處理從本地 Promote 上雲端的分支 %s，對應 https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/%s（完整 Issue 規格、留言與視覺清單已預先下載至 .agents/tmp/ticket-spec.md）。\n' "$BRANCH_NAME" "$TICKET_NUMBER" > "$PROMPT_FILE"
+            cat <<'EOF' >> "$PROMPT_FILE"
+          請依序執行：
+          1. 直接讀取 .agents/tmp/ticket-spec.md；若規格末段列有預先下載至 .agents/tmp/ticket-images/ 的附圖或 Design Hub 原型截圖與 -dom.md 樣式摘要，請務必先用 read_file 逐一檢視圖片細節與 CSS 數值，並對照 git diff origin/develop 與所有驗收條件（Acceptance Criteria）。
+          2. 補齊尚未實作完畢的需求、Vitest 單元測試、Playwright E2E (.spec.ts) 與對應的 Storybook (.stories.tsx) 檔案（嚴禁手動修改自動產生的 src/types/api.ts；嚴禁修改 .storybook/storiesCoverage.test.tsx，該測試已改為自動掃描全站 .stories.tsx）。
+          3. 互動式 UI 證據截圖要求：只要本次變更涉及前端畫面或 UI 元件（src/app/** 或 src/components/**），請務必在對應的 Playwright E2E (.spec.ts) 中引入 captureEvidence，並在實際互動打開目標狀態且 expect(...).toBeVisible() 通過後呼叫 await captureEvidence(page, '<描述性狀態名稱>')。
+          4. 極速批次開發規範：一次規劃並批次寫完所有元件、Storybook、單元測試與 E2E 檔案後請立即結束回覆（Phase 2 漏斗快篩會自動平行執行 lint、type-check、單元測試與 Turbopack E2E 截圖驗證）。
+          EOF
+          else
+            printf '請針對 https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/%s 執行第一階段程式碼與測試實作：\n1. Issue #%s 的完整規格、留言與視覺參考圖清單已預先下載至 .agents/tmp/ticket-spec.md，請直接讀取 .agents/tmp/ticket-spec.md。\n' "$TICKET_NUMBER" "$TICKET_NUMBER" > "$PROMPT_FILE"
+            cat <<'EOF' >> "$PROMPT_FILE"
+          若列有 .agents/tmp/ticket-images/ 下的設計參考圖或 Design Hub 原型截圖與 -dom.md 樣式摘要，動手寫 UI 前請務必先用 read_file 逐一檢視圖片，確保排版、字級與狀態 1:1 對齊。
+          2. 根據需求完成程式碼、Vitest 單元測試、Playwright E2E (.spec.ts) 與 Storybook (.stories.tsx) 檔案（嚴禁手動修改自動產生的 src/types/api.ts；嚴禁修改 .storybook/storiesCoverage.test.tsx，該測試已改為自動掃描全站 .stories.tsx）。
+          3. 互動式 UI 證據截圖要求：只要涉及前端畫面或 UI 元件（src/app/** 或 src/components/**），請在 Playwright E2E (.spec.ts) 中引入 captureEvidence，並在實際互動打開目標狀態且 expect(...).toBeVisible() 通過後呼叫 await captureEvidence(page, '<描述性狀態名稱>')。
+          4. 極速批次開發規範：一次規劃並批次寫完所有元件、Storybook、單元測試與 E2E 檔案後請立即結束回覆（Phase 2 漏斗快篩會自動平行執行 lint、type-check、單元測試與 Turbopack E2E 截圖驗證）。
+          EOF
+          fi
+          rm -f .agents/tmp/delete-files.txt
+          printf '\n5. 刪除舊檔專用通道（因安全沙盒已停用 shell 指令）：若規格要求刪除任何既有檔案，請勿保留空檔案，請將欲刪除的專案相對路徑（每行一個，例如 src/lib/foo.ts）寫入 .agents/tmp/delete-files.txt，Phase 1 結束後系統會自動為你真實刪除。\n' >> "$PROMPT_FILE"
+          printf '\n%s\n%s\n' "$SCOPE_GUIDANCE" "$EXTRA_PROMPT" >> "$PROMPT_FILE"
+          timeout --kill-after=30s 33m npx gemini -m "$GEMINI_MODEL" --approval-mode=yolo --skip-trust -p "$(cat "$PROMPT_FILE")" < /dev/null || echo "::warning::Phase 1 exited non-zero or hit 33m soft limit; handing off workspace changes to Phase 2 convergence loop."
+          rm -f "$PROMPT_FILE"
+          node scripts/cloud/workspace-guard.mjs apply-deletes
+
+      - name: Run Fast Funnel Deterministic & Playwright E2E Verification Loop (Phase 2)
+        if: env.SCOPE_SKIPPED != 'true'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
@@ -202,19 +274,24 @@ jobs:
           TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER }}
           MAX_AI_REVIEW_ROUNDS: ${{ env.SAFE_MAX_ROUNDS }}
           RUN_E2E: ${{ env.SAFE_RUN_E2E }}
+          CONVERGE_MAX_DURATION_MS: '1800000'
         run: |
           node scripts/cloud-converge-loop.mjs \
             --ticket="$TICKET_NUMBER" \
             --max-rounds="$MAX_AI_REVIEW_ROUNDS" \
-            --run-e2e="$RUN_E2E"
+            --run-e2e="$RUN_E2E" \
+            --run-ai-review=false \
+            --require-ui-evidence="$RUN_E2E"
 
       - name: Submit Pull Request and sync Project Board (Phase 3)
+        if: env.SCOPE_SKIPPED != 'true'
         env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER }}
-        run: bash .agents/scripts/cloud-submit-pr.sh implement
+        run: node scripts/cloud/submit-pr.mjs implement
 
       - name: Finalize and notify Discord Worker (Suggestion 4 auto-recovery & Vercel limit detection)
         if: always()
@@ -223,6 +300,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER || inputs.ticket_number }}
           JOB_STATUS: ${{ job.status }}
+          SCOPE_SKIPPED: ${{ env.SCOPE_SKIPPED }}
+          SCOPE_SKIP_REASON: ${{ env.SCOPE_SKIP_REASON }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           rm -f .env.development.local .env.e2e.local
@@ -247,16 +326,21 @@ jobs:
           PR_URL=$(echo "$PR_JSON" | jq -r '.url // empty' 2>/dev/null || echo "")
 
           VERCEL_LIMIT="false"
+          if [ -n "$PR_NUMBER" ]; then
+            if gh api --paginate "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments?per_page=100" --jq '.[].body' 2>/dev/null | grep -qiE 'vercel-quota-limit|api-deployments-free-per-day'; then
+              VERCEL_LIMIT="true"
+            fi
+          fi
 
-          if [ -n "$PR_NUMBER" ] && [ "$JOB_STATUS" = "success" ]; then
+          if [ "$SCOPE_SKIPPED" = "true" ]; then
+            STATUS="implement_failed"
+            MSG="前端虛擬機預檢略過：${SCOPE_SKIP_REASON:-此票無獨立前端實作項目}"
+          elif [ -n "$PR_NUMBER" ] && [ "$JOB_STATUS" = "success" ]; then
             STATUS="implement_succeeded"
-            MSG="雲端 AI 已完成多輪 AI Review 與 E2E 收斂並開出 PR #${PR_NUMBER}"
-          elif [ -n "$PR_NUMBER" ]; then
-            STATUS="implement_succeeded"
-            MSG="PR #${PR_NUMBER} 已開出（部分後續步驟需確認）"
+            MSG="雲端 AI 已完成測試與截圖驗證並開出草稿 PR #${PR_NUMBER}（等待線上 AI Review 審查）"
           else
             STATUS="implement_failed"
-            MSG="雲端實作未成功開出 PR（狀態: ${JOB_STATUS}），按鈕已自動解鎖可重試"
+            MSG="雲端實作未完成（狀態: ${JOB_STATUS}），按鈕已自動解鎖可重試"
           fi
 
           if [ -n "$CALLBACK_SECRET" ]; then

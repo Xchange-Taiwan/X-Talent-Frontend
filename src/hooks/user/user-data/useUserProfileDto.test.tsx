@@ -1,12 +1,12 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { getLastPrimedTime } from '@/lib/cache/userProfileDtoCache';
 import { fetchUserById } from '@/services/profile/user';
 import { mockUserDTO } from '@/test/fixtures/profile';
 
 import {
   clearUserProfileDtoCache,
-  getLastPrimedTime,
   hasDtoConverged,
   primeUserProfileDtoCache,
   useUserProfileDto,
@@ -235,13 +235,26 @@ describe('useUserProfileDto', () => {
       expect(fetchUserById).not.toHaveBeenCalled();
     });
 
-    it('seeds userDto as null synchronously and skips the initial fetch when initialData is null (USER_NOT_FOUND)', () => {
+    it('seeds userDto as null synchronously and skips the initial fetch when initialData is null (USER_NOT_FOUND), while allowing manual refetch to recover', async () => {
       const { result } = renderHook(() => useUserProfileDto(7, 'zh-TW', null));
 
       expect(result.current.isLoading).toBe(false);
       expect(result.current.userDto).toBeNull();
       expect(result.current.error).toBe('USER_NOT_FOUND');
       expect(fetchUserById).not.toHaveBeenCalled();
+
+      vi.mocked(fetchUserById).mockResolvedValueOnce(mockUserDTO);
+      act(() => {
+        result.current.refetch?.();
+      });
+
+      await vi.waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+        expect(result.current.userDto).toEqual(mockUserDTO);
+      });
+
+      expect(result.current.error).toBeNull();
+      expect(fetchUserById).toHaveBeenCalledTimes(1);
     });
 
     it('prioritizes client-side cache over SSR initialData to prevent regression/flash to old SSR data during transition', () => {

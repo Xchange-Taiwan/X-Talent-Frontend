@@ -1,29 +1,30 @@
 'use client';
 
-import { FC } from 'react';
-import { useForm } from 'react-hook-form';
-import * as z from 'zod';
+import type { Control, FieldValues, Path } from 'react-hook-form';
 
 import { TagCatalogGroupVO } from '@/types/tagCatalog';
 
-import { step4Schema } from './index';
 import { TagMultiSelect } from './TagMultiSelect';
 
-interface Props {
-  form: ReturnType<typeof useForm<z.infer<typeof step4Schema>>>;
+interface SkillsToImproveFields extends FieldValues {
+  want_skill: string[];
+}
+
+interface Props<T extends SkillsToImproveFields> {
+  form: { control: Control<T> };
   wantSkillGroups: TagCatalogGroupVO[];
   maxSelected?: number;
 }
 
-export const SkillsToImprove: FC<Props> = ({
+export const SkillsToImprove = <T extends SkillsToImproveFields>({
   form,
   wantSkillGroups,
   maxSelected,
-}) => {
+}: Props<T>) => {
   return (
     <TagMultiSelect
       control={form.control}
-      name="want_skill"
+      name={'want_skill' as Path<T>}
       groups={wantSkillGroups}
       maxSelected={maxSelected}
     />

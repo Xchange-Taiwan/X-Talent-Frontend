@@ -1,29 +1,11 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 import { mockApiRoute } from '../../helpers/route';
-import { setSignedSessionCookie } from '../../helpers/session';
+import { seedMockAuthSession } from '../../helpers/session';
 
 const REAL_MENTOR_ID = '7482008160728084';
 const MENTEE_ID = '999991';
 const ok = (data: unknown) => ({ body: { code: '0', msg: 'ok', data } });
-
-async function loginAs(page: Page, id: string, isMentor: boolean) {
-  await mockApiRoute(
-    page,
-    /\/v1\/users\/.*\/notifications\/unread-count/,
-    ok({ unread_count: 0 })
-  );
-  await setSignedSessionCookie(page, {
-    id,
-    name: 'Test User',
-    onBoarding: true,
-    isMentor,
-    jobTitle: 'Engineer',
-    company: 'XChange',
-    personalLinks: [],
-    token: 'mock-token',
-  });
-}
 
 test('home page loads', async ({ page }) => {
   await page.goto('/');
@@ -79,7 +61,18 @@ test.describe('首頁 CTA 按鈕依身分顯示與導向 (#709)', () => {
   test('Mentee 造訪首頁 → Hero/Footer 導向 /mentor-pool，段落 CTA 導向 Mentor 註冊頁', async ({
     page,
   }) => {
-    await loginAs(page, MENTEE_ID, false);
+    await mockApiRoute(
+      page,
+      /\/v1\/users\/.*\/notifications\/unread-count/,
+      ok({ unread_count: 0 })
+    );
+    await seedMockAuthSession(page, {
+      id: MENTEE_ID,
+      name: 'Test User',
+      isMentor: false,
+      jobTitle: 'Engineer',
+      company: 'XChange',
+    });
     await page.goto('/');
 
     await expect(page.getByTestId('homepage-cta-hero')).toHaveAttribute(
@@ -100,7 +93,18 @@ test.describe('首頁 CTA 按鈕依身分顯示與導向 (#709)', () => {
     page,
   }) => {
     const empty = { groups: [] };
-    await loginAs(page, REAL_MENTOR_ID, true);
+    await mockApiRoute(
+      page,
+      /\/v1\/users\/.*\/notifications\/unread-count/,
+      ok({ unread_count: 0 })
+    );
+    await seedMockAuthSession(page, {
+      id: REAL_MENTOR_ID,
+      name: 'Test User',
+      isMentor: true,
+      jobTitle: 'Engineer',
+      company: 'XChange',
+    });
     await mockApiRoute(
       page,
       new RegExp(`/v1/(?:mentors|users)/${REAL_MENTOR_ID}/zh_TW/profile`),

@@ -15,6 +15,7 @@ interface BookingFormProps {
   isOwnMentorProfile: boolean;
   isUserDataLoading: boolean;
   isAuthenticated: boolean;
+  mentorId?: number | string;
   slotsSnapshot: SlotsSnapshot;
   selectedSlot: BookingSlot | null;
   setSelectedSlot: (slot: BookingSlot | null) => void;
@@ -30,6 +31,7 @@ export function BookingForm({
   isOwnMentorProfile,
   isUserDataLoading,
   isAuthenticated,
+  mentorId,
   slotsSnapshot,
   selectedSlot,
   setSelectedSlot,
@@ -78,6 +80,7 @@ export function BookingForm({
         />
       ) : (
         <MenteeBookingForm
+          mentorId={mentorId}
           slots={slots}
           monthLoaded={monthLoaded}
           selectedSlot={selectedSlot}

@@ -1,7 +1,7 @@
 import { expect, Page, test } from '@playwright/test';
 
 import { mockApiRoute } from '../../helpers/route';
-import { setSignedSessionCookie } from '../../helpers/session';
+import { seedMockAuthSession } from '../../helpers/session';
 
 // Regression test for X-Tracker #651: before the reservation write path
 // invalidated its own reads, the dashboard's reservation cache had no
@@ -29,43 +29,14 @@ const timeFormat: Intl.DateTimeFormatOptions = {
   timeZone: 'Asia/Taipei',
 };
 
-function makeJWTPayload(userId: string) {
-  return {
-    id: userId,
+async function setupMenteeSession(page: Page): Promise<void> {
+  await seedMockAuthSession(page, {
+    id: REAL_MENTEE_ID,
     name: 'Test Mentee',
     isMentor: false,
     onBoarding: true,
     jobTitle: 'Software Engineer',
     company: 'Own Company',
-    personalLinks: [],
-    token: 'mock-access-token',
-  };
-}
-
-async function setupMenteeSession(page: Page): Promise<void> {
-  await setSignedSessionCookie(page, makeJWTPayload(REAL_MENTEE_ID));
-
-  await page.route(/\/api\/auth\/session/, (route) => {
-    if (route.request().method() === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          user: {
-            id: REAL_MENTEE_ID,
-            name: 'Test Mentee',
-            isMentor: false,
-            onBoarding: true,
-            jobTitle: 'Software Engineer',
-            company: 'Own Company',
-            personalLinks: [],
-          },
-          accessToken: 'mock-access-token',
-          expires: '2099-01-01T00:00:00.000Z',
-        }),
-      });
-    }
-    return route.continue();
   });
 }
 

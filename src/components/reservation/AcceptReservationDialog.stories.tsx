@@ -4,18 +4,22 @@ import AcceptReservationDialog from './AcceptReservationDialog';
 import { mockReservation } from './mocks';
 
 const meta: Meta<typeof AcceptReservationDialog> = {
-  title: '業務模組元件/預約管理(Reservation)/AcceptReservationDialog',
+  title: '業務模組元件/預約系統(Reservation)/AcceptReservationDialog',
   component: AcceptReservationDialog,
-  tags: ['autodocs'],
-  args: {
-    // The mentor viewing this dialog - lets the identity block's profile
-    // link resolve to the mentee (mockReservation.senderUserId).
-    myUserId: mockReservation.participantUserId,
+  parameters: {
+    layout: 'centered',
+    docs: {
+      description: {
+        component:
+          '導師端接受學員預約的確認對話框。顯示學員基本資訊、預約日期時段、學員提問內容，並提供可選填的回覆訊息欄位（透過共用的 `quickReplyFormSchema` 驗證上限 500 字）。點擊觸發按鈕即可開啟 Dialog 預覽。',
+      },
+    },
   },
+  tags: ['autodocs'],
   argTypes: {
     disabled: {
       control: 'boolean',
-      description: '對話框的觸發器與操作按鈕是否已被禁用',
+      description: '是否禁用按鈕與互動',
     },
   },
 };
@@ -23,53 +27,36 @@ const meta: Meta<typeof AcceptReservationDialog> = {
 export default meta;
 type Story = StoryObj<typeof AcceptReservationDialog>;
 
-// 1. Default State (Closed, clickable)
 export const Default: Story = {
   args: {
     reservation: mockReservation,
+    myUserId: 'mentor-1',
     disabled: false,
     onAccept: async (payload) => {
       console.log('onAccept called with payload:', payload);
-      alert(`已接受預約！回覆訊息: ${payload.message || '(無)'}`);
     },
   },
 };
 
-// 2. Loading / Submitting State: Simulated by returning a pending promise.
-// Clicking "接受" will trigger and lock the dialog in the loading spinner state.
-export const LoadingState: Story = {
-  args: {
-    reservation: mockReservation,
-    disabled: false,
-    onAccept: () => {
-      return new Promise((resolve) => {
-        // Keeps the dialog in isSubmitting state for 10 seconds
-        setTimeout(resolve, 10000);
-      });
-    },
-  },
-};
-
-// 3. Disabled State: Trigger button is disabled
 export const Disabled: Story = {
   args: {
     reservation: mockReservation,
+    myUserId: 'mentor-1',
     disabled: true,
   },
 };
 
-// 4. No Message State: When the mentee hasn't left a message
-export const NoMenteeMessage: Story = {
+export const WithoutMenteeMessage: Story = {
   args: {
     reservation: {
       ...mockReservation,
       messages: [],
       menteeMessage: undefined,
     },
+    myUserId: 'mentor-1',
     disabled: false,
     onAccept: async (payload) => {
       console.log('onAccept called with payload:', payload);
-      alert(`已接受預約！回覆訊息: ${payload.message || '(無)'}`);
     },
   },
 };

@@ -3,7 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fetchAnnouncement } from '@/services/announcement';
 
-import { announcementReadManager, useAnnouncement } from './useAnnouncement';
+import {
+  ANNOUNCEMENT_CACHE_TTL_MS,
+  announcementReadManager,
+  useAnnouncement,
+} from './useAnnouncement';
 
 vi.mock('@/services/announcement', async (importOriginal) => {
   const actual =
@@ -176,5 +180,138 @@ describe('useAnnouncement hook tests', () => {
 
     expect(sessionStorage.getItem('announcement-dismissed')).toBe('true');
     expect(result.current.visible).toBe(false);
+  });
+
+  it('renders and dismisses safely without throwing when sessionStorage throws SecurityError (#902)', async () => {
+    const futureTime = new Date(Date.now() + 100000).toISOString();
+    vi.mocked(fetchAnnouncement).mockResolvedValue({
+      enabled: true,
+      message: 'Iframe-safe maintenance notice',
+      maintenanceTime: futureTime,
+    });
+
+    const getItemSpy = vi
+      .spyOn(Storage.prototype, 'getItem')
+      .mockImplementation(() => {
+        throw new DOMException('Access is denied', 'SecurityError');
+      });
+    const setItemSpy = vi
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementation(() => {
+        throw new DOMException('Access is denied', 'SecurityError');
+      });
+
+    try {
+      const { result } = renderHook(() => useAnnouncement());
+
+      await waitFor(() => {
+        expect(result.current.visible).toBe(true);
+        expect(result.current.data?.message).toBe(
+          'Iframe-safe maintenance notice'
+        );
+      });
+
+      expect(() => {
+        act(() => {
+          result.current.handleDismiss();
+        });
+      }).not.toThrow();
+
+      expect(result.current.visible).toBe(false);
+    } finally {
+      getItemSpy.mockRestore();
+      setItemSpy.mockRestore();
+    }
+  });
+
+  it('handles SecurityError when window.sessionStorage property getter itself throws (#902)', async () => {
+    const futureTime = new Date(Date.now() + 100000).toISOString();
+    vi.mocked(fetchAnnouncement).mockResolvedValue({
+      enabled: true,
+      message: 'Restricted cookie mode notice',
+      maintenanceTime: futureTime,
+    });
+
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      window,
+      'sessionStorage'
+    );
+    Object.defineProperty(window, 'sessionStorage', {
+      configurable: true,
+      get() {
+        throw new DOMException('Storage disabled', 'SecurityError');
+      },
+    });
+
+    try {
+      const { result } = renderHook(() => useAnnouncement());
+
+      await waitFor(() => {
+        expect(result.current.visible).toBe(true);
+      });
+
+      act(() => {
+        result.current.handleDismiss();
+      });
+
+      expect(result.current.visible).toBe(false);
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(window, 'sessionStorage', originalDescriptor);
+      }
+    }
+  });
+
+  it('reuses cached announcement within ANNOUNCEMENT_CACHE_TTL_MS and re-fetches once TTL expires (#902)', async () => {
+    vi.useFakeTimers();
+    const initialFuture = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    vi.mocked(fetchAnnouncement)
+      .mockResolvedValueOnce({
+        enabled: false,
+        message: '',
+        maintenanceTime: '',
+      })
+      .mockResolvedValueOnce({
+        enabled: true,
+        message: 'Newly published maintenance alert',
+        maintenanceTime: initialFuture,
+      });
+
+    const firstMount = renderHook(() => useAnnouncement());
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(firstMount.result.current.visible).toBe(false);
+    expect(fetchAnnouncement).toHaveBeenCalledTimes(1);
+    firstMount.unmount();
+
+    // Remounting before TTL expires reuses cached value without another network call
+    await act(async () => {
+      vi.advanceTimersByTime(ANNOUNCEMENT_CACHE_TTL_MS - 1000);
+    });
+    const secondMount = renderHook(() => useAnnouncement());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(fetchAnnouncement).toHaveBeenCalledTimes(1);
+    expect(secondMount.result.current.visible).toBe(false);
+    secondMount.unmount();
+
+    // Advancing past ANNOUNCEMENT_CACHE_TTL_MS expires the cache so remount fetches fresh data
+    await act(async () => {
+      vi.advanceTimersByTime(2000);
+    });
+    const thirdMount = renderHook(() => useAnnouncement());
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(fetchAnnouncement).toHaveBeenCalledTimes(2);
+    expect(thirdMount.result.current.visible).toBe(true);
+    expect(thirdMount.result.current.data?.message).toBe(
+      'Newly published maintenance alert'
+    );
+    thirdMount.unmount();
   });
 });

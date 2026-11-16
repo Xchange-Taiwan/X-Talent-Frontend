@@ -1,16 +1,2 @@
 #!/usr/bin/env bash
-# Claude Code Stop-hook adapter around the shared board-status check.
-# Schema: https://docs.claude.com/en/docs/claude-code/hooks -- Stop hooks
-# block by printing {"decision":"block","reason":"..."} to stdout and
-# exiting 0.
-
-set -u
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-REASON="$(bash "$SCRIPT_DIR/../check-board-status.sh")"
-STATUS=$?
-
-if [ "$STATUS" -eq 1 ] && [ -n "$REASON" ]; then
-  printf '{"decision":"block","reason":%s}\n' "$(REASON="$REASON" node -e 'console.log(JSON.stringify(process.env.REASON))')"
-fi
-exit 0
+exec node "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/tracker-ops.mjs" verify-board-status --dialect=claude "$@"

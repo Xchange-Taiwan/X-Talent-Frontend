@@ -1,11 +1,20 @@
-import { encode } from '@/lib/profile/experienceCodec';
+import { hasProfileDtoConverged } from '@/lib/profile/convergence';
 import {
-  MentorExperiencePayload,
+  encode,
+  fromWireExperiences,
+  type PersonalLinkMetadata,
   toFormValues,
-} from '@/lib/profile/parseUserExperiences';
+} from '@/lib/profile/experienceCodec';
 import { readIndustryTag } from '@/lib/profile/readIndustryTag';
+import {
+  createEmptySocialLinks,
+  SOCIAL_PLATFORM_KEYS,
+  validatePlatformUrl,
+} from '@/lib/profile/socialLinks';
 import { defaultValues, ProfileFormValues } from '@/schemas/profileSchema';
-import type { MentorProfileVO } from '@/types/user';
+import type { MentorProfileWritePayload } from '@/services/profile/updateProfile';
+import type { IndustryOption } from '@/types/tagCatalog';
+import type { MentorIndustryVO, MentorProfileVO } from '@/types/user';
 
 export type ProfileDirtyFields = Partial<
   Record<keyof ProfileFormValues, unknown>
@@ -30,8 +39,7 @@ export function mapVoToFormValues(
   isMentorOnboarding: boolean
 ): ProfileFormValues {
   const mentorFlag = Boolean(userDto.is_mentor || isMentorOnboarding);
-  const experiences =
-    userDto.experiences as unknown as MentorExperiencePayload[];
+  const experiences = fromWireExperiences(userDto.experiences);
 
   const {
     workExperiences: parsedExperiences,
@@ -54,12 +62,7 @@ export function mapVoToFormValues(
     years_of_experience: userDto.years_of_experience || '',
     work_experiences: parsedExperiences || defaultValues.work_experiences,
     educations: parsedEducations || defaultValues.educations,
-    linkedin: parsedLinks.linkedin || defaultValues.linkedin,
-    facebook: parsedLinks.facebook || defaultValues.facebook,
-    instagram: parsedLinks.instagram || defaultValues.instagram,
-    twitter: parsedLinks.twitter || defaultValues.twitter,
-    youtube: parsedLinks.youtube || defaultValues.youtube,
-    website: parsedLinks.website || defaultValues.website,
+    links: parsedLinks ?? createEmptySocialLinks(),
     have_topic: userDto.have_topic ?? [],
     have_skill: userDto.have_skill ?? [],
     want_position: userDto.want_position ?? [],
@@ -69,7 +72,8 @@ export function mapVoToFormValues(
 }
 
 /**
- * Computes dirty states for profile fields based on React Hook Form's dirtyFields.
+ * Computes dirty states for profile fields based on React Hook Form's dirtyFields,
+ * deriving personal-link dirtiness directly from `SOCIAL_PLATFORM_SPECS`.
  */
 export function computeDirtyStates(
   values: ProfileFormValues,
@@ -83,13 +87,18 @@ export function computeDirtyStates(
 
   const workDirty = isDirty('work_experiences');
   const educationDirty = isDirty('educations');
-  const linksDirty =
-    isDirty('linkedin') ||
-    isDirty('facebook') ||
-    isDirty('instagram') ||
-    isDirty('twitter') ||
-    isDirty('youtube') ||
-    isDirty('website');
+
+  const rawLinksDirty = dirtyFields?.links;
+  const linksDirty = !dirtyFields
+    ? true
+    : typeof rawLinksDirty === 'boolean'
+      ? rawLinksDirty
+      : rawLinksDirty && typeof rawLinksDirty === 'object'
+        ? SOCIAL_PLATFORM_KEYS.some((platform) =>
+            hasDirtyValue((rawLinksDirty as Record<string, unknown>)[platform])
+          )
+        : false;
+
   const experiencesDirty = workDirty || educationDirty || linksDirty;
 
   const profileDirty =
@@ -113,27 +122,34 @@ export function computeDirtyStates(
 }
 
 /**
- * Filters and extracts the valid personal links that have a non-empty URL.
+ * Filters and extracts valid personal links directly from `SOCIAL_PLATFORM_SPECS`.
  */
-export function extractValidLinks(values: ProfileFormValues) {
-  return [
-    values.linkedin,
-    values.facebook,
-    values.instagram,
-    values.twitter,
-    values.youtube,
-    values.website,
-  ].filter((l) => l && l.url);
+export function extractValidLinks(
+  values: ProfileFormValues
+): PersonalLinkMetadata[] {
+  return SOCIAL_PLATFORM_KEYS.flatMap((platform) => {
+    const rawUrl = values.links?.[platform] ?? '';
+    if (!rawUrl.trim()) return [];
+    const validation = validatePlatformUrl(platform, rawUrl);
+    if (!validation.valid || !validation.normalizedUrl) return [];
+    return [{ platform, url: validation.normalizedUrl }];
+  });
 }
 
 /**
- * Maps ProfileFormValues into the payload needed for the updateProfile API.
+ * Maps `ProfileFormValues` into a canonical `MentorProfileWritePayload` for
+ * `PUT /v1/mentors/{id}/profile`, ensuring `about` is normalized to `string`,
+ * zero UI-only RHF keys (`work_experiences`, `educations`, `links`, `statement`,
+ * `avatarFile`) leak onto the wire, and `personal_statement` conversion is
+ * isolated on a single compatibility line.
  */
 export function mapFormValuesToPayload(
   values: ProfileFormValues,
   avatar: string | undefined,
-  experiencesDirty: boolean
-) {
+  experiencesDirty: boolean,
+  currentDto?: MentorProfileVO | null,
+  isMentorOnboarding = false
+): MentorProfileWritePayload {
   const links = extractValidLinks(values);
 
   const {
@@ -146,12 +162,30 @@ export function mapFormValuesToPayload(
     personalLinks: links,
   });
 
+  // Single compatibility line for backend #891 removal of personal_statement
+  const personalStatement =
+    values.statement ?? currentDto?.personal_statement ?? '';
+
   return {
-    ...values,
-    avatar,
-    avatarFile: undefined,
+    name: values.name,
+    ...(avatar !== undefined ? { avatar } : {}),
+    location: values.location ?? '',
+    years_of_experience: values.years_of_experience ?? '',
+    industry: values.industry ?? '',
+    language: 'zh_TW',
+    is_mentor: isMentorOnboarding ? true : Boolean(values.is_mentor),
+    ...(isMentorOnboarding || values.onboarding !== undefined
+      ? { onboarding: isMentorOnboarding ? true : Boolean(values.onboarding) }
+      : {}),
+    about: values.about ?? '',
+    personal_statement: personalStatement,
     job_title,
     company: companyFromPrimary,
+    want_position: values.want_position ?? [],
+    want_skill: values.want_skill ?? [],
+    want_topic: values.want_topic ?? [],
+    have_skill: values.have_skill ?? [],
+    have_topic: values.have_topic ?? [],
     // Three-state semantic on the wire: omit when no experience section
     // changed (backend leaves the column alone); include the full set
     // when any section is dirty (backend overwrites). Replace semantics:
@@ -161,25 +195,65 @@ export function mapFormValuesToPayload(
 }
 
 /**
- * Verifies if the latest MentorProfileVO fetched from the backend matches the submitted form values.
+ * Resolves the optimistic `MentorProfileVO['industry']` object from the selected
+ * `subject_group` code and localized industry catalog so navigating immediately
+ * to `/profile/[id]` renders the newly selected localized industry name instead
+ * of a stale subject or raw code.
+ */
+export function resolveOptimisticIndustry(
+  industryCode: string | undefined,
+  industryCatalog: readonly IndustryOption[] | undefined,
+  currentIndustry: MentorProfileVO['industry'] | undefined,
+  industryDirty: boolean
+): MentorIndustryVO | null {
+  const normalizedCode = industryCode?.trim() ?? '';
+  if (!normalizedCode) {
+    return industryDirty ? null : (currentIndustry ?? null);
+  }
+
+  const existingTag = readIndustryTag(currentIndustry);
+  const catalogMatch = industryCatalog?.find(
+    (item) => item.subject_group === normalizedCode
+  );
+  const isSameCode =
+    existingTag !== null && existingTag.subject_group === normalizedCode;
+
+  if (isSameCode && !catalogMatch && currentIndustry) {
+    return currentIndustry;
+  }
+
+  const resolvedSubject =
+    catalogMatch?.subject ??
+    (isSameCode && existingTag ? (existingTag.subject ?? '') : '');
+
+  return {
+    ...(isSameCode && existingTag ? existingTag : {}),
+    subject_group: normalizedCode,
+    subject: resolvedSubject,
+  };
+}
+
+/**
+ * Compatibility wrapper verifying whether a backend `MentorProfileVO` matches
+ * submitted form scalar fields via canonical `hasProfileDtoConverged`.
  */
 export function isProfileSynced(
   values: ProfileFormValues,
   latest: MentorProfileVO,
   avatar: string
 ): boolean {
-  if (latest.name !== values.name) return false;
-  if ((latest.location ?? '') !== (values.location ?? '')) return false;
-  if ((latest.personal_statement ?? '') !== (values.statement ?? ''))
-    return false;
-  if ((latest.about ?? '') !== (values.about ?? '')) return false;
-  if ((latest.years_of_experience ?? '') !== (values.years_of_experience ?? ''))
-    return false;
-  if (
-    (readIndustryTag(latest.industry)?.subject_group ?? '') !==
-    (values.industry ?? '')
-  )
-    return false;
-  if (avatar && latest.avatar !== avatar) return false;
-  return true;
+  return hasProfileDtoConverged(
+    {
+      name: values.name,
+      avatar: avatar || undefined,
+      location: values.location ?? '',
+      personal_statement: values.statement ?? '',
+      about: values.about ?? '',
+      years_of_experience: values.years_of_experience ?? '',
+      industry: values.industry
+        ? { subject_group: values.industry, subject: '' }
+        : null,
+    },
+    latest
+  );
 }

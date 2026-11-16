@@ -24,9 +24,14 @@ vi.mock('@/components/ui/use-toast', async () => {
   return useToastMockFactory();
 });
 
-vi.mock('@/lib/analytics', () => ({
-  trackEvent: vi.fn(),
-}));
+vi.mock('@/lib/analytics', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/analytics')>();
+  return {
+    ...actual,
+    clearAnalyticsUser: vi.fn(),
+    trackEvent: vi.fn(),
+  };
+});
 
 import * as EmailVerifiedStories from '@/app/auth/email-verified/ui.stories';
 import * as EmailVerifyStories from '@/app/auth/email-verify/ui.stories';
@@ -35,14 +40,19 @@ import * as PopularPositionChipsStories from '@/app/mentor-pool/PopularPositionC
 import * as MentorPoolUIStories from '@/app/mentor-pool/ui.stories';
 import * as ProfilePageUIStories from '@/app/profile/[pageUserId]/ui.stories';
 import * as ProfileCardUIStories from '@/app/profile/card/ui.stories';
+import * as AnalyticsUserSyncStories from '@/components/AnalyticsUserSync.stories';
 import * as SignUpFormStories from '@/components/auth/signup/SignUpForm.stories';
 import * as HeaderStories from '@/components/layout/Header/Header.stories';
 import { decodeSessionHint } from '@/lib/auth/sessionHint';
 
+import * as AddSlotModalStories from './AddSlotModal.stories';
 import * as BookingFormStories from './BookingForm.stories';
+import * as EditSlotModalStories from './EditSlotModal.stories';
 import MentorScheduleDialog from './MentorScheduleDialog';
 import * as MentorScheduleDialogStories from './MentorScheduleDialog.stories';
+import * as ReservationBlockPromptDialogStories from './ReservationBlockPromptDialog.stories';
 import * as ScheduleCalendarStories from './ScheduleCalendar.stories';
+import * as SlotFormControlsStories from './SlotFormControls.stories';
 
 describe('Storybook stories coverage and state verification (#850)', () => {
   beforeEach(() => {
@@ -167,6 +177,9 @@ describe('Storybook stories coverage and state verification (#850)', () => {
     );
 
     expect(SignUpFormStories.EmptySubmitValidationError).toBeDefined();
+    expect(AnalyticsUserSyncStories.AuthenticatedMentee).toBeDefined();
+    expect(AnalyticsUserSyncStories.AuthenticatedMentor).toBeDefined();
+    expect(AnalyticsUserSyncStories.UnauthenticatedGuest).toBeDefined();
   });
 
   it('Header.stories uses v2 encoded sessionHint with avatar and isMentor', () => {
@@ -192,5 +205,22 @@ describe('Storybook stories coverage and state verification (#850)', () => {
         avatar: expect.stringContaining('https://'),
       })
     );
+  });
+
+  it('provides required slotsWithMeta/futureSlots on MentorScheduleDialog stories and exposes extracted sub-modal stories (#880)', () => {
+    const defaultSchedule = MentorScheduleDialogStories.Default.args?.schedule;
+    expect(defaultSchedule?.slotsWithMeta.length).toBeGreaterThanOrEqual(4);
+    expect(defaultSchedule?.futureSlots.length).toBeGreaterThanOrEqual(3);
+
+    expect(AddSlotModalStories.DefaultEmptyDay).toBeDefined();
+    expect(AddSlotModalStories.AfterExistingSlots).toBeDefined();
+    expect(EditSlotModalStories.Default).toBeDefined();
+    expect(
+      ReservationBlockPromptDialogStories.BookedWithMenteeName
+    ).toBeDefined();
+    expect(
+      ReservationBlockPromptDialogStories.PendingWithMenteeName
+    ).toBeDefined();
+    expect(SlotFormControlsStories.Default).toBeDefined();
   });
 });

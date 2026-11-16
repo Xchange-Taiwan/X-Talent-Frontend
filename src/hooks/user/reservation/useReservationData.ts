@@ -5,8 +5,9 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { useAsyncRead } from '@/hooks/useAsyncRead';
 import { trackEvent } from '@/lib/analytics';
-import { isAbortError } from '@/lib/errorUtils';
+import { getSafeErrorMessage, isAbortError } from '@/lib/errorUtils';
 import { captureFlowFailure } from '@/lib/monitoring';
+import { partitionReservationTabSlices } from '@/lib/reservation/reservationLifecyclePolicy';
 import {
   type ReservationReadKey,
   reservationReadModel,
@@ -58,13 +59,6 @@ const EMPTY_LOADING_MORE: LoadingMoreStates = {
   pending: false,
   history: false,
 };
-
-// Backend orders every list by dtend desc, which is correct for HISTORY
-// (most recent past first) but reverses what users expect for UPCOMING /
-// PENDING — those should lead with the meeting closest to now. Resort
-// client-side by dtstart ascending so the closest reservation sits at the top.
-const sortByDtstartAsc = (items: Reservation[]): Reservation[] =>
-  [...items].sort((a, b) => a.dtstart - b.dtstart);
 
 export interface UseReservationDataReturn {
   data: ReservationData | null;
@@ -208,26 +202,19 @@ export function useReservationData({
 
   const isHistoryLoaded = historyResult !== null && !isHistoryLoading;
 
-  const upcomingSorted = useMemo<Reservation[]>(() => {
-    return upcomingResult ? sortByDtstartAsc(upcomingResult.items) : [];
-  }, [upcomingResult]);
-
-  const pendingSorted = useMemo<Reservation[]>(() => {
-    const sorted = pendingResult ? sortByDtstartAsc(pendingResult.items) : [];
-    return sorted.filter((it) => !it.cancelledBy);
-  }, [pendingResult]);
-
-  const historyItems = useMemo<Reservation[]>(() => {
-    const derivedCancelledFromPending = (pendingResult?.items ?? []).filter(
-      (it) => Boolean(it.cancelledBy)
-    );
-    const items = historyResult ? historyResult.items : [];
-    const existingIds = new Set(items.map((it) => it.id));
-    return [
-      ...derivedCancelledFromPending.filter((it) => !existingIds.has(it.id)),
-      ...items,
-    ];
-  }, [pendingResult, historyResult]);
+  const {
+    upcoming: upcomingSorted,
+    pending: pendingSorted,
+    history: historyItems,
+  } = useMemo(
+    () =>
+      partitionReservationTabSlices({
+        upcomingItems: upcomingResult?.items,
+        pendingItems: pendingResult?.items,
+        historyItems: historyResult?.items,
+      }),
+    [upcomingResult, pendingResult, historyResult]
+  );
 
   const data = useMemo<ReservationData | null>(() => {
     if (!myUserId) return null;
@@ -268,37 +255,39 @@ export function useReservationData({
       if (!myUserId) return;
       const key = toReservationReadKey(myUserId, states[tab])!;
       const currentData = reservationReadModel.get(key);
-      if (!currentData) return;
-      const cursor = currentData.next_dtend;
-      if (cursor === 0) return;
+      if (!currentData || currentData.next_dtend === 0) return;
 
       setLoadingMoreStates((prev) => ({ ...prev, [tab]: true }));
       try {
-        const result = await fetchReservations({
-          userId: myUserId,
-          state: states[tab],
-          nextDtend: cursor,
-        });
+        const appended = await reservationReadModel.loadNextPage(
+          key,
+          (cursor, signal) =>
+            fetchReservations({
+              userId: myUserId,
+              state: states[tab],
+              nextDtend: cursor,
+              signal,
+            })
+        );
 
-        reservationReadModel.update(key, (current) => {
-          const base = current ?? currentData;
-          return {
-            items: [...base.items, ...result.items],
-            next_dtend: result.next_dtend,
-          };
-        });
-
-        trackEvent({ name: 'reservation_load_more', feature: 'reservation' });
+        if (appended) {
+          trackEvent({ name: 'reservation_load_more', feature: 'reservation' });
+        }
       } catch (err) {
-        captureFlowFailure({
-          flow: 'reservation_load_more',
-          step: 'fetch_page',
-          message:
-            err instanceof Error
-              ? err.message
-              : 'Failed to load more reservations',
-        });
-        console.error('[useReservationData] loadMore error:', err);
+        if (!isAbortError(err)) {
+          captureFlowFailure({
+            flow: 'reservation_load_more',
+            step: 'fetch_page',
+            message:
+              err instanceof Error
+                ? err.message
+                : 'Failed to load more reservations',
+          });
+          console.error(
+            '[useReservationData] loadMore error:',
+            getSafeErrorMessage(err)
+          );
+        }
       } finally {
         setLoadingMoreStates((prev) => ({ ...prev, [tab]: false }));
       }

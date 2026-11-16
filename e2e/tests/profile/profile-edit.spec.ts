@@ -1,28 +1,12 @@
 import { expect, Page, test } from '@playwright/test';
 
 import { mockApiRoute } from '../../helpers/route';
-import { setSignedSessionCookie } from '../../helpers/session';
+import { seedMockAuthSession } from '../../helpers/session';
 
 const USER_ID = '1';
 const PAGE_URL = `/profile/${USER_ID}/edit`;
 
 // ─── Mock payloads ───────────────────────────────────────────────────────────
-
-function makeSession(isMentor: boolean) {
-  return {
-    user: {
-      id: USER_ID,
-      name: 'Test User',
-      isMentor,
-      onBoarding: true,
-      jobTitle: '',
-      company: '',
-      personalLinks: [],
-    },
-    accessToken: 'mock-token',
-    expires: '2099-01-01T00:00:00.000Z',
-  };
-}
 
 function makeProfile(name: string, isMentor: boolean) {
   return {
@@ -182,24 +166,6 @@ function makeInterest(subject: string) {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
- * Mock GET /api/auth/session so useSession() returns the desired session.
- * Non-GET requests are passed through (or fall back) to allow PUT mocks
- * registered later to handle updateSession calls.
- */
-async function mockSessionGet(page: Page, session: object): Promise<void> {
-  await page.route(/\/api\/auth\/session/, (route) => {
-    if (route.request().method() === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(session),
-      });
-    }
-    return route.continue();
-  });
-}
-
-/**
  * Mock all dropdown option endpoints used by the profile edit page.
  */
 async function mockDropdowns(page: Page): Promise<void> {
@@ -242,28 +208,11 @@ async function mockDropdowns(page: Page): Promise<void> {
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 test('未授權使用者（userId 不符）→ 重導向至 /', async ({ page }) => {
-  await setSignedSessionCookie(page, {
+  await seedMockAuthSession(page, {
     id: '999',
     name: 'Other User',
     isMentor: false,
     onBoarding: true,
-    jobTitle: '',
-    company: '',
-    personalLinks: [],
-    token: 'mock-access-token',
-  });
-  await mockSessionGet(page, {
-    user: {
-      id: '999',
-      name: 'Other User',
-      isMentor: false,
-      onBoarding: true,
-      jobTitle: '',
-      company: '',
-      personalLinks: [],
-    },
-    accessToken: 'mock-token',
-    expires: '2099-01-01T00:00:00.000Z',
   });
 
   await page.goto(PAGE_URL);
@@ -274,11 +223,12 @@ test('未授權使用者（userId 不符）→ 重導向至 /', async ({ page })
 test('Mentor 使用者載入編輯頁 → mentor 專屬區塊（我能提供的服務、專業能力）可見', async ({
   page,
 }) => {
-  await setSignedSessionCookie(page, {
-    ...makeSession(true).user,
-    token: 'mock-access-token',
+  await seedMockAuthSession(page, {
+    id: USER_ID,
+    name: 'Test User',
+    isMentor: true,
+    onBoarding: true,
   });
-  await mockSessionGet(page, makeSession(true));
   await mockApiRoute(page, /\/v1\/mentors\/1\/zh_TW\/profile/, {
     body: makeProfile('Test User', true),
   });
@@ -293,11 +243,12 @@ test('Mentor 使用者載入編輯頁 → mentor 專屬區塊（我能提供的�
 });
 
 test('Mentee 使用者載入編輯頁 → mentor 專屬區塊不存在', async ({ page }) => {
-  await setSignedSessionCookie(page, {
-    ...makeSession(false).user,
-    token: 'mock-access-token',
+  await seedMockAuthSession(page, {
+    id: USER_ID,
+    name: 'Test User',
+    isMentor: false,
+    onBoarding: true,
   });
-  await mockSessionGet(page, makeSession(false));
   await mockApiRoute(page, /\/v1\/mentors\/1\/zh_TW\/profile/, {
     body: makeProfile('Test User', false),
   });
@@ -314,11 +265,12 @@ test('Mentee 使用者載入編輯頁 → mentor 專屬區塊不存在', async (
 });
 
 test('編輯姓名並儲存 → 重導向至 /profile/:userId', async ({ page }) => {
-  await setSignedSessionCookie(page, {
-    ...makeSession(false).user,
-    token: 'mock-access-token',
+  await seedMockAuthSession(page, {
+    id: USER_ID,
+    name: 'Test User',
+    isMentor: false,
+    onBoarding: true,
   });
-  await mockSessionGet(page, makeSession(false));
 
   // GETs before the save return the original name; GETs after it (pollUntilSynced)
   // return the updated name so isProfileSynced resolves on the first poll and the
@@ -346,23 +298,6 @@ test('編輯姓名並儲存 → 重導向至 /profile/:userId', async ({ page })
       contentType: 'application/json',
       body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
     });
-  });
-
-  // PUT / POST /api/auth/session → updateSession after save.
-  // GET requests fall back to the handler registered by mockSessionGet above.
-  await page.route(/\/api\/auth\/session/, (route) => {
-    const method = route.request().method();
-    if (method === 'PUT' || method === 'POST') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          ...makeSession(false),
-          user: { ...makeSession(false).user, name: 'Updated Name' },
-        }),
-      });
-    }
-    return route.fallback();
   });
 
   await page.goto(PAGE_URL);
@@ -394,11 +329,12 @@ test('編輯姓名並儲存 → 重導向至 /profile/:userId', async ({ page })
 test('學歷區塊 SearchableSelect 輸入學校別名（台大）可搜尋並選取國立臺灣大學，且輸入自訂學校名稱可選取並送出儲存', async ({
   page,
 }) => {
-  await setSignedSessionCookie(page, {
-    ...makeSession(false).user,
-    token: 'mock-access-token',
+  await seedMockAuthSession(page, {
+    id: USER_ID,
+    name: 'Test User',
+    isMentor: false,
+    onBoarding: true,
   });
-  await mockSessionGet(page, makeSession(false));
 
   interface SavedProfilePayload {
     experiences?: Array<{
@@ -445,18 +381,6 @@ test('學歷區塊 SearchableSelect 輸入學校別名（台大）可搜尋並�
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
-      });
-    }
-    return route.fallback();
-  });
-
-  await page.route(/\/api\/auth\/session/, (route) => {
-    const method = route.request().method();
-    if (method === 'PUT' || method === 'POST') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(makeSession(false)),
       });
     }
     return route.fallback();
@@ -523,11 +447,12 @@ test('學歷區塊 SearchableSelect 輸入學校別名（台大）可搜尋並�
 test('編輯欄位後點擊導航列 → 顯示未儲存變更確認框，取消後留在原頁且輸入內容保留', async ({
   page,
 }) => {
-  await setSignedSessionCookie(page, {
-    ...makeSession(false).user,
-    token: 'mock-access-token',
+  await seedMockAuthSession(page, {
+    id: USER_ID,
+    name: 'Test User',
+    isMentor: false,
+    onBoarding: true,
   });
-  await mockSessionGet(page, makeSession(false));
   await mockApiRoute(page, /\/v1\/mentors\/1\/zh_TW\/profile/, {
     body: makeProfile('Test User', false),
   });

@@ -1,682 +1,899 @@
-import { Session } from 'next-auth';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { fromPartial } from '@total-typescript/shoehorn';
+import type { Session } from 'next-auth';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/services/profile/updateAvatar', () => ({
-  updateAvatar: vi.fn(),
-}));
+import { trackEvent } from '@/lib/analytics';
+import {
+  getUserProfileDtoFromCache,
+  primeUserProfileDtoCache,
+  resolveUserProfileDtoFetch,
+  userProfileDtoReadManager,
+} from '@/lib/cache/userProfileDtoCache';
+import {
+  clearPendingFavoriteMentor,
+  savePendingFavoriteMentor,
+} from '@/lib/favorites';
+import {
+  EMPTY_MENTOR_POOL_STATE,
+  type MentorPoolQuery,
+  mentorPoolReadModel,
+  UNFILTERED_MENTOR_POOL_QUERY,
+} from '@/lib/mentor/mentorPoolReadModel';
+import { captureFlowFailure } from '@/lib/monitoring';
+import { encode, toWireExperiences } from '@/lib/profile/experienceCodec';
+import { readIndustryTag } from '@/lib/profile/readIndustryTag';
+import type { OnboardingFormValues } from '@/schemas/onboarding';
+import { ExperienceType } from '@/services/profile/experienceType';
+import type { MentorProfileWritePayload } from '@/services/profile/updateProfile';
+import { baseValues, mockSession, mockUserDTO } from '@/test/fixtures/profile';
+import type { MentorRequest, MentorType } from '@/types/mentor';
+import type { IndustryOption } from '@/types/tagCatalog';
+import type { MentorIndustryVO, MentorProfileVO } from '@/types/user';
 
-vi.mock('@/services/profile/updateProfile', () => ({
-  updateProfile: vi.fn(),
-}));
-
-vi.mock('@/lib/profile/pollUntilSynced', () => ({
-  pollUntilSynced: vi.fn(),
-  firstSyncedFetch: vi.fn(),
-  confirmProfileSynced: vi.fn(),
-}));
+import {
+  type CommitProfileContext,
+  commitProfileMutation,
+  type ProfileSavePort,
+  saveProfile,
+  type SaveProfileContext,
+} from './saveProfile';
 
 vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
 vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn() }));
 
-import { captureFlowFailure } from '@/lib/monitoring';
-import {
-  confirmProfileSynced,
-  firstSyncedFetch,
-  pollUntilSynced,
-} from '@/lib/profile/pollUntilSynced';
-import { ExperienceType } from '@/services/profile/experienceType';
-import { updateAvatar } from '@/services/profile/updateAvatar';
-import { updateProfile } from '@/services/profile/updateProfile';
-import { baseValues, mockSession, mockUserDTO } from '@/test/fixtures/profile';
-import type { MentorProfileVO } from '@/types/user';
-
-import {
-  saveProfile,
-  SaveProfileAdapters,
-  SaveProfileContext,
-} from './saveProfile';
-
-const mockUpdateAvatar = vi.mocked(updateAvatar);
-const mockUpdateProfile = vi.mocked(updateProfile);
-const mockPollUntilSynced = vi.mocked(pollUntilSynced);
-const mockFirstSyncedFetch = vi.mocked(firstSyncedFetch);
-const mockConfirmProfileSynced = vi.mocked(confirmProfileSynced);
 const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
+const mockTrackEvent = vi.mocked(trackEvent);
 
-const makeDeps = (
-  overrides: Partial<SaveProfileContext & SaveProfileAdapters> = {}
-) => {
-  const context: SaveProfileContext = {
-    pageUserId: overrides.pageUserId ?? 'test-user-id',
-    isMentorOnboarding: overrides.isMentorOnboarding ?? false,
-    dirtyFields: overrides.dirtyFields,
-  };
-  const adapters: SaveProfileAdapters = {
-    session: overrides.hasOwnProperty('session')
-      ? overrides.session === undefined
-        ? null
-        : overrides.session
-      : mockSession,
-    updateSession:
-      overrides.updateSession ?? vi.fn().mockResolvedValue(mockSession),
-    navigate: overrides.navigate ?? vi.fn(),
-    revalidateProfilePath:
-      overrides.revalidateProfilePath ?? vi.fn().mockResolvedValue(undefined),
-    clearUserDataCache: overrides.clearUserDataCache ?? vi.fn(),
-    primeUserDataCache: overrides.primeUserDataCache ?? vi.fn(),
-    consumeAvatarUpload: overrides.consumeAvatarUpload,
-  };
-  return { context, adapters };
+const FAST_TEST_BUDGET: SaveProfileContext['convergenceBudget'] = {
+  fastFetchTimeoutMs: 50,
+  profileMaxRetries: 2,
+  profileIntervalMs: 0,
+  searchIndexMaxRetries: 2,
+  searchIndexIntervalMs: 0,
 };
 
-function lastExperiences(): unknown[] | undefined {
-  const lastCall =
-    mockUpdateProfile.mock.calls[mockUpdateProfile.mock.calls.length - 1];
-  if (!lastCall) return undefined;
-  const arg = lastCall[1] as { experiences?: unknown[] };
-  return arg.experiences;
+type UploadAvatarFn = (
+  file: File,
+  userId: number | undefined
+) => Promise<string | undefined>;
+type WriteProfileFn = (
+  pageUserId: string,
+  payload: MentorProfileWritePayload
+) => Promise<void>;
+type FetchProfileFn = (userId: number) => Promise<MentorProfileVO | null>;
+type SearchMentorsPortFn = (request: MentorRequest) => Promise<MentorType[]>;
+type UpdateSessionFn = (data: unknown) => Promise<Session | null>;
+type RevalidateProfilePathFn = (pageUserId: string) => Promise<void>;
+type NavigateFn = (path: string) => void;
+
+interface ProfileSaveSpies {
+  uploadAvatar: ReturnType<typeof vi.fn<UploadAvatarFn>>;
+  writeProfile: ReturnType<typeof vi.fn<WriteProfileFn>>;
+  fetchProfile: ReturnType<typeof vi.fn<FetchProfileFn>>;
+  searchMentors: ReturnType<typeof vi.fn<SearchMentorsPortFn>>;
+  updateSession: ReturnType<typeof vi.fn<UpdateSessionFn>>;
+  revalidateProfilePath: ReturnType<typeof vi.fn<RevalidateProfilePathFn>>;
+  navigate: ReturnType<typeof vi.fn<NavigateFn>>;
 }
 
-function categoriesIn(payload: unknown): string[] {
-  if (!Array.isArray(payload)) return [];
-  return (payload as { category?: string }[]).map((e) => e.category ?? '');
+function makeSyncedDtoFromValues(
+  overrides: Partial<MentorProfileVO> = {}
+): MentorProfileVO {
+  const defaultIndustry: MentorIndustryVO | null = baseValues.industry
+    ? {
+        id: 1,
+        kind: 'industry',
+        subject_group: baseValues.industry,
+        subject: '軟體與科技',
+        language: 'zh_TW',
+      }
+    : null;
+
+  return {
+    ...mockUserDTO,
+    user_id: overrides.user_id ?? 1,
+    name: overrides.name !== undefined ? overrides.name : baseValues.name,
+    avatar:
+      overrides.avatar !== undefined
+        ? overrides.avatar
+        : (baseValues.avatar ?? mockUserDTO.avatar),
+    job_title: overrides.job_title !== undefined ? overrides.job_title : null,
+    company: overrides.company !== undefined ? overrides.company : null,
+    location:
+      overrides.location !== undefined
+        ? overrides.location
+        : (baseValues.location ?? null),
+    personal_statement:
+      overrides.personal_statement !== undefined
+        ? overrides.personal_statement
+        : (baseValues.statement ?? null),
+    about:
+      overrides.about !== undefined
+        ? overrides.about
+        : (baseValues.about ?? null),
+    years_of_experience:
+      overrides.years_of_experience !== undefined
+        ? overrides.years_of_experience
+        : (baseValues.years_of_experience ?? null),
+    industry:
+      overrides.industry !== undefined ? overrides.industry : defaultIndustry,
+    onboarding:
+      overrides.onboarding !== undefined
+        ? (overrides.onboarding ?? null)
+        : (mockUserDTO.onboarding ?? null),
+    is_mentor:
+      overrides.is_mentor !== undefined
+        ? (overrides.is_mentor ?? null)
+        : (mockUserDTO.is_mentor ?? null),
+    want_position:
+      overrides.want_position !== undefined
+        ? overrides.want_position
+        : baseValues.want_position,
+    want_skill:
+      overrides.want_skill !== undefined
+        ? overrides.want_skill
+        : baseValues.want_skill,
+    want_topic:
+      overrides.want_topic !== undefined
+        ? overrides.want_topic
+        : baseValues.want_topic,
+    have_skill:
+      overrides.have_skill !== undefined
+        ? overrides.have_skill
+        : baseValues.have_skill,
+    have_topic:
+      overrides.have_topic !== undefined
+        ? overrides.have_topic
+        : baseValues.have_topic,
+    experiences:
+      overrides.experiences !== undefined ? overrides.experiences : [],
+  };
 }
 
-describe('saveProfile (Deep Module)', () => {
+function makeSyncedMentorCard(overrides: Partial<MentorType> = {}): MentorType {
+  return fromPartial<MentorType>({
+    user_id: 1,
+    name: baseValues.name,
+    job_title: '',
+    company: '',
+    about: baseValues.about ?? '',
+    years_of_experience: String(baseValues.years_of_experience ?? ''),
+    have_topic: baseValues.have_topic ?? [],
+    have_skill: baseValues.have_skill ?? [],
+    avatar: baseValues.avatar ?? '',
+    ...overrides,
+  });
+}
+
+function createInMemoryProfileSavePort(
+  overrides: Partial<ProfileSaveSpies> = {}
+) {
+  const uploadAvatar =
+    overrides.uploadAvatar ??
+    vi.fn<UploadAvatarFn>(
+      async () =>
+        'https://s3.amazonaws.com/bucket/files/1/avatar?v=1754000000000'
+    );
+  const writeProfile =
+    overrides.writeProfile ?? vi.fn<WriteProfileFn>(async () => undefined);
+  const fetchProfile =
+    overrides.fetchProfile ??
+    vi.fn<FetchProfileFn>(async () => makeSyncedDtoFromValues());
+  const searchMentors =
+    overrides.searchMentors ??
+    vi.fn<SearchMentorsPortFn>(async () => [makeSyncedMentorCard()]);
+  const updateSession =
+    overrides.updateSession ?? vi.fn<UpdateSessionFn>(async () => mockSession);
+  const revalidateProfilePath =
+    overrides.revalidateProfilePath ??
+    vi.fn<RevalidateProfilePathFn>(async () => undefined);
+  const navigate = overrides.navigate ?? vi.fn<NavigateFn>();
+
+  const port: ProfileSavePort = {
+    uploadAvatar,
+    writeProfile,
+    fetchProfile,
+    searchMentors,
+    updateSession,
+    revalidateProfilePath,
+    navigate,
+  };
+
+  return {
+    port,
+    spies: {
+      uploadAvatar,
+      writeProfile,
+      fetchProfile,
+      searchMentors,
+      updateSession,
+      revalidateProfilePath,
+      navigate,
+    },
+  };
+}
+
+function makeContext(
+  overrides: Partial<SaveProfileContext> = {}
+): SaveProfileContext {
+  return {
+    pageUserId: '1',
+    isMentorOnboarding: false,
+    session: mockSession,
+    convergenceBudget: FAST_TEST_BUDGET,
+    ...overrides,
+  };
+}
+
+function makeCommitContext(
+  overrides: Partial<CommitProfileContext> = {}
+): CommitProfileContext {
+  return {
+    pageUserId: '1',
+    session: mockSession,
+    convergenceBudget: FAST_TEST_BUDGET,
+    ...overrides,
+  };
+}
+
+describe('commitProfileMutation & saveProfile (Deep Module with ProfileSavePort)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUpdateProfile.mockResolvedValue(undefined);
-    mockPollUntilSynced.mockResolvedValue(mockUserDTO);
-    mockFirstSyncedFetch.mockResolvedValue(null);
-    // Mirrors confirmProfileSynced's real contract at this boundary: only
-    // invoke the injected revalidate callback when mentor-relevant. The
-    // underlying poll-then-revalidate sequencing itself is covered directly
-    // in pollUntilSynced.test.ts — this suite only needs to verify saveProfile
-    // wires the call correctly.
-    mockConfirmProfileSynced.mockImplementation(
-      async (_userId, _fields, isMentorRelevant, revalidate) => {
-        if (isMentorRelevant) await revalidate();
-      }
+    clearPendingFavoriteMentor();
+    userProfileDtoReadManager.clear();
+    mentorPoolReadModel.clear();
+  });
+
+  afterEach(() => {
+    clearPendingFavoriteMentor();
+    userProfileDtoReadManager.clear();
+    mentorPoolReadModel.clear();
+  });
+
+  // ── Canonical Wire Payloads Across All 3 Mutation Modes ────────────────────
+
+  it('encodes edit mode payload with normalized string about, single-line personal_statement, and zero UI-only RHF keys', async () => {
+    const currentDto = makeSyncedDtoFromValues({
+      personal_statement: 'Fallback personal statement',
+    });
+    const { port, spies } = createInMemoryProfileSavePort({
+      fetchProfile: vi.fn<FetchProfileFn>(async () =>
+        makeSyncedDtoFromValues({
+          personal_statement: 'Fallback personal statement',
+          about: '',
+        })
+      ),
+    });
+
+    await commitProfileMutation(
+      {
+        mode: 'edit',
+        values: {
+          ...baseValues,
+          about: undefined,
+          statement: undefined,
+          links: {
+            ...baseValues.links,
+            github: 'https://github.com/octocat',
+          },
+        },
+        currentDto,
+      },
+      makeCommitContext(),
+      port
     );
-  });
 
-  // ── Avatar upload ──────────────────────────────────────────────────────────
-
-  it('no avatarFile → updateAvatar is NOT called', async () => {
-    const deps = makeDeps();
-    await saveProfile(
-      { ...baseValues, avatarFile: undefined },
-      deps.context,
-      deps.adapters
+    expect(spies.writeProfile).toHaveBeenCalledTimes(1);
+    const [writtenPageUserId, writtenPayload] =
+      spies.writeProfile.mock.calls[0]!;
+    expect(writtenPageUserId).toBe('1');
+    expect(typeof writtenPayload.about).toBe('string');
+    expect(writtenPayload.about).toBe('');
+    expect(writtenPayload.personal_statement).toBe(
+      'Fallback personal statement'
     );
-    expect(mockUpdateAvatar).not.toHaveBeenCalled();
+    expect(writtenPayload).not.toHaveProperty('work_experiences');
+    expect(writtenPayload).not.toHaveProperty('educations');
+    expect(writtenPayload).not.toHaveProperty('links');
+    expect(writtenPayload).not.toHaveProperty('statement');
+    expect(writtenPayload).not.toHaveProperty('avatarFile');
 
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.waitFor(() => {
+      expect(spies.revalidateProfilePath).toHaveBeenCalledTimes(2);
+    });
   });
 
-  it('avatarFile present + upload succeeds → returned URL is used in profile payload and primeUserDataCache is called synchronously', async () => {
-    const newAvatarUrl = 'https://example.com/new-avatar.jpg';
-    mockUpdateAvatar.mockResolvedValueOnce(newAvatarUrl);
-
-    const file = new File(['content'], 'avatar.jpg', { type: 'image/jpeg' });
-    const deps = makeDeps();
-    const result = await saveProfile(
-      { ...baseValues, avatarFile: file },
-      deps.context,
-      deps.adapters
-    );
-
-    expect(mockUpdateAvatar).toHaveBeenCalledWith(file, 1);
-    expect(mockUpdateProfile).toHaveBeenCalledWith(
-      'test-user-id',
-      expect.objectContaining({ avatar: newAvatarUrl })
-    );
-    expect(deps.adapters.primeUserDataCache).toHaveBeenCalledWith(
-      1,
-      'zh_TW',
-      expect.objectContaining({ avatar: newAvatarUrl })
-    );
-    expect(result.avatar).toBe(newAvatarUrl);
-
-    await Promise.resolve();
-    await Promise.resolve();
-  });
-
-  it('avatarFile present + updateAvatar throws → throws error', async () => {
-    mockUpdateAvatar.mockRejectedValueOnce(new Error('Upload failed'));
-
-    const file = new File(['content'], 'avatar.jpg', { type: 'image/jpeg' });
-    const deps = makeDeps();
-
-    await expect(
-      saveProfile(
-        { ...baseValues, avatarFile: file },
-        deps.context,
-        deps.adapters
-      )
-    ).rejects.toThrow('Upload failed');
-
-    await Promise.resolve();
-    await Promise.resolve();
-  });
-
-  // ── Service failures ───────────────────────────────────────────────────────
-
-  it('updateProfile throws → throws error', async () => {
-    mockUpdateProfile.mockRejectedValueOnce(new Error('Profile update failed'));
-    const deps = makeDeps();
-
-    await expect(
-      saveProfile(baseValues, deps.context, deps.adapters)
-    ).rejects.toThrow('Profile update failed');
-
-    await Promise.resolve();
-    await Promise.resolve();
-  });
-
-  // ── Inline experiences ────────────────────────────────────────────────────
-
-  it('no dirtyFields → updateProfile fires with full experiences inline (legacy callers send everything)', async () => {
-    const deps = makeDeps();
-    await saveProfile(baseValues, deps.context, deps.adapters);
-
-    expect(mockUpdateProfile).toHaveBeenCalledTimes(1);
-    expect(categoriesIn(lastExperiences())).toEqual([
-      ExperienceType.WORK,
-      ExperienceType.EDUCATION,
-      ExperienceType.LINK,
-    ]);
-
-    await Promise.resolve();
-    await Promise.resolve();
-  });
-
-  it('work_experiences dirty → experiences batch in payload reflects work data', async () => {
-    const valuesWithWork = {
-      ...baseValues,
-      work_experiences: [
+  it('encodes mentor-onboarding mode with is_mentor: true, onboarding: true, experiences batch, ISR revalidation, and /profile/card navigation', async () => {
+    const { experiences } = encode({
+      workExperiences: [
         {
-          id: 0,
-          job: 'Engineer',
-          company: 'Acme',
-          job_period_start: '2020',
+          job: 'Staff Frontend Engineer',
+          company: 'XChange',
+          job_period_start: '2021',
           job_period_end: 'now',
           industry: 'tech',
           job_location: 'TWN',
-          description: 'desc',
+          description: 'Design system & architecture',
           is_primary: true,
         },
       ],
-    };
-
-    const deps = makeDeps({
-      dirtyFields: { work_experiences: [{ job: true }] },
-    });
-    await saveProfile(valuesWithWork, deps.context, deps.adapters);
-
-    const exp = lastExperiences() as
-      | { category: string; mentor_experiences_metadata: { data: unknown[] } }[]
-      | undefined;
-    expect(exp).toBeDefined();
-    const work = exp!.find((e) => e.category === ExperienceType.WORK);
-    expect(work?.mentor_experiences_metadata.data).toHaveLength(1);
-
-    await Promise.resolve();
-    await Promise.resolve();
-  });
-
-  it('only `name` dirty → experiences are NOT sent (backend leaves the column alone)', async () => {
-    const valuesWithEverything = {
-      ...baseValues,
-      work_experiences: [
+      educations: [
         {
-          id: 0,
-          job: 'Engineer',
-          company: 'Acme',
-          job_period_start: '2020',
-          job_period_end: 'now',
-          industry: 'tech',
-          job_location: 'TWN',
-          description: 'desc',
+          school: '國立臺灣大學',
+          subject: '資訊工程學系',
+          education_period_start: '2016',
+          education_period_end: '2020',
         },
       ],
+      personalLinks: [],
+    });
+
+    const menteeSession: Session = {
+      ...mockSession,
+      user: { ...mockSession.user!, isMentor: false, onBoarding: true },
     };
 
-    const deps = makeDeps({ dirtyFields: { name: true } });
-    await saveProfile(valuesWithEverything, deps.context, deps.adapters);
+    const { port, spies } = createInMemoryProfileSavePort({
+      fetchProfile: vi.fn<FetchProfileFn>(async () =>
+        makeSyncedDtoFromValues({
+          is_mentor: true,
+          onboarding: true,
+          about: 'Mentor bio',
+          job_title: 'Staff Frontend Engineer',
+          company: 'XChange',
+          industry: {
+            id: 5,
+            kind: 'industry',
+            subject_group: 'tech',
+            subject: '軟體與科技',
+          },
+          have_topic: ['career'],
+          have_skill: ['typescript'],
+          experiences: toWireExperiences(experiences),
+        })
+      ),
+      searchMentors: vi.fn<SearchMentorsPortFn>(async () => [
+        makeSyncedMentorCard({
+          about: 'Mentor bio',
+          job_title: 'Staff Frontend Engineer',
+          company: 'XChange',
+          have_topic: ['career'],
+          have_skill: ['typescript'],
+        }),
+      ]),
+    });
 
-    expect(mockUpdateProfile).toHaveBeenCalledTimes(1);
-    expect(lastExperiences()).toBeUndefined();
+    const optimisticDto = await commitProfileMutation(
+      {
+        mode: 'mentor-onboarding',
+        values: {
+          ...baseValues,
+          is_mentor: false,
+          about: 'Mentor bio',
+          industry: 'tech',
+          have_topic: ['career'],
+          have_skill: ['typescript'],
+          work_experiences: [
+            {
+              id: 0,
+              job: 'Staff Frontend Engineer',
+              company: 'XChange',
+              job_period_start: '2021',
+              job_period_end: 'now',
+              industry: 'tech',
+              job_location: 'TWN',
+              description: 'Design system & architecture',
+              is_primary: true,
+            },
+          ],
+          educations: [
+            {
+              id: 0,
+              school: '國立臺灣大學',
+              subject: '資訊工程學系',
+              education_period_start: '2016',
+              education_period_end: '2020',
+            },
+          ],
+        },
+        dirtyFields: {},
+      },
+      makeCommitContext({
+        session: menteeSession,
+        industryCatalog: [{ subject_group: 'tech', subject: '軟體與科技' }],
+      }),
+      port
+    );
 
-    await Promise.resolve();
-    await Promise.resolve();
+    const writtenPayload = spies.writeProfile.mock.calls[0]?.[1];
+    expect(writtenPayload).toMatchObject({
+      is_mentor: true,
+      onboarding: true,
+      about: 'Mentor bio',
+      job_title: 'Staff Frontend Engineer',
+      company: 'XChange',
+      have_topic: ['career'],
+      have_skill: ['typescript'],
+    });
+    expect(writtenPayload).not.toHaveProperty('work_experiences');
+    expect(writtenPayload).not.toHaveProperty('educations');
+    expect(writtenPayload).not.toHaveProperty('links');
+    expect(writtenPayload).not.toHaveProperty('statement');
+
+    expect(optimisticDto.is_mentor).toBe(true);
+    expect(optimisticDto.onboarding).toBe(true);
+    expect(spies.navigate).toHaveBeenCalledWith('/profile/card');
+
+    await vi.waitFor(() => {
+      expect(spies.revalidateProfilePath).toHaveBeenCalledTimes(2);
+    });
   });
 
-  it('dirty link field triggers experiences inline (nested dirtyFields shape)', async () => {
-    const valuesWithLink = {
-      ...baseValues,
-      linkedin: {
-        id: -1,
-        url: 'https://linkedin.com/in/me',
-        platform: 'linkedin',
+  it('encodes mentee-onboarding mode from OnboardingFormValues, primes cache with catalog industry, revalidates ISR, avoids avatarUpdatedAt misfire on empty avatar, and honors pending favorite redirect', async () => {
+    savePendingFavoriteMentor(88);
+
+    const freshMenteeSession: Session = {
+      ...mockSession,
+      user: {
+        id: '1',
+        name: 'New Mentee',
+        email: 'mentee@example.com',
+        isMentor: false,
+        onBoarding: false,
+        avatar: undefined,
+        avatarUpdatedAt: 1700000000000,
       },
     };
 
-    const deps = makeDeps({
-      dirtyFields: { linkedin: { url: true } },
+    const onboardingValues: OnboardingFormValues = {
+      name: 'Mentee Lin',
+      avatar: '',
+      avatarFile: undefined,
+      language: 'zh_TW',
+      location: 'TWN',
+      years_of_experience: '1_3',
+      industry: 'finance',
+      want_position: ['product_manager'],
+      want_skill: ['product_strategy'],
+      want_topic: ['career'],
+    };
+
+    const industryCatalog: IndustryOption[] = [
+      { subject_group: 'finance', subject: '金融與投資' },
+    ];
+
+    const { port, spies } = createInMemoryProfileSavePort({
+      fetchProfile: vi.fn<FetchProfileFn>(async () =>
+        makeSyncedDtoFromValues({
+          name: 'Mentee Lin',
+          avatar: null,
+          location: 'TWN',
+          years_of_experience: '1_3',
+          industry: {
+            id: 8,
+            kind: 'industry',
+            subject_group: 'finance',
+            subject: '金融與投資',
+          },
+          is_mentor: false,
+          onboarding: true,
+          about: '',
+          personal_statement: '',
+          want_position: ['product_manager'],
+          want_skill: ['product_strategy'],
+          want_topic: ['career'],
+          have_skill: [],
+          have_topic: [],
+        })
+      ),
     });
-    await saveProfile(valuesWithLink, deps.context, deps.adapters);
 
-    const exp = lastExperiences() as
-      | { category: string; mentor_experiences_metadata: { data: unknown[] } }[]
-      | undefined;
-    expect(exp).toBeDefined();
-    const links = exp!.find((e) => e.category === ExperienceType.LINK);
-    expect(links?.mentor_experiences_metadata.data).toHaveLength(1);
+    const optimisticDto = await commitProfileMutation(
+      {
+        mode: 'mentee-onboarding',
+        values: onboardingValues,
+      },
+      makeCommitContext({
+        pageUserId: undefined,
+        session: freshMenteeSession,
+        industryCatalog,
+      }),
+      port
+    );
 
-    await Promise.resolve();
-    await Promise.resolve();
-  });
-
-  // ── Navigation & Sequence ──────────────────────────────────────────────────
-
-  it('isMentorOnboarding: false → deps.navigate("/profile/:pageUserId"), and both revalidateProfilePath & updateSession are called before navigate', async () => {
-    const navigate = vi.fn();
-    const revalidateProfilePath = vi.fn().mockResolvedValue(undefined);
-    const updateSession = vi.fn().mockResolvedValue(mockSession);
-    const deps = makeDeps({
-      isMentorOnboarding: false,
-      navigate,
-      revalidateProfilePath,
-      updateSession,
+    expect(spies.writeProfile).toHaveBeenCalledWith('1', {
+      name: 'Mentee Lin',
+      avatar: '',
+      location: 'TWN',
+      years_of_experience: '1_3',
+      industry: 'finance',
+      language: 'zh_TW',
+      is_mentor: false,
+      onboarding: true,
+      about: '',
+      personal_statement: '',
+      want_position: ['product_manager'],
+      want_skill: ['product_strategy'],
+      want_topic: ['career'],
     });
-    await saveProfile(baseValues, deps.context, deps.adapters);
 
-    expect(navigate).toHaveBeenCalledWith('/profile/test-user-id');
-    expect(revalidateProfilePath).toHaveBeenCalledWith('test-user-id');
-    expect(updateSession).toHaveBeenCalled();
+    expect(optimisticDto.is_mentor).toBe(false);
+    expect(optimisticDto.onboarding).toBe(true);
+    expect(readIndustryTag(optimisticDto.industry)).toMatchObject({
+      subject_group: 'finance',
+      subject: '金融與投資',
+    });
+    expect(getUserProfileDtoFromCache(1, 'zh_TW')).toBeDefined();
 
-    const navigateCallIndex = navigate.mock.invocationCallOrder[0];
-
-    // Assert that revalidateProfilePath was invoked before navigate
-    const revalidateCallIndex =
-      revalidateProfilePath.mock.invocationCallOrder[0];
-    expect(revalidateCallIndex).toBeLessThan(navigateCallIndex);
-
-    // Assert that updateSession was invoked and completed before navigate
-    const updateSessionCallIndex = updateSession.mock.invocationCallOrder[0];
-    expect(updateSessionCallIndex).toBeLessThan(navigateCallIndex);
-
-    await Promise.resolve();
-    await Promise.resolve();
-  });
-
-  it('isMentorOnboarding: true → deps.navigate("/profile/card")', async () => {
-    const navigate = vi.fn();
-    const deps = makeDeps({ isMentorOnboarding: true, navigate });
-    await saveProfile(baseValues, deps.context, deps.adapters);
-
-    expect(navigate).toHaveBeenCalledWith('/profile/card');
-
-    await Promise.resolve();
-    await Promise.resolve();
-  });
-
-  // ── Optimistic flow: poll runs in the background ───────────────────────────
-
-  it('navigation does not wait for pollUntilSynced to resolve', async () => {
-    let resolvePoll: (value: MentorProfileVO | null) => void = () => {};
-    mockPollUntilSynced.mockReturnValueOnce(
-      new Promise<MentorProfileVO | null>((resolve) => {
-        resolvePoll = resolve;
+    // Empty avatar ("") vs undefined session.user.avatar must NOT bump avatarUpdatedAt
+    expect(spies.updateSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user: expect.objectContaining({
+          name: 'Mentee Lin',
+          avatar: null,
+          isMentor: false,
+          onBoarding: true,
+          avatarUpdatedAt: 1700000000000,
+        }),
       })
     );
 
-    const navigate = vi.fn();
-    const deps = makeDeps({ navigate });
-    await saveProfile(baseValues, deps.context, deps.adapters);
-
-    expect(navigate).toHaveBeenCalledWith('/profile/test-user-id');
-    resolvePoll(null);
-
-    await Promise.resolve();
-    await Promise.resolve();
-  });
-
-  it('optimistic session update preserves current isMentor / onBoarding (does not flicker from latest=null)', async () => {
-    mockPollUntilSynced.mockResolvedValueOnce(null);
-
-    const updateSession = vi.fn().mockResolvedValue(mockSession);
-    const deps = makeDeps({ updateSession });
-    await saveProfile(baseValues, deps.context, deps.adapters);
-
-    expect(updateSession).toHaveBeenCalled();
-    const firstCallArg = updateSession.mock.calls[0][0] as {
-      user: { isMentor?: boolean; onBoarding?: boolean };
-    };
-    expect(firstCallArg.user.isMentor).toBe(true);
-    expect(firstCallArg.user.onBoarding).toBe(true);
-
-    await Promise.resolve();
-    await Promise.resolve();
-  });
-
-  it('isMentorOnboarding: true with mentee session → optimistic update flips isMentor/onBoarding to true', async () => {
-    const menteeSession: Session = {
-      ...mockSession,
-      user: { ...mockSession.user!, isMentor: false, onBoarding: false },
-    };
-    const updateSession = vi.fn().mockResolvedValue(menteeSession);
-    const deps = makeDeps({
-      session: menteeSession,
-      updateSession,
-      isMentorOnboarding: true,
+    expect(mockTrackEvent).toHaveBeenCalledWith({
+      name: 'onboarding_completed',
+      feature: 'onboarding',
     });
-    await saveProfile(baseValues, deps.context, deps.adapters);
-
-    const firstCallArg = updateSession.mock.calls[0][0] as {
-      user: { isMentor?: boolean; onBoarding?: boolean };
-    };
-    expect(firstCallArg.user.isMentor).toBe(true);
-    expect(firstCallArg.user.onBoarding).toBe(true);
-
-    await Promise.resolve();
-    await Promise.resolve();
-  });
-
-  it('isMentorOnboarding: true with mentee session → reconcile is a no-op when backend confirms is_mentor=true', async () => {
-    const menteeSession: Session = {
-      ...mockSession,
-      user: { ...mockSession.user!, isMentor: false, onBoarding: false },
-    };
-    mockPollUntilSynced.mockResolvedValueOnce({
-      ...mockUserDTO,
-      is_mentor: true,
-      onboarding: true,
-    });
-    const updateSession = vi.fn().mockResolvedValue(menteeSession);
-    const deps = makeDeps({
-      session: menteeSession,
-      updateSession,
-      isMentorOnboarding: true,
-    });
-    await saveProfile(baseValues, deps.context, deps.adapters);
-
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(updateSession).toHaveBeenCalledTimes(1);
-  });
-
-  it('background reconcile patches session when latest disagrees with optimistic role', async () => {
-    mockPollUntilSynced.mockResolvedValueOnce({
-      ...mockUserDTO,
-      is_mentor: false,
-      onboarding: true,
-    });
-
-    const updateSession = vi.fn().mockResolvedValue(mockSession);
-    const deps = makeDeps({ updateSession });
-    await saveProfile(baseValues, deps.context, deps.adapters);
-
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(updateSession).toHaveBeenCalledTimes(2);
-    const reconcileArg = updateSession.mock.calls[1][0] as {
-      user: { isMentor?: boolean; onBoarding?: boolean };
-    };
-    expect(reconcileArg.user.isMentor).toBe(false);
-    expect(reconcileArg.user.onBoarding).toBe(true);
-  });
-
-  it('background reconcile is a no-op when latest matches optimistic session', async () => {
-    mockPollUntilSynced.mockResolvedValueOnce({
-      ...mockUserDTO,
-      is_mentor: true,
-      onboarding: true,
-    });
-
-    const updateSession = vi.fn().mockResolvedValue(mockSession);
-    const deps = makeDeps({ updateSession });
-    await saveProfile(baseValues, deps.context, deps.adapters);
-
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(updateSession).toHaveBeenCalledTimes(1);
-  });
-
-  // ── Post-sync mentor-pool re-sync (search-index race) ───────────────────────
-  //
-  // The immediate revalidateProfilePath call (step 3) can race the backend's
-  // async (SQS-driven) update of the Elasticsearch index /mentor-pool reads
-  // from. Confirming the (synchronous, DB-backed) profile write synced via
-  // firstSyncedFetch/pollUntilSynced is NOT sufficient proof the search
-  // index caught up too — confirmProfileSynced (pollUntilSynced.ts) owns
-  // that poll-then-revalidate sequencing; this suite only verifies saveProfile
-  // calls it with the right args, not the internal poll behavior itself
-  // (covered directly in pollUntilSynced.test.ts).
-
-  it('mentor session → confirmProfileSynced is called with isMentorRelevant=true, and revalidateProfilePath fires again via its callback', async () => {
-    mockFirstSyncedFetch.mockResolvedValueOnce(null);
-    mockPollUntilSynced.mockResolvedValueOnce(mockUserDTO);
-
-    const revalidateProfilePath = vi.fn().mockResolvedValue(undefined);
-    const deps = makeDeps({ revalidateProfilePath });
-    await saveProfile(baseValues, deps.context, deps.adapters);
+    expect(spies.revalidateProfilePath).toHaveBeenCalledWith('1');
+    expect(spies.navigate).toHaveBeenCalledWith('/profile/88');
 
     await vi.waitFor(() => {
-      expect(mockConfirmProfileSynced).toHaveBeenCalledWith(
-        Number(mockSession.user!.id),
-        expect.objectContaining({ name: baseValues.name }),
-        true,
-        expect.any(Function)
-      );
-      expect(revalidateProfilePath).toHaveBeenCalledTimes(2);
+      expect(spies.fetchProfile).toHaveBeenCalledWith(1);
     });
-    expect(revalidateProfilePath).toHaveBeenNthCalledWith(1, 'test-user-id');
-    expect(revalidateProfilePath).toHaveBeenNthCalledWith(2, 'test-user-id');
+    expect(spies.searchMentors).not.toHaveBeenCalled();
   });
 
-  it('mentee session (not onboarding, backend never confirms mentor) → confirmProfileSynced is called with isMentorRelevant=false', async () => {
-    const menteeSession: Session = {
-      ...mockSession,
-      user: { ...mockSession.user!, isMentor: false },
-    };
-    mockFirstSyncedFetch.mockResolvedValueOnce(null);
-    mockPollUntilSynced.mockResolvedValueOnce(null);
-
-    const revalidateProfilePath = vi.fn().mockResolvedValue(undefined);
-    const deps = makeDeps({
-      session: menteeSession,
-      isMentorOnboarding: false,
-      revalidateProfilePath,
+  it('protects primed optimistic DTO from stale SWR reads across every editable field until backend converges', async () => {
+    let resolveBackendFetch: (dto: MentorProfileVO | null) => void = () => {};
+    const { port, spies } = createInMemoryProfileSavePort({
+      fetchProfile: vi.fn<FetchProfileFn>(
+        () =>
+          new Promise<MentorProfileVO | null>((resolve) => {
+            resolveBackendFetch = resolve;
+          })
+      ),
     });
-    await saveProfile(baseValues, deps.context, deps.adapters);
 
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(mockConfirmProfileSynced).toHaveBeenCalledWith(
-      expect.any(Number),
-      expect.any(Object),
-      false,
-      expect.any(Function)
+    const optimisticDto = await commitProfileMutation(
+      {
+        mode: 'edit',
+        values: {
+          ...baseValues,
+          about: 'Fresh mentor bio',
+          statement: 'Fresh mentor statement',
+          location: 'JPN',
+          years_of_experience: '5_10',
+          industry: 'tech',
+          have_skill: ['typescript', 'nextjs'],
+          have_topic: ['architecture'],
+          want_position: ['engineering_manager'],
+          want_skill: ['coaching'],
+          want_topic: ['leadership'],
+        },
+      },
+      makeCommitContext({
+        industryCatalog: [{ subject_group: 'tech', subject: '軟體與科技' }],
+      }),
+      port
     );
-    // Default mock only invokes the callback when isMentorRelevant — only
-    // the immediate step-3 call happens, no background re-sync call.
-    expect(revalidateProfilePath).toHaveBeenCalledTimes(1);
+
+    const staleBackendVariants: Array<Partial<MentorProfileVO>> = [
+      { about: 'Stale bio' },
+      { personal_statement: 'Stale statement' },
+      { location: 'TWN' },
+      { years_of_experience: '1_3' },
+      {
+        industry: {
+          id: 99,
+          kind: 'industry',
+          subject_group: 'finance',
+          subject: '金融業',
+        },
+      },
+      { have_skill: ['typescript'] },
+      { have_topic: [] },
+      { want_position: ['engineer'] },
+      { want_skill: ['TypeScript'] },
+      { want_topic: ['frontend'] },
+    ];
+
+    for (const stalePatch of staleBackendVariants) {
+      const candidate: MentorProfileVO = {
+        ...optimisticDto,
+        ...stalePatch,
+      };
+      const resolved = await resolveUserProfileDtoFetch(
+        '1-zh_TW',
+        async () => candidate,
+        new AbortController().signal
+      );
+      expect(resolved).toBe(optimisticDto);
+    }
+
+    const fullyConvergedBackendDto: MentorProfileVO = {
+      ...optimisticDto,
+      have_skill: ['nextjs', 'typescript'],
+    };
+    const convergedSwr = await resolveUserProfileDtoFetch(
+      '1-zh_TW',
+      async () => fullyConvergedBackendDto,
+      new AbortController().signal
+    );
+    expect(convergedSwr).toBe(fullyConvergedBackendDto);
+
+    resolveBackendFetch(fullyConvergedBackendDto);
+    await vi.waitFor(() => {
+      expect(spies.fetchProfile).toHaveBeenCalled();
+    });
   });
 
-  it('post-sync revalidateProfilePath rejects → caught via captureFlowFailure, does not throw or block background reconcile', async () => {
-    mockFirstSyncedFetch.mockResolvedValueOnce(null);
-    mockPollUntilSynced.mockResolvedValueOnce(mockUserDTO);
+  // ── Avatar upload & versioned S3 URL flow ──────────────────────────────────
 
-    const revalidateProfilePath = vi
-      .fn()
-      .mockResolvedValueOnce(undefined) // step 3: immediate call succeeds
-      .mockRejectedValueOnce(new Error('revalidate failed')); // post-sync call fails
-    const updateSession = vi.fn().mockResolvedValue(mockSession);
-    const deps = makeDeps({ revalidateProfilePath, updateSession });
+  it('does not call uploadAvatar when avatarFile is absent', async () => {
+    const { port, spies } = createInMemoryProfileSavePort();
 
-    await expect(
-      saveProfile(baseValues, deps.context, deps.adapters)
-    ).resolves.not.toThrow();
+    await saveProfile(
+      { ...baseValues, avatarFile: undefined },
+      makeContext(),
+      port
+    );
+
+    expect(spies.uploadAvatar).not.toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(spies.revalidateProfilePath).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('uploads avatarFile via ProfileSavePort, writes versioned URL to profile, bumps session avatarUpdatedAt, primes userProfileDtoCache synchronously, and converges against &cb= search-index card', async () => {
+    const uploadedUrl =
+      'https://s3.amazonaws.com/bucket/files/1/avatar?v=1754000000000';
+    const { port, spies } = createInMemoryProfileSavePort({
+      uploadAvatar: vi.fn<UploadAvatarFn>(async () => uploadedUrl),
+      fetchProfile: vi.fn<FetchProfileFn>(async () =>
+        makeSyncedDtoFromValues({
+          avatar: uploadedUrl,
+        })
+      ),
+      searchMentors: vi.fn<SearchMentorsPortFn>(async () => [
+        makeSyncedMentorCard({
+          avatar: `${uploadedUrl}&cb=2026-11-14T00%3A00%3A00Z`,
+        }),
+      ]),
+    });
+
+    const file = new File(['content'], 'avatar.jpg', { type: 'image/jpeg' });
+    const result = await saveProfile(
+      { ...baseValues, avatarFile: file },
+      makeContext(),
+      port
+    );
+
+    expect(spies.uploadAvatar).toHaveBeenCalledWith(file, 1);
+    expect(spies.writeProfile).toHaveBeenCalledWith(
+      '1',
+      expect.objectContaining({ avatar: uploadedUrl })
+    );
+    expect(spies.updateSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user: expect.objectContaining({
+          avatar: uploadedUrl,
+          avatarUpdatedAt: expect.any(Number),
+        }),
+      })
+    );
+    expect(result.avatar).toBe(uploadedUrl);
+    expect(getUserProfileDtoFromCache(1, 'zh_TW')?.avatar).toBe(uploadedUrl);
 
     await vi.waitFor(() => {
-      expect(revalidateProfilePath).toHaveBeenCalledTimes(2);
+      expect(spies.revalidateProfilePath).toHaveBeenCalledTimes(2);
     });
+    expect(mockCaptureFlowFailure).not.toHaveBeenCalled();
+  });
+
+  it('bumps avatarUpdatedAt when a pre-uploaded versioned avatar URL differs from session avatar even after avatarFile was consumed', async () => {
+    const preUploadedUrl =
+      'https://s3.amazonaws.com/bucket/files/1/avatar?v=1754111111111';
+    const { port, spies } = createInMemoryProfileSavePort({
+      fetchProfile: vi.fn<FetchProfileFn>(async () =>
+        makeSyncedDtoFromValues({
+          name: 'Mentee Preuploaded',
+          avatar: preUploadedUrl,
+          is_mentor: false,
+          onboarding: true,
+        })
+      ),
+    });
+
+    await commitProfileMutation(
+      {
+        mode: 'mentee-onboarding',
+        values: {
+          name: 'Mentee Preuploaded',
+          avatar: preUploadedUrl,
+          avatarFile: undefined,
+          language: 'zh_TW',
+          location: 'Taiwan',
+          years_of_experience: '1_3',
+          industry: '',
+          want_position: ['engineer'],
+          want_skill: ['TypeScript'],
+          want_topic: ['frontend'],
+        },
+      },
+      makeCommitContext({
+        session: {
+          ...mockSession,
+          user: {
+            ...mockSession.user!,
+            isMentor: false,
+            avatar: 'https://example.com/old-avatar.jpg',
+            avatarUpdatedAt: undefined,
+          },
+        },
+      }),
+      port
+    );
+
+    expect(spies.uploadAvatar).not.toHaveBeenCalled();
+    expect(spies.updateSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user: expect.objectContaining({
+          avatar: preUploadedUrl,
+          avatarUpdatedAt: expect.any(Number),
+        }),
+      })
+    );
+    expect(spies.navigate).toHaveBeenCalledWith('/profile/card');
+  });
+
+  it('reports avatar_upload failure and throws LoggedError when uploadAvatar rejects, without clearing mentorPoolReadModel', async () => {
+    mentorPoolReadModel.set(
+      UNFILTERED_MENTOR_POOL_QUERY,
+      mentorPoolReadModel.buildInitialUnfilteredState({
+        initialMentors: [makeSyncedMentorCard()],
+        initialNextCursor: null,
+        initialMentorCount: 1,
+      })
+    );
+
+    const { port } = createInMemoryProfileSavePort({
+      uploadAvatar: vi.fn<UploadAvatarFn>(async () => {
+        throw new Error('Upload failed');
+      }),
+    });
+
+    const file = new File(['content'], 'avatar.jpg', { type: 'image/jpeg' });
+    await expect(
+      saveProfile({ ...baseValues, avatarFile: file }, makeContext(), port)
+    ).rejects.toThrow('Upload failed');
 
     expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
       expect.objectContaining({
         flow: 'profile_update',
-        step: 'post_sync_revalidate',
-        message: 'revalidate failed',
-        level: 'warning',
+        step: 'avatar_upload',
+        message: 'Upload failed',
       })
     );
-    // reconcileSession still ran despite the revalidate rejection
-    expect(updateSession).toHaveBeenCalled();
+    expect(
+      mentorPoolReadModel.get(UNFILTERED_MENTOR_POOL_QUERY)?.mentors
+    ).toHaveLength(1);
   });
 
-  it('mentor-pool re-sync failure (confirmProfileSynced throws) → quietly caught and logged', async () => {
-    mockConfirmProfileSynced.mockRejectedValueOnce(
-      new Error('Search index poll failed')
-    );
-    const deps = makeDeps();
+  it('reports profile_write failure and throws LoggedError when writeProfile rejects', async () => {
+    const { port } = createInMemoryProfileSavePort({
+      writeProfile: vi.fn<WriteProfileFn>(async () => {
+        throw new Error('Profile update failed');
+      }),
+    });
 
-    await saveProfile(baseValues, deps.context, deps.adapters);
+    await expect(saveProfile(baseValues, makeContext(), port)).rejects.toThrow(
+      'Profile update failed'
+    );
+
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'profile_update',
+        step: 'profile_write',
+        message: 'Profile update failed',
+      })
+    );
+  });
+
+  // ── Optimistic industryCatalog resolution & is_primary mirroring ───────────
+
+  it('resolves newly edited industry code against industryCatalog instead of copying stale currentDto.industry.subject', async () => {
+    const industryCatalog: IndustryOption[] = [
+      { subject_group: 'tech', subject: '軟體與科技' },
+      { subject_group: 'finance', subject: '金融與銀行' },
+    ];
+    const currentDto = makeSyncedDtoFromValues({
+      user_id: 1,
+      industry: {
+        id: 10,
+        kind: 'industry',
+        subject_group: 'tech',
+        subject: '軟體與科技',
+        language: 'zh_TW',
+      },
+    });
+
+    let resolveFetch: (dto: MentorProfileVO | null) => void = () => {};
+    const { port, spies } = createInMemoryProfileSavePort({
+      fetchProfile: vi.fn<FetchProfileFn>(
+        () =>
+          new Promise<MentorProfileVO | null>((resolve) => {
+            resolveFetch = resolve;
+          })
+      ),
+    });
+
+    const optimisticDto = await saveProfile(
+      {
+        ...baseValues,
+        industry: 'finance',
+      },
+      makeContext({
+        currentDto,
+        industryCatalog,
+        dirtyFields: { industry: true },
+      }),
+      port
+    );
+
+    const primedTag = readIndustryTag(optimisticDto.industry);
+    expect(primedTag).toMatchObject({
+      subject_group: 'finance',
+      subject: '金融與銀行',
+    });
+
+    const cachedDto = getUserProfileDtoFromCache(1, 'zh_TW');
+    expect(readIndustryTag(cachedDto?.industry)).toMatchObject({
+      subject_group: 'finance',
+      subject: '金融與銀行',
+    });
+
+    resolveFetch(
+      makeSyncedDtoFromValues({
+        industry: {
+          id: 22,
+          kind: 'industry',
+          subject_group: 'finance',
+          subject: '金融與銀行',
+          language: 'zh_TW',
+        },
+      })
+    );
 
     await vi.waitFor(() => {
-      expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
-        expect.objectContaining({
-          flow: 'profile_update',
-          step: 'background_reconcile',
-          message: 'Error: Search index poll failed',
-        })
-      );
+      expect(spies.revalidateProfilePath).toHaveBeenCalledTimes(2);
     });
   });
 
-  // ── Cache prime vs fallback ────────────────────────────────────────────────
-
-  it('firstSyncedFetch returns dto → primeUserDataCache called, pollUntilSynced NOT called', async () => {
-    mockFirstSyncedFetch.mockResolvedValueOnce(mockUserDTO);
-    const mockClearUserDataCache = vi.fn();
-    const mockPrimeUserDataCache = vi.fn();
-
-    const deps = makeDeps({
-      isMentorOnboarding: true,
-      clearUserDataCache: mockClearUserDataCache,
-      primeUserDataCache: mockPrimeUserDataCache,
+  it('mirrors job_title and company from is_primary work experience in both writeProfile payload and optimistic DTO', async () => {
+    let resolveFetch: (dto: MentorProfileVO | null) => void = () => {};
+    const { port, spies } = createInMemoryProfileSavePort({
+      fetchProfile: vi.fn<FetchProfileFn>(
+        () =>
+          new Promise<MentorProfileVO | null>((resolve) => {
+            resolveFetch = resolve;
+          })
+      ),
+      searchMentors: vi.fn<SearchMentorsPortFn>(async () => [
+        makeSyncedMentorCard({
+          job_title: 'Staff Engineer',
+          company: 'Dell',
+        }),
+      ]),
     });
-    await saveProfile(baseValues, deps.context, deps.adapters);
 
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(mockClearUserDataCache).toHaveBeenCalledWith(
-      Number(mockSession.user!.id),
-      'zh_TW'
-    );
-    expect(mockPrimeUserDataCache).toHaveBeenCalledTimes(2);
-    expect(mockPrimeUserDataCache).toHaveBeenNthCalledWith(
-      1,
-      Number(mockSession.user!.id),
-      'zh_TW',
-      expect.objectContaining({ name: 'Test User' })
-    );
-    expect(mockPrimeUserDataCache).toHaveBeenNthCalledWith(
-      2,
-      Number(mockSession.user!.id),
-      'zh_TW',
-      mockUserDTO
-    );
-    expect(mockPollUntilSynced).not.toHaveBeenCalled();
-  });
-
-  it('firstSyncedFetch returns null → falls back to clearUserDataCache + pollUntilSynced', async () => {
-    mockFirstSyncedFetch.mockResolvedValueOnce(null);
-    const mockClearUserDataCache = vi.fn();
-    const mockPrimeUserDataCache = vi.fn();
-
-    const deps = makeDeps({
-      isMentorOnboarding: true,
-      clearUserDataCache: mockClearUserDataCache,
-      primeUserDataCache: mockPrimeUserDataCache,
-    });
-    await saveProfile(baseValues, deps.context, deps.adapters);
-
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(mockPrimeUserDataCache).toHaveBeenCalledTimes(1);
-    expect(mockPrimeUserDataCache).toHaveBeenNthCalledWith(
-      1,
-      Number(mockSession.user!.id),
-      'zh_TW',
-      expect.objectContaining({ name: 'Test User' })
-    );
-    expect(mockClearUserDataCache).toHaveBeenCalledWith(
-      Number(mockSession.user!.id),
-      'zh_TW'
-    );
-    expect(mockPollUntilSynced).toHaveBeenCalled();
-  });
-
-  // ── Background avatar upload ──────────────────────────────────────────────
-
-  it('consumeAvatarUpload, when provided, is used instead of direct updateAvatar', async () => {
-    const consumed = 'https://example.com/from-bg.jpg';
-    const consumeAvatarUpload = vi.fn().mockResolvedValue(consumed);
-
-    const file = new File(['c'], 'avatar.jpg', { type: 'image/jpeg' });
-    const deps = makeDeps({ consumeAvatarUpload });
-    await saveProfile(
-      { ...baseValues, avatarFile: file },
-      deps.context,
-      deps.adapters
-    );
-
-    expect(consumeAvatarUpload).toHaveBeenCalledWith(file);
-    expect(mockUpdateAvatar).not.toHaveBeenCalled();
-    expect(mockUpdateProfile).toHaveBeenCalledWith(
-      'test-user-id',
-      expect.objectContaining({ avatar: consumed })
-    );
-
-    await Promise.resolve();
-    await Promise.resolve();
-  });
-
-  // ── Dirty-field skip ───────────────────────────────────────────────────────
-
-  it('dirtyFields = {} → no PUTs fire', async () => {
-    const deps = makeDeps({ dirtyFields: {} });
-    await saveProfile(baseValues, deps.context, deps.adapters);
-
-    expect(mockUpdateProfile).not.toHaveBeenCalled();
-
-    await Promise.resolve();
-    await Promise.resolve();
-  });
-
-  it('isMentorOnboarding: true forces updateProfile even with empty dirtyFields', async () => {
-    const deps = makeDeps({ isMentorOnboarding: true, dirtyFields: {} });
-    await saveProfile(baseValues, deps.context, deps.adapters);
-
-    expect(mockUpdateProfile).toHaveBeenCalledTimes(1);
-
-    await Promise.resolve();
-    await Promise.resolve();
-  });
-
-  // ── Primary job persistence ────────────────────────────────────────────────
-
-  it('updateProfile payload mirrors job_title / company from the primary work experience', async () => {
     const valuesWithPrimary = {
       ...baseValues,
       work_experiences: [
@@ -693,10 +910,10 @@ describe('saveProfile (Deep Module)', () => {
         },
         {
           id: 1,
-          job: 'Senior Engineer',
+          job: 'Staff Engineer',
           company: 'Dell',
-          job_period_start: '2015',
-          job_period_end: '2019',
+          job_period_start: '2018',
+          job_period_end: '2020',
           industry: 'tech',
           job_location: 'TWN',
           description: 'desc',
@@ -705,161 +922,485 @@ describe('saveProfile (Deep Module)', () => {
       ],
     };
 
-    const deps = makeDeps();
-    await saveProfile(valuesWithPrimary, deps.context, deps.adapters);
+    const optimisticDto = await saveProfile(
+      valuesWithPrimary,
+      makeContext({ dirtyFields: { work_experiences: [{ job: true }] } }),
+      port
+    );
 
-    expect(mockUpdateProfile).toHaveBeenCalledWith(
-      'test-user-id',
+    expect(spies.writeProfile).toHaveBeenCalledWith(
+      '1',
       expect.objectContaining({
-        job_title: 'Senior Engineer',
+        job_title: 'Staff Engineer',
         company: 'Dell',
       })
     );
-
-    await Promise.resolve();
-    await Promise.resolve();
-  });
-
-  // ── Background task failure handling ───────────────────────────────────────
-
-  it('background reconciliation failure (firstSyncedFetch throws) → quietly caught and logged', async () => {
-    mockFirstSyncedFetch.mockRejectedValueOnce(new Error('Sync fetch failed'));
-
-    const deps = makeDeps({
-      session: {
-        ...mockSession,
-        user: { ...mockSession.user!, id: '1' },
-      },
+    expect(optimisticDto.job_title).toBe('Staff Engineer');
+    expect(optimisticDto.company).toBe('Dell');
+    expect(getUserProfileDtoFromCache(1, 'zh_TW')).toMatchObject({
+      job_title: 'Staff Engineer',
+      company: 'Dell',
     });
-    await saveProfile(baseValues, deps.context, deps.adapters);
 
-    // Let background IIFE task execute
-    await Promise.resolve();
-    await Promise.resolve();
+    const sentExperiences = spies.writeProfile.mock.calls[0]?.[1]?.experiences;
+    expect(sentExperiences?.map((e) => e.category)).toEqual([
+      ExperienceType.WORK,
+      ExperienceType.EDUCATION,
+      ExperienceType.LINK,
+    ]);
 
-    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
-      expect.objectContaining({
-        flow: 'profile_update',
-        step: 'background_reconcile',
-        message: 'Error: Sync fetch failed',
+    resolveFetch(
+      makeSyncedDtoFromValues({
+        job_title: 'Staff Engineer',
+        company: 'Dell',
+        experiences: toWireExperiences(sentExperiences),
       })
     );
-  });
 
-  it('background reconciliation failure (pollUntilSynced throws) → quietly caught and logged', async () => {
-    mockFirstSyncedFetch.mockResolvedValueOnce(null);
-    mockPollUntilSynced.mockRejectedValueOnce(new Error('Polling failed'));
-
-    const deps = makeDeps({
-      session: {
-        ...mockSession,
-        user: { ...mockSession.user!, id: '1' },
-      },
+    await vi.waitFor(() => {
+      expect(spies.revalidateProfilePath).toHaveBeenCalledTimes(2);
     });
-    await saveProfile(baseValues, deps.context, deps.adapters);
-
-    // Let background IIFE task execute
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
-      expect.objectContaining({
-        flow: 'profile_update',
-        step: 'background_reconcile',
-        message: 'Error: Polling failed',
-      })
-    );
   });
 
-  // ── Fault Tolerance for non-blocking secondary operations ──────────────────
+  it('clears optimistic job_title, company, about, and personal_statement when explicitly cleared in dirtyFields instead of leaking stale currentDto values', async () => {
+    const currentDto = makeSyncedDtoFromValues({
+      user_id: 1,
+      job_title: 'Legacy Title',
+      company: 'Legacy Corp',
+      about: 'Legacy about',
+      personal_statement: 'Legacy statement',
+    });
 
-  it('revalidateProfilePath throws → does not block saveProfile main flow or navigation', async () => {
-    const navigate = vi.fn();
-    const revalidateProfilePath = vi
-      .fn()
-      .mockResolvedValue(undefined)
-      .mockRejectedValueOnce(new Error('Revalidate failed'));
-    const deps = makeDeps({ navigate, revalidateProfilePath });
+    let resolveFetch: (dto: MentorProfileVO | null) => void = () => {};
+    const { port, spies } = createInMemoryProfileSavePort({
+      fetchProfile: vi.fn<FetchProfileFn>(
+        () =>
+          new Promise<MentorProfileVO | null>((resolve) => {
+            resolveFetch = resolve;
+          })
+      ),
+    });
 
-    await expect(
-      saveProfile(baseValues, deps.context, deps.adapters)
-    ).resolves.not.toThrow();
-
-    expect(navigate).toHaveBeenCalledWith('/profile/test-user-id');
-
-    await Promise.resolve();
-    await Promise.resolve();
-  });
-
-  it('updateSession throws → does not block saveProfile main flow or navigation', async () => {
-    const navigate = vi.fn();
-    const updateSession = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('Update session failed'));
-    const deps = makeDeps({ navigate, updateSession });
-
-    await expect(
-      saveProfile(baseValues, deps.context, deps.adapters)
-    ).resolves.not.toThrow();
-
-    expect(navigate).toHaveBeenCalledWith('/profile/test-user-id');
-
-    await Promise.resolve();
-    await Promise.resolve();
-  });
-
-  // ── Session User ID vs Page User ID Fallback ──────────────────────────────
-
-  it('saveProfile passes sessionUserId to firstSyncedFetch and pollUntilSynced', async () => {
-    mockFirstSyncedFetch.mockResolvedValueOnce(null);
-    mockPollUntilSynced.mockResolvedValueOnce(mockUserDTO);
-
-    const deps = makeDeps({
-      session: {
-        user: {
-          id: '88',
-          name: 'Sync Test User',
-          email: 'test@example.com',
-          image: '',
+    const optimisticDto = await saveProfile(
+      {
+        ...baseValues,
+        work_experiences: [],
+        about: '',
+        statement: '',
+      },
+      makeContext({
+        currentDto,
+        dirtyFields: {
+          work_experiences: true,
+          about: true,
+          statement: true,
         },
-        expires: '',
-      },
-    });
+      }),
+      port
+    );
 
-    await saveProfile(baseValues, deps.context, deps.adapters);
+    expect(optimisticDto.job_title).toBeNull();
+    expect(optimisticDto.company).toBeNull();
+    expect(optimisticDto.about).toBeNull();
+    expect(optimisticDto.personal_statement).toBeNull();
+
+    resolveFetch(
+      makeSyncedDtoFromValues({
+        job_title: '',
+        company: '',
+        about: '',
+        personal_statement: '',
+      })
+    );
 
     await vi.waitFor(() => {
-      expect(mockFirstSyncedFetch).toHaveBeenCalledWith(
-        88,
-        expect.any(Object),
-        expect.any(String)
-      );
-      expect(mockPollUntilSynced).toHaveBeenCalledWith(
-        88,
-        expect.any(Object),
-        expect.any(String)
+      expect(spies.revalidateProfilePath).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('omits experiences from writeProfile when only name is dirty, and skips writeProfile when dirtyFields is empty (unless isMentorOnboarding)', async () => {
+    const { port, spies } = createInMemoryProfileSavePort();
+
+    await saveProfile(
+      baseValues,
+      makeContext({ dirtyFields: { name: true } }),
+      port
+    );
+    expect(spies.writeProfile).toHaveBeenCalledTimes(1);
+    expect(spies.writeProfile.mock.calls[0]?.[1]?.experiences).toBeUndefined();
+
+    spies.writeProfile.mockClear();
+    await saveProfile(baseValues, makeContext({ dirtyFields: {} }), port);
+    expect(spies.writeProfile).not.toHaveBeenCalled();
+
+    await saveProfile(
+      baseValues,
+      makeContext({ isMentorOnboarding: true, dirtyFields: {} }),
+      port
+    );
+    expect(spies.writeProfile).toHaveBeenCalledTimes(1);
+
+    await vi.waitFor(() => {
+      expect(spies.revalidateProfilePath).toHaveBeenCalledTimes(6);
+    });
+  });
+
+  // ── mentorPoolReadModel invalidation & haveSkill convergence ───────────────
+
+  it('synchronously clears seeded mentorPoolReadModel unfiltered and filtered queries on save', async () => {
+    const filteredQuery: MentorPoolQuery = {
+      filter_skills: 'typescript',
+      sort_by: 'recent',
+    };
+
+    mentorPoolReadModel.set(
+      UNFILTERED_MENTOR_POOL_QUERY,
+      mentorPoolReadModel.buildInitialUnfilteredState({
+        initialMentors: [makeSyncedMentorCard()],
+        initialNextCursor: 'cursor:1',
+        initialMentorCount: 12,
+      })
+    );
+    mentorPoolReadModel.set(filteredQuery, {
+      ...EMPTY_MENTOR_POOL_STATE,
+      mentors: [makeSyncedMentorCard()],
+      hasMore: false,
+      mentorCount: 1,
+    });
+
+    expect(mentorPoolReadModel.get(UNFILTERED_MENTOR_POOL_QUERY)).toBeDefined();
+    expect(mentorPoolReadModel.get(filteredQuery)).toBeDefined();
+
+    const { port, spies } = createInMemoryProfileSavePort();
+    await saveProfile(baseValues, makeContext(), port);
+
+    expect(
+      mentorPoolReadModel.get(UNFILTERED_MENTOR_POOL_QUERY)
+    ).toBeUndefined();
+    expect(mentorPoolReadModel.get(filteredQuery)).toBeUndefined();
+
+    await vi.waitFor(() => {
+      expect(spies.revalidateProfilePath).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('polls searchMentors until have_skill catches up, then re-clears mentorPoolReadModel and revalidates path', async () => {
+    const editedValues = {
+      ...baseValues,
+      have_topic: ['career'],
+      have_skill: ['react_nextjs', 'system_design'],
+    };
+
+    const staleCard = makeSyncedMentorCard({
+      have_topic: ['career'],
+      have_skill: ['react_nextjs'],
+    });
+    const syncedCard = makeSyncedMentorCard({
+      have_topic: ['career'],
+      have_skill: ['system_design', 'react_nextjs'],
+    });
+
+    const searchMentors = vi
+      .fn<SearchMentorsPortFn>()
+      .mockImplementationOnce(async () => {
+        mentorPoolReadModel.set(
+          UNFILTERED_MENTOR_POOL_QUERY,
+          mentorPoolReadModel.buildInitialUnfilteredState({
+            initialMentors: [staleCard],
+            initialNextCursor: null,
+            initialMentorCount: 1,
+          })
+        );
+        return [staleCard];
+      })
+      .mockResolvedValueOnce([syncedCard]);
+
+    const { port, spies } = createInMemoryProfileSavePort({
+      fetchProfile: vi.fn<FetchProfileFn>(async () =>
+        makeSyncedDtoFromValues({
+          have_topic: ['career'],
+          have_skill: ['react_nextjs', 'system_design'],
+        })
+      ),
+      searchMentors,
+    });
+
+    await saveProfile(editedValues, makeContext(), port);
+
+    await vi.waitFor(() => {
+      expect(searchMentors).toHaveBeenCalledTimes(2);
+      expect(spies.revalidateProfilePath).toHaveBeenCalledTimes(2);
+    });
+    expect(
+      mentorPoolReadModel.get(UNFILTERED_MENTOR_POOL_QUERY)
+    ).toBeUndefined();
+    expect(mockCaptureFlowFailure).not.toHaveBeenCalled();
+  });
+
+  it('skips searchMentors polling and second revalidation for mentee saves when backend confirms non-mentor', async () => {
+    const menteeSession: Session = {
+      ...mockSession,
+      user: { ...mockSession.user!, isMentor: false, onBoarding: true },
+    };
+
+    const { port, spies } = createInMemoryProfileSavePort({
+      fetchProfile: vi.fn<FetchProfileFn>(async () =>
+        makeSyncedDtoFromValues({
+          is_mentor: false,
+          onboarding: true,
+        })
+      ),
+    });
+
+    await saveProfile(
+      baseValues,
+      makeContext({ session: menteeSession, isMentorOnboarding: false }),
+      port
+    );
+
+    await vi.waitFor(() => {
+      expect(spies.fetchProfile).toHaveBeenCalledTimes(1);
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(spies.searchMentors).not.toHaveBeenCalled();
+    expect(spies.revalidateProfilePath).toHaveBeenCalledTimes(1);
+  });
+
+  // ── Navigation order, DTO cache fallback & Session reconciliation ──────────
+
+  it('completes revalidateProfilePath and optimistic updateSession before navigate, and navigates to /profile/card on mentor onboarding', async () => {
+    const { port, spies } = createInMemoryProfileSavePort();
+
+    await saveProfile(
+      baseValues,
+      makeContext({ pageUserId: '42', isMentorOnboarding: false }),
+      port
+    );
+
+    expect(spies.navigate).toHaveBeenCalledWith('/profile/42');
+    expect(
+      spies.revalidateProfilePath.mock.invocationCallOrder[0]
+    ).toBeLessThan(spies.navigate.mock.invocationCallOrder[0]);
+    expect(spies.updateSession.mock.invocationCallOrder[0]).toBeLessThan(
+      spies.navigate.mock.invocationCallOrder[0]
+    );
+
+    const onboardingPort = createInMemoryProfileSavePort();
+    await saveProfile(
+      baseValues,
+      makeContext({ pageUserId: '42', isMentorOnboarding: true }),
+      onboardingPort.port
+    );
+    expect(onboardingPort.spies.navigate).toHaveBeenCalledWith('/profile/card');
+
+    await vi.waitFor(() => {
+      expect(spies.revalidateProfilePath).toHaveBeenCalledTimes(2);
+      expect(onboardingPort.spies.revalidateProfilePath).toHaveBeenCalledTimes(
+        2
       );
     });
   });
 
-  it('saveProfile falls back to pageUserId as number when sessionUserId is not available', async () => {
-    mockFirstSyncedFetch.mockResolvedValueOnce(null);
-    mockPollUntilSynced.mockResolvedValueOnce(mockUserDTO);
+  it('falls back from stale fast fetch to convergence polling, primes backend truth once synced, and reconciles session when role differs', async () => {
+    primeUserProfileDtoCache(
+      1,
+      'zh_TW',
+      fromPartial<MentorProfileVO>({ user_id: 1, name: 'Pre-Edit Cached' })
+    );
 
-    const deps = makeDeps({
-      session: null, // sessionUserId is null
-      pageUserId: '99', // fallback should be 99
+    const staleBackendDto = makeSyncedDtoFromValues({
+      name: 'Old Backend Name',
+    });
+    const convergedDisagreeingDto = makeSyncedDtoFromValues({
+      is_mentor: false,
+      onboarding: true,
     });
 
-    await saveProfile(baseValues, deps.context, deps.adapters);
+    const fetchProfile = vi
+      .fn<FetchProfileFn>()
+      .mockResolvedValueOnce(staleBackendDto)
+      .mockResolvedValueOnce(staleBackendDto)
+      .mockResolvedValueOnce(convergedDisagreeingDto);
+
+    const { port, spies } = createInMemoryProfileSavePort({ fetchProfile });
+
+    await saveProfile(baseValues, makeContext(), port);
 
     await vi.waitFor(() => {
-      expect(mockFirstSyncedFetch).not.toHaveBeenCalled();
-      expect(mockPollUntilSynced).toHaveBeenCalledWith(
-        99,
-        expect.any(Object),
-        expect.any(String)
+      expect(spies.updateSession).toHaveBeenCalledTimes(2);
+      expect(spies.revalidateProfilePath).toHaveBeenCalledTimes(2);
+    });
+
+    expect(getUserProfileDtoFromCache(1, 'zh_TW')).toBe(
+      convergedDisagreeingDto
+    );
+    expect(spies.updateSession.mock.calls[1]?.[0]).toMatchObject({
+      user: {
+        isMentor: false,
+        onBoarding: true,
+      },
+    });
+  });
+
+  it('tolerates revalidateProfilePath and updateSession failures without blocking navigation, and logs post_sync_revalidate warnings', async () => {
+    const revalidateProfilePath = vi
+      .fn<RevalidateProfilePathFn>()
+      .mockRejectedValueOnce(new Error('Immediate revalidate failed'))
+      .mockRejectedValueOnce(new Error('Post-sync revalidate failed'));
+
+    const updateSession = vi
+      .fn<UpdateSessionFn>()
+      .mockRejectedValueOnce(new Error('Session update failed'));
+
+    const { port, spies } = createInMemoryProfileSavePort({
+      revalidateProfilePath,
+      updateSession,
+    });
+
+    await expect(
+      saveProfile(baseValues, makeContext({ pageUserId: '7' }), port)
+    ).resolves.toBeDefined();
+
+    expect(spies.navigate).toHaveBeenCalledWith('/profile/7');
+
+    await vi.waitFor(() => {
+      expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          flow: 'profile_update',
+          step: 'post_sync_revalidate',
+          message: 'Post-sync revalidate failed',
+          level: 'warning',
+        })
       );
     });
+  });
+
+  it('falls back to numeric pageUserId when session is null', async () => {
+    const fetchProfile = vi.fn<FetchProfileFn>(async (userId) =>
+      makeSyncedDtoFromValues({ user_id: userId })
+    );
+    const searchMentors = vi.fn<SearchMentorsPortFn>(async () => [
+      makeSyncedMentorCard({ user_id: 99 }),
+    ]);
+    const { port, spies } = createInMemoryProfileSavePort({
+      fetchProfile,
+      searchMentors,
+    });
+
+    await saveProfile(
+      baseValues,
+      makeContext({ session: null, pageUserId: '99' }),
+      port
+    );
+
+    await vi.waitFor(() => {
+      expect(spies.fetchProfile).toHaveBeenCalledWith(99);
+      expect(spies.revalidateProfilePath).toHaveBeenCalledTimes(2);
+    });
+    expect(getUserProfileDtoFromCache(99, 'zh_TW')?.user_id).toBe(99);
+  });
+
+  it('clears avatar, location, and years_of_experience optimistically and guards against stale SWR DTOs when dirtyFields mark them cleared (#905)', async () => {
+    const staleDtoWithOldAvatar = makeSyncedDtoFromValues({
+      avatar: 'https://example.com/old-avatar.png',
+      location: 'TWN',
+      years_of_experience: '3_5',
+    });
+    const convergedClearedDto = makeSyncedDtoFromValues({
+      avatar: null,
+      location: null,
+      years_of_experience: null,
+    });
+
+    const fetchProfile = vi
+      .fn<FetchProfileFn>()
+      .mockResolvedValueOnce(staleDtoWithOldAvatar)
+      .mockResolvedValueOnce(convergedClearedDto);
+
+    const { port, spies } = createInMemoryProfileSavePort({ fetchProfile });
+
+    const result = await commitProfileMutation(
+      {
+        mode: 'edit',
+        values: {
+          ...baseValues,
+          avatar: '',
+          avatarFile: undefined,
+          location: '',
+          years_of_experience: '',
+        },
+        dirtyFields: {
+          avatar: true,
+          location: true,
+          years_of_experience: true,
+        },
+        currentDto: staleDtoWithOldAvatar,
+      },
+      makeCommitContext({
+        session: {
+          ...mockSession,
+          user: {
+            ...mockSession.user!,
+            avatar: 'https://example.com/old-avatar.png',
+          },
+        },
+      }),
+      port
+    );
+
+    expect(result.avatar).toBeNull();
+    expect(result.location).toBeNull();
+    expect(result.years_of_experience).toBeNull();
+    expect(spies.updateSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user: expect.objectContaining({
+          avatar: null,
+          avatarUpdatedAt: expect.any(Number),
+        }),
+      })
+    );
+
+    await vi.waitFor(() => {
+      expect(fetchProfile).toHaveBeenCalledTimes(2);
+    });
+    expect(getUserProfileDtoFromCache(1, 'zh_TW')?.avatar).toBeNull();
+  });
+
+  it('propagates non-default language (en_US) into background fetchProfile and userProfileDtoCache during mentee-onboarding (#905)', async () => {
+    const enDto = makeSyncedDtoFromValues({
+      name: 'Ada English',
+      is_mentor: false,
+      onboarding: true,
+      language: 'en_US',
+    });
+    const fetchProfile = vi.fn<FetchProfileFn>().mockResolvedValueOnce(enDto);
+    const { port } = createInMemoryProfileSavePort({ fetchProfile });
+
+    await commitProfileMutation(
+      {
+        mode: 'mentee-onboarding',
+        values: {
+          name: 'Ada English',
+          avatar: '',
+          avatarFile: undefined,
+          language: 'en_US',
+          location: 'Taiwan',
+          years_of_experience: '1_3',
+          industry: '',
+          want_position: ['engineer'],
+          want_skill: ['TypeScript'],
+          want_topic: ['frontend'],
+        },
+      },
+      makeCommitContext(),
+      port
+    );
+
+    await vi.waitFor(() => {
+      expect(fetchProfile).toHaveBeenCalledWith(1, 'en_US');
+    });
+    expect(getUserProfileDtoFromCache(1, 'en_US')?.name).toBe('Ada English');
   });
 });

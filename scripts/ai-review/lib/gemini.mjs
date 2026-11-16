@@ -1,7 +1,21 @@
-const DEFAULT_MODEL = 'gemini-4-argon';
+const DEFAULT_MODEL = 'gemini-4-carbon';
+const DEFAULT_FALLBACK_MODEL = 'gemini-2.5-flash';
 const DEFAULT_MAX_OUTPUT_TOKENS = 16384;
-const MAX_ATTEMPTS = 3;
-const RETRY_DELAY_MS = 1500;
+const MAX_EXPANDED_OUTPUT_TOKENS = 65536;
+const DEFAULT_REQUEST_TIMEOUT_MS = 90000;
+export const MAX_ATTEMPTS = 5;
+const BASE_RETRY_DELAY_MS = 2000;
+const MAX_RETRY_DELAY_MS = 25000;
+const RETRY_JITTER_MS = 1500;
+
+export function computeRetryDelayMs(attempt, randomFn = Math.random) {
+  const expDelay = Math.min(
+    MAX_RETRY_DELAY_MS,
+    BASE_RETRY_DELAY_MS * 2 ** Math.max(0, attempt - 1)
+  );
+  const jitter = Math.floor(Math.max(0, randomFn()) * RETRY_JITTER_MS);
+  return expDelay + jitter;
+}
 
 /**
  * Scans from the first `{` and returns the substring up to its matching
@@ -51,17 +65,49 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function callGeminiOnce(promptText, { model, maxOutputTokens, apiKey }) {
-  const res = await fetch(
+export function buildGeminiParts(promptText, images = []) {
+  const parts = [{ text: promptText }];
+  if (Array.isArray(images)) {
+    for (const img of images) {
+      if (img?.mimeType && img?.base64Data) {
+        if (img.label) {
+          parts.push({ text: `[視覺附件：${img.label}]` });
+        }
+        parts.push({
+          inlineData: {
+            mimeType: img.mimeType,
+            data: img.base64Data,
+          },
+        });
+      }
+    }
+  }
+  return parts;
+}
+
+async function callGeminiOnce(
+  promptText,
+  {
+    model,
+    maxOutputTokens,
+    apiKey,
+    images = [],
+    timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+    fetchImpl = fetch,
+  }
+) {
+  const parts = buildGeminiParts(promptText, images);
+  const res = await fetchImpl(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
       method: 'POST',
+      signal: AbortSignal.timeout(timeoutMs),
       headers: {
         'Content-Type': 'application/json',
         'x-goog-api-key': apiKey,
       },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: promptText }] }],
+        contents: [{ parts }],
         generationConfig: {
           responseMimeType: 'application/json',
           maxOutputTokens,
@@ -87,21 +133,21 @@ async function callGeminiOnce(promptText, { model, maxOutputTokens, apiKey }) {
     .map((p) => p.text ?? '')
     .join('');
 
+  if (candidate?.finishReason === 'MAX_TOKENS') {
+    const err = new Error(
+      `Gemini response was truncated (finishReason: MAX_TOKENS, maxOutputTokens: ${maxOutputTokens}). ` +
+        'Set GEMINI_MAX_OUTPUT_TOKENS higher or shorten the prompt/diff.'
+    );
+    err.maxTokensTruncated = true;
+    err.retryable = maxOutputTokens < MAX_EXPANDED_OUTPUT_TOKENS;
+    throw err;
+  }
+
   if (!text) {
     const err = new Error(
       `Gemini API returned no content (finishReason: ${candidate?.finishReason ?? 'unknown'})`
     );
     err.retryable = true;
-    throw err;
-  }
-
-  if (candidate.finishReason === 'MAX_TOKENS') {
-    const err = new Error(
-      `Gemini response was truncated (finishReason: MAX_TOKENS, maxOutputTokens: ${maxOutputTokens}). ` +
-        'Set GEMINI_MAX_OUTPUT_TOKENS higher or shorten the prompt/diff.'
-    );
-    // Retrying won't help — the same prompt will hit the same cap again.
-    err.retryable = false;
     throw err;
   }
 
@@ -137,36 +183,91 @@ async function callGeminiOnce(promptText, { model, maxOutputTokens, apiKey }) {
  * since these have empirically been "fails once, succeeds on the next
  * identical call" — not worth failing an entire pipeline run over.
  */
-export async function callGemini(promptText) {
-  const apiKey = process.env.GEMINI_API_KEY;
+export async function callGemini(promptText, options = {}) {
+  const apiKey = options.apiKey || process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY is not set');
   }
-  const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
+  const model = options.model || process.env.GEMINI_MODEL || DEFAULT_MODEL;
   const maxOutputTokens =
-    Number(process.env.GEMINI_MAX_OUTPUT_TOKENS) || DEFAULT_MAX_OUTPUT_TOKENS;
+    Number(options.maxOutputTokens || process.env.GEMINI_MAX_OUTPUT_TOKENS) ||
+    DEFAULT_MAX_OUTPUT_TOKENS;
+  const timeoutMs =
+    Number(options.timeoutMs || process.env.GEMINI_REQUEST_TIMEOUT_MS) ||
+    DEFAULT_REQUEST_TIMEOUT_MS;
+  const images = Array.isArray(options.images) ? options.images : [];
+  const sleepFn =
+    typeof options.sleepFn === 'function' ? options.sleepFn : sleep;
+  const fetchImpl =
+    typeof options.fetchImpl === 'function' ? options.fetchImpl : fetch;
 
+  let effectiveTokens = maxOutputTokens;
   let lastErr;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
       return await callGeminiOnce(promptText, {
         model,
-        maxOutputTokens,
+        maxOutputTokens: effectiveTokens,
         apiKey,
+        images,
+        timeoutMs,
+        fetchImpl,
       });
     } catch (err) {
       lastErr = err;
+      if (
+        err.maxTokensTruncated &&
+        effectiveTokens < MAX_EXPANDED_OUTPUT_TOKENS
+      ) {
+        effectiveTokens = Math.min(
+          MAX_EXPANDED_OUTPUT_TOKENS,
+          Math.max(32768, effectiveTokens * 2)
+        );
+      }
       // A raw fetch/network failure (DNS, connection reset) throws a plain
       // TypeError with no `retryable` flag at all — treat "not explicitly
       // false" as retryable so those transient errors aren't mistaken for
       // the deliberately-non-retryable ones (e.g. MAX_TOKENS) above.
       const canRetry = err.retryable !== false && attempt < MAX_ATTEMPTS;
       console.warn(
-        `[gemini] attempt ${attempt}/${MAX_ATTEMPTS} failed: ${err.message}${canRetry ? ' — retrying' : ''}`
+        `[gemini] attempt ${attempt}/${MAX_ATTEMPTS} (${model}) failed: ${err.message}${canRetry ? ' — retrying' : ''}`
       );
       if (!canRetry) break;
-      await sleep(RETRY_DELAY_MS * attempt);
+      await sleepFn(computeRetryDelayMs(attempt));
     }
   }
+
+  const fallbackModel =
+    options.fallbackModel === null
+      ? null
+      : options.fallbackModel ||
+        process.env.GEMINI_FALLBACK_MODEL ||
+        DEFAULT_FALLBACK_MODEL;
+
+  if (
+    lastErr &&
+    lastErr.retryable !== false &&
+    fallbackModel &&
+    fallbackModel !== model
+  ) {
+    console.warn(
+      `[gemini] primary model ${model} exhausted ${MAX_ATTEMPTS} attempts; falling back to ${fallbackModel}`
+    );
+    try {
+      return await callGeminiOnce(promptText, {
+        model: fallbackModel,
+        maxOutputTokens: effectiveTokens,
+        apiKey,
+        images,
+        timeoutMs,
+        fetchImpl,
+      });
+    } catch (fallbackErr) {
+      console.warn(
+        `[gemini] fallback model ${fallbackModel} also failed: ${fallbackErr.message}`
+      );
+    }
+  }
+
   throw lastErr;
 }

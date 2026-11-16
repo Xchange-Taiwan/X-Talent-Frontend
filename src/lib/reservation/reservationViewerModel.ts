@@ -1,3 +1,4 @@
+import { resolveCancelledByLabel } from '@/lib/reservation/reservationLifecyclePolicy';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import type { Reservation } from '@/types/reservation';
 
@@ -8,12 +9,6 @@ import type { Reservation } from '@/types/reservation';
  * `Reservation.viewerRole` / `Reservation.cancelledBy`).
  */
 type ReservationViewerRole = 'mentor' | 'mentee';
-
-const CANCELLED_BY_LABEL: Record<'MENTEE' | 'MENTOR' | 'SYSTEM', string> = {
-  MENTOR: '已由導師取消',
-  MENTEE: '已由學員取消',
-  SYSTEM: '已自動取消',
-};
 
 export interface ReservationViewerModel {
   /**
@@ -97,9 +92,7 @@ export function resolveReservationViewer({
     ? resolveProfileHref(reservation, myUserId)
     : undefined;
 
-  const cancelledByLabel = reservation?.cancelledBy
-    ? CANCELLED_BY_LABEL[reservation.cancelledBy]
-    : undefined;
+  const cancelledByLabel = resolveCancelledByLabel(reservation?.cancelledBy);
 
   return {
     viewerRole,

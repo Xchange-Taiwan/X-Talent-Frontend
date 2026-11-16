@@ -1,17 +1,63 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
+import type { Session } from 'next-auth';
 import React from 'react';
 
-import { authenticatedIdentity } from '@/test/mocks/identity';
+import { useHeaderNavigation } from '@/hooks/layout/useHeaderNavigation';
+import type { ResolvedIdentity } from '@/lib/auth/sessionHint';
+import {
+  authenticatedIdentity,
+  buildResolvedIdentity,
+} from '@/test/mocks/identity';
 
 import { MobileUserMenu } from './MobileUserMenu';
+import { ShareProfileDialog } from './ShareProfileDialog';
 
-const meta: Meta<typeof MobileUserMenu> = {
+type MobileUserMenuStoryArgs = {
+  identity: ResolvedIdentity;
+  user?: Session['user'];
+  showFavorites?: boolean;
+};
+
+function MobileUserMenuStoryHarness({
+  identity,
+  user,
+  showFavorites,
+}: MobileUserMenuStoryArgs): JSX.Element {
+  const navigation = useHeaderNavigation({ identity, user, showFavorites });
+  return (
+    <>
+      <MobileUserMenu
+        profileHeader={navigation.profileHeader}
+        menu={navigation.mobileAccountMenu}
+      />
+      <ShareProfileDialog
+        open={navigation.activeDialog === 'share-profile'}
+        onOpenChange={(open) =>
+          navigation.setActiveDialog(open ? 'share-profile' : null)
+        }
+        name={navigation.profileHeader.displayName}
+        avatarSrc={navigation.profileHeader.avatarSrc}
+        subtitle={navigation.profileHeader.subtitle}
+        profilePath={navigation.profileHeader.href}
+        personalLinks={navigation.profileHeader.personalLinks}
+      />
+    </>
+  );
+}
+
+const meta: Meta<typeof MobileUserMenuStoryHarness> = {
   title: '佈局元件/Header/MobileUserMenu',
-  component: MobileUserMenu,
+  component: MobileUserMenuStoryHarness,
   tags: ['autodocs'],
   parameters: {
     nextjs: {
       appDirectory: true,
+    },
+    docs: {
+      description: {
+        component:
+          '行動版已登入會員側欄選單，由 `useHeaderNavigation` 驅動語意化 `<Link href>` / `<a href>` 導覽項目、`aria-current="page"`、外部連結 `aria-label` 與 `hint-only` 禁用防護。',
+      },
     },
   },
   decorators: [
@@ -24,9 +70,9 @@ const meta: Meta<typeof MobileUserMenu> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof MobileUserMenu>;
+type Story = StoryObj<typeof MobileUserMenuStoryHarness>;
 
-const mockMentorUser = {
+const mockMentorUser: Session['user'] = {
   id: 'mentor-123',
   email: 'mentor@xchange.tw',
   name: '陳導師 (Mentor)',
@@ -42,7 +88,7 @@ const mockMentorUser = {
   ],
 };
 
-const mockMenteeUser = {
+const mockMenteeUser: Session['user'] = {
   id: 'mentee-456',
   email: 'mentee@xchange.tw',
   name: '林學員 (Mentee)',
@@ -58,7 +104,14 @@ const mockMenteeUser = {
 // 1. Mentor Session
 export const MentorSession: Story = {
   args: {
-    identity: authenticatedIdentity('mentor-123', { isMentor: true }),
+    identity: authenticatedIdentity('mentor-123', {
+      isMentor: true,
+      name: mockMentorUser.name,
+      avatar: mockMentorUser.avatar,
+      jobTitle: mockMentorUser.jobTitle,
+      company: mockMentorUser.company,
+      personalLinks: mockMentorUser.personalLinks,
+    }),
     user: mockMentorUser,
   },
 };
@@ -66,7 +119,13 @@ export const MentorSession: Story = {
 // 2. Mentee Session
 export const MenteeSession: Story = {
   args: {
-    identity: authenticatedIdentity('mentee-456', { isMentor: false }),
+    identity: authenticatedIdentity('mentee-456', {
+      isMentor: false,
+      name: mockMenteeUser.name,
+      avatar: mockMenteeUser.avatar,
+      jobTitle: mockMenteeUser.jobTitle,
+      company: mockMenteeUser.company,
+    }),
     user: mockMenteeUser,
   },
 };
@@ -83,5 +142,23 @@ export const AnonymousSession: Story = {
       onBoarding: true,
       isMentor: false,
     },
+  },
+};
+
+// 4. Hint-Only Pre-Resolution Disabled Guard
+export const HintOnlyDisabledState: Story = {
+  args: {
+    identity: buildResolvedIdentity({
+      state: 'hint-only',
+      isMentor: false,
+      avatar: mockMenteeUser.avatar,
+    }),
+  },
+};
+
+export const FavoritesFeatureDisabled: Story = {
+  args: {
+    ...MenteeSession.args,
+    showFavorites: false,
   },
 };

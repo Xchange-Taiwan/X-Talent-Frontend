@@ -9,6 +9,8 @@ interface JoinMeetButtonProps {
   disabled?: boolean;
   size?: ButtonProps['size'];
   className?: string;
+  sourceRole?: 'mentor' | 'mentee';
+  analyticsLocation?: string;
 }
 
 /**
@@ -27,6 +29,8 @@ export function JoinMeetButton({
   disabled = false,
   size,
   className,
+  sourceRole,
+  analyticsLocation = 'reservation_card',
 }: JoinMeetButtonProps) {
   return (
     <Button
@@ -34,6 +38,13 @@ export function JoinMeetButton({
       disabled={isPending || disabled}
       size={size}
       aria-label="加入 Google Meet"
+      data-analytics-click="reservation_join_meet"
+      data-analytics-event="reservation_join_meet_click"
+      data-analytics-feature="reservation"
+      data-analytics-location={analyticsLocation}
+      {...(sourceRole
+        ? { 'data-analytics-param-source-role': sourceRole }
+        : {})}
       className={cn(className)}
     >
       {isPending ? (

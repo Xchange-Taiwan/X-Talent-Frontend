@@ -1,7 +1,7 @@
 import { expect, Page, test } from '@playwright/test';
 
 import { mockApiRoute } from '../../helpers/route';
-import { setSignedSessionCookie } from '../../helpers/session';
+import { seedMockAuthSession } from '../../helpers/session';
 
 // ─── Mock payloads ───────────────────────────────────────────────────────────
 
@@ -72,53 +72,13 @@ const MOCK_USER_PROFILE = {
   },
 };
 
-const MOCK_CLIENT_SESSION = {
-  user: {
-    id: '1',
-    name: 'Test User',
-    onBoarding: false,
-    isMentor: false,
-    jobTitle: '',
-    company: '',
-    personalLinks: [],
-  },
-  accessToken: 'mock-token',
-  expires: '2099-01-01T00:00:00.000Z',
-};
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-// middleware.ts verifies the session cookie via next-auth's getToken() (see
-// PR #263) — a raw/garbage cookie no longer passes and gets redirected to
-// /auth/signin, since /auth/onboarding is not in publicRoutes. Forge a
-// properly signed cookie instead so middleware's isLoggedIn check succeeds.
-async function setFakeSessionCookie(page: Page): Promise<void> {
-  await setSignedSessionCookie(page, {
-    id: '1',
-    name: 'Test User',
-    onBoarding: false,
-    isMentor: false,
-    token: 'mock-access-token',
-  });
-}
-
 /**
- * Mock the client-side session endpoint and the five option-list APIs so
- * dropdowns and checkbox lists are populated without a real backend.
+ * Mock the five option-list APIs so dropdowns and checkbox lists are populated
+ * without a real backend.
  */
 async function setupPageMocks(page: Page): Promise<void> {
-  // useSession() polls GET /api/auth/session — return the client-side view
-  await page.route(/\/api\/auth\/session/, (route) => {
-    if (route.request().method() === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(MOCK_CLIENT_SESSION),
-      });
-    }
-    return route.continue();
-  });
-
   await mockApiRoute(page, /\/v1\/users\/zh_TW\/countries/, {
     body: MOCK_COUNTRIES,
   });
@@ -155,11 +115,16 @@ async function setupPageMocks(page: Page): Promise<void> {
 }
 
 /**
- * Set up the forged session cookie + page mocks, then navigate to
- * `/auth/onboarding`. Combines `setOnboardingSession` + `setupPageMocks`.
+ * Seed the onboarding session (SSR JWE cookie + stateful CSR /api/auth/session)
+ * and option-list mocks, then navigate to `/auth/onboarding`.
  */
 async function gotoOnboarding(page: Page): Promise<void> {
-  await setFakeSessionCookie(page);
+  await seedMockAuthSession(page, {
+    id: '1',
+    name: 'Test User',
+    onBoarding: false,
+    isMentor: false,
+  });
   await setupPageMocks(page);
   await page.goto('/auth/onboarding');
 }
@@ -200,37 +165,6 @@ test('complete all 5 steps (happy path) → redirects to /profile/card', async (
   // PUT /v1/mentors/:id/profile — updateProfile (no /zh_TW/ segment)
   await mockApiRoute(page, /\/v1\/mentors\/[^/]+\/profile/, {
     body: { code: '0', msg: 'ok', data: null },
-  });
-
-  // Override /api/auth/session for both GET and POST so that:
-  //   GET  → useSession() / getSession() inside updateProfile and fetchUser
-  //          return a valid session (userId present, no real-server decode needed)
-  //   POST → NextAuth's update() call after onboarding; mocking prevents the
-  //          server from trying to decode the fake cookie and clearing it via
-  //          Set-Cookie, which would strip the session cookie and break the
-  //          middleware auth check when router.push('/profile/card') fires.
-  // This handler is registered after setupPageMocks, so it is tried first
-  // (Playwright routes are LIFO) and shadows the GET-only handler above.
-  await page.route(/\/api\/auth\/session/, (route) => {
-    const method = route.request().method();
-    if (method === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(MOCK_CLIENT_SESSION),
-      });
-    }
-    if (method === 'POST') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          ...MOCK_CLIENT_SESSION,
-          user: { ...MOCK_CLIENT_SESSION.user, onBoarding: true },
-        }),
-      });
-    }
-    return route.continue();
   });
 
   // Step 1 — fill name
@@ -301,26 +235,15 @@ test('Step 1 頭像預覽 URL 已含 query string 時以 &cb= 附加快取參數
   const versionedAvatarUrl =
     'https://x-career-multimedia.s3.ap-northeast-1.amazonaws.com/avatars/1/cropped-avatar.png?v=1700000000';
 
-  await setFakeSessionCookie(page);
-  await setupPageMocks(page);
-
-  await page.route(/\/api\/auth\/session/, (route) => {
-    if (route.request().method() === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          ...MOCK_CLIENT_SESSION,
-          user: {
-            ...MOCK_CLIENT_SESSION.user,
-            avatar: versionedAvatarUrl,
-            avatarUpdatedAt: 1700000456,
-          },
-        }),
-      });
-    }
-    return route.continue();
+  await seedMockAuthSession(page, {
+    id: '1',
+    name: 'Test User',
+    onBoarding: false,
+    isMentor: false,
+    avatar: versionedAvatarUrl,
+    avatarUpdatedAt: 1700000456,
   });
+  await setupPageMocks(page);
 
   await page.goto('/auth/onboarding');
 

@@ -1,16 +1,24 @@
-import avatarImage from '@/assets/default-avatar.png';
+import { resolveMentorAvatar } from '@/lib/mentor/mentorCardModel';
+import { normalizeMentorStats } from '@/lib/mentor/mentorStats';
 import type {
   MentorListWireResponse,
   MentorPage,
+  MentorStats,
   MentorType,
   RawMentor,
+  RawMentorStats,
 } from '@/types/mentor';
 
-export type { MentorListWireResponse, RawMentor };
+export { resolveMentorAvatar };
+export type { MentorListWireResponse, MentorStats, RawMentor, RawMentorStats };
 
 function readCodes(codes: ReadonlyArray<string> | null | undefined): string[] {
   if (!codes) return [];
   return codes.filter((c): c is string => Boolean(c));
+}
+
+export function mapMentorStats(raw: RawMentor): MentorStats | null {
+  return normalizeMentorStats(raw);
 }
 
 export function mapMentor(raw: RawMentor): MentorType {
@@ -43,25 +51,10 @@ export function mapMentor(raw: RawMentor): MentorType {
     have_skill: readCodes(raw.have_skill),
     have_topic: readCodes(raw.have_topic),
     updated_at: updatedAt,
+    stats: mapMentorStats(raw),
   };
 
   return resolveMentorAvatar(mapped);
-}
-
-// Cache-busts the avatar URL by updated_at so a re-uploaded photo isn't
-// served stale; shared by SSR and client fetches so both render identically.
-export function resolveMentorAvatar(mentor: MentorType): MentorType {
-  return {
-    ...mentor,
-    avatar:
-      typeof mentor.avatar === 'string' && mentor.avatar
-        ? `${mentor.avatar}${
-            mentor.updated_at
-              ? `?cb=${encodeURIComponent(mentor.updated_at)}`
-              : ''
-          }`
-        : avatarImage,
-  };
 }
 
 export function mapMentorPage(

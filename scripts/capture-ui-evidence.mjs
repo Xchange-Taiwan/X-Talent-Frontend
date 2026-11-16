@@ -1,12 +1,16 @@
 import fs from 'fs';
 import path from 'path';
+import { pathToFileURL } from 'url';
 import { chromium } from '@playwright/test';
 import { config } from 'dotenv';
 
-config({ path: path.resolve('.env.development.local') });
+import { realSignIn } from '../e2e/helpers/real-signin.mjs';
+import { assertNoDialogClipping, waitForUiSettled } from './ui-settle.mjs';
 
-const VIEWPORTS = {
-  desktop: { width: 1280, height: 800 },
+config({ path: path.resolve('.env.development.local'), quiet: true });
+
+export const VIEWPORTS = {
+  desktop: { width: 1280, height: 720 },
   mobile: { width: 375, height: 812 },
 };
 
@@ -30,15 +34,23 @@ const FLAGS_WITH_VALUE = [
   '--viewport',
   '--out',
   '--base-url',
+  '--click',
+  '--wait-for',
+  '--label',
 ];
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const parsed = {
     routes: [],
     role: 'visitor',
     viewport: 'desktop',
     outDir: '.agents/tmp/evidence',
     baseUrl: 'http://localhost:3000',
+    clicks: [],
+    waitFor: '',
+    viewportOnly: false,
+    allowClipping: false,
+    label: '',
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -48,7 +60,10 @@ function parseArgs(argv) {
     }
     switch (flag) {
       case '--routes':
-        parsed.routes = argv[++i].split(',').map((r) => r.trim());
+        parsed.routes = argv[++i]
+          .split(',')
+          .map((r) => r.trim())
+          .filter(Boolean);
         break;
       case '--role':
         parsed.role = argv[++i];
@@ -62,6 +77,21 @@ function parseArgs(argv) {
       case '--base-url':
         parsed.baseUrl = argv[++i];
         break;
+      case '--click':
+        parsed.clicks.push(argv[++i]);
+        break;
+      case '--wait-for':
+        parsed.waitFor = argv[++i];
+        break;
+      case '--label':
+        parsed.label = argv[++i];
+        break;
+      case '--viewport-only':
+        parsed.viewportOnly = true;
+        break;
+      case '--allow-clipping':
+        parsed.allowClipping = true;
+        break;
       default:
         throw new Error(`Unknown argument: ${flag}`);
     }
@@ -69,7 +99,7 @@ function parseArgs(argv) {
 
   if (parsed.routes.length === 0) {
     throw new Error(
-      'Usage: node scripts/capture-ui-evidence.mjs --routes /a,/b --role visitor|mentee|mentor [--viewport desktop|mobile] [--out dir] [--base-url url]'
+      'Usage: node scripts/capture-ui-evidence.mjs --routes /a,/b --role visitor|mentee|mentor [--viewport desktop|mobile] [--click selector] [--wait-for selector] [--viewport-only] [--allow-clipping] [--label name] [--out dir] [--base-url url]'
     );
   }
   if (!VIEWPORTS[parsed.viewport]) {
@@ -86,9 +116,9 @@ function parseArgs(argv) {
   return parsed;
 }
 
-// Deliberately separate from signIn(): a missing env var is a plain config
+// Deliberately separate from realSignIn(): a missing env var is a plain config
 // error containing no secret (only the var *names*), and must reach the
-// user un-redacted. Keeping this check outside signIn()'s try/catch means
+// user un-redacted. Keeping this check outside realSignIn()'s try/catch means
 // it can never get caught up in the credential-redaction path below.
 function resolveCredentials(role) {
   const cred = ROLE_CREDENTIALS[role];
@@ -102,54 +132,83 @@ function resolveCredentials(role) {
   return { email, password };
 }
 
-// Mirrors e2e/fixtures/auth.setup.ts: the auth Lambda can cold-start, so the
-// first sign-in occasionally times out even though it actually completed. Each
-// retry re-navigates to /auth/signin first and treats an immediate redirect
-// away from it as success, so a slow-but-successful prior attempt doesn't get
-// stuck retrying against a page that's no longer showing the form.
-async function signIn(page, email, password) {
-  const MAX_ATTEMPTS = 3;
-  let lastError;
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    try {
-      await page.goto('/auth/signin');
-      if (!page.url().includes('/auth/signin')) return;
-
-      await page.fill('input[name="email"]', email);
-      await page.fill('input[name="password"]', password);
-      await page.click('button[type="submit"]');
-      await page.waitForURL((url) => !url.pathname.includes('/auth/signin'), {
-        timeout: 25_000,
-      });
-      return;
-    } catch (err) {
-      lastError = err;
-    }
-  }
-  throw lastError;
-}
-
-function fileNameFor(role, viewport, route) {
+export function fileNameFor(role, viewport, route, customLabel = '') {
   // Routes can carry a query string (e.g. /profile?tab=settings); `?`, `=`,
   // and friends are illegal in Windows filenames, so collapse anything that
   // isn't alphanumeric/dash/underscore instead of just swapping slashes.
-  const slug =
-    route === '/'
+  const rawSlug = customLabel
+    ? customLabel
+    : route === '/'
       ? 'root'
-      : route.replace(/^\/|\/$/g, '').replace(/[^a-zA-Z0-9-_]+/g, '_');
+      : route.replace(/^\/|\/$/g, '');
+  const slug = rawSlug.replace(/[^a-zA-Z0-9-_]+/g, '_') || 'page';
   return `${role}-${viewport}-${slug}.png`;
 }
 
+export async function captureRouteEvidence(
+  page,
+  {
+    route,
+    role,
+    viewport,
+    outDir,
+    clicks = [],
+    waitFor = '',
+    viewportOnly = false,
+    allowClipping = false,
+    customSlug = '',
+  }
+) {
+  await page.goto(route, { waitUntil: 'domcontentloaded' });
+  await waitForUiSettled(page);
+
+  for (const selector of clicks) {
+    const target = page.locator(selector).first();
+    await target.waitFor({ state: 'visible', timeout: 12_000 });
+    await target.click();
+    await waitForUiSettled(page, { settleDelayMs: 300 });
+  }
+
+  if (waitFor) {
+    await waitForUiSettled(page, {
+      waitForSelector: waitFor,
+      settleDelayMs: 300,
+    });
+  }
+
+  const fileName = fileNameFor(role, viewport, route, customSlug);
+  const filePath = path.join(outDir, fileName);
+
+  await assertNoDialogClipping(page, `capture-ui-evidence:${fileName}`, {
+    allowClipping,
+  });
+
+  const useFullPage = !viewportOnly && clicks.length === 0;
+  await page.screenshot({ path: filePath, fullPage: useFullPage });
+  return filePath;
+}
+
 async function main() {
-  const { routes, role, viewport, outDir, baseUrl } = parseArgs(
-    process.argv.slice(2)
-  );
+  const {
+    routes,
+    role,
+    viewport,
+    outDir,
+    baseUrl,
+    clicks,
+    waitFor,
+    viewportOnly,
+    allowClipping,
+    label,
+  } = parseArgs(process.argv.slice(2));
   fs.mkdirSync(outDir, { recursive: true });
 
   const browser = await chromium.launch();
   const context = await browser.newContext({
     viewport: VIEWPORTS[viewport],
     baseURL: baseUrl,
+    colorScheme: 'light',
+    reducedMotion: 'reduce',
   });
   const page = await context.newPage();
 
@@ -157,7 +216,7 @@ async function main() {
     if (role !== 'visitor') {
       const { email, password } = resolveCredentials(role);
       try {
-        await signIn(page, email, password);
+        await realSignIn(page, { email, password });
       } catch {
         // Report and exit right here instead of re-throwing: a Playwright
         // timeout/action error can echo back the value it was acting on
@@ -172,10 +231,18 @@ async function main() {
     }
 
     for (const route of routes) {
-      await page.goto(route);
-      await page.waitForLoadState('networkidle');
-      const filePath = path.join(outDir, fileNameFor(role, viewport, route));
-      await page.screenshot({ path: filePath, fullPage: true });
+      const customSlug = routes.length === 1 ? label : '';
+      const filePath = await captureRouteEvidence(page, {
+        route,
+        role,
+        viewport,
+        outDir,
+        clicks,
+        waitFor,
+        viewportOnly,
+        allowClipping,
+        customSlug,
+      });
       console.log(filePath);
     }
   } finally {
@@ -183,7 +250,13 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error(err.message ?? err);
-  process.exit(1);
-});
+const isMainModule =
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+
+if (isMainModule) {
+  main().catch((err) => {
+    console.error(err.message ?? err);
+    process.exit(1);
+  });
+}

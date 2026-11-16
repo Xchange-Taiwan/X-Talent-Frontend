@@ -1,3 +1,4 @@
+import { withAvatarVersion } from '@/lib/avatar/avatarUrl';
 import {
   fetchPresignedUrl,
   PresignedUrlData,
@@ -14,16 +15,62 @@ interface PresignedCacheEntry {
   promise: Promise<PresignedUrlData | null>;
 }
 
-let presignedCache: PresignedCacheEntry | null = null;
+export interface PresignedUrlCache {
+  prefetch(userId: number): void;
+  consume(userId: number): Promise<PresignedUrlData | null>;
+  clear(): void;
+}
 
-function isCacheUsable(
-  entry: PresignedCacheEntry | null,
-  userId: number
-): entry is PresignedCacheEntry {
-  if (!entry) return false;
-  if (entry.userId !== userId) return false;
-  if (Date.now() - entry.fetchedAt > PRESIGNED_TTL_MS) return false;
-  return true;
+export interface CreatePresignedUrlCacheOptions {
+  fetchPresigned?: (userId: number) => Promise<PresignedUrlData | null>;
+  now?: () => number;
+  ttlMs?: number;
+}
+
+export function createPresignedUrlCache(
+  options: CreatePresignedUrlCacheOptions = {}
+): PresignedUrlCache {
+  const fetchFn = options.fetchPresigned ?? fetchPresignedUrl;
+  const now = options.now ?? (() => Date.now());
+  const ttlMs = options.ttlMs ?? PRESIGNED_TTL_MS;
+  let currentEntry: PresignedCacheEntry | null = null;
+
+  function isUsable(
+    entry: PresignedCacheEntry | null,
+    userId: number
+  ): entry is PresignedCacheEntry {
+    if (!entry) return false;
+    if (entry.userId !== userId) return false;
+    if (now() - entry.fetchedAt > ttlMs) return false;
+    return true;
+  }
+
+  return {
+    prefetch(userId: number): void {
+      if (!Number.isFinite(userId) || userId <= 0) return;
+      if (isUsable(currentEntry, userId)) return;
+      const promise = fetchFn(userId).catch(() => null);
+      currentEntry = { userId, fetchedAt: now(), promise };
+    },
+    async consume(userId: number): Promise<PresignedUrlData | null> {
+      if (isUsable(currentEntry, userId)) {
+        const cached = currentEntry;
+        currentEntry = null;
+        const result = await cached.promise;
+        if (result) return result;
+      }
+      return fetchFn(userId);
+    },
+    clear(): void {
+      currentEntry = null;
+    },
+  };
+}
+
+const defaultPresignedCache = createPresignedUrlCache();
+
+export function resetPresignedUrlCache(): void {
+  defaultPresignedCache.clear();
 }
 
 /**
@@ -31,24 +78,11 @@ function isCacheUsable(
  * await — the cached promise is consumed by `updateAvatar` at submit time
  * to remove one serial request from the upload waterfall.
  */
-export function prefetchPresignedUrl(userId: number): void {
-  if (!Number.isFinite(userId) || userId <= 0) return;
-  if (isCacheUsable(presignedCache, userId)) return;
-  const promise = fetchPresignedUrl(userId).catch(() => null);
-  presignedCache = { userId, fetchedAt: Date.now(), promise };
-}
-
-async function consumePresignedUrl(
-  userId: number
-): Promise<PresignedUrlData | null> {
-  if (isCacheUsable(presignedCache, userId)) {
-    const cached = presignedCache;
-    // Single-use: clear regardless of outcome so the next upload re-fetches.
-    presignedCache = null;
-    const result = await cached.promise;
-    if (result) return result;
-  }
-  return fetchPresignedUrl(userId);
+export function prefetchPresignedUrl(
+  userId: number,
+  cache: PresignedUrlCache = defaultPresignedCache
+): void {
+  cache.prefetch(userId);
 }
 
 // 你的後端 policy 有這條：["starts-with", "$Content-Type", "image/"]
@@ -92,7 +126,7 @@ function buildS3ObjectUrl(bucketUrl: string, key: string): string {
   const base = bucketUrl.endsWith('/')
     ? `${bucketUrl}${key}`
     : `${bucketUrl}/${key}`;
-  return `${base}?v=${Date.now()}`;
+  return withAvatarVersion(base, Date.now(), 'v');
 }
 
 /**
@@ -108,7 +142,8 @@ function buildS3ObjectUrl(bucketUrl: string, key: string): string {
 export async function updateAvatar(
   avatarFile: File,
   userId: number | undefined,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  cache: PresignedUrlCache = defaultPresignedCache
 ): Promise<string | undefined> {
   try {
     if (!userId || !Number.isFinite(userId)) {
@@ -119,7 +154,7 @@ export async function updateAvatar(
       throw new Error('頭像檔案必須是圖片格式 (image/*)。');
     }
 
-    const presigned = await consumePresignedUrl(userId);
+    const presigned = await cache.consume(userId);
     if (!presigned?.url || !presigned?.fields?.key) {
       throw new Error('取得 presigned url 失敗或回傳格式不完整');
     }

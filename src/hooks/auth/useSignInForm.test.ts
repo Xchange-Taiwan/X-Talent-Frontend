@@ -16,17 +16,27 @@ vi.mock('@/components/ui/use-toast', async () => {
   return useToastMockFactory();
 });
 
-vi.mock('@/lib/actions/signIn', () => ({
-  validateSignIn: vi.fn(),
-}));
-
 vi.mock('@/lib/monitoring', () => ({
   captureFlowFailure: vi.fn(),
   sanitize: (val: string) => val,
 }));
-vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn() }));
 
-import { validateSignIn } from '@/lib/actions/signIn';
+vi.mock('@/lib/analytics', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/analytics')>();
+  return {
+    ...actual,
+    setAnalyticsUserContext: vi.fn(),
+    trackEvent: vi.fn(),
+  };
+});
+
+import { setAnalyticsUserContext, trackEvent } from '@/lib/analytics';
+import { PENDING_AUTH_CALLBACK_URL_KEY } from '@/lib/auth/authFlowStorage';
+import {
+  getPendingFavoriteMentorId,
+  PENDING_FAVORITE_TTL_MS,
+  savePendingFavoriteMentor,
+} from '@/lib/favorites';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockGetSession, mockSession, mockSignIn } from '@/test/mocks/nextAuth';
@@ -34,32 +44,30 @@ import { mockToast } from '@/test/mocks/useToast';
 
 import useSignInForm from './useSignInForm';
 
-const mockValidateSignIn = vi.mocked(validateSignIn);
 const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
+const mockSetAnalyticsUserContext = vi.mocked(setAnalyticsUserContext);
+const mockTrackEvent = vi.mocked(trackEvent);
 
 const validValues = { email: 'user@example.com', password: 'Password1!' };
 
 describe('useSignInForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockValidateSignIn.mockResolvedValue({
-      success: true,
-      email: validValues.email,
-      password: validValues.password,
-    });
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    window.history.replaceState({}, '', '/auth/signin');
     mockSignIn.mockResolvedValue({ error: null });
     mockGetSession.mockResolvedValue(mockSession);
   });
 
-  it('validateSignIn returns { error } → toast shows the error message, no redirect', async () => {
-    mockValidateSignIn.mockResolvedValueOnce({ error: 'Invalid fields!' });
-
+  it('invalid schema values → validates in memory without server round-trip, shows toast, no redirect', async () => {
     const { result } = renderHook(() => useSignInForm());
 
     await act(async () => {
-      await result.current.onSubmit(validValues);
+      await result.current.onSubmit({ email: 'not-an-email', password: '' });
     });
 
+    expect(mockSignIn).not.toHaveBeenCalled();
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
         variant: 'destructive',
@@ -108,10 +116,104 @@ describe('useSignInForm', () => {
     expect(mockRouter.push).not.toHaveBeenCalled();
   });
 
-  it('success + onBoarding === false → router.push("/auth/onboarding")', async () => {
+  it('success + onBoarding === false → syncs user_id and tracks login (method: Email, user_role: mentee) then redirects to /auth/onboarding', async () => {
     mockGetSession.mockResolvedValueOnce({
       ...mockSession,
-      user: { ...mockSession.user, onBoarding: false },
+      user: { ...mockSession.user, onBoarding: false, isMentor: false },
+    });
+
+    const { result } = renderHook(() => useSignInForm());
+
+    await act(async () => {
+      await result.current.onSubmit(validValues);
+    });
+
+    expect(mockSetAnalyticsUserContext).toHaveBeenCalledWith({
+      userId: 'test-user-id',
+      userRole: 'mentee',
+    });
+    expect(mockTrackEvent).toHaveBeenCalledWith({
+      name: 'login',
+      feature: 'auth',
+      metadata: {
+        method: 'Email',
+        user_role: 'mentee',
+      },
+    });
+    expect(mockRouter.push).toHaveBeenCalledWith('/auth/onboarding');
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it('success + onBoarding === true + isMentor → syncs mentor role and router.push("/mentor-pool")', async () => {
+    mockGetSession.mockResolvedValueOnce({
+      ...mockSession,
+      user: { ...mockSession.user, onBoarding: true, isMentor: true },
+    });
+
+    const { result } = renderHook(() => useSignInForm());
+
+    await act(async () => {
+      await result.current.onSubmit(validValues);
+    });
+
+    expect(mockSetAnalyticsUserContext).toHaveBeenCalledWith({
+      userId: 'test-user-id',
+      userRole: 'mentor',
+    });
+    expect(mockTrackEvent).toHaveBeenCalledWith({
+      name: 'login',
+      feature: 'auth',
+      metadata: {
+        method: 'Email',
+        user_role: 'mentor',
+      },
+    });
+    expect(mockRouter.push).toHaveBeenCalledWith('/mentor-pool');
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it('success + valid callbackUrl query parameter → redirects to full callbackUrl including query params and clears stale pending_auth_callback_url (#733)', async () => {
+    window.sessionStorage.setItem(
+      PENDING_AUTH_CALLBACK_URL_KEY,
+      '/reservation/mentor?tab=history&reservationId=999'
+    );
+    window.history.replaceState(
+      {},
+      '',
+      '/auth/signin?callbackUrl=%2Freservation%2Fmentee%3Ftab%3Dhistory%26reservationId%3D101'
+    );
+    mockGetSession.mockResolvedValueOnce({
+      ...mockSession,
+      user: { ...mockSession.user, onBoarding: true, isMentor: false },
+    });
+
+    const { result } = renderHook(() => useSignInForm());
+
+    await act(async () => {
+      await result.current.onSubmit(validValues);
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith(
+      '/reservation/mentee?tab=history&reservationId=101'
+    );
+    expect(
+      window.sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+    ).toBeNull();
+  });
+
+  it('success + valid callbackUrl + onBoarding === false → prioritizes /auth/onboarding over callbackUrl and clears stale pending_auth_callback_url (#733)', async () => {
+    window.sessionStorage.setItem(
+      PENDING_AUTH_CALLBACK_URL_KEY,
+      '/reservation/mentee?tab=history&reservationId=101'
+    );
+    window.history.replaceState(
+      {},
+      '',
+      '/auth/signin?callbackUrl=%2Freservation%2Fmentee%3Ftab%3Dhistory%26reservationId%3D101'
+    );
+    mockGetSession.mockResolvedValueOnce({
+      ...mockSession,
+      user: { ...mockSession.user, onBoarding: false, isMentor: false },
     });
 
     const { result } = renderHook(() => useSignInForm());
@@ -121,13 +223,23 @@ describe('useSignInForm', () => {
     });
 
     expect(mockRouter.push).toHaveBeenCalledWith('/auth/onboarding');
-    expect(mockToast).not.toHaveBeenCalled();
+    expect(mockRouter.push).not.toHaveBeenCalledWith(
+      '/reservation/mentee?tab=history&reservationId=101'
+    );
+    expect(
+      window.sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+    ).toBeNull();
   });
 
-  it('success + onBoarding === true → router.push("/mentor-pool")', async () => {
+  it('success + unsafe external callbackUrl → ignores open-redirect attempt and falls back to /mentor-pool (#733)', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/auth/signin?callbackUrl=https%3A%2F%2Fevil.example.com%2Fphish'
+    );
     mockGetSession.mockResolvedValueOnce({
       ...mockSession,
-      user: { ...mockSession.user, onBoarding: true },
+      user: { ...mockSession.user, onBoarding: true, isMentor: false },
     });
 
     const { result } = renderHook(() => useSignInForm());
@@ -137,11 +249,107 @@ describe('useSignInForm', () => {
     });
 
     expect(mockRouter.push).toHaveBeenCalledWith('/mentor-pool');
-    expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it('success + valid pendingFavoriteMentor in localStorage → redirects to /profile/:id even without callbackUrl query and keeps pendingFavoriteMentor for profile page consumption (#756)', async () => {
+    savePendingFavoriteMentor(7482008160728084);
+    mockGetSession.mockResolvedValueOnce({
+      ...mockSession,
+      user: { ...mockSession.user, onBoarding: true, isMentor: false },
+    });
+
+    const { result } = renderHook(() => useSignInForm());
+
+    await act(async () => {
+      await result.current.onSubmit(validValues);
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/profile/7482008160728084');
+    expect(getPendingFavoriteMentorId()).toBe(7482008160728084);
+  });
+
+  it('success + explicit conflicting callbackUrl + stale pendingFavoriteMentor → prioritizes explicit callbackUrl and clears stale pendingFavoriteMentor (#756)', async () => {
+    savePendingFavoriteMentor(101);
+    window.history.replaceState(
+      {},
+      '',
+      '/auth/signin?callbackUrl=%2Freservation%2Fmentee%3Ftab%3Dhistory%26reservationId%3D888'
+    );
+    mockGetSession.mockResolvedValueOnce({
+      ...mockSession,
+      user: { ...mockSession.user, onBoarding: true, isMentor: false },
+    });
+
+    const { result } = renderHook(() => useSignInForm());
+
+    await act(async () => {
+      await result.current.onSubmit(validValues);
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith(
+      '/reservation/mentee?tab=history&reservationId=888'
+    );
+    expect(getPendingFavoriteMentorId()).toBeNull();
+  });
+
+  it('success + matching callbackUrl (/profile/:id) + pendingFavoriteMentor → redirects to /profile/:id and preserves pendingFavoriteMentor (#756)', async () => {
+    savePendingFavoriteMentor(101);
+    window.history.replaceState(
+      {},
+      '',
+      '/auth/signin?callbackUrl=%2Fprofile%2F101'
+    );
+    mockGetSession.mockResolvedValueOnce({
+      ...mockSession,
+      user: { ...mockSession.user, onBoarding: true, isMentor: false },
+    });
+
+    const { result } = renderHook(() => useSignInForm());
+
+    await act(async () => {
+      await result.current.onSubmit(validValues);
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/profile/101');
+    expect(getPendingFavoriteMentorId()).toBe(101);
+  });
+
+  it('success + pendingFavoriteMentor + onBoarding === false → redirects to /auth/onboarding without clearing pendingFavoriteMentor (#756)', async () => {
+    savePendingFavoriteMentor(101);
+    mockGetSession.mockResolvedValueOnce({
+      ...mockSession,
+      user: { ...mockSession.user, onBoarding: false, isMentor: false },
+    });
+
+    const { result } = renderHook(() => useSignInForm());
+
+    await act(async () => {
+      await result.current.onSubmit(validValues);
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/auth/onboarding');
+    expect(getPendingFavoriteMentorId()).toBe(101);
+  });
+
+  it('success + expired pendingFavoriteMentor → clears expired entry and falls back to /mentor-pool (#756)', async () => {
+    savePendingFavoriteMentor(101, Date.now() - PENDING_FAVORITE_TTL_MS - 1000);
+    mockGetSession.mockResolvedValueOnce({
+      ...mockSession,
+      user: { ...mockSession.user, onBoarding: true, isMentor: false },
+    });
+
+    const { result } = renderHook(() => useSignInForm());
+
+    await act(async () => {
+      await result.current.onSubmit(validValues);
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/mentor-pool');
+    expect(getPendingFavoriteMentorId()).toBeNull();
   });
 
   it('unexpected error is thrown → toast shows "Something went wrong!"', async () => {
-    mockValidateSignIn.mockRejectedValueOnce(new Error('Network error'));
+    mockSignIn.mockRejectedValueOnce(new Error('Network error'));
 
     const { result } = renderHook(() => useSignInForm());
 
@@ -168,14 +376,12 @@ describe('useSignInForm', () => {
     expect(result.current.isSubmitting).toBe(false);
   });
 
-  describe('SignInError dynamic capturing and monitoring attributes', () => {
+  describe('SignInLifecycleError dynamic capturing and monitoring attributes', () => {
     it('captures correct metadata when validation fails', async () => {
-      mockValidateSignIn.mockResolvedValueOnce({ error: 'Invalid fields!' });
-
       const { result } = renderHook(() => useSignInForm());
 
       await act(async () => {
-        await result.current.onSubmit(validValues);
+        await result.current.onSubmit({ email: 'bad-email', password: '' });
       });
 
       expect(mockCaptureFlowFailure).toHaveBeenCalledWith({

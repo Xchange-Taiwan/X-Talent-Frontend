@@ -2,6 +2,7 @@ process.env.TZ = 'UTC';
 
 import { act, renderHook, waitFor } from '@testing-library/react';
 import dayjs from 'dayjs';
+import { RRule } from 'rrule';
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 // Only the raw network read is mocked. Caching, in-flight de-duplication,
@@ -928,12 +929,14 @@ describe('useMentorSchedule', () => {
     );
   });
 
-  it('resetChanges falls back to the last known-saved snapshot when the refetch fails', async () => {
+  it('resetChanges synchronously restores savedByMonth with zero network calls', async () => {
     const { result } = setupSchedule();
 
     await waitFor(() => {
       expect(result.current.loaded).toBe(true);
     });
+
+    const loadCallsBeforeEdit = mockLoadMonthSchedule.mock.calls.length;
 
     act(() => {
       const res = result.current.editor!.updateDraftSlot(101, 1785070000, {
@@ -948,22 +951,17 @@ describe('useMentorSchedule', () => {
       1785070000
     );
 
-    vi.mocked(loadMonthScheduleFresh).mockRejectedValue(
-      new Error('network down')
-    );
-
     act(() => {
       result.current.editor!.resetChanges();
     });
 
-    // Falls back to savedByMonth (the original, pre-edit data) instead of
-    // leaving the UI stuck showing the failed-to-discard draft.
-    await waitFor(() => {
-      expect(result.current.editor!.draftOccurrences![0]?.occurrenceUnix).toBe(
-        1785070000
-      );
-    });
+    // Restores savedByMonth synchronously with zero HTTP calls.
+    expect(result.current.editor!.draftOccurrences![0]?.occurrenceUnix).toBe(
+      1785070000
+    );
     expect(result.current.editor!.draftOccurrences!).toHaveLength(1);
+    expect(vi.mocked(loadMonthScheduleFresh)).not.toHaveBeenCalled();
+    expect(mockLoadMonthSchedule.mock.calls.length).toBe(loadCallsBeforeEdit);
   });
 
   it('regression: switching accounts while viewing the same calendar month reloads the new user instead of reusing the stale buffer', async () => {
@@ -1076,14 +1074,12 @@ describe('useMentorSchedule', () => {
     expect(outcome.ok).toBe(false);
   });
 
-  it('resetChanges fallback uses the snapshot captured before the refetch started, immune to an intervening account switch clearing the store', async () => {
+  it('commitChanges generation guard skips stale save commit across a fast userA -> userB -> userA account switch', async () => {
     let sawUserA = false;
     mockLoadMonthSchedule.mockImplementation((ref) => {
       if (ref.userId === 'userA') {
         if (sawUserA) {
-          // Viewing userA again after switching away: the account switch
-          // dropped userA's cached month, and this second read never settles,
-          // so the store isn't repopulated before resetChanges' fallback runs.
+          // Second visit to userA is still loading from network
           return new Promise<RawMentorTimeslot[]>(() => {});
         }
         sawUserA = true;
@@ -1092,11 +1088,11 @@ describe('useMentorSchedule', () => {
       return Promise.resolve([]);
     });
 
-    let rejectFresh!: (err: Error) => void;
-    vi.mocked(loadMonthScheduleFresh).mockImplementation(
+    let resolveSync!: (val: Awaited<ReturnType<typeof syncMonths>>) => void;
+    vi.mocked(syncMonths).mockImplementation(
       () =>
-        new Promise((_resolve, reject) => {
-          rejectFresh = reject;
+        new Promise((resolve) => {
+          resolveSync = resolve;
         })
     );
 
@@ -1116,7 +1112,6 @@ describe('useMentorSchedule', () => {
     await waitFor(() => {
       expect(result.current.loaded).toBe(true);
     });
-    expect(result.current.editor!.draftOccurrences!).toHaveLength(1);
 
     act(() => {
       result.current.editor!.updateDraftSlot(101, 1785070000, {
@@ -1125,15 +1120,18 @@ describe('useMentorSchedule', () => {
       });
     });
 
-    // Start the reset - this must capture a snapshot of userA's saved data
-    // synchronously, before the refetch (and the account switches below)
-    // have any chance to run.
+    let savePromise!: Promise<
+      Awaited<ReturnType<typeof syncMonths>> extends unknown
+        ? { ok: boolean }
+        : never
+    >;
     act(() => {
-      result.current.editor!.resetChanges();
+      savePromise = result.current.editor!.confirmChanges();
     });
 
-    // Switch away and back to the same user while the refetch is still
-    // pending - each switch clears the store via store.clearAll().
+    // Switch userA -> userB -> userA while syncMonths is still in flight.
+    // Even though prevUserIdRef returns to 'userA', MonthDraftStore's
+    // monotonic generation has advanced twice via clearAll()!
     rerender({
       backend: { userId: 'userB', year: 2026, month: 7 },
       loginUserId: 'userB',
@@ -1146,18 +1144,19 @@ describe('useMentorSchedule', () => {
       loginUserId: 'userA',
     });
 
-    // The pending refetch now fails.
-    act(() => {
-      rejectFresh(new Error('network down'));
+    await act(async () => {
+      resolveSync([
+        {
+          monthKey: '2026-07',
+          outcome: { ok: true, raws: defaultMockRaws },
+        },
+      ]);
+      await savePromise;
     });
 
-    // Must fall back to the ORIGINAL saved slot (id 101), not an empty
-    // array - even though the store's live state for userA was still
-    // empty (cache miss, stuck revalidate) at the moment the fallback ran.
-    await waitFor(() => {
-      expect(result.current.editor!.draftOccurrences!).toHaveLength(1);
-    });
-    expect(result.current.editor!.draftOccurrences![0]?.id).toBe(101);
+    // Stale pre-switch save must NOT commit into the cleared store while the
+    // new userA mount is still waiting on its fresh read.
+    expect(result.current.editor!.draftOccurrences!).toHaveLength(0);
   });
 
   describe('failed fetch vs empty schedule distinction (issue 620)', () => {
@@ -1347,12 +1346,14 @@ describe('useMentorSchedule', () => {
       expect(mockFetchAllReservationsForState).toHaveBeenCalledWith(
         'mentor-1',
         'MENTOR_UPCOMING',
-        expect.any(Number)
+        expect.any(Number),
+        expect.any(AbortSignal)
       );
       expect(mockFetchAllReservationsForState).toHaveBeenCalledWith(
         'mentor-1',
         'MENTOR_PENDING',
-        expect.any(Number)
+        expect.any(Number),
+        expect.any(AbortSignal)
       );
 
       const resUpcoming = result.current.editor!.reservations.find(
@@ -1567,7 +1568,7 @@ describe('useMentorSchedule', () => {
       ).toEqual({ items: [], next_dtend: 0 });
     });
 
-    it('reload() leaves this month? previously-cached keys untouched when the refetch fails', async () => {
+    it('reload() leaves this month’s previously-cached keys untouched when the refetch fails', async () => {
       mockLoadMonthSchedule.mockResolvedValue([]);
       mockFetchAllReservationsForState.mockResolvedValue([]);
 
@@ -1767,13 +1768,13 @@ describe('useMentorSchedule', () => {
     });
 
     it('reports the failure and leaves reservationsLoaded false when the reservations fetch throws unexpectedly', async () => {
-      // fetchAllReservationsForState itself never rejects in production (it
-      // swallows its own errors, see reservationService.ts), but this
-      // exercises the hook's own defense-in-depth catch for anything else
-      // that could throw. reservationsLoaded must stay false here - it's
-      // only ever set true on the success path, deliberately not in a
-      // `finally` (which would run on this failure too and mark the flag
-      // loaded despite `reservations` never actually being written).
+      // fetchAllReservationsForState propagates transport failures in
+      // production (see reservationService.ts), and this also exercises the
+      // hook's own catch for anything else that could throw.
+      // reservationsLoaded must stay false here - it's only ever set true on
+      // the success path, deliberately not in a `finally` (which would run on
+      // this failure too and mark the flag loaded despite `reservations` never
+      // actually being written).
       mockLoadMonthSchedule.mockResolvedValue(defaultMockRaws);
       mockFetchAllReservationsForState.mockRejectedValue(new Error('boom'));
 
@@ -1794,6 +1795,40 @@ describe('useMentorSchedule', () => {
         );
       });
 
+      expect(result.current.reader.slotsSnapshot.reservationsLoaded).toBe(
+        false
+      );
+    });
+
+    it('holds reservationsLoaded === false when MENTOR_PENDING read fails even if MENTOR_UPCOMING succeeds', async () => {
+      mockLoadMonthSchedule.mockResolvedValue(defaultMockRaws);
+      mockFetchAllReservationsForState.mockImplementation(
+        async (_userId, state) => {
+          if (state === 'MENTOR_PENDING') {
+            throw new Error('MENTOR_PENDING 503');
+          }
+          return [];
+        }
+      );
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: '123',
+        })
+      );
+
+      await waitFor(() => {
+        expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+          expect.objectContaining({
+            flow: 'mentor_schedule_fetch_reservations',
+            step: 'fetch_all_reservations',
+            message: 'MENTOR_PENDING 503',
+          })
+        );
+      });
+
+      expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true);
       expect(result.current.reader.slotsSnapshot.reservationsLoaded).toBe(
         false
       );
@@ -2644,7 +2679,7 @@ describe('useMentorSchedule', () => {
       expect(mockFetchAllReservationsForState).not.toHaveBeenCalled();
     });
 
-    it('resetChanges does not apply a refetched result that resolves after the account has switched away', async () => {
+    it('resetChanges restores savedByMonth synchronously with zero network calls and leaves subsequent account switch buffers clean', async () => {
       mockLoadMonthSchedule.mockImplementation(async (ref) =>
         ref.userId === 'userA' ? defaultMockRaws : []
       );
@@ -2664,6 +2699,8 @@ describe('useMentorSchedule', () => {
 
       await waitFor(() => expect(result.current.loaded).toBe(true));
 
+      const loadCountBeforeReset = mockLoadMonthSchedule.mock.calls.length;
+
       act(() => {
         result.current.editor!.updateDraftSlot(101, 1785070000, {
           startTime: '13:00',
@@ -2671,54 +2708,35 @@ describe('useMentorSchedule', () => {
         });
       });
 
-      let resolveFresh!: (raws: RawMentorTimeslot[]) => void;
-      vi.mocked(loadMonthScheduleFresh).mockImplementation(
-        () =>
-          new Promise((resolve) => {
-            resolveFresh = resolve;
-          })
-      );
+      expect(
+        result.current.editor!.draftOccurrences![0]?.occurrenceUnix
+      ).not.toBe(1785070000);
 
       act(() => {
         result.current.editor!.resetChanges();
       });
 
-      // Account switches away while the refetch is still in flight.
+      // Synchronously restored with zero extra network calls
+      expect(result.current.editor!.draftOccurrences!).toHaveLength(1);
+      expect(result.current.editor!.draftOccurrences![0]?.occurrenceUnix).toBe(
+        1785070000
+      );
+      expect(vi.mocked(loadMonthScheduleFresh)).not.toHaveBeenCalled();
+      expect(mockLoadMonthSchedule.mock.calls.length).toBe(
+        loadCountBeforeReset
+      );
+
+      // Switching away to userB yields userB's own clean empty buffer
       rerender({
         backend: { userId: 'userB', year: 2026, month: 7 },
         loginUserId: 'userB',
       });
       await waitFor(() => expect(result.current.loaded).toBe(true));
-
-      act(() => {
-        resolveFresh(defaultMockRaws);
-      });
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      // userB's own (empty) buffer must stay empty - userA's refetched slot
-      // must never land in it just because the response arrived late.
       expect(result.current.editor!.draftOccurrences!).toHaveLength(0);
     });
 
-    it('resetChanges skips the failure fallback when the account has already switched away by the time the refetch rejects', async () => {
-      mockLoadMonthSchedule.mockImplementation(async (ref) =>
-        ref.userId === 'userA' ? defaultMockRaws : []
-      );
-
-      const { result, rerender } = renderHook(
-        (props: {
-          backend: { userId: string; year: number; month: number };
-          loginUserId?: string;
-        }) => useMentorSchedule(props),
-        {
-          initialProps: {
-            backend: { userId: 'userA', year: 2026, month: 7 },
-            loginUserId: 'userA',
-          },
-        }
-      );
+    it('resetChanges cancels an in-flight confirmChanges commit via generation bump with zero network calls', async () => {
+      const { result } = setupSchedule();
 
       await waitFor(() => expect(result.current.loaded).toBe(true));
 
@@ -2729,36 +2747,51 @@ describe('useMentorSchedule', () => {
         });
       });
 
-      let rejectFresh!: (err: Error) => void;
-      vi.mocked(loadMonthScheduleFresh).mockImplementation(
+      let resolveSync!: (val: Awaited<ReturnType<typeof syncMonths>>) => void;
+      vi.mocked(syncMonths).mockImplementation(
         () =>
-          new Promise((_resolve, reject) => {
-            rejectFresh = reject;
+          new Promise((resolve) => {
+            resolveSync = resolve;
           })
       );
 
+      let savePromise!: Promise<{ ok: boolean }>;
+      act(() => {
+        savePromise = result.current.editor!.confirmChanges();
+      });
+
+      // Discard synchronously while confirmChanges is in flight
       act(() => {
         result.current.editor!.resetChanges();
       });
 
-      // Account switches away while the refetch is still in flight.
-      rerender({
-        backend: { userId: 'userB', year: 2026, month: 7 },
-        loginUserId: 'userB',
-      });
-      await waitFor(() => expect(result.current.loaded).toBe(true));
+      expect(vi.mocked(loadMonthScheduleFresh)).not.toHaveBeenCalled();
+      expect(result.current.editor!.draftOccurrences![0]?.occurrenceUnix).toBe(
+        1785070000
+      );
 
-      act(() => {
-        rejectFresh(new Error('network down'));
-      });
+      const editedSavedRaw: RawMentorTimeslot = {
+        id: 101,
+        type: 'ALLOW',
+        dtstart: 1785070800,
+        dtend: 1785073500,
+        rrule: undefined,
+        exdate: [],
+      };
       await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
+        resolveSync([
+          {
+            monthKey: '2026-07',
+            outcome: { ok: true, raws: [editedSavedRaw] },
+          },
+        ]);
+        await savePromise;
       });
 
-      // The failed refetch belonged to userA - its fallback (userA's
-      // pre-edit snapshot) must not be written into userB's buffer.
-      expect(result.current.editor!.draftOccurrences!).toHaveLength(0);
+      // Generation bump on discardChanges prevented the late commit from overwriting the restored baseline
+      expect(result.current.editor!.draftOccurrences![0]?.occurrenceUnix).toBe(
+        1785070000
+      );
     });
   });
 
@@ -2861,6 +2894,106 @@ describe('useMentorSchedule', () => {
       } finally {
         vi.useRealTimers();
       }
+    });
+  });
+
+  describe('frozen nowSec session/reload lifecycle & date-switch RRule decoupling (#880)', () => {
+    it('freezes nowSec across clock advancement and date switches without re-expanding RRules or re-reading Date.now(), then refreshes nowSec on reload', async () => {
+      const initialNowMs = new Date('2026-07-01T00:00:00Z').getTime();
+      const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(initialNowMs);
+      onTestFinished(() => {
+        dateNowSpy.mockRestore();
+      });
+
+      // Slot on 2026-07-01 at 00:05:00Z (5 minutes after initialNowMs) plus a weekly recurrence
+      const boundaryStart = Math.floor(
+        new Date('2026-07-01T00:05:00Z').getTime() / 1000
+      );
+      const recurringRaws: RawMentorTimeslot[] = [
+        {
+          id: 8801,
+          type: 'ALLOW',
+          dtstart: boundaryStart,
+          dtend: boundaryStart + 1800,
+          rrule: 'FREQ=WEEKLY;COUNT=3',
+          exdate: [],
+        },
+      ];
+      mockLoadMonthSchedule.mockResolvedValue(recurringRaws);
+      mockFetchAllReservationsForState.mockResolvedValue([]);
+
+      const rruleAllSpy = vi.spyOn(RRule.prototype, 'all');
+      onTestFinished(() => {
+        rruleAllSpy.mockRestore();
+      });
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: '123',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+        expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true);
+        expect(result.current.reader.slotsSnapshot.reservationsLoaded).toBe(
+          true
+        );
+      });
+
+      expect(result.current.reader.allowedDates).toEqual([
+        '2026-07-01',
+        '2026-07-08',
+        '2026-07-15',
+      ]);
+      // RRule expanded at most once once allDraftRaws settled with recurringRaws
+      expect(rruleAllSpy).toHaveBeenCalledTimes(1);
+
+      rruleAllSpy.mockClear();
+      dateNowSpy.mockClear();
+
+      // Advance system clock 10 minutes past the 2026-07-01T00:05:00Z slot boundary
+      dateNowSpy.mockReturnValue(new Date('2026-07-01T00:15:00Z').getTime());
+
+      // Click across multiple dates while system clock is past the 2026-07-01 slot boundary
+      act(() => {
+        result.current.reader.setSelectedDate('2026-07-08');
+      });
+      expect(result.current.reader.slotsSnapshot.slots).toHaveLength(1);
+
+      act(() => {
+        result.current.reader.setSelectedDate('2026-07-15');
+      });
+      expect(result.current.reader.slotsSnapshot.slots).toHaveLength(1);
+
+      act(() => {
+        result.current.reader.setSelectedDate('2026-07-01');
+      });
+
+      // Frozen-instant invariant: both allowedDates and slotsSnapshot still include 2026-07-01
+      expect(result.current.reader.allowedDates).toContain('2026-07-01');
+      expect(result.current.reader.slotsSnapshot.slots).toHaveLength(1);
+      expect(result.current.editor!.slotsWithMeta).toHaveLength(1);
+      expect(result.current.editor!.slotsWithMeta[0].isPast).toBe(false);
+      expect(result.current.editor!.futureSlots).toHaveLength(1);
+
+      // Clicking between dates never re-expanded RRules or called Date.now()
+      expect(rruleAllSpy).not.toHaveBeenCalled();
+      expect(dateNowSpy).not.toHaveBeenCalled();
+
+      // Explicit reload refreshes nowSec so both allowedDates and slotsSnapshot advance together
+      await act(async () => {
+        await result.current.reader.reload?.();
+      });
+
+      expect(result.current.reader.allowedDates).toEqual([
+        '2026-07-08',
+        '2026-07-15',
+      ]);
+      expect(result.current.reader.slotsSnapshot.slots).toHaveLength(0);
+      expect(result.current.editor!.slotsWithMeta[0].isPast).toBe(true);
+      expect(result.current.editor!.futureSlots).toHaveLength(0);
     });
   });
 });

@@ -17,6 +17,10 @@ config({ path: path.resolve(__dirname, '.env.e2e.local'), override: true });
 // block below since the target is already running.
 const baseURL = process.env.BASE_URL ?? 'http://localhost:3000';
 const isRemote = baseURL !== 'http://localhost:3000';
+const localNextAuthSecret = process.env.NEXTAUTH_SECRET || 'secret';
+if (!isRemote) {
+  process.env.NEXTAUTH_SECRET = localNextAuthSecret;
+}
 
 export default defineConfig({
   testDir: './e2e/tests',
@@ -168,9 +172,22 @@ export default defineConfig({
   webServer: isRemote
     ? undefined
     : {
-        command: 'pnpm dev',
+        // package.json maps dev/dev-turbo to `next dev --webpack` to bypass the
+        // Next.js 16.4.1 Turbopack + @tailwindcss/postcss next/font/google bug.
+        command:
+          process.env.PLAYWRIGHT_USE_TURBO === '1'
+            ? 'pnpm dev-turbo'
+            : 'pnpm dev',
         url: 'http://localhost:3000',
-        reuseExistingServer: !process.env.CI,
+        env: {
+          NEXTAUTH_SECRET: localNextAuthSecret,
+          NEXT_PUBLIC_ENABLE_FAVORITES:
+            process.env.NEXT_PUBLIC_ENABLE_FAVORITES?.trim() || 'true',
+          NEXT_PUBLIC_ENABLE_FEEDBACK:
+            process.env.NEXT_PUBLIC_ENABLE_FEEDBACK?.trim() || 'true',
+        },
+        reuseExistingServer:
+          process.env.PLAYWRIGHT_REUSE_SERVER === '1' || !process.env.CI,
         timeout: 120_000,
       },
 });

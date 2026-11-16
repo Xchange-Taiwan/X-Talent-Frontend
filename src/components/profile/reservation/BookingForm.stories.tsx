@@ -8,6 +8,17 @@ const meta: Meta<typeof BookingForm> = {
   title: '業務模組元件/個人檔案(Profile)/Reservation/BookingForm',
   component: BookingForm,
   tags: ['autodocs'],
+  parameters: {
+    docs: {
+      description: {
+        component:
+          '導師個人頁右側預約容器元件，依瀏覽身分切換導師時段管理或學員預約表單，並將 `mentorId` 向下傳遞至 `MenteeBookingForm` 供 GA4 預約漏斗埋點使用。',
+      },
+    },
+  },
+  args: {
+    mentorId: 7482008160728084,
+  },
 };
 
 export default meta;
