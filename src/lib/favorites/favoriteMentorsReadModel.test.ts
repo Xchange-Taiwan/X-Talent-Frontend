@@ -237,4 +237,44 @@ describe('createFavoriteMentorsReadModel (#908)', () => {
     expect(storage.peekRaw()).toBeNull();
     expect(trackAnalytics).toHaveBeenCalledTimes(1);
   });
+
+  it('preserves mutations that settle before an in-flight initial GET resolves (no stale GET overwrite)', async () => {
+    let resolveInitialGet!: (items: MentorType[]) => void;
+    const fetchMock = vi.fn().mockImplementationOnce(
+      () =>
+        new Promise<MentorType[]>((resolve) => {
+          resolveInitialGet = resolve;
+        })
+    );
+
+    const model = createFavoriteMentorsReadModel({
+      transport: {
+        fetchFavoriteMentors: fetchMock,
+        addFavoriteMentor: vi.fn().mockResolvedValue(undefined),
+        removeFavoriteMentor: vi.fn().mockResolvedValue(undefined),
+      },
+      trackAnalytics: vi.fn(),
+    });
+
+    // T1: Initial GET starts (server still had [202], didn't have [101] yet)
+    model.subscribe('user-1', () => {});
+
+    // T2-T3: User adds 101 and PUT settles BEFORE initial GET resolves
+    await model.toggle({
+      userId: 'user-1',
+      mentorId: 101,
+      mentorSnapshot: makeMentor(101, 'Newly Added'),
+      feature: 'mentor_pool',
+    });
+    expect(model.getMentorState('user-1', 101).isFavorited).toBe(true);
+
+    // T4: Stale initial GET resolves with only [202] -> must preserve 101 + 202!
+    resolveInitialGet([makeMentor(202, 'Existing Server Mentor')]);
+    await vi.waitFor(() => {
+      expect(
+        model.getSnapshot('user-1')?.mentors.map((m) => m.user_id)
+      ).toEqual([101, 202]);
+    });
+    expect(model.getMentorState('user-1', 101).isFavorited).toBe(true);
+  });
 });

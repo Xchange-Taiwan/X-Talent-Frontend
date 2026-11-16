@@ -119,6 +119,7 @@ interface UserMutationState {
   serverMentors: MentorType[];
   hasLoadedServer: boolean;
   confirmedIdOnly: Set<number>;
+  settledBeforeLoad: Map<number, { favorited: boolean; snapshot?: MentorType }>;
   optimistic: Map<number, { favorited: boolean; snapshot?: MentorType }>;
   pendingIds: Set<number>;
   controllers: Set<AbortController>;
@@ -157,6 +158,7 @@ export function createFavoriteMentorsReadModel(
       serverMentors: [],
       hasLoadedServer: false,
       confirmedIdOnly: new Set<number>(),
+      settledBeforeLoad: new Map(),
       optimistic: new Map(),
       pendingIds: new Set<number>(),
       controllers: new Set<AbortController>(),
@@ -260,8 +262,38 @@ export function createFavoriteMentorsReadModel(
         }
       });
 
-      state.serverMentors = deduped;
+      // Re-apply any mutations that settled while this initial GET was in flight
+      let mergedServer = deduped;
+      let needsPostLoadRefresh = false;
+      if (state.settledBeforeLoad.size > 0) {
+        Array.from(state.settledBeforeLoad.entries()).forEach(
+          ([mentorId, settled]) => {
+            if (settled.favorited) {
+              if (settled.snapshot) {
+                state.confirmedIdOnly.delete(mentorId);
+                mergedServer = [
+                  settled.snapshot,
+                  ...mergedServer.filter((m) => m.user_id !== mentorId),
+                ];
+              } else if (!mergedServer.some((m) => m.user_id === mentorId)) {
+                state.confirmedIdOnly.add(mentorId);
+                needsPostLoadRefresh = true;
+              }
+            } else {
+              state.confirmedIdOnly.delete(mentorId);
+              mergedServer = mergedServer.filter((m) => m.user_id !== mentorId);
+            }
+          }
+        );
+        state.settledBeforeLoad.clear();
+      }
+
+      state.serverMentors = mergedServer;
       state.hasLoadedServer = true;
+
+      if (needsPostLoadRefresh) {
+        void readManager.refresh(userId, buildFetcher(userId));
+      }
 
       // Drop any non-pending optimistic overrides superseded by server truth
       Array.from(state.optimistic.keys()).forEach((mentorId) => {
@@ -303,6 +335,7 @@ export function createFavoriteMentorsReadModel(
       state.controllers.clear();
       state.pendingIds.clear();
       state.optimistic.clear();
+      state.settledBeforeLoad.clear();
       state.confirmedIdOnly.clear();
       state.serverMentors = [];
       state.hasLoadedServer = false;
@@ -499,6 +532,13 @@ export function createFavoriteMentorsReadModel(
       state.pendingIds.delete(mentorId);
       state.optimistic.delete(mentorId);
 
+      if (!state.hasLoadedServer) {
+        state.settledBeforeLoad.set(mentorId, {
+          favorited: nextFavorited,
+          snapshot: normalizedSnapshot,
+        });
+      }
+
       let needsBackgroundRefresh = false;
       if (nextFavorited) {
         if (normalizedSnapshot) {
@@ -655,6 +695,7 @@ export function createFavoriteMentorsReadModel(
     const state = getOrCreateUserState(userId);
     state.pendingIds.clear();
     state.optimistic.clear();
+    state.settledBeforeLoad.clear();
     state.confirmedIdOnly.clear();
 
     const fullMentors: MentorType[] = [];
