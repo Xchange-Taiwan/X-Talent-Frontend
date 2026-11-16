@@ -20,15 +20,21 @@ vi.mock('next-auth/react', () => ({
   }),
 }));
 
-const mockUseEditProfileData = vi.fn();
-vi.mock('@/hooks/user/profile/useEditProfileData', () => ({
-  useEditProfileData: () => mockUseEditProfileData(),
+const mockUseUserProfileDto = vi.fn();
+vi.mock('@/hooks/user/user-data/useUserProfileDto', () => ({
+  useUserProfileDto: (...args: unknown[]) => mockUseUserProfileDto(...args),
 }));
 
-const mockUseProfileSubmit = vi.fn();
-vi.mock('@/hooks/user/profile/useProfileSubmit', () => ({
-  useProfileSubmit: () => mockUseProfileSubmit(),
-}));
+const mockCommitProfileMutation = vi.fn();
+vi.mock('@/lib/profile/saveProfile', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/profile/saveProfile')>();
+  return {
+    ...actual,
+    commitProfileMutation: (...args: unknown[]) =>
+      mockCommitProfileMutation(...args),
+  };
+});
 
 vi.mock('@/hooks/user/profile/useBackgroundAvatarUpload', () => ({
   useBackgroundAvatarUpload: () => ({
@@ -117,12 +123,8 @@ describe('EditProfileContainer schema-driven period validation & scroll guards',
   });
 
   it('stops submission and scrolls to work_experiences when a work experience has start > end period', async () => {
-    const mockOnSubmit = vi.fn();
-    mockUseProfileSubmit.mockReturnValue({
-      onSubmit: mockOnSubmit,
-      isSaving: false,
-    });
-    mockUseEditProfileData.mockReturnValue({
+    mockCommitProfileMutation.mockResolvedValue({});
+    mockUseUserProfileDto.mockReturnValue({
       userDto: createValidBaseUserDto([
         {
           category: ExperienceType.WORK,
@@ -143,8 +145,7 @@ describe('EditProfileContainer schema-driven period validation & scroll guards',
           }),
         },
       ]),
-      isMentor: false,
-      isError: false,
+      error: null,
     });
 
     const scrolledIds: string[] = [];
@@ -164,16 +165,12 @@ describe('EditProfileContainer schema-driven period validation & scroll guards',
     await waitFor(() => {
       expect(scrolledIds).toContain('work_experiences');
     });
-    expect(mockOnSubmit).not.toHaveBeenCalled();
+    expect(mockCommitProfileMutation).not.toHaveBeenCalled();
   });
 
   it('stops submission and scrolls to educations when an education entry has start > end period', async () => {
-    const mockOnSubmit = vi.fn();
-    mockUseProfileSubmit.mockReturnValue({
-      onSubmit: mockOnSubmit,
-      isSaving: false,
-    });
-    mockUseEditProfileData.mockReturnValue({
+    mockCommitProfileMutation.mockResolvedValue({});
+    mockUseUserProfileDto.mockReturnValue({
       userDto: createValidBaseUserDto([
         {
           category: ExperienceType.EDUCATION,
@@ -190,8 +187,7 @@ describe('EditProfileContainer schema-driven period validation & scroll guards',
           }),
         },
       ]),
-      isMentor: false,
-      isError: false,
+      error: null,
     });
 
     const scrolledIds: string[] = [];
@@ -211,19 +207,14 @@ describe('EditProfileContainer schema-driven period validation & scroll guards',
     await waitFor(() => {
       expect(scrolledIds).toContain('educations');
     });
-    expect(mockOnSubmit).not.toHaveBeenCalled();
+    expect(mockCommitProfileMutation).not.toHaveBeenCalled();
   });
 
   it('stops submission, renders platform error, and scrolls to links when links.linkedin is invalid', async () => {
-    const mockOnSubmit = vi.fn();
-    mockUseProfileSubmit.mockReturnValue({
-      onSubmit: mockOnSubmit,
-      isSaving: false,
-    });
-    mockUseEditProfileData.mockReturnValue({
+    mockCommitProfileMutation.mockResolvedValue({});
+    mockUseUserProfileDto.mockReturnValue({
       userDto: createValidBaseUserDto([]),
-      isMentor: false,
-      isError: false,
+      error: null,
     });
 
     const scrolledIds: string[] = [];
@@ -251,19 +242,14 @@ describe('EditProfileContainer schema-driven period validation & scroll guards',
         '請輸入有效的 LinkedIn HTTPS 網址（允許網域：linkedin.com）'
       )
     ).toBeInTheDocument();
-    expect(mockOnSubmit).not.toHaveBeenCalled();
+    expect(mockCommitProfileMutation).not.toHaveBeenCalled();
   });
 
   it('stops submission, renders GitHub domain error, and scrolls to links when links.github is not github.com (#862)', async () => {
-    const mockOnSubmit = vi.fn();
-    mockUseProfileSubmit.mockReturnValue({
-      onSubmit: mockOnSubmit,
-      isSaving: false,
-    });
-    mockUseEditProfileData.mockReturnValue({
+    mockCommitProfileMutation.mockResolvedValue({});
+    mockUseUserProfileDto.mockReturnValue({
       userDto: createValidBaseUserDto([]),
-      isMentor: false,
-      isError: false,
+      error: null,
     });
 
     const scrolledIds: string[] = [];
@@ -291,6 +277,6 @@ describe('EditProfileContainer schema-driven period validation & scroll guards',
         '請輸入有效的 GitHub HTTPS 網址（允許網域：github.com）'
       )
     ).toBeInTheDocument();
-    expect(mockOnSubmit).not.toHaveBeenCalled();
+    expect(mockCommitProfileMutation).not.toHaveBeenCalled();
   });
 });

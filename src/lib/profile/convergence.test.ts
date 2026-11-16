@@ -1,4 +1,4 @@
-import { fromPartial } from '@total-typescript/shoehorn';
+import { fromAny, fromPartial } from '@total-typescript/shoehorn';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { captureFlowFailure } from '@/lib/monitoring';
@@ -546,5 +546,76 @@ describe('SearchIndexDeleteAdapter', () => {
       step: 'poll_deletion_sync',
       message: 'pollUntilUserDeleted exhausted retries without confirmation',
     });
+  });
+});
+
+describe('hasProfileDtoConverged experience order & non-standard category guards (#905)', () => {
+  type WireExperience = NonNullable<MentorProfileVO['experiences']>[number];
+
+  it('treats reordered WORK/EDUCATION/LINK experience blocks as converged via decode normalization', () => {
+    const workBlock: WireExperience = fromAny({
+      category: 'WORK',
+      order: 1,
+      mentor_experiences_metadata: {
+        data: [
+          {
+            job: 'Engineer',
+            company: 'XChange',
+            job_period_start: '2022',
+            job_period_end: 'now',
+            industry: 'TECH',
+            job_location: 'TWN',
+            description: 'Core platform',
+            is_primary: true,
+          },
+        ],
+      },
+    });
+    const eduBlock: WireExperience = fromAny({
+      category: 'EDUCATION',
+      order: 2,
+      mentor_experiences_metadata: {
+        data: [
+          {
+            subject: 'CS',
+            school: 'NTU',
+            education_period_start: '2018',
+            education_period_end: '2022',
+          },
+        ],
+      },
+    });
+
+    const expected = makeSyncedDto({ experiences: [workBlock, eduBlock] });
+    const incomingReordered = makeSyncedDto({
+      experiences: [eduBlock, workBlock],
+    });
+    expect(hasProfileDtoConverged(expected, incomingReordered)).toBe(true);
+  });
+
+  it('falls back to strict comparison instead of false-positive convergence when non-standard experience categories are present', () => {
+    const customA: WireExperience = fromAny({
+      category: 'CERTIFICATION',
+      order: 1,
+      mentor_experiences_metadata: { data: [{ name: 'AWS SA' }] },
+    });
+    const customB: WireExperience = fromAny({
+      category: 'CERTIFICATION',
+      order: 1,
+      mentor_experiences_metadata: { data: [{ name: 'CKA' }] },
+    });
+
+    expect(
+      hasProfileDtoConverged(
+        makeSyncedDto({ experiences: [customA] }),
+        makeSyncedDto({ experiences: [customB] })
+      )
+    ).toBe(false);
+    expect(
+      hasProfileDtoConverged(
+        makeSyncedDto({ experiences: [customA] }),
+        makeSyncedDto({ experiences: [customA] })
+      )
+    ).toBe(true);
   });
 });

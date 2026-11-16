@@ -7,9 +7,14 @@ import { updateAvatar } from '@/services/profile/updateAvatar';
 
 import { useBackgroundAvatarUpload } from './useBackgroundAvatarUpload';
 
-vi.mock('@/services/profile/updateAvatar', () => ({
-  updateAvatar: vi.fn(),
-}));
+vi.mock('@/services/profile/updateAvatar', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/services/profile/updateAvatar')>();
+  return {
+    ...actual,
+    updateAvatar: vi.fn(),
+  };
+});
 
 vi.mock('@/services/profile/getAvatarSnapshot', () => ({
   getAvatarSnapshot: vi.fn(),

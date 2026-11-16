@@ -1301,4 +1301,106 @@ describe('commitProfileMutation & saveProfile (Deep Module with ProfileSavePort)
     });
     expect(getUserProfileDtoFromCache(99, 'zh_TW')?.user_id).toBe(99);
   });
+
+  it('clears avatar, location, and years_of_experience optimistically and guards against stale SWR DTOs when dirtyFields mark them cleared (#905)', async () => {
+    const staleDtoWithOldAvatar = makeSyncedDtoFromValues({
+      avatar: 'https://example.com/old-avatar.png',
+      location: 'TWN',
+      years_of_experience: '3_5',
+    });
+    const convergedClearedDto = makeSyncedDtoFromValues({
+      avatar: null,
+      location: null,
+      years_of_experience: null,
+    });
+
+    const fetchProfile = vi
+      .fn<FetchProfileFn>()
+      .mockResolvedValueOnce(staleDtoWithOldAvatar)
+      .mockResolvedValueOnce(convergedClearedDto);
+
+    const { port, spies } = createInMemoryProfileSavePort({ fetchProfile });
+
+    const result = await commitProfileMutation(
+      {
+        mode: 'edit',
+        values: {
+          ...baseValues,
+          avatar: '',
+          avatarFile: undefined,
+          location: '',
+          years_of_experience: '',
+        },
+        dirtyFields: {
+          avatar: true,
+          location: true,
+          years_of_experience: true,
+        },
+        currentDto: staleDtoWithOldAvatar,
+      },
+      makeCommitContext({
+        session: {
+          ...mockSession,
+          user: {
+            ...mockSession.user!,
+            avatar: 'https://example.com/old-avatar.png',
+          },
+        },
+      }),
+      port
+    );
+
+    expect(result.avatar).toBeNull();
+    expect(result.location).toBeNull();
+    expect(result.years_of_experience).toBeNull();
+    expect(spies.updateSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user: expect.objectContaining({
+          avatar: null,
+          avatarUpdatedAt: expect.any(Number),
+        }),
+      })
+    );
+
+    await vi.waitFor(() => {
+      expect(fetchProfile).toHaveBeenCalledTimes(2);
+    });
+    expect(getUserProfileDtoFromCache(1, 'zh_TW')?.avatar).toBeNull();
+  });
+
+  it('propagates non-default language (en_US) into background fetchProfile and userProfileDtoCache during mentee-onboarding (#905)', async () => {
+    const enDto = makeSyncedDtoFromValues({
+      name: 'Ada English',
+      is_mentor: false,
+      onboarding: true,
+      language: 'en_US',
+    });
+    const fetchProfile = vi.fn<FetchProfileFn>().mockResolvedValueOnce(enDto);
+    const { port } = createInMemoryProfileSavePort({ fetchProfile });
+
+    await commitProfileMutation(
+      {
+        mode: 'mentee-onboarding',
+        values: {
+          name: 'Ada English',
+          avatar: '',
+          avatarFile: undefined,
+          language: 'en_US',
+          location: 'Taiwan',
+          years_of_experience: '1_3',
+          industry: '',
+          want_position: ['engineer'],
+          want_skill: ['TypeScript'],
+          want_topic: ['frontend'],
+        },
+      },
+      makeCommitContext(),
+      port
+    );
+
+    await vi.waitFor(() => {
+      expect(fetchProfile).toHaveBeenCalledWith(1, 'en_US');
+    });
+    expect(getUserProfileDtoFromCache(1, 'en_US')?.name).toBe('Ada English');
+  });
 });

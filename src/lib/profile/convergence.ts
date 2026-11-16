@@ -11,13 +11,16 @@ import type { MentorProfileVO } from '@/types/user';
 const MENTOR_POOL_POLL_LIMIT = 20;
 
 export type FetchProfileRecordFn = (
-  userId: number
+  userId: number,
+  language?: string
 ) => Promise<MentorProfileVO | null>;
 
 export type SearchMentorsFn = (request: MentorRequest) => Promise<MentorType[]>;
 
-const defaultFetchProfileRecord: FetchProfileRecordFn = (userId) =>
-  fetchUserById(userId, 'zh_TW', undefined, true);
+const defaultFetchProfileRecord: FetchProfileRecordFn = (
+  userId,
+  language = 'zh_TW'
+) => fetchUserById(userId, language, undefined, true);
 
 const defaultSearchMentors: SearchMentorsFn = async (request) => {
   const result = await fetchMentors(request);
@@ -143,7 +146,11 @@ export function hasProfileDtoConverged(
     return false;
   }
 
-  if (!hasAvatarVersionConverged(expected.avatar, incoming.avatar)) {
+  if (expected.avatar === null) {
+    if (incoming.avatar) {
+      return false;
+    }
+  } else if (!hasAvatarVersionConverged(expected.avatar, incoming.avatar)) {
     return false;
   }
 
@@ -220,23 +227,27 @@ function isLegacyFormValuesInput(
 export class ProfileRecordAdapter implements ConvergenceAdapter<MentorProfileVO> {
   private readonly expectedDto: Partial<MentorProfileVO>;
   private readonly fetchProfileFn: FetchProfileRecordFn;
+  private readonly language: string;
 
   constructor(
     userId: number,
     expectedDto: Partial<MentorProfileVO>,
-    fetchProfileFn?: FetchProfileRecordFn
+    fetchProfileFn?: FetchProfileRecordFn,
+    language?: string
   );
   constructor(
     userId: number,
     values: ProfileFormValues,
     avatar: string,
-    fetchProfileFn?: FetchProfileRecordFn
+    fetchProfileFn?: FetchProfileRecordFn,
+    language?: string
   );
   constructor(
     private userId: number,
     expectedOrValues: Partial<MentorProfileVO> | ProfileFormValues,
     avatarOrFetch?: string | FetchProfileRecordFn,
-    legacyFetchProfileFn?: FetchProfileRecordFn
+    legacyFetchOrLanguage?: FetchProfileRecordFn | string,
+    legacyLanguage?: string
   ) {
     if (isLegacyFormValuesInput(expectedOrValues, avatarOrFetch)) {
       const avatar = typeof avatarOrFetch === 'string' ? avatarOrFetch : '';
@@ -251,19 +262,29 @@ export class ProfileRecordAdapter implements ConvergenceAdapter<MentorProfileVO>
           ? { subject_group: expectedOrValues.industry, subject: '' }
           : null,
       };
-      this.fetchProfileFn = legacyFetchProfileFn ?? defaultFetchProfileRecord;
+      this.fetchProfileFn =
+        typeof legacyFetchOrLanguage === 'function'
+          ? legacyFetchOrLanguage
+          : defaultFetchProfileRecord;
+      this.language = legacyLanguage || 'zh_TW';
     } else {
       this.expectedDto = expectedOrValues;
       this.fetchProfileFn =
         typeof avatarOrFetch === 'function'
           ? avatarOrFetch
           : defaultFetchProfileRecord;
+      this.language =
+        typeof legacyFetchOrLanguage === 'string' && legacyFetchOrLanguage
+          ? legacyFetchOrLanguage
+          : expectedOrValues.language || 'zh_TW';
     }
   }
 
   async fetch(): Promise<MentorProfileVO | null> {
     try {
-      return await this.fetchProfileFn(this.userId);
+      return this.language !== 'zh_TW'
+        ? await this.fetchProfileFn(this.userId, this.language)
+        : await this.fetchProfileFn(this.userId);
     } catch {
       return null;
     }

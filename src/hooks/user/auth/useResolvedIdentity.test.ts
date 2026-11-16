@@ -4,14 +4,14 @@ import { createElement, type ReactNode, StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  clearUserProfileDtoCache,
-  primeUserProfileDtoCache,
-} from '@/hooks/user/user-data/userProfileDtoCache';
-import {
   DOM_AUTH_AVATAR_ATTR,
   DOM_AUTH_STATE_ATTR,
   SESSION_HINT_COOKIE,
 } from '@/lib/auth/sessionHint';
+import {
+  clearUserProfileDtoCache,
+  primeUserProfileDtoCache,
+} from '@/lib/cache/userProfileDtoCache';
 import type { MentorProfileVO } from '@/types/user';
 
 import { useResolvedIdentity } from './useResolvedIdentity';

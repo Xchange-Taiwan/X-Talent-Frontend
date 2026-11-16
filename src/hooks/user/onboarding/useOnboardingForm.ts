@@ -3,70 +3,89 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
-import * as z from 'zod';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useForm, type UseFormReturn } from 'react-hook-form';
 
+import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
 import { useToast } from '@/components/ui/use-toast';
-import { useOnboardingSubmit } from '@/hooks/user/onboarding/useOnboardingSubmit';
 import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
 import { trackEvent } from '@/lib/analytics';
-import { getPendingFavoriteProfilePath } from '@/lib/favorites';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
-  step1Schema,
-  step2Schema,
-  step3Schema,
-  step4Schema,
-  step5Schema,
-} from '@/schemas/onboarding';
+  commitProfileMutation,
+  type ProfileSavePort,
+} from '@/lib/profile/saveProfile';
+import { formSchema, type OnboardingFormValues } from '@/schemas/onboarding';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
+
+export type OnboardingStepNumber = 1 | 2 | 3 | 4 | 5;
+
+export const STEP_FIELDS: Record<
+  OnboardingStepNumber,
+  Array<keyof OnboardingFormValues>
+> = {
+  1: ['name', 'avatar', 'avatarFile', 'language'],
+  2: ['location', 'years_of_experience', 'industry'],
+  3: ['want_position'],
+  4: ['want_skill'],
+  5: ['want_topic'],
+};
 
 interface Options {
   industries: TagCatalogsByBucket['industry'];
+  port?: Partial<ProfileSavePort>;
 }
 
-export function useOnboardingForm({ industries }: Options) {
+export interface UseOnboardingFormResult {
+  currentStep: OnboardingStepNumber;
+  isSubmitting: boolean;
+  form: UseFormReturn<OnboardingFormValues>;
+  advanceStep: () => Promise<boolean>;
+  submitOnboarding: () => Promise<void>;
+  handleGoToPrev: () => void;
+}
+
+export function useOnboardingForm({
+  industries,
+  port: portOverrides,
+}: Options): UseOnboardingFormResult {
   const router = useRouter();
   const { toast } = useToast();
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState<OnboardingStepNumber>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { data: session, status } = useSession();
+  const { data: session, status, update: updateSession } = useSession();
+  const hasHydratedSessionRef = useRef(false);
 
-  const [accumulatedFormData, setAccumulatedFormData] = useState<{
-    step1?: z.infer<typeof step1Schema>;
-    step2?: z.infer<typeof step2Schema>;
-    step3?: z.infer<typeof step3Schema>;
-    step4?: z.infer<typeof step4Schema>;
-    step5?: z.infer<typeof step5Schema>;
-  }>({});
+  const sessionUserId = session?.user?.id ? Number(session.user.id) : undefined;
+  const avatarUpload = useBackgroundAvatarUpload(sessionUserId);
 
-  const avatarUpload = useBackgroundAvatarUpload();
-  const { submitProfile } = useOnboardingSubmit({ industries });
-
-  const step1Form = useForm<z.infer<typeof step1Schema>>({
-    resolver: zodResolver(step1Schema),
+  const form = useForm<OnboardingFormValues>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
       name: '',
       avatarFile: undefined,
       avatar: '',
       language: 'zh_TW',
+      location: 'TWN',
+      years_of_experience: '',
+      industry: '',
+      want_position: [],
+      want_skill: [],
+      want_topic: [],
     },
   });
 
   useEffect(() => {
-    if (status === 'loading') return;
-    const name = session?.user?.name ?? '';
-    const avatar = session?.user?.avatar ?? '';
-    step1Form.reset({
-      name: name || '',
-      avatar: avatar || '',
-      avatarFile: undefined,
-      language: 'zh_TW',
+    if (status === 'loading' || hasHydratedSessionRef.current) return;
+    hasHydratedSessionRef.current = true;
+    const currentValues = form.getValues();
+    form.reset({
+      ...currentValues,
+      name: currentValues.name || session?.user?.name || '',
+      avatar: currentValues.avatar || session?.user?.avatar || '',
     });
-  }, [session?.user?.name, session?.user?.avatar, status, step1Form]);
+  }, [session?.user?.name, session?.user?.avatar, status, form]);
 
-  // Track which onboarding step the user is currently viewing
   useEffect(() => {
     trackEvent({
       name: 'onboarding_step_viewed',
@@ -75,100 +94,73 @@ export function useOnboardingForm({ industries }: Options) {
     });
   }, [currentStep]);
 
-  const watchedAvatarFile = step1Form.watch('avatarFile');
+  const watchedAvatarFile = form.watch('avatarFile');
   useEffect(() => {
-    if (watchedAvatarFile) step1Form.clearErrors('avatarFile');
-  }, [watchedAvatarFile, step1Form]);
-
-  const onSubmitStep1 = (data: z.infer<typeof step1Schema>) => {
-    setAccumulatedFormData((prev) => ({ ...prev, step1: data }));
-    if (data.avatarFile) {
-      avatarUpload.kickOff(data.avatarFile, step1Form.getValues('avatar'));
-    } else {
-      avatarUpload.abort();
+    if (watchedAvatarFile) {
+      form.clearErrors('avatarFile');
     }
-    trackEvent({ name: 'onboarding_step_1_completed', feature: 'onboarding' });
-    setCurrentStep(2);
-  };
+  }, [watchedAvatarFile, form]);
 
-  const handleStepSubmit = <T>(
-    stepKey: 'step2' | 'step3' | 'step4',
-    stepNum: number,
-    data: T
-  ) => {
-    setAccumulatedFormData((prev) => ({ ...prev, [stepKey]: data }));
-    trackEvent({
-      name: `onboarding_step_${stepNum}_completed`,
-      feature: 'onboarding',
-    });
-    setCurrentStep(stepNum + 1);
-  };
+  const advanceStep = useCallback(async (): Promise<boolean> => {
+    if (currentStep >= 5) {
+      return false;
+    }
+    const fields = STEP_FIELDS[currentStep];
+    const isValid = await form.trigger(fields);
+    if (!isValid) {
+      return false;
+    }
 
-  const step2Form = useForm<z.infer<typeof step2Schema>>({
-    resolver: zodResolver(step2Schema),
-    defaultValues: {
-      location: 'TWN',
-      years_of_experience: '',
-      industry: '',
-    },
-  });
-  const onSubmitStep2 = (data: z.infer<typeof step2Schema>) => {
-    handleStepSubmit('step2', 2, data);
-  };
+    if (currentStep === 1) {
+      const avatarFile = form.getValues('avatarFile');
+      if (avatarFile) {
+        avatarUpload.kickOff(avatarFile, form.getValues('avatar'));
+      } else {
+        avatarUpload.abort();
+      }
+      trackEvent({
+        name: 'onboarding_step_1_completed',
+        feature: 'onboarding',
+      });
+    } else {
+      trackEvent({
+        name: `onboarding_step_${currentStep}_completed`,
+        feature: 'onboarding',
+      });
+    }
 
-  const step3Form = useForm<z.infer<typeof step3Schema>>({
-    resolver: zodResolver(step3Schema),
-    defaultValues: {
-      want_position: [],
-    },
-  });
-  const onSubmitStep3 = (data: z.infer<typeof step3Schema>) => {
-    handleStepSubmit('step3', 3, data);
-  };
+    setCurrentStep((prev) => Math.min(5, prev + 1) as OnboardingStepNumber);
+    return true;
+  }, [avatarUpload, currentStep, form]);
 
-  const step4Form = useForm<z.infer<typeof step4Schema>>({
-    resolver: zodResolver(step4Schema),
-    defaultValues: {
-      want_skill: [],
-    },
-  });
-  const onSubmitStep4 = (data: z.infer<typeof step4Schema>) => {
-    handleStepSubmit('step4', 4, data);
-  };
+  const savePort = useMemo<ProfileSavePort>(
+    () => ({
+      updateSession,
+      navigate: (href: string) => router.push(href),
+      revalidateProfilePath,
+      ...portOverrides,
+    }),
+    [portOverrides, router, updateSession]
+  );
 
-  const step5Form = useForm<z.infer<typeof step5Schema>>({
-    resolver: zodResolver(step5Schema),
-    defaultValues: {
-      want_topic: [],
-    },
-  });
+  const submitOnboarding = useCallback(async (): Promise<void> => {
+    const isValid = await form.trigger(STEP_FIELDS[5]);
+    if (!isValid) {
+      return;
+    }
 
-  const onSubmitStep5 = async (data: z.infer<typeof step5Schema>) => {
-    setAccumulatedFormData((prev) => ({ ...prev, step5: data }));
-    const allData = {
-      ...accumulatedFormData.step1,
-      ...accumulatedFormData.step2,
-      ...accumulatedFormData.step3,
-      ...accumulatedFormData.step4,
-      ...data,
-    };
+    const values: OnboardingFormValues = { ...form.getValues() };
 
     try {
       setIsSubmitting(true);
 
-      if (allData.avatarFile) {
+      if (values.avatarFile) {
         try {
-          const newUrl = await avatarUpload.consume(allData.avatarFile);
-          allData.avatar = newUrl ?? allData.avatar;
-          allData.avatarFile = undefined;
-
-          // Clear the file from accumulatedFormData to prevent re-uploading on retry
-          setAccumulatedFormData((prev) => ({
-            ...prev,
-            step1: prev.step1
-              ? { ...prev.step1, avatar: allData.avatar, avatarFile: undefined }
-              : undefined,
-          }));
+          const uploadedUrl = await avatarUpload.consume(values.avatarFile);
+          values.avatar = uploadedUrl ?? values.avatar;
+          values.avatarFile = undefined;
+          form.setValue('avatar', values.avatar);
+          form.setValue('avatarFile', undefined);
         } catch (err) {
           captureFlowFailure({
             flow: 'onboarding_submit',
@@ -178,22 +170,27 @@ export function useOnboardingForm({ industries }: Options) {
             level: 'warning',
           });
           avatarUpload.abort();
-          step1Form.setError('avatarFile', {
+          form.setError('avatarFile', {
             type: 'custom',
             message: '頭像上傳失敗，請重新選擇。',
           });
           setCurrentStep(1);
-          setIsSubmitting(false);
           return;
         }
       }
 
-      const hasNewAvatar = allData.avatar !== session?.user?.avatar;
-      await submitProfile(allData, hasNewAvatar);
-
-      trackEvent({ name: 'onboarding_completed', feature: 'onboarding' });
-      const pendingFavoritePath = getPendingFavoriteProfilePath();
-      router.push(pendingFavoritePath ?? '/profile/card');
+      await commitProfileMutation(
+        {
+          mode: 'mentee-onboarding',
+          values,
+        },
+        {
+          pageUserId: session?.user?.id ? String(session.user.id) : undefined,
+          session,
+          industryCatalog: industries,
+        },
+        savePort
+      );
     } catch {
       toast({
         variant: 'destructive',
@@ -203,25 +200,18 @@ export function useOnboardingForm({ industries }: Options) {
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [avatarUpload, form, industries, savePort, session, toast]);
 
-  const handleGoToPrev = () => {
-    setCurrentStep((s) => Math.max(1, s - 1));
-  };
+  const handleGoToPrev = useCallback(() => {
+    setCurrentStep((s) => Math.max(1, s - 1) as OnboardingStepNumber);
+  }, []);
 
   return {
     currentStep,
     isSubmitting,
-    step1Form,
-    step2Form,
-    step3Form,
-    step4Form,
-    step5Form,
-    onSubmitStep1,
-    onSubmitStep2,
-    onSubmitStep3,
-    onSubmitStep4,
-    onSubmitStep5,
+    form,
+    advanceStep,
+    submitOnboarding,
     handleGoToPrev,
   };
 }

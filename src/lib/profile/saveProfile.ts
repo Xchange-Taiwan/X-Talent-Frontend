@@ -123,7 +123,8 @@ async function fastSyncProfileRecord(
   userId: number,
   expectedDto: Partial<MentorProfileVO>,
   timeoutMs: number,
-  fetchProfileFn?: FetchProfileRecordFn
+  fetchProfileFn?: FetchProfileRecordFn,
+  language = 'zh_TW'
 ): Promise<MentorProfileVO | null> {
   if (!userId || Number.isNaN(userId)) return null;
 
@@ -132,7 +133,12 @@ async function fastSyncProfileRecord(
     timer = setTimeout(() => resolve(null), timeoutMs);
   });
 
-  const adapter = new ProfileRecordAdapter(userId, expectedDto, fetchProfileFn);
+  const adapter = new ProfileRecordAdapter(
+    userId,
+    expectedDto,
+    fetchProfileFn,
+    language
+  );
 
   const fetchPromise = adapter
     .fetch()
@@ -346,6 +352,7 @@ export async function commitProfileMutation(
     const previousAvatar = sessionUser?.avatar || currentDto?.avatar || '';
     const resolvedAvatar = avatarUrl || '';
     const didAvatarChange =
+      avatarExplicitlyCleared ||
       Boolean(intent.values.avatarFile) ||
       (Boolean(resolvedAvatar) && resolvedAvatar !== previousAvatar);
 
@@ -396,6 +403,12 @@ export async function commitProfileMutation(
     const statementDirty =
       intent.mode !== 'mentee-onboarding' &&
       Boolean(dirtyFields && hasDirtyValue(dirtyFields.statement));
+    const locationDirty =
+      intent.mode !== 'mentee-onboarding' &&
+      Boolean(dirtyFields && hasDirtyValue(dirtyFields.location));
+    const yearsDirty =
+      intent.mode !== 'mentee-onboarding' &&
+      Boolean(dirtyFields && hasDirtyValue(dirtyFields.years_of_experience));
 
     const optimisticIndustry = resolveOptimisticIndustry(
       intent.values.industry,
@@ -433,10 +446,19 @@ export async function commitProfileMutation(
             ? payload.company || null
             : payload.company || currentDto?.company || null,
       years_of_experience:
-        intent.values.years_of_experience ||
-        currentDto?.years_of_experience ||
-        null,
-      location: intent.values.location || currentDto?.location || null,
+        intent.mode === 'mentee-onboarding'
+          ? intent.values.years_of_experience || null
+          : yearsDirty
+            ? payload.years_of_experience || null
+            : payload.years_of_experience ||
+              currentDto?.years_of_experience ||
+              null,
+      location:
+        intent.mode === 'mentee-onboarding'
+          ? intent.values.location || null
+          : locationDirty
+            ? payload.location || null
+            : payload.location || currentDto?.location || null,
       personal_statement:
         intent.mode === 'mentee-onboarding'
           ? null
@@ -517,7 +539,7 @@ export async function commitProfileMutation(
   ) {
     const expectedRecordDto: Partial<MentorProfileVO> = {
       name: optimisticDto.name,
-      avatar: avatarUrl || undefined,
+      avatar: avatarExplicitlyCleared ? null : avatarUrl || undefined,
       location: optimisticDto.location,
       years_of_experience: optimisticDto.years_of_experience,
       personal_statement: optimisticDto.personal_statement,
@@ -545,7 +567,8 @@ export async function commitProfileMutation(
             validSessionUserId,
             expectedRecordDto,
             fastFetchTimeoutMs,
-            fetchProfilePort
+            fetchProfilePort,
+            resolvedLanguage
           );
           if (latest) {
             primeUserProfileDtoCache(
@@ -559,7 +582,8 @@ export async function commitProfileMutation(
           const recordAdapter = new ProfileRecordAdapter(
             resolvedUserId,
             expectedRecordDto,
-            fetchProfilePort
+            fetchProfilePort,
+            resolvedLanguage
           );
           const { confirmed, latest: polled } = await runConvergence(
             recordAdapter,

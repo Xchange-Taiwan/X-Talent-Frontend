@@ -1,25 +1,51 @@
 'use client';
 
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
+import { useForm, type UseFormReturn } from 'react-hook-form';
 
+import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
+import { useAsyncAction } from '@/hooks/useAsyncAction';
+import { useUserProfileDto } from '@/hooks/user/user-data/useUserProfileDto';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
-import { mapVoToFormValues } from '@/lib/profile/profileSaveAdapter';
-import type { ProfileFormValues } from '@/schemas/profileSchema';
+import { getSafeErrorMessage } from '@/lib/errorUtils';
+import {
+  mapVoToFormValues,
+  type ProfileDirtyFields,
+} from '@/lib/profile/profileSaveAdapter';
+import {
+  commitProfileMutation,
+  LoggedError,
+  type ProfileSavePort,
+} from '@/lib/profile/saveProfile';
+import {
+  createProfileFormSchema,
+  defaultValues,
+  type ProfileFormInput,
+  type ProfileFormValues,
+} from '@/schemas/profileSchema';
 import type { IndustryOption } from '@/types/tagCatalog';
+import type { MentorProfileVO } from '@/types/user';
 
 import { useBackgroundAvatarUpload } from './useBackgroundAvatarUpload';
-import { useEditProfileData } from './useEditProfileData';
-import { useEditProfileForm } from './useEditProfileForm';
 import { useFormErrorScroll } from './useFormErrorScroll';
-import { useProfileSubmit } from './useProfileSubmit';
+
+export type ProfileFormContext = UseFormReturn<
+  ProfileFormInput,
+  unknown,
+  ProfileFormValues
+>;
+
+export type { ProfileDirtyFields };
 
 const useIsomorphicLayoutEffect =
   typeof window !== 'undefined' ? useLayoutEffect : useEffect;
@@ -29,25 +55,23 @@ export interface UseProfileEditorSessionOptions {
   isAuthorized: boolean;
   isMentorOnboarding: boolean;
   industryCatalog?: readonly IndustryOption[];
+  port?: Partial<ProfileSavePort>;
 }
 
-/**
- * Cohesive profile editor session module owning:
- * 1. One-shot DTO-to-form hydration per `pageUserId` (ignoring background SWR
- *    revalidations once hydrated so dirty form inputs are never clobbered).
- * 2. Background S3 avatar upload, consumption on save, and automatic rollback
- *    on cancel or unconsumed unmount/navigation.
- * 3. Schema-driven validation integrated directly into the submit handler with
- *    automatic error scrolling.
- */
 export function useProfileEditorSession({
   pageUserId,
   isAuthorized,
   isMentorOnboarding,
   industryCatalog,
+  port: portOverrides,
 }: UseProfileEditorSessionOptions) {
   const router = useRouter();
   const { data: session, update: updateSession } = useSession();
+
+  const numericPageUserId = Number(pageUserId);
+  const resolvedPageUserIdNum = Number.isFinite(numericPageUserId)
+    ? numericPageUserId
+    : undefined;
 
   const [isHydrating, setIsHydrating] = useState(true);
   const [prevPageUserId, setPrevPageUserId] = useState(pageUserId);
@@ -58,13 +82,33 @@ export function useProfileEditorSession({
     setIsHydrating(true);
   }
 
-  const { userDto, isMentor, isError } = useEditProfileData({
-    userId: Number(pageUserId),
-    isAuthorized,
+  const { userDto, error: dtoError } = useUserProfileDto(
+    numericPageUserId,
+    'zh_TW'
+  );
+
+  useEffect(() => {
+    if (!dtoError) return;
+    console.error('Failed to fetch user data:', getSafeErrorMessage(dtoError));
+  }, [dtoError]);
+
+  const isMentor = userDto ? Boolean(userDto.is_mentor) : false;
+  const isError = Boolean(dtoError) && !userDto;
+  const isMentorRole = isMentor || isMentorOnboarding;
+
+  const resolver = useMemo(
+    () =>
+      zodResolver<ProfileFormInput, unknown, ProfileFormValues>(
+        createProfileFormSchema(isMentorRole)
+      ),
+    [isMentorRole]
+  );
+
+  const form = useForm<ProfileFormInput, unknown, ProfileFormValues>({
+    resolver,
+    defaultValues,
   });
 
-  const isMentorRole = isMentor || isMentorOnboarding;
-  const { form } = useEditProfileForm(isMentorRole);
   const { formRef, onError } = useFormErrorScroll<ProfileFormValues>();
 
   useIsomorphicLayoutEffect(() => {
@@ -92,7 +136,13 @@ export function useProfileEditorSession({
     isHydrating,
   ]);
 
-  const avatarUpload = useBackgroundAvatarUpload();
+  const sessionUserIdNum = session?.user?.id
+    ? Number(session.user.id)
+    : undefined;
+  const effectiveUploadUserId = isAuthorized
+    ? (resolvedPageUserIdNum ?? sessionUserIdNum)
+    : undefined;
+  const avatarUpload = useBackgroundAvatarUpload(effectiveUploadUserId);
 
   const handleAvatarFileChange = useCallback(
     (file: File) => {
@@ -101,15 +151,62 @@ export function useProfileEditorSession({
     [avatarUpload, form]
   );
 
-  const { onSubmit, isSaving } = useProfileSubmit({
-    pageUserId,
-    isMentorOnboarding,
-    session,
-    updateSession,
-    consumeAvatarUpload: avatarUpload.consume,
-    currentDto: userDto,
-    industryCatalog,
+  const savePort = useMemo<ProfileSavePort>(
+    () => ({
+      updateSession,
+      navigate: (href: string) => router.push(href),
+      revalidateProfilePath,
+      uploadAvatar: (file: File) => avatarUpload.consume(file),
+      ...portOverrides,
+    }),
+    [avatarUpload, portOverrides, router, updateSession]
+  );
+
+  const { run, isPending: isSaving } = useAsyncAction({
+    captureFailure: {
+      flow: 'profile_update',
+      step: 'update_profile',
+    },
+    toastOnError: {
+      description: '儲存失敗，請稍後再試',
+    },
+    throwError: false,
+    resetPendingOnSuccess: false,
+    shouldSkipLogging: (err) => err instanceof LoggedError,
   });
+
+  const onSubmit = useCallback(
+    async (
+      values: ProfileFormValues,
+      dirtyFields?: ProfileDirtyFields
+    ): Promise<MentorProfileVO | undefined> => {
+      return await run(() =>
+        commitProfileMutation(
+          {
+            mode: isMentorOnboarding ? 'mentor-onboarding' : 'edit',
+            values,
+            dirtyFields,
+            currentDto: userDto,
+          },
+          {
+            pageUserId,
+            session,
+            industryCatalog,
+          },
+          savePort
+        )
+      );
+    },
+    [
+      industryCatalog,
+      isMentorOnboarding,
+      pageUserId,
+      run,
+      savePort,
+      session,
+      userDto,
+    ]
+  );
 
   const handleFormSubmit = useCallback(
     (e?: React.BaseSyntheticEvent) =>
