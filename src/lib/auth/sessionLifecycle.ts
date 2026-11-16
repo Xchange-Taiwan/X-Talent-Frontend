@@ -32,11 +32,14 @@ import {
   signInWithGoogleToken,
 } from '@/lib/auth/oauthOutcome';
 import { clearSessionHint as defaultClearSessionHint } from '@/lib/auth/sessionHint';
+import { clearUserProfileDtoCache } from '@/lib/cache/userProfileDtoCache';
 import { getErrorMessage } from '@/lib/errorUtils';
 import {
   clearPendingFavoriteMentor,
+  favoriteMentorsReadModel,
   getPendingFavoriteProfilePath,
 } from '@/lib/favorites';
+import { mentorFeedbackReadModel } from '@/lib/feedback/mentorFeedbackReadModel';
 import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
 import { captureFlowFailure as defaultCaptureFlowFailure } from '@/lib/monitoring';
 import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
@@ -196,6 +199,9 @@ export interface TerminateClientSessionAdapters {
   clearNotifications?: () => void;
   clearReservations?: () => void;
   clearSchedules?: () => void;
+  clearFavorites?: () => void;
+  clearProfileCache?: () => void;
+  clearMentorFeedback?: () => void;
   captureFailure?: typeof defaultCaptureFlowFailure;
 }
 
@@ -230,6 +236,9 @@ async function executeTerminateClientSession(
     clearNotifications = () => notificationStoreManager.clear(),
     clearReservations = () => reservationReadModel.clear(),
     clearSchedules = () => scheduleReadModel.clear(),
+    clearFavorites = () => favoriteMentorsReadModel.clear(),
+    clearProfileCache = () => clearUserProfileDtoCache(),
+    clearMentorFeedback = () => mentorFeedbackReadModel.clear(),
     captureFailure = defaultCaptureFlowFailure,
   } = adapters;
 
@@ -240,6 +249,9 @@ async function executeTerminateClientSession(
   clearNotifications();
   clearReservations();
   clearSchedules();
+  clearFavorites();
+  clearProfileCache();
+  clearMentorFeedback();
 
   if (reason === 'logout') {
     try {

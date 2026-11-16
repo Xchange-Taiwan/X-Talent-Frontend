@@ -1,3 +1,5 @@
+'use client';
+
 import 'swiper/css';
 import 'swiper/css/navigation';
 import 'swiper/css/pagination';
@@ -8,7 +10,6 @@ import { Autoplay, Pagination } from 'swiper/modules';
 import { Swiper, SwiperSlide } from 'swiper/react';
 
 import { SCREEN_SIZE } from '@/constant/theme';
-import useWindowSize from '@/hooks/useWindowSize';
 
 import {
   getDefaultSliderAvatar,
@@ -17,6 +18,12 @@ import {
   sliderList,
 } from './data';
 
+const SLIDER_BREAKPOINTS = {
+  [SCREEN_SIZE.lg + 1]: {
+    slidesPerView: 2,
+  },
+} as const;
+
 export interface HomePageSliderProps {
   items?: SlideItem[];
 }
@@ -24,7 +31,6 @@ export interface HomePageSliderProps {
 export const HomePageSlider: FC<HomePageSliderProps> = ({
   items = sliderList,
 }) => {
-  const { width } = useWindowSize();
   const [failedIndices, setFailedIndices] = useState<Record<number, boolean>>(
     {}
   );
@@ -33,7 +39,8 @@ export const HomePageSlider: FC<HomePageSliderProps> = ({
     <Swiper
       modules={[Autoplay, Pagination]}
       spaceBetween={0}
-      slidesPerView={width > SCREEN_SIZE.lg ? 2 : 1}
+      slidesPerView={1}
+      breakpoints={SLIDER_BREAKPOINTS}
       loop
       pagination={{ clickable: true }}
       autoplay={{

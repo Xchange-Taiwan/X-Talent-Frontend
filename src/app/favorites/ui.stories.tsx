@@ -3,7 +3,7 @@ import { type ReactNode, useLayoutEffect } from 'react';
 
 import { mockMentors } from '@/components/mentor-pool/__mocks__/mentors.mock';
 import { Toaster } from '@/components/ui/toaster';
-import { favoriteMentorStore } from '@/stores/favoriteMentorStore';
+import { favoriteMentorsReadModel } from '@/lib/favorites';
 import type { MentorType } from '@/types/mentor';
 
 import FavoritesPageUI from './ui';
@@ -23,12 +23,12 @@ function FavoritesStoreSeedBoundary({
   children: ReactNode;
 }) {
   useLayoutEffect(() => {
-    favoriteMentorStore.setAdapter({
+    favoriteMentorsReadModel.setTransport({
       fetchFavoriteMentors: async () => mentors,
       addFavoriteMentor: async () => {},
       removeFavoriteMentor: async () => {},
     });
-    favoriteMentorStore.seedFavorites('test-user-id', mentors);
+    favoriteMentorsReadModel.seed('test-user-id', mentors);
   }, [mentors]);
 
   return (

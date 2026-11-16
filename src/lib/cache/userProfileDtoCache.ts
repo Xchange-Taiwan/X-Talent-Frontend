@@ -50,11 +50,14 @@ export function isOptimisticTransitionActive(): boolean {
  * stale data.
  */
 export function clearUserProfileDtoCache(
-  userId: number,
-  language: string
+  userId?: number,
+  language?: string
 ): void {
-  const key = `${userId}-${language}`;
-  userProfileDtoReadManager.invalidate(key);
+  if (userId !== undefined && language !== undefined) {
+    userProfileDtoReadManager.invalidate(`${userId}-${language}`);
+  } else {
+    userProfileDtoReadManager.clear();
+  }
   lastPrimedTime = 0;
   if (transitionTimer) {
     clearTimeout(transitionTimer);

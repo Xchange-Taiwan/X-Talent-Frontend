@@ -76,14 +76,12 @@ import { Toaster } from '@/components/ui/toaster';
 import { clearToasts } from '@/components/ui/use-toast';
 import { FAVORITE_SELF_BLOCKED_TOAST_MESSAGE } from '@/hooks/favorites';
 import {
+  favoriteMentorsReadModel,
   getPendingFavoriteMentorId,
+  resetFavoriteMentorsReadModel,
   savePendingFavoriteMentor,
 } from '@/lib/favorites';
 import { EMPTY_TAG_CATALOGS } from '@/services/profile/tagCatalog';
-import {
-  favoriteMentorStore,
-  resetFavoriteMentorStore,
-} from '@/stores/favoriteMentorStore';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
 
@@ -140,7 +138,7 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
     vi.clearAllMocks();
     window.localStorage.clear();
     clearToasts();
-    resetFavoriteMentorStore();
+    resetFavoriteMentorsReadModel();
     currentSearchParams = new URLSearchParams();
     mockUseUserData.mockReturnValue({
       userData: {
@@ -433,8 +431,9 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
   });
 
   it('consumes pendingFavoriteMentor for owner by showing "無法收藏自己" toast without calling favorite API (#756)', async () => {
+    resetFavoriteMentorsReadModel();
     const addFavoriteMock = vi.fn().mockResolvedValue(undefined);
-    favoriteMentorStore.setAdapter({
+    favoriteMentorsReadModel.setTransport({
       fetchFavoriteMentors: vi.fn().mockResolvedValue([]),
       addFavoriteMentor: addFavoriteMock,
       removeFavoriteMentor: vi.fn().mockResolvedValue(undefined),
@@ -459,8 +458,9 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
   });
 
   it('consumes pendingFavoriteMentor for non-owner member and automatically completes favorite (#756)', async () => {
+    resetFavoriteMentorsReadModel();
     const addFavoriteMock = vi.fn().mockResolvedValue(undefined);
-    favoriteMentorStore.setAdapter({
+    favoriteMentorsReadModel.setTransport({
       fetchFavoriteMentors: vi.fn().mockResolvedValue([]),
       addFavoriteMentor: addFavoriteMock,
       removeFavoriteMentor: vi.fn().mockResolvedValue(undefined),
@@ -478,9 +478,16 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
     renderContainer();
 
     await vi.waitFor(() => {
-      expect(addFavoriteMock).toHaveBeenCalledWith(123);
+      expect(addFavoriteMock).toHaveBeenCalledWith(
+        123,
+        expect.any(AbortSignal)
+      );
     });
-    expect(favoriteMentorStore.isFavorited(123)).toBe(true);
+    await vi.waitFor(() => {
+      expect(
+        favoriteMentorsReadModel.getMentorState('999', 123).isFavorited
+      ).toBe(true);
+    });
     expect(getPendingFavoriteMentorId()).toBeNull();
     expect(
       screen.queryByText(FAVORITE_SELF_BLOCKED_TOAST_MESSAGE)

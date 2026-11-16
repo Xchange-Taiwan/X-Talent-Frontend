@@ -9,14 +9,12 @@ import { clearToasts } from '@/components/ui/use-toast';
 import type { UserType } from '@/hooks/user/user-data/useUserData';
 import * as analyticsModule from '@/lib/analytics';
 import {
+  favoriteMentorsReadModel,
+  type FavoriteMentorsTransport,
   getPendingFavoriteMentorId,
+  resetFavoriteMentorsReadModel,
   savePendingFavoriteMentor,
 } from '@/lib/favorites';
-import {
-  type FavoriteMentorServiceAdapter,
-  favoriteMentorStore,
-  resetFavoriteMentorStore,
-} from '@/stores/favoriteMentorStore';
 
 import {
   FAVORITE_SELF_BLOCKED_TOAST_MESSAGE,
@@ -48,21 +46,19 @@ function Harness(props: UseConsumePendingFavoriteOptions) {
 }
 
 describe('useConsumePendingFavorite', () => {
-  const fetchMock =
-    vi.fn<FavoriteMentorServiceAdapter['fetchFavoriteMentors']>();
-  const addMock = vi.fn<FavoriteMentorServiceAdapter['addFavoriteMentor']>();
-  const removeMock =
-    vi.fn<FavoriteMentorServiceAdapter['removeFavoriteMentor']>();
+  const fetchMock = vi.fn<FavoriteMentorsTransport['fetchFavoriteMentors']>();
+  const addMock = vi.fn<FavoriteMentorsTransport['addFavoriteMentor']>();
+  const removeMock = vi.fn<FavoriteMentorsTransport['removeFavoriteMentor']>();
 
   beforeEach(() => {
     window.localStorage.clear();
     clearToasts();
-    resetFavoriteMentorStore();
+    resetFavoriteMentorsReadModel();
     vi.clearAllMocks();
     fetchMock.mockResolvedValue([]);
     addMock.mockResolvedValue(undefined);
     removeMock.mockResolvedValue(undefined);
-    favoriteMentorStore.setAdapter({
+    favoriteMentorsReadModel.setTransport({
       fetchFavoriteMentors: fetchMock,
       addFavoriteMentor: addMock,
       removeFavoriteMentor: removeMock,
@@ -110,8 +106,12 @@ describe('useConsumePendingFavorite', () => {
     await waitFor(() => {
       expect(addMock).toHaveBeenCalledTimes(1);
     });
-    expect(addMock).toHaveBeenCalledWith(101);
-    expect(favoriteMentorStore.isFavorited(101)).toBe(true);
+    expect(addMock).toHaveBeenCalledWith(101, expect.any(AbortSignal));
+    await waitFor(() => {
+      expect(
+        favoriteMentorsReadModel.getMentorState('999', 101).isFavorited
+      ).toBe(true);
+    });
     expect(getPendingFavoriteMentorId()).toBeNull();
     await waitFor(() => {
       expect(trackEventSpy).toHaveBeenCalledWith({
@@ -142,11 +142,13 @@ describe('useConsumePendingFavorite', () => {
       await screen.findByText(FAVORITE_SELF_BLOCKED_TOAST_MESSAGE)
     ).toBeVisible();
     expect(addMock).not.toHaveBeenCalled();
-    expect(favoriteMentorStore.isFavorited(101)).toBe(false);
+    expect(
+      favoriteMentorsReadModel.getMentorState('101', 101).isFavorited
+    ).toBe(false);
     expect(getPendingFavoriteMentorId()).toBeNull();
   });
 
-  it('rolls back favorite state and shows destructive error toast when auto-favorite API fails', async () => {
+  it('rolls back favorite state, preserves pending storage on unconfirmed failure, and shows destructive error toast when auto-favorite API fails (#908)', async () => {
     savePendingFavoriteMentor(101);
     addMock.mockRejectedValueOnce(new Error('500 Server Error'));
     const mentorData = buildMentorUserData({ user_id: 101 });
@@ -163,8 +165,10 @@ describe('useConsumePendingFavorite', () => {
     expect(
       await screen.findByText(FAVORITE_MENTOR_ERROR_TOAST_MESSAGE)
     ).toBeVisible();
-    expect(favoriteMentorStore.isFavorited(101)).toBe(false);
-    expect(getPendingFavoriteMentorId()).toBeNull();
+    expect(
+      favoriteMentorsReadModel.getMentorState('999', 101).isFavorited
+    ).toBe(false);
+    expect(getPendingFavoriteMentorId()).toBe(101);
   });
 
   it('preserves pending favorite when userData is null or belongs to another user_id until matching mentor data arrives', async () => {
@@ -208,8 +212,10 @@ describe('useConsumePendingFavorite', () => {
     await waitFor(() => {
       expect(addMock).toHaveBeenCalledTimes(1);
     });
-    expect(addMock).toHaveBeenCalledWith(101);
-    expect(getPendingFavoriteMentorId()).toBeNull();
+    expect(addMock).toHaveBeenCalledWith(101, expect.any(AbortSignal));
+    await waitFor(() => {
+      expect(getPendingFavoriteMentorId()).toBeNull();
+    });
   });
 
   it('does not call addFavoriteMentor again when mentor is already favorited on the server', async () => {
@@ -251,8 +257,12 @@ describe('useConsumePendingFavorite', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
     expect(addMock).not.toHaveBeenCalled();
-    expect(favoriteMentorStore.isFavorited(101)).toBe(true);
-    expect(getPendingFavoriteMentorId()).toBeNull();
+    expect(
+      favoriteMentorsReadModel.getMentorState('999', 101).isFavorited
+    ).toBe(true);
+    await waitFor(() => {
+      expect(getPendingFavoriteMentorId()).toBeNull();
+    });
   });
 
   it('suppresses failure toast when auto-favorite API rejects after logout or account switch', async () => {
@@ -279,11 +289,13 @@ describe('useConsumePendingFavorite', () => {
       expect(addMock).toHaveBeenCalledTimes(1);
     });
 
-    await favoriteMentorStore.syncUser(null);
+    favoriteMentorsReadModel.clear();
     rejectPut(new Error('Aborted on logout'));
 
     await waitFor(() => {
-      expect(favoriteMentorStore.getState().pendingMentorIds.size).toBe(0);
+      expect(
+        favoriteMentorsReadModel.getMentorState('999', 101).isPending
+      ).toBe(false);
     });
 
     expect(
@@ -291,7 +303,7 @@ describe('useConsumePendingFavorite', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('clears pending favorite without calling addFavoriteMentor or showing toast when target profile has is_mentor: false', () => {
+  it('clears pending favorite without calling addFavoriteMentor or showing toast when target profile has is_mentor: false', async () => {
     savePendingFavoriteMentor(101);
     const nonMentorData = buildMentorUserData({
       user_id: 101,
@@ -307,10 +319,14 @@ describe('useConsumePendingFavorite', () => {
       />
     );
 
-    expect(getPendingFavoriteMentorId()).toBeNull();
+    await waitFor(() => {
+      expect(getPendingFavoriteMentorId()).toBeNull();
+    });
     expect(fetchMock).not.toHaveBeenCalled();
     expect(addMock).not.toHaveBeenCalled();
-    expect(favoriteMentorStore.isFavorited(101)).toBe(false);
+    expect(
+      favoriteMentorsReadModel.getMentorState('999', 101).isFavorited
+    ).toBe(false);
     expect(
       screen.queryByText(FAVORITE_SELF_BLOCKED_TOAST_MESSAGE)
     ).not.toBeInTheDocument();
@@ -335,11 +351,15 @@ describe('useConsumePendingFavorite', () => {
     );
 
     await waitFor(() => {
-      expect(favoriteMentorStore.isFavorited(101)).toBe(true);
+      expect(
+        favoriteMentorsReadModel.getMentorState('999', 101).isFavorited
+      ).toBe(true);
     });
     expect(addMock).toHaveBeenCalledTimes(1);
-    expect(addMock).toHaveBeenCalledWith(101);
-    expect(getPendingFavoriteMentorId()).toBeNull();
+    expect(addMock).toHaveBeenCalledWith(101, expect.any(AbortSignal));
+    await waitFor(() => {
+      expect(getPendingFavoriteMentorId()).toBeNull();
+    });
   });
 
   it('stores normalized MentorType snapshot with fallback avatar and raw subject_group codes via normalizeMentorFromProfile (#896)', async () => {
@@ -364,9 +384,13 @@ describe('useConsumePendingFavorite', () => {
     );
 
     await waitFor(() => {
-      expect(favoriteMentorStore.isFavorited(303)).toBe(true);
+      expect(
+        favoriteMentorsReadModel.getMentorState('999', 303).isFavorited
+      ).toBe(true);
     });
-    expect(favoriteMentorStore.getState().favoriteMentors[0]).toMatchObject({
+    expect(
+      favoriteMentorsReadModel.getSnapshot('999')?.mentors[0]
+    ).toMatchObject({
       user_id: 303,
       name: 'Zahra Mirzakhani',
       avatar: avatarImage,

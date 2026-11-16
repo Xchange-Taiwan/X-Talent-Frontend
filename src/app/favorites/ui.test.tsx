@@ -7,9 +7,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { mockMentors } from '@/components/mentor-pool/__mocks__/mentors.mock';
 import {
-  favoriteMentorStore,
-  resetFavoriteMentorStore,
-} from '@/stores/favoriteMentorStore';
+  favoriteMentorsReadModel,
+  resetFavoriteMentorsReadModel,
+} from '@/lib/favorites';
 
 import FavoritesPageUI from './ui';
 
@@ -42,8 +42,8 @@ function renderWithSession(ui: ReactNode, userId = '9001') {
 
 describe('FavoritesPageUI', () => {
   beforeEach(() => {
-    resetFavoriteMentorStore();
-    favoriteMentorStore.setAdapter({
+    resetFavoriteMentorsReadModel();
+    favoriteMentorsReadModel.setTransport({
       fetchFavoriteMentors: async () => [],
       addFavoriteMentor: async () => {},
       removeFavoriteMentor: async () => {},
@@ -67,7 +67,7 @@ describe('FavoritesPageUI', () => {
         have_skill: ['TypeScript'],
       },
     ];
-    favoriteMentorStore.seedFavorites('9001', seededMentors);
+    favoriteMentorsReadModel.seed('9001', seededMentors);
 
     renderWithSession(
       <FavoritesPageUI
@@ -129,7 +129,7 @@ describe('FavoritesPageUI', () => {
   });
 
   it('renders empty state with CTA linking to /mentor-pool when listStatus is empty', () => {
-    favoriteMentorStore.seedFavorites('9001', []);
+    favoriteMentorsReadModel.seed('9001', []);
 
     renderWithSession(
       <FavoritesPageUI mentors={[]} mentorCount={0} listStatus="empty" />
@@ -199,7 +199,7 @@ describe('FavoritesPageUI', () => {
         have_skill: ['product_design'],
       },
     ];
-    favoriteMentorStore.seedFavorites('9001', codeMentors);
+    favoriteMentorsReadModel.seed('9001', codeMentors);
 
     renderWithSession(
       <FavoritesPageUI

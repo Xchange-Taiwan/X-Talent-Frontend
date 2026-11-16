@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import { useLayoutEffect } from 'react';
 
-import { favoriteMentorStore } from '@/stores/favoriteMentorStore';
+import { favoriteMentorsReadModel } from '@/lib/favorites';
 
 import { mockMentors } from '../__mocks__/mentors.mock';
 import { MentorCard } from './index';
@@ -121,12 +121,12 @@ function SeededBookmarkedCardStory(
   props: React.ComponentProps<typeof MentorCard>
 ) {
   useLayoutEffect(() => {
-    favoriteMentorStore.setAdapter({
+    favoriteMentorsReadModel.setTransport({
       fetchFavoriteMentors: async () => [],
       addFavoriteMentor: async () => {},
       removeFavoriteMentor: async () => {},
     });
-    favoriteMentorStore.seedFavorites('test-user-id', [props.mentor]);
+    favoriteMentorsReadModel.seed('test-user-id', [props.mentor]);
   }, [props.mentor]);
 
   return <MentorCard {...props} />;

@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { FeatureItem } from '@/components/landing/FeatureItem';
 import { HomePageCtaButton } from '@/components/landing/HomePageCtaButton';
 import { HomePageHero } from '@/components/landing/HomePageHero';
-import { HomePageSliderClient } from '@/components/landing/HomePageSliderClient';
+import { HomePageSlider } from '@/components/landing/HomePageSlider';
 
 import { featureData } from './data';
 
@@ -284,7 +284,7 @@ export default function Page() {
 
       <section className="bg-background-bottom-secondary flex items-center justify-center">
         <div className="w-full max-w-[600px] py-10 lg:max-w-6xl">
-          <HomePageSliderClient />
+          <HomePageSlider />
         </div>
       </section>
 

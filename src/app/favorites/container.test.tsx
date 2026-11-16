@@ -10,14 +10,14 @@ import { Toaster } from '@/components/ui/toaster';
 import { FAVORITE_MENTOR_ERROR_TOAST_MESSAGE } from '@/hooks/favorites';
 import * as analyticsModule from '@/lib/analytics';
 import {
-  type FavoriteMentorServiceAdapter,
-  favoriteMentorStore,
-  resetFavoriteMentorStore,
-} from '@/stores/favoriteMentorStore';
+  favoriteMentorsReadModel,
+  type FavoriteMentorsTransport,
+  resetFavoriteMentorsReadModel,
+} from '@/lib/favorites';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 
 import FavoritesPageContainer from './container';
-import FavoritesPage from './page';
+import FavoritesPage, { metadata as favoritesMetadata } from './page';
 
 const routerReplaceMock = vi.fn();
 const routerPushMock = vi.fn();
@@ -89,20 +89,18 @@ function renderWithSession(
 }
 
 describe('FavoritesPageContainer', () => {
-  const fetchMock =
-    vi.fn<FavoriteMentorServiceAdapter['fetchFavoriteMentors']>();
-  const addMock = vi.fn<FavoriteMentorServiceAdapter['addFavoriteMentor']>();
-  const removeMock =
-    vi.fn<FavoriteMentorServiceAdapter['removeFavoriteMentor']>();
+  const fetchMock = vi.fn<FavoriteMentorsTransport['fetchFavoriteMentors']>();
+  const addMock = vi.fn<FavoriteMentorsTransport['addFavoriteMentor']>();
+  const removeMock = vi.fn<FavoriteMentorsTransport['removeFavoriteMentor']>();
 
   beforeEach(() => {
-    resetFavoriteMentorStore();
+    resetFavoriteMentorsReadModel();
     vi.clearAllMocks();
 
     fetchMock.mockResolvedValue([]);
     addMock.mockResolvedValue(undefined);
     removeMock.mockResolvedValue(undefined);
-    favoriteMentorStore.setAdapter({
+    favoriteMentorsReadModel.setTransport({
       fetchFavoriteMentors: fetchMock,
       addFavoriteMentor: addMock,
       removeFavoriteMentor: removeMock,
@@ -216,7 +214,9 @@ describe('FavoritesPageContainer', () => {
     expect(
       within(initialCards[0]).getAllByText('產品設計').length
     ).toBeGreaterThan(0);
-    expect(favoriteMentorStore.getState().favoriteMentors[0]).toMatchObject({
+    expect(
+      favoriteMentorsReadModel.getSnapshot('9001')?.mentors[0]
+    ).toMatchObject({
       have_topic: ['portfolio_review', 'career_planning'],
       have_skill: ['product_design'],
     });
@@ -228,7 +228,7 @@ describe('FavoritesPageContainer', () => {
       })
     );
 
-    expect(removeMock).toHaveBeenCalledWith(101);
+    expect(removeMock).toHaveBeenCalledWith(101, expect.any(AbortSignal));
     expect(trackEventSpy).toHaveBeenCalledWith({
       name: 'mentor_bookmark_toggle',
       feature: 'favorites',
@@ -241,7 +241,9 @@ describe('FavoritesPageContainer', () => {
     const remainingCards = screen.getAllByRole('article');
     expect(remainingCards).toHaveLength(1);
     expect(remainingCards[0]).toBe(secondCardBefore);
-    expect(favoriteMentorStore.getState().favoriteMentors[0]).toMatchObject({
+    expect(
+      favoriteMentorsReadModel.getSnapshot('9001')?.mentors[0]
+    ).toMatchObject({
       user_id: 102,
       have_topic: ['career_planning'],
       have_skill: [],
@@ -257,7 +259,7 @@ describe('FavoritesPageContainer', () => {
       screen.getByRole('button', { name: '取消收藏 陳宥廷 Austin' })
     );
 
-    expect(removeMock).toHaveBeenCalledWith(102);
+    expect(removeMock).toHaveBeenCalledWith(102, expect.any(AbortSignal));
     expect(screen.getByText('已收藏 0 位導師')).toBeInTheDocument();
     expect(screen.getByText('還沒有收藏的導師')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '尋找導師' })).toHaveAttribute(
@@ -337,5 +339,15 @@ describe('FavoritesPageContainer', () => {
     expect(
       screen.queryByText('載入收藏清單時發生連線錯誤')
     ).not.toBeInTheDocument();
+  });
+
+  it('exports private noindex metadata with title "我的收藏" (#908)', () => {
+    expect(favoritesMetadata).toEqual({
+      title: '我的收藏',
+      robots: {
+        index: false,
+        follow: false,
+      },
+    });
   });
 });

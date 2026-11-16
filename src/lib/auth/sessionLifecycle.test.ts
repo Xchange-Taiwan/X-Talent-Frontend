@@ -56,10 +56,16 @@ import {
   terminateClientSession,
 } from '@/lib/auth/sessionLifecycle';
 import {
+  primeUserProfileDtoCache,
+  userProfileDtoReadManager,
+} from '@/lib/cache/userProfileDtoCache';
+import {
+  favoriteMentorsReadModel,
   getPendingFavoriteMentorId,
   PENDING_FAVORITE_TTL_MS,
   savePendingFavoriteMentor,
 } from '@/lib/favorites';
+import { mentorFeedbackReadModel } from '@/lib/feedback/mentorFeedbackReadModel';
 import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
 import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
 import { notificationStoreManager } from '@/stores/notificationStore';
@@ -1466,12 +1472,36 @@ describe('sessionLifecycle (#885)', () => {
         });
         const scheduleKey = { userId: '42', year: 2026, month: 11 };
         scheduleReadModel.set(scheduleKey, [fromAny({ id: 101 })]);
+        favoriteMentorsReadModel.seed('42', [
+          fromAny({ user_id: 301, name: 'Mentor 301' }),
+        ]);
+        primeUserProfileDtoCache(
+          42,
+          'zh_TW',
+          fromAny({ user_id: 42, name: 'Cached User' })
+        );
+        mentorFeedbackReadModel.set(
+          { mentorId: 42, page: 1 },
+          {
+            items: [],
+            totalRatingCount: 0,
+            page: 1,
+            pageSize: 10,
+            ratingAverage: null,
+            completedMeetingCount: 0,
+          }
+        );
 
         expect(
           notificationStoreManager.getOrCreateState('user-42').unreadCountState
         ).toBe(2);
         expect(reservationReadModel.get(reservationKey)?.items).toHaveLength(1);
         expect(scheduleReadModel.get(scheduleKey)).toHaveLength(1);
+        expect(favoriteMentorsReadModel.getSnapshot('42')).toBeDefined();
+        expect(userProfileDtoReadManager.get('42-zh_TW')).toBeDefined();
+        expect(
+          mentorFeedbackReadModel.get({ mentorId: 42, page: 1 })
+        ).toBeDefined();
 
         const clearAnalyticsUser = vi.fn();
         const revokeBackendSession = vi
@@ -1507,12 +1537,17 @@ describe('sessionLifecycle (#885)', () => {
         expect(storage.dump()).toEqual({});
         expect(getPendingFavoriteMentorId()).toBeNull();
 
-        // 4. All 3 user-scoped stores cleared
+        // 4. All user-scoped stores and read models cleared (#908)
         expect(
           notificationStoreManager.getOrCreateState('user-42').unreadCountState
         ).toBe(0);
         expect(reservationReadModel.get(reservationKey)).toBeUndefined();
         expect(scheduleReadModel.get(scheduleKey)).toBeUndefined();
+        expect(favoriteMentorsReadModel.getSnapshot('42')).toBeUndefined();
+        expect(userProfileDtoReadManager.get('42-zh_TW')).toBeUndefined();
+        expect(
+          mentorFeedbackReadModel.get({ mentorId: 42, page: 1 })
+        ).toBeUndefined();
 
         // 5. Reason-specific side effects
         expect(revokeBackendSession).toHaveBeenCalledTimes(

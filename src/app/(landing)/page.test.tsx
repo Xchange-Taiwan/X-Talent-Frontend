@@ -1,8 +1,20 @@
 import { render, screen } from '@testing-library/react';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/components/landing/HomePageSliderClient', () => ({
-  HomePageSliderClient: () => <div data-testid="home-page-slider" />,
+vi.mock('swiper/react', () => ({
+  Swiper: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="home-page-slider">{children}</div>
+  ),
+  SwiperSlide: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="home-page-slide">{children}</div>
+  ),
+}));
+
+vi.mock('swiper/modules', () => ({
+  Autoplay: {},
+  Pagination: {},
 }));
 
 const mockUseResolvedIdentity = vi.fn();
@@ -10,6 +22,7 @@ vi.mock('@/hooks/user/auth/useResolvedIdentity', () => ({
   useResolvedIdentity: () => mockUseResolvedIdentity(),
 }));
 
+import { sliderList } from '@/components/landing/data';
 import { authenticatedIdentity, GUEST_IDENTITY } from '@/test/mocks/identity';
 
 import LandingPage from './page';
@@ -109,4 +122,13 @@ describe('LandingPage', () => {
       );
     }
   );
+
+  it('renders all 6 homepage testimonials directly in SSR HTML without ssr:false stripping (#908)', () => {
+    const ssrHtml = renderToStaticMarkup(<LandingPage />);
+
+    for (const item of sliderList) {
+      expect(ssrHtml).toContain(item.name);
+      expect(ssrHtml).toContain(item.text);
+    }
+  });
 });

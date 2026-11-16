@@ -64,8 +64,19 @@ function clearAuthDOMState(): void {
  * so the resolved identity tracks live session changes without waiting on
  * an extra effect/render cycle.
  */
+function useOptionalSession(): {
+  data: ReturnType<typeof useSession>['data'];
+  status: ReturnType<typeof useSession>['status'];
+} {
+  try {
+    return useSession();
+  } catch {
+    return { data: null, status: 'unauthenticated' };
+  }
+}
+
 export function useResolvedIdentity(): ResolvedIdentity {
-  const { data: session, status } = useSession();
+  const { data: session, status } = useOptionalSession();
   const [hint, setHint] = useState<SessionHint | null | undefined>(undefined);
 
   const sessionUserId = session?.user?.id ? Number(session.user.id) : NaN;

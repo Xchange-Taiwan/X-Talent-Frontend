@@ -41,10 +41,6 @@ vi.mock('swiper/modules', () => ({
   Pagination: {},
 }));
 
-vi.mock('@/hooks/useWindowSize', () => ({
-  default: () => ({ width: 1280, height: 800 }),
-}));
-
 describe('HomePageSlider & sliderList data', () => {
   it('contains 6 unique testimonials with distinct names and texts', () => {
     expect(sliderList).toHaveLength(6);
