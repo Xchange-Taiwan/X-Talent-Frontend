@@ -676,7 +676,10 @@ export default function MeetingFeedbackDialog({
                 className="flex items-center justify-between gap-3"
               >
                 <div className="flex min-w-0 items-center gap-3">
-                  <Avatar className="border-avatar-border/50 size-10 shrink-0 border">
+                  <Avatar
+                    data-clarity-mask="true"
+                    className="border-avatar-border/50 size-10 shrink-0 border"
+                  >
                     <AvatarImage
                       src={
                         activeReservation.avatar?.trim()
@@ -691,7 +694,10 @@ export default function MeetingFeedbackDialog({
                   </Avatar>
 
                   <div className="min-w-0">
-                    <p className="text-text-primary truncate text-sm font-semibold">
+                    <p
+                      data-clarity-mask="true"
+                      className="text-text-primary truncate text-sm font-semibold"
+                    >
                       {activeReservation.name}
                     </p>
                     <p className="text-text-secondary truncate text-xs tabular-nums">
@@ -723,6 +729,7 @@ export default function MeetingFeedbackDialog({
               className="flex min-h-0 flex-1 flex-col"
             >
               <div
+                data-clarity-mask="true"
                 className={cn(
                   'min-h-0 flex-1 overflow-y-auto px-5 sm:px-6',
                   effectiveStep === 'not-happened' ? 'pt-3 pb-2' : 'py-4'

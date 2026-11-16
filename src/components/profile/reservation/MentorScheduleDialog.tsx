@@ -121,6 +121,15 @@ export default function MentorScheduleDialog({
         });
         return;
       }
+      trackEvent({
+        name: 'reservation_schedule_saved',
+        feature: 'reservation',
+        metadata: {
+          slot_count: slotsWithMeta.filter(
+            (item) => !item.isPast && !item.reservationBlock
+          ).length,
+        },
+      });
       onOpenChange(false);
     } catch {
       toast({

@@ -12,6 +12,7 @@ import {
   type ReservationRole,
   useReservationData,
 } from '@/hooks/user/reservation/useReservationData';
+import { trackEvent } from '@/lib/analytics';
 import {
   buildReservationTabSwitchHref,
   type ReservationTabParam,
@@ -257,6 +258,14 @@ export function ReservationDashboardView({
     'ml-1 text-xs text-text-tertiary group-data-[state=active]:text-text-white/80';
 
   const handleValueChange = (value: string) => {
+    trackEvent({
+      name: 'reservation_tab_changed',
+      feature: 'reservation',
+      metadata: {
+        role: userRole,
+        tab: URL_PARAM_MAPPING[value] ?? value,
+      },
+    });
     if (value !== 'history') {
       clearDeepLinkFocus();
     }

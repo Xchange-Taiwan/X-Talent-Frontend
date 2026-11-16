@@ -2,6 +2,7 @@ import { useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
+import { trackEvent } from '@/lib/analytics';
 import {
   ConfirmSignUpLifecycleError,
   confirmSignUpToken,
@@ -33,10 +34,25 @@ export function useConfirmRegister() {
       try {
         await confirmSignUpToken(token);
         if (processedTokenRef.current === token) {
+          trackEvent({
+            name: 'email_verified',
+            feature: 'auth',
+          });
           setStatus('success');
         }
       } catch (error) {
         if (processedTokenRef.current === token) {
+          trackEvent({
+            name: 'auth_flow_failed',
+            feature: 'auth',
+            metadata: {
+              flow: 'email_verify',
+              error_type:
+                error instanceof ConfirmSignUpLifecycleError
+                  ? error.step
+                  : 'confirm_token',
+            },
+          });
           captureFlowFailure({
             flow: 'email_verification',
             step:

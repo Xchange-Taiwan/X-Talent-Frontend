@@ -97,7 +97,7 @@ export const MobileUserMenu = React.memo(function MobileUserMenu({
               size={56}
               className={`size-14 transition-opacity hover:opacity-80 ${GROUP_FOCUS_RING_CLASSES}`}
             />
-            <div className="min-w-0">
+            <div data-clarity-mask="true" className="min-w-0">
               <div className="text-text-primary truncate text-2xl font-semibold">
                 {profileHeader.displayName}
               </div>

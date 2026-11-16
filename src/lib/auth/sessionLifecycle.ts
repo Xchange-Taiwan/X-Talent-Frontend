@@ -942,6 +942,14 @@ export async function executeGoogleOAuthCallback(
       case 'INVALID': {
         clearPendingDeleteAccountEmail(storage);
         clearPendingCallbackUrl(storage);
+        trackEvent({
+          name: 'auth_flow_failed',
+          feature: 'auth',
+          metadata: {
+            flow: 'oauth_google',
+            error_type: outcome.errorType,
+          },
+        });
         onToast(buildInvalidOAuthToast(outcome.errorType));
         navigate(SIGNIN_HREF);
         return;
@@ -965,6 +973,14 @@ export async function executeGoogleOAuthCallback(
       case 'LOGIN': {
         if (!outcome.data.user || !outcome.data.auth.token) {
           clearPendingCallbackUrl(storage);
+          trackEvent({
+            name: 'auth_flow_failed',
+            feature: 'auth',
+            metadata: {
+              flow: 'oauth_google',
+              error_type: 'missing_login_data',
+            },
+          });
           onToast({
             variant: 'destructive',
             title: 'Missing login data',

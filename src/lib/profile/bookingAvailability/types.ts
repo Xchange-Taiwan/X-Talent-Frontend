@@ -152,6 +152,8 @@ export interface BookingCalendarReader {
    * mirror, so a caller never has to guess which one to read.
    */
   slotsSnapshot: SlotsSnapshot;
+  /** True once the current month's fetched rows have been mirrored into MonthDraftStore. */
+  isMonthSynced?: boolean;
   getDayBookingStatus: (dateKey: string) => BookingStatus | null;
   isFetching: boolean;
   reload?: () => Promise<void>;

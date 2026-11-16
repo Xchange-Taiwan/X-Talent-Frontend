@@ -44,6 +44,20 @@ export default function useSignUpForm(): AuthFormProps<SignUpValues> {
       {
         throwError: false,
         resetPendingOnSuccess: false,
+        onError: (err) => {
+          trackEvent({
+            name: 'auth_flow_failed',
+            feature: 'auth',
+            metadata: {
+              flow: 'sign_up',
+              error_type:
+                err instanceof SignUpLifecycleError &&
+                err.errorCode !== undefined
+                  ? String(err.errorCode)
+                  : 'submit_failed',
+            },
+          });
+        },
         captureFailure: {
           flow: 'sign_up',
           step: 'submit',

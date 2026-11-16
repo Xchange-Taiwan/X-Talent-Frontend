@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { fromPartial } from '@total-typescript/shoehorn';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { trackEvent } from '@/lib/analytics';
 import {
   BookingCalendarReader,
   MentorScheduleEditor,
@@ -715,5 +716,56 @@ describe('MentorScheduleDialog', () => {
       startTime: '10:00',
       durationMinutes: 30,
     });
+  });
+
+  it('tracks reservation_schedule_saved with available slot_count (excluding past and booked) only on save success', async () => {
+    const mockOnOpenChange = vi.fn();
+    const okSchedule = createMockSchedule({
+      confirmChanges: vi.fn().mockResolvedValue({ ok: true }),
+    });
+    const expectedAvailableCount = okSchedule.slotsWithMeta.filter(
+      (item) => !item.isPast && !item.reservationBlock
+    ).length;
+
+    const { unmount } = render(
+      <MentorScheduleDialog
+        open={true}
+        onOpenChange={mockOnOpenChange}
+        reader={mockReader}
+        schedule={okSchedule}
+      />
+    );
+
+    vi.mocked(trackEvent).mockClear();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '儲存' }));
+    });
+
+    expect(trackEvent).toHaveBeenCalledWith({
+      name: 'reservation_schedule_saved',
+      feature: 'reservation',
+      metadata: { slot_count: expectedAvailableCount },
+    });
+    unmount();
+
+    vi.mocked(trackEvent).mockClear();
+    const conflictSchedule = createMockSchedule({
+      confirmChanges: vi
+        .fn()
+        .mockResolvedValue({ ok: false, reason: 'conflict' }),
+    });
+    render(
+      <MentorScheduleDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        reader={mockReader}
+        schedule={conflictSchedule}
+      />
+    );
+    vi.mocked(trackEvent).mockClear();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '儲存' }));
+    });
+    expect(trackEvent).not.toHaveBeenCalled();
   });
 });

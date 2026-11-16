@@ -11,7 +11,7 @@ const meta: Meta<typeof MenteeBookingForm> = {
     docs: {
       description: {
         component:
-          '導師個人頁可預約時段選擇與問題填寫表單，點擊時段（`profile_booking_slot_select`）、未登入引導（`reservation_signin_prompt_click`）與送出預約（`profile_booking_submit_click`）皆攜帶 `mentor_id` 以串聯轉換漏斗（不記錄填寫之問題內容）。',
+          '導師個人頁可預約時段選擇與問題填寫表單，點擊時段（`profile_booking_slot_select`）、未登入攔截曝光與點擊（`auth_gate_triggered` + `reservation_signin_prompt_click`）與送出預約（`profile_booking_submit_click`）皆攜帶 `mentor_id` 以串聯轉換漏斗（不記錄填寫之問題內容，且提問輸入區具備 Clarity 個資遮罩）。',
       },
     },
   },

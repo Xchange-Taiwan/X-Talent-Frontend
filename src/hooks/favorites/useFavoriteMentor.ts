@@ -5,6 +5,7 @@ import { useCallback, useSyncExternalStore } from 'react';
 
 import { toast } from '@/components/ui/use-toast';
 import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
+import { trackEvent } from '@/lib/analytics';
 import type { ResolvedIdentity } from '@/lib/auth/sessionHint';
 import {
   type FavoriteMentorFeature,
@@ -121,6 +122,15 @@ export function useFavoriteMentor({
     });
 
     if (outcome.status === 'guest_redirect') {
+      trackEvent({
+        name: 'auth_gate_triggered',
+        feature: 'favorites',
+        metadata: {
+          gate_feature: 'favorites',
+          trigger_type: 'click_cta',
+          mentor_id: mentorId,
+        },
+      });
       if (router) {
         router.push(outcome.signInUrl);
       } else if (typeof window !== 'undefined') {

@@ -99,6 +99,10 @@ export function ShareProfileDialog({
     const ok = await copyToClipboard(profileUrl);
     if (!ok) return;
 
+    trackEvent({
+      name: 'share_profile_link_copied',
+      feature: 'profile',
+    });
     setCopied(true);
     if (copyTimerRef.current !== null) {
       window.clearTimeout(copyTimerRef.current);

@@ -120,7 +120,10 @@ export default function AcceptReservationDialog({
           {menteeMessage ? (
             <div className="mt-6">
               <div className="mb-2 text-sm font-medium">學員所提出的問題</div>
-              <div className="bg-background-bottom/40 rounded-2xl border p-4 text-sm">
+              <div
+                data-clarity-mask="true"
+                className="bg-background-bottom/40 rounded-2xl border p-4 text-sm"
+              >
                 <p className="text-text-primary whitespace-pre-wrap">
                   {menteeMessage}
                 </p>
@@ -128,7 +131,7 @@ export default function AcceptReservationDialog({
             </div>
           ) : null}
 
-          <div className="mt-6">
+          <div data-clarity-mask="true" className="mt-6">
             <ReplyMessageField
               open={replyOpen}
               onOpen={() => setReplyOpen(true)}

@@ -451,6 +451,36 @@ describe('useSignInForm', () => {
           description: 'Login failed',
         })
       );
+      expect(mockTrackEvent).toHaveBeenCalledWith({
+        name: 'auth_flow_failed',
+        feature: 'auth',
+        metadata: {
+          flow: 'login',
+          error_type: 'get_session',
+        },
+      });
+    });
+
+    it('tracks auth_flow_failed with error_type="unexpected" on non-lifecycle error without leaking email PII', async () => {
+      mockSignIn.mockRejectedValueOnce(new Error('Sensitive backend crash'));
+
+      const { result } = renderHook(() => useSignInForm());
+
+      await act(async () => {
+        await result.current.onSubmit(validValues);
+      });
+
+      expect(mockTrackEvent).toHaveBeenCalledWith({
+        name: 'auth_flow_failed',
+        feature: 'auth',
+        metadata: {
+          flow: 'login',
+          error_type: 'unexpected',
+        },
+      });
+      const serialized = JSON.stringify(mockTrackEvent.mock.calls);
+      expect(serialized).not.toContain(validValues.email);
+      expect(serialized).not.toContain('Sensitive backend crash');
     });
   });
 });
