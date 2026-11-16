@@ -808,17 +808,14 @@ export function setAnalyticsUserContext(
 
   if (!safeUserId) {
     activeClaritySessionUrl = null;
+    lastIdentifiedClarityUserByFn = new WeakMap<object, string>();
   }
 
   const clarity = getClarity();
-  if (clarity) {
-    if (safeUserId) {
-      if (lastIdentifiedClarityUserByFn.get(clarity) !== safeUserId) {
-        lastIdentifiedClarityUserByFn.set(clarity, safeUserId);
-        clarity('identify', safeUserId);
-      }
-    } else {
-      lastIdentifiedClarityUserByFn.delete(clarity);
+  if (clarity && safeUserId) {
+    if (lastIdentifiedClarityUserByFn.get(clarity) !== safeUserId) {
+      lastIdentifiedClarityUserByFn.set(clarity, safeUserId);
+      clarity('identify', safeUserId);
     }
   }
 }
