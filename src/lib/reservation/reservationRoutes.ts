@@ -220,14 +220,28 @@ export function buildReservationHistorySignInCallbackHref(
   return `/auth/signin?callbackUrl=${encodeURIComponent(callbackTarget)}`;
 }
 
+function hasRemovableDeepLinkParam(params: URLSearchParams): boolean {
+  for (let i = 0; i < FEEDBACK_DEEP_LINK_ID_KEYS.length; i += 1) {
+    if (params.has(FEEDBACK_DEEP_LINK_ID_KEYS[i])) {
+      return true;
+    }
+  }
+  const feedbackParam = params.get('feedback');
+  return (
+    feedbackParam !== null &&
+    feedbackParam.trim().toLowerCase() !== FEEDBACK_QUEUE_QUERY_VALUE
+  );
+}
+
 export function buildCleanedDeepLinkHref(
   pathname: string,
   rawSearch: string
 ): string | null {
-  const cleanedSearch = stripDeepLinkQueryParams(rawSearch);
-  if (cleanedSearch === rawSearch) {
+  const initialParams = new URLSearchParams(rawSearch);
+  if (!hasRemovableDeepLinkParam(initialParams)) {
     return null;
   }
+  const cleanedSearch = stripDeepLinkQueryParams(rawSearch);
   const params = new URLSearchParams(cleanedSearch);
   params.set('tab', 'history');
   const nextQuery = params.toString();
@@ -239,11 +253,10 @@ export function buildCleanedFeedbackQueueHref(
   rawSearch: string
 ): string | null {
   const params = new URLSearchParams(rawSearch);
-  if (params.get('feedback') === null) {
+  if (!isFeedbackQueueQueryRequested(params)) {
     return null;
   }
-  params.delete('feedback');
-  const nextQuery = params.toString();
+  const nextQuery = stripFeedbackQueueQueryParam(rawSearch);
   return nextQuery ? `${pathname}?${nextQuery}` : pathname;
 }
 

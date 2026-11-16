@@ -223,8 +223,50 @@ describe('mapNotificationVOToItem', () => {
       },
     });
     expect(mentorAttendanceReq.type).toBe('reservation_attendance_requested');
+    expect(mentorAttendanceReq.category).toBe('attendance_requested');
     expect(mentorAttendanceReq.role).toBe('mentor');
     expect(mentorAttendanceReq.menteeName).toBe('林學員');
     expect(mentorAttendanceReq.reservationId).toBe('205');
+    expect(mentorAttendanceReq.targetHref).toBe(
+      '/reservation/mentor?tab=history&reservationId=205'
+    );
+  });
+
+  it('infers default mentee/mentor roles and canonical targetHref across all feedback reminder aliases when metadata.role is omitted (#906)', () => {
+    for (const reminderType of [
+      'feedback_reminder',
+      'reservation_feedback_reminder',
+      'meeting_feedback_reminder',
+    ] as const) {
+      const omittedRoleMentee = mapNotificationVOToItem({
+        ...baseApiItem,
+        type: reminderType,
+        metadata: {
+          counterparty_name: 'Emily Chen',
+          reservation_id: 301,
+        },
+      });
+      expect(omittedRoleMentee.category).toBe('feedback_reminder');
+      expect(omittedRoleMentee.role).toBe('mentee');
+      expect(omittedRoleMentee.mentorName).toBe('Emily Chen');
+      expect(omittedRoleMentee.targetHref).toBe(
+        '/reservation/mentee?tab=history&reservationId=301'
+      );
+
+      const omittedRoleMentor = mapNotificationVOToItem({
+        ...baseApiItem,
+        type: reminderType,
+        metadata: {
+          mentee_name: '林學員',
+          reservation_id: 302,
+        },
+      });
+      expect(omittedRoleMentor.category).toBe('feedback_reminder');
+      expect(omittedRoleMentor.role).toBe('mentor');
+      expect(omittedRoleMentor.menteeName).toBe('林學員');
+      expect(omittedRoleMentor.targetHref).toBe(
+        '/reservation/mentor?tab=history&reservationId=302'
+      );
+    }
   });
 });

@@ -6,11 +6,8 @@ import { Suspense } from 'react';
 
 import { usePendingFeedbackQueue } from '@/hooks/user/reservation/usePendingFeedbackQueue';
 
-const DynamicPendingFeedbackModal = dynamic(
-  () =>
-    import('@/components/reservation/PendingFeedbackModal').then(
-      (mod) => mod.PendingFeedbackModal
-    ),
+const DynamicMeetingFeedbackDialog = dynamic(
+  () => import('@/components/reservation/MeetingFeedbackDialog'),
   {
     ssr: false,
   }
@@ -25,8 +22,11 @@ function PendingFeedbackQueueWatcher(): JSX.Element | null {
   }
 
   return (
-    <DynamicPendingFeedbackModal
-      queueItems={queueItems}
+    <DynamicMeetingFeedbackDialog
+      defaultOpen
+      hideTrigger
+      reservation={queueItems[0]}
+      queue={queueItems}
       onSubmitFeedback={submitFeedbackItem}
       onSkipReservation={skipFeedbackItem}
       onClose={dismissQueue}

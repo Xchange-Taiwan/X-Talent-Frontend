@@ -297,68 +297,6 @@ function ReservationItem({
   );
 }
 
-function DeepLinkFeedbackDialog({
-  reservation,
-  sourceRole,
-  myUserId,
-  onClose,
-}: {
-  reservation: Reservation;
-  sourceRole: SourceRole;
-  myUserId: string | undefined;
-  onClose?: () => void;
-}) {
-  const { submitFeedback, isMutating } = useReservationActions({
-    myUserId,
-    variant: 'history',
-    myRole: sourceRole,
-  });
-
-  return (
-    <MeetingFeedbackDialog
-      defaultOpen
-      viewerRole={sourceRole}
-      initialStep={resolveFeedbackInitialStep({
-        reservation,
-        role: sourceRole,
-      })}
-      reservation={reservation}
-      disabled={isMutating}
-      trigger={<span className="sr-only">指定會談回饋視窗</span>}
-      onSubmitFeedback={(payload, target) => submitFeedback(target, payload)}
-      onClose={onClose}
-    />
-  );
-}
-
-function MenteePendingFeedbackQueueDialog({
-  queueItems,
-  myUserId,
-  onClose,
-}: {
-  queueItems: Reservation[];
-  myUserId: string | undefined;
-  onClose?: () => void;
-}) {
-  const { submitFeedback, isMutating } = useReservationActions({
-    myUserId,
-    variant: 'history',
-    myRole: 'mentee',
-  });
-
-  return (
-    <MeetingFeedbackDialog
-      defaultOpen
-      reservation={queueItems[0]}
-      queue={queueItems}
-      disabled={isMutating}
-      trigger={<span className="sr-only">待填會談回饋佇列</span>}
-      onSubmitFeedback={(payload, target) => submitFeedback(target, payload)}
-      onClose={onClose}
-    />
-  );
-}
-
 export function ReservationList({
   items,
   variant,
@@ -369,6 +307,7 @@ export function ReservationList({
   isLoadingMore = false,
   feedbackQueueItems = null,
   onFeedbackQueueClose,
+  onSkipFeedbackQueueItem,
   deepLinkDialogReservation = null,
   onDeepLinkDialogClose,
   highlightedReservationId = null,
@@ -384,32 +323,67 @@ export function ReservationList({
   isLoadingMore?: boolean;
   feedbackQueueItems?: Reservation[] | null;
   onFeedbackQueueClose?: () => void;
+  onSkipFeedbackQueueItem?: (reservation: Reservation) => void;
   deepLinkDialogReservation?: Reservation | null;
   onDeepLinkDialogClose?: () => void;
   highlightedReservationId?: string | null;
   autoExpandedReservationId?: string | null;
   deepLinkTriggerSeq?: number;
 }) {
+  const { submitFeedback, isMutating } = useReservationActions({
+    myUserId,
+    variant: 'history',
+    myRole: sourceRole,
+  });
   const emptyState = resolveEmptyStateContent(sourceRole, variant, myUserId);
+
+  const hostFeedbackDialog =
+    variant === 'history' && deepLinkDialogReservation
+      ? {
+          key: `deeplink-${sourceRole}-${deepLinkDialogReservation.id}`,
+          reservation: deepLinkDialogReservation,
+          queue: undefined,
+          initialStep: resolveFeedbackInitialStep({
+            reservation: deepLinkDialogReservation,
+            role: sourceRole,
+          }),
+          triggerLabel: '指定會談回饋視窗',
+          onSkipReservation: undefined,
+          onClose: onDeepLinkDialogClose,
+        }
+      : variant === 'history' &&
+          feedbackQueueItems &&
+          feedbackQueueItems.length > 0
+        ? {
+            key: `queue-${sourceRole}`,
+            reservation: feedbackQueueItems[0],
+            queue: feedbackQueueItems,
+            initialStep: undefined,
+            triggerLabel: '待填會談回饋佇列',
+            onSkipReservation: onSkipFeedbackQueueItem,
+            onClose: onFeedbackQueueClose,
+          }
+        : null;
 
   return (
     <div className="space-y-3 sm:space-y-4">
-      {deepLinkDialogReservation && variant === 'history' ? (
-        <DeepLinkFeedbackDialog
-          key={`${sourceRole}-${deepLinkDialogReservation.id}`}
-          reservation={deepLinkDialogReservation}
-          sourceRole={sourceRole}
-          myUserId={myUserId}
-          onClose={onDeepLinkDialogClose}
-        />
-      ) : feedbackQueueItems &&
-        feedbackQueueItems.length > 0 &&
-        variant === 'history' &&
-        sourceRole === 'mentee' ? (
-        <MenteePendingFeedbackQueueDialog
-          queueItems={feedbackQueueItems}
-          myUserId={myUserId}
-          onClose={onFeedbackQueueClose}
+      {hostFeedbackDialog ? (
+        <MeetingFeedbackDialog
+          key={hostFeedbackDialog.key}
+          defaultOpen
+          viewerRole={sourceRole}
+          initialStep={hostFeedbackDialog.initialStep}
+          reservation={hostFeedbackDialog.reservation}
+          queue={hostFeedbackDialog.queue}
+          disabled={isMutating}
+          trigger={
+            <span className="sr-only">{hostFeedbackDialog.triggerLabel}</span>
+          }
+          onSubmitFeedback={(payload, target) =>
+            submitFeedback(target, payload)
+          }
+          onSkipReservation={hostFeedbackDialog.onSkipReservation}
+          onClose={hostFeedbackDialog.onClose}
         />
       ) : null}
 

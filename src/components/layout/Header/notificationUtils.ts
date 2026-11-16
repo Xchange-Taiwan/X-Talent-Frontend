@@ -1,6 +1,10 @@
 import dayjs from 'dayjs';
 
 import type { NotificationItem } from '@/hooks/useNotificationCenter';
+import {
+  isNotificationMentorContext,
+  resolveNotificationTargetHref,
+} from '@/lib/reservation/reservationRoutes';
 
 type NotificationContent = {
   title: string;
@@ -9,24 +13,13 @@ type NotificationContent = {
 
 type NotificationConfigEntry = {
   getContent: (item: NotificationItem) => NotificationContent;
-  getHref: (item: NotificationItem, isMentorContext: boolean) => string;
 };
 
 function getMentorContext(item: NotificationItem): boolean {
-  return (
-    item.role === 'mentor' || (item.role === undefined && !!item.menteeName)
-  );
-}
-
-function buildHistoryFeedbackHref(
-  basePath: '/reservation/mentor' | '/reservation/mentee',
-  reservationId?: string
-): string {
-  const trimmedId = reservationId?.trim();
-  if (!trimmedId) {
-    return `${basePath}?tab=history`;
-  }
-  return `${basePath}?tab=history&reservationId=${encodeURIComponent(trimmedId)}`;
+  return isNotificationMentorContext({
+    role: item.role,
+    menteeName: item.menteeName,
+  });
 }
 
 const FEEDBACK_REQUESTED_CONFIG: NotificationConfigEntry = {
@@ -34,11 +27,6 @@ const FEEDBACK_REQUESTED_CONFIG: NotificationConfigEntry = {
     title: '留下您的會談回饋',
     body: `您與 ${item.mentorName || item.menteeName || 'Mentor'} 的會談已結束，前往留下回饋。`,
   }),
-  getHref: (item) =>
-    buildHistoryFeedbackHref(
-      item.role === 'mentor' ? '/reservation/mentor' : '/reservation/mentee',
-      item.reservationId
-    ),
 };
 
 const ATTENDANCE_REQUESTED_CONFIG: NotificationConfigEntry = {
@@ -46,11 +34,6 @@ const ATTENDANCE_REQUESTED_CONFIG: NotificationConfigEntry = {
     title: '留下您的會談紀錄',
     body: `您與 ${item.menteeName || item.mentorName || 'Mentee'} 的會談已結束，前往留下紀錄。`,
   }),
-  getHref: (item) =>
-    buildHistoryFeedbackHref(
-      item.role === 'mentee' ? '/reservation/mentee' : '/reservation/mentor',
-      item.reservationId
-    ),
 };
 
 const FEEDBACK_REMINDER_CONFIG: NotificationConfigEntry = {
@@ -67,11 +50,6 @@ const FEEDBACK_REMINDER_CONFIG: NotificationConfigEntry = {
       body: `您與 ${item.mentorName || 'Mentor'} 的會談已結束，前往留下回饋。`,
     };
   },
-  getHref: (item, isMentorContext) =>
-    buildHistoryFeedbackHref(
-      isMentorContext ? '/reservation/mentor' : '/reservation/mentee',
-      item.reservationId
-    ),
 };
 
 const FEEDBACK_RECEIVED_CONFIG: NotificationConfigEntry = {
@@ -79,17 +57,8 @@ const FEEDBACK_RECEIVED_CONFIG: NotificationConfigEntry = {
     title: '您收到新的回饋',
     body: `${item.menteeName?.trim() || 'Mentee'} 為您留下了一則會談回饋，前往查看。`,
   }),
-  getHref: (item) =>
-    buildHistoryFeedbackHref('/reservation/mentor', item.reservationId),
 };
 
-/**
- * Single source of truth for how each notification `type` renders (title,
- * body) and where it links to (href). Keeping both concerns keyed by the
- * same type here avoids having to update two separate switch statements
- * (previously in NotificationBell.tsx and notificationUtils.ts) whenever a
- * type is added or changed.
- */
 const NOTIFICATION_CONFIG: Record<
   NotificationItem['type'],
   NotificationConfigEntry
@@ -99,21 +68,18 @@ const NOTIFICATION_CONFIG: Record<
       title: '您有新的預約',
       body: `${item.menteeName || 'Mentee'} 與您提出預約需求，請前往接受預約`,
     }),
-    getHref: () => '/reservation/mentor?tab=pending',
   },
   reservation_success: {
     getContent: (item) => ({
       title: `${item.mentorName || 'Mentor'} 已接受您的預約`,
       body: '前往查看您的預約詳情',
     }),
-    getHref: () => '/reservation/mentee?tab=upcoming',
   },
   reservation_failed: {
     getContent: (item) => ({
       title: `您與 ${item.mentorName || 'Mentor'} 的預約已被拒絕`,
       body: '您的預約已被拒絕，歡迎重新預約',
     }),
-    getHref: () => '/mentor-pool',
   },
   reservation_canceled: {
     getContent: (item) => {
@@ -134,8 +100,6 @@ const NOTIFICATION_CONFIG: Record<
           : '您的預約已被取消，歡迎重新預約',
       };
     },
-    getHref: (_item, isMentorContext) =>
-      isMentorContext ? '/reservation/mentor?tab=history' : '/mentor-pool',
   },
   reservation_upcoming: {
     getContent: (item) => {
@@ -154,10 +118,6 @@ const NOTIFICATION_CONFIG: Record<
         body: `您 24 小時後有與 ${name} 的會議，請準時上線`,
       };
     },
-    getHref: (_item, isMentorContext) =>
-      isMentorContext
-        ? '/reservation/mentor?tab=upcoming'
-        : '/reservation/mentee?tab=upcoming',
   },
   reservation_feedback_requested: FEEDBACK_REQUESTED_CONFIG,
   reservation_attendance_requested: ATTENDANCE_REQUESTED_CONFIG,
@@ -174,8 +134,6 @@ const DEFAULT_CONTENT: NotificationContent = {
   body: '您有一則新通知',
 };
 
-const DEFAULT_HREF = '/';
-
 /**
  * Returns content templates (title, body) for notification items.
  */
@@ -190,6 +148,14 @@ export function getNotificationContent(
  * Returns the destination URL for a given notification item contextually.
  */
 export function getNotificationHref(item: NotificationItem): string {
-  const entry = NOTIFICATION_CONFIG[item.type];
-  return entry ? entry.getHref(item, getMentorContext(item)) : DEFAULT_HREF;
+  if (item.targetHref) {
+    return item.targetHref;
+  }
+  return resolveNotificationTargetHref({
+    type: item.type,
+    category: item.category,
+    role: item.role,
+    menteeName: item.menteeName,
+    reservationId: item.reservationId,
+  });
 }

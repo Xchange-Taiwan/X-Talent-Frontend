@@ -369,3 +369,117 @@ export const MenteeDeepLinkResumeRatingDialog: Story = {
     },
   },
 };
+
+// 15. Bilateral Feedback Queue Host Dialog — Mentor Confirm-Session Queue (#906)
+export const MentorFeedbackQueueDialog: Story = {
+  args: {
+    items: [
+      {
+        ...mockReservations[6],
+        id: 'mentor-queue-oldest',
+        name: 'Emily Chen',
+        viewerRole: 'MENTOR',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+      {
+        ...mockReservations[6],
+        id: 'mentor-queue-newer',
+        name: 'Alex Wang',
+        viewerRole: 'MENTOR',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+    ],
+    variant: 'history',
+    sourceRole: 'mentor',
+    myUserId: 'user-mentor-current',
+    feedbackQueueItems: [
+      {
+        ...mockReservations[6],
+        id: 'mentor-queue-oldest',
+        name: 'Emily Chen',
+        viewerRole: 'MENTOR',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+      {
+        ...mockReservations[6],
+        id: 'mentor-queue-newer',
+        name: 'Alex Wang',
+        viewerRole: 'MENTOR',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+    ],
+  },
+};
+
+// 16. Bilateral Feedback Queue Host Dialog — Mentee Rating Queue (#906)
+export const MenteeFeedbackQueueDialog: Story = {
+  args: {
+    items: [
+      {
+        ...mockReservations[6],
+        id: 'mentee-queue-oldest',
+        name: '陳大文 (David Chen)',
+        viewerRole: 'MENTEE',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+      {
+        ...mockReservations[6],
+        id: 'mentee-queue-newer',
+        name: '林佳穎 (Emily Lin)',
+        viewerRole: 'MENTEE',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+    ],
+    variant: 'history',
+    sourceRole: 'mentee',
+    myUserId: 'user-mentee-jay',
+    feedbackQueueItems: [
+      {
+        ...mockReservations[6],
+        id: 'mentee-queue-oldest',
+        name: '陳大文 (David Chen)',
+        viewerRole: 'MENTEE',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+      {
+        ...mockReservations[6],
+        id: 'mentee-queue-newer',
+        name: '林佳穎 (Emily Lin)',
+        viewerRole: 'MENTEE',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      },
+    ],
+  },
+};

@@ -2,6 +2,10 @@ import { act, renderHook } from '@testing-library/react';
 import { fromPartial } from '@total-typescript/shoehorn';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  createFeedbackSessionCoordinator,
+  createInMemoryFeedbackSessionStoragePort,
+} from '@/lib/reservation/feedbackSessionCoordinator';
 import type { Reservation } from '@/types/reservation';
 
 import { useFeedbackDeepLinkParam } from './useFeedbackDeepLinkParam';
@@ -680,5 +684,50 @@ describe('useFeedbackDeepLinkParam (#733)', () => {
       '/reservation/mentee?tab=history',
       { scroll: false }
     );
+  });
+
+  it('consumes seeded lookup from /reservation/history redirect without triggering multi-page waterfall or duplicate single-feedback fetch (#906)', () => {
+    currentQuery = 'tab=history&reservation_id=777';
+    const coordinator = createFeedbackSessionCoordinator({
+      storage: createInMemoryFeedbackSessionStoragePort(),
+    });
+    const seededItem = fromPartial<Reservation>({
+      id: '777',
+      feedback: {
+        meetingHappened: null,
+        rating: null,
+        nextStep: 'ANSWER',
+      },
+    });
+    coordinator.seedLookupResult({
+      userId: 'user-1',
+      reservationId: '777',
+      result: {
+        viewerRole: 'mentee',
+        reservation: seededItem,
+      },
+    });
+
+    const onLoadMoreHistory = vi.fn();
+    const lookupSingleFeedback = vi.fn();
+
+    const { result } = renderHook(() =>
+      useFeedbackDeepLinkParam({
+        userRole: 'mentee',
+        myUserId: 'user-1',
+        history: [],
+        isHistoryLoaded: true,
+        isLoadingHistory: false,
+        hasMoreHistory: true,
+        onLoadMoreHistory,
+        coordinator,
+        lookupSingleFeedback,
+      })
+    );
+
+    expect(result.current.deepLinkDialogReservation).toBe(seededItem);
+    expect(result.current.highlightedReservationId).toBe('777');
+    expect(onLoadMoreHistory).not.toHaveBeenCalled();
+    expect(lookupSingleFeedback).not.toHaveBeenCalled();
   });
 });

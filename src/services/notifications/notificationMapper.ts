@@ -1,3 +1,9 @@
+import {
+  type NotificationSemanticCategory,
+  type ReservationRouteRole,
+  resolveNotificationCategory,
+  resolveNotificationTargetHref,
+} from '@/lib/reservation/reservationRoutes';
 import { components } from '@/types/api';
 
 import type { NotificationItem } from './types';
@@ -7,20 +13,9 @@ import type { NotificationItem } from './types';
 // this many digits in the year 2286).
 const SECONDS_TIMESTAMP_MAX = 9999999999;
 
-const MENTOR_DEFAULT_NOTIFICATION_TYPES = new Set<string>([
-  'feedback_received',
-  'reservation_feedback_received',
-  'meeting_feedback_received',
-  'reservation_attendance_requested',
-]);
-
-const MENTEE_DEFAULT_NOTIFICATION_TYPES = new Set<string>([
-  'reservation_feedback_requested',
-]);
-
 function normalizeNotificationRole(
   rawRole: unknown
-): 'mentor' | 'mentee' | undefined {
+): ReservationRouteRole | undefined {
   if (typeof rawRole !== 'string') return undefined;
   const lowered = rawRole.trim().toLowerCase();
   if (lowered === 'mentor' || lowered === 'mentee') {
@@ -35,22 +30,32 @@ function normalizeOptionalString(value: unknown): string | undefined {
   return trimmed !== '' ? trimmed : undefined;
 }
 
+function resolveDefaultNotificationRole(
+  category: NotificationSemanticCategory,
+  explicitMenteeName: string | undefined,
+  explicitMentorName: string | undefined
+): ReservationRouteRole | undefined {
+  if (category === 'feedback_received' || category === 'attendance_requested') {
+    return 'mentor';
+  }
+  if (category === 'feedback_requested') {
+    return 'mentee';
+  }
+  if (category === 'feedback_reminder') {
+    return explicitMenteeName && !explicitMentorName ? 'mentor' : 'mentee';
+  }
+  return undefined;
+}
+
 /**
  * Converts a backend NotificationVO (API DTO) into the frontend's
- * NotificationItem domain model. Kept as a standalone, dependency-free
- * module so both the real notificationService and its test-only mock
- * counterpart can share the exact same conversion logic.
+ * NotificationItem domain model.
  */
 export function mapNotificationVOToItem(
   apiItem: components['schemas']['NotificationVO']
 ): NotificationItem {
   const isUnread = !apiItem.read_at;
-  const isMentorDefaultType = MENTOR_DEFAULT_NOTIFICATION_TYPES.has(
-    apiItem.type
-  );
-  const isMenteeDefaultType = MENTEE_DEFAULT_NOTIFICATION_TYPES.has(
-    apiItem.type
-  );
+  const category = resolveNotificationCategory(apiItem.type);
   const metadata = (apiItem.metadata || {}) as {
     role?: 'mentor' | 'mentee' | 'MENTOR' | 'MENTEE';
     actor_role?: 'mentor' | 'mentee' | 'system';
@@ -67,19 +72,20 @@ export function mapNotificationVOToItem(
   };
   const { role, actor_role, counterparty_name, dtstart, dtend } = metadata;
 
-  const resolvedRole =
-    normalizeNotificationRole(role) ??
-    (isMentorDefaultType
-      ? 'mentor'
-      : isMenteeDefaultType
-        ? 'mentee'
-        : undefined);
   const explicitMenteeName =
     normalizeOptionalString(metadata.mentee_name) ??
     normalizeOptionalString(metadata.menteeName);
   const explicitMentorName =
     normalizeOptionalString(metadata.mentor_name) ??
     normalizeOptionalString(metadata.mentorName);
+
+  const resolvedRole =
+    normalizeNotificationRole(role) ??
+    resolveDefaultNotificationRole(
+      category,
+      explicitMenteeName,
+      explicitMentorName
+    );
 
   // Map role and counterparty_name to menteeName/mentorName for frontend compatibility
   const menteeName =
@@ -112,9 +118,19 @@ export function mapNotificationVOToItem(
   const ms = rawTime < SECONDS_TIMESTAMP_MAX ? rawTime * 1000 : rawTime;
   const createdAt = new Date(ms).toISOString();
 
+  const targetHref = resolveNotificationTargetHref({
+    type: apiItem.type,
+    category,
+    role: resolvedRole,
+    menteeName,
+    reservationId: normalizedReservationId,
+  });
+
   return {
     id: String(apiItem.id),
     type: apiItem.type as NotificationItem['type'],
+    category,
+    targetHref,
     createdAt,
     unread: isUnread,
     role: resolvedRole,

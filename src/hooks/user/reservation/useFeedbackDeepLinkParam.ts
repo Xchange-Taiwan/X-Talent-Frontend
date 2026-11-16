@@ -5,11 +5,19 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
 import {
-  extractDeepLinkReservationId,
   type FeedbackDeepLinkResolution,
   resolveDeepLinkOutcome,
-  stripDeepLinkQueryParams,
 } from '@/lib/reservation/feedbackDeepLink';
+import {
+  type FeedbackSessionCoordinator,
+  feedbackSessionCoordinator,
+} from '@/lib/reservation/feedbackSessionCoordinator';
+import {
+  buildCleanedDeepLinkHref,
+  buildReservationTabHref,
+  extractDeepLinkReservationId,
+  type ReservationRouteRole,
+} from '@/lib/reservation/reservationRoutes';
 import {
   fetchSingleReservationFeedback,
   type ReservationFeedbackLookupResult,
@@ -19,7 +27,7 @@ import type { Reservation } from '@/types/reservation';
 const MAX_DEEP_LINK_LOAD_MORE_PAGES = 3;
 
 export interface UseFeedbackDeepLinkParamOptions {
-  userRole: 'mentee' | 'mentor';
+  userRole: ReservationRouteRole;
   myUserId?: string;
   history: Reservation[];
   isHistoryLoaded: boolean;
@@ -27,10 +35,11 @@ export interface UseFeedbackDeepLinkParamOptions {
   isLoadingMoreHistory?: boolean;
   hasMoreHistory?: boolean;
   onLoadMoreHistory?: () => void;
+  coordinator?: FeedbackSessionCoordinator;
   lookupSingleFeedback?: (opts: {
     userId: string;
     reservationId: string;
-    fallbackRole: 'mentee' | 'mentor';
+    fallbackRole: ReservationRouteRole;
     signal?: AbortSignal;
   }) => Promise<ReservationFeedbackLookupResult | null>;
 }
@@ -54,6 +63,7 @@ export function useFeedbackDeepLinkParam({
   isLoadingMoreHistory = false,
   hasMoreHistory = false,
   onLoadMoreHistory,
+  coordinator = feedbackSessionCoordinator,
   lookupSingleFeedback = fetchSingleReservationFeedback,
 }: UseFeedbackDeepLinkParamOptions): UseFeedbackDeepLinkParamResult {
   const searchParams = useSearchParams();
@@ -100,16 +110,12 @@ export function useFeedbackDeepLinkParam({
   }, []);
 
   const clearDeepLinkParams = useCallback(() => {
-    const currentSearch = searchParams.toString();
-    const cleanedSearch = stripDeepLinkQueryParams(currentSearch);
-    if (cleanedSearch === currentSearch) return;
-
-    const params = new URLSearchParams(cleanedSearch);
-    params.set('tab', 'history');
-    const nextQuery = params.toString();
-    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, {
-      scroll: false,
-    });
+    const nextHref = buildCleanedDeepLinkHref(
+      pathname,
+      searchParams.toString()
+    );
+    if (!nextHref) return;
+    router.replace(nextHref, { scroll: false });
   }, [pathname, router, searchParams]);
 
   const dismissDeepLinkDialog = useCallback(() => {
@@ -241,6 +247,48 @@ export function useFeedbackDeepLinkParam({
     });
 
     if (outcome.kind === 'not-found') {
+      const cleanUserId = myUserId?.trim() ?? '';
+
+      if (cleanUserId) {
+        const seeded = coordinator.consumeSeededLookup({
+          userId: cleanUserId,
+          reservationId: targetReservationId,
+        });
+        if (seeded.hit) {
+          if (!seeded.result) {
+            applyNotFoundOutcome(targetKey);
+            return;
+          }
+          if (seeded.result.viewerRole !== userRole) {
+            handledKeyRef.current = targetKey;
+            coordinator.seedLookupResult({
+              userId: cleanUserId,
+              reservationId: targetReservationId,
+              result: seeded.result,
+            });
+            router.replace(
+              buildReservationTabHref(seeded.result.viewerRole, 'history', {
+                reservationId: targetReservationId,
+                reservationIdParam: 'reservation_id',
+              }),
+              { scroll: false }
+            );
+            return;
+          }
+          const seededOutcome = resolveDeepLinkOutcome({
+            role: userRole,
+            targetReservationId,
+            history: [seeded.result.reservation],
+          });
+          if (seededOutcome.kind === 'not-found') {
+            applyNotFoundOutcome(targetKey);
+            return;
+          }
+          applyResolvedOutcome(targetKey, seededOutcome);
+          return;
+        }
+      }
+
       const canTryNextPage =
         hasMoreHistory &&
         Boolean(onLoadMoreHistory) &&
@@ -254,7 +302,6 @@ export function useFeedbackDeepLinkParam({
         return;
       }
 
-      const cleanUserId = myUserId?.trim() ?? '';
       if (!cleanUserId) {
         applyNotFoundOutcome(targetKey);
         return;
@@ -287,8 +334,16 @@ export function useFeedbackDeepLinkParam({
           }
           if (lookupResult.viewerRole !== userRole) {
             handledKeyRef.current = targetKey;
+            coordinator.seedLookupResult({
+              userId: cleanUserId,
+              reservationId: targetReservationId,
+              result: lookupResult,
+            });
             router.replace(
-              `/reservation/${lookupResult.viewerRole}?tab=history&reservation_id=${encodeURIComponent(targetReservationId)}`,
+              buildReservationTabHref(lookupResult.viewerRole, 'history', {
+                reservationId: targetReservationId,
+                reservationIdParam: 'reservation_id',
+              }),
               { scroll: false }
             );
             return;
@@ -321,6 +376,7 @@ export function useFeedbackDeepLinkParam({
   }, [
     applyNotFoundOutcome,
     applyResolvedOutcome,
+    coordinator,
     hasMoreHistory,
     history,
     isHistoryLoaded,

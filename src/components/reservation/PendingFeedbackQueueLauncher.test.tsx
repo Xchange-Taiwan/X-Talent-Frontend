@@ -17,8 +17,8 @@ vi.mock('next/navigation', () => ({
 vi.mock('next/dynamic', () => ({
   default: () => {
     const DynamicModalShim = (
-      props: React.ComponentProps<typeof PendingFeedbackModal>
-    ) => <PendingFeedbackModal {...props} />;
+      props: React.ComponentProps<typeof MeetingFeedbackDialog>
+    ) => <MeetingFeedbackDialog {...props} />;
     return DynamicModalShim;
   },
 }));
@@ -75,7 +75,7 @@ import {
 import { mockSession, mockUseSession } from '@/test/mocks/nextAuth';
 import type { Reservation } from '@/types/reservation';
 
-import { PendingFeedbackModal } from './PendingFeedbackModal';
+import MeetingFeedbackDialog from './MeetingFeedbackDialog';
 import { PendingFeedbackQueueLauncher } from './PendingFeedbackQueueLauncher';
 
 const mockFetchPending = vi.mocked(fetchPendingFeedbackReservations);
