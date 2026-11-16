@@ -1,3 +1,5 @@
+import type { NotificationSemanticCategory } from '@/lib/reservation/reservationRoutes';
+
 export type NotificationItem = {
   id: string;
   type:
@@ -14,6 +16,8 @@ export type NotificationItem = {
     | 'feedback_received'
     | 'reservation_feedback_received'
     | 'meeting_feedback_received';
+  category?: NotificationSemanticCategory;
+  targetHref?: string;
   menteeName?: string;
   mentorName?: string;
   reservationId?: string;

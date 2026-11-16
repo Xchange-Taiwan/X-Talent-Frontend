@@ -12,7 +12,10 @@ import {
   type ReservationRole,
   useReservationData,
 } from '@/hooks/user/reservation/useReservationData';
-import { FEEDBACK_DEEP_LINK_ID_KEYS } from '@/lib/reservation/feedbackDeepLink';
+import {
+  buildReservationTabSwitchHref,
+  type ReservationTabParam,
+} from '@/lib/reservation/reservationRoutes';
 import type { Reservation } from '@/types/reservation';
 
 export interface ReservationDashboardProps {
@@ -131,7 +134,7 @@ export function ReservationDashboardView({
     history: 'history',
   };
 
-  const URL_PARAM_MAPPING: Record<string, string> = {
+  const URL_PARAM_MAPPING: Record<string, ReservationTabParam> = {
     [upcomingTabValue]: 'upcoming',
     [pendingTabValue]: 'pending',
     history: 'history',
@@ -160,15 +163,21 @@ export function ReservationDashboardView({
     onLoadMoreHistory,
   });
 
-  const { isFeedbackQueueRequested, feedbackQueueItems, dismissFeedbackQueue } =
-    useFeedbackQueueParam({
-      isMentee,
-      history,
-      isHistoryLoaded,
-      isLoadingHistory,
-      isLoadingUpcoming,
-      isLoadingPending,
-    });
+  const {
+    isFeedbackQueueRequested,
+    feedbackQueueItems,
+    skipFeedbackQueueItem,
+    dismissFeedbackQueue,
+  } = useFeedbackQueueParam({
+    role: userRole,
+    isMentee,
+    userId: myUserId,
+    history,
+    isHistoryLoaded,
+    isLoadingHistory,
+    isLoadingUpcoming,
+    isLoadingPending,
+  });
 
   const tabParam = searchParams.get('tab');
   const activeTab =
@@ -255,16 +264,12 @@ export function ReservationDashboardView({
       onLoadHistory();
     }
 
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete('feedback');
-    for (const key of FEEDBACK_DEEP_LINK_ID_KEYS) {
-      params.delete(key);
-    }
-    const paramValue = URL_PARAM_MAPPING[value];
-    if (paramValue) {
-      params.set('tab', paramValue);
-    }
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    const nextHref = buildReservationTabSwitchHref(
+      pathname,
+      searchParams.toString(),
+      URL_PARAM_MAPPING[value]
+    );
+    router.replace(nextHref, { scroll: false });
   };
 
   const title = isMentee ? '預約導師' : '擔任導師';
@@ -373,6 +378,7 @@ export function ReservationDashboardView({
                         : feedbackQueueItems
                     }
                     onFeedbackQueueClose={dismissFeedbackQueue}
+                    onSkipFeedbackQueueItem={skipFeedbackQueueItem}
                     deepLinkDialogReservation={deepLinkDialogReservation}
                     onDeepLinkDialogClose={dismissDeepLinkDialog}
                     highlightedReservationId={highlightedReservationId}

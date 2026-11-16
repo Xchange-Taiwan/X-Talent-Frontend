@@ -3,11 +3,22 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { filterPendingFeedbackQueueItems } from '@/lib/reservation/resolveHistoryFeedbackState';
+import {
+  type FeedbackSessionCoordinator,
+  feedbackSessionCoordinator,
+} from '@/lib/reservation/feedbackSessionCoordinator';
+import {
+  buildCleanedFeedbackQueueHref,
+  isFeedbackQueueQueryRequested,
+  type ReservationRouteRole,
+} from '@/lib/reservation/reservationRoutes';
 import type { Reservation } from '@/types/reservation';
 
 export interface UseFeedbackQueueParamOptions {
-  isMentee: boolean;
+  role?: ReservationRouteRole;
+  isMentee?: boolean;
+  userId?: string;
+  coordinator?: FeedbackSessionCoordinator;
   history: Reservation[];
   isHistoryLoaded: boolean;
   isLoadingHistory: boolean;
@@ -18,11 +29,15 @@ export interface UseFeedbackQueueParamOptions {
 export interface UseFeedbackQueueParamResult {
   isFeedbackQueueRequested: boolean;
   feedbackQueueItems: Reservation[] | null;
+  skipFeedbackQueueItem: (reservation: Reservation) => void;
   dismissFeedbackQueue: () => void;
 }
 
 export function useFeedbackQueueParam({
+  role,
   isMentee,
+  userId,
+  coordinator = feedbackSessionCoordinator,
   history,
   isHistoryLoaded,
   isLoadingHistory,
@@ -33,12 +48,18 @@ export function useFeedbackQueueParam({
   const router = useRouter();
   const pathname = usePathname();
 
-  const hasFeedbackQueueParam = searchParams.get('feedback') === 'queue';
-  const isFeedbackQueueRequested = isMentee && hasFeedbackQueueParam;
+  const resolvedRole: ReservationRouteRole =
+    role ?? (isMentee === false ? 'mentor' : 'mentee');
+  const isFeedbackQueueRequested = isFeedbackQueueQueryRequested(searchParams);
 
   const pendingItems = useMemo(
-    () => filterPendingFeedbackQueueItems(history),
-    [history]
+    () =>
+      coordinator.resolveExplicitQueueItems({
+        userId,
+        role: resolvedRole,
+        history,
+      }),
+    [coordinator, history, resolvedRole, userId]
   );
 
   const isHistoryReadyForQueueCheck =
@@ -52,14 +73,21 @@ export function useFeedbackQueueParam({
   const [dismissed, setDismissed] = useState(false);
 
   const clearFeedbackQueueParam = useCallback(() => {
-    if (searchParams.get('feedback') === null) return;
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete('feedback');
-    const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, {
-      scroll: false,
-    });
+    const nextHref = buildCleanedFeedbackQueueHref(
+      pathname,
+      searchParams.toString()
+    );
+    if (!nextHref) return;
+    router.replace(nextHref, { scroll: false });
   }, [pathname, router, searchParams]);
+
+  const skipFeedbackQueueItem = useCallback(
+    (reservation: Reservation) => {
+      if (!reservation?.id) return;
+      coordinator.markReservationSkipped(userId?.trim() ?? '', reservation.id);
+    },
+    [coordinator, userId]
+  );
 
   const dismissFeedbackQueue = useCallback(() => {
     setDismissed(true);
@@ -67,24 +95,13 @@ export function useFeedbackQueueParam({
   }, [clearFeedbackQueueParam]);
 
   useEffect(() => {
-    if (!hasFeedbackQueueParam) {
+    if (!isFeedbackQueueRequested) {
       if (latchedQueue !== null) {
         setLatchedQueue(null);
       }
       if (dismissed) {
         setDismissed(false);
       }
-      return;
-    }
-
-    if (!isMentee) {
-      if (latchedQueue !== null) {
-        setLatchedQueue(null);
-      }
-      if (dismissed) {
-        setDismissed(false);
-      }
-      clearFeedbackQueueParam();
       return;
     }
 
@@ -104,9 +121,8 @@ export function useFeedbackQueueParam({
   }, [
     clearFeedbackQueueParam,
     dismissed,
-    hasFeedbackQueueParam,
+    isFeedbackQueueRequested,
     isHistoryReadyForQueueCheck,
-    isMentee,
     latchedQueue,
     pendingItems,
   ]);
@@ -122,6 +138,7 @@ export function useFeedbackQueueParam({
   return {
     isFeedbackQueueRequested,
     feedbackQueueItems,
+    skipFeedbackQueueItem,
     dismissFeedbackQueue,
   };
 }

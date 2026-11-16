@@ -26,9 +26,14 @@ vi.mock('next/navigation', () => ({
   usePathname: () => mockPathname(),
 }));
 
-function makePendingAnswerReservation(id: string): Reservation {
+function makePendingAnswerReservation(
+  id: string,
+  dtend = 1760000000
+): Reservation {
   return fromPartial<Reservation>({
     id,
+    dtstart: dtend - 1800,
+    dtend,
     cancelledBy: undefined,
     feedback: {
       meetingHappened: null,
@@ -140,13 +145,19 @@ describe('useFeedbackQueueParam', () => {
     );
   });
 
-  it('strips feedback=queue immediately when user is not mentee', () => {
+  it('supports bilateral mentor ?feedback=queue ordered oldest-first and persists skipped sessions via coordinator (#906)', () => {
+    window.sessionStorage.clear();
     mockPathname.mockReturnValue('/reservation/mentor');
 
-    const { result } = renderHook(() =>
+    const newer = makePendingAnswerReservation('mentor-res-2', 1762000000);
+    const older = makePendingAnswerReservation('mentor-res-1', 1760000000);
+
+    const { result, unmount } = renderHook(() =>
       useFeedbackQueueParam({
         isMentee: false,
-        history: [makePendingAnswerReservation('res-1')],
+        role: 'mentor',
+        userId: 'mentor-99',
+        history: [newer, older],
         isHistoryLoaded: true,
         isLoadingHistory: false,
         isLoadingUpcoming: false,
@@ -154,10 +165,32 @@ describe('useFeedbackQueueParam', () => {
       })
     );
 
-    expect(result.current.isFeedbackQueueRequested).toBe(false);
-    expect(result.current.feedbackQueueItems).toBeNull();
-    expect(mockReplace).toHaveBeenCalledWith('/reservation/mentor', {
-      scroll: false,
+    expect(result.current.isFeedbackQueueRequested).toBe(true);
+    expect(result.current.feedbackQueueItems?.map((i) => i.id)).toEqual([
+      'mentor-res-1',
+      'mentor-res-2',
+    ]);
+    expect(mockReplace).not.toHaveBeenCalled();
+
+    act(() => {
+      result.current.skipFeedbackQueueItem(older);
     });
+    unmount();
+
+    // Subsequent ?feedback=queue mount excludes the skipped session
+    const { result: secondMount } = renderHook(() =>
+      useFeedbackQueueParam({
+        role: 'mentor',
+        userId: 'mentor-99',
+        history: [newer, older],
+        isHistoryLoaded: true,
+        isLoadingHistory: false,
+        isLoadingUpcoming: false,
+        isLoadingPending: false,
+      })
+    );
+    expect(secondMount.current.feedbackQueueItems?.map((i) => i.id)).toEqual([
+      'mentor-res-2',
+    ]);
   });
 });

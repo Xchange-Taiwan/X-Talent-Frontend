@@ -4,28 +4,23 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useEffect, useRef } from 'react';
 
-import { extractDeepLinkReservationId } from '@/lib/reservation/feedbackDeepLink';
+import {
+  type FeedbackSessionCoordinator,
+  feedbackSessionCoordinator,
+} from '@/lib/reservation/feedbackSessionCoordinator';
+import {
+  buildReservationHistoryRedirectHref,
+  buildReservationHistorySignInCallbackHref,
+  extractDeepLinkReservationId,
+  type ReservationRouteRole,
+} from '@/lib/reservation/reservationRoutes';
 import { fetchSingleReservationFeedback } from '@/services/reservations';
 
-export function buildReservationHistoryRedirectHref(
-  role: 'mentee' | 'mentor',
-  rawSearch: string
-): string {
-  const incoming = new URLSearchParams(rawSearch);
-  const nextParams = new URLSearchParams();
-  nextParams.set('tab', 'history');
+export { buildReservationHistoryRedirectHref };
 
-  incoming.forEach((value, key) => {
-    if (key === 'tab') {
-      return;
-    }
-    nextParams.append(key, value);
-  });
-
-  return `/reservation/${role}?${nextParams.toString()}`;
-}
-
-export function useReservationHistoryRedirect(): void {
+export function useReservationHistoryRedirect(
+  coordinator: FeedbackSessionCoordinator = feedbackSessionCoordinator
+): void {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
@@ -40,17 +35,13 @@ export function useReservationHistoryRedirect(): void {
     }
 
     if (status === 'unauthenticated') {
-      const callbackTarget = rawSearch
-        ? `/reservation/history?${rawSearch}`
-        : '/reservation/history';
-      router.replace(
-        `/auth/signin?callbackUrl=${encodeURIComponent(callbackTarget)}`,
-        { scroll: false }
-      );
+      router.replace(buildReservationHistorySignInCallbackHref(rawSearch), {
+        scroll: false,
+      });
       return;
     }
 
-    const fallbackRole: 'mentee' | 'mentor' = session?.user?.isMentor
+    const fallbackRole: ReservationRouteRole = session?.user?.isMentor
       ? 'mentor'
       : 'mentee';
     const userId = session?.user?.id ? String(session.user.id) : '';
@@ -72,33 +63,23 @@ export function useReservationHistoryRedirect(): void {
     const controller = new AbortController();
     let cancelled = false;
 
-    fetchSingleReservationFeedback({
-      userId,
-      reservationId: targetReservationId,
-      fallbackRole,
-      signal: controller.signal,
-    })
-      .then((lookup) => {
-        if (cancelled || controller.signal.aborted) return;
-        redirectedKeyRef.current = effectKey;
-        const resolvedRole = lookup?.viewerRole ?? fallbackRole;
-        router.replace(
-          buildReservationHistoryRedirectHref(resolvedRole, rawSearch),
-          { scroll: false }
-        );
+    void coordinator
+      .resolveHistoryRedirect({
+        userId,
+        fallbackRole,
+        rawSearch,
+        signal: controller.signal,
+        lookupSingleFeedback: fetchSingleReservationFeedback,
       })
-      .catch(() => {
+      .then((resolved) => {
         if (cancelled || controller.signal.aborted) return;
         redirectedKeyRef.current = effectKey;
-        router.replace(
-          buildReservationHistoryRedirectHref(fallbackRole, rawSearch),
-          { scroll: false }
-        );
+        router.replace(resolved.redirectHref, { scroll: false });
       });
 
     return () => {
       cancelled = true;
       controller.abort();
     };
-  }, [rawSearch, router, session, status, targetReservationId]);
+  }, [coordinator, rawSearch, router, session, status, targetReservationId]);
 }

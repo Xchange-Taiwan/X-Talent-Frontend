@@ -7,83 +7,11 @@ import {
 } from '@/lib/reservation/reservationLifecyclePolicy';
 import type { Reservation } from '@/types/reservation';
 
-export const FEEDBACK_DEEP_LINK_ID_KEYS = [
-  'reservationId',
-  'reservation_id',
-  'feedbackReservationId',
-] as const;
-
-const RESERVED_NON_ID_VALUES = new Set([
-  'upcoming',
-  'pending',
-  'history',
-  'queue',
-  'true',
-  'false',
-  'open',
-]);
-
-// Numeric boolean flags (`?feedback=1`, `?feedback=0`) are ignored only on the
-// ambiguous `feedback` query parameter so valid integer reservation IDs like
-// `reservationId=1` / `reservation_id=1` / `feedbackReservationId=1` still work.
-const FEEDBACK_PARAM_FLAG_VALUES = new Set(['0', '1']);
-
-function normalizeCandidateId(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-  if (RESERVED_NON_ID_VALUES.has(trimmed.toLowerCase())) {
-    return null;
-  }
-  return trimmed;
-}
-
-/**
- * Extracts a target reservation ID from URL query parameters for post-meeting
- * reminder email & in-app notification deep links (#733).
- */
-export function extractDeepLinkReservationId(
-  searchParams: Pick<URLSearchParams, 'get'>
-): string | null {
-  for (const key of FEEDBACK_DEEP_LINK_ID_KEYS) {
-    const candidate = normalizeCandidateId(searchParams.get(key));
-    if (candidate) {
-      return candidate;
-    }
-  }
-
-  // Also support `?tab=history&feedback=<reservationId>` while ignoring
-  // `?feedback=queue` and legacy boolean-like flag values (`?feedback=1`)
-  const feedbackCandidate = normalizeCandidateId(searchParams.get('feedback'));
-  if (
-    feedbackCandidate &&
-    FEEDBACK_PARAM_FLAG_VALUES.has(feedbackCandidate.toLowerCase())
-  ) {
-    return null;
-  }
-  return feedbackCandidate;
-}
-
-/**
- * Removes single-use feedback deep-link query parameters while preserving
- * `tab` (and `feedback=queue` when unrelated to a single-session deep link).
- */
-export function stripDeepLinkQueryParams(searchString: string): string {
-  const params = new URLSearchParams(searchString);
-  for (const key of FEEDBACK_DEEP_LINK_ID_KEYS) {
-    params.delete(key);
-  }
-
-  const feedbackParam = params.get('feedback');
-  if (
-    feedbackParam !== null &&
-    feedbackParam.trim().toLowerCase() !== 'queue'
-  ) {
-    params.delete('feedback');
-  }
-
-  return params.toString();
-}
+export {
+  extractDeepLinkReservationId,
+  FEEDBACK_DEEP_LINK_ID_KEYS,
+  stripDeepLinkQueryParams,
+} from '@/lib/reservation/reservationRoutes';
 
 export type FeedbackDeepLinkResolution =
   | { kind: 'not-found' }

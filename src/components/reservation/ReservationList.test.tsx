@@ -929,5 +929,71 @@ describe('ReservationList', () => {
         expect(onDeepLinkDialogClose).toHaveBeenCalledTimes(1);
       });
     });
+
+    it('advances host MeetingFeedbackDialog queue on X skip and batch-skips remaining items on Escape close (#906)', async () => {
+      const queueItem1: Reservation = {
+        ...mockReservation,
+        id: 'queue-res-1',
+        name: 'Emily Chen',
+        viewerRole: 'MENTOR',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      };
+      const queueItem2: Reservation = {
+        ...mockReservation,
+        id: 'queue-res-2',
+        name: 'Alex Wang',
+        viewerRole: 'MENTOR',
+        feedback: {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER',
+        },
+      };
+      const onSkipFeedbackQueueItem = vi.fn();
+      const onFeedbackQueueClose = vi.fn();
+
+      render(
+        <ReservationList
+          items={[queueItem1, queueItem2]}
+          variant="history"
+          sourceRole="mentor"
+          myUserId="user-456"
+          feedbackQueueItems={[queueItem1, queueItem2]}
+          onSkipFeedbackQueueItem={onSkipFeedbackQueueItem}
+          onFeedbackQueueClose={onFeedbackQueueClose}
+        />
+      );
+
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByTestId('feedback-queue-counter')).toHaveTextContent(
+        '第 1／2 場'
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /略過 Emily Chen/ }));
+      await waitFor(() => {
+        expect(onSkipFeedbackQueueItem).toHaveBeenCalledWith(queueItem1);
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId('feedback-queue-counter')).toHaveTextContent(
+          '第 2／2 場'
+        );
+        expect(screen.getByTestId('feedback-dialog-surface')).toHaveAttribute(
+          'data-queue-motion',
+          'idle'
+        );
+      });
+
+      fireEvent.click(
+        screen.getByRole('button', { name: /略過 Alex Wang|關閉/ })
+      );
+      await waitFor(() => {
+        expect(onSkipFeedbackQueueItem).toHaveBeenCalledWith(queueItem2);
+        expect(onFeedbackQueueClose).toHaveBeenCalledTimes(1);
+      });
+    });
   });
 });
