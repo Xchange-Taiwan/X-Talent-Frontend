@@ -212,11 +212,10 @@ describe('#919 Clarity DOM masking across all 10 sensitive components', () => {
     const menuAvatarImg = menuEl.querySelector('img');
     expect(menuAvatarImg).not.toBeNull();
     expect(menuAvatarImg!.closest('[data-clarity-mask="true"]')).not.toBeNull();
-    const emailNode = Array.from(menuEl.querySelectorAll('div')).find((d) =>
-      (d.textContent ?? '').includes('@')
-    );
-    expect(emailNode).toBeDefined();
-    expect(emailNode!.closest('[data-clarity-mask="true"]')).not.toBeNull();
+    const nameNode = menuEl.querySelector('.truncate.font-semibold');
+    expect(nameNode).not.toBeNull();
+    expect(nameNode!.textContent?.trim().length).toBeGreaterThan(0);
+    expect(nameNode!.closest('[data-clarity-mask="true"]')).not.toBeNull();
     uDrop();
 
     const MobileStories = composeStories(MobileUserMenuStories);
@@ -230,11 +229,10 @@ describe('#919 Clarity DOM masking across all 10 sensitive components', () => {
     const mobAvatarImg = sheetDialog.querySelector('img');
     expect(mobAvatarImg).not.toBeNull();
     expect(mobAvatarImg!.closest('[data-clarity-mask="true"]')).not.toBeNull();
-    const mobEmailNode = Array.from(sheetDialog.querySelectorAll('div')).find(
-      (d) => (d.textContent ?? '').includes('@')
-    );
-    expect(mobEmailNode).toBeDefined();
-    expect(mobEmailNode!.closest('[data-clarity-mask="true"]')).not.toBeNull();
+    const mobNameNode = sheetDialog.querySelector('.truncate.font-semibold');
+    expect(mobNameNode).not.toBeNull();
+    expect(mobNameNode!.textContent?.trim().length).toBeGreaterThan(0);
+    expect(mobNameNode!.closest('[data-clarity-mask="true"]')).not.toBeNull();
     uMob();
 
     const writeTextSpy = vi.fn().mockResolvedValue(undefined);
