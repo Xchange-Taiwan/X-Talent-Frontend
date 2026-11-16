@@ -1,7 +1,8 @@
 import { AsyncReadManager } from '@/lib/asyncReadManager';
-import { hasAvatarVersionConverged } from '@/lib/avatar/avatarUrl';
-import { readIndustryTag } from '@/lib/profile/readIndustryTag';
+import { hasProfileDtoConverged } from '@/lib/profile/convergence';
 import type { MentorProfileVO } from '@/types/user';
+
+export { hasProfileDtoConverged };
 
 export const USER_PROFILE_DTO_CACHE_TTL_MS = 60_000;
 
@@ -83,39 +84,9 @@ export function getUserProfileDtoFromCache(
 }
 
 /**
- * Checks whether an incoming backend DTO has caught up with a client-primed
- * optimistic DTO during the post-save transition window.
+ * Compatibility alias over canonical `hasProfileDtoConverged` from `convergence.ts`.
  */
-export function hasDtoConverged(
-  primed: MentorProfileVO,
-  incoming: MentorProfileVO
-): boolean {
-  const avatarConverged = hasAvatarVersionConverged(
-    primed.avatar,
-    incoming.avatar
-  );
-
-  const experiencesConverged =
-    primed.experiences === undefined ||
-    JSON.stringify(incoming.experiences ?? null) ===
-      JSON.stringify(primed.experiences ?? null);
-
-  const industryConverged =
-    primed.industry === undefined ||
-    (readIndustryTag(incoming.industry)?.subject_group ?? null) ===
-      (readIndustryTag(primed.industry)?.subject_group ?? null);
-
-  return (
-    (incoming.name || null) === (primed.name || null) &&
-    Boolean(incoming.is_mentor) === Boolean(primed.is_mentor) &&
-    Boolean(incoming.onboarding) === Boolean(primed.onboarding) &&
-    (incoming.job_title || null) === (primed.job_title || null) &&
-    (incoming.company || null) === (primed.company || null) &&
-    avatarConverged &&
-    experiencesConverged &&
-    industryConverged
-  );
-}
+export const hasDtoConverged = hasProfileDtoConverged;
 
 /**
  * Resolves effective initialData for SSR hydration: skips stale SSR initialData
@@ -145,8 +116,8 @@ export function shouldCacheUserProfileDto(
 
 /**
  * Encapsulates SWR fetch resolution, null/error eviction on manual refetch,
- * and `hasDtoConverged` protection for primed optimistic DTOs during background
- * revalidation.
+ * and `hasProfileDtoConverged` protection for primed optimistic DTOs during
+ * background revalidation.
  */
 export async function resolveUserProfileDtoFetch(
   key: string | null,
@@ -177,7 +148,7 @@ export async function resolveUserProfileDtoFetch(
       isOptimisticTransitionActive()
     ) {
       const existing = userProfileDtoReadManager.peek(key);
-      if (existing && !hasDtoConverged(existing, res)) {
+      if (existing && !hasProfileDtoConverged(existing, res)) {
         return existing;
       }
     }

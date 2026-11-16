@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import React, { useEffect } from 'react';
 
-import type { ProfileFormContext } from '@/hooks/user/profile/useEditProfileForm';
+import type { ProfileFormContext } from '@/hooks/user/profile/useProfileEditorSession';
 import {
   createProfileFormSchema,
   defaultValues,

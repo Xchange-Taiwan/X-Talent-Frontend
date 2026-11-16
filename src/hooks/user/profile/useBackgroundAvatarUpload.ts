@@ -4,7 +4,11 @@ import { useSession } from 'next-auth/react';
 import { useCallback, useEffect, useRef } from 'react';
 
 import { getAvatarSnapshot } from '@/services/profile/getAvatarSnapshot';
-import { updateAvatar } from '@/services/profile/updateAvatar';
+import {
+  createPresignedUrlCache,
+  type PresignedUrlCache,
+  updateAvatar,
+} from '@/services/profile/updateAvatar';
 
 interface AvatarUploadJob {
   file: File;
@@ -23,6 +27,7 @@ export interface UseBackgroundAvatarUpload {
   consume: (file: File | undefined) => Promise<string | undefined>;
   rollback: () => Promise<void>;
   abort: () => void;
+  prefetch: (targetUserId?: number) => void;
 }
 
 async function snapshotAvatarBytes(
@@ -48,22 +53,44 @@ async function snapshotAvatarBytes(
  * stable, so re-uploading the snapshot puts the original image back in the
  * exact same object the new bytes overwrote.
  */
-export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
-  const jobRef = useRef<AvatarUploadJob | null>(null);
+function normalizeNumericUserId(
+  value: number | string | null | undefined
+): number | undefined {
+  if (value === null || value === undefined || value === '') return undefined;
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
 
-  // Session resolution belongs here (a hook), not in the updateAvatar
-  // service — kept in a ref so the stable useCallbacks below always read
-  // the latest id without needing session in their dependency arrays.
-  // Assigned in an effect (commit phase), never during render, so this
-  // stays safe under Strict Mode / concurrent re-renders.
-  const { data: session } = useSession();
-  const resolvedUserId = session?.user?.id
-    ? Number(session.user.id)
-    : undefined;
+export function useBackgroundAvatarUpload(
+  explicitUserId?: number | string | null
+): UseBackgroundAvatarUpload {
+  const jobRef = useRef<AvatarUploadJob | null>(null);
+  const presignedCacheRef = useRef<PresignedUrlCache | null>(null);
+  if (!presignedCacheRef.current) {
+    presignedCacheRef.current = createPresignedUrlCache();
+  }
+
+  const { data: sessionData } = useSession();
+
+  const resolvedUserId =
+    explicitUserId !== undefined
+      ? normalizeNumericUserId(explicitUserId)
+      : normalizeNumericUserId(sessionData?.user?.id);
+
   const userIdRef = useRef<number | undefined>(resolvedUserId);
   useEffect(() => {
     userIdRef.current = resolvedUserId;
+    if (resolvedUserId !== undefined) {
+      presignedCacheRef.current?.prefetch(resolvedUserId);
+    }
   }, [resolvedUserId]);
+
+  const prefetch = useCallback((targetUserId?: number) => {
+    const idToWarm = targetUserId ?? userIdRef.current;
+    if (idToWarm !== undefined && Number.isFinite(idToWarm) && idToWarm > 0) {
+      presignedCacheRef.current?.prefetch(idToWarm);
+    }
+  }, []);
 
   const kickOff = useCallback(
     (file: File, currentAvatarUrl: string | null | undefined) => {
@@ -87,7 +114,8 @@ export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
       job.promise = updateAvatar(
         file,
         userIdRef.current,
-        controller.signal
+        controller.signal,
+        presignedCacheRef.current ?? undefined
       ).then(
         (url) => {
           job.status = 'completed';
@@ -123,7 +151,12 @@ export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
         jobRef.current = null;
         return current.promise;
       }
-      return updateAvatar(file, userIdRef.current);
+      return updateAvatar(
+        file,
+        userIdRef.current,
+        undefined,
+        presignedCacheRef.current ?? undefined
+      );
     },
     []
   );
@@ -163,7 +196,12 @@ export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
       const restoreFile = new File([oldBytes], 'avatar', {
         type: oldBytes.type || 'image/jpeg',
       });
-      await updateAvatar(restoreFile, userIdRef.current);
+      await updateAvatar(
+        restoreFile,
+        userIdRef.current,
+        undefined,
+        presignedCacheRef.current ?? undefined
+      );
     } catch (err) {
       // Best-effort: the form is already navigating away on cancel, surfacing
       // a hard error here would be confusing. Log for monitoring instead.
@@ -179,5 +217,5 @@ export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
     };
   }, [rollback]);
 
-  return { kickOff, consume, rollback, abort };
+  return { kickOff, consume, rollback, abort, prefetch };
 }

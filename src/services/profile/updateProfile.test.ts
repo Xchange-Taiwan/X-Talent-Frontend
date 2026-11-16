@@ -3,8 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { apiClient } from '@/lib/apiClient';
 
-import type { UpdateProfileInput } from './updateProfile';
-import { updateProfile } from './updateProfile';
+import { type MentorProfileWritePayload, updateProfile } from './updateProfile';
 
 vi.mock('@/lib/apiClient', () => ({
   apiClient: {
@@ -18,29 +17,45 @@ describe('updateProfile service', () => {
   });
 
   it('throws an error if userId is missing', async () => {
-    const emptyInput = fromPartial<UpdateProfileInput>({});
+    const emptyInput = fromPartial<MentorProfileWritePayload>({});
     await expect(updateProfile(undefined, emptyInput)).rejects.toThrow(
       '未找到使用者 ID。請重新登入。'
     );
   });
 
-  it('successfully updates profile with a valid numeric userId', async () => {
+  it('successfully updates profile with a canonical MentorProfileWritePayload and numeric userId', async () => {
     vi.mocked(apiClient.put).mockResolvedValue({ code: '0', msg: 'success' });
 
-    const dummyProfileData = fromPartial<UpdateProfileInput>({
+    const payload: MentorProfileWritePayload = {
+      name: 'Jane Doe',
+      avatar: 'https://s3.amazonaws.com/bucket/files/42/avatar?v=1754000000000',
+      location: 'TWN',
+      years_of_experience: '3_5',
+      industry: 'tech',
+      language: 'zh_TW',
+      is_mentor: true,
+      onboarding: true,
+      about: 'Experienced frontend engineer',
+      personal_statement: 'Welcome to book a session',
       job_title: 'Software Engineer',
-    });
+      company: 'Acme',
+      want_position: ['engineer'],
+      want_skill: ['typescript'],
+      want_topic: ['career'],
+      have_skill: ['react_nextjs'],
+      have_topic: ['frontend'],
+    };
 
-    await updateProfile('42', dummyProfileData);
+    await updateProfile('42', payload);
 
     expect(apiClient.put).toHaveBeenCalledWith('/v1/mentors/42/profile', {
-      job_title: 'Software Engineer',
+      ...payload,
       user_id: 42,
     });
   });
 
   it('throws an error if userId is an invalid non-numeric string', async () => {
-    const emptyInput = fromPartial<UpdateProfileInput>({});
+    const emptyInput = fromPartial<MentorProfileWritePayload>({});
     await expect(updateProfile('abc', emptyInput)).rejects.toThrow(
       '使用者 ID 格式無效。'
     );
@@ -51,7 +66,7 @@ describe('updateProfile service', () => {
       new TypeError('Failed to fetch')
     );
 
-    const emptyInput = fromPartial<UpdateProfileInput>({});
+    const emptyInput = fromPartial<MentorProfileWritePayload>({});
     await expect(updateProfile('42', emptyInput)).rejects.toThrow(
       '無法連接到伺服器。請檢查您的網絡連接。'
     );
@@ -62,7 +77,7 @@ describe('updateProfile service', () => {
       new Error('Internal Server Error')
     );
 
-    const emptyInput = fromPartial<UpdateProfileInput>({});
+    const emptyInput = fromPartial<MentorProfileWritePayload>({});
     await expect(updateProfile('42', emptyInput)).rejects.toThrow(
       'Internal Server Error'
     );

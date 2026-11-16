@@ -10,7 +10,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { ProfileFormContext } from '@/hooks/user/profile/useEditProfileForm';
+import { ProfileFormContext } from '@/hooks/user/profile/useProfileEditorSession';
 import { SOCIAL_PLATFORM_KEYS } from '@/lib/profile/socialLinks';
 
 import { platformLabelMap } from '../social-links/platformLabelMap';

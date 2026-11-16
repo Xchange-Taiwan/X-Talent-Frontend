@@ -6,6 +6,9 @@ import {
 } from '@/lib/profile/socialLinks';
 import { isSafeUrl } from '@/lib/url/isSafeUrl';
 import { ExperienceType } from '@/services/profile/experienceType';
+import type { components } from '@/types/api';
+
+type WireExperienceVO = components['schemas']['ExperienceVO'];
 
 // Wire shape for experiences. Mirrors the inline batch on
 // MentorProfileVO/DTO: backend stores them as JSONB[] on profiles.experiences
@@ -256,4 +259,30 @@ export function encode(input: EncodeInput): EncodeResult {
   ];
 
   return { experiences, job_title, company };
+}
+
+/**
+ * Normalizes OpenAPI `ExperienceVO[]` (whose generated metadata type is
+ * `Record<string, never>`) into `MentorExperiencePayload[]` at the codec boundary.
+ */
+export function fromWireExperiences(
+  experiences:
+    | readonly WireExperienceVO[]
+    | readonly MentorExperiencePayload[]
+    | null
+    | undefined
+): MentorExperiencePayload[] | undefined {
+  if (!experiences) return undefined;
+  return experiences as unknown as MentorExperiencePayload[];
+}
+
+/**
+ * Projects `MentorExperiencePayload[]` back onto OpenAPI `ExperienceVO[] | null`
+ * for optimistic `MentorProfileVO` construction without leaking casts to callers.
+ */
+export function toWireExperiences(
+  experiences: readonly MentorExperiencePayload[] | null | undefined
+): WireExperienceVO[] | null {
+  if (!experiences) return null;
+  return experiences as unknown as WireExperienceVO[];
 }

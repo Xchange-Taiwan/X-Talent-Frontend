@@ -1,8 +1,6 @@
 'use client';
 
-import { FC } from 'react';
-import { useForm } from 'react-hook-form';
-import * as z from 'zod';
+import type { Control, FieldValues, Path } from 'react-hook-form';
 
 import {
   FormControl,
@@ -22,25 +20,29 @@ import { totalWorkSpanOptions } from '@/constant/seniority';
 import { LocationType } from '@/types/location';
 import { type IndustryOption } from '@/types/tagCatalog';
 
-import { step2Schema } from './index';
+interface PersonalInfoFormFields extends FieldValues {
+  location: string;
+  years_of_experience: string;
+  industry?: string;
+}
 
-interface Props {
-  form: ReturnType<typeof useForm<z.infer<typeof step2Schema>>>;
+interface Props<T extends PersonalInfoFormFields> {
+  form: { control: Control<T> };
   locationOptions: LocationType[];
   industryOptions: IndustryOption[];
 }
 
-export const PersonalInfo: FC<Props> = ({
+export const PersonalInfo = <T extends PersonalInfoFormFields>({
   form,
   locationOptions,
   industryOptions,
-}) => {
+}: Props<T>) => {
   return (
     <>
       <div className="flex flex-col gap-4">
         <FormField
           control={form.control}
-          name="location"
+          name={'location' as Path<T>}
           render={({ field }) => (
             <FormItem>
               <FormLabel>地區</FormLabel>
@@ -68,7 +70,7 @@ export const PersonalInfo: FC<Props> = ({
 
         <FormField
           control={form.control}
-          name="years_of_experience"
+          name={'years_of_experience' as Path<T>}
           render={({ field }) => (
             <FormItem>
               <FormLabel>經驗</FormLabel>
@@ -96,7 +98,7 @@ export const PersonalInfo: FC<Props> = ({
 
         <FormField
           control={form.control}
-          name="industry"
+          name={'industry' as Path<T>}
           render={({ field }) => (
             <FormItem>
               <FormLabel>產業 (選填)</FormLabel>

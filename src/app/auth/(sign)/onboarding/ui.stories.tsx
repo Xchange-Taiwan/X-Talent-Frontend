@@ -2,16 +2,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import * as z from 'zod';
 
-import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import {
-  step1Schema,
-  step2Schema,
-  step3Schema,
-  step4Schema,
-  step5Schema,
-} from '@/schemas/onboarding';
+  type OnboardingStepNumber,
+  STEP_FIELDS,
+} from '@/hooks/user/onboarding/useOnboardingForm';
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
+import { formSchema, type OnboardingFormValues } from '@/schemas/onboarding';
 import {
   mockIndustryOptions,
   mockPositionGroups,
@@ -41,98 +38,51 @@ const STEP_TITLE = [
 const STEPS_TOTAL = STEP_TITLE.length;
 
 function OnboardingUIWizardDemo() {
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState<OnboardingStepNumber>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [submittedData, setSubmittedData] = useState<unknown>(null);
 
-  const step1Form = useForm<z.infer<typeof step1Schema>>({
-    resolver: zodResolver(step1Schema),
+  const form = useForm<OnboardingFormValues>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
       name: '張君雅',
       avatar:
         'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face',
       avatarFile: undefined,
       language: 'zh_TW',
-    },
-  });
-
-  const step2Form = useForm<z.infer<typeof step2Schema>>({
-    resolver: zodResolver(step2Schema),
-    defaultValues: {
       location: 'TWN',
       years_of_experience: '1~3 年',
       industry: 'tech_software',
-    },
-  });
-
-  const step3Form = useForm<z.infer<typeof step3Schema>>({
-    resolver: zodResolver(step3Schema),
-    defaultValues: {
       want_position: ['frontend_developer'],
-    },
-  });
-
-  const step4Form = useForm<z.infer<typeof step4Schema>>({
-    resolver: zodResolver(step4Schema),
-    defaultValues: {
       want_skill: ['typescript', 'react'],
-    },
-  });
-
-  const step5Form = useForm<z.infer<typeof step5Schema>>({
-    resolver: zodResolver(step5Schema),
-    defaultValues: {
       want_topic: ['career_planning'],
     },
   });
 
   const onGoToPrev = () => {
-    setCurrentStep((prev) => Math.max(1, prev - 1));
+    setCurrentStep((prev) => Math.max(1, prev - 1) as OnboardingStepNumber);
   };
 
-  const onSubmitStep1 = (data: z.infer<typeof step1Schema>) => {
-    console.log('Step 1 Data:', data);
-    setCurrentStep(2);
+  const onNextStep = async (): Promise<boolean> => {
+    const valid = await form.trigger(STEP_FIELDS[currentStep]);
+    if (!valid) return false;
+    setCurrentStep((prev) => Math.min(5, prev + 1) as OnboardingStepNumber);
+    return true;
   };
 
-  const onSubmitStep2 = (data: z.infer<typeof step2Schema>) => {
-    console.log('Step 2 Data:', data);
-    setCurrentStep(3);
-  };
-
-  const onSubmitStep3 = (data: z.infer<typeof step3Schema>) => {
-    console.log('Step 3 Data:', data);
-    setCurrentStep(4);
-  };
-
-  const onSubmitStep4 = (data: z.infer<typeof step4Schema>) => {
-    console.log('Step 4 Data:', data);
-    setCurrentStep(5);
-  };
-
-  const onSubmitStep5 = async (data: z.infer<typeof step5Schema>) => {
-    console.log('Step 5 Data:', data);
+  const onSubmit = async (): Promise<void> => {
+    const valid = await form.trigger(STEP_FIELDS[5]);
+    if (!valid) return;
     setIsSubmitting(true);
-    // Simulate API Submission delay
     await new Promise((resolve) => setTimeout(resolve, 1000));
     setIsSubmitting(false);
     setCompleted(true);
-    setSubmittedData({
-      step1: step1Form.getValues(),
-      step2: step2Form.getValues(),
-      step3: step3Form.getValues(),
-      step4: step4Form.getValues(),
-      step5: data,
-    });
+    setSubmittedData(form.getValues());
   };
 
   const resetAll = () => {
-    step1Form.reset();
-    step2Form.reset();
-    step3Form.reset();
-    step4Form.reset();
-    step5Form.reset();
+    form.reset();
     setCurrentStep(1);
     setCompleted(false);
     setSubmittedData(null);
@@ -165,11 +115,7 @@ function OnboardingUIWizardDemo() {
       currentStep={currentStep}
       stepsTotal={STEPS_TOTAL}
       stepTitle={STEP_TITLE}
-      step1Form={step1Form}
-      step2Form={step2Form}
-      step3Form={step3Form}
-      step4Form={step4Form}
-      step5Form={step5Form}
+      form={form}
       locations={mockLocations}
       industries={mockIndustryOptions}
       wantPositionGroups={mockPositionGroups}
@@ -177,11 +123,8 @@ function OnboardingUIWizardDemo() {
       wantTopicGroups={mockTopicGroups}
       isSubmitting={isSubmitting}
       onGoToPrev={onGoToPrev}
-      onSubmitStep1={onSubmitStep1}
-      onSubmitStep2={onSubmitStep2}
-      onSubmitStep3={onSubmitStep3}
-      onSubmitStep4={onSubmitStep4}
-      onSubmitStep5={onSubmitStep5}
+      onNextStep={onNextStep}
+      onSubmit={onSubmit}
     />
   );
 }
