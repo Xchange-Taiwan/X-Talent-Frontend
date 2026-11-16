@@ -105,7 +105,8 @@ export default function ProfilePageContainer({
     isMentor: Boolean(userData?.is_mentor),
     mentorId: pageUserIdNumber,
     loaded,
-    monthLoaded: reader.slotsSnapshot?.monthLoaded ?? loaded,
+    monthLoaded:
+      reader.isMonthSynced ?? reader.slotsSnapshot?.monthLoaded ?? loaded,
     isFetching: Boolean(reader.isFetching),
     hasError: Boolean(reader.hasError),
     year: reader.year,

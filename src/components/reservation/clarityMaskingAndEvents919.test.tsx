@@ -1,5 +1,13 @@
 import { composeStories } from '@storybook/nextjs';
-import { fireEvent, render, renderHook, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as MobileUserMenuStories from '@/components/layout/Header/MobileUserMenu.stories';
@@ -15,12 +23,14 @@ import * as IdentityStories from '@/components/reservation/ReservationIdentity.s
 import * as MessagePreviewStories from '@/components/reservation/ReservationMessagePreview.stories';
 import { useConfirmRegister } from '@/hooks/auth/useConfirmRegister';
 import { useMentorPool } from '@/hooks/useMentorPool';
+import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import { trackEvent } from '@/lib/analytics';
 import {
   confirmSignUpToken,
   executeGoogleOAuthCallback,
 } from '@/lib/auth/sessionLifecycle';
 import { mentorPoolReadModel } from '@/lib/mentor/mentorPoolReadModel';
+import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
 
 vi.mock('@/lib/analytics', async (importActual) => {
   const actual = await importActual<typeof import('@/lib/analytics')>();
@@ -63,9 +73,12 @@ describe('#919 Clarity DOM masking across all 10 sensitive components', () => {
     const Stories = composeStories(IdentityStories);
     const FirstStory = Object.values(Stories)[0];
     const { container } = render(<FirstStory />);
-    expect(
-      container.querySelectorAll('[data-clarity-mask="true"]').length
-    ).toBeGreaterThanOrEqual(2);
+
+    const maskedNodes = container.querySelectorAll(
+      '[data-clarity-mask="true"]'
+    );
+    expect(maskedNodes.length).toBeGreaterThanOrEqual(2);
+
     const imgs = Array.from(container.querySelectorAll('img'));
     for (const img of imgs) {
       expect(img.closest('[data-clarity-mask="true"]')).not.toBeNull();
@@ -74,173 +87,184 @@ describe('#919 Clarity DOM masking across all 10 sensitive components', () => {
 
   it('masks message content in ReservationMessagePreview (card & dialog variants)', () => {
     const Stories = composeStories(MessagePreviewStories);
-    for (const StoryComp of Object.values(Stories).slice(0, 2)) {
+    const variants = Object.values(Stories).slice(0, 2);
+    expect(variants.length).toBe(2);
+
+    for (const StoryComp of variants) {
       const { container, unmount } = render(<StoryComp />);
       const paragraphs = container.querySelectorAll('p');
-      if (paragraphs.length > 0) {
-        expect(
-          paragraphs[0].closest('[data-clarity-mask="true"]')
-        ).not.toBeNull();
-      }
+      expect(paragraphs.length).toBeGreaterThan(0);
+      expect(
+        paragraphs[0].closest('[data-clarity-mask="true"]')
+      ).not.toBeNull();
       unmount();
     }
   });
 
-  it('masks avatar, participant header, and message bubbles in ReservationConversationDialog', () => {
+  it('masks avatar, participant header, and message bubbles in ReservationConversationDialog', async () => {
+    const user = userEvent.setup();
     const Stories = composeStories(ConversationStories);
     const FirstConv = Object.values(Stories)[0];
     const { unmount } = render(<FirstConv />);
-    const triggerBtn = document.body.querySelector('button');
-    if (triggerBtn) fireEvent.click(triggerBtn);
-    const maskedInBody = document.body.querySelectorAll(
+
+    const triggerBtn = screen.getByRole('button', { name: /查看完整對話/ });
+    await user.click(triggerBtn);
+
+    const dialog = screen.getByRole('dialog');
+    const maskedInsideDialog = dialog.querySelectorAll(
       '[data-clarity-mask="true"]'
     );
-    expect(maskedInBody.length).toBeGreaterThanOrEqual(2);
+    expect(maskedInsideDialog.length).toBeGreaterThanOrEqual(3);
     unmount();
   });
 
-  it('masks mentee question and reply field in AcceptReservationDialog, QuickReplyDialog, and ConfirmedReservationDialog', () => {
+  it('masks mentee question and reply field in AcceptReservationDialog, QuickReplyDialog, and ConfirmedReservationDialog', async () => {
+    const user = userEvent.setup();
+
     const AcceptStories = composeStories(AcceptReservationStories);
     const FirstAccept = Object.values(AcceptStories)[0];
     const { unmount: u1 } = render(<FirstAccept />);
-    const triggerBtn = document.body.querySelector('button');
-    if (triggerBtn) fireEvent.click(triggerBtn);
+    const acceptTrigger = document.body.querySelector('button');
+    expect(acceptTrigger).not.toBeNull();
+    await user.click(acceptTrigger!);
+    const acceptDialog = screen.getByRole('dialog');
     expect(
-      document.body.querySelectorAll('[data-clarity-mask="true"]').length
-    ).toBeGreaterThan(0);
+      acceptDialog.querySelectorAll('[data-clarity-mask="true"]').length
+    ).toBeGreaterThanOrEqual(2);
     u1();
 
     const QuickStories = composeStories(QuickReplyStories);
     const FirstQuick = Object.values(QuickStories)[0];
     const { unmount: u2 } = render(<FirstQuick open={true} />);
+    const quickDialog = screen.getByRole('dialog');
     expect(
-      document.body.querySelectorAll('[data-clarity-mask="true"]').length
-    ).toBeGreaterThan(0);
+      quickDialog.querySelectorAll('[data-clarity-mask="true"]').length
+    ).toBeGreaterThanOrEqual(2);
     u2();
 
     const ConfirmedStories = composeStories(ConfirmedReservationStories);
     const FirstConfirmed = Object.values(ConfirmedStories)[0];
-    const { unmount: u3 } = render(
-      <ConfirmedConfirmedWrapper Comp={FirstConfirmed} />
-    );
+    const { unmount: u3 } = render(<FirstConfirmed open={true} />);
+    const confirmedDialog = screen.getByRole('dialog');
     expect(
-      document.body.querySelectorAll('[data-clarity-mask="true"]').length
-    ).toBeGreaterThan(0);
+      confirmedDialog.querySelectorAll('[data-clarity-mask="true"]').length
+    ).toBeGreaterThanOrEqual(1);
     u3();
   });
 
-  it('masks feedback text and avatar in ReservationFeedbackBlock and MeetingFeedbackDialog', () => {
+  it('masks feedback text and author name in ReservationFeedbackBlock and MeetingFeedbackDialog', () => {
     const BlockStories = composeStories(FeedbackBlockStories);
-    for (const StoryComp of Object.values(BlockStories).slice(0, 3)) {
-      const { unmount } = render(<StoryComp />);
-      unmount();
-    }
+
+    const { unmount: uMentee } = render(<BlockStories.MenteePublicRating />);
+    const menteeComment = screen.getByText(/導師給了非常具體的作品集優化方向/);
+    expect(menteeComment.closest('[data-clarity-mask="true"]')).not.toBeNull();
+    uMentee();
+
+    const { unmount: uMentor } = render(<BlockStories.MentorPublicRating />);
+    const mentorComment = screen.getByText(/問題拆解清晰/);
+    const maskedAuthor = screen.getByText('王＊明');
+    expect(mentorComment.closest('[data-clarity-mask="true"]')).not.toBeNull();
+    expect(maskedAuthor.closest('[data-clarity-mask="true"]')).not.toBeNull();
+    uMentor();
 
     const DialogStories = composeStories(MeetingFeedbackStories);
     const FirstDialog = Object.values(DialogStories)[0];
     const { unmount: uDialog } = render(<FirstDialog defaultOpen={true} />);
+    const fbDialog = screen.getByRole('dialog');
     expect(
-      document.body.querySelectorAll('[data-clarity-mask="true"]').length
-    ).toBeGreaterThanOrEqual(2);
+      fbDialog.querySelectorAll('[data-clarity-mask="true"]').length
+    ).toBeGreaterThanOrEqual(3);
     uDialog();
   });
 
-  it('masks user display name, email, and avatar in UserDropdown & MobileUserMenu, and tracks share_profile_link_copied', async () => {
+  it('opens UserDropdown & MobileUserMenu via userEvent to verify displayName/email masking, and tracks share_profile_link_copied', async () => {
+    const user = userEvent.setup();
+
     const DropdownStories = composeStories(UserDropdownStories);
     const FirstDropdown = Object.values(DropdownStories)[0];
     const { unmount: uDrop } = render(<FirstDropdown />);
-    const dropBtn = document.body.querySelector('button');
-    if (dropBtn) fireEvent.click(dropBtn);
+    const dropTrigger = document.body.querySelector('button');
+    expect(dropTrigger).not.toBeNull();
+    await user.click(dropTrigger!);
+
+    const menuEl = screen.getByRole('menu');
     expect(
-      document.body.querySelectorAll('[data-clarity-mask="true"]').length
-    ).toBeGreaterThan(0);
+      menuEl.querySelectorAll('[data-clarity-mask="true"]').length
+    ).toBeGreaterThanOrEqual(2);
     uDrop();
 
     const MobileStories = composeStories(MobileUserMenuStories);
     const FirstMobile = Object.values(MobileStories)[0];
     const { unmount: uMob } = render(<FirstMobile />);
-    const mobBtn = document.body.querySelector('button');
-    if (mobBtn) fireEvent.click(mobBtn);
+    const mobTrigger = document.body.querySelector('button');
+    expect(mobTrigger).not.toBeNull();
+    await user.click(mobTrigger!);
+
+    const sheetDialog = screen.getByRole('dialog');
     expect(
-      document.body.querySelectorAll('[data-clarity-mask="true"]').length
-    ).toBeGreaterThan(0);
+      sheetDialog.querySelectorAll('[data-clarity-mask="true"]').length
+    ).toBeGreaterThanOrEqual(2);
     uMob();
 
-    Object.assign(navigator, {
-      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
+    const writeTextSpy = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: writeTextSpy },
+      configurable: true,
     });
+
     const ShareStories = composeStories(ShareProfileDialogStories);
     const FirstShare = Object.values(ShareStories)[0];
     const { unmount: uShare } = render(<FirstShare open={true} />);
     const copyBtn = Array.from(document.body.querySelectorAll('button')).find(
       (b) => /複製/.test(b.textContent ?? '')
     );
-    if (copyBtn) {
-      fireEvent.click(copyBtn);
-      await waitFor(() => {
-        expect(trackEvent).toHaveBeenCalledWith({
-          name: 'share_profile_link_copied',
-          feature: 'profile',
-        });
+    expect(copyBtn).toBeDefined();
+    fireEvent.click(copyBtn!);
+
+    await waitFor(() => {
+      expect(trackEvent).toHaveBeenCalledWith({
+        name: 'share_profile_link_copied',
+        feature: 'profile',
       });
-    }
+    });
     uShare();
   });
 });
 
-function ConfirmedConfirmedWrapper({
-  Comp,
-}: {
-  Comp: React.ComponentType<{ open?: boolean }>;
-}) {
-  return <Comp open={true} />;
-}
-
-describe('#919 Search zero-results, Email verification, and OAuth failure diagnostics', () => {
+describe('#919 Search zero-results, Email verification, OAuth failures, and schedule sync', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mentorPoolReadModel.clear();
+    scheduleReadModel.clear();
   });
 
   it('tracks view_search_results and mentor_search_zero_results without leaking raw search string', async () => {
     const params = new URLSearchParams(
       'q=secret-keyword&filter_skills=frontend,backend'
     );
+    await act(async () => {
+      mentorPoolReadModel.prime(
+        mentorPoolReadModel.resolveQuery(
+          params as unknown as ReturnType<
+            typeof import('next/navigation').useSearchParams
+          >
+        ),
+        {
+          mentors: [],
+          nextCursor: null,
+          hasMore: false,
+          mentorCount: 0,
+          isNoResults: true,
+          hasError: false,
+        }
+      );
+    });
+
     renderHook(() =>
       useMentorPool({
         initialMentors: [],
         initialMentorCount: 0,
         params: params as unknown as ReturnType<
-          typeof import('next/navigation').useSearchParams
-        >,
-      })
-    );
-
-    // Prime empty filtered result in read model
-    mentorPoolReadModel.prime(
-      mentorPoolReadModel.resolveQuery(
-        params as unknown as ReturnType<
-          typeof import('next/navigation').useSearchParams
-        >
-      ),
-      {
-        mentors: [],
-        nextCursor: null,
-        hasMore: false,
-        mentorCount: 0,
-        isNoResults: true,
-        hasError: false,
-      }
-    );
-
-    const params2 = new URLSearchParams(
-      'q=secret-keyword&filter_skills=frontend,backend'
-    );
-    renderHook(() =>
-      useMentorPool({
-        initialMentors: [],
-        initialMentorCount: 0,
-        params: params2 as unknown as ReturnType<
           typeof import('next/navigation').useSearchParams
         >,
       })
@@ -301,7 +325,7 @@ describe('#919 Search zero-results, Email verification, and OAuth failure diagno
     });
   });
 
-  it('tracks auth_flow_failed on Google OAuth INVALID outcome', async () => {
+  it('tracks auth_flow_failed on Google OAuth INVALID and LOGIN missing_login_data outcomes', async () => {
     const customTrack = vi.fn();
     await executeGoogleOAuthCallback(
       { code: null, state: null },
@@ -328,6 +352,49 @@ describe('#919 Search zero-results, Email verification, and OAuth failure diagno
         flow: 'oauth_google',
         error_type: 'missing_params',
       },
+    });
+
+    customTrack.mockClear();
+    await executeGoogleOAuthCallback(
+      { code: 'c1', state: 's1' },
+      {
+        exchangeCode: vi.fn(),
+        signIn: vi.fn(),
+        signOut: vi.fn(),
+        getSession: vi.fn(),
+        navigate: vi.fn(),
+        onToast: vi.fn(),
+        revalidateAfterDelete: vi.fn(),
+        resolveOutcomeFn: vi.fn().mockResolvedValue({
+          type: 'LOGIN',
+          data: { auth: { token: '' }, user: null },
+        }),
+        trackEvent: customTrack,
+      }
+    );
+
+    expect(customTrack).toHaveBeenCalledWith({
+      name: 'auth_flow_failed',
+      feature: 'auth',
+      metadata: {
+        flow: 'oauth_google',
+        error_type: 'missing_login_data',
+      },
+    });
+  });
+
+  it('preserves slotsSnapshot.monthLoaded while exposing reader.isMonthSynced once MonthDraftStore mirrors scheduleRead', async () => {
+    scheduleReadModel.set({ userId: '777', year: 2026, month: 11 }, []);
+
+    const { result } = renderHook(() =>
+      useMentorSchedule({
+        backend: { userId: '777', year: 2026, month: 11 },
+      })
+    );
+
+    expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true);
+    await waitFor(() => {
+      expect(result.current.reader.isMonthSynced).toBe(true);
     });
   });
 });
