@@ -1,7 +1,7 @@
 'use client';
 
-import { SessionContext } from 'next-auth/react';
-import { useContext, useEffect, useMemo, useState } from 'react';
+import { useSession } from 'next-auth/react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { useOptimisticIdentity } from '@/hooks/user/identity/useOptimisticIdentity';
 import {
@@ -65,9 +65,7 @@ function clearAuthDOMState(): void {
  * an extra effect/render cycle.
  */
 export function useResolvedIdentity(): ResolvedIdentity {
-  const sessionContext = useContext(SessionContext);
-  const session = sessionContext?.data ?? null;
-  const status = sessionContext?.status ?? 'unauthenticated';
+  const { data: session, status } = useSession();
   const [hint, setHint] = useState<SessionHint | null | undefined>(undefined);
 
   const sessionUserId = session?.user?.id ? Number(session.user.id) : NaN;

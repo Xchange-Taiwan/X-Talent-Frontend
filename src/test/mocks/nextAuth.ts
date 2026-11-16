@@ -1,11 +1,5 @@
 import type { Session } from 'next-auth';
-import type { SessionContextValue } from 'next-auth/react';
-import { createContext } from 'react';
 import { vi } from 'vitest';
-
-export const MockSessionContext = createContext<
-  SessionContextValue | undefined
->(undefined);
 
 export const mockSession: Session = {
   user: {
@@ -32,7 +26,6 @@ export const mockSignIn = vi.fn().mockResolvedValue({ error: null });
 export const mockSignOut = vi.fn();
 
 export const nextAuthMockFactory = () => ({
-  SessionContext: MockSessionContext,
   useSession: mockUseSession,
   getSession: mockGetSession,
   signIn: mockSignIn,

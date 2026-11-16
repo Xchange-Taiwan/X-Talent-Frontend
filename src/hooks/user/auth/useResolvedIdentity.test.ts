@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { SessionContext, type SessionContextValue } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import { createElement, type ReactNode, StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -16,23 +16,11 @@ import type { MentorProfileVO } from '@/types/user';
 
 import { useResolvedIdentity } from './useResolvedIdentity';
 
-const mockUseSession = vi.fn<() => SessionContextValue | undefined>();
+vi.mock('next-auth/react', () => ({
+  useSession: vi.fn(),
+}));
 
-function renderIdentityHook(options?: {
-  strict?: boolean;
-  omitProvider?: boolean;
-}) {
-  const wrapper = ({ children }: { children: ReactNode }) => {
-    const ctxVal = options?.omitProvider ? undefined : mockUseSession();
-    const provided = options?.omitProvider
-      ? children
-      : createElement(SessionContext.Provider, { value: ctxVal }, children);
-    return options?.strict
-      ? createElement(StrictMode, null, provided)
-      : createElement('div', null, provided);
-  };
-  return renderHook(() => useResolvedIdentity(), { wrapper });
-}
+const mockUseSession = vi.mocked(useSession);
 
 function setCookie(value: string | undefined): void {
   if (value === undefined) {
@@ -58,7 +46,7 @@ describe('useResolvedIdentity', () => {
   });
 
   it('resolves to guest immediately during loading when no hint cookie is present, and stays guest once unauthenticated is confirmed', async () => {
-    const { result, rerender } = renderIdentityHook();
+    const { result, rerender } = renderHook(() => useResolvedIdentity());
 
     // No hint cookie means the last middleware pass saw no valid token, so
     // treat the visitor as a guest right away instead of waiting on
@@ -82,7 +70,7 @@ describe('useResolvedIdentity', () => {
 
   it('resolves to authenticated mentor when cookie value is "1"', async () => {
     setCookie('1');
-    const { result } = renderIdentityHook();
+    const { result } = renderHook(() => useResolvedIdentity());
     await waitFor(() =>
       expect(result.current).toMatchObject({
         state: 'hint-only',
@@ -95,7 +83,7 @@ describe('useResolvedIdentity', () => {
 
   it('resolves to authenticated non-mentor when cookie value is "0"', async () => {
     setCookie('0');
-    const { result } = renderIdentityHook();
+    const { result } = renderHook(() => useResolvedIdentity());
     await waitFor(() =>
       expect(result.current).toMatchObject({
         state: 'hint-only',
@@ -108,7 +96,12 @@ describe('useResolvedIdentity', () => {
     setCookie('1|7482008160728084|https%3A%2F%2Fexample.com%2Fmentor.png');
     document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'mentor');
 
-    const { result } = renderIdentityHook({ strict: true });
+    const strictWrapper = ({ children }: { children: ReactNode }) =>
+      createElement(StrictMode, null, children);
+
+    const { result } = renderHook(() => useResolvedIdentity(), {
+      wrapper: strictWrapper,
+    });
 
     await waitFor(() =>
       expect(result.current).toMatchObject({
@@ -136,7 +129,7 @@ describe('useResolvedIdentity', () => {
       status: 'unauthenticated',
     } as never);
 
-    const { result } = renderIdentityHook();
+    const { result } = renderHook(() => useResolvedIdentity());
     await waitFor(() => expect(result.current.state).toBe('confirmed-guest'));
   });
 
@@ -156,7 +149,7 @@ describe('useResolvedIdentity', () => {
       'url("https://example.com/avatar.png")'
     );
 
-    const { result } = renderIdentityHook();
+    const { result } = renderHook(() => useResolvedIdentity());
 
     await waitFor(() => {
       expect(result.current.state).toBe('confirmed-guest');
@@ -185,7 +178,7 @@ describe('useResolvedIdentity', () => {
 
     setCookie('1');
 
-    const { result } = renderIdentityHook();
+    const { result } = renderHook(() => useResolvedIdentity());
 
     await waitFor(() => {
       expect(result.current).toMatchObject({
@@ -208,7 +201,7 @@ describe('useResolvedIdentity', () => {
   it('actively syncs DOM attributes and style property when hint is resolved with avatar', async () => {
     setCookie('1||https%3A%2F%2Fexample.com%2Favatar.png');
 
-    const { result } = renderIdentityHook();
+    const { result } = renderHook(() => useResolvedIdentity());
 
     await waitFor(() => {
       expect(result.current).toMatchObject({
@@ -233,7 +226,7 @@ describe('useResolvedIdentity', () => {
       '1||https%3A%2F%2Fexample.com%2Favatar.png%22%3Bbackground%3Ared'
     );
 
-    const { result } = renderIdentityHook();
+    const { result } = renderHook(() => useResolvedIdentity());
 
     await waitFor(() => {
       expect(result.current).toMatchObject({
@@ -264,7 +257,7 @@ describe('useResolvedIdentity', () => {
     document.documentElement.setAttribute(DOM_AUTH_AVATAR_ATTR, 'url');
     document.documentElement.style.setProperty('--auth-avatar', 'url("url")');
 
-    const { result } = renderIdentityHook();
+    const { result } = renderHook(() => useResolvedIdentity());
 
     await waitFor(() => {
       expect(result.current.state).toBe('confirmed-guest');
@@ -293,7 +286,7 @@ describe('useResolvedIdentity', () => {
       status: 'authenticated',
     } as never);
 
-    const { result } = renderIdentityHook();
+    const { result } = renderHook(() => useResolvedIdentity());
 
     await waitFor(() => {
       expect(result.current).toMatchObject({
@@ -326,7 +319,7 @@ describe('useResolvedIdentity', () => {
       status: 'authenticated',
     } as never);
 
-    const { result } = renderIdentityHook();
+    const { result } = renderHook(() => useResolvedIdentity());
 
     await waitFor(() => {
       expect(result.current).toMatchObject({
@@ -351,7 +344,7 @@ describe('useResolvedIdentity', () => {
   it('gracefully handles malformed URI encoding in cookie in useResolvedIdentity without throwing', async () => {
     setCookie('1||https%3A%2F%2Fexample.com%2Finvalid%%url');
 
-    const { result } = renderIdentityHook();
+    const { result } = renderHook(() => useResolvedIdentity());
 
     await waitFor(() => {
       expect(result.current).toMatchObject({
@@ -405,7 +398,7 @@ describe('useResolvedIdentity', () => {
       ],
     } as unknown as MentorProfileVO);
 
-    const { result } = renderIdentityHook();
+    const { result } = renderHook(() => useResolvedIdentity());
 
     await waitFor(() => {
       expect(result.current).toMatchObject({
@@ -449,7 +442,7 @@ describe('useResolvedIdentity', () => {
         onboarding: true,
       } as unknown as MentorProfileVO);
 
-      const { result } = renderIdentityHook();
+      const { result } = renderHook(() => useResolvedIdentity());
       expect(result.current.name).toBe('Optimistic Name');
       expect(result.current.avatar).toBe('https://example.com/optimistic.png');
       expect(result.current.isMentor).toBe(true);
@@ -490,17 +483,9 @@ describe('useResolvedIdentity', () => {
       onboarding: true,
     } as unknown as MentorProfileVO);
 
-    const { result } = renderIdentityHook();
+    const { result } = renderHook(() => useResolvedIdentity());
     expect(result.current.avatar).toBeUndefined();
 
     clearUserProfileDtoCache(123, 'zh_TW');
-  });
-  it('resolves safely to confirmed-guest without throwing when SessionProvider is absent (#908)', () => {
-    const { result } = renderIdentityHook({ omitProvider: true });
-    expect(result.current).toMatchObject({
-      state: 'confirmed-guest',
-      userId: undefined,
-      isMentor: false,
-    });
   });
 });

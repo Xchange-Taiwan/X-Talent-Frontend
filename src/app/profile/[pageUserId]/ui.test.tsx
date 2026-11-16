@@ -1,6 +1,12 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import {
+  render as rtlRender,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SessionContext, type SessionContextValue } from 'next-auth/react';
+import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { UserType } from '@/hooks/user/user-data/useUserData';
@@ -40,6 +46,24 @@ vi.mock('@/components/profile/reservation/ScheduleCalendar', () => ({
 
 import { ProfilePageSkeleton } from './skeleton';
 import ProfilePageUI from './ui';
+
+const defaultGuestSession: SessionContextValue = {
+  data: null,
+  status: 'unauthenticated',
+  update: async () => null,
+};
+
+function DefaultGuestWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <SessionContext.Provider value={defaultGuestSession}>
+      {children}
+    </SessionContext.Provider>
+  );
+}
+
+function render(ui: React.ReactElement) {
+  return rtlRender(ui, { wrapper: DefaultGuestWrapper });
+}
 
 function buildSchedule(): BookingCalendarReader {
   return {
