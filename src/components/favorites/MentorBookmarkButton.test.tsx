@@ -8,12 +8,12 @@ import { Toaster } from '@/components/ui/toaster';
 import { clearToasts } from '@/components/ui/use-toast';
 import { FAVORITE_MENTOR_ERROR_TOAST_MESSAGE } from '@/hooks/favorites';
 import * as analyticsModule from '@/lib/analytics';
-import { getPendingFavoriteMentorId } from '@/lib/favorites';
 import {
-  type FavoriteMentorServiceAdapter,
-  favoriteMentorStore,
-  resetFavoriteMentorStore,
-} from '@/stores/favoriteMentorStore';
+  favoriteMentorsReadModel,
+  type FavoriteMentorsTransport,
+  getPendingFavoriteMentorId,
+  resetFavoriteMentorsReadModel,
+} from '@/lib/favorites';
 
 import { MentorBookmarkButton } from './MentorBookmarkButton';
 
@@ -73,22 +73,20 @@ function renderWithSession(
 }
 
 describe('MentorBookmarkButton', () => {
-  const fetchMock =
-    vi.fn<FavoriteMentorServiceAdapter['fetchFavoriteMentors']>();
-  const addMock = vi.fn<FavoriteMentorServiceAdapter['addFavoriteMentor']>();
-  const removeMock =
-    vi.fn<FavoriteMentorServiceAdapter['removeFavoriteMentor']>();
+  const fetchMock = vi.fn<FavoriteMentorsTransport['fetchFavoriteMentors']>();
+  const addMock = vi.fn<FavoriteMentorsTransport['addFavoriteMentor']>();
+  const removeMock = vi.fn<FavoriteMentorsTransport['removeFavoriteMentor']>();
 
   beforeEach(() => {
     window.localStorage.clear();
     clearToasts();
-    resetFavoriteMentorStore();
+    resetFavoriteMentorsReadModel();
     vi.clearAllMocks();
     document.cookie = 'session-hint=; path=/; max-age=0';
     fetchMock.mockResolvedValue([]);
     addMock.mockResolvedValue(undefined);
     removeMock.mockResolvedValue(undefined);
-    favoriteMentorStore.setAdapter({
+    favoriteMentorsReadModel.setTransport({
       fetchFavoriteMentors: fetchMock,
       addFavoriteMentor: addMock,
       removeFavoriteMentor: removeMock,
@@ -99,7 +97,7 @@ describe('MentorBookmarkButton', () => {
     const user = userEvent.setup();
     const onParentCardClick = vi.fn();
     const trackEventSpy = vi.spyOn(analyticsModule, 'trackEvent');
-    favoriteMentorStore.seedFavorites('999', []);
+    favoriteMentorsReadModel.seed('999', []);
 
     renderWithSession(
       <div
@@ -160,7 +158,7 @@ describe('MentorBookmarkButton', () => {
     expect(
       screen.getByRole('button', { name: '收藏 陳宥廷 Austin' })
     ).toHaveAttribute('aria-pressed', 'false');
-    expect(removeMock).toHaveBeenCalledWith(101);
+    expect(removeMock).toHaveBeenCalledWith(101, expect.any(AbortSignal));
     expect(trackEventSpy).toHaveBeenLastCalledWith({
       name: 'mentor_bookmark_toggle',
       feature: 'mentor_pool',
@@ -177,7 +175,7 @@ describe('MentorBookmarkButton', () => {
     const onParentCardKeyDown = vi.fn();
     const onParentCardKeyUp = vi.fn();
     const trackEventSpy = vi.spyOn(analyticsModule, 'trackEvent');
-    favoriteMentorStore.seedFavorites('999', []);
+    favoriteMentorsReadModel.seed('999', []);
 
     renderWithSession(
       <div
@@ -223,7 +221,7 @@ describe('MentorBookmarkButton', () => {
     await waitFor(() => {
       expect(favoritedButton).not.toHaveAttribute('aria-busy');
     });
-    expect(addMock).toHaveBeenCalledWith(101);
+    expect(addMock).toHaveBeenCalledWith(101, expect.any(AbortSignal));
     expect(trackEventSpy).toHaveBeenCalledTimes(1);
     expect(trackEventSpy).toHaveBeenLastCalledWith({
       name: 'mentor_bookmark_toggle',
@@ -247,7 +245,7 @@ describe('MentorBookmarkButton', () => {
     await waitFor(() => {
       expect(unfavoritedButton).not.toHaveAttribute('aria-busy');
     });
-    expect(removeMock).toHaveBeenCalledWith(101);
+    expect(removeMock).toHaveBeenCalledWith(101, expect.any(AbortSignal));
     expect(trackEventSpy).toHaveBeenCalledTimes(2);
     expect(trackEventSpy).toHaveBeenLastCalledWith({
       name: 'mentor_bookmark_toggle',
@@ -282,7 +280,7 @@ describe('MentorBookmarkButton', () => {
   it('forwards actual feature source (profile and favorites) to trackEvent', async () => {
     const user = userEvent.setup();
     const trackEventSpy = vi.spyOn(analyticsModule, 'trackEvent');
-    favoriteMentorStore.seedFavorites('999', [202]);
+    favoriteMentorsReadModel.seed('999', [202]);
 
     renderWithSession(
       <>
@@ -335,7 +333,7 @@ describe('MentorBookmarkButton', () => {
   });
 
   it('does not re-render an unrelated mentor bookmark button when another mentor is toggled', async () => {
-    favoriteMentorStore.seedFavorites('999', []);
+    favoriteMentorsReadModel.seed('999', []);
     let renderCount = 0;
 
     renderWithSession(
@@ -355,17 +353,23 @@ describe('MentorBookmarkButton', () => {
     const baselineRenders = renderCount;
 
     await act(async () => {
-      await favoriteMentorStore.toggleFavorite(202);
+      await favoriteMentorsReadModel.toggle({
+        userId: '999',
+        mentorId: 202,
+        feature: 'mentor_pool',
+      });
     });
 
-    expect(favoriteMentorStore.isFavorited(202)).toBe(true);
+    expect(
+      favoriteMentorsReadModel.getMentorState('999', 202).isFavorited
+    ).toBe(true);
     expect(renderCount).toBe(baselineRenders);
   });
 
   it('rolls back icon state and shows destructive toast when API mutation fails', async () => {
     const user = userEvent.setup();
     addMock.mockRejectedValueOnce(new Error('500 Internal Error'));
-    favoriteMentorStore.seedFavorites('999', []);
+    favoriteMentorsReadModel.seed('999', []);
 
     renderWithSession(
       <MentorBookmarkButton mentorId={101} mentorName="陳宥廷 Austin" />
@@ -386,7 +390,7 @@ describe('MentorBookmarkButton', () => {
   });
 
   it('renders nothing when logged-in mentor views their own mentor card/profile', () => {
-    favoriteMentorStore.seedFavorites('101', []);
+    favoriteMentorsReadModel.seed('101', []);
 
     renderWithSession(
       <MentorBookmarkButton mentorId={101} mentorName="陳宥廷 Austin" />,
@@ -398,18 +402,35 @@ describe('MentorBookmarkButton', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('withholds rendering while session status is still loading', () => {
+  it('renders guest-hint-gated button during unknown SSR/loading state (zero guest pop-in) while withholding rendering for member session-hint (#908)', async () => {
+    const { unmount } = renderWithSession(
+      <MentorBookmarkButton mentorId={101} mentorName="陳宥廷 Austin" />,
+      { userId: null, status: 'loading' }
+    );
+
+    const guestGatedBtn = screen.getByRole('button', {
+      name: '收藏 陳宥廷 Austin',
+    });
+    expect(guestGatedBtn).toHaveClass(
+      'hidden',
+      'group-data-[auth-state=guest]/auth-state:inline-flex'
+    );
+    unmount();
+
+    document.cookie = 'session-hint=1|101';
     renderWithSession(
       <MentorBookmarkButton mentorId={101} mentorName="陳宥廷 Austin" />,
       { userId: null, status: 'loading' }
     );
 
-    expect(
-      screen.queryByRole('button', { name: /收藏/ })
-    ).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('button', { name: /收藏/ })
+      ).not.toBeInTheDocument();
+    });
   });
 
-  it('ignores duplicate clicks while a favorite mutation is already in flight', async () => {
+  it('ignores duplicate clicks while a favorite mutation is already in flight and emits analytics only after settlement (#908)', async () => {
     const user = userEvent.setup();
     const trackEventSpy = vi.spyOn(analyticsModule, 'trackEvent');
     let resolvePut!: () => void;
@@ -419,7 +440,7 @@ describe('MentorBookmarkButton', () => {
           resolvePut = resolve;
         })
     );
-    favoriteMentorStore.seedFavorites('999', []);
+    favoriteMentorsReadModel.seed('999', []);
 
     renderWithSession(
       <MentorBookmarkButton mentorId={101} mentorName="陳宥廷 Austin" />
@@ -436,7 +457,7 @@ describe('MentorBookmarkButton', () => {
     await user.click(busyButton);
     expect(addMock).toHaveBeenCalledTimes(1);
     expect(removeMock).not.toHaveBeenCalled();
-    expect(trackEventSpy).toHaveBeenCalledTimes(1);
+    expect(trackEventSpy).not.toHaveBeenCalled();
 
     resolvePut();
     await waitFor(() => {
@@ -444,6 +465,7 @@ describe('MentorBookmarkButton', () => {
         screen.getByRole('button', { name: '取消收藏 陳宥廷 Austin' })
       ).not.toHaveAttribute('aria-busy');
     });
+    expect(trackEventSpy).toHaveBeenCalledTimes(1);
   });
 
   it('suppresses failure toast when an in-flight favorite mutation rejects after logout', async () => {
@@ -455,7 +477,7 @@ describe('MentorBookmarkButton', () => {
           rejectPut = reject;
         })
     );
-    favoriteMentorStore.seedFavorites('999', []);
+    favoriteMentorsReadModel.seed('999', []);
 
     renderWithSession(
       <MentorBookmarkButton mentorId={101} mentorName="陳宥廷 Austin" />
@@ -464,11 +486,13 @@ describe('MentorBookmarkButton', () => {
     const button = screen.getByRole('button', { name: '收藏 陳宥廷 Austin' });
     await user.click(button);
 
-    await favoriteMentorStore.syncUser(null);
+    favoriteMentorsReadModel.clear();
     rejectPut(new Error('Aborted on logout'));
 
     await waitFor(() => {
-      expect(favoriteMentorStore.getState().pendingMentorIds.size).toBe(0);
+      expect(
+        favoriteMentorsReadModel.getMentorState('999', 101).isPending
+      ).toBe(false);
     });
 
     expect(

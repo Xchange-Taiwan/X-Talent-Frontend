@@ -5,10 +5,10 @@ import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  type FavoriteMentorServiceAdapter,
-  favoriteMentorStore,
-  resetFavoriteMentorStore,
-} from '@/stores/favoriteMentorStore';
+  favoriteMentorsReadModel,
+  type FavoriteMentorsTransport,
+  resetFavoriteMentorsReadModel,
+} from '@/lib/favorites';
 import type { MentorType } from '@/types/mentor';
 
 import { useFavoriteMentors } from './useFavoriteMentors';
@@ -55,19 +55,17 @@ function createSessionWrapper(options: {
 }
 
 describe('useFavoriteMentors', () => {
-  const fetchMock =
-    vi.fn<FavoriteMentorServiceAdapter['fetchFavoriteMentors']>();
-  const addMock = vi.fn<FavoriteMentorServiceAdapter['addFavoriteMentor']>();
-  const removeMock =
-    vi.fn<FavoriteMentorServiceAdapter['removeFavoriteMentor']>();
+  const fetchMock = vi.fn<FavoriteMentorsTransport['fetchFavoriteMentors']>();
+  const addMock = vi.fn<FavoriteMentorsTransport['addFavoriteMentor']>();
+  const removeMock = vi.fn<FavoriteMentorsTransport['removeFavoriteMentor']>();
 
   beforeEach(() => {
-    resetFavoriteMentorStore();
+    resetFavoriteMentorsReadModel();
     vi.clearAllMocks();
     fetchMock.mockResolvedValue([]);
     addMock.mockResolvedValue(undefined);
     removeMock.mockResolvedValue(undefined);
-    favoriteMentorStore.setAdapter({
+    favoriteMentorsReadModel.setTransport({
       fetchFavoriteMentors: fetchMock,
       addFavoriteMentor: addMock,
       removeFavoriteMentor: removeMock,
@@ -88,7 +86,7 @@ describe('useFavoriteMentors', () => {
   });
 
   it('clears store state and marks unauthenticated when session is unauthenticated', () => {
-    favoriteMentorStore.seedFavorites('stale-user', [
+    favoriteMentorsReadModel.seed('stale-user', [
       fromPartial<MentorType>({ user_id: 101, name: 'Stale Mentor' }),
     ]);
 
@@ -103,7 +101,7 @@ describe('useFavoriteMentors', () => {
     expect(result.current.isAuthenticated).toBe(false);
     expect(result.current.isStoreReadyForUser).toBe(false);
     expect(result.current.favoriteMentors).toEqual([]);
-    expect(favoriteMentorStore.getState().loadedUserId).toBeNull();
+    expect(favoriteMentorsReadModel.getSnapshot('stale-user')).toBeUndefined();
   });
 
   it('loads favorite mentors for authenticated user and reacts to store removals', async () => {
@@ -140,10 +138,14 @@ describe('useFavoriteMentors', () => {
     ]);
 
     await act(async () => {
-      await favoriteMentorStore.toggleFavorite(101);
+      await favoriteMentorsReadModel.toggle({
+        userId: '9001',
+        mentorId: 101,
+        feature: 'favorites',
+      });
     });
 
-    expect(removeMock).toHaveBeenCalledWith(101);
+    expect(removeMock).toHaveBeenCalledWith(101, expect.any(AbortSignal));
     expect(result.current.favoriteMentors.map((m) => m.user_id)).toEqual([102]);
   });
 

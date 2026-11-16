@@ -1,14 +1,20 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import {
+  render as rtlRender,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SessionContext, type SessionContextValue } from 'next-auth/react';
+import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { UserType } from '@/hooks/user/user-data/useUserData';
-import type { BookingCalendarReader } from '@/lib/profile/bookingAvailability';
 import {
-  favoriteMentorStore,
-  resetFavoriteMentorStore,
-} from '@/stores/favoriteMentorStore';
+  favoriteMentorsReadModel,
+  resetFavoriteMentorsReadModel,
+} from '@/lib/favorites';
+import type { BookingCalendarReader } from '@/lib/profile/bookingAvailability';
 
 // next/image requires width/height derived from a static-import object shape
 // that Vitest's asset transform doesn't produce; irrelevant to the
@@ -40,6 +46,24 @@ vi.mock('@/components/profile/reservation/ScheduleCalendar', () => ({
 
 import { ProfilePageSkeleton } from './skeleton';
 import ProfilePageUI from './ui';
+
+const defaultGuestSession: SessionContextValue = {
+  data: null,
+  status: 'unauthenticated',
+  update: async () => null,
+};
+
+function DefaultGuestWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <SessionContext.Provider value={defaultGuestSession}>
+      {children}
+    </SessionContext.Provider>
+  );
+}
+
+function render(ui: React.ReactElement) {
+  return rtlRender(ui, { wrapper: DefaultGuestWrapper });
+}
 
 function buildSchedule(): BookingCalendarReader {
   return {
@@ -949,14 +973,14 @@ describe('ProfilePageUI - mentor bookmark button gating (#758)', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('stores a complete mentorSnapshot in favoriteMentorStore when toggling bookmark from profile page (#757)', async () => {
-    resetFavoriteMentorStore();
-    favoriteMentorStore.setAdapter({
+  it('stores a complete mentorSnapshot in favoriteMentorsReadModel when toggling bookmark from profile page (#757 / #908)', async () => {
+    resetFavoriteMentorsReadModel();
+    favoriteMentorsReadModel.setTransport({
       fetchFavoriteMentors: vi.fn().mockResolvedValue([]),
       addFavoriteMentor: vi.fn().mockResolvedValue(undefined),
       removeFavoriteMentor: vi.fn().mockResolvedValue(undefined),
     });
-    favoriteMentorStore.seedFavorites('999', []);
+    favoriteMentorsReadModel.seed('999', []);
 
     const sessionContextValue: SessionContextValue = {
       data: {
@@ -1001,9 +1025,12 @@ describe('ProfilePageUI - mentor bookmark button gating (#758)', () => {
       );
 
       await waitFor(() => {
-        expect(favoriteMentorStore.isFavorited(123)).toBe(true);
+        expect(
+          favoriteMentorsReadModel.getMentorState('999', 123).isFavorited
+        ).toBe(true);
       });
-      const storedMentor = favoriteMentorStore.getState().favoriteMentors[0];
+      const storedMentor =
+        favoriteMentorsReadModel.getSnapshot('999')?.mentors[0];
       expect(storedMentor).toMatchObject({
         user_id: 123,
         name: 'Zahra Mirzakhani',
@@ -1013,7 +1040,7 @@ describe('ProfilePageUI - mentor bookmark button gating (#758)', () => {
       });
       expect(storedMentor?.avatar).toBeTruthy();
     } finally {
-      resetFavoriteMentorStore();
+      resetFavoriteMentorsReadModel();
     }
   });
 });

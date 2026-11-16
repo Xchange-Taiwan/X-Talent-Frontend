@@ -1,4 +1,16 @@
 export {
+  type BookmarkActionOutcome,
+  createFavoriteMentorsReadModel,
+  type CreateFavoriteMentorsReadModelOptions,
+  type FavoriteMentorFeature,
+  type FavoriteMentorsReadModel,
+  favoriteMentorsReadModel,
+  type FavoriteMentorsSnapshot,
+  type FavoriteMentorsTransport,
+  type PendingFavoriteStoragePort,
+  resetFavoriteMentorsReadModel,
+} from './favoriteMentorsReadModel';
+export {
   clearPendingFavoriteMentor,
   consumePendingFavoriteMentorForPage,
   getPendingFavoriteMentorId,

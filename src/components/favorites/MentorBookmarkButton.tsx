@@ -45,7 +45,7 @@ export function MentorBookmarkButton({
     isFavorited,
     isPending,
     isSelf,
-    isIdentityUnresolved,
+    identityState,
     handleToggleFavorite,
   } = useFavoriteMentor({
     mentorId,
@@ -53,9 +53,11 @@ export function MentorBookmarkButton({
     feature,
   });
 
-  if (isSelf || isIdentityUnresolved) {
+  if (isSelf || identityState === 'hint-only') {
     return null;
   }
+
+  const isGuestHintGated = identityState === 'unknown';
 
   const safeName = mentorName.trim() || '此導師';
   const actionLabel = isFavorited ? `取消收藏 ${safeName}` : `收藏 ${safeName}`;
@@ -96,7 +98,10 @@ export function MentorBookmarkButton({
         onKeyDown={handleKeyDown}
         onKeyUp={handleKeyUp}
         className={cn(
-          'inline-flex size-10 shrink-0 items-center justify-center rounded-full transition-colors',
+          isGuestHintGated
+            ? 'hidden group-data-[auth-state=guest]/auth-state:inline-flex'
+            : 'inline-flex',
+          'size-10 shrink-0 items-center justify-center rounded-full transition-colors',
           variant === 'overlay'
             ? 'border-background-border/60 bg-background-white/90 hover:bg-background-white border shadow-sm backdrop-blur-sm'
             : 'border-background-border bg-background-white hover:bg-background-hover border',

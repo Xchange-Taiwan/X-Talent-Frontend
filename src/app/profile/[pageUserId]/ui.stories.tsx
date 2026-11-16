@@ -5,8 +5,8 @@ import { useLayoutEffect } from 'react';
 import defaultAvatar from '@/assets/default-avatar.png';
 import { mockBookingSlots } from '@/components/profile/reservation/__mocks__/reservationStories.mock';
 import type { UserType } from '@/hooks/user/user-data/useUserData';
+import { favoriteMentorsReadModel } from '@/lib/favorites';
 import type { BookingCalendarReader } from '@/lib/profile/bookingAvailability';
-import { favoriteMentorStore } from '@/stores/favoriteMentorStore';
 import type { MentorFeedbackItem } from '@/types/feedback';
 
 import ProfilePageUI from './ui';
@@ -371,12 +371,12 @@ function SeededBookmarkedProfileStory(
   props: React.ComponentProps<typeof ProfilePageUI>
 ) {
   useLayoutEffect(() => {
-    favoriteMentorStore.setAdapter({
+    favoriteMentorsReadModel.setTransport({
       fetchFavoriteMentors: async () => [],
       addFavoriteMentor: async () => {},
       removeFavoriteMentor: async () => {},
     });
-    favoriteMentorStore.seedFavorites('test-user-id', [101]);
+    favoriteMentorsReadModel.seed('test-user-id', [101]);
   }, []);
 
   return <ProfilePageUI {...props} />;

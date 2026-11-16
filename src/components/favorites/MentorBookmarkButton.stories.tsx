@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/nextjs';
 import { useLayoutEffect } from 'react';
 
 import { Toaster } from '@/components/ui/toaster';
-import { favoriteMentorStore } from '@/stores/favoriteMentorStore';
+import { favoriteMentorsReadModel } from '@/lib/favorites';
 
 import { MentorBookmarkButton, type MentorBookmarkButtonProps } from './index';
 
@@ -15,12 +15,12 @@ function SeededBookmarkPreview({
   userId?: string | null;
 }) {
   useLayoutEffect(() => {
-    favoriteMentorStore.setAdapter({
+    favoriteMentorsReadModel.setTransport({
       fetchFavoriteMentors: async () => [],
       addFavoriteMentor: async () => {},
       removeFavoriteMentor: async () => {},
     });
-    favoriteMentorStore.seedFavorites(
+    favoriteMentorsReadModel.seed(
       userId,
       initialFavorited ? [props.mentorId] : []
     );

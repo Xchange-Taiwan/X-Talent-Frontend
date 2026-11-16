@@ -8,10 +8,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import avatarImage from '@/assets/default-avatar.png';
 import * as analyticsModule from '@/lib/analytics';
 import {
-  type FavoriteMentorServiceAdapter,
-  favoriteMentorStore,
-  resetFavoriteMentorStore,
-} from '@/stores/favoriteMentorStore';
+  favoriteMentorsReadModel,
+  type FavoriteMentorsTransport,
+  resetFavoriteMentorsReadModel,
+} from '@/lib/favorites';
 import type { MentorType } from '@/types/mentor';
 
 import { MentorCard } from './index';
@@ -71,19 +71,17 @@ function renderWithSession(ui: ReactNode, userId: string | null = null) {
 }
 
 describe('MentorCard (#757, #896)', () => {
-  const fetchMock =
-    vi.fn<FavoriteMentorServiceAdapter['fetchFavoriteMentors']>();
-  const addMock = vi.fn<FavoriteMentorServiceAdapter['addFavoriteMentor']>();
-  const removeMock =
-    vi.fn<FavoriteMentorServiceAdapter['removeFavoriteMentor']>();
+  const fetchMock = vi.fn<FavoriteMentorsTransport['fetchFavoriteMentors']>();
+  const addMock = vi.fn<FavoriteMentorsTransport['addFavoriteMentor']>();
+  const removeMock = vi.fn<FavoriteMentorsTransport['removeFavoriteMentor']>();
 
   beforeEach(() => {
-    resetFavoriteMentorStore();
+    resetFavoriteMentorsReadModel();
     vi.clearAllMocks();
     fetchMock.mockResolvedValue([]);
     addMock.mockResolvedValue(undefined);
     removeMock.mockResolvedValue(undefined);
-    favoriteMentorStore.setAdapter({
+    favoriteMentorsReadModel.setTransport({
       fetchFavoriteMentors: fetchMock,
       addFavoriteMentor: addMock,
       removeFavoriteMentor: removeMock,
@@ -97,7 +95,7 @@ describe('MentorCard (#757, #896)', () => {
     const onDocumentClick = vi.fn();
     const onDocumentKeyDown = vi.fn();
     const onDocumentKeyUp = vi.fn();
-    favoriteMentorStore.seedFavorites('9001', []);
+    favoriteMentorsReadModel.seed('9001', []);
 
     renderWithSession(<MentorCard mentor={buildMentor()} />, '9001');
     document.addEventListener('click', onDocumentClick);
@@ -132,7 +130,7 @@ describe('MentorCard (#757, #896)', () => {
 
       expect(onLinkClick).not.toHaveBeenCalled();
       expect(onDocumentClick).not.toHaveBeenCalled();
-      expect(addMock).toHaveBeenCalledWith(101);
+      expect(addMock).toHaveBeenCalledWith(101, expect.any(AbortSignal));
       expect(trackEventSpy).toHaveBeenCalledWith({
         name: 'mentor_bookmark_toggle',
         feature: 'mentor_pool',
@@ -156,7 +154,7 @@ describe('MentorCard (#757, #896)', () => {
       expect(onDocumentClick).not.toHaveBeenCalled();
       expect(onDocumentKeyDown).not.toHaveBeenCalled();
       expect(onDocumentKeyUp).not.toHaveBeenCalled();
-      expect(removeMock).toHaveBeenCalledWith(101);
+      expect(removeMock).toHaveBeenCalledWith(101, expect.any(AbortSignal));
       expect(trackEventSpy).toHaveBeenLastCalledWith({
         name: 'mentor_bookmark_toggle',
         feature: 'mentor_pool',
@@ -207,7 +205,7 @@ describe('MentorCard (#757, #896)', () => {
     const trackEventSpy = vi.spyOn(analyticsModule, 'trackEvent');
     const onLinkClick = vi.fn((event: Event) => event.preventDefault());
     const mentor = buildMentor();
-    favoriteMentorStore.seedFavorites('9001', [mentor]);
+    favoriteMentorsReadModel.seed('9001', [mentor]);
 
     renderWithSession(
       <MentorCard mentor={mentor} feature="favorites" />,
@@ -243,7 +241,7 @@ describe('MentorCard (#757, #896)', () => {
     await user.click(bookmarkButton);
 
     expect(onLinkClick).not.toHaveBeenCalled();
-    expect(removeMock).toHaveBeenCalledWith(101);
+    expect(removeMock).toHaveBeenCalledWith(101, expect.any(AbortSignal));
     expect(trackEventSpy).toHaveBeenCalledWith({
       name: 'mentor_bookmark_toggle',
       feature: 'favorites',
@@ -281,7 +279,7 @@ describe('MentorCard (#757, #896)', () => {
 
   it('projects localized tags via labelMap + prioritizedCodes, resolves empty avatar to fallback image, and preserves raw subject_group codes on bookmark snapshot (#896)', async () => {
     const user = userEvent.setup();
-    favoriteMentorStore.seedFavorites('9001', []);
+    favoriteMentorsReadModel.seed('9001', []);
     const labelMap = new Map<string, string>([
       ['portfolio_review', '作品集健檢'],
       ['product_design', '產品設計'],
@@ -322,9 +320,13 @@ describe('MentorCard (#757, #896)', () => {
     );
 
     await waitFor(() => {
-      expect(favoriteMentorStore.isFavorited(101)).toBe(true);
+      expect(
+        favoriteMentorsReadModel.getMentorState('9001', 101).isFavorited
+      ).toBe(true);
     });
-    expect(favoriteMentorStore.getState().favoriteMentors[0]).toMatchObject({
+    expect(
+      favoriteMentorsReadModel.getSnapshot('9001')?.mentors[0]
+    ).toMatchObject({
       user_id: 101,
       avatar: avatarImage,
       have_topic: ['portfolio_review'],

@@ -27,10 +27,19 @@ vi.mock('next/image', () => ({
   ),
 }));
 
+let lastSwiperProps: Record<string, unknown> | null = null;
+
 vi.mock('swiper/react', () => ({
-  Swiper: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="swiper">{children}</div>
-  ),
+  Swiper: ({
+    children,
+    ...rest
+  }: {
+    children: React.ReactNode;
+    [key: string]: unknown;
+  }) => {
+    lastSwiperProps = rest;
+    return <div data-testid="swiper">{children}</div>;
+  },
   SwiperSlide: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="swiper-slide">{children}</div>
   ),
@@ -39,10 +48,6 @@ vi.mock('swiper/react', () => ({
 vi.mock('swiper/modules', () => ({
   Autoplay: {},
   Pagination: {},
-}));
-
-vi.mock('@/hooks/useWindowSize', () => ({
-  default: () => ({ width: 1280, height: 800 }),
 }));
 
 describe('HomePageSlider & sliderList data', () => {
@@ -154,5 +159,17 @@ describe('HomePageSlider & sliderList data', () => {
     fireEvent.error(img);
 
     expect(img).toHaveAttribute('src', '/landing/slider_default_1.webp');
+  });
+
+  it('configures Swiper responsive breakpoints locally (1 below 1025px / 2 at >=1025px)', () => {
+    lastSwiperProps = null;
+    render(<HomePageSlider />);
+
+    expect(lastSwiperProps).toMatchObject({
+      slidesPerView: 1,
+      breakpoints: {
+        1025: { slidesPerView: 2 },
+      },
+    });
   });
 });

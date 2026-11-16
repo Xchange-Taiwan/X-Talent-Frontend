@@ -1,5 +1,29 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import {
+  fireEvent,
+  render as rtlRender,
+  type RenderOptions,
+  screen,
+} from '@testing-library/react';
+import { SessionContext, type SessionContextValue } from 'next-auth/react';
+import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
+
+const defaultGuestSession: SessionContextValue = {
+  data: null,
+  status: 'unauthenticated',
+  update: vi.fn(),
+};
+
+function DefaultGuestWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <SessionContext.Provider value={defaultGuestSession}>
+      {children}
+    </SessionContext.Provider>
+  );
+}
+
+const render = (ui: React.ReactElement, options?: RenderOptions) =>
+  rtlRender(ui, { wrapper: DefaultGuestWrapper, ...options });
 
 vi.mock('next/navigation', async () => {
   const { navigationMockFactory } = await import('@/test/mocks/navigation');

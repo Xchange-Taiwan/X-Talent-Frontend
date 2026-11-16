@@ -1,22 +1,24 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useSyncExternalStore } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 
 import { toast } from '@/components/ui/use-toast';
-import { trackEvent } from '@/lib/analytics';
-import { savePendingFavoriteMentor } from '@/lib/favorites';
-import { favoriteMentorStore } from '@/stores/favoriteMentorStore';
+import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
+import type { ResolvedIdentity } from '@/lib/auth/sessionHint';
+import {
+  type FavoriteMentorFeature,
+  favoriteMentorsReadModel,
+} from '@/lib/favorites';
 import type { MentorType } from '@/types/mentor';
 
-import { useFavoriteSessionAuth } from './useFavoriteSessionAuth';
+export type { FavoriteMentorFeature };
 
 export const FAVORITE_MENTOR_ERROR_TOAST_MESSAGE = '收藏操作失敗，請稍後再試';
 
-export type FavoriteMentorFeature = 'mentor_pool' | 'profile' | 'favorites';
-
 const FAVORITED_STATE_BIT = 1;
 const PENDING_STATE_BIT = 2;
+const SELF_STATE_BIT = 4;
 
 function getServerMentorStateMask(): number {
   return 0;
@@ -40,6 +42,7 @@ export interface UseFavoriteMentorResult {
   isFavorited: boolean;
   isPending: boolean;
   isSelf: boolean;
+  identityState: ResolvedIdentity['state'];
   isIdentityUnresolved: boolean;
   isAuthenticated: boolean;
   handleToggleFavorite: () => Promise<void>;
@@ -50,86 +53,69 @@ export function useFavoriteMentor({
   mentorSnapshot,
   feature = 'mentor_pool',
 }: UseFavoriteMentorOptions): UseFavoriteMentorResult {
-  const { confirmedUserId, isIdentityUnresolved, isAuthenticated } =
-    useFavoriteSessionAuth();
+  const identity = useResolvedIdentity();
   const router = useOptionalRouter();
 
-  useEffect(() => {
-    if (confirmedUserId) {
-      void favoriteMentorStore.syncUser(confirmedUserId);
-    } else if (!isIdentityUnresolved) {
-      void favoriteMentorStore.syncUser(null);
-    }
-  }, [confirmedUserId, isIdentityUnresolved]);
+  const confirmedUserId =
+    identity.state === 'confirmed-member' ? identity.userId : null;
+  const isAuthenticated = identity.state === 'confirmed-member';
+  const isIdentityUnresolved =
+    identity.state === 'unknown' || identity.state === 'hint-only';
+
+  const subscribe = useCallback(
+    (onStoreChange: () => void) =>
+      favoriteMentorsReadModel.subscribeMentorState(
+        confirmedUserId,
+        mentorId,
+        onStoreChange
+      ),
+    [confirmedUserId, mentorId]
+  );
 
   const getMentorStateMask = useCallback((): number => {
-    if (!Number.isFinite(mentorId) || mentorId <= 0) {
-      return 0;
-    }
-    const state = favoriteMentorStore.getState();
-    return (
-      (state.favoriteMentorIds.has(mentorId) ? FAVORITED_STATE_BIT : 0) |
-      (state.pendingMentorIds.has(mentorId) ? PENDING_STATE_BIT : 0)
+    const state = favoriteMentorsReadModel.getMentorState(
+      confirmedUserId,
+      mentorId
     );
-  }, [mentorId]);
+    return (
+      (state.isFavorited ? FAVORITED_STATE_BIT : 0) |
+      (state.isPending ? PENDING_STATE_BIT : 0) |
+      (state.isSelf ? SELF_STATE_BIT : 0)
+    );
+  }, [confirmedUserId, mentorId]);
 
   const mentorStateMask = useSyncExternalStore(
-    favoriteMentorStore.subscribe,
+    subscribe,
     getMentorStateMask,
     getServerMentorStateMask
   );
 
-  const isSelf =
-    confirmedUserId !== null && confirmedUserId === String(mentorId);
+  const isSelf = (mentorStateMask & SELF_STATE_BIT) !== 0;
   const isFavorited = isAuthenticated
     ? (mentorStateMask & FAVORITED_STATE_BIT) !== 0
     : false;
   const isPending = (mentorStateMask & PENDING_STATE_BIT) !== 0;
 
   const handleToggleFavorite = useCallback(async () => {
-    if (isSelf || isIdentityUnresolved) return;
-
-    if (!isAuthenticated || !confirmedUserId) {
-      if (Number.isSafeInteger(mentorId) && mentorId > 0) {
-        savePendingFavoriteMentor(mentorId);
-      }
-      const callbackPath = `/profile/${mentorId}`;
-      const signInUrl = `/auth/signin?callbackUrl=${encodeURIComponent(callbackPath)}`;
-      if (router) {
-        router.push(signInUrl);
-      } else if (typeof window !== 'undefined') {
-        window.location.assign(signInUrl);
-      }
+    if (isSelf || identity.state === 'hint-only') {
       return;
     }
 
-    if (
-      !Number.isFinite(mentorId) ||
-      mentorId <= 0 ||
-      favoriteMentorStore.isPending(mentorId)
-    ) {
-      return;
-    }
-
-    void favoriteMentorStore.syncUser(confirmedUserId);
-
-    const optimisticAction = favoriteMentorStore.isFavorited(mentorId)
-      ? 'remove'
-      : 'add';
-
-    trackEvent({
-      name: 'mentor_bookmark_toggle',
+    const outcome = await favoriteMentorsReadModel.toggle({
+      userId: confirmedUserId,
+      mentorId,
+      mentorSnapshot,
       feature,
-      metadata: {
-        mentor_id: mentorId,
-        action: optimisticAction,
-      },
     });
 
-    const outcome = await favoriteMentorStore.toggleFavorite(
-      mentorId,
-      mentorSnapshot
-    );
+    if (outcome.status === 'guest_redirect') {
+      if (router) {
+        router.push(outcome.signInUrl);
+      } else if (typeof window !== 'undefined') {
+        window.location.assign(outcome.signInUrl);
+      }
+      return;
+    }
 
     if (outcome.status === 'failed') {
       toast({
@@ -138,11 +124,10 @@ export function useFavoriteMentor({
       });
     }
   }, [
-    feature,
-    isSelf,
-    isIdentityUnresolved,
-    isAuthenticated,
     confirmedUserId,
+    feature,
+    identity.state,
+    isSelf,
     mentorId,
     mentorSnapshot,
     router,
@@ -152,6 +137,7 @@ export function useFavoriteMentor({
     isFavorited,
     isPending,
     isSelf,
+    identityState: identity.state,
     isIdentityUnresolved,
     isAuthenticated,
     handleToggleFavorite,
