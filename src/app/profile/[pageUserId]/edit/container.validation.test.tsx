@@ -253,4 +253,44 @@ describe('EditProfileContainer schema-driven period validation & scroll guards',
     ).toBeInTheDocument();
     expect(mockOnSubmit).not.toHaveBeenCalled();
   });
+
+  it('stops submission, renders GitHub domain error, and scrolls to links when links.github is not github.com (#862)', async () => {
+    const mockOnSubmit = vi.fn();
+    mockUseProfileSubmit.mockReturnValue({
+      onSubmit: mockOnSubmit,
+      isSaving: false,
+    });
+    mockUseEditProfileData.mockReturnValue({
+      userDto: createValidBaseUserDto([]),
+      isMentor: false,
+      isError: false,
+    });
+
+    const scrolledIds: string[] = [];
+    Element.prototype.scrollIntoView = function (this: HTMLElement) {
+      if (this.id) scrolledIds.push(this.id);
+    };
+
+    const { container } = render(
+      <EditProfileContainer pageUserId="1" initialTagCatalog={emptyCatalog} />
+    );
+
+    const githubInput = await screen.findByLabelText('GitHub');
+    fireEvent.change(githubInput, {
+      target: { value: 'https://gitlab.com/octocat' },
+    });
+
+    const formEl = container.querySelector('form')!;
+    fireEvent.submit(formEl);
+
+    await waitFor(() => {
+      expect(scrolledIds).toContain('links');
+    });
+    expect(
+      await screen.findByText(
+        '請輸入有效的 GitHub HTTPS 網址（允許網域：github.com）'
+      )
+    ).toBeInTheDocument();
+    expect(mockOnSubmit).not.toHaveBeenCalled();
+  });
 });

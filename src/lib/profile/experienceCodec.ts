@@ -152,13 +152,20 @@ export function decode(
       .filter((item): item is Partial<PersonalLinkMetadata> =>
         Boolean(item && typeof item === 'object')
       )
-      .map((item) => ({
-        platform:
+      .map((item) => {
+        const platform =
           typeof item.platform === 'string'
             ? item.platform.trim().toLowerCase()
-            : '',
-        url: typeof item.url === 'string' ? item.url.trim() : '',
-      }))
+            : '';
+        const rawUrl = typeof item.url === 'string' ? item.url.trim() : '';
+        if (!isSafeUrl(rawUrl) && rawUrl && isSocialPlatformKey(platform)) {
+          const validation = validatePlatformUrl(platform, rawUrl);
+          if (validation.valid && validation.normalizedUrl) {
+            return { platform, url: validation.normalizedUrl };
+          }
+        }
+        return { platform, url: rawUrl };
+      })
       .filter((link) => Boolean(link.platform) && isSafeUrl(link.url));
 
   return { workExperiences, educations, personalLinks };

@@ -33,6 +33,21 @@ export const MultiplePlatformLinks: Story = {
       { platform: 'instagram', url: 'https://www.instagram.com/hana.lin' },
       { platform: 'twitter', url: 'https://x.com/hanalin' },
       { platform: 'youtube', url: 'https://www.youtube.com/@hanalin' },
+      { platform: 'github', url: 'https://github.com/hanalin' },
+      { platform: 'website', url: 'https://hanalin.dev' },
+    ],
+    jobTitle: 'Senior Frontend Engineer',
+    companyName: 'Google',
+  },
+};
+
+export const GithubLink: Story = {
+  args: {
+    name: '林小華 Hana Lin',
+    avatarImgUrl: 'https://api.dicebear.com/7.x/adventurer/svg?seed=hana',
+    personalLinks: [
+      { platform: 'facebook', url: 'https://www.facebook.com/hana-lin' },
+      { platform: 'github', url: 'https://github.com/hanalin' },
       { platform: 'website', url: 'https://hanalin.dev' },
     ],
     jobTitle: 'Senior Frontend Engineer',

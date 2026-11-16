@@ -20,6 +20,7 @@ export const Mentor: Story = {
     personalLinks: [
       { platform: 'linkedin', url: 'https://www.linkedin.com/in/hana-lin' },
       { platform: 'twitter', url: 'https://x.com/hanalin' },
+      { platform: 'github', url: 'https://github.com/hanalin' },
       { platform: 'website', url: 'https://hanalin.dev' },
     ],
     expertise: [
@@ -77,6 +78,7 @@ export const MultiPlatformLinks: Story = {
       { platform: 'instagram', url: 'https://www.instagram.com/hana.lin' },
       { platform: 'twitter', url: 'https://x.com/hanalin' },
       { platform: 'youtube', url: 'https://www.youtube.com/@hanalin' },
+      { platform: 'github', url: 'https://github.com/hanalin' },
       { platform: 'website', url: 'https://hanalin.dev' },
     ],
     expertise: [

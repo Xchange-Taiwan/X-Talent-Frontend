@@ -11,20 +11,31 @@ vi.mock('next/image', () => ({
 
 import { AvatarCard } from './AvatarCard';
 
-describe('AvatarCard (#898)', () => {
-  it('renders sanitized multi-platform personalLinks as external <a target="_blank" rel="noopener noreferrer"> anchors', () => {
+describe('AvatarCard (#898, #862)', () => {
+  it('renders sanitized multi-platform personalLinks including GitHub in canonical order as external <a target="_blank" rel="noopener noreferrer"> anchors', () => {
     render(
       <AvatarCard
         name="Hana Lin"
         jobTitle="Staff Engineer"
         companyName="XChange"
         personalLinks={[
+          { platform: 'website', url: 'https://hanalin.dev' },
+          { platform: 'github', url: 'github.com/hana-lin' },
+          { platform: 'facebook', url: 'https://www.facebook.com/hana-lin' },
           { platform: 'linkedin', url: 'https://www.linkedin.com/in/hana-lin' },
           { platform: 'twitter', url: 'https://x.com/hanalin' },
-          { platform: 'website', url: 'https://hanalin.dev' },
         ]}
       />
     );
+
+    const allLinks = screen.getAllByRole('link');
+    expect(allLinks.map((a) => a.getAttribute('aria-label'))).toEqual([
+      'LinkedIn',
+      'Facebook',
+      'X (formerly Twitter)',
+      'GitHub',
+      '個人網站',
+    ]);
 
     const linkedinAnchor = screen.getByRole('link', { name: 'LinkedIn' });
     expect(linkedinAnchor).toHaveAttribute(
@@ -33,6 +44,11 @@ describe('AvatarCard (#898)', () => {
     );
     expect(linkedinAnchor).toHaveAttribute('target', '_blank');
     expect(linkedinAnchor).toHaveAttribute('rel', 'noopener noreferrer');
+
+    const githubAnchor = screen.getByRole('link', { name: 'GitHub' });
+    expect(githubAnchor).toHaveAttribute('href', 'https://github.com/hana-lin');
+    expect(githubAnchor).toHaveAttribute('target', '_blank');
+    expect(githubAnchor).toHaveAttribute('rel', 'noopener noreferrer');
 
     const twitterAnchor = screen.getByRole('link', {
       name: 'X (formerly Twitter)',
@@ -53,6 +69,7 @@ describe('AvatarCard (#898)', () => {
           { platform: 'website', url: 'javascript:alert(1)' },
           { platform: 'linkedin', url: 'http://linkedin.com/in/hana-lin' },
           { platform: 'linkedin', url: 'https://evil-linkedin.com/in/hana' },
+          { platform: 'github', url: 'https://evil-github.com/hana' },
           { platform: 'unknown_platform', url: 'https://example.com' },
           { platform: 'youtube', url: 'https://youtu.be/abc123' },
         ]}

@@ -239,6 +239,8 @@ describe('experienceCodec', () => {
         { platform: 'LinkedIn', url: 'https://linkedin.com/in/first' },
         { platform: 'linkedin', url: 'https://www.linkedin.com/in/latest' },
         { platform: 'linkedin', url: 'https://evil-linkedin.com/in/ignored' },
+        { platform: 'GitHub', url: 'github.com/octocat' },
+        { platform: 'github', url: 'https://gitlab.com/ignored' },
         { platform: 'website', url: 'https://portfolio.example.com' },
       ]),
     ];
@@ -258,6 +260,7 @@ describe('experienceCodec', () => {
       instagram: '',
       twitter: '',
       youtube: '',
+      github: 'https://github.com/octocat',
       website: 'https://portfolio.example.com',
     });
   });

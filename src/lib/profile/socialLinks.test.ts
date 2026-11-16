@@ -6,6 +6,7 @@ import { defaultValues } from '@/schemas/profileSchema';
 
 import {
   createEmptySocialLinks,
+  getPlatformUrlErrorMessage,
   SOCIAL_PLATFORM_KEYS,
   SOCIAL_PLATFORM_SPECS,
   socialLinksFormSchema,
@@ -13,7 +14,26 @@ import {
   validatePlatformUrl,
 } from './socialLinks';
 
-describe('socialLinks registry & URL validation (#898)', () => {
+describe('socialLinks registry & URL validation (#898, #862)', () => {
+  it('registers all 7 platforms in canonical order with github between youtube and website while keeping facebook', () => {
+    expect(SOCIAL_PLATFORM_KEYS).toEqual([
+      'linkedin',
+      'facebook',
+      'instagram',
+      'twitter',
+      'youtube',
+      'github',
+      'website',
+    ]);
+    expect(SOCIAL_PLATFORM_SPECS.github).toEqual({
+      label: 'GitHub',
+      allowedHosts: ['github.com'],
+    });
+    expect(getPlatformUrlErrorMessage('github')).toBe(
+      '請輸入有效的 GitHub HTTPS 網址（允許網域：github.com）'
+    );
+  });
+
   it('creates an empty record covering every registered platform key', () => {
     const empty = createEmptySocialLinks();
     expect(Object.keys(empty)).toEqual([...SOCIAL_PLATFORM_KEYS]);
@@ -36,6 +56,13 @@ describe('socialLinks registry & URL validation (#898)', () => {
     ['twitter', 'x.com/alice', 'https://x.com/alice'],
     ['youtube', 'youtube.com/@alice', 'https://youtube.com/@alice'],
     ['youtube', 'youtu.be/dQw4w9WgXcQ', 'https://youtu.be/dQw4w9WgXcQ'],
+    ['github', 'github.com/octocat', 'https://github.com/octocat'],
+    ['github', '  www.github.com/octocat  ', 'https://www.github.com/octocat'],
+    [
+      'github',
+      'https://gist.github.com/octocat',
+      'https://gist.github.com/octocat',
+    ],
     ['website', 'github.com/user', 'https://github.com/user'],
     [
       'website',
@@ -64,6 +91,12 @@ describe('socialLinks registry & URL validation (#898)', () => {
     ['twitter', 'http://x.com/alice'],
     ['twitter', 'https://fakex.com/alice'],
     ['youtube', 'https://myyoutube.com/@alice'],
+    ['github', 'http://github.com/octocat'],
+    ['github', 'https://gitlab.com/octocat'],
+    ['github', 'gitlab.com/octocat'],
+    ['github', 'https://evil-github.com/octocat'],
+    ['github', 'https://github.com.attacker.io/octocat'],
+    ['github', 'javascript:alert(1)'],
     ['website', 'http://example.com'],
     ['website', 'javascript:alert(1)'],
     ['website', 'data:text/html,<script>alert(1)</script>'],
@@ -93,7 +126,8 @@ describe('socialLinks registry & URL validation (#898)', () => {
       instagram: 'https://www.instagram.com/janedoe',
       twitter: 'x.com/janedoe',
       youtube: 'youtu.be/abc123XYZ',
-      website: 'github.com/janedoe',
+      github: 'github.com/janedoe',
+      website: 'janedoe.dev',
     };
 
     // Ensure test covers 100% of SOCIAL_PLATFORM_SPECS keys
@@ -108,7 +142,8 @@ describe('socialLinks registry & URL validation (#898)', () => {
       instagram: 'https://www.instagram.com/janedoe',
       twitter: 'https://x.com/janedoe',
       youtube: 'https://youtu.be/abc123XYZ',
-      website: 'https://github.com/janedoe',
+      github: 'https://github.com/janedoe',
+      website: 'https://janedoe.dev',
     });
 
     const validLinks = extractValidLinks({
@@ -116,6 +151,9 @@ describe('socialLinks registry & URL validation (#898)', () => {
       links: parsedLinks,
     });
     expect(validLinks).toHaveLength(SOCIAL_PLATFORM_KEYS.length);
+    expect(validLinks.map((item) => item.platform)).toEqual([
+      ...SOCIAL_PLATFORM_KEYS,
+    ]);
 
     const { experiences } = encode({
       workExperiences: [],

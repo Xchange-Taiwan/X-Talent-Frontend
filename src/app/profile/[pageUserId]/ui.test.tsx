@@ -1017,3 +1017,48 @@ describe('ProfilePageUI - mentor bookmark button gating (#758)', () => {
     }
   });
 });
+
+describe('ProfilePageUI - personal links with GitHub (#862)', () => {
+  it.each([false, true])(
+    'renders GitHub between YouTube and 個人網站 alongside Facebook as external links when is_mentor=%s',
+    (isMentor) => {
+      render(
+        <ProfilePageUI
+          {...baseProps({
+            userData: buildUserData({
+              is_mentor: isMentor,
+              personalLinks: [
+                { platform: 'website', url: 'https://portfolio.dev' },
+                { platform: 'github', url: 'https://github.com/octocat' },
+                { platform: 'github', url: 'https://gitlab.com/imposter' },
+                { platform: 'youtube', url: 'https://youtube.com/@octocat' },
+                {
+                  platform: 'facebook',
+                  url: 'https://www.facebook.com/octocat',
+                },
+              ],
+            }),
+            isIdentityResolved: true,
+          })}
+        />
+      );
+
+      const links = screen.getAllByRole('link');
+      expect(links.map((el) => el.getAttribute('aria-label'))).toEqual([
+        'Facebook',
+        'YouTube',
+        'GitHub',
+        '個人網站',
+      ]);
+
+      const githubLink = screen.getByRole('link', { name: 'GitHub' });
+      expect(githubLink).toHaveAttribute('href', 'https://github.com/octocat');
+      expect(githubLink).toHaveAttribute('target', '_blank');
+      expect(githubLink).toHaveAttribute('rel', 'noopener noreferrer');
+      expect(githubLink).toHaveAttribute(
+        'data-analytics-param-platform',
+        'github'
+      );
+    }
+  );
+});
