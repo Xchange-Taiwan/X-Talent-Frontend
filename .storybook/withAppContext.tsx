@@ -1,7 +1,13 @@
-import React from 'react';
 import type { Decorator } from '@storybook/react';
-import { SessionContext, SessionContextValue } from 'next-auth/react';
 import type { Session } from 'next-auth';
+import { SessionContext, SessionContextValue } from 'next-auth/react';
+import React from 'react';
+
+import {
+  type FeatureFlagRuntimeOverrides,
+  resetFeatureFlagOverrides,
+  setFeatureFlagOverrides,
+} from '../src/lib/featureFlags';
 
 const defaultMockUser = {
   id: 'test-user-id',
@@ -111,6 +117,53 @@ export function resolveMockSession(
   return { session, status };
 }
 
+export function resolveStoryFeatureFlags(
+  rawFeatureFlags: unknown
+): FeatureFlagRuntimeOverrides | null {
+  if (
+    typeof rawFeatureFlags !== 'object' ||
+    rawFeatureFlags === null ||
+    Array.isArray(rawFeatureFlags)
+  ) {
+    return null;
+  }
+
+  const candidate = rawFeatureFlags as Record<string, unknown>;
+  const resolved: FeatureFlagRuntimeOverrides = {};
+  let hasOverride = false;
+
+  if (typeof candidate.favorites === 'boolean') {
+    resolved.favorites = candidate.favorites;
+    hasOverride = true;
+  }
+
+  if (typeof candidate.feedback === 'boolean') {
+    resolved.feedback = candidate.feedback;
+    hasOverride = true;
+  }
+
+  return hasOverride ? resolved : null;
+}
+
+function FeatureFlagStoryBoundary({
+  featureFlags,
+  children,
+}: {
+  featureFlags: FeatureFlagRuntimeOverrides | null;
+  children: React.ReactNode;
+}) {
+  setFeatureFlagOverrides(featureFlags);
+
+  React.useLayoutEffect(() => {
+    setFeatureFlagOverrides(featureFlags);
+    return () => {
+      resetFeatureFlagOverrides();
+    };
+  }, [featureFlags]);
+
+  return <>{children}</>;
+}
+
 /**
  * Shared Storybook decorator to provide NextAuth `SessionProvider` (via SessionContext.Provider) with configurable mocks.
  * By default, stories are authenticated with a standard test session (defaultMockSession).
@@ -146,6 +199,9 @@ export const withAppContext: Decorator = (Story, context) => {
         : undefined,
   };
   const { session, status } = resolveMockSession(nextAuthParams, context.args);
+  const featureFlags = resolveStoryFeatureFlags(
+    context.parameters?.featureFlags
+  );
 
   const contextValue: SessionContextValue = {
     data: session,
@@ -155,7 +211,9 @@ export const withAppContext: Decorator = (Story, context) => {
 
   return (
     <SessionContext.Provider value={contextValue}>
-      <Story />
+      <FeatureFlagStoryBoundary featureFlags={featureFlags}>
+        <Story />
+      </FeatureFlagStoryBoundary>
     </SessionContext.Provider>
   );
 };

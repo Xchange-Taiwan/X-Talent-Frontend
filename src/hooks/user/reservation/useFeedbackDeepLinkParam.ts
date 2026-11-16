@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
+import { isFeedbackEnabled } from '@/lib/featureFlags';
 import {
   type FeedbackDeepLinkResolution,
   resolveDeepLinkOutcome,
@@ -71,6 +72,7 @@ export function useFeedbackDeepLinkParam({
   const pathname = usePathname();
   const { toast } = useToast();
 
+  const feedbackEnabled = isFeedbackEnabled();
   const targetReservationId = extractDeepLinkReservationId(searchParams);
   const hasDeepLinkTarget = targetReservationId !== null;
 
@@ -191,6 +193,29 @@ export function useFeedbackDeepLinkParam({
   );
 
   useEffect(() => {
+    if (!feedbackEnabled) {
+      lookupAbortRef.current?.abort();
+      lookupAbortRef.current = null;
+      activeTargetKeyRef.current = null;
+      handledKeyRef.current = null;
+      singleLookupKeyRef.current = null;
+      autoLoadCountRef.current = 0;
+      lastAutoLoadHistoryLengthRef.current = -1;
+      if (latchedDialogReservation !== null) {
+        setLatchedDialogReservation(null);
+      }
+      if (highlightedReservationId !== null) {
+        setHighlightedReservationId(null);
+      }
+      if (autoExpandedReservationId !== null) {
+        setAutoExpandedReservationId(null);
+      }
+      if (targetReservationId) {
+        clearDeepLinkParams();
+      }
+      return;
+    }
+
     if (prevRoleRef.current !== userRole) {
       prevRoleRef.current = userRole;
       lookupAbortRef.current?.abort();
@@ -376,8 +401,12 @@ export function useFeedbackDeepLinkParam({
   }, [
     applyNotFoundOutcome,
     applyResolvedOutcome,
+    autoExpandedReservationId,
+    clearDeepLinkParams,
     coordinator,
+    feedbackEnabled,
     hasMoreHistory,
+    highlightedReservationId,
     history,
     isHistoryLoaded,
     isLoadingHistory,
@@ -393,10 +422,14 @@ export function useFeedbackDeepLinkParam({
 
   return {
     hasDeepLinkTarget,
-    deepLinkDialogReservation: latchedDialogReservation,
-    highlightedReservationId,
-    autoExpandedReservationId,
-    deepLinkTriggerSeq,
+    deepLinkDialogReservation: feedbackEnabled
+      ? latchedDialogReservation
+      : null,
+    highlightedReservationId: feedbackEnabled ? highlightedReservationId : null,
+    autoExpandedReservationId: feedbackEnabled
+      ? autoExpandedReservationId
+      : null,
+    deepLinkTriggerSeq: feedbackEnabled ? deepLinkTriggerSeq : 0,
     dismissDeepLinkDialog,
     clearDeepLinkFocus,
   };

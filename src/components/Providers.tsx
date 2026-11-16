@@ -11,6 +11,7 @@ import SessionErrorWatcher from '@/components/SessionErrorWatcher';
 import WebVitalsReporter from '@/components/WebVitalsReporter';
 import { setOnRefreshTokenError, setSessionGetter } from '@/lib/apiClient';
 import { terminateClientSession } from '@/lib/auth/sessionLifecycle';
+import { isFeedbackEnabled } from '@/lib/featureFlags';
 
 setSessionGetter(getSession);
 setOnRefreshTokenError(() =>
@@ -25,7 +26,7 @@ export function NextAuthProvider({ children }: { children: React.ReactNode }) {
       <PageViewTracker />
       <WebVitalsReporter />
       <SessionErrorWatcher />
-      <PendingFeedbackQueueLauncher />
+      {isFeedbackEnabled() && <PendingFeedbackQueueLauncher />}
       <ErrorBoundary>{children}</ErrorBoundary>
     </SessionProvider>
   );

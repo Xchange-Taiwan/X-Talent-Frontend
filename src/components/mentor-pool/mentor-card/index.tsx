@@ -3,6 +3,7 @@ import { forwardRef, memo, useMemo } from 'react';
 
 import { MentorBookmarkButton } from '@/components/favorites';
 import type { FavoriteMentorFeature } from '@/hooks/favorites';
+import { isFavoritesEnabled, isFeedbackEnabled } from '@/lib/featureFlags';
 import {
   type MentorCardProjectionOptions,
   projectMentorCard,
@@ -36,9 +37,11 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
     }: MentorCardProps,
     ref
   ) => {
+    const favoritesEnabled = isFavoritesEnabled();
+    const feedbackEnabled = isFeedbackEnabled();
     const viewModel = useMemo(
       () => projectMentorCard(mentor, { labelMap, prioritizedCodes }),
-      [mentor, labelMap, prioritizedCodes]
+      [feedbackEnabled, labelMap, mentor, prioritizedCodes]
     );
 
     const resolvedAnalyticsLocation: MentorCardAnalyticsLocation =
@@ -64,16 +67,18 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
           data-analytics-param-mentor-id={String(viewModel.id)}
           className="absolute inset-0 z-10"
         ></Link>
-        <MentorBookmarkButton
-          mentorId={viewModel.id}
-          mentorName={viewModel.name}
-          mentorSnapshot={viewModel.mentorSnapshot}
-          feature={feature}
-          variant="overlay"
-          tooltipSide="bottom"
-          tooltipAlign="end"
-          wrapperClassName="absolute top-3 right-3 z-20"
-        />
+        {favoritesEnabled && (
+          <MentorBookmarkButton
+            mentorId={viewModel.id}
+            mentorName={viewModel.name}
+            mentorSnapshot={viewModel.mentorSnapshot}
+            feature={feature}
+            variant="overlay"
+            tooltipSide="bottom"
+            tooltipAlign="end"
+            wrapperClassName="absolute top-3 right-3 z-20"
+          />
+        )}
         <AvatarWithBadge
           avatar={viewModel.avatar}
           years={viewModel.yearsOfExperienceLabel}

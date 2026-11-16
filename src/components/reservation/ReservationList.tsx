@@ -19,6 +19,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useProfileLinkClick } from '@/hooks/reservation/useProfileLinkClick';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { trackEvent } from '@/lib/analytics';
+import { isFeedbackEnabled } from '@/lib/featureFlags';
 import {
   canOpenHistoryConversation,
   resolveFeedbackInitialStep,
@@ -337,8 +338,11 @@ export function ReservationList({
   });
   const emptyState = resolveEmptyStateContent(sourceRole, variant, myUserId);
 
-  const hostFeedbackDialog =
-    variant === 'history' && deepLinkDialogReservation
+  const feedbackEnabled = isFeedbackEnabled();
+
+  const hostFeedbackDialog = !feedbackEnabled
+    ? null
+    : variant === 'history' && deepLinkDialogReservation
       ? {
           key: `deeplink-${sourceRole}-${deepLinkDialogReservation.id}`,
           reservation: deepLinkDialogReservation,

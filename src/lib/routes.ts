@@ -1,5 +1,7 @@
 import { match } from 'path-to-regexp';
 
+import { isFavoritesEnabled as isFavoritesFeatureEnabled } from '@/lib/featureFlags';
+
 export const HOME_HREF = '/';
 export const ABOUT_HREF = '/about';
 export const PRIVACY_HREF = '/privacy';
@@ -160,7 +162,14 @@ export interface MiddlewareGateInput {
   search?: string;
   method?: string;
   isInMaintenanceMode?: boolean;
+  isFavoritesEnabled?: boolean;
   session?: MiddlewareSessionState | null;
+}
+
+export function isFavoritesPathname(pathname: string): boolean {
+  return (
+    pathname === FAVORITES_HREF || pathname.startsWith(`${FAVORITES_HREF}/`)
+  );
 }
 
 export type MiddlewareGateDecision =
@@ -364,6 +373,10 @@ export function isDisallowedCallbackPathname(pathname: string): boolean {
     return true;
   }
 
+  if (!isFavoritesFeatureEnabled() && isFavoritesPathname(pathname)) {
+    return true;
+  }
+
   const classification = classifyPathname(pathname);
   return (
     classification.kind === 'bypass' ||
@@ -499,6 +512,7 @@ export function evaluateMiddlewareGate({
   search = '',
   method = 'GET',
   isInMaintenanceMode = false,
+  isFavoritesEnabled = isFavoritesFeatureEnabled(),
   session = null,
 }: MiddlewareGateInput): MiddlewareGateDecision {
   const classification = classifyPathname(pathname);
@@ -529,6 +543,14 @@ export function evaluateMiddlewareGate({
     return {
       action: 'redirect',
       destination: HOME_HREF,
+      syncSessionHint: false,
+    };
+  }
+
+  if (!isFavoritesEnabled && isFavoritesPathname(pathname)) {
+    return {
+      action: 'redirect',
+      destination: FIND_MENTOR_HREF,
       syncSessionHint: false,
     };
   }

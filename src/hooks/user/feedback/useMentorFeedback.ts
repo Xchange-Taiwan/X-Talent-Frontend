@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 
 import { useAsyncRead } from '@/hooks/useAsyncRead';
+import { isFeedbackEnabled } from '@/lib/featureFlags';
 import {
   type MentorFeedbackReadKey,
   mentorFeedbackReadModel,
@@ -56,8 +57,9 @@ export function useMentorFeedback({
     }
   }
 
+  const feedbackEnabled = isFeedbackEnabled();
   const canFetch = Boolean(
-    enabled && Number.isFinite(mentorId) && mentorId > 0
+    feedbackEnabled && enabled && Number.isFinite(mentorId) && mentorId > 0
   );
 
   const activeKey = useMemo<MentorFeedbackReadKey | null>(

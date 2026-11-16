@@ -1,6 +1,7 @@
 import type { AnalyticsEvent } from '@/lib/analytics';
 import * as analyticsModule from '@/lib/analytics';
 import { AsyncReadManager, type AsyncReadResult } from '@/lib/asyncReadManager';
+import { isFavoritesEnabled } from '@/lib/featureFlags';
 import { getSignInUrl } from '@/lib/routes';
 import {
   addFavoriteMentor,
@@ -394,6 +395,14 @@ export function createFavoriteMentorsReadModel(
     onUpdate: (res: AsyncReadResult<FavoriteMentorsSnapshot>) => void,
     opts?: { force?: boolean }
   ): () => void {
+    if (!isFavoritesEnabled()) {
+      onUpdate({
+        data: { mentors: [], mentorIds: new Set<number>() },
+        isLoading: false,
+        error: null,
+      });
+      return () => {};
+    }
     const userId = normalizeUserId(rawUserId);
     if (!userId) {
       onUpdate({ data: null, isLoading: false, error: null });
@@ -410,6 +419,9 @@ export function createFavoriteMentorsReadModel(
     mentorId: number,
     onChange: () => void
   ): () => void {
+    if (!isFavoritesEnabled()) {
+      return () => {};
+    }
     const userId = normalizeUserId(rawUserId);
     if (!userId || !isValidMentorId(mentorId) || userId === String(mentorId)) {
       return () => {};
@@ -448,6 +460,9 @@ export function createFavoriteMentorsReadModel(
     if (userId === String(mentorId)) {
       return { isFavorited: false, isPending: false, isSelf: true };
     }
+    if (!isFavoritesEnabled()) {
+      return { isFavorited: false, isPending: false, isSelf: false };
+    }
     const state = userStates.get(userId);
     if (!state) {
       return { isFavorited: false, isPending: false, isSelf: false };
@@ -466,6 +481,9 @@ export function createFavoriteMentorsReadModel(
     mentorSnapshot?: MentorType;
     feature: FavoriteMentorFeature;
   }): Promise<BookmarkActionOutcome> {
+    if (!isFavoritesEnabled()) {
+      return { status: 'noop', nextFavorited: false };
+    }
     const { mentorId, mentorSnapshot, feature } = params;
     if (!isValidMentorId(mentorId)) {
       return { status: 'noop', nextFavorited: false };
@@ -606,6 +624,11 @@ export function createFavoriteMentorsReadModel(
     pageMentorId: number;
     mentor: { isMentor: boolean; snapshot?: MentorType };
   }): Promise<BookmarkActionOutcome> {
+    if (!isFavoritesEnabled()) {
+      storage.clearPending();
+      return { status: 'noop', nextFavorited: false };
+    }
+
     const userId = normalizeUserId(params.userId);
     const { pageMentorId, mentor } = params;
 
@@ -676,6 +699,7 @@ export function createFavoriteMentorsReadModel(
   }
 
   async function retry(rawUserId: string): Promise<void> {
+    if (!isFavoritesEnabled()) return;
     const userId = normalizeUserId(rawUserId);
     if (!userId) return;
     ensureActiveUser(userId);

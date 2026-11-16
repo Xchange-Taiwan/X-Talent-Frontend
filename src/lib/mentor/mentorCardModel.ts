@@ -3,6 +3,7 @@ import type { StaticImageData } from 'next/image';
 import avatarImage from '@/assets/default-avatar.png';
 import { TotalWorkSpanEnum } from '@/constant/seniority';
 import { withAvatarVersion } from '@/lib/avatar/avatarUrl';
+import { isFeedbackEnabled } from '@/lib/featureFlags';
 import {
   formatRatingScoreValue,
   normalizeMentorStats,
@@ -228,10 +229,12 @@ export function projectMentorCard(
       options?.prioritizedCodes,
       options?.labelMap
     ),
-    ratingLabel: formatMentorRating(
-      normalizedMentor.stats?.rating_average,
-      normalizedMentor.stats?.rating_count
-    ),
+    ratingLabel: isFeedbackEnabled()
+      ? formatMentorRating(
+          normalizedMentor.stats?.rating_average,
+          normalizedMentor.stats?.rating_count
+        )
+      : null,
     completedMeetingsLabel: formatCompletedMeetings(
       normalizedMentor.stats?.completed_meeting_count
     ),

@@ -4,7 +4,11 @@ import { useEffect } from 'react';
 
 import { toast } from '@/components/ui/use-toast';
 import type { UserType } from '@/hooks/user/user-data/useUserData';
-import { favoriteMentorsReadModel } from '@/lib/favorites';
+import {
+  clearPendingFavoriteMentor,
+  favoriteMentorsReadModel,
+} from '@/lib/favorites';
+import { isFavoritesEnabled } from '@/lib/featureFlags';
 import { normalizeMentorFromProfile } from '@/lib/mentor/mentorCardModel';
 
 import { FAVORITE_MENTOR_ERROR_TOAST_MESSAGE } from './useFavoriteMentor';
@@ -25,6 +29,11 @@ export function useConsumePendingFavorite({
   userLoading,
 }: UseConsumePendingFavoriteOptions): void {
   useEffect(() => {
+    if (!isFavoritesEnabled()) {
+      clearPendingFavoriteMentor();
+      return;
+    }
+
     const normalizedLoginUserId = loginUserId.trim();
     if (!normalizedLoginUserId || userLoading) {
       return;

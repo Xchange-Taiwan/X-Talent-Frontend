@@ -12,6 +12,7 @@ import {
   type FavoriteMentorFeature,
   useFavoriteMentor,
 } from '@/hooks/favorites';
+import { isFavoritesEnabled } from '@/lib/featureFlags';
 import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 import type { MentorType } from '@/types/mentor';
@@ -53,7 +54,7 @@ export function MentorBookmarkButton({
     feature,
   });
 
-  if (isSelf || identityState === 'hint-only') {
+  if (!isFavoritesEnabled() || isSelf || identityState === 'hint-only') {
     return null;
   }
 

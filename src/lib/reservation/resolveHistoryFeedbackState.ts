@@ -1,3 +1,4 @@
+import { isFeedbackEnabled } from '@/lib/featureFlags';
 import {
   formatAuthorMaskedName,
   formatFeedbackDate,
@@ -59,6 +60,9 @@ export interface HistoryFeedbackState {
 export function filterPendingFeedbackQueueItems(
   items: readonly Reservation[]
 ): Reservation[] {
+  if (!isFeedbackEnabled()) {
+    return [];
+  }
   return items.filter((item) => isEligibleForPendingFeedbackQueue(item));
 }
 
@@ -74,6 +78,13 @@ export function resolveHistoryFeedbackState(opts: {
   if (effectiveCancelledLabel) {
     return {
       headerAction: { kind: 'badge', label: effectiveCancelledLabel },
+      feedbackBlock: null,
+    };
+  }
+
+  if (!isFeedbackEnabled()) {
+    return {
+      headerAction: { kind: 'badge', label: '已結束' },
       feedbackBlock: null,
     };
   }

@@ -3,6 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { isFeedbackEnabled } from '@/lib/featureFlags';
 import {
   type FeedbackSessionCoordinator,
   feedbackSessionCoordinator,
@@ -11,6 +12,7 @@ import {
   buildCleanedFeedbackQueueHref,
   isFeedbackQueueQueryRequested,
   type ReservationRouteRole,
+  stripFeedbackQueueQueryParam,
 } from '@/lib/reservation/reservationRoutes';
 import type { Reservation } from '@/types/reservation';
 
@@ -48,18 +50,21 @@ export function useFeedbackQueueParam({
   const router = useRouter();
   const pathname = usePathname();
 
+  const feedbackEnabled = isFeedbackEnabled();
   const resolvedRole: ReservationRouteRole =
     role ?? (isMentee === false ? 'mentor' : 'mentee');
   const isFeedbackQueueRequested = isFeedbackQueueQueryRequested(searchParams);
 
   const pendingItems = useMemo(
     () =>
-      coordinator.resolveExplicitQueueItems({
-        userId,
-        role: resolvedRole,
-        history,
-      }),
-    [coordinator, history, resolvedRole, userId]
+      feedbackEnabled
+        ? coordinator.resolveExplicitQueueItems({
+            userId,
+            role: resolvedRole,
+            history,
+          })
+        : [],
+    [coordinator, feedbackEnabled, history, resolvedRole, userId]
   );
 
   const isHistoryReadyForQueueCheck =
@@ -68,25 +73,43 @@ export function useFeedbackQueueParam({
     !(isLoadingUpcoming && isLoadingPending);
 
   const [latchedQueue, setLatchedQueue] = useState<Reservation[] | null>(() =>
-    isFeedbackQueueRequested && pendingItems.length > 0 ? pendingItems : null
+    feedbackEnabled && isFeedbackQueueRequested && pendingItems.length > 0
+      ? pendingItems
+      : null
   );
   const [dismissed, setDismissed] = useState(false);
 
   const clearFeedbackQueueParam = useCallback(() => {
-    const nextHref = buildCleanedFeedbackQueueHref(
-      pathname,
-      searchParams.toString()
-    );
+    const rawSearch = searchParams.toString();
+    if (!feedbackEnabled) {
+      const incoming = new URLSearchParams(rawSearch);
+      if (!isFeedbackQueueQueryRequested(incoming)) {
+        return;
+      }
+      const cleaned = new URLSearchParams(
+        stripFeedbackQueueQueryParam(rawSearch)
+      );
+      if (!cleaned.get('tab')) {
+        cleaned.set('tab', 'history');
+      }
+      const nextQuery = cleaned.toString();
+      router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, {
+        scroll: false,
+      });
+      return;
+    }
+
+    const nextHref = buildCleanedFeedbackQueueHref(pathname, rawSearch);
     if (!nextHref) return;
     router.replace(nextHref, { scroll: false });
-  }, [pathname, router, searchParams]);
+  }, [feedbackEnabled, pathname, router, searchParams]);
 
   const skipFeedbackQueueItem = useCallback(
     (reservation: Reservation) => {
-      if (!reservation?.id) return;
+      if (!feedbackEnabled || !reservation?.id) return;
       coordinator.markReservationSkipped(userId?.trim() ?? '', reservation.id);
     },
-    [coordinator, userId]
+    [coordinator, feedbackEnabled, userId]
   );
 
   const dismissFeedbackQueue = useCallback(() => {
@@ -95,6 +118,16 @@ export function useFeedbackQueueParam({
   }, [clearFeedbackQueueParam]);
 
   useEffect(() => {
+    if (!feedbackEnabled) {
+      if (latchedQueue !== null) {
+        setLatchedQueue(null);
+      }
+      if (isFeedbackQueueRequested) {
+        clearFeedbackQueueParam();
+      }
+      return;
+    }
+
     if (!isFeedbackQueueRequested) {
       if (latchedQueue !== null) {
         setLatchedQueue(null);
@@ -121,6 +154,7 @@ export function useFeedbackQueueParam({
   }, [
     clearFeedbackQueueParam,
     dismissed,
+    feedbackEnabled,
     isFeedbackQueueRequested,
     isHistoryReadyForQueueCheck,
     latchedQueue,
@@ -128,6 +162,7 @@ export function useFeedbackQueueParam({
   ]);
 
   const feedbackQueueItems =
+    feedbackEnabled &&
     isFeedbackQueueRequested &&
     !dismissed &&
     latchedQueue &&

@@ -10,6 +10,7 @@ import {
   type FavoriteMentorFeature,
   favoriteMentorsReadModel,
 } from '@/lib/favorites';
+import { isFavoritesEnabled } from '@/lib/featureFlags';
 import type { MentorType } from '@/types/mentor';
 
 export type { FavoriteMentorFeature };
@@ -53,6 +54,7 @@ export function useFavoriteMentor({
   mentorSnapshot,
   feature = 'mentor_pool',
 }: UseFavoriteMentorOptions): UseFavoriteMentorResult {
+  const favoritesEnabled = isFavoritesEnabled();
   const identity = useResolvedIdentity();
   const router = useOptionalRouter();
 
@@ -63,16 +65,23 @@ export function useFavoriteMentor({
     identity.state === 'unknown' || identity.state === 'hint-only';
 
   const subscribe = useCallback(
-    (onStoreChange: () => void) =>
-      favoriteMentorsReadModel.subscribeMentorState(
+    (onStoreChange: () => void) => {
+      if (!favoritesEnabled) {
+        return () => {};
+      }
+      return favoriteMentorsReadModel.subscribeMentorState(
         confirmedUserId,
         mentorId,
         onStoreChange
-      ),
-    [confirmedUserId, mentorId]
+      );
+    },
+    [confirmedUserId, favoritesEnabled, mentorId]
   );
 
   const getMentorStateMask = useCallback((): number => {
+    if (!favoritesEnabled) {
+      return 0;
+    }
     const state = favoriteMentorsReadModel.getMentorState(
       confirmedUserId,
       mentorId
@@ -82,7 +91,7 @@ export function useFavoriteMentor({
       (state.isPending ? PENDING_STATE_BIT : 0) |
       (state.isSelf ? SELF_STATE_BIT : 0)
     );
-  }, [confirmedUserId, mentorId]);
+  }, [confirmedUserId, favoritesEnabled, mentorId]);
 
   const mentorStateMask = useSyncExternalStore(
     subscribe,
@@ -91,13 +100,16 @@ export function useFavoriteMentor({
   );
 
   const isSelf = (mentorStateMask & SELF_STATE_BIT) !== 0;
-  const isFavorited = isAuthenticated
-    ? (mentorStateMask & FAVORITED_STATE_BIT) !== 0
+  const isFavorited =
+    favoritesEnabled && isAuthenticated
+      ? (mentorStateMask & FAVORITED_STATE_BIT) !== 0
+      : false;
+  const isPending = favoritesEnabled
+    ? (mentorStateMask & PENDING_STATE_BIT) !== 0
     : false;
-  const isPending = (mentorStateMask & PENDING_STATE_BIT) !== 0;
 
   const handleToggleFavorite = useCallback(async () => {
-    if (isSelf || identity.state === 'hint-only') {
+    if (!favoritesEnabled || isSelf || identity.state === 'hint-only') {
       return;
     }
 
@@ -125,6 +137,7 @@ export function useFavoriteMentor({
     }
   }, [
     confirmedUserId,
+    favoritesEnabled,
     feature,
     identity.state,
     isSelf,

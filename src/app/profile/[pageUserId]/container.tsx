@@ -13,6 +13,7 @@ import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
 import { useMentorFeedback } from '@/hooks/user/feedback/useMentorFeedback';
 import { useBookingConfirmation } from '@/hooks/user/reservation/useBookingConfirmation';
 import useUserData from '@/hooks/user/user-data/useUserData';
+import { isFeedbackEnabled } from '@/lib/featureFlags';
 import { getMentorOnboardingUrl, OPEN_SCHEDULE_DIALOG_KEY } from '@/lib/routes';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
@@ -98,7 +99,9 @@ export default function ProfilePageContainer({
 
   const feedback = useMentorFeedback({
     mentorId: pageUserIdNumber,
-    enabled: Boolean(!userLoading && userData?.is_mentor),
+    enabled: Boolean(
+      isFeedbackEnabled() && !userLoading && userData?.is_mentor
+    ),
   });
 
   // Single source of truth for "should owner-only controls (edit button,

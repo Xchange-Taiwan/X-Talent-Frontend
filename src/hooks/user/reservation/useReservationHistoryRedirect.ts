@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useEffect, useRef } from 'react';
 
+import { isFeedbackEnabled } from '@/lib/featureFlags';
 import {
   type FeedbackSessionCoordinator,
   feedbackSessionCoordinator,
@@ -13,6 +14,8 @@ import {
   buildReservationHistorySignInCallbackHref,
   extractDeepLinkReservationId,
   type ReservationRouteRole,
+  stripDeepLinkQueryParams,
+  stripFeedbackQueueQueryParam,
 } from '@/lib/reservation/reservationRoutes';
 import { fetchSingleReservationFeedback } from '@/services/reservations';
 
@@ -26,6 +29,7 @@ export function useReservationHistoryRedirect(
   const { data: session, status } = useSession();
   const redirectedKeyRef = useRef<string | null>(null);
 
+  const feedbackEnabled = isFeedbackEnabled();
   const rawSearch = searchParams.toString();
   const targetReservationId = extractDeepLinkReservationId(searchParams);
 
@@ -34,10 +38,19 @@ export function useReservationHistoryRedirect(
       return;
     }
 
+    const sanitizedSearchWhenDisabled = stripFeedbackQueueQueryParam(
+      stripDeepLinkQueryParams(rawSearch)
+    );
+
     if (status === 'unauthenticated') {
-      router.replace(buildReservationHistorySignInCallbackHref(rawSearch), {
-        scroll: false,
-      });
+      router.replace(
+        buildReservationHistorySignInCallbackHref(
+          feedbackEnabled ? rawSearch : sanitizedSearchWhenDisabled
+        ),
+        {
+          scroll: false,
+        }
+      );
       return;
     }
 
@@ -45,9 +58,21 @@ export function useReservationHistoryRedirect(
       ? 'mentor'
       : 'mentee';
     const userId = session?.user?.id ? String(session.user.id) : '';
-    const effectKey = `${userId}:${fallbackRole}:${rawSearch}`;
+    const effectKey = `${userId}:${fallbackRole}:${rawSearch}:${String(feedbackEnabled)}`;
 
     if (redirectedKeyRef.current === effectKey) {
+      return;
+    }
+
+    if (!feedbackEnabled) {
+      redirectedKeyRef.current = effectKey;
+      router.replace(
+        buildReservationHistoryRedirectHref(
+          fallbackRole,
+          sanitizedSearchWhenDisabled
+        ),
+        { scroll: false }
+      );
       return;
     }
 
@@ -81,5 +106,13 @@ export function useReservationHistoryRedirect(
       cancelled = true;
       controller.abort();
     };
-  }, [coordinator, rawSearch, router, session, status, targetReservationId]);
+  }, [
+    coordinator,
+    feedbackEnabled,
+    rawSearch,
+    router,
+    session,
+    status,
+    targetReservationId,
+  ]);
 }
