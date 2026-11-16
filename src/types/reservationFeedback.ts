@@ -19,12 +19,6 @@ export type LegacyNotHappenedReason =
 
 export type FeedbackViewerRole = 'mentee' | 'mentor';
 
-export const MENTEE_NOT_HAPPENED_REASONS =
-  NOT_HAPPENED_REASONS satisfies readonly NotHappenedReason[];
-
-export const MENTOR_NOT_HAPPENED_REASONS =
-  NOT_HAPPENED_REASONS satisfies readonly NotHappenedReason[];
-
 export function getNotHappenedReasonsForRole(
   _role: FeedbackViewerRole = 'mentee'
 ): readonly NotHappenedReason[] {

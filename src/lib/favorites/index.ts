@@ -12,7 +12,6 @@ export {
 } from './favoriteMentorsReadModel';
 export {
   clearPendingFavoriteMentor,
-  consumePendingFavoriteMentorForPage,
   getPendingFavoriteMentorId,
   getPendingFavoriteProfilePath,
   PENDING_FAVORITE_MENTOR_STORAGE_KEY,

@@ -5,11 +5,7 @@ import { RRule } from 'rrule';
 import { SegmentVO } from '@/services/mentor-schedule/schedule';
 import type { Reservation } from '@/types/reservation';
 
-import type {
-  BookingSlot,
-  DtType,
-  ParsedMentorTimeslot,
-} from './bookingAvailability/types';
+import type { BookingSlot, DtType } from './bookingAvailability/types';
 
 dayjs.extend(isSameOrBefore);
 
@@ -85,38 +81,6 @@ export function segmentToRaw(t: SegmentVO): RawMentorTimeslot {
     rrule: t.rrule ?? undefined,
     exdate: (t.exdate ?? []).filter((x): x is number => x !== null),
   };
-}
-
-/**
- * Expand a row into one ParsedMentorTimeslot per active occurrence. A
- * non-recurring row yields a length-1 array; a weekly-rrule row yields one
- * entry per non-exdated occurrence so the UI can render and act on each
- * occurrence independently.
- */
-export function formatTimeslot(r: RawMentorTimeslot): ParsedMentorTimeslot[] {
-  const slotDurationSeconds = r.dtend - r.dtstart;
-  const durationMinutes = Math.round(slotDurationSeconds / 60);
-  const isRecurring = !!r.rrule;
-  return activeOccurrences(r).map((occ) => {
-    const start = new Date(occ * 1000);
-    const end = new Date((occ + slotDurationSeconds) * 1000);
-    const dateKey = dayjs(start).format('YYYY-MM-DD');
-    return {
-      occurrenceId: `${r.id}_${occ}`,
-      id: r.id,
-      occurrenceUnix: occ,
-      type: r.type,
-      start,
-      end,
-      durationMinutes,
-      formatted: `${dayjs(start).format('YYYY-MM-DD hh:mm A')} ~ ${dayjs(end).format('hh:mm A')}`,
-      dateKey,
-      rrule: r.rrule ?? undefined,
-      exdate: r.exdate,
-      slotDurationSeconds,
-      isRecurringInstance: isRecurring,
-    };
-  });
 }
 
 export function nextTempId(rows: RawMentorTimeslot[]): number {

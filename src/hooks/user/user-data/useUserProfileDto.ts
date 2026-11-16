@@ -4,7 +4,6 @@ import { useAsyncRead } from '@/hooks/useAsyncRead';
 import {
   clearUserProfileDtoCache,
   getEffectiveInitialDto,
-  getLastPrimedTime,
   hasDtoConverged,
   primeUserProfileDtoCache,
   resolveUserProfileDtoFetch,
@@ -17,7 +16,6 @@ import type { MentorProfileVO } from '@/types/user';
 
 export {
   clearUserProfileDtoCache,
-  getLastPrimedTime,
   hasDtoConverged,
   primeUserProfileDtoCache,
   USER_PROFILE_DTO_CACHE_TTL_MS,

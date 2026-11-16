@@ -15,19 +15,13 @@ import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import type { MentorProfileVO, TagDisplay, UserType } from '@/types/user';
 
 import {
-  clearUserProfileDtoCache,
   primeUserProfileDtoCache,
-  USER_PROFILE_DTO_CACHE_TTL_MS,
   useUserProfileDto,
 } from './useUserProfileDto';
 
 export type { TagDisplay, UserType };
 
-// Re-exported under the historical names so existing callers (e.g.
-// useProfileSubmit, useUserData.test) continue to work without churn.
-export const clearUserDataCache = clearUserProfileDtoCache;
 export const primeUserDataCache = primeUserProfileDtoCache;
-export const USER_DATA_CACHE_TTL_MS = USER_PROFILE_DTO_CACHE_TTL_MS;
 
 // Subject_group codes shipped by the BFF round-trip directly back to writes,
 // so resolve them to display labels via the localized catalog. Catalog miss

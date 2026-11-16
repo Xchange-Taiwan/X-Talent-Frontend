@@ -3,25 +3,22 @@ import { describe, expect, it } from 'vitest';
 import {
   createMeetingFeedbackFormSchema,
   DEFAULT_MEETING_RATING,
-  happenedFeedbackFieldsSchema,
   MAX_FEEDBACK_CONTENT_LENGTH,
   MAX_NOT_HAPPENED_NOTE_LENGTH,
-  meetingFeedbackFormSchema,
   type MeetingFeedbackFormValues,
   MENTOR_NOT_HAPPENED_WARNING_TEXT,
-  notHappenedFeedbackFieldsSchema,
   toSubmitFeedbackPayload,
   toUpdateFeedbackPayload,
-  updateMeetingFeedbackSchema,
 } from './meetingFeedbackSchema';
+
+const menteeSchema = createMeetingFeedbackFormSchema('mentee');
 
 describe('meetingFeedbackSchema', () => {
   it('defaults rating to 10 and accepts integer values 1 through 10', () => {
     expect(DEFAULT_MEETING_RATING).toBe(10);
-    expect(updateMeetingFeedbackSchema).toBe(happenedFeedbackFieldsSchema);
 
     for (let score = 1; score <= 10; score += 1) {
-      const parsed = meetingFeedbackFormSchema.safeParse({
+      const parsed = menteeSchema.safeParse({
         meetingHappened: true,
         rating: score,
         content: '',
@@ -34,7 +31,7 @@ describe('meetingFeedbackSchema', () => {
 
   it('rejects out-of-range or non-integer ratings', () => {
     expect(
-      meetingFeedbackFormSchema.safeParse({
+      menteeSchema.safeParse({
         meetingHappened: true,
         rating: 0,
         content: '',
@@ -44,7 +41,7 @@ describe('meetingFeedbackSchema', () => {
     ).toBe(false);
 
     expect(
-      meetingFeedbackFormSchema.safeParse({
+      menteeSchema.safeParse({
         meetingHappened: true,
         rating: 11,
         content: '',
@@ -54,7 +51,7 @@ describe('meetingFeedbackSchema', () => {
     ).toBe(false);
 
     expect(
-      meetingFeedbackFormSchema.safeParse({
+      menteeSchema.safeParse({
         meetingHappened: true,
         rating: 8.5,
         content: '',
@@ -69,14 +66,7 @@ describe('meetingFeedbackSchema', () => {
     expect(MAX_NOT_HAPPENED_NOTE_LENGTH).toBe(1000);
 
     expect(
-      notHappenedFeedbackFieldsSchema.safeParse({
-        notHappenedReason: 'OTHER',
-        notHappenedNote: 'a'.repeat(MAX_NOT_HAPPENED_NOTE_LENGTH),
-      }).success
-    ).toBe(true);
-
-    expect(
-      meetingFeedbackFormSchema.safeParse({
+      menteeSchema.safeParse({
         meetingHappened: true,
         rating: 10,
         content: 'a'.repeat(MAX_FEEDBACK_CONTENT_LENGTH + 1),
@@ -86,7 +76,7 @@ describe('meetingFeedbackSchema', () => {
     ).toBe(false);
 
     expect(
-      meetingFeedbackFormSchema.safeParse({
+      menteeSchema.safeParse({
         meetingHappened: false,
         rating: 10,
         content: '',
@@ -95,7 +85,7 @@ describe('meetingFeedbackSchema', () => {
       }).success
     ).toBe(true);
 
-    const overLimitNoteParsed = meetingFeedbackFormSchema.safeParse({
+    const overLimitNoteParsed = menteeSchema.safeParse({
       meetingHappened: false,
       rating: 10,
       content: '',
@@ -307,9 +297,7 @@ describe('meetingFeedbackSchema', () => {
       notHappenedReason: 'SCHEDULE_CONFLICT',
       notHappenedNote: 'a'.repeat(MAX_NOT_HAPPENED_NOTE_LENGTH + 5),
     };
-    expect(
-      meetingFeedbackFormSchema.safeParse(nonOtherWithDraftValues).success
-    ).toBe(true);
+    expect(menteeSchema.safeParse(nonOtherWithDraftValues).success).toBe(true);
     expect(toSubmitFeedbackPayload(nonOtherWithDraftValues)).toEqual({
       meeting_happened: false,
       not_happened_reason: 'SCHEDULE_CONFLICT',
@@ -347,7 +335,7 @@ describe('meetingFeedbackSchema', () => {
       notHappenedNote: '',
     };
 
-    expect(meetingFeedbackFormSchema.safeParse(values).success).toBe(true);
+    expect(menteeSchema.safeParse(values).success).toBe(true);
     expect(toSubmitFeedbackPayload(values)).toEqual({
       meeting_happened: false,
       not_happened_reason: 'COUNTERPART_ABSENT',
