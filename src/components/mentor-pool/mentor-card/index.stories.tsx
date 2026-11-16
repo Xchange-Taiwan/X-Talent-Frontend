@@ -138,3 +138,11 @@ export const Bookmarked: Story = {
   },
   render: (args) => <SeededBookmarkedCardStory {...args} />,
 };
+
+export const BookmarksAndRatingsDisabled: Story = {
+  args: {
+    mentor: mockMentors[0],
+    showBookmark: false,
+    includeRating: false,
+  },
+};

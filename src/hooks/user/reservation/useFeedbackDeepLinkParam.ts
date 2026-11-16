@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
+import { isFeedbackEnabled } from '@/lib/featureFlags';
 import {
   type FeedbackDeepLinkResolution,
   resolveDeepLinkOutcome,
@@ -71,7 +72,10 @@ export function useFeedbackDeepLinkParam({
   const pathname = usePathname();
   const { toast } = useToast();
 
-  const targetReservationId = extractDeepLinkReservationId(searchParams);
+  const feedbackEnabled = isFeedbackEnabled();
+  const targetReservationId = feedbackEnabled
+    ? extractDeepLinkReservationId(searchParams)
+    : null;
   const hasDeepLinkTarget = targetReservationId !== null;
 
   const [latchedDialogReservation, setLatchedDialogReservation] =
@@ -110,13 +114,14 @@ export function useFeedbackDeepLinkParam({
   }, []);
 
   const clearDeepLinkParams = useCallback(() => {
+    if (!feedbackEnabled) return;
     const nextHref = buildCleanedDeepLinkHref(
       pathname,
       searchParams.toString()
     );
     if (!nextHref) return;
     router.replace(nextHref, { scroll: false });
-  }, [pathname, router, searchParams]);
+  }, [feedbackEnabled, pathname, router, searchParams]);
 
   const dismissDeepLinkDialog = useCallback(() => {
     setLatchedDialogReservation(null);
@@ -191,6 +196,26 @@ export function useFeedbackDeepLinkParam({
   );
 
   useEffect(() => {
+    if (!feedbackEnabled) {
+      lookupAbortRef.current?.abort();
+      lookupAbortRef.current = null;
+      activeTargetKeyRef.current = null;
+      handledKeyRef.current = null;
+      singleLookupKeyRef.current = null;
+      autoLoadCountRef.current = 0;
+      lastAutoLoadHistoryLengthRef.current = -1;
+      if (latchedDialogReservation !== null) {
+        setLatchedDialogReservation(null);
+      }
+      if (highlightedReservationId !== null) {
+        setHighlightedReservationId(null);
+      }
+      if (autoExpandedReservationId !== null) {
+        setAutoExpandedReservationId(null);
+      }
+      return;
+    }
+
     if (prevRoleRef.current !== userRole) {
       prevRoleRef.current = userRole;
       lookupAbortRef.current?.abort();
@@ -376,8 +401,12 @@ export function useFeedbackDeepLinkParam({
   }, [
     applyNotFoundOutcome,
     applyResolvedOutcome,
+    autoExpandedReservationId,
+    clearDeepLinkParams,
     coordinator,
+    feedbackEnabled,
     hasMoreHistory,
+    highlightedReservationId,
     history,
     isHistoryLoaded,
     isLoadingHistory,
@@ -393,10 +422,14 @@ export function useFeedbackDeepLinkParam({
 
   return {
     hasDeepLinkTarget,
-    deepLinkDialogReservation: latchedDialogReservation,
-    highlightedReservationId,
-    autoExpandedReservationId,
-    deepLinkTriggerSeq,
+    deepLinkDialogReservation: feedbackEnabled
+      ? latchedDialogReservation
+      : null,
+    highlightedReservationId: feedbackEnabled ? highlightedReservationId : null,
+    autoExpandedReservationId: feedbackEnabled
+      ? autoExpandedReservationId
+      : null,
+    deepLinkTriggerSeq: feedbackEnabled ? deepLinkTriggerSeq : 0,
     dismissDeepLinkDialog,
     clearDeepLinkFocus,
   };

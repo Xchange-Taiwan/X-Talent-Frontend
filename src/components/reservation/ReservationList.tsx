@@ -19,6 +19,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useProfileLinkClick } from '@/hooks/reservation/useProfileLinkClick';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { trackEvent } from '@/lib/analytics';
+import { isFeedbackEnabled } from '@/lib/featureFlags';
 import {
   canOpenHistoryConversation,
   resolveFeedbackInitialStep,
@@ -86,6 +87,7 @@ function ReservationItem({
   variant,
   sourceRole,
   myUserId,
+  feedbackEnabled = isFeedbackEnabled(),
   isHighlighted = false,
   shouldAutoExpandFeedback = false,
   deepLinkTriggerSeq = 0,
@@ -94,6 +96,7 @@ function ReservationItem({
   variant: Variant;
   sourceRole: SourceRole;
   myUserId: string | undefined;
+  feedbackEnabled?: boolean;
   isHighlighted?: boolean;
   shouldAutoExpandFeedback?: boolean;
   deepLinkTriggerSeq?: number;
@@ -137,6 +140,7 @@ function ReservationItem({
           reservation,
           sourceRole,
           cancelledByLabel: viewer.cancelledByLabel,
+          includeFeedback: feedbackEnabled,
         })
       : null;
 
@@ -313,6 +317,7 @@ export function ReservationList({
   highlightedReservationId = null,
   autoExpandedReservationId = null,
   deepLinkTriggerSeq = 0,
+  feedbackEnabled: feedbackEnabledProp,
 }: {
   items: Reservation[];
   variant: Variant;
@@ -329,6 +334,7 @@ export function ReservationList({
   highlightedReservationId?: string | null;
   autoExpandedReservationId?: string | null;
   deepLinkTriggerSeq?: number;
+  feedbackEnabled?: boolean;
 }) {
   const { submitFeedback, isMutating } = useReservationActions({
     myUserId,
@@ -337,8 +343,11 @@ export function ReservationList({
   });
   const emptyState = resolveEmptyStateContent(sourceRole, variant, myUserId);
 
-  const hostFeedbackDialog =
-    variant === 'history' && deepLinkDialogReservation
+  const feedbackEnabled = feedbackEnabledProp ?? isFeedbackEnabled();
+
+  const hostFeedbackDialog = !feedbackEnabled
+    ? null
+    : variant === 'history' && deepLinkDialogReservation
       ? {
           key: `deeplink-${sourceRole}-${deepLinkDialogReservation.id}`,
           reservation: deepLinkDialogReservation,
@@ -394,13 +403,20 @@ export function ReservationList({
           variant={variant}
           sourceRole={sourceRole}
           myUserId={myUserId}
+          feedbackEnabled={feedbackEnabled}
           isHighlighted={
-            variant === 'history' && highlightedReservationId === it.id
+            feedbackEnabled &&
+            variant === 'history' &&
+            highlightedReservationId === it.id
           }
           shouldAutoExpandFeedback={
-            variant === 'history' && autoExpandedReservationId === it.id
+            feedbackEnabled &&
+            variant === 'history' &&
+            autoExpandedReservationId === it.id
           }
-          deepLinkTriggerSeq={variant === 'history' ? deepLinkTriggerSeq : 0}
+          deepLinkTriggerSeq={
+            feedbackEnabled && variant === 'history' ? deepLinkTriggerSeq : 0
+          }
         />
       ))}
 

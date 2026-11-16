@@ -1,3 +1,5 @@
+import { isFavoritesEnabled } from '@/lib/featureFlags';
+
 export const PENDING_FAVORITE_MENTOR_STORAGE_KEY =
   'xtalent:pending-favorite-mentor';
 
@@ -35,6 +37,7 @@ export function savePendingFavoriteMentor(
   now: number = Date.now()
 ): void {
   if (typeof window === 'undefined') return;
+  if (!isFavoritesEnabled()) return;
   if (!isValidMentorId(mentorId) || !isValidCreatedAt(now)) return;
 
   const record: PendingFavoriteMentorRecord = {
@@ -56,6 +59,10 @@ export function getPendingFavoriteMentorId(
   now: number = Date.now()
 ): number | null {
   if (typeof window === 'undefined') return null;
+  if (!isFavoritesEnabled()) {
+    clearPendingFavoriteMentor();
+    return null;
+  }
 
   let raw: string | null = null;
   try {
@@ -96,6 +103,10 @@ export function getPendingFavoriteMentorId(
 export function getPendingFavoriteProfilePath(
   now: number = Date.now()
 ): string | null {
+  if (!isFavoritesEnabled()) {
+    clearPendingFavoriteMentor();
+    return null;
+  }
   const mentorId = getPendingFavoriteMentorId(now);
   return mentorId !== null ? `/profile/${mentorId}` : null;
 }

@@ -9,6 +9,7 @@ import { FEEDBACK_FORM_URL } from '@/constant/externalLinks';
 import { trackEvent } from '@/lib/analytics';
 import { type ResolvedIdentity } from '@/lib/auth/sessionHint';
 import { terminateClientSession } from '@/lib/auth/sessionLifecycle';
+import { isFavoritesEnabled } from '@/lib/featureFlags';
 import {
   ABOUT_HREF,
   FAVORITES_HREF,
@@ -93,6 +94,7 @@ export interface ProfileHeaderDescriptor {
 export interface UseHeaderNavigationOptions {
   identity: ResolvedIdentity;
   user?: Session['user'];
+  showFavorites?: boolean;
 }
 
 export interface DesktopNavModel {
@@ -199,6 +201,7 @@ function isPrefixCurrent(pathname: string | null, prefix: string): boolean {
 export function useHeaderNavigation({
   identity,
   user,
+  showFavorites,
 }: UseHeaderNavigationOptions): HeaderNavigationModel {
   const pathname = usePathname();
   const [activeDialog, setActiveDialog] =
@@ -542,6 +545,8 @@ export function useHeaderNavigation({
     [feedbackItem, isOnAbout, isOnFindMentor, isOnSignin, isOnSignup]
   );
 
+  const favoritesEnabled = showFavorites ?? isFavoritesEnabled();
+
   const buildAccountCommonLinks = React.useCallback(
     (
       location: 'user_dropdown' | 'mobile_user_menu',
@@ -575,7 +580,7 @@ export function useHeaderNavigation({
             },
           };
 
-      return [
+      const links: HeaderLinkDescriptor[] = [
         roleLink,
         {
           id: 'my-reservations',
@@ -590,7 +595,10 @@ export function useHeaderNavigation({
             feature: 'reservation',
           },
         },
-        {
+      ];
+
+      if (favoritesEnabled) {
+        links.push({
           id: 'my-favorites',
           kind: 'link',
           label: '我的收藏',
@@ -602,10 +610,13 @@ export function useHeaderNavigation({
             location,
             feature: 'navigation',
           },
-        },
-      ];
+        });
+      }
+
+      return links;
     },
     [
+      favoritesEnabled,
       isMentor,
       isOnFavorites,
       isOnMenteeReservation,

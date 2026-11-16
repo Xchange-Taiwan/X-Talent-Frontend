@@ -388,3 +388,11 @@ export const MentorBookmarkedVisitorView: Story = {
   },
   render: (args) => <SeededBookmarkedProfileStory {...args} />,
 };
+
+export const FavoritesAndFeedbackDisabled: Story = {
+  args: {
+    ...MentorVisitorView.args,
+    showBookmark: false,
+    feedbackEnabled: false,
+  },
+};

@@ -7,6 +7,7 @@ import {
   SESSION_HINT_COOKIE,
   SESSION_HINT_COOKIE_OPTIONS,
 } from '@/lib/auth/sessionHint';
+import { isFavoritesEnabled } from '@/lib/featureFlags';
 import {
   getMaintenanceBypassToken,
   getMaintenanceMode,
@@ -14,6 +15,8 @@ import {
 import {
   classifyPathname,
   evaluateMiddlewareGate,
+  FIND_MENTOR_HREF,
+  isFavoritesPathname,
   shouldVerifyMiddlewareSession,
 } from '@/lib/routes';
 
@@ -84,6 +87,17 @@ export async function middleware(req: NextRequest) {
     isInMaintenanceMode = false;
   }
 
+  const favoritesEnabled = isFavoritesEnabled();
+
+  // -------- 1b. Short-circuit disabled /favorites before getToken() --------
+  if (
+    !isInMaintenanceMode &&
+    !favoritesEnabled &&
+    isFavoritesPathname(pathname)
+  ) {
+    return NextResponse.redirect(new URL(FIND_MENTOR_HREF, nextUrl));
+  }
+
   // -------- 2. Short-circuit /api/auth/* & maintenance before getToken() --------
   const needsSessionCheck = shouldVerifyMiddlewareSession(
     route,
@@ -112,6 +126,7 @@ export async function middleware(req: NextRequest) {
     search: nextUrl.search,
     method: req.method,
     isInMaintenanceMode,
+    isFavoritesEnabled: favoritesEnabled,
     session: isLoggedIn
       ? {
           isAuthenticated: true,

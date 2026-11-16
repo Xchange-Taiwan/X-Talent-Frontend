@@ -12,6 +12,7 @@ import {
   type FavoriteMentorFeature,
   useFavoriteMentor,
 } from '@/hooks/favorites';
+import { isFavoritesEnabled } from '@/lib/featureFlags';
 import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 import type { MentorType } from '@/types/mentor';
@@ -28,6 +29,7 @@ export interface MentorBookmarkButtonProps {
   tooltipAlign?: TooltipAlign;
   wrapperClassName?: string;
   className?: string;
+  enabled?: boolean;
 }
 
 export function MentorBookmarkButton({
@@ -40,7 +42,9 @@ export function MentorBookmarkButton({
   tooltipAlign = 'end',
   wrapperClassName,
   className,
+  enabled,
 }: MentorBookmarkButtonProps) {
+  const favoritesEnabled = enabled ?? isFavoritesEnabled();
   const {
     isFavorited,
     isPending,
@@ -53,7 +57,7 @@ export function MentorBookmarkButton({
     feature,
   });
 
-  if (isSelf || identityState === 'hint-only') {
+  if (!favoritesEnabled || isSelf || identityState === 'hint-only') {
     return null;
   }
 

@@ -334,3 +334,38 @@ describe('MentorCard (#757, #896)', () => {
     });
   });
 });
+
+describe('MentorCard feature flag overrides & env gates (#913)', () => {
+  it('hides bookmark button and rating score while preserving completed meetings count when disabled', () => {
+    vi.stubEnv('NEXT_PUBLIC_ENABLE_FAVORITES', 'false');
+    vi.stubEnv('NEXT_PUBLIC_ENABLE_FEEDBACK', 'false');
+    try {
+      renderWithSession(<MentorCard mentor={buildMentor()} />, '9001');
+
+      expect(
+        screen.queryByRole('button', { name: /收藏/ })
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText(/\/ 10/)).not.toBeInTheDocument();
+      expect(screen.getByText('已完成 24 場 1-on-1')).toBeInTheDocument();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('respects explicit showBookmark and includeRating prop overrides', () => {
+    renderWithSession(
+      <MentorCard
+        mentor={buildMentor()}
+        showBookmark={false}
+        includeRating={false}
+      />,
+      '9001'
+    );
+
+    expect(
+      screen.queryByRole('button', { name: /收藏/ })
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/\/ 10/)).not.toBeInTheDocument();
+    expect(screen.getByText('已完成 24 場 1-on-1')).toBeInTheDocument();
+  });
+});

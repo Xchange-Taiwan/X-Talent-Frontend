@@ -5,6 +5,7 @@ import * as React from 'react';
 import { Suspense } from 'react';
 
 import { usePendingFeedbackQueue } from '@/hooks/user/reservation/usePendingFeedbackQueue';
+import { isFeedbackEnabled } from '@/lib/featureFlags';
 
 const DynamicMeetingFeedbackDialog = dynamic(
   () => import('@/components/reservation/MeetingFeedbackDialog'),
@@ -34,7 +35,11 @@ function PendingFeedbackQueueWatcher(): JSX.Element | null {
   );
 }
 
-export function PendingFeedbackQueueLauncher(): JSX.Element {
+export function PendingFeedbackQueueLauncher(): JSX.Element | null {
+  if (!isFeedbackEnabled()) {
+    return null;
+  }
+
   return (
     <Suspense fallback={null}>
       <PendingFeedbackQueueWatcher />

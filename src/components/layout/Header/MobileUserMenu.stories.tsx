@@ -15,13 +15,15 @@ import { ShareProfileDialog } from './ShareProfileDialog';
 type MobileUserMenuStoryArgs = {
   identity: ResolvedIdentity;
   user?: Session['user'];
+  showFavorites?: boolean;
 };
 
 function MobileUserMenuStoryHarness({
   identity,
   user,
+  showFavorites,
 }: MobileUserMenuStoryArgs): JSX.Element {
-  const navigation = useHeaderNavigation({ identity, user });
+  const navigation = useHeaderNavigation({ identity, user, showFavorites });
   return (
     <>
       <MobileUserMenu
@@ -151,5 +153,12 @@ export const HintOnlyDisabledState: Story = {
       isMentor: false,
       avatar: mockMenteeUser.avatar,
     }),
+  },
+};
+
+export const FavoritesFeatureDisabled: Story = {
+  args: {
+    ...MenteeSession.args,
+    showFavorites: false,
   },
 };

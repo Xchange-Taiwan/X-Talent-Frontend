@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 
 import { trackEvent } from '@/lib/analytics';
+import { isFeedbackEnabled } from '@/lib/featureFlags';
 import {
   type FeedbackSessionCoordinator,
   feedbackSessionCoordinator,
@@ -39,12 +40,15 @@ export function usePendingFeedbackQueue(
   const isOnboardingComplete = session?.user?.onBoarding === true;
   const hasSessionError = Boolean(session?.error);
 
+  const feedbackEnabled = isFeedbackEnabled();
+
   const isSuppressed = shouldSuppressPendingFeedbackPopup({
     pathname,
     searchParams,
   });
 
   const canPresentQueue =
+    feedbackEnabled &&
     status === 'authenticated' &&
     Boolean(rawUserId) &&
     isOnboardingComplete &&
@@ -53,12 +57,18 @@ export function usePendingFeedbackQueue(
     !isSuppressed;
 
   useEffect(() => {
+    if (!feedbackEnabled) {
+      return;
+    }
     return () => {
       coordinator.resetRuntimeLoginSession();
     };
-  }, [coordinator]);
+  }, [coordinator, feedbackEnabled]);
 
   useEffect(() => {
+    if (!feedbackEnabled) {
+      return;
+    }
     if (status === 'loading' && !isAuthResetRoute(pathname)) {
       return;
     }
@@ -67,20 +77,20 @@ export function usePendingFeedbackQueue(
         status === 'unauthenticated' || isAuthResetRoute(pathname),
       userId: status === 'authenticated' ? rawUserId : '',
     });
-  }, [coordinator, pathname, rawUserId, status]);
+  }, [coordinator, feedbackEnabled, pathname, rawUserId, status]);
 
   useEffect(() => {
-    if (!rawUserId || status !== 'authenticated') {
+    if (!feedbackEnabled || !rawUserId || status !== 'authenticated') {
       return;
     }
     coordinator.syncLoginQueuePresentation({
       userId: rawUserId,
       canPresent: canPresentQueue,
     });
-  }, [canPresentQueue, coordinator, rawUserId, status]);
+  }, [canPresentQueue, coordinator, feedbackEnabled, rawUserId, status]);
 
   useEffect(() => {
-    if (!canPresentQueue || !rawUserId) {
+    if (!feedbackEnabled || !canPresentQueue || !rawUserId) {
       return;
     }
 
@@ -107,15 +117,23 @@ export function usePendingFeedbackQueue(
     return () => {
       controller.abort();
     };
-  }, [canPresentQueue, coordinator, isMentorSession, rawUserId]);
+  }, [
+    canPresentQueue,
+    coordinator,
+    feedbackEnabled,
+    isMentorSession,
+    rawUserId,
+  ]);
 
   const queueItems = useSyncExternalStore(
     coordinator.subscribe,
     () =>
-      coordinator.getPresentedLoginQueue({
-        userId: rawUserId,
-        canPresent: canPresentQueue,
-      }),
+      feedbackEnabled
+        ? coordinator.getPresentedLoginQueue({
+            userId: rawUserId,
+            canPresent: canPresentQueue,
+          })
+        : null,
     () => null
   );
 

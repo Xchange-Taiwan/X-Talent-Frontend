@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useEffect, useRef } from 'react';
 
+import { isFeedbackEnabled } from '@/lib/featureFlags';
 import {
   type FeedbackSessionCoordinator,
   feedbackSessionCoordinator,
@@ -26,6 +27,7 @@ export function useReservationHistoryRedirect(
   const { data: session, status } = useSession();
   const redirectedKeyRef = useRef<string | null>(null);
 
+  const feedbackEnabled = isFeedbackEnabled();
   const rawSearch = searchParams.toString();
   const targetReservationId = extractDeepLinkReservationId(searchParams);
 
@@ -35,9 +37,14 @@ export function useReservationHistoryRedirect(
     }
 
     if (status === 'unauthenticated') {
-      router.replace(buildReservationHistorySignInCallbackHref(rawSearch), {
-        scroll: false,
-      });
+      router.replace(
+        buildReservationHistorySignInCallbackHref(rawSearch, {
+          feedbackEnabled,
+        }),
+        {
+          scroll: false,
+        }
+      );
       return;
     }
 
@@ -45,16 +52,18 @@ export function useReservationHistoryRedirect(
       ? 'mentor'
       : 'mentee';
     const userId = session?.user?.id ? String(session.user.id) : '';
-    const effectKey = `${userId}:${fallbackRole}:${rawSearch}`;
+    const effectKey = `${userId}:${fallbackRole}:${rawSearch}:${String(feedbackEnabled)}`;
 
     if (redirectedKeyRef.current === effectKey) {
       return;
     }
 
-    if (!targetReservationId || !userId) {
+    if (!feedbackEnabled || !targetReservationId || !userId) {
       redirectedKeyRef.current = effectKey;
       router.replace(
-        buildReservationHistoryRedirectHref(fallbackRole, rawSearch),
+        buildReservationHistoryRedirectHref(fallbackRole, rawSearch, {
+          feedbackEnabled,
+        }),
         { scroll: false }
       );
       return;
@@ -81,5 +90,13 @@ export function useReservationHistoryRedirect(
       cancelled = true;
       controller.abort();
     };
-  }, [coordinator, rawSearch, router, session, status, targetReservationId]);
+  }, [
+    coordinator,
+    feedbackEnabled,
+    rawSearch,
+    router,
+    session,
+    status,
+    targetReservationId,
+  ]);
 }

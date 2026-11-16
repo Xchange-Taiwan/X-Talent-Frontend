@@ -1089,3 +1089,39 @@ describe('ProfilePageUI - personal links with GitHub (#862)', () => {
     }
   );
 });
+
+describe('ProfilePageUI feature flags disabled behavior (#913)', () => {
+  it('hides bookmark button, rating score, and TabsList while preserving experience, location, completed meetings, and intro sections', () => {
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            about: '資深產品設計經驗分享',
+            years_of_experience: '5~10 年',
+            location: '台灣',
+            stats: {
+              completed_meeting_count: 18,
+              rating_count: 9,
+              rating_average: 9.5,
+            },
+          }),
+          isIdentityResolved: true,
+          showBookmark: false,
+          feedbackEnabled: false,
+        })}
+      />
+    );
+
+    expect(
+      screen.queryByRole('button', { name: /收藏/ })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('tablist', { name: '導師頁面分頁' })
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('評分')).not.toBeInTheDocument();
+    expect(screen.getByText('資深產品設計經驗分享')).toBeInTheDocument();
+    expect(screen.getByText('18')).toBeInTheDocument();
+    expect(screen.getByText('台灣')).toBeInTheDocument();
+  });
+});

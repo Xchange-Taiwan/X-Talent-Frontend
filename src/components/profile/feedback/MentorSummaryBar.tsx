@@ -3,6 +3,7 @@
 import { Briefcase, MapPin, Star, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+import { isFeedbackEnabled } from '@/lib/featureFlags';
 import {
   formatRatingScoreValue,
   splitExperienceDisplay,
@@ -16,6 +17,7 @@ export interface MentorSummaryBarProps {
   completedMeetingCount?: number | null;
   yearsOfExperience?: string;
   location?: string;
+  includeRating?: boolean;
   className?: string;
 }
 
@@ -66,9 +68,11 @@ export function MentorSummaryBar({
   completedMeetingCount = 0,
   yearsOfExperience,
   location,
+  includeRating,
   className,
 }: MentorSummaryBarProps) {
-  const safeRatingCount = toNonNegativeInt(ratingCount);
+  const feedbackEnabled = includeRating ?? isFeedbackEnabled();
+  const safeRatingCount = feedbackEnabled ? toNonNegativeInt(ratingCount) : 0;
   const formattedScore =
     safeRatingCount > 0 ? formatRatingScoreValue(ratingAverage) : null;
   const hasRating = formattedScore !== null;

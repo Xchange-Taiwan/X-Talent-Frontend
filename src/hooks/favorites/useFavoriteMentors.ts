@@ -8,6 +8,7 @@ import {
   favoriteMentorsReadModel,
   type FavoriteMentorsSnapshot,
 } from '@/lib/favorites';
+import { isFavoritesEnabled } from '@/lib/featureFlags';
 import type { MentorType } from '@/types/mentor';
 
 export interface UseFavoriteMentorsResult {
@@ -33,6 +34,7 @@ const IDLE_RESULT: AsyncReadResult<FavoriteMentorsSnapshot> = {
 };
 
 export function useFavoriteMentors(): UseFavoriteMentorsResult {
+  const favoritesEnabled = isFavoritesEnabled();
   const identity = useResolvedIdentity();
 
   const confirmedUserId =
@@ -42,7 +44,7 @@ export function useFavoriteMentors(): UseFavoriteMentorsResult {
     identity.state === 'unknown' || identity.state === 'hint-only';
 
   const [subState, setSubState] = useState<ReadSubscriptionState>(() => {
-    if (!confirmedUserId) {
+    if (!favoritesEnabled || !confirmedUserId) {
       return { userId: null, result: IDLE_RESULT };
     }
     const cached = favoriteMentorsReadModel.getSnapshot(confirmedUserId);
@@ -58,6 +60,12 @@ export function useFavoriteMentors(): UseFavoriteMentorsResult {
   });
 
   useEffect(() => {
+    if (!favoritesEnabled) {
+      favoriteMentorsReadModel.clear();
+      setSubState({ userId: null, result: IDLE_RESULT });
+      return;
+    }
+
     if (isIdentityUnresolved) {
       return;
     }
@@ -71,14 +79,20 @@ export function useFavoriteMentors(): UseFavoriteMentorsResult {
     return favoriteMentorsReadModel.subscribe(confirmedUserId, (result) => {
       setSubState({ userId: confirmedUserId, result });
     });
-  }, [confirmedUserId, isAuthenticated, isIdentityUnresolved]);
+  }, [
+    confirmedUserId,
+    favoritesEnabled,
+    isAuthenticated,
+    isIdentityUnresolved,
+  ]);
 
   const activeResult =
-    confirmedUserId && subState.userId === confirmedUserId
+    favoritesEnabled && confirmedUserId && subState.userId === confirmedUserId
       ? subState.result
       : null;
 
   const isStoreReadyForUser =
+    favoritesEnabled &&
     isAuthenticated &&
     activeResult !== null &&
     !activeResult.isLoading &&
@@ -90,11 +104,21 @@ export function useFavoriteMentors(): UseFavoriteMentorsResult {
       : null;
 
   const retry = useCallback(async () => {
-    if (isIdentityUnresolved || !isAuthenticated || !confirmedUserId) {
+    if (
+      !favoritesEnabled ||
+      isIdentityUnresolved ||
+      !isAuthenticated ||
+      !confirmedUserId
+    ) {
       return;
     }
     await favoriteMentorsReadModel.retry(confirmedUserId);
-  }, [confirmedUserId, isAuthenticated, isIdentityUnresolved]);
+  }, [
+    confirmedUserId,
+    favoritesEnabled,
+    isAuthenticated,
+    isIdentityUnresolved,
+  ]);
 
   return {
     favoriteMentors:
@@ -105,7 +129,9 @@ export function useFavoriteMentors(): UseFavoriteMentorsResult {
     isAuthenticated,
     isIdentityUnresolved,
     isStoreReadyForUser,
-    isLoading: isIdentityUnresolved || !isStoreReadyForUser,
+    isLoading: favoritesEnabled
+      ? isIdentityUnresolved || !isStoreReadyForUser
+      : false,
     error,
     retry,
   };
