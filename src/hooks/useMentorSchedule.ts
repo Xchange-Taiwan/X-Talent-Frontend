@@ -212,9 +212,15 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     fetchMonthRaws
   );
   const monthRaws = scheduleRead.data;
+  const monthSyncedToStore =
+    monthRaws === null ||
+    storeState.savedByMonth.get(currentMonthKey) === monthRaws;
 
   const monthLoaded =
-    scheduleKey !== null && !scheduleRead.isLoading && !isReloadingSchedule;
+    scheduleKey !== null &&
+    !scheduleRead.isLoading &&
+    !isReloadingSchedule &&
+    monthSyncedToStore;
   const isFetching = scheduleRead.isLoading || isReloadingSchedule;
   const hasError = !isReloadingSchedule && scheduleRead.error !== null;
 

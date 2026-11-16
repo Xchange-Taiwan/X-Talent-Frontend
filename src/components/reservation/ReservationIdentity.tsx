@@ -177,7 +177,10 @@ export function ReservationIdentityHeader({
             }
             alt={reservation.name}
           />
-          <AvatarFallback className={style.avatarFallbackClassName}>
+          <AvatarFallback
+            data-clarity-mask="true"
+            className={style.avatarFallbackClassName}
+          >
             {initials}
           </AvatarFallback>
         </Avatar>
@@ -190,7 +193,10 @@ export function ReservationIdentityHeader({
             disabled={disabled}
             className={style.nameLinkClassName}
           >
-            <div className={style.nameClassName(Boolean(href))}>
+            <div
+              data-clarity-mask="true"
+              className={style.nameClassName(Boolean(href))}
+            >
               {reservation.name}
             </div>
             {style.roleLineInsideLink ? (

@@ -2,6 +2,7 @@
 
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { useEffect, useRef } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -44,6 +45,29 @@ export function MenteeBookingForm({
     mentorId !== undefined && String(mentorId).trim() !== ''
       ? String(mentorId).trim()
       : undefined;
+  const parsedMentorId =
+    normalizedMentorId !== undefined ? Number(normalizedMentorId) : Number.NaN;
+  const numericMentorId =
+    Number.isSafeInteger(parsedMentorId) && parsedMentorId > 0
+      ? parsedMentorId
+      : undefined;
+
+  const trackedGateViewMentorIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (isAuthenticated || numericMentorId === undefined) return;
+    if (trackedGateViewMentorIdRef.current === numericMentorId) return;
+    trackedGateViewMentorIdRef.current = numericMentorId;
+
+    trackEvent({
+      name: 'auth_gate_triggered',
+      feature: 'reservation',
+      metadata: {
+        gate_source: 'booking_form_view',
+        mentor_id: numericMentorId,
+      },
+    });
+  }, [isAuthenticated, numericMentorId]);
 
   const {
     register,
@@ -107,15 +131,25 @@ export function MenteeBookingForm({
             >
               <Link
                 href="/auth/signin"
-                onClick={() =>
+                onClick={() => {
                   trackEvent({
                     name: 'reservation_signin_prompt_click',
                     feature: 'reservation',
                     ...(normalizedMentorId
                       ? { metadata: { mentor_id: normalizedMentorId } }
                       : {}),
-                  })
-                }
+                  });
+                  if (numericMentorId !== undefined) {
+                    trackEvent({
+                      name: 'auth_gate_triggered',
+                      feature: 'reservation',
+                      metadata: {
+                        gate_source: 'booking_signin_click',
+                        mentor_id: numericMentorId,
+                      },
+                    });
+                  }
+                }}
               >
                 前往登入
               </Link>

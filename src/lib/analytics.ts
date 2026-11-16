@@ -10,7 +10,7 @@
  * from URLs, page titles, and event metadata before leaving the application layer.
  */
 
-import type { ClarityFunction } from '@/types/clarity';
+import type { ClarityFunction, ClarityMetadataPayload } from '@/types/clarity';
 
 export const ANALYTICS_FEATURES = [
   'auth',
@@ -123,12 +123,31 @@ const BACKSLASH_CHAR = String.fromCharCode(92);
 const MAX_NESTED_URL_SANITIZE_DEPTH = 3;
 const MAX_URI_DECODE_PASSES = 3;
 
+const CLARITY_SAFE_TOKEN_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;
+
+const CLARITY_SESSION_URL_DIAGNOSTIC_EVENTS: ReadonlySet<string> = new Set([
+  'booking_submit_failed',
+  'auth_flow_failed',
+  'mentor_no_available_slots',
+]);
+
+const CLARITY_AUTO_UPGRADE_EVENTS: ReadonlySet<string> = new Set([
+  'reservation_booking_confirmed',
+  'onboarding_completed',
+  'booking_submit_failed',
+  'auth_flow_failed',
+]);
+
 let configuredGaTargetsByFn = new WeakMap<object, Set<string>>();
 let configuredClarityTargetsByFn = new WeakMap<object, Set<string>>();
 let lastSyncedUserKeyByTarget = new WeakMap<object, Map<string, string>>();
+let createdClarityStubs = new WeakSet<object>();
+let registeredMetadataByClarityFn = new WeakSet<object>();
+let lastIdentifiedClarityUserByFn = new WeakMap<object, string>();
 
 let activeGaMeasurementId: string | null = null;
 let activeClarityProjectId: string | null = null;
+let activeClaritySessionUrl: string | null = null;
 let currentAnalyticsUserId: string | null = null;
 let currentAnalyticsUserRole: AnalyticsUserRole | null = null;
 
@@ -545,6 +564,79 @@ export function initGa4(gaId: string): boolean {
 }
 
 /**
+ * Builds a validated Microsoft Clarity session replay URL from Clarity's `metadata`
+ * callback payload. Returns `null` if any identifier is missing or fails strict
+ * character allowlisting (`^[a-zA-Z0-9_-]{1,64}$`).
+ */
+export function buildSafeClaritySessionUrl(
+  payload: ClarityMetadataPayload | null | undefined
+): string | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const { projectId, userId, sessionId } = payload;
+  if (
+    typeof projectId !== 'string' ||
+    typeof userId !== 'string' ||
+    typeof sessionId !== 'string' ||
+    !CLARITY_SAFE_TOKEN_PATTERN.test(projectId) ||
+    !CLARITY_SAFE_TOKEN_PATTERN.test(userId) ||
+    !CLARITY_SAFE_TOKEN_PATTERN.test(sessionId)
+  ) {
+    return null;
+  }
+  return `https://clarity.microsoft.com/projects/view/${projectId}/impressions?cid=${userId}&sid=${sessionId}`;
+}
+
+/**
+ * Returns the latest validated Clarity session replay URL captured from Clarity `metadata`, if any.
+ */
+export function getActiveClaritySessionUrl(): string | null {
+  return activeClaritySessionUrl;
+}
+
+/**
+ * Idempotently registers `window.clarity('metadata', callback, false, false)` on the
+ * current `window.clarity` function to capture the active Clarity session replay URL.
+ */
+export function registerClarityMetadataListener(): boolean {
+  const clarity = getClarity();
+  if (!clarity) return false;
+  if (registeredMetadataByClarityFn.has(clarity)) return true;
+
+  registeredMetadataByClarityFn.add(clarity);
+  clarity(
+    'metadata',
+    (data) => {
+      const safeUrl = buildSafeClaritySessionUrl(data);
+      if (safeUrl) {
+        activeClaritySessionUrl = safeUrl;
+      }
+    },
+    false,
+    false
+  );
+  return true;
+}
+
+/**
+ * Prioritizes retention of the current Clarity session recording for key conversions or failures.
+ * Validates `reason` against a strict token allowlist and zero-PII guardrails before invoking `upgrade`.
+ */
+export function upgradeClaritySession(reason: string): void {
+  if (typeof reason !== 'string') return;
+  const trimmed = reason.trim();
+  if (
+    !CLARITY_SAFE_TOKEN_PATTERN.test(trimmed) ||
+    PII_KEY_PATTERN.test(trimmed) ||
+    containsSensitiveValue(trimmed)
+  ) {
+    return;
+  }
+  const clarity = getClarity();
+  if (!clarity) return;
+  clarity('upgrade', trimmed);
+}
+
+/**
  * Initializes the client-side `window.clarity` command queue (`window.clarity.q`)
  * without inline `<script>` interpolation so mount-time `trackEvent` / `setAnalyticsTag`
  * calls are buffered in `window.clarity.q` before external `clarity.ms/tag/<id>` loads.
@@ -564,6 +656,7 @@ export function initClarity(clarityId: string): boolean {
       queue.push(arguments);
     };
     clarityStub.q = [];
+    createdClarityStubs.add(clarityStub);
     window.clarity = clarityStub;
   } else if (!Array.isArray(window.clarity.q)) {
     window.clarity.q = [];
@@ -580,6 +673,18 @@ export function initClarity(clarityId: string): boolean {
     if (currentAnalyticsUserRole) {
       setAnalyticsTag('user_role', currentAnalyticsUserRole);
     }
+    if (
+      currentAnalyticsUserId &&
+      lastIdentifiedClarityUserByFn.get(window.clarity) !==
+        currentAnalyticsUserId
+    ) {
+      lastIdentifiedClarityUserByFn.set(window.clarity, currentAnalyticsUserId);
+      window.clarity('identify', currentAnalyticsUserId);
+    }
+  }
+
+  if (!createdClarityStubs.has(window.clarity)) {
+    registerClarityMetadataListener();
   }
 
   return true;
@@ -701,6 +806,18 @@ export function setAnalyticsUserContext(
   if (resolvedRole) {
     setAnalyticsTag('user_role', resolvedRole);
   }
+
+  const clarity = getClarity();
+  if (clarity) {
+    if (safeUserId) {
+      if (lastIdentifiedClarityUserByFn.get(clarity) !== safeUserId) {
+        lastIdentifiedClarityUserByFn.set(clarity, safeUserId);
+        clarity('identify', safeUserId);
+      }
+    } else {
+      lastIdentifiedClarityUserByFn.delete(clarity);
+    }
+  }
 }
 
 /**
@@ -732,11 +849,15 @@ export function getAnalyticsUserContext(): {
 export function resetAnalyticsUserState(): void {
   activeGaMeasurementId = null;
   activeClarityProjectId = null;
+  activeClaritySessionUrl = null;
   currentAnalyticsUserId = null;
   currentAnalyticsUserRole = null;
   configuredGaTargetsByFn = new WeakMap<object, Set<string>>();
   configuredClarityTargetsByFn = new WeakMap<object, Set<string>>();
   lastSyncedUserKeyByTarget = new WeakMap<object, Map<string, string>>();
+  createdClarityStubs = new WeakSet<object>();
+  registeredMetadataByClarityFn = new WeakSet<object>();
+  lastIdentifiedClarityUserByFn = new WeakMap<object, string>();
 }
 
 function dispatchGa4Event(
@@ -813,10 +934,18 @@ export function trackEvent(
   )
     ? safeMetadata.user_role
     : (currentAnalyticsUserRole ?? 'guest');
+  const shouldAttachClarityUrl =
+    CLARITY_SESSION_URL_DIAGNOSTIC_EVENTS.has(trimmedName) &&
+    activeClaritySessionUrl !== null &&
+    isAllowedAnalyticsUrl(activeClaritySessionUrl);
+
   const gaParams: Record<string, string | number | boolean> = {
     ...(event.feature ? { feature: event.feature } : {}),
     user_role: effectiveUserRole,
     ...safeMetadata,
+    ...(shouldAttachClarityUrl && activeClaritySessionUrl
+      ? { clarity_session_url: activeClaritySessionUrl }
+      : {}),
   };
 
   dispatchGa4Event(trimmedName, gaParams);
@@ -834,6 +963,9 @@ export function trackEvent(
         const lower = key.toLowerCase();
         if (lower === 'user_id' || lower === 'user_role') continue;
         setAnalyticsTag(key, String(value));
+      }
+      if (CLARITY_AUTO_UPGRADE_EVENTS.has(trimmedName)) {
+        upgradeClaritySession(trimmedName);
       }
     }
   }

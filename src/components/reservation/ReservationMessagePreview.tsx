@@ -129,7 +129,9 @@ function MessagePreviewItem({
         <div className={style.labelClassName}>{label}</div>
         <div className={style.itemClassName}>
           <MessageSquare className={style.iconClassName} aria-hidden />
-          <p className={style.contentClassName}>{content}</p>
+          <p data-clarity-mask="true" className={style.contentClassName}>
+            {content}
+          </p>
         </div>
       </div>
     );
@@ -140,7 +142,9 @@ function MessagePreviewItem({
       <MessageSquare className={style.iconClassName} aria-hidden />
       <div className="min-w-0 flex-1">
         <div className={style.labelClassName}>{label}</div>
-        <p className={style.contentClassName}>{content}</p>
+        <p data-clarity-mask="true" className={style.contentClassName}>
+          {content}
+        </p>
       </div>
     </div>
   );

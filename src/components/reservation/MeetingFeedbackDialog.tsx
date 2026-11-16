@@ -685,13 +685,19 @@ export default function MeetingFeedbackDialog({
                       }
                       alt={activeReservation.name}
                     />
-                    <AvatarFallback className="text-text-primary text-xs font-medium">
+                    <AvatarFallback
+                      data-clarity-mask="true"
+                      className="text-text-primary text-xs font-medium"
+                    >
                       {getInitials(activeReservation.name)}
                     </AvatarFallback>
                   </Avatar>
 
                   <div className="min-w-0">
-                    <p className="text-text-primary truncate text-sm font-semibold">
+                    <p
+                      data-clarity-mask="true"
+                      className="text-text-primary truncate text-sm font-semibold"
+                    >
                       {activeReservation.name}
                     </p>
                     <p className="text-text-secondary truncate text-xs tabular-nums">
@@ -723,6 +729,7 @@ export default function MeetingFeedbackDialog({
               className="flex min-h-0 flex-1 flex-col"
             >
               <div
+                data-clarity-mask="true"
                 className={cn(
                   'min-h-0 flex-1 overflow-y-auto px-5 sm:px-6',
                   effectiveStep === 'not-happened' ? 'pt-3 pb-2' : 'py-4'

@@ -98,13 +98,15 @@ export default function ReservationConversationDialog({
                   alt={reservation.name}
                 />
               ) : null}
-              <AvatarFallback>{initials}</AvatarFallback>
+              <AvatarFallback data-clarity-mask="true">
+                {initials}
+              </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1 text-left">
               <DialogTitle className="truncate text-base">
                 完整對話紀錄
               </DialogTitle>
-              <DialogDescription className="truncate">
+              <DialogDescription data-clarity-mask="true" className="truncate">
                 {reservation.name}
                 {reservation.roleLine ? ` · ${reservation.roleLine}` : ''}
               </DialogDescription>
@@ -122,7 +124,10 @@ export default function ReservationConversationDialog({
           </div>
         </DialogHeader>
 
-        <div className="flex-1 space-y-3 overflow-y-auto p-4 sm:p-6">
+        <div
+          data-clarity-mask="true"
+          className="flex-1 space-y-3 overflow-y-auto p-4 sm:p-6"
+        >
           {systemCancelNotice ? (
             <div
               role="note"
