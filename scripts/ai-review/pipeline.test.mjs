@@ -1,5 +1,6 @@
 // @vitest-environment node
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
@@ -8,8 +9,11 @@ import {
   evaluateFinalPrConvergence,
   evaluatePollProgress,
 } from '../../.agents/scripts/wait-pr-checks.mjs';
+import { buildTicketBundle } from '../cloud/ticket-bundle.mjs';
+import { fetchFullTicketContext } from './lib/ticket.mjs';
 import {
   createCiContextPort,
+  createLocalContextPort,
   runAiReviewPipeline,
   runWithConcurrency,
 } from './pipeline.mjs';
@@ -617,5 +621,135 @@ describe('scripts/ai-review/pipeline.mjs', () => {
     expect(workflowYaml).toContain('if [ -f scripts/ai-review/run-ci.mjs ];');
     expect(workflowYaml).not.toContain("name: 'AI Review: Planner'");
     expect(workflowYaml).not.toContain("name: 'AI Review: Security'");
+  });
+
+  it('restores state, author, labels, and comment metadata from cached ticket-bundle.json identically to fetchFullTicketContext', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-bundle-'));
+    const prevTrackerToken = process.env.TRACKER_READ_TOKEN;
+    try {
+      process.env.TRACKER_READ_TOKEN = 'ghp_local_token';
+      const bundleFile = path.join(tmpDir, 'ticket-bundle.json');
+
+      const fetchMock = vi.fn(async (rawUrl) => {
+        const url = String(rawUrl);
+        if (url.endsWith('/repos/Xchange-Taiwan/X-Talent-Tracker/issues/907')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers(),
+            json: async () => ({
+              number: 907,
+              title: '[Refactor][FE/CI] Cache parity check',
+              state: 'open',
+              user: { login: 'LowSugarCoke' },
+              labels: [{ name: 'ai review' }, { name: 'skip-qa' }],
+              body: 'Full issue markdown specification',
+              body_html: '<p>Full issue markdown specification</p>',
+            }),
+          };
+        }
+        if (url.includes('/issues/907/comments')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers(),
+            json: async () => [
+              {
+                user: { login: 'reviewer-bot' },
+                created_at: '2026-11-15T05:14:21Z',
+                body: 'Comment markdown body',
+                body_html: '<p>Comment markdown body</p>',
+              },
+            ],
+          };
+        }
+        return { ok: false, status: 404, headers: new Headers() };
+      });
+
+      const port = { git: vi.fn(() => ''), gh: vi.fn(() => '') };
+
+      // Unfound bundle (ticketFound: false) must fall back to remote API fetch
+      await buildTicketBundle({
+        cwd: tmpDir,
+        bundleOut: bundleFile,
+        specOut: path.join(tmpDir, 'ticket-spec.md'),
+        ticketNumber: '907',
+        ghToken: '',
+        env: {},
+        skipVisuals: true,
+        skipKb: true,
+        fetchImpl: fetchMock,
+        port,
+      });
+
+      const fallbackPort = createLocalContextPort({
+        bundleFile,
+        fetchImpl: fetchMock,
+      });
+      const fallbackCtx = await fallbackPort.loadIssueContext({
+        branch: 'refactor/907-cache-parity',
+        ticketNumber: '907',
+      });
+      expect(fallbackCtx.ticketFound).toBe(true);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+
+      // Populated bundle (ticketFound: true) must restore exact field parity with 0 API calls
+      const directCtx = await fetchFullTicketContext(
+        'refactor/907-cache-parity',
+        'ghp_local_token',
+        '907',
+        { fetchImpl: fetchMock }
+      );
+
+      await buildTicketBundle({
+        cwd: tmpDir,
+        bundleOut: bundleFile,
+        specOut: path.join(tmpDir, 'ticket-spec.md'),
+        ticketNumber: '907',
+        ghToken: 'ghp_local_token',
+        env: {},
+        skipVisuals: true,
+        skipKb: true,
+        fetchImpl: fetchMock,
+        port,
+      });
+
+      const offlineFetch = vi.fn(async () => {
+        throw new Error('Should not hit network when valid cache exists');
+      });
+      const cachedPort = createLocalContextPort({
+        bundleFile,
+        fetchImpl: offlineFetch,
+      });
+      const cachedCtx = await cachedPort.loadIssueContext({
+        branch: 'refactor/907-cache-parity',
+        ticketNumber: '907',
+      });
+
+      expect(offlineFetch).not.toHaveBeenCalled();
+      expect(cachedCtx).toEqual(directCtx);
+      expect(cachedCtx).toMatchObject({
+        ticketFound: true,
+        number: 907,
+        state: 'OPEN',
+        author: 'LowSugarCoke',
+        labels: [{ name: 'ai review' }, { name: 'skip-qa' }],
+        comments: [
+          {
+            author: 'reviewer-bot',
+            createdAt: '2026-11-15T05:14:21Z',
+            body: 'Comment markdown body',
+            bodyHtml: '<p>Comment markdown body</p>',
+          },
+        ],
+      });
+    } finally {
+      if (prevTrackerToken === undefined) {
+        delete process.env.TRACKER_READ_TOKEN;
+      } else {
+        process.env.TRACKER_READ_TOKEN = prevTrackerToken;
+      }
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 });

@@ -40,6 +40,9 @@ export function readCachedTicketBundle(
   try {
     const parsed = JSON.parse(fsImpl.readFileSync(bundleFile, 'utf8'));
     if (!parsed || typeof parsed !== 'object') return null;
+    if (parsed.ticketFound === false) {
+      return null;
+    }
     if (
       expectedTicketNumber &&
       Number(parsed.ticketNumber) !== Number(expectedTicketNumber)
@@ -284,12 +287,20 @@ export async function buildTicketBundle(options = {}) {
     cwd,
   });
 
-  let issuePayload = cached?.issue || null;
-  let htmlBlocks = Array.isArray(cached?.htmlBlocks) ? cached.htmlBlocks : null;
-  let cleanSpecMarkdown = String(cached?.cleanSpecMarkdown || '');
+  const hasValidCachedIssue =
+    cached?.ticketFound === true &&
+    Boolean(cached.issue) &&
+    Array.isArray(cached.htmlBlocks) &&
+    Boolean(cached.cleanSpecMarkdown);
 
-  if (!issuePayload || !htmlBlocks || !cleanSpecMarkdown) {
-    let fullCtx = { ticketFound: false };
+  let fullCtx = { ticketFound: hasValidCachedIssue };
+  let issuePayload = hasValidCachedIssue ? cached.issue : null;
+  let htmlBlocks = hasValidCachedIssue ? cached.htmlBlocks : null;
+  let cleanSpecMarkdown = hasValidCachedIssue
+    ? String(cached.cleanSpecMarkdown)
+    : '';
+
+  if (!hasValidCachedIssue) {
     if (ghToken) {
       try {
         fullCtx = await fetchFullTicketContext(
@@ -311,6 +322,7 @@ export async function buildTicketBundle(options = {}) {
         author: { login: fullCtx.author || '' },
         labels: Array.isArray(fullCtx.labels) ? fullCtx.labels : [],
         body: fullCtx.body || '',
+        bodyHtml: fullCtx.bodyHtml || '',
         comments: Array.isArray(fullCtx.comments)
           ? fullCtx.comments.map((c) => ({
               author: { login: c.author || 'unknown' },
@@ -363,7 +375,7 @@ export async function buildTicketBundle(options = {}) {
     }
   }
 
-  let archKb = cached?.archKb ?? null;
+  let archKb = hasValidCachedIssue && cached?.archKb ? cached.archKb : null;
   let archKbMarkdown = '';
   if (!options.skipKb) {
     if (!archKb) {
@@ -379,7 +391,10 @@ export async function buildTicketBundle(options = {}) {
     archKbMarkdown = formatArchitectureKnowledgeBase(archKb);
   }
 
-  let visualManifest = cached?.visualManifest || {
+  const cachedVisualManifest = hasValidCachedIssue
+    ? cached?.visualManifest
+    : null;
+  let visualManifest = cachedVisualManifest || {
     ticketNumber: resolvedNum,
     generatedAt: new Date().toISOString(),
     downloadedImages: [],
@@ -443,6 +458,7 @@ export async function buildTicketBundle(options = {}) {
   const bundle = {
     version: 1,
     ticketNumber: resolvedNum,
+    ticketFound: Boolean(fullCtx.ticketFound),
     generatedAt: new Date().toISOString(),
     issue: issuePayload,
     htmlBlocks,

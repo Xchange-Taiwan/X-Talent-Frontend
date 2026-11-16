@@ -8,6 +8,7 @@ import {
   buildTicketBundle,
   fetchFixPrSupplementalMarkdown,
   parseTicketBundleArgs,
+  readCachedTicketBundle,
 } from './ticket-bundle.mjs';
 
 const TAB = String.fromCharCode(9);
@@ -169,6 +170,7 @@ describe('scripts/cloud/ticket-bundle', () => {
         port,
       });
 
+      expect(preflight.bundle.ticketFound).toBe(true);
       expect(issueApiCalls).toBe(1);
       expect(commentsApiCalls).toBe(2);
       expect(preflight.bundle.issue.comments).toHaveLength(102);
@@ -183,6 +185,7 @@ describe('scripts/cloud/ticket-bundle', () => {
         port,
       });
 
+      expect(fullRun.bundle.ticketFound).toBe(true);
       expect(issueApiCalls).toBe(1);
       expect(commentsApiCalls).toBe(2);
 
@@ -207,6 +210,151 @@ describe('scripts/cloud/ticket-bundle', () => {
       );
       expect(fullRun.fullSpecMarkdown.length).toBeLessThan(35_000);
       expect(fullRun.fullSpecMarkdown).toContain('ticket-img-02.png');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('records ticketFound: false when initial unauthenticated fetch fails and re-fetches real ticket and visuals once token is provided', async () => {
+    const tmpDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'ticket-bundle-retry-')
+    );
+    try {
+      const imgUuid = '22222222-3333-4444-5555-666666666666';
+      const imgUrl = `https://private-user-images.githubusercontent.com/99/${imgUuid}.png?jwt=valid_sig`;
+
+      let issueApiCalls = 0;
+      let commentsApiCalls = 0;
+
+      const fetchImpl = vi.fn(async (rawUrl, init = {}) => {
+        const url = String(rawUrl);
+        const auth = String(init?.headers?.Authorization || '');
+
+        if (url.endsWith('/repos/Xchange-Taiwan/X-Talent-Tracker/issues/907')) {
+          issueApiCalls += 1;
+          if (auth !== 'Bearer ghp_valid_token') {
+            return { ok: false, status: 401, headers: new Headers() };
+          }
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers(),
+            json: async () => ({
+              number: 907,
+              title: '[Refactor][FE/CI] Real Tracker Specification',
+              state: 'open',
+              user: { login: 'LowSugarCoke' },
+              labels: [{ name: 'ai review' }],
+              body: `Real spec body <img alt="設計圖" src="${imgUrl}" />`,
+              body_html: `<p>Real spec body <img alt="設計圖" src="${imgUrl}"></p>`,
+            }),
+          };
+        }
+        if (url.includes('/issues/907/comments')) {
+          commentsApiCalls += 1;
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers(),
+            json: async () => [
+              {
+                user: { login: 'reviewer' },
+                created_at: '2026-11-15T06:00:00Z',
+                body: 'Approved spec details',
+                body_html: '<p>Approved spec details</p>',
+              },
+            ],
+          };
+        }
+        if (url.includes('/__arch-kb')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers(),
+            json: async () => ({ kb: { matchedDomains: {} } }),
+          };
+        }
+        if (url === imgUrl) {
+          return {
+            ok: true,
+            status: 200,
+            url,
+            headers: new Headers({ 'content-type': 'image/png' }),
+            arrayBuffer: async () =>
+              VALID_PNG.buffer.slice(
+                VALID_PNG.byteOffset,
+                VALID_PNG.byteOffset + VALID_PNG.byteLength
+              ),
+          };
+        }
+        return { ok: false, status: 404, headers: new Headers() };
+      });
+
+      const port = {
+        git: vi.fn(() => ''),
+        gh: vi.fn(() => ''),
+      };
+
+      // Step 1: Pre-flight call without token produces ticketFound: false
+      const unauthRun = await buildTicketBundle({
+        cwd: tmpDir,
+        ticketNumber: '907',
+        ghToken: '',
+        env: {},
+        skipVisuals: true,
+        skipKb: true,
+        fetchImpl,
+        port,
+      });
+
+      expect(unauthRun.bundle.ticketFound).toBe(false);
+      expect(issueApiCalls).toBe(0);
+      expect(readCachedTicketBundle(unauthRun.bundleOut, 907)).toBeNull();
+
+      // Step 2: Failed 401 token call also persists ticketFound: false
+      const failedTokenRun = await buildTicketBundle({
+        cwd: tmpDir,
+        ticketNumber: '907',
+        ghToken: 'ghp_invalid_token',
+        env: {},
+        skipVisuals: true,
+        skipKb: true,
+        fetchImpl,
+        port,
+      });
+
+      expect(failedTokenRun.bundle.ticketFound).toBe(false);
+      expect(issueApiCalls).toBe(1);
+      expect(readCachedTicketBundle(failedTokenRun.bundleOut, 907)).toBeNull();
+
+      // Step 3: Phase 1 call with valid token bypasses unfound cache and fetches real ticket + visuals
+      const authedRun = await buildTicketBundle({
+        cwd: tmpDir,
+        ticketNumber: '907',
+        ghToken: 'ghp_valid_token',
+        env: {},
+        skipPrototypes: true,
+        fetchImpl,
+        port,
+      });
+
+      expect(authedRun.bundle.ticketFound).toBe(true);
+      expect(issueApiCalls).toBe(2);
+      expect(commentsApiCalls).toBe(1);
+      expect(authedRun.bundle.issue.title).toBe(
+        '[Refactor][FE/CI] Real Tracker Specification'
+      );
+      expect(authedRun.bundle.issue.comments).toHaveLength(1);
+      expect(authedRun.bundle.visualManifest.downloadedImages).toHaveLength(1);
+      expect(authedRun.bundle.visualManifest.downloadedImages[0].alt).toBe(
+        '設計圖'
+      );
+      expect(authedRun.fullSpecMarkdown).toContain(
+        'Real Tracker Specification'
+      );
+      expect(
+        readCachedTicketBundle(authedRun.bundleOut, 907)?.ticketFound
+      ).toBe(true);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }

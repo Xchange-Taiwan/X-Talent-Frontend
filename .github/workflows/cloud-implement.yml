@@ -128,8 +128,8 @@ jobs:
       - name: Pre-flight Ticket Scope Gate (skip pure backend / non-frontend tickets)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
-          GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || github.token }}
+          GH_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || github.token }}
           TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER }}
           BRANCH_NAME: ${{ env.SAFE_BRANCH_NAME }}
         run: |

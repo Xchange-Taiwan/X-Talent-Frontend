@@ -198,10 +198,18 @@ export function createLocalContextPort({
             ticketFound: true,
             number: cached.ticketNumber,
             title: cached.issue.title ?? '',
+            state: cached.issue.state ?? 'OPEN',
+            author: cached.issue.author?.login ?? cached.issue.author ?? '',
+            labels: Array.isArray(cached.issue.labels)
+              ? cached.issue.labels
+              : [],
             body: cached.issue.body ?? '',
+            bodyHtml: cached.issue.bodyHtml ?? '',
             comments: (cached.issue.comments ?? []).map((c) => ({
               author: c?.author?.login ?? c?.author ?? 'unknown',
+              createdAt: c?.createdAt ?? '',
               body: c?.body ?? '',
+              bodyHtml: c?.bodyHtml ?? '',
             })),
             htmlBlocks: cached.htmlBlocks ?? [],
           };
