@@ -1,65 +1,15 @@
-import { cookies } from 'next/headers';
 import type { NextAuthOptions, Session } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 
 import {
-  type BffUserPayload,
-  type MentorExperience,
-  normalizeBffAuthUser,
-  type PersonalLink,
-  resolveBffBaseUrl,
-  resolveMentorExperienceLinks,
-} from '@/lib/auth/bffAuth';
-import { consumeOAuthRefreshBridge } from '@/lib/auth/oauthRefreshBridge';
-import { singleFlight } from '@/lib/singleFlight';
-import { SignInSchema } from '@/schemas/auth';
-import {
-  extractRefreshToken,
-  refreshAccessToken,
-} from '@/services/auth/refreshToken';
+  authorizeGoogleBridgePayload,
+  isBffTokenExpiringSoon,
+  loginWithBffCredentials,
+  REFRESH_SKEW_SECONDS,
+  refreshBffTokenSingleflight,
+} from '@/lib/auth/bffSession.server';
 
-export {
-  type BffUserPayload,
-  type MentorExperience,
-  normalizeBffAuthUser,
-  type PersonalLink,
-  resolveBffBaseUrl,
-  resolveMentorExperienceLinks,
-};
-
-export const REFRESH_SKEW_SECONDS = 300;
-
-function decodeJwtExp(jwtString: string): number | null {
-  try {
-    const base64 = jwtString
-      .split('.')[1]
-      .replace(/-/g, '+')
-      .replace(/_/g, '/');
-    const payload = JSON.parse(
-      Buffer.from(base64, 'base64').toString('utf-8')
-    ) as Record<string, unknown>;
-    return typeof payload.exp === 'number' ? payload.exp : null;
-  } catch {
-    return null;
-  }
-}
-
-// BFF rotates the refresh_token on every /v1/auth/token call (revokes the old
-// rt:* index immediately). Concurrent jwt callbacks reading the same stored
-// refresh token would all POST it; first wins, the rest get invalid_grant.
-// Coalesce in-flight refreshes by token so parallel callers share one result.
-const inflightRefresh = new Map<
-  string,
-  ReturnType<typeof refreshAccessToken>
->();
-
-function refreshAccessTokenSingleflight(
-  currentRefreshToken: string
-): ReturnType<typeof refreshAccessToken> {
-  return singleFlight(inflightRefresh, currentRefreshToken, () =>
-    refreshAccessToken(currentRefreshToken)
-  );
-}
+export { REFRESH_SKEW_SECONDS };
 
 export const jwtCallback: NonNullable<
   NextAuthOptions['callbacks']
@@ -82,24 +32,22 @@ export const jwtCallback: NonNullable<
   const backendToken = token.token;
   const storedRefreshToken = token.refreshToken;
 
-  if (backendToken && storedRefreshToken) {
-    const exp = decodeJwtExp(backendToken);
-    const isExpiringSoon =
-      exp !== null && exp - Date.now() / 1000 < REFRESH_SKEW_SECONDS;
-
-    if (isExpiringSoon) {
-      try {
-        const { token: newToken, refreshToken: newRefreshToken } =
-          await refreshAccessTokenSingleflight(storedRefreshToken);
-        return {
-          ...token,
-          token: newToken,
-          refreshToken: newRefreshToken ?? storedRefreshToken,
-          error: undefined,
-        };
-      } catch {
-        return { ...token, error: 'RefreshTokenError' as const };
-      }
+  if (
+    backendToken &&
+    storedRefreshToken &&
+    isBffTokenExpiringSoon(backendToken)
+  ) {
+    try {
+      const { token: newToken, refreshToken: newRefreshToken } =
+        await refreshBffTokenSingleflight(storedRefreshToken);
+      return {
+        ...token,
+        token: newToken,
+        refreshToken: newRefreshToken ?? storedRefreshToken,
+        error: undefined,
+      };
+    } catch {
+      return { ...token, error: 'RefreshTokenError' as const };
     }
   }
 
@@ -115,24 +63,24 @@ export const sessionCallback = async ({
   token,
 }: SessionCallbackParams): Promise<Session> => {
   session.user = {
-    id: (token.id as string | undefined) ?? undefined,
-    name: (token.name as string | null | undefined) ?? undefined,
-    avatar: (token.avatar as string | undefined) ?? undefined,
-    avatarUpdatedAt: (token.avatarUpdatedAt as number | undefined) ?? undefined,
-    onBoarding: (token.onBoarding as boolean | undefined) ?? undefined,
-    isMentor: (token.isMentor as boolean | undefined) ?? undefined,
-    jobTitle: (token.jobTitle as string | undefined) ?? undefined,
-    company: (token.company as string | undefined) ?? undefined,
+    id: token.id ?? undefined,
+    name: token.name ?? undefined,
+    avatar: token.avatar ?? undefined,
+    avatarUpdatedAt: token.avatarUpdatedAt ?? undefined,
+    onBoarding: token.onBoarding ?? undefined,
+    isMentor: token.isMentor ?? undefined,
+    jobTitle: token.jobTitle ?? undefined,
+    company: token.company ?? undefined,
     personalLinks: token.personalLinks ?? [],
-    msg: (token.msg as string | undefined) ?? undefined,
+    msg: token.msg ?? undefined,
   };
 
   session.accessToken =
     token.error === 'RefreshTokenError'
       ? undefined
-      : ((token.token as string | undefined) ?? undefined);
-  session.user.provider = (token.provider as string | undefined) ?? undefined;
-  session.user.email = (token.email as string | undefined) ?? undefined;
+      : (token.token ?? undefined);
+  session.user.provider = token.provider ?? undefined;
+  session.user.email = token.email ?? undefined;
   session.error = token.error;
   return session;
 };
@@ -147,49 +95,8 @@ const authOptions = {
         email: { label: 'Email', type: 'text' },
         password: { label: 'Password', type: 'password' },
       },
-      async authorize(credentials) {
-        if (!credentials) return null;
-
-        const validated = SignInSchema.safeParse(credentials);
-        if (!validated.success) return null;
-
-        const { email, password } = validated.data;
-
-        const res = await fetch(`${resolveBffBaseUrl()}/v1/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
-        });
-
-        if (!res.ok) return null;
-
-        const response = (await res.json().catch(() => null)) as {
-          code?: string;
-          data?: {
-            auth: {
-              user_id: string | number;
-              token: string;
-              email?: string | null;
-            };
-            user: BffUserPayload;
-          };
-        } | null;
-        if (
-          !response ||
-          (response.code !== undefined && response.code !== '0') ||
-          !response.data?.auth?.token ||
-          !response.data?.user
-        ) {
-          return null;
-        }
-
-        return normalizeBffAuthUser({
-          userId: response.data.auth.user_id,
-          token: response.data.auth.token,
-          refreshToken: extractRefreshToken(res.headers),
-          email: response.data.auth.email,
-          user: response.data.user,
-        });
+      authorize(credentials) {
+        return loginWithBffCredentials(credentials);
       },
     }),
 
@@ -201,24 +108,8 @@ const authOptions = {
         email: { label: 'Email', type: 'text' },
         user: { label: 'User JSON', type: 'text' },
       },
-      async authorize(credentials) {
-        if (!credentials?.token || !credentials?.user) return null;
-
-        try {
-          const user = JSON.parse(credentials.user as string) as BffUserPayload;
-
-          const cookieStore = await cookies();
-          const refreshToken = consumeOAuthRefreshBridge(cookieStore);
-
-          return normalizeBffAuthUser({
-            token: credentials.token,
-            refreshToken,
-            email: credentials.email as string,
-            user,
-          });
-        } catch {
-          return null;
-        }
+      authorize(credentials) {
+        return authorizeGoogleBridgePayload(credentials);
       },
     }),
   ],

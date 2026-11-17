@@ -7,16 +7,9 @@ vi.mock('next-auth/jwt', () => ({
   getToken: vi.fn(),
 }));
 
-vi.mock('@/services/auth/backendLogout.server', () => ({
-  revokeBffSession: vi.fn(),
-}));
-
-import { revokeBffSession } from '@/services/auth/backendLogout.server';
-
 import { POST } from './route';
 
 const mockGetToken = vi.mocked(getToken);
-const mockRevokeBffSession = vi.mocked(revokeBffSession);
 
 function makeRequest(): NextRequest {
   return new NextRequest('https://example.com/api/auth/backend-logout', {
@@ -27,14 +20,17 @@ function makeRequest(): NextRequest {
 describe('POST /api/auth/backend-logout', () => {
   const originalSsrUrl = process.env.SSR_API_URL;
   const originalPublicUrl = process.env.NEXT_PUBLIC_API_URL;
+  const mockFetch = vi.fn<typeof fetch>();
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal('fetch', mockFetch);
     process.env.SSR_API_URL = 'https://api.example.com';
     delete process.env.NEXT_PUBLIC_API_URL;
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     if (originalSsrUrl === undefined) {
       delete process.env.SSR_API_URL;
     } else {
@@ -54,12 +50,28 @@ describe('POST /api/auth/backend-logout', () => {
         id: '123',
       })
     );
-    mockRevokeBffSession.mockResolvedValue(undefined);
+    mockFetch.mockResolvedValue(
+      fromPartial<Response>({
+        ok: true,
+        status: 200,
+      })
+    );
 
     const response = await POST(makeRequest());
 
     expect(response.status).toBe(204);
-    expect(mockRevokeBffSession).toHaveBeenCalledWith('refresh-abc', 123);
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://api.example.com/v1/auth/logout',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: 'refresh_token=refresh-abc',
+        },
+        body: JSON.stringify({ user_id: 123 }),
+        cache: 'no-store',
+      })
+    );
   });
 
   it('returns 204 without calling the BFF when there is no refresh token', async () => {
@@ -68,7 +80,7 @@ describe('POST /api/auth/backend-logout', () => {
     const response = await POST(makeRequest());
 
     expect(response.status).toBe(204);
-    expect(mockRevokeBffSession).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it('returns 204 without calling the BFF when userId is not numeric', async () => {
@@ -82,7 +94,7 @@ describe('POST /api/auth/backend-logout', () => {
     const response = await POST(makeRequest());
 
     expect(response.status).toBe(204);
-    expect(mockRevokeBffSession).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it('returns 204 without calling the BFF when neither SSR_API_URL nor NEXT_PUBLIC_API_URL is configured', async () => {
@@ -98,7 +110,7 @@ describe('POST /api/auth/backend-logout', () => {
     const response = await POST(makeRequest());
 
     expect(response.status).toBe(204);
-    expect(mockRevokeBffSession).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it('still returns 204 and completes when the BFF call throws', async () => {
@@ -108,11 +120,11 @@ describe('POST /api/auth/backend-logout', () => {
         id: '123',
       })
     );
-    mockRevokeBffSession.mockRejectedValue(new Error('BFF unavailable'));
+    mockFetch.mockRejectedValue(new Error('BFF unavailable'));
 
     const response = await POST(makeRequest());
 
     expect(response.status).toBe(204);
-    expect(mockRevokeBffSession).toHaveBeenCalledOnce();
+    expect(mockFetch).toHaveBeenCalledOnce();
   });
 });
