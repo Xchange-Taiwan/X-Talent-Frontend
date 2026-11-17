@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { Suspense } from 'react';
 
 import MentorGridSkeleton from './MentorGridSkeleton';
-import MentorPoolHero from './MentorPoolHero';
 import MentorPoolSearchBar from './MentorPoolSearchBar';
 import MentorPoolWithData from './MentorPoolWithData';
 
@@ -22,12 +21,14 @@ export const metadata: Metadata = {
 };
 
 // No `export const revalidate` here on purpose — Next.js infers the ISR
-// window from fetchMentorsServer's `next.revalidate` (mentors.server.ts).
+// window from fetchMentorsServer's `next.revalidate` (mentors.ts).
 export default function Page() {
   return (
     <>
       <div className="relative">
-        <MentorPoolHero />
+        <section className="bg-mentor-hero flex h-[202px] w-full items-center justify-center px-4 text-xl font-semibold md:text-3xl xl:rounded-br-[120px]">
+          和 Mentors 一起提升你的職涯經驗吧！
+        </section>
         <Suspense fallback={null}>
           <MentorPoolSearchBar />
         </Suspense>

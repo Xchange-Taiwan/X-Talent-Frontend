@@ -1,9 +1,9 @@
 import { unstable_noStore } from 'next/cache';
 
+import { DEFAULT_MENTOR_PAGE_LIMIT } from '@/lib/mentor/mentorPoolQuery';
 import { fetchTagCatalogServer } from '@/services/profile/tagCatalog.server';
-import { fetchMentorsServer } from '@/services/search-mentor/mentors.server';
+import { fetchMentorsServer } from '@/services/search-mentor/mentors';
 
-import { PAGE_LIMIT } from './constants';
 import MentorPoolContainer from './container';
 
 // Always fetches the unfiltered listing so this route stays ISR-cacheable;
@@ -13,7 +13,7 @@ export default async function MentorPoolWithData() {
   const [initialMentorPage, initialTagCatalog] = await Promise.all([
     fetchMentorsServer({
       search_pattern: '',
-      limit: PAGE_LIMIT,
+      limit: DEFAULT_MENTOR_PAGE_LIMIT,
     }).catch((err: unknown) => {
       console.error(
         'SSR fetchMentors error captured:',

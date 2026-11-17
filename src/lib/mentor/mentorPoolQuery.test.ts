@@ -6,7 +6,9 @@ import {
   buildMentorFilterOptions,
   buildMentorPoolHref,
   clearAllConditions,
+  countActiveMentorPoolFilters,
   DEFAULT_MENTOR_FILTER_OPTIONS,
+  deserializeMentorPoolQuery,
   getSearchPatternFromParams,
   hasAnyCondition,
   isUnfilteredMentorPoolQuery,
@@ -17,6 +19,7 @@ import {
   parseMentorPoolQuery,
   removeFilterFromParams,
   resolveActiveFilterBadges,
+  serializeMentorPoolQuery,
   setSearchPattern,
   setSelectedFiltersOnParams,
   toMentorRequest,
@@ -208,7 +211,7 @@ describe('mentorPoolQuery (#897)', () => {
   });
 
   describe('utm_* invariance & canonical normalization', () => {
-    it('normalizes utm_*, fbclid, gclid, and reordered params to identical MentorPoolQuery shapes', () => {
+    it('normalizes utm_*, fbclid, gclid, and reordered params to identical MentorPoolQuery shapes and canonical serialized keys', () => {
       const fromUtm = parseMentorPoolQuery(
         '?utm_source=discord&utm_medium=social&filter_topics=topic_b&q=react&filter_skills=skill_b,skill_a'
       );
@@ -217,12 +220,55 @@ describe('mentorPoolQuery (#897)', () => {
       );
 
       expect(fromUtm).toEqual(fromCleanReordered);
+      expect(serializeMentorPoolQuery(fromUtm)).toBe(
+        serializeMentorPoolQuery(fromCleanReordered)
+      );
       expect(
         normalizeMentorPoolQuery({
           search_pattern: '   ',
           filter_skills: ' , ',
         })
       ).toBe(UNFILTERED_MENTOR_POOL_QUERY);
+      expect(
+        serializeMentorPoolQuery({
+          search_pattern: '   ',
+          filter_skills: ' , ',
+        })
+      ).toBe('');
+      expect(deserializeMentorPoolQuery('')).toBe(UNFILTERED_MENTOR_POOL_QUERY);
+    });
+
+    it('percent-encodes delimiters in serializeMentorPoolQuery and round-trips via deserializeMentorPoolQuery without field collision', () => {
+      const injected = { search_pattern: 'a&filter_skills=b' };
+      const separate = { search_pattern: 'a', filter_skills: 'b' };
+
+      const keyInjected = serializeMentorPoolQuery(injected);
+      const keySeparate = serializeMentorPoolQuery(separate);
+
+      expect(keyInjected).not.toBe(keySeparate);
+      expect(deserializeMentorPoolQuery(keyInjected)).toEqual(injected);
+      expect(deserializeMentorPoolQuery(keySeparate)).toEqual(separate);
+    });
+
+    it('counts deduplicated active filter tokens across skills, topics, and industries', () => {
+      expect(countActiveMentorPoolFilters(null)).toBe(0);
+      expect(countActiveMentorPoolFilters(UNFILTERED_MENTOR_POOL_QUERY)).toBe(
+        0
+      );
+      expect(
+        countActiveMentorPoolFilters({
+          search_pattern: 'react',
+          sort_by: 'popularity',
+          filter_skills: ' , ',
+        })
+      ).toBe(0);
+      expect(
+        countActiveMentorPoolFilters({
+          filter_skills: 'skill_ts, skill_react, skill_ts',
+          filter_topics: 'topic_career',
+          filter_industries: 'software_internet',
+        })
+      ).toBe(4);
     });
   });
 

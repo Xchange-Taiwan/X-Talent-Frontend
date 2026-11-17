@@ -192,6 +192,83 @@ export function isUnfilteredMentorPoolQuery(
   return normalizeMentorPoolQuery(query) === UNFILTERED_MENTOR_POOL_QUERY;
 }
 
+/**
+ * Serializes a `MentorPoolQuery` into a deterministic canonical string key.
+ * Unfiltered queries normalize to `''`; filtered queries serialize sorted
+ * `snake_case` parameters via `URLSearchParams` so delimiters inside values
+ * are percent-encoded and never collide across fields.
+ */
+export function serializeMentorPoolQuery(
+  query?: MentorPoolQuery | null
+): string {
+  const normalized = normalizeMentorPoolQuery(query);
+  if (normalized === UNFILTERED_MENTOR_POOL_QUERY) {
+    return '';
+  }
+
+  const canonicalParams = new URLSearchParams();
+  if (normalized.filter_industries) {
+    canonicalParams.set('filter_industries', normalized.filter_industries);
+  }
+  if (normalized.filter_skills) {
+    canonicalParams.set('filter_skills', normalized.filter_skills);
+  }
+  if (normalized.filter_topics) {
+    canonicalParams.set('filter_topics', normalized.filter_topics);
+  }
+  if (normalized.search_pattern) {
+    canonicalParams.set('search_pattern', normalized.search_pattern);
+  }
+  if (normalized.sort_by) {
+    canonicalParams.set('sort_by', normalized.sort_by);
+  }
+
+  return canonicalParams.toString();
+}
+
+/**
+ * Inverse of `serializeMentorPoolQuery`: reconstructs a frozen normalized
+ * `MentorPoolQuery` (or `UNFILTERED_MENTOR_POOL_QUERY` when empty) from its
+ * canonical serialized string key.
+ */
+export function deserializeMentorPoolQuery(
+  serialized: string
+): Readonly<MentorPoolQuery> {
+  if (!serialized) {
+    return UNFILTERED_MENTOR_POOL_QUERY;
+  }
+
+  const params = new URLSearchParams(serialized);
+  const rawSortBy = params.get('sort_by')?.trim();
+  const sortBy =
+    rawSortBy === 'recent' || rawSortBy === 'popularity'
+      ? rawSortBy
+      : undefined;
+
+  return normalizeMentorPoolQuery({
+    search_pattern: params.get('search_pattern') ?? undefined,
+    filter_skills: params.get('filter_skills') ?? undefined,
+    filter_topics: params.get('filter_topics') ?? undefined,
+    filter_industries: params.get('filter_industries') ?? undefined,
+    sort_by: sortBy,
+  });
+}
+
+/**
+ * Counts deduplicated non-empty filter tokens across `filter_skills`,
+ * `filter_topics`, and `filter_industries`.
+ */
+export function countActiveMentorPoolFilters(
+  query?: MentorPoolQuery | null
+): number {
+  if (!query) return 0;
+  return (
+    parseFilterTokens(query.filter_skills).length +
+    parseFilterTokens(query.filter_topics).length +
+    parseFilterTokens(query.filter_industries).length
+  );
+}
+
 export function toMentorRequest(
   query: MentorPoolQuery,
   options: { limit?: number; cursor?: string | null } = {}
