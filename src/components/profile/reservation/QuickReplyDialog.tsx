@@ -17,7 +17,6 @@ import {
 import { useConfirmActionDialog } from '@/hooks/reservation/useConfirmActionDialog';
 import { useProfileLinkClick } from '@/hooks/reservation/useProfileLinkClick';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
-import { trackEvent } from '@/lib/analytics';
 import { resolveReservationViewer } from '@/lib/reservation/reservationViewerModel';
 import { quickReplyFormSchema } from '@/schemas/quickReplySchema';
 import type { Reservation } from '@/types/reservation';
@@ -89,11 +88,6 @@ export function QuickReplyDialog({
 
     void executeAccept(async () => {
       await accept(reservation, trimmedReply);
-      trackEvent({
-        name: 'reservation_accepted',
-        feature: 'reservation',
-        metadata: { has_reply: trimmedReply.length > 0 },
-      });
     });
   };
 

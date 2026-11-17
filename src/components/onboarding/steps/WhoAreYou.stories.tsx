@@ -84,3 +84,23 @@ export const GoogleOAuthAvatar: Story = {
     </OnboardingStoryWrapper>
   ),
 };
+
+/**
+ * 步驟 1 姓名輸入框與頭像上傳預設包覆 `data-clarity-mask="true"`，驗證失敗時觸發去識別化 `form_validation_failed` (#950)。
+ */
+export const ValidationErrorMasked: Story = {
+  render: () => (
+    <OnboardingStoryWrapper
+      schema={step1Schema}
+      defaultValues={{
+        name: '',
+        avatar: '',
+        avatarFile: undefined,
+        language: 'zh_TW',
+      }}
+      triggerValidation
+    >
+      {(form) => <WhoAreYou form={form} />}
+    </OnboardingStoryWrapper>
+  ),
+};

@@ -245,10 +245,7 @@ describe('useReservationActions', () => {
         myRole: 'mentor',
       });
 
-      expect(mockTrackEvent).toHaveBeenCalledWith({
-        name: 'reservation_rejected',
-        feature: 'reservation',
-      });
+      expect(mockTrackEvent).not.toHaveBeenCalled();
 
       expect(mockToast).toHaveBeenCalledWith({
         description: '已拒絕預約',
@@ -258,7 +255,7 @@ describe('useReservationActions', () => {
       expect(result.current.isMutating).toBe(false);
     });
 
-    it('should trigger correct cancel success toast and reservation_cancelled analytics event when action is cancel', async () => {
+    it('should trigger correct cancel success toast without redundant GA4 event when action is cancel (#950)', async () => {
       mockRejectService.mockResolvedValue();
 
       const { result } = renderHook(() =>
@@ -281,14 +278,7 @@ describe('useReservationActions', () => {
 
       await promise;
 
-      expect(mockTrackEvent).toHaveBeenCalledWith({
-        name: 'reservation_cancelled',
-        feature: 'reservation',
-      });
-      expect(mockTrackEvent).not.toHaveBeenCalledWith({
-        name: 'reservation_rejected',
-        feature: 'reservation',
-      });
+      expect(mockTrackEvent).not.toHaveBeenCalled();
       expect(mockToast).toHaveBeenCalledWith({
         description: '已取消預約',
       });
@@ -446,8 +436,8 @@ describe('useReservationActions', () => {
     });
   });
 
-  describe('updateFeedback (#731)', () => {
-    it('calls updateReservationFeedback, tracks reservation_feedback_updated without PII, and triggers onMutationSuccess', async () => {
+  describe('updateFeedback (#731, #950)', () => {
+    it('calls updateReservationFeedback without redundant GA4 event or PII, and triggers onMutationSuccess', async () => {
       mockUpdateFeedbackService.mockResolvedValueOnce();
 
       const { result } = renderHook(() =>
@@ -475,10 +465,7 @@ describe('useReservationActions', () => {
           content: '更新後的回饋內容',
         },
       });
-      expect(mockTrackEvent).toHaveBeenCalledWith({
-        name: 'reservation_feedback_updated',
-        feature: 'reservation',
-      });
+      expect(mockTrackEvent).not.toHaveBeenCalled();
       expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc');
     });
   });

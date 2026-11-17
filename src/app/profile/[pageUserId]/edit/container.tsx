@@ -157,6 +157,7 @@ export default function EditProfileContainer({
         <form
           ref={formRef}
           id="edit-profile-form"
+          data-clarity-mask="true"
           onSubmit={handleFormSubmit}
           className="space-y-10"
         >

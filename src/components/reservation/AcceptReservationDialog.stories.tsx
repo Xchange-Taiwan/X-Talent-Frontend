@@ -60,3 +60,14 @@ export const WithoutMenteeMessage: Story = {
     },
   },
 };
+
+/**
+ * 接受預約結果統一由後端資料庫統計（#923），前端僅記錄彈窗開啟並遮罩學員提問與回覆欄位 (#950)。
+ */
+export const MediumButtonSize: Story = {
+  args: {
+    reservation: mockReservation,
+    myUserId: 'mentor-1',
+    size: 'default',
+  },
+};

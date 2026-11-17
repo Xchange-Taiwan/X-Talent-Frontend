@@ -175,10 +175,9 @@ describe('useDeleteAccountForm', () => {
       });
     });
 
-    expect(mockTrackEvent).toHaveBeenCalledWith({
-      name: 'delete_account_succeeded',
-      feature: 'auth',
-    });
+    expect(mockTrackEvent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'delete_account_succeeded' })
+    );
     expect(mockClearAnalyticsUser).toHaveBeenCalledTimes(1);
     expect(mockRevalidateProfilePathAfterDelete).toHaveBeenCalledWith();
     expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: '/' });
@@ -192,12 +191,10 @@ describe('useDeleteAccountForm', () => {
       notificationStoreManager.getOrCreateState('test-user-id').unreadCountState
     ).toBe(0);
 
-    const trackOrder = mockTrackEvent.mock.invocationCallOrder[0];
     const clearOrder = mockClearAnalyticsUser.mock.invocationCallOrder[0];
     const dispatchOrder =
       mockRevalidateProfilePathAfterDelete.mock.invocationCallOrder[0];
     const signOutOrder = mockSignOut.mock.invocationCallOrder[0];
-    expect(trackOrder).toBeLessThan(clearOrder);
     expect(clearOrder).toBeLessThan(signOutOrder);
     expect(dispatchOrder).toBeLessThan(signOutOrder);
   });

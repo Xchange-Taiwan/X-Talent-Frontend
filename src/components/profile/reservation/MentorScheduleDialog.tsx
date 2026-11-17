@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/use-toast';
-import { trackEvent } from '@/lib/analytics';
+import { trackEvent, upgradeClaritySession } from '@/lib/analytics';
 import {
   type BookingCalendarReader,
   type BookingStatus,
@@ -112,6 +112,7 @@ export default function MentorScheduleDialog({
     try {
       const result = await confirmChanges();
       if (!result.ok) {
+        upgradeClaritySession('schedule_save_failed');
         toast({
           variant: 'destructive',
           description:
@@ -132,6 +133,7 @@ export default function MentorScheduleDialog({
       });
       onOpenChange(false);
     } catch {
+      upgradeClaritySession('schedule_save_failed');
       toast({
         variant: 'destructive',
         description: '儲存失敗,請稍後再試',

@@ -831,10 +831,7 @@ export async function executeDeleteAccountXC(
   credentials: { email: string; password: string },
   adapters: ExecuteDeleteAccountXCAdapters
 ): Promise<DeleteAccountResult> {
-  const {
-    deleteAccountFn = defaultDeleteAccount,
-    trackEvent = defaultTrackEvent,
-  } = adapters;
+  const { deleteAccountFn = defaultDeleteAccount } = adapters;
 
   const result = await deleteAccountFn({
     email: credentials.email,
@@ -842,7 +839,6 @@ export async function executeDeleteAccountXC(
   });
 
   if (result.status === 'success') {
-    trackEvent({ name: 'delete_account_succeeded', feature: 'auth' });
     await terminateClientSession('delete_account_xc', {
       signOut: adapters.signOut,
       revalidateAfterDelete: adapters.revalidateAfterDelete,
@@ -1045,7 +1041,6 @@ export async function executeGoogleOAuthCallback(
         });
 
         if (result.status === 'success') {
-          trackEvent({ name: 'delete_account_succeeded', feature: 'auth' });
           await terminateClientSession('delete_account_google', {
             signOut,
             revalidateAfterDelete,

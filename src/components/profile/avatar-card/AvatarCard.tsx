@@ -29,6 +29,7 @@ export const AvatarCard: FC<Props> = ({
 
   return (
     <div
+      data-clarity-mask="true"
       className={cn('flex flex-col items-center gap-6 sm:flex-row', className)}
     >
       <div className="bg-background-white relative h-[120px] w-[120px] flex-shrink-0 overflow-hidden rounded-full">

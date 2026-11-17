@@ -9,7 +9,7 @@ import { useForm, type UseFormReturn } from 'react-hook-form';
 import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
 import { useToast } from '@/components/ui/use-toast';
 import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
-import { trackEvent } from '@/lib/analytics';
+import { trackEvent, trackFormValidationFailed } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   commitProfileMutation,
@@ -108,6 +108,20 @@ export function useOnboardingForm({
     const fields = STEP_FIELDS[currentStep];
     const isValid = await form.trigger(fields);
     if (!isValid) {
+      const stepErrorKeys = fields
+        .filter((f) => Boolean(form.formState.errors[f]))
+        .map((f) => String(f));
+      const fallbackKeys =
+        stepErrorKeys.length > 0
+          ? stepErrorKeys
+          : Object.keys(form.formState.errors);
+      trackFormValidationFailed({
+        feature: 'onboarding',
+        formId: 'mentee_onboarding',
+        invalidKeys:
+          fallbackKeys.length > 0 ? fallbackKeys : [String(fields[0])],
+        step: currentStep,
+      });
       return false;
     }
 
@@ -161,6 +175,12 @@ export function useOnboardingForm({
       const earliestStep = orderedSteps.find((step) =>
         STEP_FIELDS[step].some((field) => errorFieldNames.has(field))
       );
+      trackFormValidationFailed({
+        feature: 'onboarding',
+        formId: 'mentee_onboarding',
+        invalidKeys: Array.from(errorFieldNames),
+        step: earliestStep ?? currentStep,
+      });
       if (earliestStep && earliestStep !== currentStep) {
         setCurrentStep(earliestStep);
       }

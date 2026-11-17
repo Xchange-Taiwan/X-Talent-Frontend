@@ -305,3 +305,24 @@ export const OfficialFeedbackNotificationTypes: Story = {
     ],
   },
 };
+
+/**
+ * Portal 內通知項目預設包覆 `data-clarity-mask="true"`，確保導師／學員真實姓名不外洩至 Clarity 錄影 (#950)。
+ */
+export const ClarityMaskedUnreadNames: Story = {
+  args: {
+    userId: 'clarity-mask-demo',
+    initialStatus: 'success',
+    initialNotifications: [
+      {
+        id: 'clarity-mask-1',
+        type: 'reservation_requested',
+        role: 'mentor',
+        menteeName: '王小明',
+        reservationId: '301',
+        createdAt: new Date().toISOString(),
+        unread: true,
+      },
+    ],
+  },
+};

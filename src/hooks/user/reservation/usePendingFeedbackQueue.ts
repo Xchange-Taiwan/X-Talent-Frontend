@@ -2,7 +2,7 @@
 
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useCallback, useEffect, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 
 import { trackEvent } from '@/lib/analytics';
 import { isFeedbackEnabled } from '@/lib/featureFlags';
@@ -41,6 +41,11 @@ export function usePendingFeedbackQueue(
   const hasSessionError = Boolean(session?.error);
 
   const feedbackEnabled = isFeedbackEnabled();
+  const shownUserIdRef = useRef<string | null>(null);
+  const dismissedUserIdRef = useRef<string | null>(null);
+  const presentedIdsRef = useRef<Set<string>>(new Set());
+  const submittedIdsRef = useRef<Set<string>>(new Set());
+  const skippedIdsRef = useRef<Set<string>>(new Set());
 
   const isSuppressed = shouldSuppressPendingFeedbackPopup({
     pathname,
@@ -72,9 +77,16 @@ export function usePendingFeedbackQueue(
     if (status === 'loading' && !isAuthResetRoute(pathname)) {
       return;
     }
+    const isReset = status === 'unauthenticated' || isAuthResetRoute(pathname);
+    if (isReset) {
+      shownUserIdRef.current = null;
+      dismissedUserIdRef.current = null;
+      presentedIdsRef.current.clear();
+      submittedIdsRef.current.clear();
+      skippedIdsRef.current.clear();
+    }
     coordinator.syncAuthSession({
-      isResetRouteOrUnauthenticated:
-        status === 'unauthenticated' || isAuthResetRoute(pathname),
+      isResetRouteOrUnauthenticated: isReset,
       userId: status === 'authenticated' ? rawUserId : '',
     });
   }, [coordinator, feedbackEnabled, pathname, rawUserId, status]);
@@ -137,6 +149,29 @@ export function usePendingFeedbackQueue(
     () => null
   );
 
+  useEffect(() => {
+    if (
+      !feedbackEnabled ||
+      !rawUserId ||
+      !queueItems ||
+      queueItems.length === 0
+    ) {
+      return;
+    }
+    for (const item of queueItems) {
+      presentedIdsRef.current.add(item.id);
+    }
+    if (shownUserIdRef.current !== rawUserId) {
+      shownUserIdRef.current = rawUserId;
+      dismissedUserIdRef.current = null;
+      trackEvent({
+        name: 'feedback_prompt_shown',
+        feature: 'feedback',
+        metadata: { pending_count: queueItems.length },
+      });
+    }
+  }, [feedbackEnabled, queueItems, rawUserId]);
+
   const submitFeedbackItem = useCallback(
     async (
       payload: SubmitReservationFeedbackRequest,
@@ -167,6 +202,8 @@ export function usePendingFeedbackQueue(
         payload,
       });
 
+      submittedIdsRef.current.add(targetReservation.id);
+
       trackEvent({
         name: 'reservation_feedback_submitted',
         feature: 'reservation',
@@ -179,12 +216,30 @@ export function usePendingFeedbackQueue(
   const skipFeedbackItem = useCallback(
     (reservation: Reservation) => {
       if (!rawUserId) return;
+      skippedIdsRef.current.add(reservation.id);
       coordinator.markReservationSkipped(rawUserId, reservation.id);
     },
     [coordinator, rawUserId]
   );
 
   const dismissQueue = useCallback(() => {
+    if (rawUserId && dismissedUserIdRef.current !== rawUserId) {
+      const unsubmittedCount = Array.from(presentedIdsRef.current).filter(
+        (id) => !submittedIdsRef.current.has(id)
+      ).length;
+      const skippedCount = Math.max(
+        skippedIdsRef.current.size,
+        unsubmittedCount
+      );
+      if (skippedCount > 0) {
+        dismissedUserIdRef.current = rawUserId;
+        trackEvent({
+          name: 'feedback_prompt_dismissed',
+          feature: 'feedback',
+          metadata: { skipped_count: skippedCount },
+        });
+      }
+    }
     coordinator.dismissLoginQueue(rawUserId);
   }, [coordinator, rawUserId]);
 

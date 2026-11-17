@@ -35,6 +35,7 @@ vi.mock('@/hooks/user/profile/useBackgroundAvatarUpload', () => ({
 
 vi.mock('@/lib/analytics', () => ({
   trackEvent: vi.fn(),
+  trackFormValidationFailed: vi.fn(),
 }));
 
 const mockUseRouter = vi.mocked(useRouter);

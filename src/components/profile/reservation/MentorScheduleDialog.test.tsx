@@ -31,6 +31,7 @@ vi.mock('@/components/ui/use-toast', async () => {
 
 vi.mock('@/lib/analytics', () => ({
   trackEvent: vi.fn(),
+  upgradeClaritySession: vi.fn(),
 }));
 
 const mockDraftForSelectedDate: ParsedMentorTimeslot[] = [
