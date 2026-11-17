@@ -89,10 +89,11 @@ export default class ErrorBoundary extends React.Component<Props, State> {
   }
 
   private handleReset = () => {
-    this.setState({ hasError: false });
     if (typeof window !== 'undefined') {
       window.location.reload();
+      return;
     }
+    this.setState({ hasError: false });
   };
 
   render() {
@@ -100,6 +101,8 @@ export default class ErrorBoundary extends React.Component<Props, State> {
       if (this.props.fallback !== undefined) {
         return this.props.fallback;
       }
+      // Root shell in Providers.tsx is the sole default caller; widget-level
+      // callers that want silent degradation pass `fallback={null}`.
       return <DefaultErrorFallback onRetry={this.handleReset} />;
     }
     return this.props.children;

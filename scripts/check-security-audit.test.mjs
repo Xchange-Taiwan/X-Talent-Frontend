@@ -112,5 +112,23 @@ describe('scripts/check-security-audit', () => {
     expect(allowed.passed).toBe(true);
     expect(allowed.blockingHigh).toHaveLength(0);
     expect(allowed.waivedHigh).toHaveLength(1);
+
+    // Fail-closed when metadata reports high > 0 without matching advisories map
+    const missingAdvisoriesMap = evaluatePnpmAuditJson(
+      JSON.stringify({
+        metadata: {
+          vulnerabilities: {
+            info: 0,
+            low: 0,
+            moderate: 0,
+            high: 2,
+            critical: 0,
+            total: 2,
+          },
+        },
+      })
+    );
+    expect(missingAdvisoriesMap.passed).toBe(false);
+    expect(missingAdvisoriesMap.unaccountedHigh).toBe(2);
   });
 });

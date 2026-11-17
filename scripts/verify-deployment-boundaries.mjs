@@ -53,6 +53,7 @@ export async function verifyDeploymentBoundaries({
   envVars = {},
   maxRetries = 3,
   retryDelayMs = 4000,
+  requestTimeoutMs = 10000,
   fetchImpl = fetch,
 } = {}) {
   const errors = [];
@@ -81,7 +82,10 @@ export async function verifyDeploymentBoundaries({
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const res = await fetchImpl(targetUrl, { redirect: 'manual' });
+        const res = await fetchImpl(targetUrl, {
+          redirect: 'manual',
+          signal: AbortSignal.timeout(requestTimeoutMs),
+        });
         lastStatus = res.status;
         lastLocation = res.headers?.get?.('location') || '';
         if (res.status === 200) {
@@ -124,6 +128,7 @@ export async function verifyDeploymentBoundaries({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: '{}',
+          signal: AbortSignal.timeout(requestTimeoutMs),
         }
       );
       if (oauthRes.status === 200) {

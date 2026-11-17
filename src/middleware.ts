@@ -7,6 +7,7 @@ import {
   SESSION_HINT_COOKIE,
   SESSION_HINT_COOKIE_OPTIONS,
 } from '@/lib/auth/sessionHint';
+import { isLiveProductionEnv } from '@/lib/env';
 import { isFavoritesEnabled } from '@/lib/featureFlags';
 import {
   getMaintenanceBypassToken,
@@ -34,11 +35,7 @@ export async function middleware(req: NextRequest) {
   const bypassParam = nextUrl.searchParams.get('bypass');
   const bypassCookie = req.cookies.get('maintenance_bypass')?.value;
 
-  const isProductionTarget =
-    process.env.NEXT_PUBLIC_SENTRY_ENV === 'production' ||
-    (process.env.VERCEL_ENV === 'production' &&
-      process.env.NEXT_PUBLIC_SENTRY_ENV !== 'staging');
-  const e2eMaintenanceCookie = !isProductionTarget
+  const e2eMaintenanceCookie = !isLiveProductionEnv(process.env)
     ? req.cookies.get('__e2e_maintenance')?.value
     : undefined;
   const e2eMaintenanceOverride =

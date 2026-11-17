@@ -8,6 +8,13 @@ const SENSITIVE_KEY_PATTERN =
 const SAFE_SENTRY_USER_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 const MAX_SCRUB_DEPTH = 8;
 
+export function sanitizeSentryUserId(raw: unknown): string | null {
+  if (typeof raw !== 'string' && typeof raw !== 'number') return null;
+  const trimmed = String(raw).trim();
+  if (!trimmed || trimmed.includes('@')) return null;
+  return SAFE_SENTRY_USER_ID_RE.test(trimmed) ? trimmed : null;
+}
+
 function scrubUnknownValue(value: unknown, depth = 0): unknown {
   if (value === null || value === undefined) return value;
   if (depth > MAX_SCRUB_DEPTH) return '[REDACTED]';
@@ -104,14 +111,7 @@ export function sanitizeSentryEvent(
   }
 
   if (next.user) {
-    const rawId =
-      typeof next.user.id === 'string' || typeof next.user.id === 'number'
-        ? String(next.user.id).trim()
-        : '';
-    const safeId =
-      rawId && !rawId.includes('@') && SAFE_SENTRY_USER_ID_RE.test(rawId)
-        ? rawId
-        : undefined;
+    const safeId = sanitizeSentryUserId(next.user.id);
     next.user = safeId ? { id: safeId } : undefined;
   }
 

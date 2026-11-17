@@ -4,14 +4,7 @@ import * as Sentry from '@sentry/nextjs';
 import { useSession } from 'next-auth/react';
 import { useEffect } from 'react';
 
-const SAFE_USER_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
-
-function sanitizeSentryUserId(raw: unknown): string | null {
-  if (typeof raw !== 'string' && typeof raw !== 'number') return null;
-  const trimmed = String(raw).trim();
-  if (!trimmed || trimmed.includes('@')) return null;
-  return SAFE_USER_ID_RE.test(trimmed) ? trimmed : null;
-}
+import { sanitizeSentryUserId } from '@/lib/sentrySanitize';
 
 /**
  * Synchronizes de-identified NextAuth `session.user.id` and `user_role` tag

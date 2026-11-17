@@ -158,7 +158,9 @@ export function analyzeNextBundleBudget({
       );
       const entryFiles = rsc?.entryJSFiles || {};
       const pageEntryKey =
-        Object.keys(entryFiles).find((k) => k.endsWith('/page')) || '';
+        Object.keys(entryFiles).find((k) => k.endsWith(appKey)) ||
+        Object.keys(entryFiles).find((k) => k.endsWith('/page')) ||
+        '';
 
       for (const [entryKey, chunks] of Object.entries(entryFiles)) {
         for (const rawChunk of chunks || []) {
@@ -223,9 +225,14 @@ export function analyzeNextBundleBudget({
   }
 
   const sharedBaseKb = Number.isFinite(minFirstLoadKb) ? minFirstLoadKb : 0;
-  const sharedBaseExceeded = sharedBaseKb >= activeBudgets.sharedBaseFailKb;
-  if (sharedBaseExceeded) {
+  if (sharedBaseKb >= activeBudgets.sharedBaseFailKb) {
     violations.push({
+      path: '[shared-root-layout]',
+      size_kb: sharedBaseKb,
+      first_load_kb: sharedBaseKb,
+    });
+  } else if (sharedBaseKb >= activeBudgets.sharedBaseWarnKb) {
+    warnings.push({
       path: '[shared-root-layout]',
       size_kb: sharedBaseKb,
       first_load_kb: sharedBaseKb,

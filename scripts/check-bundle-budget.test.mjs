@@ -32,6 +32,53 @@ describe('scripts/check-bundle-budget', () => {
     }
   });
 
+  it('fails closed when .next manifests are missing and handles server-only pages plus sharedBaseFailKb violations', () => {
+    const emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bundle-missing-'));
+    try {
+      const missingReport = analyzeNextBundleBudget({ nextDir: emptyDir });
+      expect(missingReport.passed).toBe(false);
+      expect(missingReport.failureReason).toBe('missing_next_manifests');
+
+      const chunksDir = path.join(emptyDir, 'static', 'chunks');
+      fs.mkdirSync(chunksDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(chunksDir, 'root.js'),
+        crypto.randomBytes(60 * 1024)
+      );
+      fs.writeFileSync(
+        path.join(emptyDir, 'app-path-routes-manifest.json'),
+        JSON.stringify({ '/terms/page': '/terms' })
+      );
+      fs.writeFileSync(
+        path.join(emptyDir, 'build-manifest.json'),
+        JSON.stringify({
+          rootMainFiles: ['static/chunks/root.js'],
+          polyfillFiles: [],
+        })
+      );
+
+      const serverOnlyReport = analyzeNextBundleBudget({
+        nextDir: emptyDir,
+        budgets: {
+          pageSizeWarnKb: 20,
+          pageSizeFailKb: 40,
+          firstLoadWarnKb: 100,
+          firstLoadFailKb: 200,
+          sharedBaseWarnKb: 30,
+          sharedBaseFailKb: 50,
+        },
+      });
+      expect(serverOnlyReport.routes).toHaveLength(1);
+      expect(serverOnlyReport.routes[0].size_kb).toBe(0);
+      expect(serverOnlyReport.passed).toBe(false);
+      expect(serverOnlyReport.violations.map((v) => v.path)).toContain(
+        '[shared-root-layout]'
+      );
+    } finally {
+      fs.rmSync(emptyDir, { recursive: true, force: true });
+    }
+  });
+
   it('computes shared base, page-exclusive, and first-load gzip sizes from Next.js 16 manifests and flags budget violations', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bundle-next16-'));
     try {

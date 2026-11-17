@@ -13,7 +13,6 @@ on:
       - '.lavish/**'
       - '.storybook/**'
       - '.vscode/**'
-      - 'scripts/**'
       - 'docs/**'
       - '**/*.md'
       - '**/*.test.ts'
