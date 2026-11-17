@@ -1,4 +1,5 @@
 import { apiClient, ApiError } from '@/lib/apiClient';
+import { sortFeedbackItems } from '@/lib/feedback/sortFeedbackItems';
 import {
   formatAuthorMaskedName,
   toNonNegativeInt,
@@ -91,9 +92,10 @@ export function mapMentorFeedbackResponse(
       ? Math.floor(raw.page_size)
       : safeRequestedPageSize;
 
-  const items = rawItems
+  const publicMappedItems = rawItems
     .filter((item) => item?.is_public !== false)
     .map((item, idx) => mapFeedbackItem(item, idx, resolvedPage));
+  const items = sortFeedbackItems(publicMappedItems);
 
   const filteredOutCount = rawItems.length - items.length;
   const rawTotal = Array.isArray(raw)

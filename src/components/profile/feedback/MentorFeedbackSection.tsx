@@ -126,6 +126,7 @@ export function MentorFeedbackSection({
   }, [items, onPageChange, resolvedPage, safePageSize]);
 
   const handlePageChange = (nextPage: number) => {
+    if (isLoading) return;
     const clamped = Math.min(Math.max(1, nextPage), Math.max(1, totalPages));
     if (clamped === resolvedPage) return;
     if (onPageChange) {
@@ -135,7 +136,7 @@ export function MentorFeedbackSection({
     }
   };
 
-  if (isLoading && items.length === 0) {
+  if (isLoading && displayedItems.length === 0) {
     return <MentorFeedbackSkeleton />;
   }
 
@@ -218,6 +219,7 @@ export function MentorFeedbackSection({
         <>
           <ul
             aria-label="會談評價列表"
+            aria-busy={isLoading}
             className={cn(
               'divide-background-border border-background-border divide-y border-b',
               isLoading && 'opacity-60 transition-opacity'

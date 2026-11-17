@@ -85,26 +85,25 @@ export function useMentorFeedback({
     refetch,
   } = useAsyncRead(mentorFeedbackReadModel, activeKey, fetcher);
 
-  const summarySource =
-    data ??
-    (canFetch
-      ? mentorFeedbackReadModel.peek({ mentorId, page: 1, pageSize })
-      : undefined);
+  const view =
+    activeKey !== null
+      ? mentorFeedbackReadModel.resolveView(activeKey, { data, isLoading })
+      : null;
 
   const setPage = useCallback((nextPage: number) => {
     setPageState(Math.max(1, Math.floor(nextPage)));
   }, []);
 
   return {
-    items: data?.items ?? EMPTY_FEEDBACK_ITEMS,
-    totalRatingCount: summarySource?.totalRatingCount ?? null,
-    ratingAverage: summarySource?.ratingAverage ?? null,
-    completedMeetingCount: summarySource?.completedMeetingCount ?? null,
-    page: data?.page ?? effectivePage,
-    pageSize: data?.pageSize ?? pageSize,
+    items: view?.items ?? EMPTY_FEEDBACK_ITEMS,
+    totalRatingCount: view?.totalRatingCount ?? null,
+    ratingAverage: view?.ratingAverage ?? null,
+    completedMeetingCount: view?.completedMeetingCount ?? null,
+    page: view?.page ?? effectivePage,
+    pageSize: view?.pageSize ?? pageSize,
     isLoading: canFetch && isLoading,
-    hasLoaded: canFetch && summarySource !== undefined,
-    isFallbackEmpty: Boolean(summarySource?.isFallbackEmpty),
+    hasLoaded: view?.hasLoaded ?? false,
+    isFallbackEmpty: view?.isFallbackEmpty ?? false,
     error: canFetch && rawError !== null ? MENTOR_FEEDBACK_LOAD_ERROR : null,
     setPage,
     reload: refetch,

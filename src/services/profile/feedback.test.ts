@@ -1,3 +1,4 @@
+import { fromPartial } from '@total-typescript/shoehorn';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/apiClient', async (importOriginal) => {
@@ -222,5 +223,55 @@ describe('fetchMentorFeedback service (#736 / #760)', () => {
       feedbacks: page1Items,
     });
     expect(withTotalOverRatingCount.totalRatingCount).toBe(13);
+  });
+
+  it('sorts public feedback items newest-first once at ingestion in mapMentorFeedbackResponse (#934)', () => {
+    const mapped = mapMentorFeedbackResponse(
+      fromPartial({
+        total_rating_count: 4,
+        rating_average: 9.0,
+        completed_meeting_count: 20,
+        page: 1,
+        page_size: 10,
+        feedbacks: [
+          {
+            id: 'older',
+            author_name: '王**',
+            rating: 8,
+            content: '較早的評價',
+            created_at: '2026-10-18T10:00:00Z',
+          },
+          {
+            id: 'private-newest',
+            author_name: '私**',
+            rating: 10,
+            content: '不公開評價',
+            created_at: '2026-10-30T10:00:00Z',
+            is_public: false,
+          },
+          {
+            id: 'tie-first',
+            author_name: '陳**',
+            rating: 9,
+            content: '最新評價 A',
+            created_at: '2026-10-28T10:00:00Z',
+          },
+          {
+            id: 'tie-second',
+            author_name: '林**',
+            rating: 10,
+            content: '最新評價 B',
+            created_at: '2026-10-28T10:00:00Z',
+          },
+        ],
+      })
+    );
+
+    expect(mapped.totalRatingCount).toBe(3);
+    expect(mapped.items.map((item) => item.id)).toEqual([
+      'tie-first',
+      'tie-second',
+      'older',
+    ]);
   });
 });
