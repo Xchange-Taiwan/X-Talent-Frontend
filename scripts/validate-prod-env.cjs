@@ -13,13 +13,7 @@ function isValidHttpUrl(raw) {
  * @param {Record<string, string | undefined>} [env]
  */
 function isLiveProductionEnv(env = process.env) {
-  if (env.NEXT_PUBLIC_SENTRY_ENV === 'staging') {
-    return false;
-  }
-  return (
-    env.NEXT_PUBLIC_SENTRY_ENV === 'production' ||
-    env.VERCEL_ENV === 'production'
-  );
+  return env.NEXT_PUBLIC_SENTRY_ENV === 'production';
 }
 
 /**

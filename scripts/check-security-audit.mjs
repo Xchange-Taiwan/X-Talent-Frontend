@@ -103,22 +103,20 @@ export function evaluatePnpmAuditJson(
       highCount +
       criticalCount;
 
-  const unaccountedHigh = Math.max(
-    0,
-    highCount - (blockingHigh.length + waivedHigh.length)
-  );
+  const unmappedHighWithoutAdvisories =
+    highCount > 0 && advisories.length === 0 ? highCount : 0;
   const hasBlocking =
     criticalCount > 0 ||
     blockingCritical.length > 0 ||
     blockingHigh.length > 0 ||
-    unaccountedHigh > 0;
+    unmappedHighWithoutAdvisories > 0;
 
   return {
     passed: !hasBlocking,
     reason: hasBlocking ? 'blocking_vulnerabilities_found' : 'ok',
     criticalCount,
     highCount,
-    unaccountedHigh,
+    unaccountedHigh: unmappedHighWithoutAdvisories,
     totalCount,
     blockingCritical,
     blockingHigh,
