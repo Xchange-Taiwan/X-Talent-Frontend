@@ -1,7 +1,7 @@
 import { Home, Search } from 'lucide-react';
 import Link from 'next/link';
 
-import { StatusRecoveryCard } from '@/components/ErrorBoundary';
+import StatusRecoveryCard from '@/components/StatusRecoveryCard';
 import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 

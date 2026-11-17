@@ -6,7 +6,7 @@ try {
   ({ withSentryConfig } = require('@sentry/nextjs'));
 }
 
-const { validateProductionEnv } = require('./scripts/validate-prod-env.cjs');
+const { validateProductionEnv } = require('./src/lib/prodEnvCore.mjs');
 
 validateProductionEnv(process.env);
 

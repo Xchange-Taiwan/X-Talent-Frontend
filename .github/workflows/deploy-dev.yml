@@ -62,6 +62,7 @@ jobs:
       - name: Build project
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          NEXT_PUBLIC_SENTRY_ENV: staging
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: xchange-6j
           SENTRY_PROJECT: x-talent-frontend

@@ -4,6 +4,7 @@ import { AlertTriangle, Home, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import React from 'react';
 
+import StatusRecoveryCard from '@/components/StatusRecoveryCard';
 import { buildBaseEvent, captureError } from '@/lib/monitoring';
 import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
@@ -18,38 +19,6 @@ interface Props {
 
 interface State {
   hasError: boolean;
-}
-
-export interface StatusRecoveryCardProps {
-  badge?: React.ReactNode;
-  title: string;
-  description: string;
-  actions: React.ReactNode;
-  role?: 'alert' | 'region';
-}
-
-export function StatusRecoveryCard({
-  badge,
-  title,
-  description,
-  actions,
-  role,
-}: StatusRecoveryCardProps) {
-  return (
-    <div
-      role={role}
-      className="border-background-border bg-background-white mx-auto flex w-full max-w-md flex-col items-center rounded-2xl border px-6 py-10 text-center shadow-sm"
-    >
-      {badge}
-      <h2 className="text-navy mb-2 text-xl font-bold">{title}</h2>
-      <p className="text-text-secondary mb-6 text-sm leading-relaxed">
-        {description}
-      </p>
-      <div className="flex flex-wrap items-center justify-center gap-3">
-        {actions}
-      </div>
-    </div>
-  );
 }
 
 export function DefaultErrorFallback({ onRetry }: { onRetry?: () => void }) {
@@ -125,9 +94,20 @@ export default class ErrorBoundary extends React.Component<Props, State> {
     });
   }
 
+  private handleReset = () => {
+    if (typeof window !== 'undefined') {
+      window.location.reload();
+      return;
+    }
+    this.setState({ hasError: false });
+  };
+
   render() {
     if (this.state.hasError) {
-      return this.props.fallback ?? null;
+      if (this.props.fallback !== undefined) {
+        return this.props.fallback;
+      }
+      return <DefaultErrorFallback onRetry={this.handleReset} />;
     }
     return this.props.children;
   }

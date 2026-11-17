@@ -1,8 +1,11 @@
-'use strict';
+const DEV_API_SUFFIX_RE = /\/dev(?:\/api)?\/?$/i;
 
-function isValidHttpUrl(raw) {
+/**
+ * @param {string | undefined} raw
+ */
+export function isValidHttpUrl(raw) {
   try {
-    const parsed = new URL(String(raw).trim());
+    const parsed = new URL(String(raw ?? '').trim());
     return parsed.protocol === 'http:' || parsed.protocol === 'https:';
   } catch {
     return false;
@@ -10,16 +13,29 @@ function isValidHttpUrl(raw) {
 }
 
 /**
+ * Determines whether the current build/runtime targets live Production
+ * (matching featureFlags.ts staging exclusions so `vercel build --prod` on
+ * the separate Dev Vercel project never false-positives).
+ *
  * @param {Record<string, string | undefined>} [env]
  */
-function isLiveProductionEnv(env = process.env) {
-  return env.NEXT_PUBLIC_SENTRY_ENV === 'production';
+export function isLiveProductionEnv(env = process.env) {
+  if (env.NEXT_PUBLIC_SENTRY_ENV === 'staging') {
+    return false;
+  }
+  if (DEV_API_SUFFIX_RE.test(String(env.NEXT_PUBLIC_API_URL ?? ''))) {
+    return false;
+  }
+  return (
+    env.NEXT_PUBLIC_SENTRY_ENV === 'production' ||
+    env.VERCEL_ENV === 'production'
+  );
 }
 
 /**
  * @param {Record<string, string | undefined>} [env]
  */
-function validateProductionEnv(env = process.env) {
+export function validateProductionEnv(env = process.env) {
   if (!isLiveProductionEnv(env)) {
     return;
   }
@@ -50,8 +66,3 @@ function validateProductionEnv(env = process.env) {
     );
   }
 }
-
-module.exports = {
-  isLiveProductionEnv,
-  validateProductionEnv,
-};

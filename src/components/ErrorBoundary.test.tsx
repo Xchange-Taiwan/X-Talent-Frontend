@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { captureError } from '@/lib/monitoring';
 
-import ErrorBoundary, { DefaultErrorFallback } from './ErrorBoundary';
+import ErrorBoundary from './ErrorBoundary';
 
 vi.mock('@/lib/monitoring', () => ({
   buildBaseEvent: vi.fn((name: string, error: unknown) => ({
@@ -42,12 +42,9 @@ describe('ErrorBoundary', () => {
     expect(screen.getByText('healthy-content')).toBeInTheDocument();
   });
 
-  it('renders Traditional Chinese DefaultErrorFallback when supplied as root shell fallback', () => {
+  it('renders Traditional Chinese recovery UI by default instead of a blank screen when fallback is omitted', () => {
     render(
-      <ErrorBoundary
-        componentName="RootShell"
-        fallback={<DefaultErrorFallback />}
-      >
+      <ErrorBoundary componentName="RootAppShell">
         <BrokenChild />
       </ErrorBoundary>
     );
@@ -63,9 +60,9 @@ describe('ErrorBoundary', () => {
     );
   });
 
-  it('preserves silent null fallback by default for widget-level boundaries', () => {
+  it('respects explicit null fallback for silent widget-level boundaries', () => {
     const { container } = render(
-      <ErrorBoundary>
+      <ErrorBoundary fallback={null}>
         <BrokenChild />
       </ErrorBoundary>
     );
