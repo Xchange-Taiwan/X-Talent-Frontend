@@ -752,6 +752,8 @@ describe('MentorScheduleDialog', () => {
     unmount();
 
     vi.mocked(trackEvent).mockClear();
+    const { upgradeClaritySession } = await import('@/lib/analytics');
+    vi.mocked(upgradeClaritySession).mockClear();
     const conflictSchedule = createMockSchedule({
       confirmChanges: vi
         .fn()
@@ -770,5 +772,6 @@ describe('MentorScheduleDialog', () => {
       fireEvent.click(screen.getByRole('button', { name: '儲存' }));
     });
     expect(trackEvent).not.toHaveBeenCalled();
+    expect(upgradeClaritySession).toHaveBeenCalledWith('schedule_save_failed');
   });
 });

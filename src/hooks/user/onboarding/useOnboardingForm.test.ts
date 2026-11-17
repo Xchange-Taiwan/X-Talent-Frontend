@@ -134,13 +134,22 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
       feature: 'onboarding',
     });
 
-    // Step 2 invalid when years_of_experience is empty -> stays on Step 2
+    // Step 2 invalid when years_of_experience is empty -> stays on Step 2 and reports exact invalid field (not valid 'location')
     let step2Invalid = true;
     await act(async () => {
       step2Invalid = await result.current.advanceStep();
     });
     expect(step2Invalid).toBe(false);
     expect(result.current.currentStep).toBe(2);
+    expect(mockTrackFormValidationFailed).toHaveBeenCalledWith({
+      feature: 'onboarding',
+      formId: 'mentee_onboarding',
+      invalidKeys: ['years_of_experience'],
+      step: 2,
+    });
+    expect(
+      JSON.stringify(mockTrackFormValidationFailed.mock.calls)
+    ).not.toContain('John Doe');
 
     // Fill Step 2 -> advances to Step 3
     act(() => {

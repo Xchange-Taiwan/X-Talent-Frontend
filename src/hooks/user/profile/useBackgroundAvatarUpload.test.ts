@@ -554,5 +554,39 @@ describe('useBackgroundAvatarUpload', () => {
       '王小明'
     );
     expect(mockTrackEvent).not.toHaveBeenCalled();
+
+    // Direct consume() fallback failure also upgrades Clarity without PII
+    mockUpgradeClaritySession.mockClear();
+    mockUpdateAvatar.mockRejectedValueOnce(
+      new Error('Direct upload failed for 王小明_2.jpg')
+    );
+    const directFile = new File(['bytes2'], '王小明_2.jpg', {
+      type: 'image/jpeg',
+    });
+    await expect(result.current.consume(directFile)).rejects.toThrow();
+    expect(mockUpgradeClaritySession).toHaveBeenCalledWith(
+      'avatar_upload_failed'
+    );
+
+    // Aborted/superseded kickOff does NOT call upgradeClaritySession
+    mockUpgradeClaritySession.mockClear();
+    mockUpdateAvatar.mockImplementationOnce(
+      (_file, _uid, signal?: AbortSignal) =>
+        new Promise((_resolve, reject) => {
+          signal?.addEventListener('abort', () => {
+            reject(new Error('Aborted'));
+          });
+        })
+    );
+    mockUpdateAvatar.mockResolvedValueOnce('https://cdn.example.com/ok.jpg');
+    const firstFile = new File(['1'], 'first.jpg', { type: 'image/jpeg' });
+    const secondFile = new File(['2'], 'second.jpg', { type: 'image/jpeg' });
+    await act(async () => {
+      result.current.kickOff(firstFile, null);
+      result.current.kickOff(secondFile, null);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(mockUpgradeClaritySession).not.toHaveBeenCalled();
   });
 });

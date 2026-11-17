@@ -108,18 +108,26 @@ export function useOnboardingForm({
     const fields = STEP_FIELDS[currentStep];
     const isValid = await form.trigger(fields);
     if (!isValid) {
+      const parsedStep = formSchema.safeParse(form.getValues());
+      const schemaInvalidSet = new Set<string>(
+        parsedStep.success
+          ? []
+          : parsedStep.error.issues
+              .map((issue) => String(issue.path[0] ?? ''))
+              .filter(Boolean)
+      );
       const stepErrorKeys = fields
-        .filter((f) => Boolean(form.formState.errors[f]))
-        .map((f) => String(f));
-      const fallbackKeys =
-        stepErrorKeys.length > 0
-          ? stepErrorKeys
-          : Object.keys(form.formState.errors);
+        .map((f) => String(f))
+        .filter(
+          (key) =>
+            schemaInvalidSet.has(key) ||
+            form.getFieldState(key as keyof OnboardingFormValues).invalid
+        );
       trackFormValidationFailed({
         feature: 'onboarding',
         formId: 'mentee_onboarding',
         invalidKeys:
-          fallbackKeys.length > 0 ? fallbackKeys : [String(fields[0])],
+          stepErrorKeys.length > 0 ? stepErrorKeys : [String(fields[0])],
         step: currentStep,
       });
       return false;
