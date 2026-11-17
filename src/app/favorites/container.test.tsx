@@ -228,7 +228,11 @@ describe('FavoritesPageContainer', () => {
       })
     );
 
-    expect(removeMock).toHaveBeenCalledWith(101, expect.any(AbortSignal));
+    expect(removeMock).toHaveBeenCalledWith(
+      '9001',
+      101,
+      expect.any(AbortSignal)
+    );
     expect(trackEventSpy).toHaveBeenCalledWith({
       name: 'mentor_bookmark_toggle',
       feature: 'favorites',
@@ -259,7 +263,11 @@ describe('FavoritesPageContainer', () => {
       screen.getByRole('button', { name: '取消收藏 陳宥廷 Austin' })
     );
 
-    expect(removeMock).toHaveBeenCalledWith(102, expect.any(AbortSignal));
+    expect(removeMock).toHaveBeenCalledWith(
+      '9001',
+      102,
+      expect.any(AbortSignal)
+    );
     expect(screen.getByText('已收藏 0 位導師')).toBeInTheDocument();
     expect(screen.getByText('還沒有收藏的導師')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '尋找導師' })).toHaveAttribute(

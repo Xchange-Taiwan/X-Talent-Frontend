@@ -47,24 +47,28 @@ describe('createFavoriteMentorsReadModel (#908)', () => {
     let resolveGetUser1!: (items: MentorType[]) => void;
     let resolvePutUser1!: () => void;
 
-    const fetchMock = vi.fn().mockImplementation((signal?: AbortSignal) => {
-      if (!getSignal) {
-        getSignal = signal;
-        return new Promise<MentorType[]>((resolve) => {
-          resolveGetUser1 = resolve;
-        });
-      }
-      return Promise.resolve([makeMentor(202)]);
-    });
+    const fetchMock = vi
+      .fn()
+      .mockImplementation((_userId: string, signal?: AbortSignal) => {
+        if (!getSignal) {
+          getSignal = signal;
+          return new Promise<MentorType[]>((resolve) => {
+            resolveGetUser1 = resolve;
+          });
+        }
+        return Promise.resolve([makeMentor(202)]);
+      });
 
     const addMock = vi
       .fn()
-      .mockImplementation((_id: number, signal?: AbortSignal) => {
-        putSignal = signal;
-        return new Promise<void>((resolve) => {
-          resolvePutUser1 = resolve;
-        });
-      });
+      .mockImplementation(
+        (_userId: string, _id: number, signal?: AbortSignal) => {
+          putSignal = signal;
+          return new Promise<void>((resolve) => {
+            resolvePutUser1 = resolve;
+          });
+        }
+      );
 
     const trackAnalytics = vi.fn();
     const model = createFavoriteMentorsReadModel({
@@ -111,6 +115,21 @@ describe('createFavoriteMentorsReadModel (#908)', () => {
     await vi.waitFor(() => {
       expect(updatesUser2).toContainEqual([202]);
     });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'user-1',
+      expect.any(AbortSignal)
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'user-2',
+      expect.any(AbortSignal)
+    );
+    expect(addMock).toHaveBeenCalledWith(
+      'user-1',
+      101,
+      expect.any(AbortSignal)
+    );
 
     unsub1();
     unsub2();

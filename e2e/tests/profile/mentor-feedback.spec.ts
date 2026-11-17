@@ -215,11 +215,11 @@ async function setupBaseMentorMocks(
     token: 'mock-mentee-token',
   });
 
-  await mockApiRoute(page, /\/v1\/me\/favorite-mentors(\?|$)/, {
+  await mockApiRoute(page, /\/v1\/users\/[^/]+\/favorite-mentors(\?|$)/, {
     body: {
       code: '0',
       msg: 'ok',
-      data: { mentors: [] },
+      data: [],
     },
   });
 
@@ -860,8 +860,8 @@ test.describe('導師個人頁評價區塊與 RWD 排版 (#736)', () => {
       company: 'Studio X',
     });
 
-    await mockApiRoute(page, /\/v1\/me\/favorite-mentors(\?|$)/, {
-      body: { code: '0', msg: 'ok', data: { mentors: [] } },
+    await mockApiRoute(page, /\/v1\/users\/[^/]+\/favorite-mentors(\?|$)/, {
+      body: { code: '0', msg: 'ok', data: [] },
     });
     await mockApiRoute(page, /\/v1\/users\/.*\/notifications\/unread-count/, {
       body: { code: '0', msg: 'ok', data: { unread_count: 0 } },

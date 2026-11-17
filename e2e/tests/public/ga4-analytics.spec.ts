@@ -170,8 +170,8 @@ test.describe('GA4 事件追蹤：page_view、scroll_depth [25,50,75,100]、核�
         body: JSON.stringify(MOCK_MENTORS_RESPONSE),
       })
     );
-    await mockApiRoute(page, /\/v1\/me\/favorite-mentors(\?|$)/, {
-      body: { code: '0', msg: 'ok', data: { mentors: [] } },
+    await mockApiRoute(page, /\/v1\/users\/[^/]+\/favorite-mentors(\?|$)/, {
+      body: { code: '0', msg: 'ok', data: [] },
     });
   });
 

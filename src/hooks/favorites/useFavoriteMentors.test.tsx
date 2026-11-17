@@ -131,7 +131,7 @@ describe('useFavoriteMentors', () => {
       expect(result.current.isStoreReadyForUser).toBe(true);
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith('9001', expect.any(AbortSignal));
     expect(result.current.isLoading).toBe(false);
     expect(result.current.favoriteMentors.map((m) => m.user_id)).toEqual([
       101, 102,
@@ -145,7 +145,11 @@ describe('useFavoriteMentors', () => {
       });
     });
 
-    expect(removeMock).toHaveBeenCalledWith(101, expect.any(AbortSignal));
+    expect(removeMock).toHaveBeenCalledWith(
+      '9001',
+      101,
+      expect.any(AbortSignal)
+    );
     expect(result.current.favoriteMentors.map((m) => m.user_id)).toEqual([102]);
   });
 

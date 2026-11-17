@@ -325,8 +325,8 @@ async function mockProfileDependencies(
   await mockApiRoute(page, /\/v1\/users\/.*\/notifications\/unread-count/, {
     body: { code: '0', msg: 'ok', data: { unread_count: 0 } },
   });
-  await mockApiRoute(page, /\/v1\/me\/favorite-mentors/, {
-    body: { code: '0', msg: 'ok', data: { mentors: [] } },
+  await mockApiRoute(page, /\/v1\/users\/[^/]+\/favorite-mentors(\?|$)/, {
+    body: { code: '0', msg: 'ok', data: [] },
   });
   await mockApiRoute(page, scheduleRe, {
     body: { code: '0', msg: 'ok', data: { segments: [], slots: [] } },

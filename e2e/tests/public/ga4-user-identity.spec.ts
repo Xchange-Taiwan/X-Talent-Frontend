@@ -226,8 +226,8 @@ test.describe('GA4 會員身分識別 user_id、user_role 與 login/sign_up 認�
     await mockApiRoute(page, /\/v1\/mentors/, {
       body: MOCK_MENTORS_RESPONSE,
     });
-    await mockApiRoute(page, /\/v1\/me\/favorite-mentors(\?|$)/, {
-      body: { code: '0', msg: 'ok', data: { mentors: [] } },
+    await mockApiRoute(page, /\/v1\/users\/[^/]+\/favorite-mentors(\?|$)/, {
+      body: { code: '0', msg: 'ok', data: [] },
     });
   });
 
