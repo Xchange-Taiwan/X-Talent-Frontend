@@ -1,70 +1,130 @@
-import { AsyncReadManager } from '@/lib/asyncReadManager';
-import { hasProfileDtoConverged } from '@/lib/profile/convergence';
+import type {
+  AsyncCacheSnapshot,
+  AsyncPrimeOptions,
+  AsyncReadOptions,
+  AsyncReadResult,
+  AsyncReadSource,
+} from '@/lib/asyncReadManager';
+import {
+  hasDtoConverged,
+  hasProfileDtoConverged,
+  parseProfileCacheKey,
+  type ProfileFetcher,
+  profileReadModel,
+  USER_PROFILE_DTO_CACHE_TTL_MS,
+} from '@/lib/profile/profileReadModel';
 import type { MentorProfileVO } from '@/types/user';
 
-export { hasProfileDtoConverged };
+export {
+  hasDtoConverged,
+  hasProfileDtoConverged,
+  USER_PROFILE_DTO_CACHE_TTL_MS,
+};
 
-export const USER_PROFILE_DTO_CACHE_TTL_MS = 60_000;
-
-export const userProfileDtoReadManager = new AsyncReadManager<
+export interface LegacyProfileDtoReadManager extends AsyncReadSource<
   string,
   MentorProfileVO | null
->({
-  ttlMs: USER_PROFILE_DTO_CACHE_TTL_MS,
-});
-
-let lastPrimedTime = 0;
-let transitionTimer: ReturnType<typeof setTimeout> | null = null;
-const transitionListeners = new Set<() => void>();
-
-const OPTIMISTIC_TRANSITION_WINDOW_MS = 10000;
-
-export function subscribeTransition(listener: () => void): () => void {
-  transitionListeners.add(listener);
-  return () => {
-    transitionListeners.delete(listener);
-  };
-}
-
-function notifyTransitionListeners(): void {
-  transitionListeners.forEach((listener) => {
-    try {
-      listener();
-    } catch (e) {
-      console.error('Error in transition listener:', e);
-    }
-  });
-}
-
-export function getLastPrimedTime(): number {
-  return lastPrimedTime;
-}
-
-export function isOptimisticTransitionActive(): boolean {
-  return Date.now() - lastPrimedTime < OPTIMISTIC_TRANSITION_WINDOW_MS;
+> {
+  peek(key: string): MentorProfileVO | null | undefined;
+  getSnapshot(
+    key: string
+  ): AsyncCacheSnapshot<MentorProfileVO | null> | undefined;
+  prime(
+    key: string,
+    value: MentorProfileVO | null,
+    options?: AsyncPrimeOptions
+  ): void;
+  observe(key: string, listener: () => void): () => void;
+  evict(key: string): void;
+  invalidate(key: string): void;
+  clear(): void;
 }
 
 /**
- * Removes a user's entry from the in-memory cache so the next call to
- * useUserProfileDto for that user triggers a fresh API fetch. Call this after
- * a successful profile update to prevent any concurrent mount from receiving
- * stale data.
+ * Thin string-keyed compatibility adapter delegating 100% of state to
+ * `profileReadModel`.
  */
+export const userProfileDtoReadManager: LegacyProfileDtoReadManager = {
+  get(rawKey) {
+    const parsed = parseProfileCacheKey(rawKey);
+    return parsed ? profileReadModel.get(parsed) : undefined;
+  },
+  peek(rawKey) {
+    const parsed = parseProfileCacheKey(rawKey);
+    return parsed ? profileReadModel.peek(parsed) : undefined;
+  },
+  getSnapshot(rawKey) {
+    const parsed = parseProfileCacheKey(rawKey);
+    return parsed ? profileReadModel.getSnapshot(parsed) : undefined;
+  },
+  set(rawKey, value, ttlMs) {
+    const parsed = parseProfileCacheKey(rawKey);
+    if (parsed) {
+      profileReadModel.set(parsed, value, ttlMs);
+    }
+  },
+  prime(rawKey, value, options) {
+    const parsed = parseProfileCacheKey(rawKey);
+    if (parsed) {
+      profileReadModel.prime(parsed, value, options);
+    }
+  },
+  subscribe(
+    rawKey: string,
+    fetcher: ProfileFetcher,
+    onUpdate: (result: AsyncReadResult<MentorProfileVO | null>) => void,
+    options?: AsyncReadOptions<MentorProfileVO | null>
+  ) {
+    const parsed = parseProfileCacheKey(rawKey);
+    if (!parsed) {
+      return () => {};
+    }
+    return profileReadModel.subscribe(parsed, fetcher, onUpdate, options);
+  },
+  observe(rawKey, listener) {
+    const parsed = parseProfileCacheKey(rawKey);
+    return parsed ? profileReadModel.observe(parsed, listener) : () => {};
+  },
+  evict(rawKey) {
+    const parsed = parseProfileCacheKey(rawKey);
+    if (parsed) {
+      profileReadModel.evict(parsed);
+    }
+  },
+  invalidate(rawKey) {
+    const parsed = parseProfileCacheKey(rawKey);
+    if (parsed) {
+      profileReadModel.invalidate(parsed);
+    }
+  },
+  clear() {
+    profileReadModel.clear();
+  },
+};
+
+export function subscribeTransition(listener: () => void): () => void {
+  return profileReadModel.subscribeTransition(listener);
+}
+
+export function getLastPrimedTime(): number {
+  return profileReadModel.getLastPrimedTime();
+}
+
+export function isOptimisticTransitionActive(): boolean {
+  return profileReadModel.isOptimisticTransitionActive();
+}
+
 export function clearUserProfileDtoCache(
   userId?: number,
   language?: string
 ): void {
   if (userId !== undefined && language !== undefined) {
-    userProfileDtoReadManager.invalidate(`${userId}-${language}`);
+    profileReadModel.invalidate({ userId, language });
+  } else if (userId !== undefined) {
+    profileReadModel.invalidateUser(userId);
   } else {
-    userProfileDtoReadManager.clear();
+    profileReadModel.clear();
   }
-  lastPrimedTime = 0;
-  if (transitionTimer) {
-    clearTimeout(transitionTimer);
-    transitionTimer = null;
-  }
-  notifyTransitionListeners();
 }
 
 export function subscribeUserProfileDtoCache(
@@ -72,121 +132,51 @@ export function subscribeUserProfileDtoCache(
   language: string,
   listener: () => void
 ): () => void {
-  const key = `${userId}-${language}`;
-  return userProfileDtoReadManager.observe(key, listener);
+  return profileReadModel.observe({ userId, language }, listener);
 }
 
 export function getUserProfileDtoFromCache(
   userId: number,
   language: string
 ): MentorProfileVO | null {
-  return userProfileDtoReadManager.peek(`${userId}-${language}`) ?? null;
+  return profileReadModel.peek({ userId, language }) ?? null;
 }
 
-/**
- * Compatibility alias over canonical `hasProfileDtoConverged` from `convergence.ts`.
- */
-export const hasDtoConverged = hasProfileDtoConverged;
-
-/**
- * Resolves effective initialData for SSR hydration: skips stale SSR initialData
- * when a client-side cache entry (fresh or stale) already exists for `key`.
- */
 export function getEffectiveInitialDto(
   key: string | null,
   initialData?: MentorProfileVO | null
 ): MentorProfileVO | null | undefined {
-  const hasCache = key
-    ? userProfileDtoReadManager.getSnapshot(key) !== undefined
-    : false;
-  return hasCache ? undefined : initialData;
+  return profileReadModel.resolveInitialData(
+    parseProfileCacheKey(key),
+    initialData
+  );
 }
 
-/**
- * Guard predicate for `useAsyncRead` `shouldCache`: only cache non-null DTOs
- * whose reference differs from a non-expired cached entry or newly refreshes
- * an expired entry.
- */
 export function shouldCacheUserProfileDto(
   key: string | null,
   res: MentorProfileVO | null
 ): boolean {
-  return res !== null && (!key || res !== userProfileDtoReadManager.get(key));
+  return profileReadModel.shouldCache(parseProfileCacheKey(key), res);
 }
 
-/**
- * Encapsulates SWR fetch resolution, null/error eviction on manual refetch,
- * and `hasProfileDtoConverged` protection for primed optimistic DTOs during
- * background revalidation.
- */
-export async function resolveUserProfileDtoFetch(
+export function resolveUserProfileDtoFetch(
   key: string | null,
   fetcher: (signal: AbortSignal) => Promise<MentorProfileVO | null>,
   signal: AbortSignal,
   context?: { force?: boolean }
 ): Promise<MentorProfileVO | null> {
-  const isManualRefetch = !!context?.force;
-  try {
-    const res = await fetcher(signal);
-
-    if (res === null && key) {
-      if (isManualRefetch) {
-        userProfileDtoReadManager.evict(key);
-        return null;
-      }
-      const existing = userProfileDtoReadManager.peek(key);
-      if (existing) {
-        return existing;
-      }
-      return null;
-    }
-
-    if (
-      res !== null &&
-      key &&
-      !isManualRefetch &&
-      isOptimisticTransitionActive()
-    ) {
-      const existing = userProfileDtoReadManager.peek(key);
-      if (existing && !hasProfileDtoConverged(existing, res)) {
-        return existing;
-      }
-    }
-
-    return res;
-  } catch (err) {
-    if (isManualRefetch && key) {
-      userProfileDtoReadManager.evict(key);
-    }
-    throw err;
-  }
+  return profileReadModel.resolveFetch(
+    parseProfileCacheKey(key),
+    fetcher,
+    signal,
+    context
+  );
 }
 
-/**
- * Writes a known-fresh dto into the in-memory cache so the next consumer of
- * useUserProfileDto for this user renders from cache without an API call.
- * Call this after the caller has already retrieved authoritative data (e.g.
- * pollUntilSynced result post profile-submit) to prime the cache before
- * navigating to a page that reads the same dto.
- *
- * This overwrites unconditionally and cancels any competing in-flight read.
- */
 export function primeUserProfileDtoCache(
   userId: number,
   language: string,
   data: MentorProfileVO
 ): void {
-  const key = `${userId}-${language}`;
-  userProfileDtoReadManager.prime(key, data);
-  lastPrimedTime = Date.now();
-
-  if (transitionTimer) {
-    clearTimeout(transitionTimer);
-  }
-  transitionTimer = setTimeout(() => {
-    transitionTimer = null;
-    notifyTransitionListeners();
-  }, OPTIMISTIC_TRANSITION_WINDOW_MS);
-
-  notifyTransitionListeners();
+  profileReadModel.prime({ userId, language }, data);
 }

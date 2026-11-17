@@ -7,9 +7,9 @@ vi.mock('@/services/profile/user', () => ({
 }));
 
 import {
-  clearUserProfileDtoCache,
-  USER_PROFILE_DTO_CACHE_TTL_MS as TTL_MS,
-} from '@/lib/cache/userProfileDtoCache';
+  PROFILE_READ_MODEL_TTL_MS as TTL_MS,
+  profileReadModel,
+} from '@/lib/profile/profileReadModel';
 import { EMPTY_TAG_CATALOGS } from '@/services/profile/tagCatalog';
 import { fetchUserById } from '@/services/profile/user';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
@@ -210,7 +210,7 @@ describe('useUserData caching', () => {
     second.unmount();
   });
 
-  it('clearUserProfileDtoCache forces a refetch on next mount', async () => {
+  it('profileReadModel.invalidateUser forces a refetch on next mount', async () => {
     const userId = 4003;
     mockFetchUserById.mockResolvedValue(makeUserDto(userId));
 
@@ -218,7 +218,7 @@ describe('useUserData caching', () => {
     await waitFor(() => expect(first.result.current.isLoading).toBe(false));
     first.unmount();
 
-    clearUserProfileDtoCache(userId, 'en');
+    profileReadModel.invalidateUser(userId);
 
     const second = renderHook(() => useUserData(userId, 'en'));
     await waitFor(() => expect(second.result.current.isLoading).toBe(false));

@@ -1,16 +1,16 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
 import { useAsyncRead } from '@/hooks/useAsyncRead';
 import {
   clearUserProfileDtoCache,
-  getEffectiveInitialDto,
-  hasDtoConverged,
   primeUserProfileDtoCache,
-  resolveUserProfileDtoFetch,
-  shouldCacheUserProfileDto,
-  USER_PROFILE_DTO_CACHE_TTL_MS,
-  userProfileDtoReadManager,
 } from '@/lib/cache/userProfileDtoCache';
+import {
+  hasDtoConverged,
+  type ProfileReadKey,
+  profileReadModel,
+  USER_PROFILE_DTO_CACHE_TTL_MS,
+} from '@/lib/profile/profileReadModel';
 import { fetchUserById } from '@/services/profile/user';
 import type { MentorProfileVO } from '@/types/user';
 
@@ -41,50 +41,37 @@ export function useUserProfileDto(
   initialData?: MentorProfileVO | null,
   options?: { enabled?: boolean }
 ): UseUserProfileDtoResult {
-  const [manualRetryCount, setManualRetryCount] = useState(0);
-  const key = userId && language ? `${userId}-${language}` : null;
-  const effectiveInitialData = getEffectiveInitialDto(key, initialData);
-  const bypassKey =
-    options?.enabled === false ||
-    (effectiveInitialData === null && manualRetryCount === 0)
-      ? null
-      : key;
+  const readKey = useMemo<ProfileReadKey | null>(
+    () => (userId && language ? { userId, language } : null),
+    [userId, language]
+  );
+  const enabled = options?.enabled !== false;
+  const activeKey = enabled ? readKey : null;
 
   const {
     data: asyncReadData,
     isLoading,
     error,
-    refetch: rawRefetch,
+    refetch,
   } = useAsyncRead(
-    userProfileDtoReadManager,
-    bypassKey,
-    (signal, context) =>
-      resolveUserProfileDtoFetch(
-        key,
-        (s) => fetchUserById(userId, language, s),
-        signal,
-        context
-      ),
+    profileReadModel,
+    activeKey,
+    (signal) => fetchUserById(userId, language, signal),
     {
-      initialData: effectiveInitialData,
-      shouldCache: (res) => shouldCacheUserProfileDto(key, res),
+      initialData,
     }
   );
 
-  const refetch = useCallback(() => {
-    setManualRetryCount((c) => c + 1);
-    rawRefetch();
-  }, [rawRefetch]);
+  const userDto = enabled
+    ? asyncReadData
+    : readKey
+      ? (profileReadModel.peek(readKey) ?? null)
+      : null;
 
-  const cachedData = key ? userProfileDtoReadManager.peek(key) : null;
-  const userDto =
-    options?.enabled === false ? (cachedData ?? null) : asyncReadData;
-
-  // Map errors and handle "USER_NOT_FOUND" distinction
   let resolvedError: ProfileFetchError = null;
   if (error && !userDto) {
     resolvedError = 'FETCH_FAILED';
-  } else if (!isLoading && !userDto && key) {
+  } else if (!isLoading && !userDto && readKey) {
     resolvedError = 'USER_NOT_FOUND';
   }
 
