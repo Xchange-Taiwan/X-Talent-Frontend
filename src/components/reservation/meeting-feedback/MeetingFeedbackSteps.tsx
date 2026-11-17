@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils';
 import {
   MAX_FEEDBACK_CONTENT_LENGTH,
   MAX_NOT_HAPPENED_NOTE_LENGTH,
+  type MeetingFeedbackFooterModel,
   MENTOR_NOT_HAPPENED_WARNING_TEXT,
 } from '@/schemas/meetingFeedbackSchema';
 import {
@@ -368,86 +369,42 @@ export function NotHappenedStepContent({
 }
 
 export interface MeetingFeedbackFooterProps {
-  effectiveStep: 'attendance' | 'rating' | 'not-happened';
-  isEditMode: boolean;
-  isMentor?: boolean;
-  meetingHappened?: boolean | null;
-  isSubmitting: boolean;
-  isTransitioningCard: boolean;
-  canProceedAttendance: boolean;
-  canSubmitStep2: boolean;
-  hasRemainingQueueCard?: boolean;
+  footerModel: MeetingFeedbackFooterModel;
   onNextFromAttendance: () => void;
   onBackToAttendance: () => void;
   onCancelEdit: () => void;
 }
 
 export function MeetingFeedbackFooter({
-  effectiveStep,
-  isEditMode,
-  isMentor = false,
-  meetingHappened = null,
-  isSubmitting,
-  isTransitioningCard,
-  canProceedAttendance,
-  canSubmitStep2,
-  hasRemainingQueueCard = false,
+  footerModel,
   onNextFromAttendance,
   onBackToAttendance,
   onCancelEdit,
 }: MeetingFeedbackFooterProps) {
-  if (effectiveStep === 'attendance') {
-    if (isMentor && meetingHappened !== false) {
-      if (meetingHappened === true) {
-        return (
-          <DialogFooter className="bg-background-white flex shrink-0 flex-row justify-end px-5 pt-2 pb-5 sm:space-x-0 sm:px-6 sm:pb-6">
-            <Button
-              key="mentor-submit-happened"
-              type="submit"
-              disabled={
-                !canProceedAttendance || isSubmitting || isTransitioningCard
-              }
-              className="bg-brand-500 text-text-primary hover:bg-brand-400 rounded-md px-4 disabled:opacity-45"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-1.5 size-4 animate-spin" />
-                  送出中...
-                </>
-              ) : (
-                '確定送出'
-              )}
-            </Button>
-          </DialogFooter>
-        );
-      }
+  const { layoutVariant, primaryAction, secondaryAction } = footerModel;
 
-      return (
-        <DialogFooter className="bg-background-white flex shrink-0 flex-row justify-end px-5 pt-2 pb-5 sm:space-x-0 sm:px-6 sm:pb-6">
-          <Button
-            key="mentor-submit-unselected"
-            type="button"
-            disabled
-            className="bg-brand-500 text-text-primary hover:bg-brand-400 rounded-md px-4 disabled:opacity-45"
-          >
-            確定送出
-          </Button>
-        </DialogFooter>
-      );
-    }
-
+  if (!secondaryAction) {
     return (
       <DialogFooter className="bg-background-white flex shrink-0 flex-row justify-end px-5 pt-2 pb-5 sm:space-x-0 sm:px-6 sm:pb-6">
         <Button
-          key="attendance-next"
-          type="button"
-          disabled={
-            !canProceedAttendance || isSubmitting || isTransitioningCard
+          key={`${primaryAction.actionKind}-${primaryAction.type}`}
+          type={primaryAction.type}
+          disabled={primaryAction.disabled}
+          onClick={
+            primaryAction.actionKind === 'next-step'
+              ? onNextFromAttendance
+              : undefined
           }
-          onClick={onNextFromAttendance}
           className="bg-brand-500 text-text-primary hover:bg-brand-400 rounded-md px-4 disabled:opacity-45"
         >
-          <span>下一步</span>
+          {primaryAction.isLoading ? (
+            <>
+              <Loader2 className="mr-1.5 size-4 animate-spin" />
+              {primaryAction.label}
+            </>
+          ) : (
+            primaryAction.label
+          )}
         </Button>
       </DialogFooter>
     );
@@ -457,53 +414,39 @@ export function MeetingFeedbackFooter({
     <DialogFooter
       className={cn(
         'bg-background-white flex shrink-0 flex-row items-center justify-between gap-3 px-5 sm:justify-between sm:space-x-0 sm:px-6',
-        effectiveStep === 'not-happened'
-          ? isMentor
-            ? 'pt-1.5 pb-4 sm:pb-5'
-            : 'border-background-border/70 border-t py-3 sm:py-3.5'
-          : 'pt-1 pb-5 sm:pb-6'
+        layoutVariant === 'mentor-not-happened'
+          ? 'pt-1.5 pb-4 sm:pb-5'
+          : layoutVariant === 'mentee-not-happened'
+            ? 'border-background-border/70 border-t py-3 sm:py-3.5'
+            : 'pt-1 pb-5 sm:pb-6'
       )}
     >
-      {isEditMode ? (
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={isSubmitting}
-          onClick={onCancelEdit}
-          className="text-text-secondary hover:bg-background-bottom hover:text-text-primary rounded-md px-2.5"
-        >
-          取消
-        </Button>
-      ) : (
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={isSubmitting}
-          onClick={onBackToAttendance}
-          className="text-text-secondary hover:bg-background-bottom hover:text-text-primary rounded-md px-2.5"
-        >
-          上一步
-        </Button>
-      )}
+      <Button
+        type="button"
+        variant="ghost"
+        disabled={secondaryAction.disabled}
+        onClick={
+          secondaryAction.actionKind === 'cancel-edit'
+            ? onCancelEdit
+            : onBackToAttendance
+        }
+        className="text-text-secondary hover:bg-background-bottom hover:text-text-primary rounded-md px-2.5"
+      >
+        {secondaryAction.label}
+      </Button>
 
       <Button
         type="submit"
-        disabled={!canSubmitStep2 || isSubmitting || isTransitioningCard}
+        disabled={primaryAction.disabled}
         className="bg-brand-500 text-text-primary hover:bg-brand-400 rounded-md px-4"
       >
-        {isSubmitting ? (
+        {primaryAction.isLoading ? (
           <>
             <Loader2 className="mr-1.5 size-4 animate-spin" />
-            {isEditMode ? '儲存中...' : '送出中...'}
+            {primaryAction.label}
           </>
-        ) : isEditMode ? (
-          '儲存'
-        ) : hasRemainingQueueCard ? (
-          '送出並填下一場'
-        ) : isMentor ? (
-          '送出'
         ) : (
-          '送出回饋'
+          primaryAction.label
         )}
       </Button>
     </DialogFooter>

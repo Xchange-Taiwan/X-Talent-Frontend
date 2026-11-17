@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  canProceedAttendanceStep,
+  canSubmitNotHappenedStep,
+  canSubmitRatingStep,
   createMeetingFeedbackFormSchema,
   DEFAULT_MEETING_RATING,
   MAX_FEEDBACK_CONTENT_LENGTH,
   MAX_NOT_HAPPENED_NOTE_LENGTH,
   type MeetingFeedbackFormValues,
   MENTOR_NOT_HAPPENED_WARNING_TEXT,
+  resolveMeetingFeedbackFooterModel,
   toSubmitFeedbackPayload,
   toUpdateFeedbackPayload,
 } from './meetingFeedbackSchema';
@@ -369,5 +373,345 @@ describe('meetingFeedbackSchema', () => {
         content: 'a'.repeat(MAX_FEEDBACK_CONTENT_LENGTH + 1),
       })
     ).toBeNull();
+  });
+
+  describe('pure step validity helpers', () => {
+    it('evaluates attendance step validity via canProceedAttendanceStep', () => {
+      expect(canProceedAttendanceStep(null)).toBe(false);
+      expect(canProceedAttendanceStep(true)).toBe(true);
+      expect(canProceedAttendanceStep(false)).toBe(true);
+    });
+
+    it('evaluates rating step validity via canSubmitRatingStep against schema bounds', () => {
+      expect(
+        canSubmitRatingStep({
+          rating: 10,
+          content: '',
+        })
+      ).toBe(true);
+
+      expect(
+        canSubmitRatingStep({
+          rating: 8,
+          content: 'a'.repeat(MAX_FEEDBACK_CONTENT_LENGTH),
+        })
+      ).toBe(true);
+
+      expect(
+        canSubmitRatingStep({
+          rating: 8,
+          content: 'a'.repeat(MAX_FEEDBACK_CONTENT_LENGTH + 1),
+        })
+      ).toBe(false);
+
+      expect(
+        canSubmitRatingStep({
+          rating: 0,
+          content: '有效字數但無效分數',
+        })
+      ).toBe(false);
+    });
+
+    it('evaluates not-happened step validity via canSubmitNotHappenedStep including OTHER note rules', () => {
+      expect(
+        canSubmitNotHappenedStep({
+          notHappenedReason: null,
+          notHappenedNote: '',
+        })
+      ).toBe(false);
+
+      expect(
+        canSubmitNotHappenedStep({
+          notHappenedReason: 'COUNTERPART_ABSENT',
+          notHappenedNote: 'a'.repeat(MAX_NOT_HAPPENED_NOTE_LENGTH + 20),
+        })
+      ).toBe(true);
+
+      expect(
+        canSubmitNotHappenedStep({
+          notHappenedReason: 'MENTOR_ABSENT',
+          notHappenedNote: '',
+        })
+      ).toBe(true);
+
+      expect(
+        canSubmitNotHappenedStep({
+          notHappenedReason: 'OTHER',
+          notHappenedNote: '',
+        })
+      ).toBe(true);
+
+      expect(
+        canSubmitNotHappenedStep({
+          notHappenedReason: 'OTHER',
+          notHappenedNote: 'a'.repeat(MAX_NOT_HAPPENED_NOTE_LENGTH),
+        })
+      ).toBe(true);
+
+      expect(
+        canSubmitNotHappenedStep({
+          notHappenedReason: 'OTHER',
+          notHappenedNote: 'a'.repeat(MAX_NOT_HAPPENED_NOTE_LENGTH + 1),
+        })
+      ).toBe(false);
+    });
+  });
+
+  describe('resolveMeetingFeedbackFooterModel', () => {
+    const baseValues: MeetingFeedbackFormValues = {
+      meetingHappened: null,
+      rating: DEFAULT_MEETING_RATING,
+      content: '',
+      notHappenedReason: null,
+      notHappenedNote: '',
+    };
+
+    it('resolves Mentee Step 1 attendance footer (disabled until selected, button next-step)', () => {
+      const unselected = resolveMeetingFeedbackFooterModel({
+        step: 'attendance',
+        role: 'mentee',
+        values: baseValues,
+      });
+      expect(unselected.primaryAction).toEqual({
+        label: '下一步',
+        type: 'button',
+        disabled: true,
+        actionKind: 'next-step',
+        isLoading: false,
+      });
+      expect(unselected.secondaryAction).toBeNull();
+
+      const selected = resolveMeetingFeedbackFooterModel({
+        step: 'attendance',
+        role: 'mentee',
+        values: { ...baseValues, meetingHappened: true },
+      });
+      expect(selected.primaryAction).toEqual({
+        label: '下一步',
+        type: 'button',
+        disabled: false,
+        actionKind: 'next-step',
+        isLoading: false,
+      });
+      expect(selected.secondaryAction).toBeNull();
+    });
+
+    it('resolves Mentor Step 1 attendance footer across null, true (確定送出), and false (下一步)', () => {
+      const unselected = resolveMeetingFeedbackFooterModel({
+        step: 'attendance',
+        role: 'mentor',
+        values: baseValues,
+      });
+      expect(unselected.primaryAction).toEqual({
+        label: '確定送出',
+        type: 'button',
+        disabled: true,
+        actionKind: 'submit',
+        isLoading: false,
+      });
+      expect(unselected.secondaryAction).toBeNull();
+
+      const happened = resolveMeetingFeedbackFooterModel({
+        step: 'attendance',
+        role: 'mentor',
+        hasRemainingQueueCard: true,
+        values: { ...baseValues, meetingHappened: true },
+      });
+      expect(happened.primaryAction).toEqual({
+        label: '確定送出',
+        type: 'submit',
+        disabled: false,
+        actionKind: 'submit',
+        isLoading: false,
+      });
+      expect(happened.secondaryAction).toBeNull();
+
+      const happenedSubmitting = resolveMeetingFeedbackFooterModel({
+        step: 'attendance',
+        role: 'mentor',
+        isSubmitting: true,
+        values: { ...baseValues, meetingHappened: true },
+      });
+      expect(happenedSubmitting.primaryAction).toEqual({
+        label: '送出中...',
+        type: 'submit',
+        disabled: true,
+        actionKind: 'submit',
+        isLoading: true,
+      });
+
+      const notHappened = resolveMeetingFeedbackFooterModel({
+        step: 'attendance',
+        role: 'mentor',
+        values: { ...baseValues, meetingHappened: false },
+      });
+      expect(notHappened.primaryAction).toEqual({
+        label: '下一步',
+        type: 'button',
+        disabled: false,
+        actionKind: 'next-step',
+        isLoading: false,
+      });
+      expect(notHappened.secondaryAction).toBeNull();
+    });
+
+    it('resolves Mentee Step 2 rating footer across single session (送出回饋) and queue mode (送出並填下一場)', () => {
+      const single = resolveMeetingFeedbackFooterModel({
+        step: 'rating',
+        role: 'mentee',
+        values: { ...baseValues, meetingHappened: true, rating: 9 },
+      });
+      expect(single.primaryAction).toEqual({
+        label: '送出回饋',
+        type: 'submit',
+        disabled: false,
+        actionKind: 'submit',
+        isLoading: false,
+      });
+      expect(single.secondaryAction).toEqual({
+        label: '上一步',
+        type: 'button',
+        disabled: false,
+        actionKind: 'back-to-attendance',
+      });
+
+      const queueMiddle = resolveMeetingFeedbackFooterModel({
+        step: 'rating',
+        role: 'mentee',
+        hasRemainingQueueCard: true,
+        values: { ...baseValues, meetingHappened: true, rating: 9 },
+      });
+      expect(queueMiddle.primaryAction.label).toBe('送出並填下一場');
+
+      const overLimit = resolveMeetingFeedbackFooterModel({
+        step: 'rating',
+        role: 'mentee',
+        values: {
+          ...baseValues,
+          meetingHappened: true,
+          content: 'a'.repeat(MAX_FEEDBACK_CONTENT_LENGTH + 1),
+        },
+      });
+      expect(overLimit.primaryAction.disabled).toBe(true);
+    });
+
+    it('resolves Step 2 not-happened footer for Mentor (送出 vs 送出並填下一場) and Mentee (送出回饋)', () => {
+      const mentorSingle = resolveMeetingFeedbackFooterModel({
+        step: 'not-happened',
+        role: 'mentor',
+        values: {
+          ...baseValues,
+          meetingHappened: false,
+          notHappenedReason: 'COUNTERPART_ABSENT',
+        },
+      });
+      expect(mentorSingle.primaryAction).toEqual({
+        label: '送出',
+        type: 'submit',
+        disabled: false,
+        actionKind: 'submit',
+        isLoading: false,
+      });
+      expect(mentorSingle.secondaryAction).toEqual({
+        label: '上一步',
+        type: 'button',
+        disabled: false,
+        actionKind: 'back-to-attendance',
+      });
+      expect(mentorSingle.layoutVariant).toBe('mentor-not-happened');
+
+      const mentorQueue = resolveMeetingFeedbackFooterModel({
+        step: 'not-happened',
+        role: 'mentor',
+        hasRemainingQueueCard: true,
+        values: {
+          ...baseValues,
+          meetingHappened: false,
+          notHappenedReason: 'COUNTERPART_ABSENT',
+        },
+      });
+      expect(mentorQueue.primaryAction.label).toBe('送出並填下一場');
+
+      const menteeInvalidOther = resolveMeetingFeedbackFooterModel({
+        step: 'not-happened',
+        role: 'mentee',
+        values: {
+          ...baseValues,
+          meetingHappened: false,
+          notHappenedReason: 'OTHER',
+          notHappenedNote: 'a'.repeat(MAX_NOT_HAPPENED_NOTE_LENGTH + 1),
+        },
+      });
+      expect(menteeInvalidOther.primaryAction.label).toBe('送出回饋');
+      expect(menteeInvalidOther.primaryAction.disabled).toBe(true);
+      expect(menteeInvalidOther.layoutVariant).toBe('mentee-not-happened');
+    });
+
+    it('resolves edit mode (#731) footer with 儲存 / 儲存中... and 取消 regardless of step/role/queue props', () => {
+      const editIdle = resolveMeetingFeedbackFooterModel({
+        mode: 'edit',
+        step: 'attendance',
+        role: 'mentor',
+        hasRemainingQueueCard: true,
+        values: {
+          ...baseValues,
+          meetingHappened: true,
+          rating: 8,
+          content: '已儲存評價',
+        },
+      });
+      expect(editIdle.primaryAction).toEqual({
+        label: '儲存',
+        type: 'submit',
+        disabled: false,
+        actionKind: 'submit',
+        isLoading: false,
+      });
+      expect(editIdle.secondaryAction).toEqual({
+        label: '取消',
+        type: 'button',
+        disabled: false,
+        actionKind: 'cancel-edit',
+      });
+      expect(editIdle.layoutVariant).toBe('rating');
+
+      const editSubmitting = resolveMeetingFeedbackFooterModel({
+        mode: 'edit',
+        step: 'rating',
+        isSubmitting: true,
+        values: {
+          ...baseValues,
+          meetingHappened: true,
+          rating: 8,
+          content: '已儲存評價',
+        },
+      });
+      expect(editSubmitting.primaryAction).toEqual({
+        label: '儲存中...',
+        type: 'submit',
+        disabled: true,
+        actionKind: 'submit',
+        isLoading: true,
+      });
+      expect(editSubmitting.secondaryAction?.disabled).toBe(true);
+    });
+
+    it('disables primary action during card transition or external field error', () => {
+      const transitioning = resolveMeetingFeedbackFooterModel({
+        step: 'rating',
+        role: 'mentee',
+        isTransitioningCard: true,
+        values: { ...baseValues, meetingHappened: true, rating: 10 },
+      });
+      expect(transitioning.primaryAction.disabled).toBe(true);
+
+      const withFieldError = resolveMeetingFeedbackFooterModel({
+        step: 'rating',
+        role: 'mentee',
+        hasFieldError: true,
+        values: { ...baseValues, meetingHappened: true, rating: 10 },
+      });
+      expect(withFieldError.primaryAction.disabled).toBe(true);
+    });
   });
 });
