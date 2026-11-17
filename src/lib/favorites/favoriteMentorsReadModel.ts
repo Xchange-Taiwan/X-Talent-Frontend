@@ -36,9 +36,17 @@ export type BookmarkActionOutcome =
   | { status: 'failed'; nextFavorited: boolean; error: unknown };
 
 export interface FavoriteMentorsTransport {
-  fetchFavoriteMentors: (signal?: AbortSignal) => Promise<MentorType[]>;
-  addFavoriteMentor: (mentorId: number, signal?: AbortSignal) => Promise<void>;
+  fetchFavoriteMentors: (
+    userId: string,
+    signal?: AbortSignal
+  ) => Promise<MentorType[]>;
+  addFavoriteMentor: (
+    userId: string,
+    mentorId: number,
+    signal?: AbortSignal
+  ) => Promise<void>;
   removeFavoriteMentor: (
+    userId: string,
     mentorId: number,
     signal?: AbortSignal
   ) => Promise<void>;
@@ -248,7 +256,7 @@ export function createFavoriteMentorsReadModel(
     return async (signal: AbortSignal): Promise<FavoriteMentorsSnapshot> => {
       const state = getOrCreateUserState(userId);
       const prevIds = computeEffectiveMentorIds(state);
-      const fetched = await transport.fetchFavoriteMentors(signal);
+      const fetched = await transport.fetchFavoriteMentors(userId, signal);
       if (signal.aborted) {
         return computeSnapshot(userId);
       }
@@ -537,9 +545,13 @@ export function createFavoriteMentorsReadModel(
 
     try {
       if (nextFavorited) {
-        await transport.addFavoriteMentor(mentorId, controller.signal);
+        await transport.addFavoriteMentor(userId, mentorId, controller.signal);
       } else {
-        await transport.removeFavoriteMentor(mentorId, controller.signal);
+        await transport.removeFavoriteMentor(
+          userId,
+          mentorId,
+          controller.signal
+        );
       }
 
       state.controllers.delete(controller);

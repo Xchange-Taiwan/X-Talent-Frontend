@@ -106,7 +106,7 @@ describe('useConsumePendingFavorite', () => {
     await waitFor(() => {
       expect(addMock).toHaveBeenCalledTimes(1);
     });
-    expect(addMock).toHaveBeenCalledWith(101, expect.any(AbortSignal));
+    expect(addMock).toHaveBeenCalledWith('999', 101, expect.any(AbortSignal));
     await waitFor(() => {
       expect(
         favoriteMentorsReadModel.getMentorState('999', 101).isFavorited
@@ -212,7 +212,7 @@ describe('useConsumePendingFavorite', () => {
     await waitFor(() => {
       expect(addMock).toHaveBeenCalledTimes(1);
     });
-    expect(addMock).toHaveBeenCalledWith(101, expect.any(AbortSignal));
+    expect(addMock).toHaveBeenCalledWith('999', 101, expect.any(AbortSignal));
     await waitFor(() => {
       expect(getPendingFavoriteMentorId()).toBeNull();
     });
@@ -356,7 +356,7 @@ describe('useConsumePendingFavorite', () => {
       ).toBe(true);
     });
     expect(addMock).toHaveBeenCalledTimes(1);
-    expect(addMock).toHaveBeenCalledWith(101, expect.any(AbortSignal));
+    expect(addMock).toHaveBeenCalledWith('999', 101, expect.any(AbortSignal));
     await waitFor(() => {
       expect(getPendingFavoriteMentorId()).toBeNull();
     });

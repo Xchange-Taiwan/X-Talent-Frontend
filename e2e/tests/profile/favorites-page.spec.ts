@@ -305,7 +305,7 @@ test.describe('我的收藏頁 /favorites (#755)', () => {
     await setupAuthenticatedViewer(page);
     await setupCommonSupportRoutes(page);
 
-    await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) => {
+    await page.route(/\/v1\/users\/9001\/favorite-mentors(\?|$)/, (route) => {
       if (route.request().method() === 'OPTIONS') {
         return fulfillCorsOptions(route);
       }
@@ -327,11 +327,11 @@ test.describe('我的收藏頁 /favorites (#755)', () => {
       return fulfillJsonWithCors(route, 200, {
         code: '0',
         msg: 'ok',
-        data: { mentors },
+        data: mentors,
       });
     });
 
-    await page.route(/\/v1\/mentors\/\d+\/favorite$/, (route) => {
+    await page.route(/\/v1\/users\/9001\/favorite-mentors\/\d+$/, (route) => {
       const method = route.request().method();
       if (method === 'OPTIONS') {
         return fulfillCorsOptions(route);
@@ -340,7 +340,7 @@ test.describe('我的收藏頁 /favorites (#755)', () => {
       const match = route
         .request()
         .url()
-        .match(/\/v1\/mentors\/(\d+)\/favorite$/);
+        .match(/\/v1\/users\/9001\/favorite-mentors\/(\d+)$/);
       const mentorId = Number(match?.[1] ?? 0);
 
       if (method === 'DELETE') {
@@ -423,7 +423,9 @@ test.describe('我的收藏頁 /favorites (#755)', () => {
 
     const firstDeletePromise = page.waitForResponse(
       (res) =>
-        res.url().includes(`/v1/mentors/${FIRST_MENTOR_ID_STR}/favorite`) &&
+        res
+          .url()
+          .includes(`/v1/users/9001/favorite-mentors/${FIRST_MENTOR_ID_STR}`) &&
         res.request().method() === 'DELETE'
     );
     await page
@@ -439,7 +441,9 @@ test.describe('我的收藏頁 /favorites (#755)', () => {
     // 最後一筆移除後立即切換為空狀態
     const secondDeletePromise = page.waitForResponse(
       (res) =>
-        res.url().includes(`/v1/mentors/${SECOND_MENTOR_ID}/favorite`) &&
+        res
+          .url()
+          .includes(`/v1/users/9001/favorite-mentors/${SECOND_MENTOR_ID}`) &&
         res.request().method() === 'DELETE'
     );
     await page.getByRole('button', { name: '取消收藏 陳宥廷 Austin' }).click();
@@ -470,13 +474,13 @@ test.describe('我的收藏頁 /favorites (#755)', () => {
     await expect(page).toHaveURL(/\/mentor-pool$/);
   });
 
-  test('後端 GET /v1/me/favorite-mentors 回傳 404 時自動視為 0 筆並呈現空狀態', async ({
+  test('後端 GET /v1/users/:userId/favorite-mentors 回傳 404 時自動視為 0 筆並呈現空狀態', async ({
     page,
   }) => {
     await setupAuthenticatedViewer(page);
     await setupCommonSupportRoutes(page);
 
-    await mockApiRoute(page, /\/v1\/me\/favorite-mentors(\?|$)/, {
+    await mockApiRoute(page, /\/v1\/users\/9001\/favorite-mentors(\?|$)/, {
       status: 404,
       body: { detail: 'Not Found' },
     });
@@ -502,18 +506,18 @@ test.describe('我的收藏頁 /favorites (#755)', () => {
     await setupAuthenticatedViewer(page);
     await setupCommonSupportRoutes(page);
 
-    await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) => {
+    await page.route(/\/v1\/users\/9001\/favorite-mentors(\?|$)/, (route) => {
       if (route.request().method() === 'OPTIONS') {
         return fulfillCorsOptions(route);
       }
       return fulfillJsonWithCors(route, 200, {
         code: '0',
         msg: 'ok',
-        data: { mentors: [] },
+        data: [],
       });
     });
 
-    await page.route(/\/v1\/mentors\/\d+\/favorite$/, (route) => {
+    await page.route(/\/v1\/users\/9001\/favorite-mentors\/\d+$/, (route) => {
       const method = route.request().method();
       if (method === 'OPTIONS') {
         return fulfillCorsOptions(route);
@@ -538,7 +542,9 @@ test.describe('我的收藏頁 /favorites (#755)', () => {
 
     const putFavoritePromise = page.waitForResponse(
       (res) =>
-        res.url().includes(`/v1/mentors/${FIRST_MENTOR_ID_STR}/favorite`) &&
+        res
+          .url()
+          .includes(`/v1/users/9001/favorite-mentors/${FIRST_MENTOR_ID_STR}`) &&
         res.request().method() === 'PUT'
     );
     await profileBookmarkBtn.click();

@@ -284,7 +284,7 @@ test.describe('Mentor 書籤收藏 (#758)', () => {
     await setupAuthenticatedViewer(page);
     await setupCommonSupportRoutes(page);
 
-    await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) => {
+    await page.route(/\/v1\/users\/9001\/favorite-mentors(\?|$)/, (route) => {
       if (route.request().method() === 'OPTIONS') {
         return fulfillCorsOptions(route);
       }
@@ -296,11 +296,11 @@ test.describe('Mentor 書籤收藏 (#758)', () => {
       return fulfillJsonWithCors(route, 200, {
         code: '0',
         msg: 'ok',
-        data: { mentors },
+        data: mentors,
       });
     });
 
-    await page.route(/\/v1\/mentors\/\d+\/favorite$/, (route) => {
+    await page.route(/\/v1\/users\/9001\/favorite-mentors\/\d+$/, (route) => {
       const method = route.request().method();
       if (method === 'OPTIONS') {
         return fulfillCorsOptions(route);
@@ -309,7 +309,7 @@ test.describe('Mentor 書籤收藏 (#758)', () => {
       const match = route
         .request()
         .url()
-        .match(/\/v1\/mentors\/(\d+)\/favorite$/);
+        .match(/\/v1\/users\/9001\/favorite-mentors\/(\d+)$/);
       const mentorId = Number(match?.[1] ?? 0);
 
       if (method === 'PUT') {
@@ -355,8 +355,11 @@ test.describe('Mentor 書籤收藏 (#758)', () => {
     // 點擊書籤：立即切換為品牌色實心 Bookmark，且不會觸發整卡導頁
     const putPromise = page.waitForResponse(
       (res) =>
-        res.url().includes(`/v1/mentors/${TARGET_MENTOR_ID_STR}/favorite`) &&
-        res.request().method() === 'PUT'
+        res
+          .url()
+          .includes(
+            `/v1/users/9001/favorite-mentors/${TARGET_MENTOR_ID_STR}`
+          ) && res.request().method() === 'PUT'
     );
     await cardBookmarkBtn.click();
     await putPromise;
@@ -405,8 +408,11 @@ test.describe('Mentor 書籤收藏 (#758)', () => {
     // 於導師個人頁點擊取消收藏，驗證發送 DELETE 並切換回未收藏線框狀態
     const deletePromise = page.waitForResponse(
       (res) =>
-        res.url().includes(`/v1/mentors/${TARGET_MENTOR_ID_STR}/favorite`) &&
-        res.request().method() === 'DELETE'
+        res
+          .url()
+          .includes(
+            `/v1/users/9001/favorite-mentors/${TARGET_MENTOR_ID_STR}`
+          ) && res.request().method() === 'DELETE'
     );
     await profileBookmarkBtn.click();
     await deletePromise;
@@ -425,14 +431,14 @@ test.describe('Mentor 書籤收藏 (#758)', () => {
     await setupAuthenticatedViewer(page);
     await setupCommonSupportRoutes(page);
 
-    // 模擬後端 #759 未部署時 GET /v1/me/favorite-mentors 回傳 404
-    await mockApiRoute(page, /\/v1\/me\/favorite-mentors(\?|$)/, {
+    // 模擬後端 #759 未部署時 GET /v1/users/:userId/favorite-mentors 回傳 404
+    await mockApiRoute(page, /\/v1\/users\/9001\/favorite-mentors(\?|$)/, {
       status: 404,
       body: { detail: 'Not Found' },
     });
 
-    // 模擬 PUT /v1/mentors/:id/favorite 失敗回傳 500
-    await mockApiRoute(page, /\/v1\/mentors\/\d+\/favorite$/, {
+    // 模擬 PUT /v1/users/:userId/favorite-mentors/:mentorId 失敗回傳 500
+    await mockApiRoute(page, /\/v1\/users\/9001\/favorite-mentors\/\d+$/, {
       status: 500,
       body: {
         code: '500',
@@ -453,7 +459,11 @@ test.describe('Mentor 書籤收藏 (#758)', () => {
 
     const failedPutPromise = page.waitForResponse(
       (res) =>
-        res.url().includes(`/v1/mentors/${TARGET_MENTOR_ID_STR}/favorite`) &&
+        res
+          .url()
+          .includes(
+            `/v1/users/9001/favorite-mentors/${TARGET_MENTOR_ID_STR}`
+          ) &&
         res.request().method() === 'PUT' &&
         res.status() === 500
     );
@@ -483,7 +493,7 @@ test.describe('Mentor 書籤收藏 (#758)', () => {
     });
     await setupCommonSupportRoutes(page);
 
-    await mockApiRoute(page, /\/v1\/me\/favorite-mentors(\?|$)/, {
+    await mockApiRoute(page, /\/v1\/users\/[^/]+\/favorite-mentors(\?|$)/, {
       body: { code: '0', msg: 'ok', data: [] },
     });
 

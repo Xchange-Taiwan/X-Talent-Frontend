@@ -19,6 +19,16 @@ function isMutationEnvelope(value: unknown): value is MutationEnvelope {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function extractMutationDataMessage(data: unknown): string | undefined {
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+    return undefined;
+  }
+  const msg = (data as Record<string, unknown>).message;
+  return typeof msg === 'string' && msg.trim().length > 0
+    ? msg.trim()
+    : undefined;
+}
+
 function assertMutationSuccess(result: unknown): void {
   if (!isMutationEnvelope(result)) return;
   if (result.code === undefined || result.code === null) return;
@@ -30,13 +40,40 @@ function assertMutationSuccess(result: unknown): void {
       numericStatus >= 400 &&
       numericStatus < 600
         ? numericStatus
-        : 400;
+        : codeStr === '40300'
+          ? 403
+          : 400;
     const message =
-      typeof result.msg === 'string' && result.msg.trim()
+      (typeof result.msg === 'string' && result.msg.trim()
         ? result.msg.trim()
-        : `Request failed with code ${codeStr}`;
+        : undefined) ??
+      extractMutationDataMessage(result.data) ??
+      `Request failed with code ${codeStr}`;
     throw new ApiError(status, message, codeStr, result.data);
   }
+}
+
+function resolveEncodedUserId(userId: string | number): string {
+  if (typeof userId === 'number') {
+    if (!Number.isSafeInteger(userId) || userId <= 0) {
+      throw new Error(
+        'userId must be a positive safe integer or non-empty string'
+      );
+    }
+    return encodeURIComponent(String(userId));
+  }
+  const normalized = String(userId ?? '').trim();
+  if (!normalized) {
+    throw new Error('userId is required for favorite mentors API');
+  }
+  return encodeURIComponent(normalized);
+}
+
+function resolveEncodedMentorId(mentorId: number): string {
+  if (!Number.isSafeInteger(mentorId) || mentorId <= 0) {
+    throw new Error('mentorId must be a positive safe integer');
+  }
+  return encodeURIComponent(String(mentorId));
 }
 
 export function extractRawFavoriteMentors(
@@ -48,16 +85,19 @@ export function extractRawFavoriteMentors(
 }
 
 /**
- * Fetches the authenticated user's favorited mentors list.
+ * Fetches the authenticated user's favorited mentors list
+ * (`GET /api/v1/users/{user_id}/favorite-mentors`).
  * Supports both `RawMentor[]` and `{ mentors: RawMentor[] }` wire shapes,
  * and silently returns `[]` on HTTP 404 before backend #759 is deployed.
  */
 export async function fetchFavoriteMentors(
+  userId: string | number,
   signal?: AbortSignal
 ): Promise<MentorType[]> {
+  const encodedUserId = resolveEncodedUserId(userId);
   try {
     const data = await apiClient.getUnwrapped<RawFavoriteMentorsResponse>(
-      '/v1/me/favorite-mentors',
+      `/v1/users/${encodedUserId}/favorite-mentors`,
       {
         auth: true,
         signal,
@@ -73,14 +113,18 @@ export async function fetchFavoriteMentors(
 }
 
 /**
- * Idempotently adds a mentor to the authenticated user's favorites.
+ * Idempotently adds a mentor to the authenticated user's favorites
+ * (`PUT /api/v1/users/{user_id}/favorite-mentors/{mentor_id}`).
  */
 export async function addFavoriteMentor(
+  userId: string | number,
   mentorId: number,
   signal?: AbortSignal
 ): Promise<void> {
+  const encodedUserId = resolveEncodedUserId(userId);
+  const encodedMentorId = resolveEncodedMentorId(mentorId);
   const result = await apiClient.put<unknown>(
-    `/v1/mentors/${mentorId}/favorite`,
+    `/v1/users/${encodedUserId}/favorite-mentors/${encodedMentorId}`,
     undefined,
     {
       auth: true,
@@ -91,14 +135,18 @@ export async function addFavoriteMentor(
 }
 
 /**
- * Idempotently removes a mentor from the authenticated user's favorites.
+ * Idempotently removes a mentor from the authenticated user's favorites
+ * (`DELETE /api/v1/users/{user_id}/favorite-mentors/{mentor_id}`).
  */
 export async function removeFavoriteMentor(
+  userId: string | number,
   mentorId: number,
   signal?: AbortSignal
 ): Promise<void> {
+  const encodedUserId = resolveEncodedUserId(userId);
+  const encodedMentorId = resolveEncodedMentorId(mentorId);
   const result = await apiClient.delete<unknown>(
-    `/v1/mentors/${mentorId}/favorite`,
+    `/v1/users/${encodedUserId}/favorite-mentors/${encodedMentorId}`,
     undefined,
     {
       auth: true,

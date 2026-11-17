@@ -479,6 +479,7 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
 
     await vi.waitFor(() => {
       expect(addFavoriteMock).toHaveBeenCalledWith(
+        '999',
         123,
         expect.any(AbortSignal)
       );

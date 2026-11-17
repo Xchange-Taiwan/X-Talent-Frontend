@@ -301,7 +301,7 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
       });
     });
 
-    await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) => {
+    await page.route(/\/v1\/users\/9001\/favorite-mentors(\?|$)/, (route) => {
       if (route.request().method() === 'OPTIONS') {
         return fulfillCorsOptions(route);
       }
@@ -313,11 +313,11 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
       return fulfillJsonWithCors(route, 200, {
         code: '0',
         msg: 'ok',
-        data: { mentors },
+        data: mentors,
       });
     });
 
-    await page.route(/\/v1\/mentors\/\d+\/favorite$/, (route) => {
+    await page.route(/\/v1\/users\/9001\/favorite-mentors\/\d+$/, (route) => {
       const method = route.request().method();
       if (method === 'OPTIONS') {
         return fulfillCorsOptions(route);
@@ -325,7 +325,7 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
       const match = route
         .request()
         .url()
-        .match(/\/v1\/mentors\/(\d+)\/favorite$/);
+        .match(/\/v1\/users\/9001\/favorite-mentors\/(\d+)$/);
       const mentorId = Number(match?.[1] ?? 0);
 
       if (method === 'PUT') {
@@ -374,8 +374,11 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
     // 2. 完成登入 -> 自動導向 /profile/:id 並自動呼叫 PUT 完成收藏
     const putPromise = page.waitForResponse(
       (res) =>
-        res.url().includes(`/v1/mentors/${TARGET_MENTOR_ID_STR}/favorite`) &&
-        res.request().method() === 'PUT'
+        res
+          .url()
+          .includes(
+            `/v1/users/9001/favorite-mentors/${TARGET_MENTOR_ID_STR}`
+          ) && res.request().method() === 'PUT'
     );
 
     await page.fill('input[name="email"]', 'mentee@example.com');
@@ -416,8 +419,11 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
 
     const deletePromise = page.waitForResponse(
       (res) =>
-        res.url().includes(`/v1/mentors/${TARGET_MENTOR_ID_STR}/favorite`) &&
-        res.request().method() === 'DELETE'
+        res
+          .url()
+          .includes(
+            `/v1/users/9001/favorite-mentors/${TARGET_MENTOR_ID_STR}`
+          ) && res.request().method() === 'DELETE'
     );
     await syncedCardBtn.click();
     await deletePromise;
@@ -455,18 +461,18 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
       });
     });
 
-    await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) => {
+    await page.route(/\/v1\/users\/[^/]+\/favorite-mentors(\?|$)/, (route) => {
       if (route.request().method() === 'OPTIONS') {
         return fulfillCorsOptions(route);
       }
       return fulfillJsonWithCors(route, 200, {
         code: '0',
         msg: 'ok',
-        data: { mentors: [] },
+        data: [],
       });
     });
 
-    await page.route(/\/v1\/mentors\/\d+\/favorite$/, (route) => {
+    await page.route(/\/v1\/users\/[^/]+\/favorite-mentors\/\d+$/, (route) => {
       if (route.request().method() === 'OPTIONS') {
         return fulfillCorsOptions(route);
       }
@@ -568,7 +574,7 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
       });
     });
 
-    await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) => {
+    await page.route(/\/v1\/users\/9002\/favorite-mentors(\?|$)/, (route) => {
       if (route.request().method() === 'OPTIONS') {
         return fulfillCorsOptions(route);
       }
@@ -578,11 +584,11 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
       return fulfillJsonWithCors(route, 200, {
         code: '0',
         msg: 'ok',
-        data: { mentors },
+        data: mentors,
       });
     });
 
-    await page.route(/\/v1\/mentors\/\d+\/favorite$/, (route) => {
+    await page.route(/\/v1\/users\/9002\/favorite-mentors\/\d+$/, (route) => {
       const method = route.request().method();
       if (method === 'OPTIONS') {
         return fulfillCorsOptions(route);
@@ -590,7 +596,7 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
       const match = route
         .request()
         .url()
-        .match(/\/v1\/mentors\/(\d+)\/favorite$/);
+        .match(/\/v1\/users\/9002\/favorite-mentors\/(\d+)$/);
       const mentorId = Number(match?.[1] ?? 0);
 
       if (method === 'PUT') {
@@ -652,8 +658,11 @@ test.describe('收藏登入攔截與狀態同步 (#756)', () => {
 
     const putPromise = page.waitForResponse(
       (res) =>
-        res.url().includes(`/v1/mentors/${TARGET_MENTOR_ID_STR}/favorite`) &&
-        res.request().method() === 'PUT'
+        res
+          .url()
+          .includes(
+            `/v1/users/9002/favorite-mentors/${TARGET_MENTOR_ID_STR}`
+          ) && res.request().method() === 'PUT'
     );
     await page.getByRole('button', { name: '提交' }).click();
 

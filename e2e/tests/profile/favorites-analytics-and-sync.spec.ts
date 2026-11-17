@@ -402,7 +402,7 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     });
     await setupCommonSupportRoutes(page, sideEffects);
 
-    await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) => {
+    await page.route(/\/v1\/users\/9001\/favorite-mentors(\?|$)/, (route) => {
       if (route.request().method() === 'OPTIONS') {
         return fulfillCorsOptions(route);
       }
@@ -414,11 +414,11 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
       return fulfillJsonWithCors(route, 200, {
         code: '0',
         msg: 'ok',
-        data: { mentors },
+        data: mentors,
       });
     });
 
-    await page.route(/\/v1\/mentors\/\d+\/favorite$/, (route) => {
+    await page.route(/\/v1\/users\/9001\/favorite-mentors\/\d+$/, (route) => {
       const method = route.request().method();
       if (method === 'OPTIONS') {
         return fulfillCorsOptions(route);
@@ -426,7 +426,7 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
       const match = route
         .request()
         .url()
-        .match(/\/v1\/mentors\/(\d+)\/favorite$/);
+        .match(/\/v1\/users\/9001\/favorite-mentors\/(\d+)$/);
       const mentorId = Number(match?.[1] ?? 0);
 
       if (method === 'PUT') {
@@ -472,8 +472,11 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     // 點擊加入收藏 -> 驗證 API PUT、實心狀態與 GA4 mentor_bookmark_toggle (feature: 'mentor_pool', action: 'add')
     const putPromise = page.waitForResponse(
       (res) =>
-        res.url().includes(`/v1/mentors/${TARGET_MENTOR_ID_STR}/favorite`) &&
-        res.request().method() === 'PUT'
+        res
+          .url()
+          .includes(
+            `/v1/users/9001/favorite-mentors/${TARGET_MENTOR_ID_STR}`
+          ) && res.request().method() === 'PUT'
     );
     await poolAddBtn.click();
     await putPromise;
@@ -588,8 +591,11 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     // 於個人頁切換取消收藏再重新收藏，驗證 feature: 'profile' 之 remove / add 事件
     const profileDeletePromise = page.waitForResponse(
       (res) =>
-        res.url().includes(`/v1/mentors/${TARGET_MENTOR_ID_STR}/favorite`) &&
-        res.request().method() === 'DELETE'
+        res
+          .url()
+          .includes(
+            `/v1/users/9001/favorite-mentors/${TARGET_MENTOR_ID_STR}`
+          ) && res.request().method() === 'DELETE'
     );
     await profileBookmarkBtn.click();
     await profileDeletePromise;
@@ -598,8 +604,11 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
 
     const profileReAddPromise = page.waitForResponse(
       (res) =>
-        res.url().includes(`/v1/mentors/${TARGET_MENTOR_ID_STR}/favorite`) &&
-        res.request().method() === 'PUT'
+        res
+          .url()
+          .includes(
+            `/v1/users/9001/favorite-mentors/${TARGET_MENTOR_ID_STR}`
+          ) && res.request().method() === 'PUT'
     );
     await profileBookmarkBtn.click();
     await profileReAddPromise;
@@ -626,8 +635,11 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
 
     const favoritesRemovePromise = page.waitForResponse(
       (res) =>
-        res.url().includes(`/v1/mentors/${TARGET_MENTOR_ID_STR}/favorite`) &&
-        res.request().method() === 'DELETE'
+        res
+          .url()
+          .includes(
+            `/v1/users/9001/favorite-mentors/${TARGET_MENTOR_ID_STR}`
+          ) && res.request().method() === 'DELETE'
     );
     await favoritesRemoveBtn.click();
     await favoritesRemovePromise;
@@ -733,22 +745,20 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     await setupAuthenticatedViewer(page);
     await setupCommonSupportRoutes(page);
 
-    await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) => {
+    await page.route(/\/v1\/users\/9001\/favorite-mentors(\?|$)/, (route) => {
       if (route.request().method() === 'OPTIONS') {
         return fulfillCorsOptions(route);
       }
       return fulfillJsonWithCors(route, 200, {
         code: '0',
         msg: 'ok',
-        data: {
-          mentors: Array.from(favoritedSet).map((id) =>
-            makePoolMentor(id, { name: 'Zahra Mirzakhani' })
-          ),
-        },
+        data: Array.from(favoritedSet).map((id) =>
+          makePoolMentor(id, { name: 'Zahra Mirzakhani' })
+        ),
       });
     });
 
-    await page.route(/\/v1\/mentors\/\d+\/favorite$/, (route) => {
+    await page.route(/\/v1\/users\/9001\/favorite-mentors\/\d+$/, (route) => {
       const method = route.request().method();
       if (method === 'OPTIONS') {
         return fulfillCorsOptions(route);
@@ -798,8 +808,11 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     await expect(bookmarkBtn).toBeFocused();
     const enterPutPromise = page.waitForResponse(
       (res) =>
-        res.url().includes(`/v1/mentors/${TARGET_MENTOR_ID_STR}/favorite`) &&
-        res.request().method() === 'PUT'
+        res
+          .url()
+          .includes(
+            `/v1/users/9001/favorite-mentors/${TARGET_MENTOR_ID_STR}`
+          ) && res.request().method() === 'PUT'
     );
     await page.keyboard.press('Enter');
     await enterPutPromise;
@@ -817,8 +830,11 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     await expect(bookmarkBtn).toBeFocused();
     const spaceDeletePromise = page.waitForResponse(
       (res) =>
-        res.url().includes(`/v1/mentors/${TARGET_MENTOR_ID_STR}/favorite`) &&
-        res.request().method() === 'DELETE'
+        res
+          .url()
+          .includes(
+            `/v1/users/9001/favorite-mentors/${TARGET_MENTOR_ID_STR}`
+          ) && res.request().method() === 'DELETE'
     );
     await page.keyboard.press('Space');
     await spaceDeletePromise;
@@ -842,57 +858,60 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     await setupAuthenticatedViewer(page);
     await setupCommonSupportRoutes(page);
 
-    await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) => {
+    await page.route(/\/v1\/users\/9001\/favorite-mentors(\?|$)/, (route) => {
       if (route.request().method() === 'OPTIONS') {
         return fulfillCorsOptions(route);
       }
       return fulfillJsonWithCors(route, 200, {
         code: '0',
         msg: 'ok',
-        data: { mentors: [] },
+        data: [],
       });
     });
 
-    await page.route(/\/v1\/mentors\/\d+\/favorite$/, async (route) => {
-      const method = route.request().method();
-      if (method === 'OPTIONS') {
-        return fulfillCorsOptions(route);
-      }
+    await page.route(
+      /\/v1\/users\/9001\/favorite-mentors\/\d+$/,
+      async (route) => {
+        const method = route.request().method();
+        if (method === 'OPTIONS') {
+          return fulfillCorsOptions(route);
+        }
 
-      if (shouldFailWith500) {
-        if (method === 'PUT') putCount += 1;
-        if (method === 'DELETE') deleteCount += 1;
-        return fulfillJsonWithCors(route, 500, {
-          code: '500',
-          msg: 'Internal Server Error',
-        });
-      }
-
-      if (method === 'PUT') {
-        putCount += 1;
-        if (putCount === 1) {
-          await new Promise<void>((resolve) => {
-            firstPutGate.release = resolve;
+        if (shouldFailWith500) {
+          if (method === 'PUT') putCount += 1;
+          if (method === 'DELETE') deleteCount += 1;
+          return fulfillJsonWithCors(route, 500, {
+            code: '500',
+            msg: 'Internal Server Error',
           });
         }
-        return fulfillJsonWithCors(route, 200, {
-          code: '0',
-          msg: 'ok',
-          data: null,
-        });
-      }
 
-      if (method === 'DELETE') {
-        deleteCount += 1;
-        return fulfillJsonWithCors(route, 200, {
-          code: '0',
-          msg: 'ok',
-          data: null,
-        });
-      }
+        if (method === 'PUT') {
+          putCount += 1;
+          if (putCount === 1) {
+            await new Promise<void>((resolve) => {
+              firstPutGate.release = resolve;
+            });
+          }
+          return fulfillJsonWithCors(route, 200, {
+            code: '0',
+            msg: 'ok',
+            data: null,
+          });
+        }
 
-      return route.continue();
-    });
+        if (method === 'DELETE') {
+          deleteCount += 1;
+          return fulfillJsonWithCors(route, 200, {
+            code: '0',
+            msg: 'ok',
+            data: null,
+          });
+        }
+
+        return route.continue();
+      }
+    );
 
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/mentor-pool?q=design');
@@ -906,8 +925,11 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     // 1. 第一次點擊進入 in-flight 狀態，立即樂觀更新且設定 aria-busy="true"
     const firstPutResponsePromise = page.waitForResponse(
       (res) =>
-        res.url().includes(`/v1/mentors/${TARGET_MENTOR_ID_STR}/favorite`) &&
-        res.request().method() === 'PUT'
+        res
+          .url()
+          .includes(
+            `/v1/users/9001/favorite-mentors/${TARGET_MENTOR_ID_STR}`
+          ) && res.request().method() === 'PUT'
     );
     await bookmarkBtn.click();
 
@@ -937,7 +959,11 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     shouldFailWith500 = true;
     const failedDeletePromise = page.waitForResponse(
       (res) =>
-        res.url().includes(`/v1/mentors/${TARGET_MENTOR_ID_STR}/favorite`) &&
+        res
+          .url()
+          .includes(
+            `/v1/users/9001/favorite-mentors/${TARGET_MENTOR_ID_STR}`
+          ) &&
         res.request().method() === 'DELETE' &&
         res.status() === 500
     );
@@ -975,22 +1001,20 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
       });
     });
 
-    await page.route(/\/v1\/me\/favorite-mentors(\?|$)/, (route) => {
+    await page.route(/\/v1\/users\/[^/]+\/favorite-mentors(\?|$)/, (route) => {
       if (route.request().method() === 'OPTIONS') {
         return fulfillCorsOptions(route);
       }
       return fulfillJsonWithCors(route, 200, {
         code: '0',
         msg: 'ok',
-        data: {
-          mentors: Array.from(favoritedSet).map((id) =>
-            makePoolMentor(id, { name: 'Zahra Mirzakhani' })
-          ),
-        },
+        data: Array.from(favoritedSet).map((id) =>
+          makePoolMentor(id, { name: 'Zahra Mirzakhani' })
+        ),
       });
     });
 
-    await page.route(/\/v1\/mentors\/\d+\/favorite$/, (route) => {
+    await page.route(/\/v1\/users\/9001\/favorite-mentors\/\d+$/, (route) => {
       if (route.request().method() === 'OPTIONS') {
         return fulfillCorsOptions(route);
       }
@@ -1030,8 +1054,11 @@ test.describe('收藏功能跨畫面狀態同步、GA4 追蹤與無障礙整合�
     // 2. 完成登入返回 /profile/:id -> 自動完成收藏並觸發單筆 mentor_bookmark_toggle (feature: 'profile', action: 'add') 且無 PII
     const autoPutPromise = page.waitForResponse(
       (res) =>
-        res.url().includes(`/v1/mentors/${TARGET_MENTOR_ID_STR}/favorite`) &&
-        res.request().method() === 'PUT'
+        res
+          .url()
+          .includes(
+            `/v1/users/9001/favorite-mentors/${TARGET_MENTOR_ID_STR}`
+          ) && res.request().method() === 'PUT'
     );
     await page.fill('input[name="email"]', 'mentee@example.com');
     await page.fill('input[name="password"]', 'Password1234');

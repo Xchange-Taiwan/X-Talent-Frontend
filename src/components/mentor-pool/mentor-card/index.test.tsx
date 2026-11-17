@@ -130,7 +130,11 @@ describe('MentorCard (#757, #896)', () => {
 
       expect(onLinkClick).not.toHaveBeenCalled();
       expect(onDocumentClick).not.toHaveBeenCalled();
-      expect(addMock).toHaveBeenCalledWith(101, expect.any(AbortSignal));
+      expect(addMock).toHaveBeenCalledWith(
+        '9001',
+        101,
+        expect.any(AbortSignal)
+      );
       expect(trackEventSpy).toHaveBeenCalledWith({
         name: 'mentor_bookmark_toggle',
         feature: 'mentor_pool',
@@ -154,7 +158,11 @@ describe('MentorCard (#757, #896)', () => {
       expect(onDocumentClick).not.toHaveBeenCalled();
       expect(onDocumentKeyDown).not.toHaveBeenCalled();
       expect(onDocumentKeyUp).not.toHaveBeenCalled();
-      expect(removeMock).toHaveBeenCalledWith(101, expect.any(AbortSignal));
+      expect(removeMock).toHaveBeenCalledWith(
+        '9001',
+        101,
+        expect.any(AbortSignal)
+      );
       expect(trackEventSpy).toHaveBeenLastCalledWith({
         name: 'mentor_bookmark_toggle',
         feature: 'mentor_pool',
@@ -241,7 +249,11 @@ describe('MentorCard (#757, #896)', () => {
     await user.click(bookmarkButton);
 
     expect(onLinkClick).not.toHaveBeenCalled();
-    expect(removeMock).toHaveBeenCalledWith(101, expect.any(AbortSignal));
+    expect(removeMock).toHaveBeenCalledWith(
+      '9001',
+      101,
+      expect.any(AbortSignal)
+    );
     expect(trackEventSpy).toHaveBeenCalledWith({
       name: 'mentor_bookmark_toggle',
       feature: 'favorites',

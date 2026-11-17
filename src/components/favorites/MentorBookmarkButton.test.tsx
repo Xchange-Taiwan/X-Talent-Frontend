@@ -8,6 +8,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { clearToasts } from '@/components/ui/use-toast';
 import { FAVORITE_MENTOR_ERROR_TOAST_MESSAGE } from '@/hooks/favorites';
 import * as analyticsModule from '@/lib/analytics';
+import { ApiError } from '@/lib/apiClient';
 import {
   favoriteMentorsReadModel,
   type FavoriteMentorsTransport,
@@ -158,7 +159,11 @@ describe('MentorBookmarkButton', () => {
     expect(
       screen.getByRole('button', { name: '收藏 陳宥廷 Austin' })
     ).toHaveAttribute('aria-pressed', 'false');
-    expect(removeMock).toHaveBeenCalledWith(101, expect.any(AbortSignal));
+    expect(removeMock).toHaveBeenCalledWith(
+      '999',
+      101,
+      expect.any(AbortSignal)
+    );
     expect(trackEventSpy).toHaveBeenLastCalledWith({
       name: 'mentor_bookmark_toggle',
       feature: 'mentor_pool',
@@ -221,7 +226,7 @@ describe('MentorBookmarkButton', () => {
     await waitFor(() => {
       expect(favoritedButton).not.toHaveAttribute('aria-busy');
     });
-    expect(addMock).toHaveBeenCalledWith(101, expect.any(AbortSignal));
+    expect(addMock).toHaveBeenCalledWith('999', 101, expect.any(AbortSignal));
     expect(trackEventSpy).toHaveBeenCalledTimes(1);
     expect(trackEventSpy).toHaveBeenLastCalledWith({
       name: 'mentor_bookmark_toggle',
@@ -245,7 +250,11 @@ describe('MentorBookmarkButton', () => {
     await waitFor(() => {
       expect(unfavoritedButton).not.toHaveAttribute('aria-busy');
     });
-    expect(removeMock).toHaveBeenCalledWith(101, expect.any(AbortSignal));
+    expect(removeMock).toHaveBeenCalledWith(
+      '999',
+      101,
+      expect.any(AbortSignal)
+    );
     expect(trackEventSpy).toHaveBeenCalledTimes(2);
     expect(trackEventSpy).toHaveBeenLastCalledWith({
       name: 'mentor_bookmark_toggle',
@@ -377,9 +386,11 @@ describe('MentorBookmarkButton', () => {
     expect(renderCount).toBe(baselineRenders);
   });
 
-  it('rolls back icon state and shows destructive toast when API mutation fails', async () => {
+  it('rolls back icon state and shows destructive toast when API mutation fails (including 40300 user_id mismatch and 400/404 code "1" business errors)', async () => {
     const user = userEvent.setup();
-    addMock.mockRejectedValueOnce(new Error('500 Internal Error'));
+    addMock.mockRejectedValueOnce(
+      new ApiError(403, 'user_id not match', '40300', null)
+    );
     favoriteMentorsReadModel.seed('999', []);
 
     renderWithSession(
@@ -388,6 +399,30 @@ describe('MentorBookmarkButton', () => {
 
     const button = screen.getByRole('button', { name: '收藏 陳宥廷 Austin' });
     await user.click(button);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: '收藏 陳宥廷 Austin' })
+      ).toHaveAttribute('aria-pressed', 'false');
+    });
+
+    expect(
+      await screen.findByText(FAVORITE_MENTOR_ERROR_TOAST_MESSAGE)
+    ).toBeVisible();
+
+    act(() => {
+      clearToasts();
+    });
+    addMock.mockRejectedValueOnce(
+      new ApiError(404, 'mentor_not_found', '1', {
+        type: 'mentor_not_found',
+        message: 'Mentor not found',
+      })
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: '收藏 陳宥廷 Austin' })
+    );
 
     await waitFor(() => {
       expect(
