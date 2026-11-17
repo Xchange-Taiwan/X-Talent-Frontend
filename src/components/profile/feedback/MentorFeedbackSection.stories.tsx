@@ -80,6 +80,18 @@ export const ControlledPaginationPageTwo: Story = {
   },
 };
 
+export const PageTransitionLoading: Story = {
+  args: {
+    items: paginatedItems.slice(0, 10),
+    totalRatingCount: 12,
+    ratingAverage: 8.5,
+    page: 2,
+    pageSize: 10,
+    isLoading: true,
+    onPageChange: () => {},
+  },
+};
+
 export const EmptyZeroReviews: Story = {
   args: {
     items: [],
