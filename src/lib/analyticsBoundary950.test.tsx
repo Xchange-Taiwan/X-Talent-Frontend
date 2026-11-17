@@ -341,12 +341,10 @@ describe('Analytics Boundary, Pre-DB Diagnostics & Clarity Masking (#950)', () =
   });
 
   it('upgrades Clarity session without emitting GA4 API error noise on Meet link fetch, schedule save, and avatar upload failures', async () => {
-    const windowOpenSpy = vi
-      .spyOn(window, 'open')
-      .mockReturnValue({
-        close: vi.fn(),
-        location: { href: '' },
-      } as unknown as Window);
+    const windowOpenSpy = vi.spyOn(window, 'open').mockReturnValue({
+      close: vi.fn(),
+      location: { href: '' },
+    } as unknown as Window);
 
     mockFetchReservationMeetLink.mockRejectedValue(new Error('404 not ready'));
     const { result: meetHook } = renderHook(() =>
