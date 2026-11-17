@@ -40,7 +40,6 @@ permissions:
   pull-requests: write
 
 env:
-  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
   VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_DEV }}
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
 
@@ -70,29 +69,34 @@ jobs:
         run: npm install --global vercel@51.2.1
 
       - name: Pull Vercel environment (preview)
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN_PREVIEW || secrets.VERCEL_TOKEN }}
         run: vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
 
       # Single build: vercel build runs next build internally with Vercel env vars
       - name: Build project with Vercel
         shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN_PREVIEW || secrets.VERCEL_TOKEN }}
         run: |
           set -euo pipefail
-          if ! vercel build --token="$VERCEL_TOKEN" 2>&1 | tee .build-output.txt; then
+          if ! vercel build --token="$VERCEL_TOKEN"; then
             echo "Cached Vercel build failed; clearing .next/cache and retrying clean build..."
             rm -rf .next .vercel/output
-            vercel build --token="$VERCEL_TOKEN" 2>&1 | tee .build-output.txt
+            vercel build --token="$VERCEL_TOKEN"
           fi
 
       - name: Deploy PR preview
         id: vercel_preview
         shell: bash
         env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN_PREVIEW || secrets.VERCEL_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -uo pipefail
-          echo "🚀 Deploying PR preview..."
+          echo "Deploying PR preview..."
           err_file="$(mktemp)"
           out="$(vercel deploy --prebuilt --archive=tgz --token="$VERCEL_TOKEN" 2>"$err_file")"
           rc=$?
@@ -101,7 +105,10 @@ jobs:
           if [ "$rc" -ne 0 ]; then
             if grep -qiE 'api-deployments-free-per-day|Resource is limited' "$err_file"; then
               echo "::warning::Vercel Hobby daily deployment quota reached; marking PR comment without failing code gates."
-              gh pr comment "$PR_NUMBER" --body "<!-- vercel-quota-limit:sha=${HEAD_SHA} -->⚠️ **Vercel 每日免費預覽部署額度已達上限**（\`api-deployments-free-per-day\`），程式碼與測試檢查不受影響，待額度重置後可重新觸發預覽。" || true
+              gh pr comment "$PR_NUMBER" --body "<!-- vercel-quota-limit:sha=${HEAD_SHA} -->**Vercel 每日免費預覽部署額度已達上限**（\`api-deployments-free-per-day\`），程式碼與測試檢查不受影響，待額度重置後可重新觸發預覽。" || true
+              echo "quota_skipped=true" >> "$GITHUB_OUTPUT"
+              rm -f "$err_file"
+              exit 0
             fi
             rm -f "$err_file"
             exit "$rc"
@@ -110,25 +117,9 @@ jobs:
           url="$(printf '%s\n' "$out" | grep -Eo 'https://[^[:space:]]+' | tail -n 1)"
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
-      - name: Extract bundle size report
-        id: bundle
-        run: |
-          python3 - <<'EOF' > .bundle-report.txt 2>&1 || echo "Could not extract bundle size." > .bundle-report.txt
-          import re
-
-          with open('.build-output.txt') as f:
-              content = f.read()
-
-          match = re.search(r'(Route \(app\)|Route \(pages\)|Page\s+)[\s\S]*?(?=\ninfo |\Z)', content)
-          if match:
-              lines = match.group(0).split('\n')[:60]
-              print('\n'.join(lines))
-          else:
-              print('Bundle size data not available in build output.')
-          EOF
-
       - name: Auto-capture UI evidence screenshots on PR Preview
         id: ui_evidence
+        if: steps.vercel_preview.outputs.quota_skipped != 'true'
         continue-on-error: true
         env:
           PREVIEW_URL: ${{ steps.vercel_preview.outputs.url }}
@@ -183,42 +174,32 @@ jobs:
             done
           fi
 
-      - name: Post PR comment (preview URL + bundle size + UI screenshots)
+      - name: Post PR comment (preview URL + UI screenshots)
+        if: steps.vercel_preview.outputs.quota_skipped != 'true' && steps.vercel_preview.outputs.url != ''
         uses: actions/github-script@v9
         env:
           PREVIEW_URL: ${{ steps.vercel_preview.outputs.url }}
         with:
           script: |
             const fs = require('fs');
-            const bundleReport = fs.readFileSync('.bundle-report.txt', 'utf8').trim();
             const evidenceMd = fs.existsSync('.evidence-markdown.txt')
               ? fs.readFileSync('.evidence-markdown.txt', 'utf8').trim()
               : '';
             const previewUrl = process.env.PREVIEW_URL;
 
             const bodyParts = [
-              '## 🚀 PR Preview Deployment',
+              '## PR Preview Deployment',
               '',
               '| | |',
               '|---|---|',
               `| **Preview URL** | ${previewUrl} |`,
-              '| **Status** | ✅ Deployed |',
+              '| **Status** | Deployed |',
               '',
             ];
 
             if (evidenceMd) {
-              bodyParts.push('### 📸 Auto-Captured UI Evidence', '', evidenceMd, '');
+              bodyParts.push('### Auto-Captured UI Evidence', '', evidenceMd, '');
             }
-
-            bodyParts.push(
-              '<details>',
-              '<summary>📦 Bundle Size Report</summary>',
-              '',
-              '```',
-              bundleReport,
-              '```',
-              '</details>'
-            );
 
             const body = bodyParts.join('\n');
 

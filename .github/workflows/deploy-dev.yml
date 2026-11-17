@@ -31,8 +31,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 env:
-  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
   VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_DEV }}
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
 
@@ -44,6 +46,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up environment
         uses: ./.github/actions/setup-env
@@ -52,29 +56,48 @@ jobs:
         run: npm install --global vercel@51.2.1
 
       - name: Pull Vercel environment info
-        run: vercel pull --yes --environment=production --token=${{ env.VERCEL_TOKEN }}
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
 
       - name: Build project
-        run: vercel build --prod --token=${{ env.VERCEL_TOKEN }}
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: xchange-6j
+          SENTRY_PROJECT: x-talent-frontend
+          SENTRY_RELEASE: ${{ github.sha }}
+        run: vercel build --prod --token="$VERCEL_TOKEN"
 
       - name: Deploy to Vercel (Production for develop)
         id: deploy
         shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           set -euo pipefail
-          echo "🚀 Deploying to Vercel Production (develop)..."
-          out="$(vercel deploy --prebuilt --prod --archive=tgz --token=${{ env.VERCEL_TOKEN }})"
+          echo "Deploying to Vercel Production (develop)..."
+          out="$(vercel deploy --prebuilt --prod --archive=tgz --token="$VERCEL_TOKEN")"
           echo "$out"
           url="$(printf '%s\n' "$out" | tail -n 1)"
           echo "vercel_url=$url" >> "$GITHUB_OUTPUT"
 
+      - name: Verify Staging Domain & Static Artifacts
+        run: |
+          node scripts/verify-deployment-boundaries.mjs \
+            --site-url "https://xtalentdev.vercel.app" \
+            --env-file ".vercel/.env.production.local" \
+            --static-dir ".vercel/output/static"
+
       - name: Comment on commit with deploy URL
         uses: actions/github-script@v9
+        env:
+          DEPLOY_URL: ${{ steps.deploy.outputs.vercel_url }}
         with:
           script: |
-            github.rest.repos.createCommitComment({
+            await github.rest.repos.createCommitComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               commit_sha: context.sha,
-              body: `🚀 Deployment from develop branch:\n${{ steps.deploy.outputs.vercel_url }}`
-            })
+              body: `Deployment from develop branch:\n${process.env.DEPLOY_URL}`
+            });

@@ -1,3 +1,4 @@
 #!/usr/bin/env sh
 
+node scripts/check-staged-secrets.mjs
 npx lint-staged

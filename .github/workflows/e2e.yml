@@ -15,6 +15,9 @@ concurrency:
   group: e2e-shared-accounts
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   # Browser-mocked projects may still read real backend data during SSR.
   # Signed sessions require the target deployment's NextAuth secret.

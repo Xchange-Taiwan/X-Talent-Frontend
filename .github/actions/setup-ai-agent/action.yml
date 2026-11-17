@@ -18,11 +18,15 @@ runs:
   steps:
     - name: Fetch base branch
       shell: bash
-      run: git fetch origin ${{ inputs.base-ref }}:refs/remotes/origin/${{ inputs.base-ref }}
+      env:
+        BASE_REF: ${{ inputs.base-ref }}
+      run: git fetch origin -- "${BASE_REF}:refs/remotes/origin/${BASE_REF}"
 
     - name: Fetch PR head commit (diff input only, not checked out)
       shell: bash
-      run: git fetch origin ${{ inputs.head-sha }}
+      env:
+        HEAD_SHA: ${{ inputs.head-sha }}
+      run: git fetch origin -- "${HEAD_SHA}"
 
     - name: Set up Node.js
       uses: actions/setup-node@v7

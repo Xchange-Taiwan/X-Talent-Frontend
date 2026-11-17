@@ -114,11 +114,19 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
 
-      - name: 'Check out PR #${{ inputs.pr_number }}'
+      - name: 'Verify PR is from same repository and check out PR'
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ env.SAFE_PR_NUMBER }}
+          EXPECTED_REPO: ${{ github.repository }}
         run: |
+          PR_META=$(gh api "repos/${EXPECTED_REPO}/pulls/${PR_NUMBER}" --jq '{fork: .head.repo.fork, fullName: .head.repo.full_name}')
+          IS_FORK=$(printf '%s' "$PR_META" | jq -r '.fork')
+          HEAD_REPO=$(printf '%s' "$PR_META" | jq -r '.fullName')
+          if [ "$IS_FORK" != "false" ] || [ "$HEAD_REPO" != "$EXPECTED_REPO" ]; then
+            echo "::error::Refusing to check out untrusted cross-repository fork PR #${PR_NUMBER} (${HEAD_REPO})."
+            exit 1
+          fi
           gh pr checkout "$PR_NUMBER"
           git config user.name "x-talent-cloud-agent[bot]"
           git config user.email "x-talent-cloud-agent[bot]@users.noreply.github.com"
@@ -181,6 +189,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER }}
           PR_NUMBER: ${{ env.SAFE_PR_NUMBER }}
+          EXPECTED_REPO: ${{ github.repository }}
           FIX_INSTRUCTIONS: ${{ inputs.fix_instructions }}
         run: |
           mkdir -p .agents/tmp
@@ -210,7 +219,7 @@ jobs:
           node scripts/cloud/ticket-bundle.mjs \
             --ticket="$TICKET_NUMBER" \
             --pr="$PR_NUMBER" \
-            --frontend-repo="${{ github.repository }}" \
+            --frontend-repo="$EXPECTED_REPO" \
             --merge-conflicts-file=.agents/tmp/merge-conflicts.md || true
 
           PROMPT_FILE=$(mktemp)
@@ -278,6 +287,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER || inputs.ticket_number }}
           PR_NUMBER: ${{ env.SAFE_PR_NUMBER || inputs.pr_number }}
+          EXPECTED_REPO: ${{ github.repository }}
           JOB_STATUS: ${{ job.status }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -285,10 +295,10 @@ jobs:
           CLEAN_TICKET=$(printf '%s' "$TICKET_NUMBER" | tr -cd '0-9')
           CLEAN_PR=$(printf '%s' "$PR_NUMBER" | tr -cd '0-9')
 
-          PR_URL="https://github.com/${{ github.repository }}/pull/${CLEAN_PR}"
+          PR_URL="https://github.com/${EXPECTED_REPO}/pull/${CLEAN_PR}"
           VERCEL_LIMIT="false"
           if [ -n "$CLEAN_PR" ]; then
-            if gh api --paginate "repos/${{ github.repository }}/issues/${CLEAN_PR}/comments?per_page=100" --jq '.[].body' 2>/dev/null | grep -qiE 'vercel-quota-limit|api-deployments-free-per-day'; then
+            if gh api --paginate "repos/${EXPECTED_REPO}/issues/${CLEAN_PR}/comments?per_page=100" --jq '.[].body' 2>/dev/null | grep -qiE 'vercel-quota-limit|api-deployments-free-per-day'; then
               VERCEL_LIMIT="true"
             fi
           fi

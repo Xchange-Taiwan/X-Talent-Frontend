@@ -34,7 +34,13 @@ export async function middleware(req: NextRequest) {
   const bypassParam = nextUrl.searchParams.get('bypass');
   const bypassCookie = req.cookies.get('maintenance_bypass')?.value;
 
-  const e2eMaintenanceCookie = req.cookies.get('__e2e_maintenance')?.value;
+  const isProductionTarget =
+    process.env.NEXT_PUBLIC_SENTRY_ENV === 'production' ||
+    (process.env.VERCEL_ENV === 'production' &&
+      process.env.NEXT_PUBLIC_SENTRY_ENV !== 'staging');
+  const e2eMaintenanceCookie = !isProductionTarget
+    ? req.cookies.get('__e2e_maintenance')?.value
+    : undefined;
   const e2eMaintenanceOverride =
     e2eMaintenanceCookie && process.env.NEXTAUTH_SECRET
       ? await decode({

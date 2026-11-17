@@ -742,4 +742,25 @@ describe('captureFlowFailure', () => {
 
     consoleErrorSpy.mockRestore();
   });
+
+  it('captureApiFailure attaches a normalized endpoint fingerprint so dynamic IDs group together in Sentry', async () => {
+    await captureApiFailure({
+      endpoint: '/v1/users/987654/reservations/12345?token=secret_val',
+      method: 'POST',
+      status: 502,
+      message: 'Bad gateway on upstream 10.0.1.9',
+    });
+
+    const arg = mockCaptureEvent.mock.calls[0][0] as {
+      fingerprint?: string[];
+      extra: { endpoint: string };
+    };
+    expect(arg.fingerprint).toEqual([
+      'api.failure',
+      'POST',
+      '/v1/users/:id/reservations/:id',
+      '502',
+    ]);
+    expect(arg.extra.endpoint).toContain('token=[REDACTED]');
+  });
 });

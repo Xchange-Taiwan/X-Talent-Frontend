@@ -7,6 +7,9 @@ concurrency:
   group: deploy-discord-worker
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   deploy-worker:
     runs-on: ubuntu-latest

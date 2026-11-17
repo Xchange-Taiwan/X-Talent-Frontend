@@ -1,5 +1,14 @@
 /** @type {import('next').NextConfig} */
-const { withSentryConfig } = require('@sentry/nextjs');
+let withSentryConfig;
+try {
+  ({ withSentryConfig } = require('@sentry/nextjs/config'));
+} catch {
+  ({ withSentryConfig } = require('@sentry/nextjs'));
+}
+
+const { validateProductionEnv } = require('./scripts/validate-prod-env.cjs');
+
+validateProductionEnv(process.env);
 
 // Derive Sentry's CSP report endpoint from the public DSN so report-uri stays
 // in sync with whichever Sentry project the deployment is wired up to.
@@ -76,7 +85,11 @@ function buildCsp() {
     .join('; ');
 }
 
+const hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN);
+
 const nextConfig = {
+  poweredByHeader: false,
+  productionBrowserSourceMaps: hasSentryAuthToken,
   images: {
     // Avatar URLs are versioned at write time (`?v=` baked in by
     // `updateAvatar.ts:buildS3ObjectUrl`, `?cb=` appended from
@@ -98,10 +111,26 @@ const nextConfig = {
       },
     ],
   },
-  // Enable hot reload optimizations
+  // Enable hot reload and barrel tree-shaking optimizations
   experimental: {
     optimizeCss: false,
-    optimizePackageImports: ['lucide-react'],
+    optimizePackageImports: [
+      'lucide-react',
+      'cmdk',
+      'react-day-picker',
+      '@radix-ui/react-avatar',
+      '@radix-ui/react-checkbox',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-dropdown-menu',
+      '@radix-ui/react-icons',
+      '@radix-ui/react-label',
+      '@radix-ui/react-popover',
+      '@radix-ui/react-select',
+      '@radix-ui/react-slider',
+      '@radix-ui/react-slot',
+      '@radix-ui/react-tabs',
+      '@radix-ui/react-toast',
+    ],
     // Disable persistent Turbopack dev cache in CI / Playwright E2E so abrupt
     // webServer teardown across rounds never leaves stale TaskId references.
     turbopackFileSystemCacheForDev:
@@ -161,7 +190,12 @@ module.exports = withSentryConfig(nextConfig, {
   silent: !process.env.CI,
 
   // Upload a larger set of source maps for prettier stack traces (increases build time)
-  widenClientFileUpload: true,
+  widenClientFileUpload: hasSentryAuthToken,
+
+  sourcemaps: {
+    disable: !hasSentryAuthToken,
+    deleteSourcemapsAfterUpload: true,
+  },
 
   // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
   // Note: ensure this route does not conflict with Next.js middleware.

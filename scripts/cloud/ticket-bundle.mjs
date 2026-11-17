@@ -154,8 +154,11 @@ export function fetchFixPrSupplementalMarkdown({
       { cwd, env }
     );
     const parsedComments = parseConcatenatedJsonArrays(rawCommentsPages);
-    const aiReviewComments = parsedComments.filter((c) =>
-      String(c?.body || '').includes('ai-review-pipeline')
+    const aiReviewComments = parsedComments.filter(
+      (c) =>
+        c?.user?.login === 'github-actions[bot]' &&
+        c?.user?.type === 'Bot' &&
+        String(c?.body || '').includes('ai-review-pipeline')
     );
     const latestAiComment = aiReviewComments.at(-1);
     if (latestAiComment?.body) {
