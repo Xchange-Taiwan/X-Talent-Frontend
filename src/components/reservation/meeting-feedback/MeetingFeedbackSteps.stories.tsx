@@ -6,6 +6,7 @@ import {
   DEFAULT_MEETING_FEEDBACK_FORM_VALUES,
   useMeetingFeedbackForm,
 } from '@/hooks/user/reservation/useMeetingFeedbackForm';
+import { resolveMeetingFeedbackFooterModel } from '@/schemas/meetingFeedbackSchema';
 import type { NotHappenedReason } from '@/types/reservationFeedback';
 
 import {
@@ -24,6 +25,12 @@ function AttendancePreview({
   isMentor?: boolean;
 }) {
   const [val, setVal] = React.useState<boolean | null>(initialValue);
+  const footerModel = resolveMeetingFeedbackFooterModel({
+    step: 'attendance',
+    role: isMentor ? 'mentor' : 'mentee',
+    values: { meetingHappened: val },
+  });
+
   return (
     <Dialog open>
       <DialogContent className="max-w-[468px] space-y-4">
@@ -32,14 +39,7 @@ function AttendancePreview({
           onSelectMeetingHappened={setVal}
         />
         <MeetingFeedbackFooter
-          effectiveStep="attendance"
-          isEditMode={false}
-          isMentor={isMentor}
-          meetingHappened={val}
-          isSubmitting={false}
-          isTransitioningCard={false}
-          canProceedAttendance={val !== null}
-          canSubmitStep2={false}
+          footerModel={footerModel}
           onNextFromAttendance={() => {}}
           onBackToAttendance={() => {}}
           onCancelEdit={() => {}}
@@ -58,6 +58,7 @@ function NotHappenedPreview({
   initialNote?: string;
   isMentor?: boolean;
 }) {
+  const role = isMentor ? 'mentor' : 'mentee';
   const form = useMeetingFeedbackForm(
     {
       ...DEFAULT_MEETING_FEEDBACK_FORM_VALUES,
@@ -65,10 +66,19 @@ function NotHappenedPreview({
       notHappenedReason: initialReason,
       notHappenedNote: initialNote,
     },
-    isMentor ? 'mentor' : 'mentee'
+    role
   );
   const reason = form.watch('notHappenedReason');
   const note = form.watch('notHappenedNote');
+  const footerModel = resolveMeetingFeedbackFooterModel({
+    step: 'not-happened',
+    role,
+    values: {
+      meetingHappened: false,
+      notHappenedReason: reason,
+      notHappenedNote: note,
+    },
+  });
 
   return (
     <Dialog open>
@@ -84,14 +94,7 @@ function NotHappenedPreview({
         />
         {isMentor ? <MentorNotHappenedWarning /> : null}
         <MeetingFeedbackFooter
-          effectiveStep="not-happened"
-          isEditMode={false}
-          isMentor={isMentor}
-          meetingHappened={false}
-          isSubmitting={false}
-          isTransitioningCard={false}
-          canProceedAttendance={true}
-          canSubmitStep2={reason !== null}
+          footerModel={footerModel}
           onNextFromAttendance={() => {}}
           onBackToAttendance={() => {}}
           onCancelEdit={() => {}}
@@ -101,16 +104,38 @@ function NotHappenedPreview({
   );
 }
 
-function RatingPreview() {
-  const form = useMeetingFeedbackForm();
+function RatingPreview({
+  isEditMode = false,
+  hasRemainingQueueCard = false,
+}: {
+  isEditMode?: boolean;
+  hasRemainingQueueCard?: boolean;
+}) {
+  const form = useMeetingFeedbackForm({
+    ...DEFAULT_MEETING_FEEDBACK_FORM_VALUES,
+    meetingHappened: true,
+    rating: isEditMode ? 8 : 10,
+    content: isEditMode ? '導師提供了非常具體的職涯建議。' : '',
+  });
   const rating = form.watch('rating');
   const content = form.watch('content');
+  const footerModel = resolveMeetingFeedbackFooterModel({
+    step: 'rating',
+    mode: isEditMode ? 'edit' : 'create',
+    role: 'mentee',
+    hasRemainingQueueCard,
+    values: {
+      meetingHappened: true,
+      rating,
+      content,
+    },
+  });
 
   return (
     <Dialog open>
       <DialogContent className="max-w-[468px] space-y-4">
         <RatingStepContent
-          isEditMode={false}
+          isEditMode={isEditMode}
           rating={rating}
           content={content}
           contentFieldId="story-content"
@@ -119,6 +144,12 @@ function RatingPreview() {
           tooltipDismissSignal={0}
           onMaskTooltipOpenChange={() => {}}
           onRatingChange={(next) => form.setValue('rating', next)}
+        />
+        <MeetingFeedbackFooter
+          footerModel={footerModel}
+          onNextFromAttendance={() => {}}
+          onBackToAttendance={() => {}}
+          onCancelEdit={() => {}}
         />
       </DialogContent>
     </Dialog>
@@ -143,6 +174,14 @@ export const Step1Attendance: Story = {
 
 export const Step2Rating: Story = {
   render: () => <RatingPreview />,
+};
+
+export const Step2RatingQueueNextSession: Story = {
+  render: () => <RatingPreview hasRemainingQueueCard />,
+};
+
+export const EditModeRating: Story = {
+  render: () => <RatingPreview isEditMode />,
 };
 
 export const Step2NotHappened: Story = {

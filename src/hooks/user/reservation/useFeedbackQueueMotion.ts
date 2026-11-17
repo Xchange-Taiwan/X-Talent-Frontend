@@ -41,7 +41,11 @@ export interface UseFeedbackQueueMotionOptions {
   queue?: Reservation[];
   initialQueueIndex?: number;
   onSkipReservation?: (reservation: Reservation) => void;
-  onAdvanceItem: () => void;
+}
+
+export interface AdvanceFeedbackQueueOptions {
+  didSkip: boolean;
+  onPromoteNextItem: (nextReservation: Reservation, nextIndex: number) => void;
   onFinishQueue: () => void;
 }
 
@@ -52,8 +56,6 @@ export function useFeedbackQueueMotion({
   queue,
   initialQueueIndex = 0,
   onSkipReservation,
-  onAdvanceItem,
-  onFinishQueue,
 }: UseFeedbackQueueMotionOptions) {
   const liveQueueItems = React.useMemo(
     () => buildQueueList(isEditMode, reservation, queue),
@@ -88,23 +90,25 @@ export function useFeedbackQueueMotion({
     };
   }, [clearQueueTimers]);
 
-  // Sync external queue only while closed, or at the exact moment `open` flips false -> true.
+  // Freeze external queue at the exact moment `open` transitions false -> true.
+  // While closed (`!open`), `queueItems` reads `liveQueueItems` directly without
+  // triggering state updates on inline array props.
   React.useEffect(() => {
     const openedNow = open && !wasOpenRef.current;
     wasOpenRef.current = open;
 
-    if (!open || openedNow) {
+    if (openedNow) {
       setSessionQueue(liveQueueItems);
       setQueueIndex(clampIndex(initialQueueIndex, liveQueueItems.length));
     }
   }, [open, liveQueueItems, initialQueueIndex]);
 
   const queueItems = open ? sessionQueue : liveQueueItems;
+  const clampedIndex = clampIndex(queueIndex, queueItems.length);
   const isQueueMode = !isEditMode && queueItems.length > 1;
-  const activeReservation =
-    queueItems[clampIndex(queueIndex, queueItems.length)] ?? reservation;
+  const activeReservation = queueItems[clampedIndex] ?? reservation;
   const hasRemainingQueueCard =
-    isQueueMode && queueIndex < queueItems.length - 1;
+    isQueueMode && clampedIndex < queueItems.length - 1;
 
   const prepareOpenSnapshot = React.useCallback(() => {
     const snapshot = buildQueueList(isEditMode, reservation, queue);
@@ -119,13 +123,26 @@ export function useFeedbackQueueMotion({
     setQueueIndex(clampIndex(initialQueueIndex, liveQueueItems.length));
   }, [clearQueueTimers, initialQueueIndex, liveQueueItems.length]);
 
+  const skipRemainingQueue = React.useCallback(() => {
+    if (isEditMode || !onSkipReservation) {
+      return;
+    }
+    for (const item of queueItems.slice(clampedIndex)) {
+      onSkipReservation(item);
+    }
+  }, [clampedIndex, isEditMode, onSkipReservation, queueItems]);
+
   const advanceOrCloseQueue = React.useCallback(
-    (didSkip: boolean) => {
+    ({
+      didSkip,
+      onPromoteNextItem,
+      onFinishQueue,
+    }: AdvanceFeedbackQueueOptions) => {
       if (didSkip) {
         onSkipReservation?.(activeReservation);
       }
 
-      if (!isQueueMode || queueIndex >= queueItems.length - 1) {
+      if (!isQueueMode || clampedIndex >= queueItems.length - 1) {
         clearQueueTimers();
         setQueueMotionState('idle');
         setQueueIndex(0);
@@ -133,9 +150,12 @@ export function useFeedbackQueueMotion({
         return;
       }
 
+      const nextIndex = Math.min(clampedIndex + 1, queueItems.length - 1);
+      const nextReservation = queueItems[nextIndex] ?? activeReservation;
+
       if (isReducedMotionPreferred()) {
-        setQueueIndex((prev) => Math.min(prev + 1, queueItems.length - 1));
-        onAdvanceItem();
+        setQueueIndex(nextIndex);
+        onPromoteNextItem(nextReservation, nextIndex);
         setQueueMotionState('idle');
         return;
       }
@@ -144,8 +164,8 @@ export function useFeedbackQueueMotion({
       setQueueMotionState('swiping-out');
 
       const outTimer = setTimeout(() => {
-        setQueueIndex((prev) => Math.min(prev + 1, queueItems.length - 1));
-        onAdvanceItem();
+        setQueueIndex(nextIndex);
+        onPromoteNextItem(nextReservation, nextIndex);
         setQueueMotionState('promoting');
 
         const promoteTimer = setTimeout(() => {
@@ -158,19 +178,17 @@ export function useFeedbackQueueMotion({
     },
     [
       activeReservation,
+      clampedIndex,
       clearQueueTimers,
       isQueueMode,
-      onAdvanceItem,
-      onFinishQueue,
       onSkipReservation,
-      queueIndex,
-      queueItems.length,
+      queueItems,
     ]
   );
 
   return {
     queueItems,
-    queueIndex,
+    queueIndex: clampedIndex,
     isQueueMode,
     activeReservation,
     hasRemainingQueueCard,
@@ -178,6 +196,7 @@ export function useFeedbackQueueMotion({
     isTransitioningCard: queueMotionState !== 'idle',
     prepareOpenSnapshot,
     resetQueueOnClose,
+    skipRemainingQueue,
     advanceOrCloseQueue,
   };
 }

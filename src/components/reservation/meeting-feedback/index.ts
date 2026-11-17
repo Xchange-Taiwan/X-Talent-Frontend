@@ -3,6 +3,10 @@ export {
   type FeedbackRadioOptionProps,
 } from './FeedbackRadioOption';
 export {
+  MeetingFeedbackHeader,
+  type MeetingFeedbackHeaderProps,
+} from './MeetingFeedbackHeader';
+export {
   AttendanceStepContent,
   type AttendanceStepContentProps,
   MeetingFeedbackFooter,

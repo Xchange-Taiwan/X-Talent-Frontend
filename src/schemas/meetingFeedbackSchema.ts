@@ -212,3 +212,193 @@ export function toSubmitFeedbackPayload(
 
   return null;
 }
+
+export type MeetingFeedbackStep = 'attendance' | 'rating' | 'not-happened';
+export type MeetingFeedbackMode = 'create' | 'edit';
+export type MeetingFeedbackPrimaryActionKind = 'next-step' | 'submit';
+export type MeetingFeedbackSecondaryActionKind =
+  'back-to-attendance' | 'cancel-edit';
+export type MeetingFeedbackFooterLayoutVariant =
+  'attendance' | 'rating' | 'mentee-not-happened' | 'mentor-not-happened';
+
+export interface MeetingFeedbackPrimaryAction {
+  label: string;
+  type: 'button' | 'submit';
+  disabled: boolean;
+  actionKind: MeetingFeedbackPrimaryActionKind;
+  isLoading: boolean;
+}
+
+export interface MeetingFeedbackSecondaryAction {
+  label: string;
+  type: 'button';
+  disabled: boolean;
+  actionKind: MeetingFeedbackSecondaryActionKind;
+}
+
+export interface MeetingFeedbackFooterModel {
+  layoutVariant: MeetingFeedbackFooterLayoutVariant;
+  primaryAction: MeetingFeedbackPrimaryAction;
+  secondaryAction: MeetingFeedbackSecondaryAction | null;
+}
+
+export function canProceedAttendanceStep(
+  meetingHappened: boolean | null
+): boolean {
+  return typeof meetingHappened === 'boolean';
+}
+
+export function canSubmitRatingStep(values: {
+  rating?: number;
+  content: string;
+}): boolean {
+  return happenedFeedbackFieldsSchema.safeParse({
+    rating: values.rating ?? DEFAULT_MEETING_RATING,
+    content: values.content,
+  }).success;
+}
+
+export function canSubmitNotHappenedStep(values: {
+  notHappenedReason: LegacyNotHappenedReason | null;
+  notHappenedNote?: string;
+}): boolean {
+  if (!values.notHappenedReason) {
+    return false;
+  }
+  return notHappenedFeedbackFieldsSchema.safeParse({
+    notHappenedReason: normalizeNotHappenedReason(values.notHappenedReason),
+    notHappenedNote: values.notHappenedNote ?? '',
+  }).success;
+}
+
+export interface ResolveMeetingFeedbackFooterModelInput {
+  step: MeetingFeedbackStep;
+  mode?: MeetingFeedbackMode;
+  role?: FeedbackViewerRole;
+  values: {
+    meetingHappened: boolean | null;
+    rating?: number;
+    content?: string;
+    notHappenedReason?: LegacyNotHappenedReason | null;
+    notHappenedNote?: string;
+  };
+  hasRemainingQueueCard?: boolean;
+  isSubmitting?: boolean;
+  isTransitioningCard?: boolean;
+  hasFieldError?: boolean;
+}
+
+export function resolveMeetingFeedbackFooterModel({
+  step,
+  mode = 'create',
+  role = 'mentee',
+  values,
+  hasRemainingQueueCard = false,
+  isSubmitting = false,
+  isTransitioningCard = false,
+  hasFieldError = false,
+}: ResolveMeetingFeedbackFooterModelInput): MeetingFeedbackFooterModel {
+  const isEditMode = mode === 'edit';
+  const effectiveRole: FeedbackViewerRole = isEditMode ? 'mentee' : role;
+  const effectiveStep: MeetingFeedbackStep = isEditMode ? 'rating' : step;
+  const isMentor = !isEditMode && effectiveRole === 'mentor';
+  const isBusy = isSubmitting || isTransitioningCard;
+
+  if (effectiveStep === 'attendance') {
+    if (isMentor && values.meetingHappened !== false) {
+      if (values.meetingHappened === true) {
+        return {
+          layoutVariant: 'attendance',
+          primaryAction: {
+            label: isSubmitting ? '送出中...' : '確定送出',
+            type: 'submit',
+            disabled: isBusy,
+            actionKind: 'submit',
+            isLoading: isSubmitting,
+          },
+          secondaryAction: null,
+        };
+      }
+
+      return {
+        layoutVariant: 'attendance',
+        primaryAction: {
+          label: '確定送出',
+          type: 'button',
+          disabled: true,
+          actionKind: 'submit',
+          isLoading: false,
+        },
+        secondaryAction: null,
+      };
+    }
+
+    return {
+      layoutVariant: 'attendance',
+      primaryAction: {
+        label: '下一步',
+        type: 'button',
+        disabled: !canProceedAttendanceStep(values.meetingHappened) || isBusy,
+        actionKind: 'next-step',
+        isLoading: false,
+      },
+      secondaryAction: null,
+    };
+  }
+
+  const canSubmitStep =
+    effectiveStep === 'rating'
+      ? !hasFieldError &&
+        canSubmitRatingStep({
+          rating: values.rating,
+          content: values.content ?? '',
+        })
+      : !hasFieldError &&
+        canSubmitNotHappenedStep({
+          notHappenedReason: values.notHappenedReason ?? null,
+          notHappenedNote: values.notHappenedNote ?? '',
+        });
+
+  const primaryLabel = isSubmitting
+    ? isEditMode
+      ? '儲存中...'
+      : '送出中...'
+    : isEditMode
+      ? '儲存'
+      : hasRemainingQueueCard
+        ? '送出並填下一場'
+        : isMentor
+          ? '送出'
+          : '送出回饋';
+
+  const layoutVariant: MeetingFeedbackFooterLayoutVariant =
+    effectiveStep === 'not-happened'
+      ? isMentor
+        ? 'mentor-not-happened'
+        : 'mentee-not-happened'
+      : 'rating';
+
+  return {
+    layoutVariant,
+    primaryAction: {
+      label: primaryLabel,
+      type: 'submit',
+      disabled: !canSubmitStep || isBusy,
+      actionKind: 'submit',
+      isLoading: isSubmitting,
+    },
+    secondaryAction: isEditMode
+      ? {
+          label: '取消',
+          type: 'button',
+          disabled: isSubmitting,
+          actionKind: 'cancel-edit',
+        }
+      : {
+          label: '上一步',
+          type: 'button',
+          disabled: isSubmitting,
+          actionKind: 'back-to-attendance',
+        },
+  };
+}
