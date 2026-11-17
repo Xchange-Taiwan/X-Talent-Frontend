@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useToast } from '@/components/ui/use-toast';
 import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
-import { trackEvent } from '@/lib/analytics';
+import { trackEvent, trackFormValidationFailed } from '@/lib/analytics';
 import {
   getPendingFavoriteMentorId,
   savePendingFavoriteMentor,
@@ -42,6 +42,7 @@ const mockUseRouter = vi.mocked(useRouter);
 const mockUseSession = vi.mocked(useSession);
 const mockUseBackgroundAvatarUpload = vi.mocked(useBackgroundAvatarUpload);
 const mockTrackEvent = vi.mocked(trackEvent);
+const mockTrackFormValidationFailed = vi.mocked(trackFormValidationFailed);
 const mockUseToast = vi.mocked(useToast);
 
 describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
@@ -356,5 +357,11 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
 
     expect(mockWriteProfile).not.toHaveBeenCalled();
     expect(result.current.currentStep).toBe(1);
+    expect(mockTrackFormValidationFailed).toHaveBeenCalledWith({
+      feature: 'onboarding',
+      formId: 'mentee_onboarding',
+      invalidKeys: expect.arrayContaining(['name']),
+      step: 1,
+    });
   });
 });

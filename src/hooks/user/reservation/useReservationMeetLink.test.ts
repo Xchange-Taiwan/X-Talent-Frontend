@@ -13,6 +13,18 @@ vi.mock('@/components/ui/use-toast', async () => {
   return useToastMockFactory();
 });
 
+const mockTrackEvent = vi.fn();
+const mockUpgradeClaritySession = vi.fn();
+vi.mock('@/lib/analytics', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/analytics')>();
+  return {
+    ...actual,
+    trackEvent: (...args: unknown[]) => mockTrackEvent(...args),
+    upgradeClaritySession: (...args: unknown[]) =>
+      mockUpgradeClaritySession(...args),
+  };
+});
+
 // Mock service
 vi.mock('@/services/reservations', () => ({
   fetchReservationMeetLink: vi.fn(),
@@ -263,6 +275,37 @@ describe('useReservationMeetLink', () => {
     await waitFor(() => {
       expect(mockClose).toHaveBeenCalled();
       expect(mockToast).not.toHaveBeenCalled();
+      expect(mockUpgradeClaritySession).not.toHaveBeenCalled();
     });
+  });
+
+  it('calls upgradeClaritySession("meet_link_fetch_failed") without GA4 error noise when fetch fails or meet_url is empty (#950)', async () => {
+    const mockClose = vi.fn();
+    mockWindowOpen.mockReturnValue({
+      location: { href: '' },
+      close: mockClose,
+    });
+    vi.mocked(fetchReservationMeetLink).mockRejectedValueOnce(
+      new ApiError(404, 'Not ready')
+    );
+
+    const { result } = renderHook(() =>
+      useReservationMeetLink({ myUserId: 'user-456' })
+    );
+
+    await result.current.joinMeet('res-404');
+
+    expect(mockUpgradeClaritySession).toHaveBeenCalledWith(
+      'meet_link_fetch_failed'
+    );
+    expect(mockTrackEvent).not.toHaveBeenCalled();
+
+    mockUpgradeClaritySession.mockClear();
+    vi.mocked(fetchReservationMeetLink).mockResolvedValueOnce({ meet_url: '' });
+    await result.current.joinMeet('res-empty');
+    expect(mockUpgradeClaritySession).toHaveBeenCalledWith(
+      'meet_link_fetch_failed'
+    );
+    expect(mockTrackEvent).not.toHaveBeenCalled();
   });
 });

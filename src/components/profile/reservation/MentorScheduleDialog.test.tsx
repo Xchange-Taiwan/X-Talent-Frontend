@@ -678,6 +678,8 @@ describe('MentorScheduleDialog', () => {
       variant: 'destructive',
       description: '儲存失敗,請稍後再試',
     });
+    const { upgradeClaritySession } = await import('@/lib/analytics');
+    expect(upgradeClaritySession).toHaveBeenCalledWith('schedule_save_failed');
     expect(mockOnOpenChange).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: '儲存' })).not.toBeDisabled();
   });

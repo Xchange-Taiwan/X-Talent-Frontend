@@ -284,6 +284,8 @@ export function createFeedbackSessionCoordinator(
     isPresenting: false,
     presentedItems: null as Reservation[] | null,
     activeIds: [] as string[],
+    shownTelemetryUserId: null as string | null,
+    dismissedTelemetryUserId: null as string | null,
   };
 
   function notifyStateChange(): void {
@@ -489,6 +491,8 @@ export function createFeedbackSessionCoordinator(
     loginRuntime.isPresenting = false;
     loginRuntime.presentedItems = null;
     loginRuntime.activeIds = [];
+    loginRuntime.shownTelemetryUserId = null;
+    loginRuntime.dismissedTelemetryUserId = null;
     notifyStateChange();
   }
 
@@ -497,6 +501,8 @@ export function createFeedbackSessionCoordinator(
     loginRuntime.isPresenting = false;
     loginRuntime.presentedItems = null;
     loginRuntime.activeIds = [];
+    loginRuntime.shownTelemetryUserId = null;
+    loginRuntime.dismissedTelemetryUserId = null;
   }
 
   function syncAuthSession(opts: {
@@ -632,14 +638,42 @@ export function createFeedbackSessionCoordinator(
     }
   }
 
-  function dismissLoginQueue(userId: string): void {
+  function consumeLoginPromptShown(opts: {
+    userId: string;
+    canPresent: boolean;
+  }): number | null {
+    if (
+      !opts.canPresent ||
+      !opts.userId ||
+      loginRuntime.trackedUserId !== opts.userId ||
+      !loginRuntime.presentedItems ||
+      loginRuntime.presentedItems.length === 0 ||
+      loginRuntime.shownTelemetryUserId === opts.userId
+    ) {
+      return null;
+    }
+    loginRuntime.shownTelemetryUserId = opts.userId;
+    loginRuntime.dismissedTelemetryUserId = null;
+    return loginRuntime.presentedItems.length;
+  }
+
+  function dismissLoginQueue(userId: string): {
+    dismissedSkippedCount: number;
+  } {
+    let dismissedSkippedCount = 0;
     if (userId) {
       const persisted = getSessionState(userId);
-      const hasSkippedOrRemaining =
-        loginRuntime.activeIds.length > 0 || persisted.skippedIds.length > 0;
+      const skippedIdSet = new Set<string>([
+        ...persisted.skippedIds,
+        ...loginRuntime.activeIds,
+      ]);
 
-      if (hasSkippedOrRemaining) {
+      if (skippedIdSet.size > 0) {
         markDismissed(userId, loginRuntime.activeIds);
+        if (loginRuntime.dismissedTelemetryUserId !== userId) {
+          loginRuntime.dismissedTelemetryUserId = userId;
+          dismissedSkippedCount = skippedIdSet.size;
+        }
       } else {
         markChecked(userId, false);
       }
@@ -647,6 +681,7 @@ export function createFeedbackSessionCoordinator(
     loginRuntime.activeIds = [];
     loginRuntime.presentedItems = null;
     notifyStateChange();
+    return { dismissedSkippedCount };
   }
 
   function resolveExplicitQueueItems(opts: {
@@ -850,6 +885,7 @@ export function createFeedbackSessionCoordinator(
     getPresentedLoginQueue,
     shouldFetchLoginQueue,
     loadLoginQueue,
+    consumeLoginPromptShown,
     dismissLoginQueue,
     resolveExplicitQueueItems,
     seedLookupResult,

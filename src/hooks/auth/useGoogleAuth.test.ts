@@ -17,6 +17,15 @@ vi.mock('@/services/auth/authClient', () => ({
   },
 }));
 
+const mockTrackEvent = vi.fn();
+vi.mock('@/lib/analytics', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/analytics')>();
+  return {
+    ...actual,
+    trackEvent: (...args: unknown[]) => mockTrackEvent(...args),
+  };
+});
+
 vi.mock('@/lib/monitoring', () => ({
   captureFlowFailure: vi.fn(),
   sanitize: (val: string) => val,
@@ -214,5 +223,39 @@ describe('useGoogleAuth', () => {
       window.sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
     ).toBeNull();
     expect(result.current.isPending).toBe(false);
+  });
+
+  it('emits auth_oauth_started prior to Google redirect for both login and sign_up (#950)', async () => {
+    mockGetGoogleAuthorizeUrl
+      .mockResolvedValueOnce({
+        authorization_url:
+          'https://accounts.google.com/o/oauth2/v2/auth?login=1',
+        state: 's-login',
+      })
+      .mockResolvedValueOnce({
+        authorization_url:
+          'https://accounts.google.com/o/oauth2/v2/auth?signup=1',
+        state: 's-signup',
+      });
+
+    const { result } = renderHook(() => useGoogleAuth());
+
+    await act(async () => {
+      await result.current.handleGoogleAuth(true);
+    });
+    await act(async () => {
+      await result.current.handleGoogleAuth(false);
+    });
+
+    expect(mockTrackEvent).toHaveBeenCalledWith({
+      name: 'auth_oauth_started',
+      feature: 'auth',
+      metadata: { method: 'Google', flow: 'login' },
+    });
+    expect(mockTrackEvent).toHaveBeenCalledWith({
+      name: 'auth_oauth_started',
+      feature: 'auth',
+      metadata: { method: 'Google', flow: 'sign_up' },
+    });
   });
 });
