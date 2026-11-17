@@ -1,30 +1,11 @@
 'use server';
 
-import { cookies } from 'next/headers';
-
-import { resolveBffBaseUrl } from '@/lib/auth/bffAuth';
-import { setOAuthRefreshBridge } from '@/lib/auth/oauthRefreshBridge';
-import { extractRefreshToken } from '@/services/auth/refreshToken';
-import type { components } from '@/types/api';
-
-type OAuthCallbackResponse =
-  components['schemas']['ApiResponse_GoogleCallbackVO_'];
+import { googleCallback as exchangeGoogleOAuthCode } from '@/actions/auth';
+import type { OAuthCallbackResponse } from '@/lib/auth/bffSession.server';
 
 export async function googleCallback(
   code: string,
   state: string
 ): Promise<OAuthCallbackResponse> {
-  const res = await fetch(`${resolveBffBaseUrl()}/v2/oauth/google/callback`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code, state }),
-  });
-
-  const data = (await res.json()) as OAuthCallbackResponse;
-
-  const refreshToken = extractRefreshToken(res.headers);
-  const cookieStore = await cookies();
-  setOAuthRefreshBridge(cookieStore, refreshToken);
-
-  return data;
+  return exchangeGoogleOAuthCode(code, state);
 }

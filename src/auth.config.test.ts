@@ -2,27 +2,16 @@ import { fromPartial } from '@total-typescript/shoehorn';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { googleCallback } from '@/lib/actions/googleCallback';
-import { refreshAccessToken } from '@/services/auth/refreshToken';
+import {
+  type MentorExperience,
+  resolveMentorExperienceLinks,
+} from '@/lib/auth/bffAuth';
 
 import authOptions, {
   jwtCallback,
-  type MentorExperience,
   REFRESH_SKEW_SECONDS,
-  resolveMentorExperienceLinks,
   sessionCallback,
 } from './auth.config';
-
-// Mock refreshAccessToken but keep the real extractRefreshToken
-vi.mock('@/services/auth/refreshToken', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@/services/auth/refreshToken')>();
-  return {
-    ...actual,
-    refreshAccessToken: vi.fn(),
-  };
-});
-
-const mockRefreshAccessToken = vi.mocked(refreshAccessToken);
 
 // Cookie Mocking
 interface CookieOptions {
@@ -276,10 +265,18 @@ describe('auth.config', () => {
       const expiringTime = Math.floor(Date.now() / 1000) + 100; // 100s < REFRESH_SKEW_SECONDS (300)
       const mockToken = createMockJwt(expiringTime);
 
-      mockRefreshAccessToken.mockResolvedValue({
-        token: 'new-token',
-        refreshToken: 'new-refresh-token',
-      });
+      mockFetch.mockResolvedValueOnce(
+        fromPartial<Response>({
+          ok: true,
+          status: 200,
+          headers: new Headers({
+            'set-cookie': 'refresh_token=new-refresh-token; Path=/; HttpOnly',
+          }),
+          json: async () => ({
+            data: { auth: { token: 'new-token' } },
+          }),
+        })
+      );
 
       const token = {
         token: mockToken,
@@ -292,7 +289,15 @@ describe('auth.config', () => {
         })
       );
 
-      expect(mockRefreshAccessToken).toHaveBeenCalledWith('old-refresh-token');
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const [calledUrl, calledInit] = mockFetch.mock.calls[0] as [
+        string,
+        RequestInit,
+      ];
+      expect(calledUrl).toContain('/v1/auth/token');
+      const params = new URLSearchParams(String(calledInit.body));
+      expect(params.get('grant_type')).toBe('refresh_token');
+      expect(params.get('refresh_token')).toBe('old-refresh-token');
       expect(result).toEqual({
         token: 'new-token',
         refreshToken: 'new-refresh-token',
@@ -315,7 +320,7 @@ describe('auth.config', () => {
         })
       );
 
-      expect(mockRefreshAccessToken).not.toHaveBeenCalled();
+      expect(mockFetch).not.toHaveBeenCalled();
       expect(result).toEqual(token);
     });
 
@@ -323,11 +328,16 @@ describe('auth.config', () => {
       const expiringTime = Math.floor(Date.now() / 1000) + 100; // 100s < REFRESH_SKEW_SECONDS (300)
       const mockToken = createMockJwt(expiringTime);
 
-      mockRefreshAccessToken.mockRejectedValue(new Error('Refresh failed'));
+      mockFetch.mockResolvedValueOnce(
+        fromPartial<Response>({
+          ok: false,
+          status: 401,
+        })
+      );
 
       const token = {
         token: mockToken,
-        refreshToken: 'old-refresh-token',
+        refreshToken: 'old-refresh-token-fail',
       };
 
       const result = await jwtCallback!(
@@ -338,27 +348,33 @@ describe('auth.config', () => {
 
       expect(result).toEqual({
         token: mockToken,
-        refreshToken: 'old-refresh-token',
+        refreshToken: 'old-refresh-token-fail',
         error: 'RefreshTokenError',
       });
     });
 
-    it('deduplicates concurrent refresh requests using singleFlight so refreshAccessToken is called only once', async () => {
+    it('deduplicates concurrent refresh requests using singleFlight so /v1/auth/token is called only once', async () => {
       const expiringTime = Math.floor(Date.now() / 1000) + 100; // expiring soon
       const mockToken = createMockJwt(expiringTime);
 
       // Introduce a brief delay to simulate overlapping concurrent executions
-      mockRefreshAccessToken.mockImplementation(async () => {
+      mockFetch.mockImplementation(async () => {
         await new Promise((resolve) => setTimeout(resolve, 50));
-        return {
-          token: 'new-token',
-          refreshToken: 'new-refresh-token',
-        };
+        return fromPartial<Response>({
+          ok: true,
+          status: 200,
+          headers: new Headers({
+            'set-cookie': 'refresh_token=new-refresh-token; Path=/; HttpOnly',
+          }),
+          json: async () => ({
+            data: { auth: { token: 'new-token' } },
+          }),
+        });
       });
 
       const token = {
         token: mockToken,
-        refreshToken: 'old-refresh-token',
+        refreshToken: 'old-refresh-token-concurrent',
       };
 
       // Concurrent invocation of the jwtCallback
@@ -367,8 +383,8 @@ describe('auth.config', () => {
         jwtCallback!(fromPartial({ token })),
       ]);
 
-      // Assert that the real refreshAccessToken API was invoked exactly once
-      expect(mockRefreshAccessToken).toHaveBeenCalledTimes(1);
+      // Assert that the BFF /v1/auth/token endpoint was invoked exactly once
+      expect(mockFetch).toHaveBeenCalledTimes(1);
 
       // Verify that both concurrent calls returned the same deduplicated token payload
       expect(res1).toEqual({

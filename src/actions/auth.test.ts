@@ -1,3 +1,5 @@
+import { fromPartial } from '@total-typescript/shoehorn';
+import type { Session } from 'next-auth';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next-auth/next', () => ({
@@ -20,18 +22,52 @@ vi.mock('@/lib/profile/pollUntilSynced', () => ({
   confirmDeletionSynced: vi.fn(),
 }));
 
+vi.mock('@/lib/auth/bffSession.server', () => ({
+  exchangeGoogleOAuthCodeWithBridge: vi.fn(),
+}));
+
 import { revalidatePath } from 'next/cache';
 import { after } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 
+import {
+  exchangeGoogleOAuthCodeWithBridge,
+  type OAuthCallbackResponse,
+} from '@/lib/auth/bffSession.server';
 import { confirmDeletionSynced } from '@/lib/profile/pollUntilSynced';
 
-import { revalidateProfilePathAfterDelete } from './auth';
+import { googleCallback, revalidateProfilePathAfterDelete } from './auth';
 
 const mockGetServerSession = vi.mocked(getServerSession);
 const mockAfter = vi.mocked(after);
 const mockRevalidatePath = vi.mocked(revalidatePath);
 const mockConfirmDeletionSynced = vi.mocked(confirmDeletionSynced);
+const mockExchangeGoogleOAuthCode = vi.mocked(
+  exchangeGoogleOAuthCodeWithBridge
+);
+
+describe('googleCallback', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('delegates Google OAuth code exchange to exchangeGoogleOAuthCodeWithBridge', async () => {
+    const expected = fromPartial<OAuthCallbackResponse>({
+      code: '0',
+      msg: 'ok',
+      data: { auth_type: 'LOGIN' },
+    });
+    mockExchangeGoogleOAuthCode.mockResolvedValueOnce(expected);
+
+    const result = await googleCallback('oauth_code', 'oauth_state');
+
+    expect(mockExchangeGoogleOAuthCode).toHaveBeenCalledWith(
+      'oauth_code',
+      'oauth_state'
+    );
+    expect(result).toBe(expected);
+  });
+});
 
 describe('revalidateProfilePathAfterDelete', () => {
   beforeEach(() => {
@@ -52,9 +88,11 @@ describe('revalidateProfilePathAfterDelete', () => {
   // revalidateProfilePath's isValidUserId cases — belt-and-suspenders
   // against a malformed/tampered session object reaching this far.
   it('no-ops when the session has a non-numeric user id', async () => {
-    mockGetServerSession.mockResolvedValueOnce({
-      user: { id: '../about', name: 'Someone' },
-    } as never);
+    mockGetServerSession.mockResolvedValueOnce(
+      fromPartial<Session>({
+        user: { id: '../about', name: 'Someone' },
+      })
+    );
 
     await revalidateProfilePathAfterDelete();
 
@@ -62,9 +100,11 @@ describe('revalidateProfilePathAfterDelete', () => {
   });
 
   it("derives the id/name from the caller's own session and returns immediately, deferring confirmDeletionSynced to run after the response via after()", async () => {
-    mockGetServerSession.mockResolvedValueOnce({
-      user: { id: '42', name: 'Jane Doe' },
-    } as never);
+    mockGetServerSession.mockResolvedValueOnce(
+      fromPartial<Session>({
+        user: { id: '42', name: 'Jane Doe' },
+      })
+    );
 
     let resolveConfirm: () => void = () => {};
     mockConfirmDeletionSynced.mockReturnValueOnce(
@@ -81,26 +121,32 @@ describe('revalidateProfilePathAfterDelete', () => {
     expect(mockConfirmDeletionSynced).not.toHaveBeenCalled();
 
     // Simulate Next.js invoking the deferred callback after the response.
-    const deferredWork = mockAfter.mock.calls[0][0] as () => Promise<void>;
-    const workPromise = deferredWork();
-    expect(mockConfirmDeletionSynced).toHaveBeenCalledWith(
-      42,
-      'Jane Doe',
-      expect.arrayContaining([expect.any(Function), expect.any(Function)])
-    );
+    const deferredWork = mockAfter.mock.calls[0][0];
+    if (typeof deferredWork === 'function') {
+      const workPromise = deferredWork();
+      expect(mockConfirmDeletionSynced).toHaveBeenCalledWith(
+        42,
+        'Jane Doe',
+        expect.arrayContaining([expect.any(Function), expect.any(Function)])
+      );
 
-    resolveConfirm();
-    await workPromise;
+      resolveConfirm();
+      await workPromise;
+    }
   });
 
   it('works without a session name (passes undefined through to confirmDeletionSynced)', async () => {
-    mockGetServerSession.mockResolvedValueOnce({
-      user: { id: '42' },
-    } as never);
+    mockGetServerSession.mockResolvedValueOnce(
+      fromPartial<Session>({
+        user: { id: '42' },
+      })
+    );
 
     await revalidateProfilePathAfterDelete();
-    const deferredWork = mockAfter.mock.calls[0][0] as () => Promise<void>;
-    await deferredWork();
+    const deferredWork = mockAfter.mock.calls[0][0];
+    if (typeof deferredWork === 'function') {
+      await deferredWork();
+    }
 
     expect(mockConfirmDeletionSynced).toHaveBeenCalledWith(
       42,
@@ -110,17 +156,19 @@ describe('revalidateProfilePathAfterDelete', () => {
   });
 
   it("passes the profile-path and mentor-pool revalidate calls as separate callbacks that actually call revalidatePath with the caller's own id", async () => {
-    mockGetServerSession.mockResolvedValueOnce({
-      user: { id: '42', name: 'Jane Doe' },
-    } as never);
+    mockGetServerSession.mockResolvedValueOnce(
+      fromPartial<Session>({
+        user: { id: '42', name: 'Jane Doe' },
+      })
+    );
 
     await revalidateProfilePathAfterDelete();
-    const deferredWork = mockAfter.mock.calls[0][0] as () => Promise<void>;
-    await deferredWork();
+    const deferredWork = mockAfter.mock.calls[0][0];
+    if (typeof deferredWork === 'function') {
+      await deferredWork();
+    }
 
-    const revalidatePaths = mockConfirmDeletionSynced.mock.calls[0][2] as Array<
-      () => void
-    >;
+    const revalidatePaths = mockConfirmDeletionSynced.mock.calls[0][2];
     expect(revalidatePaths).toHaveLength(2);
 
     revalidatePaths[0]();
