@@ -32,7 +32,10 @@ function scrubUnknownValue(value: unknown, depth = 0): unknown {
     for (const [key, entry] of Object.entries(
       value as Record<string, unknown>
     )) {
-      if (SENSITIVE_KEY_PATTERN.test(key)) {
+      const normalizedKey = key
+        .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+        .replace(/([a-z0-9])([A-Z])/g, '$1_$2');
+      if (SENSITIVE_KEY_PATTERN.test(normalizedKey)) {
         out[key] = '[REDACTED]';
       } else {
         out[key] = scrubUnknownValue(entry, depth + 1);

@@ -67,7 +67,10 @@ describe('sanitizeSentryEvent', () => {
         data: {
           nested: {
             password: 'nested_password_value',
+            newPassword: 'camel_password_value',
             refresh_token: 'nested_rt_value',
+            refreshToken: 'camel_rt_value',
+            ipAddress: '198.51.100.77',
             safeField: 'visible_value',
           },
         },
@@ -99,7 +102,10 @@ describe('sanitizeSentryEvent', () => {
     expect(serialized).not.toContain('203.0.113.9');
     expect(serialized).not.toContain('cookie_jwt_secret');
     expect(serialized).not.toContain('nested_password_value');
+    expect(serialized).not.toContain('camel_password_value');
     expect(serialized).not.toContain('nested_rt_value');
+    expect(serialized).not.toContain('camel_rt_value');
+    expect(serialized).not.toContain('198.51.100.77');
     expect(serialized).not.toContain('api_key_secret');
     expect(serialized).not.toContain('extra_email@example.com');
     expect(serialized).not.toContain('extra_query_secret');
