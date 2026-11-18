@@ -1,7 +1,14 @@
 'use client';
 
-import { ChevronLeft, ChevronRight, MessageCircle, Star } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  MessageCircle,
+  Star,
+} from 'lucide-react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -12,6 +19,7 @@ import {
   getAuthorInitial,
   toNonNegativeInt,
 } from '@/lib/mentor/mentorStats';
+import { FOCUS_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 import {
   DEFAULT_FEEDBACK_PAGE_SIZE,
@@ -28,6 +36,117 @@ export interface MentorFeedbackSectionProps {
   error?: string | null;
   onPageChange?: (page: number) => void;
   onRetry?: () => void;
+}
+
+const FALLBACK_CHARS_PER_LINE = 36;
+const MAX_COLLAPSED_LINES = 3;
+
+function estimateExceedsThreeLines(content: string): boolean {
+  const lines = content.split(/\r?\n/);
+  let visualLines = 0;
+  for (const line of lines) {
+    const charCount = Array.from(line.trimEnd()).length;
+    visualLines += Math.max(1, Math.ceil(charCount / FALLBACK_CHARS_PER_LINE));
+    if (visualLines > MAX_COLLAPSED_LINES) {
+      return true;
+    }
+  }
+  return false;
+}
+
+interface MentorFeedbackReviewContentProps {
+  content: string;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+}
+
+function MentorFeedbackReviewContent({
+  content,
+  isExpanded,
+  onToggleExpand,
+}: MentorFeedbackReviewContentProps) {
+  const paragraphId = useId();
+  const paragraphRef = useRef<HTMLParagraphElement | null>(null);
+  const [isOverflowing, setIsOverflowing] = useState<boolean>(() =>
+    estimateExceedsThreeLines(content)
+  );
+
+  useEffect(() => {
+    const el = paragraphRef.current;
+    if (!el) return;
+
+    const measureOverflow = () => {
+      const { clientHeight, scrollHeight } = el;
+      if (clientHeight <= 0 && scrollHeight <= 0) {
+        setIsOverflowing(estimateExceedsThreeLines(content));
+        return;
+      }
+
+      if (!isExpanded) {
+        setIsOverflowing(scrollHeight - clientHeight > 1);
+        return;
+      }
+
+      const computedLineHeight = Number.parseFloat(
+        window.getComputedStyle(el).lineHeight
+      );
+      if (Number.isFinite(computedLineHeight) && computedLineHeight > 0) {
+        setIsOverflowing(
+          scrollHeight > Math.ceil(computedLineHeight * MAX_COLLAPSED_LINES) + 2
+        );
+      }
+    };
+
+    measureOverflow();
+
+    if (typeof ResizeObserver === 'undefined') {
+      return;
+    }
+
+    const observer = new ResizeObserver(() => {
+      measureOverflow();
+    });
+    observer.observe(el);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [content, isExpanded]);
+
+  return (
+    <div>
+      <p
+        id={paragraphId}
+        ref={paragraphRef}
+        data-expanded={isExpanded ? 'true' : 'false'}
+        className={cn(
+          'text-text-primary text-sm leading-relaxed break-words whitespace-pre-line',
+          !isExpanded && 'line-clamp-3'
+        )}
+      >
+        {content}
+      </p>
+      {isOverflowing && (
+        <button
+          type="button"
+          aria-expanded={isExpanded}
+          aria-controls={paragraphId}
+          onClick={onToggleExpand}
+          className={cn(
+            'text-brand-700 -mx-1.5 mt-1 inline-flex min-h-9 items-center gap-1.5 rounded-md px-1.5 py-1 text-xs font-medium hover:underline',
+            FOCUS_RING_NO_OFFSET_CLASSES
+          )}
+        >
+          <span>{isExpanded ? '收合' : '查看更多'}</span>
+          {isExpanded ? (
+            <ChevronUp className="size-3.5 shrink-0" aria-hidden="true" />
+          ) : (
+            <ChevronDown className="size-3.5 shrink-0" aria-hidden="true" />
+          )}
+        </button>
+      )}
+    </div>
+  );
 }
 
 function buildPageNumbers(
@@ -105,6 +224,28 @@ export function MentorFeedbackSection({
   const [internalPage, setInternalPage] = useState(1);
 
   const resolvedPage = page ?? internalPage;
+  const [expansionState, setExpansionState] = useState<{
+    page: number;
+    ids: Record<string, boolean>;
+  }>({ page: resolvedPage, ids: {} });
+  if (expansionState.page !== resolvedPage) {
+    setExpansionState({ page: resolvedPage, ids: {} });
+  }
+  const expandedIds =
+    expansionState.page === resolvedPage ? expansionState.ids : {};
+
+  const handleToggleExpand = (itemId: string) => {
+    setExpansionState((prev) => {
+      const baseIds = prev.page === resolvedPage ? prev.ids : {};
+      return {
+        page: resolvedPage,
+        ids: {
+          ...baseIds,
+          [itemId]: !baseIds[itemId],
+        },
+      };
+    });
+  };
   const safePageSize = Math.max(1, Math.floor(pageSize));
   const safeTotalCount = Math.max(
     toNonNegativeInt(totalRatingCount),
@@ -174,10 +315,12 @@ export function MentorFeedbackSection({
   }
 
   const pageTokens = buildPageNumbers(resolvedPage, totalPages);
+  const rangeStart = (resolvedPage - 1) * safePageSize + 1;
+  const rangeEnd = Math.min(safeTotalCount, resolvedPage * safePageSize);
 
   return (
     <div data-testid="mentor-feedback-section" className="pt-6">
-      <div className="flex items-center gap-4 pb-4">
+      <div className="border-background-border flex items-center gap-4 border-b pb-5">
         {formattedAverage && (
           <div className="flex items-baseline gap-1.5">
             <span className="text-text-primary text-4xl font-bold tracking-tight">
@@ -200,7 +343,7 @@ export function MentorFeedbackSection({
       {displayedItems.length === 0 ? (
         <div
           data-testid="mentor-feedback-list-empty"
-          className="border-background-border flex flex-col items-center justify-center gap-3 border-t py-14 text-center"
+          className="flex flex-col items-center justify-center gap-3 py-14 text-center"
         >
           <MessageCircle
             className="text-text-tertiary size-8 stroke-[1.75]"
@@ -264,9 +407,11 @@ export function MentorFeedbackSection({
                   </div>
 
                   {item.content && (
-                    <p className="text-text-primary text-sm leading-relaxed break-words whitespace-pre-line">
-                      {item.content}
-                    </p>
+                    <MentorFeedbackReviewContent
+                      content={item.content}
+                      isExpanded={Boolean(expandedIds[item.id])}
+                      onToggleExpand={() => handleToggleExpand(item.id)}
+                    />
                   )}
                 </li>
               );
@@ -278,6 +423,9 @@ export function MentorFeedbackSection({
               aria-label="評價分頁"
               className="mt-8 flex flex-wrap items-center justify-center gap-1.5"
             >
+              <span className="text-text-tertiary w-full text-center text-xs tabular-nums sm:mr-2 sm:w-auto">
+                第 {rangeStart}–{rangeEnd} 則，共 {safeTotalCount} 則
+              </span>
               <Button
                 type="button"
                 variant="outline"
