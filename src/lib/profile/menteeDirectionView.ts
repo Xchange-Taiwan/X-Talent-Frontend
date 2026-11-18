@@ -16,6 +16,21 @@ export interface MenteeDirectionReadGroup {
 }
 
 const STORAGE_KEY_PREFIX = 'xtalent:mentee-direction-map:v1:';
+const FORBIDDEN_OBJECT_KEYS = new Set([
+  '__proto__',
+  'constructor',
+  'prototype',
+]);
+const PRESET_CODE_TO_URL: Readonly<Record<string, string>> = {
+  default_1: '/avatars/default_1.webp',
+  default_2: '/avatars/default_2.webp',
+  default_3: '/avatars/default_3.webp',
+  default_4: '/avatars/default_4.webp',
+  default_5: '/avatars/default_5.webp',
+  default_6: '/avatars/default_6.webp',
+};
+
+export const DEFAULT_MENTEE_AVATAR_URL = '/avatars/default_1.webp';
 
 function dedupeTags(
   items: ReadonlyArray<TagDisplay> | null | undefined
@@ -61,8 +76,9 @@ export function readStoredMenteeDirectionViewMap(
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return null;
     }
-    const map: StoredMenteeDirectionMap = {};
+    const map = Object.create(null) as StoredMenteeDirectionMap;
     for (const [dirKey, bucket] of Object.entries(parsed)) {
+      if (FORBIDDEN_OBJECT_KEYS.has(dirKey)) continue;
       if (!bucket || typeof bucket !== 'object' || Array.isArray(bucket)) {
         continue;
       }
@@ -115,11 +131,14 @@ export function buildMenteeDirectionReadGroups({
   const coveredTopicCodes = new Set<string>();
 
   const groups: MenteeDirectionReadGroup[] = cleanPositions.map((pos) => {
-    const entry = storedMap?.[pos.subject_group];
+    const entry =
+      storedMap && Object.hasOwn(storedMap, pos.subject_group)
+        ? storedMap[pos.subject_group]
+        : undefined;
     const matchedSkills: TagDisplay[] = [];
     const matchedTopics: TagDisplay[] = [];
 
-    if (entry) {
+    if (entry && Array.isArray(entry.skills) && Array.isArray(entry.topics)) {
       const seenSkill = new Set<string>();
       for (const rawCode of entry.skills) {
         const code = rawCode.trim();
@@ -170,6 +189,89 @@ export function buildMenteeDirectionReadGroups({
   }
 
   return groups;
+}
+
+export function resolveMenteeAvatarSrc(
+  avatar: string | null | undefined
+): string {
+  const trimmed = avatar?.trim() ?? '';
+  if (!trimmed) return DEFAULT_MENTEE_AVATAR_URL;
+  if (Object.hasOwn(PRESET_CODE_TO_URL, trimmed)) {
+    return PRESET_CODE_TO_URL[trimmed];
+  }
+  return trimmed;
+}
+
+function parsePeriodEndRank(
+  end: string | undefined,
+  currentYear: number
+): number {
+  if (!end) return 0;
+  const trimmed = end.trim().toLowerCase();
+  if (trimmed === 'now' || trimmed === '至今') return currentYear + 1;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function resolveMenteeLatestRole(
+  userData: Pick<UserType, 'workExperiences'> | null | undefined,
+  currentYear = new Date().getFullYear()
+): { jobTitle: string; company: string } | null {
+  const list = userData?.workExperiences;
+  if (!list?.length) return null;
+
+  let best = list[0];
+  let bestEnd = parsePeriodEndRank(best.job_period_end, currentYear);
+  let bestStart = Number(best.job_period_start) || 0;
+
+  for (let i = 1; i < list.length; i += 1) {
+    const candidate = list[i];
+    const endRank = parsePeriodEndRank(candidate.job_period_end, currentYear);
+    const startRank = Number(candidate.job_period_start) || 0;
+    if (endRank > bestEnd || (endRank === bestEnd && startRank > bestStart)) {
+      best = candidate;
+      bestEnd = endRank;
+      bestStart = startRank;
+    }
+  }
+
+  const jobTitle = best.job?.trim() ?? '';
+  const company = best.company?.trim() ?? '';
+  if (!jobTitle && !company) return null;
+  return { jobTitle, company };
+}
+
+export function resolveMenteeExperienceSummary(
+  userData:
+    | Pick<UserType, 'workExperiences' | 'years_of_experience'>
+    | null
+    | undefined,
+  currentYear = new Date().getFullYear()
+): string | undefined {
+  const list = userData?.workExperiences;
+  if (!list?.length) {
+    return userData?.years_of_experience;
+  }
+
+  let totalYears = 0;
+  let countedAny = false;
+  for (const exp of list) {
+    const startYear = Number(exp.job_period_start);
+    if (!Number.isFinite(startYear) || startYear <= 0) continue;
+    const rawEnd = exp.job_period_end?.trim().toLowerCase();
+    const endYear =
+      !rawEnd || rawEnd === 'now' || rawEnd === '至今'
+        ? currentYear
+        : Number(rawEnd);
+    if (!Number.isFinite(endYear) || endYear < startYear) continue;
+    countedAny = true;
+    totalYears += Math.max(1, endYear - startYear);
+  }
+
+  if (!countedAny) {
+    return userData?.years_of_experience;
+  }
+  return `${totalYears} 年`;
 }
 
 export function resolveMenteeIndustryHashtag(

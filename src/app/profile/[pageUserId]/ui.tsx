@@ -37,7 +37,10 @@ import {
   buildMenteeDirectionReadGroups,
   isMenteeProfileEmpty,
   readStoredMenteeDirectionViewMap,
+  resolveMenteeAvatarSrc,
+  resolveMenteeExperienceSummary,
   resolveMenteeIndustryHashtag,
+  resolveMenteeLatestRole,
   type StoredMenteeDirectionMap,
 } from '@/lib/profile/menteeDirectionView';
 import {
@@ -328,6 +331,21 @@ export default function ProfilePageUI({
     );
   }, [userData, safePersonalLinks.length, resolvedLocation]);
 
+  const effectiveAvatarSrc = useMemo(() => {
+    if (!userData || userData.is_mentor) return avatarSrc;
+    return resolveMenteeAvatarSrc(userData.avatar);
+  }, [avatarSrc, userData]);
+
+  const menteeLatestRole = useMemo(() => {
+    if (!userData || userData.is_mentor) return null;
+    return resolveMenteeLatestRole(userData);
+  }, [userData]);
+
+  const menteeExperienceDisplay = useMemo(() => {
+    if (!userData || userData.is_mentor) return undefined;
+    return resolveMenteeExperienceSummary(userData);
+  }, [userData]);
+
   return (
     <div>
       <ProfileBanner />
@@ -340,7 +358,7 @@ export default function ProfilePageUI({
             <div className="-mt-10 mb-6 flex h-auto flex-col sm:flex-row sm:items-start">
               <div className="border-background-white bg-background-white relative mx-auto h-[160px] w-[160px] flex-shrink-0 overflow-hidden rounded-full border-4 shadow-sm sm:mx-0">
                 <Image
-                  src={avatarSrc}
+                  src={effectiveAvatarSrc}
                   alt={'Avatar of ' + userData.name}
                   fill
                   sizes="160px"
@@ -394,17 +412,25 @@ export default function ProfilePageUI({
                     />
                   )}
                 </div>
-                {(userData.job_title || userData.company) && (
+                {userData.is_mentor ? (
+                  (userData.job_title || userData.company) && (
+                    <p className="text-text-secondary text-sm">
+                      {userData.job_title}
+                      {userData.job_title && userData.company && (
+                        <span className="text-text-tertiary"> · </span>
+                      )}
+                      {userData.company}
+                    </p>
+                  )
+                ) : menteeLatestRole ? (
                   <p className="text-text-secondary text-sm">
-                    {userData.job_title}
-                    {userData.job_title && userData.company && (
-                      <span className="text-text-tertiary">
-                        {userData.is_mentor ? ' · ' : ' at '}
-                      </span>
+                    {menteeLatestRole.jobTitle}
+                    {menteeLatestRole.jobTitle && menteeLatestRole.company && (
+                      <span className="text-text-tertiary"> at </span>
                     )}
-                    {userData.company}
+                    {menteeLatestRole.company}
                   </p>
-                )}
+                ) : null}
                 {canShowOwnerControls && (
                   <div className="mt-4 flex items-center justify-center gap-4 sm:justify-start">
                     {/* canShowOwnerControls gates owner actions: until useSession() settles,
@@ -435,7 +461,7 @@ export default function ProfilePageUI({
               />
             ) : !menteeEmpty ? (
               <MenteeSummaryBar
-                yearsOfExperience={userData.years_of_experience}
+                yearsOfExperience={menteeExperienceDisplay}
                 location={resolvedLocation}
                 directionCount={menteeDirectionGroups.length}
               />

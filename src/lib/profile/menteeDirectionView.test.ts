@@ -4,9 +4,13 @@ import type { UserType } from '@/types/user';
 
 import {
   buildMenteeDirectionReadGroups,
+  DEFAULT_MENTEE_AVATAR_URL,
   isMenteeProfileEmpty,
   readStoredMenteeDirectionViewMap,
+  resolveMenteeAvatarSrc,
+  resolveMenteeExperienceSummary,
   resolveMenteeIndustryHashtag,
+  resolveMenteeLatestRole,
 } from './menteeDirectionView';
 
 describe('menteeDirectionView', () => {
@@ -69,20 +73,79 @@ describe('menteeDirectionView', () => {
     });
   });
 
-  it('reads stored direction map safely via reader and handles malformed payloads', () => {
+  it('isolates Object.prototype keys (__proto__, constructor, toString) without throwing or polluting', () => {
     const mockStore: Record<string, string> = {
-      'xtalent:mentee-direction-map:v1:202': JSON.stringify({
-        uiux: { skills: ['ux_research'], topics: ['portfolio'] },
-      }),
+      'xtalent:mentee-direction-map:v1:202':
+        '{"__proto__":{"skills":["hacked"],"topics":[]},"constructor":{"skills":["bad"],"topics":[]},"uiux":{"skills":["ux_research"],"topics":["portfolio"]}}',
       'xtalent:mentee-direction-map:v1:999': '{malformed-json',
     };
     const reader = (key: string) => mockStore[key] ?? null;
 
-    expect(readStoredMenteeDirectionViewMap(202, reader)).toEqual({
-      uiux: { skills: ['ux_research'], topics: ['portfolio'] },
+    const parsed = readStoredMenteeDirectionViewMap(202, reader);
+    expect(parsed?.['uiux']).toEqual({
+      skills: ['ux_research'],
+      topics: ['portfolio'],
     });
+    expect(parsed ? Object.hasOwn(parsed, '__proto__') : false).toBe(false);
+    expect(parsed ? Object.hasOwn(parsed, 'constructor') : false).toBe(false);
     expect(readStoredMenteeDirectionViewMap(999, reader)).toBeNull();
     expect(readStoredMenteeDirectionViewMap(null, reader)).toBeNull();
+
+    const safeGroups = buildMenteeDirectionReadGroups({
+      positions: [
+        { subject_group: 'constructor', subject: 'Constructor Role' },
+        { subject_group: 'toString', subject: 'ToString Role' },
+      ],
+      skills: [],
+      topics: [],
+      storedMap: {},
+    });
+    expect(safeGroups).toHaveLength(2);
+    expect(safeGroups[0].totalCount).toBe(0);
+  });
+
+  it('resolves Mentee default_1 avatar, preset codes, latest work role, and summed experience years (#960)', () => {
+    expect(resolveMenteeAvatarSrc('')).toBe(DEFAULT_MENTEE_AVATAR_URL);
+    expect(resolveMenteeAvatarSrc('default_3')).toBe('/avatars/default_3.webp');
+    expect(resolveMenteeLatestRole({ workExperiences: [] }, 2026)).toBeNull();
+    expect(
+      resolveMenteeLatestRole(
+        {
+          workExperiences: [
+            {
+              job: 'Product Designer',
+              company: 'Flow Studio',
+              job_period_start: '2024',
+              job_period_end: '至今',
+              industry: 'DESIGN',
+              job_location: 'TWN',
+              description: '',
+              is_primary: true,
+            },
+          ],
+        },
+        2026
+      )
+    ).toEqual({ jobTitle: 'Product Designer', company: 'Flow Studio' });
+    expect(
+      resolveMenteeExperienceSummary(
+        {
+          workExperiences: [
+            {
+              job: 'Product Designer',
+              company: 'Flow Studio',
+              job_period_start: '2024',
+              job_period_end: 'now',
+              industry: 'DESIGN',
+              job_location: 'TWN',
+              description: '',
+              is_primary: true,
+            },
+          ],
+        },
+        2026
+      )
+    ).toBe('2 年');
   });
 
   it('detects empty vs filled Mentee profile state and normalizes industry hashtag', () => {
