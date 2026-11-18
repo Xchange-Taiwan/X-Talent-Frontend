@@ -1,9 +1,8 @@
 import { DefaultSession } from 'next-auth';
 
-export interface PersonalLink {
-  platform: string;
-  url: string;
-}
+import type { PersonalLink } from '@/lib/profile/socialLinks';
+
+export type { PersonalLink };
 
 declare module 'next-auth' {
   interface User {

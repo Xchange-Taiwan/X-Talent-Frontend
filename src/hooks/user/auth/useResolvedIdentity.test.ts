@@ -1,17 +1,20 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
+import { fromPartial } from '@total-typescript/shoehorn';
+import fs from 'fs';
 import { useSession } from 'next-auth/react';
+import path from 'path';
 import { createElement, type ReactNode, StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  decodeSessionHint,
   DOM_AUTH_AVATAR_ATTR,
   DOM_AUTH_STATE_ATTR,
+  readCookie,
   SESSION_HINT_COOKIE,
 } from '@/lib/auth/sessionHint';
-import {
-  clearUserProfileDtoCache,
-  primeUserProfileDtoCache,
-} from '@/lib/cache/userProfileDtoCache';
+import { encode, toWireExperiences } from '@/lib/profile/experienceCodec';
+import { profileReadModel } from '@/lib/profile/profileReadModel';
 import type { MentorProfileVO } from '@/types/user';
 
 import { useResolvedIdentity } from './useResolvedIdentity';
@@ -24,21 +27,26 @@ const mockUseSession = vi.mocked(useSession);
 
 function setCookie(value: string | undefined): void {
   if (value === undefined) {
-    document.cookie = `${SESSION_HINT_COOKIE}=; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+    document.cookie = `${SESSION_HINT_COOKIE}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0`;
     return;
   }
-  document.cookie = `${SESSION_HINT_COOKIE}=${value}`;
+  document.cookie = `${SESSION_HINT_COOKIE}=${value}; path=/`;
 }
 
 describe('useResolvedIdentity', () => {
   beforeEach(() => {
-    mockUseSession.mockReturnValue({
-      data: null,
-      status: 'loading',
-    } as never);
+    profileReadModel.clear();
+    mockUseSession.mockReturnValue(
+      fromPartial<ReturnType<typeof useSession>>({
+        data: null,
+        status: 'loading',
+      })
+    );
   });
 
   afterEach(() => {
+    cleanup();
+    profileReadModel.clear();
     setCookie(undefined);
     document.documentElement.removeAttribute(DOM_AUTH_STATE_ATTR);
     document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
@@ -57,10 +65,12 @@ describe('useResolvedIdentity', () => {
     );
 
     // Once resolved to unauthenticated, stays guest
-    mockUseSession.mockReturnValue({
-      data: null,
-      status: 'unauthenticated',
-    } as never);
+    mockUseSession.mockReturnValue(
+      fromPartial<ReturnType<typeof useSession>>({
+        data: null,
+        status: 'unauthenticated',
+      })
+    );
     rerender();
 
     await waitFor(() => {
@@ -124,20 +134,24 @@ describe('useResolvedIdentity', () => {
 
   it('treats an unrecognized cookie value as guest', async () => {
     setCookie('garbage');
-    mockUseSession.mockReturnValue({
-      data: null,
-      status: 'unauthenticated',
-    } as never);
+    mockUseSession.mockReturnValue(
+      fromPartial<ReturnType<typeof useSession>>({
+        data: null,
+        status: 'unauthenticated',
+      })
+    );
 
     const { result } = renderHook(() => useResolvedIdentity());
     await waitFor(() => expect(result.current.state).toBe('confirmed-guest'));
   });
 
   it('clears stale mentor/mentee DOM attributes and marks guest when no cookie is present', async () => {
-    mockUseSession.mockReturnValue({
-      data: null,
-      status: 'unauthenticated',
-    } as never);
+    mockUseSession.mockReturnValue(
+      fromPartial<ReturnType<typeof useSession>>({
+        data: null,
+        status: 'unauthenticated',
+      })
+    );
 
     document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'mentor');
     document.documentElement.setAttribute(
@@ -246,10 +260,12 @@ describe('useResolvedIdentity', () => {
   });
 
   it('clears stale avatar/cookie state and marks guest on unauthenticated (logout) session status', async () => {
-    mockUseSession.mockReturnValue({
-      data: null,
-      status: 'unauthenticated',
-    } as never);
+    mockUseSession.mockReturnValue(
+      fromPartial<ReturnType<typeof useSession>>({
+        data: null,
+        status: 'unauthenticated',
+      })
+    );
 
     setCookie('1');
 
@@ -274,17 +290,20 @@ describe('useResolvedIdentity', () => {
     });
   });
 
-  it('synchronizes DOM and style property with real authenticated session data', async () => {
-    mockUseSession.mockReturnValue({
-      data: {
-        user: {
-          id: 'user-123',
-          isMentor: true,
-          avatar: 'https://example.com/real-avatar.png',
+  it('synchronizes DOM, style property, and session-hint cookie with real authenticated session data', async () => {
+    mockUseSession.mockReturnValue(
+      fromPartial<ReturnType<typeof useSession>>({
+        data: {
+          user: {
+            id: 'user-123',
+            isMentor: true,
+            avatar: 'https://example.com/real-avatar.png',
+          },
+          expires: '2099-01-01T00:00:00.000Z',
         },
-      },
-      status: 'authenticated',
-    } as never);
+        status: 'authenticated',
+      })
+    );
 
     const { result } = renderHook(() => useResolvedIdentity());
 
@@ -304,20 +323,28 @@ describe('useResolvedIdentity', () => {
       expect(
         document.documentElement.style.getPropertyValue('--auth-avatar')
       ).toBe('url("https://example.com/real-avatar.png")');
+      expect(decodeSessionHint(readCookie(SESSION_HINT_COOKIE))).toEqual({
+        isMentor: true,
+        userId: 'user-123',
+        avatar: 'https://example.com/real-avatar.png',
+      });
     });
   });
 
-  it('ignores unsafe avatar protocols in updateAvatarStyle and does not write them to DOM', async () => {
-    mockUseSession.mockReturnValue({
-      data: {
-        user: {
-          id: 'user-123',
-          isMentor: true,
-          avatar: 'javascript:alert(1)',
+  it('ignores unsafe avatar protocols in syncSessionHintDomAndCookie and does not write them to DOM or cookie', async () => {
+    mockUseSession.mockReturnValue(
+      fromPartial<ReturnType<typeof useSession>>({
+        data: {
+          user: {
+            id: 'user-123',
+            isMentor: true,
+            avatar: 'javascript:alert(1)',
+          },
+          expires: '2099-01-01T00:00:00.000Z',
         },
-      },
-      status: 'authenticated',
-    } as never);
+        status: 'authenticated',
+      })
+    );
 
     const { result } = renderHook(() => useResolvedIdentity());
 
@@ -361,44 +388,47 @@ describe('useResolvedIdentity', () => {
     });
   });
 
-  it('overlays active optimistic identity projection fields (name, avatar, isMentor, jobTitle, company, personalLinks) onto the session during the transition window (#785)', async () => {
-    clearUserProfileDtoCache(123, 'zh_TW');
-    mockUseSession.mockReturnValue({
-      data: {
-        user: {
-          id: '123',
-          name: 'Old Session Name',
-          isMentor: false,
-          avatar: 'https://example.com/old.png',
-          jobTitle: 'Old Role',
-          company: 'Old Co',
-        },
-      },
-      status: 'authenticated',
-    } as never);
-
-    primeUserProfileDtoCache(123, 'zh_TW', {
-      user_id: 123,
-      name: 'Optimistic Mentor Name',
-      avatar: 'https://example.com/new-optimistic.png',
-      is_mentor: true,
-      onboarding: true,
-      job_title: 'Staff Engineer',
-      company: 'XChange',
-      experiences: [
-        {
-          category: 'LINK',
-          order: 0,
-          mentor_experiences_metadata: {
-            data: [
-              { platform: 'linkedin', url: 'https://linkedin.com/in/test' },
-            ],
-          },
-        },
+  it('overlays active optimistic identity projection fields from profileReadModel onto the session and updates session-hint cookie (#785, #936)', async () => {
+    const { experiences } = encode({
+      workExperiences: [],
+      educations: [],
+      personalLinks: [
+        { platform: 'linkedin', url: 'https://linkedin.com/in/test' },
       ],
-    } as unknown as MentorProfileVO);
+    });
 
-    const { result } = renderHook(() => useResolvedIdentity());
+    mockUseSession.mockReturnValue(
+      fromPartial<ReturnType<typeof useSession>>({
+        data: {
+          user: {
+            id: '123',
+            name: 'Old Session Name',
+            isMentor: false,
+            avatar: 'https://example.com/old.png',
+            jobTitle: 'Old Role',
+            company: 'Old Co',
+          },
+          expires: '2099-01-01T00:00:00.000Z',
+        },
+        status: 'authenticated',
+      })
+    );
+
+    profileReadModel.prime(
+      { userId: 123, language: 'zh_TW' },
+      fromPartial<MentorProfileVO>({
+        user_id: 123,
+        name: 'Optimistic Mentor Name',
+        avatar: 'https://example.com/new-optimistic.png',
+        is_mentor: true,
+        onboarding: true,
+        job_title: 'Staff Engineer',
+        company: 'XChange',
+        experiences: toWireExperiences(experiences),
+      })
+    );
+
+    const { result, rerender } = renderHook(() => useResolvedIdentity());
 
     await waitFor(() => {
       expect(result.current).toMatchObject({
@@ -413,34 +443,73 @@ describe('useResolvedIdentity', () => {
           { platform: 'linkedin', url: 'https://linkedin.com/in/test' },
         ],
       });
+      expect(decodeSessionHint(readCookie(SESSION_HINT_COOKIE))).toEqual({
+        isMentor: true,
+        userId: '123',
+        avatar: 'https://example.com/new-optimistic.png',
+      });
     });
 
-    clearUserProfileDtoCache(123, 'zh_TW');
+    // Preserves resolved identity reference across re-renders when underlying DTO has not changed
+    const stableRef = result.current;
+    rerender();
+    expect(result.current).toBe(stableRef);
+
+    // Live-updates when a newer DTO is primed during the transition window
+    act(() => {
+      profileReadModel.prime(
+        { userId: 123, language: 'zh_TW' },
+        fromPartial<MentorProfileVO>({
+          user_id: 123,
+          name: 'Updated Mentor Name',
+          avatar: 'https://example.com/new-optimistic-2.png',
+          is_mentor: true,
+          onboarding: true,
+          job_title: null,
+          company: null,
+          experiences: [],
+        })
+      );
+    });
+
+    expect(result.current.name).toBe('Updated Mentor Name');
+    expect(result.current.jobTitle).toBeUndefined();
+    expect(result.current.company).toBeUndefined();
+    expect(decodeSessionHint(readCookie(SESSION_HINT_COOKIE))).toEqual({
+      isMentor: true,
+      userId: '123',
+      avatar: 'https://example.com/new-optimistic-2.png',
+    });
   });
 
-  it('reverts from optimistic identity back to session values once the 10-second transition window expires (#785)', async () => {
+  it('reverts from optimistic identity back to session values once the 10-second transition window expires (#785)', () => {
     vi.useFakeTimers();
     try {
-      clearUserProfileDtoCache(123, 'zh_TW');
-      mockUseSession.mockReturnValue({
-        data: {
-          user: {
-            id: '123',
-            name: 'Session Name',
-            isMentor: false,
-            avatar: 'https://example.com/session.png',
+      mockUseSession.mockReturnValue(
+        fromPartial<ReturnType<typeof useSession>>({
+          data: {
+            user: {
+              id: '123',
+              name: 'Session Name',
+              isMentor: false,
+              avatar: 'https://example.com/session.png',
+            },
+            expires: '2099-01-01T00:00:00.000Z',
           },
-        },
-        status: 'authenticated',
-      } as never);
+          status: 'authenticated',
+        })
+      );
 
-      primeUserProfileDtoCache(123, 'zh_TW', {
-        user_id: 123,
-        name: 'Optimistic Name',
-        avatar: 'https://example.com/optimistic.png',
-        is_mentor: true,
-        onboarding: true,
-      } as unknown as MentorProfileVO);
+      profileReadModel.prime(
+        { userId: 123, language: 'zh_TW' },
+        fromPartial<MentorProfileVO>({
+          user_id: 123,
+          name: 'Optimistic Name',
+          avatar: 'https://example.com/optimistic.png',
+          is_mentor: true,
+          onboarding: true,
+        })
+      );
 
       const { result } = renderHook(() => useResolvedIdentity());
       expect(result.current.name).toBe('Optimistic Name');
@@ -456,36 +525,59 @@ describe('useResolvedIdentity', () => {
       expect(result.current.avatar).toBe('https://example.com/session.png');
       expect(result.current.isMentor).toBe(false);
     } finally {
-      clearUserProfileDtoCache(123, 'zh_TW');
       vi.useRealTimers();
     }
   });
 
-  it('reflects avatar removal (avatar: null) during the optimistic transition window without falling back to the stale session avatar (#785)', () => {
-    clearUserProfileDtoCache(123, 'zh_TW');
-    mockUseSession.mockReturnValue({
-      data: {
-        user: {
-          id: '123',
-          name: 'Session Name',
-          isMentor: false,
-          avatar: 'https://example.com/old-session-avatar.png',
+  it('reflects avatar removal (avatar: null) during the optimistic transition window without falling back to the stale session avatar (#785)', async () => {
+    mockUseSession.mockReturnValue(
+      fromPartial<ReturnType<typeof useSession>>({
+        data: {
+          user: {
+            id: '123',
+            name: 'Session Name',
+            isMentor: false,
+            avatar: 'https://example.com/old-session-avatar.png',
+          },
+          expires: '2099-01-01T00:00:00.000Z',
         },
-      },
-      status: 'authenticated',
-    } as never);
+        status: 'authenticated',
+      })
+    );
 
-    primeUserProfileDtoCache(123, 'zh_TW', {
-      user_id: 123,
-      name: 'Session Name',
-      avatar: null,
-      is_mentor: false,
-      onboarding: true,
-    } as unknown as MentorProfileVO);
+    profileReadModel.prime(
+      { userId: 123, language: 'zh_TW' },
+      fromPartial<MentorProfileVO>({
+        user_id: 123,
+        name: 'Session Name',
+        avatar: null,
+        is_mentor: false,
+        onboarding: true,
+      })
+    );
 
     const { result } = renderHook(() => useResolvedIdentity());
-    expect(result.current.avatar).toBeUndefined();
+    await waitFor(() => {
+      expect(result.current.avatar).toBeUndefined();
+      expect(decodeSessionHint(readCookie(SESSION_HINT_COOKIE))).toEqual({
+        isMentor: false,
+        userId: '123',
+      });
+    });
+  });
 
-    clearUserProfileDtoCache(123, 'zh_TW');
+  it('delegates DOM/cookie sync to syncSessionHintDomAndCookie and folds optimistic observation directly from profileReadModel (#936)', () => {
+    const source = fs.readFileSync(
+      path.resolve(__dirname, 'useResolvedIdentity.ts'),
+      'utf8'
+    );
+
+    expect(source).toMatch(/syncSessionHintDomAndCookie/);
+    expect(source).toMatch(/from\s+['"]@\/lib\/profile\/profileReadModel['"]/);
+    expect(source).not.toMatch(/useOptimisticIdentity/);
+    expect(source).not.toMatch(/userProfileDtoCache/);
+    expect(source).not.toMatch(/function\s+updateAvatarStyle\b/);
+    expect(source).not.toMatch(/function\s+removeAvatarStyle\b/);
+    expect(source).not.toMatch(/function\s+clearAuthDOMState\b/);
   });
 });

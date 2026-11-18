@@ -1,5 +1,9 @@
+import { fromPartial } from '@total-typescript/shoehorn';
+import fs from 'fs';
+import path from 'path';
 import { describe, expect, it, vi } from 'vitest';
 
+import { encode, toWireExperiences } from '@/lib/profile/experienceCodec';
 import type { MentorProfileVO } from '@/types/user';
 
 import {
@@ -8,22 +12,56 @@ import {
   type IdentityPatch,
   identityPatchesEqual,
   identityPatchFromDto,
+  type IdentitySnapshot,
+  identitySnapshotFromDto,
+  optimisticIdentityFromDto,
+  type OptimisticIdentityProjection,
   reconcileIdentityWithBackend,
+  type TrackedIdentityFields,
 } from './identityProjection';
 
 function makeDto(overrides: Partial<MentorProfileVO> = {}): MentorProfileVO {
-  return {
+  return fromPartial<MentorProfileVO>({
     user_id: 1,
     name: 'Ada Lovelace',
     avatar: 'https://example.com/ada.png',
     is_mentor: true,
     onboarding: true,
+    job_title: null,
+    company: null,
+    experiences: [],
     ...overrides,
-  } as unknown as MentorProfileVO;
+  });
 }
 
+describe('identityProjection architectural boundaries (#936)', () => {
+  it('contains zero react, next/*, next-auth/react, or @/hooks/** imports', () => {
+    const source = fs.readFileSync(
+      path.resolve(__dirname, 'identityProjection.ts'),
+      'utf8'
+    );
+
+    expect(source).not.toMatch(/from\s+['"]react['"]/);
+    expect(source).not.toMatch(/from\s+['"]next\//);
+    expect(source).not.toMatch(/from\s+['"]next-auth\/react['"]/);
+    expect(source).not.toMatch(/from\s+['"]@\/hooks\//);
+  });
+
+  it('delegates LINK experience decoding in bffAuth.ts to experienceCodec without duplicating isPersonalLink filter loops', () => {
+    const bffSource = fs.readFileSync(
+      path.resolve(__dirname, '../auth/bffAuth.ts'),
+      'utf8'
+    );
+
+    expect(bffSource).toMatch(
+      /from\s+['"]@\/lib\/profile\/experienceCodec['"]/
+    );
+    expect(bffSource).not.toMatch(/function\s+isPersonalLink\b/);
+  });
+});
+
 describe('deriveOptimisticIdentityPatch', () => {
-  it('uses the freshly uploaded avatar when present', () => {
+  it('uses the freshly uploaded avatar when present and defaults optional profile fields cleanly', () => {
     const patch = deriveOptimisticIdentityPatch({
       name: 'Ada',
       avatarUrl: 'new.png',
@@ -32,7 +70,15 @@ describe('deriveOptimisticIdentityPatch', () => {
       fallbackIsMentor: false,
       fallbackOnBoarding: false,
     });
-    expect(patch.avatar).toBe('new.png');
+    expect(patch).toEqual({
+      name: 'Ada',
+      avatar: 'new.png',
+      isMentor: false,
+      onBoarding: false,
+      jobTitle: undefined,
+      company: undefined,
+      personalLinks: [],
+    });
   });
 
   it('falls back to the known-current avatar when no upload happened', () => {
@@ -72,78 +118,145 @@ describe('deriveOptimisticIdentityPatch', () => {
     expect(patch.isMentor).toBe(true);
     expect(patch.onBoarding).toBe(true);
   });
+
+  it('projects full 7+1 IdentitySnapshot fields including jobTitle, company, personalLinks, and avatarUpdatedAt', () => {
+    const snapshot: IdentitySnapshot = deriveOptimisticIdentityPatch({
+      name: 'Ada Lovelace',
+      avatarUrl: 'https://cdn.example.com/ada-v2.png',
+      avatarUpdatedAt: 1754000000123,
+      isMentorOnboarding: true,
+      fallbackAvatar: 'https://cdn.example.com/ada-v1.png',
+      fallbackIsMentor: false,
+      fallbackOnBoarding: false,
+      jobTitle: 'Principal Engineer',
+      company: 'Analytical Engine Co',
+      personalLinks: [{ platform: 'github', url: 'https://github.com/ada' }],
+    });
+
+    expect(snapshot).toEqual({
+      name: 'Ada Lovelace',
+      avatar: 'https://cdn.example.com/ada-v2.png',
+      avatarUpdatedAt: 1754000000123,
+      isMentor: true,
+      onBoarding: true,
+      jobTitle: 'Principal Engineer',
+      company: 'Analytical Engine Co',
+      personalLinks: [{ platform: 'github', url: 'https://github.com/ada' }],
+    });
+  });
 });
 
-describe('identityPatchFromDto / identityPatchesEqual', () => {
-  it('maps every tracked field off the backend DTO', () => {
-    const dto = makeDto({ name: 'Grace Hopper', avatar: null });
-    expect(identityPatchFromDto(dto)).toEqual({
+describe('identitySnapshotFromDto / identityPatchesEqual', () => {
+  it('maps all 7 Session.user fields off the backend DTO via experienceCodec.decode and keeps aliases unified', () => {
+    const { experiences } = encode({
+      workExperiences: [],
+      educations: [],
+      personalLinks: [
+        { platform: 'linkedin', url: 'https://linkedin.com/in/grace' },
+      ],
+    });
+    const dto = makeDto({
+      name: 'Grace Hopper',
+      avatar: null,
+      job_title: 'Rear Admiral',
+      company: 'US Navy',
+      experiences: toWireExperiences(experiences),
+    });
+
+    const expected: OptimisticIdentityProjection = {
       name: 'Grace Hopper',
       avatar: null,
       isMentor: true,
       onBoarding: true,
+      jobTitle: 'Rear Admiral',
+      company: 'US Navy',
+      personalLinks: [
+        { platform: 'linkedin', url: 'https://linkedin.com/in/grace' },
+      ],
+    };
+
+    expect(identitySnapshotFromDto(dto)).toEqual(expected);
+    expect(identityPatchFromDto(dto)).toEqual(expected);
+    expect(optimisticIdentityFromDto(dto)).toEqual(expected);
+  });
+
+  it('normalizes empty string or null job_title and company on DTO to undefined', () => {
+    const dtoEmpty = makeDto({ job_title: '', company: '' });
+    expect(identitySnapshotFromDto(dtoEmpty)).toMatchObject({
+      jobTitle: undefined,
+      company: undefined,
     });
   });
 
-  it('treats two patches with identical fields as equal', () => {
+  it('treats two snapshots with identical tracked fields (including cloned personalLinks and differing avatarUpdatedAt) as equal', () => {
     const a: IdentityPatch = {
       name: 'Ada',
       avatar: 'a.png',
+      avatarUpdatedAt: 100,
       isMentor: true,
       onBoarding: true,
+      jobTitle: 'Engineer',
+      company: 'XChange',
+      personalLinks: [{ platform: 'github', url: 'https://github.com/ada' }],
     };
-    const b: IdentityPatch = { ...a };
+    const b: IdentityPatch = {
+      ...a,
+      avatarUpdatedAt: 200,
+      personalLinks: [{ platform: 'github', url: 'https://github.com/ada' }],
+    };
     expect(identityPatchesEqual(a, b)).toBe(true);
   });
 
-  it('reconciliation-equality checks every currently-tracked identity field', () => {
-    // Guards against a future edit that narrows identityPatchesEqual back
-    // down to a hand-picked subset of fields (e.g. only isMentor/onBoarding,
-    // which is exactly the bug X-Tracker #670 fixed) by proving each field
-    // this module currently tracks is actually compared.
-    const base: IdentityPatch = {
+  it('reconciliation-equality checks every one of the 7 tracked Session.user fields', () => {
+    const base: TrackedIdentityFields = {
       name: 'Ada',
       avatar: 'a.png',
       isMentor: false,
       onBoarding: false,
+      jobTitle: 'Engineer',
+      company: 'Acme',
+      personalLinks: [{ platform: 'github', url: 'https://github.com/ada' }],
     };
 
-    const divergentValueByKey: Record<keyof IdentityPatch, string | boolean> = {
+    const divergentValueByKey: {
+      [K in keyof TrackedIdentityFields]: TrackedIdentityFields[K];
+    } = {
       name: 'Someone Else',
       avatar: 'different.png',
       isMentor: true,
       onBoarding: true,
+      jobTitle: 'Staff Engineer',
+      company: 'XChange',
+      personalLinks: [
+        { platform: 'linkedin', url: 'https://linkedin.com/in/ada' },
+      ],
     };
 
-    for (const key of Object.keys(base) as (keyof IdentityPatch)[]) {
-      const divergent = {
+    for (const key of Object.keys(base) as Array<keyof TrackedIdentityFields>) {
+      const divergent: IdentitySnapshot = {
         ...base,
         [key]: divergentValueByKey[key],
-      } as IdentityPatch;
+      };
       expect(identityPatchesEqual(base, divergent)).toBe(false);
     }
   });
 
-  it('requires every IdentityPatch field to have a matching reconciliation reader (compile-time guard)', () => {
-    // This mirrors the internal `IDENTITY_FIELD_READERS` mapped type in
-    // identityProjection.ts. If a field is ever added to `IdentityPatch`
-    // without adding a reader for it here (and, in the real module, to
-    // `IDENTITY_FIELD_READERS`), the object literal below stops satisfying
-    // `ReadersFor<PatchWithExtraField>` and `pnpm type-check` fails - the
-    // explicit failure signal X-Tracker #670 asks for instead of a newly
-    // optimistic field silently never being reconciled.
-    type PatchWithExtraField = IdentityPatch & { extraField: string };
+  it('requires every TrackedIdentityFields key to have a matching reconciliation reader (compile-time guard)', () => {
+    type FieldsWithExtra = TrackedIdentityFields & { extraField: string };
     type ReadersFor<T> = {
       [K in keyof T]: (dto: MentorProfileVO) => T[K];
     };
 
     // @ts-expect-error - `extraField` is intentionally left out below to
-    // prove the mapped type actually requires every key of IdentityPatch.
-    const incompleteReaders: ReadersFor<PatchWithExtraField> = {
+    // prove the mapped type actually requires every key of TrackedIdentityFields.
+    const incompleteReaders: ReadersFor<FieldsWithExtra> = {
       name: (dto) => dto.name ?? '',
       avatar: (dto) => dto.avatar ?? null,
       isMentor: (dto) => Boolean(dto.is_mentor),
       onBoarding: (dto) => Boolean(dto.onboarding),
+      jobTitle: (dto) => dto.job_title || undefined,
+      company: (dto) => dto.company || undefined,
+      personalLinks: () => [],
     };
 
     expect(incompleteReaders).toBeDefined();
@@ -151,12 +264,16 @@ describe('identityPatchFromDto / identityPatchesEqual', () => {
 });
 
 describe('applyIdentityPatch', () => {
-  it('primes the profile DTO cache and updates the session with the same patch', async () => {
+  it('primes the profile DTO cache and updates the session with the same full snapshot', async () => {
     const patch: IdentityPatch = {
       name: 'Ada',
       avatar: 'a.png',
+      avatarUpdatedAt: 1700000000000,
       isMentor: false,
       onBoarding: false,
+      jobTitle: 'Engineer',
+      company: 'Acme',
+      personalLinks: [{ platform: 'github', url: 'https://github.com/ada' }],
     };
     const primeProfileDto = vi.fn();
     const updateSession = vi.fn().mockResolvedValue(undefined);
@@ -173,6 +290,9 @@ describe('applyIdentityPatch', () => {
       avatar: 'a.png',
       isMentor: false,
       onBoarding: false,
+      jobTitle: undefined,
+      company: undefined,
+      personalLinks: [],
     };
     const primeProfileDto = vi.fn();
     const updateSession = vi.fn().mockRejectedValue(new Error('boom'));
@@ -187,11 +307,15 @@ describe('applyIdentityPatch', () => {
 });
 
 describe('reconcileIdentityWithBackend', () => {
-  const optimistic: IdentityPatch = {
+  const optimistic: IdentitySnapshot = {
     name: 'Ada',
     avatar: 'a.png',
+    avatarUpdatedAt: 1750000000000,
     isMentor: false,
     onBoarding: false,
+    jobTitle: 'Engineer',
+    company: 'Acme',
+    personalLinks: [{ platform: 'github', url: 'https://github.com/ada' }],
   };
 
   it('is a no-op when backend truth is not yet available', async () => {
@@ -200,49 +324,87 @@ describe('reconcileIdentityWithBackend', () => {
     expect(updateSession).not.toHaveBeenCalled();
   });
 
-  it('is a no-op when backend truth matches the optimistic patch on every field', async () => {
+  it('is a no-op when backend truth matches the optimistic snapshot across all 7 fields', async () => {
     const updateSession = vi.fn();
+    const { experiences } = encode({
+      workExperiences: [],
+      educations: [],
+      personalLinks: [{ platform: 'github', url: 'https://github.com/ada' }],
+    });
     const latest = makeDto({
       name: 'Ada',
       avatar: 'a.png',
       is_mentor: false,
       onboarding: false,
+      job_title: 'Engineer',
+      company: 'Acme',
+      experiences: toWireExperiences(experiences),
     });
     await reconcileIdentityWithBackend(optimistic, latest, { updateSession });
     expect(updateSession).not.toHaveBeenCalled();
   });
 
-  it('writes the full backend-confirmed patch when any single field disagrees', async () => {
+  it('writes the full backend-confirmed snapshot (preserving avatarUpdatedAt) when any single field disagrees', async () => {
     const updateSession = vi.fn().mockResolvedValue(undefined);
+    const { experiences } = encode({
+      workExperiences: [],
+      educations: [],
+      personalLinks: [{ platform: 'github', url: 'https://github.com/ada' }],
+    });
     const latest = makeDto({
       name: 'Ada',
       avatar: 'a.png',
-      is_mentor: true, // disagrees with optimistic.isMentor = false
+      is_mentor: true,
       onboarding: false,
+      job_title: 'Engineer',
+      company: 'Acme',
+      experiences: toWireExperiences(experiences),
     });
     await reconcileIdentityWithBackend(optimistic, latest, { updateSession });
     expect(updateSession).toHaveBeenCalledWith({
       name: 'Ada',
       avatar: 'a.png',
+      avatarUpdatedAt: 1750000000000,
       isMentor: true,
       onBoarding: false,
+      jobTitle: 'Engineer',
+      company: 'Acme',
+      personalLinks: [{ platform: 'github', url: 'https://github.com/ada' }],
     });
   });
 
-  it('reconciles avatar and name too, not just isMentor/onBoarding', async () => {
+  it('reconciles jobTitle, company, and personalLinks when backend truth diverges even if 4 legacy fields match (#936)', async () => {
     const updateSession = vi.fn().mockResolvedValue(undefined);
+    const { experiences } = encode({
+      workExperiences: [],
+      educations: [],
+      personalLinks: [
+        { platform: 'linkedin', url: 'https://linkedin.com/in/ada-backend' },
+      ],
+    });
     const latest = makeDto({
-      name: 'Grace',
-      avatar: 'different.png',
+      name: 'Ada',
+      avatar: 'a.png',
       is_mentor: false,
       onboarding: false,
+      job_title: 'Principal Architect',
+      company: 'Babbage Labs',
+      experiences: toWireExperiences(experiences),
     });
+
     await reconcileIdentityWithBackend(optimistic, latest, { updateSession });
+
     expect(updateSession).toHaveBeenCalledWith({
-      name: 'Grace',
-      avatar: 'different.png',
+      name: 'Ada',
+      avatar: 'a.png',
+      avatarUpdatedAt: 1750000000000,
       isMentor: false,
       onBoarding: false,
+      jobTitle: 'Principal Architect',
+      company: 'Babbage Labs',
+      personalLinks: [
+        { platform: 'linkedin', url: 'https://linkedin.com/in/ada-backend' },
+      ],
     });
   });
 });

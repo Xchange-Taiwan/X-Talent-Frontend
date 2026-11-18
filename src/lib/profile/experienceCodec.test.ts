@@ -145,6 +145,28 @@ describe('experienceCodec', () => {
     ]);
   });
 
+  it('decode: normalizes mixed-case platforms to lowercase SocialPlatformKey by default and supports preservePlatformCase for BFF auth payloads (#936)', () => {
+    const experiences = [
+      payloadFor(ExperienceType.LINK, [
+        { platform: '  GitHub  ', url: 'github.com/octocat' },
+        { platform: 'LinkedIn', url: 'https://linkedin.com/in/ada' },
+        { platform: 'XSS', url: 'javascript:alert(1)' },
+      ]),
+    ];
+
+    expect(decode(experiences).personalLinks).toEqual([
+      { platform: 'github', url: 'https://github.com/octocat' },
+      { platform: 'linkedin', url: 'https://linkedin.com/in/ada' },
+    ]);
+
+    expect(
+      decode(experiences, { preservePlatformCase: true }).personalLinks
+    ).toEqual([
+      { platform: 'GitHub', url: 'https://github.com/octocat' },
+      { platform: 'LinkedIn', url: 'https://linkedin.com/in/ada' },
+    ]);
+  });
+
   it('decode: missing fields across categories fall back to safe defaults without throwing', () => {
     const experiences = [
       payloadFor(ExperienceType.WORK, [{}]),

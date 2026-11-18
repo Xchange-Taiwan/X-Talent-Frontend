@@ -4,7 +4,10 @@ import Image from 'next/image';
 import * as React from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
-import { platformLabelMap } from '@/components/profile/social-links/platformLabelMap';
+import {
+  getPlatformLabelEntry,
+  platformLabelMap,
+} from '@/components/profile/social-links/platformLabelMap';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -162,21 +165,26 @@ export function ShareProfileDialog({
 
                   {personalLinks
                     ?.filter((link) => isSafeUrl(link.url))
-                    .map((link) => (
-                      <a
-                        key={link.platform}
-                        href={link.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={`前往 ${platformLabelMap[link.platform]?.label ?? link.platform} 頁面`}
-                        className={cn(
-                          'shrink-0 rounded-sm',
-                          FOCUS_RING_CLASSES
-                        )}
-                      >
-                        {platformLabelMap[link.platform]?.icon}
-                      </a>
-                    ))}
+                    .map((link) => {
+                      const entry =
+                        getPlatformLabelEntry(link.platform) ??
+                        platformLabelMap[link.platform];
+                      return (
+                        <a
+                          key={link.platform}
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={`前往 ${entry?.label ?? link.platform} 頁面`}
+                          className={cn(
+                            'shrink-0 rounded-sm',
+                            FOCUS_RING_CLASSES
+                          )}
+                        >
+                          {entry?.icon}
+                        </a>
+                      );
+                    })}
                 </div>
 
                 {subtitle ? (
