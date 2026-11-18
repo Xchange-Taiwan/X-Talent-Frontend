@@ -72,7 +72,7 @@ test.describe('Header 宣告式導覽、hint-only 防護與單一掛載 SharePro
     );
 
     const mentorReservationItem = page.getByRole('menuitem', {
-      name: '導師預約管理',
+      name: '導師管理後台',
     });
     const myReservationItem = page.getByRole('menuitem', { name: '我的預約' });
     const myFavoritesItem = page.getByRole('menuitem', { name: '我的收藏' });

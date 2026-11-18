@@ -20,6 +20,7 @@ import {
   type HeaderDialogType,
   toResolvedIdentitySnapshot,
 } from '@/lib/navigation/headerNavigationModel';
+import { MENTOR_ONBOARDING_KEY } from '@/lib/routes';
 
 export * from '@/lib/navigation/headerNavigationModel';
 
@@ -54,9 +55,22 @@ export function useHeaderNavigation({
   showFavorites,
 }: UseHeaderNavigationOptions): HeaderNavigationModel {
   const pathname = usePathname();
+  const [isMentorOnboarding, setIsMentorOnboarding] = React.useState(false);
   const [activeDialog, setActiveDialog] =
     React.useState<HeaderDialogType | null>(null);
   const dialogRafRef = React.useRef<number | null>(null);
+
+  React.useEffect(() => {
+    if (!pathname?.endsWith('/edit') || typeof window === 'undefined') {
+      setIsMentorOnboarding(false);
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    setIsMentorOnboarding(
+      params.get(MENTOR_ONBOARDING_KEY) === 'true' ||
+        params.get('onboarding') === 'true'
+    );
+  }, [pathname]);
 
   const isUserUnresolved = identity.state === 'hint-only' || !identity.userId;
   const canDeleteAccount = isAccountDeletionEnabled();
@@ -132,6 +146,7 @@ export function useHeaderNavigation({
           identity: stableIdentity,
           user,
           pathname,
+          isMentorOnboarding,
           showFavorites: favoritesEnabled,
           canDeleteAccount,
         }),
@@ -141,6 +156,7 @@ export function useHeaderNavigation({
       canDeleteAccount,
       favoritesEnabled,
       handleAction,
+      isMentorOnboarding,
       pathname,
       stableIdentity,
       user,

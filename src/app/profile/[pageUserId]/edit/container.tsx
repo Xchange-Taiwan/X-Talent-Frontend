@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useWatch } from 'react-hook-form';
 
 import { AvatarSection } from '@/components/profile/edit/AvatarSection';
@@ -15,6 +15,7 @@ import {
   TextField,
 } from '@/components/profile/edit/Fields';
 import { MenteeDirectionPreferenceSection } from '@/components/profile/edit/MenteeDirectionPreferenceSection';
+import { MentorGuidelinesCard } from '@/components/profile/edit/MentorGuidelinesCard';
 import { ProfileEditChapterNav } from '@/components/profile/edit/ProfileEditChapterNav';
 import { Section } from '@/components/profile/edit/Section';
 import { Button } from '@/components/ui/button';
@@ -111,6 +112,8 @@ export default function EditProfileContainer({
     searchParams?.get(MENTOR_ONBOARDING_KEY) === 'true' ||
     searchParams?.get('onboarding') === 'true';
 
+  const [agreedGuidelines, setAgreedGuidelines] = useState(false);
+
   const { isAuthorized, isResolving } = useProfileAuth(pageUserId);
 
   const { locations } = useLocations('zh_TW');
@@ -187,6 +190,7 @@ export default function EditProfileContainer({
         onBack={handleGoToPrev}
         isMentorOnboarding={isMentorOnboarding}
         isMentor={isMentorRole}
+        submitDisabled={isMentorOnboarding && !agreedGuidelines}
       />
 
       <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:gap-10">
@@ -228,6 +232,13 @@ export default function EditProfileContainer({
                     placeholder="請填入您的姓名"
                   />
                 </Section>
+
+                {isMentorOnboarding && (
+                  <MentorGuidelinesCard
+                    checked={agreedGuidelines}
+                    onCheckedChange={setAgreedGuidelines}
+                  />
+                )}
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <Section

@@ -91,5 +91,6 @@ export const MentorCompletedView: Story = {
     onBecomeMentor: () => {},
     onGoToMentorPool: () => {},
     onBackToProfile: () => {},
+    onSetupSchedule: () => {},
   },
 };

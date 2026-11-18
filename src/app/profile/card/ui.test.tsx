@@ -16,6 +16,13 @@ vi.mock('@/components/profile/profile-card', () => ({
   },
 }));
 
+vi.mock('next/image', () => ({
+  default: ({ src, alt }: { src: string | { src: string }; alt: string }) => (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={typeof src === 'string' ? src : src.src} alt={alt} />
+  ),
+}));
+
 const mockUserData = fromPartial<UserType>({
   name: 'Alice Chen',
   avatar: 'https://example.com/avatar.png',
@@ -83,10 +90,11 @@ describe('ProfileCardUI (#804, #898)', () => {
     expect(onGoToMentorPool).toHaveBeenCalledTimes(1);
   });
 
-  it('renders mentor completion view, falls back to userData.personalLinks when personalLinks prop is omitted, and handles back navigation', () => {
+  it('renders D-2 mentor completion view with flippable card, 設定時段, and 前往導師頁 actions (#961)', () => {
     const onBecomeMentor = vi.fn();
     const onGoToMentorPool = vi.fn();
     const onBackToProfile = vi.fn();
+    const onSetupSchedule = vi.fn();
 
     render(
       <ProfileCardUI
@@ -95,22 +103,20 @@ describe('ProfileCardUI (#804, #898)', () => {
         onBecomeMentor={onBecomeMentor}
         onGoToMentorPool={onGoToMentorPool}
         onBackToProfile={onBackToProfile}
+        onSetupSchedule={onSetupSchedule}
       />
     );
 
-    expect(screen.getByText('恭喜！')).toBeInTheDocument();
+    expect(screen.getByText('Mentor 資料已建立完成')).toBeInTheDocument();
+    expect(screen.getByTestId('mentor-welcome-flip-card')).toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: '成為導師' })
     ).not.toBeInTheDocument();
-    expect(mockProfileCard).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: 'Alice Chen',
-        personalLinks: mockUserData.personalLinks,
-      })
-    );
 
-    const backBtn = screen.getByRole('button', { name: '返回我的個人頁面' });
-    fireEvent.click(backBtn);
+    fireEvent.click(screen.getByRole('button', { name: '設定時段' }));
+    expect(onSetupSchedule).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: '前往導師頁' }));
     expect(onBackToProfile).toHaveBeenCalledTimes(1);
   });
 });

@@ -164,6 +164,7 @@ export interface BuildHeaderNavigationModelInput {
   identity: ResolvedIdentity;
   user?: HeaderNavigationUserFallback;
   pathname?: string | null;
+  isMentorOnboarding?: boolean;
   showFavorites?: boolean;
   canDeleteAccount?: boolean;
   env?: NodeJS.ProcessEnv;
@@ -262,6 +263,7 @@ function buildAccountCommonLinks(options: {
   userId: string | undefined;
   isMentor: boolean;
   isUserUnresolved: boolean;
+  isOnBecomeMentorOnboarding: boolean;
   isOnMentorReservation: boolean;
   isOnMenteeReservation: boolean;
   isOnFavorites: boolean;
@@ -273,6 +275,7 @@ function buildAccountCommonLinks(options: {
     userId,
     isMentor,
     isUserUnresolved,
+    isOnBecomeMentorOnboarding,
     isOnMentorReservation,
     isOnMenteeReservation,
     isOnFavorites,
@@ -283,7 +286,7 @@ function buildAccountCommonLinks(options: {
     ? {
         id: 'mentor-reservations',
         kind: 'link',
-        label: '導師預約管理',
+        label: '導師管理後台',
         href: RESERVATION_MENTOR_HREF,
         isCurrent: isOnMentorReservation,
         disabled: isUserUnresolved,
@@ -298,7 +301,7 @@ function buildAccountCommonLinks(options: {
         kind: 'link',
         label: '成為導師',
         href: getBecomeMentorHref(userId),
-        isCurrent: false,
+        isCurrent: isOnBecomeMentorOnboarding,
         disabled: isUserUnresolved,
         analytics: {
           click: `${prefix}_become_mentor`,
@@ -410,6 +413,7 @@ export function buildHeaderNavigationModel({
   identity,
   user,
   pathname = null,
+  isMentorOnboarding = false,
   showFavorites,
   canDeleteAccount: explicitCanDeleteAccount,
   env,
@@ -438,6 +442,11 @@ export function buildHeaderNavigationModel({
 
   const profileHref = getProfileHref(userId);
   const isOnOwnProfile = !isUserUnresolved && pathname === profileHref;
+  const isOnBecomeMentorOnboarding =
+    !isMentor &&
+    !isUserUnresolved &&
+    Boolean(isMentorOnboarding) &&
+    pathname === `${profileHref}/edit`;
   const isOnFindMentor = isPrefixCurrent(pathname, FIND_MENTOR_HREF);
   const isOnAbout = isPrefixCurrent(pathname, ABOUT_HREF);
   const isOnMentorReservation = isPrefixCurrent(
@@ -508,7 +517,9 @@ export function buildHeaderNavigationModel({
     kind: 'link',
     label: '成為導師',
     href: becomeMentorHref,
-    isCurrent: !isDesktopRoleNavDisabled && !userId && isOnSignup,
+    isCurrent:
+      (!isDesktopRoleNavDisabled && !userId && isOnSignup) ||
+      isOnBecomeMentorOnboarding,
     disabled: isDesktopRoleNavDisabled,
     analytics: {
       click: 'header_nav_become_mentor',
@@ -538,7 +549,7 @@ export function buildHeaderNavigationModel({
     },
     menteeRoleCandidate: {
       ...desktopBecomeMentorItem,
-      isCurrent: false,
+      isCurrent: isOnBecomeMentorOnboarding,
       disabled: isUserUnresolved,
     },
     guestRoleCandidate: {
@@ -643,6 +654,7 @@ export function buildHeaderNavigationModel({
     userId,
     isMentor,
     isUserUnresolved,
+    isOnBecomeMentorOnboarding,
     isOnMentorReservation,
     isOnMenteeReservation,
     isOnFavorites,

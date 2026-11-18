@@ -590,7 +590,7 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
     await expect(page).toHaveURL('/mentor-pool', { timeout: 15_000 });
   });
 
-  test('Mentor 造訪 /profile/card → 顯示恭喜成為導師訊息，點擊「返回我的個人頁面」導向 /profile/:id', async ({
+  test('Mentor 造訪 /profile/card → 顯示 D-2 Mentor 資料已建立完成翻面小卡，點擊「前往導師頁」導向 /profile/:id', async ({
     page,
   }) => {
     await seedProfileUser(page, true);
@@ -609,7 +609,9 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
 
     await page.goto('/profile/card');
 
-    await expect(page.getByText('恭喜！', { exact: true })).toBeVisible({
+    await expect(
+      page.getByRole('heading', { name: 'Mentor 資料已建立完成' })
+    ).toBeVisible({
       timeout: 15_000,
     });
     await expect(
@@ -619,8 +621,12 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
       page.getByRole('button', { name: '成為導師' })
     ).not.toBeVisible();
 
+    const flipCard = page.getByTestId('mentor-welcome-flip-card');
+    await flipCard.click();
+    await expect(page.getByText('WELCOME TO X-TALENT')).toBeVisible();
+
     const backToProfileBtn = page.getByRole('button', {
-      name: '返回我的個人頁面',
+      name: '前往導師頁',
     });
     await expect(backToProfileBtn).toBeVisible();
     await backToProfileBtn.click();
@@ -700,8 +706,16 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
       timeout: 15_000,
     });
 
+    // Before agreeing to Mentor guidelines, submit button is disabled (#961)
+    const submitBtn = page.getByRole('button', { name: '儲存並建立' });
+    await expect(submitBtn).toBeDisabled();
+    await page.getByRole('button', { name: '查看規範' }).click();
+    await expect(page.getByText('真實身分')).toBeVisible();
+    await page.getByRole('checkbox', { name: /我已閱讀並同意導師規範/ }).click();
+    await expect(submitBtn).toBeEnabled();
+
     // Submitting while Mentor-only required fields are empty triggers validation errors
-    await page.getByRole('button', { name: '儲存' }).click();
+    await submitBtn.click();
     await expect(page.getByText('請填寫關於我')).toBeVisible();
     await expect(page.getByText('請至少選擇一個主題')).toBeVisible();
     await expect(page.getByText('請至少選擇一個技能')).toBeVisible();
@@ -789,8 +803,10 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
         (submittedPayload?.['experiences'] as unknown[]).length >= 2
     ).toBe(true);
 
-    // Verify /profile/card displays Mentor completion state
-    await expect(page.getByText('恭喜！', { exact: true })).toBeVisible({
+    // Verify /profile/card displays D-2 Mentor completion state
+    await expect(
+      page.getByRole('heading', { name: 'Mentor 資料已建立完成' })
+    ).toBeVisible({
       timeout: 15_000,
     });
 
