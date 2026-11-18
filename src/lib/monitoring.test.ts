@@ -798,6 +798,19 @@ describe('captureFlowFailure', () => {
       window.dispatchEvent(new Event('pageshow'));
     }
 
+    // After pageshow (bfcache restore), real status=0 network errors resume reporting
+    await captureApiFailure({
+      endpoint: '/v1/users/1/notifications/unread-count',
+      method: 'GET',
+      status: 0,
+      message: 'Network offline',
+      route: '/mentor-pool',
+    });
+    expect(mockCaptureEvent).toHaveBeenCalledTimes(1);
+    expect(mockCaptureEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ level: 'error' })
+    );
+
     // Back-to-back 500 api.failure + flow.profile_update.failure emits only one error issue
     mockCaptureEvent.mockClear();
     await captureApiFailure({
@@ -814,5 +827,14 @@ describe('captureFlowFailure', () => {
       route: '/profile/123/edit',
     });
     expect(mockCaptureEvent).toHaveBeenCalledTimes(1);
+
+    // Different route or message is NOT swallowed by deduplication
+    await captureFlowFailure({
+      flow: 'profile_update',
+      step: 'avatar_upload',
+      message: 'Different failure reason',
+      route: '/profile/123/edit',
+    });
+    expect(mockCaptureEvent).toHaveBeenCalledTimes(2);
   });
 });

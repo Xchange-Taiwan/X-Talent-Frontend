@@ -2,7 +2,12 @@
 // The added config here will be used whenever a users loads a page in their browser.
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 
-import * as Sentry from '@sentry/nextjs';
+import {
+  addIntegration,
+  captureRouterTransitionStart,
+  init,
+  lazyLoadIntegration,
+} from '@sentry/nextjs';
 
 import {
   attachLazyReplayIntegration,
@@ -21,7 +26,7 @@ const { environment: sentryEnvironment, enabled: sentryEnabled } =
 const REPLAY_SAMPLE_RATE = 0.05;
 const shouldSampleReplay = sentryEnabled && Math.random() < REPLAY_SAMPLE_RATE;
 
-Sentry.init({
+init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
   enabled: sentryEnabled,
   environment: sentryEnvironment,
@@ -41,9 +46,10 @@ Sentry.init({
 });
 
 if (shouldSampleReplay) {
-  void attachLazyReplayIntegration(
-    Sentry as unknown as Parameters<typeof attachLazyReplayIntegration>[0]
-  );
+  void attachLazyReplayIntegration({
+    lazyLoadIntegration,
+    addIntegration,
+  });
 }
 
-export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
+export const onRouterTransitionStart = captureRouterTransitionStart;

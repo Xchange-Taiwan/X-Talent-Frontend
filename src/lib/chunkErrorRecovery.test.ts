@@ -67,5 +67,48 @@ describe('chunkErrorRecovery (#952)', () => {
       })
     ).toBe(true);
     expect(reloadSpy).toHaveBeenCalledTimes(2);
+
+    // Navigating to a different pathname within the cooldown window is allowed to recover once
+    expect(
+      tryRecoverFromChunkLoadError(chunkErr, {
+        pathname: '/profile/101',
+        now: 125_000,
+        reload: reloadSpy,
+      })
+    ).toBe(true);
+    expect(reloadSpy).toHaveBeenCalledTimes(3);
+  });
+
+  it('recovers safely when sessionStorage holds malformed JSON and aborts reload if sessionStorage throws', () => {
+    const reloadSpy = vi.fn();
+    const chunkErr = new Error('Loading chunk 404 failed.');
+
+    window.sessionStorage.setItem(CHUNK_RELOAD_STORAGE_KEY, '{corrupt-json');
+    expect(
+      tryRecoverFromChunkLoadError(chunkErr, {
+        pathname: '/about',
+        now: 50_000,
+        reload: reloadSpy,
+      })
+    ).toBe(true);
+    expect(reloadSpy).toHaveBeenCalledTimes(1);
+
+    const setItemSpy = vi
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementationOnce(() => {
+        throw new Error('QuotaExceededError');
+      });
+    try {
+      expect(
+        tryRecoverFromChunkLoadError(chunkErr, {
+          pathname: '/terms',
+          now: 60_000,
+          reload: reloadSpy,
+        })
+      ).toBe(false);
+      expect(reloadSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      setItemSpy.mockRestore();
+    }
   });
 });

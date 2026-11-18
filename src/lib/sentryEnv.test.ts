@@ -92,4 +92,22 @@ describe('sentryEnv & client replay helper (#952)', () => {
 
     expect(addIntegration).not.toHaveBeenCalled();
   });
+
+  it('instantiates and registers the lazy-loaded replayIntegration on success', async () => {
+    const mockIntegrationInstance = { name: 'Replay' };
+    const integrationFactory = vi.fn(() => mockIntegrationInstance);
+    const lazyLoad = vi.fn().mockResolvedValueOnce(integrationFactory);
+    const addIntegration = vi.fn();
+
+    await expect(
+      attachLazyReplayIntegration({
+        lazyLoadIntegration: lazyLoad,
+        addIntegration,
+      })
+    ).resolves.toBe(true);
+
+    expect(lazyLoad).toHaveBeenCalledWith('replayIntegration');
+    expect(integrationFactory).toHaveBeenCalledTimes(1);
+    expect(addIntegration).toHaveBeenCalledWith(mockIntegrationInstance);
+  });
 });

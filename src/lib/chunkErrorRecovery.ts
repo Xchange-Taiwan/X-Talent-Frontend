@@ -55,7 +55,12 @@ export function tryRecoverFromChunkLoadError(
   try {
     const raw = window.sessionStorage.getItem(CHUNK_RELOAD_STORAGE_KEY);
     if (raw) {
-      const parsed: unknown = JSON.parse(raw);
+      let parsed: unknown = null;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        parsed = null;
+      }
       if (
         typeof parsed === 'object' &&
         parsed !== null &&
@@ -73,7 +78,7 @@ export function tryRecoverFromChunkLoadError(
       JSON.stringify({ pathname, ts: now })
     );
   } catch {
-    // If sessionStorage is blocked (e.g. strict privacy mode), avoid blind reload loops.
+    // If sessionStorage access itself throws (e.g. strict privacy mode), avoid blind reload loops.
     return false;
   }
 

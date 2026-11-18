@@ -45,11 +45,11 @@ export function resolveSentryRuntimeConfig(
   return { environment, enabled };
 }
 
-export interface LazyReplaySentryAdapter {
+export interface LazyReplaySentryAdapter<TIntegration = unknown> {
   lazyLoadIntegration: (
     name: 'replayIntegration'
-  ) => Promise<(options?: Record<string, unknown>) => unknown>;
-  addIntegration: (integration: unknown) => void;
+  ) => Promise<() => TIntegration>;
+  addIntegration: (integration: TIntegration) => void;
 }
 
 /**
@@ -57,8 +57,8 @@ export interface LazyReplaySentryAdapter {
  * rejections when adblockers, CSP, or transient network errors block the CDN
  * bundle.
  */
-export async function attachLazyReplayIntegration(
-  sentry: LazyReplaySentryAdapter
+export async function attachLazyReplayIntegration<TIntegration>(
+  sentry: LazyReplaySentryAdapter<TIntegration>
 ): Promise<boolean> {
   try {
     const replayIntegration =

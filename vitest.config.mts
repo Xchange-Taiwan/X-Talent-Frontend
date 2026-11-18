@@ -22,6 +22,8 @@ const DOM_DEPENDENT_LIB_TESTS = [
   'src/lib/analytics.test.ts',
   'src/lib/analyticsClarity919.test.ts',
   'src/lib/apiClient.test.ts',
+  'src/lib/chunkErrorRecovery.test.ts',
+  'src/lib/monitoring.test.ts',
   'src/lib/storage.test.ts',
   'src/lib/auth/authFlowStorage.test.ts',
   'src/lib/auth/sessionHint.test.ts',
