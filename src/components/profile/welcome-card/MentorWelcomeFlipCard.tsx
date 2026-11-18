@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import { Badge } from '@/components/ui/badge';
+import { TotalWorkSpanEnum } from '@/constant/seniority';
 import type { UserType } from '@/hooks/user/user-data/useUserData';
 import {
   resolveLocationLabel,
@@ -19,6 +20,14 @@ export interface MentorWelcomeFlipCardProps {
   defaultFlipped?: boolean;
   className?: string;
 }
+
+const LEGACY_SPAN_MAP: Readonly<Record<string, string>> = {
+  ...TotalWorkSpanEnum,
+  ONE_TO_THREE_YEARS: TotalWorkSpanEnum.ONE_TO_THREE,
+  THREE_TO_FIVE_YEARS: TotalWorkSpanEnum.THREE_TO_FIVE,
+  FIVE_TO_TEN_YEARS: TotalWorkSpanEnum.FIVE_TO_TEN,
+  OVER_TEN_YEARS: TotalWorkSpanEnum.OVER_TEN_YEAR,
+};
 
 export function MentorWelcomeFlipCard({
   userData,
@@ -43,7 +52,11 @@ export function MentorWelcomeFlipCard({
     .join(' · ');
 
   const skills = (userData.have_skill ?? []).slice(0, 6);
-  const expParts = splitExperienceDisplay(userData.years_of_experience);
+  const rawYears = userData.years_of_experience?.trim() ?? '';
+  const localizedYears = Object.hasOwn(LEGACY_SPAN_MAP, rawYears)
+    ? LEGACY_SPAN_MAP[rawYears]
+    : rawYears;
+  const expParts = splitExperienceDisplay(localizedYears);
   const formattedExp =
     expParts.primary && expParts.primary !== '—'
       ? `${expParts.primary}${expParts.unit ? ` ${expParts.unit}` : ''}經驗`

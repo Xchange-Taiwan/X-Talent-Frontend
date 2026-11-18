@@ -163,9 +163,7 @@ describe('ProfileCardContainer', () => {
     const onSetupSchedule = capturedCardProps['onSetupSchedule'] as () => void;
     const onBackToProfile = capturedCardProps['onBackToProfile'] as () => void;
     onSetupSchedule();
-    expect(mockPush).toHaveBeenCalledWith(
-      '/profile/42?open-schedule-dialog=true'
-    );
+    expect(mockPush).toHaveBeenCalledWith('/profile/42?open-schedule=true');
     onBackToProfile();
     expect(mockPush).toHaveBeenCalledWith('/profile/42');
   });
