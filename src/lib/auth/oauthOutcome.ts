@@ -1,7 +1,10 @@
+import type { Session } from 'next-auth';
+
+import { type BffUserPayload, normalizeBffAuthUser } from '@/lib/auth/bffAuth';
 import type { components } from '@/types/api';
 
-type GoogleCallbackVO = components['schemas']['GoogleCallbackVO'];
-type OAuthCallbackResponse =
+export type GoogleCallbackVO = components['schemas']['GoogleCallbackVO'];
+export type OAuthCallbackResponse =
   components['schemas']['ApiResponse_GoogleCallbackVO_'];
 
 export type OAuthInvalidErrorType =
@@ -39,6 +42,7 @@ export interface PreExchangedGoogleOAuthResult {
 export interface ResolveOAuthOutcomeOptions {
   exchangeCode: GoogleOAuthCodeExchanger;
   pendingDeleteAccountEmail?: string | null;
+  preExchanged?: OAuthCallbackResponse | null;
 }
 
 const GOOGLE_AVATAR_HOST = 'lh3.googleusercontent.com';
@@ -279,20 +283,72 @@ export async function signInWithGoogleToken(
 }
 
 /**
+ * Synthesizes a client `Session` from a server-pre-exchanged Google OAuth
+ * LOGIN payload via `normalizeBffAuthUser` so post-login choreography avoids
+ * an extra blocking `/api/auth/session` round-trip while staying 100% aligned
+ * with NextAuth's canonical JWT/Session projection.
+ */
+export function synthesizePreExchangedSession(
+  preExchanged: PreExchangedGoogleOAuthResult
+): Session | null {
+  const callbackData = preExchanged.response.data;
+  if (
+    !callbackData ||
+    callbackData.auth_type !== 'LOGIN' ||
+    !callbackData.auth.token ||
+    !callbackData.user
+  ) {
+    return null;
+  }
+
+  const enrichedUser = enrichGoogleLoginUserWithIdTokenFallback(
+    callbackData.user as unknown as Record<string, unknown>,
+    callbackData.id_token
+  ) as unknown as BffUserPayload;
+
+  const normalizedUser = normalizeBffAuthUser({
+    token: callbackData.auth.token,
+    email: callbackData.auth.email ?? null,
+    user: enrichedUser,
+  });
+
+  return {
+    accessToken: callbackData.auth.token,
+    expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    user: {
+      id: normalizedUser.id,
+      email: normalizedUser.email,
+      name: normalizedUser.name,
+      avatar: normalizedUser.avatar,
+      avatarUpdatedAt: normalizedUser.avatarUpdatedAt,
+      onBoarding: normalizedUser.onBoarding,
+      isMentor: normalizedUser.isMentor,
+      jobTitle: normalizedUser.jobTitle,
+      company: normalizedUser.company,
+      personalLinks: normalizedUser.personalLinks,
+    },
+  };
+}
+
+/**
  * Resolves the state machine outcome of a Google OAuth callback via an
- * injected code-exchange adapter.
+ * injected code-exchange adapter (or pre-exchanged SSR response).
  */
 export async function resolveOAuthOutcome(
   code: string | null,
   state: string | null,
   options: ResolveOAuthOutcomeOptions
 ): Promise<OAuthOutcome> {
-  if (!code || !state) {
+  const hasPreExchanged =
+    options.preExchanged !== undefined && options.preExchanged !== null;
+  if (!hasPreExchanged && (!code || !state)) {
     return { type: 'INVALID', errorType: 'MISSING_PARAMS' };
   }
 
   try {
-    const res = await options.exchangeCode(code, state);
+    const res = hasPreExchanged
+      ? options.preExchanged!
+      : await options.exchangeCode(code!, state!);
     const callbackData = res?.data;
 
     if (!callbackData) {

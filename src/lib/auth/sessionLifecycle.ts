@@ -27,6 +27,7 @@ import {
   type ClientSignInFn,
   enrichGoogleLoginUserWithIdTokenFallback,
   type GoogleOAuthCodeExchanger,
+  type OAuthCallbackResponse,
   type OAuthInvalidErrorType,
   type OAuthOutcome,
   resolveOAuthOutcome,
@@ -908,7 +909,11 @@ function buildInvalidOAuthToast(
 }
 
 export async function executeGoogleOAuthCallback(
-  params: { code: string | null; state: string | null },
+  params: {
+    code: string | null;
+    state: string | null;
+    preExchanged?: OAuthCallbackResponse | null;
+  },
   adapters: ExecuteGoogleOAuthCallbackAdapters
 ): Promise<void> {
   const {
@@ -935,6 +940,7 @@ export async function executeGoogleOAuthCallback(
     {
       exchangeCode,
       pendingDeleteAccountEmail,
+      preExchanged: params.preExchanged,
     }
   );
 

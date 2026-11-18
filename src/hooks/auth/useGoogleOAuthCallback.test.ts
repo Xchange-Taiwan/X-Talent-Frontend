@@ -283,5 +283,26 @@ describe('useGoogleOAuthCallback (#885)', () => {
       );
       expect(mockRouter.push).toHaveBeenCalledWith('/auth/signin');
     });
+
+    it('treats whitespace-only ?code=%20&state=%20 as missing params without invoking googleCallback Server Action (#954)', async () => {
+      mockSearchParams.get.mockImplementation((key: string) =>
+        key === 'code' || key === 'state' ? '   ' : null
+      );
+
+      const { result } = renderHook(() => useGoogleOAuthCallback(null));
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      expect(mockGoogleCallback).not.toHaveBeenCalled();
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: 'destructive',
+          title: 'Missing Google OAuth parameters',
+        })
+      );
+      expect(mockRouter.push).toHaveBeenCalledWith('/auth/signin');
+    });
   });
 });

@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { cookies } from 'next/headers';
 import type { User } from 'next-auth';
+import { decode } from 'next-auth/jwt';
 
 import {
   type BffEnvSource,
@@ -16,10 +17,18 @@ import {
   OAUTH_REFRESH_BRIDGE_TTL_SECONDS,
   setOAuthRefreshBridge,
 } from '@/lib/auth/oauthRefreshBridge';
+import {
+  recordAndCheckBridgeJti,
+  sealRefreshBridgeToken,
+  unsealRefreshBridgeToken,
+} from '@/lib/auth/oauthRefreshBridge.server';
 import { isValidUserId } from '@/lib/auth/userGuard';
+import { isLiveProductionEnv } from '@/lib/env';
 import { singleFlight } from '@/lib/singleFlight';
 import { SignInSchema } from '@/schemas/auth';
 import type { components } from '@/types/api';
+
+export const E2E_GOOGLE_OAUTH_COOKIE = '__e2e_google_oauth';
 
 export type GoogleCallbackVO = components['schemas']['GoogleCallbackVO'];
 export type OAuthCallbackResponse =
@@ -479,115 +488,56 @@ export async function exchangeGoogleOAuthCodeWithBridge(
   return response;
 }
 
-const consumedRefreshBridgeJtis = new Map<string, number>();
-
-function recordAndCheckBridgeJti(jti: string, nowMs: number): boolean {
-  consumedRefreshBridgeJtis.forEach((expiresAt, key) => {
-    if (expiresAt <= nowMs) {
-      consumedRefreshBridgeJtis.delete(key);
-    }
-  });
-  if (consumedRefreshBridgeJtis.has(jti)) {
-    return false;
-  }
-  consumedRefreshBridgeJtis.set(
-    jti,
-    nowMs + OAUTH_REFRESH_BRIDGE_TTL_SECONDS * 1000
-  );
-  return true;
-}
-
-interface SealedRefreshBridgePayload {
-  jti: string;
-  rt: string;
-  accessToken: string;
-  exp: number;
-}
-
-function deriveRefreshBridgeKey(secret: string): crypto.KeyObject {
-  const rawKey = crypto.hkdfSync(
-    'sha256',
-    secret,
-    '',
-    'xtalent-oauth-refresh-bridge-v1',
-    32
-  );
-  return crypto.createSecretKey(new Uint8Array(rawKey));
-}
-
-function sealRefreshBridgeToken(
-  payload: SealedRefreshBridgePayload,
-  secret: string
-): string {
-  const key = deriveRefreshBridgeKey(secret);
-  const ivBytes = crypto.randomBytes(12);
-  const iv = new Uint8Array(
-    ivBytes.buffer,
-    ivBytes.byteOffset,
-    ivBytes.byteLength
-  );
-  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-  const ciphertextB64 =
-    cipher.update(JSON.stringify(payload), 'utf8', 'base64url') +
-    cipher.final('base64url');
-  const tagB64 = cipher.getAuthTag().toString('base64url');
-  return `${ivBytes.toString('base64url')}.${tagB64}.${ciphertextB64}`;
-}
-
-function unsealRefreshBridgeToken(
-  sealed: string,
-  secret: string,
-  nowMs: number
-): SealedRefreshBridgePayload | null {
-  const parts = sealed.split('.');
-  if (parts.length !== 3 || !parts[2]) return null;
-  const ivBuf = Buffer.from(parts[0], 'base64url');
-  const tagBuf = Buffer.from(parts[1], 'base64url');
-  if (ivBuf.length !== 12 || tagBuf.length !== 16) {
+async function resolveE2eGoogleOAuthOverride(
+  adapters?: Pick<BffSessionAdapters, 'cookieStore' | 'env'>
+): Promise<{
+  response: OAuthCallbackResponse;
+  refreshToken: string | null;
+} | null> {
+  const env = resolveEnv(adapters);
+  if (isLiveProductionEnv(env) || !env.NEXTAUTH_SECRET) {
     return null;
   }
 
-  const key = deriveRefreshBridgeKey(secret);
-  const iv = new Uint8Array(ivBuf.buffer, ivBuf.byteOffset, ivBuf.byteLength);
-  const tag = new Uint8Array(
-    tagBuf.buffer,
-    tagBuf.byteOffset,
-    tagBuf.byteLength
-  );
-  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
-  decipher.setAuthTag(tag);
-  const plaintext =
-    decipher.update(parts[2], 'base64url', 'utf8') + decipher.final('utf8');
-
-  const parsed: unknown = JSON.parse(plaintext);
-  if (!isRecord(parsed)) return null;
-  if (
-    typeof parsed.jti !== 'string' ||
-    typeof parsed.rt !== 'string' ||
-    typeof parsed.accessToken !== 'string' ||
-    typeof parsed.exp !== 'number' ||
-    parsed.exp <= nowMs
-  ) {
+  let rawToken: string | undefined;
+  try {
+    const store = await resolveCookieStore(adapters);
+    rawToken = store.get(E2E_GOOGLE_OAUTH_COOKIE)?.value;
+  } catch {
     return null;
   }
+
+  if (!rawToken) {
+    return null;
+  }
+
+  const decoded = await decode({
+    token: rawToken,
+    secret: env.NEXTAUTH_SECRET,
+  }).catch(() => null);
+
+  if (!decoded || !isRecord(decoded.oauthResponse)) {
+    return null;
+  }
+
   return {
-    jti: parsed.jti,
-    rt: parsed.rt,
-    accessToken: parsed.accessToken,
-    exp: parsed.exp,
+    response: decoded.oauthResponse as unknown as OAuthCallbackResponse,
+    refreshToken:
+      typeof decoded.refreshToken === 'string' &&
+      decoded.refreshToken.length > 0
+        ? decoded.refreshToken
+        : 'e2e_mock_refresh_token',
   };
 }
 
 export async function exchangeGoogleOAuthCodeServer(
   code: string,
   state: string,
-  adapters?: Pick<BffSessionAdapters, 'fetchFn' | 'env' | 'now'>
+  adapters?: Pick<BffSessionAdapters, 'fetchFn' | 'cookieStore' | 'env' | 'now'>
 ): Promise<PreExchangedGoogleOAuthResult> {
-  const { response, refreshToken } = await requestGoogleOAuthCallbackBff(
-    code,
-    state,
-    adapters
-  );
+  const e2eOverride = await resolveE2eGoogleOAuthOverride(adapters);
+  const { response, refreshToken } =
+    e2eOverride ?? (await requestGoogleOAuthCallbackBff(code, state, adapters));
 
   const accessToken =
     response.data?.auth_type === 'LOGIN' ? response.data.auth.token : null;
@@ -656,25 +606,29 @@ export async function authorizeGoogleBridgePayload(
     return null;
   }
 
-  let refreshToken: string | undefined;
+  let cookieRefreshToken: string | undefined;
   try {
     const store = await resolveCookieStore(adapters);
-    refreshToken = consumeOAuthRefreshBridge(store);
+    cookieRefreshToken = consumeOAuthRefreshBridge(store);
   } catch {
-    refreshToken = undefined;
+    cookieRefreshToken = undefined;
   }
 
-  if (
-    !refreshToken &&
+  const hasSealedRefreshBridge =
     typeof credentials.refreshBridge === 'string' &&
-    credentials.refreshBridge.length > 0
-  ) {
+    credentials.refreshBridge.length > 0;
+
+  let refreshToken: string | undefined = hasSealedRefreshBridge
+    ? undefined
+    : cookieRefreshToken;
+
+  if (hasSealedRefreshBridge) {
     const secret = resolveEnv(adapters).NEXTAUTH_SECRET;
     if (secret) {
       try {
         const nowMs = resolveNow(adapters);
         const decoded = unsealRefreshBridgeToken(
-          credentials.refreshBridge,
+          credentials.refreshBridge as string,
           secret,
           nowMs
         );

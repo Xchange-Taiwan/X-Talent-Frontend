@@ -976,5 +976,174 @@ describe('bffSession.server (#927)', () => {
       expect(preExchanged.response.data).toBeNull();
       expect(preExchanged.refreshBridgeToken).toBeNull();
     });
+
+    it('rejects expired (> TTL), tampered, or wrong-secret refreshBridgeToken values safely without throwing (#954)', async () => {
+      const { cookieStore } = createInMemoryCookieStore();
+      const baseNow = 1_700_000_000_000;
+      const makeLoginResponse = () =>
+        new Response(
+          JSON.stringify({
+            code: '0',
+            msg: 'ok',
+            data: {
+              auth_type: 'LOGIN',
+              auth: {
+                token: 'ttl_access_jwt',
+                email: 'ttl@example.com',
+              },
+              user: {
+                user_id: 955,
+                name: 'TTL User',
+                onboarding: true,
+                is_mentor: false,
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              'content-type': 'application/json',
+              'set-cookie': 'refresh_token=ttl_rt_val; HttpOnly; Path=/',
+            },
+          }
+        );
+
+      const fetchFn = vi
+        .fn<typeof fetch>()
+        .mockImplementation(async () => makeLoginResponse());
+
+      const expiredBridge = await exchangeGoogleOAuthCodeServer('c1', 's1', {
+        fetchFn,
+        now: () => baseNow,
+        env: {
+          SSR_API_URL: 'http://bff:8000/api',
+          NEXTAUTH_SECRET: TEST_SECRET,
+        },
+      });
+
+      const afterTtl = await authorizeGoogleBridgePayload(
+        {
+          token: 'ttl_access_jwt',
+          email: 'ttl@example.com',
+          user: JSON.stringify(expiredBridge.response.data?.user),
+          refreshBridge: expiredBridge.refreshBridgeToken,
+        },
+        {
+          cookieStore,
+          now: () => baseNow + 61_000,
+          env: { NEXTAUTH_SECRET: TEST_SECRET },
+        }
+      );
+      expect(afterTtl?.refreshToken).toBeUndefined();
+
+      const freshBridge = await exchangeGoogleOAuthCodeServer('c2', 's2', {
+        fetchFn,
+        now: () => baseNow,
+        env: {
+          SSR_API_URL: 'http://bff:8000/api',
+          NEXTAUTH_SECRET: TEST_SECRET,
+        },
+      });
+      const parts = String(freshBridge.refreshBridgeToken).split('.');
+      const tampered = `${parts[0]}.${parts[1]}.AAAA${parts[2].slice(4)}`;
+
+      const tamperedResult = await authorizeGoogleBridgePayload(
+        {
+          token: 'ttl_access_jwt',
+          email: 'ttl@example.com',
+          user: JSON.stringify(freshBridge.response.data?.user),
+          refreshBridge: tampered,
+        },
+        {
+          cookieStore,
+          now: () => baseNow + 5_000,
+          env: { NEXTAUTH_SECRET: TEST_SECRET },
+        }
+      );
+      expect(tamperedResult?.refreshToken).toBeUndefined();
+
+      const wrongSecretResult = await authorizeGoogleBridgePayload(
+        {
+          token: 'ttl_access_jwt',
+          email: 'ttl@example.com',
+          user: JSON.stringify(freshBridge.response.data?.user),
+          refreshBridge: freshBridge.refreshBridgeToken,
+        },
+        {
+          cookieStore,
+          now: () => baseNow + 5_000,
+          env: { NEXTAUTH_SECRET: 'completely-different-secret-key-999' },
+        }
+      );
+      expect(wrongSecretResult?.refreshToken).toBeUndefined();
+    });
+
+    it('honors signed __e2e_google_oauth JWE cookie in non-production and ignores it in live production (#954)', async () => {
+      const { encode } = await import('next-auth/jwt');
+      const signedOverride = await encode({
+        token: {
+          oauthResponse: {
+            code: '0',
+            msg: 'ok',
+            data: {
+              auth_type: 'LOGIN',
+              auth: { token: 'e2e_jwt_888', email: 'e2e@example.com' },
+              user: {
+                user_id: 888,
+                name: 'E2E User',
+                onboarding: true,
+                is_mentor: false,
+              },
+            },
+          },
+          refreshToken: 'e2e_rt_888',
+        },
+        secret: TEST_SECRET,
+      });
+
+      const { cookieStore } = createInMemoryCookieStore({
+        __e2e_google_oauth: signedOverride,
+      });
+      const fetchFn = vi
+        .fn<typeof fetch>()
+        .mockRejectedValue(new Error('should not hit upstream BFF in E2E'));
+
+      const nonProdResult = await exchangeGoogleOAuthCodeServer(
+        'mock_code',
+        'mock_state',
+        {
+          fetchFn,
+          cookieStore,
+          env: {
+            SSR_API_URL: 'http://bff:8000/api',
+            NEXTAUTH_SECRET: TEST_SECRET,
+            NEXT_PUBLIC_SENTRY_ENV: 'staging',
+          },
+        }
+      );
+
+      expect(fetchFn).not.toHaveBeenCalled();
+      expect(nonProdResult.response.data?.auth.token).toBe('e2e_jwt_888');
+      expect(nonProdResult.refreshBridgeToken).toEqual(expect.any(String));
+
+      // In live production, __e2e_google_oauth must be strictly ignored
+      const prodResult = await exchangeGoogleOAuthCodeServer(
+        'mock_code',
+        'mock_state',
+        {
+          fetchFn,
+          cookieStore,
+          env: {
+            SSR_API_URL: 'http://bff:8000/api',
+            NEXTAUTH_SECRET: TEST_SECRET,
+            NODE_ENV: 'production',
+            NEXT_PUBLIC_SENTRY_ENV: 'production',
+            VERCEL_ENV: 'production',
+          },
+        }
+      );
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+      expect(prodResult.response.data).toBeNull();
+    });
   });
 });
