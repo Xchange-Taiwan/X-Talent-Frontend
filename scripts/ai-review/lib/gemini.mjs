@@ -233,7 +233,9 @@ export async function callGemini(promptText, options = {}) {
 
   let effectiveTokens = maxOutputTokens;
   let lastErr;
+  let attemptsMade = 0;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    attemptsMade = attempt;
     try {
       return await callGeminiOnce(promptText, {
         model,
@@ -281,12 +283,13 @@ export async function callGemini(promptText, options = {}) {
     fallbackModel !== model
   ) {
     console.warn(
-      `[gemini] primary model ${model} exhausted ${MAX_ATTEMPTS} attempts; falling back to ${fallbackModel}`
+      `[gemini] primary model ${model} exhausted ${attemptsMade} attempts; falling back to ${fallbackModel}`
     );
     try {
       return await callGeminiOnce(promptText, {
         model: fallbackModel,
         maxOutputTokens: effectiveTokens,
+        thinkingLevel,
         apiKey,
         images,
         timeoutMs,

@@ -196,12 +196,20 @@ export function resolveOverallRiskWithFailClosed({
   };
 }
 
-function sanitizePublicSummaryText(raw = '') {
+export function sanitizePublicSummaryText(raw = '') {
   const cleaned = String(raw ?? '')
     .replace(/!\[[^\]]*]\([^)]+\)/g, '')
     .replace(
-      /https?:\/\/private-user-images\.githubusercontent\.com\/[^\s)]+/gi,
+      /https?:\/\/(?:private-user-images|user-images)\.githubusercontent\.com\/[^\s)]+/gi,
       '[internal-asset]'
+    )
+    .replace(
+      /https?:\/\/github\.com\/user-attachments\/assets\/[^\s)]+/gi,
+      '[internal-asset]'
+    )
+    .replace(
+      /https?:\/\/github\.com\/Xchange-Taiwan\/X-Talent-Tracker\/[^\s)]+/gi,
+      '[internal-tracker-ref]'
     )
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
     .replace(/\s+/g, ' ')

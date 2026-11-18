@@ -768,9 +768,14 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       fs.writeFileSync(filePath, content, 'utf8');
     });
   const log = deps.log || ((msg) => console.log(msg));
-  const evidenceDir = rawOptions.evidenceDir || '.agents/tmp/evidence';
-  const bestEvidenceBackupDir =
-    rawOptions.bestEvidenceBackupDir || '.agents/tmp/best-evidence';
+  const evidenceDir = path.resolve(
+    repoRoot,
+    rawOptions.evidenceDir || '.agents/tmp/evidence'
+  );
+  const bestEvidenceBackupDir = path.resolve(
+    repoRoot,
+    rawOptions.bestEvidenceBackupDir || '.agents/tmp/best-evidence'
+  );
   const clearEvidence =
     deps.clearEvidence ||
     (() => {
@@ -865,6 +870,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
   let lastChangedSpecs = [];
   let roundsRun = 0;
   let stalled = false;
+  let budgetExhausted = false;
   let bestSnapshotSha = '';
   let bestRoundScore = -Infinity;
   let bestEvaluation = null;
@@ -1055,7 +1061,9 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
 
       const activeFs = deps.fsImpl || fs;
       const bundlerConfigTouched = diffFiles.some((f) =>
-        /^(?:next\.config\.|tailwind\.config\.|postcss\.config\.)/.test(f)
+        /^(?:next\.config\.|tailwind\.config\.|postcss\.config\.|package\.json$|tsconfig\.json$|\.env(?:\.|$))/.test(
+          f
+        )
       );
       if (bundlerConfigTouched && typeof activeFs.rmSync === 'function') {
         try {
@@ -1348,6 +1356,14 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         lastEvaluation = bestEvaluation;
         lastE2ePassed = bestE2ePassed;
         lastChangedSpecs = bestChangedSpecs;
+      } else if (bestEvaluation) {
+        lastEvaluation = {
+          ...bestEvaluation,
+          converged: false,
+          e2ePassed: false,
+        };
+        lastE2ePassed = false;
+        lastChangedSpecs = bestChangedSpecs;
       }
     };
 
@@ -1388,6 +1404,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
     }
 
     if (now() - loopStartMs >= maxDurationMs) {
+      budgetExhausted = true;
       log(
         `[cloud-converge] Soft wall-clock budget (${Math.round(maxDurationMs / 60000)}m) reached in round ${round}; exiting cleanly so Phase 3 can push and open PR.`
       );
@@ -1396,6 +1413,12 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
           `[cloud-converge] Restoring best passing snapshot (${bestSnapshotSha.slice(0, 8)}) before exiting.`
         );
         restoreBestPassingState();
+      }
+      if (lastEvaluation?.deterministicPassed && !lastE2ePassed) {
+        writeFile(
+          path.resolve(repoRoot, '.agents/tmp/converge-checkpoint-only'),
+          'budget_exhausted\n'
+        );
       }
       break;
     }
@@ -1483,6 +1506,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
   return {
     converged: false,
     stalled,
+    budgetExhausted,
     roundsRun,
     evaluation: lastEvaluation,
     summaryMd,
@@ -1496,12 +1520,15 @@ export function resolveConvergeExitCode(
       .CONVERGE_ALLOW_DETERMINISTIC_CHECKPOINT === 'true',
   } = {}
 ) {
-  if (!res || res.converged) {
+  if (!res) {
+    return 1;
+  }
+  if (res.converged) {
     return 0;
   }
-  const detOk = res.evaluation?.deterministicPassed !== false;
-  const e2eOk = res.evaluation?.e2ePassed !== false;
-  if (allowDeterministicCheckpoint && detOk) {
+  const detOk = res.evaluation?.deterministicPassed === true;
+  const e2eOk = res.evaluation?.e2ePassed === true;
+  if (allowDeterministicCheckpoint && detOk && res.budgetExhausted === true) {
     return 0;
   }
   return !detOk || !e2eOk ? 1 : 0;

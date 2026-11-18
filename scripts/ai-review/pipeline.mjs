@@ -651,7 +651,8 @@ export async function runAiReviewPipeline(
                   infraDelta.length > 0
                     ? `本次發版包含 ${infraDelta.length} 個設定／工作流檔案異動，建議發版前快速巡檢環境變數與 Feature Flags。`
                     : '本次發版檔案均已於 develop 各功能 PR 完成多維度審查。',
-                readingOrder: infraDelta.slice(0, 10).map((file) => ({
+                readingOrder: infraDelta.slice(0, 10).map((file, idx) => ({
+                  order: idx + 1,
                   file,
                   why: '發版相關設定或工作流變更',
                 })),

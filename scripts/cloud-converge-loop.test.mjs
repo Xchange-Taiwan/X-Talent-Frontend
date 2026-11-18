@@ -1669,96 +1669,141 @@ describe('Wave 3 cloud-converge resilience (#949)', () => {
     ]);
     expect(visualSpec.hasUiSurfaceChanges).toBe(true);
 
-    const partialResult = {
+    const partialStalled = {
       converged: false,
+      budgetExhausted: false,
       evaluation: { deterministicPassed: true, e2ePassed: false },
     };
-    expect(resolveConvergeExitCode(partialResult)).toBe(1);
+    const partialBudgetExhausted = {
+      converged: false,
+      budgetExhausted: true,
+      evaluation: { deterministicPassed: true, e2ePassed: false },
+    };
+    expect(resolveConvergeExitCode(partialStalled)).toBe(1);
     expect(
-      resolveConvergeExitCode(partialResult, {
+      resolveConvergeExitCode(partialStalled, {
+        allowDeterministicCheckpoint: true,
+      })
+    ).toBe(1);
+    expect(
+      resolveConvergeExitCode(partialBudgetExhausted, {
         allowDeterministicCheckpoint: true,
       })
     ).toBe(0);
+    expect(
+      resolveConvergeExitCode({ converged: false, evaluation: null })
+    ).toBe(1);
   });
 
-  it('backs up and restores UI evidence screenshots when restoring best passing snapshot after a regressed round', async () => {
-    let roundCounter = 0;
-    let evidenceFiles = [];
-    let backedUpEvidence = [];
+  it('backs up and restores real filesystem UI evidence files across rounds, runs parallel execStepAsync, syncs OpenAPI in round 1, and clears Turbopack cache only on config edits', async () => {
+    const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'converge-fs-'));
+    try {
+      let roundCounter = 0;
+      const asyncSteps = [];
+      const rmTargets = [];
+      const prevOpenApi = process.env.BFF_OPENAPI_URL;
+      process.env.BFF_OPENAPI_URL = 'https://api.example.com/openapi.json';
 
-    const res = await runConvergeLoop(
-      {
-        maxRounds: 2,
-        runE2e: true,
-        runAiReview: true,
-        requireUiEvidence: true,
-      },
-      {
-        execStep: (cmd, args) => {
-          if (cmd === 'git' && args[0] === 'diff') {
-            return {
-              ok: true,
-              stdout:
-                'src/components/ErrorBoundary.tsx\ne2e/tests/public/signin.spec.ts\n',
-              stderr: '',
-            };
-          }
-          if (cmd === 'pnpm' && args[0] === 'lint') {
-            roundCounter += 1;
+      const evDir = path.join(tmpRepo, '.agents/tmp/evidence');
+      fs.mkdirSync(evDir, { recursive: true });
+
+      const res = await runConvergeLoop(
+        {
+          maxRounds: 2,
+          runE2e: true,
+          runAiReview: true,
+          requireUiEvidence: true,
+          autoSyncOpenApi: true,
+        },
+        {
+          cwd: tmpRepo,
+          fsImpl: {
+            ...fs,
+            rmSync: (target, opts) => {
+              rmTargets.push(String(target).replace(/\\/g, '/'));
+              return fs.rmSync(target, opts);
+            },
+          },
+          execStepAsync: async (cmd, args) => {
+            asyncSteps.push(`${cmd} ${args.join(' ')}`);
             return { ok: true, stdout: '', stderr: '' };
-          }
-          if (cmd === 'pnpm' && args[0] === 'test:e2e:mock') {
-            if (roundCounter === 2) {
+          },
+          execStep: (cmd, args) => {
+            if (cmd === 'git' && args[0] === 'diff') {
+              roundCounter += 1;
               return {
-                ok: false,
-                stderr: 'E2E broke in round 2 after clearEvidence()',
-                combined: 'E2E broke in round 2',
+                ok: true,
+                stdout:
+                  roundCounter === 1
+                    ? 'src/components/ErrorBoundary.tsx\ne2e/tests/public/signin.spec.ts\n'
+                    : 'package.json\nsrc/components/ErrorBoundary.tsx\ne2e/tests/public/signin.spec.ts\n',
+                stderr: '',
               };
             }
-            evidenceFiles = ['dialog-open.png'];
+            if (cmd === 'pnpm' && args[0] === 'test:e2e:mock') {
+              if (roundCounter >= 2) {
+                return {
+                  ok: false,
+                  stderr: 'E2E broke in round 2 after real clearEvidence()',
+                  combined: 'E2E broke in round 2',
+                };
+              }
+              fs.mkdirSync(evDir, { recursive: true });
+              fs.writeFileSync(path.join(evDir, 'real-shot.png'), 'PNG_BYTES');
+              return { ok: true, stdout: '', stderr: '' };
+            }
+            if (cmd === 'node' && String(args[0]).includes('run-local.mjs')) {
+              return {
+                ok: true,
+                stdout: JSON.stringify({
+                  overallRisk: { level: 'medium', reason: 'minor finding' },
+                  findings: {
+                    correctness: [
+                      {
+                        file: 'src/a.ts',
+                        line: 1,
+                        category: 'Bug',
+                        issue: 'x',
+                      },
+                    ],
+                  },
+                  requirementCoverage: [],
+                }),
+                stderr: '',
+              };
+            }
             return { ok: true, stdout: '', stderr: '' };
-          }
-          if (cmd === 'node' && String(args[0]).includes('run-local.mjs')) {
-            return {
-              ok: true,
-              stdout: JSON.stringify({
-                overallRisk: { level: 'medium', reason: 'minor finding' },
-                findings: {
-                  correctness: [
-                    { file: 'src/a.ts', line: 1, category: 'Bug', issue: 'x' },
-                  ],
-                },
-                requirementCoverage: [],
-              }),
-              stderr: '',
-            };
-          }
-          return { ok: true, stdout: '', stderr: '' };
-        },
-        clearEvidence: () => {
-          evidenceFiles = [];
-        },
-        listEvidence: () => evidenceFiles,
-        backupEvidence: () => {
-          backedUpEvidence = [...evidenceFiles];
-        },
-        restoreEvidence: () => {
-          if (backedUpEvidence.length === 0) return false;
-          evidenceFiles = [...backedUpEvidence];
-          return true;
-        },
-        saveSnapshot: () => `tree_round_${roundCounter}`,
-        restoreSnapshot: () => {},
-        writeFile: () => {},
-        log: () => {},
-        fileExists: () => true,
-      }
-    );
+          },
+          saveSnapshot: () => `tree_round_${roundCounter}`,
+          restoreSnapshot: () => {},
+          writeFile: () => {},
+          log: () => {},
+          fileExists: () => true,
+        }
+      );
 
-    // Round 1 passed deterministic + E2E (with UI evidence) and had 1 finding;
-    // Round 2 broke lint and cleared/lost state; loop restores Round 1 AND its backed-up evidence!
-    expect(res.evaluation.deterministicPassed).toBe(true);
-    expect(res.evaluation.e2ePassed).toBe(true);
-    expect(resolveConvergeExitCode(res)).toBe(0);
+      if (prevOpenApi === undefined) delete process.env.BFF_OPENAPI_URL;
+      else process.env.BFF_OPENAPI_URL = prevOpenApi;
+
+      // Verify OpenAPI synced only once (in round 1) and parallel lint/type-check executed
+      expect(
+        asyncSteps.filter((s) => s === 'pnpm run generate:types')
+      ).toHaveLength(1);
+      expect(asyncSteps.filter((s) => s === 'pnpm lint')).toHaveLength(2);
+      expect(asyncSteps.filter((s) => s === 'pnpm type-check')).toHaveLength(2);
+
+      // Verify Turbopack cache was NOT cleared in round 1 (app-only diff), and WAS cleared in round 2 (package.json diff)
+      expect(
+        rmTargets.filter((t) => t.endsWith('.next/dev/cache/turbopack'))
+      ).toHaveLength(1);
+
+      // Verify real PNG file was backed up in Round 1 and physically restored to evidenceDir after Round 2 cleared it!
+      expect(fs.existsSync(path.join(evDir, 'real-shot.png'))).toBe(true);
+      expect(res.evaluation.deterministicPassed).toBe(true);
+      expect(res.evaluation.e2ePassed).toBe(true);
+      expect(resolveConvergeExitCode(res)).toBe(0);
+    } finally {
+      fs.rmSync(tmpRepo, { recursive: true, force: true });
+    }
   });
 });

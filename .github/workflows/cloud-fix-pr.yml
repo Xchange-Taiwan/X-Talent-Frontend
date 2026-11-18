@@ -177,7 +177,7 @@ jobs:
           FIX_INSTRUCTIONS: ${{ inputs.fix_instructions }}
         run: |
           mkdir -p .agents/tmp
-          rm -f .agents/tmp/ticket-bundle.json .agents/tmp/ticket-spec.md .agents/tmp/scope-guidance.md .agents/tmp/merge-conflicts.md .agents/tmp/delete-files.txt
+          rm -f .agents/tmp/ticket-bundle.json .agents/tmp/ticket-spec.md .agents/tmp/scope-guidance.md .agents/tmp/merge-conflicts.md .agents/tmp/delete-files.txt .agents/tmp/converge-checkpoint-only
           MERGE_CONFLICTS_PRESENT="false"
           node scripts/cloud/workspace-guard.mjs unstage --restore-worktree
           if ! git merge origin/develop --no-edit; then
@@ -289,9 +289,13 @@ jobs:
             fi
           fi
 
-          if [ "$JOB_STATUS" = "success" ]; then
+          if [ "$JOB_STATUS" = "success" ] && [ ! -f .agents/tmp/converge-checkpoint-only ]; then
             STATUS="fix_pr_succeeded"
             MSG="雲端 Fix PR #${CLEAN_PR} 已完成修復與測試截圖更新並推回分支"
+          elif [ "$JOB_STATUS" = "success" ] && [ -f .agents/tmp/converge-checkpoint-only ]; then
+            rm -f .agents/tmp/converge-checkpoint-only
+            STATUS="fix_pr_failed"
+            MSG="雲端 Fix PR #${CLEAN_PR} 時間預算耗盡，已保留通過靜態檢查與單元測試的最佳快照推回分支（E2E 尚未完成，按鈕已解鎖可繼續收斂）"
           else
             STATUS="fix_pr_failed"
             MSG="雲端 Fix PR #${CLEAN_PR} 執行未完全通過（狀態: ${JOB_STATUS}），按鈕已自動解鎖可重試"
