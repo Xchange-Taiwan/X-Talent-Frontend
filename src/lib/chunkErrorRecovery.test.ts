@@ -94,7 +94,7 @@ describe('chunkErrorRecovery (#952)', () => {
     expect(reloadSpy).toHaveBeenCalledTimes(1);
 
     const setItemSpy = vi
-      .spyOn(Storage.prototype, 'setItem')
+      .spyOn(Object.getPrototypeOf(window.sessionStorage) as Storage, 'setItem')
       .mockImplementationOnce(() => {
         throw new Error('QuotaExceededError');
       });

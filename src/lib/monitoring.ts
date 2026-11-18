@@ -454,7 +454,7 @@ function ensureUnloadListenersAttached(): void {
 }
 
 function makeDedupSignature(route: string, message: string): string {
-  return `${route}::${message}`;
+  return `${route}::${message.replace(/^ApiError:\s*/i, '').trim()}`;
 }
 
 function recordRecentApiError(route: string, message: string): void {
