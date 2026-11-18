@@ -11,6 +11,7 @@ export {
   type UseFavoriteMentorResult,
 } from './useFavoriteMentor';
 export {
+  type FavoritesListStatus,
   useFavoriteMentors,
   type UseFavoriteMentorsResult,
 } from './useFavoriteMentors';
