@@ -7,8 +7,9 @@ import {
   mapPendingFeedbackCandidate,
   mapToReservation,
   type PendingFeedbackCandidate,
+  projectPendingFeedbackList,
+  projectReservation,
   type ReservationInfoVOWithVersion,
-  sortPendingFeedbackOldestFirst,
 } from '@/lib/reservation/reservationProjection';
 import { components } from '@/types/api';
 import { Reservation } from '@/types/reservation';
@@ -31,6 +32,8 @@ export {
   mapPendingFeedbackCandidate,
   mapToReservation,
   type PendingFeedbackCandidate,
+  projectPendingFeedbackList,
+  projectReservation,
   type ReservationInfoVOWithVersion,
 };
 
@@ -79,7 +82,7 @@ export async function fetchReservations(
   if (debug) console.debug('[reservations] GET parsed', data);
 
   const items = (data?.reservations ?? []).map((reservation) =>
-    mapToReservation(reservation, userId)
+    projectReservation(reservation, userId)
   );
   return { items, next_dtend: data?.next_dtend ?? 0 };
 }
@@ -285,24 +288,7 @@ export async function fetchPendingFeedbackReservations(opts: {
       console.debug('[reservations] GET pending-feedback response', data);
     }
 
-    const rawList = extractRawPendingFeedbackList(data);
-    const seenIds = new Set<string>();
-    const mappedItems: Reservation[] = [];
-
-    for (const rawItem of rawList) {
-      const mapped = mapPendingFeedbackCandidate(
-        rawItem,
-        userId,
-        fallbackViewerRole
-      );
-      if (!mapped || seenIds.has(mapped.id)) {
-        continue;
-      }
-      seenIds.add(mapped.id);
-      mappedItems.push(mapped);
-    }
-
-    return sortPendingFeedbackOldestFirst(mappedItems);
+    return projectPendingFeedbackList(data, userId, fallbackViewerRole);
   } catch (err) {
     if (
       signal?.aborted ||

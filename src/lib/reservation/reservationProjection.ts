@@ -52,6 +52,16 @@ export type ReservationInfoVOWithVersion =
 export type PendingFeedbackCandidate =
   ReservationInfoVOWithVersion | RawPendingFeedbackItem;
 
+export type RawPendingFeedbackInput =
+  | RawPendingFeedbackResponse
+  | PendingFeedbackCandidate[]
+  | {
+      reservations?: PendingFeedbackCandidate[] | null;
+      items?: PendingFeedbackCandidate[] | null;
+    }
+  | null
+  | undefined;
+
 export interface ReservationViewerModel {
   viewerRole: ReservationViewerRole | undefined;
   profileHref: string | undefined;
@@ -436,6 +446,80 @@ export function isReservationViewerProjected(
  * 4. Conversation Thread & Preview Message Classification
  * ========================================================================== */
 
+function findCancelReasonIndex(
+  messages: readonly ReservationMessage[],
+  cancelledBy?: Reservation['cancelledBy']
+): number {
+  if (messages.length === 0) {
+    return -1;
+  }
+
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    if (messages[i].isCancelReason) {
+      return i;
+    }
+  }
+
+  if (cancelledBy === 'MENTEE') {
+    let menteeCount = 0;
+    let lastMenteeIdx = -1;
+    for (let i = 0; i < messages.length; i += 1) {
+      if (messages[i].role === 'MENTEE') {
+        menteeCount += 1;
+        lastMenteeIdx = i;
+      }
+    }
+    return menteeCount >= 2 ? lastMenteeIdx : -1;
+  }
+
+  if (cancelledBy === 'MENTOR') {
+    let mentorCount = 0;
+    let lastMentorIdx = -1;
+    for (let i = 0; i < messages.length; i += 1) {
+      if (messages[i].role === 'MENTOR') {
+        mentorCount += 1;
+        lastMentorIdx = i;
+      }
+    }
+    if (mentorCount >= 2) {
+      return lastMentorIdx;
+    }
+    if (mentorCount === 1 && lastMentorIdx === messages.length - 1) {
+      return lastMentorIdx;
+    }
+  }
+
+  return -1;
+}
+
+function pickLatestNonCancelMessages(messages: readonly ReservationMessage[]): {
+  menteeMessage?: ReservationMessage;
+  mentorMessage?: ReservationMessage;
+  cancelReasonMessage?: ReservationMessage;
+} {
+  let menteeMessage: ReservationMessage | undefined;
+  let mentorMessage: ReservationMessage | undefined;
+  let cancelReasonMessage: ReservationMessage | undefined;
+
+  for (const item of messages) {
+    if (item.isCancelReason) {
+      cancelReasonMessage = item;
+      continue;
+    }
+    if (item.role === 'MENTEE') {
+      menteeMessage = item;
+    } else if (item.role === 'MENTOR') {
+      mentorMessage = item;
+    }
+  }
+
+  return {
+    menteeMessage,
+    mentorMessage,
+    cancelReasonMessage,
+  };
+}
+
 /**
  * Splits a chronological list of reservation messages into:
  * - `menteeMessage`: the mentee's booking question / latest non-cancel message
@@ -448,39 +532,7 @@ export function classifyReservationMessages(
   cancelledBy?: 'MENTEE' | 'MENTOR' | 'SYSTEM'
 ): ResolvedReservationMessages {
   const messages = rawMessages.map((msg) => ({ ...msg }));
-
-  let cancelIdx = -1;
-  for (let i = messages.length - 1; i >= 0; i -= 1) {
-    if (messages[i].isCancelReason) {
-      cancelIdx = i;
-      break;
-    }
-  }
-
-  if (cancelIdx === -1) {
-    if (cancelledBy === 'MENTEE') {
-      const menteeIndices: number[] = [];
-      messages.forEach((msg, idx) => {
-        if (msg.role === 'MENTEE') menteeIndices.push(idx);
-      });
-      if (menteeIndices.length >= 2) {
-        cancelIdx = menteeIndices[menteeIndices.length - 1];
-      }
-    } else if (cancelledBy === 'MENTOR') {
-      const mentorIndices: number[] = [];
-      messages.forEach((msg, idx) => {
-        if (msg.role === 'MENTOR') mentorIndices.push(idx);
-      });
-      if (mentorIndices.length >= 2) {
-        cancelIdx = mentorIndices[mentorIndices.length - 1];
-      } else if (
-        mentorIndices.length === 1 &&
-        mentorIndices[0] === messages.length - 1
-      ) {
-        cancelIdx = mentorIndices[0];
-      }
-    }
-  }
+  const cancelIdx = findCancelReasonIndex(messages, cancelledBy);
 
   if (cancelIdx >= 0 && cancelIdx < messages.length) {
     messages[cancelIdx] = {
@@ -489,22 +541,8 @@ export function classifyReservationMessages(
     };
   }
 
-  let menteeMessage: ReservationMessage | undefined;
-  let mentorMessage: ReservationMessage | undefined;
-  let cancelReasonMessage: ReservationMessage | undefined;
-
-  for (let i = 0; i < messages.length; i += 1) {
-    const item = messages[i];
-    if (item.isCancelReason) {
-      cancelReasonMessage = item;
-      continue;
-    }
-    if (item.role === 'MENTEE') {
-      menteeMessage = item;
-    } else if (item.role === 'MENTOR') {
-      mentorMessage = item;
-    }
-  }
+  const { menteeMessage, mentorMessage, cancelReasonMessage } =
+    pickLatestNonCancelMessages(messages);
 
   return {
     messages,
@@ -582,35 +620,6 @@ export function resolveReservationMessages(
   };
 }
 
-function hasPotentialUnsplitCancelReason(
-  messages: readonly ReservationMessage[],
-  cancelledBy: Reservation['cancelledBy']
-): boolean {
-  if (messages.length === 0) return false;
-  if (messages.some((m) => m.isCancelReason)) return true;
-  if (cancelledBy === 'MENTEE') {
-    let menteeCount = 0;
-    for (const msg of messages) {
-      if (msg.role === 'MENTEE') {
-        menteeCount += 1;
-        if (menteeCount >= 2) return true;
-      }
-    }
-    return false;
-  }
-  if (cancelledBy === 'MENTOR') {
-    let mentorCount = 0;
-    for (const msg of messages) {
-      if (msg.role === 'MENTOR') {
-        mentorCount += 1;
-        if (mentorCount >= 2) return true;
-      }
-    }
-    return messages[messages.length - 1]?.role === 'MENTOR';
-  }
-  return false;
-}
-
 /**
  * Checks whether `reservation`'s message preview and thread entries are already
  * projected so UI components can read `messages`, `menteeMessage`,
@@ -630,7 +639,7 @@ export function isReservationMessagesProjected(
 ): boolean {
   const messages = reservation.messages ?? [];
   if (!reservation.cancelledBy && !reservation.cancelReasonMessage) {
-    return !messages.some((m) => m.isCancelReason);
+    return findCancelReasonIndex(messages) === -1;
   }
 
   if (reservation.cancelReasonMessage) {
@@ -638,26 +647,11 @@ export function isReservationMessagesProjected(
       return false;
     }
     if (messages.length > 0) {
-      let hasTaggedCancelReason = false;
-      let latestMenteeContent: string | undefined;
-      let latestMentorContent: string | undefined;
-
-      for (const msg of messages) {
-        if (msg.isCancelReason) {
-          hasTaggedCancelReason = true;
-          continue;
-        }
-        if (msg.role === 'MENTEE') {
-          latestMenteeContent = msg.content;
-        } else if (msg.role === 'MENTOR') {
-          latestMentorContent = msg.content;
-        }
-      }
-
+      const latest = pickLatestNonCancelMessages(messages);
       if (
-        !hasTaggedCancelReason ||
-        reservation.menteeMessage?.content !== latestMenteeContent ||
-        reservation.mentorMessage?.content !== latestMentorContent
+        !latest.cancelReasonMessage ||
+        reservation.menteeMessage?.content !== latest.menteeMessage?.content ||
+        reservation.mentorMessage?.content !== latest.mentorMessage?.content
       ) {
         return false;
       }
@@ -673,7 +667,7 @@ export function isReservationMessagesProjected(
     );
   }
 
-  return !hasPotentialUnsplitCancelReason(messages, reservation.cancelledBy);
+  return findCancelReasonIndex(messages, reservation.cancelledBy) === -1;
 }
 
 /* ============================================================================
@@ -706,7 +700,7 @@ function resolveDtoMentorUserId(
   return undefined;
 }
 
-export function mapToReservation(
+export function projectReservation(
   reservation: ReservationInfoVOWithVersion,
   myUserId?: string | number | null
 ): Reservation {
@@ -773,6 +767,11 @@ export function mapToReservation(
   };
 }
 
+/**
+ * Alias of `projectReservation` preserved for existing service and test callers.
+ */
+export const mapToReservation = projectReservation;
+
 function isFullReservationInfoVO(
   item: PendingFeedbackCandidate
 ): item is ReservationInfoVOWithVersion {
@@ -780,11 +779,7 @@ function isFullReservationInfoVO(
 }
 
 export function extractRawPendingFeedbackList(
-  data:
-    | RawPendingFeedbackResponse
-    | ReservationInfoVOWithVersion[]
-    | null
-    | undefined
+  data: RawPendingFeedbackInput
 ): PendingFeedbackCandidate[] {
   if (!data) {
     return [];
@@ -813,7 +808,7 @@ export function mapPendingFeedbackCandidate(
   }
 
   if (isFullReservationInfoVO(candidate)) {
-    const mapped = mapToReservation(candidate, userId);
+    const mapped = projectReservation(candidate, userId);
     if (!mapped.id || mapped.cancelledBy) {
       return null;
     }
@@ -926,6 +921,35 @@ export function mapPendingFeedbackCandidate(
       nextStep: 'ANSWER',
     },
   };
+}
+
+/**
+ * Extracts, projects, filters ineligible/duplicate items, and sorts pending
+ * feedback meetings chronologically from oldest to newest (`由舊到新`).
+ */
+export function projectPendingFeedbackList(
+  rawResponse: RawPendingFeedbackInput,
+  userId: string | number,
+  fallbackRole?: 'MENTEE' | 'MENTOR'
+): Reservation[] {
+  if (userId === undefined || userId === null || String(userId).trim() === '') {
+    return [];
+  }
+
+  const rawList = extractRawPendingFeedbackList(rawResponse);
+  const seenIds = new Set<string>();
+  const mappedItems: Reservation[] = [];
+
+  for (const rawItem of rawList) {
+    const mapped = mapPendingFeedbackCandidate(rawItem, userId, fallbackRole);
+    if (!mapped || seenIds.has(mapped.id)) {
+      continue;
+    }
+    seenIds.add(mapped.id);
+    mappedItems.push(mapped);
+  }
+
+  return sortPendingFeedbackOldestFirst(mappedItems);
 }
 
 /* ============================================================================

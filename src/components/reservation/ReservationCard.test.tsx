@@ -545,6 +545,7 @@ describe('ReservationCard', () => {
       const { rerender } = render(
         <ReservationCard
           item={preProjected}
+          myUserId="user-mentor-222"
           variant="history"
           sourceRole="mentor"
         />

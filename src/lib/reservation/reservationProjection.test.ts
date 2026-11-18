@@ -17,6 +17,8 @@ import {
   mapPendingFeedbackCandidate,
   mapToReservation,
   normalizeReservationViewerRole,
+  projectPendingFeedbackList,
+  projectReservation,
   type ReservationInfoVOWithVersion,
   resolveCounterpartyId,
   resolveCounterpartyProfile,
@@ -117,7 +119,8 @@ describe('mapToReservation pre-projected viewer, counterparty & cancellation fie
       ],
     });
 
-    const asMentee = mapToReservation(dto, '10');
+    const asMentee = projectReservation(dto, '10');
+    expect(projectReservation).toBe(mapToReservation);
     expect(asMentee).toMatchObject({
       id: '42',
       name: 'Alice Mentor',
@@ -328,6 +331,96 @@ describe('pending feedback extraction, candidate projection & sorting (#932)', (
       '1'
     );
     expect(cancelledCandidate).toBeNull();
+
+    // Full ReservationInfoVO DTO with fallbackViewerRole fallback, YYYY/MM/DD date format,
+    // pre-projected viewer fields, completed-feedback filtering, and list deduplication/sorting
+    const fullDtoMissingRole = makeReservationDto({
+      id: 601,
+      dtstart: DTSTART + 3600,
+      dtend: DTEND + 3600,
+      sender: {
+        user_id: 10,
+        role: '' as unknown as 'MENTEE',
+        status: 'ACCEPT',
+        name: 'Bob Mentee',
+        avatar: '  https://cdn.example.com/bob.png  ',
+        job_title: 'Product Designer',
+        years_of_experience: 'ONE_TO_THREE',
+      },
+      participant: {
+        user_id: 20,
+        role: 'MENTOR',
+        status: 'ACCEPT',
+        name: 'Alice Mentor',
+        avatar: '  https://cdn.example.com/alice.png  ',
+        job_title: 'Staff Engineer',
+        years_of_experience: 'FIVE_TO_TEN',
+      },
+    });
+
+    const fullProjected = mapPendingFeedbackCandidate(
+      fullDtoMissingRole,
+      '10',
+      'MENTEE'
+    );
+    expect(fullProjected).toMatchObject({
+      id: '601',
+      name: 'Alice Mentor',
+      avatar: 'https://cdn.example.com/alice.png',
+      date: dayjs.unix(DTSTART + 3600).format('YYYY/MM/DD'),
+      time: `${dayjs.unix(DTSTART + 3600).format('HH:mm')}–${dayjs.unix(DTEND + 3600).format('HH:mm')}`,
+      viewerRole: 'MENTEE',
+      normalizedViewerRole: 'mentee',
+      counterpartyUserId: '20',
+      profileHref: '/profile/20',
+      targetMentorId: '20',
+      feedback: {
+        meetingHappened: null,
+        rating: null,
+        nextStep: 'ANSWER',
+      },
+    });
+
+    const completedFullDto = makeReservationDto({
+      id: 602,
+      feedback: {
+        meeting_happened: true,
+        rating: null,
+        next_step: null,
+      },
+    });
+    expect(mapPendingFeedbackCandidate(completedFullDto, '10')).toBeNull();
+
+    const earlierFullDto = makeReservationDto({
+      id: 600,
+      dtstart: DTSTART,
+      dtend: DTEND,
+    });
+
+    const projectedQueue = projectPendingFeedbackList(
+      {
+        reservations: [
+          fullDtoMissingRole,
+          fullDtoMissingRole,
+          completedFullDto,
+          makeReservationDto({ id: 603, cancelled_by: 'MENTOR' }),
+          earlierFullDto,
+        ],
+      },
+      '10',
+      'MENTEE'
+    );
+    expect(projectedQueue.map((item) => item.id)).toEqual(['600', '601']);
+    expect(projectedQueue[0]).toMatchObject({
+      id: '600',
+      date: dayjs.unix(DTSTART).format('YYYY/MM/DD'),
+      normalizedViewerRole: 'mentee',
+      profileHref: '/profile/20',
+      targetMentorId: '20',
+    });
+    expect(
+      projectPendingFeedbackList({ reservations: [earlierFullDto] }, '')
+    ).toEqual([]);
   });
 
   it('sorts pending feedback reservations oldest-first by dtend, then dtstart, then numeric id without mutating input', () => {
@@ -417,11 +510,46 @@ describe('counterparty, viewer, message helpers & buildReservationFixture (#932)
     ).toBe(false);
 
     // Pre-projected for '10' (/profile/20) must return false when viewed by third-party 'user-admin' (/profile/10)
+    // or when myUserId is empty/undefined/null while profileHref is populated
     const projectedFor10 = mapToReservation(makeReservationDto(), '10');
     expect(projectedFor10.profileHref).toBe('/profile/20');
     expect(isReservationViewerProjected(projectedFor10, 'user-admin')).toBe(
       false
     );
+    expect(isReservationViewerProjected(projectedFor10, undefined)).toBe(false);
+    expect(isReservationViewerProjected(projectedFor10, null)).toBe(false);
+    expect(isReservationViewerProjected(projectedFor10, '')).toBe(false);
+
+    // Explicit cancelReasonMessage matching an untagged thread entry splits it via didSplitExplicitFromThread
+    // and recomputes menteeMessage / mentorMessage from the remaining non-cancel thread messages
+    const explicitCancelFromUntaggedThread = resolveReservationMessages({
+      cancelledBy: 'SYSTEM',
+      messages: [
+        { content: '初始預約提問 Q1', role: 'MENTEE' },
+        { content: '導師回覆 A1', role: 'MENTOR' },
+        { content: '系統備註取消原因 S1', role: 'MENTEE' },
+      ],
+      menteeMessage: { content: '系統備註取消原因 S1', role: 'MENTEE' },
+      cancelReasonMessage: { content: '系統備註取消原因 S1', role: 'MENTEE' },
+    });
+    expect(explicitCancelFromUntaggedThread).toEqual({
+      messages: [
+        { content: '初始預約提問 Q1', role: 'MENTEE' },
+        { content: '導師回覆 A1', role: 'MENTOR' },
+        {
+          content: '系統備註取消原因 S1',
+          role: 'MENTEE',
+          isCancelReason: true,
+        },
+      ],
+      menteeMessage: { content: '初始預約提問 Q1', role: 'MENTEE' },
+      mentorMessage: { content: '導師回覆 A1', role: 'MENTOR' },
+      cancelReasonMessage: {
+        content: '系統備註取消原因 S1',
+        role: 'MENTEE',
+        isCancelReason: true,
+      },
+    });
 
     // Mismatched cancelledBy / cancelledByLabel presence must return false in both profileHref and self-guard branches
     expect(

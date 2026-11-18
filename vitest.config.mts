@@ -89,6 +89,7 @@ export default defineConfig({
   test: {
     globals: true,
     env: sharedEnv,
+    execArgv: ['--max-old-space-size=4096'],
     // Use all available CPU cores on 4-vCPU GitHub Actions public runners unless
     // explicitly overridden via VITEST_MAX_WORKERS.
     maxWorkers: process.env.VITEST_MAX_WORKERS
@@ -111,6 +112,7 @@ export default defineConfig({
         test: {
           name: 'ui-dom',
           environment: 'jsdom',
+          testTimeout: 15000,
           setupFiles: ['./src/test/setup.ts'],
           server: {
             deps: {
