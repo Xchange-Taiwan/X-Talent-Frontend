@@ -12,11 +12,11 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import { type ResolvedIdentity } from '@/lib/auth/sessionHint';
 import {
   getNavAnalyticsAttributes,
   type MobileGuestMenuModel,
-} from '@/hooks/layout/useHeaderNavigation';
-import { type ResolvedIdentity } from '@/lib/auth/sessionHint';
+} from '@/lib/navigation/headerNavigationModel';
 import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 
 import { AuthHintGate } from './AuthHintGate';

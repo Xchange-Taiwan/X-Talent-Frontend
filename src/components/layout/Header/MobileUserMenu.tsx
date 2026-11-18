@@ -15,7 +15,7 @@ import {
   getNavAnalyticsAttributes,
   type MobileAccountMenuModel,
   type ProfileHeaderDescriptor,
-} from '@/hooks/layout/useHeaderNavigation';
+} from '@/lib/navigation/headerNavigationModel';
 import {
   FOCUS_RING_CLASSES,
   GROUP_FOCUS_RING_CLASSES,
@@ -28,25 +28,16 @@ import { UserAvatar } from './UserAvatar';
 export type MobileUserMenuProps = {
   profileHeader: ProfileHeaderDescriptor;
   menu: MobileAccountMenuModel;
-  showFavorites?: boolean;
 };
 
 export const MobileUserMenu = React.memo(function MobileUserMenu({
   profileHeader,
   menu,
-  showFavorites,
 }: MobileUserMenuProps): JSX.Element {
   const [open, setOpen] = React.useState(false);
   const closeMenu = React.useCallback(() => setOpen(false), []);
 
-  const { shareProfile, navItems: rawNavItems, accountActions } = menu;
-  const navItems = React.useMemo(
-    () =>
-      showFavorites === false
-        ? rawNavItems.filter((item) => item.id !== 'my-favorites')
-        : rawNavItems,
-    [rawNavItems, showFavorites]
-  );
+  const { shareProfile, navItems, accountActions } = menu;
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>

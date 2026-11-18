@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { buildDesktopGuestAuth } from '@/hooks/layout/useHeaderNavigation';
+import { buildDesktopGuestAuth } from '@/lib/navigation/headerNavigationModel';
 import {
   authenticatedIdentity,
   buildResolvedIdentity,

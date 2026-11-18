@@ -164,3 +164,30 @@ export const AboutActiveRouteState: Story = {
     },
   },
 };
+
+// 8. Mobile Viewport Pre-Hydration Hint State (single --auth-avatar placeholder, no double skeleton)
+export const MobilePreHydrationHintState: Story = {
+  parameters: {
+    viewport: { defaultViewport: 'mobile1' },
+    auth: {
+      status: 'loading',
+      session: null,
+      sessionHint: undefined,
+    },
+  },
+  decorators: [
+    (Story) => (
+      <div
+        className="group/auth-state min-h-[70px] max-w-[390px] [transform:translateZ(0)]"
+        data-auth-state="mentee"
+        style={
+          {
+            '--auth-avatar': `url("${mockMenteeUser.avatar}")`,
+          } as React.CSSProperties
+        }
+      >
+        <Story />
+      </div>
+    ),
+  ],
+};

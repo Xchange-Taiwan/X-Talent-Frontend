@@ -42,10 +42,12 @@ import { UserDropdown } from './UserDropdown';
 
 function UserDropdownHarness({
   identity,
+  showFavorites,
 }: {
   identity: ResolvedIdentity;
+  showFavorites?: boolean;
 }): JSX.Element {
-  const navigation = useHeaderNavigation({ identity });
+  const navigation = useHeaderNavigation({ identity, showFavorites });
   return (
     <UserDropdown
       profileHeader={navigation.profileHeader}
@@ -141,5 +143,23 @@ describe('UserDropdown shell', () => {
     expect(
       screen.queryByRole('menuitem', { name: '我的收藏' })
     ).not.toBeInTheDocument();
+  });
+
+  it('omits 我的收藏 when headerNavigationModel filters favorites via showFavorites=false', () => {
+    render(
+      <UserDropdownHarness
+        identity={authenticatedIdentity('user-1', { isMentor: false })}
+        showFavorites={false}
+      />
+    );
+
+    openMenu();
+
+    expect(
+      screen.queryByRole('menuitem', { name: '我的收藏' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: '我的預約' })
+    ).toBeInTheDocument();
   });
 });

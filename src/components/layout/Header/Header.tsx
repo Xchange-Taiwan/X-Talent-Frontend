@@ -6,11 +6,9 @@ import Link from 'next/link';
 import LogoImgUrl from '@/assets/logo.svg';
 import { DeleteAccountDialog } from '@/components/auth/DeleteAccountDialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  getNavAnalyticsAttributes,
-  useHeaderNavigation,
-} from '@/hooks/layout/useHeaderNavigation';
+import { useHeaderNavigation } from '@/hooks/layout/useHeaderNavigation';
 import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
+import { getNavAnalyticsAttributes } from '@/lib/navigation/headerNavigationModel';
 import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { HOVER_NAV_UNDERLINE_CLASSES } from '@/lib/ui/hoverStyles';
 import { cn } from '@/lib/utils';
@@ -232,11 +230,7 @@ export function Header(): JSX.Element {
               className="flex items-center gap-3 lg:hidden"
               data-testid="mobile-header-right"
             >
-              <AuthHintGate
-                asChild
-                when={['mentee', 'mentor']}
-                onlyWhileUnknown
-              >
+              <AuthHintGate when="unhinted">
                 <Skeleton className="size-9 rounded-full" />
               </AuthHintGate>
               <AuthHintGate
@@ -267,7 +261,7 @@ export function Header(): JSX.Element {
 
       {isConfirmedMember && navigation.canDeleteAccount && (
         <DeleteAccountDialog
-          key={identity.userId}
+          key={`delete-${identity.userId}`}
           open={navigation.activeDialog === 'delete-account'}
           onOpenChange={(open) =>
             navigation.setActiveDialog(open ? 'delete-account' : null)
@@ -277,7 +271,7 @@ export function Header(): JSX.Element {
 
       {isConfirmedMember && (
         <ShareProfileDialog
-          key={identity.userId}
+          key={`share-${identity.userId}`}
           open={navigation.activeDialog === 'share-profile'}
           onOpenChange={(open) =>
             navigation.setActiveDialog(open ? 'share-profile' : null)
