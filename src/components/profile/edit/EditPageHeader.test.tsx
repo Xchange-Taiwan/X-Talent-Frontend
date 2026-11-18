@@ -6,7 +6,9 @@ import { EditPageHeader } from './EditPageHeader';
 describe('EditPageHeader (#959)', () => {
   it('renders Mentee role subtitle, title, and triggers onBack on 取消 click', () => {
     const onBack = vi.fn();
-    render(<EditPageHeader isSaving={false} onBack={onBack} isMentor={false} />);
+    render(
+      <EditPageHeader isSaving={false} onBack={onBack} isMentor={false} />
+    );
 
     expect(screen.getByText('學員個人資料')).toBeInTheDocument();
     expect(
@@ -26,7 +28,9 @@ describe('EditPageHeader (#959)', () => {
     expect(
       screen.getByRole('heading', { name: '編輯導師資料' })
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '儲存變更' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: '儲存變更' })
+    ).toBeInTheDocument();
 
     rerender(
       <EditPageHeader

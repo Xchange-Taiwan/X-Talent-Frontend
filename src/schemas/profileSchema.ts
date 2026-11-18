@@ -226,17 +226,11 @@ export const createProfileFormSchema = (isMentor: boolean) =>
     })
     .superRefine((data, ctx) => {
       if (isMentor && !data.avatarFile) {
-        if (isPresetAvatarUrl(data.avatar)) {
+        if (!data.avatar || isPresetAvatarUrl(data.avatar)) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ['avatarFile'],
             message: '請上傳真人照片，預設頭像僅供預覽',
-          });
-        } else if (!data.avatar) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['avatarFile'],
-            message: '請上傳個人頭像',
           });
         }
       }

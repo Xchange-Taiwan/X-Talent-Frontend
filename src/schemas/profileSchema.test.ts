@@ -66,7 +66,7 @@ describe('createProfileFormSchema mentor avatar requirement', () => {
     expect(result.success).toBe(true);
   });
 
-  it('mentor with neither avatar nor avatarFile fails with 請上傳個人頭像', () => {
+  it('mentor with neither avatar nor avatarFile fails with 請上傳真人照片，預設頭像僅供預覽', () => {
     const result = createProfileFormSchema(true).safeParse({
       ...baseData,
       ...mentorRequiredFields,
@@ -75,7 +75,7 @@ describe('createProfileFormSchema mentor avatar requirement', () => {
     });
     expect(result.success).toBe(false);
     const issue = result.error!.issues.find((i) => i.path[0] === 'avatarFile');
-    expect(issue?.message).toBe('請上傳個人頭像');
+    expect(issue?.message).toBe('請上傳真人照片，預設頭像僅供預覽');
   });
 
   it('mentee with neither avatar nor avatarFile passes', () => {

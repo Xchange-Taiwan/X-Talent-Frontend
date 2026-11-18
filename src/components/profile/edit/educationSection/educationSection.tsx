@@ -157,7 +157,7 @@ export const EducationSection = ({ form, isMentor }: Props) => {
   };
 
   return (
-    <Section title="教育經歷" required={isMentor}>
+    <Section title="教育經歷" required={isMentor} variant="option-a">
       {fields.map((field, index) => {
         const { handleStartYearChange, handleEndYearChange } =
           createPeriodChangeHandlers(index);

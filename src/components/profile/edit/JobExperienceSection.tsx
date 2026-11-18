@@ -110,7 +110,7 @@ export const JobExperienceSection = ({
   };
 
   return (
-    <Section title="工作經驗" required={isMentor}>
+    <Section title="工作經驗" required={isMentor} variant="option-a">
       {fields.map((field, index) => {
         const { handleStartYearChange, handleEndYearChange } =
           createPeriodChangeHandlers(index);

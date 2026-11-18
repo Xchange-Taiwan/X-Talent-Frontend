@@ -279,7 +279,7 @@ export default function EditProfileContainer({
 
               <Section
                 id="about"
-                variant="default"
+                variant="option-a"
                 className="scroll-mt-28"
                 title="關於我"
                 required={isMentorRole}
@@ -306,7 +306,7 @@ export default function EditProfileContainer({
                 <div id="mentor-expertise" className="scroll-mt-28 space-y-8">
                   <Section
                     id="have_topic"
-                    variant="default"
+                    variant="option-a"
                     title="我能提供的服務"
                     required
                     subtitle="選擇最有把握協助的項目。建議選擇 2–4 項。"
@@ -322,7 +322,7 @@ export default function EditProfileContainer({
 
                   <Section
                     id="have_skill"
-                    variant="default"
+                    variant="option-a"
                     title="專業能力"
                     required
                     subtitle="加入學員可能搜尋的技能。建議選擇 3–8 項。"
