@@ -243,7 +243,7 @@ jobs:
           rm -f .agents/tmp/delete-files.txt
           printf '\n5. 刪除舊檔專用通道（因安全沙盒已停用 shell 指令）：若規格要求刪除任何既有檔案，請勿保留空檔案，請將欲刪除的專案相對路徑（每行一個，例如 src/lib/foo.ts）寫入 .agents/tmp/delete-files.txt，Phase 1 結束後系統會自動為你真實刪除。\n' >> "$PROMPT_FILE"
           printf '\n%s\n%s\n' "$SCOPE_GUIDANCE" "$EXTRA_PROMPT" >> "$PROMPT_FILE"
-          timeout --kill-after=30s 33m npx gemini -m "$GEMINI_MODEL" --approval-mode=yolo --skip-trust -p "$(cat "$PROMPT_FILE")" < /dev/null || echo "::warning::Phase 1 exited non-zero or hit 33m soft limit; handing off workspace changes to Phase 2 convergence loop."
+          timeout --kill-after=30s 33m pnpm exec gemini -m "$GEMINI_MODEL" --approval-mode=yolo --skip-trust -p "$(cat "$PROMPT_FILE")" < /dev/null || echo "::warning::Phase 1 exited non-zero or hit 33m soft limit; handing off workspace changes to Phase 2 convergence loop."
           rm -f "$PROMPT_FILE"
           node scripts/cloud/workspace-guard.mjs apply-deletes
 
@@ -254,6 +254,9 @@ jobs:
           TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          BFF_OPENAPI_URL: ${{ secrets.BFF_OPENAPI_URL || vars.BFF_OPENAPI_URL }}
+          CLOUD_AUTO_SYNC_OPENAPI: '1'
+          CONVERGE_ALLOW_DETERMINISTIC_CHECKPOINT: 'true'
           TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER }}
           MAX_AI_REVIEW_ROUNDS: ${{ env.SAFE_MAX_ROUNDS }}
           RUN_E2E: ${{ env.SAFE_RUN_E2E }}

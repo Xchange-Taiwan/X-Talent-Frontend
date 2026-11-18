@@ -1654,3 +1654,111 @@ describe('cloud-converge-loop', () => {
     });
   });
 });
+
+describe('Wave 3 cloud-converge resilience (#949)', () => {
+  it('excludes headless telemetry sync components from hasUiSurfaceChanges and supports deterministic checkpoint exit code', () => {
+    const headlessSpec = detectChangedE2eSpecs([
+      'src/components/SentryUserSync.tsx',
+      'src/components/AnalyticsUserSync.tsx',
+    ]);
+    expect(headlessSpec.hasUiSurfaceChanges).toBe(false);
+    expect(headlessSpec.hasAppCodeChanges).toBe(true);
+
+    const visualSpec = detectChangedE2eSpecs([
+      'src/components/ErrorBoundary.tsx',
+    ]);
+    expect(visualSpec.hasUiSurfaceChanges).toBe(true);
+
+    const partialResult = {
+      converged: false,
+      evaluation: { deterministicPassed: true, e2ePassed: false },
+    };
+    expect(resolveConvergeExitCode(partialResult)).toBe(1);
+    expect(
+      resolveConvergeExitCode(partialResult, {
+        allowDeterministicCheckpoint: true,
+      })
+    ).toBe(0);
+  });
+
+  it('backs up and restores UI evidence screenshots when restoring best passing snapshot after a regressed round', async () => {
+    let roundCounter = 0;
+    let evidenceFiles = [];
+    let backedUpEvidence = [];
+
+    const res = await runConvergeLoop(
+      {
+        maxRounds: 2,
+        runE2e: true,
+        runAiReview: true,
+        requireUiEvidence: true,
+      },
+      {
+        execStep: (cmd, args) => {
+          if (cmd === 'git' && args[0] === 'diff') {
+            return {
+              ok: true,
+              stdout:
+                'src/components/ErrorBoundary.tsx\ne2e/tests/public/signin.spec.ts\n',
+              stderr: '',
+            };
+          }
+          if (cmd === 'pnpm' && args[0] === 'lint') {
+            roundCounter += 1;
+            return { ok: true, stdout: '', stderr: '' };
+          }
+          if (cmd === 'pnpm' && args[0] === 'test:e2e:mock') {
+            if (roundCounter === 2) {
+              return {
+                ok: false,
+                stderr: 'E2E broke in round 2 after clearEvidence()',
+                combined: 'E2E broke in round 2',
+              };
+            }
+            evidenceFiles = ['dialog-open.png'];
+            return { ok: true, stdout: '', stderr: '' };
+          }
+          if (cmd === 'node' && String(args[0]).includes('run-local.mjs')) {
+            return {
+              ok: true,
+              stdout: JSON.stringify({
+                overallRisk: { level: 'medium', reason: 'minor finding' },
+                findings: {
+                  correctness: [
+                    { file: 'src/a.ts', line: 1, category: 'Bug', issue: 'x' },
+                  ],
+                },
+                requirementCoverage: [],
+              }),
+              stderr: '',
+            };
+          }
+          return { ok: true, stdout: '', stderr: '' };
+        },
+        clearEvidence: () => {
+          evidenceFiles = [];
+        },
+        listEvidence: () => evidenceFiles,
+        backupEvidence: () => {
+          backedUpEvidence = [...evidenceFiles];
+        },
+        restoreEvidence: () => {
+          if (backedUpEvidence.length === 0) return false;
+          evidenceFiles = [...backedUpEvidence];
+          return true;
+        },
+        saveSnapshot: () => `tree_round_${roundCounter}`,
+        restoreSnapshot: () => {},
+        writeFile: () => {},
+        log: () => {},
+        fileExists: () => true,
+      }
+    );
+
+    // Round 1 passed deterministic + E2E (with UI evidence) and had 1 finding;
+    // Round 2 broke lint and cleared/lost state; loop restores Round 1 AND its backed-up evidence!
+    expect(res.evaluation.deterministicPassed).toBe(true);
+    expect(res.evaluation.e2ePassed).toBe(true);
+    expect(resolveConvergeExitCode(res)).toBe(0);
+  });
+});

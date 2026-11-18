@@ -196,6 +196,19 @@ export function resolveOverallRiskWithFailClosed({
   };
 }
 
+function sanitizePublicSummaryText(raw = '') {
+  const cleaned = String(raw ?? '')
+    .replace(/!\[[^\]]*]\([^)]+\)/g, '')
+    .replace(
+      /https?:\/\/private-user-images\.githubusercontent\.com\/[^\s)]+/gi,
+      '[internal-asset]'
+    )
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned.length > 320 ? `${cleaned.slice(0, 317)}...` : cleaned;
+}
+
 export function formatComment({
   plan,
   reviewGuide,
@@ -247,7 +260,9 @@ export function formatComment({
       : AI_REVIEW_COMMENT_MARKER,
     '## 🤖 AI Review Pipeline',
     '',
-    plan?.requirementSummary ? `> ${plan.requirementSummary}` : '',
+    plan?.requirementSummary
+      ? `> ${sanitizePublicSummaryText(plan.requirementSummary)}`
+      : '',
     '',
     guideSection ?? '### 🧭 Review Guide\n_（未執行）_',
     '',

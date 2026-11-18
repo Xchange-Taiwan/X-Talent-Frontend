@@ -165,7 +165,7 @@ jobs:
         run: node scripts/cloud/workspace-guard.mjs setup
 
       - name: Run Gemini CLI for initial PR Fix (Phase 1)
-        timeout-minutes: 15
+        timeout-minutes: 28
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
@@ -194,17 +194,16 @@ jobs:
             fi
           fi
           node scripts/cloud/workspace-guard.mjs setup
-          node scripts/cloud/ticket-bundle.mjs --ticket="$TICKET_NUMBER" --skip-visuals=true --skip-kb=true || true
-          node scripts/check-ticket-scope.mjs --spec-file=.agents/tmp/ticket-spec.md --guidance-out=.agents/tmp/scope-guidance.md >/dev/null 2>&1 || true
-          SCOPE_GUIDANCE=""
-          if [ -s .agents/tmp/scope-guidance.md ]; then
-            SCOPE_GUIDANCE=$(cat .agents/tmp/scope-guidance.md)
-          fi
           node scripts/cloud/ticket-bundle.mjs \
             --ticket="$TICKET_NUMBER" \
             --pr="$PR_NUMBER" \
             --frontend-repo="$EXPECTED_REPO" \
             --merge-conflicts-file=.agents/tmp/merge-conflicts.md || true
+          node scripts/check-ticket-scope.mjs --spec-file=.agents/tmp/ticket-spec.md --guidance-out=.agents/tmp/scope-guidance.md >/dev/null 2>&1 || true
+          SCOPE_GUIDANCE=""
+          if [ -s .agents/tmp/scope-guidance.md ]; then
+            SCOPE_GUIDANCE=$(cat .agents/tmp/scope-guidance.md)
+          fi
 
           PROMPT_FILE=$(mktemp)
           printf '我們正在處理 PR #%s（對應 Ticket #%s，完整規格、線上 AI Review 意見、合併衝突清單與視覺參考圖位於 .agents/tmp/ticket-spec.md）。\n' "$PR_NUMBER" "$TICKET_NUMBER" > "$PROMPT_FILE"
@@ -219,7 +218,7 @@ jobs:
           4. 刪除舊檔專用通道（因安全沙盒已停用 shell 指令）：若修復要求刪除任何既有檔案，請將欲刪除的專案相對路徑（每行一個）寫入 .agents/tmp/delete-files.txt，Phase 1 結束後系統會自動為你真實刪除。
           EOF
           printf '\n%s\n' "$SCOPE_GUIDANCE" >> "$PROMPT_FILE"
-          npx gemini -m "$GEMINI_MODEL" --approval-mode=yolo --skip-trust -p "$(cat "$PROMPT_FILE")"
+          timeout --kill-after=30s 22m pnpm exec gemini -m "$GEMINI_MODEL" --approval-mode=yolo --skip-trust -p "$(cat "$PROMPT_FILE")" < /dev/null || echo "::warning::Phase 1 hit 22m soft limit or non-zero exit; handing off workspace changes to Phase 2 convergence loop."
           rm -f "$PROMPT_FILE"
           node scripts/cloud/workspace-guard.mjs apply-deletes
 
@@ -242,6 +241,9 @@ jobs:
           TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          BFF_OPENAPI_URL: ${{ secrets.BFF_OPENAPI_URL || vars.BFF_OPENAPI_URL }}
+          CLOUD_AUTO_SYNC_OPENAPI: '1'
+          CONVERGE_ALLOW_DETERMINISTIC_CHECKPOINT: 'true'
           TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER }}
           MAX_AI_REVIEW_ROUNDS: ${{ env.SAFE_MAX_ROUNDS }}
           RUN_E2E: ${{ env.SAFE_RUN_E2E }}

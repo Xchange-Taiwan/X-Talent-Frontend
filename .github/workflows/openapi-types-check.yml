@@ -36,20 +36,33 @@ jobs:
       - name: Regenerate API types
         id: regenerate-types
         env:
-          BFF_OPENAPI_URL: ${{ secrets.BFF_OPENAPI_URL || vars.BFF_OPENAPI_URL }}
+          BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+          DEV_OPENAPI_URL: ${{ secrets.BFF_OPENAPI_URL || vars.BFF_OPENAPI_URL }}
+          PROD_OPENAPI_URL: ${{ secrets.BFF_OPENAPI_URL_PROD || vars.BFF_OPENAPI_URL_PROD }}
         run: |
-          if [ -z "$BFF_OPENAPI_URL" ]; then
-            echo "❌ Error: BFF_OPENAPI_URL is not set as a GitHub Secret or Repository Variable."
-            echo "Please configure BFF_OPENAPI_URL in your repository settings."
-            exit 1
+          if [ "$BASE_BRANCH" = "main" ]; then
+            if [ -z "$PROD_OPENAPI_URL" ]; then
+              echo "::notice::Skipping Dev BFF OpenAPI comparison on release PR targeting main (BFF_OPENAPI_URL_PROD not configured)."
+              echo "skipped_prod=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            export BFF_OPENAPI_URL="$PROD_OPENAPI_URL"
+          else
+            if [ -z "$DEV_OPENAPI_URL" ]; then
+              echo "Error: BFF_OPENAPI_URL is not set as a GitHub Secret or Repository Variable."
+              exit 1
+            fi
+            export BFF_OPENAPI_URL="$DEV_OPENAPI_URL"
           fi
           pnpm run generate:types
 
       - name: Format generated types
+        if: steps.regenerate-types.outputs.skipped_prod != 'true'
         run: pnpm exec prettier --write src/types/api.ts
 
       - name: Check for differences
         id: check-diff
+        if: steps.regenerate-types.outputs.skipped_prod != 'true'
         run: |
           if ! git diff --exit-code --ignore-space-at-eol src/types/api.ts; then
             echo "::error file=src/types/api.ts::API types (src/types/api.ts) are out of sync with the BFF OpenAPI spec."

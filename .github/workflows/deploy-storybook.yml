@@ -77,6 +77,16 @@ jobs:
           npx --yes wrangler@4 deploy --config ./storybook-wrangler.jsonc
           echo "storybook_url=https://x-talent-storybook.x-talent.workers.dev" >> "$GITHUB_OUTPUT"
 
+      - name: Trigger downstream X-Talent-Design-Hub baseline sync
+        if: github.event_name == 'push'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN }}
+        run: |
+          if [ -n "$GH_TOKEN" ]; then
+            gh workflow run deploy-design-hub.yml --repo Xchange-Taiwan/X-Talent-Design-Hub || true
+          fi
+
       - name: Comment on commit with deploy URL
         if: github.event_name == 'workflow_dispatch'
         uses: actions/github-script@v9
