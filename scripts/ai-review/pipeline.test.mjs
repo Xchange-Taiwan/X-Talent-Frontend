@@ -765,6 +765,7 @@ describe('release promotion fast-path (develop -> main)', () => {
         baseRef: 'origin/main',
         headSha: 'abc1234567890',
         branch: 'develop',
+        headRepo: 'Xchange-Taiwan/X-Talent-Frontend',
         prNumber: '1301',
         repo: 'Xchange-Taiwan/X-Talent-Frontend',
         postComment: true,
@@ -875,6 +876,31 @@ describe('release promotion fast-path (develop -> main)', () => {
       }
     );
     expect(disabledRes.releaseFastPath).toBeUndefined();
+    expect(llmCalls).toBeGreaterThan(0);
+
+    llmCalls = 0;
+    const forkSpoofRes = await runAiReviewPipeline(
+      {
+        mode: 'ci',
+        baseRef: 'origin/main',
+        headSha: 'def456',
+        branch: 'develop',
+        headRepo: 'external-fork/X-Talent-Frontend',
+        prNumber: '1307',
+        repo: 'Xchange-Taiwan/X-Talent-Frontend',
+        postComment: false,
+      },
+      {
+        llmPort: mockLlm,
+        contextPort: {
+          getDiff: async () => ({
+            diff: 'diff --git a/src/a.ts b/src/a.ts\n+++ b/src/a.ts\n+const x = 1;',
+            truncated: false,
+          }),
+        },
+      }
+    );
+    expect(forkSpoofRes.releaseFastPath).toBeUndefined();
     expect(llmCalls).toBeGreaterThan(0);
   });
 });

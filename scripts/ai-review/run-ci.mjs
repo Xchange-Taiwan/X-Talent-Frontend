@@ -20,6 +20,7 @@ export async function runCiCli(env = process.env) {
   const baseRef = env.BASE_REF;
   const headSha = env.HEAD_SHA;
   const branch = env.HEAD_REF || '';
+  const headRepo = env.HEAD_REPO || '';
   const prNumber = env.PR_NUMBER || '';
   const repo = env.GITHUB_REPOSITORY || '';
   const githubToken = env.GITHUB_TOKEN || '';
@@ -47,6 +48,7 @@ export async function runCiCli(env = process.env) {
       baseRef,
       headSha,
       branch,
+      headRepo,
       prNumber,
       repo,
       strict: true,

@@ -592,8 +592,16 @@ export async function runAiReviewPipeline(
       .replace(/^refs\/heads\//, '')
       .replace(/^origin\//, '')
       .trim();
+    const cleanRepo = String(repo || '').trim();
+    const cleanHeadRepo = String(input.headRepo || '').trim();
+    const isTrustedSameRepo =
+      mode !== 'ci' ||
+      (Boolean(cleanRepo) &&
+        Boolean(cleanHeadRepo) &&
+        cleanHeadRepo.toLowerCase() === cleanRepo.toLowerCase());
     const isReleasePromotionPr =
       !input.disableReleaseFastPath &&
+      isTrustedSameRepo &&
       cleanBaseBranch === 'main' &&
       cleanHeadBranch === 'develop';
 

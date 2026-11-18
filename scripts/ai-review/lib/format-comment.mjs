@@ -198,18 +198,22 @@ export function resolveOverallRiskWithFailClosed({
 
 export function sanitizePublicSummaryText(raw = '') {
   const cleaned = String(raw ?? '')
-    .replace(/!\[[^\]]*]\([^)]+\)/g, '')
     .replace(
-      /https?:\/\/(?:private-user-images|user-images)\.githubusercontent\.com\/[^\s)]+/gi,
+      /https?:\/\/(?:private-user-images|user-images)\.githubusercontent\.com\/(?:[^\s()]|\([^\s()]*\))+/gi,
       '[internal-asset]'
     )
     .replace(
-      /https?:\/\/github\.com\/user-attachments\/assets\/[^\s)]+/gi,
+      /https?:\/\/github\.com\/user-attachments\/assets\/(?:[^\s()]|\([^\s()]*\))+/gi,
       '[internal-asset]'
     )
     .replace(
-      /https?:\/\/github\.com\/Xchange-Taiwan\/X-Talent-Tracker\/[^\s)]+/gi,
+      /https?:\/\/github\.com\/Xchange-Taiwan\/X-Talent-Tracker\/(?:[^\s()]|\([^\s()]*\))+/gi,
       '[internal-tracker-ref]'
+    )
+    .replace(/!\[[^\]]*]\((?:[^()]+|\([^()]*\))*\)/g, '')
+    .replace(
+      /([?&](?:jwt|token|sig|signature|X-Amz-Signature|X-Amz-Credential)=)[^\s)&]+/gi,
+      '$1[REDACTED]'
     )
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
     .replace(/\s+/g, ' ')
