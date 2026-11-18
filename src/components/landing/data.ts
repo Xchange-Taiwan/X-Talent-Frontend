@@ -5,12 +5,12 @@ export interface SlideItem {
 }
 
 export const defaultSliderAvatars = [
-  '/landing/slider_default_1.webp',
-  '/landing/slider_default_2.webp',
-  '/landing/slider_default_3.webp',
-  '/landing/slider_default_4.webp',
-  '/landing/slider_default_5.webp',
-  '/landing/slider_default_6.webp',
+  '/landing/testimonial_1.webp',
+  '/landing/testimonial_2.webp',
+  '/landing/testimonial_3.webp',
+  '/landing/testimonial_4.webp',
+  '/landing/testimonial_5.webp',
+  '/landing/testimonial_6.webp',
 ] as const;
 
 export const realSliderAvatars: Record<string, string> = {
