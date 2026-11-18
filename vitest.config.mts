@@ -1,7 +1,8 @@
-import react from '@vitejs/plugin-react';
+import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
 
 const rootDir = import.meta.dirname;
 const sharedAlias = {
@@ -36,6 +37,50 @@ const DOM_DEPENDENT_LIB_TESTS = [
   'src/services/reservations/reservationMutations.test.ts',
 ];
 
+const DOM_DEPENDENT_LIB_SET = new Set(DOM_DEPENDENT_LIB_TESTS);
+const PURE_NODE_SRC_ROOTS = [
+  'actions',
+  'constant',
+  'constants',
+  'data',
+  'design',
+  'lib',
+  'schemas',
+  'services',
+  'utils',
+];
+
+export function collectPureNodeSrcTests(baseDir = rootDir): string[] {
+  const results: string[] = [];
+  const srcRoot = path.join(baseDir, 'src');
+  if (!fs.existsSync(srcRoot)) return results;
+
+  for (const entry of fs.readdirSync(srcRoot, { withFileTypes: true })) {
+    if (entry.isFile() && /\.(?:test|spec)\.ts$/.test(entry.name)) {
+      const rel = `src/${entry.name}`;
+      if (!DOM_DEPENDENT_LIB_SET.has(rel)) results.push(rel);
+    }
+  }
+
+  for (const sub of PURE_NODE_SRC_ROOTS) {
+    const dirAbs = path.join(srcRoot, sub);
+    if (!fs.existsSync(dirAbs)) continue;
+    for (const relSub of fs.readdirSync(dirAbs, { recursive: true })) {
+      const normalized = `src/${sub}/${String(relSub).replace(/\\/g, '/')}`;
+      if (
+        /\.(?:test|spec)\.ts$/.test(normalized) &&
+        !DOM_DEPENDENT_LIB_SET.has(normalized)
+      ) {
+        results.push(normalized);
+      }
+    }
+  }
+
+  return results.sort();
+}
+
+const pureNodeSrcTests = collectPureNodeSrcTests();
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -57,12 +102,8 @@ export default defineConfig({
         test: {
           name: 'unit-node',
           environment: 'node',
-          include: [
-            'scripts/**/*.{test,spec}.mjs',
-            'src/*.{test,spec}.ts',
-            'src/{actions,constant,constants,data,design,lib,schemas,services,utils}/**/*.{test,spec}.ts',
-          ],
-          exclude: ['node_modules/**', ...DOM_DEPENDENT_LIB_TESTS],
+          include: ['scripts/**/*.{test,spec}.mjs', ...pureNodeSrcTests],
+          exclude: ['node_modules/**'],
         },
       },
       {
@@ -76,14 +117,13 @@ export default defineConfig({
               inline: [/@storybook\/nextjs/],
             },
           },
+          // Catch-all across src/** and .storybook/** excluding the exact
+          // pureNodeSrcTests set so new directories are never silently dropped.
           include: [
-            'src/{app,components,hooks,stores,docs,test}/**/*.{test,spec}.{ts,tsx}',
-            'src/{actions,constant,constants,data,design,lib,schemas,services,utils}/**/*.{test,spec}.tsx',
-            'src/*.{test,spec}.tsx',
+            'src/**/*.{test,spec}.{ts,tsx,mjs}',
             '.storybook/**/*.{test,spec}.{ts,tsx}',
-            ...DOM_DEPENDENT_LIB_TESTS,
           ],
-          exclude: ['node_modules/**'],
+          exclude: ['node_modules/**', ...pureNodeSrcTests],
         },
       },
     ],

@@ -14,25 +14,18 @@ const GLOBAL_TEST_CONFIG_FILES = new Set([
 
 const CODE_FILE_RE = /^(?:src|scripts|\.storybook)\/.*\.[cm]?[jt]sx?$/i;
 
-export function selectVitestRelatedTargets(
-  changedPaths = [],
-  { detectGlobalConfig = false } = {}
-) {
+export function selectVitestRelatedTargets(changedPaths = []) {
   const normalized = changedPaths
     .map((p) => String(p).replace(/\\/g, '/').replace(/^\.\//, '').trim())
     .filter(Boolean);
 
-  if (detectGlobalConfig) {
-    const touchedGlobal = normalized.some((p) =>
-      GLOBAL_TEST_CONFIG_FILES.has(p)
-    );
-    if (touchedGlobal) {
-      return { runAll: true, targets: [] };
-    }
+  const touchedGlobal = normalized.some((p) => GLOBAL_TEST_CONFIG_FILES.has(p));
+  if (touchedGlobal) {
+    return { runAll: true, targets: [] };
   }
 
   const targets = normalized.filter((p) => CODE_FILE_RE.test(p));
-  return detectGlobalConfig ? { runAll: false, targets } : targets;
+  return { runAll: false, targets };
 }
 
 function resolveChangedFilesSinceBase() {
@@ -61,9 +54,7 @@ function main() {
   const changed = resolveChangedFilesSinceBase().filter((f) =>
     fs.existsSync(f)
   );
-  const selection = selectVitestRelatedTargets(changed, {
-    detectGlobalConfig: true,
-  });
+  const selection = selectVitestRelatedTargets(changed);
 
   if (selection.runAll) {
     const res = spawnSync('pnpm', ['vitest', 'run'], {

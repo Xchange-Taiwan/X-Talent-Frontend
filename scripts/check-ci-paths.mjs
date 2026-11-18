@@ -73,7 +73,7 @@ export function classifyChangedCiPaths(filePaths = []) {
   };
 }
 
-function getDiffFiles(baseRef) {
+export function validateBaseBranchRef(baseRef) {
   const cleanBase = String(baseRef || 'develop').trim();
   if (
     !cleanBase ||
@@ -82,6 +82,11 @@ function getDiffFiles(baseRef) {
   ) {
     throw new Error(`Invalid base branch ref: ${cleanBase}`);
   }
+  return cleanBase;
+}
+
+function getDiffFiles(baseRef) {
+  const cleanBase = validateBaseBranchRef(baseRef);
   try {
     execFileSync(
       'git',
