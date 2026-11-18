@@ -363,6 +363,10 @@ export default function ProfilePageUI({
                   fill
                   sizes="160px"
                   className="object-cover"
+                  unoptimized={
+                    typeof effectiveAvatarSrc === 'string' &&
+                    effectiveAvatarSrc.startsWith('/avatars/')
+                  }
                   priority
                 />
               </div>

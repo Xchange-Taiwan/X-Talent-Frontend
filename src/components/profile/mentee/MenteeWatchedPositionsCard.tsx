@@ -40,7 +40,7 @@ export function MenteeWatchedPositionsCard({
                 aria-pressed={isActive}
                 onClick={() => onSelectDirection?.(group.key)}
                 className={cn(
-                  'focus-visible:ring-brand-500 flex w-full flex-col items-start gap-1 rounded-xl border px-4 py-3 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none',
+                  'focus-visible:ring-brand-500 flex w-full flex-col items-start gap-1 rounded-xl border px-4 py-3 text-left transition-colors focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:outline-none',
                   isActive
                     ? 'border-brand-500 bg-brand-100/40'
                     : 'border-background-border bg-background-white hover:border-brand-300'
