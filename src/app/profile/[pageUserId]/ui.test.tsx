@@ -557,6 +557,20 @@ describe('ProfilePageUI - mentee B-1 v2 display sections and mentor gating (#598
       screen.queryByTestId('mentee-watched-positions-card')
     ).not.toBeInTheDocument();
   });
+
+  it('never renders mentee-watched-positions-card while userLoading is true (#960)', () => {
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userLoading: true,
+          userData: buildUserData({ is_mentor: false }),
+        })}
+      />
+    );
+    expect(
+      screen.queryByTestId('mentee-watched-positions-card')
+    ).not.toBeInTheDocument();
+  });
 });
 
 describe('ProfilePageUI - BookingForm visibility', () => {

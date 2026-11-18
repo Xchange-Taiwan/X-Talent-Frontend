@@ -640,7 +640,7 @@ export default function ProfilePageUI({
                 </div>
               )}
             </div>
-          ) : userData ? (
+          ) : !userLoading && userData && !userData.is_mentor ? (
             <div className="w-full xl:w-2/5">
               <MenteeWatchedPositionsCard
                 groups={menteeDirectionGroups}
