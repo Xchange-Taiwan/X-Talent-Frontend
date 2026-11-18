@@ -1806,4 +1806,106 @@ describe('Wave 3 cloud-converge resilience (#949)', () => {
       fs.rmSync(tmpRepo, { recursive: true, force: true });
     }
   });
+
+  it('writes out-of-tree checkpoint marker on budgetExhausted without E2E and downgrades fail-closed if restoreEvidence fails', async () => {
+    const writtenFiles = new Map();
+    let clock = 0;
+
+    const budgetRes = await runConvergeLoop(
+      {
+        maxRounds: 3,
+        maxDurationMs: 1000,
+        runE2e: true,
+        runAiReview: false,
+        checkpointMarkerPath: '/tmp/runner-checkpoint-marker',
+      },
+      {
+        now: () => {
+          clock += 600;
+          return clock;
+        },
+        execStep: (cmd, args) => {
+          if (cmd === 'git' && args[0] === 'diff') {
+            return { ok: true, stdout: 'src/lib/env.ts\n', stderr: '' };
+          }
+          if (cmd === 'pnpm' && args[0] === 'test:e2e:mock') {
+            return {
+              ok: false,
+              stderr: 'e2e timeout',
+              combined: 'e2e timeout',
+            };
+          }
+          return { ok: true, stdout: '', stderr: '' };
+        },
+        saveSnapshot: () => 'tree_det_ok',
+        restoreSnapshot: () => {},
+        writeFile: (p, c) => writtenFiles.set(p, c),
+        log: () => {},
+        fileExists: () => true,
+      }
+    );
+
+    expect(budgetRes.budgetExhausted).toBe(true);
+    expect(writtenFiles.get('/tmp/runner-checkpoint-marker')).toBe(
+      'budget_exhausted\n'
+    );
+
+    // Also verify restoreEvidence returning false downgrades e2ePassed fail-closed
+    let r = 0;
+    const missingBackupRes = await runConvergeLoop(
+      {
+        maxRounds: 2,
+        runE2e: true,
+        runAiReview: true,
+        requireUiEvidence: true,
+      },
+      {
+        execStep: (cmd, args) => {
+          if (cmd === 'git' && args[0] === 'diff') {
+            r += 1;
+            return {
+              ok: true,
+              stdout:
+                'src/components/ErrorBoundary.tsx\ne2e/tests/public/signin.spec.ts\n',
+              stderr: '',
+            };
+          }
+          if (cmd === 'pnpm' && args[0] === 'test:e2e:mock') {
+            return r === 1
+              ? { ok: true, stdout: '', stderr: '' }
+              : { ok: false, stderr: 'fail', combined: 'fail' };
+          }
+          if (cmd === 'node' && String(args[0]).includes('run-local.mjs')) {
+            return {
+              ok: true,
+              stdout: JSON.stringify({
+                overallRisk: { level: 'medium', reason: 'minor' },
+                findings: {
+                  correctness: [
+                    { file: 'src/a.ts', line: 1, category: 'Bug', issue: 'x' },
+                  ],
+                },
+                requirementCoverage: [],
+              }),
+              stderr: '',
+            };
+          }
+          return { ok: true, stdout: '', stderr: '' };
+        },
+        clearEvidence: () => {},
+        listEvidence: () => (r === 1 ? ['shot.png'] : []),
+        backupEvidence: () => {},
+        restoreEvidence: () => false,
+        saveSnapshot: () => `tree_${r}`,
+        restoreSnapshot: () => {},
+        writeFile: () => {},
+        log: () => {},
+        fileExists: () => true,
+      }
+    );
+
+    expect(missingBackupRes.evaluation.deterministicPassed).toBe(true);
+    expect(missingBackupRes.evaluation.e2ePassed).toBe(false);
+    expect(resolveConvergeExitCode(missingBackupRes)).toBe(1);
+  });
 });

@@ -920,13 +920,6 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       `\n[cloud-converge] === Round ${round}/${config.maxRounds} starting ===`
     );
 
-    const diffFiles = collectChangedFiles();
-
-    const testEnv = {
-      ...process.env,
-      VITEST_MAX_WORKERS: process.env.VITEST_MAX_WORKERS || '3',
-    };
-
     if (
       round === 1 &&
       (rawOptions.autoSyncOpenApi === true ||
@@ -946,6 +939,13 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         ]);
       }
     }
+
+    const diffFiles = collectChangedFiles();
+
+    const testEnv = {
+      ...process.env,
+      VITEST_MAX_WORKERS: process.env.VITEST_MAX_WORKERS || '3',
+    };
 
     // 1. Deterministic checks: run lint & type-check concurrently, fast-fail before unit tests
     const deterministicErrors = [];
@@ -1415,10 +1415,23 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         restoreBestPassingState();
       }
       if (lastEvaluation?.deterministicPassed && !lastE2ePassed) {
-        writeFile(
-          path.resolve(repoRoot, '.agents/tmp/converge-checkpoint-only'),
-          'budget_exhausted\n'
-        );
+        const markerPath =
+          rawOptions.checkpointMarkerPath ||
+          process.env.CONVERGE_CHECKPOINT_MARKER ||
+          path.join(
+            process.env.RUNNER_TEMP || os.tmpdir(),
+            'x-talent-converge-checkpoint-only'
+          );
+        writeFile(markerPath, 'budget_exhausted\n');
+        if (process.env.GITHUB_ENV) {
+          try {
+            fs.appendFileSync(
+              process.env.GITHUB_ENV,
+              'CONVERGE_CHECKPOINT_ONLY=true\n',
+              'utf8'
+            );
+          } catch {}
+        }
       }
       break;
     }

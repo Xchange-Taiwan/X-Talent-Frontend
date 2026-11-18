@@ -177,7 +177,8 @@ jobs:
           FIX_INSTRUCTIONS: ${{ inputs.fix_instructions }}
         run: |
           mkdir -p .agents/tmp
-          rm -f .agents/tmp/ticket-bundle.json .agents/tmp/ticket-spec.md .agents/tmp/scope-guidance.md .agents/tmp/merge-conflicts.md .agents/tmp/delete-files.txt .agents/tmp/converge-checkpoint-only
+          rm -f .agents/tmp/ticket-bundle.json .agents/tmp/ticket-spec.md .agents/tmp/scope-guidance.md .agents/tmp/merge-conflicts.md .agents/tmp/delete-files.txt "${RUNNER_TEMP:-/tmp}/x-talent-converge-checkpoint-only"
+          echo "CONVERGE_CHECKPOINT_ONLY=false" >> "$GITHUB_ENV"
           MERGE_CONFLICTS_PRESENT="false"
           node scripts/cloud/workspace-guard.mjs unstage --restore-worktree
           if ! git merge origin/develop --no-edit; then
@@ -274,6 +275,7 @@ jobs:
           TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER || inputs.ticket_number }}
           PR_NUMBER: ${{ env.SAFE_PR_NUMBER || inputs.pr_number }}
           EXPECTED_REPO: ${{ github.repository }}
+          CHECKPOINT_ONLY: ${{ env.CONVERGE_CHECKPOINT_ONLY }}
           JOB_STATUS: ${{ job.status }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -289,11 +291,11 @@ jobs:
             fi
           fi
 
-          if [ "$JOB_STATUS" = "success" ] && [ ! -f .agents/tmp/converge-checkpoint-only ]; then
+          if [ "$JOB_STATUS" = "success" ] && [ "$CHECKPOINT_ONLY" != "true" ] && [ ! -f "${RUNNER_TEMP:-/tmp}/x-talent-converge-checkpoint-only" ]; then
             STATUS="fix_pr_succeeded"
             MSG="雲端 Fix PR #${CLEAN_PR} 已完成修復與測試截圖更新並推回分支"
-          elif [ "$JOB_STATUS" = "success" ] && [ -f .agents/tmp/converge-checkpoint-only ]; then
-            rm -f .agents/tmp/converge-checkpoint-only
+          elif [ "$JOB_STATUS" = "success" ]; then
+            rm -f "${RUNNER_TEMP:-/tmp}/x-talent-converge-checkpoint-only"
             STATUS="fix_pr_failed"
             MSG="雲端 Fix PR #${CLEAN_PR} 時間預算耗盡，已保留通過靜態檢查與單元測試的最佳快照推回分支（E2E 尚未完成，按鈕已解鎖可繼續收斂）"
           else
