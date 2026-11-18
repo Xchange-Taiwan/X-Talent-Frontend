@@ -42,13 +42,19 @@ const sampleItems: MentorFeedbackItem[] = [
   },
 ];
 
+const longSampleReviewContent =
+  '這次會談讓我重新整理了作品集的敘事方式。導師先聽我分享目前求職的方向，再一起檢視每個專案的問題、研究過程與成果。最有幫助的是，我們沒有只停留在畫面的修改，而是練習如何說明設計決策背後的原因，以及自己的貢獻。會談結束前，也一起列出了接下來兩週可以完成的三件事，讓原本有點混亂的準備過程變得有方向。謝謝導師很有耐心地追問細節，也分享了與產品和工程團隊合作的實際經驗。回去修改後，我更能清楚說明專案的取捨，也對下次面試多了一些信心。';
+
 const paginatedItems: MentorFeedbackItem[] = Array.from(
   { length: 12 },
   (_, index) => ({
     id: `fb-page-${index + 1}`,
     authorName: `${['陳', '林', '王', '張', '李', '吳'][index % 6]}**`,
     rating: index % 2 === 0 ? 9 : 8,
-    content: `第 ${index + 1} 則公開評價：提供了相當具體的職涯與作品集調整方向。`,
+    content:
+      index === 0
+        ? longSampleReviewContent
+        : `第 ${index + 1} 則公開評價：提供了相當具體的職涯與作品集調整方向。`,
     createdAt: `2026-10-${String(28 - index).padStart(2, '0')}T10:00:00Z`,
   })
 );
@@ -56,6 +62,23 @@ const paginatedItems: MentorFeedbackItem[] = Array.from(
 export const DefaultWithReviews: Story = {
   args: {
     items: sampleItems,
+    totalRatingCount: 3,
+    ratingAverage: 8.7,
+  },
+};
+
+export const WithLongExpandableReviews: Story = {
+  args: {
+    items: [
+      {
+        id: 'fb-long-1',
+        authorName: '陳**',
+        rating: 9,
+        content: longSampleReviewContent,
+        createdAt: '2026-10-28T10:00:00Z',
+      },
+      ...sampleItems.slice(1),
+    ],
     totalRatingCount: 3,
     ratingAverage: 8.7,
   },

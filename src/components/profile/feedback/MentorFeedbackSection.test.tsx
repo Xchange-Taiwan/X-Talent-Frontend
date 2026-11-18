@@ -293,5 +293,197 @@ describe('MentorFeedbackSection (#736 / #934)', () => {
     expect(stories.ErrorWithRetry.args?.error).toBe(
       '載入評價時發生錯誤，請稍後再試。'
     );
+    expect(stories.WithLongExpandableReviews).toBeDefined();
+  });
+
+  it('hides toggle button when review content is 3 lines or fewer, and collapses/expands reviews exceeding 3 lines (#736 6.c 3-1)', () => {
+    const reviewsWithMixedLengths: MentorFeedbackItem[] = [
+      {
+        id: 'short-3-lines',
+        authorName: '王**',
+        rating: 9,
+        content: '第一行重點\n第二行架構\n第三行建議',
+        createdAt: '2026-10-29T10:00:00Z',
+      },
+      {
+        id: 'long-explicit-lines',
+        authorName: '陳**',
+        rating: 10,
+        content:
+          '第一行：重新整理作品集敘事方式\n第二行：檢視每個專案的問題與研究過程\n第三行：練習說明設計決策背後的原因\n第四行：列出接下來兩週可完成的三件事',
+        createdAt: '2026-10-28T10:00:00Z',
+      },
+      {
+        id: 'long-wrapped-paragraph',
+        authorName: '李**',
+        rating: 8,
+        content:
+          '這次會談讓我重新整理了作品集的敘事方式。導師先聽我分享目前求職的方向，再一起檢視每個專案的問題、研究過程與成果。最有幫助的是，我們沒有只停留在畫面的修改，而是練習如何說明設計決策背後的原因，以及自己的貢獻。會談結束前，也一起列出了接下來兩週可以完成的三件事，讓原本有點混亂的準備過程變得有方向。謝謝導師很有耐心地追問細節，也分享了與產品和工程團隊合作的實際經驗。',
+        createdAt: '2026-10-27T10:00:00Z',
+      },
+    ];
+
+    render(
+      <MentorFeedbackSection
+        items={reviewsWithMixedLengths}
+        totalRatingCount={3}
+        ratingAverage={9.0}
+      />
+    );
+
+    const listItems = screen.getAllByRole('listitem');
+    expect(listItems).toHaveLength(3);
+
+    // 1. <= 3 lines: no toggle button and no truncation needed
+    const shortParagraph = screen.getByText(/第一行重點/);
+    expect(listItems[0].querySelector('button[aria-expanded]')).toBeNull();
+    expect(shortParagraph).toBeInTheDocument();
+
+    // 2. > 3 lines: both long items start clamped with "查看更多" (aria-expanded="false")
+    const toggleButtons = screen.getAllByRole('button', { name: '查看更多' });
+    expect(toggleButtons).toHaveLength(2);
+
+    const firstLongParagraph =
+      screen.getByText(/第一行：重新整理作品集敘事方式/);
+    expect(firstLongParagraph).toHaveClass('line-clamp-3');
+    expect(firstLongParagraph).toHaveAttribute('data-expanded', 'false');
+    expect(toggleButtons[0]).toHaveAttribute('aria-expanded', 'false');
+    expect(toggleButtons[0]).toHaveAttribute(
+      'aria-controls',
+      firstLongParagraph.id
+    );
+
+    // 3. Click first "查看更多" -> expands only that item, switches button to "收合"
+    fireEvent.click(toggleButtons[0]);
+
+    expect(firstLongParagraph).not.toHaveClass('line-clamp-3');
+    expect(firstLongParagraph).toHaveAttribute('data-expanded', 'true');
+    const collapseBtn = screen.getByRole('button', { name: '收合' });
+    expect(collapseBtn).toHaveAttribute('aria-expanded', 'true');
+    // Second long review remains collapsed
+    expect(screen.getAllByRole('button', { name: '查看更多' })).toHaveLength(1);
+
+    // 4. Click "收合" -> collapses back to 3 lines
+    fireEvent.click(collapseBtn);
+    expect(firstLongParagraph).toHaveClass('line-clamp-3');
+    expect(firstLongParagraph).toHaveAttribute('data-expanded', 'false');
+    expect(screen.queryByRole('button', { name: '收合' })).toBeNull();
+    expect(screen.getAllByRole('button', { name: '查看更多' })).toHaveLength(2);
+  });
+
+  it('displays current page item range count in pagination and resets expanded reviews on page change', () => {
+    const page1LongItem: MentorFeedbackItem = {
+      id: 'p1-long',
+      authorName: '陳**',
+      rating: 9,
+      content: '第一行\n第二行\n第三行\n第四行超長評價內容',
+      createdAt: '2026-10-28T10:00:00Z',
+    };
+    const { rerender } = render(
+      <MentorFeedbackSection
+        items={[page1LongItem]}
+        totalRatingCount={12}
+        ratingAverage={8.5}
+        page={1}
+        pageSize={10}
+        onPageChange={() => {}}
+      />
+    );
+
+    expect(screen.getByText('第 1–10 則，共 12 則')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '查看更多' }));
+    expect(screen.getByRole('button', { name: '收合' })).toBeInTheDocument();
+
+    rerender(
+      <MentorFeedbackSection
+        items={[page1LongItem]}
+        totalRatingCount={12}
+        ratingAverage={8.5}
+        page={2}
+        pageSize={10}
+        onPageChange={() => {}}
+      />
+    );
+
+    expect(screen.getByText('第 11–12 則，共 12 則')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '收合' })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: '查看更多' })
+    ).toBeInTheDocument();
+  });
+
+  it('uses real DOM scrollHeight vs clientHeight measurement when layout geometry is available', () => {
+    const originalClientHeight = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'clientHeight'
+    );
+    const originalScrollHeight = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'scrollHeight'
+    );
+
+    try {
+      Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
+        configurable: true,
+        get() {
+          return this.tagName === 'P' ? 68 : 0;
+        },
+      });
+      Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
+        configurable: true,
+        get() {
+          if (this.tagName !== 'P') return 0;
+          return this.textContent?.includes('窄螢幕折成四行') ? 92 : 68;
+        },
+      });
+
+      render(
+        <MentorFeedbackSection
+          items={[
+            {
+              id: 'dom-short',
+              authorName: '林**',
+              rating: 8,
+              content: '三行內不會溢位的短文字',
+              createdAt: '2026-10-28T10:00:00Z',
+            },
+            {
+              id: 'dom-wrapped',
+              authorName: '張**',
+              rating: 9,
+              content: '窄螢幕折成四行的評價文字',
+              createdAt: '2026-10-27T10:00:00Z',
+            },
+          ]}
+          totalRatingCount={2}
+          ratingAverage={8.5}
+        />
+      );
+
+      expect(screen.getAllByRole('button', { name: '查看更多' })).toHaveLength(
+        1
+      );
+      fireEvent.click(screen.getByRole('button', { name: '查看更多' }));
+      expect(screen.getByRole('button', { name: '收合' })).toBeInTheDocument();
+    } finally {
+      if (originalClientHeight) {
+        Object.defineProperty(
+          HTMLElement.prototype,
+          'clientHeight',
+          originalClientHeight
+        );
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, 'clientHeight');
+      }
+      if (originalScrollHeight) {
+        Object.defineProperty(
+          HTMLElement.prototype,
+          'scrollHeight',
+          originalScrollHeight
+        );
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, 'scrollHeight');
+      }
+    }
   });
 });

@@ -131,7 +131,8 @@ const ALL_REVIEWS = [
     id: 4,
     author_name: '張**',
     rating: 10,
-    content: '模擬面試的追問非常精準，讓我發現原本沒注意到的盲點。',
+    content:
+      '模擬面試的追問非常精準，讓我發現原本沒注意到的盲點。導師先聽我分享目前求職的方向，再一起檢視每個專案的問題、研究過程與成果。最有幫助的是，我們沒有只停留在畫面的修改，而是練習如何說明設計決策背後的原因，以及自己的貢獻。會談結束前，也一起列出了接下來兩週可以完成的三件事，讓原本有點混亂的準備過程變得有方向。謝謝導師很有耐心地追問細節，也分享了與產品和工程團隊合作的實際經驗。',
     created_at: '2026-10-25T10:00:00+08:00',
   },
   {
@@ -579,7 +580,42 @@ test.describe('導師個人頁評價區塊與 RWD 排版 (#736)', () => {
     await expect(
       feedbackSection.getByRole('navigation', { name: '評價分頁' })
     ).toBeVisible();
+    await expect(
+      feedbackSection.getByText('第 1–10 則，共 12 則', { exact: true })
+    ).toBeVisible();
     await expect(rightScheduleCard).toBeVisible();
+
+    // 驗證 6.c 3-1 長評價折疊：未超過 3 行不顯示按鈕；超過 3 行預設顯示前 3 行與「查看更多」，點擊展開全文並切換為「收合」
+    const shortReviewCard = feedbackSection.locator('ul > li').first();
+    await expect(
+      shortReviewCard.getByRole('button', { name: /查看更多|收合/ })
+    ).toHaveCount(0);
+
+    const longReviewCard = feedbackSection.locator('ul > li').nth(3);
+    const expandBtn = longReviewCard.getByRole('button', { name: '查看更多' });
+    await expect(expandBtn).toBeVisible();
+    await expect(expandBtn).toHaveAttribute('aria-expanded', 'false');
+
+    await expandBtn.click();
+    const collapseBtn = longReviewCard.getByRole('button', { name: '收合' });
+    await expect(collapseBtn).toBeVisible();
+    await expect(collapseBtn).toHaveAttribute('aria-expanded', 'true');
+    await expect(
+      longReviewCard.getByText(/分享了與產品和工程團隊合作的實際經驗/)
+    ).toBeVisible();
+
+    await captureEvidence(
+      page,
+      'mentor-profile-feedback-long-expanded-desktop',
+      {
+        waitForSelector: '[data-testid="mentor-feedback-section"]',
+      }
+    );
+
+    await collapseBtn.click();
+    await expect(
+      longReviewCard.getByRole('button', { name: '查看更多' })
+    ).toBeVisible();
 
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
     await captureEvidence(page, 'mentor-profile-feedback-tab-desktop', {
