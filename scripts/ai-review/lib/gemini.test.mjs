@@ -300,3 +300,32 @@ describe('callGemini', () => {
     expect(fetchSameModel).toHaveBeenCalledTimes(5);
   });
 });
+
+describe('gemini-4 thinkingConfig and TimeoutError fast-fallback', () => {
+  it('attaches thinkingConfig.thinkingLevel=MEDIUM on gemini-4-* models and caps TimeoutError retries to 1 retry before falling back', async () => {
+    const noopSleep = vi.fn().mockResolvedValue(undefined);
+    const timeoutErr = new DOMException(
+      'The operation was aborted due to timeout',
+      'TimeoutError'
+    );
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(timeoutErr)
+      .mockRejectedValueOnce(timeoutErr)
+      .mockResolvedValueOnce(candidateResponse('{"ok":"fast-fallback"}'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(callGemini('prompt', { sleepFn: noopSleep })).resolves.toEqual(
+      { ok: 'fast-fallback' }
+    );
+
+    // Only 2 primary attempts + 1 fallback attempt = 3 total calls (instead of 6)
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const primaryBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(primaryBody.generationConfig.thinkingConfig).toEqual({
+      thinkingLevel: 'MEDIUM',
+    });
+    const fallbackBody = JSON.parse(fetchMock.mock.calls[2][1].body);
+    expect(fallbackBody.generationConfig.thinkingConfig).toBeUndefined();
+  });
+});

@@ -503,3 +503,27 @@ describe('formatComment', () => {
     expect(guideOnlySkipped).toContain('**low** — 全部核心領域通過');
   });
 });
+
+describe('sanitizePublicSummaryText public PR comment scrubbing (#949)', () => {
+  it('scrubs markdown images, private/user-attachments GitHub URLs, private tracker URLs, emails, and caps length at 320 chars', async () => {
+    const { sanitizePublicSummaryText } = await import('./format-comment.mjs');
+    const raw = [
+      'Implement spec ![design](https://private-user-images.githubusercontent.com/1/Screenshot_(1).png?jwt=tok_paren_secret)',
+      'see https://github.com/user-attachments/assets/1234-5678',
+      'and https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/949#issuecomment-1',
+      'contact lead@xchange.com.tw',
+      'padding '.repeat(50),
+    ].join(' ');
+
+    const cleaned = sanitizePublicSummaryText(raw);
+    expect(cleaned).not.toContain('tok_paren_secret');
+    expect(cleaned).not.toContain('user-attachments');
+    expect(cleaned).not.toContain('X-Talent-Tracker/issues/949');
+    expect(cleaned).not.toContain('lead@xchange.com.tw');
+    expect(cleaned).not.toContain('![design]');
+    expect(cleaned).toContain('[internal-tracker-ref]');
+    expect(cleaned).toContain('[redacted-email]');
+    expect(cleaned.length).toBeLessThanOrEqual(320);
+    expect(cleaned.endsWith('...')).toBe(true);
+  });
+});

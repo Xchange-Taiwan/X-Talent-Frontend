@@ -4,6 +4,8 @@ const DEFAULT_MAX_OUTPUT_TOKENS = 16384;
 const MAX_EXPANDED_OUTPUT_TOKENS = 65536;
 const DEFAULT_REQUEST_TIMEOUT_MS = 90000;
 export const MAX_ATTEMPTS = 5;
+export const TIMEOUT_MAX_ATTEMPTS = 2;
+const DEFAULT_GEMINI4_THINKING_LEVEL = 'MEDIUM';
 const BASE_RETRY_DELAY_MS = 2000;
 const MAX_RETRY_DELAY_MS = 25000;
 const RETRY_JITTER_MS = 1500;
@@ -85,11 +87,23 @@ export function buildGeminiParts(promptText, images = []) {
   return parts;
 }
 
+export function isTimeoutAbortError(err) {
+  if (!err) return false;
+  const name = String(err.name || '');
+  const msg = String(err.message || '');
+  return (
+    name === 'TimeoutError' ||
+    name === 'AbortError' ||
+    /aborted due to timeout|request timed out/i.test(msg)
+  );
+}
+
 async function callGeminiOnce(
   promptText,
   {
     model,
     maxOutputTokens,
+    thinkingLevel,
     apiKey,
     images = [],
     timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
@@ -97,6 +111,18 @@ async function callGeminiOnce(
   }
 ) {
   const parts = buildGeminiParts(promptText, images);
+  const generationConfig = {
+    responseMimeType: 'application/json',
+    maxOutputTokens,
+  };
+  if (/^gemini-4-/i.test(String(model || '')) && thinkingLevel !== null) {
+    generationConfig.thinkingConfig = {
+      thinkingLevel: String(
+        thinkingLevel || DEFAULT_GEMINI4_THINKING_LEVEL
+      ).toUpperCase(),
+    };
+  }
+
   const res = await fetchImpl(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
@@ -108,10 +134,7 @@ async function callGeminiOnce(
       },
       body: JSON.stringify({
         contents: [{ parts }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          maxOutputTokens,
-        },
+        generationConfig,
       }),
     }
   );
@@ -201,13 +224,23 @@ export async function callGemini(promptText, options = {}) {
   const fetchImpl =
     typeof options.fetchImpl === 'function' ? options.fetchImpl : fetch;
 
+  const thinkingLevel =
+    options.thinkingLevel === null
+      ? null
+      : options.thinkingLevel ||
+        process.env.GEMINI_THINKING_LEVEL ||
+        DEFAULT_GEMINI4_THINKING_LEVEL;
+
   let effectiveTokens = maxOutputTokens;
   let lastErr;
+  let attemptsMade = 0;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    attemptsMade = attempt;
     try {
       return await callGeminiOnce(promptText, {
         model,
         maxOutputTokens: effectiveTokens,
+        thinkingLevel,
         apiKey,
         images,
         timeoutMs,
@@ -224,13 +257,12 @@ export async function callGemini(promptText, options = {}) {
           Math.max(32768, effectiveTokens * 2)
         );
       }
-      // A raw fetch/network failure (DNS, connection reset) throws a plain
-      // TypeError with no `retryable` flag at all — treat "not explicitly
-      // false" as retryable so those transient errors aren't mistaken for
-      // the deliberately-non-retryable ones (e.g. MAX_TOKENS) above.
-      const canRetry = err.retryable !== false && attempt < MAX_ATTEMPTS;
+      const attemptCap = isTimeoutAbortError(err)
+        ? Math.min(TIMEOUT_MAX_ATTEMPTS, MAX_ATTEMPTS)
+        : MAX_ATTEMPTS;
+      const canRetry = err.retryable !== false && attempt < attemptCap;
       console.warn(
-        `[gemini] attempt ${attempt}/${MAX_ATTEMPTS} (${model}) failed: ${err.message}${canRetry ? ' — retrying' : ''}`
+        `[gemini] attempt ${attempt}/${attemptCap} (${model}) failed: ${err.message}${canRetry ? ' — retrying' : ''}`
       );
       if (!canRetry) break;
       await sleepFn(computeRetryDelayMs(attempt));
@@ -251,12 +283,13 @@ export async function callGemini(promptText, options = {}) {
     fallbackModel !== model
   ) {
     console.warn(
-      `[gemini] primary model ${model} exhausted ${MAX_ATTEMPTS} attempts; falling back to ${fallbackModel}`
+      `[gemini] primary model ${model} exhausted ${attemptsMade} attempts; falling back to ${fallbackModel}`
     );
     try {
       return await callGeminiOnce(promptText, {
         model: fallbackModel,
         maxOutputTokens: effectiveTokens,
+        thinkingLevel,
         apiKey,
         images,
         timeoutMs,

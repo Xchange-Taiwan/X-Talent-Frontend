@@ -37,8 +37,11 @@ const RIPGREP_TAR_URL = `https://github.com/BurntSushi/ripgrep/releases/download
 
 const OPTIONAL_PASSTHROUGH_ENV_KEYS = Object.freeze([
   'BFF_OPENAPI_URL',
+  'NEXT_PUBLIC_SENTRY_DSN',
   'SENTRY_DSN',
+  'NEXT_PUBLIC_GA_ID',
   'NEXT_PUBLIC_GA_MEASUREMENT_ID',
+  'NEXT_PUBLIC_CLARITY_ID',
 ]);
 
 function splitLines(raw = '') {

@@ -102,3 +102,23 @@ jobs:
           name: playwright-report-real
           path: playwright-report-real/
           retention-days: 14
+
+  notify-failure:
+    runs-on: ubuntu-latest
+    name: Scheduled E2E Failure Summary
+    needs: [e2e-mock, e2e-real]
+    if: always() && github.event_name == 'schedule' && (needs.e2e-mock.result == 'failure' || needs.e2e-real.result == 'failure')
+    steps:
+      - name: Write failure summary and notify callback if configured
+        env:
+          MOCK_RESULT: ${{ needs.e2e-mock.result }}
+          REAL_RESULT: ${{ needs.e2e-real.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            echo "## Scheduled Playwright E2E Failure"
+            echo "- **Mock Lane**: \`${MOCK_RESULT}\`"
+            echo "- **Real Backend Lane**: \`${REAL_RESULT}\`"
+            echo "- **Run URL**: ${RUN_URL}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::Scheduled Playwright E2E failed (mock=${MOCK_RESULT}, real=${REAL_RESULT}). See ${RUN_URL}"

@@ -196,6 +196,59 @@ export function resolveOverallRiskWithFailClosed({
   };
 }
 
+function stripMarkdownImagesLinear(input = '') {
+  let out = '';
+  let i = 0;
+  const len = input.length;
+
+  while (i < len) {
+    if (input[i] === '!' && input[i + 1] === '[') {
+      const closeBracket = input.indexOf(']', i + 2);
+      if (closeBracket !== -1 && input[closeBracket + 1] === '(') {
+        let depth = 1;
+        let j = closeBracket + 2;
+        while (j < len && depth > 0 && !/\s/.test(input[j])) {
+          if (input[j] === '(') depth += 1;
+          else if (input[j] === ')') depth -= 1;
+          j += 1;
+        }
+        if (depth === 0) {
+          i = j;
+          continue;
+        }
+      }
+    }
+    out += input[i];
+    i += 1;
+  }
+  return out;
+}
+
+export function sanitizePublicSummaryText(raw = '') {
+  const withoutImages = stripMarkdownImagesLinear(String(raw ?? ''));
+  const cleaned = withoutImages
+    .replace(
+      /https?:\/\/(?:private-user-images|user-images)\.githubusercontent\.com\/\S+/gi,
+      '[internal-asset]'
+    )
+    .replace(
+      /https?:\/\/github\.com\/user-attachments\/assets\/\S+/gi,
+      '[internal-asset]'
+    )
+    .replace(
+      /https?:\/\/github\.com\/Xchange-Taiwan\/X-Talent-Tracker\/\S+/gi,
+      '[internal-tracker-ref]'
+    )
+    .replace(
+      /([?&](?:jwt|token|sig|signature|X-Amz-Signature|X-Amz-Credential)=)[^\s)&]+/gi,
+      '$1[REDACTED]'
+    )
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned.length > 320 ? `${cleaned.slice(0, 317)}...` : cleaned;
+}
+
 export function formatComment({
   plan,
   reviewGuide,
@@ -247,7 +300,9 @@ export function formatComment({
       : AI_REVIEW_COMMENT_MARKER,
     '## 🤖 AI Review Pipeline',
     '',
-    plan?.requirementSummary ? `> ${plan.requirementSummary}` : '',
+    plan?.requirementSummary
+      ? `> ${sanitizePublicSummaryText(plan.requirementSummary)}`
+      : '',
     '',
     guideSection ?? '### 🧭 Review Guide\n_（未執行）_',
     '',

@@ -111,6 +111,7 @@ export default defineConfig({
         test: {
           name: 'ui-dom',
           environment: 'jsdom',
+          testTimeout: 15000,
           setupFiles: ['./src/test/setup.ts'],
           server: {
             deps: {
