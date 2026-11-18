@@ -1,5 +1,12 @@
 import type { TagDisplay, UserType } from '@/types/user';
 
+import {
+  DEFAULT_MENTEE_AVATAR_URL,
+  normalizePresetAvatarSrc,
+} from './presetAvatar';
+
+export { DEFAULT_MENTEE_AVATAR_URL } from './presetAvatar';
+
 export interface StoredDirectionBucket {
   skills: string[];
   topics: string[];
@@ -21,16 +28,6 @@ const FORBIDDEN_OBJECT_KEYS = new Set([
   'constructor',
   'prototype',
 ]);
-const PRESET_CODE_TO_URL: Readonly<Record<string, string>> = {
-  default_1: '/avatars/default_1.webp',
-  default_2: '/avatars/default_2.webp',
-  default_3: '/avatars/default_3.webp',
-  default_4: '/avatars/default_4.webp',
-  default_5: '/avatars/default_5.webp',
-  default_6: '/avatars/default_6.webp',
-};
-
-export const DEFAULT_MENTEE_AVATAR_URL = '/avatars/default_1.webp';
 
 function dedupeTags(
   items: ReadonlyArray<TagDisplay> | null | undefined
@@ -194,12 +191,7 @@ export function buildMenteeDirectionReadGroups({
 export function resolveMenteeAvatarSrc(
   avatar: string | null | undefined
 ): string {
-  const trimmed = avatar?.trim() ?? '';
-  if (!trimmed) return DEFAULT_MENTEE_AVATAR_URL;
-  if (Object.hasOwn(PRESET_CODE_TO_URL, trimmed)) {
-    return PRESET_CODE_TO_URL[trimmed];
-  }
-  return trimmed;
+  return normalizePresetAvatarSrc(avatar, DEFAULT_MENTEE_AVATAR_URL);
 }
 
 function parsePeriodEndRank(

@@ -4,6 +4,7 @@ import {
   isAccountDeletionEnabled,
   isFavoritesEnabled,
 } from '@/lib/featureFlags';
+import { normalizePresetAvatarSrc } from '@/lib/profile/presetAvatar';
 import {
   ABOUT_HREF,
   FAVORITES_HREF,
@@ -16,23 +17,6 @@ import {
   SIGNUP_HREF,
 } from '@/lib/routes';
 import type { PersonalLink } from '@/types/types';
-
-const PRESET_AVATAR_CODE_TO_PATH: Readonly<Record<string, string>> = {
-  default_1: '/avatars/default_1.webp',
-  default_2: '/avatars/default_2.webp',
-  default_3: '/avatars/default_3.webp',
-  default_4: '/avatars/default_4.webp',
-  default_5: '/avatars/default_5.webp',
-  default_6: '/avatars/default_6.webp',
-};
-
-function normalizeHeaderAvatarSrc(raw: string): string {
-  const trimmed = raw.trim();
-  if (!trimmed) return '';
-  return Object.hasOwn(PRESET_AVATAR_CODE_TO_PATH, trimmed)
-    ? PRESET_AVATAR_CODE_TO_PATH[trimmed]
-    : trimmed;
-}
 
 export const EXTERNAL_FEEDBACK_ARIA_LABEL = '提供回饋（另開新分頁）';
 
@@ -444,7 +428,7 @@ export function buildHeaderNavigationModel({
 
   const name = identity.name ?? user?.name ?? '';
   const displayName = name || '我的個人頁面';
-  const avatarSrc = normalizeHeaderAvatarSrc(
+  const avatarSrc = normalizePresetAvatarSrc(
     identity.avatar ?? user?.avatar ?? ''
   );
   const jobTitle = identity.jobTitle ?? user?.jobTitle ?? '';

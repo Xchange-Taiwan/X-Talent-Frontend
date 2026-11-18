@@ -407,5 +407,51 @@ describe('headerNavigationModel', () => {
       void boundMember.desktopAccountMenu.shareProfile.onSelect(closeMenu);
       expect(onAction).toHaveBeenCalledWith('share-profile', closeMenu);
     });
+
+    it('normalizes default_1~6 preset avatar codes, trims whitespace, and preserves empty or custom URLs (#960)', () => {
+      for (let i = 1; i <= 6; i += 1) {
+        const presetModel = buildHeaderNavigationModel({
+          identity: authenticatedIdentity('user-1', {
+            isMentor: false,
+            avatar: `  default_${i}  `,
+          }),
+        });
+        expect(presetModel.profileHeader.avatarSrc).toBe(
+          `/avatars/default_${i}.webp`
+        );
+      }
+
+      const emptyModel = buildHeaderNavigationModel({
+        identity: authenticatedIdentity('user-1', {
+          isMentor: false,
+          avatar: '   ',
+        }),
+      });
+      expect(emptyModel.profileHeader.avatarSrc).toBe('');
+
+      const fallbackUserModel = buildHeaderNavigationModel({
+        identity: authenticatedIdentity('user-1', {
+          isMentor: false,
+          avatar: undefined,
+        }),
+        user: {
+          name: 'Test',
+          avatar: 'default_4',
+        },
+      });
+      expect(fallbackUserModel.profileHeader.avatarSrc).toBe(
+        '/avatars/default_4.webp'
+      );
+
+      const customModel = buildHeaderNavigationModel({
+        identity: authenticatedIdentity('user-1', {
+          isMentor: false,
+          avatar: 'https://cdn.example.com/custom.png',
+        }),
+      });
+      expect(customModel.profileHeader.avatarSrc).toBe(
+        'https://cdn.example.com/custom.png'
+      );
+    });
   });
 });

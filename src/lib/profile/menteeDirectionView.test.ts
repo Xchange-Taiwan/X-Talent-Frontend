@@ -202,4 +202,104 @@ describe('menteeDirectionView', () => {
     expect(resolveMenteeIndustryHashtag(filledUser)).toBe('#設計及創意相關業');
     expect(isMenteeProfileEmpty(filledUser, 0, undefined)).toBe(false);
   });
+
+  it('covers experience summary & latest role edge cases: empty fallback, same-year 1y minimum, invalid ranges, and same-end-year tie breaking', () => {
+    expect(
+      resolveMenteeExperienceSummary(
+        {
+          workExperiences: [],
+          years_of_experience: '1~3 年',
+        },
+        2026
+      )
+    ).toBe('1~3 年');
+
+    // Same start & end year counts as at least 1 year
+    expect(
+      resolveMenteeExperienceSummary(
+        {
+          workExperiences: [
+            {
+              job: 'Design Intern',
+              company: 'Studio A',
+              job_period_start: '2024',
+              job_period_end: '2024',
+              industry: 'DESIGN',
+              job_location: 'TWN',
+              description: '',
+              is_primary: true,
+            },
+          ],
+          years_of_experience: '1~3 年',
+        },
+        2026
+      )
+    ).toBe('1 年');
+
+    // Non-numeric / inverted ranges are skipped and fall back to years_of_experience
+    expect(
+      resolveMenteeExperienceSummary(
+        {
+          workExperiences: [
+            {
+              job: 'Broken Period',
+              company: 'Co A',
+              job_period_start: '2024-06',
+              job_period_end: '2025-01',
+              industry: 'DESIGN',
+              job_location: 'TWN',
+              description: '',
+              is_primary: false,
+            },
+            {
+              job: 'Inverted',
+              company: 'Co B',
+              job_period_start: '2026',
+              job_period_end: '2023',
+              industry: 'DESIGN',
+              job_location: 'TWN',
+              description: '',
+              is_primary: false,
+            },
+          ],
+          years_of_experience: '3~5 年',
+        },
+        2026
+      )
+    ).toBe('3~5 年');
+
+    // Same end year ('now' / '至今') prefers the entry with the later start year
+    expect(
+      resolveMenteeLatestRole(
+        {
+          workExperiences: [
+            {
+              job: 'Part-time Advisor',
+              company: 'Older Ongoing Co',
+              job_period_start: '2022',
+              job_period_end: 'now',
+              industry: 'DESIGN',
+              job_location: 'TWN',
+              description: '',
+              is_primary: false,
+            },
+            {
+              job: 'Senior Product Designer',
+              company: 'Newer Ongoing Co',
+              job_period_start: '2025',
+              job_period_end: '至今',
+              industry: 'DESIGN',
+              job_location: 'TWN',
+              description: '',
+              is_primary: true,
+            },
+          ],
+        },
+        2026
+      )
+    ).toEqual({
+      jobTitle: 'Senior Product Designer',
+      company: 'Newer Ongoing Co',
+    });
+  });
 });
