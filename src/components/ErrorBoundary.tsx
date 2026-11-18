@@ -23,10 +23,6 @@ interface State {
 
 export function DefaultErrorFallback({ onRetry }: { onRetry?: () => void }) {
   const handleReload = () => {
-    if (onRetry) {
-      onRetry();
-      return;
-    }
     if (typeof window !== 'undefined') {
       window.location.reload();
     }
@@ -48,11 +44,26 @@ export function DefaultErrorFallback({ onRetry }: { onRetry?: () => void }) {
         description="系統處理此頁面時遇到未預期的問題，請重新整理頁面或返回首頁繼續操作。"
         actions={
           <>
+            {onRetry && (
+              <button
+                type="button"
+                onClick={onRetry}
+                className={cn(
+                  'bg-brand-500 text-text-white hover:bg-brand-600 inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors focus:outline-none',
+                  FOCUS_RING_CLASSES
+                )}
+              >
+                <RefreshCw className="size-4" aria-hidden="true" />
+                重試區塊
+              </button>
+            )}
             <button
               type="button"
               onClick={handleReload}
               className={cn(
-                'bg-brand-500 text-text-white hover:bg-brand-600 inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors focus:outline-none',
+                onRetry
+                  ? 'border-background-border bg-background-white text-text-primary hover:bg-light inline-flex items-center gap-2 rounded-lg border px-5 py-2.5 text-sm font-semibold transition-colors focus:outline-none'
+                  : 'bg-brand-500 text-text-white hover:bg-brand-600 inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors focus:outline-none',
                 FOCUS_RING_CLASSES
               )}
             >
