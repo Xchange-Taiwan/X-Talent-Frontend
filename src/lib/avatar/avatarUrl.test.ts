@@ -234,3 +234,24 @@ describe('avatarUrl', () => {
     });
   });
 });
+
+describe('preset avatar disk assets & code mapping (#959)', () => {
+  it('commits all 6 public/avatars/default_1~6.webp files and round-trips preset codes', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const { PRESET_AVATAR_URLS, resolveAvatarDisplayUrl, toPresetAvatarCode } =
+      await import('./avatarUrl');
+
+    const publicDir = path.resolve(process.cwd(), 'public');
+    for (const rel of PRESET_AVATAR_URLS) {
+      const p = path.join(publicDir, rel.replace(/^\//, ''));
+      expect(fs.existsSync(p)).toBe(true);
+    }
+
+    expect(toPresetAvatarCode('/avatars/default_4.webp')).toBe('default_4');
+    expect(resolveAvatarDisplayUrl('default_4')).toBe(
+      '/avatars/default_4.webp'
+    );
+    expect(resolveAvatarDisplayUrl('', true)).toBe('/avatars/default_1.webp');
+  });
+});
