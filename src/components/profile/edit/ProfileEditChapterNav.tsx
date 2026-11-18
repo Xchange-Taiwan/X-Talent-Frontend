@@ -89,9 +89,12 @@ export function ProfileEditChapterNav({
     <nav
       aria-label="編輯章節導覽"
       data-testid="profile-edit-chapter-nav"
-      className={cn('w-full lg:w-44 lg:shrink-0 xl:w-48', className)}
+      className={cn(
+        'w-full lg:sticky lg:top-[168px] lg:w-44 lg:shrink-0 xl:w-48',
+        className
+      )}
     >
-      <ul className="flex gap-2 overflow-x-auto p-1 lg:sticky lg:top-[104px] lg:flex-col lg:gap-1 lg:overflow-visible">
+      <ul className="flex gap-2 overflow-x-auto p-1 lg:flex-col lg:gap-1 lg:overflow-visible">
         {chapters.map((chapter) => {
           const isActive = activeId === chapter.id;
           return (

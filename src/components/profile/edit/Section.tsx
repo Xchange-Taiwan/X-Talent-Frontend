@@ -33,7 +33,11 @@ export const Section = ({
 }: SectionProps) => {
   if (variant === 'inline') {
     return (
-      <div id={id} data-testid={dataTestId} className={cn('min-w-0', className)}>
+      <div
+        id={id}
+        data-testid={dataTestId}
+        className={cn('min-w-0', className)}
+      >
         <div className="mb-2 flex items-center justify-between gap-2">
           <p className="text-text-primary text-sm font-bold">
             <RequiredIndicator show={required} />

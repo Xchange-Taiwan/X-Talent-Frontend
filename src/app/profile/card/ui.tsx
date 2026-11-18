@@ -6,6 +6,7 @@ import { ProfileCard } from '@/components/profile/profile-card';
 import { MentorWelcomeFlipCard } from '@/components/profile/welcome-card';
 import { Button } from '@/components/ui/button';
 import { UserType } from '@/hooks/user/user-data/useUserData';
+import { resolveAvatarDisplayUrl } from '@/lib/avatar/avatarUrl';
 import type { PersonalLink } from '@/lib/profile/socialLinks';
 
 interface Props {
@@ -72,7 +73,7 @@ export default function ProfileCardUI({
           </div>
           <Button
             variant="default"
-            className="rounded-lg px-5 py-2.5 font-semibold"
+            className="focus-visible:ring-brand-700 rounded-lg px-5 py-2.5 font-semibold focus-visible:ring-offset-0"
             onClick={onSetupSchedule ?? onBackToProfile}
           >
             設定時段
@@ -82,7 +83,7 @@ export default function ProfileCardUI({
         <div className="mt-4 text-center">
           <Button
             variant="ghost"
-            className="text-text-secondary hover:text-text-primary rounded-lg px-4 py-2 text-sm font-medium"
+            className="text-text-secondary hover:text-text-primary rounded-lg px-4 py-2 text-sm font-medium focus-visible:ring-offset-0"
             onClick={onBackToProfile}
           >
             前往導師頁
@@ -104,7 +105,7 @@ export default function ProfileCardUI({
       <div className="py-10">
         <ProfileCard
           name={userData.name}
-          avatarImgUrl={userData.avatar}
+          avatarImgUrl={resolveAvatarDisplayUrl(userData.avatar, true)}
           company={userData.company}
           jobTitle={userData.job_title}
           personalLinks={resolvedPersonalLinks}

@@ -8,6 +8,7 @@ import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import LogoImgUrl from '@/assets/logo.svg';
 import { TotalWorkSpanEnum } from '@/constant/seniority';
 import type { UserType } from '@/hooks/user/user-data/useUserData';
+import { resolveAvatarDisplayUrl } from '@/lib/avatar/avatarUrl';
 import {
   resolveLocationLabel,
   splitExperienceDisplay,
@@ -38,7 +39,8 @@ export function MentorWelcomeFlipCard({
 }: MentorWelcomeFlipCardProps) {
   const [isFlipped, setIsFlipped] = useState<boolean>(defaultFlipped);
 
-  const avatarSrc = userData.avatar || DefaultAvatarImgUrl;
+  const avatarSrc =
+    resolveAvatarDisplayUrl(userData.avatar) || DefaultAvatarImgUrl;
   const resolvedLocation =
     userData.location?.trim() ||
     resolveLocationLabel(
@@ -95,9 +97,7 @@ export function MentorWelcomeFlipCard({
         className={cn(
           FOCUS_RING_NO_OFFSET_CLASSES,
           'group relative block min-h-[476px] w-full cursor-pointer rounded-3xl text-left transition-transform duration-500 [transform-style:preserve-3d]',
-          isFlipped
-            ? '[transform:rotateY(180deg)]'
-            : '-rotate-1 hover:rotate-0'
+          isFlipped ? '[transform:rotateY(180deg)]' : '-rotate-1 hover:rotate-0'
         )}
       >
         <div
@@ -117,7 +117,7 @@ export function MentorWelcomeFlipCard({
                 height={18}
                 className="h-[18px] w-auto"
               />
-              <span className="bg-background-white/90 text-text-primary inline-flex items-center rounded-full px-3 py-1 text-11 font-bold tracking-wider uppercase shadow-xs">
+              <span className="bg-background-white/90 text-text-primary text-11 inline-flex items-center rounded-full px-3 py-1 font-bold tracking-wider uppercase shadow-xs">
                 MENTOR
               </span>
             </div>
@@ -239,7 +239,7 @@ export function MentorWelcomeFlipCard({
             <p className="text-brand-200/80 text-11 font-semibold tracking-widest uppercase">
               WELCOME TO X-TALENT
             </p>
-            <p className="text-2xl leading-snug font-bold sm:text-28">
+            <p className="sm:text-28 text-2xl leading-snug font-bold">
               很高興，
               <br />
               有你一起。
