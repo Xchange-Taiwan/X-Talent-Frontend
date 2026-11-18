@@ -93,3 +93,28 @@ export const HydratedFormAvatarOverridesStaleSession: Story = {
     </ProfileStoryWrapper>
   ),
 };
+
+export const MenteeWithPresetPicker: Story = {
+  name: '學員支援選擇 6 款預設插畫頭像 (#959)',
+  parameters: {
+    nextAuth: {
+      user: {
+        avatar: '',
+      },
+    },
+  },
+  render: () => (
+    <ProfileStoryWrapper defaultValues={{ avatar: '/avatars/default_2.webp' }}>
+      {(form) => (
+        <AvatarSection
+          control={form.control}
+          name="avatarFile"
+          isMentor={false}
+          onSelectPresetAvatar={(url) =>
+            form.setValue('avatar', url, { shouldDirty: true })
+          }
+        />
+      )}
+    </ProfileStoryWrapper>
+  ),
+};

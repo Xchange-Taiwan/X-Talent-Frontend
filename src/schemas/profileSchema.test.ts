@@ -329,3 +329,43 @@ describe('jobSchema and educationSchema chronological period rules (#898)', () =
     ).toBe(true);
   });
 });
+
+describe('createProfileFormSchema Option A Mentor vs Mentee rules (#959)', () => {
+  it('blocks mentor with preset illustration avatar and returns 請上傳真人照片，預設頭像僅供預覽', () => {
+    const result = createProfileFormSchema(true).safeParse({
+      ...baseData,
+      ...mentorRequiredFields,
+      avatar: '/avatars/default_1.webp',
+      avatarFile: undefined,
+    });
+    expect(result.success).toBe(false);
+    const issue = result.error?.issues.find((i) => i.path[0] === 'avatarFile');
+    expect(issue?.message).toBe('請上傳真人照片，預設頭像僅供預覽');
+  });
+
+  it('allows mentor to save even when hidden Mentee want_* arrays are empty', () => {
+    const result = createProfileFormSchema(true).safeParse({
+      ...baseData,
+      ...mentorRequiredFields,
+      avatar: 'https://example.com/real-photo.jpg',
+      want_position: [],
+      want_skill: [],
+      want_topic: [],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('allows mentee to save with only name filled (location, years_of_experience, and want_* optional)', () => {
+    const result = createProfileFormSchema(false).safeParse({
+      ...defaultValues,
+      name: '陳小華',
+      avatar: '/avatars/default_3.webp',
+      location: '',
+      years_of_experience: '',
+      want_position: [],
+      want_skill: [],
+      want_topic: [],
+    });
+    expect(result.success).toBe(true);
+  });
+});

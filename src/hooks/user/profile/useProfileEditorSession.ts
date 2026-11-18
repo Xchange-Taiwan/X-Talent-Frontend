@@ -17,7 +17,6 @@ import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useUserProfileDto } from '@/hooks/user/user-data/useUserProfileDto';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
-import { trackFormValidationFailed } from '@/lib/analytics';
 import { getSafeErrorMessage } from '@/lib/errorUtils';
 import {
   mapVoToFormValues,
@@ -57,6 +56,10 @@ export interface UseProfileEditorSessionOptions {
   isMentorOnboarding: boolean;
   industryCatalog?: readonly IndustryOption[];
   port?: Partial<ProfileSavePort>;
+  initialUserDto?: MentorProfileVO | null;
+  onExitEdit?: () => void;
+  onAfterSave?: (savedDto: MentorProfileVO) => void;
+  extraDirty?: boolean;
 }
 
 export function useProfileEditorSession({
@@ -65,6 +68,10 @@ export function useProfileEditorSession({
   isMentorOnboarding,
   industryCatalog,
   port: portOverrides,
+  initialUserDto,
+  onExitEdit,
+  onAfterSave,
+  extraDirty = false,
 }: UseProfileEditorSessionOptions) {
   const router = useRouter();
   const { data: session, update: updateSession } = useSession();
@@ -85,7 +92,8 @@ export function useProfileEditorSession({
 
   const { userDto, error: dtoError } = useUserProfileDto(
     numericPageUserId,
-    'zh_TW'
+    'zh_TW',
+    initialUserDto ?? undefined
   );
 
   useEffect(() => {
@@ -147,7 +155,28 @@ export function useProfileEditorSession({
 
   const handleAvatarFileChange = useCallback(
     (file: File) => {
+      if (form.getValues('avatarFile') !== file) {
+        form.setValue('avatarFile', file, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+      }
       avatarUpload.kickOff(file, form.getValues('avatar'));
+    },
+    [avatarUpload, form]
+  );
+
+  const handleSelectPresetAvatar = useCallback(
+    (presetUrl: string) => {
+      void avatarUpload.rollback();
+      form.setValue('avatarFile', undefined, {
+        shouldDirty: false,
+        shouldValidate: true,
+      });
+      form.setValue('avatar', presetUrl, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
     },
     [avatarUpload, form]
   );
@@ -155,12 +184,25 @@ export function useProfileEditorSession({
   const savePort = useMemo<ProfileSavePort>(
     () => ({
       updateSession,
-      navigate: (href: string) => router.push(href),
+      navigate: (href: string) => {
+        if (onExitEdit && !isMentorOnboarding) {
+          onExitEdit();
+          return;
+        }
+        router.push(href);
+      },
       revalidateProfilePath,
       uploadAvatar: (file: File) => avatarUpload.consume(file),
       ...portOverrides,
     }),
-    [avatarUpload, portOverrides, router, updateSession]
+    [
+      avatarUpload,
+      isMentorOnboarding,
+      onExitEdit,
+      portOverrides,
+      router,
+      updateSession,
+    ]
   );
 
   const { run, isPending: isSaving } = useAsyncAction({
@@ -172,7 +214,7 @@ export function useProfileEditorSession({
       description: '儲存失敗，請稍後再試',
     },
     throwError: false,
-    resetPendingOnSuccess: false,
+    resetPendingOnSuccess: Boolean(onExitEdit),
     shouldSkipLogging: (err) => err instanceof LoggedError,
   });
 
@@ -181,7 +223,7 @@ export function useProfileEditorSession({
       values: ProfileFormValues,
       dirtyFields?: ProfileDirtyFields
     ): Promise<MentorProfileVO | undefined> => {
-      return await run(() =>
+      const saved = await run(() =>
         commitProfileMutation(
           {
             mode: isMentorOnboarding ? 'mentor-onboarding' : 'edit',
@@ -197,10 +239,15 @@ export function useProfileEditorSession({
           savePort
         )
       );
+      if (saved) {
+        onAfterSave?.(saved);
+      }
+      return saved;
     },
     [
       industryCatalog,
       isMentorOnboarding,
+      onAfterSave,
       pageUserId,
       run,
       savePort,
@@ -209,40 +256,28 @@ export function useProfileEditorSession({
     ]
   );
 
-  const handleFormInvalid = useCallback(
-    (
-      errors: Parameters<typeof onError>[0],
-      event?: React.BaseSyntheticEvent
-    ) => {
-      trackFormValidationFailed({
-        feature: 'profile',
-        formId: isMentorOnboarding ? 'mentor_onboarding' : 'profile_edit',
-        invalidKeys: Object.keys(errors),
-      });
-      (
-        onError as (
-          errs: Parameters<typeof onError>[0],
-          ev?: React.BaseSyntheticEvent
-        ) => void
-      )(errors, event);
-    },
-    [isMentorOnboarding, onError]
-  );
-
   const handleFormSubmit = useCallback(
     (e?: React.BaseSyntheticEvent) =>
       form.handleSubmit(
         (values) => onSubmit(values, form.formState.dirtyFields),
-        handleFormInvalid
+        onError
       )(e),
-    [form, onSubmit, handleFormInvalid]
+    [form, onSubmit, onError]
   );
 
-  const unsaved = useUnsavedChangesPrompt(form.formState.isDirty && !isSaving);
+  const unsaved = useUnsavedChangesPrompt(
+    (form.formState.isDirty || extraDirty) && !isSaving
+  );
 
   const handleGoToPrev = useCallback(() => {
-    unsaved.guardNavigate(() => router.push(`/profile/${pageUserId}`));
-  }, [unsaved, router, pageUserId]);
+    unsaved.guardNavigate(() => {
+      if (onExitEdit) {
+        onExitEdit();
+        return;
+      }
+      router.push(`/profile/${pageUserId}`);
+    });
+  }, [unsaved, onExitEdit, router, pageUserId]);
 
   const handleConfirmLeave = useCallback(() => {
     void avatarUpload.rollback();
@@ -258,6 +293,7 @@ export function useProfileEditorSession({
     isHydrating,
     isSaving,
     handleAvatarFileChange,
+    handleSelectPresetAvatar,
     handleFormSubmit,
     handleGoToPrev,
     isPromptOpen: unsaved.isPromptOpen,

@@ -47,6 +47,20 @@ export const Required: Story = {
   ),
 };
 
+export const CardVariant: Story = {
+  name: 'Mentee 原地編輯卡片樣式 (variant="card")',
+  args: {
+    title: '工作經驗',
+    subtitle: '勾選的那筆會顯示在頁面標題',
+    variant: 'card',
+  },
+  render: (args) => (
+    <Section {...args}>
+      <p className="text-text-secondary text-sm">卡片內容區域</p>
+    </Section>
+  ),
+};
+
 export const RequiredIndicatorDemo: Story = {
   name: 'RequiredIndicator 獨立展示',
   render: () => (

@@ -3,7 +3,7 @@
 import { useSession } from 'next-auth/react';
 import { useCallback, useEffect, useRef } from 'react';
 
-import { upgradeClaritySession } from '@/lib/analytics';
+import { isLocalStaticAvatarUrl } from '@/lib/avatar/avatarUrl';
 import { getAvatarSnapshot } from '@/services/profile/getAvatarSnapshot';
 import {
   createPresignedUrlCache,
@@ -34,7 +34,7 @@ export interface UseBackgroundAvatarUpload {
 async function snapshotAvatarBytes(
   url: string | null | undefined
 ): Promise<Blob | null> {
-  if (!url) return null;
+  if (!url || isLocalStaticAvatarUrl(url)) return null;
   try {
     return await getAvatarSnapshot(url);
   } catch {
@@ -128,7 +128,6 @@ export function useBackgroundAvatarUpload(
             return undefined;
           }
           job.status = 'failed';
-          upgradeClaritySession('avatar_upload_failed');
           throw err;
         }
       );
@@ -153,17 +152,12 @@ export function useBackgroundAvatarUpload(
         jobRef.current = null;
         return current.promise;
       }
-      try {
-        return await updateAvatar(
-          file,
-          userIdRef.current,
-          undefined,
-          presignedCacheRef.current ?? undefined
-        );
-      } catch (err) {
-        upgradeClaritySession('avatar_upload_failed');
-        throw err;
-      }
+      return updateAvatar(
+        file,
+        userIdRef.current,
+        undefined,
+        presignedCacheRef.current ?? undefined
+      );
     },
     []
   );

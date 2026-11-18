@@ -2,7 +2,8 @@
 
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
-import { useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
+import { useWatch } from 'react-hook-form';
 
 import { AvatarSection } from '@/components/profile/edit/AvatarSection';
 import { CategoryMultiSelectField } from '@/components/profile/edit/CategoryMultiSelectField';
@@ -13,6 +14,8 @@ import {
   TextareaField,
   TextField,
 } from '@/components/profile/edit/Fields';
+import { MenteeDirectionPreferenceSection } from '@/components/profile/edit/MenteeDirectionPreferenceSection';
+import { ProfileEditChapterNav } from '@/components/profile/edit/ProfileEditChapterNav';
 import { Section } from '@/components/profile/edit/Section';
 import { Button } from '@/components/ui/button';
 import {
@@ -28,7 +31,11 @@ import { PageLoading } from '@/components/ui/loading-spinner';
 import { totalWorkSpanOptions } from '@/constant/seniority';
 import { useProfileAuth } from '@/hooks/user/auth/useProfileAuth';
 import useLocations from '@/hooks/user/country/useLocations';
-import { useProfileEditorSession } from '@/hooks/user/profile/useProfileEditorSession';
+import { useMenteeDirectionPreference } from '@/hooks/user/profile/useMenteeDirectionPreference';
+import {
+  type ProfileFormContext,
+  useProfileEditorSession,
+} from '@/hooks/user/profile/useProfileEditorSession';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import { tagGroupsToCategories } from '@/lib/profile/categoryGrouping';
 import { MENTOR_ONBOARDING_KEY } from '@/lib/routes';
@@ -74,6 +81,22 @@ const LinksSection = dynamic(
   }
 );
 
+function NameLengthCounter({ form }: { form: ProfileFormContext }) {
+  const watchedName = useWatch({ control: form.control, name: 'name' });
+  const len = typeof watchedName === 'string' ? watchedName.length : 0;
+  return (
+    <span className="text-text-tertiary text-xs tabular-nums">{len}/20</span>
+  );
+}
+
+function AboutLengthCounter({ form }: { form: ProfileFormContext }) {
+  const watchedAbout = useWatch({ control: form.control, name: 'about' });
+  const len = typeof watchedAbout === 'string' ? watchedAbout.length : 0;
+  return (
+    <span className="text-text-tertiary text-xs tabular-nums">{len} 字</span>
+  );
+}
+
 interface Props {
   pageUserId: string;
   initialTagCatalog: TagCatalogsByBucket;
@@ -98,14 +121,21 @@ export default function EditProfileContainer({
   const tagCatalog = useTagCatalog('zh_TW', initialTagCatalog);
   const industries = tagCatalog.industry;
 
+  const persistDirectionRef = useRef<(() => void) | null>(null);
+  const handleAfterSave = useCallback(() => {
+    persistDirectionRef.current?.();
+  }, []);
+
   const {
     form,
     formRef,
+    userDto,
     isMentorRole,
     isError,
     isHydrating,
     isSaving,
     handleAvatarFileChange,
+    handleSelectPresetAvatar,
     handleFormSubmit,
     handleGoToPrev,
     isPromptOpen,
@@ -116,7 +146,12 @@ export default function EditProfileContainer({
     isAuthorized,
     isMentorOnboarding,
     industryCatalog: industries,
+    onAfterSave: handleAfterSave,
   });
+
+  const { directionMap, setDirectionMap, persistDirectionMap } =
+    useMenteeDirectionPreference(pageUserId, isMentorRole ? null : userDto);
+  persistDirectionRef.current = isMentorRole ? null : persistDirectionMap;
 
   const haveTopicCategories = tagGroupsToCategories(tagCatalog.have_topic);
   const haveSkillCategories = tagGroupsToCategories(tagCatalog.have_skill);
@@ -146,142 +181,187 @@ export default function EditProfileContainer({
   if (isHydrating) return <PageLoading />;
 
   return (
-    <div className="mx-auto w-11/12 max-w-[1064px] pb-20">
+    <div className="mx-auto w-11/12 max-w-[1160px] pb-20">
       <EditPageHeader
         isSaving={isSaving}
         onBack={handleGoToPrev}
         isMentorOnboarding={isMentorOnboarding}
+        isMentor={isMentorRole}
       />
 
-      <Form {...form}>
-        <form
-          ref={formRef}
-          id="edit-profile-form"
-          data-clarity-mask="true"
-          onSubmit={handleFormSubmit}
-          className="space-y-10"
-        >
-          <AvatarSection
-            id="avatarFile"
-            control={form.control}
-            name="avatarFile"
-            isMentor={isMentorRole}
-            onFileChange={handleAvatarFileChange}
-          />
+      <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:gap-10">
+        <ProfileEditChapterNav isMentor={isMentorRole} />
 
-          <Section id="name" title="姓名" required>
-            <TextField
-              control={form.control}
-              name="name"
-              placeholder="請填入您的姓名"
-            />
-          </Section>
+        <div className="min-w-0 flex-1">
+          <Form {...form}>
+            <form
+              ref={formRef}
+              id="edit-profile-form"
+              data-clarity-mask="true"
+              onSubmit={handleFormSubmit}
+              className="space-y-8"
+            >
+              <div id="basic-info" className="space-y-6 scroll-mt-36">
+                <AvatarSection
+                  id="avatarFile"
+                  variant="card"
+                  control={form.control}
+                  name="avatarFile"
+                  isMentor={isMentorRole}
+                  userName={userDto?.name ?? undefined}
+                  onFileChange={handleAvatarFileChange}
+                  onSelectPresetAvatar={
+                    isMentorRole ? undefined : handleSelectPresetAvatar
+                  }
+                />
 
-          <Section id="about" title="關於我" required={isMentorRole}>
-            <TextareaField control={form.control} name="about" rows={10} />
-          </Section>
+                <Section
+                  id="name"
+                  variant="card"
+                  title="姓名"
+                  required
+                  headerAction={<NameLengthCounter form={form} />}
+                >
+                  <TextField
+                    control={form.control}
+                    name="name"
+                    placeholder="請填入您的姓名"
+                  />
+                </Section>
 
-          {isMentorRole && (
-            <Section id="have_topic" title="我能提供的服務" required>
-              <CategoryMultiSelectField
-                form={form}
-                name="have_topic"
-                categories={haveTopicCategories}
-                maxSelected={10}
-                searchPlaceholder="搜尋服務"
-              />
-            </Section>
-          )}
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <Section
+                    id="location"
+                    variant="card"
+                    title="地區"
+                    required={isMentorRole}
+                  >
+                    <ComboboxField
+                      form={form}
+                      name="location"
+                      placeholder="請選擇地區"
+                      searchPlaceholder="搜尋地區"
+                      options={locationOptions}
+                    />
+                  </Section>
 
-          {isMentorRole && (
-            <Section id="have_skill" title="專業能力" required>
-              <CategoryMultiSelectField
-                form={form}
-                name="have_skill"
-                categories={haveSkillCategories}
-                maxSelected={10}
-                searchPlaceholder="搜尋專業能力"
-              />
-            </Section>
-          )}
+                  <Section
+                    id="years_of_experience"
+                    variant="card"
+                    title="經驗"
+                    required={isMentorRole}
+                  >
+                    <SelectField
+                      form={form}
+                      name="years_of_experience"
+                      placeholder="請填入您的經驗"
+                      options={totalWorkSpanOptions}
+                    />
+                  </Section>
 
-          <Section id="location" title="地區" required>
-            <ComboboxField
-              form={form}
-              name="location"
-              placeholder="請選擇地區"
-              searchPlaceholder="搜尋地區"
-              options={locationOptions}
-            />
-          </Section>
+                  <Section
+                    id="industry"
+                    variant="card"
+                    title="產業"
+                    required={isMentorRole}
+                  >
+                    <SelectField
+                      form={form}
+                      name="industry"
+                      placeholder="請選擇產業"
+                      options={industries.map((i) => ({
+                        value: i.subject_group,
+                        label: i.subject,
+                      }))}
+                    />
+                  </Section>
+                </div>
+              </div>
 
-          <Section id="years_of_experience" title="經驗" required>
-            <SelectField
-              form={form}
-              name="years_of_experience"
-              placeholder="請填入您的經驗"
-              options={totalWorkSpanOptions}
-            />
-          </Section>
+              <div className="scroll-mt-36">
+                <Section
+                  id="about"
+                  variant="card"
+                  title="關於我"
+                  required={isMentorRole}
+                  subtitle={
+                    isMentorRole
+                      ? '建議 150–300 字，分享你的專業背景與可協助的方向。'
+                      : undefined
+                  }
+                  headerAction={<AboutLengthCounter form={form} />}
+                >
+                  <TextareaField control={form.control} name="about" rows={8} />
+                </Section>
+              </div>
 
-          <Section id="industry" title="產業" required={isMentorRole}>
-            <SelectField
-              form={form}
-              name="industry"
-              placeholder="請選擇產業"
-              options={industries.map((i) => ({
-                value: i.subject_group,
-                label: i.subject,
-              }))}
-            />
-          </Section>
+              {isMentorRole ? (
+                <div id="mentor-expertise" className="space-y-6 scroll-mt-36">
+                  <Section
+                    id="have_topic"
+                    variant="card"
+                    title="我能提供的服務"
+                    required
+                    subtitle="選擇最有把握協助的項目。建議選擇 2–4 項。"
+                  >
+                    <CategoryMultiSelectField
+                      form={form}
+                      name="have_topic"
+                      categories={haveTopicCategories}
+                      maxSelected={10}
+                      searchPlaceholder="搜尋服務"
+                    />
+                  </Section>
 
-          <Section id="want_position" title="有興趣多了解的職位" required>
-            <CategoryMultiSelectField
-              form={form}
-              name="want_position"
-              categories={wantPositionCategories}
-              maxSelected={10}
-              searchPlaceholder="搜尋職位"
-            />
-          </Section>
+                  <Section
+                    id="have_skill"
+                    variant="card"
+                    title="專業能力"
+                    required
+                    subtitle="加入學員可能搜尋的技能。建議選擇 3–8 項。"
+                  >
+                    <CategoryMultiSelectField
+                      form={form}
+                      name="have_skill"
+                      categories={haveSkillCategories}
+                      maxSelected={10}
+                      searchPlaceholder="搜尋專業能力"
+                    />
+                  </Section>
+                </div>
+              ) : (
+                <div id="mentee-preferences" className="scroll-mt-36">
+                  <MenteeDirectionPreferenceSection
+                    form={form}
+                    wantPositionCategories={wantPositionCategories}
+                    wantSkillCategories={wantSkillCategories}
+                    wantTopicCategories={wantTopicCategories}
+                    directionMap={directionMap}
+                    onDirectionMapChange={setDirectionMap}
+                  />
+                </div>
+              )}
 
-          <Section id="want_skill" title="想多了解、加強的技能" required>
-            <CategoryMultiSelectField
-              form={form}
-              name="want_skill"
-              categories={wantSkillCategories}
-              maxSelected={10}
-              searchPlaceholder="搜尋技能"
-            />
-          </Section>
+              <div id="work_experiences" className="scroll-mt-36">
+                <JobExperienceSection
+                  industries={industries}
+                  locations={locations}
+                  form={form}
+                  isMentor={isMentorRole}
+                />
+              </div>
 
-          <Section id="want_topic" title="想多了解的主題" required>
-            <CategoryMultiSelectField
-              form={form}
-              name="want_topic"
-              categories={wantTopicCategories}
-              maxSelected={10}
-              searchPlaceholder="搜尋主題"
-            />
-          </Section>
+              <div id="educations" className="scroll-mt-36">
+                <EducationSection form={form} isMentor={isMentorRole} />
+              </div>
 
-          <div id="work_experiences">
-            <JobExperienceSection
-              industries={industries}
-              locations={locations}
-              form={form}
-              isMentor={isMentorRole}
-            />
-          </div>
-
-          <div id="educations">
-            <EducationSection form={form} isMentor={isMentorRole} />
-          </div>
-
-          <LinksSection id="links" form={form} />
-        </form>
-      </Form>
+              <div className="scroll-mt-36">
+                <LinksSection id="links" form={form} />
+              </div>
+            </form>
+          </Form>
+        </div>
+      </div>
 
       <Dialog
         open={isPromptOpen}

@@ -1,5 +1,6 @@
 import * as z from 'zod';
 
+import { isPresetAvatarUrl } from '@/lib/avatar/avatarUrl';
 import {
   createEmptySocialLinks,
   socialLinksFormSchema,
@@ -160,7 +161,9 @@ export const createProfileFormSchema = (isMentor: boolean) =>
           '只允許 jpg / png / gif / webp'
         ),
       name: z.string().min(1, '請輸入姓名').max(20, '最多不可超過 20 字'),
-      location: z.string().min(1, '請選擇地區'),
+      location: isMentor
+        ? z.string().min(1, '請選擇地區')
+        : z.string().optional(),
       statement: z.string().optional(),
       about: isMentor
         ? z.string().min(1, '請填寫關於我')
@@ -168,7 +171,9 @@ export const createProfileFormSchema = (isMentor: boolean) =>
       industry: isMentor
         ? z.string().min(1, '請選擇產業')
         : z.string().optional(),
-      years_of_experience: z.string({ required_error: '請選擇經驗' }),
+      years_of_experience: isMentor
+        ? z.string({ required_error: '請選擇經驗' }).min(1, '請選擇經驗')
+        : z.string().optional(),
       work_experiences: isMentor
         ? z.array(jobSchema).min(1, '請填寫至少一項工作經歷')
         : z.array(jobSchema),
@@ -192,26 +197,25 @@ export const createProfileFormSchema = (isMentor: boolean) =>
             .max(10, '最多選 10 個')
         : z.array(z.string()).max(10, '最多選 10 個'),
 
-      want_position: z
-        .array(z.string())
-        .min(1, '請至少選擇一個職位')
-        .max(10, '最多選 10 個'),
-      want_skill: z
-        .array(z.string())
-        .min(1, '請至少選擇一個技能')
-        .max(10, '最多選 10 個'),
-      want_topic: z
-        .array(z.string())
-        .min(1, '請至少選擇一個主題')
-        .max(10, '最多選 10 個'),
+      want_position: z.array(z.string()).max(10, '最多選 10 個'),
+      want_skill: z.array(z.string()).max(10, '最多選 10 個'),
+      want_topic: z.array(z.string()).max(10, '最多選 10 個'),
     })
     .superRefine((data, ctx) => {
-      if (isMentor && !data.avatar && !data.avatarFile) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['avatarFile'],
-          message: '請上傳個人頭像',
-        });
+      if (isMentor && !data.avatarFile) {
+        if (isPresetAvatarUrl(data.avatar)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['avatarFile'],
+            message: '請上傳真人照片，預設頭像僅供預覽',
+          });
+        } else if (!data.avatar) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['avatarFile'],
+            message: '請上傳個人頭像',
+          });
+        }
       }
     });
 

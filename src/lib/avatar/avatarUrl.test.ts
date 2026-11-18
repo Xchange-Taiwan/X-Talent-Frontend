@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   hasAvatarVersionConverged,
+  isLocalStaticAvatarUrl,
+  isPresetAvatarUrl,
+  PRESET_AVATAR_URLS,
   toAvatarThumbUrl,
   withAvatarVersion,
 } from './avatarUrl';
@@ -70,6 +73,63 @@ describe('avatarUrl', () => {
           'v'
         )
       ).toBe('https://example.com/files/42/avatar?v=999#profile');
+    });
+
+    it('omits ?cb= and ?v= query parameters on local static /avatars/ paths for Next.js 16 next/image compatibility (#828)', () => {
+      for (const presetUrl of PRESET_AVATAR_URLS) {
+        expect(withAvatarVersion(presetUrl, 1754000000000, 'cb')).toBe(
+          presetUrl
+        );
+        expect(withAvatarVersion(presetUrl, 1754000000000, 'v')).toBe(
+          presetUrl
+        );
+      }
+      expect(
+        withAvatarVersion(
+          '/avatars/default_3.webp?cb=stale',
+          '2026-11-17',
+          'cb'
+        )
+      ).toBe('/avatars/default_3.webp');
+      expect(withAvatarVersion('/default-avatar.png', 123, 'cb')).toBe(
+        '/default-avatar.png'
+      );
+    });
+  });
+
+  describe('PRESET_AVATAR_URLS and preset/local helpers (#828)', () => {
+    it('exports 6 decoupled /avatars/default_1~6.webp paths', () => {
+      expect(PRESET_AVATAR_URLS).toEqual([
+        '/avatars/default_1.webp',
+        '/avatars/default_2.webp',
+        '/avatars/default_3.webp',
+        '/avatars/default_4.webp',
+        '/avatars/default_5.webp',
+        '/avatars/default_6.webp',
+      ]);
+    });
+
+    it('recognizes only /avatars/default_1~6.webp as preset avatars', () => {
+      for (const url of PRESET_AVATAR_URLS) {
+        expect(isPresetAvatarUrl(url)).toBe(true);
+      }
+      expect(isPresetAvatarUrl('/avatars/default_1.webp?cb=123')).toBe(true);
+      expect(isPresetAvatarUrl('/avatars/default_0.webp')).toBe(false);
+      expect(isPresetAvatarUrl('/avatars/default_7.webp')).toBe(false);
+      expect(isPresetAvatarUrl('/landing/slider_default_1.webp')).toBe(false);
+      expect(isPresetAvatarUrl('https://example.com/avatar.png')).toBe(false);
+      expect(isPresetAvatarUrl('')).toBe(false);
+      expect(isPresetAvatarUrl(null)).toBe(false);
+      expect(isPresetAvatarUrl(undefined)).toBe(false);
+    });
+
+    it('distinguishes single-slash local static paths from protocol-relative or remote URLs', () => {
+      expect(isLocalStaticAvatarUrl('/avatars/default_1.webp')).toBe(true);
+      expect(isLocalStaticAvatarUrl('/logo.svg')).toBe(true);
+      expect(isLocalStaticAvatarUrl('//cdn.example.com/a.webp')).toBe(false);
+      expect(isLocalStaticAvatarUrl('https://example.com/a.webp')).toBe(false);
+      expect(isLocalStaticAvatarUrl('')).toBe(false);
+      expect(isLocalStaticAvatarUrl(null)).toBe(false);
     });
   });
 
