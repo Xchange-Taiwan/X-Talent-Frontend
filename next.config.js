@@ -6,7 +6,10 @@ try {
   ({ withSentryConfig } = require('@sentry/nextjs'));
 }
 
-const { validateProductionEnv } = require('./src/lib/prodEnvCore.mjs');
+const {
+  isLiveProductionEnv,
+  validateProductionEnv,
+} = require('./src/lib/prodEnvCore.mjs');
 
 validateProductionEnv(process.env);
 
@@ -90,6 +93,13 @@ const hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN);
 const nextConfig = {
   poweredByHeader: false,
   productionBrowserSourceMaps: hasSentryAuthToken,
+  typescript: {
+    // PR bundle/preview builds skip duplicate tsc since `Format and Lint Check`
+    // is a Required Status Check; Production deploys always enforce full tsc.
+    ignoreBuildErrors:
+      process.env.CI_SKIP_TS_BUILD_CHECK === 'true' &&
+      !isLiveProductionEnv(process.env),
+  },
   images: {
     // Avatar URLs are versioned at write time (`?v=` baked in by
     // `updateAvatar.ts:buildS3ObjectUrl`, `?cb=` appended from

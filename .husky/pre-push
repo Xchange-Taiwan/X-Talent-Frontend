@@ -6,4 +6,4 @@ if [ "$CI" = "true" ] || [ "$HUSKY" = "0" ]; then
 fi
 
 pnpm type-check
-pnpm test
+node scripts/run-related-tests.mjs

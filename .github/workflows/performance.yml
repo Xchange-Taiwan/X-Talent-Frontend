@@ -2,6 +2,7 @@ name: Bundle Size Budget
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: ['**']
 
 concurrency:
@@ -29,29 +30,50 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Detect whether bundle-affecting files changed
+        id: paths
+        if: github.event.pull_request.draft == false
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: node scripts/check-ci-paths.mjs --base "$BASE_REF"
+
+      - name: Fast-pass Draft PR or non-bundle changes
+        if: github.event.pull_request.draft == true || steps.paths.outputs.needs_build != 'true'
+        run: |
+          echo "Skipping Next.js bundle build (draft PR or no bundle-affecting source changes)."
 
       - name: Set up environment
+        if: github.event.pull_request.draft == false && steps.paths.outputs.needs_build == 'true'
         uses: ./.github/actions/setup-env
 
       - name: Cache Next.js build
+        if: github.event.pull_request.draft == false && steps.paths.outputs.needs_build == 'true'
         uses: actions/cache@v6
         with:
           path: .next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('src/**/*', 'next.config.js', 'tailwind.config.js', 'postcss.config.js') }}
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('src/**', '!src/**/*.test.*', '!src/**/*.spec.*', '!src/**/*.stories.*', 'next.config.js', 'tailwind.config.js', 'postcss.config.js', 'tsconfig.json') }}
           restore-keys: |
             ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-
             ${{ runner.os }}-nextjs-
 
       - name: Build project
+        if: github.event.pull_request.draft == false && steps.paths.outputs.needs_build == 'true'
+        env:
+          CI_SKIP_TS_BUILD_CHECK: 'true'
         run: pnpm run build
 
       - name: Check bundle size budgets
         id: budget
+        if: github.event.pull_request.draft == false && steps.paths.outputs.needs_build == 'true'
         continue-on-error: true
         run: node scripts/check-bundle-budget.mjs --out .bundle-report.json --md-out .bundle-report.md
 
       - name: Post PR comment
-        if: always() && github.event.pull_request.head.repo.full_name == github.repository
+        if: always() && github.event.pull_request.draft == false && steps.paths.outputs.needs_build == 'true' && github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/github-script@v9
         with:
           script: |
@@ -89,7 +111,7 @@ jobs:
             }
 
       - name: Fail on budget violations
-        if: steps.budget.outputs.passed != 'true'
+        if: github.event.pull_request.draft == false && steps.paths.outputs.needs_build == 'true' && steps.budget.outputs.passed != 'true'
         env:
           VIOLATIONS: ${{ steps.budget.outputs.violations }}
         run: |

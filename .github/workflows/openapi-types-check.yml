@@ -3,6 +3,14 @@ name: OpenAPI Types Check
 on:
   pull_request:
     branches: ['**']
+    paths:
+      - 'src/types/api.ts'
+      - 'src/services/**'
+      - 'src/lib/api*'
+      - 'scripts/generate-types.mjs'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/openapi-types-check.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -18,7 +26,9 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up environment
         uses: ./.github/actions/setup-env

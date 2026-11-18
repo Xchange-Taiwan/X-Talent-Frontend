@@ -160,30 +160,13 @@ jobs:
 
       - name: Install dependencies
         if: env.SCOPE_SKIPPED != 'true'
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
 
-      - name: Cache Playwright browsers (Suggestion 6)
+      - name: Set up cached Playwright Chromium and Noto CJK fonts
         if: env.SCOPE_SKIPPED != 'true'
-        id: playwright-cache
-        uses: actions/cache@v4
+        uses: ./.github/actions/setup-playwright
         with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            playwright-${{ runner.os }}-
-
-      - name: Install Playwright Chromium
-        if: env.SCOPE_SKIPPED != 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm playwright install chromium
-
-      - name: Install Noto CJK fonts for crisp Traditional Chinese rendering
-        if: env.SCOPE_SKIPPED != 'true'
-        continue-on-error: true
-        run: |
-          mkdir -p ~/.local/share/fonts
-          curl -fsSL --retry 3 "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf" -o ~/.local/share/fonts/NotoSansTC.ttf || true
-          curl -fsSL --retry 3 "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/TraditionalChinese/NotoSansCJKtc-Regular.otf" -o ~/.local/share/fonts/NotoSansCJKtc-Regular.otf || true
-          fc-cache -f ~/.local/share/fonts || true
+          with-deps: 'false'
 
       - name: Prepare linked feature branch and configure local environment
         if: env.SCOPE_SKIPPED != 'true'
@@ -299,6 +282,7 @@ jobs:
           CALLBACK_SECRET: ${{ secrets.CLOUD_CALLBACK_SECRET || secrets.GITHUB_WEBHOOK_SECRET || secrets.TRACKER_READ_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER || inputs.ticket_number }}
+          EXPECTED_REPO: ${{ github.repository }}
           JOB_STATUS: ${{ job.status }}
           SCOPE_SKIPPED: ${{ env.SCOPE_SKIPPED }}
           SCOPE_SKIP_REASON: ${{ env.SCOPE_SKIP_REASON }}
@@ -310,10 +294,10 @@ jobs:
           PR_JSON=""
           CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo "")
           if [ -n "$CURRENT_BRANCH" ] && [ "$CURRENT_BRANCH" != "develop" ] && [ "$CURRENT_BRANCH" != "main" ]; then
-            PR_JSON=$(gh pr list --repo "${{ github.repository }}" --head "$CURRENT_BRANCH" --state open --json number,url --jq '.[0] // empty' 2>/dev/null || echo "")
+            PR_JSON=$(gh pr list --repo "$EXPECTED_REPO" --head "$CURRENT_BRANCH" --state open --json number,url --jq '.[0] // empty' 2>/dev/null || echo "")
           fi
           if [ -z "$PR_JSON" ] && [ -n "$CLEAN_TICKET" ]; then
-            PR_JSON=$(gh pr list --repo "${{ github.repository }}" --state open --limit 30 --json number,url,headRefName,title,body 2>/dev/null | jq -c --arg t "$CLEAN_TICKET" '
+            PR_JSON=$(gh pr list --repo "$EXPECTED_REPO" --state open --limit 30 --json number,url,headRefName,title,body 2>/dev/null | jq -c --arg t "$CLEAN_TICKET" '
               map(select(
                 (.headRefName | test("(^|/|-)" + $t + "(-|$)")) or
                 (.title | test("#" + $t + "(\\b|$)")) or
@@ -327,7 +311,7 @@ jobs:
 
           VERCEL_LIMIT="false"
           if [ -n "$PR_NUMBER" ]; then
-            if gh api --paginate "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments?per_page=100" --jq '.[].body' 2>/dev/null | grep -qiE 'vercel-quota-limit|api-deployments-free-per-day'; then
+            if gh api --paginate "repos/${EXPECTED_REPO}/issues/${PR_NUMBER}/comments?per_page=100" --jq '.[].body' 2>/dev/null | grep -qiE 'vercel-quota-limit|api-deployments-free-per-day'; then
               VERCEL_LIMIT="true"
             fi
           fi

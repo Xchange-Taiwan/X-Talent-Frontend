@@ -40,3 +40,23 @@ The upstream feed carries ~13 academic years of history (1900+ rows), but only t
    ```
 
 `pnpm generate:schools:check` fails if the committed `schoolData.ts` has drifted from the committed source data (e.g. someone hand-edited it). It does not re-check the pruning step, since `--check` is read-only by design.
+
+## generate-tokens.mjs
+
+Synchronizes Tailwind / CSS theme design tokens (`pnpm generate:tokens` / `pnpm generate:tokens:check`).
+
+## check-bundle-budget.mjs
+
+Computes real gzipped Next.js 16 App Router client chunk sizes from `.next` manifests and enforces shared-base and route-exclusive budgets (`node scripts/check-bundle-budget.mjs`).
+
+## check-security-audit.mjs & check-staged-secrets.mjs
+
+Fail-closed `pnpm audit --json` vulnerability gate and pre-commit / CI credential pattern scanner.
+
+## check-ci-paths.mjs & run-related-tests.mjs
+
+Classifies PR diff paths for CI fast-pass gating and runs `vitest related` on modified files during local `.husky/pre-push`.
+
+## verify-deployment-boundaries.mjs
+
+Post-deploy boundary verification for Staging and Production (verifies zero `.map` files in static output, non-redirect `200` status on public routes, Google OAuth `redirect_uri` origin match, and Feature Flag summary).
