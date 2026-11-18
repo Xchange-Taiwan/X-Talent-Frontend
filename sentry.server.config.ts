@@ -4,6 +4,11 @@
 
 import * as Sentry from '@sentry/nextjs';
 
+import { validateRuntimeEnv } from '@/lib/env';
+import { sanitizeSentryEvent } from '@/lib/sentrySanitize';
+
+validateRuntimeEnv();
+
 const sentryEnv = process.env.NEXT_PUBLIC_SENTRY_ENV;
 
 Sentry.init({
@@ -19,4 +24,5 @@ Sentry.init({
 
   // Do not send PII (IP addresses, user emails, etc.) automatically
   sendDefaultPii: false,
+  beforeSend: sanitizeSentryEvent,
 });

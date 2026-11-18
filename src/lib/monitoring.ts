@@ -622,10 +622,23 @@ export async function captureApiFailure(
     duration: event.duration,
   };
 
+  const normalizedEndpoint = (fullEvent.endpoint || '')
+    .split('?')[0]
+    .replace(
+      /\/(?:[0-9]+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{24,})(?=\/|$)/gi,
+      '/:id'
+    );
+
   await dispatchSentryEvent(
     {
       message: fullEvent.message,
       level: 'error',
+      fingerprint: [
+        'api.failure',
+        fullEvent.method,
+        normalizedEndpoint,
+        String(fullEvent.status),
+      ],
       tags: {
         event_name: 'api.failure',
         route: fullEvent.route,

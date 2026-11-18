@@ -8,6 +8,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   openapi-types-check:
     runs-on: ubuntu-latest
@@ -56,13 +59,15 @@ jobs:
 
       - name: Summary
         if: always()
+        env:
+          CHECK_DIFF_OUTCOME: ${{ steps.check-diff.outcome }}
         run: |
-          echo "## OpenAPI Types Check Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [[ "${{ steps.check-diff.outcome }}" == "success" ]]; then
-            echo "### ✅ Status: Passed" >> $GITHUB_STEP_SUMMARY
-            echo "API types in \`src/types/api.ts\` are perfectly in sync with the backend BFF OpenAPI spec." >> $GITHUB_STEP_SUMMARY
-          elif [[ "${{ steps.check-diff.outcome }}" == "failure" ]]; then
+          echo "## OpenAPI Types Check Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$CHECK_DIFF_OUTCOME" == "success" ]]; then
+            echo "### ✅ Status: Passed" >> "$GITHUB_STEP_SUMMARY"
+            echo "API types in \`src/types/api.ts\` are perfectly in sync with the backend BFF OpenAPI spec." >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "$CHECK_DIFF_OUTCOME" == "failure" ]]; then
             echo "### ❌ Status: Failed" >> $GITHUB_STEP_SUMMARY
             echo "API types in \`src/types/api.ts\` are **out of sync** with the backend BFF OpenAPI spec." >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY

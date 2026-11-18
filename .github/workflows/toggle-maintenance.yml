@@ -184,6 +184,10 @@ on:
         type: string
         required: false
 
+concurrency:
+  group: toggle-maintenance
+  cancel-in-progress: false
+
 permissions:
   contents: read
 

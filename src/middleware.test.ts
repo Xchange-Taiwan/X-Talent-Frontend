@@ -797,6 +797,31 @@ describe('middleware maintenance mode', () => {
       'e2e-bypass-token'
     );
   });
+
+  it('ignores __e2e_maintenance cookie overrides when NEXT_PUBLIC_SENTRY_ENV is production while allowing staging', async () => {
+    const prevSentryEnv = process.env.NEXT_PUBLIC_SENTRY_ENV;
+    process.env.NEXTAUTH_SECRET = 'test-secret';
+    try {
+      mockDecode.mockResolvedValue({
+        maintenanceMode: true,
+        bypassToken: 'e2e-bypass-token',
+      } as never);
+
+      process.env.NEXT_PUBLIC_SENTRY_ENV = 'production';
+      const req1 = new NextRequest('https://example.com/about', {
+        headers: { cookie: '__e2e_maintenance=signed-jwe' },
+      });
+      const res1 = await middleware(req1);
+      expect(res1.status).toBe(200);
+      expect(mockDecode).not.toHaveBeenCalled();
+    } finally {
+      if (prevSentryEnv === undefined) {
+        delete process.env.NEXT_PUBLIC_SENTRY_ENV;
+      } else {
+        process.env.NEXT_PUBLIC_SENTRY_ENV = prevSentryEnv;
+      }
+    }
+  });
 });
 
 describe('middleware public routes', () => {

@@ -11,6 +11,14 @@ on:
           - latest
         default: minor-patch
 
+concurrency:
+  group: manual-dependency-update
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   update:
     runs-on: ubuntu-latest

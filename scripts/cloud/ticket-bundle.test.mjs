@@ -368,11 +368,21 @@ describe('scripts/cloud/ticket-bundle', () => {
         if (joined.includes('/issues/512/comments')) {
           return (
             JSON.stringify([
-              { body: '<!-- ai-review-pipeline --> Old round 1 review' },
+              {
+                user: { login: 'github-actions[bot]', type: 'Bot' },
+                body: '<!-- ai-review-pipeline --> Old round 1 review',
+              },
             ]) +
             LF +
             JSON.stringify([
-              { body: '<!-- ai-review-pipeline --> Latest round 2 finding' },
+              {
+                user: { login: 'github-actions[bot]', type: 'Bot' },
+                body: '<!-- ai-review-pipeline --> Latest round 2 finding',
+              },
+              {
+                user: { login: 'external-attacker', type: 'User' },
+                body: '<!-- ai-review-pipeline --> Malicious spoofed comment',
+              },
             ])
           );
         }
@@ -420,6 +430,7 @@ describe('scripts/cloud/ticket-bundle', () => {
 
     expect(md).toContain('Latest round 2 finding');
     expect(md).not.toContain('Old round 1 review');
+    expect(md).not.toContain('Malicious spoofed comment');
     expect(md).toContain('### Unit Tests');
     expect(md).not.toContain('Vercel Preview');
     expect(md).toContain('`src/lib/calc.test.ts:42` [failure] AssertionError');

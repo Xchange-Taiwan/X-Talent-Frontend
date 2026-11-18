@@ -119,13 +119,15 @@ jobs:
           github.ref != 'refs/heads/main' &&
           github.ref != 'refs/heads/master' &&
           github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           git add -A
           git commit -m "🔧 Auto-fix: Format code and fix linting issues
 
           - Applied Prettier formatting
           - Fixed auto-fixable ESLint issues" || echo "No changes to commit"
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          git push origin "HEAD:${HEAD_REF}"
 
       - name: Notify about fork PR (no auto-commit)
         if: |
@@ -147,35 +149,44 @@ jobs:
 
       - name: Summary
         if: always()
+        env:
+          FORMATTING_NEEDED: ${{ steps.prettier-check.outputs.formatting_needed }}
+          LINT_FAILED: ${{ steps.eslint-check.outputs.lint_failed }}
+          LINT_FIXED: ${{ steps.eslint-check.outputs.lint_fixed }}
+          TYPE_FAILED: ${{ steps.type-check.outputs.type_failed }}
+          CHANGES_MADE: ${{ steps.git-check.outputs.changes_made }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPO: ${{ github.repository }}
+          GIT_REF: ${{ github.ref }}
         run: |
-          echo "## Code Quality Check Summary" >> $GITHUB_STEP_SUMMARY
-          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          if [[ "${{ steps.prettier-check.outputs.formatting_needed }}" == "true" ]]; then
-            echo "| Prettier | 🔧 Fixed |" >> $GITHUB_STEP_SUMMARY
+          echo "## Code Quality Check Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Check | Status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|--------|" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$FORMATTING_NEEDED" == "true" ]]; then
+            echo "| Prettier | 🔧 Fixed |" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "| Prettier | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+            echo "| Prettier | ✅ Passed |" >> "$GITHUB_STEP_SUMMARY"
           fi
-          if [[ "${{ steps.eslint-check.outputs.lint_failed }}" == "true" ]]; then
-            echo "| ESLint | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
-          elif [[ "${{ steps.eslint-check.outputs.lint_fixed }}" == "true" ]]; then
-            echo "| ESLint | 🔧 Fixed |" >> $GITHUB_STEP_SUMMARY
+          if [[ "$LINT_FAILED" == "true" ]]; then
+            echo "| ESLint | ❌ Failed |" >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "$LINT_FIXED" == "true" ]]; then
+            echo "| ESLint | 🔧 Fixed |" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "| ESLint | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+            echo "| ESLint | ✅ Passed |" >> "$GITHUB_STEP_SUMMARY"
           fi
-          if [[ "${{ steps.type-check.outputs.type_failed }}" == "true" ]]; then
-            echo "| TypeScript | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          if [[ "$TYPE_FAILED" == "true" ]]; then
+            echo "| TypeScript | ❌ Failed |" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "| TypeScript | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+            echo "| TypeScript | ✅ Passed |" >> "$GITHUB_STEP_SUMMARY"
           fi
-          if [[ "${{ steps.git-check.outputs.changes_made }}" == "true" ]]; then
-            if [[ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
-              echo "| Auto-commit | ⚠️ Skipped (fork) |" >> $GITHUB_STEP_SUMMARY
-            elif [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.ref }}" == "refs/heads/master" ]]; then
-              echo "| Auto-commit | ⚠️ Skipped (main/master) |" >> $GITHUB_STEP_SUMMARY
+          if [[ "$CHANGES_MADE" == "true" ]]; then
+            if [[ "$HEAD_REPO" != "$BASE_REPO" ]]; then
+              echo "| Auto-commit | ⚠️ Skipped (fork) |" >> "$GITHUB_STEP_SUMMARY"
+            elif [[ "$GIT_REF" == "refs/heads/main" || "$GIT_REF" == "refs/heads/master" ]]; then
+              echo "| Auto-commit | ⚠️ Skipped (main/master) |" >> "$GITHUB_STEP_SUMMARY"
             else
-              echo "| Auto-commit | ✅ Applied |" >> $GITHUB_STEP_SUMMARY
+              echo "| Auto-commit | ✅ Applied |" >> "$GITHUB_STEP_SUMMARY"
             fi
           else
-            echo "| Auto-commit | ➖ Not needed |" >> $GITHUB_STEP_SUMMARY
+            echo "| Auto-commit | ➖ Not needed |" >> "$GITHUB_STEP_SUMMARY"
           fi
