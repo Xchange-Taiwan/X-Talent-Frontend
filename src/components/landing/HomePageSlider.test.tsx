@@ -93,7 +93,7 @@ describe('HomePageSlider & sliderList data', () => {
     expect(getSlideAvatar({ name: 'Roger' }, 5)).toBe(defaultSliderAvatars[5]);
   });
 
-  it('renders all 6 testimonials with Carolina keeping her real avatar and others using fallback mock avatars', () => {
+  it('renders all 6 testimonials with Carolina keeping her real avatar and others using dedicated testimonial illustrations', () => {
     render(<HomePageSlider />);
 
     expect(screen.getAllByTestId('swiper-slide')).toHaveLength(6);
@@ -102,19 +102,19 @@ describe('HomePageSlider & sliderList data', () => {
     expect(carolinaImg).toHaveAttribute('src', '/landing/slider_carolina.webp');
 
     const leonaImg = screen.getByAltText('avatar_Leona');
-    expect(leonaImg).toHaveAttribute('src', '/landing/slider_default_2.webp');
+    expect(leonaImg).toHaveAttribute('src', '/landing/testimonial_2.webp');
 
     const amyImg = screen.getByAltText('avatar_Amy');
-    expect(amyImg).toHaveAttribute('src', '/landing/slider_default_3.webp');
+    expect(amyImg).toHaveAttribute('src', '/landing/testimonial_3.webp');
 
     const stacyImg = screen.getByAltText('avatar_Stacy');
-    expect(stacyImg).toHaveAttribute('src', '/landing/slider_default_4.webp');
+    expect(stacyImg).toHaveAttribute('src', '/landing/testimonial_4.webp');
 
     const tommyImg = screen.getByAltText('avatar_Tommy');
-    expect(tommyImg).toHaveAttribute('src', '/landing/slider_default_5.webp');
+    expect(tommyImg).toHaveAttribute('src', '/landing/testimonial_5.webp');
 
     const rogerImg = screen.getByAltText('avatar_Roger');
-    expect(rogerImg).toHaveAttribute('src', '/landing/slider_default_6.webp');
+    expect(rogerImg).toHaveAttribute('src', '/landing/testimonial_6.webp');
   });
 
   it('supports custom items with explicit and fallback avatars', () => {
@@ -138,11 +138,11 @@ describe('HomePageSlider & sliderList data', () => {
     );
     expect(screen.getByAltText('avatar_Guest User')).toHaveAttribute(
       'src',
-      '/landing/slider_default_2.webp'
+      '/landing/testimonial_2.webp'
     );
   });
 
-  it('falls back to mock avatar if an explicit avatar fails to load', () => {
+  it('falls back to dedicated testimonial illustration if an explicit avatar fails to load', () => {
     const customItems: SlideItem[] = [
       {
         name: 'Broken Avatar User',
@@ -158,7 +158,7 @@ describe('HomePageSlider & sliderList data', () => {
 
     fireEvent.error(img);
 
-    expect(img).toHaveAttribute('src', '/landing/slider_default_1.webp');
+    expect(img).toHaveAttribute('src', '/landing/testimonial_1.webp');
   });
 
   it('configures Swiper responsive breakpoints locally (1 below 1025px / 2 at >=1025px)', () => {
