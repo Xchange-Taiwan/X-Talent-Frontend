@@ -4,9 +4,9 @@ import { getSession, SessionProvider, signOut } from 'next-auth/react';
 
 import AnalyticsUserSync from '@/components/AnalyticsUserSync';
 import ErrorBoundary from '@/components/ErrorBoundary';
-import GlobalErrorMonitor from '@/components/GlobalErrorMonitor';
 import PageViewTracker from '@/components/PageViewTracker';
 import PendingFeedbackQueueLauncher from '@/components/reservation/PendingFeedbackQueueLauncher';
+import SentryUserSync from '@/components/SentryUserSync';
 import SessionErrorWatcher from '@/components/SessionErrorWatcher';
 import WebVitalsReporter from '@/components/WebVitalsReporter';
 import { setOnRefreshTokenError, setSessionGetter } from '@/lib/apiClient';
@@ -22,12 +22,12 @@ export function NextAuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
       <AnalyticsUserSync />
-      <GlobalErrorMonitor />
+      <SentryUserSync />
       <PageViewTracker />
       <WebVitalsReporter />
       <SessionErrorWatcher />
       {isFeedbackEnabled() && <PendingFeedbackQueueLauncher />}
-      <ErrorBoundary>{children}</ErrorBoundary>
+      <ErrorBoundary componentName="RootAppShell">{children}</ErrorBoundary>
     </SessionProvider>
   );
 }

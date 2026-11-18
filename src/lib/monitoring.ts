@@ -430,6 +430,106 @@ export function sanitize(text: string | undefined): string | undefined {
   return maskSensitiveJsonValues(maskSensitiveQueryParams(text));
 }
 
+// ─── Unload & Duplicate-Issue Suppression State ──────────────────────────────
+
+const API_FLOW_DEDUP_WINDOW_MS = 250;
+const UNLOAD_SUPPRESSION_WINDOW_MS = 5_000;
+interface RecentApiErrorRecord {
+  ts: number;
+  status: number;
+}
+const recentErrorApiFailures = new Map<string, RecentApiErrorRecord>();
+const reportedErrorCauses = new WeakSet<object>();
+let unloadingStartedAt: number | null = null;
+let unloadListenersAttached = false;
+
+export function ensureUnloadListenersAttached(): void {
+  if (unloadListenersAttached || typeof window === 'undefined') {
+    return;
+  }
+  unloadListenersAttached = true;
+  const markUnloading = () => {
+    unloadingStartedAt = Date.now();
+  };
+  const clearUnloading = () => {
+    unloadingStartedAt = null;
+  };
+  window.addEventListener('beforeunload', markUnloading);
+  window.addEventListener('pagehide', markUnloading);
+  window.addEventListener('pageshow', clearUnloading);
+  window.addEventListener('focus', clearUnloading);
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        clearUnloading();
+      }
+    });
+  }
+}
+
+function isCurrentlyUnloading(): boolean {
+  if (unloadingStartedAt === null) {
+    return false;
+  }
+  if (Date.now() - unloadingStartedAt > UNLOAD_SUPPRESSION_WINDOW_MS) {
+    unloadingStartedAt = null;
+    return false;
+  }
+  return true;
+}
+
+// Register unload listeners eagerly at module evaluation time in browser
+// runtimes so the very first in-flight request aborted during initial page
+// navigation (`pagehide` / `beforeunload`) is suppressed even before
+// `captureApiFailure` has ever been invoked.
+if (typeof window !== 'undefined') {
+  ensureUnloadListenersAttached();
+}
+
+function recordRecentApiError(
+  route: string,
+  status: number,
+  cause?: unknown
+): void {
+  if (typeof cause === 'object' && cause !== null) {
+    reportedErrorCauses.add(cause);
+  }
+  const now = Date.now();
+  recentErrorApiFailures.forEach((entry, key) => {
+    if (now - entry.ts > API_FLOW_DEDUP_WINDOW_MS) {
+      recentErrorApiFailures.delete(key);
+    }
+  });
+  recentErrorApiFailures.set(route, { ts: now, status });
+}
+
+function shouldSuppressDuplicateFlowError(
+  route: string,
+  errorCode?: string | number,
+  cause?: unknown
+): boolean {
+  if (
+    typeof cause === 'object' &&
+    cause !== null &&
+    reportedErrorCauses.has(cause)
+  ) {
+    recentErrorApiFailures.delete(route);
+    return true;
+  }
+
+  const entry = recentErrorApiFailures.get(route);
+  if (!entry) return false;
+  if (Date.now() - entry.ts > API_FLOW_DEDUP_WINDOW_MS) {
+    recentErrorApiFailures.delete(route);
+    return false;
+  }
+  if (errorCode !== undefined && Number(errorCode) !== entry.status) {
+    return false;
+  }
+  recentErrorApiFailures.delete(route);
+  return true;
+}
+
 // ─── Sentry Dispatch Helper ───────────────────────────────────────────────────
 
 /**
@@ -555,7 +655,7 @@ export async function captureFlowFailure(
     FlowFailureEvent,
     'name' | 'timestamp' | 'environment' | 'route'
   > &
-    Partial<Pick<FlowFailureEvent, 'route'>>
+    Partial<Pick<FlowFailureEvent, 'route'>> & { cause?: unknown }
 ): Promise<void> {
   if (process.env.NODE_ENV !== 'production') return;
 
@@ -572,6 +672,17 @@ export async function captureFlowFailure(
     errorCode: event.errorCode,
     level: event.level ?? 'error',
   };
+
+  if (
+    fullEvent.level === 'error' &&
+    shouldSuppressDuplicateFlowError(
+      fullEvent.route,
+      fullEvent.errorCode,
+      event.cause
+    )
+  ) {
+    return;
+  }
 
   await dispatchSentryEvent(
     {
@@ -604,9 +715,14 @@ export async function captureFlowFailure(
  */
 export async function captureApiFailure(
   event: Omit<ApiFailureEvent, 'name' | 'timestamp' | 'environment' | 'route'> &
-    Partial<Pick<ApiFailureEvent, 'route'>>
+    Partial<Pick<ApiFailureEvent, 'route'>> & { cause?: unknown }
 ): Promise<void> {
   if (process.env.NODE_ENV !== 'production') return;
+  ensureUnloadListenersAttached();
+
+  if (event.status === 0 && isCurrentlyUnloading()) {
+    return;
+  }
 
   const fullEvent: ApiFailureEvent = {
     name: 'api.failure',
@@ -622,10 +738,30 @@ export async function captureApiFailure(
     duration: event.duration,
   };
 
+  const severity: 'error' | 'info' =
+    fullEvent.status >= 500 || fullEvent.status === 0 ? 'error' : 'info';
+
+  if (severity === 'error') {
+    recordRecentApiError(fullEvent.route, fullEvent.status, event.cause);
+  }
+
+  const normalizedEndpoint = (fullEvent.endpoint || '')
+    .split('?')[0]
+    .replace(
+      /\/(?:[0-9]+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{24,})(?=\/|$)/gi,
+      '/:id'
+    );
+
   await dispatchSentryEvent(
     {
       message: fullEvent.message,
-      level: 'error',
+      level: severity,
+      fingerprint: [
+        'api.failure',
+        fullEvent.method,
+        normalizedEndpoint,
+        String(fullEvent.status),
+      ],
       tags: {
         event_name: 'api.failure',
         route: fullEvent.route,

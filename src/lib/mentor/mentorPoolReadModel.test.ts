@@ -15,6 +15,7 @@ import {
   mentorPoolReadModel,
   normalizeMentorPoolQuery,
   parseMentorPoolQuery,
+  serializeMentorPoolQuery,
   toMentorRequest,
   UNFILTERED_MENTOR_POOL_QUERY,
 } from './mentorPoolReadModel';
@@ -68,7 +69,7 @@ function createInMemoryMentorPageFetcher(
       throw new DOMException('Aborted', 'AbortError');
     }
 
-    const requestQuery = mentorPoolReadModel.internQuery({
+    const requestKey = serializeMentorPoolQuery({
       search_pattern: request.search_pattern,
       filter_skills: request.filter_skills,
       filter_topics: request.filter_topics,
@@ -76,7 +77,7 @@ function createInMemoryMentorPageFetcher(
       sort_by: request.sort_by,
     });
     const matched = dataset.find(
-      (entry) => mentorPoolReadModel.internQuery(entry.query) === requestQuery
+      (entry) => serializeMentorPoolQuery(entry.query) === requestKey
     );
     const allMentors = matched?.mentors ?? [];
     const offset = request.cursor
@@ -139,17 +140,11 @@ describe('mentorPoolReadModel', () => {
     mentorPoolReadModel.clear();
   });
 
-  describe('canonical MentorPoolQuery interning (#897)', () => {
-    it('maps empty, whitespace, and tracking-only URL params to UNFILTERED_MENTOR_POOL_QUERY singleton', () => {
-      expect(mentorPoolReadModel.internQuery()).toBe(
-        UNFILTERED_MENTOR_POOL_QUERY
-      );
-      expect(
-        mentorPoolReadModel.internQuery(UNFILTERED_MENTOR_POOL_QUERY)
-      ).toBe(UNFILTERED_MENTOR_POOL_QUERY);
-      expect(mentorPoolReadModel.internQuery({ search_pattern: '   ' })).toBe(
-        UNFILTERED_MENTOR_POOL_QUERY
-      );
+  describe('canonical MentorPoolQuery serialization & keying (#897, #930)', () => {
+    it('maps empty, whitespace, and tracking-only URL params to UNFILTERED_MENTOR_POOL_QUERY singleton and empty canonical key', () => {
+      expect(serializeMentorPoolQuery()).toBe('');
+      expect(serializeMentorPoolQuery(UNFILTERED_MENTOR_POOL_QUERY)).toBe('');
+      expect(serializeMentorPoolQuery({ search_pattern: '   ' })).toBe('');
       expect(
         mentorPoolReadModel.resolveQuery(
           '?utm_source=discord&utm_medium=social&fbclid=abc123'
@@ -162,7 +157,7 @@ describe('mentorPoolReadModel', () => {
       ).toBe(true);
     });
 
-    it('interns canonically equivalent queries to the exact same frozen object reference across utm_* and reordered params', () => {
+    it('serializes canonically equivalent queries to the exact same key across utm_* and reordered params without a 256-entry cap', () => {
       const fromUtmUrl = mentorPoolReadModel.resolveQuery(
         '?utm_source=discord&filter_topics=topic_career&q=react&filter_skills=skill_ts'
       );
@@ -171,24 +166,52 @@ describe('mentorPoolReadModel', () => {
           'filter_skills=skill_ts&q=react&filter_topics=topic_career&gclid=999'
         )
       );
-      const fromObjectA = mentorPoolReadModel.internQuery({
+      const fromObjectA = normalizeMentorPoolQuery({
         filter_topics: 'topic_career',
         search_pattern: 'react',
         filter_skills: 'skill_ts',
       });
-      const fromObjectB = mentorPoolReadModel.internQuery({
+      const fromObjectB = normalizeMentorPoolQuery({
         search_pattern: 'react',
         filter_skills: 'skill_ts',
         filter_topics: 'topic_career',
       });
 
       expect(Object.isFrozen(fromObjectA)).toBe(true);
-      expect(fromUtmUrl).toBe(fromObjectA);
-      expect(fromReorderedUrl).toBe(fromObjectA);
-      expect(fromObjectB).toBe(fromObjectA);
+      expect(serializeMentorPoolQuery(fromUtmUrl)).toBe(
+        serializeMentorPoolQuery(fromObjectA)
+      );
+      expect(serializeMentorPoolQuery(fromReorderedUrl)).toBe(
+        serializeMentorPoolQuery(fromObjectA)
+      );
+      expect(serializeMentorPoolQuery(fromObjectB)).toBe(
+        serializeMentorPoolQuery(fromObjectA)
+      );
+
+      // Verify no 256-entry FIFO eviction exists: 320 distinct queries remain addressable
+      const model = createMentorPoolReadModel();
+      for (let i = 0; i < 320; i += 1) {
+        model.set(
+          { search_pattern: `mentor-${i}` },
+          {
+            mentors: [makeMentor(i + 1)],
+            nextCursor: null,
+            hasMore: false,
+            mentorCount: 1,
+            isNoResults: false,
+            hasError: false,
+          }
+        );
+      }
+      expect(
+        model.get({ search_pattern: 'mentor-0' })?.mentors[0].user_id
+      ).toBe(1);
+      expect(
+        model.get({ search_pattern: 'mentor-319' })?.mentors[0].user_id
+      ).toBe(320);
     });
 
-    it('normalizes comma-separated filter values and strips empty filter values into identical interned references', () => {
+    it('normalizes comma-separated filter values and strips empty filter values into identical canonical keys and snake_case MentorRequest', () => {
       const queryA = normalizeMentorPoolQuery({
         search_pattern: 'react',
         filter_skills: 'skill_ts, skill_react',
@@ -199,8 +222,8 @@ describe('mentorPoolReadModel', () => {
         filter_skills: 'skill_react,skill_ts',
       });
 
-      expect(mentorPoolReadModel.internQuery(queryA)).toBe(
-        mentorPoolReadModel.internQuery(queryB)
+      expect(serializeMentorPoolQuery(queryA)).toBe(
+        serializeMentorPoolQuery(queryB)
       );
       expect(toMentorRequest(queryA, { limit: 9 })).toEqual({
         search_pattern: 'react',
@@ -211,15 +234,17 @@ describe('mentorPoolReadModel', () => {
 
     it('percent-encodes delimiters internally so crafted values never collide across distinct fields', () => {
       const model = createMentorPoolReadModel();
-      const injected = model.internQuery({
+      const injected = normalizeMentorPoolQuery({
         search_pattern: 'a&filter_skills=b',
       });
-      const separate = model.internQuery({
+      const separate = normalizeMentorPoolQuery({
         filter_skills: 'b',
         search_pattern: 'a',
       });
 
-      expect(injected).not.toBe(separate);
+      expect(serializeMentorPoolQuery(injected)).not.toBe(
+        serializeMentorPoolQuery(separate)
+      );
 
       model.set(injected, {
         mentors: [makeMentor(1)],
@@ -539,7 +564,9 @@ describe('mentorPoolReadModel', () => {
       const cleanReorderedQuery = mentorPoolReadModel.resolveQuery(
         '?q=react&filter_skills=skill_fe'
       );
-      expect(cleanReorderedQuery).toBe(queryWithUtm);
+      expect(serializeMentorPoolQuery(cleanReorderedQuery)).toBe(
+        serializeMentorPoolQuery(queryWithUtm)
+      );
 
       const updates2: AsyncReadResult<MentorPoolPageState>[] = [];
       const unsub2 = mentorPoolReadModel.subscribe(
@@ -887,6 +914,366 @@ describe('mentorPoolReadModel', () => {
 
       expect(state.mentorCount).toBe(42);
       expect(state.hasMore).toBe(true);
+    });
+  });
+
+  describe('injectable MentorPoolTransport & external store snapshot API (#930)', () => {
+    it('unifies page-1 fetch, cursor loadMore, retry, and referentially stable snapshots via injected MentorPoolTransport', async () => {
+      let failNextPageOne = true;
+      const { fetchPage, requests } = createInMemoryMentorPageFetcher([
+        {
+          query: { search_pattern: 'golang', sort_by: 'popularity' },
+          mentors: [makeMentor(10), makeMentor(11), makeMentor(12)],
+        },
+      ]);
+
+      const model = createMentorPoolReadModel({
+        transport: {
+          fetchMentors: async (req, signal) => {
+            if (failNextPageOne && !req.cursor) {
+              failNextPageOne = false;
+              throw new Error('Initial 502');
+            }
+            return fetchPage(req, signal);
+          },
+        },
+      });
+
+      const query: MentorPoolQuery = {
+        search_pattern: 'golang',
+        sort_by: 'popularity',
+      };
+      const errors: unknown[] = [];
+      let changeCount = 0;
+
+      const unsub = model.subscribeSnapshot(
+        query,
+        () => {
+          changeCount += 1;
+        },
+        {
+          limit: 2,
+          onError: (err) => errors.push(err),
+        }
+      );
+
+      await vi.waitFor(() => {
+        expect(model.getSnapshot(query).listStatus).toBe('error');
+      });
+      expect(errors).toHaveLength(1);
+      expect(model.getSnapshot(query).hasError).toBe(true);
+      expect(model.getSnapshot(query).isLoading).toBe(false);
+      // Referential stability for useSyncExternalStore
+      expect(model.getSnapshot(query)).toBe(model.getSnapshot(query));
+
+      // Retry clears error immediately and loads page 1 via injected transport
+      const retryPromise = model.retry(query, { limit: 2 });
+      expect(model.getSnapshot(query).isLoading).toBe(true);
+      expect(model.getSnapshot(query).hasError).toBe(false);
+      expect(model.getSnapshot(query).listStatus).toBe('loading');
+
+      await retryPromise;
+      expect(model.getSnapshot(query).listStatus).toBe('success');
+      expect(model.getSnapshot(query).mentors.map((m) => m.user_id)).toEqual([
+        10, 11,
+      ]);
+
+      // loadMore uses injected transport without needing a per-call fetcher argument
+      const appended = await model.loadMore(query, { limit: 2 });
+      expect(appended.status).toBe('appended');
+      expect(model.getSnapshot(query).mentors.map((m) => m.user_id)).toEqual([
+        10, 11, 12,
+      ]);
+      expect(model.getSnapshot(query).hasMore).toBe(false);
+      expect(changeCount).toBeGreaterThan(0);
+      expect(requests).toEqual([
+        { search_pattern: 'golang', sort_by: 'popularity', limit: 2 },
+        {
+          search_pattern: 'golang',
+          sort_by: 'popularity',
+          limit: 2,
+          cursor: 'cursor:2',
+        },
+      ]);
+
+      unsub();
+    });
+
+    it('returns referentially stable SSR server snapshots without mutating cache ([DEPLOY-04])', () => {
+      const model = createMentorPoolReadModel();
+      const ssrMentors = [makeMentor(77)];
+      const seed = {
+        initialMentors: ssrMentors,
+        initialNextCursor: 'cursor:1',
+        initialMentorCount: 1,
+      };
+
+      const snap1 = model.getServerSnapshot(UNFILTERED_MENTOR_POOL_QUERY, seed);
+      const snap2 = model.getServerSnapshot(UNFILTERED_MENTOR_POOL_QUERY, seed);
+
+      expect(snap1).toBe(snap2);
+      expect(snap1.listStatus).toBe('success');
+      expect(snap1.mentors[0].user_id).toBe(77);
+      expect(model.get(UNFILTERED_MENTOR_POOL_QUERY)).toBeUndefined();
+    });
+
+    it('preserves active subscribeSnapshot and subscribe listeners across clear(), synchronously wipes get(), aborts in-flight controllers, and recovers page 1', async () => {
+      let pageOneRound = 0;
+      let loadMoreSignalAbortedSynchronously = false;
+      let capturedLoadMoreSignal: AbortSignal | undefined;
+
+      const model = createMentorPoolReadModel({
+        transport: {
+          fetchMentors: async (req, signal) => {
+            if (req.cursor) {
+              capturedLoadMoreSignal = signal;
+              return new Promise<MentorPage>((resolve) => {
+                if (req.cursor === 'cursor:after-clear') {
+                  resolve({
+                    mentors: [makeMentor(300)],
+                    nextCursor: null,
+                  });
+                }
+              });
+            }
+            pageOneRound += 1;
+            if (pageOneRound === 1) {
+              return {
+                mentors: [makeMentor(100)],
+                nextCursor: 'cursor:before-clear',
+              };
+            }
+            return {
+              mentors: [makeMentor(200)],
+              nextCursor: 'cursor:after-clear',
+            };
+          },
+        },
+      });
+
+      const filteredQuery: MentorPoolQuery = {
+        search_pattern: 'react',
+        sort_by: 'popularity',
+      };
+      let storeNotifications = 0;
+      const unsubSnapshot = model.subscribeSnapshot(filteredQuery, () => {
+        storeNotifications += 1;
+      });
+
+      await vi.waitFor(() => {
+        expect(model.getSnapshot(filteredQuery).mentors[0]?.user_id).toBe(100);
+      });
+
+      const otherQuery: MentorPoolQuery = { search_pattern: 'vue' };
+      let otherRound = 0;
+      const otherUpdates: AsyncReadResult<MentorPoolPageState>[] = [];
+      const unsubAsync = model.subscribe(
+        otherQuery,
+        async () => {
+          otherRound += 1;
+          return {
+            mentors: [makeMentor(otherRound === 1 ? 10 : 20)],
+            nextCursor: null,
+            hasMore: false,
+            mentorCount: 1,
+            isNoResults: false,
+            hasError: false,
+          };
+        },
+        (res) => otherUpdates.push(res)
+      );
+
+      await vi.waitFor(() => {
+        expect(otherUpdates.at(-1)?.data?.mentors[0]?.user_id).toBe(10);
+      });
+
+      // Start an in-flight loadMore before clear()
+      const loadMoreBeforeClear = model.loadMore(filteredQuery);
+      expect(capturedLoadMoreSignal?.aborted).toBe(false);
+
+      const notificationsBeforeClear = storeNotifications;
+      model.clear();
+      loadMoreSignalAbortedSynchronously = Boolean(
+        capturedLoadMoreSignal?.aborted
+      );
+
+      // Synchronously right after clear(): cache must be empty and old in-flight controller aborted
+      expect(model.get(filteredQuery)).toBeUndefined();
+      expect(model.get(otherQuery)).toBeUndefined();
+      expect(loadMoreSignalAbortedSynchronously).toBe(true);
+      expect(model.getSnapshot(filteredQuery).isLoading).toBe(true);
+
+      // Both live subscribers recover automatically without hanging in loading forever
+      await vi.waitFor(() => {
+        expect(model.getSnapshot(filteredQuery).isLoading).toBe(false);
+        expect(model.getSnapshot(filteredQuery).mentors[0]?.user_id).toBe(200);
+        expect(otherUpdates.at(-1)?.data?.mentors[0]?.user_id).toBe(20);
+      });
+      expect(storeNotifications).toBeGreaterThan(notificationsBeforeClear);
+
+      // Subsequent loadMore still notifies the preserved subscriber
+      const loadMoreAfterClear = await model.loadMore(filteredQuery);
+      expect(loadMoreAfterClear.status).toBe('appended');
+      expect(
+        model.getSnapshot(filteredQuery).mentors.map((m) => m.user_id)
+      ).toEqual([200, 300]);
+
+      unsubSnapshot();
+      unsubAsync();
+      void loadMoreBeforeClear;
+    });
+
+    it('transitions QuerySlot to error snapshot (isLoading=false, hasError=true) without calling onError when upstream rejects with TimeoutError or non-controller AbortError', async () => {
+      let attempt = 0;
+      const model = createMentorPoolReadModel({
+        transport: {
+          fetchMentors: async () => {
+            attempt += 1;
+            if (attempt === 1) {
+              throw new DOMException(
+                'The operation timed out.',
+                'TimeoutError'
+              );
+            }
+            if (attempt === 2) {
+              throw new DOMException('Upstream aborted', 'AbortError');
+            }
+            return {
+              mentors: [makeMentor(42)],
+              nextCursor: null,
+            };
+          },
+        },
+      });
+
+      const query: MentorPoolQuery = { search_pattern: 'timeout-check' };
+      const reportedErrors: unknown[] = [];
+      const unsub = model.subscribeSnapshot(query, () => {}, {
+        onError: (err) => reportedErrors.push(err),
+      });
+
+      await vi.waitFor(() => {
+        expect(model.getSnapshot(query).isLoading).toBe(false);
+      });
+      expect(model.getSnapshot(query).hasError).toBe(true);
+      expect(model.getSnapshot(query).listStatus).toBe('error');
+      expect(reportedErrors).toHaveLength(0);
+
+      // Retry hitting upstream AbortError also settles to error state with isLoading=false and no toast
+      await model.retry(query);
+      expect(model.getSnapshot(query).isLoading).toBe(false);
+      expect(model.getSnapshot(query).hasError).toBe(true);
+      expect(model.getSnapshot(query).listStatus).toBe('error');
+      expect(reportedErrors).toHaveLength(0);
+
+      // Retry succeeding recovers cleanly
+      await model.retry(query);
+      expect(model.getSnapshot(query).isLoading).toBe(false);
+      expect(model.getSnapshot(query).hasError).toBe(false);
+      expect(model.getSnapshot(query).listStatus).toBe('success');
+      expect(model.getSnapshot(query).mentors[0]?.user_id).toBe(42);
+
+      unsub();
+    });
+
+    it('serves expired-TTL cachedState via getSnapshot (stale-while-revalidate) instead of dropping to LOADING_MENTOR_POOL_SNAPSHOT', () => {
+      vi.useFakeTimers();
+      try {
+        const deferred = createDeferredPageFetcher();
+        const model = createMentorPoolReadModel({
+          transport: { fetchMentors: deferred.fetchPage },
+        });
+        const query: MentorPoolQuery = { search_pattern: 'swr-ttl' };
+
+        model.set(
+          query,
+          {
+            mentors: [makeMentor(55)],
+            nextCursor: null,
+            hasMore: false,
+            mentorCount: 1,
+            isNoResults: false,
+            hasError: false,
+          },
+          1000
+        );
+
+        vi.advanceTimersByTime(2000);
+
+        // Freshness check get() returns undefined once TTL elapses...
+        expect(model.get(query)).toBeUndefined();
+        // ...but getSnapshot() continues serving stale cachedState instead of flashing LOADING_MENTOR_POOL_SNAPSHOT
+        const staleBeforeSub = model.getSnapshot(query);
+        expect(staleBeforeSub.mentors.map((m) => m.user_id)).toEqual([55]);
+        expect(staleBeforeSub.isLoading).toBe(false);
+        expect(staleBeforeSub.listStatus).toBe('success');
+
+        // Subscribing starts background revalidation while keeping stale mentors visible
+        const unsub = model.subscribeSnapshot(query, () => {});
+        const duringRevalidation = model.getSnapshot(query);
+        expect(duringRevalidation.mentors.map((m) => m.user_id)).toEqual([55]);
+        expect(duringRevalidation.isLoading).toBe(true);
+        expect(duringRevalidation.listStatus).toBe('success');
+
+        // Aborting background revalidation by unsubscribing still retains stale cachedState with isLoading=false
+        unsub();
+        expect(deferred.wasAborted()).toBe(true);
+        const afterAbort = model.getSnapshot(query);
+        expect(afterAbort.mentors.map((m) => m.user_id)).toEqual([55]);
+        expect(afterAbort.isLoading).toBe(false);
+        expect(afterAbort.listStatus).toBe('success');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('clears transientUnfilteredSnapshot when primeUnfilteredFromSSR receives a recovered non-error seed', () => {
+      const model = createMentorPoolReadModel();
+
+      model.primeUnfilteredFromSSR({
+        initialMentors: [],
+        initialMentorCount: 0,
+        initialError: true,
+      });
+      expect(model.getSnapshot(UNFILTERED_MENTOR_POOL_QUERY).hasError).toBe(
+        true
+      );
+      expect(model.getSnapshot(UNFILTERED_MENTOR_POOL_QUERY).listStatus).toBe(
+        'error'
+      );
+
+      // Even if recovered seed has empty initialMentors, transient SSR error must clear
+      model.primeUnfilteredFromSSR({
+        initialMentors: [],
+        initialMentorCount: 0,
+        initialError: false,
+      });
+      expect(model.getSnapshot(UNFILTERED_MENTOR_POOL_QUERY).hasError).toBe(
+        false
+      );
+
+      // Re-seed error on a fresh model, then recover with mentors
+      const model2 = createMentorPoolReadModel();
+      model2.primeUnfilteredFromSSR({
+        initialMentors: [],
+        initialMentorCount: 0,
+        initialError: true,
+      });
+      expect(model2.getSnapshot(UNFILTERED_MENTOR_POOL_QUERY).hasError).toBe(
+        true
+      );
+
+      model2.primeUnfilteredFromSSR({
+        initialMentors: [makeMentor(88)],
+        initialNextCursor: 'cursor:88',
+        initialMentorCount: 1,
+        initialError: false,
+      });
+      const recoveredSnap = model2.getSnapshot(UNFILTERED_MENTOR_POOL_QUERY);
+      expect(recoveredSnap.hasError).toBe(false);
+      expect(recoveredSnap.isLoading).toBe(false);
+      expect(recoveredSnap.listStatus).toBe('success');
+      expect(recoveredSnap.mentors.map((m) => m.user_id)).toEqual([88]);
     });
   });
 });

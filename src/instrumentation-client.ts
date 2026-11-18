@@ -2,45 +2,57 @@
 // The added config here will be used whenever a users loads a page in their browser.
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 
-import * as Sentry from '@sentry/nextjs';
+import {
+  addIntegration,
+  captureRouterTransitionStart,
+  init,
+  lazyLoadIntegration,
+} from '@sentry/nextjs';
 
-const sentryEnv = process.env.NEXT_PUBLIC_SENTRY_ENV;
-const sentryEnabled = sentryEnv === 'production' || sentryEnv === 'staging';
+import { ensureUnloadListenersAttached } from '@/lib/monitoring';
+import {
+  attachLazyReplayIntegration,
+  SENTRY_CLIENT_IGNORE_ERRORS,
+} from '@/lib/sentryClient';
+import { resolveSentryRuntimeConfig } from '@/lib/sentryEnv';
+import { sanitizeSentryEvent } from '@/lib/sentrySanitize';
 
-// Replay sampling. Gate the lazyLoadIntegration call itself so unsampled
-// sessions never download replay.min.js (~40 kB). Sentry's
-// replaysSessionSampleRate only controls *recording*, not the script
-// download — without this gate, every user pays the bundle cost even if
-// 90% of sessions are never recorded. Trade-off: the on-error buffer
-// (replaysOnErrorSampleRate) is also unavailable for unsampled sessions.
+ensureUnloadListenersAttached();
+
+const { environment: sentryEnvironment, enabled: sentryEnabled } =
+  resolveSentryRuntimeConfig();
+
+// Replay sampling. Gate both Sentry.init sample rates and the
+// lazyLoadIntegration call so unsampled sessions never download replay.min.js
+// (~40 kB), while sampled sessions satisfy @sentry/nextjs v10's requirement
+// that replaysSessionSampleRate / replaysOnErrorSampleRate be set on init().
 const REPLAY_SAMPLE_RATE = 0.05;
+const shouldSampleReplay = sentryEnabled && Math.random() < REPLAY_SAMPLE_RATE;
 
-Sentry.init({
+init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
   enabled: sentryEnabled,
-  environment: sentryEnv ?? 'local',
+  environment: sentryEnvironment,
 
   // Trace 10% of requests in production; increase temporarily for debugging
   tracesSampleRate: 0.1,
+  replaysSessionSampleRate: shouldSampleReplay ? 1.0 : 0,
+  replaysOnErrorSampleRate: shouldSampleReplay ? 1.0 : 0,
+  ignoreErrors: SENTRY_CLIENT_IGNORE_ERRORS,
 
   // Enable logs to be sent to Sentry
   enableLogs: true,
 
   // Do not send PII (IP addresses, user emails, etc.) automatically
   sendDefaultPii: false,
+  beforeSend: sanitizeSentryEvent,
 });
 
-if (sentryEnabled && Math.random() < REPLAY_SAMPLE_RATE) {
-  Sentry.lazyLoadIntegration('replayIntegration').then((replayIntegration) => {
-    Sentry.addIntegration(
-      replayIntegration({
-        // Already gated above, so record this whole session and capture
-        // its on-error buffer if anything throws.
-        replaysSessionSampleRate: 1.0,
-        replaysOnErrorSampleRate: 1.0,
-      })
-    );
+if (shouldSampleReplay) {
+  void attachLazyReplayIntegration({
+    lazyLoadIntegration,
+    addIntegration,
   });
 }
 
-export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
+export const onRouterTransitionStart = captureRouterTransitionStart;

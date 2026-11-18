@@ -608,6 +608,22 @@ describe('apiClient', () => {
       );
     });
 
+    it('does not call captureApiFailure on expected 4xx HTTP statuses (#952)', async () => {
+      vi.mocked(captureApiFailure).mockClear();
+      for (const status of [400, 401, 403, 404, 406, 409]) {
+        mockFetch.mockResolvedValueOnce(
+          new Response(JSON.stringify({ msg: `Client status ${status}` }), {
+            status,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        );
+        await expect(
+          apiClient.get('/v1/mentors/101/zh_TW/profile', { auth: false })
+        ).rejects.toMatchObject({ status });
+      }
+      expect(captureApiFailure).not.toHaveBeenCalled();
+    });
+
     it('preserves data.type on error envelopes and extracts FastAPI 422 detail messages (#760 §0)', async () => {
       mockFetch.mockResolvedValueOnce(
         new Response(

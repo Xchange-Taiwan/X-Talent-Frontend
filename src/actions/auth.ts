@@ -5,8 +5,19 @@ import { after } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 
 import authOptions from '@/auth.config';
+import {
+  exchangeGoogleOAuthCodeWithBridge,
+  type OAuthCallbackResponse,
+} from '@/lib/auth/bffSession.server';
 import { hasUserProperties, isValidUserId } from '@/lib/auth/userGuard';
 import { confirmDeletionSynced } from '@/lib/profile/pollUntilSynced';
+
+export async function googleCallback(
+  code: string,
+  state: string
+): Promise<OAuthCallbackResponse> {
+  return exchangeGoogleOAuthCodeWithBridge(code, state);
+}
 
 /**
  * Account-deletion variant of `revalidateProfilePath`

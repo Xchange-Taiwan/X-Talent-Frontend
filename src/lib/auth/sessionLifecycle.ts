@@ -25,7 +25,9 @@ import {
 } from '@/lib/auth/authFlowStorage';
 import {
   type ClientSignInFn,
+  enrichGoogleLoginUserWithIdTokenFallback,
   type GoogleOAuthCodeExchanger,
+  type OAuthCallbackResponse,
   type OAuthInvalidErrorType,
   type OAuthOutcome,
   resolveOAuthOutcome,
@@ -903,7 +905,11 @@ function buildInvalidOAuthToast(
 }
 
 export async function executeGoogleOAuthCallback(
-  params: { code: string | null; state: string | null },
+  params: {
+    code: string | null;
+    state: string | null;
+    preExchanged?: OAuthCallbackResponse | null;
+  },
   adapters: ExecuteGoogleOAuthCallbackAdapters
 ): Promise<void> {
   const {
@@ -930,6 +936,7 @@ export async function executeGoogleOAuthCallback(
     {
       exchangeCode,
       pendingDeleteAccountEmail,
+      preExchanged: params.preExchanged,
     }
   );
 
@@ -986,11 +993,16 @@ export async function executeGoogleOAuthCallback(
           return;
         }
 
+        const enrichedUser = enrichGoogleLoginUserWithIdTokenFallback(
+          outcome.data.user,
+          outcome.data.id_token
+        );
+
         await signInWithGoogleTokenFn(
           signIn,
           outcome.data.auth.token,
           outcome.data.auth.email ?? '',
-          outcome.data.user
+          enrichedUser
         );
 
         await completePostLoginChoreography({

@@ -8,7 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { useReservationMeetLink } from '@/hooks/user/reservation/useReservationMeetLink';
 import { resolveSystemAutoCancelNotice } from '@/lib/reservation/reservationLifecyclePolicy';
-import { resolveReservationViewer } from '@/lib/reservation/reservationViewerModel';
+import {
+  isReservationViewerProjected,
+  resolveReservationViewer,
+} from '@/lib/reservation/reservationProjection';
 import type { Reservation } from '@/types/reservation';
 
 export type ReservationCardVariant = 'upcoming' | 'pending' | 'history';
@@ -66,10 +69,15 @@ export function ReservationCard({
   ) : null;
 
   if (isHistory) {
-    const { cancelledByLabel } = resolveReservationViewer({
-      reservation: item,
-      myUserId,
-    });
+    const cancelledByLabel =
+      headerAction || !item.cancelledBy
+        ? undefined
+        : isReservationViewerProjected(item, myUserId)
+          ? item.cancelledByLabel
+          : resolveReservationViewer({
+              reservation: item,
+              myUserId,
+            }).cancelledByLabel;
     const resolvedHistoryHeaderAction =
       headerAction ??
       (cancelledByLabel ? (

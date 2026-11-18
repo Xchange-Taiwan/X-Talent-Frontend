@@ -1,22 +1,30 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from 'react';
 
-import { PAGE_LIMIT } from '@/app/mentor-pool/constants';
 import { useToast } from '@/components/ui/use-toast';
-import { useAsyncRead } from '@/hooks/useAsyncRead';
 import { trackEvent } from '@/lib/analytics';
-import { isAbortError } from '@/lib/errorUtils';
+import {
+  countActiveMentorPoolFilters,
+  DEFAULT_MENTOR_PAGE_LIMIT,
+  deserializeMentorPoolQuery,
+  parseMentorPoolQuery,
+  serializeMentorPoolQuery,
+} from '@/lib/mentor/mentorPoolQuery';
 import {
   applyMentorPage,
-  EMPTY_MENTOR_POOL_STATE,
-  fetchMentorPoolPageOne,
   type MentorPageAction,
   type MentorPoolPageState,
   mentorPoolReadModel,
+  type MentorPoolSSRSeed,
 } from '@/lib/mentor/mentorPoolReadModel';
-import { fetchMentors } from '@/services/search-mentor/mentors';
 import type { MentorType } from '@/types/mentor';
 
 export { applyMentorPage, type MentorPageAction, type MentorPoolPageState };
@@ -47,142 +55,105 @@ export function useMentorPool({
     });
   }, [toast]);
 
-  const query = mentorPoolReadModel.resolveQuery(params);
+  const queryKey = serializeMentorPoolQuery(parseMentorPoolQuery(params));
+  const query = useMemo(() => deserializeMentorPoolQuery(queryKey), [queryKey]);
   const initialQueryRef = useRef(query);
 
-  const initialData = useMemo(
-    () =>
-      mentorPoolReadModel.resolveSSRInitialData(query, {
-        initialMentors,
-        initialNextCursor,
-        initialMentorCount,
-        initialError,
-        initialQuery: initialQueryRef.current,
-      }),
-    [query, initialMentors, initialNextCursor, initialMentorCount, initialError]
-  );
-
-  // Client-only SSR hydration: never mutates the singleton during SSR render
-  // ([DEPLOY-04]), while seeding the unfiltered cache slot on client mount.
-  useEffect(() => {
-    mentorPoolReadModel.primeUnfilteredFromSSR({
+  const ssrSeed = useMemo<MentorPoolSSRSeed>(
+    () => ({
       initialMentors,
       initialNextCursor,
       initialMentorCount,
       initialError,
       initialQuery: initialQueryRef.current,
-    });
-  }, [initialMentors, initialNextCursor, initialMentorCount, initialError]);
-
-  const fetcher = useCallback(
-    (signal: AbortSignal) =>
-      fetchMentorPoolPageOne(query, fetchMentors, signal, PAGE_LIMIT).catch(
-        (err) => {
-          if (!isAbortError(err, signal)) {
-            showErrorToast();
-          }
-          throw err;
-        }
-      ),
-    [query, showErrorToast]
+    }),
+    [initialMentors, initialNextCursor, initialMentorCount, initialError]
   );
 
-  const {
-    data: cachedPageState,
-    isLoading,
-    error: pageError,
-    refetch,
-  } = useAsyncRead(mentorPoolReadModel, query, fetcher, {
-    initialData,
-  });
+  const ssrSeedRef = useRef(ssrSeed);
+  ssrSeedRef.current = ssrSeed;
 
-  const pageState = useMemo<MentorPoolPageState>(() => {
-    if (cachedPageState) {
-      return cachedPageState;
-    }
-    if (pageError) {
-      return {
-        ...EMPTY_MENTOR_POOL_STATE,
-        hasMore: false,
-        hasError: true,
-      };
-    }
-    return {
-      ...EMPTY_MENTOR_POOL_STATE,
-      hasMore: false,
-    };
-  }, [cachedPageState, pageError]);
+  // Client-only SSR hydration & prop-update sync: never mutates the singleton
+  // during SSR render ([DEPLOY-04]), while priming/updating the unfiltered slot
+  // and clearing any stale transient SSR error when `ssrSeed` updates on a mounted hook.
+  useEffect(() => {
+    mentorPoolReadModel.primeUnfilteredFromSSR(ssrSeed);
+  }, [ssrSeed]);
+
+  const showErrorToastRef = useRef(showErrorToast);
+  showErrorToastRef.current = showErrorToast;
+
+  const subscribe = useCallback(
+    (onStoreChange: () => void) =>
+      mentorPoolReadModel.subscribeSnapshot(query, onStoreChange, {
+        ssrSeed: ssrSeedRef.current,
+        limit: DEFAULT_MENTOR_PAGE_LIMIT,
+        onError: () => showErrorToastRef.current(),
+      }),
+    [query]
+  );
+
+  const getSnapshot = useCallback(
+    () => mentorPoolReadModel.getSnapshot(query, ssrSeed),
+    [query, ssrSeed]
+  );
+
+  const getServerSnapshot = useCallback(
+    () => mentorPoolReadModel.getServerSnapshot(query, ssrSeed),
+    [query, ssrSeed]
+  );
+
+  const snapshot = useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    getServerSnapshot
+  );
 
   const handleScrollToBottom = useCallback(async () => {
-    if (!pageState.hasMore || isLoading) return;
-    const outcome = await mentorPoolReadModel.loadMore(query, fetchMentors, {
-      limit: PAGE_LIMIT,
-      fallbackState: pageState,
+    if (!snapshot.hasMore || snapshot.isLoading) return;
+    const outcome = await mentorPoolReadModel.loadMore(query, {
+      limit: DEFAULT_MENTOR_PAGE_LIMIT,
+      fallbackState: snapshot,
     });
     if (outcome.status === 'error' && !outcome.deduplicated) {
       showErrorToast();
     }
-  }, [query, pageState, isLoading, showErrorToast]);
+  }, [query, snapshot, showErrorToast]);
 
-  const listStatus = useMemo<'loading' | 'error' | 'empty' | 'success'>(() => {
-    if (pageState.mentors.length > 0) return 'success';
-    if (isLoading && !pageState.hasError) return 'loading';
-    if (pageState.hasError) return 'error';
-    if (pageState.isNoResults) return 'empty';
-    return 'loading';
-  }, [
-    pageState.mentors.length,
-    isLoading,
-    pageState.hasError,
-    pageState.isNoResults,
-  ]);
+  const handleRetry = useCallback(() => {
+    void mentorPoolReadModel.retry(query, {
+      limit: DEFAULT_MENTOR_PAGE_LIMIT,
+    });
+  }, [query]);
 
   const lastTrackedSearchKeyRef = useRef<string | null>(null);
-  const hasKeyword = Boolean(query.search_pattern?.trim());
-  const activeFilterCount = useMemo(() => {
-    const countItems = (csv?: string) =>
-      csv
-        ? csv
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean).length
-        : 0;
-    return (
-      countItems(query.filter_skills) +
-      countItems(query.filter_topics) +
-      countItems(query.filter_industries)
-    );
-  }, [query.filter_industries, query.filter_skills, query.filter_topics]);
+  const hasKeyword = Boolean(query.search_pattern);
+  const activeFilterCount = countActiveMentorPoolFilters(query);
 
   useEffect(() => {
     if (!hasKeyword && activeFilterCount === 0) {
       lastTrackedSearchKeyRef.current = null;
       return;
     }
-    if (isLoading || pageState.hasError) return;
-    if (listStatus !== 'success' && listStatus !== 'empty') return;
+    if (snapshot.isLoading || snapshot.hasError) return;
+    if (snapshot.listStatus !== 'success' && snapshot.listStatus !== 'empty') {
+      return;
+    }
 
-    const searchIdentityKey = JSON.stringify({
-      q: query.search_pattern?.trim() ?? '',
-      s: query.filter_skills ?? '',
-      t: query.filter_topics ?? '',
-      i: query.filter_industries ?? '',
-      sort: query.sort_by ?? '',
-    });
-    if (lastTrackedSearchKeyRef.current === searchIdentityKey) return;
-    lastTrackedSearchKeyRef.current = searchIdentityKey;
+    if (lastTrackedSearchKeyRef.current === queryKey) return;
+    lastTrackedSearchKeyRef.current = queryKey;
 
     trackEvent({
       name: 'view_search_results',
       feature: 'mentor_pool',
       metadata: {
-        result_count: pageState.mentorCount,
+        result_count: snapshot.mentorCount,
         has_keyword: hasKeyword,
         active_filter_count: activeFilterCount,
       },
     });
 
-    if (listStatus === 'empty' || pageState.mentorCount === 0) {
+    if (snapshot.listStatus === 'empty' || snapshot.mentorCount === 0) {
       trackEvent({
         name: 'mentor_search_zero_results',
         feature: 'mentor_pool',
@@ -195,25 +166,21 @@ export function useMentorPool({
   }, [
     activeFilterCount,
     hasKeyword,
-    isLoading,
-    listStatus,
-    pageState.hasError,
-    pageState.mentorCount,
-    query.filter_industries,
-    query.filter_skills,
-    query.filter_topics,
-    query.search_pattern,
-    query.sort_by,
+    queryKey,
+    snapshot.hasError,
+    snapshot.isLoading,
+    snapshot.listStatus,
+    snapshot.mentorCount,
   ]);
 
   return {
-    mentors: pageState.mentors,
-    mentorCount: pageState.mentorCount,
-    isLoading,
-    isNoResults: pageState.isNoResults,
-    hasError: pageState.hasError,
-    listStatus,
+    mentors: snapshot.mentors,
+    mentorCount: snapshot.mentorCount,
+    isLoading: snapshot.isLoading,
+    isNoResults: snapshot.isNoResults,
+    hasError: snapshot.hasError,
+    listStatus: snapshot.listStatus,
     handleScrollToBottom,
-    handleRetry: refetch,
+    handleRetry,
   };
 }

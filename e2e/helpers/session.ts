@@ -423,3 +423,34 @@ export async function setSignedMaintenanceCookie(
     },
   ]);
 }
+
+/**
+ * Forge a signed `__e2e_google_oauth` JWE cookie verified by
+ * `exchangeGoogleOAuthCodeServer` via `NEXTAUTH_SECRET` (non-production only)
+ * so Playwright tests can exercise the SSR Server Component Google OAuth
+ * callback pre-exchange flow both locally and against `xtalentdev.vercel.app`.
+ */
+export async function setSignedGoogleOAuthCallbackCookie(
+  page: Page,
+  oauthResponse: Record<string, unknown>,
+  refreshToken = 'e2e_mock_refresh_token'
+): Promise<void> {
+  const jwtToken: JWT = {
+    oauthResponse,
+    refreshToken,
+  };
+  const signed = await encodeNextAuthToken(jwtToken);
+
+  const { domain, secure } = getCookieTarget();
+  await page.context().addCookies([
+    {
+      name: '__e2e_google_oauth',
+      value: signed,
+      domain,
+      path: '/',
+      httpOnly: true,
+      secure,
+      sameSite: 'Lax',
+    },
+  ]);
+}

@@ -1,8 +1,9 @@
 import { apiClient, BASE_URL } from '@/lib/apiClient';
+import { normalizePositiveUserId } from '@/lib/profile/userId';
 import type { components } from '@/types/api';
 import type { MentorProfileVO } from '@/types/user';
 
-const REVALIDATE_SECONDS = 60;
+export const REVALIDATE_SECONDS = 600;
 
 /**
  * Server-only mentor profile fetch for SSR rendering of /profile/[id].
@@ -16,14 +17,16 @@ const REVALIDATE_SECONDS = 60;
  *  - any network or parse error — caller should treat as not-found.
  */
 export async function fetchUserByIdServer(
-  userId: number,
+  userId: number | string,
   language: string
 ): Promise<MentorProfileVO | null> {
   if (!BASE_URL) return null;
+  const normalizedUserId = normalizePositiveUserId(userId);
+  if (!normalizedUserId) return null;
   try {
     const data = await apiClient.getUnwrapped<
       components['schemas']['MentorProfileVO']
-    >(`/v1/mentors/${userId}/${language}/profile`, {
+    >(`/v1/mentors/${normalizedUserId}/${language}/profile`, {
       auth: false,
       next: { revalidate: REVALIDATE_SECONDS },
     });

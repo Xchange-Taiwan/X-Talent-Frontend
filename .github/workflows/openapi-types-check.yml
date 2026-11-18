@@ -8,6 +8,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   openapi-types-check:
     runs-on: ubuntu-latest
@@ -15,28 +18,56 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Detect whether pure documentation files changed
+        id: paths
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: node scripts/check-ci-paths.mjs --base "$BASE_REF"
+
+      - name: Fast-pass pure documentation changes
+        if: steps.paths.outputs.docs_only == 'true'
+        run: echo "Skipping OpenAPI regeneration on documentation-only PR."
 
       - name: Set up environment
+        if: steps.paths.outputs.docs_only != 'true'
         uses: ./.github/actions/setup-env
 
       - name: Regenerate API types
         id: regenerate-types
+        if: steps.paths.outputs.docs_only != 'true'
         env:
-          BFF_OPENAPI_URL: ${{ secrets.BFF_OPENAPI_URL || vars.BFF_OPENAPI_URL }}
+          BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+          DEV_OPENAPI_URL: ${{ secrets.BFF_OPENAPI_URL || vars.BFF_OPENAPI_URL }}
+          PROD_OPENAPI_URL: ${{ secrets.BFF_OPENAPI_URL_PROD || vars.BFF_OPENAPI_URL_PROD }}
         run: |
-          if [ -z "$BFF_OPENAPI_URL" ]; then
-            echo "❌ Error: BFF_OPENAPI_URL is not set as a GitHub Secret or Repository Variable."
-            echo "Please configure BFF_OPENAPI_URL in your repository settings."
-            exit 1
+          if [ "$BASE_BRANCH" = "main" ]; then
+            if [ -z "$PROD_OPENAPI_URL" ]; then
+              echo "::notice::Skipping Dev BFF OpenAPI comparison on release PR targeting main (BFF_OPENAPI_URL_PROD not configured)."
+              echo "skipped_prod=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            export BFF_OPENAPI_URL="$PROD_OPENAPI_URL"
+          else
+            if [ -z "$DEV_OPENAPI_URL" ]; then
+              echo "Error: BFF_OPENAPI_URL is not set as a GitHub Secret or Repository Variable."
+              exit 1
+            fi
+            export BFF_OPENAPI_URL="$DEV_OPENAPI_URL"
           fi
           pnpm run generate:types
 
       - name: Format generated types
+        if: steps.paths.outputs.docs_only != 'true' && steps.regenerate-types.outputs.skipped_prod != 'true'
         run: pnpm exec prettier --write src/types/api.ts
 
       - name: Check for differences
         id: check-diff
+        if: steps.paths.outputs.docs_only != 'true' && steps.regenerate-types.outputs.skipped_prod != 'true'
         run: |
           if ! git diff --exit-code --ignore-space-at-eol src/types/api.ts; then
             echo "::error file=src/types/api.ts::API types (src/types/api.ts) are out of sync with the BFF OpenAPI spec."
@@ -56,13 +87,21 @@ jobs:
 
       - name: Summary
         if: always()
+        env:
+          DOCS_ONLY: ${{ steps.paths.outputs.docs_only }}
+          SKIPPED_PROD: ${{ steps.regenerate-types.outputs.skipped_prod }}
+          CHECK_DIFF_OUTCOME: ${{ steps.check-diff.outcome }}
         run: |
-          echo "## OpenAPI Types Check Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [[ "${{ steps.check-diff.outcome }}" == "success" ]]; then
-            echo "### ✅ Status: Passed" >> $GITHUB_STEP_SUMMARY
-            echo "API types in \`src/types/api.ts\` are perfectly in sync with the backend BFF OpenAPI spec." >> $GITHUB_STEP_SUMMARY
-          elif [[ "${{ steps.check-diff.outcome }}" == "failure" ]]; then
+          echo "## OpenAPI Types Check Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$DOCS_ONLY" == "true" ]]; then
+            echo "### Status: Passed (docs-only fast-pass)" >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "$SKIPPED_PROD" == "true" ]]; then
+            echo "### Status: Passed (release PR skipped Dev BFF comparison)" >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "$CHECK_DIFF_OUTCOME" == "success" ]]; then
+            echo "### ✅ Status: Passed" >> "$GITHUB_STEP_SUMMARY"
+            echo "API types in \`src/types/api.ts\` are perfectly in sync with the backend BFF OpenAPI spec." >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "$CHECK_DIFF_OUTCOME" == "failure" ]]; then
             echo "### ❌ Status: Failed" >> $GITHUB_STEP_SUMMARY
             echo "API types in \`src/types/api.ts\` are **out of sync** with the backend BFF OpenAPI spec." >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY

@@ -2,7 +2,7 @@
 /**
  * Cloud Pre-PR Multi-Round AI Reviewer + Playwright E2E Convergence Loop
  */
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -187,8 +187,17 @@ export function detectChangedE2eSpecs(
       normalized.endsWith('.stories.ts') ||
       normalized.endsWith('.stories.tsx');
 
+    const isNonVisualHeadlessTsx =
+      normalized === 'src/components/AnalyticsBootstrap.tsx' ||
+      normalized === 'src/components/AnalyticsUserSync.tsx' ||
+      normalized === 'src/components/SentryUserSync.tsx' ||
+      normalized === 'src/components/PageViewTracker.tsx' ||
+      normalized === 'src/components/WebVitalsReporter.tsx' ||
+      normalized === 'src/components/SessionErrorWatcher.tsx';
+
     if (
       !isUnitOrStoryFile &&
+      !isNonVisualHeadlessTsx &&
       (normalized.startsWith('src/app/') ||
         normalized.startsWith('src/components/') ||
         normalized.startsWith('src/styles/')) &&
@@ -691,6 +700,52 @@ function defaultExecStep(cmd, args, options = {}) {
   }
 }
 
+function defaultExecStepAsync(cmd, args, options = {}) {
+  const isWin = process.platform === 'win32';
+  const resolvedCmd =
+    isWin && (cmd === 'pnpm' || cmd === 'npx') ? `${cmd}.cmd` : cmd;
+  const timeout = options.timeout ?? inferDefaultTimeoutMs(cmd, args);
+  return new Promise((resolve) => {
+    execFile(
+      resolvedCmd,
+      args,
+      {
+        encoding: 'utf8',
+        maxBuffer: 15 * 1024 * 1024,
+        timeout,
+        shell: isWin,
+        ...options,
+      },
+      (err, stdout = '', stderr = '') => {
+        if (!err) {
+          resolve({
+            ok: true,
+            timedOut: false,
+            stdout: String(stdout),
+            stderr: '',
+          });
+          return;
+        }
+        const timedOut = Boolean(
+          err.killed || err.code === 'ETIMEDOUT' || err.signal === 'SIGTERM'
+        );
+        const rawStderr = String(stderr || '').trim();
+        const errMsg =
+          [rawStderr, timedOut ? `Command timed out after ${timeout}ms` : '']
+            .filter(Boolean)
+            .join('\n') || String(err.message ?? '');
+        resolve({
+          ok: false,
+          timedOut,
+          stdout: String(stdout),
+          stderr: errMsg,
+          combined: `${stdout}\n${errMsg}`.trim(),
+        });
+      }
+    );
+  });
+}
+
 function applyDeleteFilesManifest(repoRoot, log, fsImpl = fs) {
   applySandboxedDeleteManifest({ cwd: repoRoot, log, fsImpl });
 }
@@ -700,6 +755,12 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
   const formatFailureTail = (res) =>
     String(res?.combined || res?.stderr || '').slice(-1800);
   const execStep = deps.execStep || defaultExecStep;
+  const execStepAsync =
+    deps.execStepAsync ||
+    (deps.execStep
+      ? (cmd, args, options) =>
+          Promise.resolve(deps.execStep(cmd, args, options))
+      : defaultExecStepAsync);
   const writeFile =
     deps.writeFile ||
     ((filePath, content) => {
@@ -707,7 +768,14 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       fs.writeFileSync(filePath, content, 'utf8');
     });
   const log = deps.log || ((msg) => console.log(msg));
-  const evidenceDir = rawOptions.evidenceDir || '.agents/tmp/evidence';
+  const evidenceDir = path.resolve(
+    repoRoot,
+    rawOptions.evidenceDir || '.agents/tmp/evidence'
+  );
+  const bestEvidenceBackupDir = path.resolve(
+    repoRoot,
+    rawOptions.bestEvidenceBackupDir || '.agents/tmp/best-evidence'
+  );
   const clearEvidence =
     deps.clearEvidence ||
     (() => {
@@ -726,6 +794,41 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       return fs
         .readdirSync(evidenceDir)
         .filter((f) => /\.(png|jpe?g|webp)$/i.test(f));
+    });
+  const backupEvidence =
+    deps.backupEvidence ||
+    (() => {
+      fs.rmSync(bestEvidenceBackupDir, { recursive: true, force: true });
+      if (!fs.existsSync(evidenceDir)) return;
+      const imgs = fs
+        .readdirSync(evidenceDir)
+        .filter((f) => /\.(png|jpe?g|webp)$/i.test(f));
+      if (imgs.length === 0) return;
+      fs.mkdirSync(bestEvidenceBackupDir, { recursive: true });
+      for (const f of imgs) {
+        fs.copyFileSync(
+          path.join(evidenceDir, f),
+          path.join(bestEvidenceBackupDir, f)
+        );
+      }
+    });
+  const restoreEvidence =
+    deps.restoreEvidence ||
+    (() => {
+      if (!fs.existsSync(bestEvidenceBackupDir)) return false;
+      const imgs = fs
+        .readdirSync(bestEvidenceBackupDir)
+        .filter((f) => /\.(png|jpe?g|webp)$/i.test(f));
+      if (imgs.length === 0) return false;
+      fs.mkdirSync(evidenceDir, { recursive: true });
+      clearEvidence();
+      for (const f of imgs) {
+        fs.copyFileSync(
+          path.join(bestEvidenceBackupDir, f),
+          path.join(evidenceDir, f)
+        );
+      }
+      return true;
     });
 
   const fileExists = deps.fileExists || ((p) => fs.existsSync(p));
@@ -767,6 +870,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
   let lastChangedSpecs = [];
   let roundsRun = 0;
   let stalled = false;
+  let budgetExhausted = false;
   let bestSnapshotSha = '';
   let bestRoundScore = -Infinity;
   let bestEvaluation = null;
@@ -816,6 +920,27 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       `\n[cloud-converge] === Round ${round}/${config.maxRounds} starting ===`
     );
 
+    if (
+      round === 1 &&
+      (rawOptions.autoSyncOpenApi === true ||
+        process.env.CLOUD_AUTO_SYNC_OPENAPI === '1') &&
+      process.env.BFF_OPENAPI_URL
+    ) {
+      log(
+        '[cloud-converge] Syncing src/types/api.ts against BFF_OPENAPI_URL...'
+      );
+      const genRes = await execStepAsync('pnpm', ['run', 'generate:types'], {
+        cwd: repoRoot,
+      });
+      if (genRes.ok) {
+        await execStepAsync(
+          'pnpm',
+          ['exec', 'prettier', '--write', 'src/types/api.ts'],
+          { cwd: repoRoot }
+        );
+      }
+    }
+
     const diffFiles = collectChangedFiles();
 
     const testEnv = {
@@ -823,13 +948,19 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       VITEST_MAX_WORKERS: process.env.VITEST_MAX_WORKERS || '3',
     };
 
-    // 1. Deterministic checks: fast-fail on lint/type-check before running unit tests
+    // 1. Deterministic checks: run lint & type-check concurrently, fast-fail before unit tests
     const deterministicErrors = [];
-    for (const [label, args] of [
-      ['pnpm lint', ['lint']],
-      ['pnpm type-check', ['type-check']],
-    ]) {
-      const res = execStep('pnpm', args);
+    const staticChecks = await Promise.all([
+      execStepAsync('pnpm', ['lint'], { cwd: repoRoot }).then((res) => [
+        'pnpm lint',
+        res,
+      ]),
+      execStepAsync('pnpm', ['type-check'], { cwd: repoRoot }).then((res) => [
+        'pnpm type-check',
+        res,
+      ]),
+    ]);
+    for (const [label, res] of staticChecks) {
       if (!res.ok) {
         log(`[cloud-converge] ${label} failed in round ${round}`);
         log(formatFailureTail(res));
@@ -933,7 +1064,12 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       };
 
       const activeFs = deps.fsImpl || fs;
-      if (typeof activeFs.rmSync === 'function') {
+      const bundlerConfigTouched = diffFiles.some((f) =>
+        /^(?:next\.config\.|tailwind\.config\.|postcss\.config\.|package\.json$|tsconfig\.json$|\.env(?:\.|$))/.test(
+          f
+        )
+      );
+      if (bundlerConfigTouched && typeof activeFs.rmSync === 'function') {
         try {
           activeFs.rmSync(path.join(repoRoot, '.next/dev/cache/turbopack'), {
             recursive: true,
@@ -1200,16 +1336,37 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
         bestE2ePassed = lastE2ePassed;
         bestChangedSpecs = lastChangedSpecs;
         bestRequiresUiEvidence = roundRequiresUiEvidence;
+        const currentEvidenceCount = listEvidence().length;
         bestEvidenceIntact =
-          !roundRequiresUiEvidence || listEvidence().length > 0;
+          !roundRequiresUiEvidence || currentEvidenceCount > 0;
+        if (currentEvidenceCount > 0) {
+          try {
+            backupEvidence();
+          } catch {}
+        }
       }
     }
 
     const restoreBestPassingState = () => {
       restoreSnapshot(bestSnapshotSha);
+      if (bestRequiresUiEvidence && !bestEvidenceIntact) {
+        try {
+          if (restoreEvidence()) {
+            bestEvidenceIntact = true;
+          }
+        } catch {}
+      }
       if (bestEvaluation && (!bestRequiresUiEvidence || bestEvidenceIntact)) {
         lastEvaluation = bestEvaluation;
         lastE2ePassed = bestE2ePassed;
+        lastChangedSpecs = bestChangedSpecs;
+      } else if (bestEvaluation) {
+        lastEvaluation = {
+          ...bestEvaluation,
+          converged: false,
+          e2ePassed: false,
+        };
+        lastE2ePassed = false;
         lastChangedSpecs = bestChangedSpecs;
       }
     };
@@ -1251,6 +1408,7 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
     }
 
     if (now() - loopStartMs >= maxDurationMs) {
+      budgetExhausted = true;
       log(
         `[cloud-converge] Soft wall-clock budget (${Math.round(maxDurationMs / 60000)}m) reached in round ${round}; exiting cleanly so Phase 3 can push and open PR.`
       );
@@ -1259,6 +1417,25 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
           `[cloud-converge] Restoring best passing snapshot (${bestSnapshotSha.slice(0, 8)}) before exiting.`
         );
         restoreBestPassingState();
+      }
+      if (lastEvaluation?.deterministicPassed && !lastE2ePassed) {
+        const markerPath =
+          rawOptions.checkpointMarkerPath ||
+          process.env.CONVERGE_CHECKPOINT_MARKER ||
+          path.join(
+            process.env.RUNNER_TEMP || os.tmpdir(),
+            'x-talent-converge-checkpoint-only'
+          );
+        writeFile(markerPath, 'budget_exhausted\n');
+        if (process.env.GITHUB_ENV) {
+          try {
+            fs.appendFileSync(
+              process.env.GITHUB_ENV,
+              'CONVERGE_CHECKPOINT_ONLY=true\n',
+              'utf8'
+            );
+          } catch {}
+        }
       }
       break;
     }
@@ -1346,18 +1523,34 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
   return {
     converged: false,
     stalled,
+    budgetExhausted,
     roundsRun,
     evaluation: lastEvaluation,
     summaryMd,
   };
 }
 
-export function resolveConvergeExitCode(res) {
-  if (!res || res.converged) {
+export function resolveConvergeExitCode(
+  res,
+  {
+    allowDeterministicCheckpoint = process.env
+      .CONVERGE_ALLOW_DETERMINISTIC_CHECKPOINT === 'true',
+  } = {}
+) {
+  if (!res) {
+    return 1;
+  }
+  if (res.converged) {
     return 0;
   }
-  const detOk = res.evaluation?.deterministicPassed !== false;
-  const e2eOk = res.evaluation?.e2ePassed !== false;
+  if (!res.evaluation) {
+    return 1;
+  }
+  const detOk = res.evaluation.deterministicPassed !== false;
+  const e2eOk = res.evaluation.e2ePassed !== false;
+  if (allowDeterministicCheckpoint && detOk && res.budgetExhausted === true) {
+    return 0;
+  }
   return !detOk || !e2eOk ? 1 : 0;
 }
 

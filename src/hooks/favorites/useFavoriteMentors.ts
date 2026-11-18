@@ -1,15 +1,21 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 
 import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
-import type { AsyncReadResult } from '@/lib/asyncReadManager';
 import {
   favoriteMentorsReadModel,
-  type FavoriteMentorsSnapshot,
+  type FavoritesListStatus,
 } from '@/lib/favorites';
-import { isFavoritesEnabled } from '@/lib/featureFlags';
 import type { MentorType } from '@/types/mentor';
+
+export type { FavoritesListStatus };
+
+const NOOP_UNSUBSCRIBE = (): void => {};
+
+function getServerListSnapshot() {
+  return favoriteMentorsReadModel.getListSnapshot(null);
+}
 
 export interface UseFavoriteMentorsResult {
   favoriteMentors: MentorType[];
@@ -19,120 +25,53 @@ export interface UseFavoriteMentorsResult {
   isStoreReadyForUser: boolean;
   isLoading: boolean;
   error: Error | null;
+  listStatus: FavoritesListStatus;
   retry: () => Promise<void>;
 }
 
-interface ReadSubscriptionState {
-  userId: string | null;
-  result: AsyncReadResult<FavoriteMentorsSnapshot>;
-}
-
-const IDLE_RESULT: AsyncReadResult<FavoriteMentorsSnapshot> = {
-  data: null,
-  isLoading: false,
-  error: null,
-};
-
 export function useFavoriteMentors(): UseFavoriteMentorsResult {
-  const favoritesEnabled = isFavoritesEnabled();
   const identity = useResolvedIdentity();
 
-  const confirmedUserId =
-    identity.state === 'confirmed-member' ? identity.userId : null;
   const isAuthenticated = identity.state === 'confirmed-member';
+  const confirmedUserId = isAuthenticated ? identity.userId : null;
   const isIdentityUnresolved =
     identity.state === 'unknown' || identity.state === 'hint-only';
 
-  const [subState, setSubState] = useState<ReadSubscriptionState>(() => {
-    if (!favoritesEnabled || !confirmedUserId) {
-      return { userId: null, result: IDLE_RESULT };
-    }
-    const cached = favoriteMentorsReadModel.getSnapshot(confirmedUserId);
-    return cached
-      ? {
-          userId: confirmedUserId,
-          result: { data: cached, isLoading: false, error: null },
-        }
-      : {
-          userId: confirmedUserId,
-          result: { data: null, isLoading: true, error: null },
-        };
-  });
+  const subscribe = useCallback(
+    (onStoreChange: () => void) =>
+      confirmedUserId
+        ? favoriteMentorsReadModel.subscribe(confirmedUserId, onStoreChange)
+        : NOOP_UNSUBSCRIBE,
+    [confirmedUserId]
+  );
 
-  useEffect(() => {
-    if (!favoritesEnabled) {
-      favoriteMentorsReadModel.clear();
-      setSubState({ userId: null, result: IDLE_RESULT });
-      return;
-    }
+  const getSnapshot = useCallback(
+    () => favoriteMentorsReadModel.getListSnapshot(confirmedUserId),
+    [confirmedUserId]
+  );
 
-    if (isIdentityUnresolved) {
-      return;
-    }
-
-    if (!isAuthenticated || !confirmedUserId) {
-      favoriteMentorsReadModel.clear();
-      setSubState({ userId: null, result: IDLE_RESULT });
-      return;
-    }
-
-    return favoriteMentorsReadModel.subscribe(confirmedUserId, (result) => {
-      setSubState({ userId: confirmedUserId, result });
-    });
-  }, [
-    confirmedUserId,
-    favoritesEnabled,
-    isAuthenticated,
-    isIdentityUnresolved,
-  ]);
-
-  const activeResult =
-    favoritesEnabled && confirmedUserId && subState.userId === confirmedUserId
-      ? subState.result
-      : null;
-
-  const isStoreReadyForUser =
-    favoritesEnabled &&
-    isAuthenticated &&
-    activeResult !== null &&
-    !activeResult.isLoading &&
-    (activeResult.data !== null || activeResult.error !== null);
-
-  const error =
-    isStoreReadyForUser && activeResult?.error
-      ? new Error(activeResult.error)
-      : null;
+  const snapshot = useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    getServerListSnapshot
+  );
 
   const retry = useCallback(async () => {
-    if (
-      !favoritesEnabled ||
-      isIdentityUnresolved ||
-      !isAuthenticated ||
-      !confirmedUserId
-    ) {
+    if (!confirmedUserId) {
       return;
     }
     await favoriteMentorsReadModel.retry(confirmedUserId);
-  }, [
-    confirmedUserId,
-    favoritesEnabled,
-    isAuthenticated,
-    isIdentityUnresolved,
-  ]);
+  }, [confirmedUserId]);
 
   return {
-    favoriteMentors:
-      isStoreReadyForUser && activeResult?.data
-        ? activeResult.data.mentors
-        : [],
+    favoriteMentors: snapshot.mentors,
     confirmedUserId,
     isAuthenticated,
     isIdentityUnresolved,
-    isStoreReadyForUser,
-    isLoading: favoritesEnabled
-      ? isIdentityUnresolved || !isStoreReadyForUser
-      : false,
-    error,
+    isStoreReadyForUser: snapshot.isStoreReadyForUser,
+    isLoading: snapshot.isLoading,
+    error: snapshot.error,
+    listStatus: snapshot.listStatus,
     retry,
   };
 }

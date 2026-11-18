@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import React from 'react';
 
+import { buildReservationFixture } from '@/lib/reservation/reservationProjection';
+
 import { mockReservation } from './mocks';
 import { ReservationMessagePreview } from './ReservationMessagePreview';
 
@@ -80,5 +82,26 @@ export const CancelledWithReason: Story = {
         isCancelReason: true,
       },
     },
+  },
+};
+
+export const PreProjectedCancelledWithReason: Story = {
+  args: {
+    variant: 'card',
+    sourceRole: 'mentee',
+    reservation: buildReservationFixture({
+      ...mockReservation,
+      id: 'res-preview-projected-932',
+      cancelledBy: 'MENTEE',
+      viewerRole: 'MENTEE',
+      myUserId: 'user-mentee-111',
+      messages: [
+        ...mockReservation.messages,
+        {
+          content: '抱歉導師，當日臨時有產品上線緊急會議，需先取消本次預約。',
+          role: 'MENTEE',
+        },
+      ],
+    }),
   },
 };

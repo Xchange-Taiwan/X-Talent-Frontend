@@ -1,4 +1,4 @@
-import { formatExperience } from '@/lib/reservation/resolveCounterparty';
+import { TotalWorkSpanEnum } from '@/constant/seniority';
 import type {
   RawPendingFeedbackCounterpart,
   RawReservationFeedback,
@@ -6,6 +6,12 @@ import type {
   ReservationFeedback,
   ReservationRating,
 } from '@/types/reservationFeedback';
+
+export function formatExperience(yearsOfExperience?: string | null): string {
+  return (
+    TotalWorkSpanEnum[yearsOfExperience as keyof typeof TotalWorkSpanEnum] ?? ''
+  );
+}
 
 export interface FeedbackCounterpartDtoInput {
   counterpart?: RawPendingFeedbackCounterpart | null;

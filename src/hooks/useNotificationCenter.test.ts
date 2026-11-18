@@ -1,4 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
+import { fromPartial } from '@total-typescript/shoehorn';
+import { SessionContext, type SessionContextValue } from 'next-auth/react';
+import * as React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -15,6 +18,16 @@ import {
   resetNotificationStore,
 } from '@/stores/notificationStore';
 import { mockToast } from '@/test/mocks/useToast';
+
+const mockUsePathname = vi.fn<() => string | null>(() => '/');
+
+vi.mock('next/navigation', async () => {
+  const { navigationMockFactory } = await import('@/test/mocks/navigation');
+  return {
+    ...navigationMockFactory(),
+    usePathname: () => mockUsePathname(),
+  };
+});
 
 vi.mock('@/components/ui/use-toast', async () => {
   const { useToastMockFactory } = await import('@/test/mocks/useToast');
@@ -67,6 +80,7 @@ const mockNotifications: NotificationItem[] = [
 describe('useNotificationCenter', () => {
   beforeEach(() => {
     mockToast.mockClear();
+    mockUsePathname.mockReturnValue('/');
     vi.mocked(captureFlowFailure).mockClear();
     localStorage.clear();
     resetNotificationStore();
@@ -1348,6 +1362,105 @@ describe('useNotificationCenter', () => {
       expect(result).toEqual({ status: 'stale' });
       const state = notificationStoreManager.getOrCreateState(userId);
       expect(state.notifications).toEqual([]);
+    });
+  });
+
+  describe('onboarding background polling suppression (#953)', () => {
+    it('suppresses unread-count fetch while onBoarding === false and immediately resumes with real userId once onBoarding becomes true', () => {
+      const configureSpy = vi.spyOn(notificationStoreManager, 'configure');
+      const subscribeSpy = vi.spyOn(notificationStoreManager, 'subscribe');
+      let currentOnboarding = false;
+
+      const wrapper = ({ children }: { children: React.ReactNode }) =>
+        React.createElement(
+          SessionContext.Provider,
+          {
+            value: fromPartial<SessionContextValue>({
+              status: 'authenticated',
+              data: {
+                user: {
+                  id: '7523335928165814',
+                  onBoarding: currentOnboarding,
+                },
+                expires: '2099-01-01T00:00:00.000Z',
+              },
+              update: async () => null,
+            }),
+          },
+          children
+        );
+
+      const { rerender } = renderHook(
+        () => useNotificationCenter({ userId: '7523335928165814' }),
+        { wrapper }
+      );
+
+      expect(configureSpy).toHaveBeenLastCalledWith(
+        undefined,
+        expect.any(Object)
+      );
+      expect(subscribeSpy).toHaveBeenLastCalledWith(
+        undefined,
+        expect.any(Function)
+      );
+
+      notificationStoreManager.setSource(
+        '7523335928165814',
+        createInMemoryNotificationSource([])
+      );
+      currentOnboarding = true;
+      rerender();
+
+      expect(configureSpy).toHaveBeenLastCalledWith(
+        '7523335928165814',
+        expect.any(Object)
+      );
+      expect(subscribeSpy).toHaveBeenLastCalledWith(
+        '7523335928165814',
+        expect.any(Function)
+      );
+
+      configureSpy.mockRestore();
+      subscribeSpy.mockRestore();
+    });
+
+    it('suppresses unread-count fetch on /auth/onboarding and subpaths, and immediately resumes on SPA navigation to /mentor-pool', () => {
+      const configureSpy = vi.spyOn(notificationStoreManager, 'configure');
+      const subscribeSpy = vi.spyOn(notificationStoreManager, 'subscribe');
+      notificationStoreManager.setSource(
+        '7523335928165814',
+        createInMemoryNotificationSource([])
+      );
+
+      mockUsePathname.mockReturnValue('/auth/onboarding');
+      const { rerender } = renderHook(() =>
+        useNotificationCenter({ userId: '7523335928165814' })
+      );
+      expect(configureSpy).toHaveBeenLastCalledWith(
+        undefined,
+        expect.any(Object)
+      );
+
+      mockUsePathname.mockReturnValue('/auth/onboarding/step-2');
+      rerender();
+      expect(configureSpy).toHaveBeenLastCalledWith(
+        undefined,
+        expect.any(Object)
+      );
+
+      mockUsePathname.mockReturnValue('/mentor-pool');
+      rerender();
+      expect(configureSpy).toHaveBeenLastCalledWith(
+        '7523335928165814',
+        expect.any(Object)
+      );
+      expect(subscribeSpy).toHaveBeenLastCalledWith(
+        '7523335928165814',
+        expect.any(Function)
+      );
+
+      configureSpy.mockRestore();
+      subscribeSpy.mockRestore();
     });
   });
 });

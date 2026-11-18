@@ -2,7 +2,10 @@ import { expect, type Page, test } from '@playwright/test';
 
 import { captureEvidence } from '../../helpers/evidence';
 import { blockUnmockedExternalApi, mockApiRoute } from '../../helpers/route';
-import { setSignedSessionCookie } from '../../helpers/session';
+import {
+  setSignedGoogleOAuthCallbackCookie,
+  setSignedSessionCookie,
+} from '../../helpers/session';
 
 interface NormalizedGaEvent {
   name: string;
@@ -177,24 +180,7 @@ async function mockGoogleCallbackServerAction(
   page: Page,
   mockPayload: Record<string, unknown>
 ): Promise<void> {
-  await page.route(/\/auth\/google\/callback\/redirect/, async (route) => {
-    const req = route.request();
-    if (req.method() === 'POST' && req.headers()['next-action']) {
-      const upstream = await route.fetch();
-      const bodyText = await upstream.text();
-      const patchedLines = bodyText
-        .split(/\r?\n/)
-        .map((line) =>
-          /^1:(?:E)?\{/.test(line) ? `1:${JSON.stringify(mockPayload)}` : line
-        );
-      return route.fulfill({
-        status: 200,
-        headers: upstream.headers(),
-        body: patchedLines.join(String.fromCharCode(10)),
-      });
-    }
-    return route.continue();
-  });
+  await setSignedGoogleOAuthCallbackCookie(page, mockPayload);
 }
 
 test.describe('GA4 會員身分識別 user_id、user_role 與 login/sign_up 認證事件收斂 (#866)', () => {

@@ -1,10 +1,25 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import {
+  buildReservationFixture,
+  resolveReservationMessages,
+} from '@/lib/reservation/reservationProjection';
 import type { Reservation } from '@/types/reservation';
 
 import { mockReservation } from './mocks';
 import ReservationConversationDialog from './ReservationConversationDialog';
+
+vi.mock('@/lib/reservation/reservationProjection', async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import('@/lib/reservation/reservationProjection')
+    >();
+  return {
+    ...actual,
+    resolveReservationMessages: vi.fn(actual.resolveReservationMessages),
+  };
+});
 
 function openDialog(reservation: Reservation) {
   render(
@@ -122,5 +137,26 @@ describe('ReservationConversationDialog', () => {
     expect(screen.getByText('臨時有事的取消原因 M2')).toBeInTheDocument();
     expect(screen.getByText('預約提問')).toBeInTheDocument();
     expect(screen.getByText('取消原因')).toBeInTheDocument();
+  });
+
+  it('reads pre-projected thread messages directly off Reservation without re-running resolveReservationMessages (#932)', () => {
+    const preProjected = buildReservationFixture({
+      id: 'res-proj-dialog',
+      cancelledBy: 'MENTEE',
+      messages: [
+        { content: '預先投影提問 D1', role: 'MENTEE' },
+        { content: '預先投影取消 D2', role: 'MENTEE' },
+      ],
+    });
+
+    vi.mocked(resolveReservationMessages).mockClear();
+
+    openDialog(preProjected);
+
+    expect(screen.getByText('預先投影提問 D1')).toBeInTheDocument();
+    expect(screen.getByText('預先投影取消 D2')).toBeInTheDocument();
+    expect(screen.getByText('預約提問')).toBeInTheDocument();
+    expect(screen.getByText('取消原因')).toBeInTheDocument();
+    expect(resolveReservationMessages).not.toHaveBeenCalled();
   });
 });

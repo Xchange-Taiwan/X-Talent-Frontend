@@ -143,7 +143,7 @@ function parseUserDtoToUserType(
 }
 
 function useUserData(
-  userId: number,
+  userId: number | string,
   language: string,
   initialDto?: MentorProfileVO | null,
   initialCatalogs?: TagCatalogsByBucket

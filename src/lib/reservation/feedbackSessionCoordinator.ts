@@ -2,12 +2,15 @@ import { isFeedbackEnabled } from '@/lib/featureFlags';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { isEligibleForPendingFeedbackQueue } from '@/lib/reservation/reservationLifecyclePolicy';
 import {
+  normalizeReservationViewerRole,
+  sortPendingFeedbackOldestFirst,
+} from '@/lib/reservation/reservationProjection';
+import {
   buildReservationHistoryRedirectHref,
   extractDeepLinkReservationId,
   isFeedbackQueueQueryRequested,
   type ReservationRouteRole,
 } from '@/lib/reservation/reservationRoutes';
-import { normalizeReservationViewerRole } from '@/lib/reservation/resolveCounterparty';
 import { MENTOR_ONBOARDING_KEY, OPEN_SCHEDULE_DIALOG_KEY } from '@/lib/routes';
 import type { Reservation } from '@/types/reservation';
 
@@ -154,29 +157,7 @@ export function shouldSuppressPendingFeedbackPopup({
   return false;
 }
 
-/**
- * Sorts pending feedback meetings chronologically by end time (`dtend`) from
- * oldest to newest (`由舊到新`), breaking ties by `dtstart` and `id` (#760 §6).
- */
-export function sortPendingFeedbackOldestFirst(
-  items: readonly Reservation[]
-): Reservation[] {
-  return [...items].sort((a, b) => {
-    const aEnd = typeof a.dtend === 'number' ? a.dtend : 0;
-    const bEnd = typeof b.dtend === 'number' ? b.dtend : 0;
-    if (aEnd !== bEnd) {
-      return aEnd - bEnd;
-    }
-    const aStart = typeof a.dtstart === 'number' ? a.dtstart : 0;
-    const bStart = typeof b.dtstart === 'number' ? b.dtstart : 0;
-    if (aStart !== bStart) {
-      return aStart - bStart;
-    }
-    return String(a.id).localeCompare(String(b.id), undefined, {
-      numeric: true,
-    });
-  });
-}
+export { sortPendingFeedbackOldestFirst };
 
 export function createBrowserFeedbackSessionStoragePort(): FeedbackSessionStoragePort {
   return {

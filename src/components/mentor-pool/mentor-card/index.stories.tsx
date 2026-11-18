@@ -21,7 +21,7 @@ const meta: Meta<typeof MentorCard> = {
     docs: {
       description: {
         component:
-          '導師池與我的收藏共用卡片元件，直接接收 `mentor: MentorType` 並透過 `projectMentorCard` 投影標籤、評分、已完成場次與預設頭像，外層連結內建 `mentor_card_click` 宣告式埋點並附帶數值字串 `mentor_id`。',
+          '導師池與我的收藏共用卡片元件，直接接收 `mentor: MentorType` 並透過 `projectMentorCard` 投影標籤、評分、已完成場次與預設頭像，外層連結預設關閉自動預抓（`prefetch={false}`）以避免列表滑動觸發背景 N+1 查詢，並內建 `mentor_card_click` 宣告式埋點附帶數值字串 `mentor_id`。',
       },
     },
   },

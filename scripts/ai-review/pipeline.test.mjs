@@ -753,3 +753,154 @@ describe('scripts/ai-review/pipeline.mjs', () => {
     }
   });
 });
+
+describe('release promotion fast-path (develop -> main)', () => {
+  it('skips 9-stage LLM calls on develop -> main release PRs and emits a low-risk release summary', async () => {
+    let llmCalls = 0;
+    let postedComment = '';
+
+    const res = await runAiReviewPipeline(
+      {
+        mode: 'ci',
+        baseRef: 'origin/main',
+        headSha: 'abc1234567890',
+        branch: 'develop',
+        headRepo: 'Xchange-Taiwan/X-Talent-Frontend',
+        prNumber: '1301',
+        repo: 'Xchange-Taiwan/X-Talent-Frontend',
+        postComment: true,
+      },
+      {
+        llmPort: async () => {
+          llmCalls += 1;
+          return {};
+        },
+        contextPort: {
+          getDiff: async () => ({
+            diff: [
+              'diff --git a/src/lib/analytics.ts b/src/lib/analytics.ts',
+              '+++ b/src/lib/analytics.ts',
+              '+export const x = 1;',
+              'diff --git a/next.config.js b/next.config.js',
+              '+++ b/next.config.js',
+            ].join('\n'),
+            truncated: false,
+          }),
+          postPrComment: async ({ comment }) => {
+            postedComment = comment;
+          },
+        },
+      }
+    );
+
+    expect(llmCalls).toBe(0);
+    expect(res.releaseFastPath).toBe(true);
+    expect(res.overallRisk.level).toBe('low');
+    expect(postedComment).toContain('<!-- ai-review-sha:abc1234567890 -->');
+    expect(postedComment).toContain('1. `next.config.js`');
+    expect(postedComment).not.toContain('undefined.');
+  });
+
+  it('does not trigger release fast-path for non-develop hotfix branches targeting main or when disableReleaseFastPath is set', async () => {
+    let llmCalls = 0;
+    const mockLlm = async (_prompt, meta) => {
+      llmCalls += 1;
+      if (meta?.stage === 'planner') {
+        return {
+          ticketFound: false,
+          ticketNumber: null,
+          requirementSummary: 'Hotfix',
+          acceptanceCriteria: [],
+          outOfRepoCriteria: [],
+          filesTouched: ['src/a.ts'],
+          riskAreas: [],
+        };
+      }
+      if (meta?.stage === 'summary') {
+        return {
+          requirementCoverage: [],
+          overallRisk: { level: 'low', reason: 'clean' },
+          mergeRecommendation: 'ok',
+        };
+      }
+      if (meta?.stage === 'review-guide') {
+        return { overview: 'ok', readingOrder: [] };
+      }
+      return { hasFindings: false, summary: 'ok', findings: [] };
+    };
+
+    const hotfixRes = await runAiReviewPipeline(
+      {
+        mode: 'ci',
+        baseRef: 'origin/main',
+        headSha: 'def456',
+        branch: 'hotfix/urgent-patch',
+        prNumber: '1305',
+        repo: 'Xchange-Taiwan/X-Talent-Frontend',
+        postComment: false,
+      },
+      {
+        llmPort: mockLlm,
+        contextPort: {
+          getDiff: async () => ({
+            diff: 'diff --git a/src/a.ts b/src/a.ts\n+++ b/src/a.ts\n+const x = 1;',
+            truncated: false,
+          }),
+        },
+      }
+    );
+
+    expect(hotfixRes.releaseFastPath).toBeUndefined();
+    expect(llmCalls).toBeGreaterThan(0);
+
+    llmCalls = 0;
+    const disabledRes = await runAiReviewPipeline(
+      {
+        mode: 'ci',
+        baseRef: 'origin/main',
+        headSha: 'def456',
+        branch: 'develop',
+        prNumber: '1306',
+        repo: 'Xchange-Taiwan/X-Talent-Frontend',
+        disableReleaseFastPath: true,
+        postComment: false,
+      },
+      {
+        llmPort: mockLlm,
+        contextPort: {
+          getDiff: async () => ({
+            diff: 'diff --git a/src/a.ts b/src/a.ts\n+++ b/src/a.ts\n+const x = 1;',
+            truncated: false,
+          }),
+        },
+      }
+    );
+    expect(disabledRes.releaseFastPath).toBeUndefined();
+    expect(llmCalls).toBeGreaterThan(0);
+
+    llmCalls = 0;
+    const forkSpoofRes = await runAiReviewPipeline(
+      {
+        mode: 'ci',
+        baseRef: 'origin/main',
+        headSha: 'def456',
+        branch: 'develop',
+        headRepo: 'external-fork/X-Talent-Frontend',
+        prNumber: '1307',
+        repo: 'Xchange-Taiwan/X-Talent-Frontend',
+        postComment: false,
+      },
+      {
+        llmPort: mockLlm,
+        contextPort: {
+          getDiff: async () => ({
+            diff: 'diff --git a/src/a.ts b/src/a.ts\n+++ b/src/a.ts\n+const x = 1;',
+            truncated: false,
+          }),
+        },
+      }
+    );
+    expect(forkSpoofRes.releaseFastPath).toBeUndefined();
+    expect(llmCalls).toBeGreaterThan(0);
+  });
+});

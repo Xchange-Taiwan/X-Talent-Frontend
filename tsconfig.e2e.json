@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "types.d.ts",
+    "next-env.d.ts",
+    "src/types/**/*.d.ts",
+    "e2e/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
+}

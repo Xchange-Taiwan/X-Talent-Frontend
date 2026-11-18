@@ -18,7 +18,12 @@ import {
 import { useConfirmActionDialog } from '@/hooks/reservation/useConfirmActionDialog';
 import { useProfileLinkClick } from '@/hooks/reservation/useProfileLinkClick';
 import { trackEvent } from '@/lib/analytics';
-import { resolveReservationViewer } from '@/lib/reservation/reservationViewerModel';
+import {
+  isReservationMessagesProjected,
+  isReservationViewerProjected,
+  resolveReservationMessages,
+  resolveReservationViewer,
+} from '@/lib/reservation/reservationProjection';
 import { cn } from '@/lib/utils';
 import { quickReplyFormSchema } from '@/schemas/quickReplySchema';
 import type { Reservation } from '@/types/reservation';
@@ -62,7 +67,14 @@ export default function AcceptReservationDialog({
       },
     });
 
-  const viewer = resolveReservationViewer({ reservation, myUserId });
+  const profileHref = isReservationViewerProjected(reservation, myUserId)
+    ? myUserId
+      ? reservation.profileHref
+      : undefined
+    : resolveReservationViewer({ reservation, myUserId }).profileHref;
+  const menteeMessage = isReservationMessagesProjected(reservation)
+    ? reservation.menteeMessage?.content
+    : resolveReservationMessages(reservation).menteeMessage?.content;
 
   // Close the dialog before following the profile link, matching
   // ConfirmedReservationDialog / QuickReplyDialog's behavior.
@@ -80,8 +92,6 @@ export default function AcceptReservationDialog({
       await onAccept?.({ id: reservation.id, message: trimmedReply });
     });
   };
-
-  const menteeMessage = reservation.menteeMessage?.content;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -105,7 +115,7 @@ export default function AcceptReservationDialog({
 
           <ReservationIdentity
             reservation={reservation}
-            profileHref={viewer.profileHref}
+            profileHref={profileHref}
             onProfileLinkClick={handleProfileLinkClick}
             disabled={isSubmitting || disabled}
             variant="accept"

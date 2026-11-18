@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/nextjs';
 import React from 'react';
 
 import { ReservationListSkeleton } from '@/app/reservation/skeleton';
+import { buildReservationFixture } from '@/lib/reservation/reservationProjection';
 
 import { mockReservations } from './__mocks__/reservations.mock';
 import { ReservationList } from './ReservationList';
@@ -491,5 +492,28 @@ export const HistoryFeedbackDisabled: Story = {
     sourceRole: 'mentee',
     myUserId: 'user-mentee-current',
     feedbackEnabled: false,
+  },
+};
+
+// 18. Pre-Projected History List (#932: counterparty/viewer/message projection resolved ahead of render)
+export const PreProjectedHistoryList: Story = {
+  args: {
+    items: [
+      buildReservationFixture({
+        ...mockReservations[6],
+        id: 'res-projected-completed',
+        viewerRole: 'MENTOR',
+        myUserId: 'user-mentor-current',
+      }),
+      buildReservationFixture({
+        ...mockReservations[8],
+        id: 'res-projected-cancelled-mentee',
+        viewerRole: 'MENTOR',
+        myUserId: 'user-mentor-current',
+      }),
+    ],
+    variant: 'history',
+    sourceRole: 'mentor',
+    myUserId: 'user-mentor-current',
   },
 };

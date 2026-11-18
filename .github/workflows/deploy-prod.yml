@@ -1,23 +1,10 @@
 # ==============================================================================
-# MANUAL ROLLBACK PROCEDURES
-# Since automated rollback is not yet configured, use one of these manual steps
-# if a smoke test fails or production issues arise:
-#
-# Option 1: Vercel Dashboard (Recommended)
-#   1. Navigate to the Vercel Dashboard for this project:
-#      https://vercel.com/xchange-taiwan/x-talent-frontend
-#   2. Go to the "Deployments" tab.
-#   3. Find the last known stable deployment (usually the one before the failed push).
-#   4. Click the three dots (...) menu on that deployment.
-#   5. Select "Promote to Production" and click "Promote".
-#   6. This instantly rolls back the active production traffic to that build.
-#
-# Option 2: Vercel CLI Rollback
-#   1. Run `vercel list` to get the list of recent deployments and their IDs.
-#   2. Find the deployment ID/URL of the last stable build.
-#   3. Deploy it to production using:
-#      vercel alias <stable-deployment-url-or-id> x-talent-frontend.vercel.app
-#      (Note: Substitute your actual production domain if custom domain is used).
+# PRODUCTION DEPLOYMENT & ROLLBACK PROCEDURES
+# Automated rollback is active: before deploying, the workflow records the
+# current active production deployment ID and automatically executes
+# `vercel rollback <prev-id>` if post-deploy boundary verification fails.
+# Manual fallback: promote a stable deployment in the Vercel Dashboard or run
+# `vercel rollback <stable-deployment-id> --yes`.
 # ==============================================================================
 
 name: Deploy to Vercel (Production)
@@ -26,10 +13,36 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - 'e2e/**'
+      - '.github/**'
+      - '.agents/**'
+      - '.gemini/**'
+      - '.husky/**'
+      - '.lavish/**'
+      - '.storybook/**'
+      - '.vscode/**'
+      - 'docs/**'
+      - '**/*.md'
+      - '**/*.test.ts'
+      - '**/*.test.tsx'
+      - '**/*.spec.ts'
+      - '**/*.spec.tsx'
+      - '**/*.stories.ts'
+      - '**/*.stories.tsx'
+      - 'playwright.config.ts'
+      - 'vitest.config.mts'
+      - 'tsconfig.test.json'
   workflow_dispatch:
 
+concurrency:
+  group: deploy-prod-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
 env:
-  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
   VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
 
@@ -43,83 +56,83 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up environment
         uses: ./.github/actions/setup-env
+
+      - name: Cache Next.js build
+        uses: actions/cache@v6
         with:
-          install-deps: 'false'
+          path: .next/cache
+          key: ${{ runner.os }}-vercel-prod-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('src/**', '!src/**/*.test.*', '!src/**/*.spec.*', '!src/**/*.stories.*', 'next.config.js', 'tailwind.config.js', 'postcss.config.js', 'tsconfig.json') }}
+          restore-keys: |
+            ${{ runner.os }}-vercel-prod-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-
+            ${{ runner.os }}-vercel-prod-nextjs-
 
       - name: Install Vercel CLI
         run: npm install --global vercel@51.2.1
 
+      - name: Record current stable production deployment for auto-rollback
+        id: prev_prod
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          PREV_ID=$(curl -fsSL -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}?teamId=${VERCEL_ORG_ID}" \
+            | jq -r '.targets.production.id // empty' || true)
+          echo "deployment_id=${PREV_ID}" >> "$GITHUB_OUTPUT"
+          echo "Recorded previous production deployment ID: ${PREV_ID:-none}"
+
       - name: Pull Vercel environment info
-        run: vercel pull --yes --environment=production --token=${{ env.VERCEL_TOKEN }}
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
 
       - name: Build project
-        run: vercel build --prod --token=${{ env.VERCEL_TOKEN }}
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: xchange-6j
+          SENTRY_PROJECT: x-talent-frontend
+          SENTRY_RELEASE: ${{ github.sha }}
+        run: vercel build --prod --token="$VERCEL_TOKEN"
 
       - name: Deploy to production
         id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          echo "🚀 Deploying to Vercel Production..."
-          out=$(vercel deploy --prebuilt --prod --archive=tgz --token=${{ env.VERCEL_TOKEN }})
+          echo "Deploying to Vercel Production..."
+          out=$(vercel deploy --prebuilt --prod --archive=tgz --token="$VERCEL_TOKEN")
           echo "$out"
-          # Robust URL extraction targeting Vercel-style deployment URLs
-          # Added "|| true" to prevent grep failure from triggering pipefail and crashing the script
           url=$(echo "$out" | grep -oE 'https://[a-zA-Z0-9.-]+\.vercel\.app' | tail -n 1 || true)
           if [ -z "$url" ]; then
             url=$(printf '%s\n' "$out" | tail -n 1 | tr -d '[:space:]')
           fi
-          # Ensure URL starts with https://, but only if it's not empty
           if [ -n "$url" ] && [[ ! "$url" =~ ^https?:// ]]; then
             url="https://$url"
           fi
-          echo "vercel_url=${url}" >> $GITHUB_OUTPUT
+          echo "vercel_url=${url}" >> "$GITHUB_OUTPUT"
 
-      - name: Run Smoke Tests
+      - name: Run Production Domain & Boundary Verification
         id: smoke_test
-        env:
-          DEPLOY_URL: ${{ steps.deploy.outputs.vercel_url }}
         run: |
-          if [ -z "$DEPLOY_URL" ]; then
-            echo "❌ Error: DEPLOY_URL could not be extracted from deployment output."
-            exit 1
-          fi
+          node scripts/verify-deployment-boundaries.mjs \
+            --site-url "https://xtalent.xchange.com.tw" \
+            --env-file ".vercel/.env.production.local" \
+            --static-dir ".vercel/output/static"
 
-          echo "Starting smoke test on: $DEPLOY_URL"
-
-          # List of routes to verify
-          ROUTES=("/" "/auth/signin")
-
-          for ROUTE in "${ROUTES[@]}"; do
-            TARGET_URL="${DEPLOY_URL}${ROUTE}"
-            echo "Testing route: $TARGET_URL"
-            
-            # Perform curl request with max 3 retries, sleep 5 seconds between retries
-            # Added "|| true" to curl so connection or DNS failures don't trigger "set -e" and terminate the workflow prematurely
-            MAX_RETRIES=3
-            RETRY_COUNT=0
-            STATUS=0
-            HTTP_CODE=""
-            
-            while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-              HTTP_CODE=$(curl -L -s -o /dev/null -w "%{http_code}" "$TARGET_URL" || true)
-              echo "Attempt $(($RETRY_COUNT + 1)): HTTP response code is $HTTP_CODE"
-              if [ "$HTTP_CODE" = "200" ]; then
-                STATUS=1
-                break
-              fi
-              RETRY_COUNT=$(($RETRY_COUNT + 1))
-              sleep 5
-            done
-            
-            if [ $STATUS -eq 0 ]; then
-              echo "❌ Smoke test failed for route: $TARGET_URL (HTTP status: $HTTP_CODE)"
-              exit 1
-            else
-              echo "✅ Route $TARGET_URL is healthy"
-            fi
-          done
+      - name: Auto-rollback to previous stable production deployment on failure
+        if: failure() && steps.smoke_test.outcome == 'failure' && steps.prev_prod.outputs.deployment_id != ''
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          PREV_ID: ${{ steps.prev_prod.outputs.deployment_id }}
+        run: |
+          echo "Boundary verification failed; initiating automatic rollback to ${PREV_ID}..."
+          vercel rollback "$PREV_ID" --yes --scope "$VERCEL_ORG_ID" --token="$VERCEL_TOKEN"
 
       - name: Notify on failure
         if: failure() && steps.smoke_test.outcome == 'failure'

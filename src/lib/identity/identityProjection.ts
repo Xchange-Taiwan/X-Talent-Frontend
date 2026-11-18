@@ -1,106 +1,145 @@
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   decode,
-  type MentorExperiencePayload,
+  fromWireExperiences,
+  type PersonalLink,
 } from '@/lib/profile/experienceCodec';
-import type { PersonalLink } from '@/types/types';
 import type { MentorProfileVO } from '@/types/user';
 
 /**
- * The subset of a user's profile that gets projected onto every "who is
- * this user, right now" surface in the app: the header avatar, the account
- * menu, the mentor-status copy, etc. Historically these four fields were
- * derived twice (once for the profile DTO cache, once for the NextAuth
- * session) inside `saveProfile`, with no guarantee the two derivations
- * agreed, and reconciled against backend truth for only two of the four
- * (see `reconcileIdentityWithBackend` below).
+ * The 7 profile-backed `Session['user']` fields projected onto every "who is
+ * this user, right now" surface in the app (Header, account dropdown, share
+ * profile dialog, profile edit guard, etc.).
  *
- * `IDENTITY_FIELD_READERS` below is typed as a mapped type over
- * `keyof IdentityPatch`, so adding a field here without adding a matching
- * reader fails to type-check (`pnpm type-check`) instead of silently
- * shipping an optimistic value that never gets reconciled. See
- * `identityProjection.test.ts` for the guard test.
+ * Both `IDENTITY_FIELD_READERS` and `IDENTITY_FIELD_COMPARATORS` are mapped
+ * types over `keyof TrackedIdentityFields`, so adding a field here without
+ * defining both its DTO reader and its reconciliation comparator fails
+ * `pnpm type-check` at compile time.
  */
-export interface IdentityPatch {
+export interface TrackedIdentityFields {
   name: string;
   avatar: string | null;
   isMentor: boolean;
   onBoarding: boolean;
+  jobTitle: string | undefined;
+  company: string | undefined;
+  personalLinks: PersonalLink[];
 }
 
+export interface IdentitySnapshot extends TrackedIdentityFields {
+  /** Session cache-buster timestamp carried alongside the 7 DTO-backed fields. */
+  avatarUpdatedAt?: number;
+}
+
+export type IdentityPatch = IdentitySnapshot;
+export type OptimisticIdentityProjection = IdentitySnapshot;
+
 type IdentityFieldReaders = {
-  [K in keyof IdentityPatch]: (dto: MentorProfileVO) => IdentityPatch[K];
+  [K in keyof TrackedIdentityFields]: (
+    dto: MentorProfileVO
+  ) => TrackedIdentityFields[K];
 };
+
+type IdentityFieldComparators = {
+  [K in keyof TrackedIdentityFields]: (
+    a: TrackedIdentityFields[K],
+    b: TrackedIdentityFields[K]
+  ) => boolean;
+};
+
+function personalLinksEqual(
+  a: readonly PersonalLink[],
+  b: readonly PersonalLink[]
+): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  return a.every(
+    (link, index) =>
+      link.platform === b[index]?.platform && link.url === b[index]?.url
+  );
+}
 
 const IDENTITY_FIELD_READERS: IdentityFieldReaders = {
   name: (dto) => dto.name ?? '',
   avatar: (dto) => dto.avatar ?? null,
   isMentor: (dto) => Boolean(dto.is_mentor),
   onBoarding: (dto) => Boolean(dto.onboarding),
+  jobTitle: (dto) => dto.job_title || undefined,
+  company: (dto) => dto.company || undefined,
+  personalLinks: (dto) =>
+    decode(fromWireExperiences(dto.experiences)).personalLinks,
 };
 
-const IDENTITY_PATCH_KEYS = Object.keys(IDENTITY_FIELD_READERS) as Array<
-  keyof IdentityPatch
+const IDENTITY_FIELD_COMPARATORS: IdentityFieldComparators = {
+  name: (a, b) => a === b,
+  avatar: (a, b) => a === b,
+  isMentor: (a, b) => a === b,
+  onBoarding: (a, b) => a === b,
+  jobTitle: (a, b) => (a || undefined) === (b || undefined),
+  company: (a, b) => (a || undefined) === (b || undefined),
+  personalLinks: personalLinksEqual,
+};
+
+const TRACKED_IDENTITY_KEYS = Object.keys(IDENTITY_FIELD_READERS) as Array<
+  keyof TrackedIdentityFields
 >;
 
+export interface IdentitySnapshotFromDtoOptions {
+  avatarUpdatedAt?: number;
+}
+
 /**
- * Maps a backend-confirmed profile DTO onto the identity subset. Used both
- * to build the "backend truth" side of a reconciliation diff and (via
- * `identityPatchesEqual`) to decide whether reconciliation needs to write
- * anything at all.
+ * Projects the full 7-field identity snapshot off a backend or cached
+ * `MentorProfileVO`, optionally carrying `avatarUpdatedAt` cache-buster
+ * metadata for session writes.
  */
-export function identityPatchFromDto(dto: MentorProfileVO): IdentityPatch {
-  const patch: Partial<IdentityPatch> = {};
-  for (const key of IDENTITY_PATCH_KEYS) {
-    (patch as Record<keyof IdentityPatch, unknown>)[key] =
+export function identitySnapshotFromDto(
+  dto: MentorProfileVO,
+  options?: IdentitySnapshotFromDtoOptions
+): IdentitySnapshot {
+  const fields: Partial<TrackedIdentityFields> = {};
+  for (const key of TRACKED_IDENTITY_KEYS) {
+    (fields as Record<keyof TrackedIdentityFields, unknown>)[key] =
       IDENTITY_FIELD_READERS[key](dto);
   }
-  return patch as IdentityPatch;
-}
-
-export interface OptimisticIdentityProjection extends IdentityPatch {
-  jobTitle?: string;
-  company?: string;
-  personalLinks?: PersonalLink[];
-}
-
-/**
- * Projects the full optimistic identity (including jobTitle, company, and
- * decoded personalLinks) from a cached MentorProfileVO.
- */
-export function optimisticIdentityFromDto(
-  dto: MentorProfileVO
-): OptimisticIdentityProjection {
-  const basePatch = identityPatchFromDto(dto);
-  const rawExperiences = Array.isArray(dto.experiences)
-    ? (dto.experiences as unknown as MentorExperiencePayload[])
-    : [];
-  const parsedExp = decode(rawExperiences);
   return {
-    ...basePatch,
-    jobTitle: dto.job_title ?? undefined,
-    company: dto.company ?? undefined,
-    personalLinks: parsedExp.personalLinks,
+    ...(fields as TrackedIdentityFields),
+    ...(options?.avatarUpdatedAt !== undefined
+      ? { avatarUpdatedAt: options.avatarUpdatedAt }
+      : {}),
   };
 }
 
+export const identityPatchFromDto = identitySnapshotFromDto;
+export const optimisticIdentityFromDto = identitySnapshotFromDto;
+
 /**
- * Field-by-field comparison over every key `IdentityPatch` currently
- * declares - never a hand-written list of field names, so a field added to
- * the interface is automatically included here too.
+ * Field-by-field comparison over every key `TrackedIdentityFields` declares
+ * (`avatarUpdatedAt` cache-buster metadata is intentionally excluded from
+ * backend DTO equality).
  */
-export function identityPatchesEqual(
-  a: IdentityPatch,
-  b: IdentityPatch
+export function identitySnapshotsEqual(
+  a: IdentitySnapshot,
+  b: IdentitySnapshot
 ): boolean {
-  return IDENTITY_PATCH_KEYS.every((key) => a[key] === b[key]);
+  return TRACKED_IDENTITY_KEYS.every((key) => {
+    const compare = IDENTITY_FIELD_COMPARATORS[key] as (
+      left: TrackedIdentityFields[typeof key],
+      right: TrackedIdentityFields[typeof key]
+    ) => boolean;
+    return compare(a[key], b[key]);
+  });
 }
+
+export const identityPatchesEqual = identitySnapshotsEqual;
 
 export interface DeriveOptimisticIdentityPatchInput {
   /** The name value from the just-submitted form - always trusted as-is. */
   name: string;
   /** The freshly uploaded avatar URL, if any avatar upload happened. */
   avatarUrl: string | undefined;
+  /** Optional cache-buster timestamp for `Session['user']['avatarUpdatedAt']`. */
+  avatarUpdatedAt?: number;
   /**
    * True when this save is the mentor-onboarding flow completing, in which
    * case `isMentor`/`onBoarding` are known to flip to true regardless of
@@ -111,50 +150,58 @@ export interface DeriveOptimisticIdentityPatchInput {
   fallbackAvatar: string | null | undefined;
   fallbackIsMentor: boolean | undefined;
   fallbackOnBoarding: boolean | undefined;
+  jobTitle?: string | undefined;
+  company?: string | undefined;
+  personalLinks?: PersonalLink[];
 }
 
 /**
- * The single derivation of the optimistic identity patch. Called once per
- * `saveProfile` invocation - both the profile DTO cache write and the
- * NextAuth session write apply the same result instead of each recomputing
- * their own guess of "what did this save just change".
+ * Single derivation of the full 7+1 optimistic identity snapshot. Both the
+ * `profileReadModel` write and the NextAuth session write apply the same
+ * snapshot so there is zero drift between projection targets.
  */
-export function deriveOptimisticIdentityPatch(
+export function deriveOptimisticIdentitySnapshot(
   input: DeriveOptimisticIdentityPatchInput
-): IdentityPatch {
+): IdentitySnapshot {
   return {
     name: input.name,
     avatar: input.avatarUrl ?? input.fallbackAvatar ?? null,
+    ...(input.avatarUpdatedAt !== undefined
+      ? { avatarUpdatedAt: input.avatarUpdatedAt }
+      : {}),
     isMentor: input.isMentorOnboarding
       ? true
       : (input.fallbackIsMentor ?? false),
     onBoarding: input.isMentorOnboarding
       ? true
       : (input.fallbackOnBoarding ?? false),
+    jobTitle: input.jobTitle || undefined,
+    company: input.company || undefined,
+    personalLinks: input.personalLinks ? [...input.personalLinks] : [],
   };
 }
 
+export const deriveOptimisticIdentityPatch = deriveOptimisticIdentitySnapshot;
+
 export interface IdentityApplyTargets {
-  /** Writes `patch` into the profile DTO cache, merged with the rest of the DTO. */
-  primeProfileDto: (patch: IdentityPatch) => void;
-  /** Writes `patch` into the NextAuth session, merged with the rest of the session user. */
-  updateSession: (patch: IdentityPatch) => Promise<unknown>;
+  /** Writes `snapshot` into the profile read model, merged with the rest of the DTO. */
+  primeProfileDto: (snapshot: IdentitySnapshot) => void;
+  /** Writes `snapshot` into the NextAuth session. */
+  updateSession: (snapshot: IdentitySnapshot) => Promise<unknown>;
 }
 
 /**
- * Applies an identity patch to both projection targets. The profile DTO
- * cache write is synchronous and always attempted first (matching prior
- * behavior); the session write is awaited but never allowed to fail the
- * caller's flow - a failed session update here is a best-effort background
- * concern, not a reason to block navigation.
+ * Applies an identity snapshot to both projection targets. The profile read
+ * model write is synchronous and always attempted first; the session write is
+ * awaited but never allowed to fail the caller's flow.
  */
 export async function applyIdentityPatch(
-  patch: IdentityPatch,
+  snapshot: IdentitySnapshot,
   targets: IdentityApplyTargets
 ): Promise<void> {
-  targets.primeProfileDto(patch);
+  targets.primeProfileDto(snapshot);
   try {
-    await targets.updateSession(patch);
+    await targets.updateSession(snapshot);
   } catch (e) {
     captureFlowFailure({
       flow: 'profile_update',
@@ -166,26 +213,26 @@ export async function applyIdentityPatch(
 }
 
 export interface IdentityReconcileTargets {
-  updateSession: (patch: IdentityPatch) => Promise<unknown>;
+  updateSession: (snapshot: IdentitySnapshot) => Promise<unknown>;
 }
 
 /**
- * Compares the identity patch that was optimistically applied against the
- * backend-confirmed profile DTO, and - if they disagree on any field -
- * writes the backend's version back through the same `updateSession` path
- * `applyIdentityPatch` used. A no-op when `latest` is unavailable (the
- * optimistic value stands until the next successful sync) or already
- * matches every tracked field.
+ * Compares the identity snapshot that was optimistically applied against the
+ * backend-confirmed profile DTO across all 7 `Session['user']` fields, and -
+ * if they disagree on any field - writes backend `truth` back through
+ * `updateSession` while preserving `avatarUpdatedAt`.
  */
 export async function reconcileIdentityWithBackend(
-  optimistic: IdentityPatch,
+  optimistic: IdentitySnapshot,
   latest: MentorProfileVO | null,
   targets: IdentityReconcileTargets
 ): Promise<void> {
   if (!latest) return;
 
-  const truth = identityPatchFromDto(latest);
-  if (identityPatchesEqual(optimistic, truth)) return;
+  const truth = identitySnapshotFromDto(latest, {
+    avatarUpdatedAt: optimistic.avatarUpdatedAt,
+  });
+  if (identitySnapshotsEqual(optimistic, truth)) return;
 
   try {
     await targets.updateSession(truth);

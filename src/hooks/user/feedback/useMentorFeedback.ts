@@ -8,6 +8,7 @@ import {
   type MentorFeedbackReadKey,
   mentorFeedbackReadModel,
 } from '@/lib/feedback/mentorFeedbackReadModel';
+import { resolveProfileUserId } from '@/lib/profile/userId';
 import { fetchMentorFeedback } from '@/services/profile/feedback';
 import {
   DEFAULT_FEEDBACK_PAGE_SIZE,
@@ -15,7 +16,7 @@ import {
 } from '@/types/feedback';
 
 export interface UseMentorFeedbackOptions {
-  mentorId: number;
+  mentorId: number | string;
   enabled?: boolean;
   pageSize?: number;
 }
@@ -58,24 +59,28 @@ export function useMentorFeedback({
   }
 
   const feedbackEnabled = isFeedbackEnabled();
+  const resolvedMentorId = resolveProfileUserId(mentorId);
   const canFetch = Boolean(
-    feedbackEnabled && enabled && Number.isFinite(mentorId) && mentorId > 0
+    feedbackEnabled && enabled && resolvedMentorId !== null
   );
 
   const activeKey = useMemo<MentorFeedbackReadKey | null>(
-    () => (canFetch ? { mentorId, page: effectivePage, pageSize } : null),
-    [canFetch, mentorId, effectivePage, pageSize]
+    () =>
+      canFetch && resolvedMentorId !== null
+        ? { mentorId: resolvedMentorId, page: effectivePage, pageSize }
+        : null,
+    [canFetch, resolvedMentorId, effectivePage, pageSize]
   );
 
   const fetcher = useCallback(
     (signal: AbortSignal) =>
       fetchMentorFeedback({
-        mentorId,
+        mentorId: resolvedMentorId ?? mentorId,
         page: effectivePage,
         pageSize,
         signal,
       }),
-    [mentorId, effectivePage, pageSize]
+    [resolvedMentorId, mentorId, effectivePage, pageSize]
   );
 
   const {
@@ -85,26 +90,25 @@ export function useMentorFeedback({
     refetch,
   } = useAsyncRead(mentorFeedbackReadModel, activeKey, fetcher);
 
-  const summarySource =
-    data ??
-    (canFetch
-      ? mentorFeedbackReadModel.peek({ mentorId, page: 1, pageSize })
-      : undefined);
+  const view =
+    activeKey !== null
+      ? mentorFeedbackReadModel.resolveView(activeKey, { data, isLoading })
+      : null;
 
   const setPage = useCallback((nextPage: number) => {
     setPageState(Math.max(1, Math.floor(nextPage)));
   }, []);
 
   return {
-    items: data?.items ?? EMPTY_FEEDBACK_ITEMS,
-    totalRatingCount: summarySource?.totalRatingCount ?? null,
-    ratingAverage: summarySource?.ratingAverage ?? null,
-    completedMeetingCount: summarySource?.completedMeetingCount ?? null,
-    page: data?.page ?? effectivePage,
-    pageSize: data?.pageSize ?? pageSize,
+    items: view?.items ?? EMPTY_FEEDBACK_ITEMS,
+    totalRatingCount: view?.totalRatingCount ?? null,
+    ratingAverage: view?.ratingAverage ?? null,
+    completedMeetingCount: view?.completedMeetingCount ?? null,
+    page: view?.page ?? effectivePage,
+    pageSize: view?.pageSize ?? pageSize,
     isLoading: canFetch && isLoading,
-    hasLoaded: canFetch && summarySource !== undefined,
-    isFallbackEmpty: Boolean(summarySource?.isFallbackEmpty),
+    hasLoaded: view?.hasLoaded ?? false,
+    isFallbackEmpty: view?.isFallbackEmpty ?? false,
     error: canFetch && rawError !== null ? MENTOR_FEEDBACK_LOAD_ERROR : null,
     setPage,
     reload: refetch,

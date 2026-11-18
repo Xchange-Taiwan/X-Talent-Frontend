@@ -82,3 +82,17 @@ export function isFeedbackEnabled(): boolean {
     nodeEnv: process.env.NODE_ENV,
   });
 }
+
+/**
+ * Strictly fail-closed gate for account deletion (`NEXT_PUBLIC_CAN_DELETE_ACCOUNT`).
+ * Never delegates to `resolveFeatureFlag` — returns `false` across all environments
+ * (`development`, `test`, `staging`, `preview`, `production`) unless explicitly `'true'`.
+ * Reads `process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT` via literal static dot-property
+ * when `env` is omitted so Next.js inlines client-bundle values cleanly.
+ */
+export function isAccountDeletionEnabled(env?: NodeJS.ProcessEnv): boolean {
+  const rawValue = env
+    ? env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT
+    : process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT;
+  return rawValue?.trim().toLowerCase() === 'true';
+}

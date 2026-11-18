@@ -2,7 +2,10 @@ import { expect, Page, test } from '@playwright/test';
 
 import { captureEvidence } from '../../helpers/evidence';
 import { mockApiRoute } from '../../helpers/route';
-import { seedMockAuthSession } from '../../helpers/session';
+import {
+  seedMockAuthSession,
+  setSignedGoogleOAuthCallbackCookie,
+} from '../../helpers/session';
 
 const USER_ID = '999998';
 
@@ -24,33 +27,15 @@ async function setupLoggedInUser(page: Page): Promise<void> {
 }
 
 /**
- * Intercept the Next.js Server Action POST (`googleCallback`) on
- * `/auth/google/callback/redirect` by letting Next.js produce its native
- * RSC Flight envelope via `route.fetch()` and swapping the action return
- * payload on row `1:` with `mockPayload`.
+ * Seed a signed `__e2e_google_oauth` JWE cookie so the SSR Server Component on
+ * `/auth/google/callback/redirect` returns `mockPayload` deterministically
+ * without calling the upstream BFF.
  */
 async function mockGoogleCallbackServerAction(
   page: Page,
   mockPayload: Record<string, unknown>
 ): Promise<void> {
-  await page.route(/\/auth\/google\/callback\/redirect/, async (route) => {
-    const req = route.request();
-    if (req.method() === 'POST' && req.headers()['next-action']) {
-      const upstream = await route.fetch();
-      const bodyText = await upstream.text();
-      const patchedLines = bodyText
-        .split('\n')
-        .map((line) =>
-          /^1:(?:E)?\{/.test(line) ? `1:${JSON.stringify(mockPayload)}` : line
-        );
-      return route.fulfill({
-        status: 200,
-        headers: upstream.headers(),
-        body: patchedLines.join('\n'),
-      });
-    }
-    return route.continue();
-  });
+  await setSignedGoogleOAuthCallbackCookie(page, mockPayload);
 }
 
 test.describe('UserDropdown (Share Profile & Logout) & Google OAuth Callback E2E (#791)', () => {

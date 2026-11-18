@@ -38,7 +38,7 @@ If the workspace is an `X-Frontend` project (e.g., `X-Talent-Frontend` or simila
      - **Never spawn 7 local sub-agents** for pre-PR review.
      - Perform **1 single-pass check** (`node scripts/ai-review/run-local.mjs` or in-context check), OR run `pnpm cloud:promote` to push the current branch and let the Cloud VM run the 20-round AI Review + Playwright E2E convergence loop and open the PR.
    - **Track B — Cloud VM Session (`cloud-implement.yml` / `pnpm cloud:converge`)**:
-     - Runs `node scripts/cloud-converge-loop.mjs --ticket=<issue-number> --max-rounds=20 --run-e2e=true`, which loops up to **20 rounds** of `pnpm lint`, `pnpm type-check`, `pnpm test`, `pnpm test:e2e:mock --workers=4` (plus any changed E2E specs), and 7-agent parallel `run-local.mjs` (`gemini-4-argon`), automatically fixing any findings or E2E failures before opening the PR.
+     - Runs `node scripts/cloud-converge-loop.mjs --ticket=<issue-number> --max-rounds=20 --run-e2e=true`, which loops up to **20 rounds** of `pnpm lint`, `pnpm type-check`, `pnpm test`, `pnpm test:e2e:mock --workers=4` (plus any changed E2E specs), and 7-agent parallel `run-local.mjs` (`gemini-4-carbon`), automatically fixing any findings or E2E failures before opening the PR.
    - **Automated Handoff Contract**:
      - Once pre-PR verification passes, **immediately transition to Step 4 (`/submit-pr`)** in the exact same turn without stopping or asking the user.
 

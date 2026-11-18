@@ -4,11 +4,7 @@ import { useEffect } from 'react';
 
 import { toast } from '@/components/ui/use-toast';
 import type { UserType } from '@/hooks/user/user-data/useUserData';
-import {
-  clearPendingFavoriteMentor,
-  favoriteMentorsReadModel,
-} from '@/lib/favorites';
-import { isFavoritesEnabled } from '@/lib/featureFlags';
+import { favoriteMentorsReadModel } from '@/lib/favorites';
 import { normalizeMentorFromProfile } from '@/lib/mentor/mentorCardModel';
 
 import { FAVORITE_MENTOR_ERROR_TOAST_MESSAGE } from './useFavoriteMentor';
@@ -29,58 +25,32 @@ export function useConsumePendingFavorite({
   userLoading,
 }: UseConsumePendingFavoriteOptions): void {
   useEffect(() => {
-    if (!isFavoritesEnabled()) {
-      clearPendingFavoriteMentor();
-      return;
-    }
-
-    const normalizedLoginUserId = loginUserId.trim();
-    if (!normalizedLoginUserId || userLoading) {
-      return;
-    }
-
     const pageMentorId = Number(pageUserId);
-    if (!Number.isSafeInteger(pageMentorId) || pageMentorId <= 0) {
-      return;
-    }
-
-    if (normalizedLoginUserId === String(pageMentorId)) {
-      void favoriteMentorsReadModel
-        .replayPendingForPage({
-          userId: normalizedLoginUserId,
-          pageMentorId,
-          mentor: { isMentor: Boolean(userData?.is_mentor) },
-        })
-        .then((outcome) => {
-          if (outcome.status === 'self_blocked') {
-            toast({
-              variant: 'destructive',
-              title: FAVORITE_SELF_BLOCKED_TOAST_MESSAGE,
-            });
-          }
-        });
-      return;
-    }
-
-    if (!userData || userData.user_id !== pageMentorId) {
-      return;
-    }
-
-    const snapshot = userData.is_mentor
-      ? normalizeMentorFromProfile(userData)
-      : undefined;
+    const matchedProfile =
+      !userLoading && userData !== null && userData.user_id === pageMentorId
+        ? userData
+        : null;
 
     void favoriteMentorsReadModel
       .replayPendingForPage({
-        userId: normalizedLoginUserId,
+        userId: userLoading ? '' : loginUserId,
         pageMentorId,
-        mentor: {
-          isMentor: Boolean(userData.is_mentor),
-          snapshot,
-        },
+        mentor: matchedProfile
+          ? {
+              isMentor: Boolean(matchedProfile.is_mentor),
+              snapshot: matchedProfile.is_mentor
+                ? normalizeMentorFromProfile(matchedProfile)
+                : undefined,
+            }
+          : null,
       })
       .then((outcome) => {
-        if (outcome.status === 'failed') {
+        if (outcome.status === 'self_blocked') {
+          toast({
+            variant: 'destructive',
+            title: FAVORITE_SELF_BLOCKED_TOAST_MESSAGE,
+          });
+        } else if (outcome.status === 'failed') {
           toast({
             variant: 'destructive',
             title: FAVORITE_MENTOR_ERROR_TOAST_MESSAGE,

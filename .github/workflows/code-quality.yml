@@ -9,8 +9,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write # 讓 GITHUB_TOKEN 能夠 push（同 repo PR 才用得到）
-  pull-requests: write
+  contents: read
 
 jobs:
   code-quality:
@@ -18,164 +17,79 @@ jobs:
     name: Format and Lint Check
 
     steps:
-      - name: Checkout code (PR head branch)
+      - name: Checkout code
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-          # 重要：檢出 PR 來源的 head 分支，而不是 refs/pull/.../merge（避免 detached HEAD 造成 push 困難）
-          ref: ${{ github.event.pull_request.head.ref }}
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          persist-credentials: false
+
+      - name: Detect changed file categories
+        id: paths
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: node scripts/check-ci-paths.mjs --base "$BASE_REF"
 
       - name: Set up environment
         uses: ./.github/actions/setup-env
+
+      - name: Cache ESLint and TypeScript incremental state
+        uses: actions/cache@v6
         with:
-          frozen-lockfile: 'false'
+          path: |
+            .eslintcache
+            tsconfig.tsbuildinfo
+          key: ${{ runner.os }}-lint-ts-${{ hashFiles('pnpm-lock.yaml', '.eslintrc.js', 'tsconfig.json') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-lint-ts-${{ hashFiles('pnpm-lock.yaml', '.eslintrc.js', 'tsconfig.json') }}-
+            ${{ runner.os }}-lint-ts-
 
       - name: Check Prettier formatting
         id: prettier-check
-        run: |
-          if ! pnpm run format:check; then
-            echo "formatting_needed=true" >> $GITHUB_OUTPUT
-            echo "❌ Code formatting issues detected"
-          else
-            echo "formatting_needed=false" >> $GITHUB_OUTPUT
-            echo "✅ Code is properly formatted"
-          fi
+        run: pnpm run format:check
 
-      - name: Run Prettier (auto-fix)
-        if: steps.prettier-check.outputs.formatting_needed == 'true'
-        run: pnpm run format
-
-      - name: Run ESLint
+      - name: Run ESLint (cached single pass)
         id: eslint-check
-        run: |
-          if ! pnpm run lint; then
-            echo "❌ ESLint errors detected, attempting auto-fix..."
-            pnpm run lint:fix
-            if ! pnpm run lint; then
-              echo "❌ Unfixable ESLint errors remain"
-              echo "lint_failed=true" >> $GITHUB_OUTPUT
-              exit 1
-            else
-              echo "✅ ESLint errors fixed automatically"
-              echo "lint_fixed=true" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "✅ No ESLint errors detected"
-            echo "lint_fixed=false" >> $GITHUB_OUTPUT
-          fi
+        if: steps.paths.outputs.docs_only != 'true'
+        run: pnpm exec eslint . --ext .js,.jsx,.ts,.tsx --cache
 
       - name: TypeScript type check
         id: type-check
-        run: |
-          if ! pnpm run type-check; then
-            echo "type_failed=true" >> $GITHUB_OUTPUT
-            echo "❌ TypeScript type errors detected"
-            exit 1
-          else
-            echo "type_failed=false" >> $GITHUB_OUTPUT
-            echo "✅ No TypeScript errors"
-          fi
+        if: steps.paths.outputs.docs_only != 'true'
+        run: pnpm run type-check
 
       - name: Design token drift check
         id: token-check
-        run: |
-          if ! pnpm run generate:tokens:check; then
-            echo "token_failed=true" >> $GITHUB_OUTPUT
-            echo "❌ Design token drift detected"
-            exit 1
-          else
-            echo "token_failed=false" >> $GITHUB_OUTPUT
-            echo "✅ Design tokens are in sync"
-          fi
+        if: steps.paths.outputs.docs_only != 'true'
+        run: pnpm run generate:tokens:check
 
-      - name: Check for changes
-        id: git-check
-        run: |
-          if git diff --quiet; then
-            echo "changes_made=false" >> $GITHUB_OUTPUT
-            echo "✅ No formatting or linting changes needed"
-          else
-            echo "changes_made=true" >> $GITHUB_OUTPUT
-            echo "📝 Formatting or linting changes detected"
-          fi
+      - name: School directory list drift check
+        id: school-check
+        if: steps.paths.outputs.docs_only != 'true'
+        run: pnpm run generate:schools:check
 
-      - name: Configure Git
-        # 僅在有變更、且 PR 不是 main/master、且 PR 來源與目標在同一個 repo 時才設定（fork 沒權限）
-        if: |
-          steps.git-check.outputs.changes_made == 'true' &&
-          github.ref != 'refs/heads/main' &&
-          github.ref != 'refs/heads/master' &&
-          github.event.pull_request.head.repo.full_name == github.repository
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-
-      - name: Commit and push changes
-        # 關鍵：在 detached HEAD 也能推，用 HEAD:<branch> 明確指定目標分支
-        if: |
-          steps.git-check.outputs.changes_made == 'true' &&
-          github.ref != 'refs/heads/main' &&
-          github.ref != 'refs/heads/master' &&
-          github.event.pull_request.head.repo.full_name == github.repository
-        run: |
-          git add -A
-          git commit -m "🔧 Auto-fix: Format code and fix linting issues
-
-          - Applied Prettier formatting
-          - Fixed auto-fixable ESLint issues" || echo "No changes to commit"
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
-
-      - name: Notify about fork PR (no auto-commit)
-        if: |
-          steps.git-check.outputs.changes_made == 'true' &&
-          github.event.pull_request.head.repo.full_name != github.repository
-        run: |
-          echo "⚠️  This is a forked PR. Auto-commit is disabled for security/permission reasons."
-          echo "Please run 'pnpm run format && pnpm run lint:fix' locally and push the changes."
-
-      - name: Notify about main/master branch
-        if: |
-          steps.git-check.outputs.changes_made == 'true' &&
-          (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        run: |
-          echo "⚠️  Formatting/linting issues detected on main/master branch."
-          echo "Auto-commit is disabled for main/master branches."
-          echo "Please run 'pnpm run format && pnpm run lint:fix' locally and commit the changes."
-          exit 1
+      - name: Verify Storybook static build when stories or Storybook config changed
+        id: storybook-check
+        if: steps.paths.outputs.needs_storybook_build == 'true'
+        run: pnpm run build-storybook --quiet
 
       - name: Summary
         if: always()
+        env:
+          PRETTIER_OUTCOME: ${{ steps.prettier-check.outcome }}
+          ESLINT_OUTCOME: ${{ steps.eslint-check.outcome }}
+          TYPE_OUTCOME: ${{ steps.type-check.outcome }}
+          TOKEN_OUTCOME: ${{ steps.token-check.outcome }}
+          SCHOOL_OUTCOME: ${{ steps.school-check.outcome }}
+          STORYBOOK_OUTCOME: ${{ steps.storybook-check.outcome }}
         run: |
-          echo "## Code Quality Check Summary" >> $GITHUB_STEP_SUMMARY
-          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          if [[ "${{ steps.prettier-check.outputs.formatting_needed }}" == "true" ]]; then
-            echo "| Prettier | 🔧 Fixed |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| Prettier | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
-          fi
-          if [[ "${{ steps.eslint-check.outputs.lint_failed }}" == "true" ]]; then
-            echo "| ESLint | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
-          elif [[ "${{ steps.eslint-check.outputs.lint_fixed }}" == "true" ]]; then
-            echo "| ESLint | 🔧 Fixed |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| ESLint | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
-          fi
-          if [[ "${{ steps.type-check.outputs.type_failed }}" == "true" ]]; then
-            echo "| TypeScript | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| TypeScript | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
-          fi
-          if [[ "${{ steps.git-check.outputs.changes_made }}" == "true" ]]; then
-            if [[ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
-              echo "| Auto-commit | ⚠️ Skipped (fork) |" >> $GITHUB_STEP_SUMMARY
-            elif [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.ref }}" == "refs/heads/master" ]]; then
-              echo "| Auto-commit | ⚠️ Skipped (main/master) |" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "| Auto-commit | ✅ Applied |" >> $GITHUB_STEP_SUMMARY
-            fi
-          else
-            echo "| Auto-commit | ➖ Not needed |" >> $GITHUB_STEP_SUMMARY
-          fi
+          {
+            echo "## Code Quality Check Summary"
+            echo "| Check | Status |"
+            echo "|-------|--------|"
+            echo "| Prettier | ${PRETTIER_OUTCOME} |"
+            echo "| ESLint | ${ESLINT_OUTCOME} |"
+            echo "| TypeScript | ${TYPE_OUTCOME} |"
+            echo "| Design Tokens | ${TOKEN_OUTCOME} |"
+            echo "| School List | ${SCHOOL_OUTCOME} |"
+            echo "| Storybook Build | ${STORYBOOK_OUTCOME} |"
+          } >> "$GITHUB_STEP_SUMMARY"

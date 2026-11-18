@@ -8,6 +8,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -16,9 +19,33 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Detect whether testable files changed
+        id: paths
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: node scripts/check-ci-paths.mjs --base "$BASE_REF"
+
+      - name: Fast-pass pure documentation/asset changes
+        if: steps.paths.outputs.needs_tests != 'true'
+        run: echo "Skipping Vitest suite (no testable source, script, or config changes)."
 
       - name: Set up environment
+        if: steps.paths.outputs.needs_tests == 'true'
         uses: ./.github/actions/setup-env
 
+      - name: Cache Vite transform artifacts
+        if: steps.paths.outputs.needs_tests == 'true'
+        uses: actions/cache@v6
+        with:
+          path: node_modules/.vite
+          key: ${{ runner.os }}-vitest-${{ hashFiles('pnpm-lock.yaml', 'vitest.config.mts', 'tsconfig.test.json') }}
+          restore-keys: |
+            ${{ runner.os }}-vitest-
+
       - name: Run unit & integration tests with coverage
+        if: steps.paths.outputs.needs_tests == 'true'
         run: pnpm test:coverage

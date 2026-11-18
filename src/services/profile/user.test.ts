@@ -142,4 +142,23 @@ describe('fetchUserById service', () => {
     // captureFlowFailure should NOT have been called!
     expect(captureFlowFailure).not.toHaveBeenCalled();
   });
+
+  it('preserves 64-bit string user IDs above Number.MAX_SAFE_INTEGER verbatim in the request URL (#953)', async () => {
+    const mockUser = { user_id: 1, name: 'BigInt Mentor' };
+    vi.mocked(apiClient.getUnwrapped).mockResolvedValueOnce(mockUser);
+
+    const result = await fetchUserById('9999999999999999', 'zh_TW');
+
+    expect(result).toEqual(mockUser);
+    expect(apiClient.getUnwrapped).toHaveBeenCalledWith(
+      '/v1/mentors/9999999999999999/zh_TW/profile',
+      { auth: false, signal: undefined }
+    );
+  });
+
+  it('returns null without calling API when string userId is invalid (#953)', async () => {
+    expect(await fetchUserById('0', 'zh_TW')).toBeNull();
+    expect(await fetchUserById('not-an-id', 'zh_TW')).toBeNull();
+    expect(apiClient.getUnwrapped).not.toHaveBeenCalled();
+  });
 });

@@ -1,38 +1,25 @@
 'use client';
 
-import { useAsyncRead } from '@/hooks/useAsyncRead';
-import { AsyncReadManager } from '@/lib/asyncReadManager';
-import { getCountries } from '@/services/profile/countries';
+import { useMemo } from 'react';
+
+import { getLocations } from '@/lib/profile/locations';
 import type { LocationType } from '@/types/location';
 
-export const LOCATIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
-
-export const locationsReadManager = new AsyncReadManager<
-  string,
-  LocationType[]
->({
-  ttlMs: LOCATIONS_CACHE_TTL_MS,
-});
-
-const EMPTY_LOCATIONS: LocationType[] = [];
-
-interface UseLocationsResult {
+export interface UseLocationsResult {
   locations: LocationType[];
   isLoading: boolean;
   error: string | null;
 }
 
 export default function useLocations(language: string): UseLocationsResult {
-  const { data, isLoading, error } = useAsyncRead(
-    locationsReadManager,
-    language,
-    (signal) => getCountries(language, signal),
-    { ttlMs: LOCATIONS_CACHE_TTL_MS }
-  );
+  const locations = getLocations(language);
 
-  return {
-    locations: data ?? EMPTY_LOCATIONS,
-    isLoading,
-    error: error ? 'Failed to load location options' : null,
-  };
+  return useMemo(
+    () => ({
+      locations,
+      isLoading: false,
+      error: null,
+    }),
+    [locations]
+  );
 }

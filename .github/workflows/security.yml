@@ -12,9 +12,40 @@ concurrency:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
+  secret-scan:
+    runs-on: ubuntu-latest
+    name: Secret Scan (Gitleaks)
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install SHA256-verified Gitleaks CLI and scan commit range
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          GITLEAKS_VER="8.24.2"
+          GITLEAKS_SHA256="fa0500f6b7e41d28791ebc680f5dd9899cd42b58629218a5f041efa899151a8e"
+          TMP_DIR="$(mktemp -d)"
+          curl -fsSL --retry 3 "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VER}/gitleaks_${GITLEAKS_VER}_linux_x64.tar.gz" -o "${TMP_DIR}/gitleaks.tar.gz"
+          echo "${GITLEAKS_SHA256}  ${TMP_DIR}/gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf "${TMP_DIR}/gitleaks.tar.gz" -C "${TMP_DIR}" gitleaks
+          if [[ "$EVENT_NAME" == "pull_request" && -n "$BASE_SHA" && -n "$HEAD_SHA" ]]; then
+            "${TMP_DIR}/gitleaks" git --redact --no-banner --log-opts="${BASE_SHA}..${HEAD_SHA}" .
+          else
+            "${TMP_DIR}/gitleaks" git --redact --no-banner --log-opts="-n 20" .
+          fi
+          rm -rf "$TMP_DIR"
+
   security:
     runs-on: ubuntu-latest
     name: Security Audit & Unused Dependencies
@@ -22,119 +53,88 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up environment
         uses: ./.github/actions/setup-env
 
-      - name: Security audit (fail on critical only)
+      - name: Scan tracked repository files for credential patterns
+        run: node scripts/check-staged-secrets.mjs --all-tracked
+
+      - name: Security audit (fail-closed on critical and unwaived high advisories)
         id: audit
-        run: |
-          # pnpm audit exits 1 for ANY vulnerability regardless of --audit-level.
-          # Parse JSON to check critical count only — known high advisories in
-          # next@14 require a Next.js 15 migration and are tracked separately.
-          pnpm audit --json > audit-output.json 2>&1 || true
-
-          CRITICAL=$(python3 -c "
-          import json, sys
-          try:
-              d = json.load(open('audit-output.json'))
-              v = d.get('metadata', {}).get('vulnerabilities', {})
-              print(v.get('critical', 0))
-          except Exception:
-              print(0)
-          ")
-
-          HIGH=$(python3 -c "
-          import json, sys
-          try:
-              d = json.load(open('audit-output.json'))
-              v = d.get('metadata', {}).get('vulnerabilities', {})
-              print(v.get('high', 0))
-          except Exception:
-              print(0)
-          ")
-
-          TOTAL=$(python3 -c "
-          import json, sys
-          try:
-              d = json.load(open('audit-output.json'))
-              v = d.get('metadata', {}).get('vulnerabilities', {})
-              print(v.get('total', 0))
-          except Exception:
-              print(0)
-          ")
-
-          echo "critical=${CRITICAL}" >> $GITHUB_OUTPUT
-          echo "high=${HIGH}" >> $GITHUB_OUTPUT
-          echo "total=${TOTAL}" >> $GITHUB_OUTPUT
-
-          if [ "$CRITICAL" -gt 0 ]; then
-            echo "result=failed" >> $GITHUB_OUTPUT
-            echo "❌ Critical vulnerabilities detected: ${CRITICAL}"
-          else
-            echo "result=passed" >> $GITHUB_OUTPUT
-            echo "✅ No critical vulnerabilities (high: ${HIGH}, total: ${TOTAL})"
-          fi
+        continue-on-error: true
+        run: node scripts/check-security-audit.mjs
 
       - name: Check unused dependencies
         id: depcheck
         run: |
           output=$(npx depcheck \
-            --ignores="@types/*,eslint-*,prettier-*,postcss,tailwindcss,@tailwindcss/postcss,husky,lint-staged,tailwindcss-animate,sharp,@playwright/test,@testing-library/user-event,openapi-typescript,@google/gemini-cli,@storybook/addon-a11y,@storybook/addon-docs,@storybook/addon-onboarding,storybook,cross-env,lavish-axi" \
+            --ignores="@types/*,eslint-*,prettier-*,postcss,tailwindcss,@tailwindcss/postcss,husky,lint-staged,tailwindcss-animate,sharp,@playwright/test,@testing-library/user-event,openapi-typescript,@google/gemini-cli,@storybook/addon-a11y,@storybook/addon-docs,@storybook/addon-onboarding,storybook,cross-env,lavish-axi,vite,jsdom" \
             2>&1) || true
-          echo "$output"
-          if echo "$output" | grep -qE "^Unused (dependencies|devDependencies)"; then
-            echo "unused_found=true" >> $GITHUB_OUTPUT
+          printf '%s\n' "$output"
+          if printf '%s\n' "$output" | grep -qE "^Unused (dependencies|devDependencies)"; then
+            echo "unused_found=true" >> "$GITHUB_OUTPUT"
+            DELIM="EOF_$(openssl rand -hex 16)"
             {
-              echo "unused_list<<EOF"
-              echo "$output" | grep -A 999 "Unused"
-              echo "EOF"
-            } >> $GITHUB_OUTPUT
+              echo "unused_list<<${DELIM}"
+              printf '%s\n' "$output" | grep -A 999 "Unused"
+              echo "${DELIM}"
+            } >> "$GITHUB_OUTPUT"
           else
-            echo "unused_found=false" >> $GITHUB_OUTPUT
+            echo "unused_found=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Summary
         if: always()
+        env:
+          AUDIT_RESULT: ${{ steps.audit.outputs.result }}
+          AUDIT_CRITICAL: ${{ steps.audit.outputs.critical }}
+          AUDIT_BLOCKING_HIGH: ${{ steps.audit.outputs.blocking_high }}
+          AUDIT_WAIVED_HIGH: ${{ steps.audit.outputs.waived_high }}
+          AUDIT_TOTAL: ${{ steps.audit.outputs.total }}
+          UNUSED_FOUND: ${{ steps.depcheck.outputs.unused_found }}
+          UNUSED_LIST: ${{ steps.depcheck.outputs.unused_list }}
         run: |
           {
-            echo "## 🔒 Security & Dependency Check"
+            echo "## Security & Dependency Check"
             echo ""
             echo "| Check | Status |"
             echo "|-------|--------|"
-            if [[ "${{ steps.audit.outputs.result }}" == "failed" ]]; then
-              echo "| pnpm audit | ❌ Critical vulnerabilities found (${{ steps.audit.outputs.critical }}) |"
-            elif [[ "${{ steps.audit.outputs.high }}" -gt 0 ]]; then
-              echo "| pnpm audit | ⚠️ No critical, but ${{ steps.audit.outputs.high }} high (total: ${{ steps.audit.outputs.total }}) |"
+            if [[ "$AUDIT_RESULT" != "passed" ]]; then
+              echo "| pnpm audit | Failed (critical: ${AUDIT_CRITICAL:-0}, blocking high: ${AUDIT_BLOCKING_HIGH:-0}) |"
             else
-              echo "| pnpm audit | ✅ No critical or high vulnerabilities (total: ${{ steps.audit.outputs.total }}) |"
+              echo "| pnpm audit | Passed (critical: 0, blocking high: 0, waived upstream high: ${AUDIT_WAIVED_HIGH:-0}, total: ${AUDIT_TOTAL:-0}) |"
             fi
-            if [[ "${{ steps.depcheck.outputs.unused_found }}" == "true" ]]; then
-              echo "| Unused Dependencies | ❌ Found (see details below) |"
+            if [[ "$UNUSED_FOUND" == "true" ]]; then
+              echo "| Unused Dependencies | Found (see details below) |"
             else
-              echo "| Unused Dependencies | ✅ None detected |"
+              echo "| Unused Dependencies | None detected |"
             fi
-            if [[ "${{ steps.depcheck.outputs.unused_found }}" == "true" ]]; then
+            if [[ "$UNUSED_FOUND" == "true" ]]; then
               echo ""
-              echo "### ⚠️ Unused Dependencies (informational — may include false positives)"
+              echo "### Unused Dependencies"
               echo '```'
-              echo "${{ steps.depcheck.outputs.unused_list }}"
+              printf '%s\n' "$UNUSED_LIST"
               echo '```'
             fi
-          } >> $GITHUB_STEP_SUMMARY
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Fail on critical vulnerabilities
-        if: steps.audit.outputs.result == 'failed'
+      - name: Fail on blocking vulnerabilities
+        if: steps.audit.outputs.result != 'passed'
         run: |
-          echo "❌ Build failed: critical vulnerabilities must be resolved before merging."
+          echo "Build failed: blocking security vulnerabilities or malformed audit output detected."
           exit 1
 
       - name: Fail on unused dependencies
         if: steps.depcheck.outputs.unused_found == 'true'
+        env:
+          UNUSED_LIST: ${{ steps.depcheck.outputs.unused_list }}
         run: |
-          echo "❌ Unused dependencies detected:"
+          echo "Unused dependencies detected:"
           echo ""
-          echo "${{ steps.depcheck.outputs.unused_list }}"
+          printf '%s\n' "$UNUSED_LIST"
           echo ""
-          echo "→ Remove them from package.json, or add to the --ignores list in security.yml if they are config-only deps."
+          echo "Remove them from package.json, or add to the --ignores list in security.yml if they are config-only deps."
           exit 1

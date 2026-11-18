@@ -584,6 +584,122 @@ export async function runAiReviewPipeline(
       };
     }
 
+    const cleanBaseBranch = String(baseRef || '')
+      .replace(/^refs\/heads\//, '')
+      .replace(/^origin\//, '')
+      .trim();
+    const cleanHeadBranch = String(branch || '')
+      .replace(/^refs\/heads\//, '')
+      .replace(/^origin\//, '')
+      .trim();
+    const cleanRepo = String(repo || '').trim();
+    const cleanHeadRepo = String(input.headRepo || '').trim();
+    const isTrustedSameRepo =
+      mode !== 'ci' ||
+      (Boolean(cleanRepo) &&
+        Boolean(cleanHeadRepo) &&
+        cleanHeadRepo.toLowerCase() === cleanRepo.toLowerCase());
+    const isReleasePromotionPr =
+      !input.disableReleaseFastPath &&
+      isTrustedSameRepo &&
+      cleanBaseBranch === 'main' &&
+      cleanHeadBranch === 'develop';
+
+    if (isReleasePromotionPr) {
+      const touchedFiles = [
+        ...new Set(
+          [...safeDiff.matchAll(/^diff --git a\/(.+?) b\/(.+)$/gm)].map(
+            (m) => m[2]
+          )
+        ),
+      ];
+      const infraDelta = touchedFiles.filter((f) =>
+        /^(?:\.github\/|next\.config\.|src\/middleware\.ts|package\.json)/.test(
+          f
+        )
+      );
+      const cleanStage = {
+        hasFindings: false,
+        summary:
+          '發版彙整分支（develop -> main）內之業務變更已於各功能 PR 完成審查',
+        findings: [],
+      };
+      const releaseSummary = {
+        requirementCoverage: [
+          {
+            criterion: `發版分支合併摘要（共 ${touchedFiles.length} 個檔案異動）`,
+            covered: true,
+            note:
+              infraDelta.length > 0
+                ? `含基礎建設／設定異動：${infraDelta.slice(0, 8).join(', ')}`
+                : '純功能與修正累積發版，無額外基礎建設高風險異動',
+          },
+        ],
+        overallRisk: {
+          level: 'low',
+          reason: `Release promotion fast-path (develop -> main, ${touchedFiles.length} file(s) promoted).`,
+        },
+        mergeRecommendation: '可依標準發版雙軌驗收流程推進合併',
+      };
+      let comment = '';
+      if (mode === 'ci' || input.formatPrComment) {
+        comment = formatComment({
+          plan: {
+            ticketFound: false,
+            ticketNumber: null,
+            requirementSummary: `發版彙整 PR（develop -> main）：共推進 ${touchedFiles.length} 個已通過單票審查之檔案。`,
+            acceptanceCriteria: [],
+            outOfRepoCriteria: [],
+            filesTouched: touchedFiles,
+            riskAreas: infraDelta,
+          },
+          reviewGuide: includeReviewGuide
+            ? {
+                overview:
+                  infraDelta.length > 0
+                    ? `本次發版包含 ${infraDelta.length} 個設定／工作流檔案異動，建議發版前快速巡檢環境變數與 Feature Flags。`
+                    : '本次發版檔案均已於 develop 各功能 PR 完成多維度審查。',
+                readingOrder: infraDelta.slice(0, 10).map((file, idx) => ({
+                  order: idx + 1,
+                  file,
+                  why: '發版相關設定或工作流變更',
+                })),
+              }
+            : undefined,
+          security: cleanStage,
+          correctness: cleanStage,
+          businessLogic: cleanStage,
+          visualParity: undefined,
+          performance: cleanStage,
+          testing: cleanStage,
+          architecture: cleanStage,
+          summary: releaseSummary,
+          headSha,
+        });
+        if (
+          shouldPostComment &&
+          typeof activeContextPort.postPrComment === 'function'
+        ) {
+          await activeContextPort.postPrComment({
+            comment,
+            headSha,
+            prNumber,
+            repo,
+          });
+        }
+      }
+      return {
+        mode: mode === 'ci' ? 'gemini-ci' : 'gemini-local',
+        releaseFastPath: true,
+        exitCode: 0,
+        overallRisk: releaseSummary.overallRisk,
+        mergeRecommendation: releaseSummary.mergeRecommendation,
+        requirementCoverage: releaseSummary.requirementCoverage,
+        findings: emptyFindingsRecord(),
+        comment,
+      };
+    }
+
     // Single-flight memoized issue + paginated comments loader
     const issueLoader =
       activeContextPort.loadIssueContext ||

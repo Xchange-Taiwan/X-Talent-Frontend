@@ -1,7 +1,10 @@
+import { usePathname } from 'next/navigation';
+import { SessionContext } from 'next-auth/react';
 import * as React from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
 import { useIsomorphicLayoutEffect } from '@/hooks/useIsomorphicLayoutEffect';
+import { ONBOARDING_HREF } from '@/lib/routes';
 import {
   createFixtureNotificationSource,
   type NotificationSource,
@@ -17,6 +20,7 @@ export type { NotificationItem };
 
 export type UseNotificationCenterProps = {
   userId?: string;
+  enabled?: boolean;
   initialStatus?: NotificationStatus;
   initialNotifications?: NotificationItem[];
   notificationSource?: NotificationSource;
@@ -24,6 +28,7 @@ export type UseNotificationCenterProps = {
 
 export function useNotificationCenter({
   userId,
+  enabled = true,
   initialStatus = 'success',
   initialNotifications,
   notificationSource,
@@ -48,43 +53,61 @@ export function useNotificationCenter({
     return undefined;
   }, [notificationSource, initialNotifications]);
 
-  const [serverSnapshot] = React.useState(() =>
-    createInitialState(userId, initialNotifications, initialStatus)
+  const sessionContext = React.useContext(SessionContext);
+  const pathname = usePathname();
+  const isIncompleteOnboarding =
+    sessionContext?.status === 'authenticated' &&
+    sessionContext.data?.user?.onBoarding === false;
+  const isOnboardingRoute = Boolean(
+    pathname &&
+    (pathname === ONBOARDING_HREF || pathname.startsWith(`${ONBOARDING_HREF}/`))
+  );
+  const effectiveUserId =
+    !enabled ||
+    (explicitSource === undefined &&
+      (isIncompleteOnboarding || isOnboardingRoute))
+      ? undefined
+      : userId;
+
+  const serverSnapshot = React.useMemo(
+    () =>
+      createInitialState(effectiveUserId, initialNotifications, initialStatus),
+    [effectiveUserId, initialNotifications, initialStatus]
   );
 
   const storeState = React.useSyncExternalStore(
     React.useCallback(
       (callback) => {
         const unsubscribe = notificationStoreManager.subscribe(
-          userId,
+          effectiveUserId,
           callback
         );
         return () => {
-          notificationStoreManager.closePanel(userId, instanceId);
+          notificationStoreManager.closePanel(effectiveUserId, instanceId);
           unsubscribe();
         };
       },
-      [userId, instanceId]
+      [effectiveUserId, instanceId]
     ),
     React.useCallback(
       () =>
         notificationStoreManager.getOrCreateState(
-          userId,
+          effectiveUserId,
           initialNotifications,
           initialStatus
         ),
-      [userId, initialNotifications, initialStatus]
+      [effectiveUserId, initialNotifications, initialStatus]
     ),
     React.useCallback(() => serverSnapshot, [serverSnapshot])
   );
 
   useIsomorphicLayoutEffect(() => {
-    notificationStoreManager.configure(userId, {
+    notificationStoreManager.configure(effectiveUserId, {
       source: explicitSource,
       initialNotifications,
       initialStatus,
     });
-  }, [userId, explicitSource, initialNotifications, initialStatus]);
+  }, [effectiveUserId, explicitSource, initialNotifications, initialStatus]);
 
   React.useEffect(() => {
     setIsMounted(true);
@@ -102,7 +125,10 @@ export function useNotificationCenter({
 
   const loadMore = React.useCallback(
     async (isRetry = false) => {
-      const result = await notificationStoreManager.loadMore(userId, isRetry);
+      const result = await notificationStoreManager.loadMore(
+        effectiveUserId,
+        isRetry
+      );
       if (result.status === 'failed') {
         console.error('[useNotificationCenter] loadMore failed:', result.error);
         toast({
@@ -112,13 +138,13 @@ export function useNotificationCenter({
         });
       }
     },
-    [userId, toast]
+    [effectiveUserId, toast]
   );
 
   const openCenter = React.useCallback(() => {
     setOpen(true);
     void notificationStoreManager
-      .openPanel(userId, instanceId)
+      .openPanel(effectiveUserId, instanceId)
       .then((result) => {
         if (result.status === 'failed' && result.hadCachedNotifications) {
           toast({
@@ -128,12 +154,12 @@ export function useNotificationCenter({
           });
         }
       });
-  }, [userId, instanceId, toast]);
+  }, [effectiveUserId, instanceId, toast]);
 
   const closeCenter = React.useCallback(() => {
     setOpen(false);
-    notificationStoreManager.closePanel(userId, instanceId);
-  }, [userId, instanceId]);
+    notificationStoreManager.closePanel(effectiveUserId, instanceId);
+  }, [effectiveUserId, instanceId]);
 
   const onOpenChange = React.useCallback(
     (nextOpen: boolean) => {
@@ -148,7 +174,10 @@ export function useNotificationCenter({
 
   const markRead = React.useCallback(
     async (id: string) => {
-      const result = await notificationStoreManager.markRead(userId, id);
+      const result = await notificationStoreManager.markRead(
+        effectiveUserId,
+        id
+      );
       if (result.status === 'failed') {
         toast({
           variant: 'destructive',
@@ -157,11 +186,11 @@ export function useNotificationCenter({
         });
       }
     },
-    [userId, toast]
+    [effectiveUserId, toast]
   );
 
   const markAllReadAction = React.useCallback(async () => {
-    const result = await notificationStoreManager.markAllRead(userId);
+    const result = await notificationStoreManager.markAllRead(effectiveUserId);
     if (result.status === 'failed') {
       toast({
         variant: 'destructive',
@@ -169,11 +198,11 @@ export function useNotificationCenter({
         description: '無法將全部通知標示為已讀，請稍後再試',
       });
     }
-  }, [userId, toast]);
+  }, [effectiveUserId, toast]);
 
   const handleRetry = React.useCallback(() => {
-    void notificationStoreManager.retry(userId);
-  }, [userId]);
+    void notificationStoreManager.retry(effectiveUserId);
+  }, [effectiveUserId]);
 
   const showBadge = isMounted && badgeCount > storeState.seenUnreadCount;
   const formattedCount = badgeCount > 99 ? '99+' : String(badgeCount);

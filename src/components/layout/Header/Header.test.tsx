@@ -59,6 +59,10 @@ vi.mock('@/hooks/user/auth/useResolvedIdentity', () => ({
   useResolvedIdentity: () => mockUseResolvedIdentity(),
 }));
 
+import {
+  clearSessionHint,
+  type ResolvedIdentity,
+} from '@/lib/auth/sessionHint';
 import { createInMemoryNotificationSource } from '@/services/notifications/notificationSource';
 import {
   notificationStoreManager,
@@ -73,6 +77,7 @@ import {
 import { mockSession, mockUseSession } from '@/test/mocks/nextAuth';
 
 import { Header } from './Header';
+import * as HeaderStories from './Header.stories';
 
 const AUTHENTICATED_MATCHING_IDENTITY = authenticatedIdentity('user-123');
 
@@ -120,6 +125,7 @@ describe('Header', () => {
   });
 
   afterEach(() => {
+    clearSessionHint();
     process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT = originalDeleteEnv;
     vi.unstubAllGlobals();
   });
@@ -413,30 +419,168 @@ describe('Header', () => {
     expect(trackEvent).toHaveBeenCalledWith({ name: 'feedback_open' });
   });
 
-  it('renders pre-hydration avatar and mobile NotificationBell skeleton placeholders with AuthHintGate toggles', () => {
+  it('gates mobile and desktop pre-hydration Skeleton on unhinted and --auth-avatar on mentee/mentor so placeholders never render side-by-side', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
 
-    render(<Header />);
+    const { rerender } = render(<Header />);
 
-    const placeholders = document.querySelectorAll(
-      '.size-8.rounded-full[class~="bg-[image:var(--auth-avatar)]"]'
-    );
-    expect(placeholders).toHaveLength(2);
-    expect(placeholders[0]).toHaveClass(
-      'hidden group-data-[auth-state=mentee]/auth-state:block group-data-[auth-state=mentor]/auth-state:block'
-    );
-    expect(placeholders[1]).toHaveClass(
-      'hidden group-data-[auth-state=mentee]/auth-state:block group-data-[auth-state=mentor]/auth-state:block'
-    );
-
+    const desktopContainer = screen.getByTestId('desktop-header-right');
     const mobileContainer = screen.getByTestId('mobile-header-right');
-    const skeleton = mobileContainer.querySelector('.size-9.rounded-full');
-    expect(skeleton).toBeInTheDocument();
-    expect(skeleton).toHaveClass(
-      'hidden',
-      'group-data-[auth-state=mentee]/auth-state:block',
+
+    for (const container of [desktopContainer, mobileContainer]) {
+      const avatarPlaceholder = container.querySelector(
+        '.size-8.rounded-full[class~="bg-[image:var(--auth-avatar)]"]'
+      );
+      expect(avatarPlaceholder).toBeInTheDocument();
+      expect(avatarPlaceholder).toHaveClass(
+        'hidden',
+        'group-data-[auth-state=mentee]/auth-state:block',
+        'group-data-[auth-state=mentor]/auth-state:block'
+      );
+    }
+
+    const desktopSkeletonWrapper = desktopContainer
+      .querySelector('.size-9.rounded-full')
+      ?.closest('[class*="group-data-[auth-state="]');
+    expect(desktopSkeletonWrapper).toHaveClass(
+      'group-data-[auth-state=guest]/auth-state:hidden',
+      'group-data-[auth-state=mentee]/auth-state:hidden',
+      'group-data-[auth-state=mentor]/auth-state:hidden'
+    );
+
+    const mobileSkeleton = mobileContainer.querySelector(
+      '.size-9.rounded-full'
+    );
+    expect(mobileSkeleton).toBeInTheDocument();
+    const mobileSkeletonGate = mobileSkeleton?.closest(
+      '[class*="group-data-[auth-state="]'
+    );
+    expect(mobileSkeletonGate).toHaveClass(
+      'group-data-[auth-state=guest]/auth-state:hidden',
+      'group-data-[auth-state=mentee]/auth-state:hidden',
+      'group-data-[auth-state=mentor]/auth-state:hidden'
+    );
+    expect(mobileSkeleton).not.toHaveClass(
+      'group-data-[auth-state=mentee]/auth-state:block'
+    );
+    expect(mobileSkeleton).not.toHaveClass(
       'group-data-[auth-state=mentor]/auth-state:block'
     );
+
+    // Once identity leaves 'unknown', both pre-hydration placeholders unmount
+    mockUseResolvedIdentity.mockReturnValue(
+      buildResolvedIdentity({ state: 'hint-only', isMentor: false })
+    );
+    rerender(<Header />);
+    expect(
+      mobileContainer.querySelector('.size-9.rounded-full')
+    ).not.toBeInTheDocument();
+    expect(
+      mobileContainer.querySelector(
+        '.size-8.rounded-full[class~="bg-[image:var(--auth-avatar)]"]'
+      )
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps identity.state === "unknown" in MobilePreHydrationHintState story and displays --auth-avatar without showing the mobile Skeleton alongside it', async () => {
+    const actualIdentityModule = await vi.importActual<
+      typeof import('@/hooks/user/auth/useResolvedIdentity')
+    >('@/hooks/user/auth/useResolvedIdentity');
+
+    const story = HeaderStories.MobilePreHydrationHintState;
+    expect(story.parameters?.viewport).toEqual({ defaultViewport: 'mobile1' });
+    expect(story.parameters?.auth).toEqual({
+      status: 'loading',
+      session: null,
+      sessionHint: undefined,
+    });
+
+    // Simulate withAppContext cookie & session sync when story.parameters.auth.sessionHint is undefined
+    document.cookie = 'session-hint=1|stale-mentor; path=/; max-age=3600';
+    const authParams = story.parameters?.auth;
+    if (authParams?.sessionHint !== undefined) {
+      document.cookie = `session-hint=${authParams.sessionHint}; path=/; max-age=3600`;
+    } else {
+      document.cookie = 'session-hint=; path=/; max-age=0';
+    }
+    mockUseSession.mockReturnValue({
+      data: authParams?.session ?? null,
+      status: authParams?.status ?? 'unauthenticated',
+    });
+
+    let latestIdentity: ResolvedIdentity | undefined;
+    mockUseResolvedIdentity.mockImplementation(() => {
+      latestIdentity = actualIdentityModule.useResolvedIdentity();
+      return latestIdentity;
+    });
+
+    const decorators = Array.isArray(story.decorators)
+      ? story.decorators
+      : story.decorators
+        ? [story.decorators]
+        : [];
+    const storyDecorator = decorators[0];
+    expect(storyDecorator).toBeDefined();
+
+    const { container } = render(
+      storyDecorator!(() => <Header />, {} as never)
+    );
+
+    expect(latestIdentity?.state).toBe('unknown');
+
+    const storyFrame = container.querySelector('.group\\/auth-state');
+    expect(storyFrame).toBeInTheDocument();
+    expect(storyFrame).toHaveAttribute('data-auth-state', 'mentee');
+    expect(storyFrame).toHaveClass(
+      'min-h-[70px]',
+      'max-w-[390px]',
+      '[transform:translateZ(0)]'
+    );
+    expect(
+      (storyFrame as HTMLElement).style.getPropertyValue('--auth-avatar')
+    ).toContain('url("https://');
+
+    const mobileContainer = screen.getByTestId('mobile-header-right');
+    const avatarPlaceholder = mobileContainer.querySelector(
+      '.size-8.rounded-full[class~="bg-[image:var(--auth-avatar)]"]'
+    );
+    expect(avatarPlaceholder).toBeInTheDocument();
+    expect(avatarPlaceholder).toHaveClass(
+      'hidden',
+      'group-data-[auth-state=mentee]/auth-state:block'
+    );
+
+    // Inject minimal Tailwind group-data CSS rules into jsdom to verify real computed visibility:
+    // under data-auth-state="mentee", --auth-avatar displays (block) while Skeleton's gate is hidden (none)
+    const styleEl = document.createElement('style');
+    styleEl.textContent = `
+      .hidden { display: none; }
+      .group\\/auth-state[data-auth-state="mentee"] .group-data-\\[auth-state\\=mentee\\]\\/auth-state\\:block { display: block; }
+      .group\\/auth-state[data-auth-state="mentee"] .group-data-\\[auth-state\\=mentee\\]\\/auth-state\\:hidden { display: none; }
+    `;
+    document.head.appendChild(styleEl);
+
+    try {
+      expect(window.getComputedStyle(avatarPlaceholder!).display).toBe('block');
+
+      const mobileSkeleton = mobileContainer.querySelector(
+        '.size-9.rounded-full'
+      );
+      const mobileSkeletonGate = mobileSkeleton?.parentElement;
+      expect(mobileSkeletonGate).toHaveClass(
+        'group-data-[auth-state=mentee]/auth-state:hidden'
+      );
+      expect(window.getComputedStyle(mobileSkeletonGate!).display).toBe('none');
+
+      expect(
+        within(mobileContainer).queryByRole('button', { name: '開啟通知選單' })
+      ).not.toBeInTheDocument();
+      expect(
+        within(mobileContainer).queryByRole('button', { name: '開啟用戶選單' })
+      ).not.toBeInTheDocument();
+    } finally {
+      styleEl.remove();
+    }
   });
 
   it('renders NotificationBell on both desktop and mobile when logged in, bootstraps once, and closes on user menu click', async () => {

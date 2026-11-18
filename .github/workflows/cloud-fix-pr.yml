@@ -114,11 +114,19 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
 
-      - name: 'Check out PR #${{ inputs.pr_number }}'
+      - name: 'Verify PR is from same repository and check out PR'
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ env.SAFE_PR_NUMBER }}
+          EXPECTED_REPO: ${{ github.repository }}
         run: |
+          PR_META=$(gh api "repos/${EXPECTED_REPO}/pulls/${PR_NUMBER}" --jq '{fork: .head.repo.fork, fullName: .head.repo.full_name}')
+          IS_FORK=$(printf '%s' "$PR_META" | jq -r '.fork')
+          HEAD_REPO=$(printf '%s' "$PR_META" | jq -r '.fullName')
+          if [ "$IS_FORK" != "false" ] || [ "$HEAD_REPO" != "$EXPECTED_REPO" ]; then
+            echo "::error::Refusing to check out untrusted cross-repository fork PR #${PR_NUMBER} (${HEAD_REPO})."
+            exit 1
+          fi
           gh pr checkout "$PR_NUMBER"
           git config user.name "x-talent-cloud-agent[bot]"
           git config user.email "x-talent-cloud-agent[bot]@users.noreply.github.com"
@@ -134,28 +142,12 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
 
-      - name: Cache Playwright browsers (Suggestion 6)
-        id: playwright-cache
-        uses: actions/cache@v4
+      - name: Set up cached Playwright Chromium and Noto CJK fonts
+        uses: ./.github/actions/setup-playwright
         with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            playwright-${{ runner.os }}-
-
-      - name: Install Playwright Chromium
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm playwright install chromium
-
-      - name: Install Noto CJK fonts for crisp Traditional Chinese rendering
-        continue-on-error: true
-        run: |
-          mkdir -p ~/.local/share/fonts
-          curl -fsSL --retry 3 "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf" -o ~/.local/share/fonts/NotoSansTC.ttf || true
-          curl -fsSL --retry 3 "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/TraditionalChinese/NotoSansCJKtc-Regular.otf" -o ~/.local/share/fonts/NotoSansCJKtc-Regular.otf || true
-          fc-cache -f ~/.local/share/fonts || true
+          with-deps: 'false'
 
       - name: Configure Git and local environment for UI evidence and E2E
         env:
@@ -173,7 +165,7 @@ jobs:
         run: node scripts/cloud/workspace-guard.mjs setup
 
       - name: Run Gemini CLI for initial PR Fix (Phase 1)
-        timeout-minutes: 15
+        timeout-minutes: 28
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
@@ -181,10 +173,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER }}
           PR_NUMBER: ${{ env.SAFE_PR_NUMBER }}
+          EXPECTED_REPO: ${{ github.repository }}
           FIX_INSTRUCTIONS: ${{ inputs.fix_instructions }}
         run: |
           mkdir -p .agents/tmp
-          rm -f .agents/tmp/ticket-bundle.json .agents/tmp/ticket-spec.md .agents/tmp/scope-guidance.md .agents/tmp/merge-conflicts.md .agents/tmp/delete-files.txt
+          rm -f .agents/tmp/ticket-bundle.json .agents/tmp/ticket-spec.md .agents/tmp/scope-guidance.md .agents/tmp/merge-conflicts.md .agents/tmp/delete-files.txt "${RUNNER_TEMP:-/tmp}/x-talent-converge-checkpoint-only"
+          echo "CONVERGE_CHECKPOINT_ONLY=false" >> "$GITHUB_ENV"
           MERGE_CONFLICTS_PRESENT="false"
           node scripts/cloud/workspace-guard.mjs unstage --restore-worktree
           if ! git merge origin/develop --no-edit; then
@@ -201,17 +195,16 @@ jobs:
             fi
           fi
           node scripts/cloud/workspace-guard.mjs setup
-          node scripts/cloud/ticket-bundle.mjs --ticket="$TICKET_NUMBER" --skip-visuals=true --skip-kb=true || true
+          node scripts/cloud/ticket-bundle.mjs \
+            --ticket="$TICKET_NUMBER" \
+            --pr="$PR_NUMBER" \
+            --frontend-repo="$EXPECTED_REPO" \
+            --merge-conflicts-file=.agents/tmp/merge-conflicts.md || true
           node scripts/check-ticket-scope.mjs --spec-file=.agents/tmp/ticket-spec.md --guidance-out=.agents/tmp/scope-guidance.md >/dev/null 2>&1 || true
           SCOPE_GUIDANCE=""
           if [ -s .agents/tmp/scope-guidance.md ]; then
             SCOPE_GUIDANCE=$(cat .agents/tmp/scope-guidance.md)
           fi
-          node scripts/cloud/ticket-bundle.mjs \
-            --ticket="$TICKET_NUMBER" \
-            --pr="$PR_NUMBER" \
-            --frontend-repo="${{ github.repository }}" \
-            --merge-conflicts-file=.agents/tmp/merge-conflicts.md || true
 
           PROMPT_FILE=$(mktemp)
           printf '我們正在處理 PR #%s（對應 Ticket #%s，完整規格、線上 AI Review 意見、合併衝突清單與視覺參考圖位於 .agents/tmp/ticket-spec.md）。\n' "$PR_NUMBER" "$TICKET_NUMBER" > "$PROMPT_FILE"
@@ -226,7 +219,7 @@ jobs:
           4. 刪除舊檔專用通道（因安全沙盒已停用 shell 指令）：若修復要求刪除任何既有檔案，請將欲刪除的專案相對路徑（每行一個）寫入 .agents/tmp/delete-files.txt，Phase 1 結束後系統會自動為你真實刪除。
           EOF
           printf '\n%s\n' "$SCOPE_GUIDANCE" >> "$PROMPT_FILE"
-          npx gemini -m "$GEMINI_MODEL" --approval-mode=yolo --skip-trust -p "$(cat "$PROMPT_FILE")"
+          timeout --kill-after=30s 22m pnpm exec gemini -m "$GEMINI_MODEL" --approval-mode=yolo --skip-trust -p "$(cat "$PROMPT_FILE")" < /dev/null || echo "::warning::Phase 1 hit 22m soft limit or non-zero exit; handing off workspace changes to Phase 2 convergence loop."
           rm -f "$PROMPT_FILE"
           node scripts/cloud/workspace-guard.mjs apply-deletes
 
@@ -249,6 +242,9 @@ jobs:
           TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          BFF_OPENAPI_URL: ${{ secrets.BFF_OPENAPI_URL || vars.BFF_OPENAPI_URL }}
+          CLOUD_AUTO_SYNC_OPENAPI: '1'
+          CONVERGE_ALLOW_DETERMINISTIC_CHECKPOINT: 'true'
           TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER }}
           MAX_AI_REVIEW_ROUNDS: ${{ env.SAFE_MAX_ROUNDS }}
           RUN_E2E: ${{ env.SAFE_RUN_E2E }}
@@ -278,6 +274,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.TRACKER_READ_TOKEN || secrets.GITHUB_TOKEN }}
           TICKET_NUMBER: ${{ env.SAFE_TICKET_NUMBER || inputs.ticket_number }}
           PR_NUMBER: ${{ env.SAFE_PR_NUMBER || inputs.pr_number }}
+          EXPECTED_REPO: ${{ github.repository }}
+          CHECKPOINT_ONLY: ${{ env.CONVERGE_CHECKPOINT_ONLY }}
           JOB_STATUS: ${{ job.status }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -285,17 +283,21 @@ jobs:
           CLEAN_TICKET=$(printf '%s' "$TICKET_NUMBER" | tr -cd '0-9')
           CLEAN_PR=$(printf '%s' "$PR_NUMBER" | tr -cd '0-9')
 
-          PR_URL="https://github.com/${{ github.repository }}/pull/${CLEAN_PR}"
+          PR_URL="https://github.com/${EXPECTED_REPO}/pull/${CLEAN_PR}"
           VERCEL_LIMIT="false"
           if [ -n "$CLEAN_PR" ]; then
-            if gh api --paginate "repos/${{ github.repository }}/issues/${CLEAN_PR}/comments?per_page=100" --jq '.[].body' 2>/dev/null | grep -qiE 'vercel-quota-limit|api-deployments-free-per-day'; then
+            if gh api --paginate "repos/${EXPECTED_REPO}/issues/${CLEAN_PR}/comments?per_page=100" --jq '.[].body' 2>/dev/null | grep -qiE 'vercel-quota-limit|api-deployments-free-per-day'; then
               VERCEL_LIMIT="true"
             fi
           fi
 
-          if [ "$JOB_STATUS" = "success" ]; then
+          if [ "$JOB_STATUS" = "success" ] && [ "$CHECKPOINT_ONLY" != "true" ] && [ ! -f "${RUNNER_TEMP:-/tmp}/x-talent-converge-checkpoint-only" ]; then
             STATUS="fix_pr_succeeded"
             MSG="雲端 Fix PR #${CLEAN_PR} 已完成修復與測試截圖更新並推回分支"
+          elif [ "$JOB_STATUS" = "success" ]; then
+            rm -f "${RUNNER_TEMP:-/tmp}/x-talent-converge-checkpoint-only"
+            STATUS="fix_pr_failed"
+            MSG="雲端 Fix PR #${CLEAN_PR} 時間預算耗盡，已保留通過靜態檢查與單元測試的最佳快照推回分支（E2E 尚未完成，按鈕已解鎖可繼續收斂）"
           else
             STATUS="fix_pr_failed"
             MSG="雲端 Fix PR #${CLEAN_PR} 執行未完全通過（狀態: ${JOB_STATUS}），按鈕已自動解鎖可重試"

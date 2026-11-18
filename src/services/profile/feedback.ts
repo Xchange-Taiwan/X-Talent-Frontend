@@ -1,8 +1,10 @@
 import { apiClient, ApiError } from '@/lib/apiClient';
+import { sortFeedbackItems } from '@/lib/feedback/sortFeedbackItems';
 import {
   formatAuthorMaskedName,
   toNonNegativeInt,
 } from '@/lib/mentor/mentorStats';
+import { normalizePositiveUserId } from '@/lib/profile/userId';
 import {
   DEFAULT_FEEDBACK_PAGE_SIZE,
   type FetchMentorFeedbackParams,
@@ -91,9 +93,10 @@ export function mapMentorFeedbackResponse(
       ? Math.floor(raw.page_size)
       : safeRequestedPageSize;
 
-  const items = rawItems
+  const publicMappedItems = rawItems
     .filter((item) => item?.is_public !== false)
     .map((item, idx) => mapFeedbackItem(item, idx, resolvedPage));
+  const items = sortFeedbackItems(publicMappedItems);
 
   const filteredOutCount = rawItems.length - items.length;
   const rawTotal = Array.isArray(raw)
@@ -155,6 +158,18 @@ export async function fetchMentorFeedback({
   signal,
 }: FetchMentorFeedbackParams): Promise<MentorFeedbackPage> {
   const safePage = Math.max(1, Math.floor(page));
+  const canonicalMentorId = normalizePositiveUserId(mentorId);
+  if (!canonicalMentorId) {
+    return {
+      items: [],
+      totalRatingCount: 0,
+      page: safePage,
+      pageSize,
+      ratingAverage: null,
+      completedMeetingCount: null,
+      isFallbackEmpty: true,
+    };
+  }
   const params: Record<string, string | number | undefined> = {
     page: safePage,
     ...(pageSize !== DEFAULT_FEEDBACK_PAGE_SIZE ? { page_size: pageSize } : {}),
@@ -163,7 +178,7 @@ export async function fetchMentorFeedback({
   try {
     const data = await apiClient.getUnwrapped<
       RawMentorFeedbackResponse | RawMentorFeedbackItem[]
-    >(`/v1/mentors/${mentorId}/feedback`, {
+    >(`/v1/mentors/${canonicalMentorId}/feedback`, {
       auth: false,
       params,
       signal,

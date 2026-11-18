@@ -7,7 +7,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   favoriteMentorsReadModel,
   type FavoriteMentorsTransport,
+  getPendingFavoriteMentorId,
   resetFavoriteMentorsReadModel,
+  savePendingFavoriteMentor,
 } from '@/lib/favorites';
 import type { MentorType } from '@/types/mentor';
 
@@ -81,11 +83,13 @@ describe('useFavoriteMentors', () => {
     expect(result.current.isAuthenticated).toBe(false);
     expect(result.current.isStoreReadyForUser).toBe(false);
     expect(result.current.isLoading).toBe(true);
+    expect(result.current.listStatus).toBe('loading');
     expect(result.current.favoriteMentors).toEqual([]);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('clears store state and marks unauthenticated when session is unauthenticated', () => {
+  it('marks unauthenticated with loading listStatus (preventing empty-state flash) without imperatively clearing pending storage on mount (#941)', () => {
+    savePendingFavoriteMentor(101);
     favoriteMentorsReadModel.seed('stale-user', [
       fromPartial<MentorType>({ user_id: 101, name: 'Stale Mentor' }),
     ]);
@@ -100,11 +104,12 @@ describe('useFavoriteMentors', () => {
     expect(result.current.isIdentityUnresolved).toBe(false);
     expect(result.current.isAuthenticated).toBe(false);
     expect(result.current.isStoreReadyForUser).toBe(false);
+    expect(result.current.listStatus).toBe('loading');
     expect(result.current.favoriteMentors).toEqual([]);
-    expect(favoriteMentorsReadModel.getSnapshot('stale-user')).toBeUndefined();
+    expect(getPendingFavoriteMentorId()).toBe(101);
   });
 
-  it('loads favorite mentors for authenticated user and reacts to store removals', async () => {
+  it('loads favorite mentors for authenticated user, exposes listStatus transitions, and reacts to store removals', async () => {
     fetchMock.mockResolvedValueOnce([
       fromPartial<MentorType>({
         user_id: 101,
@@ -127,12 +132,15 @@ describe('useFavoriteMentors', () => {
       }),
     });
 
+    expect(result.current.listStatus).toBe('loading');
+
     await waitFor(() => {
       expect(result.current.isStoreReadyForUser).toBe(true);
     });
 
     expect(fetchMock).toHaveBeenCalledWith('9001', expect.any(AbortSignal));
     expect(result.current.isLoading).toBe(false);
+    expect(result.current.listStatus).toBe('success');
     expect(result.current.favoriteMentors.map((m) => m.user_id)).toEqual([
       101, 102,
     ]);
@@ -150,13 +158,26 @@ describe('useFavoriteMentors', () => {
       101,
       expect.any(AbortSignal)
     );
+    expect(result.current.listStatus).toBe('success');
     expect(result.current.favoriteMentors.map((m) => m.user_id)).toEqual([102]);
+
+    await act(async () => {
+      await favoriteMentorsReadModel.toggle({
+        userId: '9001',
+        mentorId: 102,
+        feature: 'favorites',
+      });
+    });
+
+    expect(result.current.listStatus).toBe('empty');
+    expect(result.current.favoriteMentors).toEqual([]);
   });
 
-  it('exposes non-404 load error and recovers via retry()', async () => {
-    fetchMock.mockRejectedValueOnce(new Error('500 Server Error'));
+  it('preserves exact Error reference across renders without re-allocating new Error() and recovers via retry() (#941)', async () => {
+    const serverError = new Error('500 Server Error');
+    fetchMock.mockRejectedValueOnce(serverError);
 
-    const { result } = renderHook(() => useFavoriteMentors(), {
+    const { result, rerender } = renderHook(() => useFavoriteMentors(), {
       wrapper: createSessionWrapper({
         userId: '9001',
         status: 'authenticated',
@@ -168,8 +189,12 @@ describe('useFavoriteMentors', () => {
     });
 
     expect(result.current.isLoading).toBe(false);
-    expect(result.current.error?.message).toBe('500 Server Error');
+    expect(result.current.listStatus).toBe('error');
+    expect(result.current.error).toBe(serverError);
     expect(result.current.favoriteMentors).toEqual([]);
+
+    rerender();
+    expect(result.current.error).toBe(serverError);
 
     fetchMock.mockResolvedValueOnce([
       fromPartial<MentorType>({
@@ -186,6 +211,7 @@ describe('useFavoriteMentors', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(result.current.error).toBeNull();
+    expect(result.current.listStatus).toBe('success');
     expect(result.current.favoriteMentors.map((m) => m.user_id)).toEqual([101]);
   });
 });
