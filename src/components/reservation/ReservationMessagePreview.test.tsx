@@ -236,7 +236,11 @@ describe('ReservationMessagePreview', () => {
       cancelledBy: 'MENTOR',
       messages: [
         { content: '原始預約提問 Q2', role: 'MENTEE' },
-        { content: '導師臨時取消原因 R2', role: 'MENTOR', isCancelReason: true },
+        {
+          content: '導師臨時取消原因 R2',
+          role: 'MENTOR',
+          isCancelReason: true,
+        },
       ],
       menteeMessage: undefined,
       mentorMessage: undefined,
