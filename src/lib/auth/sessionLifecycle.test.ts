@@ -774,6 +774,74 @@ describe('sessionLifecycle (#885)', () => {
       );
       expect(navigate).toHaveBeenCalledWith('/reservation/mentee');
       expect(getPendingFavoriteMentorId()).toBeNull();
+
+      // 5. Google LOGIN right after email verification (pre-SQS outbox: onboarding === false, empty name/avatar) enriches signIn payload from id_token with =s512-c (#951)
+      const idTokenPayload = Buffer.from(
+        JSON.stringify({
+          name: '李杰克',
+          picture: 'https://lh3.googleusercontent.com/a/ACg8ocJack=s96-c',
+        }),
+        'utf8'
+      )
+        .toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/g, '');
+      const mockGoogleIdToken = `eyJhbGciOiJSUzI1NiJ9.${idTokenPayload}.sig`;
+      const signInSpy = vi.fn().mockResolvedValue({ error: null, ok: true });
+      navigate.mockClear();
+
+      await executeGoogleOAuthCallback(
+        { code: 'c_fresh', state: 's_fresh' },
+        {
+          exchangeCode: vi.fn().mockResolvedValue(
+            fromPartial<OAuthCallbackResponse>({
+              data: {
+                auth_type: 'LOGIN',
+                id_token: mockGoogleIdToken,
+                auth: { token: 'tok_fresh', email: 'fresh@example.com' },
+                user: fromPartial<ProfileVO>({
+                  user_id: 951,
+                  onboarding: false,
+                }),
+              },
+            })
+          ),
+          signIn: signInSpy,
+          signOut: vi.fn(),
+          getSession: vi.fn().mockResolvedValue(
+            fromPartial<Session>({
+              accessToken: 'tok_fresh',
+              user: {
+                id: '951',
+                name: '李杰克',
+                avatar: 'https://lh3.googleusercontent.com/a/ACg8ocJack=s512-c',
+                onBoarding: false,
+                isMentor: false,
+              },
+            })
+          ),
+          navigate,
+          onToast: vi.fn(),
+          currentOrigin: 'https://xtalent.tw',
+          storage: createInMemorySessionStorage(),
+          setAnalyticsUserContext: vi.fn(),
+          trackEvent: vi.fn(),
+        }
+      );
+
+      expect(signInSpy).toHaveBeenCalledWith('custom-google-token', {
+        redirect: false,
+        token: 'tok_fresh',
+        email: 'fresh@example.com',
+        user: JSON.stringify({
+          user_id: 951,
+          onboarding: false,
+          name: '李杰克',
+          avatar: 'https://lh3.googleusercontent.com/a/ACg8ocJack=s512-c',
+        }),
+      });
+      expect(navigate).toHaveBeenCalledWith('/auth/onboarding');
     });
 
     it('handles RESUME_DELETE_ACCOUNT across success, blocked_reservations, and error outcomes', async () => {
