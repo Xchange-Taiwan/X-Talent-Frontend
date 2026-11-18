@@ -1,4 +1,5 @@
 import { fromPartial } from '@total-typescript/shoehorn';
+import dayjs from 'dayjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next-auth/react', async () => {
@@ -35,30 +36,43 @@ vi.mock('@/lib/analytics', async (importActual) => {
   };
 });
 
+vi.mock('@/services/mentor-schedule/sync', async (importActual) => {
+  const actual =
+    await importActual<typeof import('@/services/mentor-schedule/sync')>();
+  return {
+    ...actual,
+    loadMonthSchedule: vi.fn(actual.loadMonthSchedule),
+  };
+});
+
 import { apiClient, ApiError } from '@/lib/apiClient';
-import {
-  getUserProfileDtoFromCache,
-  primeUserProfileDtoCache,
-  userProfileDtoReadManager,
-} from '@/lib/cache/userProfileDtoCache';
 import { mentorFeedbackReadModel } from '@/lib/feedback/mentorFeedbackReadModel';
 import {
   mentorPoolReadModel,
   UNFILTERED_MENTOR_POOL_QUERY,
 } from '@/lib/mentor/mentorPoolReadModel';
+import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
 import { captureFlowFailure } from '@/lib/monitoring';
+import { profileReadModel } from '@/lib/profile/profileReadModel';
+import type { RawMentorTimeslot } from '@/lib/profile/scheduleHelpers';
 import { getSessionPendingFeedbackState } from '@/lib/reservation/pendingFeedbackGuard';
 import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
+import { loadMonthSchedule } from '@/services/mentor-schedule/sync';
+import * as reservationsBarrel from '@/services/reservations';
 import {
   acceptReservation,
+  createInMemoryReservationWriteTransport,
+  createReservation,
   getReservationErrorMessage,
   rejectOrCancelReservation,
   RESERVATION_CONFLICT_MESSAGE,
   ReservationVersionConflictError,
   submitReservationFeedback,
   updateReservationFeedback,
-} from '@/services/reservations';
+} from '@/services/reservations/reservationMutations';
+import * as reservationQueryService from '@/services/reservations/reservationService';
+import type { components } from '@/types/api';
 import type { MentorFeedbackPage } from '@/types/feedback';
 import type { MentorType } from '@/types/mentor';
 import type { Reservation } from '@/types/reservation';
@@ -566,7 +580,7 @@ describe('submitReservationFeedback (#730)', () => {
     reservationReadModel.clear();
     mentorPoolReadModel.clear();
     mentorFeedbackReadModel.clear();
-    userProfileDtoReadManager.clear();
+    profileReadModel.clear();
     clearPoolSpy = vi.spyOn(mentorPoolReadModel, 'clear');
   });
 
@@ -915,7 +929,7 @@ describe('updateReservationFeedback (#731)', () => {
     reservationReadModel.clear();
     mentorPoolReadModel.clear();
     mentorFeedbackReadModel.clear();
-    userProfileDtoReadManager.clear();
+    profileReadModel.clear();
     clearPoolSpy = vi
       .spyOn(mentorPoolReadModel, 'clear')
       .mockImplementation(() => {});
@@ -1340,19 +1354,20 @@ describe('5-store atomic invalidation & in-memory transport adapter (#888)', () 
       sampleFeedbackPage
     );
 
-    primeUserProfileDtoCache(
-      TARGET_MENTOR_ID,
-      'zh_TW',
+    profileReadModel.prime(
+      { userId: TARGET_MENTOR_ID, language: 'zh_TW' },
       fromPartial<MentorProfileVO>({ user_id: TARGET_MENTOR_ID })
     );
-    primeUserProfileDtoCache(
-      TARGET_MENTOR_ID,
-      'en_US',
+    profileReadModel.prime(
+      { userId: TARGET_MENTOR_ID, language: 'en_US' },
       fromPartial<MentorProfileVO>({ user_id: TARGET_MENTOR_ID })
     );
-    primeUserProfileDtoCache(
-      OTHER_MENTOR_ID,
-      'zh_TW',
+    profileReadModel.prime(
+      { userId: TARGET_MENTOR_ID, language: 'ja_JP' },
+      fromPartial<MentorProfileVO>({ user_id: TARGET_MENTOR_ID })
+    );
+    profileReadModel.prime(
+      { userId: OTHER_MENTOR_ID, language: 'zh_TW' },
       fromPartial<MentorProfileVO>({ user_id: OTHER_MENTOR_ID })
     );
   }
@@ -1363,7 +1378,7 @@ describe('5-store atomic invalidation & in-memory transport adapter (#888)', () 
     reservationReadModel.clear();
     mentorPoolReadModel.clear();
     mentorFeedbackReadModel.clear();
-    userProfileDtoReadManager.clear();
+    profileReadModel.clear();
   });
 
   it('atomically updates/invalidates all 5 stores on submit via injected in-memory transport without touching HTTP apiClient', async () => {
@@ -1380,7 +1395,9 @@ describe('5-store atomic invalidation & in-memory transport adapter (#888)', () 
     });
     seedAllFiveStores(reservation);
 
-    const submittedPayloads: unknown[] = [];
+    const transport = createInMemoryReservationWriteTransport({
+      submitFeedback: async () => ({ ok: true }),
+    });
     await submitReservationFeedback({
       reservation,
       myUserId: '10',
@@ -1389,16 +1406,11 @@ describe('5-store atomic invalidation & in-memory transport adapter (#888)', () 
         meeting_happened: true,
         feedback: { rating: 10, content: '使用記憶體 transport 測試送出' },
       },
-      transport: {
-        submitFeedback: async (opts) => {
-          submittedPayloads.push(opts);
-          return { ok: true };
-        },
-      },
+      transport,
     });
 
     expect(mockPost).not.toHaveBeenCalled();
-    expect(submittedPayloads).toEqual([
+    expect(transport.calls.submitFeedback).toEqual([
       {
         userId: '10',
         reservationId: 'res-888-submit',
@@ -1434,10 +1446,19 @@ describe('5-store atomic invalidation & in-memory transport adapter (#888)', () 
       mentorFeedbackReadModel.get({ mentorId: OTHER_MENTOR_ID, page: 1 })
     ).toBeDefined();
 
-    // 4. userProfileDtoCache invalidated for both zh_TW and en_US of target mentor
-    expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'zh_TW')).toBeNull();
-    expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'en_US')).toBeNull();
-    expect(getUserProfileDtoFromCache(OTHER_MENTOR_ID, 'zh_TW')).not.toBeNull();
+    // 4. profileReadModel.invalidateUser invalidates every tracked locale of target mentor
+    expect(
+      profileReadModel.peek({ userId: TARGET_MENTOR_ID, language: 'zh_TW' })
+    ).toBeUndefined();
+    expect(
+      profileReadModel.peek({ userId: TARGET_MENTOR_ID, language: 'en_US' })
+    ).toBeUndefined();
+    expect(
+      profileReadModel.peek({ userId: TARGET_MENTOR_ID, language: 'ja_JP' })
+    ).toBeUndefined();
+    expect(
+      profileReadModel.peek({ userId: OTHER_MENTOR_ID, language: 'zh_TW' })
+    ).toBeDefined();
 
     // 5. pendingFeedbackGuard marked submitted
     expect(getSessionPendingFeedbackState('10').submittedIds).toContain(
@@ -1484,9 +1505,9 @@ describe('5-store atomic invalidation & in-memory transport adapter (#888)', () 
         myUserId: '10',
         myRole: 'mentee',
         payload: { rating: 10, content: '編輯後的公開評論' },
-        transport: {
+        transport: createInMemoryReservationWriteTransport({
           updateFeedback: async () => ({}),
-        },
+        }),
       });
 
       expect(mockPut).not.toHaveBeenCalled();
@@ -1518,8 +1539,15 @@ describe('5-store atomic invalidation & in-memory transport adapter (#888)', () 
       expect(
         mentorFeedbackReadModel.get({ mentorId: TARGET_MENTOR_ID, page: 1 })
       ).toBeUndefined();
-      expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'zh_TW')).toBeNull();
-      expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'en_US')).toBeNull();
+      expect(
+        profileReadModel.peek({ userId: TARGET_MENTOR_ID, language: 'zh_TW' })
+      ).toBeUndefined();
+      expect(
+        profileReadModel.peek({ userId: TARGET_MENTOR_ID, language: 'en_US' })
+      ).toBeUndefined();
+      expect(
+        profileReadModel.peek({ userId: TARGET_MENTOR_ID, language: 'ja_JP' })
+      ).toBeUndefined();
       expect(getSessionPendingFeedbackState('10').submittedIds).toContain(
         'res-888-edit-public'
       );
@@ -1562,9 +1590,9 @@ describe('5-store atomic invalidation & in-memory transport adapter (#888)', () 
         myUserId: '10',
         myRole: 'mentee',
         payload: { rating: 7, content: '保留個人已出席狀態但仍維持不公開' },
-        transport: {
+        transport: createInMemoryReservationWriteTransport({
           updateFeedback: async () => ({}),
-        },
+        }),
       });
 
       expect(
@@ -1618,9 +1646,9 @@ describe('5-store atomic invalidation & in-memory transport adapter (#888)', () 
         meeting_happened: false,
         not_happened_reason: 'COUNTERPART_ABSENT',
       },
-      transport: {
+      transport: createInMemoryReservationWriteTransport({
         submitFeedback: async () => ({}),
-      },
+      }),
     });
 
     expect(
@@ -1638,8 +1666,15 @@ describe('5-store atomic invalidation & in-memory transport adapter (#888)', () 
     expect(
       mentorFeedbackReadModel.get({ mentorId: TARGET_MENTOR_ID, page: 1 })
     ).toBeUndefined();
-    expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'zh_TW')).toBeNull();
-    expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'en_US')).toBeNull();
+    expect(
+      profileReadModel.peek({ userId: TARGET_MENTOR_ID, language: 'zh_TW' })
+    ).toBeUndefined();
+    expect(
+      profileReadModel.peek({ userId: TARGET_MENTOR_ID, language: 'en_US' })
+    ).toBeUndefined();
+    expect(
+      profileReadModel.peek({ userId: TARGET_MENTOR_ID, language: 'ja_JP' })
+    ).toBeUndefined();
     expect(
       getSessionPendingFeedbackState(String(TARGET_MENTOR_ID)).submittedIds
     ).toContain('res-888-mentor-absent');
@@ -1667,9 +1702,9 @@ describe('5-store atomic invalidation & in-memory transport adapter (#888)', () 
         meeting_happened: false,
         not_happened_reason: 'COUNTERPART_ABSENT',
       },
-      transport: {
+      transport: createInMemoryReservationWriteTransport({
         submitFeedback: async () => ({}),
-      },
+      }),
     });
 
     expect(
@@ -1688,8 +1723,15 @@ describe('5-store atomic invalidation & in-memory transport adapter (#888)', () 
     expect(
       mentorFeedbackReadModel.get({ mentorId: TARGET_MENTOR_ID, page: 1 })
     ).toBeUndefined();
-    expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'zh_TW')).toBeNull();
-    expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'en_US')).toBeNull();
+    expect(
+      profileReadModel.peek({ userId: TARGET_MENTOR_ID, language: 'zh_TW' })
+    ).toBeUndefined();
+    expect(
+      profileReadModel.peek({ userId: TARGET_MENTOR_ID, language: 'en_US' })
+    ).toBeUndefined();
+    expect(
+      profileReadModel.peek({ userId: TARGET_MENTOR_ID, language: 'ja_JP' })
+    ).toBeUndefined();
     expect(getSessionPendingFeedbackState('10').submittedIds).toContain(
       'res-888-mentee-absent-override'
     );
@@ -1739,9 +1781,9 @@ describe('5-store atomic invalidation & in-memory transport adapter (#888)', () 
       myUserId: '10',
       myRole: 'mentee',
       payload: { rating: 10, content: '即使舊 prop 為 false 仍應刷新公開快取' },
-      transport: {
+      transport: createInMemoryReservationWriteTransport({
         updateFeedback: async () => ({}),
-      },
+      }),
     });
 
     expect(
@@ -1750,8 +1792,15 @@ describe('5-store atomic invalidation & in-memory transport adapter (#888)', () 
     expect(
       mentorFeedbackReadModel.get({ mentorId: TARGET_MENTOR_ID, page: 1 })
     ).toBeUndefined();
-    expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'zh_TW')).toBeNull();
-    expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'en_US')).toBeNull();
+    expect(
+      profileReadModel.peek({ userId: TARGET_MENTOR_ID, language: 'zh_TW' })
+    ).toBeUndefined();
+    expect(
+      profileReadModel.peek({ userId: TARGET_MENTOR_ID, language: 'en_US' })
+    ).toBeUndefined();
+    expect(
+      profileReadModel.peek({ userId: TARGET_MENTOR_ID, language: 'ja_JP' })
+    ).toBeUndefined();
 
     // Reverse transition: review was public on input, backend response marks is_public=false
     const previouslyPublicRes = makeMockReservation({
@@ -1782,14 +1831,14 @@ describe('5-store atomic invalidation & in-memory transport adapter (#888)', () 
         rating: 8,
         content: '後端回應轉為不公開時也必須清除舊公開快取',
       },
-      transport: {
+      transport: createInMemoryReservationWriteTransport({
         updateFeedback: async () => ({
           feedback: {
             meeting_happened: false,
             rating: { is_public: false },
           },
         }),
-      },
+      }),
     });
 
     expect(
@@ -1798,8 +1847,15 @@ describe('5-store atomic invalidation & in-memory transport adapter (#888)', () 
     expect(
       mentorFeedbackReadModel.get({ mentorId: TARGET_MENTOR_ID, page: 1 })
     ).toBeUndefined();
-    expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'zh_TW')).toBeNull();
-    expect(getUserProfileDtoFromCache(TARGET_MENTOR_ID, 'en_US')).toBeNull();
+    expect(
+      profileReadModel.peek({ userId: TARGET_MENTOR_ID, language: 'zh_TW' })
+    ).toBeUndefined();
+    expect(
+      profileReadModel.peek({ userId: TARGET_MENTOR_ID, language: 'en_US' })
+    ).toBeUndefined();
+    expect(
+      profileReadModel.peek({ userId: TARGET_MENTOR_ID, language: 'ja_JP' })
+    ).toBeUndefined();
   });
 });
 
@@ -1858,9 +1914,9 @@ describe('Read-model multi-page retention, scheduleReadModel sync & abort safety
           meeting_happened: true,
           feedback: { rating: 9, content: '第二頁初次評分' },
         },
-        transport: {
+        transport: createInMemoryReservationWriteTransport({
           submitFeedback: async () => ({ ok: true }),
-        },
+        }),
       });
 
       const afterSubmit = reservationReadModel.get(menteeHistoryKey);
@@ -1875,9 +1931,9 @@ describe('Read-model multi-page retention, scheduleReadModel sync & abort safety
         myUserId: '10',
         myRole: 'mentee',
         payload: { rating: 10, content: '第二頁編輯後評分' },
-        transport: {
+        transport: createInMemoryReservationWriteTransport({
           updateFeedback: async () => ({ ok: true }),
-        },
+        }),
       });
 
       const afterEdit = reservationReadModel.get(menteeHistoryKey);
@@ -2002,5 +2058,578 @@ describe('Read-model multi-page retention, scheduleReadModel sync & abort safety
     expect(capturedSignal?.aborted).toBe(true);
     unsubUpcoming();
     scheduleReadModel.clear();
+  });
+});
+
+describe('ReservationWriteTransport & consolidated 5-mutation module (#938)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGet.mockReturnValue(new Promise(() => {}));
+    reservationReadModel.clear();
+    scheduleReadModel.clear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    reservationReadModel.clear();
+    scheduleReadModel.clear();
+  });
+
+  it('internalizes raw write functions while exposing all 5 lifecycle mutations and createInMemoryReservationWriteTransport on the barrel', () => {
+    expect(reservationsBarrel.createReservation).toBe(createReservation);
+    expect(reservationsBarrel.acceptReservation).toBe(acceptReservation);
+    expect(reservationsBarrel.rejectOrCancelReservation).toBe(
+      rejectOrCancelReservation
+    );
+    expect(reservationsBarrel.submitReservationFeedback).toBe(
+      submitReservationFeedback
+    );
+    expect(reservationsBarrel.updateReservationFeedback).toBe(
+      updateReservationFeedback
+    );
+    expect(reservationsBarrel.createInMemoryReservationWriteTransport).toBe(
+      createInMemoryReservationWriteTransport
+    );
+
+    const barrelRecord: Record<string, unknown> = reservationsBarrel;
+    const queryRecord: Record<string, unknown> = reservationQueryService;
+
+    expect(barrelRecord.updateReservationStatus).toBeUndefined();
+    expect(barrelRecord.postReservationFeedback).toBeUndefined();
+    expect(barrelRecord.putReservationFeedback).toBeUndefined();
+    expect(queryRecord.createReservation).toBeUndefined();
+    expect(queryRecord.updateReservationStatus).toBeUndefined();
+    expect(queryRecord.postReservationFeedback).toBeUndefined();
+    expect(queryRecord.putReservationFeedback).toBeUndefined();
+  });
+
+  describe('createReservation', () => {
+    it('rethrows ApiError with status and message on non-0 response and throws when response data is missing', async () => {
+      mockPost.mockRejectedValueOnce(new ApiError(409, 'Conflict booking'));
+
+      await expect(
+        createReservation({
+          userId: 123,
+          body: fromPartial<components['schemas']['ReservationDTO']>({
+            my_user_id: 123,
+            user_id: 456,
+            schedule_id: 101,
+            dtstart: 1784124000,
+            dtend: 1784125800,
+          }),
+        })
+      ).rejects.toMatchObject({
+        status: 409,
+        message: 'Conflict booking',
+      });
+
+      mockPost.mockResolvedValueOnce(undefined);
+      await expect(
+        createReservation({
+          userId: 123,
+          body: fromPartial<components['schemas']['ReservationDTO']>({
+            my_user_id: 123,
+            user_id: 456,
+          }),
+        })
+      ).rejects.toThrow('API error: missing data in response');
+    });
+
+    it('creates a reservation via default apiClient transport or createInMemoryReservationWriteTransport and invalidates both parties PENDING + mentor schedule', async () => {
+      const slotStartUnix = dayjs('2026-07-17T14:00:00').unix();
+      const slotEndUnix = slotStartUnix + 1800;
+      const targetScheduleMonth = {
+        userId: '456',
+        year: dayjs(slotStartUnix * 1000).year(),
+        month: dayjs(slotStartUnix * 1000).month() + 1,
+      };
+      const slot: RawMentorTimeslot = {
+        id: 101,
+        type: 'ALLOW',
+        dtstart: slotStartUnix,
+        dtend: slotEndUnix,
+        rrule: undefined,
+        exdate: [],
+      };
+
+      reservationReadModel.set(
+        { userId: '123', state: 'MENTEE_PENDING' },
+        emptyPage
+      );
+      reservationReadModel.set(
+        { userId: '456', state: 'MENTOR_PENDING' },
+        emptyPage
+      );
+      scheduleReadModel.set(targetScheduleMonth, [slot]);
+
+      const inMemoryTransport = createInMemoryReservationWriteTransport();
+      const created = await createReservation({
+        userId: 123,
+        body: {
+          my_user_id: 123,
+          user_id: 456,
+          schedule_id: 101,
+          dtstart: slotStartUnix,
+          dtend: slotEndUnix,
+        },
+        transport: inMemoryTransport,
+      });
+
+      expect(mockPost).not.toHaveBeenCalled();
+      expect(created).toMatchObject({
+        user_id: 456,
+        my_user_id: 123,
+        schedule_id: 101,
+      });
+      expect(inMemoryTransport.calls.createReservation).toHaveLength(1);
+      expect(
+        reservationReadModel.get({ userId: '123', state: 'MENTEE_PENDING' })
+      ).toBeUndefined();
+      expect(
+        reservationReadModel.get({ userId: '456', state: 'MENTOR_PENDING' })
+      ).toBeUndefined();
+      expect(scheduleReadModel.get(targetScheduleMonth)).toBeUndefined();
+    });
+
+    it('refreshes actively subscribed PENDING and mentor schedule slices in place and reports non-abort refresh errors via captureFlowFailure', async () => {
+      const slotStartUnix = dayjs('2026-07-20T10:00:00').unix();
+      const slotEndUnix = slotStartUnix + 1800;
+      const menteePendingKey = {
+        userId: '123',
+        state: 'MENTEE_PENDING',
+      } as const;
+      const scheduleKey = {
+        userId: '456',
+        year: dayjs(slotStartUnix * 1000).year(),
+        month: dayjs(slotStartUnix * 1000).month() + 1,
+      };
+
+      reservationReadModel.set(menteePendingKey, emptyPage);
+      scheduleReadModel.set(scheduleKey, []);
+
+      const unsubPending = reservationReadModel.subscribe(
+        menteePendingKey,
+        () => new Promise(() => {}),
+        () => {}
+      );
+      const unsubSchedule = scheduleReadModel.subscribe(
+        scheduleKey,
+        () => new Promise(() => {}),
+        () => {}
+      );
+
+      mockPost.mockResolvedValueOnce(
+        fromPartial<components['schemas']['ReservationVO']>({ id: 77 })
+      );
+      mockGet.mockImplementation(async (path: string) => {
+        if (path.includes('/schedule')) {
+          return {
+            segments: [
+              {
+                id: -101,
+                dt_type: 'PENDING',
+                dt_year: scheduleKey.year,
+                dt_month: scheduleKey.month,
+                dtstart: slotStartUnix,
+                dtend: slotEndUnix,
+              },
+            ],
+          };
+        }
+        return {
+          reservations: [
+            fromPartial<components['schemas']['ReservationInfoVO']>({
+              id: 77,
+              schedule_id: 101,
+              dtstart: slotStartUnix,
+              dtend: slotEndUnix,
+              sender: {
+                user_id: 123,
+                role: 'MENTEE',
+                status: 'PENDING',
+                name: 'Mentee',
+                avatar: '',
+                job_title: '',
+                years_of_experience: '',
+              },
+              participant: {
+                user_id: 456,
+                role: 'MENTOR',
+                status: 'PENDING',
+                name: 'Mentor',
+                avatar: '',
+                job_title: '',
+                years_of_experience: '',
+              },
+            }),
+          ],
+          next_dtend: 0,
+        };
+      });
+
+      try {
+        await createReservation({
+          userId: 123,
+          body: {
+            my_user_id: 123,
+            user_id: 456,
+            schedule_id: 101,
+            dtstart: slotStartUnix,
+            dtend: slotEndUnix,
+          },
+        });
+
+        await vi.waitFor(() => {
+          expect(
+            reservationReadModel.get(menteePendingKey)?.items
+          ).toHaveLength(1);
+          expect(scheduleReadModel.get(scheduleKey)).toHaveLength(1);
+        });
+        expect(scheduleReadModel.get(scheduleKey)?.[0]?.type).toBe('PENDING');
+
+        mockGet.mockRejectedValue(new Error('network down'));
+        mockPost.mockResolvedValueOnce(
+          fromPartial<components['schemas']['ReservationVO']>({ id: 88 })
+        );
+
+        await createReservation({
+          userId: 123,
+          body: {
+            my_user_id: 123,
+            user_id: 456,
+            schedule_id: 101,
+            dtstart: slotStartUnix,
+            dtend: slotEndUnix,
+          },
+        });
+
+        await vi.waitFor(() => {
+          expect(mockCaptureFailure).toHaveBeenCalledWith(
+            expect.objectContaining({
+              flow: 'reservation_mutation_invalidate',
+              step: 'refresh_MENTEE_PENDING',
+              level: 'warning',
+            })
+          );
+        });
+      } finally {
+        unsubPending();
+        unsubSchedule();
+      }
+    });
+  });
+
+  describe('acceptReservation & rejectOrCancelReservation with ReservationWriteTransport', () => {
+    it('executes acceptReservation and rejectOrCancelReservation via createInMemoryReservationWriteTransport without touching apiClient', async () => {
+      const transport = createInMemoryReservationWriteTransport();
+      const reservation = makeMockReservation({
+        id: 'res-mem-1',
+        scheduleId: 202,
+        dtstart: 1784296800,
+        dtend: 1784298600,
+        senderUserId: '10',
+        participantUserId: '20',
+        version: 2,
+      });
+
+      await acceptReservation({
+        message: 'See you soon',
+        reservation,
+        myUserId: '10',
+        myRole: 'mentor',
+        transport,
+      });
+
+      await rejectOrCancelReservation({
+        text: 'Need to reschedule',
+        reservation,
+        myUserId: '20',
+        myRole: 'mentee',
+        transport,
+      });
+
+      expect(mockPut).not.toHaveBeenCalled();
+      expect(transport.calls.updateStatus).toEqual([
+        {
+          userId: '10',
+          reservationId: 'res-mem-1',
+          body: {
+            my_user_id: 10,
+            user_id: 20,
+            my_status: 'ACCEPT',
+            schedule_id: 202,
+            dtstart: 1784296800,
+            dtend: 1784298600,
+            messages: [{ user_id: 10, content: 'See you soon' }],
+            version: 2,
+          },
+        },
+        {
+          userId: '20',
+          reservationId: 'res-mem-1',
+          body: {
+            my_user_id: 20,
+            user_id: 10,
+            my_status: 'REJECT',
+            schedule_id: 202,
+            dtstart: 1784296800,
+            dtend: 1784298600,
+            messages: [{ user_id: 20, content: 'Need to reschedule' }],
+            version: 2,
+          },
+        },
+      ]);
+    });
+  });
+
+  describe('Cross-timezone mentor schedule synchronization across mutations', () => {
+    function makeSlot(dtstart: number, id = 1): RawMentorTimeslot {
+      return {
+        id,
+        type: 'PENDING',
+        dtstart,
+        dtend: dtstart + 1800,
+        rrule: undefined,
+        exdate: [],
+      };
+    }
+
+    it('skips schedule invalidation when mentorId is non-numeric or dtstart is non-positive/NaN', async () => {
+      const spy = vi.spyOn(scheduleReadModel, 'invalidateOrRefresh');
+      const transport = createInMemoryReservationWriteTransport();
+
+      for (const badDtstart of [0, -100, Number.NaN]) {
+        await acceptReservation({
+          message: '',
+          reservation: makeMockReservation({
+            senderUserId: '10',
+            participantUserId: '20',
+            dtstart: badDtstart,
+          }),
+          myUserId: '10',
+          myRole: 'mentor',
+          transport,
+        });
+      }
+
+      await acceptReservation({
+        message: '',
+        reservation: makeMockReservation({
+          senderUserId: 'user-sender',
+          participantUserId: 'user-mentor',
+          dtstart: 1785540600,
+        }),
+        myUserId: 'user-sender',
+        myRole: 'mentee',
+        transport,
+      });
+
+      expect(spy).not.toHaveBeenCalled();
+      spy.mockRestore();
+    });
+
+    it('deduplicates `${year}-${month}` when UTC and local timezone match, and invalidates both slices across UTC+8 and UTC-7 month/year boundaries', async () => {
+      vi.stubEnv('TZ', 'Asia/Taipei');
+      const transport = createInMemoryReservationWriteTransport();
+      const spy = vi.spyOn(scheduleReadModel, 'invalidateOrRefresh');
+
+      // 1. Mid-month (both UTC and Asia/Taipei in 2026-7) -> single invalidation
+      const midMonthUnix = Math.floor(Date.UTC(2026, 6, 15, 10, 0, 0) / 1000);
+      const julyKey = { userId: '10', year: 2026, month: 7 };
+      scheduleReadModel.set(julyKey, [makeSlot(midMonthUnix)]);
+
+      await acceptReservation({
+        message: '',
+        reservation: makeMockReservation({
+          senderUserId: '10',
+          participantUserId: '20',
+          dtstart: midMonthUnix,
+        }),
+        myUserId: '10',
+        myRole: 'mentor',
+        transport,
+      });
+
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(scheduleReadModel.get(julyKey)).toBeUndefined();
+      spy.mockRestore();
+
+      // 2. Month boundary: 2026-07-31T23:30:00Z === 2026-08-01T07:30:00+08:00
+      const boundaryUnix = Math.floor(Date.UTC(2026, 6, 31, 23, 30, 0) / 1000);
+      const utcMonthKey = { userId: '10', year: 2026, month: 7 };
+      const taipeiMonthKey = { userId: '10', year: 2026, month: 8 };
+      const unrelatedMonthKey = { userId: '10', year: 2026, month: 9 };
+
+      scheduleReadModel.set(utcMonthKey, [makeSlot(boundaryUnix, 1)]);
+      scheduleReadModel.set(taipeiMonthKey, [makeSlot(boundaryUnix, 2)]);
+      scheduleReadModel.set(unrelatedMonthKey, [makeSlot(boundaryUnix, 3)]);
+
+      await rejectOrCancelReservation({
+        text: 'cancel',
+        reservation: makeMockReservation({
+          senderUserId: '20',
+          participantUserId: '10',
+          dtstart: boundaryUnix,
+        }),
+        myUserId: '20',
+        myRole: 'mentee',
+        transport,
+      });
+
+      expect(scheduleReadModel.get(utcMonthKey)).toBeUndefined();
+      expect(scheduleReadModel.get(taipeiMonthKey)).toBeUndefined();
+      expect(scheduleReadModel.get(unrelatedMonthKey)).toHaveLength(1);
+      expect(mockGet).not.toHaveBeenCalled();
+
+      // 3. Year boundary subscribed refresh (UTC 2026-12 vs Asia/Taipei 2027-1)
+      const yearBoundaryUnix = Math.floor(
+        Date.UTC(2026, 11, 31, 23, 30, 0) / 1000
+      );
+      const decKey = { userId: '42', year: 2026, month: 12 };
+      const janKey = { userId: '42', year: 2027, month: 1 };
+      const decMidUnix = Math.floor(Date.UTC(2026, 11, 15, 10, 0, 0) / 1000);
+
+      scheduleReadModel.set(decKey, []);
+      scheduleReadModel.set(janKey, []);
+      const unsubDec = scheduleReadModel.subscribe(
+        decKey,
+        () => new Promise(() => {}),
+        () => {}
+      );
+      const unsubJan = scheduleReadModel.subscribe(
+        janKey,
+        () => new Promise(() => {}),
+        () => {}
+      );
+
+      mockGet.mockImplementation(async (path: string) => {
+        const isDecember = path.endsWith('/m/12');
+        const slotTime = isDecember ? decMidUnix : yearBoundaryUnix;
+        return {
+          segments: [
+            {
+              id: isDecember ? 12 : 1,
+              dt_type: 'PENDING',
+              dt_year: isDecember ? 2026 : 2027,
+              dt_month: isDecember ? 12 : 1,
+              dtstart: slotTime,
+              dtend: slotTime + 1800,
+            },
+          ],
+        };
+      });
+
+      try {
+        await createReservation({
+          userId: 99,
+          body: {
+            my_user_id: 99,
+            user_id: 42,
+            schedule_id: 1,
+            dtstart: yearBoundaryUnix,
+            dtend: yearBoundaryUnix + 1800,
+          },
+          transport,
+        });
+
+        await vi.waitFor(() => {
+          expect(scheduleReadModel.get(decKey)?.[0]?.id).toBe(12);
+          expect(scheduleReadModel.get(janKey)?.[0]?.id).toBe(1);
+        });
+      } finally {
+        unsubDec();
+        unsubJan();
+      }
+
+      // 4. Negative UTC offset (America/Los_Angeles UTC-7: 2026-08-01T01:00:00Z === 2026-07-31T18:00:00-07:00)
+      vi.stubEnv('TZ', 'America/Los_Angeles');
+      const westBoundaryUnix = Math.floor(Date.UTC(2026, 7, 1, 1, 0, 0) / 1000);
+      const augUtcKey = { userId: '42', year: 2026, month: 8 };
+      const julyLocalKey = { userId: '42', year: 2026, month: 7 };
+      scheduleReadModel.set(augUtcKey, [makeSlot(westBoundaryUnix, 8)]);
+      scheduleReadModel.set(julyLocalKey, [makeSlot(westBoundaryUnix, 7)]);
+
+      await acceptReservation({
+        message: '',
+        reservation: makeMockReservation({
+          senderUserId: '42',
+          participantUserId: '99',
+          dtstart: westBoundaryUnix,
+        }),
+        myUserId: '42',
+        myRole: 'mentor',
+        transport,
+      });
+
+      expect(scheduleReadModel.get(augUtcKey)).toBeUndefined();
+      expect(scheduleReadModel.get(julyLocalKey)).toBeUndefined();
+    });
+
+    it('captures non-abort schedule refresh errors and skips reporting when aborted on clear()', async () => {
+      const targetKey = { userId: '10', year: 2026, month: 7 };
+      const unix = Math.floor(Date.UTC(2026, 6, 15, 10, 0, 0) / 1000);
+      const transport = createInMemoryReservationWriteTransport();
+      const mockLoadMonthSchedule = vi.mocked(loadMonthSchedule);
+
+      scheduleReadModel.set(targetKey, []);
+      const unsub = scheduleReadModel.subscribe(
+        targetKey,
+        () => new Promise(() => {}),
+        () => {}
+      );
+
+      try {
+        mockLoadMonthSchedule.mockRejectedValueOnce(new Error('schedule down'));
+        await acceptReservation({
+          message: '',
+          reservation: makeMockReservation({
+            senderUserId: '10',
+            participantUserId: '20',
+            dtstart: unix,
+          }),
+          myUserId: '10',
+          myRole: 'mentor',
+          transport,
+        });
+
+        await vi.waitFor(() => {
+          expect(mockCaptureFailure).toHaveBeenCalledWith({
+            flow: 'reservation_mutation_invalidate',
+            step: 'refresh_mentor_schedule',
+            message: 'schedule down',
+            level: 'warning',
+          });
+        });
+
+        mockCaptureFailure.mockClear();
+        let rejectInflight!: (err: Error) => void;
+        mockLoadMonthSchedule.mockImplementationOnce(
+          () =>
+            new Promise<RawMentorTimeslot[]>((_resolve, reject) => {
+              rejectInflight = reject;
+            })
+        );
+
+        await acceptReservation({
+          message: '',
+          reservation: makeMockReservation({
+            senderUserId: '10',
+            participantUserId: '20',
+            dtstart: unix,
+          }),
+          myUserId: '10',
+          myRole: 'mentor',
+          transport,
+        });
+
+        scheduleReadModel.clear();
+        rejectInflight(new Error('late network error after clear'));
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        expect(mockCaptureFailure).not.toHaveBeenCalled();
+      } finally {
+        unsub();
+      }
+    });
   });
 });

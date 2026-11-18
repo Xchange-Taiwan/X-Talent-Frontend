@@ -15,39 +15,33 @@ vi.mock('next-auth/react', async () => {
   return nextAuthMockFactory();
 });
 
-vi.mock(
-  '@/services/reservations/reservationService',
-  async (importOriginal) => {
-    const actual =
-      await importOriginal<
-        typeof import('@/services/reservations/reservationService')
-      >();
-    return {
-      ...actual,
-      fetchPendingFeedbackReservations: vi.fn(),
-      postReservationFeedback: vi.fn().mockResolvedValue({ ok: true }),
-    };
-  }
-);
-
 vi.mock('@/services/reservations', async (importOriginal) => {
   const actual =
     await importOriginal<typeof import('@/services/reservations')>();
   return {
     ...actual,
+    fetchPendingFeedbackReservations: vi.fn(),
     submitReservationFeedback: vi.fn(
-      (...args: Parameters<typeof actual.submitReservationFeedback>) =>
-        actual.submitReservationFeedback(...args)
+      (params: Parameters<typeof actual.submitReservationFeedback>[0]) =>
+        actual.submitReservationFeedback({
+          ...params,
+          transport:
+            params.transport ??
+            actual.createInMemoryReservationWriteTransport(),
+        })
     ),
   };
 });
 
-vi.mock('@/lib/cache/userProfileDtoCache', async (importOriginal) => {
+vi.mock('@/lib/profile/profileReadModel', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@/lib/cache/userProfileDtoCache')>();
+    await importOriginal<typeof import('@/lib/profile/profileReadModel')>();
   return {
     ...actual,
-    clearUserProfileDtoCache: vi.fn(),
+    profileReadModel: {
+      ...actual.profileReadModel,
+      invalidateUser: vi.fn(actual.profileReadModel.invalidateUser),
+    },
   };
 });
 
@@ -56,7 +50,7 @@ vi.mock('@/lib/analytics', () => ({
 }));
 
 import { trackEvent } from '@/lib/analytics';
-import { clearUserProfileDtoCache } from '@/lib/cache/userProfileDtoCache';
+import { profileReadModel } from '@/lib/profile/profileReadModel';
 import {
   getSessionPendingFeedbackState,
   markSessionPendingFeedbackChecked,
@@ -72,7 +66,7 @@ import { usePendingFeedbackQueue } from './usePendingFeedbackQueue';
 
 const mockFetchPending = vi.mocked(fetchPendingFeedbackReservations);
 const mockSubmitFeedback = vi.mocked(submitReservationFeedback);
-const mockClearDtoCache = vi.mocked(clearUserProfileDtoCache);
+const mockInvalidateProfileUser = vi.mocked(profileReadModel.invalidateUser);
 const mockTrackEvent = vi.mocked(trackEvent);
 
 function makeItem(
@@ -295,8 +289,7 @@ describe('usePendingFeedbackQueue (#740)', () => {
       myRole: 'mentor',
       payload: { meeting_happened: true },
     });
-    expect(mockClearDtoCache).toHaveBeenCalledWith(1, 'zh_TW');
-    expect(mockClearDtoCache).toHaveBeenCalledWith(1, 'en_US');
+    expect(mockInvalidateProfileUser).toHaveBeenCalledWith(1);
     expect(mockTrackEvent).toHaveBeenCalledWith({
       name: 'reservation_feedback_submitted',
       feature: 'reservation',
@@ -368,7 +361,7 @@ describe('usePendingFeedbackQueue (#740)', () => {
         menteeItem
       );
     });
-    expect(mockClearDtoCache).not.toHaveBeenCalled();
+    expect(mockInvalidateProfileUser).not.toHaveBeenCalled();
 
     await act(async () => {
       await result.current.submitFeedbackItem(
@@ -379,12 +372,11 @@ describe('usePendingFeedbackQueue (#740)', () => {
         menteeItem
       );
     });
-    expect(mockClearDtoCache).toHaveBeenCalledWith(303, 'zh_TW');
-    expect(mockClearDtoCache).toHaveBeenCalledWith(303, 'en_US');
+    expect(mockInvalidateProfileUser).toHaveBeenCalledWith(303);
 
-    // Mentor reporting meeting_happened: false MUST also invalidate Mentor's own zh_TW & en_US DTO caches
+    // Mentor reporting meeting_happened: false MUST also invalidate Mentor's own profileReadModel user caches
     // so any previously published review / session count is evicted immediately
-    mockClearDtoCache.mockClear();
+    mockInvalidateProfileUser.mockClear();
     const mentorItem = makeItem('202', 1761000000, 'MENTOR');
     await act(async () => {
       await result.current.submitFeedbackItem(
@@ -404,8 +396,7 @@ describe('usePendingFeedbackQueue (#740)', () => {
         not_happened_reason: 'COUNTERPART_ABSENT',
       },
     });
-    expect(mockClearDtoCache).toHaveBeenCalledWith(1, 'zh_TW');
-    expect(mockClearDtoCache).toHaveBeenCalledWith(1, 'en_US');
+    expect(mockInvalidateProfileUser).toHaveBeenCalledWith(1);
 
     mockUseSession.mockReturnValue({
       data: null,
@@ -546,8 +537,7 @@ describe('usePendingFeedbackQueue (#740)', () => {
         payload: { meeting_happened: true },
       })
     );
-    expect(mockClearDtoCache).toHaveBeenCalledWith(1, 'zh_TW');
-    expect(mockClearDtoCache).toHaveBeenCalledWith(1, 'en_US');
+    expect(mockInvalidateProfileUser).toHaveBeenCalledWith(1);
   });
 
   it('re-fetches and preserves remaining unanswered items after a mid-queue page reload, then stops re-fetching once all items are completed', async () => {

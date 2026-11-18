@@ -1,4 +1,5 @@
 import { apiClient, ApiError } from '@/lib/apiClient';
+import { isAbortError } from '@/lib/errorUtils';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   extractRawPendingFeedbackList,
@@ -13,17 +14,7 @@ import {
 } from '@/lib/reservation/reservationProjection';
 import { components } from '@/types/api';
 import { Reservation } from '@/types/reservation';
-import type {
-  RawPendingFeedbackResponse,
-  SubmitReservationFeedbackRequest,
-  UpdateReservationFeedbackRequest,
-} from '@/types/reservationFeedback';
-
-import {
-  isAbortSignalTriggered,
-  refreshMentorScheduleForReservation,
-  refreshReservationKey,
-} from './refreshReservationKey';
+import type { RawPendingFeedbackResponse } from '@/types/reservationFeedback';
 
 export {
   extractRawPendingFeedbackList,
@@ -53,11 +44,6 @@ export type FetchOptions = {
   debug?: boolean;
   signal?: AbortSignal;
 };
-
-type UpdateReservationDTOWithVersion =
-  components['schemas']['UpdateReservationDTO'] & {
-    version?: number;
-  };
 
 /* ================================
  * Queries
@@ -138,7 +124,7 @@ export async function fetchAllReservationsForState(
       }
     }
   } catch (err) {
-    if (!isAbortSignalTriggered(err, signal)) {
+    if (!isAbortError(err, signal)) {
       captureFlowFailure({
         flow: 'mentor_schedule_reservations_fetch',
         step: `fetch_${state}`,
@@ -152,80 +138,6 @@ export async function fetchAllReservationsForState(
     throw err;
   }
   return allItems;
-}
-
-/* ================================
- * PUT: Update reservation status
- * ================================ */
-
-export async function updateReservationStatus(opts: {
-  userId: string | number;
-  reservationId: string | number;
-  body: UpdateReservationDTOWithVersion;
-  debug?: boolean;
-}): Promise<components['schemas']['ReservationVO']> {
-  const { userId, reservationId, body, debug } = opts;
-
-  if (debug)
-    console.debug('[reservations] PUT request', {
-      userId,
-      reservationId,
-      body,
-    });
-
-  const path = `/v1/users/${userId}/reservations/${reservationId}`;
-  const data = await apiClient.putUnwrapped<
-    components['schemas']['ReservationVO']
-  >(path, body);
-
-  if (debug) console.debug('[reservations] PUT parsed', data);
-
-  if (!data) throw new Error('API error: missing data in response');
-
-  return data;
-}
-
-/* ================================
- * POST: Create new reservation
- * ================================ */
-
-/**
- * Create a reservation (POST /v1/users/:user_id/reservations)
- *
- * @param opts.body.previous_reserve - Pass `{ reserve_id: number }` when
- *   rescheduling an existing booking; omit for a fresh reservation.
- */
-export async function createReservation(opts: {
-  userId: string | number;
-  body: components['schemas']['ReservationDTO'];
-  debug?: boolean;
-}): Promise<components['schemas']['ReservationVO']> {
-  const { userId, body, debug } = opts;
-
-  if (debug) console.debug('[reservations] POST request', { userId, body });
-
-  const path = `/v1/users/${userId}/reservations`;
-  const data = await apiClient.postUnwrapped<
-    components['schemas']['ReservationVO']
-  >(path, body);
-
-  if (debug) console.debug('[reservations] POST parsed', data);
-
-  if (!data) throw new Error('API error: missing data in response');
-
-  // A new booking lands in PENDING for both sides and transitions the target
-  // mentor's schedule slot in `(body.user_id, year, month)`.
-  void refreshReservationKey({
-    userId: String(userId),
-    state: 'MENTEE_PENDING',
-  });
-  void refreshReservationKey({
-    userId: String(body.user_id),
-    state: 'MENTOR_PENDING',
-  });
-  void refreshMentorScheduleForReservation(body.user_id, body.dtstart);
-
-  return data;
 }
 
 /* ================================
@@ -290,10 +202,7 @@ export async function fetchPendingFeedbackReservations(opts: {
 
     return projectPendingFeedbackList(data, userId, fallbackViewerRole);
   } catch (err) {
-    if (
-      signal?.aborted ||
-      (err instanceof Error && err.name === 'AbortError')
-    ) {
+    if (isAbortError(err, signal)) {
       return [];
     }
 
@@ -313,50 +222,4 @@ export async function fetchPendingFeedbackReservations(opts: {
 
     throw err;
   }
-}
-
-/* ================================
- * POST: Submit meeting feedback
- * ================================ */
-
-export async function postReservationFeedback(opts: {
-  userId: string | number;
-  reservationId: string | number;
-  body: SubmitReservationFeedbackRequest;
-  debug?: boolean;
-}): Promise<unknown> {
-  const { userId, reservationId, body, debug } = opts;
-
-  if (debug) {
-    console.debug('[reservations] POST Feedback request', {
-      userId,
-      reservationId,
-    });
-  }
-
-  const path = `/v1/users/${encodeURIComponent(userId)}/reservations/${encodeURIComponent(reservationId)}/feedback`;
-  return apiClient.postUnwrapped<unknown>(path, body);
-}
-
-/* ================================
- * PUT: Update meeting feedback (#731)
- * ================================ */
-
-export async function putReservationFeedback(opts: {
-  userId: string | number;
-  reservationId: string | number;
-  body: UpdateReservationFeedbackRequest;
-  debug?: boolean;
-}): Promise<unknown> {
-  const { userId, reservationId, body, debug } = opts;
-
-  if (debug) {
-    console.debug('[reservations] PUT Feedback request', {
-      userId,
-      reservationId,
-    });
-  }
-
-  const path = `/v1/users/${encodeURIComponent(userId)}/reservations/${encodeURIComponent(reservationId)}/feedback`;
-  return apiClient.putUnwrapped<unknown>(path, body);
 }

@@ -28,29 +28,20 @@ vi.mock('next-auth/react', async () => {
   return nextAuthMockFactory();
 });
 
-vi.mock(
-  '@/services/reservations/reservationService',
-  async (importOriginal) => {
-    const actual =
-      await importOriginal<
-        typeof import('@/services/reservations/reservationService')
-      >();
-    return {
-      ...actual,
-      fetchPendingFeedbackReservations: vi.fn(),
-      postReservationFeedback: vi.fn().mockResolvedValue({ ok: true }),
-    };
-  }
-);
-
 vi.mock('@/services/reservations', async (importOriginal) => {
   const actual =
     await importOriginal<typeof import('@/services/reservations')>();
   return {
     ...actual,
+    fetchPendingFeedbackReservations: vi.fn(),
     submitReservationFeedback: vi.fn(
-      (...args: Parameters<typeof actual.submitReservationFeedback>) =>
-        actual.submitReservationFeedback(...args)
+      (params: Parameters<typeof actual.submitReservationFeedback>[0]) =>
+        actual.submitReservationFeedback({
+          ...params,
+          transport:
+            params.transport ??
+            actual.createInMemoryReservationWriteTransport(),
+        })
     ),
   };
 });
