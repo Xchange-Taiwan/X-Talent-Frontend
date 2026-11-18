@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useRef, useState } from 'react';
 import { Control, FieldValues, Path, useController } from 'react-hook-form';
 
+import { shouldUnoptimizeAvatarSrc } from '@/lib/avatar/avatarUrl';
 import {
   FOCUS_RING_CLASSES,
   FOCUS_RING_NO_OFFSET_CLASSES,
@@ -113,11 +114,7 @@ const AvatarUpload = <T extends FieldValues>({
               width={compact ? 96 : 150}
               height={compact ? 96 : 150}
               sizes={compact ? '96px' : '150px'}
-              unoptimized={
-                typeof imagePreviewUrl === 'string' &&
-                (imagePreviewUrl.startsWith('/avatars/') ||
-                  imagePreviewUrl.startsWith('blob:'))
-              }
+              unoptimized={shouldUnoptimizeAvatarSrc(imagePreviewUrl)}
               className="size-full rounded-full object-cover"
               priority
             />

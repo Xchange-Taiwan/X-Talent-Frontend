@@ -53,7 +53,11 @@ describe('locationSearchStore (#961)', () => {
       unsubA();
       expect(window.history.pushState).not.toBe(originalPush);
 
-      window.history.pushState({}, '', '/profile/2/edit?mentor-onboarding=true');
+      window.history.pushState(
+        {},
+        '',
+        '/profile/2/edit?mentor-onboarding=true'
+      );
       await Promise.resolve();
       expect(listenerA).not.toHaveBeenCalled();
       expect(listenerB).toHaveBeenCalledTimes(1);
