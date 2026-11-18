@@ -1,4 +1,5 @@
-import { useSession } from 'next-auth/react';
+import { usePathname } from 'next/navigation';
+import { SessionContext } from 'next-auth/react';
 import * as React from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
@@ -19,21 +20,15 @@ export type { NotificationItem };
 
 export type UseNotificationCenterProps = {
   userId?: string;
+  enabled?: boolean;
   initialStatus?: NotificationStatus;
   initialNotifications?: NotificationItem[];
   notificationSource?: NotificationSource;
 };
 
-function useOptionalSession(): ReturnType<typeof useSession> | undefined {
-  try {
-    return useSession();
-  } catch {
-    return undefined;
-  }
-}
-
 export function useNotificationCenter({
   userId,
+  enabled = true,
   initialStatus = 'success',
   initialNotifications,
   notificationSource,
@@ -58,22 +53,26 @@ export function useNotificationCenter({
     return undefined;
   }, [notificationSource, initialNotifications]);
 
-  const sessionContext = useOptionalSession();
+  const sessionContext = React.useContext(SessionContext);
+  const pathname = usePathname();
   const isIncompleteOnboarding =
     sessionContext?.status === 'authenticated' &&
     sessionContext.data?.user?.onBoarding === false;
-  const isOnboardingRoute =
-    typeof window !== 'undefined' &&
-    (window.location.pathname === ONBOARDING_HREF ||
-      window.location.pathname.startsWith(`${ONBOARDING_HREF}/`));
+  const isOnboardingRoute = Boolean(
+    pathname &&
+    (pathname === ONBOARDING_HREF || pathname.startsWith(`${ONBOARDING_HREF}/`))
+  );
   const effectiveUserId =
-    explicitSource === undefined &&
-    (isIncompleteOnboarding || isOnboardingRoute)
+    !enabled ||
+    (explicitSource === undefined &&
+      (isIncompleteOnboarding || isOnboardingRoute))
       ? undefined
       : userId;
 
-  const [serverSnapshot] = React.useState(() =>
-    createInitialState(effectiveUserId, initialNotifications, initialStatus)
+  const serverSnapshot = React.useMemo(
+    () =>
+      createInitialState(effectiveUserId, initialNotifications, initialStatus),
+    [effectiveUserId, initialNotifications, initialStatus]
   );
 
   const storeState = React.useSyncExternalStore(

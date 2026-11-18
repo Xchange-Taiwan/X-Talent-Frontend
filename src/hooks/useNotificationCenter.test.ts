@@ -19,6 +19,16 @@ import {
 } from '@/stores/notificationStore';
 import { mockToast } from '@/test/mocks/useToast';
 
+const mockUsePathname = vi.fn<() => string | null>(() => '/');
+
+vi.mock('next/navigation', async () => {
+  const { navigationMockFactory } = await import('@/test/mocks/navigation');
+  return {
+    ...navigationMockFactory(),
+    usePathname: () => mockUsePathname(),
+  };
+});
+
 vi.mock('@/components/ui/use-toast', async () => {
   const { useToastMockFactory } = await import('@/test/mocks/useToast');
   return useToastMockFactory();
@@ -70,6 +80,7 @@ const mockNotifications: NotificationItem[] = [
 describe('useNotificationCenter', () => {
   beforeEach(() => {
     mockToast.mockClear();
+    mockUsePathname.mockReturnValue('/');
     vi.mocked(captureFlowFailure).mockClear();
     localStorage.clear();
     resetNotificationStore();
@@ -1355,8 +1366,11 @@ describe('useNotificationCenter', () => {
   });
 
   describe('onboarding background polling suppression (#953)', () => {
-    it('skips background unread-count fetch when authenticated user has onBoarding === false', async () => {
+    it('suppresses unread-count fetch while onBoarding === false and immediately resumes with real userId once onBoarding becomes true', () => {
       const configureSpy = vi.spyOn(notificationStoreManager, 'configure');
+      const subscribeSpy = vi.spyOn(notificationStoreManager, 'subscribe');
+      let currentOnboarding = false;
+
       const wrapper = ({ children }: { children: React.ReactNode }) =>
         React.createElement(
           SessionContext.Provider,
@@ -1364,7 +1378,10 @@ describe('useNotificationCenter', () => {
             value: fromPartial<SessionContextValue>({
               status: 'authenticated',
               data: {
-                user: { id: '7523335928165814', onBoarding: false },
+                user: {
+                  id: '7523335928165814',
+                  onBoarding: currentOnboarding,
+                },
                 expires: '2099-01-01T00:00:00.000Z',
               },
               update: async () => null,
@@ -1373,29 +1390,77 @@ describe('useNotificationCenter', () => {
           children
         );
 
-      renderHook(() => useNotificationCenter({ userId: '7523335928165814' }), {
-        wrapper,
-      });
+      const { rerender } = renderHook(
+        () => useNotificationCenter({ userId: '7523335928165814' }),
+        { wrapper }
+      );
 
-      expect(configureSpy).toHaveBeenCalledWith(undefined, expect.any(Object));
+      expect(configureSpy).toHaveBeenLastCalledWith(
+        undefined,
+        expect.any(Object)
+      );
+      expect(subscribeSpy).toHaveBeenLastCalledWith(
+        undefined,
+        expect.any(Function)
+      );
+
+      notificationStoreManager.setSource(
+        '7523335928165814',
+        createInMemoryNotificationSource([])
+      );
+      currentOnboarding = true;
+      rerender();
+
+      expect(configureSpy).toHaveBeenLastCalledWith(
+        '7523335928165814',
+        expect.any(Object)
+      );
+      expect(subscribeSpy).toHaveBeenLastCalledWith(
+        '7523335928165814',
+        expect.any(Function)
+      );
+
       configureSpy.mockRestore();
+      subscribeSpy.mockRestore();
     });
 
-    it('skips background unread-count fetch when current pathname is /auth/onboarding', () => {
+    it('suppresses unread-count fetch on /auth/onboarding and subpaths, and immediately resumes on SPA navigation to /mentor-pool', () => {
       const configureSpy = vi.spyOn(notificationStoreManager, 'configure');
-      const originalPathname = window.location.pathname;
-      window.history.pushState({}, '', '/auth/onboarding');
+      const subscribeSpy = vi.spyOn(notificationStoreManager, 'subscribe');
+      notificationStoreManager.setSource(
+        '7523335928165814',
+        createInMemoryNotificationSource([])
+      );
 
-      try {
-        renderHook(() => useNotificationCenter({ userId: '7523335928165814' }));
-        expect(configureSpy).toHaveBeenCalledWith(
-          undefined,
-          expect.any(Object)
-        );
-      } finally {
-        window.history.pushState({}, '', originalPathname);
-        configureSpy.mockRestore();
-      }
+      mockUsePathname.mockReturnValue('/auth/onboarding');
+      const { rerender } = renderHook(() =>
+        useNotificationCenter({ userId: '7523335928165814' })
+      );
+      expect(configureSpy).toHaveBeenLastCalledWith(
+        undefined,
+        expect.any(Object)
+      );
+
+      mockUsePathname.mockReturnValue('/auth/onboarding/step-2');
+      rerender();
+      expect(configureSpy).toHaveBeenLastCalledWith(
+        undefined,
+        expect.any(Object)
+      );
+
+      mockUsePathname.mockReturnValue('/mentor-pool');
+      rerender();
+      expect(configureSpy).toHaveBeenLastCalledWith(
+        '7523335928165814',
+        expect.any(Object)
+      );
+      expect(subscribeSpy).toHaveBeenLastCalledWith(
+        '7523335928165814',
+        expect.any(Function)
+      );
+
+      configureSpy.mockRestore();
+      subscribeSpy.mockRestore();
     });
   });
 });

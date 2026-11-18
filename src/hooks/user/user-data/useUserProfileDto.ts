@@ -11,6 +11,7 @@ import {
   profileReadModel,
   USER_PROFILE_DTO_CACHE_TTL_MS,
 } from '@/lib/profile/profileReadModel';
+import { normalizePositiveUserId } from '@/lib/profile/userId';
 import { fetchUserById } from '@/services/profile/user';
 import type { MentorProfileVO } from '@/types/user';
 
@@ -41,18 +42,18 @@ export function useUserProfileDto(
   initialData?: MentorProfileVO | null,
   options?: { enabled?: boolean }
 ): UseUserProfileDtoResult {
-  const numericUserId =
-    typeof userId === 'number'
+  const canonicalUserId = normalizePositiveUserId(userId);
+  const fetchTargetId: number | string | null = canonicalUserId
+    ? typeof userId === 'number'
       ? userId
-      : /^[1-9]\d*$/.test(userId.trim())
-        ? Number(userId.trim())
-        : Number.NaN;
+      : canonicalUserId
+    : null;
   const readKey = useMemo<ProfileReadKey | null>(
     () =>
-      userId && language && Number.isFinite(numericUserId) && numericUserId > 0
-        ? { userId: numericUserId, language }
+      canonicalUserId && language
+        ? { userId: canonicalUserId, language }
         : null,
-    [userId, numericUserId, language]
+    [canonicalUserId, language]
   );
   const enabled = options?.enabled !== false;
   const activeKey = enabled ? readKey : null;
@@ -65,7 +66,10 @@ export function useUserProfileDto(
   } = useAsyncRead(
     profileReadModel,
     activeKey,
-    (signal) => fetchUserById(userId, language, signal),
+    (signal) =>
+      fetchTargetId !== null
+        ? fetchUserById(fetchTargetId, language, signal)
+        : Promise.resolve(null),
     {
       initialData,
     }

@@ -15,6 +15,7 @@ import { useBookingConfirmation } from '@/hooks/user/reservation/useBookingConfi
 import useUserData from '@/hooks/user/user-data/useUserData';
 import { useTrackMentorNoAvailableSlots } from '@/hooks/useTrackMentorNoAvailableSlots';
 import { isFeedbackEnabled } from '@/lib/featureFlags';
+import { normalizePositiveUserId } from '@/lib/profile/userId';
 import { getMentorOnboardingUrl, OPEN_SCHEDULE_DIALOG_KEY } from '@/lib/routes';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
@@ -59,11 +60,12 @@ export default function ProfilePageContainer({
   initialCatalogs,
 }: Props) {
   const router = useRouter();
+  const canonicalUserId = normalizePositiveUserId(pageUserId);
   const pageUserIdNumber = Number(pageUserId);
   const resolvedProfileUserId: number | string =
-    Number.isSafeInteger(pageUserIdNumber) && pageUserIdNumber > 0
+    canonicalUserId && Number.isSafeInteger(pageUserIdNumber)
       ? pageUserIdNumber
-      : pageUserId;
+      : (canonicalUserId ?? pageUserId);
 
   const identity = useResolvedIdentity();
   const isIdentityResolved =

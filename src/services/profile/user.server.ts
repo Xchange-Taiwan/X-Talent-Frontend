@@ -1,21 +1,9 @@
 import { apiClient, BASE_URL } from '@/lib/apiClient';
+import { normalizePositiveUserId } from '@/lib/profile/userId';
 import type { components } from '@/types/api';
 import type { MentorProfileVO } from '@/types/user';
 
 export const REVALIDATE_SECONDS = 600;
-
-const POSITIVE_INTEGER_ID_PATTERN = /^[1-9]\d*$/;
-
-function normalizePositiveUserId(userId: number | string): string | null {
-  if (typeof userId === 'number') {
-    if (!Number.isSafeInteger(userId) || userId <= 0) {
-      return null;
-    }
-    return String(userId);
-  }
-  const trimmed = userId.trim();
-  return POSITIVE_INTEGER_ID_PATTERN.test(trimmed) ? trimmed : null;
-}
 
 /**
  * Server-only mentor profile fetch for SSR rendering of /profile/[id].

@@ -1,5 +1,6 @@
 import { apiClient, ApiError } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
+import { normalizePositiveUserId } from '@/lib/profile/userId';
 import type { MentorProfileVO } from '@/types/user';
 
 function isAbortError(error: unknown): boolean {
@@ -26,19 +27,6 @@ function isUserNotFoundError(error: unknown): boolean {
     }
   }
   return false;
-}
-
-const POSITIVE_INTEGER_ID_PATTERN = /^[1-9]\d*$/;
-
-function normalizePositiveUserId(userId: number | string): string | null {
-  if (typeof userId === 'number') {
-    if (!Number.isSafeInteger(userId) || userId <= 0) {
-      return null;
-    }
-    return String(userId);
-  }
-  const trimmed = userId.trim();
-  return POSITIVE_INTEGER_ID_PATTERN.test(trimmed) ? trimmed : null;
 }
 
 export async function fetchUserById(

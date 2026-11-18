@@ -522,4 +522,60 @@ describe('useUserProfileDto', () => {
       expect(result.current.userDto).toEqual(staleWithOldAvatar);
     });
   });
+
+  it('preserves 64-bit string user IDs above Number.MAX_SAFE_INTEGER across cache keys and refetch without float collision, and skips invalid IDs (#953)', async () => {
+    vi.mocked(fetchUserById).mockReset();
+    const dtoA = { ...mockUserDTO, name: 'Mentor 992' };
+    const dtoB = { ...mockUserDTO, name: 'Mentor 993' };
+    const dtoRefetched = { ...mockUserDTO, name: 'Mentor 999 Refetched' };
+
+    vi.mocked(fetchUserById)
+      .mockResolvedValueOnce(dtoA)
+      .mockResolvedValueOnce(dtoB)
+      .mockResolvedValueOnce(dtoRefetched);
+
+    const { result: resA } = renderHook(() =>
+      useUserProfileDto('9007199254740992', 'zh_TW')
+    );
+    const { result: resB } = renderHook(() =>
+      useUserProfileDto('9007199254740993', 'zh_TW')
+    );
+
+    await vi.waitFor(() => {
+      expect(resA.current.userDto).toEqual(dtoA);
+      expect(resB.current.userDto).toEqual(dtoB);
+    });
+
+    expect(fetchUserById).toHaveBeenCalledWith(
+      '9007199254740992',
+      'zh_TW',
+      expect.any(AbortSignal)
+    );
+    expect(fetchUserById).toHaveBeenCalledWith(
+      '9007199254740993',
+      'zh_TW',
+      expect.any(AbortSignal)
+    );
+
+    const { result: resLarge } = renderHook(() =>
+      useUserProfileDto('9999999999999999', 'zh_TW', dtoA)
+    );
+    act(() => {
+      resLarge.current.refetch?.();
+    });
+    await vi.waitFor(() => {
+      expect(resLarge.current.userDto).toEqual(dtoRefetched);
+    });
+    expect(fetchUserById).toHaveBeenLastCalledWith(
+      '9999999999999999',
+      'zh_TW',
+      expect.any(AbortSignal)
+    );
+
+    vi.mocked(fetchUserById).mockClear();
+    for (const invalid of ['0', '-1', 'abc']) {
+      renderHook(() => useUserProfileDto(invalid, 'zh_TW'));
+    }
+    expect(fetchUserById).not.toHaveBeenCalled();
+  });
 });

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 
 import { PersonJsonLd } from '@/components/seo/PersonJsonLd';
 import { buildTagLabelMap } from '@/lib/profile/tagLabelMap';
+import { normalizePositiveUserId } from '@/lib/profile/userId';
 import { buildMentorMetadata } from '@/lib/seo/buildMentorMetadata';
 import { sanitizePublicProfile } from '@/lib/seo/sanitizePublicProfile';
 import { getSiteUrl } from '@/lib/site-url';
@@ -14,8 +15,6 @@ import ProfilePageContainer from './container';
 // ISR: each (userId) profile page is cached on the server for 600s. Edit
 // submit calls revalidatePath to invalidate on demand.
 export const revalidate = 600;
-
-const POSITIVE_INTEGER_ID_PATTERN = /^[1-9]\d*$/;
 
 interface PageProps {
   params: Promise<{ pageUserId: string }>;
@@ -30,10 +29,10 @@ export async function generateMetadata({
   params,
 }: PageProps): Promise<Metadata> {
   const { pageUserId } = await params;
-  const trimmedId = pageUserId.trim();
-  if (!POSITIVE_INTEGER_ID_PATTERN.test(trimmedId)) return FALLBACK_METADATA;
+  const canonicalUserId = normalizePositiveUserId(pageUserId);
+  if (!canonicalUserId) return FALLBACK_METADATA;
   const [dto, catalogs] = await Promise.all([
-    fetchUserByIdServer(trimmedId, 'zh_TW'),
+    fetchUserByIdServer(canonicalUserId, 'zh_TW'),
     fetchTagCatalogServer('zh_TW'),
   ]);
   if (!dto) return FALLBACK_METADATA;
@@ -44,11 +43,11 @@ export async function generateMetadata({
 
 export default async function Page({ params }: PageProps) {
   const { pageUserId } = await params;
-  const trimmedId = pageUserId.trim();
-  if (!POSITIVE_INTEGER_ID_PATTERN.test(trimmedId)) notFound();
+  const canonicalUserId = normalizePositiveUserId(pageUserId);
+  if (!canonicalUserId) notFound();
 
   const [initialDto, catalogs] = await Promise.all([
-    fetchUserByIdServer(trimmedId, 'zh_TW'),
+    fetchUserByIdServer(canonicalUserId, 'zh_TW'),
     fetchTagCatalogServer('zh_TW'),
   ]);
 

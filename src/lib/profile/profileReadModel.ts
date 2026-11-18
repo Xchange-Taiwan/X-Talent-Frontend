@@ -11,6 +11,7 @@ import {
   type OptimisticIdentityProjection,
 } from '@/lib/identity/identityProjection';
 import { hasProfileDtoConverged } from '@/lib/profile/convergence';
+import { normalizePositiveUserId } from '@/lib/profile/userId';
 import type { MentorProfileVO } from '@/types/user';
 
 export { hasProfileDtoConverged };
@@ -21,7 +22,7 @@ export const USER_PROFILE_DTO_CACHE_TTL_MS = PROFILE_READ_MODEL_TTL_MS;
 export const OPTIMISTIC_TRANSITION_WINDOW_MS = 10_000;
 
 export interface ProfileReadKey {
-  userId: number;
+  userId: number | string;
   language: string;
 }
 
@@ -76,7 +77,7 @@ export interface ProfileReadModel extends AsyncReadSource<
   ): Promise<AsyncReadResult<MentorProfileVO | null> | null>;
   evict(key: ProfileReadKey): void;
   invalidate(key: ProfileReadKey): void;
-  invalidateUser(userId: number): void;
+  invalidateUser(userId: number | string): void;
   clear(): void;
   resolveInitialData(
     key: ProfileReadKey | null | undefined,
@@ -95,15 +96,19 @@ export interface ProfileReadModel extends AsyncReadSource<
   getLastPrimedTime(): number;
   isOptimisticTransitionActive(): boolean;
   subscribeTransition(listener: () => void): () => void;
-  observeOptimisticIdentity(userId: number, listener: () => void): () => void;
+  observeOptimisticIdentity(
+    userId: number | string,
+    listener: () => void
+  ): () => void;
   getOptimisticIdentity(
-    userId: number,
+    userId: number | string,
     language?: string
   ): OptimisticIdentityProjection | undefined;
 }
 
 export function toProfileCacheKey(key: ProfileReadKey): string {
-  return `${key.userId}-${key.language}`;
+  const canonicalId = normalizePositiveUserId(key.userId) ?? String(key.userId);
+  return `${canonicalId}-${key.language}`;
 }
 
 export function parseProfileCacheKey(
@@ -112,12 +117,16 @@ export function parseProfileCacheKey(
   if (!rawKey) return null;
   const dashIndex = rawKey.indexOf('-');
   if (dashIndex <= 0) return null;
-  const userId = Number(rawKey.slice(0, dashIndex));
+  const rawId = normalizePositiveUserId(rawKey.slice(0, dashIndex));
   const language = rawKey.slice(dashIndex + 1);
-  if (!Number.isFinite(userId) || userId <= 0 || !language) {
+  if (!rawId || !language) {
     return null;
   }
-  return { userId, language };
+  const asNum = Number(rawId);
+  return {
+    userId: Number.isSafeInteger(asNum) ? asNum : rawId,
+    language,
+  };
 }
 
 export function createProfileReadModel(
@@ -132,27 +141,33 @@ export function createProfileReadModel(
     ttlMs,
   });
 
-  const trackedKeysByUser = new Map<number, Set<string>>();
-  const lastPrimedKeyByUser = new Map<number, string>();
+  const trackedKeysByUser = new Map<string, Set<string>>();
+  const lastPrimedKeyByUser = new Map<string, string>();
   const transitionListeners = new Set<() => void>();
-  const identityObservers = new Map<number, Set<() => void>>();
+  const identityObservers = new Map<string, Set<() => void>>();
   let projectionMemo = new WeakMap<
     MentorProfileVO,
     OptimisticIdentityProjection
   >();
 
   let lastPrimedTime = 0;
-  let lastPrimedUserId: number | null = null;
+  let lastPrimedUserId: string | null = null;
   let transitionTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const toCanonicalUserKey = (userId: number | string): string | null =>
+    normalizePositiveUserId(userId);
 
   const trackKey = (key: ProfileReadKey): string => {
     const cacheKey = toProfileCacheKey(key);
-    let userSet = trackedKeysByUser.get(key.userId);
-    if (!userSet) {
-      userSet = new Set<string>();
-      trackedKeysByUser.set(key.userId, userSet);
+    const userKey = toCanonicalUserKey(key.userId);
+    if (userKey) {
+      let userSet = trackedKeysByUser.get(userKey);
+      if (!userSet) {
+        userSet = new Set<string>();
+        trackedKeysByUser.set(userKey, userSet);
+      }
+      userSet.add(cacheKey);
     }
-    userSet.add(cacheKey);
     return cacheKey;
   };
 
@@ -167,9 +182,11 @@ export function createProfileReadModel(
     });
   };
 
-  const notifyIdentityObservers = (userId?: number): void => {
+  const notifyIdentityObservers = (userId?: number | string): void => {
     if (userId !== undefined) {
-      const observers = identityObservers.get(userId);
+      const userKey = toCanonicalUserKey(userId);
+      if (!userKey) return;
+      const observers = identityObservers.get(userKey);
       if (!observers) return;
       Array.from(observers).forEach((listener) => {
         if (!observers.has(listener)) return;
@@ -302,9 +319,12 @@ export function createProfileReadModel(
       }
 
       manager.prime(cacheKey, value, primeOptions);
+      const userKey = toCanonicalUserKey(key.userId);
       lastPrimedTime = readNow();
-      lastPrimedUserId = key.userId;
-      lastPrimedKeyByUser.set(key.userId, cacheKey);
+      lastPrimedUserId = userKey;
+      if (userKey) {
+        lastPrimedKeyByUser.set(userKey, cacheKey);
+      }
 
       if (transitionTimer) {
         clearTimeout(transitionTimer);
@@ -407,27 +427,30 @@ export function createProfileReadModel(
 
     invalidate(key) {
       const cacheKey = toProfileCacheKey(key);
+      const userKey = toCanonicalUserKey(key.userId);
       manager.invalidate(cacheKey);
-      if (manager.getListenerCount(cacheKey) === 0) {
-        const userSet = trackedKeysByUser.get(key.userId);
+      if (userKey && manager.getListenerCount(cacheKey) === 0) {
+        const userSet = trackedKeysByUser.get(userKey);
         if (userSet) {
           userSet.delete(cacheKey);
           if (userSet.size === 0) {
-            trackedKeysByUser.delete(key.userId);
+            trackedKeysByUser.delete(userKey);
           }
         }
       }
-      if (lastPrimedKeyByUser.get(key.userId) === cacheKey) {
-        lastPrimedKeyByUser.delete(key.userId);
+      if (userKey && lastPrimedKeyByUser.get(userKey) === cacheKey) {
+        lastPrimedKeyByUser.delete(userKey);
       }
-      if (lastPrimedUserId === null || lastPrimedUserId === key.userId) {
+      if (lastPrimedUserId === null || lastPrimedUserId === userKey) {
         resetTransition(true);
       }
       notifyIdentityObservers(key.userId);
     },
 
     invalidateUser(userId) {
-      const userSet = trackedKeysByUser.get(userId);
+      const userKey = toCanonicalUserKey(userId);
+      if (!userKey) return;
+      const userSet = trackedKeysByUser.get(userKey);
       if (userSet) {
         for (const cacheKey of Array.from(userSet)) {
           manager.invalidate(cacheKey);
@@ -436,11 +459,11 @@ export function createProfileReadModel(
           }
         }
         if (userSet.size === 0) {
-          trackedKeysByUser.delete(userId);
+          trackedKeysByUser.delete(userKey);
         }
       }
-      lastPrimedKeyByUser.delete(userId);
-      if (lastPrimedUserId === null || lastPrimedUserId === userId) {
+      lastPrimedKeyByUser.delete(userKey);
+      if (lastPrimedUserId === null || lastPrimedUserId === userKey) {
         resetTransition(true);
       }
       notifyIdentityObservers(userId);
@@ -476,49 +499,49 @@ export function createProfileReadModel(
     },
 
     observeOptimisticIdentity(userId, listener) {
-      if (!Number.isFinite(userId) || userId <= 0) {
+      const userKey = toCanonicalUserKey(userId);
+      if (!userKey) {
         return () => {};
       }
-      let set = identityObservers.get(userId);
+      let set = identityObservers.get(userKey);
       if (!set) {
         set = new Set<() => void>();
-        identityObservers.set(userId, set);
+        identityObservers.set(userKey, set);
       }
       set.add(listener);
 
       return () => {
-        const current = identityObservers.get(userId);
+        const current = identityObservers.get(userKey);
         if (current) {
           current.delete(listener);
           if (current.size === 0) {
-            identityObservers.delete(userId);
+            identityObservers.delete(userKey);
           }
         }
       };
     },
 
     getOptimisticIdentity(userId, language) {
-      if (
-        !Number.isFinite(userId) ||
-        userId <= 0 ||
-        !isOptimisticTransitionActive()
-      ) {
+      const userKey = toCanonicalUserKey(userId);
+      if (!userKey || !isOptimisticTransitionActive()) {
         return undefined;
       }
 
       let cachedDto: MentorProfileVO | null | undefined;
       if (language) {
-        cachedDto = manager.peek(toProfileCacheKey({ userId, language }));
+        cachedDto = manager.peek(
+          toProfileCacheKey({ userId: userKey, language })
+        );
       } else {
-        const primedCacheKey = lastPrimedKeyByUser.get(userId);
+        const primedCacheKey = lastPrimedKeyByUser.get(userKey);
         if (primedCacheKey) {
           cachedDto = manager.peek(primedCacheKey);
         }
         if (!cachedDto) {
-          cachedDto = manager.peek(`${userId}-zh_TW`);
+          cachedDto = manager.peek(`${userKey}-zh_TW`);
         }
         if (!cachedDto) {
-          const userSet = trackedKeysByUser.get(userId);
+          const userSet = trackedKeysByUser.get(userKey);
           if (userSet) {
             for (const cacheKey of Array.from(userSet)) {
               const candidate = manager.peek(cacheKey);
