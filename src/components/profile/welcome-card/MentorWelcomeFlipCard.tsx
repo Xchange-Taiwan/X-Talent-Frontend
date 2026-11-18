@@ -1,11 +1,11 @@
 'use client';
 
-import { RotateCw } from 'lucide-react';
+import { MapPin, RotateCcw } from 'lucide-react';
 import Image from 'next/image';
 import React, { useState } from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
-import { Badge } from '@/components/ui/badge';
+import LogoImgUrl from '@/assets/logo.svg';
 import { TotalWorkSpanEnum } from '@/constant/seniority';
 import type { UserType } from '@/hooks/user/user-data/useUserData';
 import {
@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 export interface MentorWelcomeFlipCardProps {
   userData: UserType;
   defaultFlipped?: boolean;
+  onEditProfile?: () => void;
   className?: string;
 }
 
@@ -32,6 +33,7 @@ const LEGACY_SPAN_MAP: Readonly<Record<string, string>> = {
 export function MentorWelcomeFlipCard({
   userData,
   defaultFlipped = false,
+  onEditProfile,
   className,
 }: MentorWelcomeFlipCardProps) {
   const [isFlipped, setIsFlipped] = useState<boolean>(defaultFlipped);
@@ -63,6 +65,11 @@ export function MentorWelcomeFlipCard({
       : '';
   const metaParts = [resolvedLocation, formattedExp].filter(Boolean);
 
+  const roleLine =
+    userData.job_title && userData.company
+      ? `${userData.job_title}\nat ${userData.company}`
+      : userData.job_title || userData.company || '';
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
@@ -73,7 +80,7 @@ export function MentorWelcomeFlipCard({
   return (
     <div
       className={cn(
-        'mx-auto w-full max-w-[460px] p-1 [perspective:1200px]',
+        'mx-auto w-full max-w-[368px] p-2 [perspective:1200px]',
         className
       )}
     >
@@ -87,123 +94,171 @@ export function MentorWelcomeFlipCard({
         onKeyDown={handleKeyDown}
         className={cn(
           FOCUS_RING_NO_OFFSET_CLASSES,
-          'group relative block min-h-[420px] w-full cursor-pointer rounded-3xl text-left transition-transform duration-500 [transform-style:preserve-3d]',
-          isFlipped && '[transform:rotateY(180deg)]'
+          'group relative block min-h-[476px] w-full cursor-pointer rounded-3xl text-left transition-transform duration-500 [transform-style:preserve-3d]',
+          isFlipped
+            ? '[transform:rotateY(180deg)]'
+            : '-rotate-1 hover:rotate-0'
         )}
       >
         <div
           data-testid="mentor-card-front"
           aria-hidden={isFlipped}
           className={cn(
-            'border-background-border bg-background-white flex min-h-[420px] w-full flex-col justify-between rounded-3xl border p-7 shadow-md [backface-visibility:hidden]',
+            'border-background-border bg-background-white flex min-h-[476px] w-full flex-col justify-between overflow-hidden rounded-3xl border shadow-lg [backface-visibility:hidden]',
             isFlipped && 'pointer-events-none'
           )}
         >
           <div>
-            <div className="mb-5 flex items-center justify-between">
-              <span className="bg-brand-100 text-brand-700 inline-flex items-center rounded-full px-3 py-1 text-xs font-bold tracking-wider uppercase">
+            <div className="from-auth-gradient-1 via-auth-gradient-2/60 to-auth-gradient-3 relative flex h-28 items-start justify-between bg-gradient-to-br px-6 pt-5">
+              <Image
+                src={LogoImgUrl}
+                alt="X-Talent"
+                width={92}
+                height={18}
+                className="h-[18px] w-auto"
+              />
+              <span className="bg-background-white/90 text-text-primary inline-flex items-center rounded-full px-3 py-1 text-11 font-bold tracking-wider uppercase shadow-xs">
                 MENTOR
               </span>
-              <span className="text-text-tertiary group-hover:text-brand-700 inline-flex items-center gap-1 text-xs font-medium transition-colors">
-                <RotateCw className="size-3.5" aria-hidden="true" />
-                點卡片翻面
-              </span>
             </div>
 
-            <div className="mb-5 flex items-center gap-4">
-              <div className="border-background-border relative size-16 shrink-0 overflow-hidden rounded-full border">
-                <Image
-                  src={avatarSrc}
-                  alt={`Avatar of ${userData.name}`}
-                  fill
-                  sizes="64px"
-                  className="object-cover"
-                />
-              </div>
-              <div className="min-w-0">
-                <h2 className="text-text-primary truncate text-xl font-bold">
-                  {userData.name}
-                </h2>
-                {(userData.job_title || userData.company) && (
-                  <p className="text-text-secondary mt-0.5 truncate text-sm">
-                    {userData.job_title}
-                    {userData.job_title && userData.company
-                      ? ` at ${userData.company}`
-                      : ''}
-                    {!userData.job_title && userData.company
-                      ? userData.company
-                      : ''}
-                  </p>
-                )}
-              </div>
+            <div className="border-background-white bg-background-white relative mx-auto -mt-11 size-[84px] overflow-hidden rounded-full border-4 shadow-sm">
+              <Image
+                src={avatarSrc}
+                alt={`Avatar of ${userData.name}`}
+                fill
+                sizes="84px"
+                className="object-cover"
+              />
             </div>
 
-            {userData.about?.trim() && (
-              <p className="text-text-secondary mb-5 line-clamp-4 text-sm leading-relaxed">
-                {userData.about}
-              </p>
-            )}
+            <div className="px-6 pt-3 pb-5 text-center">
+              <h2 className="text-text-primary truncate text-2xl font-bold">
+                {userData.name}
+              </h2>
 
-            {servicesSummary && (
-              <p className="text-brand-700 mb-3 text-xs font-semibold">
-                {servicesSummary}
-              </p>
-            )}
+              {roleLine && (
+                <p className="text-text-secondary mt-1.5 text-xs leading-relaxed font-medium whitespace-pre-line">
+                  {roleLine}
+                </p>
+              )}
 
-            {skills.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {skills.map((skill, idx) => (
-                  <Badge
-                    key={`${skill.subject_group}-${idx}`}
-                    variant="default"
-                  >
-                    {skill.subject}
-                  </Badge>
-                ))}
-              </div>
-            )}
+              {userData.about?.trim() && (
+                <p className="text-text-secondary mt-4 line-clamp-2 text-left text-xs leading-relaxed">
+                  {userData.about}
+                </p>
+              )}
+
+              {servicesSummary && (
+                <p className="text-brand-700 mt-4 text-xs font-semibold">
+                  {servicesSummary}
+                </p>
+              )}
+
+              {skills.length > 0 && (
+                <div className="mt-3 flex flex-wrap justify-center gap-2">
+                  {skills.map((skill, idx) => (
+                    <span
+                      key={`${skill.subject_group}-${idx}`}
+                      className="bg-brand-50 text-brand-700 inline-flex items-center rounded-full px-3 py-1 text-xs font-medium"
+                    >
+                      {skill.subject}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {metaParts.length > 0 && (
+                <div className="text-text-tertiary mt-4 inline-flex items-center justify-center gap-1.5 text-xs font-medium">
+                  <MapPin className="size-3.5 shrink-0" aria-hidden="true" />
+                  <span>{metaParts.join(' · ')}</span>
+                </div>
+              )}
+            </div>
           </div>
 
-          {metaParts.length > 0 && (
-            <div className="border-background-border text-text-tertiary mt-6 border-t pt-4 text-xs font-medium">
-              {metaParts.join(' · ')}
-            </div>
-          )}
+          <div className="border-background-border border-t px-6 py-3.5 text-center">
+            {onEditProfile ? (
+              <span
+                role="link"
+                tabIndex={0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditProfile();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    onEditProfile();
+                  }
+                }}
+                className={cn(
+                  FOCUS_RING_NO_OFFSET_CLASSES,
+                  'text-brand-700 hover:text-brand-500 inline-block rounded-sm px-2 py-0.5 text-xs font-semibold transition-colors'
+                )}
+              >
+                編輯資料
+              </span>
+            ) : (
+              <span className="text-brand-700 text-xs font-semibold">
+                點卡片翻面
+              </span>
+            )}
+          </div>
         </div>
 
         <div
           data-testid="mentor-card-back"
           aria-hidden={!isFlipped}
           className={cn(
-            'from-brand-700 to-brand-500 text-text-white absolute inset-0 flex min-h-[420px] w-full [transform:rotateY(180deg)] flex-col justify-between rounded-3xl bg-gradient-to-br p-8 shadow-md [backface-visibility:hidden]',
+            'from-brand-800 via-brand-900 to-brand-900 text-text-white absolute inset-0 flex min-h-[476px] w-full [transform:rotateY(180deg)] flex-col justify-between overflow-hidden rounded-3xl bg-gradient-to-br p-7 shadow-lg [backface-visibility:hidden]',
             !isFlipped && 'pointer-events-none'
           )}
         >
-          <div className="flex items-center justify-between">
-            <span className="text-text-white/80 text-xs font-bold tracking-widest uppercase">
-              WELCOME TO X-TALENT
-            </span>
-            <span className="text-text-white/80 inline-flex items-center gap-1 text-xs font-medium">
-              <RotateCw className="size-3.5" aria-hidden="true" />
-              翻回正面
-            </span>
+          <div
+            aria-hidden="true"
+            className="border-background-white/10 pointer-events-none absolute top-1/2 -right-24 size-[340px] -translate-y-1/2 rounded-full border-[22px]"
+          />
+          <div
+            aria-hidden="true"
+            className="border-background-white/5 pointer-events-none absolute top-1/2 -right-14 size-[236px] -translate-y-1/2 rounded-full border-[14px]"
+          />
+
+          <div className="relative z-10 flex items-center justify-between">
+            <Image
+              src={LogoImgUrl}
+              alt="X-Talent"
+              width={96}
+              height={19}
+              className="h-[19px] w-auto brightness-0 invert"
+            />
           </div>
 
-          <div className="my-8 space-y-3">
-            <p className="text-2xl leading-snug font-bold sm:text-3xl">
+          <div className="relative z-10 my-6 space-y-3">
+            <p className="text-brand-200/80 text-11 font-semibold tracking-widest uppercase">
+              WELCOME TO X-TALENT
+            </p>
+            <p className="text-2xl leading-snug font-bold sm:text-28">
               很高興，
               <br />
               有你一起。
             </p>
-            <p className="text-text-white/90 text-base leading-relaxed">
+            <p className="text-text-white/80 pt-1 text-sm leading-relaxed">
               讓經驗成為連結，
               <br />
               陪伴下一段成長。
             </p>
           </div>
 
-          <div className="border-background-white/20 text-text-white/80 border-t pt-4 text-xs font-semibold tracking-wide">
-            X-Talent Mentor
+          <div className="border-background-white/15 relative z-10 flex items-center justify-between border-t pt-4">
+            <span className="text-text-white/85 text-xs font-medium tracking-wide">
+              X-Talent Mentor
+            </span>
+            <RotateCcw
+              className="text-text-white/75 size-4 shrink-0"
+              aria-hidden="true"
+            />
           </div>
         </div>
       </div>

@@ -58,6 +58,7 @@ export default function ProfileCardContainer({
       onSetupSchedule={() =>
         router.push(`/profile/${loginUserId}?${OPEN_SCHEDULE_DIALOG_KEY}=true`)
       }
+      onEditProfile={() => router.push(`/profile/${loginUserId}/edit`)}
     />
   );
 }

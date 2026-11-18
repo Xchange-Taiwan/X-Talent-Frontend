@@ -180,7 +180,7 @@ export default function EditProfileContainer({
   if (isHydrating) return <PageLoading />;
 
   return (
-    <div className="mx-auto w-11/12 max-w-[1160px] pb-20">
+    <div className="mx-auto w-11/12 max-w-[1160px] pb-24">
       <EditPageHeader
         isSaving={isSaving}
         onBack={handleGoToPrev}
@@ -188,7 +188,7 @@ export default function EditProfileContainer({
         isMentor={isMentorRole}
       />
 
-      <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:gap-10">
+      <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:gap-12">
         <ProfileEditChapterNav isMentor={isMentorRole} />
 
         <div className="min-w-0 flex-1">
@@ -200,33 +200,41 @@ export default function EditProfileContainer({
               onSubmit={handleFormSubmit}
               className="space-y-8"
             >
-              <div id="basic-info" className="scroll-mt-36 space-y-6">
-                <AvatarSection
-                  id="avatarFile"
-                  variant="card"
-                  control={form.control}
-                  name="avatarFile"
-                  isMentor={isMentorRole}
-                  userName={userDto?.name ?? undefined}
-                  onFileChange={handleAvatarFileChange}
-                  onSelectPresetAvatar={
-                    isMentorRole ? undefined : handleSelectPresetAvatar
-                  }
+              <div id="basic-info" className="scroll-mt-28 space-y-6">
+                <div
+                  aria-hidden="true"
+                  className="from-auth-gradient-1 via-auth-gradient-2/55 to-auth-gradient-3 h-20 w-full rounded-2xl bg-gradient-to-r"
                 />
 
-                <Section
-                  id="name"
-                  variant="card"
-                  title="姓名"
-                  required
-                  headerAction={<NameLengthCounter form={form} />}
-                >
-                  <TextField
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-6">
+                  <AvatarSection
+                    id="avatarFile"
+                    variant="compact"
                     control={form.control}
-                    name="name"
-                    placeholder="請填入您的姓名"
+                    name="avatarFile"
+                    isMentor={isMentorRole}
+                    userName={userDto?.name ?? undefined}
+                    onFileChange={handleAvatarFileChange}
+                    onSelectPresetAvatar={
+                      isMentorRole ? undefined : handleSelectPresetAvatar
+                    }
                   />
-                </Section>
+
+                  <Section
+                    id="name"
+                    variant="inline"
+                    className="flex-1"
+                    title="姓名"
+                    required
+                    headerAction={<NameLengthCounter form={form} />}
+                  >
+                    <TextField
+                      control={form.control}
+                      name="name"
+                      placeholder="請填入您的姓名"
+                    />
+                  </Section>
+                </div>
 
                 {isMentorOnboarding && (
                   <MentorGuidelinesCard
@@ -246,17 +254,17 @@ export default function EditProfileContainer({
                   />
                 )}
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-5 pt-1 md:grid-cols-3">
                   <Section
                     id="location"
-                    variant="card"
+                    variant="inline"
                     title="地區"
                     required={isMentorRole}
                   >
                     <ComboboxField
                       form={form}
                       name="location"
-                      placeholder="請選擇地區"
+                      placeholder="選擇地區"
                       searchPlaceholder="搜尋地區"
                       options={locationOptions}
                     />
@@ -264,28 +272,28 @@ export default function EditProfileContainer({
 
                   <Section
                     id="years_of_experience"
-                    variant="card"
+                    variant="inline"
                     title="經驗"
                     required={isMentorRole}
                   >
                     <SelectField
                       form={form}
                       name="years_of_experience"
-                      placeholder="請填入您的經驗"
+                      placeholder="選擇工作年資"
                       options={totalWorkSpanOptions}
                     />
                   </Section>
 
                   <Section
                     id="industry"
-                    variant="card"
+                    variant="inline"
                     title="產業"
                     required={isMentorRole}
                   >
                     <SelectField
                       form={form}
                       name="industry"
-                      placeholder="請選擇產業"
+                      placeholder="選擇產業"
                       options={industries.map((i) => ({
                         value: i.subject_group,
                         label: i.subject,
@@ -297,28 +305,31 @@ export default function EditProfileContainer({
 
               <Section
                 id="about"
-                variant="card"
-                className="scroll-mt-36"
+                variant="default"
+                className="scroll-mt-28"
                 title="關於我"
                 required={isMentorRole}
-                subtitle={
-                  isMentorRole
-                    ? '建議 150–300 字，分享你的專業背景與可協助的方向。'
-                    : undefined
-                }
                 headerAction={<AboutLengthCounter form={form} />}
               >
-                <TextareaField control={form.control} name="about" rows={8} />
+                <TextareaField
+                  control={form.control}
+                  name="about"
+                  rows={6}
+                  placeholder={
+                    isMentorRole
+                      ? '介紹目前工作、能協助的問題與成為 Mentor 的原因。建議 150–300 字。'
+                      : '分享你的背景、目前關注的方向與想交流的主題。'
+                  }
+                />
               </Section>
 
               {isMentorRole ? (
-                <div id="mentor-expertise" className="scroll-mt-36 space-y-6">
+                <div id="mentor-expertise" className="scroll-mt-28 space-y-8">
                   <Section
                     id="have_topic"
-                    variant="card"
+                    variant="default"
                     title="我能提供的服務"
                     required
-                    subtitle="選擇最有把握協助的項目。建議選擇 2–4 項。"
                   >
                     <CategoryMultiSelectField
                       form={form}
@@ -331,10 +342,9 @@ export default function EditProfileContainer({
 
                   <Section
                     id="have_skill"
-                    variant="card"
+                    variant="default"
                     title="專業能力"
                     required
-                    subtitle="加入學員可能搜尋的技能。建議選擇 3–8 項。"
                   >
                     <CategoryMultiSelectField
                       form={form}
@@ -346,7 +356,7 @@ export default function EditProfileContainer({
                   </Section>
                 </div>
               ) : (
-                <div id="mentee-preferences" className="scroll-mt-36">
+                <div id="mentee-preferences" className="scroll-mt-28">
                   <MenteeDirectionPreferenceSection
                     form={form}
                     wantPositionCategories={wantPositionCategories}
@@ -358,7 +368,7 @@ export default function EditProfileContainer({
                 </div>
               )}
 
-              <div id="work_experiences" className="scroll-mt-36">
+              <div id="work_experiences" className="scroll-mt-28">
                 <JobExperienceSection
                   industries={industries}
                   locations={locations}
@@ -367,11 +377,11 @@ export default function EditProfileContainer({
                 />
               </div>
 
-              <div id="educations" className="scroll-mt-36">
+              <div id="educations" className="scroll-mt-28">
                 <EducationSection form={form} isMentor={isMentorRole} />
               </div>
 
-              <div id="links" className="scroll-mt-36">
+              <div id="links" className="scroll-mt-28">
                 <LinksSection form={form} />
               </div>
             </form>

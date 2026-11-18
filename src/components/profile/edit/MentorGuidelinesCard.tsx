@@ -23,7 +23,7 @@ export const MENTOR_GUIDELINE_ITEMS: ReadonlyArray<MentorGuidelineItem> = [
   },
   {
     title: '尊重隱私',
-    description: '在未經學員許可前，不公開對談細節到社群媒體。',
+    description: '未經學員許可，不公開對談細節到社群媒體。',
   },
   {
     title: '成長計畫',
@@ -58,12 +58,12 @@ export function MentorGuidelinesCard({
       aria-label="導師規範"
       data-testid="mentor-guidelines-card"
       className={cn(
-        'border-background-border bg-background-white rounded-2xl border p-5 shadow-sm',
+        'border-background-border/80 bg-background-hover rounded-xl border px-5 py-4',
         className
       )}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3 p-0.5">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
           <Checkbox
             id={checkboxId}
             checked={checked}
@@ -73,9 +73,6 @@ export function MentorGuidelinesCard({
             htmlFor={checkboxId}
             className="text-text-primary cursor-pointer text-sm font-semibold select-none"
           >
-            <span className="text-status-error-default mr-1" aria-hidden="true">
-              *
-            </span>
             我已閱讀並同意導師規範
           </label>
         </div>
@@ -87,14 +84,14 @@ export function MentorGuidelinesCard({
           onClick={() => setExpanded((prev) => !prev)}
           className={cn(
             FOCUS_RING_NO_OFFSET_CLASSES,
-            'text-brand-700 hover:text-brand-500 inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors'
+            'text-brand-700 hover:text-brand-500 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors'
           )}
         >
           <span>查看規範</span>
           {expanded ? (
-            <ChevronUp className="size-4 shrink-0" aria-hidden="true" />
+            <ChevronUp className="size-3.5 shrink-0" aria-hidden="true" />
           ) : (
-            <ChevronDown className="size-4 shrink-0" aria-hidden="true" />
+            <ChevronDown className="size-3.5 shrink-0" aria-hidden="true" />
           )}
         </button>
       </div>
@@ -112,20 +109,20 @@ export function MentorGuidelinesCard({
         <div
           id={detailsId}
           data-testid="mentor-guidelines-details"
-          className="border-background-border mt-4 border-t pt-4"
+          className="border-background-border/80 mt-3.5 border-t pt-3.5"
         >
-          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <ul className="space-y-2">
             {MENTOR_GUIDELINE_ITEMS.map((item) => (
               <li
                 key={item.title}
-                className="bg-background-bottom-secondary/50 rounded-xl px-4 py-3"
+                className="flex flex-col gap-0.5 text-xs sm:flex-row sm:items-baseline sm:gap-4"
               >
-                <p className="text-text-primary mb-1 text-sm font-semibold">
+                <span className="text-text-primary shrink-0 font-bold sm:w-16">
                   {item.title}
-                </p>
-                <p className="text-text-secondary text-xs leading-relaxed">
+                </span>
+                <span className="text-text-secondary leading-relaxed">
                   {item.description}
-                </p>
+                </span>
               </li>
             ))}
           </ul>
