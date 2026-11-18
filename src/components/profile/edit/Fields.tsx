@@ -83,6 +83,7 @@ export interface TextareaFieldProps<
 > extends Omit<TextFieldProps<TFieldValues>, 'type'> {
   /** Number of rows (height) for the textarea */
   rows?: number;
+  className?: string;
 }
 
 /**
@@ -93,6 +94,7 @@ export const TextareaField = <TFieldValues extends FieldValues>({
   name,
   rows = 6,
   placeholder,
+  className,
 }: TextareaFieldProps<TFieldValues>) => (
   <FormField
     control={control}
@@ -106,6 +108,7 @@ export const TextareaField = <TFieldValues extends FieldValues>({
             value={typeof field.value === 'string' ? field.value : ''}
             placeholder={placeholder}
             rows={rows}
+            className={className}
           />
         </FormControl>
         <FormMessage />

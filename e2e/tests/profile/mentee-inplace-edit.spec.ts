@@ -373,7 +373,7 @@ test('Mentee 個人頁原地編輯 (#828)：B-1 單一編輯按鈕、6 款預設
   await dirPanel.getByRole('button', { name: /求職技能發展/ }).click();
   await dirPanel.getByText('面試說話技巧', { exact: true }).click();
 
-  // 工作經驗：新增一筆主要工作經驗並收合為摘要列
+  // 工作經驗：新增一筆主要工作經驗，先擷取展開明細證據，再收合為摘要列擷取全頁 B-2 證據
   const workSection = main.getByTestId('mentee-section-work');
   const existingEditBtn = workSection.getByRole('button', { name: '編輯' });
   if ((await existingEditBtn.count()) === 0) {
@@ -391,6 +391,7 @@ test('Mentee 個人頁原地編輯 (#828)：B-1 單一編輯按鈕、6 款預設
     await workSection
       .getByRole('textbox', { name: '描述', exact: true })
       .fill('負責產品設計與使用者研究。');
+    await captureEvidence(page, 'mentee-inplace-edit-work-expanded');
     await workSection.getByRole('button', { name: '收合' }).click();
   }
   await expect(
@@ -401,7 +402,7 @@ test('Mentee 個人頁原地編輯 (#828)：B-1 單一編輯按鈕、6 款預設
   ).not.toBeVisible();
 
   await page.evaluate(() => window.scrollTo(0, 0));
-  await captureEvidence(page, 'mentee-inplace-edit-b2');
+  await captureEvidence(page, 'mentee-inplace-edit-b2', { fullPage: true });
 
   // 儲存後維持在同頁並切回 B-1 檢視模式，且預設頭像零 S3 上傳、無 ?cb= 參數
   await main.getByRole('button', { name: '儲存' }).first().click();

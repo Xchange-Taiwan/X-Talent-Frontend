@@ -15,11 +15,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useObjectUrl } from '@/hooks/useObjectUrl';
 import { isPresetAvatarUrl, PRESET_AVATAR_URLS } from '@/lib/avatar/avatarUrl';
-import {
-  FOCUS_RING_CLASSES,
-  FOCUS_RING_NO_OFFSET_CLASSES,
-} from '@/lib/ui/focusRing';
+import { FOCUS_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 
 const AvatarCropModal = dynamic(
@@ -74,19 +72,7 @@ export function MenteeAvatarDialog({
     return undefined;
   }, [currentAvatarFile, draft]);
 
-  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!activeFile) {
-      setFilePreviewUrl(null);
-      return;
-    }
-    const objectUrl = URL.createObjectURL(activeFile);
-    setFilePreviewUrl(objectUrl);
-    return () => {
-      URL.revokeObjectURL(objectUrl);
-    };
-  }, [activeFile]);
+  const filePreviewUrl = useObjectUrl(activeFile);
 
   const selectedPresetUrl = useMemo(() => {
     if (draft.kind === 'preset') return draft.url;
@@ -142,7 +128,7 @@ export function MenteeAvatarDialog({
             <DialogTitle className="text-xl leading-7 font-semibold">
               編輯頭像
             </DialogTitle>
-            <DialogDescription className="text-text-tertiary text-sm">
+            <DialogDescription className="sr-only">
               選擇預設頭像，或點擊目前頭像上傳照片。
             </DialogDescription>
           </DialogHeader>
@@ -162,8 +148,8 @@ export function MenteeAvatarDialog({
                 aria-label="編輯個人頭像"
                 onClick={() => fileInputRef.current?.click()}
                 className={cn(
-                  'group border-background-white bg-avatar-background relative block size-[112px] cursor-pointer rounded-full border-4 p-0 shadow-md',
-                  FOCUS_RING_CLASSES
+                  'group border-brand-500/40 bg-avatar-background relative block size-[112px] cursor-pointer rounded-full border-2 p-[3px] shadow-md',
+                  FOCUS_RING_NO_OFFSET_CLASSES
                 )}
               >
                 <span className="relative block size-full overflow-hidden rounded-full">
@@ -175,8 +161,8 @@ export function MenteeAvatarDialog({
                     sizes="112px"
                     className="size-full object-cover"
                   />
-                  <span className="bg-dark/40 text-background-white absolute inset-0 grid place-items-center opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
-                    <Camera className="size-6" aria-hidden="true" />
+                  <span className="bg-dark/35 text-background-white group-hover:bg-dark/50 group-focus-visible:bg-dark/50 absolute inset-0 grid place-items-center transition-colors duration-150">
+                    <Camera className="size-7" aria-hidden="true" />
                   </span>
                 </span>
               </button>

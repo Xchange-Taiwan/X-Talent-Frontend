@@ -1,6 +1,6 @@
 import * as React from 'react';
 
-import { FOCUS_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
+import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 
 /**
@@ -45,8 +45,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       <input
         type={type}
         className={cn(
-          'border-background-border bg-background-white placeholder:text-text-tertiary focus-visible:border-ring flex h-10 w-full rounded-md border px-3 py-2 text-base file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
-          FOCUS_RING_NO_OFFSET_CLASSES,
+          'border-background-border bg-background-white ring-offset-background-white placeholder:text-text-tertiary flex h-10 w-full rounded-md border px-3 py-2 text-base file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
+          FOCUS_RING_CLASSES,
           className
         )}
         ref={ref}

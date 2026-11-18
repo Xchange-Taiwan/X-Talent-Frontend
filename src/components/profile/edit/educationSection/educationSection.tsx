@@ -7,7 +7,7 @@ import {
   TrashIcon,
 } from '@radix-ui/react-icons';
 import { Check, ChevronsUpDown } from 'lucide-react';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { useWatch } from 'react-hook-form';
 
 import { ConfirmDialog } from '@/components/profile/edit/ConfirmDialog';
@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/select';
 import { ProfileFormContext } from '@/hooks/user/profile/useProfileEditorSession';
 import {
+  formatPeriodRangeLabel,
   useRepeatablePeriodSection,
   YEAR_OPTIONS,
 } from '@/hooks/user/profile/useRepeatablePeriodSection';
@@ -132,12 +133,6 @@ interface Props {
   cardVariant?: boolean;
 }
 
-function formatEduPeriod(start?: string, end?: string): string {
-  const startText = start || '?';
-  const endText = end === 'now' ? '至今' : end || '?';
-  return `${startText} – ${endText}`;
-}
-
 export const EducationSection = ({
   form,
   isMentor,
@@ -146,59 +141,35 @@ export const EducationSection = ({
 }: Props) => {
   const {
     control,
-    getValues,
-    formState: { errors, submitCount },
+    formState: { errors },
   } = form;
 
-  const { fields, move, tryAppend, remove, createPeriodChangeHandlers } =
-    useRepeatablePeriodSection(form, {
-      arrayName: 'educations',
-      isIncompleteForAppend: (last) =>
-        !last?.subject ||
-        !last?.school ||
-        !last?.education_period_start ||
-        !last?.education_period_end,
-      incompleteAlertMessage: '請先完成上一筆教育資料再新增',
-    });
+  const {
+    fields,
+    move,
+    tryAppend,
+    remove,
+    createPeriodChangeHandlers,
+    toggleExpand,
+    isRowExpanded,
+    hasRowError,
+  } = useRepeatablePeriodSection(form, {
+    arrayName: 'educations',
+    collapsible,
+    isIncompleteForAppend: (last) =>
+      !last?.subject ||
+      !last?.school ||
+      !last?.education_period_start ||
+      !last?.education_period_end,
+    incompleteAlertMessage: '請先完成上一筆教育資料再新增',
+  });
 
   const watchedEducations = useWatch({
     control,
     name: 'educations',
   });
 
-  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
-  const pendingExpandLastRef = useRef(false);
-
-  useEffect(() => {
-    if (!collapsible || !pendingExpandLastRef.current || fields.length === 0) {
-      return;
-    }
-    pendingExpandLastRef.current = false;
-    const newestId = fields[fields.length - 1]?.id;
-    if (newestId) {
-      setExpandedIds((prev) => ({ ...prev, [newestId]: true }));
-    }
-  }, [collapsible, fields]);
-
-  useEffect(() => {
-    if (!collapsible || !Array.isArray(errors.educations)) return;
-    const idsToOpen: string[] = [];
-    errors.educations.forEach((entryErr, idx) => {
-      if (entryErr && fields[idx]?.id) {
-        idsToOpen.push(fields[idx].id);
-      }
-    });
-    if (idsToOpen.length > 0) {
-      setExpandedIds((prev) => {
-        const next = { ...prev };
-        for (const id of idsToOpen) next[id] = true;
-        return next;
-      });
-    }
-  }, [collapsible, errors.educations, fields, submitCount]);
-
   const addEducation = () => {
-    const prevLen = (getValues('educations') ?? []).length;
     tryAppend({
       id: -1,
       subject: '',
@@ -206,14 +177,6 @@ export const EducationSection = ({
       education_period_start: '',
       education_period_end: 'now',
     });
-    const nextLen = (getValues('educations') ?? []).length;
-    if (collapsible && nextLen > prevLen) {
-      pendingExpandLastRef.current = true;
-    }
-  };
-
-  const toggleExpand = (fieldId: string) => {
-    setExpandedIds((prev) => ({ ...prev, [fieldId]: !prev[fieldId] }));
   };
 
   const canRemoveRow = !isMentor || fields.length > 1;
@@ -224,10 +187,8 @@ export const EducationSection = ({
         const { handleStartYearChange, handleEndYearChange } =
           createPeriodChangeHandlers(index);
         const currentItem = watchedEducations?.[index] ?? field;
-        const isExpanded = !collapsible || Boolean(expandedIds[field.id]);
-        const hasRowError = Boolean(
-          Array.isArray(errors.educations) && errors.educations[index]
-        );
+        const isExpanded = isRowExpanded(field.id);
+        const rowError = hasRowError(index);
         const schoolInitial = currentItem?.school?.trim()?.charAt(0) || '?';
 
         return (
@@ -235,7 +196,7 @@ export const EducationSection = ({
             key={field.id}
             className={cn(
               'mb-4 rounded-xl border p-4',
-              hasRowError
+              rowError
                 ? 'border-status-error-default'
                 : 'border-background-border'
             )}
@@ -252,7 +213,7 @@ export const EducationSection = ({
                     </p>
                     <p className="text-text-tertiary text-sm break-words">
                       {currentItem?.subject?.trim() || '（未填主修）'} ·{' '}
-                      {formatEduPeriod(
+                      {formatPeriodRangeLabel(
                         currentItem?.education_period_start,
                         currentItem?.education_period_end
                       )}
@@ -425,14 +386,14 @@ export const EducationSection = ({
     </>
   );
 
-  if (cardVariant) {
-    return (
-      <section
-        data-testid="mentee-section-education"
-        className="border-background-border bg-background-white rounded-2xl border p-6 shadow-sm"
-      >
-        <div className="mb-5 flex items-start justify-between gap-4">
-          <h2 className="text-text-primary text-xl font-bold">教育</h2>
+  return (
+    <Section
+      title={cardVariant ? '教育' : '教育經歷'}
+      required={isMentor}
+      variant={cardVariant ? 'card' : 'default'}
+      dataTestId={cardVariant ? 'mentee-section-education' : undefined}
+      headerAction={
+        cardVariant ? (
           <Button
             type="button"
             variant="outline"
@@ -443,17 +404,12 @@ export const EducationSection = ({
             <PlusIcon className="mr-1.5 size-4" />
             新增
           </Button>
-        </div>
-        {fields.length === 0 && (
-          <p className="text-text-tertiary py-2 text-sm">尚未新增教育經歷</p>
-        )}
-        {renderRows()}
-      </section>
-    );
-  }
-
-  return (
-    <Section title="教育經歷" required={isMentor}>
+        ) : undefined
+      }
+    >
+      {cardVariant && fields.length === 0 && (
+        <p className="text-text-tertiary py-2 text-sm">尚未新增教育經歷</p>
+      )}
       {renderRows()}
     </Section>
   );

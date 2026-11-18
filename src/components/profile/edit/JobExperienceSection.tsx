@@ -6,7 +6,7 @@ import {
   PlusIcon,
   TrashIcon,
 } from '@radix-ui/react-icons';
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { useWatch } from 'react-hook-form';
 
 import { ConfirmDialog } from '@/components/profile/edit/ConfirmDialog';
@@ -31,6 +31,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { ProfileFormContext } from '@/hooks/user/profile/useProfileEditorSession';
 import {
+  formatPeriodRangeLabel,
   useRepeatablePeriodSection,
   YEAR_OPTIONS,
 } from '@/hooks/user/profile/useRepeatablePeriodSection';
@@ -53,12 +54,6 @@ interface Props {
   cardVariant?: boolean;
 }
 
-function formatPeriodLabel(start?: string, end?: string): string {
-  const startText = start || '?';
-  const endText = end === 'now' ? '至今' : end || '?';
-  return `${startText} – ${endText}`;
-}
-
 export const JobExperienceSection = ({
   industries,
   locations,
@@ -71,55 +66,33 @@ export const JobExperienceSection = ({
     control,
     getValues,
     setValue,
-    formState: { errors, submitCount },
+    formState: { errors },
   } = form;
 
-  const { fields, move, tryAppend, remove, createPeriodChangeHandlers } =
-    useRepeatablePeriodSection(form, {
-      arrayName: 'work_experiences',
-      isIncompleteForAppend: (last) =>
-        !last?.job ||
-        !last?.company ||
-        !last?.job_period_start ||
-        !last?.job_period_end,
-      incompleteAlertMessage: '請先完成上一筆工作經驗再新增',
-    });
+  const {
+    fields,
+    move,
+    tryAppend,
+    remove,
+    createPeriodChangeHandlers,
+    toggleExpand,
+    isRowExpanded,
+    hasRowError,
+  } = useRepeatablePeriodSection(form, {
+    arrayName: 'work_experiences',
+    collapsible,
+    isIncompleteForAppend: (last) =>
+      !last?.job ||
+      !last?.company ||
+      !last?.job_period_start ||
+      !last?.job_period_end,
+    incompleteAlertMessage: '請先完成上一筆工作經驗再新增',
+  });
 
   const watchedExperiences = useWatch({
     control,
     name: 'work_experiences',
   });
-
-  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
-  const pendingExpandLastRef = useRef(false);
-
-  useEffect(() => {
-    if (!collapsible || !pendingExpandLastRef.current || fields.length === 0) {
-      return;
-    }
-    pendingExpandLastRef.current = false;
-    const newestId = fields[fields.length - 1]?.id;
-    if (newestId) {
-      setExpandedIds((prev) => ({ ...prev, [newestId]: true }));
-    }
-  }, [collapsible, fields]);
-
-  useEffect(() => {
-    if (!collapsible || !Array.isArray(errors.work_experiences)) return;
-    const idsToOpen: string[] = [];
-    errors.work_experiences.forEach((entryErr, idx) => {
-      if (entryErr && fields[idx]?.id) {
-        idsToOpen.push(fields[idx].id);
-      }
-    });
-    if (idsToOpen.length > 0) {
-      setExpandedIds((prev) => {
-        const next = { ...prev };
-        for (const id of idsToOpen) next[id] = true;
-        return next;
-      });
-    }
-  }, [collapsible, errors.work_experiences, fields, submitCount]);
 
   const setPrimary = (targetIndex: number) => {
     const experiences = getValues('work_experiences') ?? [];
@@ -143,8 +116,7 @@ export const JobExperienceSection = ({
   };
 
   const addJob = () => {
-    const prevLen = (getValues('work_experiences') ?? []).length;
-    const hasNoExperiences = prevLen === 0;
+    const hasNoExperiences = (getValues('work_experiences') ?? []).length === 0;
     tryAppend({
       id: -1,
       job: '',
@@ -156,14 +128,6 @@ export const JobExperienceSection = ({
       description: '',
       is_primary: hasNoExperiences,
     });
-    const nextLen = (getValues('work_experiences') ?? []).length;
-    if (collapsible && nextLen > prevLen) {
-      pendingExpandLastRef.current = true;
-    }
-  };
-
-  const toggleExpand = (fieldId: string) => {
-    setExpandedIds((prev) => ({ ...prev, [fieldId]: !prev[fieldId] }));
   };
 
   const canRemoveRow = !isMentor || fields.length > 1;
@@ -174,11 +138,8 @@ export const JobExperienceSection = ({
         const { handleStartYearChange, handleEndYearChange } =
           createPeriodChangeHandlers(index);
         const currentItem = watchedExperiences?.[index] ?? field;
-        const isExpanded = !collapsible || Boolean(expandedIds[field.id]);
-        const hasRowError = Boolean(
-          Array.isArray(errors.work_experiences) &&
-          errors.work_experiences[index]
-        );
+        const isExpanded = isRowExpanded(field.id);
+        const rowError = hasRowError(index);
         const companyInitial = currentItem?.company?.trim()?.charAt(0) || '?';
 
         return (
@@ -186,7 +147,7 @@ export const JobExperienceSection = ({
             key={field.id}
             className={cn(
               'mb-4 rounded-xl border p-4',
-              hasRowError
+              rowError
                 ? 'border-status-error-default'
                 : 'border-background-border'
             )}
@@ -210,7 +171,7 @@ export const JobExperienceSection = ({
                     </div>
                     <p className="text-text-tertiary text-sm break-words">
                       {currentItem?.company?.trim() || '（未填公司）'} ·{' '}
-                      {formatPeriodLabel(
+                      {formatPeriodRangeLabel(
                         currentItem?.job_period_start,
                         currentItem?.job_period_end
                       )}
@@ -462,19 +423,15 @@ export const JobExperienceSection = ({
     </>
   );
 
-  if (cardVariant) {
-    return (
-      <section
-        data-testid="mentee-section-work"
-        className="border-background-border bg-background-white rounded-2xl border p-6 shadow-sm"
-      >
-        <div className="mb-5 flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-text-primary text-xl font-bold">工作經驗</h2>
-            <p className="text-text-tertiary mt-1 text-sm">
-              勾選的那筆會顯示在頁面標題
-            </p>
-          </div>
+  return (
+    <Section
+      title="工作經驗"
+      required={isMentor}
+      variant={cardVariant ? 'card' : 'default'}
+      subtitle={cardVariant ? '勾選的那筆會顯示在頁面標題' : undefined}
+      dataTestId={cardVariant ? 'mentee-section-work' : undefined}
+      headerAction={
+        cardVariant ? (
           <Button
             type="button"
             variant="outline"
@@ -485,17 +442,12 @@ export const JobExperienceSection = ({
             <PlusIcon className="mr-1.5 size-4" />
             新增
           </Button>
-        </div>
-        {fields.length === 0 && (
-          <p className="text-text-tertiary py-2 text-sm">尚未新增工作經驗</p>
-        )}
-        {renderRows()}
-      </section>
-    );
-  }
-
-  return (
-    <Section title="工作經驗" required={isMentor}>
+        ) : undefined
+      }
+    >
+      {cardVariant && fields.length === 0 && (
+        <p className="text-text-tertiary py-2 text-sm">尚未新增工作經驗</p>
+      )}
       {renderRows()}
     </Section>
   );
