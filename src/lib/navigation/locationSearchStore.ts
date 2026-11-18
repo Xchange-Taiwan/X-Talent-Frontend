@@ -1,7 +1,7 @@
 type Listener = () => void;
 
 const listeners = new Set<Listener>();
-let historyPatched = false;
+let teardownHistory: (() => void) | null = null;
 let notifyScheduled = false;
 
 function scheduleNotify(): void {
@@ -15,41 +15,51 @@ function scheduleNotify(): void {
   });
 }
 
-function ensureHistoryObserved(): void {
-  if (historyPatched || typeof window === 'undefined') return;
-  historyPatched = true;
+function attachHistoryObserver(): void {
+  if (teardownHistory || typeof window === 'undefined') return;
 
-  const origPushState = window.history.pushState.bind(window.history);
+  const origPushState = window.history.pushState;
+  const origReplaceState = window.history.replaceState;
+
   window.history.pushState = (
     data: unknown,
     unused: string,
     url?: string | URL | null
   ) => {
-    origPushState(data, unused, url);
+    origPushState.call(window.history, data, unused, url);
     scheduleNotify();
   };
 
-  const origReplaceState = window.history.replaceState.bind(window.history);
   window.history.replaceState = (
     data: unknown,
     unused: string,
     url?: string | URL | null
   ) => {
-    origReplaceState(data, unused, url);
+    origReplaceState.call(window.history, data, unused, url);
     scheduleNotify();
   };
 
   window.addEventListener('popstate', scheduleNotify);
+
+  teardownHistory = () => {
+    window.history.pushState = origPushState;
+    window.history.replaceState = origReplaceState;
+    window.removeEventListener('popstate', scheduleNotify);
+    teardownHistory = null;
+  };
 }
 
 export function subscribeLocationSearch(listener: Listener): () => void {
   if (typeof window === 'undefined') {
     return () => {};
   }
-  ensureHistoryObserved();
+  attachHistoryObserver();
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
+    if (listeners.size === 0 && teardownHistory) {
+      teardownHistory();
+    }
   };
 }
 
