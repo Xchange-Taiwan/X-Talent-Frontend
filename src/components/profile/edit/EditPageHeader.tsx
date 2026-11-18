@@ -27,7 +27,7 @@ export function EditPageHeader({
   const submitLabel = isMentorOnboarding ? '儲存並建立' : '儲存變更';
 
   return (
-    <div className="border-background-border bg-light/95 supports-[backdrop-filter]:bg-light/80 sticky top-[70px] z-40 mb-8 flex items-center justify-between gap-4 border-b py-4 backdrop-blur">
+    <div className="border-background-border bg-light/95 supports-[backdrop-filter]:bg-light/80 sticky top-[70px] z-20 mb-8 flex items-center justify-between gap-4 border-b py-4 backdrop-blur">
       <div className="flex min-w-0 items-center gap-3">
         <ChevronLeft
           className={`shrink-0 sm:hidden ${isSaving ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}
