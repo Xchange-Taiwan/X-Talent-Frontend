@@ -25,6 +25,7 @@ import {
 } from '@/lib/auth/authFlowStorage';
 import {
   type ClientSignInFn,
+  enrichGoogleLoginUserWithIdTokenFallback,
   type GoogleOAuthCodeExchanger,
   type OAuthInvalidErrorType,
   type OAuthOutcome,
@@ -990,11 +991,16 @@ export async function executeGoogleOAuthCallback(
           return;
         }
 
+        const enrichedUser = enrichGoogleLoginUserWithIdTokenFallback(
+          outcome.data.user,
+          outcome.data.id_token
+        );
+
         await signInWithGoogleTokenFn(
           signIn,
           outcome.data.auth.token,
           outcome.data.auth.email ?? '',
-          outcome.data.user
+          enrichedUser
         );
 
         await completePostLoginChoreography({

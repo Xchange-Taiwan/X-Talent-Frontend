@@ -10,12 +10,17 @@ import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
 import { useToast } from '@/components/ui/use-toast';
 import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
 import { trackEvent } from '@/lib/analytics';
+import {
+  clampOnboardingName,
+  sanitizePrefillAvatarUrl,
+} from '@/lib/auth/oauthOutcome';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   commitProfileMutation,
   type ProfileSavePort,
 } from '@/lib/profile/saveProfile';
 import { formSchema, type OnboardingFormValues } from '@/schemas/onboarding';
+import { fetchUserById } from '@/services/profile/user';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 
 export type OnboardingStepNumber = 1 | 2 | 3 | 4 | 5;
@@ -54,9 +59,41 @@ export function useOnboardingForm({
   const [currentStep, setCurrentStep] = useState<OnboardingStepNumber>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { data: session, status, update: updateSession } = useSession();
-  const hasHydratedSessionRef = useRef(false);
+  const latestSessionRef = useRef(session);
+  latestSessionRef.current = session;
+  const latestUpdateSessionRef = useRef(updateSession);
+  latestUpdateSessionRef.current = updateSession;
 
-  const sessionUserId = session?.user?.id ? Number(session.user.id) : undefined;
+  const isSubmittingRef = useRef(false);
+
+  const backfilledProfileUserIdRef = useRef<number | null>(null);
+  const backfillControllerRef = useRef<AbortController | null>(null);
+  const backfillUpdatePromiseRef = useRef<Promise<unknown> | null>(null);
+  const prefillTrackerRef = useRef<{
+    userId: number | undefined;
+    nameApplied: boolean;
+    avatarApplied: boolean;
+  }>({
+    userId: undefined,
+    nameApplied: false,
+    avatarApplied: false,
+  });
+
+  const rawSessionUserId = session?.user?.id
+    ? Number(session.user.id)
+    : Number.NaN;
+  const sessionUserId =
+    Number.isFinite(rawSessionUserId) && rawSessionUserId > 0
+      ? rawSessionUserId
+      : undefined;
+  if (prefillTrackerRef.current.userId !== sessionUserId) {
+    prefillTrackerRef.current = {
+      userId: sessionUserId,
+      nameApplied: false,
+      avatarApplied: false,
+    };
+  }
+
   const avatarUpload = useBackgroundAvatarUpload(sessionUserId);
 
   const form = useForm<OnboardingFormValues>({
@@ -75,16 +112,134 @@ export function useOnboardingForm({
     },
   });
 
+  // Subscribe to RHF's Proxy-tracked dirtyFields so form.getFieldState(..., form.formState)
+  // always reflects live user edits across steps and headless tests.
+  void form.formState.dirtyFields;
+
+  const applyNonDirtyPrefill = useCallback(
+    (
+      rawName: string | null | undefined,
+      rawAvatar: string | null | undefined
+    ) => {
+      if (isSubmittingRef.current) return;
+
+      const tracker = prefillTrackerRef.current;
+      const nameDirty = form.getFieldState('name', form.formState).isDirty;
+      if (nameDirty) {
+        tracker.nameApplied = true;
+      } else if (!tracker.nameApplied) {
+        const clampedName = clampOnboardingName(rawName);
+        if (clampedName) {
+          tracker.nameApplied = true;
+          if (!form.getValues('name')) {
+            form.setValue('name', clampedName, { shouldDirty: false });
+          }
+        }
+      }
+
+      const avatarDirty =
+        form.getFieldState('avatar', form.formState).isDirty ||
+        form.getFieldState('avatarFile', form.formState).isDirty ||
+        Boolean(form.getValues('avatarFile'));
+      if (avatarDirty) {
+        tracker.avatarApplied = true;
+      } else if (!tracker.avatarApplied) {
+        const safeAvatar = sanitizePrefillAvatarUrl(rawAvatar);
+        if (safeAvatar) {
+          tracker.avatarApplied = true;
+          if (!form.getValues('avatar')) {
+            form.setValue('avatar', safeAvatar, { shouldDirty: false });
+          }
+        }
+      }
+    },
+    [form]
+  );
+
+  const sessionUserName = session?.user?.name;
+  const sessionUserAvatar = session?.user?.avatar;
+  const hasSessionName = Boolean(sessionUserName?.trim());
+  const hasSessionAvatar = Boolean(sessionUserAvatar?.trim());
+
   useEffect(() => {
-    if (status === 'loading' || hasHydratedSessionRef.current) return;
-    hasHydratedSessionRef.current = true;
-    const currentValues = form.getValues();
-    form.reset({
-      ...currentValues,
-      name: currentValues.name || session?.user?.name || '',
-      avatar: currentValues.avatar || session?.user?.avatar || '',
-    });
-  }, [session?.user?.name, session?.user?.avatar, status, form]);
+    if (status !== 'authenticated') return;
+    applyNonDirtyPrefill(sessionUserName, sessionUserAvatar);
+  }, [applyNonDirtyPrefill, sessionUserAvatar, sessionUserName, status]);
+
+  useEffect(() => {
+    if (
+      status !== 'authenticated' ||
+      sessionUserId === undefined ||
+      Number.isNaN(sessionUserId) ||
+      (hasSessionName && hasSessionAvatar) ||
+      backfilledProfileUserIdRef.current === sessionUserId
+    ) {
+      return;
+    }
+
+    const controller = new AbortController();
+    backfillControllerRef.current = controller;
+    const fetchProfileRecord =
+      portOverrides?.fetchProfile ??
+      ((userId: number, language = 'zh_TW') =>
+        fetchUserById(userId, language, controller.signal, true));
+
+    void Promise.resolve(fetchProfileRecord(sessionUserId, 'zh_TW'))
+      .then((dto) => {
+        if (controller.signal.aborted) return;
+        backfilledProfileUserIdRef.current = sessionUserId;
+        if (!dto || isSubmittingRef.current) return;
+
+        const fetchedName = clampOnboardingName(dto.name) ?? '';
+        const fetchedAvatar = sanitizePrefillAvatarUrl(dto.avatar) ?? '';
+
+        applyNonDirtyPrefill(fetchedName, fetchedAvatar);
+
+        const currentUser = latestSessionRef.current?.user;
+        if (isSubmittingRef.current || currentUser?.onBoarding === true) {
+          return;
+        }
+        const filledMissingName =
+          !currentUser?.name?.trim() && Boolean(fetchedName);
+        const filledMissingAvatar =
+          !currentUser?.avatar?.trim() && Boolean(fetchedAvatar);
+        if (filledMissingName || filledMissingAvatar) {
+          const updatePromise = Promise.resolve(
+            latestUpdateSessionRef.current({
+              user: {
+                ...(filledMissingName ? { name: fetchedName } : {}),
+                ...(filledMissingAvatar ? { avatar: fetchedAvatar } : {}),
+              },
+            })
+          ).finally(() => {
+            if (backfillUpdatePromiseRef.current === updatePromise) {
+              backfillUpdatePromiseRef.current = null;
+            }
+          });
+          backfillUpdatePromiseRef.current = updatePromise;
+          void updatePromise.catch(() => undefined);
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          backfilledProfileUserIdRef.current = sessionUserId;
+        }
+      });
+
+    return () => {
+      controller.abort();
+      if (backfillControllerRef.current === controller) {
+        backfillControllerRef.current = null;
+      }
+    };
+  }, [
+    applyNonDirtyPrefill,
+    hasSessionAvatar,
+    hasSessionName,
+    portOverrides?.fetchProfile,
+    sessionUserId,
+    status,
+  ]);
 
   useEffect(() => {
     trackEvent({
@@ -114,7 +269,13 @@ export function useOnboardingForm({
     if (currentStep === 1) {
       const avatarFile = form.getValues('avatarFile');
       if (avatarFile) {
-        avatarUpload.kickOff(avatarFile, form.getValues('avatar'));
+        const currentAvatar = form.getValues('avatar') ?? '';
+        const snapshotAvatarUrl = currentAvatar.startsWith(
+          'https://lh3.googleusercontent.com/'
+        )
+          ? ''
+          : currentAvatar;
+        avatarUpload.kickOff(avatarFile, snapshotAvatarUrl);
       } else {
         avatarUpload.abort();
       }
@@ -135,42 +296,56 @@ export function useOnboardingForm({
 
   const savePort = useMemo<ProfileSavePort>(
     () => ({
-      updateSession,
+      updateSession: (data: unknown) => latestUpdateSessionRef.current(data),
       navigate: (href: string) => router.push(href),
       revalidateProfilePath,
       ...portOverrides,
     }),
-    [portOverrides, router, updateSession]
+    [portOverrides, router]
   );
 
   const submitOnboarding = useCallback(async (): Promise<void> => {
-    const isValid = await form.trigger();
-    const rawValues = form.getValues();
-    const parsed = formSchema.safeParse(rawValues);
-
-    if (!isValid || !parsed.success) {
-      const errorFieldNames = new Set<string>([
-        ...Object.keys(form.formState.errors),
-        ...(parsed.success
-          ? []
-          : parsed.error.issues
-              .map((issue) => String(issue.path[0] ?? ''))
-              .filter(Boolean)),
-      ]);
-      const orderedSteps: OnboardingStepNumber[] = [1, 2, 3, 4, 5];
-      const earliestStep = orderedSteps.find((step) =>
-        STEP_FIELDS[step].some((field) => errorFieldNames.has(field))
-      );
-      if (earliestStep && earliestStep !== currentStep) {
-        setCurrentStep(earliestStep);
-      }
+    if (isSubmittingRef.current) {
       return;
     }
-
-    const values: OnboardingFormValues = { ...parsed.data };
+    backfillControllerRef.current?.abort();
+    isSubmittingRef.current = true;
 
     try {
+      const isValid = await form.trigger();
+      const rawValues = form.getValues();
+      const parsed = formSchema.safeParse(rawValues);
+
+      if (!isValid || !parsed.success) {
+        const errorFieldNames = new Set<string>([
+          ...Object.keys(form.formState.errors),
+          ...(parsed.success
+            ? []
+            : parsed.error.issues
+                .map((issue) => String(issue.path[0] ?? ''))
+                .filter(Boolean)),
+        ]);
+        const orderedSteps: OnboardingStepNumber[] = [1, 2, 3, 4, 5];
+        const earliestStep = orderedSteps.find((step) =>
+          STEP_FIELDS[step].some((field) => errorFieldNames.has(field))
+        );
+        if (earliestStep && earliestStep !== currentStep) {
+          setCurrentStep(earliestStep);
+        }
+        return;
+      }
+
+      const values: OnboardingFormValues = { ...parsed.data };
       setIsSubmitting(true);
+
+      if (backfillUpdatePromiseRef.current) {
+        await backfillUpdatePromiseRef.current.catch(() => undefined);
+        // Yield one macrotask so NextAuth SessionProvider flushes setLoading(false)
+        // and refreshes latestUpdateSessionRef before commitProfileMutation updates session.
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, 0);
+        });
+      }
 
       if (values.avatarFile) {
         try {
@@ -197,14 +372,17 @@ export function useOnboardingForm({
         }
       }
 
+      const activeSession = latestSessionRef.current;
       await commitProfileMutation(
         {
           mode: 'mentee-onboarding',
           values,
         },
         {
-          pageUserId: session?.user?.id ? String(session.user.id) : undefined,
-          session,
+          pageUserId: activeSession?.user?.id
+            ? String(activeSession.user.id)
+            : undefined,
+          session: activeSession,
           industryCatalog: industries,
         },
         savePort
@@ -216,9 +394,10 @@ export function useOnboardingForm({
         duration: 5000,
       });
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
-  }, [avatarUpload, currentStep, form, industries, savePort, session, toast]);
+  }, [avatarUpload, currentStep, form, industries, savePort, toast]);
 
   const handleGoToPrev = useCallback(() => {
     setCurrentStep((s) => Math.max(1, s - 1) as OnboardingStepNumber);
