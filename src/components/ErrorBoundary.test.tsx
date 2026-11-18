@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { CHUNK_RELOAD_STORAGE_KEY } from '@/lib/chunkErrorRecovery';
 import { captureError } from '@/lib/monitoring';
 
 import ErrorBoundary from './ErrorBoundary';
@@ -67,5 +68,53 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>
     );
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it('auto-reloads once on ChunkLoadError without reporting to Sentry, then falls back to Sentry + UI within cooldown (#952)', () => {
+    window.sessionStorage.clear();
+    const reloadSpy = vi.fn();
+    const originalLocation = window.location;
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: {
+        ...originalLocation,
+        pathname: '/mentor-pool',
+        reload: reloadSpy,
+      },
+    });
+
+    function ChunkBrokenChild(): React.ReactElement {
+      throw new Error('Loading CSS chunk 6066 failed.');
+    }
+
+    try {
+      const { unmount } = render(
+        <ErrorBoundary>
+          <ChunkBrokenChild />
+        </ErrorBoundary>
+      );
+
+      expect(reloadSpy).toHaveBeenCalledTimes(1);
+      expect(captureError).not.toHaveBeenCalled();
+      expect(window.sessionStorage.getItem(CHUNK_RELOAD_STORAGE_KEY)).toContain(
+        '/mentor-pool'
+      );
+      unmount();
+
+      render(
+        <ErrorBoundary>
+          <ChunkBrokenChild />
+        </ErrorBoundary>
+      );
+
+      expect(reloadSpy).toHaveBeenCalledTimes(1);
+      expect(captureError).toHaveBeenCalledTimes(1);
+      expect(screen.getByText('畫面載入發生異常')).toBeInTheDocument();
+    } finally {
+      Object.defineProperty(window, 'location', {
+        configurable: true,
+        value: originalLocation,
+      });
+    }
   });
 });

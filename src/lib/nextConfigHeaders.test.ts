@@ -43,8 +43,14 @@ describe('next.config security headers and source map controls', () => {
       'strict-origin-when-cross-origin'
     );
     expect(headerMap.get('Permissions-Policy')).toContain('camera=()');
-    expect(headerMap.get('Content-Security-Policy-Report-Only')).toContain(
-      "default-src 'self'"
+    const csp = headerMap.get('Content-Security-Policy-Report-Only') ?? '';
+    expect(csp).toContain("default-src 'self'");
+    expect(csp).toMatch(
+      /img-src[^;]*https:\/\/\*\.clarity\.ms[^;]*https:\/\/www\.googletagmanager\.com[^;]*https:\/\/www\.google-analytics\.com/
     );
+    expect(csp).toMatch(
+      /connect-src[^;]*https:\/\/\*\.google-analytics\.com[^;]*https:\/\/\*\.analytics\.google\.com[^;]*https:\/\/www\.googletagmanager\.com[^;]*https:\/\/x-career-multimedia\.s3\.ap-northeast-1\.amazonaws\.com[^;]*https:\/\/x-career-multimedia\.s3\.amazonaws\.com/
+    );
+    expect(csp).toMatch(/script-src[^;]*https:\/\/browser\.sentry-cdn\.com/);
   });
 });

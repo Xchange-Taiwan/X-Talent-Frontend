@@ -324,13 +324,15 @@ async function request<T>(
       extractNestedDataMessage(errorRecord.data) ||
       extractFastApiDetailMessage(errorRecord.detail) ||
       `Request failed with status ${response.status}`;
-    captureApiFailure({
-      endpoint: sanitizeEndpointPath(path),
-      method,
-      status: response.status,
-      message,
-      duration: Date.now() - startTime,
-    });
+    if (response.status >= 500) {
+      captureApiFailure({
+        endpoint: sanitizeEndpointPath(path),
+        method,
+        status: response.status,
+        message,
+        duration: Date.now() - startTime,
+      });
+    }
     throw new ApiError(
       response.status,
       message,

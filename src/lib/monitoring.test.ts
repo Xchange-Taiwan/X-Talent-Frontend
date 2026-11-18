@@ -763,4 +763,178 @@ describe('captureFlowFailure', () => {
     ]);
     expect(arg.extra.endpoint).toContain('token=[REDACTED]');
   });
+
+  it('downgrades 4xx statuses to info level, skips status=0 during page unload, and deduplicates back-to-back api.failure + flow.failure (#952)', async () => {
+    mockCaptureEvent.mockClear();
+
+    await captureApiFailure({
+      endpoint: '/v1/mentors/999/zh_TW/profile',
+      method: 'GET',
+      status: 404,
+      message: 'No such user',
+      route: '/profile/999',
+    });
+
+    expect(mockCaptureEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        level: 'info',
+      })
+    );
+
+    // Simulate page unload suppressing in-flight status=0 network abort
+    mockCaptureEvent.mockClear();
+    window.dispatchEvent(new Event('pagehide'));
+    try {
+      await captureApiFailure({
+        endpoint: '/v1/users/1/notifications/unread-count',
+        method: 'GET',
+        status: 0,
+        message:
+          'Load failed (i2hggyv2eh.execute-api.ap-northeast-1.amazonaws.com)',
+        route: '/auth/onboarding',
+      });
+      expect(mockCaptureEvent).not.toHaveBeenCalled();
+    } finally {
+      window.dispatchEvent(new Event('pageshow'));
+    }
+
+    // After pageshow (bfcache restore), real status=0 network errors resume reporting
+    await captureApiFailure({
+      endpoint: '/v1/users/1/notifications/unread-count',
+      method: 'GET',
+      status: 0,
+      message: 'Network offline',
+      route: '/mentor-pool',
+    });
+    expect(mockCaptureEvent).toHaveBeenCalledTimes(1);
+    expect(mockCaptureEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ level: 'error' })
+    );
+
+    // Back-to-back 500 api.failure + flow.profile_update.failure emits only one error issue even when flow message is localized
+    mockCaptureEvent.mockClear();
+    await captureApiFailure({
+      endpoint: '/v1/mentors/123/profile',
+      method: 'PUT',
+      status: 500,
+      message: 'Internal Server Error',
+      route: '/profile/123/edit',
+    });
+    await captureFlowFailure({
+      flow: 'profile_update',
+      step: 'profile_write',
+      message: '更新個人資料時發生問題',
+      route: '/profile/123/edit',
+    });
+    expect(mockCaptureEvent).toHaveBeenCalledTimes(1);
+
+    // Subsequent independent failure or contradicting errorCode is NOT swallowed
+    await captureFlowFailure({
+      flow: 'profile_update',
+      step: 'avatar_upload',
+      message: 'Different failure reason',
+      errorCode: 'AVATAR_VALIDATION_FAILED',
+      route: '/profile/123/edit',
+    });
+    expect(mockCaptureEvent).toHaveBeenCalledTimes(2);
+  });
+
+  it('attaches pagehide/beforeunload listeners eagerly on module load so the very first navigation abort is suppressed (#952)', async () => {
+    vi.resetModules();
+    mockCaptureEvent.mockClear();
+
+    const freshMonitoring = await import('@/lib/monitoring');
+
+    // Trigger pagehide BEFORE captureApiFailure has ever been called
+    window.dispatchEvent(new Event('pagehide'));
+    try {
+      await freshMonitoring.captureApiFailure({
+        endpoint: '/v1/users/1/notifications/unread-count',
+        method: 'GET',
+        status: 0,
+        message: 'Load failed',
+        route: '/auth/onboarding',
+      });
+      expect(mockCaptureEvent).not.toHaveBeenCalled();
+    } finally {
+      window.dispatchEvent(new Event('pageshow'));
+    }
+
+    // Cancelled beforeunload (user clicks "Stay on page" -> focus returns) resets unloading state
+    window.dispatchEvent(new Event('beforeunload'));
+    window.dispatchEvent(new Event('focus'));
+    await freshMonitoring.captureApiFailure({
+      endpoint: '/v1/users/1/notifications/unread-count',
+      method: 'GET',
+      status: 0,
+      message: 'Real network drop after cancelled unload',
+      route: '/auth/onboarding',
+    });
+    expect(mockCaptureEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not swallow flow failures when errorCode contradicts 5xx status or after 250ms window, while WeakSet cause deduplicates across time (#952)', async () => {
+    vi.useFakeTimers();
+    try {
+      mockCaptureEvent.mockClear();
+
+      // 1. Contradicting errorCode directly after 500 is NOT suppressed
+      await captureApiFailure({
+        endpoint: '/v1/mentors/123/profile',
+        method: 'PUT',
+        status: 500,
+        message: 'Internal Server Error',
+        route: '/profile/123/edit',
+      });
+      await captureFlowFailure({
+        flow: 'profile_update',
+        step: 'avatar_upload',
+        message: 'Avatar validation failed',
+        errorCode: 'AVATAR_VALIDATION_FAILED',
+        route: '/profile/123/edit',
+      });
+      expect(mockCaptureEvent).toHaveBeenCalledTimes(2);
+
+      // 2. Expiring the 250ms window lets a fresh flow failure report normally
+      mockCaptureEvent.mockClear();
+      await captureApiFailure({
+        endpoint: '/v1/mentors/123/profile',
+        method: 'PUT',
+        status: 500,
+        message: 'Internal Server Error',
+        route: '/profile/123/edit',
+      });
+      vi.advanceTimersByTime(300);
+      await captureFlowFailure({
+        flow: 'profile_update',
+        step: 'profile_write',
+        message: 'Independent failure after window',
+        route: '/profile/123/edit',
+      });
+      expect(mockCaptureEvent).toHaveBeenCalledTimes(2);
+
+      // 3. Passing the exact same cause Error instance deduplicates even after 250ms
+      mockCaptureEvent.mockClear();
+      const sharedErr = new Error('Gateway timeout');
+      await captureApiFailure({
+        endpoint: '/v1/mentors/123/profile',
+        method: 'PUT',
+        status: 504,
+        message: 'Gateway timeout',
+        route: '/profile/123/edit',
+        cause: sharedErr,
+      });
+      vi.advanceTimersByTime(500);
+      await captureFlowFailure({
+        flow: 'profile_update',
+        step: 'profile_write',
+        message: '儲存逾時',
+        route: '/profile/123/edit',
+        cause: sharedErr,
+      });
+      expect(mockCaptureEvent).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

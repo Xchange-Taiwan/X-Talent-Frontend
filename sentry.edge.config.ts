@@ -5,16 +5,18 @@
 import * as Sentry from '@sentry/nextjs';
 
 import { validateRuntimeEnv } from '@/lib/env';
+import { resolveSentryRuntimeConfig } from '@/lib/sentryEnv';
 import { sanitizeSentryEvent } from '@/lib/sentrySanitize';
 
 validateRuntimeEnv();
 
-const sentryEnv = process.env.NEXT_PUBLIC_SENTRY_ENV;
+const { environment: sentryEnvironment, enabled: sentryEnabled } =
+  resolveSentryRuntimeConfig();
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-  enabled: sentryEnv === 'production' || sentryEnv === 'staging',
-  environment: sentryEnv ?? 'local',
+  enabled: sentryEnabled,
+  environment: sentryEnvironment,
 
   // Trace 10% of requests in production; increase temporarily for debugging
   tracesSampleRate: 0.1,
