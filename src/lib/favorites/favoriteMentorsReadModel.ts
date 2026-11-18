@@ -87,10 +87,7 @@ export interface FavoriteMentorsReadModel {
     mentorId: number,
     onChange: () => void
   ): () => void;
-  getMentorState(
-    userId: string | null,
-    mentorId: number
-  ): MentorBookmarkState;
+  getMentorState(userId: string | null, mentorId: number): MentorBookmarkState;
   getListSnapshot(userId: string | null): FavoriteMentorsSnapshot;
   toggle(params: {
     userId: string | null;
@@ -564,7 +561,8 @@ export function createFavoriteMentorsReadModel(
           }
         });
 
-        session.mentors = mergedServer.length > 0 ? mergedServer : EMPTY_MENTORS;
+        session.mentors =
+          mergedServer.length > 0 ? mergedServer : EMPTY_MENTORS;
         session.status = 'ready';
         session.error = null;
 
