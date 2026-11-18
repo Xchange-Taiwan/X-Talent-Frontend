@@ -592,17 +592,22 @@ test.describe('導師個人頁評價區塊與 RWD 排版 (#736)', () => {
     ).toHaveCount(0);
 
     const longReviewCard = feedbackSection.locator('ul > li').nth(3);
+    const longReviewParagraph = longReviewCard.locator('p').first();
     const expandBtn = longReviewCard.getByRole('button', { name: '查看更多' });
     await expect(expandBtn).toBeVisible();
     await expect(expandBtn).toHaveAttribute('aria-expanded', 'false');
+    await expect(longReviewParagraph).toHaveAttribute('data-expanded', 'false');
+    const collapsedBox = await longReviewParagraph.boundingBox();
+    expect(collapsedBox).not.toBeNull();
 
     await expandBtn.click();
     const collapseBtn = longReviewCard.getByRole('button', { name: '收合' });
     await expect(collapseBtn).toBeVisible();
     await expect(collapseBtn).toHaveAttribute('aria-expanded', 'true');
-    await expect(
-      longReviewCard.getByText(/分享了與產品和工程團隊合作的實際經驗/)
-    ).toBeVisible();
+    await expect(longReviewParagraph).toHaveAttribute('data-expanded', 'true');
+    const expandedBox = await longReviewParagraph.boundingBox();
+    expect(expandedBox).not.toBeNull();
+    expect(expandedBox!.height).toBeGreaterThan(collapsedBox!.height + 10);
 
     await captureEvidence(
       page,
@@ -616,6 +621,12 @@ test.describe('導師個人頁評價區塊與 RWD 排版 (#736)', () => {
     await expect(
       longReviewCard.getByRole('button', { name: '查看更多' })
     ).toBeVisible();
+    await expect(longReviewParagraph).toHaveAttribute('data-expanded', 'false');
+    const recollapsedBox = await longReviewParagraph.boundingBox();
+    expect(recollapsedBox).not.toBeNull();
+    expect(
+      Math.abs(recollapsedBox!.height - collapsedBox!.height)
+    ).toBeLessThan(2);
 
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
     await captureEvidence(page, 'mentor-profile-feedback-tab-desktop', {
@@ -626,6 +637,10 @@ test.describe('導師個人頁評價區塊與 RWD 排版 (#736)', () => {
     await expect(
       feedbackSection.getByRole('combobox', { name: '評價排序' })
     ).toHaveCount(0);
+
+    // 展開長評價後切換至第 2 頁再回到第 1 頁，確認展開狀態自動重設為預設收合
+    await longReviewCard.getByRole('button', { name: '查看更多' }).click();
+    await expect(longReviewParagraph).toHaveAttribute('data-expanded', 'true');
 
     // 分頁互動：點擊第 2 頁顯示第 11~12 筆評價，再切回第 1 頁對齊預設時間由新到舊畫面
     const page2Btn = page.getByRole('button', { name: '第 2 頁' });
@@ -643,6 +658,9 @@ test.describe('導師個人頁評價區塊與 RWD 排版 (#736)', () => {
     await page.getByRole('button', { name: '上一頁' }).click();
     const firstReviewItem = feedbackSection.locator('ul > li').first();
     await expect(firstReviewItem).toContainText('陳**');
+    await expect(
+      feedbackSection.locator('ul > li').nth(3).locator('p').first()
+    ).toHaveAttribute('data-expanded', 'false');
 
     // Tablet (768x1024) RWD 驗證：單欄排列且行事曆移至下方
     await page.setViewportSize({ width: 768, height: 1024 });

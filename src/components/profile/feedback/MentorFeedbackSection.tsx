@@ -133,7 +133,7 @@ function MentorFeedbackReviewContent({
           aria-controls={paragraphId}
           onClick={onToggleExpand}
           className={cn(
-            'text-brand-700 mt-1 inline-flex min-h-9 items-center gap-1.5 rounded-md py-1 text-xs font-medium hover:underline',
+            'text-brand-700 -mx-1.5 mt-1 inline-flex min-h-9 items-center gap-1.5 rounded-md px-1.5 py-1 text-xs font-medium hover:underline',
             FOCUS_RING_NO_OFFSET_CLASSES
           )}
         >
@@ -228,6 +228,9 @@ export function MentorFeedbackSection({
     page: number;
     ids: Record<string, boolean>;
   }>({ page: resolvedPage, ids: {} });
+  if (expansionState.page !== resolvedPage) {
+    setExpansionState({ page: resolvedPage, ids: {} });
+  }
   const expandedIds =
     expansionState.page === resolvedPage ? expansionState.ids : {};
 

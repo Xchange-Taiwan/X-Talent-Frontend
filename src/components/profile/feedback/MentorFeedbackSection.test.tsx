@@ -410,9 +410,28 @@ describe('MentorFeedbackSection (#736 / #934)', () => {
     expect(
       screen.getByRole('button', { name: '查看更多' })
     ).toBeInTheDocument();
+
+    // Navigating back to page 1 must NOT resurrect the previously expanded state
+    rerender(
+      <MentorFeedbackSection
+        items={[page1LongItem]}
+        totalRatingCount={12}
+        ratingAverage={8.5}
+        page={1}
+        pageSize={10}
+        onPageChange={() => {}}
+      />
+    );
+
+    expect(screen.getByText('第 1–10 則，共 12 則')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '收合' })).toBeNull();
+    expect(screen.getByRole('button', { name: '查看更多' })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    );
   });
 
-  it('uses real DOM scrollHeight vs clientHeight measurement when layout geometry is available', () => {
+  it('uses real DOM scrollHeight/clientHeight, recomputes lineHeight overflow on ResizeObserver while expanded, and disconnects on unmount', () => {
     const originalClientHeight = Object.getOwnPropertyDescriptor(
       HTMLElement.prototype,
       'clientHeight'
@@ -421,23 +440,55 @@ describe('MentorFeedbackSection (#736 / #934)', () => {
       HTMLElement.prototype,
       'scrollHeight'
     );
+    const originalResizeObserver = globalThis.ResizeObserver;
+    const originalGetComputedStyle = window.getComputedStyle.bind(window);
+    const getComputedStyleSpy = vi
+      .spyOn(window, 'getComputedStyle')
+      .mockImplementation((elt, pseudoElt) => {
+        const realStyle = originalGetComputedStyle(elt, pseudoElt);
+        return new Proxy(realStyle, {
+          get(target, prop, receiver) {
+            if (prop === 'lineHeight') return '22px';
+            const value = Reflect.get(target, prop, receiver);
+            return typeof value === 'function' ? value.bind(target) : value;
+          },
+        });
+      });
+
+    let wrappedParagraphScrollHeight = 92;
+    let resizeCallback: ResizeObserverCallback | null = null;
+    const disconnectSpy = vi.fn();
+
+    class MockResizeObserver implements ResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        resizeCallback = callback;
+      }
+      observe = vi.fn();
+      unobserve = vi.fn();
+      disconnect = disconnectSpy;
+    }
 
     try {
+      globalThis.ResizeObserver =
+        MockResizeObserver as unknown as typeof ResizeObserver;
+
       Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
         configurable: true,
         get() {
-          return this.tagName === 'P' ? 68 : 0;
+          return this.tagName === 'P' ? 66 : 0;
         },
       });
       Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
         configurable: true,
         get() {
           if (this.tagName !== 'P') return 0;
-          return this.textContent?.includes('窄螢幕折成四行') ? 92 : 68;
+          return this.textContent?.includes('窄螢幕折成四行')
+            ? wrappedParagraphScrollHeight
+            : 66;
         },
       });
 
-      render(
+      const { unmount } = render(
         <MentorFeedbackSection
           items={[
             {
@@ -465,7 +516,20 @@ describe('MentorFeedbackSection (#736 / #934)', () => {
       );
       fireEvent.click(screen.getByRole('button', { name: '查看更多' }));
       expect(screen.getByRole('button', { name: '收合' })).toBeInTheDocument();
+
+      // Simulate widening viewport so expanded paragraph fits in 2 lines (44px <= 68px)
+      wrappedParagraphScrollHeight = 44;
+      act(() => {
+        resizeCallback?.([], {} as ResizeObserver);
+      });
+      expect(screen.queryByRole('button', { name: '收合' })).toBeNull();
+      expect(screen.queryByRole('button', { name: '查看更多' })).toBeNull();
+
+      unmount();
+      expect(disconnectSpy).toHaveBeenCalled();
     } finally {
+      getComputedStyleSpy.mockRestore();
+      globalThis.ResizeObserver = originalResizeObserver;
       if (originalClientHeight) {
         Object.defineProperty(
           HTMLElement.prototype,
