@@ -23,3 +23,20 @@ export function normalizePositiveUserId(
   }
   return null;
 }
+
+/**
+ * Resolves a validated positive integer user ID into a safe JS `number` when
+ * within `Number.MAX_SAFE_INTEGER`, or preserves its exact canonical `string`
+ * representation when above `Number.MAX_SAFE_INTEGER`. Returns `null` when
+ * invalid.
+ */
+export function resolveProfileUserId(
+  userId: number | string | null | undefined
+): number | string | null {
+  const canonical = normalizePositiveUserId(userId);
+  if (!canonical) {
+    return null;
+  }
+  const numeric = Number(canonical);
+  return Number.isSafeInteger(numeric) ? numeric : canonical;
+}

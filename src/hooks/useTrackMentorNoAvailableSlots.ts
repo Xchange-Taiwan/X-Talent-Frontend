@@ -3,13 +3,14 @@
 import { useEffect, useRef } from 'react';
 
 import { trackEvent } from '@/lib/analytics';
+import { resolveProfileUserId } from '@/lib/profile/userId';
 
 export interface UseTrackMentorNoAvailableSlotsOptions {
   isIdentityResolved: boolean;
   isOwnProfile: boolean;
   userLoading: boolean;
   isMentor: boolean;
-  mentorId: number;
+  mentorId: number | string;
   loaded: boolean;
   monthLoaded: boolean;
   isFetching: boolean;
@@ -44,9 +45,9 @@ export function useTrackMentorNoAvailableSlots({
     if (!isIdentityResolved || isOwnProfile) return;
     if (userLoading || !isMentor) return;
     if (!loaded || !monthLoaded || isFetching || hasError) return;
+    const resolvedMentorId = resolveProfileUserId(mentorId);
     if (
-      !Number.isSafeInteger(mentorId) ||
-      mentorId <= 0 ||
+      resolvedMentorId === null ||
       typeof year !== 'number' ||
       typeof month !== 'number'
     ) {
@@ -59,7 +60,7 @@ export function useTrackMentorNoAvailableSlots({
     );
     if (hasAvailableDatesInMonth) return;
 
-    const dedupKey = `${mentorId}:${year}-${month}`;
+    const dedupKey = `${resolvedMentorId}:${year}-${month}`;
     if (trackedKeysRef.current.has(dedupKey)) return;
     trackedKeysRef.current.add(dedupKey);
 
@@ -67,7 +68,7 @@ export function useTrackMentorNoAvailableSlots({
       name: 'mentor_no_available_slots',
       feature: 'profile',
       metadata: {
-        mentor_id: mentorId,
+        mentor_id: resolvedMentorId,
         slot_count: 0,
       },
     });

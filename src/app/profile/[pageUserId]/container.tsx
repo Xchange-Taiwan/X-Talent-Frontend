@@ -15,7 +15,10 @@ import { useBookingConfirmation } from '@/hooks/user/reservation/useBookingConfi
 import useUserData from '@/hooks/user/user-data/useUserData';
 import { useTrackMentorNoAvailableSlots } from '@/hooks/useTrackMentorNoAvailableSlots';
 import { isFeedbackEnabled } from '@/lib/featureFlags';
-import { normalizePositiveUserId } from '@/lib/profile/userId';
+import {
+  normalizePositiveUserId,
+  resolveProfileUserId,
+} from '@/lib/profile/userId';
 import { getMentorOnboardingUrl, OPEN_SCHEDULE_DIALOG_KEY } from '@/lib/routes';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
@@ -61,11 +64,8 @@ export default function ProfilePageContainer({
 }: Props) {
   const router = useRouter();
   const canonicalUserId = normalizePositiveUserId(pageUserId);
-  const pageUserIdNumber = Number(pageUserId);
   const resolvedProfileUserId: number | string =
-    canonicalUserId && Number.isSafeInteger(pageUserIdNumber)
-      ? pageUserIdNumber
-      : (canonicalUserId ?? pageUserId);
+    resolveProfileUserId(pageUserId) ?? pageUserId;
 
   const identity = useResolvedIdentity();
   const isIdentityResolved =
@@ -74,10 +74,11 @@ export default function ProfilePageContainer({
   const loginUserId =
     identity.state === 'confirmed-member' ? identity.userId : '';
 
-  const isOwnProfile = loginUserId === pageUserId;
+  const isOwnProfile =
+    Boolean(canonicalUserId) && loginUserId === canonicalUserId;
 
   const schedule = useMentorSchedule({
-    backend: { userId: pageUserId },
+    backend: { userId: canonicalUserId ?? pageUserId },
     loginUserId,
     includeBookedDates: isOwnProfile,
   });
@@ -98,7 +99,7 @@ export default function ProfilePageContainer({
   );
 
   useConsumePendingFavorite({
-    pageUserId,
+    pageUserId: canonicalUserId ?? pageUserId,
     loginUserId,
     userData,
     userLoading,
@@ -109,7 +110,7 @@ export default function ProfilePageContainer({
     isOwnProfile,
     userLoading,
     isMentor: Boolean(userData?.is_mentor),
-    mentorId: pageUserIdNumber,
+    mentorId: resolvedProfileUserId,
     loaded,
     monthLoaded:
       reader.isMonthSynced ?? reader.slotsSnapshot?.monthLoaded ?? loaded,
@@ -121,7 +122,7 @@ export default function ProfilePageContainer({
   });
 
   const feedback = useMentorFeedback({
-    mentorId: pageUserIdNumber,
+    mentorId: resolvedProfileUserId,
     enabled: Boolean(
       isFeedbackEnabled() && !userLoading && userData?.is_mentor
     ),

@@ -4,6 +4,10 @@ import {
   type AsyncReadResult,
   type AsyncReadSource,
 } from '@/lib/asyncReadManager';
+import {
+  normalizePositiveUserId,
+  resolveProfileUserId,
+} from '@/lib/profile/userId';
 import { fetchMentorFeedback } from '@/services/profile/feedback';
 import {
   DEFAULT_FEEDBACK_PAGE_SIZE,
@@ -21,13 +25,13 @@ export const MENTOR_FEEDBACK_CACHE_TTL_MS = 60_000;
 const EMPTY_FEEDBACK_ITEMS: MentorFeedbackItem[] = [];
 
 export interface MentorFeedbackReadKey {
-  mentorId: number;
+  mentorId: number | string;
   page?: number;
   pageSize?: number;
 }
 
 export interface NormalizedMentorFeedbackKey {
-  mentorId: number;
+  mentorId: number | string;
   page: number;
   pageSize: number;
 }
@@ -90,7 +94,7 @@ export interface MentorFeedbackReadModel extends AsyncReadSource<
    * - When `mentorId` is `undefined`, applies the same invalidation/refresh
    *   across every mentor currently tracked in the read model.
    */
-  invalidateMentor(mentorId?: number): void;
+  invalidateMentor(mentorId?: number | string): void;
   clear(): void;
 }
 
@@ -98,9 +102,12 @@ export function normalizeMentorFeedbackKey(
   key: MentorFeedbackReadKey
 ): NormalizedMentorFeedbackKey {
   const safeMentorId =
-    typeof key.mentorId === 'number' && Number.isFinite(key.mentorId)
+    resolveProfileUserId(key.mentorId) ??
+    (typeof key.mentorId === 'number' &&
+    Number.isFinite(key.mentorId) &&
+    key.mentorId > 0
       ? Math.max(0, Math.floor(key.mentorId))
-      : 0;
+      : 0);
   const safePage =
     typeof key.page === 'number' && Number.isFinite(key.page)
       ? Math.max(1, Math.floor(key.page))
@@ -131,7 +138,10 @@ export function createMentorFeedbackReadModel({
   });
 
   const knownKeys = new Map<string, NormalizedMentorFeedbackKey>();
-  const mentorState = new Map<number, MentorFeedbackMentorSnapshot>();
+  const mentorState = new Map<string, MentorFeedbackMentorSnapshot>();
+
+  const toMentorStateKey = (mentorId: number | string): string | null =>
+    normalizePositiveUserId(mentorId);
 
   const trackNormalizedKey = (
     normalized: NormalizedMentorFeedbackKey
@@ -142,13 +152,14 @@ export function createMentorFeedbackReadModel({
   };
 
   const recordMentorPage = (
-    mentorId: number,
+    mentorId: number | string,
     pageData: MentorFeedbackPage
   ): void => {
-    if (mentorId <= 0) {
+    const stateKey = toMentorStateKey(mentorId);
+    if (!stateKey) {
       return;
     }
-    mentorState.set(mentorId, {
+    mentorState.set(stateKey, {
       summary: {
         totalRatingCount: pageData.totalRatingCount,
         ratingAverage: pageData.ratingAverage,
@@ -222,10 +233,8 @@ export function createMentorFeedbackReadModel({
         };
       }
 
-      const prev =
-        normalized.mentorId > 0
-          ? mentorState.get(normalized.mentorId)
-          : undefined;
+      const stateKey = toMentorStateKey(normalized.mentorId);
+      const prev = stateKey ? mentorState.get(stateKey) : undefined;
 
       return {
         items: isLoading && prev ? prev.items : EMPTY_FEEDBACK_ITEMS,
@@ -247,10 +256,12 @@ export function createMentorFeedbackReadModel({
     ) {
       const normalized = normalizeMentorFeedbackKey(key);
       const cacheKey = trackNormalizedKey(normalized);
+      const stateKey = toMentorStateKey(normalized.mentorId);
 
       if (
         readOptions?.initialData !== undefined &&
-        !mentorState.has(normalized.mentorId)
+        stateKey &&
+        !mentorState.has(stateKey)
       ) {
         recordMentorPage(normalized.mentorId, readOptions.initialData);
       }
@@ -277,10 +288,7 @@ export function createMentorFeedbackReadModel({
           }
 
           if (result.isLoading && result.error === null) {
-            const prev =
-              normalized.mentorId > 0
-                ? mentorState.get(normalized.mentorId)
-                : undefined;
+            const prev = stateKey ? mentorState.get(stateKey) : undefined;
             if (prev !== undefined) {
               onUpdate({
                 data: {
@@ -319,32 +327,37 @@ export function createMentorFeedbackReadModel({
 
     invalidateMentor(mentorId) {
       if (mentorId !== undefined) {
-        if (
-          typeof mentorId !== 'number' ||
-          !Number.isFinite(mentorId) ||
-          mentorId <= 0
-        ) {
+        const targetStateKey =
+          toMentorStateKey(mentorId) ??
+          (typeof mentorId === 'number' &&
+          Number.isFinite(mentorId) &&
+          mentorId > 0
+            ? String(Math.floor(mentorId))
+            : null);
+        if (!targetStateKey) {
           return;
         }
-        const targetMentorId = Math.floor(mentorId);
         let hasActiveSubscriber = false;
         for (const [cacheKey, parsed] of Array.from(knownKeys.entries())) {
-          if (parsed.mentorId === targetMentorId) {
+          if (toMentorStateKey(parsed.mentorId) === targetStateKey) {
             if (invalidateOrRefreshSlice(cacheKey, parsed)) {
               hasActiveSubscriber = true;
             }
           }
         }
         if (!hasActiveSubscriber) {
-          mentorState.delete(targetMentorId);
+          mentorState.delete(targetStateKey);
         }
         return;
       }
 
-      const activeMentors = new Set<number>();
+      const activeMentors = new Set<string>();
       for (const [cacheKey, parsed] of Array.from(knownKeys.entries())) {
         if (invalidateOrRefreshSlice(cacheKey, parsed)) {
-          activeMentors.add(parsed.mentorId);
+          const parsedStateKey = toMentorStateKey(parsed.mentorId);
+          if (parsedStateKey) {
+            activeMentors.add(parsedStateKey);
+          }
         }
       }
       for (const trackedMentorId of Array.from(mentorState.keys())) {

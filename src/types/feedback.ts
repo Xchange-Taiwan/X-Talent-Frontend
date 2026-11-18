@@ -46,7 +46,7 @@ export interface MentorFeedbackPage {
 }
 
 export interface FetchMentorFeedbackParams {
-  mentorId: number;
+  mentorId: number | string;
   page?: number;
   pageSize?: number;
   signal?: AbortSignal;

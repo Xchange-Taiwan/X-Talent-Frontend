@@ -1,11 +1,28 @@
+import { render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fetchTagCatalogServer } from '@/services/profile/tagCatalog.server';
 import { fetchUserByIdServer } from '@/services/profile/user.server';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 
-import { generateMetadata, revalidate } from './page';
+import Page, { generateMetadata, revalidate } from './page';
 
+const { mockNotFound, mockProfileContainer } = vi.hoisted(() => ({
+  mockNotFound: vi.fn(() => {
+    throw new Error('NEXT_NOT_FOUND');
+  }),
+  mockProfileContainer: vi.fn(() => null),
+}));
+
+vi.mock('next/navigation', () => ({
+  notFound: () => mockNotFound(),
+}));
+vi.mock('./container', () => ({
+  default: (props: unknown) => mockProfileContainer(props),
+}));
+vi.mock('@/components/seo/PersonJsonLd', () => ({
+  PersonJsonLd: () => null,
+}));
 vi.mock('@/services/profile/user.server', () => ({
   fetchUserByIdServer: vi.fn(),
 }));
@@ -118,5 +135,50 @@ describe('profile/[pageUserId] generateMetadata', () => {
 
   it('exports a 600-second ISR revalidate interval (#953)', () => {
     expect(revalidate).toBe(600);
+  });
+});
+
+describe('profile/[pageUserId] Page default export (#953)', () => {
+  beforeEach(() => {
+    mockFetchUserByIdServer.mockReset();
+    mockFetchTagCatalogServer.mockReset();
+    mockNotFound.mockClear();
+    mockProfileContainer.mockClear();
+  });
+
+  it('calls notFound() without fetching when pageUserId is zero, negative, or non-numeric', async () => {
+    for (const invalidId of ['0', '-42', 'abc', '0123']) {
+      await expect(
+        Page({ params: Promise.resolve({ pageUserId: invalidId }) })
+      ).rejects.toThrow('NEXT_NOT_FOUND');
+    }
+
+    expect(mockNotFound).toHaveBeenCalledTimes(4);
+    expect(mockFetchUserByIdServer).not.toHaveBeenCalled();
+    expect(mockProfileContainer).not.toHaveBeenCalled();
+  });
+
+  it('forwards 64-bit string user IDs above Number.MAX_SAFE_INTEGER intact to fetchUserByIdServer and ProfilePageContainer', async () => {
+    for (const snowflakeId of ['9007199254740993', '9999999999999999']) {
+      mockFetchUserByIdServer.mockResolvedValueOnce({
+        user_id: 123,
+      } as never);
+      mockFetchTagCatalogServer.mockResolvedValueOnce(emptyCatalogs);
+
+      const element = await Page({
+        params: Promise.resolve({ pageUserId: snowflakeId }),
+      });
+      render(element);
+
+      expect(mockFetchUserByIdServer).toHaveBeenLastCalledWith(
+        snowflakeId,
+        'zh_TW'
+      );
+      expect(mockProfileContainer).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          pageUserId: snowflakeId,
+        })
+      );
+    }
   });
 });
