@@ -165,7 +165,7 @@ jobs:
       - name: Cache Playwright browsers (Suggestion 6)
         if: env.SCOPE_SKIPPED != 'true'
         id: playwright-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
