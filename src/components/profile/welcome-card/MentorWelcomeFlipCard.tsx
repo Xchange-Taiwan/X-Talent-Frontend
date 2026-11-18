@@ -47,6 +47,13 @@ export function MentorWelcomeFlipCard({
       : '',
   ].filter(Boolean);
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setIsFlipped((prev) => !prev);
+    }
+  };
+
   return (
     <div
       className={cn(
@@ -54,12 +61,14 @@ export function MentorWelcomeFlipCard({
         className
       )}
     >
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         data-testid="mentor-welcome-flip-card"
         aria-pressed={isFlipped}
         aria-label={isFlipped ? '翻回導師小卡正面' : '翻轉導師小卡查看歡迎語'}
         onClick={() => setIsFlipped((prev) => !prev)}
+        onKeyDown={handleKeyDown}
         className={cn(
           FOCUS_RING_NO_OFFSET_CLASSES,
           'group relative block min-h-[420px] w-full cursor-pointer rounded-3xl text-left transition-transform duration-500 [transform-style:preserve-3d]',
@@ -127,8 +136,11 @@ export function MentorWelcomeFlipCard({
 
             {skills.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                {skills.map((skill) => (
-                  <Badge key={skill.subject_group} variant="default">
+                {skills.map((skill, idx) => (
+                  <Badge
+                    key={`${skill.subject_group}-${idx}`}
+                    variant="default"
+                  >
                     {skill.subject}
                   </Badge>
                 ))}
@@ -178,7 +190,7 @@ export function MentorWelcomeFlipCard({
             X-Talent Mentor
           </div>
         </div>
-      </button>
+      </div>
     </div>
   );
 }

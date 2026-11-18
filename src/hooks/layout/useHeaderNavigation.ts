@@ -22,7 +22,6 @@ import {
 } from '@/lib/navigation/headerNavigationModel';
 import {
   getLocationSearchSnapshot,
-  getServerLocationSearchSnapshot,
   subscribeLocationSearch,
 } from '@/lib/navigation/locationSearchStore';
 import { MENTOR_ONBOARDING_KEY } from '@/lib/routes';
@@ -74,11 +73,17 @@ export function useHeaderNavigation({
   showFavorites,
 }: UseHeaderNavigationOptions): HeaderNavigationModel {
   const pathname = usePathname();
-  const rawLocationSearch = React.useSyncExternalStore(
-    subscribeLocationSearch,
-    getLocationSearchSnapshot,
-    getServerLocationSearchSnapshot
-  );
+  // Hydration-safe location.search state: initializes to '' on both SSR and
+  // first client hydration pass, then syncs on mount and on History updates.
+  const [rawLocationSearch, setRawLocationSearch] = React.useState('');
+  React.useEffect(() => {
+    const sync = () => {
+      setRawLocationSearch(getLocationSearchSnapshot());
+    };
+    sync();
+    return subscribeLocationSearch(sync);
+  }, [pathname]);
+
   const isMentorOnboarding = React.useMemo(
     () => parseIsMentorOnboarding(pathname, rawLocationSearch),
     [pathname, rawLocationSearch]

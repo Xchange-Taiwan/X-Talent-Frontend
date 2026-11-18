@@ -7,10 +7,14 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush }),
 }));
 
+let capturedCardProps: Record<string, unknown> | null = null;
 vi.mock('next/dynamic', () => ({
-  default: () => (props: Record<string, unknown>) => (
-    <div data-testid="profile-card-ui" data-name={String(props.userData)} />
-  ),
+  default: () => (props: Record<string, unknown>) => {
+    capturedCardProps = props;
+    return (
+      <div data-testid="profile-card-ui" data-name={String(props.userData)} />
+    );
+  },
 }));
 
 const mockUseUserData = vi.fn();
@@ -136,5 +140,33 @@ describe('ProfileCardContainer', () => {
     );
 
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it('wires onSetupSchedule to /profile/:id?open-schedule-dialog=true and onBackToProfile to /profile/:id (#961)', () => {
+    capturedCardProps = null;
+    mockUseUserData.mockReturnValue({
+      userData: {
+        is_mentor: true,
+        personalLinks: [],
+      },
+      isLoading: false,
+    });
+
+    render(
+      <ProfileCardContainer
+        loginUserId={42}
+        initialDto={{ user_id: 42 } as MentorProfileVO}
+        initialCatalogs={emptyCatalogs}
+      />
+    );
+
+    const onSetupSchedule = capturedCardProps?.onSetupSchedule as () => void;
+    const onBackToProfile = capturedCardProps?.onBackToProfile as () => void;
+    onSetupSchedule();
+    expect(mockPush).toHaveBeenCalledWith(
+      '/profile/42?open-schedule-dialog=true'
+    );
+    onBackToProfile();
+    expect(mockPush).toHaveBeenCalledWith('/profile/42');
   });
 });
