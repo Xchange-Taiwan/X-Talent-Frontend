@@ -186,7 +186,6 @@ export default function EditProfileContainer({
         onBack={handleGoToPrev}
         isMentorOnboarding={isMentorOnboarding}
         isMentor={isMentorRole}
-        submitDisabled={isMentorOnboarding && !agreedGuidelines}
       />
 
       <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:gap-10">

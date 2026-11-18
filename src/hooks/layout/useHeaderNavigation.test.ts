@@ -319,7 +319,7 @@ describe('useHeaderNavigation', () => {
       });
     });
 
-    it('marks 成為導師 as isCurrent when Mentee is filling /profile/[id]/edit?mentor-onboarding=true and reacts to same-pathname query changes (#961)', () => {
+    it('marks 成為導師 as isCurrent when Mentee is filling /profile/[id]/edit?mentor-onboarding=true and reacts to same-pathname query changes (#961)', async () => {
       const originalHref = window.location.href;
       window.history.replaceState({}, '', '/profile/mentee-5/edit');
       mockUsePathname.mockReturnValue('/profile/mentee-5/edit');
@@ -331,18 +331,17 @@ describe('useHeaderNavigation', () => {
           })
         );
 
-        // Initially on plain /edit without query -> not current
         expect(result.current.desktopNav.resolvedRoleItem.isCurrent).toBe(
           false
         );
 
-        // Same-pathname query change to ?mentor-onboarding=true -> updates to isCurrent: true
-        act(() => {
+        await act(async () => {
           window.history.pushState(
             {},
             '',
             '/profile/mentee-5/edit?mentor-onboarding=true'
           );
+          await Promise.resolve();
         });
 
         expect(result.current.desktopNav.resolvedRoleItem).toMatchObject({
@@ -356,9 +355,9 @@ describe('useHeaderNavigation', () => {
           isCurrent: true,
         });
 
-        // Query removed -> reverts to false
-        act(() => {
+        await act(async () => {
           window.history.replaceState({}, '', '/profile/mentee-5/edit');
+          await Promise.resolve();
         });
         expect(result.current.desktopNav.resolvedRoleItem.isCurrent).toBe(
           false

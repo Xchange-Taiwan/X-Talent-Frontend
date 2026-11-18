@@ -20,6 +20,11 @@ import {
   type HeaderDialogType,
   toResolvedIdentitySnapshot,
 } from '@/lib/navigation/headerNavigationModel';
+import {
+  getLocationSearchSnapshot,
+  getServerLocationSearchSnapshot,
+  subscribeLocationSearch,
+} from '@/lib/navigation/locationSearchStore';
 import { MENTOR_ONBOARDING_KEY } from '@/lib/routes';
 
 export * from '@/lib/navigation/headerNavigationModel';
@@ -49,44 +54,18 @@ function handleFeedbackClick(): void {
   trackEvent({ name: 'feedback_open' });
 }
 
-function readIsMentorOnboardingFromLocation(pathname: string | null): boolean {
-  if (!pathname?.endsWith('/edit') || typeof window === 'undefined') {
+function parseIsMentorOnboarding(
+  pathname: string | null,
+  rawSearch: string
+): boolean {
+  if (!pathname?.endsWith('/edit') || !rawSearch) {
     return false;
   }
-  const params = new URLSearchParams(window.location.search);
+  const params = new URLSearchParams(rawSearch);
   return (
     params.get(MENTOR_ONBOARDING_KEY) === 'true' ||
     params.get('onboarding') === 'true'
   );
-}
-
-const LOCATION_CHANGE_EVENT = 'xtalent:locationchange';
-
-function ensureHistoryPatched(): void {
-  if (typeof window === 'undefined') return;
-  const win = window as Window & { __xtalentHistoryPatched?: boolean };
-  if (win.__xtalentHistoryPatched) return;
-  win.__xtalentHistoryPatched = true;
-
-  const origPushState = window.history.pushState.bind(window.history);
-  window.history.pushState = (
-    data: unknown,
-    unused: string,
-    url?: string | URL | null
-  ) => {
-    origPushState(data, unused, url);
-    window.dispatchEvent(new Event(LOCATION_CHANGE_EVENT));
-  };
-
-  const origReplaceState = window.history.replaceState.bind(window.history);
-  window.history.replaceState = (
-    data: unknown,
-    unused: string,
-    url?: string | URL | null
-  ) => {
-    origReplaceState(data, unused, url);
-    window.dispatchEvent(new Event(LOCATION_CHANGE_EVENT));
-  };
 }
 
 export function useHeaderNavigation({
@@ -95,24 +74,18 @@ export function useHeaderNavigation({
   showFavorites,
 }: UseHeaderNavigationOptions): HeaderNavigationModel {
   const pathname = usePathname();
-  const [isMentorOnboarding, setIsMentorOnboarding] = React.useState(false);
+  const rawLocationSearch = React.useSyncExternalStore(
+    subscribeLocationSearch,
+    getLocationSearchSnapshot,
+    getServerLocationSearchSnapshot
+  );
+  const isMentorOnboarding = React.useMemo(
+    () => parseIsMentorOnboarding(pathname, rawLocationSearch),
+    [pathname, rawLocationSearch]
+  );
   const [activeDialog, setActiveDialog] =
     React.useState<HeaderDialogType | null>(null);
   const dialogRafRef = React.useRef<number | null>(null);
-
-  React.useEffect(() => {
-    ensureHistoryPatched();
-    const sync = () => {
-      setIsMentorOnboarding(readIsMentorOnboardingFromLocation(pathname));
-    };
-    sync();
-    window.addEventListener('popstate', sync);
-    window.addEventListener(LOCATION_CHANGE_EVENT, sync);
-    return () => {
-      window.removeEventListener('popstate', sync);
-      window.removeEventListener(LOCATION_CHANGE_EVENT, sync);
-    };
-  }, [pathname]);
 
   const isUserUnresolved = identity.state === 'hint-only' || !identity.userId;
   const canDeleteAccount = isAccountDeletionEnabled();

@@ -706,18 +706,17 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
       timeout: 15_000,
     });
 
-    // Before agreeing to Mentor guidelines, submit button is disabled (#961)
+    // Submitting while Mentor guidelines & required fields are empty triggers Zod validation errors (#961)
     const submitBtn = page.getByRole('button', { name: '儲存並建立' });
-    await expect(submitBtn).toBeDisabled();
+    await submitBtn.click();
+    await expect(
+      page.getByText('請先閱讀並勾選同意導師規範')
+    ).toBeVisible();
     await page.getByRole('button', { name: '查看規範' }).click();
     await expect(page.getByText('真實身分')).toBeVisible();
     await page
       .getByRole('checkbox', { name: /我已閱讀並同意導師規範/ })
       .click();
-    await expect(submitBtn).toBeEnabled();
-
-    // Submitting while Mentor-only required fields are empty triggers validation errors
-    await submitBtn.click();
     await expect(page.getByText('請填寫關於我')).toBeVisible();
     await expect(page.getByText('請至少選擇一個主題')).toBeVisible();
     await expect(page.getByText('請至少選擇一個技能')).toBeVisible();
