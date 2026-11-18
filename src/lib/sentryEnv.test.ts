@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   attachLazyReplayIntegration,
-  resolveSentryRuntimeConfig,
   SENTRY_CLIENT_IGNORE_ERRORS,
-} from '@/lib/sentryEnv';
+} from '@/lib/sentryClient';
+import { resolveSentryRuntimeConfig } from '@/lib/sentryEnv';
 
 describe('sentryEnv & client replay helper (#952)', () => {
   it('quarantines Vercel preview deployments from polluting production even when NEXT_PUBLIC_SENTRY_ENV is production', () => {

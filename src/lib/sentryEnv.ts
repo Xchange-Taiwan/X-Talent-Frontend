@@ -10,23 +10,28 @@ export interface SentryRuntimeConfig {
   enabled: boolean;
 }
 
-export const SENTRY_CLIENT_IGNORE_ERRORS: Array<string | RegExp> = [
-  /Invalid call to runtime\.sendMessage\(\)/i,
-  /Failed to execute 'removeChild' on 'Node'/i,
-  /Failed to execute 'insertBefore' on 'Node'/i,
-  /ResizeObserver loop (?:limit exceeded|completed with undelivered notifications)/i,
-];
-
 /**
  * Resolves the effective Sentry environment and enabled flag while preventing
  * Vercel preview/development deployments from polluting `production` when
  * `NEXT_PUBLIC_SENTRY_ENV=production` is inherited across environments.
+ *
+ * Uses literal `process.env.NEXT_PUBLIC_*` dot-notation when `env` is omitted
+ * so Next.js / Turbopack / Webpack statically inline the values in client and
+ * edge bundles.
  */
 export function resolveSentryRuntimeConfig(
-  env: SentryEnvInput = process.env
+  env?: SentryEnvInput
 ): SentryRuntimeConfig {
-  const rawSentryEnv = env.NEXT_PUBLIC_SENTRY_ENV?.trim() || '';
-  const vercelEnv = (env.NEXT_PUBLIC_VERCEL_ENV ?? env.VERCEL_ENV)?.trim();
+  const resolvedEnv: SentryEnvInput = env ?? {
+    NEXT_PUBLIC_SENTRY_ENV: process.env.NEXT_PUBLIC_SENTRY_ENV,
+    NEXT_PUBLIC_VERCEL_ENV: process.env.NEXT_PUBLIC_VERCEL_ENV,
+    VERCEL_ENV: process.env.VERCEL_ENV,
+  };
+
+  const rawSentryEnv = resolvedEnv.NEXT_PUBLIC_SENTRY_ENV?.trim() || '';
+  const vercelEnv = (
+    resolvedEnv.NEXT_PUBLIC_VERCEL_ENV ?? resolvedEnv.VERCEL_ENV
+  )?.trim();
 
   if (vercelEnv && vercelEnv !== 'production') {
     if (vercelEnv === 'preview') {
@@ -43,29 +48,4 @@ export function resolveSentryRuntimeConfig(
   const environment = rawSentryEnv || 'local';
   const enabled = environment === 'production' || environment === 'staging';
   return { environment, enabled };
-}
-
-export interface LazyReplaySentryAdapter<TIntegration = unknown> {
-  lazyLoadIntegration: (
-    name: 'replayIntegration'
-  ) => Promise<() => TIntegration>;
-  addIntegration: (integration: TIntegration) => void;
-}
-
-/**
- * Lazily loads Sentry's `replayIntegration` without emitting unhandled promise
- * rejections when adblockers, CSP, or transient network errors block the CDN
- * bundle.
- */
-export async function attachLazyReplayIntegration<TIntegration>(
-  sentry: LazyReplaySentryAdapter<TIntegration>
-): Promise<boolean> {
-  try {
-    const replayIntegration =
-      await sentry.lazyLoadIntegration('replayIntegration');
-    sentry.addIntegration(replayIntegration());
-    return true;
-  } catch {
-    return false;
-  }
 }

@@ -433,13 +433,14 @@ export function sanitize(text: string | undefined): string | undefined {
 // ─── Unload & Duplicate-Issue Suppression State ──────────────────────────────
 
 const API_FLOW_DEDUP_WINDOW_MS = 250;
+const UNLOAD_SUPPRESSION_WINDOW_MS = 5_000;
 interface RecentApiErrorRecord {
   ts: number;
   status: number;
 }
 const recentErrorApiFailures = new Map<string, RecentApiErrorRecord>();
 const reportedErrorCauses = new WeakSet<object>();
-let isBrowserUnloading = false;
+let unloadingStartedAt: number | null = null;
 let unloadListenersAttached = false;
 
 export function ensureUnloadListenersAttached(): void {
@@ -447,15 +448,34 @@ export function ensureUnloadListenersAttached(): void {
     return;
   }
   unloadListenersAttached = true;
-  window.addEventListener('beforeunload', () => {
-    isBrowserUnloading = true;
-  });
-  window.addEventListener('pagehide', () => {
-    isBrowserUnloading = true;
-  });
-  window.addEventListener('pageshow', () => {
-    isBrowserUnloading = false;
-  });
+  const markUnloading = () => {
+    unloadingStartedAt = Date.now();
+  };
+  const clearUnloading = () => {
+    unloadingStartedAt = null;
+  };
+  window.addEventListener('beforeunload', markUnloading);
+  window.addEventListener('pagehide', markUnloading);
+  window.addEventListener('pageshow', clearUnloading);
+  window.addEventListener('focus', clearUnloading);
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        clearUnloading();
+      }
+    });
+  }
+}
+
+function isCurrentlyUnloading(): boolean {
+  if (unloadingStartedAt === null) {
+    return false;
+  }
+  if (Date.now() - unloadingStartedAt > UNLOAD_SUPPRESSION_WINDOW_MS) {
+    unloadingStartedAt = null;
+    return false;
+  }
+  return true;
 }
 
 // Register unload listeners eagerly at module evaluation time in browser
@@ -700,7 +720,7 @@ export async function captureApiFailure(
   if (process.env.NODE_ENV !== 'production') return;
   ensureUnloadListenersAttached();
 
-  if (event.status === 0 && isBrowserUnloading) {
+  if (event.status === 0 && isCurrentlyUnloading()) {
     return;
   }
 

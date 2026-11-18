@@ -859,5 +859,82 @@ describe('captureFlowFailure', () => {
     } finally {
       window.dispatchEvent(new Event('pageshow'));
     }
+
+    // Cancelled beforeunload (user clicks "Stay on page" -> focus returns) resets unloading state
+    window.dispatchEvent(new Event('beforeunload'));
+    window.dispatchEvent(new Event('focus'));
+    await freshMonitoring.captureApiFailure({
+      endpoint: '/v1/users/1/notifications/unread-count',
+      method: 'GET',
+      status: 0,
+      message: 'Real network drop after cancelled unload',
+      route: '/auth/onboarding',
+    });
+    expect(mockCaptureEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not swallow flow failures when errorCode contradicts 5xx status or after 250ms window, while WeakSet cause deduplicates across time (#952)', async () => {
+    vi.useFakeTimers();
+    try {
+      mockCaptureEvent.mockClear();
+
+      // 1. Contradicting errorCode directly after 500 is NOT suppressed
+      await captureApiFailure({
+        endpoint: '/v1/mentors/123/profile',
+        method: 'PUT',
+        status: 500,
+        message: 'Internal Server Error',
+        route: '/profile/123/edit',
+      });
+      await captureFlowFailure({
+        flow: 'profile_update',
+        step: 'avatar_upload',
+        message: 'Avatar validation failed',
+        errorCode: 'AVATAR_VALIDATION_FAILED',
+        route: '/profile/123/edit',
+      });
+      expect(mockCaptureEvent).toHaveBeenCalledTimes(2);
+
+      // 2. Expiring the 250ms window lets a fresh flow failure report normally
+      mockCaptureEvent.mockClear();
+      await captureApiFailure({
+        endpoint: '/v1/mentors/123/profile',
+        method: 'PUT',
+        status: 500,
+        message: 'Internal Server Error',
+        route: '/profile/123/edit',
+      });
+      vi.advanceTimersByTime(300);
+      await captureFlowFailure({
+        flow: 'profile_update',
+        step: 'profile_write',
+        message: 'Independent failure after window',
+        route: '/profile/123/edit',
+      });
+      expect(mockCaptureEvent).toHaveBeenCalledTimes(2);
+
+      // 3. Passing the exact same cause Error instance deduplicates even after 250ms
+      mockCaptureEvent.mockClear();
+      const sharedErr = new Error('Gateway timeout');
+      await captureApiFailure({
+        endpoint: '/v1/mentors/123/profile',
+        method: 'PUT',
+        status: 504,
+        message: 'Gateway timeout',
+        route: '/profile/123/edit',
+        cause: sharedErr,
+      });
+      vi.advanceTimersByTime(500);
+      await captureFlowFailure({
+        flow: 'profile_update',
+        step: 'profile_write',
+        message: '儲存逾時',
+        route: '/profile/123/edit',
+        cause: sharedErr,
+      });
+      expect(mockCaptureEvent).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
