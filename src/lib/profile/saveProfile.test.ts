@@ -1550,8 +1550,10 @@ describe('commitProfileMutation & saveProfile (Deep Module with ProfileSavePort)
           avatar: existingJwtToken.avatar as string,
           isMentor: Boolean(existingJwtToken.isMentor),
           onBoarding: Boolean(existingJwtToken.onBoarding),
-          jobTitle: (existingJwtToken.jobTitle as string | undefined) ?? undefined,
-          company: (existingJwtToken.company as string | undefined) ?? undefined,
+          jobTitle:
+            (existingJwtToken.jobTitle as string | undefined) ?? undefined,
+          company:
+            (existingJwtToken.company as string | undefined) ?? undefined,
           personalLinks:
             (existingJwtToken.personalLinks as Array<{
               platform: string;

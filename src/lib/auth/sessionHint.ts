@@ -234,12 +234,12 @@ export function resolveIdentity(
         : (session?.user?.name ?? undefined);
     const jobTitle =
       optimisticOverlay !== undefined && 'jobTitle' in optimisticOverlay
-        ? (optimisticOverlay.jobTitle || undefined)
-        : (session?.user?.jobTitle || undefined);
+        ? optimisticOverlay.jobTitle || undefined
+        : session?.user?.jobTitle || undefined;
     const company =
       optimisticOverlay !== undefined && 'company' in optimisticOverlay
-        ? (optimisticOverlay.company || undefined)
-        : (session?.user?.company || undefined);
+        ? optimisticOverlay.company || undefined
+        : session?.user?.company || undefined;
     const personalLinks =
       optimisticOverlay !== undefined && 'personalLinks' in optimisticOverlay
         ? optimisticOverlay.personalLinks
@@ -311,10 +311,7 @@ export function clearSessionHint(): void {
 export function syncSessionHintDomAndCookie(identity: ResolvedIdentity): void {
   if (typeof document === 'undefined') return;
 
-  if (
-    identity.state === 'confirmed-member' ||
-    identity.state === 'hint-only'
-  ) {
+  if (identity.state === 'confirmed-member' || identity.state === 'hint-only') {
     document.documentElement.setAttribute(
       DOM_AUTH_STATE_ATTR,
       identity.isMentor ? 'mentor' : 'mentee'

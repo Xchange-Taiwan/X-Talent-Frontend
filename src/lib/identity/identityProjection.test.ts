@@ -53,7 +53,9 @@ describe('identityProjection architectural boundaries (#936)', () => {
       'utf8'
     );
 
-    expect(bffSource).toMatch(/from\s+['"]@\/lib\/profile\/experienceCodec['"]/);
+    expect(bffSource).toMatch(
+      /from\s+['"]@\/lib\/profile\/experienceCodec['"]/
+    );
     expect(bffSource).not.toMatch(/function\s+isPersonalLink\b/);
   });
 });
@@ -128,9 +130,7 @@ describe('deriveOptimisticIdentityPatch', () => {
       fallbackOnBoarding: false,
       jobTitle: 'Principal Engineer',
       company: 'Analytical Engine Co',
-      personalLinks: [
-        { platform: 'github', url: 'https://github.com/ada' },
-      ],
+      personalLinks: [{ platform: 'github', url: 'https://github.com/ada' }],
     });
 
     expect(snapshot).toEqual({
@@ -141,9 +141,7 @@ describe('deriveOptimisticIdentityPatch', () => {
       onBoarding: true,
       jobTitle: 'Principal Engineer',
       company: 'Analytical Engine Co',
-      personalLinks: [
-        { platform: 'github', url: 'https://github.com/ada' },
-      ],
+      personalLinks: [{ platform: 'github', url: 'https://github.com/ada' }],
     });
   });
 });
