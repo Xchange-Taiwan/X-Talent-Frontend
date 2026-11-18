@@ -1076,6 +1076,51 @@ describe('bffSession.server (#927)', () => {
         }
       );
       expect(wrongSecretResult?.refreshToken).toBeUndefined();
+
+      // Cross-isolate replay protection: even in a fresh Serverless isolate
+      // (empty in-memory Map), the HMAC-signed HttpOnly g_oauth_jti tombstone
+      // cookie rejects replay of an already-consumed bridge token.
+      const crossIsolateStore = createInMemoryCookieStore();
+      const isolate1Bridge = await exchangeGoogleOAuthCodeServer('c3', 's3', {
+        fetchFn,
+        now: () => baseNow,
+        env: {
+          SSR_API_URL: 'http://bff:8000/api',
+          NEXTAUTH_SECRET: TEST_SECRET,
+        },
+      });
+      const firstConsume = await authorizeGoogleBridgePayload(
+        {
+          token: 'ttl_access_jwt',
+          email: 'ttl@example.com',
+          user: JSON.stringify(isolate1Bridge.response.data?.user),
+          refreshBridge: isolate1Bridge.refreshBridgeToken,
+        },
+        {
+          cookieStore: crossIsolateStore.cookieStore,
+          now: () => baseNow + 1_000,
+          env: { NEXTAUTH_SECRET: TEST_SECRET },
+        }
+      );
+      expect(firstConsume?.refreshToken).toBe('ttl_rt_val');
+
+      vi.resetModules();
+      const freshBffModule = await import('@/lib/auth/bffSession.server');
+      const crossIsolateReplay =
+        await freshBffModule.authorizeGoogleBridgePayload(
+          {
+            token: 'ttl_access_jwt',
+            email: 'ttl@example.com',
+            user: JSON.stringify(isolate1Bridge.response.data?.user),
+            refreshBridge: isolate1Bridge.refreshBridgeToken,
+          },
+          {
+            cookieStore: crossIsolateStore.cookieStore,
+            now: () => baseNow + 2_000,
+            env: { NEXTAUTH_SECRET: TEST_SECRET },
+          }
+        );
+      expect(crossIsolateReplay?.refreshToken).toBeUndefined();
     });
 
     it('honors signed __e2e_google_oauth JWE cookie in non-production and ignores it in live production (#954)', async () => {

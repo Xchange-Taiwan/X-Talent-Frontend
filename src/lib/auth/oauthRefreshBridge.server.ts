@@ -1,6 +1,11 @@
 import crypto from 'crypto';
 
-import { OAUTH_REFRESH_BRIDGE_TTL_SECONDS } from '@/lib/auth/oauthRefreshBridge';
+import {
+  type CookieStore,
+  OAUTH_REFRESH_BRIDGE_TTL_SECONDS,
+} from '@/lib/auth/oauthRefreshBridge';
+
+export const OAUTH_CONSUMED_JTI_COOKIE = 'g_oauth_jti';
 
 export interface SealedRefreshBridgePayload {
   jti: string;
@@ -9,9 +14,79 @@ export interface SealedRefreshBridgePayload {
   exp: number;
 }
 
+/**
+ * Defense-in-depth replay protection for the 60-second encrypted OAuth refresh
+ * bridge in a stateless Next.js frontend (which has no shared Redis/database):
+ * 1. Cryptographic token binding (`decoded.accessToken === credentials.token`)
+ *    ensures a sealed bridge token is useless without the matching short-lived
+ *    BFF access token, and BFF `/v1/auth/token` enforces authoritative
+ *    server-side single-use refresh token rotation (`rt:*` revocation).
+ * 2. Cross-instance browser replay is blocked via an HMAC-authenticated
+ *    `HttpOnly` tombstone cookie (`g_oauth_jti`, 60s `maxAge`) verified across
+ *    all Serverless instances.
+ * 3. Same-isolate raw HTTP replay without cookies is blocked via `consumedRefreshBridgeJtis`.
+ */
 const consumedRefreshBridgeJtis = new Map<string, number>();
 
-export function recordAndCheckBridgeJti(jti: string, nowMs: number): boolean {
+function signConsumedJtiTag(jti: string, secret: string): string {
+  return crypto
+    .createHmac('sha256', deriveRefreshBridgeKey(secret))
+    .update(`consumed:${jti}`)
+    .digest('base64url');
+}
+
+export function isBridgeJtiConsumedInCookie(
+  cookieStore: CookieStore | null | undefined,
+  jti: string,
+  secret: string
+): boolean {
+  const raw = cookieStore?.get(OAUTH_CONSUMED_JTI_COOKIE)?.value;
+  if (!raw) return false;
+  const expected = `${jti}.${signConsumedJtiTag(jti, secret)}`;
+  const a = Buffer.from(raw, 'utf8');
+  const b = Buffer.from(expected, 'utf8');
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(
+    new Uint8Array(a.buffer, a.byteOffset, a.byteLength),
+    new Uint8Array(b.buffer, b.byteOffset, b.byteLength)
+  );
+}
+
+export function writeConsumedBridgeJtiCookie(
+  cookieStore: CookieStore | null | undefined,
+  jti: string,
+  secret: string
+): void {
+  if (!cookieStore) return;
+  try {
+    cookieStore.set(
+      OAUTH_CONSUMED_JTI_COOKIE,
+      `${jti}.${signConsumedJtiTag(jti, secret)}`,
+      {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: OAUTH_REFRESH_BRIDGE_TTL_SECONDS,
+      }
+    );
+  } catch {
+    // Read-only cookie context fallback; per-isolate Map + BFF rotation still apply.
+  }
+}
+
+export function recordAndCheckBridgeJti(
+  jti: string,
+  nowMs: number,
+  options?: { cookieStore?: CookieStore | null; secret?: string }
+): boolean {
+  if (
+    options?.secret &&
+    isBridgeJtiConsumedInCookie(options.cookieStore, jti, options.secret)
+  ) {
+    return false;
+  }
+
   consumedRefreshBridgeJtis.forEach((expiresAt, key) => {
     if (expiresAt <= nowMs) {
       consumedRefreshBridgeJtis.delete(key);
@@ -24,6 +99,10 @@ export function recordAndCheckBridgeJti(jti: string, nowMs: number): boolean {
     jti,
     nowMs + OAUTH_REFRESH_BRIDGE_TTL_SECONDS * 1000
   );
+
+  if (options?.secret) {
+    writeConsumedBridgeJtiCookie(options.cookieStore, jti, options.secret);
+  }
   return true;
 }
 

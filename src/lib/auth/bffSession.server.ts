@@ -606,11 +606,13 @@ export async function authorizeGoogleBridgePayload(
     return null;
   }
 
+  let resolvedStore: CookieStore | null = null;
   let cookieRefreshToken: string | undefined;
   try {
-    const store = await resolveCookieStore(adapters);
-    cookieRefreshToken = consumeOAuthRefreshBridge(store);
+    resolvedStore = await resolveCookieStore(adapters);
+    cookieRefreshToken = consumeOAuthRefreshBridge(resolvedStore);
   } catch {
+    resolvedStore = null;
     cookieRefreshToken = undefined;
   }
 
@@ -637,7 +639,10 @@ export async function authorizeGoogleBridgePayload(
           decoded.accessToken === credentials.token &&
           decoded.rt.length > 0 &&
           decoded.jti.length > 0 &&
-          recordAndCheckBridgeJti(decoded.jti, nowMs)
+          recordAndCheckBridgeJti(decoded.jti, nowMs, {
+            cookieStore: resolvedStore,
+            secret,
+          })
         ) {
           refreshToken = decoded.rt;
         }
