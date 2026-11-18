@@ -67,16 +67,19 @@ function parseIsMentorOnboarding(
   );
 }
 
+const useIsomorphicLayoutEffect =
+  typeof window !== 'undefined' ? React.useLayoutEffect : React.useEffect;
+
 export function useHeaderNavigation({
   identity,
   user,
   showFavorites,
 }: UseHeaderNavigationOptions): HeaderNavigationModel {
   const pathname = usePathname();
-  // Hydration-safe location.search state: initializes to '' on both SSR and
-  // first client hydration pass, then syncs on mount and on History updates.
+  // Hydration-safe location.search state: initializes to '' on SSR/hydration,
+  // then syncs before browser paint via useLayoutEffect to prevent flash.
   const [rawLocationSearch, setRawLocationSearch] = React.useState('');
-  React.useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const sync = () => {
       setRawLocationSearch(getLocationSearchSnapshot());
     };

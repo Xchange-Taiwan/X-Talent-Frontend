@@ -56,5 +56,12 @@ describe('MentorWelcomeFlipCard (#961)', () => {
     expect(screen.getByText('WELCOME TO X-TALENT')).toBeInTheDocument();
     expect(screen.getByText(/很高興/)).toBeInTheDocument();
     expect(screen.getByText(/讓經驗成為連結/)).toBeInTheDocument();
+
+    // Keyboard Enter and Space flip back and forth accessibly (#961)
+    const flipSurface = screen.getByTestId('mentor-welcome-flip-card');
+    fireEvent.keyDown(flipSurface, { key: 'Enter' });
+    expect(frontFace).toHaveAttribute('aria-hidden', 'false');
+    fireEvent.keyDown(flipSurface, { key: ' ' });
+    expect(backFace).toHaveAttribute('aria-hidden', 'false');
   });
 });
