@@ -1,5 +1,6 @@
 'use client';
 
+import { Pencil } from 'lucide-react';
 import Image, { type StaticImageData } from 'next/image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -372,70 +373,88 @@ export default function ProfilePageUI({
               </div>
 
               <div className="mt-4 flex min-w-0 flex-1 flex-col items-center sm:mt-14 sm:ml-6 sm:items-start">
-                <div className="mb-2 flex w-full flex-col items-center gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex flex-col items-center gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
-                    <p className="text-2xl font-semibold break-words">
-                      {userData.name}
-                    </p>
-                    {userData.is_mentor && safePersonalLinks.length > 0 && (
-                      <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-                        {safePersonalLinks.map((link, index) => (
-                          <a
-                            key={`${link.platform}-${index}`}
-                            href={link.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            aria-label={link.label}
-                            title={link.label}
-                            data-analytics-click="profile_social_link"
-                            data-analytics-event="profile_social_link_click"
-                            data-analytics-feature="profile"
-                            data-analytics-location="profile_header"
-                            data-analytics-omit-destination="true"
-                            data-analytics-param-platform={link.platform}
-                            data-analytics-param-mentor-id={String(
-                              userData.user_id
-                            )}
-                            className="text-text-secondary hover:text-brand-500"
-                          >
-                            {link.icon}
-                          </a>
-                        ))}
-                      </div>
+                <div className="flex w-full flex-col items-center gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 flex-col items-center sm:items-start">
+                    <div className="flex flex-col items-center gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+                      <p className="text-2xl font-semibold break-words">
+                        {userData.name}
+                      </p>
+                      {userData.is_mentor && safePersonalLinks.length > 0 && (
+                        <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+                          {safePersonalLinks.map((link, index) => (
+                            <a
+                              key={`${link.platform}-${index}`}
+                              href={link.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-label={link.label}
+                              title={link.label}
+                              data-analytics-click="profile_social_link"
+                              data-analytics-event="profile_social_link_click"
+                              data-analytics-feature="profile"
+                              data-analytics-location="profile_header"
+                              data-analytics-omit-destination="true"
+                              data-analytics-param-platform={link.platform}
+                              data-analytics-param-mentor-id={String(
+                                userData.user_id
+                              )}
+                              className="text-text-secondary hover:text-brand-500"
+                            >
+                              {link.icon}
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {userData.is_mentor ? (
+                      (userData.job_title || userData.company) && (
+                        <p className="text-text-secondary mt-1.5 text-sm">
+                          {userData.job_title}
+                          {userData.job_title && userData.company && (
+                            <span className="text-text-tertiary"> · </span>
+                          )}
+                          {userData.company}
+                        </p>
+                      )
+                    ) : menteeLatestRole ? (
+                      <p className="text-text-secondary mt-1.5 text-sm">
+                        {menteeLatestRole.jobTitle}
+                        {menteeLatestRole.jobTitle &&
+                          menteeLatestRole.company && (
+                            <span className="text-text-tertiary"> at </span>
+                          )}
+                        {menteeLatestRole.company}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    {canShowMentorBookmark && (
+                      <MentorBookmarkButton
+                        mentorId={userData.user_id}
+                        mentorName={userData.name}
+                        mentorSnapshot={mentorSnapshot}
+                        feature="profile"
+                        variant="outline"
+                        tooltipSide="top"
+                        tooltipAlign="end"
+                      />
+                    )}
+                    {canShowOwnerControls && !userData.is_mentor && (
+                      <Button
+                        variant="outline"
+                        className="rounded-full px-5 py-2.5"
+                        onClick={onEditProfile}
+                        data-analytics-click="profile_edit_click"
+                        data-analytics-feature="profile"
+                        data-analytics-location="profile_header"
+                      >
+                        <Pencil className="mr-1.5 size-4" aria-hidden="true" />
+                        編輯個人資訊
+                      </Button>
                     )}
                   </div>
-                  {canShowMentorBookmark && (
-                    <MentorBookmarkButton
-                      mentorId={userData.user_id}
-                      mentorName={userData.name}
-                      mentorSnapshot={mentorSnapshot}
-                      feature="profile"
-                      variant="outline"
-                      tooltipSide="top"
-                      tooltipAlign="end"
-                    />
-                  )}
                 </div>
-                {userData.is_mentor ? (
-                  (userData.job_title || userData.company) && (
-                    <p className="text-text-secondary text-sm">
-                      {userData.job_title}
-                      {userData.job_title && userData.company && (
-                        <span className="text-text-tertiary"> · </span>
-                      )}
-                      {userData.company}
-                    </p>
-                  )
-                ) : menteeLatestRole ? (
-                  <p className="text-text-secondary text-sm">
-                    {menteeLatestRole.jobTitle}
-                    {menteeLatestRole.jobTitle && menteeLatestRole.company && (
-                      <span className="text-text-tertiary"> at </span>
-                    )}
-                    {menteeLatestRole.company}
-                  </p>
-                ) : null}
-                {canShowOwnerControls && (
+                {canShowOwnerControls && userData.is_mentor && (
                   <div className="mt-4 flex items-center justify-center gap-4 sm:justify-start">
                     {/* canShowOwnerControls gates owner actions: until useSession() settles,
                         withhold buttons rather than flash a guest view before correcting. */}

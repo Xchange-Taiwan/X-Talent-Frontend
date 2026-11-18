@@ -1,11 +1,12 @@
 'use client';
 
+import { User } from 'lucide-react';
+
 import {
   EducationSection,
   WorkExperienceSection,
 } from '@/components/profile/experience-section/ExperienceSection';
 import type { ResolvedDisplaySocialLink } from '@/components/profile/social-links/platformLabelMap';
-import { Badge } from '@/components/ui/badge';
 import type { TagDisplay, UserType } from '@/hooks/user/user-data/useUserData';
 import type { MenteeDirectionReadGroup } from '@/lib/profile/menteeDirectionView';
 import { cn } from '@/lib/utils';
@@ -23,9 +24,11 @@ export interface MenteeProfileContentProps {
 function PreferenceTagGroup({
   title,
   items,
+  tone,
 }: {
   title: string;
   items: ReadonlyArray<TagDisplay>;
+  tone: 'skill' | 'topic';
 }) {
   if (items.length === 0) return null;
   return (
@@ -35,9 +38,17 @@ function PreferenceTagGroup({
       </h3>
       <div className="flex flex-wrap gap-2.5">
         {items.map((item) => (
-          <Badge variant="default" key={item.subject_group}>
+          <span
+            key={item.subject_group}
+            className={cn(
+              'inline-flex items-center rounded-full font-medium',
+              tone === 'skill'
+                ? 'bg-brand-100 text-brand-700 px-3.5 py-1.5 text-sm'
+                : 'border-background-border bg-background-white text-text-primary border px-3.5 py-1 text-xs'
+            )}
+          >
             {item.subject}
-          </Badge>
+          </span>
         ))}
       </div>
     </div>
@@ -57,9 +68,12 @@ export function MenteeProfileContent({
     return (
       <div
         data-testid="mentee-profile-empty-state"
-        className="border-background-border bg-background-bottom-secondary/40 rounded-2xl border border-dashed px-6 py-12 text-center"
+        className="bg-background-bottom-secondary/70 rounded-2xl px-6 py-12 text-center"
       >
-        <p className="text-text-tertiary text-sm font-medium">
+        <div className="bg-background-white text-text-tertiary mx-auto mb-3 grid size-12 place-items-center rounded-full shadow-xs">
+          <User className="size-5" aria-hidden="true" />
+        </div>
+        <p className="text-text-secondary text-sm font-medium">
           尚未填寫個人資料
         </p>
       </div>
@@ -84,7 +98,9 @@ export function MenteeProfileContent({
 
   let renderedBefore = false;
   const nextSpacing = () => {
-    const cls = renderedBefore ? 'mt-10' : undefined;
+    const cls = renderedBefore
+      ? 'border-background-border mt-8 border-t pt-8'
+      : undefined;
     renderedBefore = true;
     return cls;
   };
@@ -113,7 +129,7 @@ export function MenteeProfileContent({
             </p>
           )}
           {userData.about?.trim() && (
-            <p className="text-text-tertiary text-sm break-words whitespace-pre-line">
+            <p className="text-text-secondary text-sm leading-relaxed break-words whitespace-pre-line">
               {userData.about}
             </p>
           )}
@@ -129,7 +145,7 @@ export function MenteeProfileContent({
               <div
                 role="tablist"
                 aria-label="交流偏好職位方向"
-                className="mb-5 flex flex-wrap items-center gap-2 p-1"
+                className="border-background-border mb-5 flex flex-wrap items-center gap-6 border-b"
               >
                 {directionGroups.map((group) => {
                   const selected = group.key === resolvedActiveGroup.key;
@@ -141,19 +157,17 @@ export function MenteeProfileContent({
                       aria-selected={selected}
                       onClick={() => onSelectDirection(group.key)}
                       className={cn(
-                        'focus-visible:ring-brand-500 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none',
+                        'focus-visible:ring-brand-500 -mb-px inline-flex items-baseline gap-1.5 border-b-2 px-1 pt-1 pb-2.5 text-sm transition-colors focus-visible:rounded-xs focus-visible:ring-2 focus-visible:outline-none',
                         selected
-                          ? 'border-brand-700 bg-brand-700 text-text-white'
-                          : 'border-background-border bg-background-white text-text-secondary hover:border-brand-300 hover:text-text-primary'
+                          ? 'border-brand-700 text-brand-700 font-semibold'
+                          : 'text-text-secondary hover:text-text-primary border-transparent font-medium'
                       )}
                     >
                       <span>{group.label}</span>
                       <span
                         className={cn(
-                          'inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-xs tabular-nums',
-                          selected
-                            ? 'bg-background-white/20 text-text-white'
-                            : 'bg-background-bottom-secondary text-text-tertiary'
+                          'text-xs tabular-nums',
+                          selected ? 'text-brand-700' : 'text-text-tertiary'
                         )}
                       >
                         {group.totalCount}
@@ -174,10 +188,12 @@ export function MenteeProfileContent({
                     <PreferenceTagGroup
                       title="想加強的技能"
                       items={resolvedActiveGroup.skills}
+                      tone="skill"
                     />
                     <PreferenceTagGroup
                       title="想了解的主題"
                       items={resolvedActiveGroup.topics}
+                      tone="topic"
                     />
                   </>
                 )}
@@ -188,10 +204,12 @@ export function MenteeProfileContent({
               <PreferenceTagGroup
                 title="想加強的技能"
                 items={userData.want_skill}
+                tone="skill"
               />
               <PreferenceTagGroup
                 title="想了解的主題"
                 items={userData.want_topic}
+                tone="topic"
               />
             </div>
           )}

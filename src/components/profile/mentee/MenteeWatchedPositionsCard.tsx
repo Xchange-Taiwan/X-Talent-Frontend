@@ -1,5 +1,7 @@
 'use client';
 
+import { Compass } from 'lucide-react';
+
 import type { MenteeDirectionReadGroup } from '@/lib/profile/menteeDirectionView';
 import { cn } from '@/lib/utils';
 
@@ -21,38 +23,47 @@ export function MenteeWatchedPositionsCard({
       aria-label="關注的職位"
       data-testid="mentee-watched-positions-card"
       className={cn(
-        'border-background-border bg-background-white w-full rounded-2xl border p-5 shadow-sm md:max-w-[695px] xl:max-w-[414px]',
+        'border-background-border bg-background-white w-full rounded-2xl border p-6 shadow-xs md:max-w-[695px] xl:max-w-[414px]',
         className
       )}
     >
-      <h2 className="text-text-primary mb-4 text-lg font-bold">關注的職位</h2>
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <h2 className="text-text-primary text-lg font-bold">關注的職位</h2>
+        <Compass
+          className="text-text-tertiary size-5 shrink-0"
+          aria-hidden="true"
+        />
+      </div>
 
       {groups.length === 0 ? (
         <p className="text-text-tertiary text-sm">尚未選擇職位</p>
       ) : (
-        <div className="flex flex-col gap-2.5 p-0.5">
+        <div className="divide-background-border flex flex-col divide-y">
           {groups.map((group) => {
             const isActive = activeDirection === group.key;
             return (
-              <button
-                key={group.key}
-                type="button"
-                aria-pressed={isActive}
-                onClick={() => onSelectDirection?.(group.key)}
-                className={cn(
-                  'focus-visible:ring-brand-500 flex w-full flex-col items-start gap-1 rounded-xl border px-4 py-3 text-left transition-colors focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:outline-none',
-                  isActive
-                    ? 'border-brand-500 bg-brand-100/40'
-                    : 'border-background-border bg-background-white hover:border-brand-300'
-                )}
-              >
-                <span className="text-text-primary text-sm font-semibold">
-                  {group.label}
-                </span>
-                <span className="text-text-tertiary text-xs tabular-nums">
-                  {group.skills.length} 項技能 · {group.topics.length} 個主題
-                </span>
-              </button>
+              <div key={group.key} className="py-3 first:pt-1 last:pb-1">
+                <button
+                  type="button"
+                  aria-pressed={isActive}
+                  onClick={() => onSelectDirection?.(group.key)}
+                  className="focus-visible:ring-brand-500 -mx-2 flex w-full flex-col items-start gap-1 rounded-lg px-2 py-1 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                >
+                  <span
+                    className={cn(
+                      'text-sm transition-colors',
+                      isActive
+                        ? 'text-brand-700 font-bold'
+                        : 'text-text-primary hover:text-brand-700 font-semibold'
+                    )}
+                  >
+                    {group.label}
+                  </span>
+                  <span className="text-text-tertiary text-xs tabular-nums">
+                    {group.skills.length} 項技能 · {group.topics.length} 個主題
+                  </span>
+                </button>
+              </div>
             );
           })}
         </div>
