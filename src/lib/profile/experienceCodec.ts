@@ -1,6 +1,7 @@
 import {
   createEmptySocialLinks,
   isSocialPlatformKey,
+  type PersonalLink,
   type SocialPlatformKey,
   validatePlatformUrl,
 } from '@/lib/profile/socialLinks';
@@ -9,6 +10,8 @@ import { ExperienceType } from '@/services/profile/experienceType';
 import type { components } from '@/types/api';
 
 type WireExperienceVO = components['schemas']['ExperienceVO'];
+
+export type { PersonalLink };
 
 // Wire shape for experiences. Mirrors the inline batch on
 // MentorProfileVO/DTO: backend stores them as JSONB[] on profiles.experiences
@@ -38,10 +41,7 @@ export interface EducationExperienceMetadata {
   education_period_end: string;
 }
 
-export interface PersonalLinkMetadata {
-  platform: string;
-  url: string;
-}
+export type PersonalLinkMetadata = PersonalLink;
 
 export interface DecodedExperiences {
   workExperiences: WorkExperienceMetadata[];
@@ -93,19 +93,26 @@ function getMetadataArray<T>(
     });
 }
 
+export interface DecodeExperiencesOptions {
+  preservePlatformCase?: boolean;
+}
+
 /**
  * Single decoder from wire `MentorExperiencePayload[]` into domain arrays.
  *
  * Encapsulates every read-side invariant in one place:
  * - Work experiences with no `is_primary` flag default the first entry to
  *   primary (legacy records predate the flag).
+ * - Personal link platforms normalize to canonical lowercase `SocialPlatformKey`
+ *   by default (`preservePlatformCase` is reserved for BFF auth user payloads).
  * - Personal link URLs pass `isSafeUrl` so `javascript:` / `data:` schemes
  *   stored in the DB never reach an `<a href>`.
  * - Missing fields fall back to empty strings so UI/form consumers never see
  *   `undefined`.
  */
 export function decode(
-  experiences: MentorExperiencePayload[] | undefined
+  experiences: MentorExperiencePayload[] | undefined,
+  options?: DecodeExperiencesOptions
 ): DecodedExperiences {
   const rawWork = getMetadataArray<Partial<WorkExperienceMetadata> | null>(
     experiences,
@@ -156,13 +163,19 @@ export function decode(
         Boolean(item && typeof item === 'object')
       )
       .map((item) => {
-        const platform =
-          typeof item.platform === 'string'
-            ? item.platform.trim().toLowerCase()
-            : '';
+        const rawPlatform =
+          typeof item.platform === 'string' ? item.platform.trim() : '';
+        const normalizedPlatform = rawPlatform.toLowerCase();
+        const platform = options?.preservePlatformCase
+          ? rawPlatform
+          : normalizedPlatform;
         const rawUrl = typeof item.url === 'string' ? item.url.trim() : '';
-        if (!isSafeUrl(rawUrl) && rawUrl && isSocialPlatformKey(platform)) {
-          const validation = validatePlatformUrl(platform, rawUrl);
+        if (
+          !isSafeUrl(rawUrl) &&
+          rawUrl &&
+          isSocialPlatformKey(normalizedPlatform)
+        ) {
+          const validation = validatePlatformUrl(normalizedPlatform, rawUrl);
           if (validation.valid && validation.normalizedUrl) {
             return { platform, url: validation.normalizedUrl };
           }
@@ -261,14 +274,21 @@ export function encode(input: EncodeInput): EncodeResult {
   return { experiences, job_title, company };
 }
 
+export interface WireExperienceLike {
+  category?: string | null;
+  mentor_experiences_metadata?: unknown;
+  order?: number | null;
+}
+
 /**
- * Normalizes OpenAPI `ExperienceVO[]` (whose generated metadata type is
- * `Record<string, never>`) into `MentorExperiencePayload[]` at the codec boundary.
+ * Normalizes OpenAPI `ExperienceVO[]` or BFF `MentorExperience[]` into
+ * `MentorExperiencePayload[]` at the codec boundary.
  */
 export function fromWireExperiences(
   experiences:
     | readonly WireExperienceVO[]
     | readonly MentorExperiencePayload[]
+    | readonly WireExperienceLike[]
     | null
     | undefined
 ): MentorExperiencePayload[] | undefined {

@@ -1,3 +1,5 @@
+import type { PersonalLink } from '@/lib/profile/socialLinks';
+
 // Non-sensitive UI hint, written by middleware from a token already verified
 // via `getToken()` (local JWT signature check, no network call). Lets the
 // client render the correct header shape before the slower `useSession()`
@@ -124,8 +126,6 @@ export function readCookie(name: string): string | undefined {
   return safeDecodeURIComponent(raw);
 }
 
-import type { PersonalLink } from '@/types/types';
-
 export interface ResolvedIdentitySummaryFields {
   name?: string;
   jobTitle?: string;
@@ -226,13 +226,24 @@ export function resolveIdentity(
       optimisticOverlay !== undefined && 'avatar' in optimisticOverlay
         ? (optimisticOverlay.avatar ?? undefined)
         : (session?.user?.avatar ?? undefined);
-    const name = optimisticOverlay?.name ?? session?.user?.name ?? undefined;
+    const name =
+      optimisticOverlay !== undefined &&
+      'name' in optimisticOverlay &&
+      optimisticOverlay.name !== undefined
+        ? optimisticOverlay.name
+        : (session?.user?.name ?? undefined);
     const jobTitle =
-      optimisticOverlay?.jobTitle ?? session?.user?.jobTitle ?? undefined;
+      optimisticOverlay !== undefined && 'jobTitle' in optimisticOverlay
+        ? (optimisticOverlay.jobTitle || undefined)
+        : (session?.user?.jobTitle || undefined);
     const company =
-      optimisticOverlay?.company ?? session?.user?.company ?? undefined;
+      optimisticOverlay !== undefined && 'company' in optimisticOverlay
+        ? (optimisticOverlay.company || undefined)
+        : (session?.user?.company || undefined);
     const personalLinks =
-      optimisticOverlay?.personalLinks ?? session?.user?.personalLinks;
+      optimisticOverlay !== undefined && 'personalLinks' in optimisticOverlay
+        ? optimisticOverlay.personalLinks
+        : session?.user?.personalLinks;
 
     return {
       state: 'confirmed-member',
@@ -268,12 +279,71 @@ export function resolveIdentity(
 export const DOM_AUTH_STATE_ATTR = 'data-auth-state';
 export const DOM_AUTH_AVATAR_ATTR = 'data-auth-avatar';
 
+function syncDomAvatar(avatar: string | undefined): string | undefined {
+  if (avatar && isValidAvatarProtocol(avatar)) {
+    document.documentElement.setAttribute(DOM_AUTH_AVATAR_ATTR, avatar);
+    const escapedAvatar = avatar.replace(/"/g, '%22');
+    document.documentElement.style.setProperty(
+      '--auth-avatar',
+      `url("${escapedAvatar}")`
+    );
+    return avatar;
+  }
+
+  document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
+  document.documentElement.style.removeProperty('--auth-avatar');
+  return undefined;
+}
+
 export function clearSessionHint(): void {
   if (typeof document === 'undefined') return;
   document.cookie = `${SESSION_HINT_COOKIE}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0;`;
   document.documentElement.removeAttribute(DOM_AUTH_STATE_ATTR);
   document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
   document.documentElement.style.removeProperty('--auth-avatar');
+}
+
+/**
+ * Synchronizes post-hydration DOM auth attributes (`data-auth-state`,
+ * `data-auth-avatar`, `--auth-avatar`) and client `session-hint` cookie state
+ * from a canonical `ResolvedIdentity`.
+ */
+export function syncSessionHintDomAndCookie(identity: ResolvedIdentity): void {
+  if (typeof document === 'undefined') return;
+
+  if (
+    identity.state === 'confirmed-member' ||
+    identity.state === 'hint-only'
+  ) {
+    document.documentElement.setAttribute(
+      DOM_AUTH_STATE_ATTR,
+      identity.isMentor ? 'mentor' : 'mentee'
+    );
+    const safeAvatar = syncDomAvatar(identity.avatar);
+
+    if (identity.state === 'confirmed-member') {
+      const nextHint = encodeSessionHint({
+        isMentor: identity.isMentor,
+        userId: identity.userId,
+        avatar: safeAvatar,
+      });
+      if (readCookie(SESSION_HINT_COOKIE) !== nextHint) {
+        const secureAttr = SESSION_HINT_COOKIE_OPTIONS.secure ? '; secure' : '';
+        document.cookie = `${SESSION_HINT_COOKIE}=${encodeURIComponent(nextHint)}; path=${SESSION_HINT_COOKIE_OPTIONS.path}; max-age=${SESSION_HINT_COOKIE_OPTIONS.maxAge}; samesite=${SESSION_HINT_COOKIE_OPTIONS.sameSite}${secureAttr}`;
+      }
+    }
+    return;
+  }
+
+  if (
+    identity.state === 'unknown' &&
+    decodeSessionHint(readCookie(SESSION_HINT_COOKIE)) !== null
+  ) {
+    return;
+  }
+
+  clearSessionHint();
+  document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'guest');
 }
 
 export const SESSION_HINT_INLINE_SCRIPT = `

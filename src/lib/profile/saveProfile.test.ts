@@ -1,14 +1,11 @@
 import { fromPartial } from '@total-typescript/shoehorn';
+import fs from 'fs';
 import type { Session } from 'next-auth';
+import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { trackEvent } from '@/lib/analytics';
-import {
-  getUserProfileDtoFromCache,
-  primeUserProfileDtoCache,
-  resolveUserProfileDtoFetch,
-  userProfileDtoReadManager,
-} from '@/lib/cache/userProfileDtoCache';
+import { resolveIdentity } from '@/lib/auth/sessionHint';
 import {
   clearPendingFavoriteMentor,
   savePendingFavoriteMentor,
@@ -21,6 +18,7 @@ import {
 } from '@/lib/mentor/mentorPoolReadModel';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { encode, toWireExperiences } from '@/lib/profile/experienceCodec';
+import { profileReadModel } from '@/lib/profile/profileReadModel';
 import { readIndustryTag } from '@/lib/profile/readIndustryTag';
 import type { OnboardingFormValues } from '@/schemas/onboarding';
 import { ExperienceType } from '@/services/profile/experienceType';
@@ -240,13 +238,13 @@ describe('commitProfileMutation & saveProfile (Deep Module with ProfileSavePort)
   beforeEach(() => {
     vi.clearAllMocks();
     clearPendingFavoriteMentor();
-    userProfileDtoReadManager.clear();
+    profileReadModel.clear();
     mentorPoolReadModel.clear();
   });
 
   afterEach(() => {
     clearPendingFavoriteMentor();
-    userProfileDtoReadManager.clear();
+    profileReadModel.clear();
     mentorPoolReadModel.clear();
   });
 
@@ -523,7 +521,9 @@ describe('commitProfileMutation & saveProfile (Deep Module with ProfileSavePort)
       subject_group: 'finance',
       subject: '金融與投資',
     });
-    expect(getUserProfileDtoFromCache(1, 'zh_TW')).toBeDefined();
+    expect(
+      profileReadModel.peek({ userId: 1, language: 'zh_TW' })
+    ).toBeDefined();
 
     // Empty avatar ("") vs undefined session.user.avatar must NOT bump avatarUpdatedAt
     expect(spies.updateSession).toHaveBeenCalledWith(
@@ -610,8 +610,8 @@ describe('commitProfileMutation & saveProfile (Deep Module with ProfileSavePort)
         ...optimisticDto,
         ...stalePatch,
       };
-      const resolved = await resolveUserProfileDtoFetch(
-        '1-zh_TW',
+      const resolved = await profileReadModel.resolveFetch(
+        { userId: 1, language: 'zh_TW' },
         async () => candidate,
         new AbortController().signal
       );
@@ -622,8 +622,8 @@ describe('commitProfileMutation & saveProfile (Deep Module with ProfileSavePort)
       ...optimisticDto,
       have_skill: ['nextjs', 'typescript'],
     };
-    const convergedSwr = await resolveUserProfileDtoFetch(
-      '1-zh_TW',
+    const convergedSwr = await profileReadModel.resolveFetch(
+      { userId: 1, language: 'zh_TW' },
       async () => fullyConvergedBackendDto,
       new AbortController().signal
     );
@@ -652,7 +652,7 @@ describe('commitProfileMutation & saveProfile (Deep Module with ProfileSavePort)
     });
   });
 
-  it('uploads avatarFile via ProfileSavePort, writes versioned URL to profile, bumps session avatarUpdatedAt, primes userProfileDtoCache synchronously, and converges against &cb= search-index card', async () => {
+  it('uploads avatarFile via ProfileSavePort, writes versioned URL to profile, bumps session avatarUpdatedAt, primes profileReadModel synchronously, and converges against &cb= search-index card', async () => {
     const uploadedUrl =
       'https://s3.amazonaws.com/bucket/files/1/avatar?v=1754000000000';
     const { port, spies } = createInMemoryProfileSavePort({
@@ -690,7 +690,9 @@ describe('commitProfileMutation & saveProfile (Deep Module with ProfileSavePort)
       })
     );
     expect(result.avatar).toBe(uploadedUrl);
-    expect(getUserProfileDtoFromCache(1, 'zh_TW')?.avatar).toBe(uploadedUrl);
+    expect(
+      profileReadModel.peek({ userId: 1, language: 'zh_TW' })?.avatar
+    ).toBe(uploadedUrl);
 
     await vi.waitFor(() => {
       expect(spies.revalidateProfilePath).toHaveBeenCalledTimes(2);
@@ -854,7 +856,7 @@ describe('commitProfileMutation & saveProfile (Deep Module with ProfileSavePort)
       subject: '金融與銀行',
     });
 
-    const cachedDto = getUserProfileDtoFromCache(1, 'zh_TW');
+    const cachedDto = profileReadModel.peek({ userId: 1, language: 'zh_TW' });
     expect(readIndustryTag(cachedDto?.industry)).toMatchObject({
       subject_group: 'finance',
       subject: '金融與銀行',
@@ -937,7 +939,9 @@ describe('commitProfileMutation & saveProfile (Deep Module with ProfileSavePort)
     );
     expect(optimisticDto.job_title).toBe('Staff Engineer');
     expect(optimisticDto.company).toBe('Dell');
-    expect(getUserProfileDtoFromCache(1, 'zh_TW')).toMatchObject({
+    expect(
+      profileReadModel.peek({ userId: 1, language: 'zh_TW' })
+    ).toMatchObject({
       job_title: 'Staff Engineer',
       company: 'Dell',
     });
@@ -1204,9 +1208,8 @@ describe('commitProfileMutation & saveProfile (Deep Module with ProfileSavePort)
   });
 
   it('falls back from stale fast fetch to convergence polling, primes backend truth once synced, and reconciles session when role differs', async () => {
-    primeUserProfileDtoCache(
-      1,
-      'zh_TW',
+    profileReadModel.prime(
+      { userId: 1, language: 'zh_TW' },
       fromPartial<MentorProfileVO>({ user_id: 1, name: 'Pre-Edit Cached' })
     );
 
@@ -1233,7 +1236,7 @@ describe('commitProfileMutation & saveProfile (Deep Module with ProfileSavePort)
       expect(spies.revalidateProfilePath).toHaveBeenCalledTimes(2);
     });
 
-    expect(getUserProfileDtoFromCache(1, 'zh_TW')).toBe(
+    expect(profileReadModel.peek({ userId: 1, language: 'zh_TW' })).toBe(
       convergedDisagreeingDto
     );
     expect(spies.updateSession.mock.calls[1]?.[0]).toMatchObject({
@@ -1299,7 +1302,9 @@ describe('commitProfileMutation & saveProfile (Deep Module with ProfileSavePort)
       expect(spies.fetchProfile).toHaveBeenCalledWith(99);
       expect(spies.revalidateProfilePath).toHaveBeenCalledTimes(2);
     });
-    expect(getUserProfileDtoFromCache(99, 'zh_TW')?.user_id).toBe(99);
+    expect(
+      profileReadModel.peek({ userId: 99, language: 'zh_TW' })?.user_id
+    ).toBe(99);
   });
 
   it('clears avatar, location, and years_of_experience optimistically and guards against stale SWR DTOs when dirtyFields mark them cleared (#905)', async () => {
@@ -1365,10 +1370,12 @@ describe('commitProfileMutation & saveProfile (Deep Module with ProfileSavePort)
     await vi.waitFor(() => {
       expect(fetchProfile).toHaveBeenCalledTimes(2);
     });
-    expect(getUserProfileDtoFromCache(1, 'zh_TW')?.avatar).toBeNull();
+    expect(
+      profileReadModel.peek({ userId: 1, language: 'zh_TW' })?.avatar
+    ).toBeNull();
   });
 
-  it('propagates non-default language (en_US) into background fetchProfile and userProfileDtoCache during mentee-onboarding (#905)', async () => {
+  it('propagates non-default language (en_US) into background fetchProfile and profileReadModel during mentee-onboarding (#905)', async () => {
     const enDto = makeSyncedDtoFromValues({
       name: 'Ada English',
       is_mentor: false,
@@ -1401,6 +1408,371 @@ describe('commitProfileMutation & saveProfile (Deep Module with ProfileSavePort)
     await vi.waitFor(() => {
       expect(fetchProfile).toHaveBeenCalledWith(1, 'en_US');
     });
-    expect(getUserProfileDtoFromCache(1, 'en_US')?.name).toBe('Ada English');
+    expect(profileReadModel.peek({ userId: 1, language: 'en_US' })?.name).toBe(
+      'Ada English'
+    );
+  });
+
+  it('reconciles jobTitle, company, and personalLinks from backend truth instead of overwriting Session.user with stale form-closed values (#936)', async () => {
+    const { experiences: backendExperiences } = encode({
+      workExperiences: [
+        {
+          job: 'Backend Principal Engineer',
+          company: 'Backend Corp',
+          job_period_start: '2022',
+          job_period_end: 'now',
+          industry: 'tech',
+          job_location: 'TWN',
+          description: 'Core architecture',
+          is_primary: true,
+        },
+      ],
+      educations: [],
+      personalLinks: [
+        {
+          platform: 'linkedin',
+          url: 'https://linkedin.com/in/backend-truth',
+        },
+      ],
+    });
+
+    const backendTruthDto = makeSyncedDtoFromValues({
+      name: 'Edited Name Only',
+      job_title: 'Backend Principal Engineer',
+      company: 'Backend Corp',
+      experiences: toWireExperiences(backendExperiences),
+    });
+
+    const fetchProfile = vi
+      .fn<FetchProfileFn>()
+      .mockResolvedValueOnce(backendTruthDto);
+    const searchMentors = vi.fn<SearchMentorsPortFn>(async () => [
+      makeSyncedMentorCard({
+        name: 'Edited Name Only',
+        job_title: '',
+        company: '',
+      }),
+    ]);
+    const { port, spies } = createInMemoryProfileSavePort({
+      fetchProfile,
+      searchMentors,
+    });
+
+    const staleSession: Session = {
+      ...mockSession,
+      user: {
+        ...mockSession.user!,
+        avatarUpdatedAt: 1700000999000,
+        jobTitle: 'Stale Session Title',
+        company: 'Stale Session Co',
+        personalLinks: [
+          { platform: 'github', url: 'https://github.com/stale-session' },
+        ],
+      },
+    };
+
+    await saveProfile(
+      {
+        ...baseValues,
+        name: 'Edited Name Only',
+      },
+      makeContext({
+        session: staleSession,
+        dirtyFields: { name: true },
+      }),
+      port
+    );
+
+    // Step 4: optimistic session write keeps prior session jobTitle/company/personalLinks since experiences weren't dirty
+    expect(spies.updateSession).toHaveBeenCalledTimes(1);
+    expect(spies.updateSession.mock.calls[0]?.[0]).toMatchObject({
+      user: {
+        id: '1',
+        name: 'Edited Name Only',
+        avatarUpdatedAt: 1700000999000,
+        jobTitle: 'Stale Session Title',
+        company: 'Stale Session Co',
+        personalLinks: [
+          { platform: 'github', url: 'https://github.com/stale-session' },
+        ],
+      },
+    });
+
+    // Step 6: background reconciliation detects divergence on jobTitle/company/personalLinks
+    // (even though name, avatar, isMentor, and onBoarding all match!) and writes backend truth!
+    await vi.waitFor(() => {
+      expect(spies.updateSession).toHaveBeenCalledTimes(2);
+    });
+
+    expect(spies.updateSession.mock.calls[1]?.[0]).toMatchObject({
+      user: {
+        id: '1',
+        name: 'Edited Name Only',
+        avatar: baseValues.avatar,
+        avatarUpdatedAt: 1700000999000,
+        isMentor: true,
+        onBoarding: true,
+        jobTitle: 'Backend Principal Engineer',
+        company: 'Backend Corp',
+        personalLinks: [
+          {
+            platform: 'linkedin',
+            url: 'https://linkedin.com/in/backend-truth',
+          },
+        ],
+      },
+    });
+  });
+
+  it('serializes cleared jobTitle and company as empty strings across JSON updateSession wire transport so JWT and resolveIdentity clear stale values (#936)', async () => {
+    const existingJwtToken: Record<string, unknown> = {
+      id: '1',
+      name: 'Test User',
+      avatar: baseValues.avatar,
+      isMentor: true,
+      onBoarding: true,
+      jobTitle: 'Stuck JWT Title',
+      company: 'Stuck JWT Company',
+      personalLinks: [{ platform: 'github', url: 'https://github.com/old' }],
+    };
+
+    const updateSession = vi.fn<UpdateSessionFn>(async (rawData) => {
+      // Simulate NextAuth client -> server HTTP JSON.stringify round-trip + jwtCallback merge
+      const wirePayload = JSON.parse(JSON.stringify(rawData)) as {
+        user?: Record<string, unknown>;
+      };
+      Object.assign(existingJwtToken, wirePayload.user);
+      return {
+        ...mockSession,
+        user: {
+          id: String(existingJwtToken.id),
+          name: existingJwtToken.name as string,
+          avatar: existingJwtToken.avatar as string,
+          isMentor: Boolean(existingJwtToken.isMentor),
+          onBoarding: Boolean(existingJwtToken.onBoarding),
+          jobTitle: (existingJwtToken.jobTitle as string | undefined) ?? undefined,
+          company: (existingJwtToken.company as string | undefined) ?? undefined,
+          personalLinks:
+            (existingJwtToken.personalLinks as Array<{
+              platform: string;
+              url: string;
+            }>) ?? [],
+        },
+      };
+    });
+
+    const clearedDto = makeSyncedDtoFromValues({
+      job_title: null,
+      company: null,
+      experiences: [],
+    });
+
+    const { port } = createInMemoryProfileSavePort({
+      updateSession,
+      fetchProfile: vi.fn<FetchProfileFn>(async () => clearedDto),
+    });
+
+    await saveProfile(
+      {
+        ...baseValues,
+        work_experiences: [],
+        links: { ...baseValues.links },
+      },
+      makeContext({
+        session: {
+          ...mockSession,
+          user: {
+            ...mockSession.user!,
+            jobTitle: 'Stuck JWT Title',
+            company: 'Stuck JWT Company',
+            personalLinks: [
+              { platform: 'github', url: 'https://github.com/old' },
+            ],
+          },
+        },
+        dirtyFields: { work_experiences: true, links: { github: true } },
+      }),
+      port
+    );
+
+    expect(existingJwtToken.jobTitle).toBe('');
+    expect(existingJwtToken.company).toBe('');
+    expect(existingJwtToken.personalLinks).toEqual([]);
+
+    const postSaveSession = await updateSession.mock.results[0]?.value;
+    const resolved = resolveIdentity(postSaveSession, 'authenticated', null);
+    expect(resolved.jobTitle).toBeUndefined();
+    expect(resolved.company).toBeUndefined();
+    expect(resolved.personalLinks).toEqual([]);
+  });
+
+  it('preserves currentDto/sessionUser jobTitle, company, and personalLinks without leaking untouched form values or drifting between profileReadModel and updateSession (#936)', async () => {
+    const staleFormValues = {
+      ...baseValues,
+      name: 'Updated Display Name',
+      work_experiences: [
+        {
+          id: 0,
+          job: 'Stale Untouched Form Role',
+          company: 'Stale Untouched Form Co',
+          job_period_start: '2019',
+          job_period_end: 'now',
+          industry: 'tech',
+          job_location: 'TWN',
+          description: 'stale',
+          is_primary: true,
+        },
+      ],
+      links: {
+        ...baseValues.links,
+        github: 'https://github.com/stale-untouched-form',
+      },
+    };
+
+    // Case 1: currentDto carries newer work & link fields while work_experiences and links are clean
+    const { experiences: dtoExperiences } = encode({
+      workExperiences: [],
+      educations: [],
+      personalLinks: [
+        { platform: 'linkedin', url: 'https://linkedin.com/in/dto-fresh' },
+      ],
+    });
+    const newerCurrentDto = makeSyncedDtoFromValues({
+      name: 'Old Name',
+      job_title: 'Fresh DTO Role',
+      company: 'Fresh DTO Co',
+      experiences: toWireExperiences(dtoExperiences),
+    });
+
+    let resolveFetch1: (dto: MentorProfileVO | null) => void = () => {};
+    const { port: port1, spies: spies1 } = createInMemoryProfileSavePort({
+      fetchProfile: vi.fn<FetchProfileFn>(
+        () =>
+          new Promise<MentorProfileVO | null>((resolve) => {
+            resolveFetch1 = resolve;
+          })
+      ),
+    });
+
+    await saveProfile(
+      staleFormValues,
+      makeContext({
+        currentDto: newerCurrentDto,
+        dirtyFields: { name: true },
+      }),
+      port1
+    );
+
+    expect(spies1.updateSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user: expect.objectContaining({
+          name: 'Updated Display Name',
+          jobTitle: 'Fresh DTO Role',
+          company: 'Fresh DTO Co',
+          personalLinks: [
+            { platform: 'linkedin', url: 'https://linkedin.com/in/dto-fresh' },
+          ],
+        }),
+      })
+    );
+    expect(profileReadModel.getOptimisticIdentity(1)).toMatchObject({
+      name: 'Updated Display Name',
+      jobTitle: 'Fresh DTO Role',
+      company: 'Fresh DTO Co',
+      personalLinks: [
+        { platform: 'linkedin', url: 'https://linkedin.com/in/dto-fresh' },
+      ],
+    });
+
+    resolveFetch1({
+      ...newerCurrentDto,
+      name: 'Updated Display Name',
+    });
+    await vi.waitFor(() => {
+      expect(spies1.fetchProfile).toHaveBeenCalledTimes(1);
+    });
+
+    // Case 2: currentDto is null (experiencesPayload === undefined && !currentDto?.experiences),
+    // sessionUser carries jobTitle, company, and mixed-case BFF personalLinks — zero 10s window drift!
+    profileReadModel.clear();
+    let resolveFetch2: (dto: MentorProfileVO | null) => void = () => {};
+    const { port: port2, spies: spies2 } = createInMemoryProfileSavePort({
+      fetchProfile: vi.fn<FetchProfileFn>(
+        () =>
+          new Promise<MentorProfileVO | null>((resolve) => {
+            resolveFetch2 = resolve;
+          })
+      ),
+    });
+
+    const sessionWithIdentity: Session = {
+      ...mockSession,
+      user: {
+        ...mockSession.user!,
+        jobTitle: 'Session Staff Role',
+        company: 'Session Corp',
+        personalLinks: [
+          { platform: 'GitHub', url: 'https://github.com/session-owner' },
+        ],
+      },
+    };
+
+    const optimisticDto2 = await saveProfile(
+      staleFormValues,
+      makeContext({
+        session: sessionWithIdentity,
+        currentDto: null,
+        dirtyFields: { name: true },
+      }),
+      port2
+    );
+
+    expect(optimisticDto2.job_title).toBe('Session Staff Role');
+    expect(optimisticDto2.company).toBe('Session Corp');
+    expect(spies2.updateSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user: expect.objectContaining({
+          name: 'Updated Display Name',
+          jobTitle: 'Session Staff Role',
+          company: 'Session Corp',
+          personalLinks: [
+            { platform: 'github', url: 'https://github.com/session-owner' },
+          ],
+        }),
+      })
+    );
+    expect(profileReadModel.getOptimisticIdentity(1)).toMatchObject({
+      name: 'Updated Display Name',
+      jobTitle: 'Session Staff Role',
+      company: 'Session Corp',
+      personalLinks: [
+        { platform: 'github', url: 'https://github.com/session-owner' },
+      ],
+    });
+
+    resolveFetch2(
+      makeSyncedDtoFromValues({
+        name: 'Updated Display Name',
+        job_title: 'Session Staff Role',
+        company: 'Session Corp',
+      })
+    );
+    await vi.waitFor(() => {
+      expect(spies2.fetchProfile).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('imports profileReadModel directly in saveProfile.ts with zero legacy userProfileDtoCache or React/Next/hook imports (#936)', () => {
+    const source = fs.readFileSync(
+      path.resolve(__dirname, 'saveProfile.ts'),
+      'utf8'
+    );
+
+    expect(source).toMatch(/from\s+['"]@\/lib\/profile\/profileReadModel['"]/);
+    expect(source).not.toMatch(/userProfileDtoCache/);
+    expect(source).not.toMatch(/from\s+['"]react['"]/);
+    expect(source).not.toMatch(/from\s+['"]next\//);
+    expect(source).not.toMatch(/from\s+['"]next-auth\/react['"]/);
+    expect(source).not.toMatch(/from\s+['"]@\/hooks\//);
   });
 });

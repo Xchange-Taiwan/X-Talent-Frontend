@@ -1,76 +1,67 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import { useEffect, useMemo, useState } from 'react';
-
-import { useOptimisticIdentity } from '@/hooks/user/identity/useOptimisticIdentity';
 import {
-  clearSessionHint,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from 'react';
+
+import {
   decodeSessionHint,
-  DOM_AUTH_AVATAR_ATTR,
-  DOM_AUTH_STATE_ATTR,
-  isValidAvatarProtocol,
   readCookie,
-  ResolvedIdentity,
+  type ResolvedIdentity,
   resolveIdentity,
   SESSION_HINT_COOKIE,
-  SessionHint,
+  type SessionHint,
+  syncSessionHintDomAndCookie,
 } from '@/lib/auth/sessionHint';
+import { profileReadModel } from '@/lib/profile/profileReadModel';
 
-function updateAvatarStyle(avatar: string | undefined): void {
-  if (typeof document === 'undefined') return;
+export type { ResolvedIdentity };
 
-  // Guard and validate URL scheme exactly like our pre-hydration inline script
-  const isValidUrl = avatar && isValidAvatarProtocol(avatar);
-
-  if (isValidUrl && avatar) {
-    document.documentElement.setAttribute(DOM_AUTH_AVATAR_ATTR, avatar);
-    const escapedAvatar = avatar.replace(/"/g, '%22');
-    document.documentElement.style.setProperty(
-      '--auth-avatar',
-      `url("${escapedAvatar}")`
-    );
-  } else {
-    removeAvatarStyle();
-  }
-}
-
-function removeAvatarStyle(): void {
-  if (typeof document === 'undefined') return;
-  document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
-  document.documentElement.style.removeProperty('--auth-avatar');
-}
-
-function clearAuthDOMState(): void {
-  clearSessionHint();
-}
+const getServerOptimisticSnapshot = () => undefined;
 
 /**
  * Reads the middleware-written session-hint cookie and combines it with the
- * live NextAuth session - this is the only place `resolveIdentity` is
- * called. Both the pre-hydration DOM attributes this hook writes (so the
- * header can render the right shape before `useSession()` resolves) and
- * every other identity consumer in the app read the same resolved value,
- * so there is nothing left for them to disagree on.
+ * live NextAuth session and any active optimistic identity projection from
+ * `profileReadModel` - this is the only place `resolveIdentity` is called.
  *
- * Named for what it returns, not for the cookie it reads: despite the
- * "hint" in the cookie's own name (it's an unsigned, non-authoritative UI
- * signal - see `SESSION_HINT_COOKIE`), this hook's result is the app's
- * authoritative resolved identity, not a tentative guess.
- *
- * The cookie read stays in an effect - reading `document.cookie` during
- * render would differ between the server and first client render - while
- * combining it with `session`/`status` happens synchronously in a `useMemo`
- * so the resolved identity tracks live session changes without waiting on
- * an extra effect/render cycle.
+ * The cookie read stays in an effect so server and first client render agree,
+ * while combining `session`/`status`/`hint`/`optimisticSnapshot` happens
+ * synchronously in `useMemo` and post-hydration DOM + cookie synchronization
+ * is delegated to `syncSessionHintDomAndCookie`.
  */
 export function useResolvedIdentity(): ResolvedIdentity {
   const { data: session, status } = useSession();
   const [hint, setHint] = useState<SessionHint | null | undefined>(undefined);
 
-  const sessionUserId = session?.user?.id ? Number(session.user.id) : NaN;
-  const optimisticPatch = useOptimisticIdentity(
-    Number.isFinite(sessionUserId) ? sessionUserId : null
+  const rawUserId = session?.user?.id ? Number(session.user.id) : NaN;
+  const sessionUserId =
+    Number.isFinite(rawUserId) && rawUserId > 0 ? rawUserId : null;
+
+  const subscribeOptimistic = useCallback(
+    (listener: () => void) =>
+      sessionUserId !== null
+        ? profileReadModel.observeOptimisticIdentity(sessionUserId, listener)
+        : () => {},
+    [sessionUserId]
+  );
+
+  const getOptimisticSnapshot = useCallback(
+    () =>
+      sessionUserId !== null
+        ? profileReadModel.getOptimisticIdentity(sessionUserId)
+        : undefined,
+    [sessionUserId]
+  );
+
+  const optimisticSnapshot = useSyncExternalStore(
+    subscribeOptimistic,
+    getOptimisticSnapshot,
+    getServerOptimisticSnapshot
   );
 
   useEffect(() => {
@@ -79,32 +70,12 @@ export function useResolvedIdentity(): ResolvedIdentity {
   }, [session, status]);
 
   const identity = useMemo(
-    () => resolveIdentity(session, status, hint, optimisticPatch),
-    [session, status, hint, optimisticPatch]
+    () => resolveIdentity(session, status, hint, optimisticSnapshot),
+    [session, status, hint, optimisticSnapshot]
   );
 
   useEffect(() => {
-    if (
-      identity.state === 'confirmed-member' ||
-      identity.state === 'hint-only'
-    ) {
-      document.documentElement.setAttribute(
-        DOM_AUTH_STATE_ATTR,
-        identity.isMentor ? 'mentor' : 'mentee'
-      );
-      updateAvatarStyle(identity.avatar);
-      return;
-    }
-
-    if (
-      identity.state === 'unknown' &&
-      decodeSessionHint(readCookie(SESSION_HINT_COOKIE)) !== null
-    ) {
-      return;
-    }
-
-    clearAuthDOMState();
-    document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'guest');
+    syncSessionHintDomAndCookie(identity);
   }, [identity]);
 
   return identity;

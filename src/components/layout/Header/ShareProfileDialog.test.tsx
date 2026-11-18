@@ -44,6 +44,7 @@ describe('ShareProfileDialog', () => {
         profilePath="/profile/mentor-123"
         personalLinks={[
           { platform: 'linkedin', url: 'https://linkedin.com/in/mentor' },
+          { platform: 'GitHub', url: 'https://github.com/mentor' },
           { platform: 'website', url: 'javascript:alert(1)' },
         ]}
       />
@@ -68,6 +69,9 @@ describe('ShareProfileDialog', () => {
     expect(
       screen.getByRole('link', { name: '前往 LinkedIn 頁面' })
     ).toHaveAttribute('href', 'https://linkedin.com/in/mentor');
+    const githubLink = screen.getByRole('link', { name: '前往 GitHub 頁面' });
+    expect(githubLink).toHaveAttribute('href', 'https://github.com/mentor');
+    expect(githubLink.querySelector('svg')).not.toBeNull();
     expect(
       screen.queryByRole('link', { name: /Website/i })
     ).not.toBeInTheDocument();

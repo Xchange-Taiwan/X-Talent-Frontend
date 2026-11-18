@@ -1,17 +1,18 @@
 import type { User } from 'next-auth';
 
-import { isSafeUrl } from '@/lib/url/isSafeUrl';
+import {
+  decode,
+  fromWireExperiences,
+  type PersonalLink,
+} from '@/lib/profile/experienceCodec';
+
+export type { PersonalLink };
 
 export interface MentorExperience {
   category: string;
   mentor_experiences_metadata?: {
     data?: unknown[];
   };
-}
-
-export interface PersonalLink {
-  platform: string;
-  url: string;
 }
 
 export interface BffEnvSource {
@@ -40,17 +41,6 @@ export interface NormalizeBffAuthUserInput {
   user: BffUserPayload;
 }
 
-function isPersonalLink(item: unknown): item is PersonalLink {
-  if (typeof item !== 'object' || item === null) return false;
-  const raw = item as Record<string, unknown>;
-  return (
-    typeof raw.url === 'string' &&
-    typeof raw.platform === 'string' &&
-    Boolean(raw.url) &&
-    isSafeUrl(raw.url)
-  );
-}
-
 /**
  * Resolves the canonical BFF base URL, preferring container-internal
  * `SSR_API_URL` over public `NEXT_PUBLIC_API_URL`.
@@ -66,16 +56,12 @@ export function resolveBffBaseUrl(env?: BffEnvSource): string {
 }
 
 export function resolveMentorExperienceLinks(
-  experiences: MentorExperience[] | undefined | null
+  experiences: readonly MentorExperience[] | undefined | null
 ): PersonalLink[] {
   if (!experiences) return [];
-  return experiences
-    .filter((exp) => exp.category === 'LINK')
-    .flatMap((exp) => {
-      const list = exp.mentor_experiences_metadata?.data;
-      return Array.isArray(list) ? list : [];
-    })
-    .filter(isPersonalLink);
+  return decode(fromWireExperiences(experiences), {
+    preservePlatformCase: true,
+  }).personalLinks;
 }
 
 /**

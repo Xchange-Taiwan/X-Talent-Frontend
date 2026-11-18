@@ -1,15 +1,11 @@
 import type { Session } from 'next-auth';
 
 import { trackEvent } from '@/lib/analytics';
-import {
-  clearUserProfileDtoCache,
-  primeUserProfileDtoCache,
-} from '@/lib/cache/userProfileDtoCache';
 import { getPendingFavoriteProfilePath } from '@/lib/favorites';
 import {
   applyIdentityPatch,
   deriveOptimisticIdentityPatch,
-  type IdentityPatch,
+  type IdentitySnapshot,
   reconcileIdentityWithBackend,
 } from '@/lib/identity/identityProjection';
 import { mentorPoolReadModel } from '@/lib/mentor/mentorPoolReadModel';
@@ -25,10 +21,13 @@ import {
   type SearchMentorsFn,
 } from '@/lib/profile/convergence';
 import {
+  decode,
+  fromWireExperiences,
   type MentorExperiencePayload,
   toWireExperiences,
 } from '@/lib/profile/experienceCodec';
 import { confirmProfileSynced } from '@/lib/profile/pollUntilSynced';
+import { profileReadModel } from '@/lib/profile/profileReadModel';
 import {
   computeDirtyStates,
   extractValidLinks,
@@ -39,6 +38,7 @@ import {
 } from '@/lib/profile/profileSaveAdapter';
 import type { OnboardingFormValues } from '@/schemas/onboarding';
 import type { ProfileFormValues } from '@/schemas/profileSchema';
+import { ExperienceType } from '@/services/profile/experienceType';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 import {
   type MentorProfileWritePayload,
@@ -182,7 +182,7 @@ function buildMenteeOnboardingWritePayload(
  * 1. Uploads any pending `avatarFile` via S3 presigned POST (`uploadAvatar`)
  * 2. Encodes canonical `MentorProfileWritePayload` (`about` normalized to `string`,
  *    zero UI-only RHF keys leaked) and writes to `PUT /v1/mentors/{id}/profile`
- * 3. Clears `userProfileDtoCache` + `mentorPoolReadModel` and triggers ISR revalidation
+ * 3. Invalidates `profileReadModel` + `mentorPoolReadModel` and triggers ISR revalidation
  * 4. Applies synchronous optimistic `MentorProfileVO` priming + NextAuth session patch
  * 5. Navigates immediately to target route
  * 6. Runs background full-field convergence (`ProfileRecordAdapter` + mentor search index)
@@ -320,7 +320,7 @@ export async function commitProfileMutation(
   // Step 3: Cache Invalidation & Server Path Revalidation
   async function step3InvalidateCachesAndRevalidate() {
     if (hasValidResolvedUserId) {
-      clearUserProfileDtoCache(resolvedUserId, 'zh_TW');
+      profileReadModel.invalidateUser(resolvedUserId);
     }
     mentorPoolReadModel.clear();
 
@@ -331,65 +331,51 @@ export async function commitProfileMutation(
     }
   }
 
-  // Step 4: Apply the optimistic identity patch & prime DTO cache
-  const workDirty = Boolean(
-    dirtyFields && hasDirtyValue(dirtyFields.work_experiences)
-  );
+  // Step 4: Apply the optimistic identity snapshot & prime profileReadModel
+  const hasExplicitDirtyFields = dirtyFields !== undefined;
+  const workDirty = hasExplicitDirtyFields
+    ? hasDirtyValue(dirtyFields.work_experiences)
+    : false;
 
-  function buildSessionIdentityUpdater(
-    avatarUrl: string | undefined,
-    jobTitle: string | undefined,
-    company: string | undefined
-  ): (patch: IdentityPatch) => Promise<Session | null> {
-    const personalLinks =
-      intent.mode === 'mentee-onboarding'
-        ? []
-        : extractValidLinks(intent.values).map((link) => ({
-            platform: link.platform,
-            url: link.url,
-          }));
+  function resolveCleanWorkField(
+    dtoValue: string | null | undefined,
+    sessionValue: string | null | undefined,
+    payloadValue: string | undefined
+  ): string | undefined {
+    if (dtoValue !== undefined) {
+      return dtoValue || undefined;
+    }
+    if (sessionValue !== undefined) {
+      return sessionValue || undefined;
+    }
+    return payloadValue || undefined;
+  }
 
-    const previousAvatar = sessionUser?.avatar || currentDto?.avatar || '';
-    const resolvedAvatar = avatarUrl || '';
-    const didAvatarChange =
-      avatarExplicitlyCleared ||
-      Boolean(intent.values.avatarFile) ||
-      (Boolean(resolvedAvatar) && resolvedAvatar !== previousAvatar);
-
-    const nextAvatarUpdatedAt = didAvatarChange
-      ? Date.now()
-      : sessionUser?.avatarUpdatedAt;
-
-    return (patch: IdentityPatch) =>
+  function buildSessionIdentityUpdater(): (
+    snapshot: IdentitySnapshot
+  ) => Promise<Session | null> {
+    return (snapshot: IdentitySnapshot) =>
       updateSession({
         user: {
           id: sessionUser?.id,
-          name: patch.name,
-          avatar: patch.avatar,
-          avatarUpdatedAt: nextAvatarUpdatedAt,
-          isMentor: patch.isMentor,
-          onBoarding: patch.onBoarding,
+          name: snapshot.name,
+          avatar: snapshot.avatar,
+          avatarUpdatedAt: snapshot.avatarUpdatedAt,
+          isMentor: snapshot.isMentor,
+          onBoarding: snapshot.onBoarding,
           msg: sessionUser?.msg,
-          personalLinks,
-          jobTitle:
-            intent.mode === 'mentee-onboarding'
-              ? undefined
-              : workDirty
-                ? jobTitle || undefined
-                : jobTitle || sessionUser?.jobTitle,
-          company:
-            intent.mode === 'mentee-onboarding'
-              ? undefined
-              : workDirty
-                ? company || undefined
-                : company || sessionUser?.company,
+          personalLinks: snapshot.personalLinks,
+          jobTitle: snapshot.jobTitle ?? '',
+          company: snapshot.company ?? '',
         },
       });
   }
 
   async function step4ApplyOptimisticIdentity(
-    identityPatch: IdentityPatch,
-    updateSessionIdentity: (patch: IdentityPatch) => Promise<Session | null>,
+    identitySnapshot: IdentitySnapshot,
+    updateSessionIdentity: (
+      snapshot: IdentitySnapshot
+    ) => Promise<Session | null>,
     payload: MentorProfileWritePayload,
     experiencesPayload: MentorExperiencePayload[] | undefined
   ): Promise<MentorProfileVO> {
@@ -420,8 +406,25 @@ export async function commitProfileMutation(
     const resolvedExperiences =
       experiencesPayload !== undefined
         ? toWireExperiences(experiencesPayload)
-        : (currentDto?.experiences ??
-          (intent.mode === 'mentee-onboarding' ? [] : null));
+        : currentDto?.experiences !== undefined &&
+            currentDto.experiences !== null
+          ? currentDto.experiences
+          : intent.mode === 'mentee-onboarding'
+            ? []
+            : identitySnapshot.personalLinks.length > 0
+              ? toWireExperiences([
+                  {
+                    category: ExperienceType.LINK,
+                    order: 3,
+                    mentor_experiences_metadata: {
+                      data: identitySnapshot.personalLinks.map((link) => ({
+                        platform: link.platform,
+                        url: link.url,
+                      })),
+                    },
+                  },
+                ])
+              : null;
 
     const resolvedLanguage =
       intent.mode === 'mentee-onboarding'
@@ -431,20 +434,10 @@ export async function commitProfileMutation(
     const optimisticDto: MentorProfileVO = {
       ...(currentDto ?? {}),
       user_id: resolvedUserId,
-      name: identityPatch.name,
-      avatar: identityPatch.avatar,
-      job_title:
-        intent.mode === 'mentee-onboarding'
-          ? null
-          : workDirty
-            ? payload.job_title || null
-            : payload.job_title || currentDto?.job_title || null,
-      company:
-        intent.mode === 'mentee-onboarding'
-          ? null
-          : workDirty
-            ? payload.company || null
-            : payload.company || currentDto?.company || null,
+      name: identitySnapshot.name,
+      avatar: identitySnapshot.avatar,
+      job_title: identitySnapshot.jobTitle ?? null,
+      company: identitySnapshot.company ?? null,
       years_of_experience:
         intent.mode === 'mentee-onboarding'
           ? intent.values.years_of_experience || null
@@ -474,8 +467,8 @@ export async function commitProfileMutation(
             ? payload.about || null
             : payload.about || currentDto?.about || null,
       seniority_level: currentDto?.seniority_level ?? null,
-      onboarding: identityPatch.onBoarding ?? null,
-      is_mentor: identityPatch.isMentor ?? null,
+      onboarding: identitySnapshot.onBoarding ?? null,
+      is_mentor: identitySnapshot.isMentor ?? null,
       language: resolvedLanguage,
       industry: optimisticIndustry,
       want_position: intent.values.want_position ?? [],
@@ -492,12 +485,11 @@ export async function commitProfileMutation(
       experiences: resolvedExperiences,
     };
 
-    await applyIdentityPatch(identityPatch, {
+    await applyIdentityPatch(identitySnapshot, {
       primeProfileDto: () => {
         if (hasValidResolvedUserId) {
-          primeUserProfileDtoCache(
-            resolvedUserId,
-            resolvedLanguage,
+          profileReadModel.prime(
+            { userId: resolvedUserId, language: resolvedLanguage },
             optimisticDto
           );
         }
@@ -534,8 +526,10 @@ export async function commitProfileMutation(
     payload: MentorProfileWritePayload,
     experiencesDirty: boolean,
     optimisticDto: MentorProfileVO,
-    identityPatch: IdentityPatch,
-    updateSessionIdentity: (patch: IdentityPatch) => Promise<Session | null>
+    identitySnapshot: IdentitySnapshot,
+    updateSessionIdentity: (
+      snapshot: IdentitySnapshot
+    ) => Promise<Session | null>
   ) {
     const expectedRecordDto: Partial<MentorProfileVO> = {
       name: optimisticDto.name,
@@ -571,9 +565,8 @@ export async function commitProfileMutation(
             resolvedLanguage
           );
           if (latest) {
-            primeUserProfileDtoCache(
-              validSessionUserId,
-              resolvedLanguage,
+            profileReadModel.prime(
+              { userId: validSessionUserId, language: resolvedLanguage },
               latest
             );
           }
@@ -592,11 +585,14 @@ export async function commitProfileMutation(
           );
           latest = polled;
           if (confirmed && polled) {
-            primeUserProfileDtoCache(resolvedUserId, resolvedLanguage, polled);
+            profileReadModel.prime(
+              { userId: resolvedUserId, language: resolvedLanguage },
+              polled
+            );
           }
         }
 
-        await reconcileIdentityWithBackend(identityPatch, latest, {
+        await reconcileIdentityWithBackend(identitySnapshot, latest, {
           updateSession: updateSessionIdentity,
         });
 
@@ -679,9 +675,84 @@ export async function commitProfileMutation(
       currentDto?.avatar ||
       (intent.values.avatar ? intent.values.avatar : null);
 
-  const identityPatch = deriveOptimisticIdentityPatch({
+  const previousAvatar = sessionUser?.avatar || currentDto?.avatar || '';
+  const resolvedAvatar = avatarUrl || '';
+  const didAvatarChange =
+    avatarExplicitlyCleared ||
+    Boolean(intent.values.avatarFile) ||
+    (Boolean(resolvedAvatar) && resolvedAvatar !== previousAvatar);
+
+  const nextAvatarUpdatedAt = didAvatarChange
+    ? Date.now()
+    : sessionUser?.avatarUpdatedAt;
+
+  const optimisticJobTitle =
+    intent.mode === 'mentee-onboarding'
+      ? undefined
+      : hasExplicitDirtyFields
+        ? workDirty
+          ? payload.job_title || undefined
+          : resolveCleanWorkField(
+              currentDto?.job_title,
+              sessionUser?.jobTitle,
+              payload.job_title
+            )
+        : payload.job_title ||
+          currentDto?.job_title ||
+          sessionUser?.jobTitle ||
+          undefined;
+
+  const optimisticCompany =
+    intent.mode === 'mentee-onboarding'
+      ? undefined
+      : hasExplicitDirtyFields
+        ? workDirty
+          ? payload.company || undefined
+          : resolveCleanWorkField(
+              currentDto?.company,
+              sessionUser?.company,
+              payload.company
+            )
+        : payload.company ||
+          currentDto?.company ||
+          sessionUser?.company ||
+          undefined;
+
+  const formPersonalLinks =
+    intent.mode === 'mentee-onboarding'
+      ? []
+      : extractValidLinks(intent.values).map((link) => ({
+          platform: link.platform,
+          url: link.url,
+        }));
+
+  const sessionPersonalLinks =
+    sessionUser?.personalLinks && sessionUser.personalLinks.length > 0
+      ? decode([
+          {
+            category: ExperienceType.LINK,
+            order: 3,
+            mentor_experiences_metadata: {
+              data: sessionUser.personalLinks,
+            },
+          },
+        ]).personalLinks
+      : [];
+
+  const optimisticPersonalLinks =
+    intent.mode === 'mentee-onboarding'
+      ? []
+      : experiencesDirty
+        ? formPersonalLinks
+        : currentDto?.experiences !== undefined &&
+            currentDto.experiences !== null
+          ? decode(fromWireExperiences(currentDto.experiences)).personalLinks
+          : sessionPersonalLinks;
+
+  const identitySnapshot = deriveOptimisticIdentityPatch({
     name: intent.values.name,
     avatarUrl: avatarUrl ? avatarUrl : undefined,
+    avatarUpdatedAt: nextAvatarUpdatedAt,
     isMentorOnboarding,
     fallbackAvatar,
     fallbackIsMentor:
@@ -698,16 +769,15 @@ export async function commitProfileMutation(
           currentDto?.onboarding ??
           intent.values.onboarding ??
           false),
+    jobTitle: optimisticJobTitle,
+    company: optimisticCompany,
+    personalLinks: optimisticPersonalLinks,
   });
 
-  const updateSessionIdentity = buildSessionIdentityUpdater(
-    avatarUrl,
-    payload.job_title,
-    payload.company
-  );
+  const updateSessionIdentity = buildSessionIdentityUpdater();
 
   const optimisticDto = await step4ApplyOptimisticIdentity(
-    identityPatch,
+    identitySnapshot,
     updateSessionIdentity,
     payload,
     payload.experiences
@@ -718,7 +788,7 @@ export async function commitProfileMutation(
     payload,
     experiencesDirty,
     optimisticDto,
-    identityPatch,
+    identitySnapshot,
     updateSessionIdentity
   );
 

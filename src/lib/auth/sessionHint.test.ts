@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -7,10 +9,12 @@ import {
   DOM_AUTH_STATE_ATTR,
   encodeSessionHint,
   readCookie,
+  type ResolvedIdentity,
   resolveIdentity,
   safeDecodeURIComponent,
   SESSION_HINT_COOKIE,
   SESSION_HINT_INLINE_SCRIPT,
+  syncSessionHintDomAndCookie,
 } from './sessionHint';
 
 describe('sessionHint utilities', () => {
@@ -415,6 +419,270 @@ describe('sessionHint utilities', () => {
         expect(finalSettle.state).toBe('confirmed-guest');
         expect(finalSettle.userId).toBeUndefined();
       });
+
+      it('clears jobTitle and company when optimisticOverlay explicitly sets them to undefined instead of leaking stale session values (#936)', () => {
+        const sessionWithWork = {
+          user: {
+            id: 'user-123',
+            name: 'Ada',
+            avatar: 'https://example.com/session.png',
+            isMentor: true,
+            jobTitle: 'Legacy Title',
+            company: 'Legacy Co',
+          },
+        };
+
+        const resolved = resolveIdentity(
+          sessionWithWork,
+          'authenticated',
+          null,
+          {
+            name: 'Ada',
+            avatar: 'https://example.com/session.png',
+            isMentor: true,
+            jobTitle: undefined,
+            company: undefined,
+            personalLinks: [],
+          }
+        );
+
+        expect(resolved.jobTitle).toBeUndefined();
+        expect(resolved.company).toBeUndefined();
+        expect(resolved.personalLinks).toEqual([]);
+      });
+
+      it('normalizes empty-string jobTitle and company on session.user and optimisticOverlay to undefined (#936)', () => {
+        const sessionWithEmptyWork = {
+          user: {
+            id: 'user-123',
+            name: 'Ada',
+            avatar: 'https://example.com/session.png',
+            isMentor: true,
+            jobTitle: '',
+            company: '',
+          },
+        };
+
+        const resolvedFromSession = resolveIdentity(
+          sessionWithEmptyWork,
+          'authenticated',
+          null
+        );
+        expect(resolvedFromSession.jobTitle).toBeUndefined();
+        expect(resolvedFromSession.company).toBeUndefined();
+        expect('jobTitle' in resolvedFromSession).toBe(false);
+        expect('company' in resolvedFromSession).toBe(false);
+
+        const resolvedFromEmptyOverlay = resolveIdentity(
+          {
+            user: {
+              id: 'user-123',
+              name: 'Ada',
+              isMentor: true,
+              jobTitle: 'Stale Session Title',
+              company: 'Stale Session Co',
+            },
+          },
+          'authenticated',
+          null,
+          {
+            jobTitle: '',
+            company: '',
+          }
+        );
+        expect(resolvedFromEmptyOverlay.jobTitle).toBeUndefined();
+        expect(resolvedFromEmptyOverlay.company).toBeUndefined();
+      });
+    });
+  });
+
+  describe('syncSessionHintDomAndCookie (#936)', () => {
+    const runInlineScript = () => {
+      // eslint-disable-next-line no-eval
+      eval(SESSION_HINT_INLINE_SCRIPT);
+    };
+
+    beforeEach(() => {
+      document.cookie = `${SESSION_HINT_COOKIE}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0`;
+      document.documentElement.removeAttribute(DOM_AUTH_STATE_ATTR);
+      document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
+      document.documentElement.style.removeProperty('--auth-avatar');
+    });
+
+    it('contains zero react, next/*, next-auth/react, or @/hooks/** imports in sessionHint.ts', () => {
+      const source = fs.readFileSync(
+        path.resolve(__dirname, 'sessionHint.ts'),
+        'utf8'
+      );
+
+      expect(source).not.toMatch(/from\s+['"]react['"]/);
+      expect(source).not.toMatch(/from\s+['"]next\//);
+      expect(source).not.toMatch(/from\s+['"]next-auth\/react['"]/);
+      expect(source).not.toMatch(/from\s+['"]@\/hooks\//);
+    });
+
+    it('syncs DOM attributes, CSS variable, and session-hint cookie on confirmed-member transitions and round-trips with SESSION_HINT_INLINE_SCRIPT', () => {
+      const memberIdentity: ResolvedIdentity = {
+        state: 'confirmed-member',
+        userId: '123',
+        isMentor: true,
+        avatar: 'https://example.com/avatar.png?v=2',
+      };
+
+      syncSessionHintDomAndCookie(memberIdentity);
+
+      expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
+        'mentor'
+      );
+      expect(document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)).toBe(
+        'https://example.com/avatar.png?v=2'
+      );
+      expect(
+        document.documentElement.style.getPropertyValue('--auth-avatar')
+      ).toBe('url("https://example.com/avatar.png?v=2")');
+      expect(decodeSessionHint(readCookie(SESSION_HINT_COOKIE))).toEqual({
+        isMentor: true,
+        userId: '123',
+        avatar: 'https://example.com/avatar.png?v=2',
+      });
+
+      // Reset DOM and re-run ADR-0001 inline pre-hydration script against the client-written cookie
+      document.documentElement.removeAttribute(DOM_AUTH_STATE_ATTR);
+      document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
+      document.documentElement.style.removeProperty('--auth-avatar');
+      runInlineScript();
+
+      expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
+        'mentor'
+      );
+      expect(document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)).toBe(
+        'https://example.com/avatar.png?v=2'
+      );
+
+      // Subsequent confirmed-member transition removing avatar updates both DOM and cookie
+      syncSessionHintDomAndCookie({
+        state: 'confirmed-member',
+        userId: '123',
+        isMentor: false,
+        avatar: undefined,
+      });
+
+      expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
+        'mentee'
+      );
+      expect(
+        document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)
+      ).toBeNull();
+      expect(
+        document.documentElement.style.getPropertyValue('--auth-avatar')
+      ).toBe('');
+      expect(decodeSessionHint(readCookie(SESSION_HINT_COOKIE))).toEqual({
+        isMentor: false,
+        userId: '123',
+      });
+    });
+
+    it('blocks unsafe avatar schemes from both DOM and session-hint cookie on confirmed-member', () => {
+      syncSessionHintDomAndCookie({
+        state: 'confirmed-member',
+        userId: '123',
+        isMentor: true,
+        avatar: 'javascript:alert(1)',
+      });
+
+      expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
+        'mentor'
+      );
+      expect(
+        document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)
+      ).toBeNull();
+      expect(
+        document.documentElement.style.getPropertyValue('--auth-avatar')
+      ).toBe('');
+      expect(decodeSessionHint(readCookie(SESSION_HINT_COOKIE))).toEqual({
+        isMentor: true,
+        userId: '123',
+      });
+    });
+
+    it('updates DOM without clobbering existing userId in session-hint cookie during hint-only', () => {
+      document.cookie = `${SESSION_HINT_COOKIE}=${encodeURIComponent(
+        encodeSessionHint({
+          isMentor: true,
+          userId: '999',
+          avatar: 'https://example.com/hint.png',
+        })
+      )}; path=/`;
+
+      syncSessionHintDomAndCookie({
+        state: 'hint-only',
+        userId: undefined,
+        isMentor: true,
+        avatar: 'https://example.com/hint.png',
+      });
+
+      expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
+        'mentor'
+      );
+      expect(decodeSessionHint(readCookie(SESSION_HINT_COOKIE))).toEqual({
+        isMentor: true,
+        userId: '999',
+        avatar: 'https://example.com/hint.png',
+      });
+    });
+
+    it('preserves pre-hydrated DOM when state is unknown with valid hint cookie, and marks guest otherwise', () => {
+      document.cookie = `${SESSION_HINT_COOKIE}=1; path=/`;
+      document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'mentor');
+
+      syncSessionHintDomAndCookie({
+        state: 'unknown',
+        userId: undefined,
+        avatar: undefined,
+        isMentor: false,
+      });
+      expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
+        'mentor'
+      );
+
+      document.cookie = `${SESSION_HINT_COOKIE}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0`;
+      syncSessionHintDomAndCookie({
+        state: 'unknown',
+        userId: undefined,
+        avatar: undefined,
+        isMentor: false,
+      });
+      expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
+        'guest'
+      );
+    });
+
+    it('clears cookie/avatar DOM and marks guest on confirmed-guest, and no-ops safely in SSR', () => {
+      document.cookie = `${SESSION_HINT_COOKIE}=1; path=/`;
+      document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'mentor');
+
+      syncSessionHintDomAndCookie({
+        state: 'confirmed-guest',
+        userId: undefined,
+        avatar: undefined,
+        isMentor: false,
+      });
+
+      expect(readCookie(SESSION_HINT_COOKIE)).toBeUndefined();
+      expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
+        'guest'
+      );
+
+      vi.stubGlobal('document', undefined);
+      expect(() =>
+        syncSessionHintDomAndCookie({
+          state: 'confirmed-member',
+          userId: '1',
+          avatar: 'https://example.com/a.png',
+          isMentor: true,
+        })
+      ).not.toThrow();
+      vi.unstubAllGlobals();
     });
   });
 
