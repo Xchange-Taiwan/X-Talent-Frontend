@@ -53,8 +53,7 @@ export function mapVoToFormValues(
   return {
     is_mentor: mentorFlag,
     avatar:
-      userDto.avatar ||
-      (isMentorOnboarding ? '/avatars/default_1.webp' : ''),
+      userDto.avatar || (isMentorOnboarding ? '/avatars/default_1.webp' : ''),
     avatarFile: undefined,
     name: userDto.name || '',
     location: userDto.location || '',
