@@ -709,9 +709,7 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
     // Submitting while Mentor guidelines & required fields are empty triggers Zod validation errors (#961)
     const submitBtn = page.getByRole('button', { name: '儲存並建立' });
     await submitBtn.click();
-    await expect(
-      page.getByText('請先閱讀並勾選同意導師規範')
-    ).toBeVisible();
+    await expect(page.getByText('請先閱讀並勾選同意導師規範')).toBeVisible();
     await page.getByRole('button', { name: '查看規範' }).click();
     await expect(page.getByText('真實身分')).toBeVisible();
     await page

@@ -9,9 +9,9 @@ function scheduleNotify(): void {
   notifyScheduled = true;
   queueMicrotask(() => {
     notifyScheduled = false;
-    for (const listener of listeners) {
+    listeners.forEach((listener) => {
       listener();
-    }
+    });
   });
 }
 
