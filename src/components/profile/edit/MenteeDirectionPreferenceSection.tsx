@@ -191,7 +191,7 @@ export const MenteeDirectionPreferenceSection = React.memo(
         <Section
           id="want_position"
           dataTestId="mentee-section-preferences"
-          variant="default"
+          variant="option-a"
           title="有興趣多了解的職位"
         >
           <div className="space-y-2">

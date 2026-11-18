@@ -22,3 +22,11 @@ export const MenteeChapters: Story = {
     isMentor: false,
   },
 };
+
+export const ActiveExpertiseChapter: Story = {
+  name: '指定選中章節 (服務與專長)',
+  args: {
+    isMentor: true,
+    activeChapterId: 'mentor-expertise',
+  },
+};

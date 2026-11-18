@@ -13,7 +13,7 @@ interface SectionProps {
   children: React.ReactNode;
   id?: string;
   required?: boolean;
-  variant?: 'default' | 'card' | 'inline';
+  variant?: 'default' | 'card' | 'inline' | 'option-a';
   subtitle?: string;
   headerAction?: React.ReactNode;
   dataTestId?: string;
@@ -80,32 +80,53 @@ export const Section = ({
     );
   }
 
+  if (variant === 'option-a') {
+    return (
+      <div
+        id={id}
+        data-testid={dataTestId}
+        className={cn(
+          'border-background-border flex flex-col gap-4 border-t pt-8 lg:flex-row lg:items-start lg:gap-8',
+          className
+        )}
+      >
+        <div className="lg:w-48 lg:shrink-0">
+          <p className="text-text-primary text-sm font-bold">
+            <RequiredIndicator show={required} />
+            {title}
+          </p>
+          {subtitle && (
+            <p className="text-text-tertiary mt-1.5 text-xs leading-relaxed">
+              {subtitle}
+            </p>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          {children}
+          {headerAction && (
+            <div className="mt-1.5 flex justify-end">{headerAction}</div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       id={id}
       data-testid={dataTestId}
       className={cn(
-        'border-background-border flex flex-col gap-4 border-t pt-8 lg:flex-row lg:items-start lg:gap-8',
+        'border-background-border flex flex-col border-t-2 border-solid pt-10 lg:flex-row',
         className
       )}
     >
-      <div className="lg:w-48 lg:shrink-0">
-        <p className="text-text-primary text-sm font-bold">
+      <div className="max-w-80 grow">
+        <p className="mb-4 text-xl font-bold">
           <RequiredIndicator show={required} />
           {title}
         </p>
-        {subtitle && (
-          <p className="text-text-tertiary mt-1.5 text-xs leading-relaxed">
-            {subtitle}
-          </p>
-        )}
       </div>
-      <div className="min-w-0 flex-1">
-        {children}
-        {headerAction && (
-          <div className="mt-1.5 flex justify-end">{headerAction}</div>
-        )}
-      </div>
+      <div className="grow">{children}</div>
     </div>
   );
 };
