@@ -16,7 +16,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useObjectUrl } from '@/hooks/useObjectUrl';
-import { isPresetAvatarUrl, PRESET_AVATAR_URLS } from '@/lib/avatar/avatarUrl';
+import {
+  isPresetAvatarUrl,
+  PRESET_AVATAR_URLS,
+  resolveAvatarDisplayUrl,
+} from '@/lib/avatar/avatarUrl';
 import { FOCUS_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 import { validateAvatarFile } from '@/schemas/profileSchema';
@@ -81,14 +85,15 @@ export function MenteeAvatarDialog({
     if (draft.kind === 'preset') return draft.url;
     if (draft.kind === 'file') return null;
     if (currentAvatarFile) return null;
-    return isPresetAvatarUrl(currentAvatarUrl) ? currentAvatarUrl : null;
+    const normalized = resolveAvatarDisplayUrl(currentAvatarUrl, false);
+    return isPresetAvatarUrl(normalized) ? normalized : null;
   }, [currentAvatarFile, currentAvatarUrl, draft]);
 
   const previewSrc = useMemo(() => {
     if (filePreviewUrl) return filePreviewUrl;
     if (draft.kind === 'preset') return draft.url;
-    if (currentAvatarUrl) return currentAvatarUrl;
-    return DefaultAvatarImgUrl;
+    const normalized = resolveAvatarDisplayUrl(currentAvatarUrl, true);
+    return normalized || DefaultAvatarImgUrl;
   }, [currentAvatarUrl, draft, filePreviewUrl]);
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -138,7 +143,7 @@ export function MenteeAvatarDialog({
           onOpenChange(nextOpen);
         }}
       >
-        <DialogContent className="w-[calc(100%-32px)] max-w-[432px] gap-6 rounded-2xl p-6">
+        <DialogContent className="animate-in fade-in-0 zoom-in-95 w-[calc(100%-32px)] max-w-[432px] gap-6 rounded-2xl p-6 duration-200">
           <DialogHeader>
             <DialogTitle className="text-xl leading-7 font-semibold">
               編輯頭像

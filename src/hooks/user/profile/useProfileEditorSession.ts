@@ -18,6 +18,10 @@ import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useUserProfileDto } from '@/hooks/user/user-data/useUserProfileDto';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { trackFormValidationFailed } from '@/lib/analytics';
+import {
+  DEFAULT_PRESET_AVATAR_CODE,
+  toPresetAvatarCode,
+} from '@/lib/avatar/avatarUrl';
 import { getSafeErrorMessage } from '@/lib/errorUtils';
 import {
   mapVoToFormValues,
@@ -164,13 +168,17 @@ export function useProfileEditorSession({
   );
 
   const handleSelectPresetAvatar = useCallback(
-    (presetUrl: string) => {
+    (presetUrlOrCode: string) => {
       void avatarUpload.rollback();
+      const normalizedCode =
+        toPresetAvatarCode(presetUrlOrCode) ??
+        presetUrlOrCode ??
+        DEFAULT_PRESET_AVATAR_CODE;
       form.setValue('avatarFile', undefined, {
         shouldDirty: false,
         shouldValidate: true,
       });
-      form.setValue('avatar', presetUrl, {
+      form.setValue('avatar', normalizedCode, {
         shouldDirty: true,
         shouldValidate: true,
       });
