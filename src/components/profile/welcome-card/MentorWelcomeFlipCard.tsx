@@ -72,7 +72,7 @@ export function MentorWelcomeFlipCard({
       ? `${userData.job_title}\nat ${userData.company}`
       : userData.job_title || userData.company || '';
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       setIsFlipped((prev) => !prev);
@@ -87,25 +87,29 @@ export function MentorWelcomeFlipCard({
       )}
     >
       <div
-        role="button"
-        tabIndex={0}
-        data-testid="mentor-welcome-flip-card"
-        aria-pressed={isFlipped}
-        aria-label={isFlipped ? '翻回導師小卡正面' : '翻轉導師小卡查看歡迎語'}
-        onClick={() => setIsFlipped((prev) => !prev)}
-        onKeyDown={handleKeyDown}
         className={cn(
-          FOCUS_RING_NO_OFFSET_CLASSES,
-          'group relative block min-h-[476px] w-full cursor-pointer rounded-3xl text-left transition-transform duration-500 [transform-style:preserve-3d]',
+          'group relative block min-h-[476px] w-full rounded-3xl text-left transition-transform duration-500 [transform-style:preserve-3d]',
           isFlipped ? '[transform:rotateY(180deg)]' : '-rotate-1 hover:rotate-0'
         )}
       >
+        <button
+          type="button"
+          data-testid="mentor-welcome-flip-card"
+          aria-pressed={isFlipped}
+          aria-label={isFlipped ? '翻回導師小卡正面' : '翻轉導師小卡查看歡迎語'}
+          onClick={() => setIsFlipped((prev) => !prev)}
+          onKeyDown={handleKeyDown}
+          className={cn(
+            FOCUS_RING_NO_OFFSET_CLASSES,
+            'absolute inset-0 z-10 cursor-pointer rounded-3xl bg-transparent'
+          )}
+        />
+
         <div
           data-testid="mentor-card-front"
           aria-hidden={isFlipped}
           className={cn(
-            'border-background-border bg-background-white flex min-h-[476px] w-full flex-col justify-between overflow-hidden rounded-3xl border shadow-lg [backface-visibility:hidden]',
-            isFlipped && 'pointer-events-none'
+            'border-background-border bg-background-white pointer-events-none flex min-h-[476px] w-full flex-col justify-between overflow-hidden rounded-3xl border shadow-lg [backface-visibility:hidden]'
           )}
         >
           <div>
@@ -179,27 +183,21 @@ export function MentorWelcomeFlipCard({
 
           <div className="border-background-border border-t px-6 py-3.5 text-center">
             {onEditProfile ? (
-              <span
-                role="link"
-                tabIndex={0}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEditProfile();
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    onEditProfile();
-                  }
+              <button
+                type="button"
+                tabIndex={isFlipped ? -1 : 0}
+                disabled={isFlipped}
+                onClick={() => {
+                  if (!isFlipped) onEditProfile();
                 }}
                 className={cn(
                   FOCUS_RING_NO_OFFSET_CLASSES,
-                  'text-brand-700 hover:text-brand-500 inline-block rounded-sm px-2 py-0.5 text-xs font-semibold transition-colors'
+                  'text-brand-700 hover:text-brand-500 relative z-20 inline-block cursor-pointer rounded-sm px-2 py-0.5 text-xs font-semibold transition-colors',
+                  !isFlipped && 'pointer-events-auto'
                 )}
               >
                 編輯資料
-              </span>
+              </button>
             ) : (
               <span className="text-brand-700 text-xs font-semibold">
                 點卡片翻面
@@ -211,10 +209,7 @@ export function MentorWelcomeFlipCard({
         <div
           data-testid="mentor-card-back"
           aria-hidden={!isFlipped}
-          className={cn(
-            'from-brand-800 via-brand-900 to-brand-900 text-text-white absolute inset-0 flex min-h-[476px] w-full [transform:rotateY(180deg)] flex-col justify-between overflow-hidden rounded-3xl bg-gradient-to-br p-7 shadow-lg [backface-visibility:hidden]',
-            !isFlipped && 'pointer-events-none'
-          )}
+          className="from-brand-800 via-brand-900 to-brand-900 text-text-white pointer-events-none absolute inset-0 flex min-h-[476px] w-full [transform:rotateY(180deg)] flex-col justify-between overflow-hidden rounded-3xl bg-gradient-to-br p-7 shadow-lg [backface-visibility:hidden]"
         >
           <div
             aria-hidden="true"

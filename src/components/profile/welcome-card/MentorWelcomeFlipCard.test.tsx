@@ -64,4 +64,31 @@ describe('MentorWelcomeFlipCard (#961)', () => {
     fireEvent.keyDown(flipSurface, { key: ' ' });
     expect(backFace).toHaveAttribute('aria-hidden', 'false');
   });
+
+  it('triggers onEditProfile via sibling button without flipping card and disables 編輯資料 while flipped to back face (#961)', () => {
+    const onEditProfile = vi.fn();
+    render(
+      <MentorWelcomeFlipCard
+        userData={mentorData}
+        onEditProfile={onEditProfile}
+      />
+    );
+
+    const frontFace = screen.getByTestId('mentor-card-front');
+    const flipBtn = screen.getByTestId('mentor-welcome-flip-card');
+    const editBtn = screen.getByRole('button', { name: '編輯資料' });
+
+    // Sibling buttons (no WAI-ARIA nested interactive elements)
+    expect(flipBtn.contains(editBtn)).toBe(false);
+
+    fireEvent.click(editBtn);
+    expect(onEditProfile).toHaveBeenCalledTimes(1);
+    expect(frontFace).toHaveAttribute('aria-hidden', 'false');
+
+    // Flip to back -> 編輯資料 exits keyboard tab order (disabled & tabIndex=-1)
+    fireEvent.click(flipBtn);
+    expect(frontFace).toHaveAttribute('aria-hidden', 'true');
+    expect(editBtn).toBeDisabled();
+    expect(editBtn).toHaveAttribute('tabIndex', '-1');
+  });
 });

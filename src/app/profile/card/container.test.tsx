@@ -142,7 +142,7 @@ describe('ProfileCardContainer', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('wires onSetupSchedule to /profile/:id?open-schedule-dialog=true and onBackToProfile to /profile/:id (#961)', () => {
+  it('wires onSetupSchedule to /profile/:id?open-schedule=true, onBackToProfile to /profile/:id, and onEditProfile to /profile/:id/edit (#961)', () => {
     capturedCardProps = {};
     mockUseUserData.mockReturnValue({
       userData: {
@@ -162,9 +162,12 @@ describe('ProfileCardContainer', () => {
 
     const onSetupSchedule = capturedCardProps['onSetupSchedule'] as () => void;
     const onBackToProfile = capturedCardProps['onBackToProfile'] as () => void;
+    const onEditProfile = capturedCardProps['onEditProfile'] as () => void;
     onSetupSchedule();
     expect(mockPush).toHaveBeenCalledWith('/profile/42?open-schedule=true');
     onBackToProfile();
     expect(mockPush).toHaveBeenCalledWith('/profile/42');
+    onEditProfile();
+    expect(mockPush).toHaveBeenCalledWith('/profile/42/edit');
   });
 });
