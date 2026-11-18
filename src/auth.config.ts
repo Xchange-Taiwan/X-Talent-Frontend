@@ -107,6 +107,7 @@ const authOptions = {
         token: { label: 'Token', type: 'text' },
         email: { label: 'Email', type: 'text' },
         user: { label: 'User JSON', type: 'text' },
+        refreshBridge: { label: 'Refresh Bridge', type: 'text' },
       },
       authorize(credentials) {
         return authorizeGoogleBridgePayload(credentials);

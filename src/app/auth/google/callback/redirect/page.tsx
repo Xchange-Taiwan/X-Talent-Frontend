@@ -1,11 +1,15 @@
 import { Suspense } from 'react';
 
-import GoogleOAuthRedirectPage from './container';
+import { GoogleOAuthRedirectShell } from './container';
+import {
+  type GoogleOAuthCallbackPageProps,
+  ServerGoogleOAuthBootstrap,
+} from './ServerGoogleOAuthBootstrap';
 
-export default function Page() {
+export default function Page({ searchParams }: GoogleOAuthCallbackPageProps) {
   return (
-    <Suspense>
-      <GoogleOAuthRedirectPage />
+    <Suspense fallback={<GoogleOAuthRedirectShell loading />}>
+      <ServerGoogleOAuthBootstrap searchParams={searchParams} />
     </Suspense>
   );
 }

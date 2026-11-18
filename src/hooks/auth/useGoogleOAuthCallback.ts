@@ -5,9 +5,16 @@ import { useEffect, useRef, useState } from 'react';
 import { revalidateProfilePathAfterDelete } from '@/actions/auth';
 import { useToast } from '@/components/ui/use-toast';
 import { googleCallback } from '@/lib/actions/googleCallback';
+import {
+  type PreExchangedGoogleOAuthResult,
+  signInWithGoogleToken,
+  synthesizePreExchangedSession,
+} from '@/lib/auth/oauthOutcome';
 import { executeGoogleOAuthCallback } from '@/lib/auth/sessionLifecycle';
 
-export function useGoogleOAuthCallback() {
+export function useGoogleOAuthCallback(
+  initialPreExchanged?: PreExchangedGoogleOAuthResult | null
+) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -18,18 +25,42 @@ export function useGoogleOAuthCallback() {
     if (hasExecuted.current) return;
     hasExecuted.current = true;
 
-    const code = searchParams.get('code');
-    const state = searchParams.get('state');
+    const code = searchParams.get('code')?.trim() || null;
+    const state = searchParams.get('state')?.trim() || null;
+    const hasServerPreExchange =
+      initialPreExchanged !== undefined && initialPreExchanged !== null;
 
     const handleOAuthFlow = async () => {
       try {
         await executeGoogleOAuthCallback(
-          { code, state },
           {
-            exchangeCode: googleCallback,
+            code,
+            state,
+            preExchanged: hasServerPreExchange
+              ? initialPreExchanged.response
+              : undefined,
+          },
+          {
+            exchangeCode: hasServerPreExchange
+              ? async () => initialPreExchanged.response
+              : googleCallback,
             signIn,
             signOut,
-            getSession,
+            getSession: hasServerPreExchange
+              ? async () =>
+                  synthesizePreExchangedSession(initialPreExchanged) ??
+                  (await getSession())
+              : getSession,
+            signInWithGoogleTokenFn: hasServerPreExchange
+              ? (clientSignIn, token, email, user) =>
+                  signInWithGoogleToken(
+                    clientSignIn,
+                    token,
+                    email,
+                    user,
+                    initialPreExchanged.refreshBridgeToken
+                  )
+              : undefined,
             revalidateAfterDelete: revalidateProfilePathAfterDelete,
             navigate: (href) => router.push(href),
             onToast: toast,
@@ -45,7 +76,7 @@ export function useGoogleOAuthCallback() {
     };
 
     void handleOAuthFlow();
-  }, [searchParams, router, toast]);
+  }, [searchParams, router, toast, initialPreExchanged]);
 
   return { loading };
 }
