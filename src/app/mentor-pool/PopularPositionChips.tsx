@@ -7,7 +7,18 @@ import { useMentorPoolSearchQuery } from '@/hooks/useMentorPoolFilters';
 import { computeOverflowFit } from '@/lib/overflowFit';
 import { HOVER_CLICKABLE_CHIP_CLASSES } from '@/lib/ui/hoverStyles';
 
-import { POPULAR_POSITIONS } from './data';
+// Hardcoded fallback until the backend exposes a popular-position ranking
+// endpoint. Labels follow the zh_TW INTERESTED_POSITION naming used in onboarding.
+export const POPULAR_POSITIONS: ReadonlyArray<string> = [
+  '前端工程師',
+  '後端工程師',
+  '全端工程師',
+  '產品經理',
+  'UIUX 設計師',
+  '資料工程師',
+  'AI 工程師',
+  'iOS 工程師',
+];
 
 // Desktop SearchBar width is the source of truth. We measure each chip on
 // mount and trim to what fits in this width on xl. Below xl, all chips are

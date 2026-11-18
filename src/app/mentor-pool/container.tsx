@@ -7,13 +7,13 @@ import { useMentorPoolFilters } from '@/hooks/useMentorPoolFilters';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import {
   buildMentorFilterOptions,
+  DEFAULT_MENTOR_FILTER_OPTIONS,
   type FilterOptions,
 } from '@/lib/mentor/mentorPoolQuery';
 import { buildTagLabelMap } from '@/lib/profile/tagLabelMap';
 import type { MentorType } from '@/types/mentor';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 
-import { filterOptions } from './data';
 import MentorPoolUI from './ui';
 
 interface Props {
@@ -41,7 +41,7 @@ export default function MentorPoolContainer({
           have_topic: tagCatalog.have_topic,
           industry: tagCatalog.industry,
         },
-        filterOptions
+        DEFAULT_MENTOR_FILTER_OPTIONS
       ),
     [tagCatalog.have_skill, tagCatalog.have_topic, tagCatalog.industry]
   );

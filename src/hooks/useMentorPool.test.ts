@@ -19,8 +19,8 @@ vi.mock('@/services/search-mentor/mentors', () => ({
   fetchMentors: vi.fn(),
 }));
 
-import { PAGE_LIMIT } from '@/app/mentor-pool/constants';
 import avatarImage from '@/assets/default-avatar.png';
+import { DEFAULT_MENTOR_PAGE_LIMIT as PAGE_LIMIT } from '@/lib/mentor/mentorPoolQuery';
 import {
   mentorPoolReadModel,
   UNFILTERED_MENTOR_POOL_QUERY,
@@ -308,7 +308,50 @@ describe('useMentorPool', () => {
       }
     });
 
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.hasError).toBe(true);
+    expect(result.current.listStatus).toBe('error');
     expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it('surfaces Retry UI with isLoading=false and suppresses toast when fetchMentors rejects with TimeoutError', async () => {
+    mockSearchParams.toString.mockReturnValue('q=timeout');
+    mockSearchParams.get.mockImplementation((key) =>
+      key === 'q' ? 'timeout' : null
+    );
+
+    mockFetchMentors
+      .mockRejectedValueOnce(
+        new DOMException('The operation timed out.', 'TimeoutError')
+      )
+      .mockResolvedValueOnce({
+        mentors: mockInitialMentors,
+        nextCursor: null,
+      });
+
+    const { result } = renderHook(() =>
+      useMentorPool({
+        initialMentors: mockInitialMentors,
+        initialMentorCount: 1,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
+      })
+    );
+
+    await act(async () => {});
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.hasError).toBe(true);
+    expect(result.current.listStatus).toBe('error');
+    expect(mockToast).not.toHaveBeenCalled();
+
+    await act(async () => {
+      result.current.handleRetry();
+    });
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.hasError).toBe(false);
+    expect(result.current.listStatus).toBe('success');
+    expect(result.current.mentors[0].name).toBe('Initial Mentor');
   });
 
   it('correctly ignores obsolete out-of-order fetch responses to prevent race conditions', async () => {
@@ -1233,6 +1276,412 @@ describe('useMentorPool', () => {
     expect(state.nextCursor).toBe('opaque-stale-cursor');
     expect(state.hasMore).toBe(false);
     expect(state.isNoResults).toBe(true);
+  });
+
+  it('recovers and preserves subscription when mentorPoolReadModel.clear() runs while mounted on a filtered/sorted URL', async () => {
+    mockSearchParams.toString.mockReturnValue('q=react&sort_by=popularity');
+    mockSearchParams.get.mockImplementation((key) => {
+      if (key === 'q') return 'react';
+      if (key === 'sort_by') return 'popularity';
+      return null;
+    });
+
+    const filteredQuery = mentorPoolReadModel.resolveQuery(
+      'q=react&sort_by=popularity'
+    );
+    const beforeClearMentor = {
+      ...mockInitialMentors[0],
+      user_id: 701,
+      name: 'Before Clear Filtered',
+    };
+    const afterClearMentor = {
+      ...mockInitialMentors[0],
+      user_id: 702,
+      name: 'After Clear Filtered',
+    };
+    const appendedAfterClearMentor = {
+      ...mockInitialMentors[0],
+      user_id: 703,
+      name: 'Page 2 After Clear Filtered',
+    };
+
+    let resolveRefetchAfterClear!: (page: MentorPage) => void;
+    const refetchAfterClearPromise = new Promise<MentorPage>((resolve) => {
+      resolveRefetchAfterClear = resolve;
+    });
+
+    mockFetchMentors
+      .mockResolvedValueOnce({
+        mentors: [beforeClearMentor],
+        nextCursor: null,
+      })
+      .mockReturnValueOnce(refetchAfterClearPromise)
+      .mockResolvedValueOnce({
+        mentors: [appendedAfterClearMentor],
+        nextCursor: null,
+      });
+
+    const { result } = renderHook(() =>
+      useMentorPool({
+        initialMentors: mockInitialMentors,
+        initialMentorCount: 1,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
+      })
+    );
+
+    await act(async () => {});
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.mentors[0]?.name).toBe('Before Clear Filtered');
+    expect(mentorPoolReadModel.get(filteredQuery)).toBeDefined();
+
+    let syncGetAfterClear: MentorPoolPageState | undefined;
+    act(() => {
+      mentorPoolReadModel.clear();
+      syncGetAfterClear = mentorPoolReadModel.get(filteredQuery);
+    });
+
+    expect(syncGetAfterClear).toBeUndefined();
+    expect(result.current.isLoading).toBe(true);
+
+    await act(async () => {
+      resolveRefetchAfterClear({
+        mentors: [afterClearMentor],
+        nextCursor: 'cursor:filtered-after-clear',
+      });
+      await refetchAfterClearPromise;
+    });
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.listStatus).toBe('success');
+    expect(result.current.mentors.map((m) => m.name)).toEqual([
+      'After Clear Filtered',
+    ]);
+
+    await act(async () => {
+      await result.current.handleScrollToBottom();
+    });
+
+    expect(result.current.mentors.map((m) => m.name)).toEqual([
+      'After Clear Filtered',
+      'Page 2 After Clear Filtered',
+    ]);
+  });
+
+  it('recovers and keeps loadMore and retry working when mentorPoolReadModel.clear() runs while mounted on an unfiltered URL', async () => {
+    mockSearchParams.toString.mockReturnValue('');
+    mockSearchParams.get.mockReturnValue(null);
+
+    const refreshedMentor = {
+      ...mockInitialMentors[0],
+      user_id: 801,
+      name: 'Refreshed Unfiltered Page 1',
+    };
+    const pageTwoMentor = {
+      ...mockInitialMentors[0],
+      user_id: 802,
+      name: 'Refreshed Unfiltered Page 2',
+    };
+
+    const spyConsoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    mockFetchMentors
+      .mockRejectedValueOnce(new Error('Transient failure after clear'))
+      .mockResolvedValueOnce({
+        mentors: [refreshedMentor],
+        nextCursor: 'cursor:unfiltered-2',
+      })
+      .mockResolvedValueOnce({
+        mentors: [pageTwoMentor],
+        nextCursor: null,
+      });
+
+    const { result } = renderHook(() =>
+      useMentorPool({
+        initialMentors: mockInitialMentors,
+        initialNextCursor: 'cursor:initial',
+        initialMentorCount: 1,
+        params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
+      })
+    );
+
+    expect(result.current.mentors[0]?.name).toBe('Initial Mentor');
+    expect(mentorPoolReadModel.get(UNFILTERED_MENTOR_POOL_QUERY)).toBeDefined();
+
+    let syncGetAfterClear: MentorPoolPageState | undefined;
+    await act(async () => {
+      mentorPoolReadModel.clear();
+      syncGetAfterClear = mentorPoolReadModel.get(UNFILTERED_MENTOR_POOL_QUERY);
+    });
+
+    expect(syncGetAfterClear).toBeUndefined();
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.hasError).toBe(true);
+
+    // Retry on the still-mounted unfiltered hook must update snapshot via preserved subscriber
+    await act(async () => {
+      result.current.handleRetry();
+    });
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.hasError).toBe(false);
+    expect(result.current.mentors.map((m) => m.name)).toEqual([
+      'Refreshed Unfiltered Page 1',
+    ]);
+
+    // Infinite scroll loadMore on the still-mounted unfiltered hook must also deliver updates
+    await act(async () => {
+      await result.current.handleScrollToBottom();
+    });
+
+    expect(result.current.mentors.map((m) => m.name)).toEqual([
+      'Refreshed Unfiltered Page 1',
+      'Refreshed Unfiltered Page 2',
+    ]);
+
+    spyConsoleError.mockRestore();
+  });
+
+  it('serves stale cached mentors instead of flashing loading skeleton when TTL has expired', async () => {
+    vi.useFakeTimers();
+    try {
+      mockSearchParams.toString.mockReturnValue('q=swr');
+      mockSearchParams.get.mockImplementation((key) =>
+        key === 'q' ? 'swr' : null
+      );
+
+      const staleMentor = {
+        ...mockInitialMentors[0],
+        user_id: 901,
+        name: 'Stale SWR Mentor',
+      };
+      const freshMentor = {
+        ...mockInitialMentors[0],
+        user_id: 902,
+        name: 'Fresh SWR Mentor',
+      };
+
+      mentorPoolReadModel.set(
+        { search_pattern: 'swr' },
+        {
+          mentors: [staleMentor],
+          nextCursor: null,
+          hasMore: false,
+          mentorCount: 1,
+          isNoResults: false,
+          hasError: false,
+        },
+        100
+      );
+
+      vi.advanceTimersByTime(500);
+      expect(
+        mentorPoolReadModel.get({ search_pattern: 'swr' })
+      ).toBeUndefined();
+
+      let resolveRevalidate!: (page: MentorPage) => void;
+      const revalidatePromise = new Promise<MentorPage>((resolve) => {
+        resolveRevalidate = resolve;
+      });
+      mockFetchMentors.mockReturnValueOnce(revalidatePromise);
+
+      const renderedStatuses: string[] = [];
+      const { result } = renderHook(() => {
+        const hookState = useMentorPool({
+          initialMentors: [],
+          initialMentorCount: 0,
+          params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
+        });
+        renderedStatuses.push(hookState.listStatus);
+        return hookState;
+      });
+
+      // Must never flash 'loading' during initial synchronous render or passive mount
+      expect(renderedStatuses).not.toContain('loading');
+      expect(result.current.mentors.map((m) => m.name)).toEqual([
+        'Stale SWR Mentor',
+      ]);
+      expect(result.current.listStatus).toBe('success');
+      expect(result.current.isLoading).toBe(true);
+
+      await act(async () => {
+        resolveRevalidate({ mentors: [freshMentor], nextCursor: null });
+        await revalidatePromise;
+      });
+
+      expect(result.current.mentors.map((m) => m.name)).toEqual([
+        'Fresh SWR Mentor',
+      ]);
+      expect(result.current.isLoading).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('clears transient SSR error and primes recovered initialMentors when ssrSeed props update on a mounted unfiltered hook', async () => {
+    mockSearchParams.toString.mockReturnValue('');
+    mockSearchParams.get.mockReturnValue(null);
+
+    const recoveredMentor = {
+      ...mockInitialMentors[0],
+      user_id: 950,
+      name: 'Recovered SSR Mentor',
+    };
+    const nextPageMentor = {
+      ...mockInitialMentors[0],
+      user_id: 951,
+      name: 'Recovered Page 2 Mentor',
+    };
+
+    const { result, rerender } = renderHook(
+      (props: {
+        mentors: MentorType[];
+        nextCursor: string | null;
+        count: number;
+        error: boolean;
+      }) =>
+        useMentorPool({
+          initialMentors: props.mentors,
+          initialNextCursor: props.nextCursor,
+          initialMentorCount: props.count,
+          initialError: props.error,
+          params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
+        }),
+      {
+        initialProps: {
+          mentors: [] as MentorType[],
+          nextCursor: null as string | null,
+          count: 0,
+          error: true,
+        },
+      }
+    );
+
+    expect(result.current.hasError).toBe(true);
+    expect(result.current.listStatus).toBe('error');
+    expect(result.current.mentors).toEqual([]);
+    expect(mockFetchMentors).not.toHaveBeenCalled();
+
+    rerender({
+      mentors: [recoveredMentor],
+      nextCursor: 'cursor:recovered-next',
+      count: 1,
+      error: false,
+    });
+
+    expect(result.current.hasError).toBe(false);
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.listStatus).toBe('success');
+    expect(result.current.mentorCount).toBe(1);
+    expect(result.current.mentors.map((m) => m.name)).toEqual([
+      'Recovered SSR Mentor',
+    ]);
+    expect(mockFetchMentors).not.toHaveBeenCalled();
+    expect(
+      mentorPoolReadModel.get(UNFILTERED_MENTOR_POOL_QUERY)?.mentors[0]?.name
+    ).toBe('Recovered SSR Mentor');
+
+    // Verify the primed unfiltered slot also supports pagination with the updated cursor
+    mockFetchMentors.mockResolvedValueOnce({
+      mentors: [nextPageMentor],
+      nextCursor: null,
+    });
+    await act(async () => {
+      await result.current.handleScrollToBottom();
+    });
+    expect(result.current.mentors.map((m) => m.name)).toEqual([
+      'Recovered SSR Mentor',
+      'Recovered Page 2 Mentor',
+    ]);
+  });
+
+  it('syncs updated non-error ssrSeed props on a mounted unfiltered hook unless client pagination has already advanced the slot', async () => {
+    mockSearchParams.toString.mockReturnValue('');
+    mockSearchParams.get.mockReturnValue(null);
+
+    const v1Mentor = {
+      ...mockInitialMentors[0],
+      user_id: 960,
+      name: 'SSR V1 Mentor',
+    };
+    const v2Mentor = {
+      ...mockInitialMentors[0],
+      user_id: 961,
+      name: 'SSR V2 Mentor',
+    };
+    const page2Mentor = {
+      ...mockInitialMentors[0],
+      user_id: 962,
+      name: 'Client Page 2 Mentor',
+    };
+    const v3Mentor = {
+      ...mockInitialMentors[0],
+      user_id: 963,
+      name: 'SSR V3 Mentor',
+    };
+
+    const { result, rerender } = renderHook(
+      (props: {
+        mentors: MentorType[];
+        nextCursor: string | null;
+        count: number;
+      }) =>
+        useMentorPool({
+          initialMentors: props.mentors,
+          initialNextCursor: props.nextCursor,
+          initialMentorCount: props.count,
+          params: fromPartial<ReadonlyURLSearchParams>(mockSearchParams),
+        }),
+      {
+        initialProps: {
+          mentors: [v1Mentor] as MentorType[],
+          nextCursor: null as string | null,
+          count: 1,
+        },
+      }
+    );
+
+    expect(result.current.mentors.map((m) => m.name)).toEqual([
+      'SSR V1 Mentor',
+    ]);
+
+    // Server refresh updates SSR props before any client pagination -> hook updates to V2
+    rerender({
+      mentors: [v2Mentor],
+      nextCursor: 'cursor:v2-next',
+      count: 2,
+    });
+
+    expect(result.current.mentors.map((m) => m.name)).toEqual([
+      'SSR V2 Mentor',
+    ]);
+    expect(result.current.mentorCount).toBe(2);
+
+    // Client paginates to page 2 -> subsequent SSR prop re-renders must NOT clobber client-paginated list
+    mockFetchMentors.mockResolvedValueOnce({
+      mentors: [page2Mentor],
+      nextCursor: null,
+    });
+    await act(async () => {
+      await result.current.handleScrollToBottom();
+    });
+
+    expect(result.current.mentors.map((m) => m.name)).toEqual([
+      'SSR V2 Mentor',
+      'Client Page 2 Mentor',
+    ]);
+
+    rerender({
+      mentors: [v3Mentor],
+      nextCursor: null,
+      count: 1,
+    });
+
+    expect(result.current.mentors.map((m) => m.name)).toEqual([
+      'SSR V2 Mentor',
+      'Client Page 2 Mentor',
+    ]);
   });
 });
 
