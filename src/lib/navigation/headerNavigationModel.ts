@@ -1,5 +1,6 @@
 import { FEEDBACK_FORM_URL } from '@/constant/externalLinks';
 import type { ResolvedIdentity } from '@/lib/auth/sessionHint';
+import { resolveAvatarDisplayUrl } from '@/lib/avatar/avatarUrl';
 import {
   isAccountDeletionEnabled,
   isFavoritesEnabled,
@@ -427,7 +428,9 @@ export function buildHeaderNavigationModel({
 
   const name = identity.name ?? user?.name ?? '';
   const displayName = name || '我的個人頁面';
-  const avatarSrc = identity.avatar ?? user?.avatar ?? '';
+  const avatarSrc = resolveAvatarDisplayUrl(
+    identity.avatar ?? user?.avatar ?? ''
+  );
   const jobTitle = identity.jobTitle ?? user?.jobTitle ?? '';
   const company = identity.company ?? user?.company ?? '';
   const personalLinks = identity.personalLinks ?? user?.personalLinks ?? [];

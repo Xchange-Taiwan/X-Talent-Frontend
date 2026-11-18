@@ -302,7 +302,14 @@ async function mockDropdowns(page: Page): Promise<void> {
 }
 
 async function cropAndConfirmAvatar(page: Page): Promise<void> {
-  const fileInput = page.locator('input[type="file"][accept="image/*"]');
+  const menteeTrigger = page.getByRole('button', { name: '點擊編輯頭像' });
+  const usedMenteeDialog = await menteeTrigger.isVisible();
+  if (usedMenteeDialog) {
+    await menteeTrigger.click();
+    await expect(page.getByRole('dialog', { name: '編輯頭像' })).toBeVisible();
+  }
+
+  const fileInput = page.locator('input[type="file"]');
   await fileInput.setInputFiles({
     name: 'avatar.png',
     mimeType: 'image/png',
@@ -334,6 +341,12 @@ async function cropAndConfirmAvatar(page: Page): Promise<void> {
 
   await cropDialog.getByRole('button', { name: '儲存' }).click();
   await expect(cropDialog).toBeHidden();
+
+  if (usedMenteeDialog) {
+    const avatarDialog = page.getByRole('dialog', { name: '編輯頭像' });
+    await avatarDialog.getByRole('button', { name: '儲存' }).click();
+    await expect(avatarDialog).toBeHidden();
+  }
 }
 
 test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () => {
