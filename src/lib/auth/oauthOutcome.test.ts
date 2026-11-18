@@ -13,6 +13,7 @@ import {
   resolveOAuthOutcome,
   sanitizePrefillAvatarUrl,
   signInWithGoogleToken,
+  synthesizePreExchangedSession,
 } from './oauthOutcome';
 
 type GoogleCallbackVO = components['schemas']['GoogleCallbackVO'];
@@ -381,5 +382,86 @@ describe('Google OAuth id_token fallback & =s512-c avatar normalization (#951)',
       name: 'Existing Member',
       avatar: '',
     });
+  });
+
+  it('synthesizes canonical NextAuth client Session for LOGIN and returns null for SIGNUP/errors (#954)', () => {
+    const idToken = buildTestJwt({
+      name: 'Prefilled Name',
+      picture: 'https://lh3.googleusercontent.com/a/ACg8ocJ_abc=s96-c',
+    });
+
+    const loginSession = synthesizePreExchangedSession({
+      response: {
+        code: '0',
+        msg: 'ok',
+        data: {
+          auth_type: 'LOGIN',
+          id_token: idToken,
+          auth: {
+            token: 'jwt_954',
+            email: 'member@example.com',
+            user_id: 954,
+          },
+          user: {
+            user_id: 954,
+            name: '',
+            avatar: '',
+            onboarding: false,
+            is_mentor: true,
+            job_title: 'Staff Engineer',
+            company: 'XChange',
+            experiences: [
+              {
+                category: 'LINK',
+                mentor_experiences_metadata: {
+                  data: [
+                    {
+                      platform: 'linkedin',
+                      url: 'https://www.linkedin.com/in/member954',
+                    },
+                  ],
+                },
+              },
+            ] as never,
+          } as never,
+        },
+      },
+      refreshBridgeToken: 'sealed_bridge',
+    });
+
+    expect(loginSession).toMatchObject({
+      accessToken: 'jwt_954',
+      user: {
+        id: '954',
+        email: 'member@example.com',
+        name: 'Prefilled Name',
+        avatar: 'https://lh3.googleusercontent.com/a/ACg8ocJ_abc=s512-c',
+        onBoarding: false,
+        isMentor: true,
+        jobTitle: 'Staff Engineer',
+        company: 'XChange',
+        personalLinks: [
+          {
+            platform: 'linkedin',
+            url: 'https://www.linkedin.com/in/member954',
+          },
+        ],
+      },
+    });
+
+    expect(
+      synthesizePreExchangedSession({
+        response: {
+          code: '0',
+          msg: 'ok',
+          data: {
+            auth_type: 'SIGNUP',
+            auth: { email: 'new@example.com', token: '', user_id: 1 },
+            user: null,
+          } as never,
+        },
+        refreshBridgeToken: null,
+      })
+    ).toBeNull();
   });
 });

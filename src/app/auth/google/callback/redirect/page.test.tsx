@@ -17,7 +17,11 @@ vi.mock('./container', () => ({
   GoogleOAuthRedirectShell: () => <div data-testid="oauth-redirect-shell" />,
 }));
 
-import { ServerGoogleOAuthBootstrap } from './page';
+import { Suspense } from 'react';
+
+import * as pageModule from './page';
+import Page from './page';
+import { ServerGoogleOAuthBootstrap } from './ServerGoogleOAuthBootstrap';
 
 describe('Google OAuth callback page server bootstrap (#954)', () => {
   beforeEach(() => {
@@ -54,5 +58,14 @@ describe('Google OAuth callback page server bootstrap (#954)', () => {
     expect(mockContainerSpy).toHaveBeenCalledWith({
       initialPreExchanged: null,
     });
+  });
+
+  it('exports only default Page wrapping ServerGoogleOAuthBootstrap in Suspense to satisfy Next.js App Router typegen', () => {
+    expect(Object.keys(pageModule)).toEqual(['default']);
+    const searchParams = Promise.resolve({ code: 'code_1', state: 'state_1' });
+    const element = Page({ searchParams });
+    expect(element.type).toBe(Suspense);
+    render(element.props.fallback);
+    expect(screen.getByTestId('oauth-redirect-shell')).toBeInTheDocument();
   });
 });

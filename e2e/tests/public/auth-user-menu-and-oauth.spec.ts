@@ -27,10 +27,9 @@ async function setupLoggedInUser(page: Page): Promise<void> {
 }
 
 /**
- * Intercept the Next.js Server Action POST (`googleCallback`) on
- * `/auth/google/callback/redirect` by letting Next.js produce its native
- * RSC Flight envelope via `route.fetch()` and swapping the action return
- * payload on row `1:` with `mockPayload`.
+ * Seed a signed `__e2e_google_oauth` JWE cookie so the SSR Server Component on
+ * `/auth/google/callback/redirect` returns `mockPayload` deterministically
+ * without calling the upstream BFF.
  */
 async function mockGoogleCallbackServerAction(
   page: Page,
