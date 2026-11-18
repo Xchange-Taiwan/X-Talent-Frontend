@@ -151,8 +151,11 @@ export function useProfileEditorSession({
     : undefined;
   const avatarUpload = useBackgroundAvatarUpload(effectiveUploadUserId);
 
+  const presetSelectedRef = useRef(false);
+
   const handleAvatarFileChange = useCallback(
     (file: File) => {
+      presetSelectedRef.current = false;
       if (form.getValues('avatarFile') !== file) {
         form.setValue('avatarFile', file, {
           shouldDirty: true,
@@ -169,6 +172,7 @@ export function useProfileEditorSession({
 
   const handleSelectPresetAvatar = useCallback(
     (presetUrlOrCode: string) => {
+      presetSelectedRef.current = true;
       void avatarUpload.rollback();
       const normalizedCode =
         toPresetAvatarCode(presetUrlOrCode) ??
@@ -198,7 +202,10 @@ export function useProfileEditorSession({
       updateSession,
       navigate: (href: string) => router.push(href),
       revalidateProfilePath,
-      uploadAvatar: (file: File) => avatarUpload.consume(file),
+      uploadAvatar: (file: File) =>
+        presetSelectedRef.current
+          ? Promise.resolve(undefined)
+          : avatarUpload.consume(file),
       ...portOverrides,
     }),
     [avatarUpload, portOverrides, router, updateSession]
