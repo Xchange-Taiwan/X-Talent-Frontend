@@ -89,9 +89,9 @@ export function ProfileEditChapterNav({
     <nav
       aria-label="編輯章節導覽"
       data-testid="profile-edit-chapter-nav"
-      className={cn('w-full lg:w-52 lg:shrink-0 xl:w-56', className)}
+      className={cn('w-full lg:w-44 lg:shrink-0 xl:w-48', className)}
     >
-      <ul className="flex gap-2 overflow-x-auto p-1 lg:sticky lg:top-[152px] lg:flex-col lg:gap-1 lg:overflow-visible">
+      <ul className="flex gap-2 overflow-x-auto p-1 lg:sticky lg:top-[104px] lg:flex-col lg:gap-1 lg:overflow-visible">
         {chapters.map((chapter) => {
           const isActive = activeId === chapter.id;
           return (
@@ -102,10 +102,10 @@ export function ProfileEditChapterNav({
                 onClick={() => handleSelect(chapter.id)}
                 className={cn(
                   FOCUS_RING_NO_OFFSET_CLASSES,
-                  'flex w-full items-center rounded-xl px-3.5 py-2.5 text-left text-sm font-medium transition-colors',
+                  'flex w-full items-center px-3.5 py-2.5 text-left text-sm font-medium transition-colors',
                   isActive
-                    ? 'bg-brand-100/60 text-brand-700 font-semibold'
-                    : 'text-text-secondary hover:bg-background-bottom-secondary hover:text-text-primary'
+                    ? 'border-brand-500 bg-brand-100/55 text-brand-700 rounded-l-sm rounded-r-xl border-l-[3px] font-semibold'
+                    : 'text-text-secondary hover:bg-background-bottom-secondary hover:text-text-primary rounded-xl'
                 )}
               >
                 {chapter.label}

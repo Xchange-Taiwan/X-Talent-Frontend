@@ -187,145 +187,167 @@ export const MenteeDirectionPreferenceSection = React.memo(
       errors.want_topic?.message ?? errors.want_topic?.root?.message;
 
     return (
-      <Section
-        id="want_position"
-        dataTestId="mentee-section-preferences"
-        variant="card"
-        title="交流偏好"
-        subtitle="用來推薦適合的導師"
-        className="space-y-6"
-      >
-        <div className="space-y-2">
-          <p className="text-text-primary text-sm font-semibold">
-            有興趣多了解的職位
-          </p>
-          <CategoryMultiSelect
-            categories={wantPositionCategories}
-            value={selectedPositions}
-            onChange={handlePositionsChange}
-            maxSelected={10}
-            searchPlaceholder="搜尋職位"
-          />
-          {positionError && (
-            <p className="text-status-error-default text-sm font-medium">
-              {String(positionError)}
-            </p>
-          )}
-        </div>
+      <div className="space-y-7">
+        <Section
+          id="want_position"
+          dataTestId="mentee-section-preferences"
+          variant="default"
+          title="有興趣多了解的職位"
+        >
+          <div className="space-y-2">
+            <CategoryMultiSelect
+              categories={wantPositionCategories}
+              value={selectedPositions}
+              onChange={handlePositionsChange}
+              maxSelected={10}
+              searchPlaceholder="搜尋職位"
+            />
+            {positionError && (
+              <p className="text-status-error-default text-sm font-medium">
+                {String(positionError)}
+              </p>
+            )}
+          </div>
+        </Section>
 
         <div
           id="want_skill"
           data-testid="mentee-direction-panel"
-          className="border-background-border bg-background-bottom/40 space-y-5 rounded-xl border p-4 sm:p-5"
+          className="space-y-6"
         >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-text-primary text-sm font-semibold">
-              依方向選擇技能與主題
-            </p>
-          </div>
-
           {selectedPositions.length === 0 ? (
-            <div className="space-y-2">
-              <p className="text-text-tertiary py-3 text-sm">
-                請先在上方選擇至少 1
-                個職位方向，再依方向挑選想加強的技能與主題。
-              </p>
-              {skillError && (
-                <p className="text-status-error-default text-sm font-medium">
-                  {String(skillError)}
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-8">
+              <div className="hidden lg:block lg:w-48 lg:shrink-0" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <p className="text-text-tertiary py-1 text-sm">
+                  請先在上方選擇至少 1
+                  個職位方向，再依方向挑選想加強的技能與主題。
                 </p>
-              )}
-              {topicError && (
-                <p
-                  id="want_topic"
-                  className="text-status-error-default text-sm font-medium"
-                >
-                  {String(topicError)}
-                </p>
-              )}
-            </div>
-          ) : (
-            <>
-              <div
-                role="tablist"
-                aria-label="職位方向"
-                className="flex flex-wrap gap-2 p-0.5"
-              >
-                {selectedPositions.map((posCode) => {
-                  const isSelected = posCode === resolvedActiveDirection;
-                  const label = positionLabelMap.get(posCode) ?? posCode;
-                  return (
-                    <button
-                      key={posCode}
-                      type="button"
-                      role="tab"
-                      aria-selected={isSelected}
-                      onClick={() => setActiveDirectionState(posCode)}
-                      className={cn(
-                        'cursor-pointer rounded-full border px-4 py-1.5 text-sm font-medium transition-colors',
-                        isSelected
-                          ? 'border-brand-700 bg-brand-700 text-background-white'
-                          : 'border-background-border bg-background-white text-text-secondary hover:text-text-primary focus-visible:border-ring',
-                        FOCUS_RING_NO_OFFSET_CLASSES
-                      )}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-text-primary text-sm font-semibold">
-                  想多了解、加強的技能
-                </p>
-                <CategoryMultiSelect
-                  key={`skill-${resolvedActiveDirection}`}
-                  categories={wantSkillCategories}
-                  value={activeSkills}
-                  onChange={handleDirectionSkillsChange}
-                  maxSelected={skillMaxForActive}
-                  searchPlaceholder="搜尋技能"
-                  limitHelperText={(selected) =>
-                    totalUniqueSkills >= 10
-                      ? `此方向已選 ${selected} 項（全方向共 ${totalUniqueSkills} / 10 — 取消其他項目以繼續選擇）`
-                      : `此方向已選 ${selected} 項（全方向共 ${totalUniqueSkills} / 10）`
-                  }
-                />
                 {skillError && (
                   <p className="text-status-error-default text-sm font-medium">
                     {String(skillError)}
                   </p>
                 )}
-              </div>
-
-              <div id="want_topic" className="space-y-2">
-                <p className="text-text-primary text-sm font-semibold">
-                  想多了解的主題
-                </p>
-                <CategoryMultiSelect
-                  key={`topic-${resolvedActiveDirection}`}
-                  categories={wantTopicCategories}
-                  value={activeTopics}
-                  onChange={handleDirectionTopicsChange}
-                  maxSelected={topicMaxForActive}
-                  searchPlaceholder="搜尋主題"
-                  limitHelperText={(selected) =>
-                    totalUniqueTopics >= 10
-                      ? `此方向已選 ${selected} 項（全方向共 ${totalUniqueTopics} / 10 — 取消其他項目以繼續選擇）`
-                      : `此方向已選 ${selected} 項（全方向共 ${totalUniqueTopics} / 10）`
-                  }
-                />
                 {topicError && (
-                  <p className="text-status-error-default text-sm font-medium">
+                  <p
+                    id="want_topic"
+                    className="text-status-error-default text-sm font-medium"
+                  >
                     {String(topicError)}
                   </p>
                 )}
               </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-col lg:flex-row lg:items-start lg:gap-8">
+                <div className="hidden lg:block lg:w-48 lg:shrink-0" />
+                <div
+                  role="tablist"
+                  aria-label="職位方向"
+                  className="border-background-border flex min-w-0 flex-1 flex-wrap items-center gap-6 border-b"
+                >
+                  {selectedPositions.map((posCode) => {
+                    const isSelected = posCode === resolvedActiveDirection;
+                    const label = positionLabelMap.get(posCode) ?? posCode;
+                    const bucket = directionMap[posCode];
+                    const dirCount =
+                      (bucket?.skills.length ?? 0) +
+                      (bucket?.topics.length ?? 0);
+                    return (
+                      <button
+                        key={posCode}
+                        type="button"
+                        role="tab"
+                        aria-label={label}
+                        aria-selected={isSelected}
+                        onClick={() => setActiveDirectionState(posCode)}
+                        className={cn(
+                          '-mb-px inline-flex cursor-pointer items-baseline gap-1.5 border-b-2 px-1 pt-1 pb-2.5 text-sm transition-colors',
+                          isSelected
+                            ? 'border-brand-700 text-brand-700 font-semibold'
+                            : 'text-text-secondary hover:text-text-primary border-transparent font-medium',
+                          FOCUS_RING_NO_OFFSET_CLASSES
+                        )}
+                      >
+                        <span>{label}</span>
+                        <span
+                          aria-hidden="true"
+                          className={cn(
+                            'text-xs tabular-nums',
+                            isSelected ? 'text-brand-700' : 'text-text-tertiary'
+                          )}
+                        >
+                          {dirCount}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-8">
+                <div className="lg:w-48 lg:shrink-0">
+                  <p className="text-text-primary text-sm font-bold">
+                    想加強的技能
+                  </p>
+                </div>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <CategoryMultiSelect
+                    key={`skill-${resolvedActiveDirection}`}
+                    categories={wantSkillCategories}
+                    value={activeSkills}
+                    onChange={handleDirectionSkillsChange}
+                    maxSelected={skillMaxForActive}
+                    searchPlaceholder="搜尋技能"
+                    limitHelperText={(selected) =>
+                      totalUniqueSkills >= 10
+                        ? `此方向已選 ${selected} 項（全方向共 ${totalUniqueSkills} / 10 — 取消其他項目以繼續選擇）`
+                        : `此方向已選 ${selected} 項（全方向共 ${totalUniqueSkills} / 10）`
+                    }
+                  />
+                  {skillError && (
+                    <p className="text-status-error-default text-sm font-medium">
+                      {String(skillError)}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div
+                id="want_topic"
+                className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-8"
+              >
+                <div className="lg:w-48 lg:shrink-0">
+                  <p className="text-text-primary text-sm font-bold">
+                    想了解的主題
+                  </p>
+                </div>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <CategoryMultiSelect
+                    key={`topic-${resolvedActiveDirection}`}
+                    categories={wantTopicCategories}
+                    value={activeTopics}
+                    onChange={handleDirectionTopicsChange}
+                    maxSelected={topicMaxForActive}
+                    searchPlaceholder="搜尋主題"
+                    limitHelperText={(selected) =>
+                      totalUniqueTopics >= 10
+                        ? `此方向已選 ${selected} 項（全方向共 ${totalUniqueTopics} / 10 — 取消其他項目以繼續選擇）`
+                        : `此方向已選 ${selected} 項（全方向共 ${totalUniqueTopics} / 10）`
+                    }
+                  />
+                  {topicError && (
+                    <p className="text-status-error-default text-sm font-medium">
+                      {String(topicError)}
+                    </p>
+                  )}
+                </div>
+              </div>
             </>
           )}
         </div>
-      </Section>
+      </div>
     );
   }
 );
