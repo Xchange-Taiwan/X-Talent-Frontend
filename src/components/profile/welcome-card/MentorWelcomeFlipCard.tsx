@@ -7,7 +7,10 @@ import React, { useState } from 'react';
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import { Badge } from '@/components/ui/badge';
 import type { UserType } from '@/hooks/user/user-data/useUserData';
-import { resolveLocationLabel } from '@/lib/mentor/mentorStats';
+import {
+  resolveLocationLabel,
+  splitExperienceDisplay,
+} from '@/lib/mentor/mentorStats';
 import { FOCUS_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 
@@ -40,12 +43,12 @@ export function MentorWelcomeFlipCard({
     .join(' · ');
 
   const skills = (userData.have_skill ?? []).slice(0, 6);
-  const metaParts = [
-    resolvedLocation,
-    userData.years_of_experience?.trim()
-      ? `${userData.years_of_experience.trim()}經驗`
-      : '',
-  ].filter(Boolean);
+  const expParts = splitExperienceDisplay(userData.years_of_experience);
+  const formattedExp =
+    expParts.primary && expParts.primary !== '—'
+      ? `${expParts.primary}${expParts.unit ? ` ${expParts.unit}` : ''}經驗`
+      : '';
+  const metaParts = [resolvedLocation, formattedExp].filter(Boolean);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter' || e.key === ' ') {

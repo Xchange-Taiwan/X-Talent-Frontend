@@ -7,7 +7,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush }),
 }));
 
-let capturedCardProps: Record<string, unknown> | null = null;
+let capturedCardProps: Record<string, unknown> = {};
 vi.mock('next/dynamic', () => ({
   default: () => (props: Record<string, unknown>) => {
     capturedCardProps = props;
@@ -143,7 +143,7 @@ describe('ProfileCardContainer', () => {
   });
 
   it('wires onSetupSchedule to /profile/:id?open-schedule-dialog=true and onBackToProfile to /profile/:id (#961)', () => {
-    capturedCardProps = null;
+    capturedCardProps = {};
     mockUseUserData.mockReturnValue({
       userData: {
         is_mentor: true,
@@ -160,8 +160,8 @@ describe('ProfileCardContainer', () => {
       />
     );
 
-    const onSetupSchedule = capturedCardProps?.onSetupSchedule as () => void;
-    const onBackToProfile = capturedCardProps?.onBackToProfile as () => void;
+    const onSetupSchedule = capturedCardProps['onSetupSchedule'] as () => void;
+    const onBackToProfile = capturedCardProps['onBackToProfile'] as () => void;
     onSetupSchedule();
     expect(mockPush).toHaveBeenCalledWith(
       '/profile/42?open-schedule-dialog=true'

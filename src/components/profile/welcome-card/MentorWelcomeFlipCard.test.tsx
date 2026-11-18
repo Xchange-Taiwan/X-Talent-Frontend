@@ -23,7 +23,7 @@ describe('MentorWelcomeFlipCard (#961)', () => {
     company: 'CreativeUX',
     about: '樂意陪你梳理作品集與職涯下一步。',
     location: '臺灣',
-    years_of_experience: '5~10 年',
+    years_of_experience: 'FIVE_TO_TEN_YEARS',
     is_mentor: true,
     have_topic: [
       { subject_group: 'portfolio', subject: '作品集檢視' },
@@ -47,7 +47,7 @@ describe('MentorWelcomeFlipCard (#961)', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('作品集檢視 · 職涯規劃')).toBeInTheDocument();
     expect(screen.getByText('UX Research')).toBeInTheDocument();
-    expect(screen.getByText('臺灣 · 5~10 年經驗')).toBeInTheDocument();
+    expect(screen.getByText('臺灣 · 5–10 年經驗')).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('mentor-welcome-flip-card'));
 
