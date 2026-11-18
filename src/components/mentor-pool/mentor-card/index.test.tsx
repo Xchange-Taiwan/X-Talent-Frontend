@@ -435,9 +435,9 @@ describe('MentorCard feature flag overrides & env gates (#913)', () => {
       expect(cardLink).toHaveAttribute('href', '/profile/101');
       expect(cardLink).toHaveAttribute(
         'data-analytics-event',
-        'select_mentor_card'
+        'mentor_card_click'
       );
-      expect(cardLink).toHaveAttribute('data-analytics-id', '101');
+      expect(cardLink).toHaveAttribute('data-analytics-param-mentor-id', '101');
       expect(prefetchSpy).not.toHaveBeenCalled();
       expect(observeSpy).not.toHaveBeenCalled();
     } finally {
