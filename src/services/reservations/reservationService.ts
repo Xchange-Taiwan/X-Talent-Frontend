@@ -1,21 +1,19 @@
-import dayjs from 'dayjs';
-
 import { apiClient, ApiError } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
-  mapReservationFeedbackDto,
-  normalizeFeedbackCounterpartDto,
-  resolveFeedbackPartyIds,
-} from '@/lib/reservation/mapReservationFeedbackDto';
-import { sortPendingFeedbackOldestFirst } from '@/lib/reservation/pendingFeedbackGuard';
-import { resolveCounterpartyProfile } from '@/lib/reservation/resolveCounterparty';
-import { classifyReservationMessages } from '@/lib/reservation/resolveReservationMessages';
+  extractRawPendingFeedbackList,
+  formatDateTime,
+  formatPendingFeedbackDateTime,
+  mapPendingFeedbackCandidate,
+  mapToReservation,
+  type PendingFeedbackCandidate,
+  type ReservationInfoVOWithVersion,
+  sortPendingFeedbackOldestFirst,
+} from '@/lib/reservation/reservationProjection';
 import { components } from '@/types/api';
-import { Reservation, ReservationMessage } from '@/types/reservation';
+import { Reservation } from '@/types/reservation';
 import type {
-  RawPendingFeedbackItem,
   RawPendingFeedbackResponse,
-  RawReservationFeedback,
   SubmitReservationFeedbackRequest,
   UpdateReservationFeedbackRequest,
 } from '@/types/reservationFeedback';
@@ -25,6 +23,16 @@ import {
   refreshMentorScheduleForReservation,
   refreshReservationKey,
 } from './refreshReservationKey';
+
+export {
+  extractRawPendingFeedbackList,
+  formatDateTime,
+  formatPendingFeedbackDateTime,
+  mapPendingFeedbackCandidate,
+  mapToReservation,
+  type PendingFeedbackCandidate,
+  type ReservationInfoVOWithVersion,
+};
 
 export type ReservationState =
   | 'MENTOR_UPCOMING'
@@ -43,125 +51,10 @@ export type FetchOptions = {
   signal?: AbortSignal;
 };
 
-// `version` (optimistic-lock field, X-Talent-Backend PR #44) and `feedback`
-// (post-meeting feedback contract, X-Tracker #730 / #760) are extended locally
-// rather than hand-editing the auto-generated src/types/api.ts.
-type ReservationInfoVOWithVersion =
-  components['schemas']['ReservationInfoVO'] & {
-    version?: number;
-    cancelled_by?: 'MENTEE' | 'MENTOR' | 'SYSTEM' | null;
-    feedback?: RawReservationFeedback | null;
-  };
 type UpdateReservationDTOWithVersion =
   components['schemas']['UpdateReservationDTO'] & {
     version?: number;
   };
-
-/* ================================
- * Helpers
- * ================================ */
-
-export function formatDateTime(dtstart: number, dtend: number) {
-  const start = dayjs.unix(dtstart);
-  const end = dayjs.unix(dtend);
-  return {
-    date: start.format('ddd, MMM DD, YYYY'),
-    time: `${start.format('h:mm a')} – ${end.format('h:mm a')}`,
-  };
-}
-
-export function formatPendingFeedbackDateTime(dtstart: number, dtend: number) {
-  const start = dayjs.unix(dtstart);
-  const safeDtend =
-    typeof dtend === 'number' && Number.isFinite(dtend) && dtend > 0
-      ? dtend
-      : dtstart;
-  const end = dayjs.unix(safeDtend);
-  return {
-    date: start.format('YYYY/MM/DD'),
-    time: `${start.format('HH:mm')}–${end.format('HH:mm')}`,
-  };
-}
-
-/* ================================
- * Mapping
- * ================================ */
-
-// Classify a single API message as MENTEE / MENTOR / unknown.
-// Trust the message's own role first (most authoritative); fall back to mapping
-// the message's user_id back to sender / participant role.
-function classifyMessageRole(
-  message: components['schemas']['ReservationMessageVO'],
-  userIdToRole: Map<string, string | null | undefined>
-): 'MENTEE' | 'MENTOR' | undefined {
-  if (message.role === 'MENTEE' || message.role === 'MENTOR')
-    return message.role;
-  const fallback =
-    message.user_id != null
-      ? userIdToRole.get(String(message.user_id))
-      : undefined;
-  if (fallback === 'MENTEE' || fallback === 'MENTOR') return fallback;
-  return undefined;
-}
-
-export function mapToReservation(
-  reservation: ReservationInfoVOWithVersion,
-  myUserId?: string | number | null
-): Reservation {
-  const { name, avatar, roleLine, cancelledBy, viewerRole } =
-    resolveCounterpartyProfile(reservation, myUserId);
-  const { date, time } = formatDateTime(reservation.dtstart, reservation.dtend);
-  const feedback = mapReservationFeedbackDto(reservation.feedback);
-
-  // Preserve the full conversation in API order so the detail view can render
-  // the entire thread, while also tracking the latest message per side for the
-  // card preview (which still wants both the mentee's question and the
-  // mentor's reply / cancellation reason at a glance).
-  const userIdToRole = new Map<string, string | null | undefined>([
-    [String(reservation.sender?.user_id ?? ''), reservation.sender?.role],
-    [
-      String(reservation.participant?.user_id ?? ''),
-      reservation.participant?.role,
-    ],
-  ]);
-
-  const rawMessages: ReservationMessage[] = [];
-  for (const message of reservation.messages ?? []) {
-    if (typeof message.content !== 'string') continue;
-    const trimmed = message.content.trim();
-    if (trimmed.length === 0) continue;
-    const role = classifyMessageRole(message, userIdToRole);
-    const item: ReservationMessage = role
-      ? { content: trimmed, role }
-      : { content: trimmed };
-    rawMessages.push(item);
-  }
-
-  const { messages, menteeMessage, mentorMessage, cancelReasonMessage } =
-    classifyReservationMessages(rawMessages, cancelledBy);
-
-  return {
-    id: String(reservation.id ?? ''),
-    name,
-    roleLine,
-    date,
-    time,
-    avatar,
-    messages,
-    menteeMessage,
-    mentorMessage,
-    ...(cancelReasonMessage ? { cancelReasonMessage } : {}),
-    scheduleId: reservation.schedule_id,
-    dtstart: reservation.dtstart,
-    dtend: reservation.dtend,
-    senderUserId: reservation.sender?.user_id ?? 0,
-    participantUserId: reservation.participant?.user_id ?? 0,
-    cancelledBy,
-    viewerRole,
-    version: reservation.version ?? 0,
-    ...(feedback ? { feedback } : {}),
-  };
-}
 
 /* ================================
  * Queries
@@ -368,147 +261,6 @@ export async function fetchReservationMeetLink(opts: {
 /* ================================
  * GET: Pending meeting feedback queue (#740)
  * ================================ */
-
-type PendingFeedbackCandidate =
-  ReservationInfoVOWithVersion | RawPendingFeedbackItem;
-
-function isFullReservationInfoVO(
-  item: PendingFeedbackCandidate
-): item is ReservationInfoVOWithVersion {
-  return 'sender' in item || 'participant' in item;
-}
-
-function extractRawPendingFeedbackList(
-  data:
-    | RawPendingFeedbackResponse
-    | ReservationInfoVOWithVersion[]
-    | null
-    | undefined
-): PendingFeedbackCandidate[] {
-  if (!data) {
-    return [];
-  }
-  if (Array.isArray(data)) {
-    return data;
-  }
-  if (typeof data === 'object') {
-    if (Array.isArray(data.reservations)) {
-      return data.reservations;
-    }
-    if (Array.isArray(data.items)) {
-      return data.items;
-    }
-  }
-  return [];
-}
-
-function mapPendingFeedbackCandidate(
-  candidate: PendingFeedbackCandidate,
-  userId: string | number,
-  fallbackViewerRole?: 'MENTEE' | 'MENTOR'
-): Reservation | null {
-  if (!candidate || typeof candidate !== 'object') {
-    return null;
-  }
-
-  if (isFullReservationInfoVO(candidate)) {
-    const mapped = mapToReservation(candidate, userId);
-    if (!mapped.id || mapped.cancelledBy) {
-      return null;
-    }
-    if (
-      candidate.feedback &&
-      candidate.feedback.next_step === null &&
-      candidate.feedback.meeting_happened !== null
-    ) {
-      return null;
-    }
-    const formattedDateTime =
-      mapped.dtstart > 0
-        ? formatPendingFeedbackDateTime(mapped.dtstart, mapped.dtend)
-        : undefined;
-    const normalizedAvatar =
-      typeof mapped.avatar === 'string' && mapped.avatar.trim().length > 0
-        ? mapped.avatar.trim()
-        : undefined;
-    return {
-      ...mapped,
-      avatar: normalizedAvatar,
-      ...(formattedDateTime ?? {}),
-      viewerRole: mapped.viewerRole ?? fallbackViewerRole,
-      feedback: mapped.feedback ?? {
-        meetingHappened: null,
-        rating: null,
-        nextStep: 'ANSWER',
-      },
-    };
-  }
-
-  if (candidate.cancelled_by) {
-    return null;
-  }
-  if (
-    candidate.feedback &&
-    candidate.feedback.next_step === null &&
-    candidate.feedback.meeting_happened !== null
-  ) {
-    return null;
-  }
-
-  const rawId = candidate.id ?? candidate.reservation_id;
-  if (rawId === undefined || rawId === null || String(rawId).trim() === '') {
-    return null;
-  }
-
-  const dtstart =
-    typeof candidate.dtstart === 'number' && Number.isFinite(candidate.dtstart)
-      ? candidate.dtstart
-      : 0;
-  const dtend =
-    typeof candidate.dtend === 'number' && Number.isFinite(candidate.dtend)
-      ? candidate.dtend
-      : dtstart;
-  const { date, time } =
-    dtstart > 0
-      ? formatPendingFeedbackDateTime(dtstart, dtend)
-      : formatDateTime(dtstart, dtend);
-
-  const rawRole = candidate.viewer_role ?? candidate.role ?? fallbackViewerRole;
-  const viewerRole: 'MENTEE' | 'MENTOR' | undefined =
-    rawRole === 'MENTOR' || rawRole === 'MENTEE' ? rawRole : undefined;
-
-  const { name, avatar, roleLine, counterpartyUserId } =
-    normalizeFeedbackCounterpartDto(candidate);
-  const { senderUserId, participantUserId } = resolveFeedbackPartyIds(
-    userId,
-    counterpartyUserId,
-    viewerRole
-  );
-
-  const mappedFeedback = mapReservationFeedbackDto(candidate.feedback);
-
-  return {
-    id: String(rawId),
-    name,
-    roleLine,
-    date,
-    time,
-    avatar,
-    messages: [],
-    scheduleId: candidate.schedule_id ?? 0,
-    dtstart,
-    dtend,
-    senderUserId,
-    participantUserId,
-    viewerRole,
-    version: candidate.version ?? 0,
-    feedback: mappedFeedback ?? {
-      meetingHappened: null,
-      rating: null,
-      nextStep: 'ANSWER',
-    },
-  };
-}
 
 export async function fetchPendingFeedbackReservations(opts: {
   userId: string | number;

@@ -7,8 +7,11 @@ import { ReservationMessagePreview } from '@/components/reservation/ReservationM
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { useReservationMeetLink } from '@/hooks/user/reservation/useReservationMeetLink';
-import { resolveSystemAutoCancelNotice } from '@/lib/reservation/reservationLifecyclePolicy';
-import { resolveReservationViewer } from '@/lib/reservation/reservationViewerModel';
+import {
+  resolveCancelledByLabel,
+  resolveSystemAutoCancelNotice,
+} from '@/lib/reservation/reservationLifecyclePolicy';
+import { resolveReservationViewer } from '@/lib/reservation/reservationProjection';
 import type { Reservation } from '@/types/reservation';
 
 export type ReservationCardVariant = 'upcoming' | 'pending' | 'history';
@@ -66,10 +69,17 @@ export function ReservationCard({
   ) : null;
 
   if (isHistory) {
-    const { cancelledByLabel } = resolveReservationViewer({
-      reservation: item,
-      myUserId,
-    });
+    const expectedCancelledByLabel = resolveCancelledByLabel(item.cancelledBy);
+    const cancelledByLabel = headerAction
+      ? undefined
+      : !item.cancelledBy
+        ? undefined
+        : item.cancelledByLabel === expectedCancelledByLabel
+          ? item.cancelledByLabel
+          : resolveReservationViewer({
+              reservation: item,
+              myUserId,
+            }).cancelledByLabel;
     const resolvedHistoryHeaderAction =
       headerAction ??
       (cancelledByLabel ? (

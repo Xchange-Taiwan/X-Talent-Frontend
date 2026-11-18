@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 
+import { buildReservationFixture } from '@/lib/reservation/reservationProjection';
 import type { Reservation } from '@/types/reservation';
 
 import { mockReservation } from './mocks';
@@ -159,6 +160,27 @@ export const CancelledWithReason: Story = {
         isCancelReason: true,
       },
     },
+    sourceRole: 'mentee',
+  },
+};
+
+// 7. Pre-Projected Cancelled Thread (#932: derived once via buildReservationFixture)
+export const PreProjectedCancelledWithReason: Story = {
+  args: {
+    reservation: buildReservationFixture({
+      ...mockReservation,
+      id: 'res-dialog-projected-932',
+      cancelledBy: 'MENTEE',
+      viewerRole: 'MENTEE',
+      myUserId: 'user-mentee-111',
+      messages: [
+        ...mockReservation.messages,
+        {
+          content: '抱歉導師，當日臨時有產品上線緊急會議，需先取消本次預約。',
+          role: 'MENTEE',
+        },
+      ],
+    }),
     sourceRole: 'mentee',
   },
 };
