@@ -11,7 +11,7 @@ const { mockNotFound, mockProfileContainer } = vi.hoisted(() => ({
   mockNotFound: vi.fn(() => {
     throw new Error('NEXT_NOT_FOUND');
   }),
-  mockProfileContainer: vi.fn(() => null),
+  mockProfileContainer: vi.fn((_props: unknown) => null),
 }));
 
 vi.mock('next/navigation', () => ({
