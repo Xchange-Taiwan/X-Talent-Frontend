@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import React from 'react';
 
+import { defaultSliderAvatars, sliderList } from './data';
 import { HomePageSlider } from './HomePageSlider';
 
 const meta: Meta<typeof HomePageSlider> = {
@@ -16,6 +17,19 @@ export const Default: Story = {
   render: () => (
     <div className="bg-background-bottom-secondary w-full max-w-[1200px] rounded-xl p-4">
       <HomePageSlider />
+    </div>
+  ),
+};
+
+export const DedicatedIllustrationsPreview: Story = {
+  render: () => (
+    <div className="bg-background-bottom-secondary w-full max-w-[1200px] rounded-xl p-4">
+      <HomePageSlider
+        items={sliderList.map((slide, index) => ({
+          ...slide,
+          avatar: defaultSliderAvatars[index],
+        }))}
+      />
     </div>
   ),
 };
