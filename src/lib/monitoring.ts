@@ -433,7 +433,12 @@ export function sanitize(text: string | undefined): string | undefined {
 // ─── Unload & Duplicate-Issue Suppression State ──────────────────────────────
 
 const API_FLOW_DEDUP_WINDOW_MS = 250;
-const recentErrorApiFailures = new Map<string, number>();
+interface RecentApiErrorRecord {
+  ts: number;
+  status: number;
+}
+const recentErrorApiFailures = new Map<string, RecentApiErrorRecord>();
+const reportedErrorCauses = new WeakSet<object>();
 let isBrowserUnloading = false;
 let unloadListenersAttached = false;
 
@@ -453,29 +458,47 @@ function ensureUnloadListenersAttached(): void {
   });
 }
 
-function makeDedupSignature(route: string, message: string): string {
-  return `${route}::${message.replace(/^ApiError:\s*/i, '').trim()}`;
-}
-
-function recordRecentApiError(route: string, message: string): void {
+function recordRecentApiError(
+  route: string,
+  status: number,
+  cause?: unknown
+): void {
+  if (typeof cause === 'object' && cause !== null) {
+    reportedErrorCauses.add(cause);
+  }
   const now = Date.now();
-  recentErrorApiFailures.forEach((ts, key) => {
-    if (now - ts > API_FLOW_DEDUP_WINDOW_MS) {
+  recentErrorApiFailures.forEach((entry, key) => {
+    if (now - entry.ts > API_FLOW_DEDUP_WINDOW_MS) {
       recentErrorApiFailures.delete(key);
     }
   });
-  recentErrorApiFailures.set(makeDedupSignature(route, message), now);
+  recentErrorApiFailures.set(route, { ts: now, status });
 }
 
-function hasRecentApiError(route: string, message: string): boolean {
-  const key = makeDedupSignature(route, message);
-  const ts = recentErrorApiFailures.get(key);
-  if (ts === undefined) return false;
-  if (Date.now() - ts > API_FLOW_DEDUP_WINDOW_MS) {
-    recentErrorApiFailures.delete(key);
+function shouldSuppressDuplicateFlowError(
+  route: string,
+  errorCode?: string | number,
+  cause?: unknown
+): boolean {
+  if (
+    typeof cause === 'object' &&
+    cause !== null &&
+    reportedErrorCauses.has(cause)
+  ) {
+    recentErrorApiFailures.delete(route);
+    return true;
+  }
+
+  const entry = recentErrorApiFailures.get(route);
+  if (!entry) return false;
+  if (Date.now() - entry.ts > API_FLOW_DEDUP_WINDOW_MS) {
+    recentErrorApiFailures.delete(route);
     return false;
   }
-  recentErrorApiFailures.delete(key);
+  if (errorCode !== undefined && Number(errorCode) !== entry.status) {
+    return false;
+  }
+  recentErrorApiFailures.delete(route);
   return true;
 }
 
@@ -604,7 +627,7 @@ export async function captureFlowFailure(
     FlowFailureEvent,
     'name' | 'timestamp' | 'environment' | 'route'
   > &
-    Partial<Pick<FlowFailureEvent, 'route'>>
+    Partial<Pick<FlowFailureEvent, 'route'>> & { cause?: unknown }
 ): Promise<void> {
   if (process.env.NODE_ENV !== 'production') return;
 
@@ -624,7 +647,11 @@ export async function captureFlowFailure(
 
   if (
     fullEvent.level === 'error' &&
-    hasRecentApiError(fullEvent.route, fullEvent.message)
+    shouldSuppressDuplicateFlowError(
+      fullEvent.route,
+      fullEvent.errorCode,
+      event.cause
+    )
   ) {
     return;
   }
@@ -660,7 +687,7 @@ export async function captureFlowFailure(
  */
 export async function captureApiFailure(
   event: Omit<ApiFailureEvent, 'name' | 'timestamp' | 'environment' | 'route'> &
-    Partial<Pick<ApiFailureEvent, 'route'>>
+    Partial<Pick<ApiFailureEvent, 'route'>> & { cause?: unknown }
 ): Promise<void> {
   if (process.env.NODE_ENV !== 'production') return;
   ensureUnloadListenersAttached();
@@ -687,7 +714,7 @@ export async function captureApiFailure(
     fullEvent.status >= 500 || fullEvent.status === 0 ? 'error' : 'info';
 
   if (severity === 'error') {
-    recordRecentApiError(fullEvent.route, fullEvent.message);
+    recordRecentApiError(fullEvent.route, fullEvent.status, event.cause);
   }
 
   const normalizedEndpoint = (fullEvent.endpoint || '')

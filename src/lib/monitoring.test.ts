@@ -811,7 +811,7 @@ describe('captureFlowFailure', () => {
       expect.objectContaining({ level: 'error' })
     );
 
-    // Back-to-back 500 api.failure + flow.profile_update.failure emits only one error issue
+    // Back-to-back 500 api.failure + flow.profile_update.failure emits only one error issue even when flow message is localized
     mockCaptureEvent.mockClear();
     await captureApiFailure({
       endpoint: '/v1/mentors/123/profile',
@@ -823,16 +823,17 @@ describe('captureFlowFailure', () => {
     await captureFlowFailure({
       flow: 'profile_update',
       step: 'profile_write',
-      message: 'Internal Server Error',
+      message: '更新個人資料時發生問題',
       route: '/profile/123/edit',
     });
     expect(mockCaptureEvent).toHaveBeenCalledTimes(1);
 
-    // Different route or message is NOT swallowed by deduplication
+    // Subsequent independent failure or contradicting errorCode is NOT swallowed
     await captureFlowFailure({
       flow: 'profile_update',
       step: 'avatar_upload',
       message: 'Different failure reason',
+      errorCode: 'AVATAR_VALIDATION_FAILED',
       route: '/profile/123/edit',
     });
     expect(mockCaptureEvent).toHaveBeenCalledTimes(2);
