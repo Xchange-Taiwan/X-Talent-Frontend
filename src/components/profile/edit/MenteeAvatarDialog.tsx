@@ -179,6 +179,8 @@ export function MenteeAvatarDialog({
                     width={112}
                     height={112}
                     sizes="112px"
+                    loading="eager"
+                    unoptimized={typeof previewSrc === 'string'}
                     className="size-full object-cover"
                   />
                   <span className="bg-dark/35 text-background-white group-hover:bg-dark/50 group-focus-visible:bg-dark/50 absolute inset-0 grid place-items-center transition-colors duration-150">
@@ -225,6 +227,8 @@ export function MenteeAvatarDialog({
                       width={48}
                       height={48}
                       sizes="48px"
+                      loading="eager"
+                      unoptimized
                       className="size-full rounded-full object-cover"
                     />
                   </button>

@@ -98,6 +98,8 @@ export const AvatarSection = <T extends FieldValues>({
               alt={userName ? `${userName} 的個人頭像` : '個人頭像'}
               fill
               sizes="96px"
+              loading="eager"
+              unoptimized
               className="object-cover"
             />
             <span className="bg-dark/35 text-background-white group-hover:bg-dark/50 absolute inset-0 grid place-items-center opacity-0 transition-opacity group-hover:opacity-100">

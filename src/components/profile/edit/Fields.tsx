@@ -47,6 +47,7 @@ export interface TextFieldProps<
   placeholder?: string;
   /** HTML input type (e.g. "text", "email") */
   type?: React.HTMLInputTypeAttribute;
+  className?: string;
 }
 
 /**
@@ -57,6 +58,7 @@ export const TextField = <TFieldValues extends FieldValues>({
   name,
   placeholder,
   type = 'text',
+  className,
 }: TextFieldProps<TFieldValues>) => (
   <FormField
     control={control}
@@ -70,6 +72,10 @@ export const TextField = <TFieldValues extends FieldValues>({
             value={typeof field.value === 'string' ? field.value : ''}
             placeholder={placeholder}
             type={type}
+            className={cn(
+              'focus-visible:border-transparent focus-visible:ring-offset-0',
+              className
+            )}
           />
         </FormControl>
         <FormMessage />
@@ -93,6 +99,7 @@ export const TextareaField = <TFieldValues extends FieldValues>({
   name,
   rows = 6,
   placeholder,
+  className,
 }: TextareaFieldProps<TFieldValues>) => (
   <FormField
     control={control}
@@ -106,6 +113,10 @@ export const TextareaField = <TFieldValues extends FieldValues>({
             value={typeof field.value === 'string' ? field.value : ''}
             placeholder={placeholder}
             rows={rows}
+            className={cn(
+              'focus-visible:border-transparent focus-visible:ring-offset-0',
+              className
+            )}
           />
         </FormControl>
         <FormMessage />
