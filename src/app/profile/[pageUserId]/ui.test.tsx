@@ -350,10 +350,70 @@ describe('ProfilePageUI - mentee B-1 v2 display sections and mentor gating (#598
       within(watchedCard).getAllByText('1 項技能 · 1 個主題')
     ).toHaveLength(2);
 
-    // Switch direction via tab
-    await user.click(screen.getByRole('tab', { name: /前端工程/ }));
+    // Switch direction via right-column watched positions card button (#960)
+    const feWatchBtn = within(watchedCard).getByRole('button', {
+      name: /前端工程/,
+    });
+    await user.click(feWatchBtn);
+    expect(feWatchBtn).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('React')).toBeInTheDocument();
     expect(screen.getByText('職涯規劃')).toBeInTheDocument();
+  });
+
+  it('preserves legacy skills/topics when want_position is empty, shows empty-direction message, and resets stored map across user_id changes (#960)', async () => {
+    const user = userEvent.setup();
+
+    // 1. Legacy Mentee: want_position=[] with non-empty want_skill / want_topic
+    const { rerender } = render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            user_id: 301,
+            is_mentor: false,
+            want_position: [],
+            want_skill: [{ subject_group: 'figma', subject: 'Figma' }],
+            want_topic: [{ subject_group: 'resume', subject: '履歷健檢' }],
+          }),
+        })}
+      />
+    );
+
+    expect(
+      screen.queryByTestId('mentee-profile-empty-state')
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+    expect(screen.getByText('Figma')).toBeInTheDocument();
+    expect(screen.getByText('履歷健檢')).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('mentee-watched-positions-card')).getByText(
+        '尚未選擇職位'
+      )
+    ).toBeInTheDocument();
+
+    // 2. Mentee with two positions where second direction has 0 skills/topics
+    rerender(
+      <ProfilePageUI
+        {...baseProps({
+          storedDirectionMap: {
+            uiux: { skills: ['figma'], topics: [] },
+            pm: { skills: [], topics: [] },
+          },
+          userData: buildUserData({
+            user_id: 302,
+            is_mentor: false,
+            want_position: [
+              { subject_group: 'uiux', subject: '產品設計' },
+              { subject_group: 'pm', subject: '產品經理' },
+            ],
+            want_skill: [{ subject_group: 'figma', subject: 'Figma' }],
+            want_topic: [],
+          }),
+        })}
+      />
+    );
+
+    await user.click(screen.getByRole('tab', { name: /產品經理/ }));
+    expect(screen.getByText('尚未設定此方向的技能與主題')).toBeInTheDocument();
   });
 
   it('displays empty-state cards when Mentee optional profile fields are all empty (#960)', () => {

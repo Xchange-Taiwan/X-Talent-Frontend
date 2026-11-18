@@ -177,7 +177,9 @@ export function resolveMenteeIndustryHashtag(
 ): string | null {
   if (!userData) return null;
   const rawIndustry =
-    userData.industry?.trim() || userData.industries?.[0]?.subject?.trim() || '';
+    userData.industry?.trim() ||
+    userData.industries?.[0]?.subject?.trim() ||
+    '';
   const normalized = rawIndustry.replace(/^#+/, '').trim();
   return normalized ? `#${normalized}` : null;
 }
@@ -194,8 +196,8 @@ export function isMenteeProfileEmpty(
   const hasLocation = Boolean(resolvedLocation?.trim());
   const hasPreferences = Boolean(
     userData.want_position?.length ||
-      userData.want_skill?.length ||
-      userData.want_topic?.length
+    userData.want_skill?.length ||
+    userData.want_topic?.length
   );
   const hasWork = Boolean(userData.workExperiences?.length);
   const hasEducation = Boolean(userData.educations?.length);

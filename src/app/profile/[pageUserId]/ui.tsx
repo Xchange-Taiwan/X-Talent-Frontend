@@ -278,9 +278,8 @@ export default function ProfilePageUI({
     return resolveMenteeIndustryHashtag(userData);
   }, [userData]);
 
-  const [storedMenteeMap, setStoredMenteeMap] = useState<
-    ReturnType<typeof readStoredMenteeDirectionViewMap>
-  >(null);
+  const [storedMenteeMap, setStoredMenteeMap] =
+    useState<ReturnType<typeof readStoredMenteeDirectionViewMap>>(null);
 
   useEffect(() => {
     if (storedDirectionMap !== undefined) {
