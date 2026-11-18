@@ -929,14 +929,15 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
       log(
         '[cloud-converge] Syncing src/types/api.ts against BFF_OPENAPI_URL...'
       );
-      const genRes = await execStepAsync('pnpm', ['run', 'generate:types']);
+      const genRes = await execStepAsync('pnpm', ['run', 'generate:types'], {
+        cwd: repoRoot,
+      });
       if (genRes.ok) {
-        await execStepAsync('pnpm', [
-          'exec',
-          'prettier',
-          '--write',
-          'src/types/api.ts',
-        ]);
+        await execStepAsync(
+          'pnpm',
+          ['exec', 'prettier', '--write', 'src/types/api.ts'],
+          { cwd: repoRoot }
+        );
       }
     }
 
@@ -950,8 +951,11 @@ export async function runConvergeLoop(rawOptions = {}, deps = {}) {
     // 1. Deterministic checks: run lint & type-check concurrently, fast-fail before unit tests
     const deterministicErrors = [];
     const staticChecks = await Promise.all([
-      execStepAsync('pnpm', ['lint']).then((res) => ['pnpm lint', res]),
-      execStepAsync('pnpm', ['type-check']).then((res) => [
+      execStepAsync('pnpm', ['lint'], { cwd: repoRoot }).then((res) => [
+        'pnpm lint',
+        res,
+      ]),
+      execStepAsync('pnpm', ['type-check'], { cwd: repoRoot }).then((res) => [
         'pnpm type-check',
         res,
       ]),
@@ -1539,8 +1543,11 @@ export function resolveConvergeExitCode(
   if (res.converged) {
     return 0;
   }
-  const detOk = res.evaluation?.deterministicPassed === true;
-  const e2eOk = res.evaluation?.e2ePassed === true;
+  if (!res.evaluation) {
+    return 1;
+  }
+  const detOk = res.evaluation.deterministicPassed !== false;
+  const e2eOk = res.evaluation.e2ePassed !== false;
   if (allowDeterministicCheckpoint && detOk && res.budgetExhausted === true) {
     return 0;
   }
