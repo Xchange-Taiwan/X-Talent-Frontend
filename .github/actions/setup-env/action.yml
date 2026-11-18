@@ -7,9 +7,9 @@ inputs:
     required: false
     default: '24'
   pnpm-version:
-    description: 'PNPM version to set up'
+    description: 'Optional PNPM version override (defaults to packageManager in package.json)'
     required: false
-    default: '9'
+    default: ''
   install-deps:
     description: 'Whether to run pnpm install'
     required: false
@@ -22,13 +22,18 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Set up PNPM
-      uses: pnpm/action-setup@v2
+    - name: Set up PNPM (from packageManager field)
+      if: ${{ inputs.pnpm-version == '' }}
+      uses: pnpm/action-setup@v6
+
+    - name: Set up PNPM (explicit version override)
+      if: ${{ inputs.pnpm-version != '' }}
+      uses: pnpm/action-setup@v6
       with:
         version: ${{ inputs.pnpm-version }}
 
     - name: Set up Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v7
       with:
         node-version: ${{ inputs.node-version }}
         cache: pnpm
@@ -36,9 +41,9 @@ runs:
     - name: Install dependencies (frozen-lockfile)
       if: ${{ inputs.install-deps == 'true' && inputs.frozen-lockfile == 'true' }}
       shell: bash
-      run: pnpm install --frozen-lockfile
+      run: pnpm install --frozen-lockfile --prefer-offline
 
     - name: Install dependencies (no-frozen-lockfile)
       if: ${{ inputs.install-deps == 'true' && inputs.frozen-lockfile != 'true' }}
       shell: bash
-      run: pnpm install --no-frozen-lockfile
+      run: pnpm install --no-frozen-lockfile --prefer-offline

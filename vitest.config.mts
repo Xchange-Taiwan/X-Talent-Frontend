@@ -1,85 +1,158 @@
-import react from '@vitejs/plugin-react';
+import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+
+const rootDir = import.meta.dirname;
+const sharedAlias = {
+  '@': path.resolve(rootDir, './src'),
+};
+const sharedEnv = {
+  TZ: 'UTC',
+  // Pinned so URL-building tests get a deterministic relative-path
+  // BASE_URL regardless of what's leaked into process.env by whatever
+  // invoked vitest (e.g. a process that loaded .env.development.local).
+  NEXT_PUBLIC_API_URL: '',
+};
+
+// Pure-TypeScript tests under src/lib and src/services that intentionally
+// exercise browser globals (window, document, localStorage, StorageEvent).
+const DOM_DEPENDENT_LIB_TESTS = [
+  'src/lib/analytics.test.ts',
+  'src/lib/analyticsClarity919.test.ts',
+  'src/lib/apiClient.test.ts',
+  'src/lib/storage.test.ts',
+  'src/lib/auth/authFlowStorage.test.ts',
+  'src/lib/auth/sessionHint.test.ts',
+  'src/lib/auth/sessionLifecycle.test.ts',
+  'src/lib/cache/userProfileDtoCache.test.ts',
+  'src/lib/favorites/pendingFavoriteStorage.test.ts',
+  'src/lib/profile/saveProfile.test.ts',
+  'src/lib/profile/searchSchools.test.ts',
+  'src/lib/reservation/pendingFeedbackGuard.test.ts',
+  'src/lib/url/isSafeUrl.test.ts',
+  'src/services/auth/authClient.test.ts',
+  'src/services/favorites/favoriteMentors.contract.test.ts',
+  'src/services/reservations/reservationMutations.test.ts',
+];
+
+const DOM_DEPENDENT_LIB_SET = new Set(DOM_DEPENDENT_LIB_TESTS);
+const PURE_NODE_SRC_ROOTS = [
+  'actions',
+  'constant',
+  'constants',
+  'data',
+  'design',
+  'lib',
+  'schemas',
+  'services',
+  'utils',
+];
+
+export function collectPureNodeSrcTests(baseDir = rootDir): string[] {
+  const results: string[] = [];
+  const srcRoot = path.join(baseDir, 'src');
+  if (!fs.existsSync(srcRoot)) return results;
+
+  for (const entry of fs.readdirSync(srcRoot, { withFileTypes: true })) {
+    if (entry.isFile() && /\.(?:test|spec)\.ts$/.test(entry.name)) {
+      const rel = `src/${entry.name}`;
+      if (!DOM_DEPENDENT_LIB_SET.has(rel)) results.push(rel);
+    }
+  }
+
+  for (const sub of PURE_NODE_SRC_ROOTS) {
+    const dirAbs = path.join(srcRoot, sub);
+    if (!fs.existsSync(dirAbs)) continue;
+    for (const relSub of fs.readdirSync(dirAbs, { recursive: true })) {
+      const normalized = `src/${sub}/${String(relSub).replace(/\\/g, '/')}`;
+      if (
+        /\.(?:test|spec)\.ts$/.test(normalized) &&
+        !DOM_DEPENDENT_LIB_SET.has(normalized)
+      ) {
+        results.push(normalized);
+      }
+    }
+  }
+
+  return results.sort();
+}
+
+const pureNodeSrcTests = collectPureNodeSrcTests();
 
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: {
-      '@': path.resolve(import.meta.dirname, './src'),
-    },
+    alias: sharedAlias,
   },
   test: {
-    environment: 'jsdom',
     globals: true,
-    env: {
-      TZ: 'UTC',
-      // Pinned so URL-building tests get a deterministic relative-path
-      // BASE_URL regardless of what's leaked into process.env by whatever
-      // invoked vitest (e.g. a process that loaded .env.development.local).
-      NEXT_PUBLIC_API_URL: '',
-    },
-    setupFiles: ['./src/test/setup.ts'],
-    // Allow Cloud AI VMs (4-vCPU ubuntu-latest) to opt into parallel workers via
-    // VITEST_MAX_WORKERS while defaulting standard CI to 2 workers instead of 1-core serial.
+    env: sharedEnv,
+    // Use all available CPU cores on 4-vCPU GitHub Actions public runners unless
+    // explicitly overridden via VITEST_MAX_WORKERS.
     maxWorkers: process.env.VITEST_MAX_WORKERS
       ? Number(process.env.VITEST_MAX_WORKERS)
       : process.env.CI
-        ? 2
+        ? Math.max(2, os.availableParallelism())
         : undefined,
-    server: {
-      deps: {
-        inline: [/@storybook\/nextjs/],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'unit-node',
+          environment: 'node',
+          include: ['scripts/**/*.{test,spec}.mjs', ...pureNodeSrcTests],
+          exclude: ['node_modules/**'],
+        },
       },
-    },
-    include: [
-      'src/**/*.{test,spec}.{ts,tsx}',
-      'scripts/**/*.{test,spec}.mjs',
-      '.storybook/**/*.{test,spec}.{ts,tsx}',
+      {
+        extends: true,
+        test: {
+          name: 'ui-dom',
+          environment: 'jsdom',
+          setupFiles: ['./src/test/setup.ts'],
+          server: {
+            deps: {
+              inline: [/@storybook\/nextjs/],
+            },
+          },
+          // Catch-all across src/** and .storybook/** excluding the exact
+          // pureNodeSrcTests set so new directories are never silently dropped.
+          include: [
+            'src/**/*.{test,spec}.{ts,tsx,mjs}',
+            '.storybook/**/*.{test,spec}.{ts,tsx}',
+          ],
+          exclude: ['node_modules/**', ...pureNodeSrcTests],
+        },
+      },
     ],
     typecheck: {
       tsconfig: './tsconfig.test.json',
     },
     coverage: {
       provider: 'v8',
-      // `html` (and istanbul's `lcov`, which internally composes lcovonly +
-      // html - see istanbul-reports/lib/lcov) are the most expensive
-      // reporters to generate, rendering a per-file interactive page, and
-      // nothing in CI consumes that output - skip both there so the coverage
-      // floor gate doesn't add avoidable overhead. Locally, keep the full
-      // set since `pnpm test:coverage` is how you browse uncovered lines.
       reporter: process.env.CI
         ? ['text', 'json', 'lcovonly']
         : ['text', 'html', 'json', 'lcov'],
       include: ['src/**/*.{ts,tsx}'],
       exclude: [
         'src/**/*.d.ts',
+        'src/types/**',
         'src/**/*.{test,spec}.{ts,tsx}',
         'src/**/*.stories.{ts,tsx}',
         'src/test/**',
         'src/mocks/**',
         'src/**/__mocks__/**',
       ],
-      // Coverage floor gate (see CONTRIBUTING.md "Coverage floor policy").
-      //
-      // Baseline: measured 2026-09-18 on `develop` after #722-#725 landed, via
-      // `pnpm test:coverage`:
-      //   statements 87.01%, branches 80.39%, functions 81.21%, lines 88.16%
-      //
-      // Each floor below is set a couple of points under that measured number
-      // so normal run-to-run noise doesn't cause spurious CI failures, while
-      // still catching a real regression. This floor only ratchets up as
-      // coverage improves; lowering any number here requires a stated reason
-      // (see CONTRIBUTING.md).
+      // Ratcheted 2026-11-17 against ~91.6% statements / ~85.7% branches /
+      // ~89.6% functions / ~92.9% lines baseline (~2-3% noise buffer).
       thresholds: {
-        // Explicit: this is one global floor for the whole repo, not a
-        // per-file requirement (Vitest defaults to global when omitted, but
-        // that default is easy to invert by mistake - see CONTRIBUTING.md).
         perFile: false,
-        statements: 86,
-        branches: 79,
-        functions: 80,
-        lines: 87,
+        statements: 89,
+        branches: 83,
+        functions: 87,
+        lines: 90,
       },
     },
   },

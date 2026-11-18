@@ -71,7 +71,7 @@ jobs:
         id: depcheck
         run: |
           output=$(npx depcheck \
-            --ignores="@types/*,eslint-*,prettier-*,postcss,tailwindcss,@tailwindcss/postcss,husky,lint-staged,tailwindcss-animate,sharp,@playwright/test,@testing-library/user-event,openapi-typescript,@google/gemini-cli,@storybook/addon-a11y,@storybook/addon-docs,@storybook/addon-onboarding,storybook,cross-env,lavish-axi,vite" \
+            --ignores="@types/*,eslint-*,prettier-*,postcss,tailwindcss,@tailwindcss/postcss,husky,lint-staged,tailwindcss-animate,sharp,@playwright/test,@testing-library/user-event,openapi-typescript,@google/gemini-cli,@storybook/addon-a11y,@storybook/addon-docs,@storybook/addon-onboarding,storybook,cross-env,lavish-axi,vite,jsdom" \
             2>&1) || true
           printf '%s\n' "$output"
           if printf '%s\n' "$output" | grep -qE "^Unused (dependencies|devDependencies)"; then

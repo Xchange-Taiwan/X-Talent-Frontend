@@ -142,28 +142,12 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
 
-      - name: Cache Playwright browsers (Suggestion 6)
-        id: playwright-cache
-        uses: actions/cache@v4
+      - name: Set up cached Playwright Chromium and Noto CJK fonts
+        uses: ./.github/actions/setup-playwright
         with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            playwright-${{ runner.os }}-
-
-      - name: Install Playwright Chromium
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm playwright install chromium
-
-      - name: Install Noto CJK fonts for crisp Traditional Chinese rendering
-        continue-on-error: true
-        run: |
-          mkdir -p ~/.local/share/fonts
-          curl -fsSL --retry 3 "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf" -o ~/.local/share/fonts/NotoSansTC.ttf || true
-          curl -fsSL --retry 3 "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/TraditionalChinese/NotoSansCJKtc-Regular.otf" -o ~/.local/share/fonts/NotoSansCJKtc-Regular.otf || true
-          fc-cache -f ~/.local/share/fonts || true
+          with-deps: 'false'
 
       - name: Configure Git and local environment for UI evidence and E2E
         env:

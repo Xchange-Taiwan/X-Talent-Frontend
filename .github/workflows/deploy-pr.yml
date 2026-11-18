@@ -30,6 +30,7 @@ on:
       - 'playwright.config.ts'
       - 'vitest.config.mts'
       - 'tsconfig.test.json'
+      - 'tsconfig.e2e.json'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -60,7 +61,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: .next/cache
-          key: ${{ runner.os }}-vercel-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('src/**/*', 'next.config.js', 'tailwind.config.js', 'postcss.config.js') }}
+          key: ${{ runner.os }}-vercel-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('src/**', '!src/**/*.test.*', '!src/**/*.spec.*', '!src/**/*.stories.*', 'next.config.js', 'tailwind.config.js', 'postcss.config.js', 'tsconfig.json') }}
           restore-keys: |
             ${{ runner.os }}-vercel-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-
             ${{ runner.os }}-vercel-nextjs-
@@ -78,6 +79,7 @@ jobs:
         shell: bash
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN_PREVIEW || secrets.VERCEL_TOKEN }}
+          CI_SKIP_TS_BUILD_CHECK: 'true'
         run: |
           set -euo pipefail
           if ! vercel build --token="$VERCEL_TOKEN"; then
@@ -117,6 +119,12 @@ jobs:
           url="$(printf '%s\n' "$out" | grep -Eo 'https://[^[:space:]]+' | tail -n 1)"
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
+      - name: Set up cached Playwright Chromium and Noto CJK fonts for UI evidence
+        if: steps.vercel_preview.outputs.quota_skipped != 'true' && steps.vercel_preview.outputs.url != ''
+        uses: ./.github/actions/setup-playwright
+        with:
+          with-deps: 'false'
+
       - name: Auto-capture UI evidence screenshots on PR Preview
         id: ui_evidence
         if: steps.vercel_preview.outputs.quota_skipped != 'true'
@@ -154,11 +162,6 @@ jobs:
           if [ -z "$ROUTES" ]; then ROUTES="/"; fi
 
           echo "Capturing UI evidence on $PREVIEW_URL for routes: $ROUTES"
-          mkdir -p ~/.local/share/fonts
-          curl -fsSL --retry 3 "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf" -o ~/.local/share/fonts/NotoSansTC.ttf || true
-          curl -fsSL --retry 3 "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/TraditionalChinese/NotoSansCJKtc-Regular.otf" -o ~/.local/share/fonts/NotoSansCJKtc-Regular.otf || true
-          fc-cache -f ~/.local/share/fonts || true
-          npx playwright install chromium
           mkdir -p .agents/tmp/evidence
           node scripts/capture-ui-evidence.mjs --base-url "$PREVIEW_URL" --routes "$ROUTES" --role visitor --viewport desktop || true
           node scripts/capture-ui-evidence.mjs --base-url "$PREVIEW_URL" --routes "$ROUTES" --role visitor --viewport mobile || true

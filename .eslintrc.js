@@ -64,6 +64,7 @@ module.exports = {
       },
     ],
     '@typescript-eslint/no-explicit-any': 'warn',
+    'no-console': ['error', { allow: ['warn', 'error'] }],
     'prefer-const': 'error',
     'no-var': 'error',
     // eslint-plugin-tailwindcss's own class sorter doesn't resolve Tailwind
@@ -89,6 +90,30 @@ module.exports = {
     ],
   },
   overrides: [
+    {
+      files: [
+        '**/*.test.{js,jsx,ts,tsx,mjs}',
+        '**/*.spec.{js,jsx,ts,tsx,mjs}',
+        '**/*.stories.{js,jsx,ts,tsx}',
+        '**/*StoryWrapper.{ts,tsx}',
+        'scripts/**/*.{js,mjs,cjs}',
+        'e2e/**/*.{ts,tsx}',
+        '.storybook/**/*.{ts,tsx}',
+      ],
+      rules: {
+        'no-console': 'off',
+      },
+    },
+    {
+      // Existing opt-in debug telemetry loggers permit console.debug without modifying active analytics files
+      files: [
+        'src/lib/analytics.ts',
+        'src/services/reservations/reservationService.ts',
+      ],
+      rules: {
+        'no-console': ['error', { allow: ['warn', 'error', 'debug'] }],
+      },
+    },
     {
       // Allow arbitrary Tailwind colors (like hardcoded brand colors and Next.js OG/Twitter Image routes that cannot consume Tailwind classes), but keep the default Tailwind scales and arbitrary font sizes/families rules
       files: [

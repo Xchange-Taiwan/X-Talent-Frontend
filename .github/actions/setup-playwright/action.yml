@@ -1,0 +1,58 @@
+name: 'Set up Playwright & CJK Fonts'
+description: 'Caches and installs Playwright Chromium binary keyed by @playwright/test version along with Noto CJK fonts.'
+
+inputs:
+  with-deps:
+    description: 'Whether to install OS system dependencies for Chromium'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Resolve Playwright version
+      id: pw-ver
+      shell: bash
+      run: |
+        VER=$(node -p "require('@playwright/test/package.json').version")
+        echo "version=${VER}" >> "$GITHUB_OUTPUT"
+
+    - name: Cache Playwright browsers and Noto CJK fonts
+      id: pw-cache
+      uses: actions/cache@v6
+      with:
+        path: |
+          ~/.cache/ms-playwright
+          ~/.local/share/fonts
+        key: playwright-${{ runner.os }}-${{ steps.pw-ver.outputs.version }}-fonts-v1
+        restore-keys: |
+          playwright-${{ runner.os }}-${{ steps.pw-ver.outputs.version }}-
+
+    - name: Install Playwright Chromium (cache miss)
+      if: steps.pw-cache.outputs.cache-hit != 'true' && inputs.with-deps != 'true'
+      shell: bash
+      run: pnpm exec playwright install chromium
+
+    - name: Install Playwright Chromium with OS dependencies (cache miss)
+      if: steps.pw-cache.outputs.cache-hit != 'true' && inputs.with-deps == 'true'
+      shell: bash
+      run: pnpm exec playwright install --with-deps chromium
+
+    - name: Install Playwright OS dependencies only (cache hit)
+      if: steps.pw-cache.outputs.cache-hit == 'true' && inputs.with-deps == 'true'
+      shell: bash
+      run: pnpm exec playwright install-deps chromium
+
+    - name: Install Noto CJK fonts (cache miss)
+      if: steps.pw-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        mkdir -p ~/.local/share/fonts
+        curl -fsSL --retry 3 "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf" -o ~/.local/share/fonts/NotoSansTC.ttf || true
+        curl -fsSL --retry 3 "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/TraditionalChinese/NotoSansCJKtc-Regular.otf" -o ~/.local/share/fonts/NotoSansCJKtc-Regular.otf || true
+        fc-cache -f ~/.local/share/fonts || true
+
+    - name: Refresh font cache (cache hit)
+      if: steps.pw-cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: fc-cache -f ~/.local/share/fonts || true

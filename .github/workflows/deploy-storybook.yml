@@ -32,10 +32,21 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up environment
         uses: ./.github/actions/setup-env
+
+      - name: Cache Storybook webpack build
+        uses: actions/cache@v6
+        with:
+          path: node_modules/.cache/storybook
+          key: ${{ runner.os }}-storybook-${{ hashFiles('pnpm-lock.yaml', '.storybook/**') }}-${{ hashFiles('src/**/*.stories.*') }}
+          restore-keys: |
+            ${{ runner.os }}-storybook-${{ hashFiles('pnpm-lock.yaml', '.storybook/**') }}-
+            ${{ runner.os }}-storybook-
 
       - name: Build Storybook
         run: pnpm build-storybook
@@ -68,7 +79,7 @@ jobs:
 
       - name: Comment on commit with deploy URL
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           STORYBOOK_URL: ${{ steps.deploy.outputs.storybook_url }}
         with:
