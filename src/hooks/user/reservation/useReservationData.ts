@@ -4,7 +4,6 @@ import { useSession } from 'next-auth/react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { useAsyncRead } from '@/hooks/useAsyncRead';
-import { trackEvent } from '@/lib/analytics';
 import { getSafeErrorMessage, isAbortError } from '@/lib/errorUtils';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { partitionReservationTabSlices } from '@/lib/reservation/reservationLifecyclePolicy';
@@ -244,10 +243,6 @@ export function useReservationData({
     if (!myUserId || (historyActive && isHistoryLoaded) || isHistoryLoading)
       return;
     setHistoryActive(true);
-    trackEvent({
-      name: 'reservation_history_loaded',
-      feature: 'reservation',
-    });
   }, [myUserId, historyActive, isHistoryLoading, isHistoryLoaded]);
 
   const loadMore = useCallback(
@@ -259,20 +254,14 @@ export function useReservationData({
 
       setLoadingMoreStates((prev) => ({ ...prev, [tab]: true }));
       try {
-        const appended = await reservationReadModel.loadNextPage(
-          key,
-          (cursor, signal) =>
-            fetchReservations({
-              userId: myUserId,
-              state: states[tab],
-              nextDtend: cursor,
-              signal,
-            })
+        await reservationReadModel.loadNextPage(key, (cursor, signal) =>
+          fetchReservations({
+            userId: myUserId,
+            state: states[tab],
+            nextDtend: cursor,
+            signal,
+          })
         );
-
-        if (appended) {
-          trackEvent({ name: 'reservation_load_more', feature: 'reservation' });
-        }
       } catch (err) {
         if (!isAbortError(err)) {
           captureFlowFailure({

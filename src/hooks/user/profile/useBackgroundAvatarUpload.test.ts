@@ -20,6 +20,18 @@ vi.mock('@/services/profile/getAvatarSnapshot', () => ({
   getAvatarSnapshot: vi.fn(),
 }));
 
+const mockTrackEvent = vi.fn();
+const mockUpgradeClaritySession = vi.fn();
+vi.mock('@/lib/analytics', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/analytics')>();
+  return {
+    ...actual,
+    trackEvent: (...args: unknown[]) => mockTrackEvent(...args),
+    upgradeClaritySession: (...args: unknown[]) =>
+      mockUpgradeClaritySession(...args),
+  };
+});
+
 vi.mock('next-auth/react', () => ({
   useSession: vi.fn(),
 }));
@@ -518,5 +530,63 @@ describe('useBackgroundAvatarUpload', () => {
     const cacheInstance1 = mockUpdateAvatar.mock.calls[1][3];
     expect(cacheInstance0).toBeDefined();
     expect(cacheInstance0).toBe(cacheInstance1);
+  });
+
+  it('calls upgradeClaritySession("avatar_upload_failed") without leaking filename PII or emitting GA4 events when upload fails (#950)', async () => {
+    mockUpdateAvatar.mockRejectedValueOnce(
+      new Error('S3 upload failed for 王小明_履歷照.jpg')
+    );
+    const { result } = renderHook(() => useBackgroundAvatarUpload('999'));
+    const piiFile = new File(['bytes'], '王小明_履歷照.jpg', {
+      type: 'image/jpeg',
+    });
+
+    await act(async () => {
+      result.current.kickOff(piiFile, null);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockUpgradeClaritySession).toHaveBeenCalledWith(
+      'avatar_upload_failed'
+    );
+    expect(JSON.stringify(mockUpgradeClaritySession.mock.calls)).not.toContain(
+      '王小明'
+    );
+    expect(mockTrackEvent).not.toHaveBeenCalled();
+
+    // Direct consume() fallback failure also upgrades Clarity without PII
+    mockUpgradeClaritySession.mockClear();
+    mockUpdateAvatar.mockRejectedValueOnce(
+      new Error('Direct upload failed for 王小明_2.jpg')
+    );
+    const directFile = new File(['bytes2'], '王小明_2.jpg', {
+      type: 'image/jpeg',
+    });
+    await expect(result.current.consume(directFile)).rejects.toThrow();
+    expect(mockUpgradeClaritySession).toHaveBeenCalledWith(
+      'avatar_upload_failed'
+    );
+
+    // Aborted/superseded kickOff does NOT call upgradeClaritySession
+    mockUpgradeClaritySession.mockClear();
+    mockUpdateAvatar.mockImplementationOnce(
+      (_file, _uid, signal?: AbortSignal) =>
+        new Promise((_resolve, reject) => {
+          signal?.addEventListener('abort', () => {
+            reject(new Error('Aborted'));
+          });
+        })
+    );
+    mockUpdateAvatar.mockResolvedValueOnce('https://cdn.example.com/ok.jpg');
+    const firstFile = new File(['1'], 'first.jpg', { type: 'image/jpeg' });
+    const secondFile = new File(['2'], 'second.jpg', { type: 'image/jpeg' });
+    await act(async () => {
+      result.current.kickOff(firstFile, null);
+      result.current.kickOff(secondFile, null);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(mockUpgradeClaritySession).not.toHaveBeenCalled();
   });
 });

@@ -9,7 +9,7 @@ import { useForm, type UseFormReturn } from 'react-hook-form';
 import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
 import { useToast } from '@/components/ui/use-toast';
 import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
-import { trackEvent } from '@/lib/analytics';
+import { trackEvent, trackFormValidationFailed } from '@/lib/analytics';
 import {
   clampOnboardingName,
   sanitizePrefillAvatarUrl,
@@ -263,6 +263,28 @@ export function useOnboardingForm({
     const fields = STEP_FIELDS[currentStep];
     const isValid = await form.trigger(fields);
     if (!isValid) {
+      const parsedStep = formSchema.safeParse(form.getValues());
+      const schemaInvalidSet = new Set<string>(
+        parsedStep.success
+          ? []
+          : parsedStep.error.issues
+              .map((issue) => String(issue.path[0] ?? ''))
+              .filter(Boolean)
+      );
+      const stepErrorKeys = fields
+        .map((f) => String(f))
+        .filter(
+          (key) =>
+            schemaInvalidSet.has(key) ||
+            form.getFieldState(key as keyof OnboardingFormValues).invalid
+        );
+      trackFormValidationFailed({
+        feature: 'onboarding',
+        formId: 'mentee_onboarding',
+        invalidKeys:
+          stepErrorKeys.length > 0 ? stepErrorKeys : [String(fields[0])],
+        step: currentStep,
+      });
       return false;
     }
 
@@ -329,6 +351,12 @@ export function useOnboardingForm({
         const earliestStep = orderedSteps.find((step) =>
           STEP_FIELDS[step].some((field) => errorFieldNames.has(field))
         );
+        trackFormValidationFailed({
+          feature: 'onboarding',
+          formId: 'mentee_onboarding',
+          invalidKeys: Array.from(errorFieldNames),
+          step: earliestStep ?? currentStep,
+        });
         if (earliestStep && earliestStep !== currentStep) {
           setCurrentStep(earliestStep);
         }

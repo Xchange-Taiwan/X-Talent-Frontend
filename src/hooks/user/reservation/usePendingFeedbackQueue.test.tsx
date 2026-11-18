@@ -852,4 +852,141 @@ describe('usePendingFeedbackQueue (#740)', () => {
       skippedIds: ['951', '952', '953'],
     });
   });
+
+  describe('feedback_prompt_shown & feedback_prompt_dismissed telemetry (#950)', () => {
+    it('suppresses feedback_prompt_shown on suppressed routes and emits once upon navigating to an eligible route', async () => {
+      mockUsePathname.mockReturnValue('/auth/onboarding');
+      const item1 = makeItem('981', 1760000000);
+      const item2 = makeItem('982', 1761000000);
+      mockFetchPending.mockResolvedValueOnce([item1, item2]);
+
+      const { result, rerender } = renderHook(() => usePendingFeedbackQueue());
+      expect(result.current.queueItems).toBeNull();
+      expect(mockTrackEvent).not.toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'feedback_prompt_shown' })
+      );
+
+      mockUsePathname.mockReturnValue('/mentor-pool');
+      rerender();
+
+      await waitFor(() => {
+        expect(result.current.queueItems).toEqual([item1, item2]);
+      });
+
+      const shownCalls = mockTrackEvent.mock.calls.filter(
+        (c) => c[0]?.name === 'feedback_prompt_shown'
+      );
+      expect(shownCalls).toHaveLength(1);
+      expect(shownCalls[0]?.[0]).toEqual({
+        name: 'feedback_prompt_shown',
+        feature: 'feedback',
+        metadata: { pending_count: 2 },
+      });
+    });
+
+    it('emits feedback_prompt_dismissed with remaining unsubmitted count when 1 of 2 items is submitted and dismissQueue is called directly without skipFeedbackItem', async () => {
+      const item1 = makeItem('991', 1760000000);
+      const item2 = makeItem('992', 1761000000);
+      mockFetchPending.mockResolvedValueOnce([item1, item2]);
+
+      const { result } = renderHook(() => usePendingFeedbackQueue());
+      await waitFor(() => {
+        expect(result.current.queueItems).toEqual([item1, item2]);
+      });
+      mockTrackEvent.mockClear();
+
+      await act(async () => {
+        await result.current.submitFeedbackItem(
+          {
+            meeting_happened: true,
+            feedback: { rating: 9, content: '收穫良多' },
+          },
+          item1
+        );
+      });
+
+      act(() => {
+        result.current.dismissQueue();
+      });
+
+      expect(mockTrackEvent).toHaveBeenCalledWith({
+        name: 'feedback_prompt_dismissed',
+        feature: 'feedback',
+        metadata: { skipped_count: 1 },
+      });
+      expect(JSON.stringify(mockTrackEvent.mock.calls)).not.toContain(
+        'Partner 991'
+      );
+      expect(JSON.stringify(mockTrackEvent.mock.calls)).not.toContain(
+        '收穫良多'
+      );
+    });
+
+    it('does NOT emit feedback_prompt_dismissed when all presented items are submitted before dismissQueue, and resets cleanly across logout / user switch', async () => {
+      const item1 = makeItem('1001', 1760000000);
+      mockFetchPending.mockResolvedValueOnce([item1]);
+
+      const { result, rerender } = renderHook(() => usePendingFeedbackQueue());
+      await waitFor(() => {
+        expect(result.current.queueItems).toEqual([item1]);
+      });
+      mockTrackEvent.mockClear();
+
+      await act(async () => {
+        await result.current.submitFeedbackItem(
+          {
+            meeting_happened: true,
+            feedback: { rating: 10, content: '完美' },
+          },
+          item1
+        );
+      });
+      act(() => {
+        result.current.dismissQueue();
+      });
+
+      expect(mockTrackEvent).not.toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'feedback_prompt_dismissed' })
+      );
+
+      // Switch directly to user '2' without leaking user '1' state
+      const user2Item = makeItem('2001', 1762000000);
+      mockFetchPending.mockResolvedValueOnce([user2Item]);
+      mockUseSession.mockReturnValue({
+        data: {
+          ...mockSession,
+          user: {
+            ...mockSession.user,
+            id: '2',
+            onBoarding: true,
+            isMentor: false,
+          },
+        },
+        status: 'authenticated',
+        update: vi.fn(),
+      });
+      mockTrackEvent.mockClear();
+      rerender();
+
+      await waitFor(() => {
+        expect(result.current.queueItems).toEqual([user2Item]);
+      });
+
+      expect(mockTrackEvent).toHaveBeenCalledWith({
+        name: 'feedback_prompt_shown',
+        feature: 'feedback',
+        metadata: { pending_count: 1 },
+      });
+
+      act(() => {
+        result.current.dismissQueue();
+      });
+
+      expect(mockTrackEvent).toHaveBeenCalledWith({
+        name: 'feedback_prompt_dismissed',
+        feature: 'feedback',
+        metadata: { skipped_count: 1 },
+      });
+    });
+  });
 });

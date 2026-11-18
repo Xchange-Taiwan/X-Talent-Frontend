@@ -286,4 +286,45 @@ describe('createFeedbackSessionCoordinator (#906)', () => {
       })
     ).toBe(true);
   });
+
+  it('tracks one-shot consumeLoginPromptShown and idempotent dismissLoginQueue dismissedSkippedCount across partial submits (#950)', async () => {
+    const storage = createInMemoryFeedbackSessionStoragePort();
+    const coordinator = createFeedbackSessionCoordinator({
+      storage,
+      lookup: {
+        fetchPendingFeedbackReservations: vi
+          .fn()
+          .mockResolvedValue([
+            makeReservation('t-1', 1760000000),
+            makeReservation('t-2', 1761000000),
+            makeReservation('t-3', 1762000000),
+          ]),
+      },
+    });
+
+    await coordinator.loadLoginQueue({ userId: 'u-9', isMentor: false });
+
+    // Suppressed (!canPresent) returns null without consuming the one-shot token
+    expect(
+      coordinator.consumeLoginPromptShown({ userId: 'u-9', canPresent: false })
+    ).toBeNull();
+
+    // First eligible presentation returns 3; repeat calls return null
+    expect(
+      coordinator.consumeLoginPromptShown({ userId: 'u-9', canPresent: true })
+    ).toBe(3);
+    expect(
+      coordinator.consumeLoginPromptShown({ userId: 'u-9', canPresent: true })
+    ).toBeNull();
+
+    // Submit t-1, skip t-2, leave t-3 unaddressed -> dismissLoginQueue reports 2 once, then 0 on repeat
+    coordinator.markReservationSubmitted('u-9', 't-1');
+    coordinator.markReservationSkipped('u-9', 't-2');
+    expect(coordinator.dismissLoginQueue('u-9')).toEqual({
+      dismissedSkippedCount: 2,
+    });
+    expect(coordinator.dismissLoginQueue('u-9')).toEqual({
+      dismissedSkippedCount: 0,
+    });
+  });
 });

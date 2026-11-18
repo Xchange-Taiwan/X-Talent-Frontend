@@ -90,11 +90,6 @@ export default function AcceptReservationDialog({
 
     execute(async () => {
       await onAccept?.({ id: reservation.id, message: trimmedReply });
-      trackEvent({
-        name: 'reservation_accepted',
-        feature: 'reservation',
-        metadata: { has_reply: trimmedReply.length > 0 },
-      });
     });
   };
 

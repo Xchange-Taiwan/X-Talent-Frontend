@@ -11,6 +11,7 @@ import {
   isAllowedAnalyticsUrl,
   isValidClarityProjectId,
   isValidGaMeasurementId,
+  registerClarityMetadataListener,
   resetAnalyticsUserState,
   resolveAnalyticsUserRole,
   resolveSafePageTitle,
@@ -22,8 +23,10 @@ import {
   setAnalyticsUserContext,
   trackButtonClick,
   trackEvent,
+  trackFormValidationFailed,
   trackPageView,
   trackScrollDepth,
+  upgradeClaritySession,
 } from './analytics';
 
 function isArrayLikeEntry(val: unknown): val is ArrayLike<unknown> {
@@ -862,6 +865,87 @@ describe('analytics', () => {
         sanitizeUrlForAnalytics('data:text/html,<script>alert(1)</script>')
       ).toBe('/');
       expect(sanitizeUrlForAnalytics('vbscript:msgbox(1)')).toBe('/');
+    });
+  });
+
+  describe('trackFormValidationFailed & upgradeClaritySession (#950)', () => {
+    it('normalizes allowlisted field keys, maps prototype/PII strings to other, attaches clarity_playback_url, and upgrades Clarity session', () => {
+      const gtagCalls: unknown[][] = [];
+      const clarityCalls: unknown[][] = [];
+      window.gtag = vi.fn((...args: unknown[]) => {
+        gtagCalls.push(args);
+      }) as unknown as Window['gtag'];
+      const clarityFn = vi.fn((...args: unknown[]) => {
+        clarityCalls.push(args);
+        if (args[0] === 'metadata' && typeof args[1] === 'function') {
+          (args[1] as (p: unknown) => void)({
+            projectId: 'vwimm8rumd',
+            userId: 'clarityUser1',
+            sessionId: 'claritySess1',
+          });
+        }
+      });
+      Object.assign(clarityFn, { q: [] });
+      window.clarity = clarityFn as unknown as Window['clarity'];
+
+      initGa4('G-TEST950ABC');
+      initClarity('vwimm8rumd');
+      registerClarityMetadataListener();
+      gtagCalls.length = 0;
+      clarityCalls.length = 0;
+
+      trackFormValidationFailed({
+        feature: 'profile',
+        formId: 'mentor_onboarding',
+        invalidKeys: [
+          'name',
+          'avatarFile',
+          'work_experiences.0.company',
+          'constructor',
+          'toString',
+          '__proto__',
+          '王小明@example.com',
+        ],
+      });
+
+      const eventCall = gtagCalls.find(
+        (c) => c[0] === 'event' && c[1] === 'form_validation_failed'
+      );
+      expect(eventCall).toBeDefined();
+      expect(eventCall?.[2]).toMatchObject({
+        feature: 'profile',
+        form_id: 'mentor_onboarding',
+        primary_field: 'profile_name',
+        invalid_count: 4,
+        clarity_playback_url:
+          'https://clarity.microsoft.com/player/vwimm8rumd/clarityUser1/claritySess1',
+      });
+
+      const serialized = JSON.stringify(gtagCalls);
+      expect(serialized).not.toContain('王小明');
+      expect(serialized).not.toContain('example.com');
+      expect(serialized).not.toContain('constructor');
+      expect(clarityCalls).toContainEqual([
+        'upgrade',
+        'form_validation_failed',
+      ]);
+
+      // Empty invalidKeys is a safe no-op
+      gtagCalls.length = 0;
+      trackFormValidationFailed({
+        feature: 'onboarding',
+        formId: 'mentee_onboarding',
+        invalidKeys: [],
+        step: 1,
+      });
+      expect(gtagCalls).toHaveLength(0);
+
+      // upgradeClaritySession rejects PII / unsafe filenames and accepts safe tokens
+      clarityCalls.length = 0;
+      upgradeClaritySession('王小明_履歷照.jpg');
+      upgradeClaritySession('user@example.com');
+      upgradeClaritySession('avatar_upload_failed');
+      expect(clarityCalls).toEqual([['upgrade', 'avatar_upload_failed']]);
     });
   });
 });

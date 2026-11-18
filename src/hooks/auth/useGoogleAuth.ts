@@ -1,6 +1,7 @@
 import { useRouter } from 'next/navigation';
 
 import useAsyncAction from '@/hooks/useAsyncAction';
+import { trackEvent } from '@/lib/analytics';
 import { ApiError } from '@/lib/apiClient';
 import { initiateGoogleAuth } from '@/lib/auth/sessionLifecycle';
 
@@ -11,6 +12,14 @@ export function useGoogleAuth() {
   const handleGoogleAuth = async (isSignIn: boolean) => {
     await run(
       async () => {
+        trackEvent({
+          name: 'auth_oauth_started',
+          feature: 'auth',
+          metadata: {
+            method: 'Google',
+            flow: isSignIn ? 'login' : 'sign_up',
+          },
+        });
         await initiateGoogleAuth(
           isSignIn
             ? {

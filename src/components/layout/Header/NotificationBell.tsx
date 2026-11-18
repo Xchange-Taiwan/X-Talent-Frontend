@@ -108,7 +108,10 @@ const NotificationList = React.memo(function NotificationList({
       onMouseLeave={onMouseLeave}
       className="flex max-h-[360px] [scrollbar-width:none] flex-col overflow-y-auto [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
     >
-      <div className="divide-background-border flex flex-col divide-y">
+      <div
+        data-clarity-mask="true"
+        className="divide-background-border flex flex-col divide-y"
+      >
         {notifications.map((item) => {
           const { title, body } = getNotificationContent(item);
           const href = getNotificationHref(item);

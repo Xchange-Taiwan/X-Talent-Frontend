@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
+import { upgradeClaritySession } from '@/lib/analytics';
 import { ApiError } from '@/lib/apiClient';
 import { fetchReservationMeetLink } from '@/services/reservations';
 
@@ -54,6 +55,7 @@ export function useReservationMeetLink({
             }
           } else {
             if (newTab) newTab.close();
+            upgradeClaritySession('meet_link_fetch_failed');
             toast({
               variant: 'destructive',
               title: '找不到會議連結',
@@ -73,6 +75,8 @@ export function useReservationMeetLink({
         ) {
           return;
         }
+
+        upgradeClaritySession('meet_link_fetch_failed');
 
         let errMsg = '取得會議連結失敗，請稍後再試。';
         const codeOrStatus =

@@ -62,7 +62,7 @@ export const TextField = <TFieldValues extends FieldValues>({
     control={control}
     name={name}
     render={({ field }) => (
-      <FormItem>
+      <FormItem data-clarity-mask="true">
         <FormControl>
           {/* Render empty string for non-string values to satisfy InputProps */}
           <Input
@@ -98,7 +98,7 @@ export const TextareaField = <TFieldValues extends FieldValues>({
     control={control}
     name={name}
     render={({ field }) => (
-      <FormItem>
+      <FormItem data-clarity-mask="true">
         <FormControl>
           {/* Render empty string for non-string values to satisfy TextareaProps */}
           <Textarea

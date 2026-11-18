@@ -137,6 +137,37 @@ export function usePendingFeedbackQueue(
     () => null
   );
 
+  useEffect(() => {
+    if (
+      !feedbackEnabled ||
+      !canPresentQueue ||
+      isSuppressed ||
+      !rawUserId ||
+      !queueItems ||
+      queueItems.length === 0
+    ) {
+      return;
+    }
+    const pendingCount = coordinator.consumeLoginPromptShown({
+      userId: rawUserId,
+      canPresent: canPresentQueue && !isSuppressed,
+    });
+    if (pendingCount !== null && pendingCount > 0) {
+      trackEvent({
+        name: 'feedback_prompt_shown',
+        feature: 'feedback',
+        metadata: { pending_count: pendingCount },
+      });
+    }
+  }, [
+    canPresentQueue,
+    coordinator,
+    feedbackEnabled,
+    isSuppressed,
+    queueItems,
+    rawUserId,
+  ]);
+
   const submitFeedbackItem = useCallback(
     async (
       payload: SubmitReservationFeedbackRequest,
@@ -167,13 +198,15 @@ export function usePendingFeedbackQueue(
         payload,
       });
 
+      coordinator.markReservationSubmitted(rawUserId, targetReservation.id);
+
       trackEvent({
         name: 'reservation_feedback_submitted',
         feature: 'reservation',
         metadata: { meeting_happened: payload.meeting_happened },
       });
     },
-    [rawUserId, isRoleResolved, isMentorSession]
+    [coordinator, rawUserId, isRoleResolved, isMentorSession]
   );
 
   const skipFeedbackItem = useCallback(
@@ -185,7 +218,14 @@ export function usePendingFeedbackQueue(
   );
 
   const dismissQueue = useCallback(() => {
-    coordinator.dismissLoginQueue(rawUserId);
+    const outcome = coordinator.dismissLoginQueue(rawUserId);
+    if (outcome.dismissedSkippedCount > 0) {
+      trackEvent({
+        name: 'feedback_prompt_dismissed',
+        feature: 'feedback',
+        metadata: { skipped_count: outcome.dismissedSkippedCount },
+      });
+    }
   }, [coordinator, rawUserId]);
 
   return {

@@ -17,6 +17,7 @@ import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useUserProfileDto } from '@/hooks/user/user-data/useUserProfileDto';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
+import { trackFormValidationFailed } from '@/lib/analytics';
 import { getSafeErrorMessage } from '@/lib/errorUtils';
 import {
   mapVoToFormValues,
@@ -208,13 +209,33 @@ export function useProfileEditorSession({
     ]
   );
 
+  const handleFormInvalid = useCallback(
+    (
+      errors: Parameters<typeof onError>[0],
+      event?: React.BaseSyntheticEvent
+    ) => {
+      trackFormValidationFailed({
+        feature: 'profile',
+        formId: isMentorOnboarding ? 'mentor_onboarding' : 'profile_edit',
+        invalidKeys: Object.keys(errors),
+      });
+      (
+        onError as (
+          errs: Parameters<typeof onError>[0],
+          ev?: React.BaseSyntheticEvent
+        ) => void
+      )(errors, event);
+    },
+    [isMentorOnboarding, onError]
+  );
+
   const handleFormSubmit = useCallback(
     (e?: React.BaseSyntheticEvent) =>
       form.handleSubmit(
         (values) => onSubmit(values, form.formState.dirtyFields),
-        onError
+        handleFormInvalid
       )(e),
-    [form, onSubmit, onError]
+    [form, onSubmit, handleFormInvalid]
   );
 
   const unsaved = useUnsavedChangesPrompt(form.formState.isDirty && !isSaving);

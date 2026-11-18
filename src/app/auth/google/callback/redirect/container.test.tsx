@@ -766,10 +766,9 @@ describe('GoogleOAuthRedirectPage Component', () => {
           id_token: 'id_token_123',
         });
 
-        expect(mockTrackEvent).toHaveBeenCalledWith({
-          name: 'delete_account_succeeded',
-          feature: 'auth',
-        });
+        expect(mockTrackEvent).not.toHaveBeenCalledWith(
+          expect.objectContaining({ name: 'delete_account_succeeded' })
+        );
         expect(mockClearAnalyticsUser).toHaveBeenCalledTimes(1);
         expect(mockRevalidateProfilePathAfterDelete).toHaveBeenCalledWith();
         expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: '/' });

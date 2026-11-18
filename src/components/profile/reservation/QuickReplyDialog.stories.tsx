@@ -71,3 +71,19 @@ export const WithoutMenteeMessage: Story = {
   },
   render: (args) => <DialogDemo {...args} />,
 };
+
+/**
+ * 接受預約結果統一由後端資料庫統計（#923），前端僅保留對話框開啟與個資遮罩，不重複發送 `reservation_accepted` (#950)。
+ */
+export const OpenWithoutMenteeMessage: Story = {
+  args: {
+    reservation: {
+      ...mockReservation,
+      messages: [],
+      menteeMessage: undefined,
+    },
+    open: true,
+    myUserId: 'mentor-1',
+  },
+  render: (args) => <DialogDemo {...args} />,
+};

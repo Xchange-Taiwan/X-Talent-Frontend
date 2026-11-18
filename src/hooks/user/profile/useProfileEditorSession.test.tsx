@@ -27,6 +27,16 @@ vi.mock('@/lib/profile/saveProfile', async (importOriginal) => {
   };
 });
 
+const mockTrackFormValidationFailed = vi.fn();
+vi.mock('@/lib/analytics', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/analytics')>();
+  return {
+    ...actual,
+    trackFormValidationFailed: (...args: unknown[]) =>
+      mockTrackFormValidationFailed(...args),
+  };
+});
+
 const mockOnError = vi.fn();
 const mockScrollToField = vi.fn();
 vi.mock('./useFormErrorScroll', () => ({
@@ -336,5 +346,65 @@ describe('useProfileEditorSession (#787 / #905)', () => {
       }),
       expect.any(Object)
     );
+  });
+
+  it('tracks form_validation_failed with profile_edit vs mentor_onboarding formId without PII and forwards (errors, event) to onError (#950)', async () => {
+    const { result: editHook } = renderHook(() =>
+      useProfileEditorSession({
+        pageUserId: '1',
+        isAuthorized: true,
+        isMentorOnboarding: false,
+      })
+    );
+
+    act(() => {
+      editHook.current.form.setValue('name', '');
+    });
+
+    await act(async () => {
+      await editHook.current.handleFormSubmit();
+    });
+
+    expect(mockTrackFormValidationFailed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        feature: 'profile',
+        formId: 'profile_edit',
+        invalidKeys: expect.arrayContaining(['name']),
+      })
+    );
+    expect(mockOnError).toHaveBeenCalledWith(
+      expect.objectContaining({ name: expect.anything() }),
+      undefined
+    );
+
+    mockTrackFormValidationFailed.mockClear();
+    mockOnError.mockClear();
+
+    const { result: mentorHook } = renderHook(() =>
+      useProfileEditorSession({
+        pageUserId: '1',
+        isAuthorized: true,
+        isMentorOnboarding: true,
+      })
+    );
+
+    act(() => {
+      mentorHook.current.form.setValue('name', '');
+    });
+
+    await act(async () => {
+      await mentorHook.current.handleFormSubmit();
+    });
+
+    expect(mockTrackFormValidationFailed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        feature: 'profile',
+        formId: 'mentor_onboarding',
+        invalidKeys: expect.arrayContaining(['name']),
+      })
+    );
+    expect(
+      JSON.stringify(mockTrackFormValidationFailed.mock.calls)
+    ).not.toContain('Initial Name');
   });
 });

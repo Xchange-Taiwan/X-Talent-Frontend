@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useToast } from '@/components/ui/use-toast';
 import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
-import { trackEvent } from '@/lib/analytics';
+import { trackEvent, trackFormValidationFailed } from '@/lib/analytics';
 import {
   getPendingFavoriteMentorId,
   savePendingFavoriteMentor,
@@ -36,12 +36,14 @@ vi.mock('@/hooks/user/profile/useBackgroundAvatarUpload', () => ({
 
 vi.mock('@/lib/analytics', () => ({
   trackEvent: vi.fn(),
+  trackFormValidationFailed: vi.fn(),
 }));
 
 const mockUseRouter = vi.mocked(useRouter);
 const mockUseSession = vi.mocked(useSession);
 const mockUseBackgroundAvatarUpload = vi.mocked(useBackgroundAvatarUpload);
 const mockTrackEvent = vi.mocked(trackEvent);
+const mockTrackFormValidationFailed = vi.mocked(trackFormValidationFailed);
 const mockUseToast = vi.mocked(useToast);
 
 describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
@@ -133,13 +135,22 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
       feature: 'onboarding',
     });
 
-    // Step 2 invalid when years_of_experience is empty -> stays on Step 2
+    // Step 2 invalid when years_of_experience is empty -> stays on Step 2 and reports exact invalid field (not valid 'location')
     let step2Invalid = true;
     await act(async () => {
       step2Invalid = await result.current.advanceStep();
     });
     expect(step2Invalid).toBe(false);
     expect(result.current.currentStep).toBe(2);
+    expect(mockTrackFormValidationFailed).toHaveBeenCalledWith({
+      feature: 'onboarding',
+      formId: 'mentee_onboarding',
+      invalidKeys: ['years_of_experience'],
+      step: 2,
+    });
+    expect(
+      JSON.stringify(mockTrackFormValidationFailed.mock.calls)
+    ).not.toContain('John Doe');
 
     // Fill Step 2 -> advances to Step 3
     act(() => {
@@ -374,6 +385,12 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
 
     expect(mockWriteProfile).not.toHaveBeenCalled();
     expect(result.current.currentStep).toBe(1);
+    expect(mockTrackFormValidationFailed).toHaveBeenCalledWith({
+      feature: 'onboarding',
+      formId: 'mentee_onboarding',
+      invalidKeys: expect.arrayContaining(['name']),
+      step: 1,
+    });
   });
 
   it('hydrates Google name and =s512-c avatar across unauthenticated -> authenticated session transition without clobbering dirty user edits (#951)', async () => {

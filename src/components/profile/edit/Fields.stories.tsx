@@ -242,3 +242,22 @@ export const ComboboxFieldEmpty: StoryObj<typeof ComboboxField> = {
     />
   ),
 };
+
+/**
+ * 文字與多行輸入欄位（`TextField` / `TextareaField`）預設包覆 `data-clarity-mask="true"`，防止編輯頁個人自介與姓名外洩至 Clarity (#950)。
+ */
+export const TextFieldClarityMasked: StoryObj<typeof TextField> = {
+  name: 'TextField / Clarity 個資遮罩狀態',
+  render: () => (
+    <GenericFieldWrapper
+      name="name"
+      renderField={(form) => (
+        <TextField
+          control={form.control}
+          name="name"
+          placeholder="請填入您的姓名"
+        />
+      )}
+    />
+  ),
+};

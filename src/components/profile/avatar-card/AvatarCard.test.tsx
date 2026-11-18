@@ -81,4 +81,24 @@ describe('AvatarCard (#898, #862)', () => {
     expect(anchors[0]).toHaveAccessibleName('YouTube');
     expect(anchors[0]).toHaveAttribute('href', 'https://youtu.be/abc123');
   });
+
+  it('wraps avatar alt, real name heading, company/jobTitle, and social link aria-labels inside data-clarity-mask="true" (#950)', () => {
+    render(
+      <AvatarCard
+        name="張三豐 Real Mentor"
+        jobTitle="Principal Architect"
+        companyName="Acme"
+        personalLinks={[
+          { platform: 'linkedin', url: 'https://www.linkedin.com/in/zhang' },
+        ]}
+      />
+    );
+
+    const heading = screen.getByRole('heading', { name: '張三豐 Real Mentor' });
+    const img = screen.getByAltText('Avatar of 張三豐 Real Mentor');
+    const link = screen.getByRole('link', { name: 'LinkedIn' });
+    expect(heading.closest('[data-clarity-mask="true"]')).not.toBeNull();
+    expect(img.closest('[data-clarity-mask="true"]')).not.toBeNull();
+    expect(link.closest('[data-clarity-mask="true"]')).not.toBeNull();
+  });
 });

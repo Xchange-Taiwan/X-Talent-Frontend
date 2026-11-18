@@ -31,6 +31,7 @@ vi.mock('@/components/ui/use-toast', async () => {
 
 vi.mock('@/lib/analytics', () => ({
   trackEvent: vi.fn(),
+  upgradeClaritySession: vi.fn(),
 }));
 
 const mockDraftForSelectedDate: ParsedMentorTimeslot[] = [
@@ -677,6 +678,8 @@ describe('MentorScheduleDialog', () => {
       variant: 'destructive',
       description: '儲存失敗,請稍後再試',
     });
+    const { upgradeClaritySession } = await import('@/lib/analytics');
+    expect(upgradeClaritySession).toHaveBeenCalledWith('schedule_save_failed');
     expect(mockOnOpenChange).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: '儲存' })).not.toBeDisabled();
   });
@@ -749,6 +752,8 @@ describe('MentorScheduleDialog', () => {
     unmount();
 
     vi.mocked(trackEvent).mockClear();
+    const { upgradeClaritySession } = await import('@/lib/analytics');
+    vi.mocked(upgradeClaritySession).mockClear();
     const conflictSchedule = createMockSchedule({
       confirmChanges: vi
         .fn()
@@ -767,5 +772,6 @@ describe('MentorScheduleDialog', () => {
       fireEvent.click(screen.getByRole('button', { name: '儲存' }));
     });
     expect(trackEvent).not.toHaveBeenCalled();
+    expect(upgradeClaritySession).toHaveBeenCalledWith('schedule_save_failed');
   });
 });

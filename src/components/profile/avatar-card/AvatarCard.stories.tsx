@@ -86,3 +86,17 @@ export const DefaultAvatar: Story = {
     companyName: 'Google',
   },
 };
+
+/**
+ * 個人名片容器包覆 `data-clarity-mask="true"`，遮罩頭像 `alt`、真實姓名、公司職稱與外部連結 `aria-label` (#950)。
+ */
+export const ClarityMaskedCard: Story = {
+  args: {
+    name: '陳大明 Alex Chen',
+    jobTitle: 'Product Manager',
+    companyName: 'XChange',
+    personalLinks: [
+      { platform: 'linkedin', url: 'https://www.linkedin.com/in/alex-chen' },
+    ],
+  },
+};

@@ -316,3 +316,22 @@ export const OverlapDraftEditError: Story = {
     },
   },
 };
+
+export const SaveConflictError: Story = {
+  render: (args) => (
+    <DialogWrapper reader={args.reader} schedule={args.schedule} />
+  ),
+  args: {
+    open: true,
+    onOpenChange: () => {},
+    reader: defaultReaderMock,
+    schedule: {
+      ...defaultScheduleMock,
+      confirmChanges: async () => ({
+        ok: false,
+        reason: 'conflict',
+        message: '此時段與既有預約衝突',
+      }),
+    },
+  },
+};

@@ -1271,5 +1271,28 @@ describe('NotificationBell', () => {
 
       expect(listSpy).toHaveBeenCalledTimes(2);
     });
+
+    it('wraps rendered notification items inside Radix Portal with data-clarity-mask="true" so real names are masked (#950)', async () => {
+      render(
+        <NotificationBell
+          userId="user-123"
+          initialStatus="success"
+          initialNotifications={[
+            fromPartial<NotificationItem>({
+              id: 'mask-1',
+              type: 'reservation_requested',
+              unread: true,
+              createdAt: '2026-11-17T00:00:00Z',
+              menteeName: '李小美 Secret Mentee',
+              reservationId: '888',
+            }),
+          ]}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: '開啟通知選單' }));
+      const notifBody = await screen.findByText(/李小美 Secret Mentee/);
+      expect(notifBody.closest('[data-clarity-mask="true"]')).not.toBeNull();
+    });
   });
 });

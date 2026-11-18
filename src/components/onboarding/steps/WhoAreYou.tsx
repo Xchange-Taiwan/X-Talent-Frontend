@@ -50,17 +50,19 @@ export const WhoAreYou = <T extends WhoAreYouFormFields>({
 
   return (
     <>
-      <AvatarUpload
-        control={form.control}
-        name={'avatarFile' as Path<T>}
-        avatarUrl={avatarDisplayUrl}
-      />
+      <div data-clarity-mask="true">
+        <AvatarUpload
+          control={form.control}
+          name={'avatarFile' as Path<T>}
+          avatarUrl={avatarDisplayUrl}
+        />
+      </div>
 
       <FormField
         control={form.control}
         name={'name' as Path<T>}
         render={({ field }) => (
-          <FormItem>
+          <FormItem data-clarity-mask="true">
             <FormLabel showErrorStyle={false}>輸入姓名</FormLabel>
 
             <FormControl>

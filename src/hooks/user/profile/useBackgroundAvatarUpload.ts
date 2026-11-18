@@ -3,6 +3,7 @@
 import { useSession } from 'next-auth/react';
 import { useCallback, useEffect, useRef } from 'react';
 
+import { upgradeClaritySession } from '@/lib/analytics';
 import { getAvatarSnapshot } from '@/services/profile/getAvatarSnapshot';
 import {
   createPresignedUrlCache,
@@ -127,6 +128,7 @@ export function useBackgroundAvatarUpload(
             return undefined;
           }
           job.status = 'failed';
+          upgradeClaritySession('avatar_upload_failed');
           throw err;
         }
       );
@@ -151,12 +153,17 @@ export function useBackgroundAvatarUpload(
         jobRef.current = null;
         return current.promise;
       }
-      return updateAvatar(
-        file,
-        userIdRef.current,
-        undefined,
-        presignedCacheRef.current ?? undefined
-      );
+      try {
+        return await updateAvatar(
+          file,
+          userIdRef.current,
+          undefined,
+          presignedCacheRef.current ?? undefined
+        );
+      } catch (err) {
+        upgradeClaritySession('avatar_upload_failed');
+        throw err;
+      }
     },
     []
   );

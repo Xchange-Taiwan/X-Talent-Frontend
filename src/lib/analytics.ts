@@ -131,12 +131,45 @@ const CLARITY_PLAYBACK_URL_DIAGNOSTIC_EVENTS: ReadonlySet<string> = new Set([
   'mentor_search_zero_results',
   'booking_submit_failed',
   'auth_flow_failed',
+  'form_validation_failed',
 ]);
 
 const CLARITY_AUTO_UPGRADE_EVENTS: ReadonlySet<string> = new Set([
   'booking_submit_failed',
   'auth_flow_failed',
+  'form_validation_failed',
 ]);
+
+const SAFE_FORM_VALIDATION_FIELD_MAP: Readonly<Record<string, string>> = {
+  name: 'profile_name',
+  avatar: 'avatar',
+  avatarFile: 'avatar',
+  about: 'about',
+  have_topic: 'have_topic',
+  have_skill: 'have_skill',
+  location: 'location',
+  years_of_experience: 'years_of_experience',
+  industry: 'industry',
+  want_position: 'want_position',
+  want_skill: 'want_skill',
+  want_topic: 'want_topic',
+  work_experiences: 'work_experiences',
+  experiences: 'work_experiences',
+  educations: 'educations',
+  links: 'links',
+  personal_statement: 'personal_statement',
+  language: 'language',
+};
+
+export type FormValidationFormId =
+  'profile_edit' | 'mentor_onboarding' | 'mentee_onboarding';
+
+export interface TrackFormValidationFailedInput {
+  feature: 'profile' | 'onboarding';
+  formId: FormValidationFormId;
+  invalidKeys: readonly string[];
+  step?: number;
+}
 
 let configuredGaTargetsByFn = new WeakMap<object, Set<string>>();
 let configuredClarityTargetsByFn = new WeakMap<object, Set<string>>();
@@ -979,6 +1012,53 @@ export function trackEvent(
   if (process.env.NODE_ENV === 'development') {
     console.debug('[analytics] trackEvent', trimmedName, gaParams, options);
   }
+}
+
+/**
+ * Tracks client-side form validation stumbles (before any backend mutation occurs)
+ * using a strict allowlist of normalized field identifiers so raw user input values,
+ * array indices, and custom validation messages can never leak to GA4 or Clarity.
+ */
+export function trackFormValidationFailed({
+  feature,
+  formId,
+  invalidKeys,
+  step,
+}: TrackFormValidationFailedInput): void {
+  if (!Array.isArray(invalidKeys) || invalidKeys.length === 0) {
+    return;
+  }
+
+  const normalizedSet = new Set<string>();
+  for (const rawKey of invalidKeys) {
+    if (typeof rawKey !== 'string') continue;
+    const rootSegment = rawKey.trim().split(/[.[]/)[0] ?? '';
+    if (!rootSegment) continue;
+    const mapped = Object.prototype.hasOwnProperty.call(
+      SAFE_FORM_VALIDATION_FIELD_MAP,
+      rootSegment
+    )
+      ? SAFE_FORM_VALIDATION_FIELD_MAP[rootSegment]
+      : 'other';
+    normalizedSet.add(mapped);
+  }
+
+  const normalizedFields = Array.from(normalizedSet);
+  const primaryField = normalizedFields[0];
+  if (!primaryField) {
+    return;
+  }
+
+  trackEvent({
+    name: 'form_validation_failed',
+    feature,
+    metadata: {
+      form_id: formId,
+      primary_field: primaryField,
+      invalid_count: normalizedFields.length,
+      ...(typeof step === 'number' && Number.isFinite(step) ? { step } : {}),
+    },
+  });
 }
 
 /**

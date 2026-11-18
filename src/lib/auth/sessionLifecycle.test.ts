@@ -918,7 +918,7 @@ describe('sessionLifecycle (#885)', () => {
       });
       expect(errNavigate).toHaveBeenCalledWith('/auth/signin');
 
-      // 3. success -> tracks delete_account_succeeded before teardown, runs revalidateAfterDelete, signs out to '/'
+      // 3. success -> clears analytics user without redundant delete_account_succeeded event, runs revalidateAfterDelete, signs out to '/'
       const okStorage = createInMemorySessionStorage({
         [PENDING_DELETE_ACCOUNT_EMAIL_KEY]: 'del@example.com',
         [PENDING_PASSWORD_RESET_EMAIL_KEY]: 'stale@example.com',
@@ -958,7 +958,6 @@ describe('sessionLifecycle (#885)', () => {
       expect(okStorage.dump()).toEqual({});
       expect(okSignOut).toHaveBeenCalledWith({ callbackUrl: '/' });
       expect(callOrder).toEqual([
-        'trackEvent',
         'clearSessionHint',
         'clearAnalyticsUser',
         'revalidate',

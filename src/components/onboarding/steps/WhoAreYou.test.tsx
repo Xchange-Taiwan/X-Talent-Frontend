@@ -116,4 +116,19 @@ describe('WhoAreYou avatarDisplayUrl query param handling (#857)', () => {
     );
     expect(avatarUploadMock.lastAvatarUrl?.split('?')).toHaveLength(2);
   });
+
+  it('masks both avatar upload and real-name input with data-clarity-mask="true" while preserving sibling DOM layout (#950)', () => {
+    mockUseSession.mockReturnValue(
+      fromPartial({
+        data: null,
+        status: 'unauthenticated',
+      })
+    );
+
+    render(<TestWhoAreYouHarness defaultAvatar="" />);
+    const avatarEl = screen.getByTestId('mock-avatar-upload');
+    const nameInput = screen.getByPlaceholderText('請填入您的姓名');
+    expect(avatarEl.closest('[data-clarity-mask="true"]')).not.toBeNull();
+    expect(nameInput.closest('[data-clarity-mask="true"]')).not.toBeNull();
+  });
 });

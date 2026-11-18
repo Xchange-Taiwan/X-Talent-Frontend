@@ -218,18 +218,17 @@ describe('QuickReplyDialog', () => {
     expect(textarea).toHaveValue('Hi');
   });
 
-  it('tracks reservation_accepted with has_reply reflecting whether a reply was written', async () => {
+  it('accepts reservation with optional reply without emitting duplicate reservation_accepted GA4 event (#950)', async () => {
     render(<QuickReplyDialog {...defaultProps} />);
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: '接受' }));
     });
 
-    expect(trackEvent).toHaveBeenCalledWith({
-      name: 'reservation_accepted',
-      feature: 'reservation',
-      metadata: { has_reply: false },
-    });
+    expect(mockAccept).toHaveBeenCalledWith(defaultProps.reservation, '');
+    expect(trackEvent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'reservation_accepted' })
+    );
 
     vi.mocked(trackEvent).mockClear();
     fireEvent.click(screen.getByText('附上回覆訊息（選填）'));
@@ -243,11 +242,13 @@ describe('QuickReplyDialog', () => {
       fireEvent.click(screen.getByRole('button', { name: '接受' }));
     });
 
-    expect(trackEvent).toHaveBeenCalledWith({
-      name: 'reservation_accepted',
-      feature: 'reservation',
-      metadata: { has_reply: true },
-    });
+    expect(mockAccept).toHaveBeenCalledWith(
+      defaultProps.reservation,
+      '見面時見！'
+    );
+    expect(trackEvent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'reservation_accepted' })
+    );
   });
 
   it('calls reject action and handles success correctly', async () => {
