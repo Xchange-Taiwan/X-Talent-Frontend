@@ -49,6 +49,46 @@ function handleFeedbackClick(): void {
   trackEvent({ name: 'feedback_open' });
 }
 
+function readIsMentorOnboardingFromLocation(pathname: string | null): boolean {
+  if (!pathname?.endsWith('/edit') || typeof window === 'undefined') {
+    return false;
+  }
+  const params = new URLSearchParams(window.location.search);
+  return (
+    params.get(MENTOR_ONBOARDING_KEY) === 'true' ||
+    params.get('onboarding') === 'true'
+  );
+}
+
+const LOCATION_CHANGE_EVENT = 'xtalent:locationchange';
+
+function ensureHistoryPatched(): void {
+  if (typeof window === 'undefined') return;
+  const win = window as Window & { __xtalentHistoryPatched?: boolean };
+  if (win.__xtalentHistoryPatched) return;
+  win.__xtalentHistoryPatched = true;
+
+  const origPushState = window.history.pushState.bind(window.history);
+  window.history.pushState = (
+    data: unknown,
+    unused: string,
+    url?: string | URL | null
+  ) => {
+    origPushState(data, unused, url);
+    window.dispatchEvent(new Event(LOCATION_CHANGE_EVENT));
+  };
+
+  const origReplaceState = window.history.replaceState.bind(window.history);
+  window.history.replaceState = (
+    data: unknown,
+    unused: string,
+    url?: string | URL | null
+  ) => {
+    origReplaceState(data, unused, url);
+    window.dispatchEvent(new Event(LOCATION_CHANGE_EVENT));
+  };
+}
+
 export function useHeaderNavigation({
   identity,
   user,
@@ -61,15 +101,17 @@ export function useHeaderNavigation({
   const dialogRafRef = React.useRef<number | null>(null);
 
   React.useEffect(() => {
-    if (!pathname?.endsWith('/edit') || typeof window === 'undefined') {
-      setIsMentorOnboarding(false);
-      return;
-    }
-    const params = new URLSearchParams(window.location.search);
-    setIsMentorOnboarding(
-      params.get(MENTOR_ONBOARDING_KEY) === 'true' ||
-        params.get('onboarding') === 'true'
-    );
+    ensureHistoryPatched();
+    const sync = () => {
+      setIsMentorOnboarding(readIsMentorOnboardingFromLocation(pathname));
+    };
+    sync();
+    window.addEventListener('popstate', sync);
+    window.addEventListener(LOCATION_CHANGE_EVENT, sync);
+    return () => {
+      window.removeEventListener('popstate', sync);
+      window.removeEventListener(LOCATION_CHANGE_EVENT, sync);
+    };
   }, [pathname]);
 
   const isUserUnresolved = identity.state === 'hint-only' || !identity.userId;

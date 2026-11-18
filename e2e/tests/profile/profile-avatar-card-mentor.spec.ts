@@ -711,7 +711,9 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
     await expect(submitBtn).toBeDisabled();
     await page.getByRole('button', { name: '查看規範' }).click();
     await expect(page.getByText('真實身分')).toBeVisible();
-    await page.getByRole('checkbox', { name: /我已閱讀並同意導師規範/ }).click();
+    await page
+      .getByRole('checkbox', { name: /我已閱讀並同意導師規範/ })
+      .click();
     await expect(submitBtn).toBeEnabled();
 
     // Submitting while Mentor-only required fields are empty triggers validation errors

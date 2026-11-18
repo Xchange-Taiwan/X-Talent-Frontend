@@ -32,15 +32,19 @@ export const MENTOR_GUIDELINE_ITEMS: ReadonlyArray<MentorGuidelineItem> = [
 ];
 
 export interface MentorGuidelinesCardProps {
+  id?: string;
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
+  errorMessage?: string;
   defaultExpanded?: boolean;
   className?: string;
 }
 
 export function MentorGuidelinesCard({
+  id = 'agreed_guidelines',
   checked,
   onCheckedChange,
+  errorMessage,
   defaultExpanded = false,
   className,
 }: MentorGuidelinesCardProps) {
@@ -50,6 +54,7 @@ export function MentorGuidelinesCard({
 
   return (
     <section
+      id={id}
       aria-label="導師規範"
       data-testid="mentor-guidelines-card"
       className={cn(
@@ -93,6 +98,15 @@ export function MentorGuidelinesCard({
           )}
         </button>
       </div>
+
+      {errorMessage && (
+        <p
+          role="alert"
+          className="text-status-error-default mt-2 text-xs font-medium"
+        >
+          {errorMessage}
+        </p>
+      )}
 
       {expanded && (
         <div

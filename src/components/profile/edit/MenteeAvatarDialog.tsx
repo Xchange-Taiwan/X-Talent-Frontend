@@ -19,6 +19,7 @@ import { useObjectUrl } from '@/hooks/useObjectUrl';
 import { isPresetAvatarUrl, PRESET_AVATAR_URLS } from '@/lib/avatar/avatarUrl';
 import { FOCUS_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
+import { validateAvatarFile } from '@/schemas/profileSchema';
 
 const AvatarCropModal = dynamic(
   () => import('@/components/ui/avatar-crop-modal'),
@@ -53,6 +54,7 @@ export function MenteeAvatarDialog({
   const [draft, setDraft] = useState<AvatarDraft>({ kind: 'unchanged' });
   const [rawSelectedFile, setRawSelectedFile] = useState<File | null>(null);
   const [cropOpen, setCropOpen] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
   const wasOpenRef = useRef(false);
 
   useEffect(() => {
@@ -60,6 +62,7 @@ export function MenteeAvatarDialog({
       setDraft({ kind: 'unchanged' });
       setRawSelectedFile(null);
       setCropOpen(false);
+      setFileError(null);
     }
     wasOpenRef.current = open;
   }, [open]);
@@ -91,16 +94,28 @@ export function MenteeAvatarDialog({
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
-    if (file) {
-      setRawSelectedFile(file);
-      setCropOpen(true);
+    if (!file) return;
+    const err = validateAvatarFile(file);
+    if (err) {
+      setFileError(err);
+      return;
     }
+    setFileError(null);
+    setRawSelectedFile(file);
+    setCropOpen(true);
   };
 
   const handleCropSave = (croppedBlob: Blob) => {
     const croppedFile = new File([croppedBlob], 'croppedAvatar.png', {
       type: 'image/png',
     });
+    const err = validateAvatarFile(croppedFile);
+    if (err) {
+      setFileError(err);
+      setCropOpen(false);
+      return;
+    }
+    setFileError(null);
     setDraft({ kind: 'file', file: croppedFile });
     setCropOpen(false);
   };
@@ -166,6 +181,14 @@ export function MenteeAvatarDialog({
                   </span>
                 </span>
               </button>
+              {fileError && (
+                <p
+                  role="alert"
+                  className="text-status-error-default mt-2 text-center text-xs font-medium"
+                >
+                  {fileError}
+                </p>
+              )}
             </div>
 
             <div

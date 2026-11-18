@@ -5,10 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import { PageLoading } from '@/components/ui/loading-spinner';
 import useUserData from '@/hooks/user/user-data/useUserData';
-import {
-  getMentorOnboardingUrl,
-  OPEN_SCHEDULE_DIALOG_KEY,
-} from '@/lib/routes';
+import { getMentorOnboardingUrl, OPEN_SCHEDULE_DIALOG_KEY } from '@/lib/routes';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
 

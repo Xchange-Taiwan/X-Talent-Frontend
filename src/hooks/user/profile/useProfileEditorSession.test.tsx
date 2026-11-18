@@ -27,6 +27,16 @@ vi.mock('@/lib/profile/saveProfile', async (importOriginal) => {
   };
 });
 
+const mockTrackFormValidationFailed = vi.fn();
+vi.mock('@/lib/analytics', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/analytics')>();
+  return {
+    ...actual,
+    trackFormValidationFailed: (...args: unknown[]) =>
+      mockTrackFormValidationFailed(...args),
+  };
+});
+
 const mockOnError = vi.fn();
 const mockScrollToField = vi.fn();
 vi.mock('./useFormErrorScroll', () => ({
@@ -338,67 +348,129 @@ describe('useProfileEditorSession (#787 / #905)', () => {
     );
   });
 
-  it('rolls back pending custom avatar upload when switching to a preset avatar via handleSelectPresetAvatar, and invokes onExitEdit + onAfterSave in in-place mode (#828)', async () => {
-    mockUpdateAvatar.mockResolvedValue(
-      'https://s3.amazonaws.com/bucket/avatar.png?v=1'
-    );
-    mockGetAvatarSnapshot.mockResolvedValue(
-      new Blob(['original-bytes'], { type: 'image/png' })
+  it('tracks form_validation_failed with profile_edit vs mentor_onboarding formId without PII and forwards (errors, event) to onError (#950)', async () => {
+    const { result: editHook } = renderHook(() =>
+      useProfileEditorSession({
+        pageUserId: '1',
+        isAuthorized: true,
+        isMentorOnboarding: false,
+      })
     );
 
-    const onExitEdit = vi.fn();
-    const onAfterSave = vi.fn();
+    act(() => {
+      editHook.current.form.setValue('name', '');
+    });
 
-    mockCommitProfileMutation.mockImplementation(
-      async (_intent, _ctx, port: { navigate: (href: string) => void }) => {
-        port.navigate('/profile/1');
-        return { user_id: 1, name: 'Initial Name' };
-      }
+    await act(async () => {
+      await editHook.current.handleFormSubmit();
+    });
+
+    expect(mockTrackFormValidationFailed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        feature: 'profile',
+        formId: 'profile_edit',
+        invalidKeys: expect.arrayContaining(['name']),
+      })
     );
+    expect(mockOnError).toHaveBeenCalledWith(
+      expect.objectContaining({ name: expect.anything() }),
+      undefined
+    );
+
+    mockTrackFormValidationFailed.mockClear();
+    mockOnError.mockClear();
+
+    const { result: mentorHook } = renderHook(() =>
+      useProfileEditorSession({
+        pageUserId: '1',
+        isAuthorized: true,
+        isMentorOnboarding: true,
+      })
+    );
+
+    act(() => {
+      mentorHook.current.form.setValue('name', '');
+    });
+
+    await act(async () => {
+      await mentorHook.current.handleFormSubmit();
+    });
+
+    expect(mockTrackFormValidationFailed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        feature: 'profile',
+        formId: 'mentor_onboarding',
+        invalidKeys: expect.arrayContaining(['name']),
+      })
+    );
+    expect(
+      JSON.stringify(mockTrackFormValidationFailed.mock.calls)
+    ).not.toContain('Initial Name');
+  });
+
+  it('skips background S3 upload for invalid avatar files, selects preset avatar, and prompts on unsaved Mentee direction map changes (#959)', async () => {
+    mockUpdateAvatar.mockResolvedValue('https://cdn.example.com/ok.jpg');
+    mockUseUserProfileDto.mockReturnValue({
+      userDto: {
+        ...mockUserDTO,
+        user_id: 1,
+        name: 'Mentee User',
+        is_mentor: false,
+        want_position: ['uiux', 'fe'],
+        want_skill: ['ux_research'],
+        want_topic: [],
+      },
+      error: null,
+    });
 
     const { result } = renderHook(() =>
       useProfileEditorSession({
         pageUserId: '1',
         isAuthorized: true,
         isMentorOnboarding: false,
-        onExitEdit,
-        onAfterSave,
       })
     );
 
-    const customFile = new File(['photo'], 'photo.png', { type: 'image/png' });
+    // Invalid MIME type must not trigger updateAvatar S3 upload
+    const badFile = new File(['bad'], 'malicious.svg', {
+      type: 'image/svg+xml',
+    });
+    act(() => {
+      result.current.handleAvatarFileChange(badFile);
+    });
+    expect(mockUpdateAvatar).not.toHaveBeenCalled();
+
+    // Valid file kicks off S3 upload, then preset selection sets preset URL
+    const goodFile = new File(['ok'], 'photo.png', { type: 'image/png' });
     await act(async () => {
-      result.current.handleAvatarFileChange(customFile);
+      result.current.handleAvatarFileChange(goodFile);
       await Promise.resolve();
     });
     expect(mockUpdateAvatar).toHaveBeenCalledTimes(1);
-    expect(result.current.form.getValues('avatarFile')).toBe(customFile);
-
-    await act(async () => {
-      result.current.handleSelectPresetAvatar('/avatars/default_5.webp');
-      await Promise.resolve();
-    });
-
-    // Previous uncommitted S3 upload rolled back, avatarFile cleared, preset URL set
-    expect(mockUpdateAvatar).toHaveBeenCalledTimes(2);
-    expect(result.current.form.getValues('avatarFile')).toBeUndefined();
-    expect(result.current.form.getValues('avatar')).toBe(
-      '/avatars/default_5.webp'
-    );
 
     act(() => {
-      result.current.form.setValue('location', 'TWN');
-      result.current.form.setValue('years_of_experience', '1_3');
-      result.current.form.setValue('want_position', ['frontend']);
-      result.current.form.setValue('want_skill', ['react']);
-      result.current.form.setValue('want_topic', ['career']);
+      result.current.handleSelectPresetAvatar('/avatars/default_3.webp');
+    });
+    expect(result.current.form.getValues('avatar')).toBe(
+      '/avatars/default_3.webp'
+    );
+
+    // Reset form dirty state, then change only directionMap -> handleGoToPrev opens unsaved prompt
+    act(() => {
+      result.current.form.reset(result.current.form.getValues());
+    });
+    expect(result.current.form.formState.isDirty).toBe(false);
+
+    act(() => {
+      result.current.setDirectionMap({
+        uiux: { skills: [], topics: [] },
+        fe: { skills: ['ux_research'], topics: [] },
+      });
     });
 
-    await act(async () => {
-      await result.current.handleFormSubmit();
+    act(() => {
+      result.current.handleGoToPrev();
     });
-
-    expect(onAfterSave).toHaveBeenCalledTimes(1);
-    expect(onExitEdit).toHaveBeenCalledTimes(1);
+    expect(result.current.isPromptOpen).toBe(true);
   });
 });

@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import { useWatch } from 'react-hook-form';
 
 import { AvatarSection } from '@/components/profile/edit/AvatarSection';
@@ -32,7 +32,6 @@ import { PageLoading } from '@/components/ui/loading-spinner';
 import { totalWorkSpanOptions } from '@/constant/seniority';
 import { useProfileAuth } from '@/hooks/user/auth/useProfileAuth';
 import useLocations from '@/hooks/user/country/useLocations';
-import { useMenteeDirectionPreference } from '@/hooks/user/profile/useMenteeDirectionPreference';
 import {
   type ProfileFormContext,
   useProfileEditorSession,
@@ -112,8 +111,6 @@ export default function EditProfileContainer({
     searchParams?.get(MENTOR_ONBOARDING_KEY) === 'true' ||
     searchParams?.get('onboarding') === 'true';
 
-  const [agreedGuidelines, setAgreedGuidelines] = useState(false);
-
   const { isAuthorized, isResolving } = useProfileAuth(pageUserId);
 
   const { locations } = useLocations('zh_TW');
@@ -124,11 +121,6 @@ export default function EditProfileContainer({
   const tagCatalog = useTagCatalog('zh_TW', initialTagCatalog);
   const industries = tagCatalog.industry;
 
-  const persistDirectionRef = useRef<(() => void) | null>(null);
-  const handleAfterSave = useCallback(() => {
-    persistDirectionRef.current?.();
-  }, []);
-
   const {
     form,
     formRef,
@@ -137,6 +129,8 @@ export default function EditProfileContainer({
     isError,
     isHydrating,
     isSaving,
+    directionMap,
+    setDirectionMap,
     handleAvatarFileChange,
     handleSelectPresetAvatar,
     handleFormSubmit,
@@ -149,12 +143,14 @@ export default function EditProfileContainer({
     isAuthorized,
     isMentorOnboarding,
     industryCatalog: industries,
-    onAfterSave: handleAfterSave,
   });
 
-  const { directionMap, setDirectionMap, persistDirectionMap } =
-    useMenteeDirectionPreference(pageUserId, isMentorRole ? null : userDto);
-  persistDirectionRef.current = isMentorRole ? null : persistDirectionMap;
+  const watchedAgreedGuidelines = useWatch({
+    control: form.control,
+    name: 'agreed_guidelines',
+  });
+  const agreedGuidelines = Boolean(watchedAgreedGuidelines);
+  const guidelinesError = form.formState.errors.agreed_guidelines?.message;
 
   const haveTopicCategories = tagGroupsToCategories(tagCatalog.have_topic);
   const haveSkillCategories = tagGroupsToCategories(tagCatalog.have_skill);
@@ -205,7 +201,7 @@ export default function EditProfileContainer({
               onSubmit={handleFormSubmit}
               className="space-y-8"
             >
-              <div id="basic-info" className="space-y-6 scroll-mt-36">
+              <div id="basic-info" className="scroll-mt-36 space-y-6">
                 <AvatarSection
                   id="avatarFile"
                   variant="card"
@@ -235,8 +231,19 @@ export default function EditProfileContainer({
 
                 {isMentorOnboarding && (
                   <MentorGuidelinesCard
+                    id="agreed_guidelines"
                     checked={agreedGuidelines}
-                    onCheckedChange={setAgreedGuidelines}
+                    errorMessage={
+                      typeof guidelinesError === 'string'
+                        ? guidelinesError
+                        : undefined
+                    }
+                    onCheckedChange={(next) =>
+                      form.setValue('agreed_guidelines', next, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
+                    }
                   />
                 )}
 
@@ -307,7 +314,7 @@ export default function EditProfileContainer({
               </div>
 
               {isMentorRole ? (
-                <div id="mentor-expertise" className="space-y-6 scroll-mt-36">
+                <div id="mentor-expertise" className="scroll-mt-36 space-y-6">
                   <Section
                     id="have_topic"
                     variant="card"

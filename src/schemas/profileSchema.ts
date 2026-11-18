@@ -145,21 +145,48 @@ export const jobSchema = z
     }
   });
 
-export const createProfileFormSchema = (isMentor: boolean) =>
+export const ALLOWED_AVATAR_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+] as const;
+
+export const MAX_AVATAR_FILE_BYTES = 5 * 1024 * 1024;
+
+export function validateAvatarFile(
+  file: File | undefined | null
+): string | null {
+  if (!file) return null;
+  if (!(ALLOWED_AVATAR_MIME_TYPES as readonly string[]).includes(file.type)) {
+    return '只允許 jpg / png / gif / webp';
+  }
+  if (file.size > MAX_AVATAR_FILE_BYTES) {
+    return '頭像檔案大小不可超過 5MB';
+  }
+  return null;
+}
+
+export const createProfileFormSchema = (
+  isMentor: boolean,
+  isMentorOnboarding = false
+) =>
   z
     .object({
       avatar: z.string().optional(),
+      agreed_guidelines: z.boolean().optional(),
       avatarFile: z
         .union([z.instanceof(File), z.undefined()])
         .optional()
-        .refine(
-          (f) =>
-            !f ||
-            ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(
-              f.type
-            ),
-          '只允許 jpg / png / gif / webp'
-        ),
+        .superRefine((f, ctx) => {
+          const errorMsg = validateAvatarFile(f);
+          if (errorMsg) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: errorMsg,
+            });
+          }
+        }),
       name: z.string().min(1, '請輸入姓名').max(20, '最多不可超過 20 字'),
       location: isMentor
         ? z.string().min(1, '請選擇地區')
@@ -202,6 +229,13 @@ export const createProfileFormSchema = (isMentor: boolean) =>
       want_topic: z.array(z.string()).max(10, '最多選 10 個'),
     })
     .superRefine((data, ctx) => {
+      if (isMentorOnboarding && data.agreed_guidelines !== true) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['agreed_guidelines'],
+          message: '請先閱讀並勾選同意導師規範',
+        });
+      }
       if (isMentor && !data.avatarFile) {
         if (isPresetAvatarUrl(data.avatar)) {
           ctx.addIssue({
@@ -225,6 +259,7 @@ export type ProfileFormValues = z.infer<ProfileFormSchema>;
 
 export const defaultValues: ProfileFormValues = {
   avatar: '',
+  agreed_guidelines: false,
   avatarFile: undefined,
   name: '',
   location: '',

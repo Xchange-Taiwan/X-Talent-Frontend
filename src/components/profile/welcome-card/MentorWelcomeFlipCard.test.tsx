@@ -32,10 +32,13 @@ describe('MentorWelcomeFlipCard (#961)', () => {
     have_skill: [{ subject_group: 'ux', subject: 'UX Research' }],
   });
 
-  it('renders front face without L1 badge and flips to welcome back face on click', () => {
+  it('renders front face without L1 badge and flips to welcome back face on click with 3D CSS transition', () => {
     render(<MentorWelcomeFlipCard userData={mentorData} />);
 
-    expect(screen.getByTestId('mentor-card-front')).toBeInTheDocument();
+    const frontFace = screen.getByTestId('mentor-card-front');
+    const backFace = screen.getByTestId('mentor-card-back');
+    expect(frontFace).toHaveAttribute('aria-hidden', 'false');
+    expect(backFace).toHaveAttribute('aria-hidden', 'true');
     expect(screen.getByText('MENTOR')).toBeInTheDocument();
     expect(screen.queryByText('L1')).not.toBeInTheDocument();
     expect(screen.getByText('Zahra Mirzakhani')).toBeInTheDocument();
@@ -48,7 +51,8 @@ describe('MentorWelcomeFlipCard (#961)', () => {
 
     fireEvent.click(screen.getByTestId('mentor-welcome-flip-card'));
 
-    expect(screen.getByTestId('mentor-card-back')).toBeInTheDocument();
+    expect(frontFace).toHaveAttribute('aria-hidden', 'true');
+    expect(backFace).toHaveAttribute('aria-hidden', 'false');
     expect(screen.getByText('WELCOME TO X-TALENT')).toBeInTheDocument();
     expect(screen.getByText(/很高興/)).toBeInTheDocument();
     expect(screen.getByText(/讓經驗成為連結/)).toBeInTheDocument();

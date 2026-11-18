@@ -86,8 +86,8 @@ vi.mock('@/components/profile/edit/CategoryMultiSelectField', () => ({
   CategoryMultiSelectField: () => <div />,
 }));
 vi.mock('@/components/profile/edit/Section', () => ({
-  Section: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
+  Section: ({ id, children }: { id?: string; children: React.ReactNode }) => (
+    <div id={id}>{children}</div>
   ),
 }));
 vi.mock('@/components/profile/edit/LinkSection', () => ({
@@ -143,5 +143,48 @@ describe('EditProfileContainer unsaved-changes interception (integration, real h
     fireEvent.click(screen.getByRole('button', { name: '離開頁面' }));
 
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/profile/1'));
+  });
+
+  it('scrolls to #name and blocks navigation when Mentee submits with empty name (#959)', async () => {
+    mockUseUserProfileDto.mockReturnValue({
+      userDto: {
+        user_id: 1,
+        name: '陳小華',
+        is_mentor: false,
+        want_position: [],
+        want_skill: [],
+        want_topic: [],
+      } as unknown as MentorProfileVO,
+      error: null,
+    });
+
+    const scrolledIds: string[] = [];
+    Element.prototype.scrollIntoView = function (this: HTMLElement) {
+      if (this.id) scrolledIds.push(this.id);
+    };
+
+    try {
+      const { container } = render(
+        <EditProfileContainer
+          pageUserId="1"
+          initialTagCatalog={{} as unknown as TagCatalogsByBucket}
+        />
+      );
+
+      const nameInput = await screen.findByPlaceholderText('請填入您的姓名');
+      fireEvent.change(nameInput, { target: { value: '' } });
+
+      fireEvent.submit(container.querySelector('form')!);
+
+      await waitFor(() => {
+        expect(scrolledIds).toContain('name');
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: '取消' }));
+      expect(await screen.findByText('尚未儲存的變更')).toBeInTheDocument();
+    } finally {
+      delete (Element.prototype as unknown as Record<string, unknown>)
+        .scrollIntoView;
+    }
   });
 });

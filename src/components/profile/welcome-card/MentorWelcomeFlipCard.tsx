@@ -48,7 +48,12 @@ export function MentorWelcomeFlipCard({
   ].filter(Boolean);
 
   return (
-    <div className={cn('mx-auto w-full max-w-[460px] p-1', className)}>
+    <div
+      className={cn(
+        'mx-auto w-full max-w-[460px] p-1 [perspective:1200px]',
+        className
+      )}
+    >
       <button
         type="button"
         data-testid="mentor-welcome-flip-card"
@@ -57,115 +62,122 @@ export function MentorWelcomeFlipCard({
         onClick={() => setIsFlipped((prev) => !prev)}
         className={cn(
           FOCUS_RING_NO_OFFSET_CLASSES,
-          'group relative block min-h-[420px] w-full cursor-pointer rounded-3xl text-left transition-transform duration-200 hover:-translate-y-0.5'
+          'group relative block min-h-[420px] w-full cursor-pointer rounded-3xl text-left transition-transform duration-500 [transform-style:preserve-3d]',
+          isFlipped && '[transform:rotateY(180deg)]'
         )}
       >
-        {!isFlipped ? (
-          <div
-            data-testid="mentor-card-front"
-            className="border-background-border bg-background-white flex min-h-[420px] w-full flex-col justify-between rounded-3xl border p-7 shadow-md"
-          >
-            <div>
-              <div className="mb-5 flex items-center justify-between">
-                <span className="bg-brand-100 text-brand-700 inline-flex items-center rounded-full px-3 py-1 text-xs font-bold tracking-wider uppercase">
-                  MENTOR
-                </span>
-                <span className="text-text-tertiary group-hover:text-brand-700 inline-flex items-center gap-1 text-xs font-medium transition-colors">
-                  <RotateCw className="size-3.5" aria-hidden="true" />
-                  點卡片翻面
-                </span>
-              </div>
-
-              <div className="mb-5 flex items-center gap-4">
-                <div className="border-background-border relative size-16 shrink-0 overflow-hidden rounded-full border">
-                  <Image
-                    src={avatarSrc}
-                    alt={`Avatar of ${userData.name}`}
-                    fill
-                    sizes="64px"
-                    className="object-cover"
-                  />
-                </div>
-                <div className="min-w-0">
-                  <h2 className="text-text-primary truncate text-xl font-bold">
-                    {userData.name}
-                  </h2>
-                  {(userData.job_title || userData.company) && (
-                    <p className="text-text-secondary mt-0.5 truncate text-sm">
-                      {userData.job_title}
-                      {userData.job_title && userData.company
-                        ? ` at ${userData.company}`
-                        : ''}
-                      {!userData.job_title && userData.company
-                        ? userData.company
-                        : ''}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {userData.about?.trim() && (
-                <p className="text-text-secondary mb-5 line-clamp-4 text-sm leading-relaxed">
-                  {userData.about}
-                </p>
-              )}
-
-              {servicesSummary && (
-                <p className="text-brand-700 mb-3 text-xs font-semibold">
-                  {servicesSummary}
-                </p>
-              )}
-
-              {skills.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {skills.map((skill) => (
-                    <Badge key={skill.subject_group} variant="default">
-                      {skill.subject}
-                    </Badge>
-                  ))}
-                </div>
-              )}
+        <div
+          data-testid="mentor-card-front"
+          aria-hidden={isFlipped}
+          className={cn(
+            'border-background-border bg-background-white flex min-h-[420px] w-full flex-col justify-between rounded-3xl border p-7 shadow-md [backface-visibility:hidden]',
+            isFlipped && 'pointer-events-none'
+          )}
+        >
+          <div>
+            <div className="mb-5 flex items-center justify-between">
+              <span className="bg-brand-100 text-brand-700 inline-flex items-center rounded-full px-3 py-1 text-xs font-bold tracking-wider uppercase">
+                MENTOR
+              </span>
+              <span className="text-text-tertiary group-hover:text-brand-700 inline-flex items-center gap-1 text-xs font-medium transition-colors">
+                <RotateCw className="size-3.5" aria-hidden="true" />
+                點卡片翻面
+              </span>
             </div>
 
-            {metaParts.length > 0 && (
-              <div className="border-background-border text-text-tertiary mt-6 border-t pt-4 text-xs font-medium">
-                {metaParts.join(' · ')}
+            <div className="mb-5 flex items-center gap-4">
+              <div className="border-background-border relative size-16 shrink-0 overflow-hidden rounded-full border">
+                <Image
+                  src={avatarSrc}
+                  alt={`Avatar of ${userData.name}`}
+                  fill
+                  sizes="64px"
+                  className="object-cover"
+                />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-text-primary truncate text-xl font-bold">
+                  {userData.name}
+                </h2>
+                {(userData.job_title || userData.company) && (
+                  <p className="text-text-secondary mt-0.5 truncate text-sm">
+                    {userData.job_title}
+                    {userData.job_title && userData.company
+                      ? ` at ${userData.company}`
+                      : ''}
+                    {!userData.job_title && userData.company
+                      ? userData.company
+                      : ''}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {userData.about?.trim() && (
+              <p className="text-text-secondary mb-5 line-clamp-4 text-sm leading-relaxed">
+                {userData.about}
+              </p>
+            )}
+
+            {servicesSummary && (
+              <p className="text-brand-700 mb-3 text-xs font-semibold">
+                {servicesSummary}
+              </p>
+            )}
+
+            {skills.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {skills.map((skill) => (
+                  <Badge key={skill.subject_group} variant="default">
+                    {skill.subject}
+                  </Badge>
+                ))}
               </div>
             )}
           </div>
-        ) : (
-          <div
-            data-testid="mentor-card-back"
-            className="from-brand-700 to-brand-500 text-text-white flex min-h-[420px] w-full flex-col justify-between rounded-3xl bg-gradient-to-br p-8 shadow-md"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-text-white/80 text-xs font-bold tracking-widest uppercase">
-                WELCOME TO X-TALENT
-              </span>
-              <span className="text-text-white/80 inline-flex items-center gap-1 text-xs font-medium">
-                <RotateCw className="size-3.5" aria-hidden="true" />
-                翻回正面
-              </span>
-            </div>
 
-            <div className="my-8 space-y-3">
-              <p className="text-2xl leading-snug font-bold sm:text-3xl">
-                很高興，
-                <br />
-                有你一起。
-              </p>
-              <p className="text-text-white/90 text-base leading-relaxed">
-                讓經驗成為連結，
-                <br />
-                陪伴下一段成長。
-              </p>
+          {metaParts.length > 0 && (
+            <div className="border-background-border text-text-tertiary mt-6 border-t pt-4 text-xs font-medium">
+              {metaParts.join(' · ')}
             </div>
+          )}
+        </div>
 
-            <div className="border-background-white/20 text-text-white/80 border-t pt-4 text-xs font-semibold tracking-wide">
-              X-Talent Mentor
-            </div>
+        <div
+          data-testid="mentor-card-back"
+          aria-hidden={!isFlipped}
+          className={cn(
+            'from-brand-700 to-brand-500 text-text-white absolute inset-0 flex min-h-[420px] w-full [transform:rotateY(180deg)] flex-col justify-between rounded-3xl bg-gradient-to-br p-8 shadow-md [backface-visibility:hidden]',
+            !isFlipped && 'pointer-events-none'
+          )}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-text-white/80 text-xs font-bold tracking-widest uppercase">
+              WELCOME TO X-TALENT
+            </span>
+            <span className="text-text-white/80 inline-flex items-center gap-1 text-xs font-medium">
+              <RotateCw className="size-3.5" aria-hidden="true" />
+              翻回正面
+            </span>
           </div>
-        )}
+
+          <div className="my-8 space-y-3">
+            <p className="text-2xl leading-snug font-bold sm:text-3xl">
+              很高興，
+              <br />
+              有你一起。
+            </p>
+            <p className="text-text-white/90 text-base leading-relaxed">
+              讓經驗成為連結，
+              <br />
+              陪伴下一段成長。
+            </p>
+          </div>
+
+          <div className="border-background-white/20 text-text-white/80 border-t pt-4 text-xs font-semibold tracking-wide">
+            X-Talent Mentor
+          </div>
+        </div>
       </button>
     </div>
   );

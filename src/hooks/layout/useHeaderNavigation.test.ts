@@ -319,13 +319,9 @@ describe('useHeaderNavigation', () => {
       });
     });
 
-    it('marks 成為導師 as isCurrent when Mentee is filling /profile/[id]/edit?mentor-onboarding=true (#961)', () => {
+    it('marks 成為導師 as isCurrent when Mentee is filling /profile/[id]/edit?mentor-onboarding=true and reacts to same-pathname query changes (#961)', () => {
       const originalHref = window.location.href;
-      window.history.replaceState(
-        {},
-        '',
-        '/profile/mentee-5/edit?mentor-onboarding=true'
-      );
+      window.history.replaceState({}, '', '/profile/mentee-5/edit');
       mockUsePathname.mockReturnValue('/profile/mentee-5/edit');
 
       try {
@@ -334,6 +330,20 @@ describe('useHeaderNavigation', () => {
             identity: authenticatedIdentity('mentee-5', { isMentor: false }),
           })
         );
+
+        // Initially on plain /edit without query -> not current
+        expect(result.current.desktopNav.resolvedRoleItem.isCurrent).toBe(
+          false
+        );
+
+        // Same-pathname query change to ?mentor-onboarding=true -> updates to isCurrent: true
+        act(() => {
+          window.history.pushState(
+            {},
+            '',
+            '/profile/mentee-5/edit?mentor-onboarding=true'
+          );
+        });
 
         expect(result.current.desktopNav.resolvedRoleItem).toMatchObject({
           id: 'become-mentor',
@@ -345,6 +355,14 @@ describe('useHeaderNavigation', () => {
           label: '成為導師',
           isCurrent: true,
         });
+
+        // Query removed -> reverts to false
+        act(() => {
+          window.history.replaceState({}, '', '/profile/mentee-5/edit');
+        });
+        expect(result.current.desktopNav.resolvedRoleItem.isCurrent).toBe(
+          false
+        );
       } finally {
         window.history.replaceState({}, '', originalHref);
       }
