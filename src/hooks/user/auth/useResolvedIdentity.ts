@@ -36,7 +36,9 @@ const getServerOptimisticSnapshot = () => undefined;
  */
 export function useResolvedIdentity(): ResolvedIdentity {
   const { data: session, status } = useSession();
-  const [hint, setHint] = useState<SessionHint | null | undefined>(undefined);
+  const [rawHintCookie, setRawHintCookie] = useState<string | undefined>(
+    undefined
+  );
 
   const rawUserId = session?.user?.id ? Number(session.user.id) : NaN;
   const sessionUserId =
@@ -65,9 +67,16 @@ export function useResolvedIdentity(): ResolvedIdentity {
   );
 
   useEffect(() => {
-    const rawCookie = readCookie(SESSION_HINT_COOKIE);
-    setHint(rawCookie !== undefined ? decodeSessionHint(rawCookie) : undefined);
+    setRawHintCookie(readCookie(SESSION_HINT_COOKIE));
   }, [session, status]);
+
+  const hint = useMemo<SessionHint | null | undefined>(
+    () =>
+      rawHintCookie !== undefined
+        ? decodeSessionHint(rawHintCookie)
+        : undefined,
+    [rawHintCookie]
+  );
 
   const identity = useMemo(
     () => resolveIdentity(session, status, hint, optimisticSnapshot),
