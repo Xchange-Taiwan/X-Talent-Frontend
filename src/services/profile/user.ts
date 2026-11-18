@@ -1,5 +1,6 @@
 import { apiClient, ApiError } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
+import { normalizePositiveUserId } from '@/lib/profile/userId';
 import type { MentorProfileVO } from '@/types/user';
 
 function isAbortError(error: unknown): boolean {
@@ -29,18 +30,23 @@ function isUserNotFoundError(error: unknown): boolean {
 }
 
 export async function fetchUserById(
-  userId: number,
+  userId: number | string,
   language: string,
   signal?: AbortSignal,
   silent = false
 ): Promise<MentorProfileVO | null> {
+  const normalizedUserId = normalizePositiveUserId(userId);
+  if (!normalizedUserId) {
+    return null;
+  }
+
   const maxRetries = 1;
   let attempt = 0;
 
   while (true) {
     try {
       const data = await apiClient.getUnwrapped<MentorProfileVO>(
-        `/v1/mentors/${userId}/${language}/profile`,
+        `/v1/mentors/${normalizedUserId}/${language}/profile`,
         { auth: false, signal }
       );
 

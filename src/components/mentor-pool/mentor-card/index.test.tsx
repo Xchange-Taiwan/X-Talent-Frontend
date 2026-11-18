@@ -1,6 +1,10 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fromPartial } from '@total-typescript/shoehorn';
+import {
+  AppRouterContext,
+  type AppRouterInstance,
+} from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { SessionContext, type SessionContextValue } from 'next-auth/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -379,5 +383,65 @@ describe('MentorCard feature flag overrides & env gates (#913)', () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByText(/\/ 10/)).not.toBeInTheDocument();
     expect(screen.getByText('已完成 24 場 1-on-1')).toBeInTheDocument();
+  });
+
+  it('disables automatic viewport RSC prefetching on the mentor profile Link while keeping GA4 attributes (#953)', async () => {
+    const prefetchSpy = vi.fn();
+    const observeSpy = vi.fn();
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        private readonly callback: IntersectionObserverCallback;
+        constructor(callback: IntersectionObserverCallback) {
+          this.callback = callback;
+        }
+        observe = (target: Element) => {
+          observeSpy(target);
+          this.callback(
+            [
+              fromPartial<IntersectionObserverEntry>({
+                isIntersecting: true,
+                intersectionRatio: 1,
+                target,
+              }),
+            ],
+            this as unknown as IntersectionObserver
+          );
+        };
+        unobserve = vi.fn();
+        disconnect = vi.fn();
+      }
+    );
+
+    const appRouter = fromPartial<AppRouterInstance>({
+      prefetch: prefetchSpy,
+      push: vi.fn(),
+      replace: vi.fn(),
+      refresh: vi.fn(),
+      back: vi.fn(),
+      forward: vi.fn(),
+    });
+
+    try {
+      renderWithSession(
+        <AppRouterContext.Provider value={appRouter}>
+          <MentorCard mentor={buildMentor()} />
+        </AppRouterContext.Provider>,
+        '9001'
+      );
+      const cardLink = screen.getByRole('link', {
+        name: '前往 Zahra Mirzakhani 的個人頁面',
+      });
+      expect(cardLink).toHaveAttribute('href', '/profile/101');
+      expect(cardLink).toHaveAttribute(
+        'data-analytics-event',
+        'mentor_card_click'
+      );
+      expect(cardLink).toHaveAttribute('data-analytics-param-mentor-id', '101');
+      expect(prefetchSpy).not.toHaveBeenCalled();
+      expect(observeSpy).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

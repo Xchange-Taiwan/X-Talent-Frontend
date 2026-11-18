@@ -7,11 +7,16 @@ import {
   primeUserProfileDtoCache,
 } from '@/lib/cache/userProfileDtoCache';
 import { encode, toWireExperiences } from '@/lib/profile/experienceCodec';
+import {
+  normalizePositiveUserId,
+  resolveProfileUserId,
+} from '@/lib/profile/userId';
 import type { MentorProfileVO } from '@/types/user';
 
 import {
   createProfileReadModel,
   OPTIMISTIC_TRANSITION_WINDOW_MS,
+  parseProfileCacheKey,
   PROFILE_READ_MODEL_TTL_MS,
   profileReadModel,
 } from './profileReadModel';
@@ -354,5 +359,60 @@ describe('profileReadModel', () => {
 
     clearUserProfileDtoCache(88);
     expect(getUserProfileDtoFromCache(88, 'en_US')).toBeNull();
+  });
+
+  it('isolates 64-bit string user IDs above Number.MAX_SAFE_INTEGER across cache, optimistic identity, invalidation, and key parsing (#953)', () => {
+    expect(normalizePositiveUserId(Number.MAX_SAFE_INTEGER + 1)).toBeNull();
+    expect(normalizePositiveUserId(12.5)).toBeNull();
+    expect(normalizePositiveUserId('0123')).toBeNull();
+    expect(normalizePositiveUserId('0')).toBeNull();
+    expect(normalizePositiveUserId('-1')).toBeNull();
+    expect(resolveProfileUserId('123')).toBe(123);
+    expect(resolveProfileUserId('9007199254740993')).toBe('9007199254740993');
+
+    const idA = '9007199254740992';
+    const idB = '9007199254740993';
+    const model = createProfileReadModel();
+
+    expect(parseProfileCacheKey(`${idA}-zh_TW`)).toEqual({
+      userId: idA,
+      language: 'zh_TW',
+    });
+    expect(parseProfileCacheKey(`${idB}-zh_TW`)).toEqual({
+      userId: idB,
+      language: 'zh_TW',
+    });
+    expect(parseProfileCacheKey('123-zh_TW')).toEqual({
+      userId: 123,
+      language: 'zh_TW',
+    });
+
+    const dtoA = makeDto(1, { name: 'Snowflake A' });
+    const dtoB = makeDto(2, { name: 'Snowflake B' });
+    const dto123 = makeDto(123, { name: 'Canonical 123' });
+
+    model.prime({ userId: idA, language: 'zh_TW' }, dtoA);
+    model.prime({ userId: idB, language: 'zh_TW' }, dtoB);
+    model.prime({ userId: 123, language: 'zh_TW' }, dto123);
+
+    expect(model.get({ userId: idA, language: 'zh_TW' })?.name).toBe(
+      'Snowflake A'
+    );
+    expect(model.get({ userId: idB, language: 'zh_TW' })?.name).toBe(
+      'Snowflake B'
+    );
+    expect(model.get({ userId: '123', language: 'zh_TW' })?.name).toBe(
+      'Canonical 123'
+    );
+    expect(model.getOptimisticIdentity(idA)?.name).toBe('Snowflake A');
+    expect(model.getOptimisticIdentity(idB)?.name).toBe('Snowflake B');
+
+    model.invalidateUser(idA);
+    expect(model.peek({ userId: idA, language: 'zh_TW' })).toBeUndefined();
+    expect(model.getOptimisticIdentity(idA)).toBeUndefined();
+    expect(model.get({ userId: idB, language: 'zh_TW' })?.name).toBe(
+      'Snowflake B'
+    );
+    expect(model.getOptimisticIdentity(idB)?.name).toBe('Snowflake B');
   });
 });

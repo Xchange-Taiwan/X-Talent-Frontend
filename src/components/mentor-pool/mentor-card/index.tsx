@@ -67,6 +67,7 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
       >
         <Link
           href={`/profile/${viewModel.id}`}
+          prefetch={false}
           aria-label={`前往 ${viewModel.name} 的個人頁面`}
           data-analytics-click="mentor_card"
           data-analytics-event="mentor_card_click"

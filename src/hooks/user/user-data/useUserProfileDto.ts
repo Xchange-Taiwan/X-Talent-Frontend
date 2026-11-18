@@ -11,6 +11,7 @@ import {
   profileReadModel,
   USER_PROFILE_DTO_CACHE_TTL_MS,
 } from '@/lib/profile/profileReadModel';
+import { normalizePositiveUserId } from '@/lib/profile/userId';
 import { fetchUserById } from '@/services/profile/user';
 import type { MentorProfileVO } from '@/types/user';
 
@@ -36,14 +37,23 @@ export interface UseUserProfileDtoResult {
  * so navigating between them within the cache TTL avoids duplicate API calls.
  */
 export function useUserProfileDto(
-  userId: number,
+  userId: number | string,
   language: string,
   initialData?: MentorProfileVO | null,
   options?: { enabled?: boolean }
 ): UseUserProfileDtoResult {
+  const canonicalUserId = normalizePositiveUserId(userId);
+  const fetchTargetId: number | string | null = canonicalUserId
+    ? typeof userId === 'number'
+      ? userId
+      : canonicalUserId
+    : null;
   const readKey = useMemo<ProfileReadKey | null>(
-    () => (userId && language ? { userId, language } : null),
-    [userId, language]
+    () =>
+      canonicalUserId && language
+        ? { userId: canonicalUserId, language }
+        : null,
+    [canonicalUserId, language]
   );
   const enabled = options?.enabled !== false;
   const activeKey = enabled ? readKey : null;
@@ -56,7 +66,10 @@ export function useUserProfileDto(
   } = useAsyncRead(
     profileReadModel,
     activeKey,
-    (signal) => fetchUserById(userId, language, signal),
+    (signal) =>
+      fetchTargetId !== null
+        ? fetchUserById(fetchTargetId, language, signal)
+        : Promise.resolve(null),
     {
       initialData,
     }
