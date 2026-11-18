@@ -295,22 +295,21 @@ export default function EditProfileContainer({
                 </div>
               </div>
 
-              <div className="scroll-mt-36">
-                <Section
-                  id="about"
-                  variant="card"
-                  title="關於我"
-                  required={isMentorRole}
-                  subtitle={
-                    isMentorRole
-                      ? '建議 150–300 字，分享你的專業背景與可協助的方向。'
-                      : undefined
-                  }
-                  headerAction={<AboutLengthCounter form={form} />}
-                >
-                  <TextareaField control={form.control} name="about" rows={8} />
-                </Section>
-              </div>
+              <Section
+                id="about"
+                variant="card"
+                className="scroll-mt-36"
+                title="關於我"
+                required={isMentorRole}
+                subtitle={
+                  isMentorRole
+                    ? '建議 150–300 字，分享你的專業背景與可協助的方向。'
+                    : undefined
+                }
+                headerAction={<AboutLengthCounter form={form} />}
+              >
+                <TextareaField control={form.control} name="about" rows={8} />
+              </Section>
 
               {isMentorRole ? (
                 <div id="mentor-expertise" className="scroll-mt-36 space-y-6">
@@ -372,8 +371,8 @@ export default function EditProfileContainer({
                 <EducationSection form={form} isMentor={isMentorRole} />
               </div>
 
-              <div className="scroll-mt-36">
-                <LinksSection id="links" form={form} />
+              <div id="links" className="scroll-mt-36">
+                <LinksSection form={form} />
               </div>
             </form>
           </Form>
