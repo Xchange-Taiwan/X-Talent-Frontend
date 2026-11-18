@@ -31,7 +31,10 @@ vi.mock('@/actions/auth', () => ({
   revalidateProfilePathAfterDelete: mockRevalidateAfterDelete,
 }));
 
-import { PENDING_AUTH_CALLBACK_URL_KEY } from '@/lib/auth/authFlowStorage';
+import {
+  PENDING_AUTH_CALLBACK_URL_KEY,
+  PENDING_VERIFICATION_EMAIL_KEY,
+} from '@/lib/auth/authFlowStorage';
 import {
   getPendingFavoriteMentorId,
   savePendingFavoriteMentor,
@@ -155,5 +158,130 @@ describe('useGoogleOAuthCallback (#885)', () => {
 
     expect(mockRouter.push).toHaveBeenCalledWith('/profile/303');
     expect(getPendingFavoriteMentorId()).toBe(303);
+  });
+
+  describe('server pre-exchanged fast path (#954)', () => {
+    it('completes LOGIN without calling googleCallback Server Action or extra getSession round-trip, forwarding sealed refreshBridge to signIn', async () => {
+      window.sessionStorage.setItem(
+        PENDING_AUTH_CALLBACK_URL_KEY,
+        '/reservation/mentee'
+      );
+
+      const { result } = renderHook(() =>
+        useGoogleOAuthCallback({
+          response: fromPartial<OAuthCallbackResponse>({
+            code: '0',
+            msg: 'ok',
+            data: {
+              auth_type: 'LOGIN',
+              auth: { token: 'fast_jwt', email: 'fast@example.com' },
+              user: fromPartial<ProfileVO>({
+                user_id: 777,
+                onboarding: true,
+                is_mentor: true,
+              }),
+            },
+          }),
+          refreshBridgeToken: 'encrypted_jwe_bridge_954',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      expect(mockGoogleCallback).not.toHaveBeenCalled();
+      expect(mockGetSession).not.toHaveBeenCalled();
+      expect(mockSignIn).toHaveBeenCalledWith(
+        'custom-google-token',
+        expect.objectContaining({
+          redirect: false,
+          token: 'fast_jwt',
+          email: 'fast@example.com',
+          refreshBridge: 'encrypted_jwe_bridge_954',
+        })
+      );
+      expect(mockRouter.push).toHaveBeenCalledWith('/reservation/mentee');
+    });
+
+    it('routes incomplete onboarding users to /auth/onboarding on the fast path', async () => {
+      const { result } = renderHook(() =>
+        useGoogleOAuthCallback({
+          response: fromPartial<OAuthCallbackResponse>({
+            code: '0',
+            msg: 'ok',
+            data: {
+              auth_type: 'LOGIN',
+              auth: { token: 'fast_jwt', email: 'newbie@example.com' },
+              user: fromPartial<ProfileVO>({
+                user_id: 778,
+                onboarding: false,
+                is_mentor: false,
+              }),
+            },
+          }),
+          refreshBridgeToken: 'encrypted_jwe_bridge_778',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      expect(mockGoogleCallback).not.toHaveBeenCalled();
+      expect(mockRouter.push).toHaveBeenCalledWith('/auth/onboarding');
+    });
+
+    it('completes SIGNUP without calling googleCallback Server Action and stores pending verification email', async () => {
+      const { result } = renderHook(() =>
+        useGoogleOAuthCallback({
+          response: fromPartial<OAuthCallbackResponse>({
+            code: '0',
+            msg: 'ok',
+            data: {
+              auth_type: 'SIGNUP',
+              auth: { email: 'signup@example.com' },
+            },
+          }),
+          refreshBridgeToken: null,
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      expect(mockGoogleCallback).not.toHaveBeenCalled();
+      expect(
+        window.sessionStorage.getItem(PENDING_VERIFICATION_EMAIL_KEY)
+      ).toBe('signup@example.com');
+      expect(mockRouter.push).toHaveBeenCalledWith('/auth/email-verify');
+    });
+
+    it('never re-sends single-use code via googleCallback when server pre-exchange failed', async () => {
+      const { result } = renderHook(() =>
+        useGoogleOAuthCallback({
+          response: {
+            code: '400',
+            msg: 'Google OAuth callback failed',
+            data: null,
+          },
+          refreshBridgeToken: null,
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      expect(mockGoogleCallback).not.toHaveBeenCalled();
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: 'destructive',
+          title: 'Login failed',
+        })
+      );
+      expect(mockRouter.push).toHaveBeenCalledWith('/auth/signin');
+    });
   });
 });

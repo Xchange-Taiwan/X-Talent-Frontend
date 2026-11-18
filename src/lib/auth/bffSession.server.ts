@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { cookies } from 'next/headers';
 import type { User } from 'next-auth';
 
@@ -8,9 +9,11 @@ import {
   normalizeBffAuthUser,
   resolveBffBaseUrl,
 } from '@/lib/auth/bffAuth';
+import type { PreExchangedGoogleOAuthResult } from '@/lib/auth/oauthOutcome';
 import {
   consumeOAuthRefreshBridge,
   type CookieStore,
+  OAUTH_REFRESH_BRIDGE_TTL_SECONDS,
   setOAuthRefreshBridge,
 } from '@/lib/auth/oauthRefreshBridge';
 import { isValidUserId } from '@/lib/auth/userGuard';
@@ -343,11 +346,14 @@ async function clearBridgeCookieSafely(
   }
 }
 
-export async function exchangeGoogleOAuthCodeWithBridge(
+async function requestGoogleOAuthCallbackBff(
   code: string,
   state: string,
-  adapters?: BffSessionAdapters
-): Promise<OAuthCallbackResponse> {
+  adapters?: Pick<BffSessionAdapters, 'fetchFn' | 'env'>
+): Promise<{
+  response: OAuthCallbackResponse;
+  refreshToken: string | null;
+}> {
   const fetchFn = resolveFetch(adapters);
   const baseUrl = resolveBffBaseUrl(resolveEnv(adapters));
 
@@ -359,30 +365,36 @@ export async function exchangeGoogleOAuthCodeWithBridge(
       body: JSON.stringify({ code, state }),
     });
   } catch {
-    await clearBridgeCookieSafely(adapters);
     return {
-      code: 'NETWORK_ERROR',
-      msg: 'Failed to reach BFF OAuth callback',
-      data: null,
+      response: {
+        code: 'NETWORK_ERROR',
+        msg: 'Failed to reach BFF OAuth callback',
+        data: null,
+      },
+      refreshToken: null,
     };
   }
 
   if (!res.ok) {
-    await clearBridgeCookieSafely(adapters);
     return {
-      code: String(res.status || 500),
-      msg: `Google OAuth callback failed with status ${res.status}`,
-      data: null,
+      response: {
+        code: String(res.status || 500),
+        msg: `Google OAuth callback failed with status ${res.status}`,
+        data: null,
+      },
+      refreshToken: null,
     };
   }
 
   const raw: unknown = await res.json().catch(() => null);
   if (!isRecord(raw)) {
-    await clearBridgeCookieSafely(adapters);
     return {
-      code: 'INVALID_RESPONSE',
-      msg: 'Invalid BFF Google OAuth callback response',
-      data: null,
+      response: {
+        code: 'INVALID_RESPONSE',
+        msg: 'Invalid BFF Google OAuth callback response',
+        data: null,
+      },
+      refreshToken: null,
     };
   }
 
@@ -390,30 +402,38 @@ export async function exchangeGoogleOAuthCodeWithBridge(
   const envelopeMsg = typeof raw.msg === 'string' ? raw.msg : 'ok';
 
   if (envelopeCode !== '0') {
-    await clearBridgeCookieSafely(adapters);
     return {
-      code: envelopeCode,
-      msg:
-        typeof raw.msg === 'string' ? raw.msg : 'Google OAuth callback failed',
-      data: null,
+      response: {
+        code: envelopeCode,
+        msg:
+          typeof raw.msg === 'string'
+            ? raw.msg
+            : 'Google OAuth callback failed',
+        data: null,
+      },
+      refreshToken: null,
     };
   }
 
   if (raw.data === null || raw.data === undefined) {
-    await clearBridgeCookieSafely(adapters);
     return {
-      code: '0',
-      msg: envelopeMsg,
-      data: null,
+      response: {
+        code: '0',
+        msg: envelopeMsg,
+        data: null,
+      },
+      refreshToken: null,
     };
   }
 
   if (!isGoogleCallbackVO(raw.data)) {
-    await clearBridgeCookieSafely(adapters);
     return {
-      code: 'INVALID_RESPONSE',
-      msg: 'Malformed BFF Google OAuth callback payload',
-      data: null,
+      response: {
+        code: 'INVALID_RESPONSE',
+        msg: 'Malformed BFF Google OAuth callback payload',
+        data: null,
+      },
+      refreshToken: null,
     };
   }
 
@@ -427,19 +447,185 @@ export async function exchangeGoogleOAuthCodeWithBridge(
     ? extractRefreshTokenCookie(res.headers)
     : null;
 
+  return {
+    response: {
+      code: '0',
+      msg: envelopeMsg,
+      data: callbackData,
+    },
+    refreshToken,
+  };
+}
+
+export async function exchangeGoogleOAuthCodeWithBridge(
+  code: string,
+  state: string,
+  adapters?: BffSessionAdapters
+): Promise<OAuthCallbackResponse> {
+  const { response, refreshToken } = await requestGoogleOAuthCallbackBff(
+    code,
+    state,
+    adapters
+  );
+
+  if (!response.data) {
+    await clearBridgeCookieSafely(adapters);
+    return response;
+  }
+
   const store = await resolveCookieStore(adapters);
   setOAuthRefreshBridge(store, refreshToken);
 
+  return response;
+}
+
+const consumedRefreshBridgeJtis = new Map<string, number>();
+
+function recordAndCheckBridgeJti(jti: string, nowMs: number): boolean {
+  consumedRefreshBridgeJtis.forEach((expiresAt, key) => {
+    if (expiresAt <= nowMs) {
+      consumedRefreshBridgeJtis.delete(key);
+    }
+  });
+  if (consumedRefreshBridgeJtis.has(jti)) {
+    return false;
+  }
+  consumedRefreshBridgeJtis.set(
+    jti,
+    nowMs + OAUTH_REFRESH_BRIDGE_TTL_SECONDS * 1000
+  );
+  return true;
+}
+
+interface SealedRefreshBridgePayload {
+  jti: string;
+  rt: string;
+  accessToken: string;
+  exp: number;
+}
+
+function deriveRefreshBridgeKey(secret: string): crypto.KeyObject {
+  const rawKey = crypto.hkdfSync(
+    'sha256',
+    secret,
+    '',
+    'xtalent-oauth-refresh-bridge-v1',
+    32
+  );
+  return crypto.createSecretKey(new Uint8Array(rawKey));
+}
+
+function sealRefreshBridgeToken(
+  payload: SealedRefreshBridgePayload,
+  secret: string
+): string {
+  const key = deriveRefreshBridgeKey(secret);
+  const ivBytes = crypto.randomBytes(12);
+  const iv = new Uint8Array(
+    ivBytes.buffer,
+    ivBytes.byteOffset,
+    ivBytes.byteLength
+  );
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const ciphertextB64 =
+    cipher.update(JSON.stringify(payload), 'utf8', 'base64url') +
+    cipher.final('base64url');
+  const tagB64 = cipher.getAuthTag().toString('base64url');
+  return `${ivBytes.toString('base64url')}.${tagB64}.${ciphertextB64}`;
+}
+
+function unsealRefreshBridgeToken(
+  sealed: string,
+  secret: string,
+  nowMs: number
+): SealedRefreshBridgePayload | null {
+  const parts = sealed.split('.');
+  if (parts.length !== 3 || !parts[2]) return null;
+  const ivBuf = Buffer.from(parts[0], 'base64url');
+  const tagBuf = Buffer.from(parts[1], 'base64url');
+  if (ivBuf.length !== 12 || tagBuf.length !== 16) {
+    return null;
+  }
+
+  const key = deriveRefreshBridgeKey(secret);
+  const iv = new Uint8Array(ivBuf.buffer, ivBuf.byteOffset, ivBuf.byteLength);
+  const tag = new Uint8Array(
+    tagBuf.buffer,
+    tagBuf.byteOffset,
+    tagBuf.byteLength
+  );
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  decipher.setAuthTag(tag);
+  const plaintext =
+    decipher.update(parts[2], 'base64url', 'utf8') + decipher.final('utf8');
+
+  const parsed: unknown = JSON.parse(plaintext);
+  if (!isRecord(parsed)) return null;
+  if (
+    typeof parsed.jti !== 'string' ||
+    typeof parsed.rt !== 'string' ||
+    typeof parsed.accessToken !== 'string' ||
+    typeof parsed.exp !== 'number' ||
+    parsed.exp <= nowMs
+  ) {
+    return null;
+  }
   return {
-    code: '0',
-    msg: envelopeMsg,
-    data: callbackData,
+    jti: parsed.jti,
+    rt: parsed.rt,
+    accessToken: parsed.accessToken,
+    exp: parsed.exp,
   };
+}
+
+export async function exchangeGoogleOAuthCodeServer(
+  code: string,
+  state: string,
+  adapters?: Pick<BffSessionAdapters, 'fetchFn' | 'env' | 'now'>
+): Promise<PreExchangedGoogleOAuthResult> {
+  const { response, refreshToken } = await requestGoogleOAuthCallbackBff(
+    code,
+    state,
+    adapters
+  );
+
+  const accessToken =
+    response.data?.auth_type === 'LOGIN' ? response.data.auth.token : null;
+  const secret = resolveEnv(adapters).NEXTAUTH_SECRET;
+
+  if (!refreshToken || !accessToken || !secret) {
+    return {
+      response,
+      refreshBridgeToken: null,
+    };
+  }
+
+  try {
+    const nowMs = resolveNow(adapters);
+    const refreshBridgeToken = sealRefreshBridgeToken(
+      {
+        jti: crypto.randomUUID(),
+        rt: refreshToken,
+        accessToken,
+        exp: nowMs + OAUTH_REFRESH_BRIDGE_TTL_SECONDS * 1000,
+      },
+      secret
+    );
+    return {
+      response,
+      refreshBridgeToken,
+    };
+  } catch {
+    return {
+      response,
+      refreshBridgeToken: null,
+    };
+  }
 }
 
 export async function authorizeGoogleBridgePayload(
   credentials: Record<string, unknown> | undefined,
-  adapters?: Pick<BffSessionAdapters, 'cookieStore'>
+  adapters?: Pick<BffSessionAdapters, 'cookieStore' | 'env' | 'now'>
 ): Promise<User | null> {
   if (!isRecord(credentials)) return null;
   if (typeof credentials.token !== 'string' || credentials.token.length === 0) {
@@ -470,19 +656,49 @@ export async function authorizeGoogleBridgePayload(
     return null;
   }
 
+  let refreshToken: string | undefined;
   try {
     const store = await resolveCookieStore(adapters);
-    const refreshToken = consumeOAuthRefreshBridge(store);
-
-    return normalizeBffAuthUser({
-      token: credentials.token,
-      refreshToken,
-      email: typeof credentials.email === 'string' ? credentials.email : null,
-      user: validatedUser,
-    });
+    refreshToken = consumeOAuthRefreshBridge(store);
   } catch {
-    return null;
+    refreshToken = undefined;
   }
+
+  if (
+    !refreshToken &&
+    typeof credentials.refreshBridge === 'string' &&
+    credentials.refreshBridge.length > 0
+  ) {
+    const secret = resolveEnv(adapters).NEXTAUTH_SECRET;
+    if (secret) {
+      try {
+        const nowMs = resolveNow(adapters);
+        const decoded = unsealRefreshBridgeToken(
+          credentials.refreshBridge,
+          secret,
+          nowMs
+        );
+        if (
+          decoded &&
+          decoded.accessToken === credentials.token &&
+          decoded.rt.length > 0 &&
+          decoded.jti.length > 0 &&
+          recordAndCheckBridgeJti(decoded.jti, nowMs)
+        ) {
+          refreshToken = decoded.rt;
+        }
+      } catch {
+        refreshToken = undefined;
+      }
+    }
+  }
+
+  return normalizeBffAuthUser({
+    token: credentials.token,
+    refreshToken,
+    email: typeof credentials.email === 'string' ? credentials.email : null,
+    user: validatedUser,
+  });
 }
 
 // BFF rotates the refresh_token on every /v1/auth/token call (revokes the old

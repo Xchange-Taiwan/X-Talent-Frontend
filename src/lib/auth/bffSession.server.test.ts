@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   authorizeGoogleBridgePayload,
   type BffSessionAdapters,
+  exchangeGoogleOAuthCodeServer,
   exchangeGoogleOAuthCodeWithBridge,
   extractRefreshTokenCookie,
   isBffTokenExpiringSoon,
@@ -839,6 +840,141 @@ describe('bffSession.server (#927)', () => {
           env: { SSR_API_URL: 'http://bff:8000/api' },
         })
       ).rejects.toThrow('BFF logout failed with status 503');
+    });
+  });
+
+  describe('exchangeGoogleOAuthCodeServer & encrypted refreshBridge (#954)', () => {
+    const TEST_SECRET = 'super-secret-nextauth-key-for-954-tests';
+
+    it('exchanges Google OAuth code on the server without writing cookies, seals refresh_token into an encrypted JWE bound to accessToken, and decrypts it in authorizeGoogleBridgePayload', async () => {
+      const { cookieStore, setSpy } = createInMemoryCookieStore();
+      const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: '0',
+            msg: 'ok',
+            data: {
+              auth_type: 'LOGIN',
+              auth: {
+                token: 'server_access_jwt_954',
+                email: 'fast@example.com',
+              },
+              user: {
+                user_id: 954,
+                name: 'Fast User',
+                onboarding: true,
+                is_mentor: false,
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              'content-type': 'application/json',
+              'set-cookie':
+                'refresh_token=sealed_rt_value_954; HttpOnly; Path=/; SameSite=Lax',
+            },
+          }
+        )
+      );
+
+      const preExchanged = await exchangeGoogleOAuthCodeServer(
+        'code_abc',
+        'state_xyz',
+        {
+          fetchFn,
+          env: {
+            SSR_API_URL: 'http://bff:8000/api',
+            NEXTAUTH_SECRET: TEST_SECRET,
+          },
+        }
+      );
+
+      expect(setSpy).not.toHaveBeenCalled();
+      expect(preExchanged.response.data?.auth_type).toBe('LOGIN');
+      expect(preExchanged.refreshBridgeToken).toEqual(expect.any(String));
+      expect(preExchanged.refreshBridgeToken).not.toContain(
+        'sealed_rt_value_954'
+      );
+
+      const authorized = await authorizeGoogleBridgePayload(
+        {
+          token: 'server_access_jwt_954',
+          email: 'fast@example.com',
+          user: JSON.stringify(preExchanged.response.data?.user),
+          refreshBridge: preExchanged.refreshBridgeToken,
+        },
+        {
+          cookieStore,
+          env: { NEXTAUTH_SECRET: TEST_SECRET },
+        }
+      );
+
+      expect(authorized?.refreshToken).toBe('sealed_rt_value_954');
+      expect(authorized?.id).toBe('954');
+
+      // Single-use JTI replay on the same worker must be rejected
+      const replayed = await authorizeGoogleBridgePayload(
+        {
+          token: 'server_access_jwt_954',
+          email: 'fast@example.com',
+          user: JSON.stringify(preExchanged.response.data?.user),
+          refreshBridge: preExchanged.refreshBridgeToken,
+        },
+        {
+          cookieStore,
+          env: { NEXTAUTH_SECRET: TEST_SECRET },
+        }
+      );
+      expect(replayed?.refreshToken).toBeUndefined();
+
+      // Mismatched access token must NOT unlock a fresh sealed refresh token
+      const preExchanged2 = await exchangeGoogleOAuthCodeServer(
+        'code_abc2',
+        'state_xyz2',
+        {
+          fetchFn,
+          env: {
+            SSR_API_URL: 'http://bff:8000/api',
+            NEXTAUTH_SECRET: TEST_SECRET,
+          },
+        }
+      );
+      const mismatched = await authorizeGoogleBridgePayload(
+        {
+          token: 'different_access_token',
+          email: 'fast@example.com',
+          user: JSON.stringify(preExchanged2.response.data?.user),
+          refreshBridge: preExchanged2.refreshBridgeToken,
+        },
+        {
+          cookieStore,
+          env: { NEXTAUTH_SECRET: TEST_SECRET },
+        }
+      );
+
+      expect(mismatched?.refreshToken).toBeUndefined();
+    });
+
+    it('returns null data and null refreshBridgeToken safely on BFF failure without throwing', async () => {
+      const fetchFn = vi
+        .fn<typeof fetch>()
+        .mockRejectedValue(new Error('network down'));
+
+      const preExchanged = await exchangeGoogleOAuthCodeServer(
+        'code_err',
+        'state_err',
+        {
+          fetchFn,
+          env: {
+            SSR_API_URL: 'http://bff:8000/api',
+            NEXTAUTH_SECRET: TEST_SECRET,
+          },
+        }
+      );
+
+      expect(preExchanged.response.data).toBeNull();
+      expect(preExchanged.refreshBridgeToken).toBeNull();
     });
   });
 });

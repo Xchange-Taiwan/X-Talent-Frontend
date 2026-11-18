@@ -2,10 +2,13 @@
 
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useGoogleOAuthCallback } from '@/hooks/auth/useGoogleOAuthCallback';
+import type { PreExchangedGoogleOAuthResult } from '@/lib/auth/oauthOutcome';
 
-export default function GoogleOAuthRedirectPage() {
-  const { loading } = useGoogleOAuthCallback();
-
+export function GoogleOAuthRedirectShell({
+  loading = true,
+}: {
+  loading?: boolean;
+}) {
   return (
     <div className="flex h-[50vh] w-full flex-col items-center justify-center gap-3">
       <LoadingSpinner size="lg" />
@@ -14,4 +17,16 @@ export default function GoogleOAuthRedirectPage() {
       </p>
     </div>
   );
+}
+
+interface GoogleOAuthRedirectPageProps {
+  initialPreExchanged?: PreExchangedGoogleOAuthResult | null;
+}
+
+export default function GoogleOAuthRedirectPage({
+  initialPreExchanged,
+}: GoogleOAuthRedirectPageProps = {}) {
+  const { loading } = useGoogleOAuthCallback(initialPreExchanged);
+
+  return <GoogleOAuthRedirectShell loading={loading} />;
 }

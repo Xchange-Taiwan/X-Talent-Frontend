@@ -31,6 +31,11 @@ export type GoogleOAuthCodeExchanger = (
   state: string
 ) => Promise<OAuthCallbackResponse>;
 
+export interface PreExchangedGoogleOAuthResult {
+  response: OAuthCallbackResponse;
+  refreshBridgeToken: string | null;
+}
+
 export interface ResolveOAuthOutcomeOptions {
   exchangeCode: GoogleOAuthCodeExchanger;
   pendingDeleteAccountEmail?: string | null;
@@ -257,13 +262,15 @@ export async function signInWithGoogleToken(
   signIn: ClientSignInFn,
   token: string,
   email: string,
-  user: Record<string, unknown>
+  user: Record<string, unknown>,
+  refreshBridgeToken?: string | null
 ): Promise<void> {
   const res = await signIn('custom-google-token', {
     redirect: false,
     token,
     email,
     user: JSON.stringify(user),
+    ...(refreshBridgeToken ? { refreshBridge: refreshBridgeToken } : {}),
   });
 
   if (res?.error) {
