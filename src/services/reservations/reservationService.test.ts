@@ -1,4 +1,3 @@
-import { fromPartial } from '@total-typescript/shoehorn';
 import dayjs from 'dayjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -20,27 +19,19 @@ vi.mock('@/lib/monitoring', () => ({
 }));
 
 import { apiClient, ApiError } from '@/lib/apiClient';
-import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
 import { captureFlowFailure } from '@/lib/monitoring';
-import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
 import { components } from '@/types/api';
 
 import {
-  createReservation,
   fetchAllReservationsForState,
   fetchPendingFeedbackReservations,
   fetchReservationMeetLink,
   fetchReservations,
   formatPendingFeedbackDateTime,
   mapToReservation,
-  postReservationFeedback,
-  putReservationFeedback,
-  updateReservationStatus,
 } from './reservationService';
 
 const mockGet = vi.mocked(apiClient.getUnwrapped);
-const mockPut = vi.mocked(apiClient.putUnwrapped);
-const mockPost = vi.mocked(apiClient.postUnwrapped);
 const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 
 function makeApiReservation(
@@ -78,240 +69,6 @@ function makeApiReservation(
 describe('reservationService API Error Handling', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    reservationReadModel.clear();
-    scheduleReadModel.clear();
-  });
-
-  describe('createReservation', () => {
-    it('should throw ApiError with correct status and message if API returns non-0 code', async () => {
-      mockPost.mockRejectedValue(new ApiError(409, 'Conflict booking'));
-
-      await expect(
-        createReservation({
-          userId: 123,
-          body: {} as unknown as components['schemas']['ReservationDTO'],
-        })
-      ).rejects.toThrow(ApiError);
-
-      try {
-        await createReservation({
-          userId: 123,
-          body: {} as unknown as components['schemas']['ReservationDTO'],
-        });
-      } catch (err) {
-        expect(err).toBeInstanceOf(ApiError);
-        const apiError = err as ApiError;
-        expect(apiError.status).toBe(409);
-        expect(apiError.message).toContain('Conflict booking');
-      }
-    });
-
-    it('should return data successfully if code is 0', async () => {
-      const mockResult = {
-        id: 789,
-      } as unknown as components['schemas']['ReservationVO'];
-      mockPost.mockResolvedValue(mockResult);
-
-      const res = await createReservation({
-        userId: 123,
-        body: {} as unknown as components['schemas']['ReservationDTO'],
-      });
-
-      expect(res).toEqual(mockResult);
-    });
-
-    it('invalidates the booking mentee and target mentor PENDING reads on success (X-Tracker #651)', async () => {
-      mockPost.mockResolvedValue({
-        id: 789,
-      } as unknown as components['schemas']['ReservationVO']);
-      reservationReadModel.set(
-        { userId: '123', state: 'MENTEE_PENDING' },
-        { items: [], next_dtend: 0 }
-      );
-      reservationReadModel.set(
-        { userId: '456', state: 'MENTOR_PENDING' },
-        { items: [], next_dtend: 0 }
-      );
-
-      const slotStartUnix = dayjs('2026-07-17T14:00:00').unix();
-      const slotEndUnix = slotStartUnix + 1800;
-      const targetScheduleMonth = {
-        userId: '456',
-        year: dayjs(slotStartUnix * 1000).year(),
-        month: dayjs(slotStartUnix * 1000).month() + 1,
-      };
-      scheduleReadModel.set(targetScheduleMonth, [
-        {
-          id: 101,
-          type: 'ALLOW',
-          dtstart: slotStartUnix,
-          dtend: slotEndUnix,
-          rrule: undefined,
-          exdate: [],
-        },
-      ]);
-
-      await createReservation({
-        userId: 123,
-        body: {
-          my_user_id: 123,
-          user_id: 456,
-          schedule_id: 101,
-          dtstart: slotStartUnix,
-          dtend: slotEndUnix,
-        },
-      });
-
-      expect(
-        reservationReadModel.get({ userId: '123', state: 'MENTEE_PENDING' })
-      ).toBeUndefined();
-      expect(
-        reservationReadModel.get({ userId: '456', state: 'MENTOR_PENDING' })
-      ).toBeUndefined();
-      expect(scheduleReadModel.get(targetScheduleMonth)).toBeUndefined();
-    });
-
-    it('refreshes actively subscribed PENDING and mentor schedule slices in place after createReservation', async () => {
-      const slotStartUnix = dayjs('2026-07-20T10:00:00').unix();
-      const slotEndUnix = slotStartUnix + 1800;
-      const menteePendingKey = {
-        userId: '123',
-        state: 'MENTEE_PENDING',
-      } as const;
-      const scheduleKey = {
-        userId: '456',
-        year: dayjs(slotStartUnix * 1000).year(),
-        month: dayjs(slotStartUnix * 1000).month() + 1,
-      };
-
-      reservationReadModel.set(menteePendingKey, { items: [], next_dtend: 0 });
-      scheduleReadModel.set(scheduleKey, []);
-
-      const unsubPending = reservationReadModel.subscribe(
-        menteePendingKey,
-        () => new Promise(() => {}),
-        () => {}
-      );
-      const unsubSchedule = scheduleReadModel.subscribe(
-        scheduleKey,
-        () => new Promise(() => {}),
-        () => {}
-      );
-
-      mockPost.mockResolvedValue({ id: 77 });
-      mockGet.mockImplementation(async (path: string) => {
-        if (path.includes('/schedule')) {
-          return {
-            segments: [
-              {
-                id: -101,
-                dt_type: 'PENDING',
-                dt_year: scheduleKey.year,
-                dt_month: scheduleKey.month,
-                dtstart: slotStartUnix,
-                dtend: slotEndUnix,
-              },
-            ],
-          };
-        }
-        return {
-          reservations: [
-            makeApiReservation({
-              id: 77,
-              dtstart: slotStartUnix,
-              dtend: slotEndUnix,
-            }),
-          ],
-          next_dtend: 0,
-        };
-      });
-
-      await createReservation({
-        userId: 123,
-        body: {
-          my_user_id: 123,
-          user_id: 456,
-          schedule_id: 101,
-          dtstart: slotStartUnix,
-          dtend: slotEndUnix,
-        },
-      });
-
-      await vi.waitFor(() => {
-        expect(reservationReadModel.get(menteePendingKey)?.items).toHaveLength(
-          1
-        );
-        expect(scheduleReadModel.get(scheduleKey)).toHaveLength(1);
-      });
-      expect(scheduleReadModel.get(scheduleKey)?.[0]?.type).toBe('PENDING');
-
-      unsubPending();
-      unsubSchedule();
-    });
-
-    it('reports non-abort background refresh failures via captureFlowFailure', async () => {
-      const menteePendingKey = {
-        userId: '123',
-        state: 'MENTEE_PENDING',
-      } as const;
-      reservationReadModel.set(menteePendingKey, { items: [], next_dtend: 0 });
-      const unsub = reservationReadModel.subscribe(
-        menteePendingKey,
-        () => new Promise(() => {}),
-        () => {}
-      );
-      mockPost.mockResolvedValue({ id: 88 });
-      mockGet.mockRejectedValue(new Error('network down'));
-
-      await createReservation({
-        userId: 123,
-        body: fromPartial<components['schemas']['ReservationDTO']>({
-          my_user_id: 123,
-          user_id: 456,
-          schedule_id: 101,
-          dtstart: 1784124000,
-          dtend: 1784125800,
-        }),
-      });
-
-      await vi.waitFor(() => {
-        expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
-          expect.objectContaining({
-            flow: 'reservation_mutation_invalidate',
-            step: 'refresh_MENTEE_PENDING',
-          })
-        );
-      });
-
-      unsub();
-    });
-  });
-
-  describe('updateReservationStatus', () => {
-    it('should throw ApiError with correct status and message if API returns non-0 code', async () => {
-      mockPut.mockRejectedValue(new ApiError(500, 'Internal Server Error'));
-
-      await expect(
-        updateReservationStatus({
-          userId: 123,
-          reservationId: 456,
-          body: {} as unknown as components['schemas']['UpdateReservationDTO'],
-        })
-      ).rejects.toThrow(ApiError);
-
-      try {
-        await updateReservationStatus({
-          userId: 123,
-          reservationId: 456,
-          body: {} as unknown as components['schemas']['UpdateReservationDTO'],
-        });
-      } catch (err) {
-        expect(err).toBeInstanceOf(ApiError);
-        const apiError = err as ApiError;
-        expect(apiError.status).toBe(500);
-        expect(apiError.message).toContain('Internal Server Error');
-      }
-    });
   });
 
   describe('fetchReservations', () => {
@@ -533,7 +290,7 @@ describe('reservationService API Error Handling', () => {
     });
   });
 
-  describe('feedback mapping & postReservationFeedback (#730)', () => {
+  describe('feedback mapping & pending-feedback queries (#730)', () => {
     it('maps feedback with rating, is_public, and next_step when present and omits feedback gracefully when absent', () => {
       const withoutFeedback = mapToReservation(makeApiReservation(), 1);
       expect(withoutFeedback.feedback).toBeUndefined();
@@ -589,48 +346,6 @@ describe('reservationService API Error Handling', () => {
         rating: null,
         nextStep: 'RATE',
       });
-    });
-
-    it('calls POST /v1/users/:userId/reservations/:reservationId/feedback via apiClient.postUnwrapped', async () => {
-      mockPost.mockResolvedValueOnce({ ok: true });
-
-      await postReservationFeedback({
-        userId: '1',
-        reservationId: '42',
-        body: {
-          meeting_happened: true,
-          feedback: { rating: 10, content: '非常棒！' },
-        },
-      });
-
-      expect(mockPost).toHaveBeenCalledWith(
-        '/v1/users/1/reservations/42/feedback',
-        {
-          meeting_happened: true,
-          feedback: { rating: 10, content: '非常棒！' },
-        }
-      );
-    });
-
-    it('calls PUT /v1/users/:userId/reservations/:reservationId/feedback with { rating, content } via apiClient.putUnwrapped (#731)', async () => {
-      mockPut.mockResolvedValueOnce({ ok: true });
-
-      await putReservationFeedback({
-        userId: '1',
-        reservationId: '42',
-        body: {
-          rating: 8,
-          content: '更新後的回饋內容',
-        },
-      });
-
-      expect(mockPut).toHaveBeenCalledWith(
-        '/v1/users/1/reservations/42/feedback',
-        {
-          rating: 8,
-          content: '更新後的回饋內容',
-        }
-      );
     });
 
     it('fetches GET /v1/users/:userId/reservations/pending-feedback, filters answered/cancelled items, and sorts oldest-first (#740)', async () => {

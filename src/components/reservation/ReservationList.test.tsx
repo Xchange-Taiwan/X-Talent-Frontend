@@ -11,7 +11,10 @@ import {
   buildReservationFixture,
   resolveReservationViewer,
 } from '@/lib/reservation/reservationProjection';
-import { updateReservationStatus } from '@/services/reservations';
+import {
+  acceptReservation,
+  rejectOrCancelReservation,
+} from '@/services/reservations';
 import type { Reservation } from '@/types/reservation';
 
 import { ReservationList } from './ReservationList';
@@ -105,14 +108,16 @@ vi.mock('@/components/reservation/ReservationConversationDialog', () => ({
   default: () => <div data-testid="conversation-dialog" />,
 }));
 
-// Mock the API client
+// Mock the reservation mutation module interface
 const {
-  mockUpdateReservationStatus,
+  mockAcceptReservation,
+  mockRejectOrCancelReservation,
   mockSubmitReservationFeedback,
   mockToast,
 } = vi.hoisted(() => {
   return {
-    mockUpdateReservationStatus: vi.fn().mockResolvedValue({}),
+    mockAcceptReservation: vi.fn().mockResolvedValue(undefined),
+    mockRejectOrCancelReservation: vi.fn().mockResolvedValue(undefined),
     mockSubmitReservationFeedback: vi.fn().mockResolvedValue(undefined),
     mockToast: vi.fn(),
   };
@@ -123,26 +128,9 @@ vi.mock('@/services/reservations', async (importOriginal) => {
     await importOriginal<typeof import('@/services/reservations')>();
   return {
     ...actual,
-    updateReservationStatus: mockUpdateReservationStatus,
     submitReservationFeedback: mockSubmitReservationFeedback,
-    acceptReservation: vi
-      .fn()
-      .mockImplementation(async ({ reservation, myUserId }) => {
-        await mockUpdateReservationStatus({
-          userId: myUserId,
-          reservationId: reservation.id,
-          body: {},
-        });
-      }),
-    rejectOrCancelReservation: vi
-      .fn()
-      .mockImplementation(async ({ reservation, myUserId }) => {
-        await mockUpdateReservationStatus({
-          userId: myUserId,
-          reservationId: reservation.id,
-          body: {},
-        });
-      }),
+    acceptReservation: mockAcceptReservation,
+    rejectOrCancelReservation: mockRejectOrCancelReservation,
   };
 });
 
@@ -220,7 +208,7 @@ describe('ReservationList', () => {
     vi.clearAllMocks();
   });
 
-  it('calls updateReservationStatus when accepting in pending-mentor variant', async () => {
+  it('calls acceptReservation when accepting in pending-mentor variant', async () => {
     render(
       <ReservationList
         items={[mockReservation]}
@@ -234,11 +222,17 @@ describe('ReservationList', () => {
     fireEvent.click(acceptBtn);
 
     await waitFor(() => {
-      expect(updateReservationStatus).toHaveBeenCalledTimes(1);
+      expect(acceptReservation).toHaveBeenCalledTimes(1);
+      expect(acceptReservation).toHaveBeenCalledWith({
+        message: 'Accept Message',
+        reservation: mockReservation,
+        myUserId: 'user-123',
+        myRole: 'mentor',
+      });
     });
   });
 
-  it('calls updateReservationStatus when rejecting in pending-mentor variant', async () => {
+  it('calls rejectOrCancelReservation when rejecting in pending-mentor variant', async () => {
     render(
       <ReservationList
         items={[mockReservation]}
@@ -252,11 +246,17 @@ describe('ReservationList', () => {
     fireEvent.click(rejectBtn);
 
     await waitFor(() => {
-      expect(updateReservationStatus).toHaveBeenCalledTimes(1);
+      expect(rejectOrCancelReservation).toHaveBeenCalledTimes(1);
+      expect(rejectOrCancelReservation).toHaveBeenCalledWith({
+        text: 'Reject Reason',
+        reservation: mockReservation,
+        myUserId: 'user-123',
+        myRole: 'mentor',
+      });
     });
   });
 
-  it('calls updateReservationStatus when cancelling in pending-mentee variant', async () => {
+  it('calls rejectOrCancelReservation when cancelling in pending-mentee variant', async () => {
     render(
       <ReservationList
         items={[mockReservation]}
@@ -270,11 +270,17 @@ describe('ReservationList', () => {
     fireEvent.click(cancelBtn);
 
     await waitFor(() => {
-      expect(updateReservationStatus).toHaveBeenCalledTimes(1);
+      expect(rejectOrCancelReservation).toHaveBeenCalledTimes(1);
+      expect(rejectOrCancelReservation).toHaveBeenCalledWith({
+        text: 'Cancel Reason',
+        reservation: mockReservation,
+        myUserId: 'user-123',
+        myRole: 'mentee',
+      });
     });
   });
 
-  it('calls updateReservationStatus when cancelling in upcoming variant', async () => {
+  it('calls rejectOrCancelReservation when cancelling in upcoming variant', async () => {
     render(
       <ReservationList
         items={[mockReservation]}
@@ -288,16 +294,22 @@ describe('ReservationList', () => {
     fireEvent.click(cancelBtn);
 
     await waitFor(() => {
-      expect(updateReservationStatus).toHaveBeenCalledTimes(1);
+      expect(rejectOrCancelReservation).toHaveBeenCalledTimes(1);
+      expect(rejectOrCancelReservation).toHaveBeenCalledWith({
+        text: 'Cancel Reason',
+        reservation: mockReservation,
+        myUserId: 'user-123',
+        myRole: 'mentor',
+      });
     });
   });
 
   it('disables dialog buttons while the mutation request is in-flight to prevent double submission', async () => {
-    let resolveMutation: (v: unknown) => void = () => {};
-    const mutationPromise = new Promise<unknown>((resolve) => {
+    let resolveMutation: () => void = () => {};
+    const mutationPromise = new Promise<void>((resolve) => {
       resolveMutation = resolve;
     });
-    mockUpdateReservationStatus.mockReturnValue(mutationPromise);
+    mockAcceptReservation.mockReturnValueOnce(mutationPromise);
 
     render(
       <ReservationList
@@ -323,7 +335,7 @@ describe('ReservationList', () => {
 
     // Resolve the mutation
     await act(async () => {
-      resolveMutation({});
+      resolveMutation();
     });
 
     await waitFor(() => {
