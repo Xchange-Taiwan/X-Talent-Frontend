@@ -1,4 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
+import { fromPartial } from '@total-typescript/shoehorn';
+import { SessionContext, type SessionContextValue } from 'next-auth/react';
+import * as React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -1348,6 +1351,51 @@ describe('useNotificationCenter', () => {
       expect(result).toEqual({ status: 'stale' });
       const state = notificationStoreManager.getOrCreateState(userId);
       expect(state.notifications).toEqual([]);
+    });
+  });
+
+  describe('onboarding background polling suppression (#953)', () => {
+    it('skips background unread-count fetch when authenticated user has onBoarding === false', async () => {
+      const configureSpy = vi.spyOn(notificationStoreManager, 'configure');
+      const wrapper = ({ children }: { children: React.ReactNode }) =>
+        React.createElement(
+          SessionContext.Provider,
+          {
+            value: fromPartial<SessionContextValue>({
+              status: 'authenticated',
+              data: {
+                user: { id: '7523335928165814', onBoarding: false },
+                expires: '2099-01-01T00:00:00.000Z',
+              },
+              update: async () => null,
+            }),
+          },
+          children
+        );
+
+      renderHook(() => useNotificationCenter({ userId: '7523335928165814' }), {
+        wrapper,
+      });
+
+      expect(configureSpy).toHaveBeenCalledWith(undefined, expect.any(Object));
+      configureSpy.mockRestore();
+    });
+
+    it('skips background unread-count fetch when current pathname is /auth/onboarding', () => {
+      const configureSpy = vi.spyOn(notificationStoreManager, 'configure');
+      const originalPathname = window.location.pathname;
+      window.history.pushState({}, '', '/auth/onboarding');
+
+      try {
+        renderHook(() => useNotificationCenter({ userId: '7523335928165814' }));
+        expect(configureSpy).toHaveBeenCalledWith(
+          undefined,
+          expect.any(Object)
+        );
+      } finally {
+        window.history.pushState({}, '', originalPathname);
+        configureSpy.mockRestore();
+      }
     });
   });
 });

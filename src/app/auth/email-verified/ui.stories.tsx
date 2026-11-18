@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from '@storybook/nextjs';
 import EmailVerifiedFailuredIconUrl from '@/assets/auth/email-verified-failed-icon.svg';
 import EmailVerifiedIconUrl from '@/assets/auth/email-verified-icon.svg';
 
-import EmailVerifiedPresentation from './ui';
+import EmailVerifiedPresentation, { EmailVerifiedLoadingCard } from './ui';
 
 const meta: Meta<typeof EmailVerifiedPresentation> = {
   title: '業務模組元件/會員驗證(Auth)/EmailVerifiedPresentation',
@@ -36,4 +36,8 @@ export const VerificationExpiredOrFailed: Story = {
     btnContent: '返回重試',
     onSetProfile: () => {},
   },
+};
+
+export const VerificationLoading: Story = {
+  render: () => <EmailVerifiedLoadingCard />,
 };

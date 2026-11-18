@@ -36,14 +36,23 @@ export interface UseUserProfileDtoResult {
  * so navigating between them within the cache TTL avoids duplicate API calls.
  */
 export function useUserProfileDto(
-  userId: number,
+  userId: number | string,
   language: string,
   initialData?: MentorProfileVO | null,
   options?: { enabled?: boolean }
 ): UseUserProfileDtoResult {
+  const numericUserId =
+    typeof userId === 'number'
+      ? userId
+      : /^[1-9]\d*$/.test(userId.trim())
+        ? Number(userId.trim())
+        : Number.NaN;
   const readKey = useMemo<ProfileReadKey | null>(
-    () => (userId && language ? { userId, language } : null),
-    [userId, language]
+    () =>
+      userId && language && Number.isFinite(numericUserId) && numericUserId > 0
+        ? { userId: numericUserId, language }
+        : null,
+    [userId, numericUserId, language]
   );
   const enabled = options?.enabled !== false;
   const activeKey = enabled ? readKey : null;

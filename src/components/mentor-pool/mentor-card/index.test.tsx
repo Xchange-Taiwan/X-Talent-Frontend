@@ -380,4 +380,28 @@ describe('MentorCard feature flag overrides & env gates (#913)', () => {
     expect(screen.queryByText(/\/ 10/)).not.toBeInTheDocument();
     expect(screen.getByText('已完成 24 場 1-on-1')).toBeInTheDocument();
   });
+
+  it('disables automatic viewport RSC prefetching on the mentor profile Link (#953)', async () => {
+    const observeSpy = vi.fn();
+    const disconnectSpy = vi.fn();
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        observe = observeSpy;
+        unobserve = vi.fn();
+        disconnect = disconnectSpy;
+      }
+    );
+
+    try {
+      renderWithSession(<MentorCard mentor={buildMentor()} />, '9001');
+      const cardLink = screen.getByRole('link', {
+        name: '前往 Zahra Mirzakhani 的個人頁面',
+      });
+      expect(cardLink).toHaveAttribute('href', '/profile/101');
+      expect(observeSpy).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

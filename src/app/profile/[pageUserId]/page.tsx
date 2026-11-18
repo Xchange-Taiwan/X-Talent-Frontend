@@ -11,9 +11,11 @@ import { fetchUserByIdServer } from '@/services/profile/user.server';
 
 import ProfilePageContainer from './container';
 
-// ISR: each (userId) profile page is cached on the server for 60s. Edit
+// ISR: each (userId) profile page is cached on the server for 600s. Edit
 // submit calls revalidatePath to invalidate on demand.
-export const revalidate = 60;
+export const revalidate = 600;
+
+const POSITIVE_INTEGER_ID_PATTERN = /^[1-9]\d*$/;
 
 interface PageProps {
   params: Promise<{ pageUserId: string }>;
@@ -28,10 +30,10 @@ export async function generateMetadata({
   params,
 }: PageProps): Promise<Metadata> {
   const { pageUserId } = await params;
-  const userIdNum = Number(pageUserId);
-  if (!Number.isFinite(userIdNum)) return FALLBACK_METADATA;
+  const trimmedId = pageUserId.trim();
+  if (!POSITIVE_INTEGER_ID_PATTERN.test(trimmedId)) return FALLBACK_METADATA;
   const [dto, catalogs] = await Promise.all([
-    fetchUserByIdServer(userIdNum, 'zh_TW'),
+    fetchUserByIdServer(trimmedId, 'zh_TW'),
     fetchTagCatalogServer('zh_TW'),
   ]);
   if (!dto) return FALLBACK_METADATA;
@@ -42,11 +44,11 @@ export async function generateMetadata({
 
 export default async function Page({ params }: PageProps) {
   const { pageUserId } = await params;
-  const userIdNum = Number(pageUserId);
-  if (!Number.isFinite(userIdNum)) notFound();
+  const trimmedId = pageUserId.trim();
+  if (!POSITIVE_INTEGER_ID_PATTERN.test(trimmedId)) notFound();
 
   const [initialDto, catalogs] = await Promise.all([
-    fetchUserByIdServer(userIdNum, 'zh_TW'),
+    fetchUserByIdServer(trimmedId, 'zh_TW'),
     fetchTagCatalogServer('zh_TW'),
   ]);
 

@@ -60,6 +60,10 @@ export default function ProfilePageContainer({
 }: Props) {
   const router = useRouter();
   const pageUserIdNumber = Number(pageUserId);
+  const resolvedProfileUserId: number | string =
+    Number.isSafeInteger(pageUserIdNumber) && pageUserIdNumber > 0
+      ? pageUserIdNumber
+      : pageUserId;
 
   const identity = useResolvedIdentity();
   const isIdentityResolved =
@@ -85,7 +89,7 @@ export default function ProfilePageContainer({
     error,
     refetch,
   } = useUserData(
-    pageUserIdNumber,
+    resolvedProfileUserId,
     'zh_TW',
     initialDto,
     initialCatalogs ?? undefined

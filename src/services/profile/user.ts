@@ -28,19 +28,37 @@ function isUserNotFoundError(error: unknown): boolean {
   return false;
 }
 
+const POSITIVE_INTEGER_ID_PATTERN = /^[1-9]\d*$/;
+
+function normalizePositiveUserId(userId: number | string): string | null {
+  if (typeof userId === 'number') {
+    if (!Number.isSafeInteger(userId) || userId <= 0) {
+      return null;
+    }
+    return String(userId);
+  }
+  const trimmed = userId.trim();
+  return POSITIVE_INTEGER_ID_PATTERN.test(trimmed) ? trimmed : null;
+}
+
 export async function fetchUserById(
-  userId: number,
+  userId: number | string,
   language: string,
   signal?: AbortSignal,
   silent = false
 ): Promise<MentorProfileVO | null> {
+  const normalizedUserId = normalizePositiveUserId(userId);
+  if (!normalizedUserId) {
+    return null;
+  }
+
   const maxRetries = 1;
   let attempt = 0;
 
   while (true) {
     try {
       const data = await apiClient.getUnwrapped<MentorProfileVO>(
-        `/v1/mentors/${userId}/${language}/profile`,
+        `/v1/mentors/${normalizedUserId}/${language}/profile`,
         { auth: false, signal }
       );
 
