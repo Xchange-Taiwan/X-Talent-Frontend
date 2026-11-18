@@ -44,10 +44,12 @@ function Harness({
   defaultValue = [],
   isMentor = true,
   validateOnMount = false,
+  collapsible = false,
 }: {
   defaultValue?: JobExperience[];
   isMentor?: boolean;
   validateOnMount?: boolean;
+  collapsible?: boolean;
 }) {
   const form = useForm<ProfileFormInput, unknown, ProfileFormValues>({
     resolver: zodResolver(createProfileFormSchema(isMentor)),
@@ -76,6 +78,7 @@ function Harness({
           locations={locations}
           form={form}
           isMentor={isMentor}
+          collapsible={collapsible}
         />
       </form>
     </Form>
@@ -361,6 +364,53 @@ describe('JobExperienceSection', () => {
     await waitFor(() => {
       // Only Engineer A should remain
       expect(screen.getByLabelText('職稱')).toHaveValue('工程師 A');
+    });
+  });
+
+  describe('collapsible summary-row mode for Mentee (#828)', () => {
+    it('renders collapsed summary rows by default and toggles expand/collapse via 編輯 and 收合', async () => {
+      const existing = [
+        createMockExperience({
+          job: 'UI/UX 設計師',
+          company: '新創科技',
+          job_period_start: '2022',
+          job_period_end: 'now',
+          is_primary: true,
+        }),
+      ];
+
+      render(
+        <Harness defaultValue={existing} isMentor={false} collapsible={true} />
+      );
+
+      expect(screen.getByText('UI/UX 設計師')).toBeInTheDocument();
+      expect(screen.getByText('頁面顯示的職稱')).toBeInTheDocument();
+      expect(screen.getByText(/新創科技 · 2022 – 至今/)).toBeInTheDocument();
+      expect(screen.getByLabelText('職稱')).not.toBeVisible();
+
+      fireEvent.click(screen.getByRole('button', { name: '編輯' }));
+      expect(screen.getByLabelText('職稱')).toBeVisible();
+      expect(screen.getByLabelText('職稱')).toHaveValue('UI/UX 設計師');
+
+      fireEvent.click(screen.getByRole('button', { name: '收合' }));
+      expect(screen.getByLabelText('職稱')).not.toBeVisible();
+    });
+
+    it('auto-expands newly added row and allows Mentee to remove even the single remaining row', async () => {
+      render(<Harness defaultValue={[]} isMentor={false} collapsible={true} />);
+
+      fireEvent.click(screen.getByRole('button', { name: /新增/ }));
+
+      await waitFor(() => {
+        expect(screen.getByLabelText('職稱')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: '移除' }));
+      fireEvent.click(screen.getByRole('button', { name: '確認' }));
+
+      await waitFor(() => {
+        expect(screen.queryByLabelText('職稱')).not.toBeInTheDocument();
+      });
     });
   });
 });

@@ -2,7 +2,14 @@
 
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import MentorScheduleDialog from '@/components/profile/reservation/MentorScheduleDialog';
@@ -15,14 +22,19 @@ import { useBookingConfirmation } from '@/hooks/user/reservation/useBookingConfi
 import useUserData from '@/hooks/user/user-data/useUserData';
 import { useTrackMentorNoAvailableSlots } from '@/hooks/useTrackMentorNoAvailableSlots';
 import { isFeedbackEnabled } from '@/lib/featureFlags';
-import { getMentorOnboardingUrl, OPEN_SCHEDULE_DIALOG_KEY } from '@/lib/routes';
+import { OPEN_SCHEDULE_DIALOG_KEY } from '@/lib/routes';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
 
-import { ProfilePageSkeleton } from './skeleton';
+import { ProfileContentSkeleton, ProfilePageSkeleton } from './skeleton';
 
 const ProfilePageUI = dynamic(() => import('./ui'), {
   loading: () => <ProfilePageSkeleton />,
+});
+
+const LazyMenteeInPlaceEditor = lazy(async () => {
+  const m = await import('@/components/profile/edit/MenteeInPlaceEditor');
+  return { default: m.MenteeInPlaceEditor };
 });
 
 function ScheduleAutoOpenWatcher({
@@ -78,6 +90,11 @@ export default function ProfilePageContainer({
   const { loaded, reader, editor } = schedule;
 
   const [openReservationDialog, setOpenReservationDialog] = useState(false);
+  const [isEditingMentee, setIsEditingMentee] = useState(false);
+
+  useEffect(() => {
+    setIsEditingMentee(false);
+  }, [pageUserId]);
 
   const {
     userData,
@@ -154,6 +171,18 @@ export default function ProfilePageContainer({
     setSelectedSlot: reader.setSelectedSlot ?? (() => {}),
   });
 
+  const handleEditProfile = useCallback(() => {
+    if (userData && !userData.is_mentor) {
+      setIsEditingMentee(true);
+      return;
+    }
+    router.push(`/profile/${pageUserId}/edit`);
+  }, [pageUserId, router, userData]);
+
+  const handleExitMenteeEdit = useCallback(() => {
+    setIsEditingMentee(false);
+  }, []);
+
   if (error === 'FETCH_FAILED') {
     return (
       <div className="flex h-[50vh] flex-col items-center justify-center gap-4 text-center">
@@ -207,8 +236,22 @@ export default function ProfilePageContainer({
       onScheduleMonthChange={handleScheduleMonthChange}
       isSubmitting={isSubmitting}
       onConfirmReservation={handleConfirmReservation}
-      onEditProfile={() => router.push(`/profile/${pageUserId}/edit`)}
-      onBecomeMentor={() => router.push(getMentorOnboardingUrl(pageUserId))}
+      onEditProfile={handleEditProfile}
+      inPlaceEditor={
+        isEditingMentee &&
+        canShowOwnerControls &&
+        userData &&
+        !userData.is_mentor ? (
+          <Suspense fallback={<ProfileContentSkeleton />}>
+            <LazyMenteeInPlaceEditor
+              pageUserId={pageUserId}
+              initialUserDto={initialDto}
+              initialTagCatalog={initialCatalogs ?? undefined}
+              onExitEdit={handleExitMenteeEdit}
+            />
+          </Suspense>
+        ) : undefined
+      }
       editorDialog={
         // canShowOwnerControls and the hook's own editor gating are both
         // driven by the same loginUserId === pageUserId check, so editor is

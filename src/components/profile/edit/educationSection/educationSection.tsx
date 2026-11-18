@@ -7,7 +7,8 @@ import {
   TrashIcon,
 } from '@radix-ui/react-icons';
 import { Check, ChevronsUpDown } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useWatch } from 'react-hook-form';
 
 import { ConfirmDialog } from '@/components/profile/edit/ConfirmDialog';
 import { Button } from '@/components/ui/button';
@@ -127,12 +128,26 @@ export function SchoolComboboxField({
 interface Props {
   form: ProfileFormContext;
   isMentor: boolean;
+  collapsible?: boolean;
+  cardVariant?: boolean;
 }
 
-export const EducationSection = ({ form, isMentor }: Props) => {
+function formatEduPeriod(start?: string, end?: string): string {
+  const startText = start || '?';
+  const endText = end === 'now' ? '至今' : end || '?';
+  return `${startText} – ${endText}`;
+}
+
+export const EducationSection = ({
+  form,
+  isMentor,
+  collapsible = false,
+  cardVariant = false,
+}: Props) => {
   const {
     control,
-    formState: { errors },
+    getValues,
+    formState: { errors, submitCount },
   } = form;
 
   const { fields, move, tryAppend, remove, createPeriodChangeHandlers } =
@@ -146,7 +161,44 @@ export const EducationSection = ({ form, isMentor }: Props) => {
       incompleteAlertMessage: '請先完成上一筆教育資料再新增',
     });
 
+  const watchedEducations = useWatch({
+    control,
+    name: 'educations',
+  });
+
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
+  const pendingExpandLastRef = useRef(false);
+
+  useEffect(() => {
+    if (!collapsible || !pendingExpandLastRef.current || fields.length === 0) {
+      return;
+    }
+    pendingExpandLastRef.current = false;
+    const newestId = fields[fields.length - 1]?.id;
+    if (newestId) {
+      setExpandedIds((prev) => ({ ...prev, [newestId]: true }));
+    }
+  }, [collapsible, fields]);
+
+  useEffect(() => {
+    if (!collapsible || !Array.isArray(errors.educations)) return;
+    const idsToOpen: string[] = [];
+    errors.educations.forEach((entryErr, idx) => {
+      if (entryErr && fields[idx]?.id) {
+        idsToOpen.push(fields[idx].id);
+      }
+    });
+    if (idsToOpen.length > 0) {
+      setExpandedIds((prev) => {
+        const next = { ...prev };
+        for (const id of idsToOpen) next[id] = true;
+        return next;
+      });
+    }
+  }, [collapsible, errors.educations, fields, submitCount]);
+
   const addEducation = () => {
+    const prevLen = (getValues('educations') ?? []).length;
     tryAppend({
       id: -1,
       subject: '',
@@ -154,155 +206,255 @@ export const EducationSection = ({ form, isMentor }: Props) => {
       education_period_start: '',
       education_period_end: 'now',
     });
+    const nextLen = (getValues('educations') ?? []).length;
+    if (collapsible && nextLen > prevLen) {
+      pendingExpandLastRef.current = true;
+    }
   };
 
-  return (
-    <Section title="教育經歷" required={isMentor}>
+  const toggleExpand = (fieldId: string) => {
+    setExpandedIds((prev) => ({ ...prev, [fieldId]: !prev[fieldId] }));
+  };
+
+  const canRemoveRow = !isMentor || fields.length > 1;
+
+  const renderRows = () => (
+    <>
       {fields.map((field, index) => {
         const { handleStartYearChange, handleEndYearChange } =
           createPeriodChangeHandlers(index);
+        const currentItem = watchedEducations?.[index] ?? field;
+        const isExpanded = !collapsible || Boolean(expandedIds[field.id]);
+        const hasRowError = Boolean(
+          Array.isArray(errors.educations) && errors.educations[index]
+        );
+        const schoolInitial = currentItem?.school?.trim()?.charAt(0) || '?';
 
         return (
-          <div key={field.id} className="mb-4 rounded-lg border p-4">
-            {fields.length > 1 && (
-              <div className="mb-4 flex justify-end gap-1">
+          <div
+            key={field.id}
+            className={cn(
+              'mb-4 rounded-xl border p-4',
+              hasRowError
+                ? 'border-status-error-default'
+                : 'border-background-border'
+            )}
+          >
+            {collapsible && (
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="bg-background-bottom text-text-primary flex size-10 shrink-0 items-center justify-center rounded-lg text-sm font-semibold">
+                    {schoolInitial}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-text-primary font-semibold break-words">
+                      {currentItem?.school?.trim() || '（未填學校）'}
+                    </p>
+                    <p className="text-text-tertiary text-sm break-words">
+                      {currentItem?.subject?.trim() || '（未填主修）'} ·{' '}
+                      {formatEduPeriod(
+                        currentItem?.education_period_start,
+                        currentItem?.education_period_end
+                      )}
+                    </p>
+                  </div>
+                </div>
+
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="icon"
-                  disabled={index === 0}
-                  onClick={() => move(index, index - 1)}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => toggleExpand(field.id)}
+                  className="shrink-0"
                 >
-                  <ChevronUpIcon className="size-5" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  disabled={index === fields.length - 1}
-                  onClick={() => move(index, index + 1)}
-                >
-                  <ChevronDownIcon className="size-5" />
+                  {isExpanded ? '收合' : '編輯'}
                 </Button>
               </div>
             )}
-            <div className="mb-6 gap-6 md:flex">
-              <FormField
-                control={control}
-                name={`educations.${index}.subject`}
-                render={({ field }) => (
-                  <FormItem className="mb-4 grow md:mb-0">
-                    <FormLabel>主修</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={control}
-                name={`educations.${index}.school`}
-                render={({ field }) => <SchoolComboboxField field={field} />}
-              />
-            </div>
 
-            <div className="mb-2 gap-2 md:flex md:basis-1/2">
-              <FormField
-                control={control}
-                name={`educations.${index}.education_period_start`}
-                render={({ field }) => (
-                  <FormItem className="mb-4 grow basis-1/2 md:mb-0">
-                    <FormLabel>開始年份</FormLabel>
-                    <Select
-                      onValueChange={handleStartYearChange(field.onChange)}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="請選擇年份" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {YEAR_OPTIONS.map((year) => (
-                          <SelectItem key={year} value={year}>
-                            {year}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <p className="relative bottom-[-8px] mx-2 my-auto hidden text-center md:block">
-                ～
-              </p>
-              <p className="relative bottom-[-8px] mx-2 my-auto text-center text-sm md:hidden">
-                至
-              </p>
-              <FormField
-                control={control}
-                name={`educations.${index}.education_period_end`}
-                render={({ field }) => (
-                  <FormItem className="grow basis-1/2">
-                    <FormLabel className="invisible md:visible">
-                      &nbsp;
-                    </FormLabel>
-                    <Select
-                      onValueChange={handleEndYearChange(field.onChange)}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="請選擇年份" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="now">至今</SelectItem>
-                        {YEAR_OPTIONS.map((year) => (
-                          <SelectItem key={year} value={year}>
-                            {year}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {fields.length > 1 && (
-              <ConfirmDialog
-                title="要刪除這筆學歷嗎?"
-                description="您確定要移除這個區塊嗎?"
-                onConfirm={() => remove(index)}
-                trigger={
-                  <Button variant="destructive">
-                    <TrashIcon className="mr-2 size-5" />
-                    移除
+            <div
+              hidden={collapsible && !isExpanded}
+              className={cn(
+                collapsible && 'border-background-border mt-4 border-t pt-4',
+                collapsible && !isExpanded && 'hidden'
+              )}
+            >
+              {fields.length > 1 && (
+                <div className="mb-4 flex justify-end gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={index === 0}
+                    onClick={() => move(index, index - 1)}
+                  >
+                    <ChevronUpIcon className="size-5" />
                   </Button>
-                }
-              />
-            )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={index === fields.length - 1}
+                    onClick={() => move(index, index + 1)}
+                  >
+                    <ChevronDownIcon className="size-5" />
+                  </Button>
+                </div>
+              )}
+              <div className="mb-6 gap-6 md:flex">
+                <FormField
+                  control={control}
+                  name={`educations.${index}.subject`}
+                  render={({ field }) => (
+                    <FormItem className="mb-4 grow md:mb-0">
+                      <FormLabel>主修</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={control}
+                  name={`educations.${index}.school`}
+                  render={({ field }) => <SchoolComboboxField field={field} />}
+                />
+              </div>
+
+              <div className="mb-2 gap-2 md:flex md:basis-1/2">
+                <FormField
+                  control={control}
+                  name={`educations.${index}.education_period_start`}
+                  render={({ field }) => (
+                    <FormItem className="mb-4 grow basis-1/2 md:mb-0">
+                      <FormLabel>開始年份</FormLabel>
+                      <Select
+                        onValueChange={handleStartYearChange(field.onChange)}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="請選擇年份" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {YEAR_OPTIONS.map((year) => (
+                            <SelectItem key={year} value={year}>
+                              {year}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <p className="relative bottom-[-8px] mx-2 my-auto hidden text-center md:block">
+                  ～
+                </p>
+                <p className="relative bottom-[-8px] mx-2 my-auto text-center text-sm md:hidden">
+                  至
+                </p>
+                <FormField
+                  control={control}
+                  name={`educations.${index}.education_period_end`}
+                  render={({ field }) => (
+                    <FormItem className="grow basis-1/2">
+                      <FormLabel className="invisible md:visible">
+                        &nbsp;
+                      </FormLabel>
+                      <Select
+                        onValueChange={handleEndYearChange(field.onChange)}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="請選擇年份" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="now">至今</SelectItem>
+                          {YEAR_OPTIONS.map((year) => (
+                            <SelectItem key={year} value={year}>
+                              {year}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {canRemoveRow && (
+                <ConfirmDialog
+                  title="要刪除這筆學歷嗎?"
+                  description="您確定要移除這個區塊嗎?"
+                  onConfirm={() => remove(index)}
+                  trigger={
+                    <Button type="button" variant="destructive">
+                      <TrashIcon className="mr-2 size-5" />
+                      移除
+                    </Button>
+                  }
+                />
+              )}
+            </div>
           </div>
         );
       })}
 
-      <Button
-        variant="ghost"
-        className="text-brand-500 rounded-full px-4 py-3"
-        onClick={addEducation}
-      >
-        <PlusIcon className="mr-2 size-5" />
-        新增
-      </Button>
+      {!cardVariant && (
+        <Button
+          type="button"
+          variant="ghost"
+          className="text-brand-500 rounded-full px-4 py-3"
+          onClick={addEducation}
+        >
+          <PlusIcon className="mr-2 size-5" />
+          新增
+        </Button>
+      )}
       {(errors.educations?.message ?? errors.educations?.root?.message) && (
         <p className="text-status-error-default mt-2 text-sm font-medium">
           {errors.educations?.message ?? errors.educations?.root?.message}
         </p>
       )}
+    </>
+  );
+
+  if (cardVariant) {
+    return (
+      <section
+        data-testid="mentee-section-education"
+        className="border-background-border bg-background-white rounded-2xl border p-6 shadow-sm"
+      >
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <h2 className="text-text-primary text-xl font-bold">教育</h2>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addEducation}
+            className="shrink-0"
+          >
+            <PlusIcon className="mr-1.5 size-4" />
+            新增
+          </Button>
+        </div>
+        {fields.length === 0 && (
+          <p className="text-text-tertiary py-2 text-sm">尚未新增教育經歷</p>
+        )}
+        {renderRows()}
+      </section>
+    );
+  }
+
+  return (
+    <Section title="教育經歷" required={isMentor}>
+      {renderRows()}
     </Section>
   );
 };

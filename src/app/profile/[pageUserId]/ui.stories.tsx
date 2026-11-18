@@ -331,11 +331,22 @@ export const MenteeProfileView: Story = {
     allowedDates: [],
     onReservation: () => {},
     onEditProfile: () => {},
-    onBecomeMentor: () => {},
     selectedSlot: null,
     setSelectedSlot: () => {},
     isSubmitting: false,
     onConfirmReservation: async () => true,
+  },
+};
+
+export const MenteePresetAvatarOwnerView: Story = {
+  name: 'Mentee 本人檢視（使用預設插畫頭像 / 單一編輯按鈕 B-1）',
+  args: {
+    ...MenteeProfileView.args,
+    userData: {
+      ...mockMenteeUserData,
+      avatar: '/avatars/default_3.webp',
+    },
+    avatarSrc: '/avatars/default_3.webp',
   },
 };
 

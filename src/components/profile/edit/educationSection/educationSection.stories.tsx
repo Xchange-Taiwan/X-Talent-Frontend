@@ -28,10 +28,14 @@ function EducationSectionBody({
   form,
   isMentor,
   triggerOnMount = false,
+  collapsible = false,
+  cardVariant = false,
 }: {
   form: ProfileFormContext;
   isMentor: boolean;
   triggerOnMount?: boolean;
+  collapsible?: boolean;
+  cardVariant?: boolean;
 }) {
   useEffect(() => {
     if (triggerOnMount) {
@@ -39,13 +43,22 @@ function EducationSectionBody({
     }
   }, [form, triggerOnMount]);
 
-  return <EducationSection form={form} isMentor={isMentor} />;
+  return (
+    <EducationSection
+      form={form}
+      isMentor={isMentor}
+      collapsible={collapsible}
+      cardVariant={cardVariant}
+    />
+  );
 }
 
 const SectionWithForm = (props: {
   isMentor: boolean;
   initialEducations?: ProfileFormValues['educations'];
   triggerOnMount?: boolean;
+  collapsible?: boolean;
+  cardVariant?: boolean;
 }) => {
   const schema = createProfileFormSchema(props.isMentor);
 
@@ -63,6 +76,8 @@ const SectionWithForm = (props: {
           form={form}
           isMentor={props.isMentor}
           triggerOnMount={props.triggerOnMount}
+          collapsible={props.collapsible}
+          cardVariant={props.cardVariant}
         />
       )}
     </ProfileStoryWrapper>
@@ -139,6 +154,29 @@ export const InvalidPeriod: Story = {
           school: '國立臺灣大學',
           education_period_start: '2025',
           education_period_end: '2021',
+        },
+      ]}
+    />
+  ),
+};
+
+export const MenteeCollapsibleSummary: Story = {
+  name: 'Mentee 摘要列摺疊編輯模式 (#828)',
+  args: {
+    isMentor: false,
+  },
+  render: () => (
+    <SectionWithForm
+      isMentor={false}
+      collapsible
+      cardVariant
+      initialEducations={[
+        {
+          id: 1,
+          school: '國立臺灣科技大學',
+          subject: '設計系',
+          education_period_start: '2015',
+          education_period_end: '2019',
         },
       ]}
     />

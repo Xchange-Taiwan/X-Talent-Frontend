@@ -1,5 +1,39 @@
 export type AvatarVersionParam = 'v' | 'cb';
 
+export const PRESET_AVATAR_URLS = [
+  '/avatars/default_1.webp',
+  '/avatars/default_2.webp',
+  '/avatars/default_3.webp',
+  '/avatars/default_4.webp',
+  '/avatars/default_5.webp',
+  '/avatars/default_6.webp',
+] as const;
+
+export type PresetAvatarUrl = (typeof PRESET_AVATAR_URLS)[number];
+
+const PRESET_AVATAR_SET = new Set<string>(PRESET_AVATAR_URLS);
+
+/**
+ * Returns true when `url` is a single-slash local static path (e.g. `/avatars/default_1.webp`),
+ * excluding protocol-relative URLs (`//...`).
+ */
+export function isLocalStaticAvatarUrl(
+  url: string | null | undefined
+): boolean {
+  if (typeof url !== 'string' || !url) return false;
+  return url.startsWith('/') && !url.startsWith('//');
+}
+
+/**
+ * Returns true when `url` points to one of the 6 decoupled Mentee preset
+ * illustrations (`/avatars/default_1.webp` ~ `/avatars/default_6.webp`).
+ */
+export function isPresetAvatarUrl(url: string | null | undefined): boolean {
+  if (typeof url !== 'string' || !url) return false;
+  const { base } = parseAvatarUrl(url);
+  return PRESET_AVATAR_SET.has(base);
+}
+
 interface ParsedAvatarUrl {
   base: string;
   rawQuery: string;
@@ -53,6 +87,12 @@ export function withAvatarVersion(
   param: AvatarVersionParam = 'v'
 ): string {
   if (!avatarUrl) return avatarUrl;
+
+  if (isLocalStaticAvatarUrl(avatarUrl)) {
+    const { base, hash } = parseAvatarUrl(avatarUrl);
+    return `${base}${hash}`;
+  }
+
   if (version === null || version === undefined) return avatarUrl;
   const serializedVersion = String(version);
   if (!serializedVersion) return avatarUrl;

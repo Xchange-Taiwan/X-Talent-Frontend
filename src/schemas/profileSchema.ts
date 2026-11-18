@@ -1,5 +1,6 @@
 import * as z from 'zod';
 
+import { isPresetAvatarUrl } from '@/lib/avatar/avatarUrl';
 import {
   createEmptySocialLinks,
   socialLinksFormSchema,
@@ -206,12 +207,20 @@ export const createProfileFormSchema = (isMentor: boolean) =>
         .max(10, '最多選 10 個'),
     })
     .superRefine((data, ctx) => {
-      if (isMentor && !data.avatar && !data.avatarFile) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['avatarFile'],
-          message: '請上傳個人頭像',
-        });
+      if (isMentor && !data.avatarFile) {
+        if (isPresetAvatarUrl(data.avatar)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['avatarFile'],
+            message: '請上傳真人照片，預設頭像僅供預覽',
+          });
+        } else if (!data.avatar) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['avatarFile'],
+            message: '請上傳個人頭像',
+          });
+        }
       }
     });
 

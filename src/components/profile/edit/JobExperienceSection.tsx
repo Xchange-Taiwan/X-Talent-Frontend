@@ -6,7 +6,8 @@ import {
   PlusIcon,
   TrashIcon,
 } from '@radix-ui/react-icons';
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useWatch } from 'react-hook-form';
 
 import { ConfirmDialog } from '@/components/profile/edit/ConfirmDialog';
 import { SelectField } from '@/components/profile/edit/Fields';
@@ -33,6 +34,7 @@ import {
   useRepeatablePeriodSection,
   YEAR_OPTIONS,
 } from '@/hooks/user/profile/useRepeatablePeriodSection';
+import { cn } from '@/lib/utils';
 
 import { Section } from './Section';
 
@@ -47,6 +49,14 @@ interface Props {
   }[];
   form: ProfileFormContext;
   isMentor: boolean;
+  collapsible?: boolean;
+  cardVariant?: boolean;
+}
+
+function formatPeriodLabel(start?: string, end?: string): string {
+  const startText = start || '?';
+  const endText = end === 'now' ? '至今' : end || '?';
+  return `${startText} – ${endText}`;
 }
 
 export const JobExperienceSection = ({
@@ -54,12 +64,14 @@ export const JobExperienceSection = ({
   locations,
   form,
   isMentor,
+  collapsible = false,
+  cardVariant = false,
 }: Props) => {
   const {
     control,
     getValues,
     setValue,
-    formState: { errors },
+    formState: { errors, submitCount },
   } = form;
 
   const { fields, move, tryAppend, remove, createPeriodChangeHandlers } =
@@ -72,6 +84,42 @@ export const JobExperienceSection = ({
         !last?.job_period_end,
       incompleteAlertMessage: '請先完成上一筆工作經驗再新增',
     });
+
+  const watchedExperiences = useWatch({
+    control,
+    name: 'work_experiences',
+  });
+
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
+  const pendingExpandLastRef = useRef(false);
+
+  useEffect(() => {
+    if (!collapsible || !pendingExpandLastRef.current || fields.length === 0) {
+      return;
+    }
+    pendingExpandLastRef.current = false;
+    const newestId = fields[fields.length - 1]?.id;
+    if (newestId) {
+      setExpandedIds((prev) => ({ ...prev, [newestId]: true }));
+    }
+  }, [collapsible, fields]);
+
+  useEffect(() => {
+    if (!collapsible || !Array.isArray(errors.work_experiences)) return;
+    const idsToOpen: string[] = [];
+    errors.work_experiences.forEach((entryErr, idx) => {
+      if (entryErr && fields[idx]?.id) {
+        idsToOpen.push(fields[idx].id);
+      }
+    });
+    if (idsToOpen.length > 0) {
+      setExpandedIds((prev) => {
+        const next = { ...prev };
+        for (const id of idsToOpen) next[id] = true;
+        return next;
+      });
+    }
+  }, [collapsible, errors.work_experiences, fields, submitCount]);
 
   const setPrimary = (targetIndex: number) => {
     const experiences = getValues('work_experiences') ?? [];
@@ -95,7 +143,8 @@ export const JobExperienceSection = ({
   };
 
   const addJob = () => {
-    const hasNoExperiences = (getValues('work_experiences') ?? []).length === 0;
+    const prevLen = (getValues('work_experiences') ?? []).length;
+    const hasNoExperiences = prevLen === 0;
     tryAppend({
       id: -1,
       job: '',
@@ -107,226 +156,302 @@ export const JobExperienceSection = ({
       description: '',
       is_primary: hasNoExperiences,
     });
+    const nextLen = (getValues('work_experiences') ?? []).length;
+    if (collapsible && nextLen > prevLen) {
+      pendingExpandLastRef.current = true;
+    }
   };
 
-  return (
-    <Section title="工作經驗" required={isMentor}>
+  const toggleExpand = (fieldId: string) => {
+    setExpandedIds((prev) => ({ ...prev, [fieldId]: !prev[fieldId] }));
+  };
+
+  const canRemoveRow = !isMentor || fields.length > 1;
+
+  const renderRows = () => (
+    <>
       {fields.map((field, index) => {
         const { handleStartYearChange, handleEndYearChange } =
           createPeriodChangeHandlers(index);
+        const currentItem = watchedExperiences?.[index] ?? field;
+        const isExpanded = !collapsible || Boolean(expandedIds[field.id]);
+        const hasRowError = Boolean(
+          Array.isArray(errors.work_experiences) &&
+          errors.work_experiences[index]
+        );
+        const companyInitial = currentItem?.company?.trim()?.charAt(0) || '?';
 
         return (
-          <div key={field.id} className="mb-4 rounded-lg border p-4">
-            {fields.length > 1 && (
-              <div className="mb-4 flex justify-end gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  disabled={index === 0}
-                  onClick={() => move(index, index - 1)}
-                >
-                  <ChevronUpIcon className="size-5" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  disabled={index === fields.length - 1}
-                  onClick={() => move(index, index + 1)}
-                >
-                  <ChevronDownIcon className="size-5" />
-                </Button>
-              </div>
+          <div
+            key={field.id}
+            className={cn(
+              'mb-4 rounded-xl border p-4',
+              hasRowError
+                ? 'border-status-error-default'
+                : 'border-background-border'
             )}
-            {/* Title & Company */}
-            <div className="mb-6 gap-6 md:flex">
-              <FormField
-                control={control}
-                name={`work_experiences.${index}.job`}
-                render={({ field }) => (
-                  <FormItem className="mb-4 grow md:mb-0">
-                    <FormLabel>職稱</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={control}
-                name={`work_experiences.${index}.company`}
-                render={({ field }) => (
-                  <FormItem className="grow">
-                    <FormLabel>公司名稱</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+          >
+            {collapsible && (
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="bg-background-bottom text-text-primary flex size-10 shrink-0 items-center justify-center rounded-lg text-sm font-semibold">
+                    {companyInitial}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-text-primary font-semibold break-words">
+                        {currentItem?.job?.trim() || '（未填職稱）'}
+                      </span>
+                      {currentItem?.is_primary && (
+                        <span className="bg-brand-100 text-brand-700 rounded-full px-2.5 py-0.5 text-xs font-medium">
+                          頁面顯示的職稱
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-text-tertiary text-sm break-words">
+                      {currentItem?.company?.trim() || '（未填公司）'} ·{' '}
+                      {formatPeriodLabel(
+                        currentItem?.job_period_start,
+                        currentItem?.job_period_end
+                      )}
+                    </p>
+                  </div>
+                </div>
 
-            {/* Period */}
-            <div className="mb-2 gap-2 md:flex">
-              <FormField
-                control={control}
-                name={`work_experiences.${index}.job_period_start`}
-                render={({ field }) => (
-                  <FormItem className="mb-4 grow basis-1/2 md:mb-0">
-                    <FormLabel>開始年份</FormLabel>
-                    <Select
-                      onValueChange={handleStartYearChange(field.onChange)}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="請選擇年份" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {YEAR_OPTIONS.map((year) => (
-                          <SelectItem key={year} value={year}>
-                            {year}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <p className="relative -bottom-3 my-auto hidden text-center md:block">
-                ～
-              </p>
-              <p className="relative -bottom-3 my-auto text-center text-sm md:hidden">
-                至
-              </p>
-              <FormField
-                control={control}
-                name={`work_experiences.${index}.job_period_end`}
-                render={({ field }) => (
-                  <FormItem className="grow basis-1/2">
-                    <FormLabel className="invisible md:visible">
-                      &nbsp;
-                    </FormLabel>
-                    <Select
-                      onValueChange={handleEndYearChange(field.onChange)}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="至今" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="now">至今</SelectItem>
-                        {YEAR_OPTIONS.map((year) => (
-                          <SelectItem key={year} value={year}>
-                            {year}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* Industry & Location */}
-            <div className="mb-6 gap-6 md:flex">
-              <div className="mb-4 grow basis-1/2 md:mb-0">
-                <FormLabel>產業</FormLabel>
-                <SelectField
-                  form={form}
-                  name={`work_experiences.${index}.industry`}
-                  placeholder="請選擇產業"
-                  options={industries.map((i) => ({
-                    value: i.subject_group,
-                    label: i.subject,
-                  }))}
-                />
-              </div>
-
-              <div className="grow basis-1/2">
-                <FormLabel>地點</FormLabel>
-                <SelectField
-                  form={form}
-                  name={`work_experiences.${index}.job_location`}
-                  placeholder="請選擇地區"
-                  options={locations.map((loc) => ({
-                    value: loc.value,
-                    label: loc.text,
-                  }))}
-                />
-              </div>
-            </div>
-
-            {/* Description */}
-            <FormField
-              control={control}
-              name={`work_experiences.${index}.description`}
-              render={({ field }) => (
-                <FormItem className="mb-6">
-                  <FormLabel>描述</FormLabel>
-                  <FormControl>
-                    <Textarea {...field} className="h-24" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Primary toggle */}
-            <FormField
-              control={control}
-              name={`work_experiences.${index}.is_primary`}
-              render={({ field }) => (
-                <FormItem className="mb-6 flex items-center gap-2 space-y-0">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value ?? false}
-                      onCheckedChange={(checked) => {
-                        if (checked) setPrimary(index);
-                        else field.onChange(false);
-                      }}
-                    />
-                  </FormControl>
-                  <FormLabel className="cursor-pointer text-sm font-normal">
-                    設為頁面顯示的職稱
-                  </FormLabel>
-                </FormItem>
-              )}
-            />
-
-            {fields.length > 1 && (
-              <ConfirmDialog
-                title="要刪除這段工作經驗嗎？"
-                description="您確定要移除這個區塊嗎？"
-                onConfirm={() => removeAndReassignPrimary(index)}
-                trigger={
-                  <Button variant="destructive">
-                    <TrashIcon className="mr-2 size-5" />
-                    移除
+                <div className="flex shrink-0 items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toggleExpand(field.id)}
+                  >
+                    {isExpanded ? '收合' : '編輯'}
                   </Button>
-                }
-              />
+                </div>
+              </div>
             )}
+
+            <div
+              hidden={collapsible && !isExpanded}
+              className={cn(
+                collapsible && 'border-background-border mt-4 border-t pt-4',
+                collapsible && !isExpanded && 'hidden'
+              )}
+            >
+              {fields.length > 1 && (
+                <div className="mb-4 flex justify-end gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={index === 0}
+                    onClick={() => move(index, index - 1)}
+                  >
+                    <ChevronUpIcon className="size-5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={index === fields.length - 1}
+                    onClick={() => move(index, index + 1)}
+                  >
+                    <ChevronDownIcon className="size-5" />
+                  </Button>
+                </div>
+              )}
+              {/* Title & Company */}
+              <div className="mb-6 gap-6 md:flex">
+                <FormField
+                  control={control}
+                  name={`work_experiences.${index}.job`}
+                  render={({ field }) => (
+                    <FormItem className="mb-4 grow md:mb-0">
+                      <FormLabel>職稱</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={control}
+                  name={`work_experiences.${index}.company`}
+                  render={({ field }) => (
+                    <FormItem className="grow">
+                      <FormLabel>公司名稱</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Period */}
+              <div className="mb-2 gap-2 md:flex">
+                <FormField
+                  control={control}
+                  name={`work_experiences.${index}.job_period_start`}
+                  render={({ field }) => (
+                    <FormItem className="mb-4 grow basis-1/2 md:mb-0">
+                      <FormLabel>開始年份</FormLabel>
+                      <Select
+                        onValueChange={handleStartYearChange(field.onChange)}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="請選擇年份" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {YEAR_OPTIONS.map((year) => (
+                            <SelectItem key={year} value={year}>
+                              {year}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <p className="relative -bottom-3 my-auto hidden text-center md:block">
+                  ～
+                </p>
+                <p className="relative -bottom-3 my-auto text-center text-sm md:hidden">
+                  至
+                </p>
+                <FormField
+                  control={control}
+                  name={`work_experiences.${index}.job_period_end`}
+                  render={({ field }) => (
+                    <FormItem className="grow basis-1/2">
+                      <FormLabel className="invisible md:visible">
+                        &nbsp;
+                      </FormLabel>
+                      <Select
+                        onValueChange={handleEndYearChange(field.onChange)}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="至今" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="now">至今</SelectItem>
+                          {YEAR_OPTIONS.map((year) => (
+                            <SelectItem key={year} value={year}>
+                              {year}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Industry & Location */}
+              <div className="mb-6 gap-6 md:flex">
+                <div className="mb-4 grow basis-1/2 md:mb-0">
+                  <FormLabel>產業</FormLabel>
+                  <SelectField
+                    form={form}
+                    name={`work_experiences.${index}.industry`}
+                    placeholder="請選擇產業"
+                    options={industries.map((i) => ({
+                      value: i.subject_group,
+                      label: i.subject,
+                    }))}
+                  />
+                </div>
+
+                <div className="grow basis-1/2">
+                  <FormLabel>地點</FormLabel>
+                  <SelectField
+                    form={form}
+                    name={`work_experiences.${index}.job_location`}
+                    placeholder="請選擇地區"
+                    options={locations.map((loc) => ({
+                      value: loc.value,
+                      label: loc.text,
+                    }))}
+                  />
+                </div>
+              </div>
+
+              {/* Description */}
+              <FormField
+                control={control}
+                name={`work_experiences.${index}.description`}
+                render={({ field }) => (
+                  <FormItem className="mb-6">
+                    <FormLabel>描述</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} className="h-24" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Primary toggle */}
+              <FormField
+                control={control}
+                name={`work_experiences.${index}.is_primary`}
+                render={({ field }) => (
+                  <FormItem className="mb-6 flex items-center gap-2 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value ?? false}
+                        onCheckedChange={(checked) => {
+                          if (checked) setPrimary(index);
+                          else field.onChange(false);
+                        }}
+                      />
+                    </FormControl>
+                    <FormLabel className="cursor-pointer text-sm font-normal">
+                      設為頁面顯示的職稱
+                    </FormLabel>
+                  </FormItem>
+                )}
+              />
+
+              {canRemoveRow && (
+                <ConfirmDialog
+                  title="要刪除這段工作經驗嗎？"
+                  description="您確定要移除這個區塊嗎？"
+                  onConfirm={() => removeAndReassignPrimary(index)}
+                  trigger={
+                    <Button type="button" variant="destructive">
+                      <TrashIcon className="mr-2 size-5" />
+                      移除
+                    </Button>
+                  }
+                />
+              )}
+            </div>
           </div>
         );
       })}
 
-      <Button
-        variant="ghost"
-        className="text-brand-500 rounded-full px-4 py-3"
-        onClick={addJob}
-      >
-        <PlusIcon className="mr-2 size-5" />
-        新增
-      </Button>
+      {!cardVariant && (
+        <Button
+          type="button"
+          variant="ghost"
+          className="text-brand-500 rounded-full px-4 py-3"
+          onClick={addJob}
+        >
+          <PlusIcon className="mr-2 size-5" />
+          新增
+        </Button>
+      )}
       {(errors.work_experiences?.message ??
         errors.work_experiences?.root?.message) && (
         <p className="text-status-error-default mt-2 text-sm font-medium">
@@ -334,6 +459,44 @@ export const JobExperienceSection = ({
             errors.work_experiences?.root?.message}
         </p>
       )}
+    </>
+  );
+
+  if (cardVariant) {
+    return (
+      <section
+        data-testid="mentee-section-work"
+        className="border-background-border bg-background-white rounded-2xl border p-6 shadow-sm"
+      >
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-text-primary text-xl font-bold">工作經驗</h2>
+            <p className="text-text-tertiary mt-1 text-sm">
+              勾選的那筆會顯示在頁面標題
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addJob}
+            className="shrink-0"
+          >
+            <PlusIcon className="mr-1.5 size-4" />
+            新增
+          </Button>
+        </div>
+        {fields.length === 0 && (
+          <p className="text-text-tertiary py-2 text-sm">尚未新增工作經驗</p>
+        )}
+        {renderRows()}
+      </section>
+    );
+  }
+
+  return (
+    <Section title="工作經驗" required={isMentor}>
+      {renderRows()}
     </Section>
   );
 };

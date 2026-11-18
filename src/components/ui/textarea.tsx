@@ -1,6 +1,6 @@
 import * as React from 'react';
 
-import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
+import { FOCUS_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 
 /**
@@ -17,8 +17,8 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
     return (
       <textarea
         className={cn(
-          'border-background-border ring-offset-background-white placeholder:text-text-tertiary block w-full rounded-md border bg-transparent px-3 py-2 text-base disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
-          FOCUS_RING_CLASSES,
+          'border-background-border placeholder:text-text-tertiary focus-visible:border-ring block w-full rounded-md border bg-transparent px-3 py-2 text-base disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
+          FOCUS_RING_NO_OFFSET_CLASSES,
           className
         )}
         ref={ref}

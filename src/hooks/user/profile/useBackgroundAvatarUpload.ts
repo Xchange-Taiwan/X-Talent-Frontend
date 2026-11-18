@@ -3,6 +3,7 @@
 import { useSession } from 'next-auth/react';
 import { useCallback, useEffect, useRef } from 'react';
 
+import { isLocalStaticAvatarUrl } from '@/lib/avatar/avatarUrl';
 import { getAvatarSnapshot } from '@/services/profile/getAvatarSnapshot';
 import {
   createPresignedUrlCache,
@@ -33,7 +34,7 @@ export interface UseBackgroundAvatarUpload {
 async function snapshotAvatarBytes(
   url: string | null | undefined
 ): Promise<Blob | null> {
-  if (!url) return null;
+  if (!url || isLocalStaticAvatarUrl(url)) return null;
   try {
     return await getAvatarSnapshot(url);
   } catch {

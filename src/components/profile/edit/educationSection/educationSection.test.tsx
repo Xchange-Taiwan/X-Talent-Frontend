@@ -1,11 +1,18 @@
+import { zodResolver } from '@hookform/resolvers/zod';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { describe, expect, it } from 'vitest';
 
 import { Form, FormField } from '@/components/ui/form';
+import {
+  createProfileFormSchema,
+  defaultValues,
+  type ProfileFormInput,
+  type ProfileFormValues,
+} from '@/schemas/profileSchema';
 
-import { SchoolComboboxField } from './educationSection';
+import { EducationSection, SchoolComboboxField } from './educationSection';
 
 interface FormValues {
   school: string;
@@ -109,5 +116,50 @@ describe('SchoolComboboxField', () => {
     await waitFor(() => {
       expect(screen.getByRole('combobox')).toHaveTextContent('國立臺灣大學');
     });
+  });
+});
+
+describe('EducationSection collapsible summary-row mode for Mentee (#828)', () => {
+  function EduHarness() {
+    const form = useForm<ProfileFormInput, unknown, ProfileFormValues>({
+      resolver: zodResolver(createProfileFormSchema(false)),
+      defaultValues: {
+        ...defaultValues,
+        is_mentor: false,
+        educations: [
+          {
+            id: 1,
+            school: '國立臺灣科技大學',
+            subject: '設計系',
+            education_period_start: '2015',
+            education_period_end: '2019',
+          },
+        ],
+      },
+    });
+    return (
+      <Form {...form}>
+        <form>
+          <EducationSection form={form} isMentor={false} collapsible={true} />
+        </form>
+      </Form>
+    );
+  }
+
+  it('renders collapsed education summary row and expands on 編輯 click', () => {
+    render(<EduHarness />);
+
+    expect(
+      screen.getAllByText('國立臺灣科技大學').length
+    ).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/設計系 · 2015 – 2019/)).toBeInTheDocument();
+    expect(screen.getByLabelText('主修')).not.toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: '編輯' }));
+    expect(screen.getByLabelText('主修')).toBeVisible();
+    expect(screen.getByLabelText('主修')).toHaveValue('設計系');
+
+    fireEvent.click(screen.getByRole('button', { name: '收合' }));
+    expect(screen.getByLabelText('主修')).not.toBeVisible();
   });
 });

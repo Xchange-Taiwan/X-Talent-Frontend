@@ -153,11 +153,15 @@ describe('ProfilePageUI - identity-resolution flash prevention', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('renders the become-mentor button (alongside edit) once canShowOwnerControls is true for a mentee viewing their own profile', () => {
+  it('renders only the edit button (no become-mentor or share-profile button) and formats "職稱 at 公司" for a mentee viewing their own profile (#828 B-1)', () => {
     render(
       <ProfilePageUI
         {...baseProps({
-          userData: buildUserData({ is_mentor: false }),
+          userData: buildUserData({
+            is_mentor: false,
+            job_title: 'Engineer',
+            company: 'XChange',
+          }),
           canShowOwnerControls: true,
         })}
       />
@@ -167,8 +171,29 @@ describe('ProfilePageUI - identity-resolution flash prevention', () => {
       screen.getByRole('button', { name: '編輯個人資訊' })
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: '成為導師' })
-    ).toBeInTheDocument();
+      screen.queryByRole('button', { name: '成為導師' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '分享個人頁面' })
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('at')).toBeInTheDocument();
+  });
+
+  it('renders the injected inPlaceEditor in place of the read-only mentee view when editing (#828 B-2)', () => {
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({ is_mentor: false }),
+          canShowOwnerControls: true,
+          inPlaceEditor: <div data-testid="mentee-inplace-editor" />,
+        })}
+      />
+    );
+
+    expect(screen.getByTestId('mentee-inplace-editor')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '編輯個人資訊' })
+    ).not.toBeInTheDocument();
   });
 
   it('keeps BookingForm in its loading state while identity is still resolving, even once userData has loaded', () => {

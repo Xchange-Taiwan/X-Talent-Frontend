@@ -56,6 +56,10 @@ export interface UseProfileEditorSessionOptions {
   isMentorOnboarding: boolean;
   industryCatalog?: readonly IndustryOption[];
   port?: Partial<ProfileSavePort>;
+  initialUserDto?: MentorProfileVO | null;
+  onExitEdit?: () => void;
+  onAfterSave?: (savedDto: MentorProfileVO) => void;
+  extraDirty?: boolean;
 }
 
 export function useProfileEditorSession({
@@ -64,6 +68,10 @@ export function useProfileEditorSession({
   isMentorOnboarding,
   industryCatalog,
   port: portOverrides,
+  initialUserDto,
+  onExitEdit,
+  onAfterSave,
+  extraDirty = false,
 }: UseProfileEditorSessionOptions) {
   const router = useRouter();
   const { data: session, update: updateSession } = useSession();
@@ -84,7 +92,8 @@ export function useProfileEditorSession({
 
   const { userDto, error: dtoError } = useUserProfileDto(
     numericPageUserId,
-    'zh_TW'
+    'zh_TW',
+    initialUserDto ?? undefined
   );
 
   useEffect(() => {
@@ -146,7 +155,28 @@ export function useProfileEditorSession({
 
   const handleAvatarFileChange = useCallback(
     (file: File) => {
+      if (form.getValues('avatarFile') !== file) {
+        form.setValue('avatarFile', file, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+      }
       avatarUpload.kickOff(file, form.getValues('avatar'));
+    },
+    [avatarUpload, form]
+  );
+
+  const handleSelectPresetAvatar = useCallback(
+    (presetUrl: string) => {
+      void avatarUpload.rollback();
+      form.setValue('avatarFile', undefined, {
+        shouldDirty: false,
+        shouldValidate: true,
+      });
+      form.setValue('avatar', presetUrl, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
     },
     [avatarUpload, form]
   );
@@ -154,12 +184,25 @@ export function useProfileEditorSession({
   const savePort = useMemo<ProfileSavePort>(
     () => ({
       updateSession,
-      navigate: (href: string) => router.push(href),
+      navigate: (href: string) => {
+        if (onExitEdit && !isMentorOnboarding) {
+          onExitEdit();
+          return;
+        }
+        router.push(href);
+      },
       revalidateProfilePath,
       uploadAvatar: (file: File) => avatarUpload.consume(file),
       ...portOverrides,
     }),
-    [avatarUpload, portOverrides, router, updateSession]
+    [
+      avatarUpload,
+      isMentorOnboarding,
+      onExitEdit,
+      portOverrides,
+      router,
+      updateSession,
+    ]
   );
 
   const { run, isPending: isSaving } = useAsyncAction({
@@ -171,7 +214,7 @@ export function useProfileEditorSession({
       description: '儲存失敗，請稍後再試',
     },
     throwError: false,
-    resetPendingOnSuccess: false,
+    resetPendingOnSuccess: Boolean(onExitEdit),
     shouldSkipLogging: (err) => err instanceof LoggedError,
   });
 
@@ -180,7 +223,7 @@ export function useProfileEditorSession({
       values: ProfileFormValues,
       dirtyFields?: ProfileDirtyFields
     ): Promise<MentorProfileVO | undefined> => {
-      return await run(() =>
+      const saved = await run(() =>
         commitProfileMutation(
           {
             mode: isMentorOnboarding ? 'mentor-onboarding' : 'edit',
@@ -196,10 +239,15 @@ export function useProfileEditorSession({
           savePort
         )
       );
+      if (saved) {
+        onAfterSave?.(saved);
+      }
+      return saved;
     },
     [
       industryCatalog,
       isMentorOnboarding,
+      onAfterSave,
       pageUserId,
       run,
       savePort,
@@ -217,11 +265,19 @@ export function useProfileEditorSession({
     [form, onSubmit, onError]
   );
 
-  const unsaved = useUnsavedChangesPrompt(form.formState.isDirty && !isSaving);
+  const unsaved = useUnsavedChangesPrompt(
+    (form.formState.isDirty || extraDirty) && !isSaving
+  );
 
   const handleGoToPrev = useCallback(() => {
-    unsaved.guardNavigate(() => router.push(`/profile/${pageUserId}`));
-  }, [unsaved, router, pageUserId]);
+    unsaved.guardNavigate(() => {
+      if (onExitEdit) {
+        onExitEdit();
+        return;
+      }
+      router.push(`/profile/${pageUserId}`);
+    });
+  }, [unsaved, onExitEdit, router, pageUserId]);
 
   const handleConfirmLeave = useCallback(() => {
     void avatarUpload.rollback();
@@ -237,6 +293,7 @@ export function useProfileEditorSession({
     isHydrating,
     isSaving,
     handleAvatarFileChange,
+    handleSelectPresetAvatar,
     handleFormSubmit,
     handleGoToPrev,
     isPromptOpen: unsaved.isPromptOpen,

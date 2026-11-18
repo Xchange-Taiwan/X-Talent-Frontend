@@ -519,4 +519,27 @@ describe('useBackgroundAvatarUpload', () => {
     expect(cacheInstance0).toBeDefined();
     expect(cacheInstance0).toBe(cacheInstance1);
   });
+
+  it('skips S3 snapshot fetch and avoids uploading preset static illustrations on rollback when currentAvatarUrl is a local /avatars/ path (#828)', async () => {
+    const file = new File(['custom-photo'], 'custom.png', {
+      type: 'image/png',
+    });
+    mockUpdateAvatar.mockResolvedValueOnce(
+      'https://s3.amazonaws.com/bucket/avatar.png?v=2002'
+    );
+
+    const { result } = renderHook(() => useBackgroundAvatarUpload());
+
+    await act(async () => {
+      result.current.kickOff(file, '/avatars/default_3.webp');
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      await result.current.rollback();
+    });
+
+    expect(mockGetAvatarSnapshot).not.toHaveBeenCalled();
+    expect(mockUpdateAvatar).toHaveBeenCalledTimes(1);
+  });
 });

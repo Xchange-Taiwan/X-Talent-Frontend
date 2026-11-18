@@ -86,6 +86,43 @@ describe('createProfileFormSchema mentor avatar requirement', () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it('mentee with any of the 6 preset avatars (/avatars/default_1~6.webp) passes without avatarFile (#828)', () => {
+    for (let i = 1; i <= 6; i += 1) {
+      const result = createProfileFormSchema(false).safeParse({
+        ...baseData,
+        avatar: `/avatars/default_${i}.webp`,
+        avatarFile: undefined,
+      });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('mentor with a preset avatar (/avatars/default_1~6.webp) and no avatarFile fails with real-photo required message (#828 / #830)', () => {
+    for (let i = 1; i <= 6; i += 1) {
+      const result = createProfileFormSchema(true).safeParse({
+        ...baseData,
+        ...mentorRequiredFields,
+        avatar: `/avatars/default_${i}.webp`,
+        avatarFile: undefined,
+      });
+      expect(result.success).toBe(false);
+      const issue = result.error!.issues.find(
+        (x) => x.path[0] === 'avatarFile'
+      );
+      expect(issue?.message).toBe('請上傳真人照片，預設頭像僅供預覽');
+    }
+  });
+
+  it('mentor who had a preset avatar passes once a real avatarFile is uploaded (#828 / #830)', () => {
+    const result = createProfileFormSchema(true).safeParse({
+      ...baseData,
+      ...mentorRequiredFields,
+      avatar: '/avatars/default_2.webp',
+      avatarFile: new File(['photo'], 'real.jpg', { type: 'image/jpeg' }),
+    });
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('createProfileFormSchema conditional validations (Mentor vs Mentee)', () => {

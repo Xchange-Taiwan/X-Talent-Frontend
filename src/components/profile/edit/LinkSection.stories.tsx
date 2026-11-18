@@ -109,3 +109,15 @@ export const WithValidationErrors: Story = {
     );
   },
 };
+
+export const MenteeCardVariant: Story = {
+  name: 'Mentee 原地編輯卡片樣式 (#828)',
+  render: () => {
+    const schema = createProfileFormSchema(false);
+    return (
+      <ProfileStoryWrapper schema={schema} defaultValues={defaultValues}>
+        {(form) => <LinksSection form={form} cardVariant />}
+      </ProfileStoryWrapper>
+    );
+  },
+};

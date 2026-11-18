@@ -337,4 +337,68 @@ describe('useProfileEditorSession (#787 / #905)', () => {
       expect.any(Object)
     );
   });
+
+  it('rolls back pending custom avatar upload when switching to a preset avatar via handleSelectPresetAvatar, and invokes onExitEdit + onAfterSave in in-place mode (#828)', async () => {
+    mockUpdateAvatar.mockResolvedValue(
+      'https://s3.amazonaws.com/bucket/avatar.png?v=1'
+    );
+    mockGetAvatarSnapshot.mockResolvedValue(
+      new Blob(['original-bytes'], { type: 'image/png' })
+    );
+
+    const onExitEdit = vi.fn();
+    const onAfterSave = vi.fn();
+
+    mockCommitProfileMutation.mockImplementation(
+      async (_intent, _ctx, port: { navigate: (href: string) => void }) => {
+        port.navigate('/profile/1');
+        return { user_id: 1, name: 'Initial Name' };
+      }
+    );
+
+    const { result } = renderHook(() =>
+      useProfileEditorSession({
+        pageUserId: '1',
+        isAuthorized: true,
+        isMentorOnboarding: false,
+        onExitEdit,
+        onAfterSave,
+      })
+    );
+
+    const customFile = new File(['photo'], 'photo.png', { type: 'image/png' });
+    await act(async () => {
+      result.current.handleAvatarFileChange(customFile);
+      await Promise.resolve();
+    });
+    expect(mockUpdateAvatar).toHaveBeenCalledTimes(1);
+    expect(result.current.form.getValues('avatarFile')).toBe(customFile);
+
+    await act(async () => {
+      result.current.handleSelectPresetAvatar('/avatars/default_5.webp');
+      await Promise.resolve();
+    });
+
+    // Previous uncommitted S3 upload rolled back, avatarFile cleared, preset URL set
+    expect(mockUpdateAvatar).toHaveBeenCalledTimes(2);
+    expect(result.current.form.getValues('avatarFile')).toBeUndefined();
+    expect(result.current.form.getValues('avatar')).toBe(
+      '/avatars/default_5.webp'
+    );
+
+    act(() => {
+      result.current.form.setValue('location', 'TWN');
+      result.current.form.setValue('years_of_experience', '1_3');
+      result.current.form.setValue('want_position', ['frontend']);
+      result.current.form.setValue('want_skill', ['react']);
+      result.current.form.setValue('want_topic', ['career']);
+    });
+
+    await act(async () => {
+      await result.current.handleFormSubmit();
+    });
+
+    expect(onAfterSave).toHaveBeenCalledTimes(1);
+    expect(onExitEdit).toHaveBeenCalledTimes(1);
+  });
 });

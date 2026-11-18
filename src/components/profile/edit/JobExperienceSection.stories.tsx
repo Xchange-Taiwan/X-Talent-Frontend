@@ -43,10 +43,14 @@ function JobSectionBody({
   form,
   isMentor,
   triggerOnMount = false,
+  collapsible = false,
+  cardVariant = false,
 }: {
   form: ProfileFormContext;
   isMentor: boolean;
   triggerOnMount?: boolean;
+  collapsible?: boolean;
+  cardVariant?: boolean;
 }) {
   useEffect(() => {
     if (triggerOnMount) {
@@ -60,6 +64,8 @@ function JobSectionBody({
       locations={locationsMock}
       form={form}
       isMentor={isMentor}
+      collapsible={collapsible}
+      cardVariant={cardVariant}
     />
   );
 }
@@ -68,6 +74,8 @@ const SectionWithForm = (props: {
   isMentor: boolean;
   initialExperiences?: ProfileFormValues['work_experiences'];
   triggerOnMount?: boolean;
+  collapsible?: boolean;
+  cardVariant?: boolean;
 }) => {
   const schema = createProfileFormSchema(props.isMentor);
 
@@ -85,6 +93,8 @@ const SectionWithForm = (props: {
           form={form}
           isMentor={props.isMentor}
           triggerOnMount={props.triggerOnMount}
+          collapsible={props.collapsible}
+          cardVariant={props.cardVariant}
         />
       )}
     </ProfileStoryWrapper>
@@ -176,6 +186,33 @@ export const InvalidPeriod: Story = {
           industry: 'Software',
           job_location: 'TWN',
           description: '測試開始年份大於結束年份的驗證錯誤狀態。',
+          is_primary: true,
+        },
+      ]}
+    />
+  ),
+};
+
+export const MenteeCollapsibleSummary: Story = {
+  name: 'Mentee 摘要列摺疊編輯模式 (#828)',
+  args: {
+    isMentor: false,
+  },
+  render: () => (
+    <SectionWithForm
+      isMentor={false}
+      collapsible
+      cardVariant
+      initialExperiences={[
+        {
+          id: 1,
+          job: 'UI/UX 設計師',
+          company: '新創科技',
+          job_period_start: '2022',
+          job_period_end: 'now',
+          industry: 'Design',
+          job_location: 'TWN',
+          description: '負責設計系統與跨產品互動流程規劃。',
           is_primary: true,
         },
       ]}

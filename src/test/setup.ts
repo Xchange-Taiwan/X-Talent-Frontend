@@ -6,6 +6,59 @@ import { createRouter } from '@storybook/nextjs/router.mock';
 createRouter({});
 createNavigation({});
 
+// Node >=25/26 defines an experimental global `localStorage` getter that
+// returns `undefined` when `--localstorage-file` is omitted, shadowing jsdom's
+// Storage implementation. Install a standard in-memory Storage polyfill when
+// `localStorage.clear` is unavailable so tests behave identically across Node
+// 22, 24, and 26.
+function createMemoryStorage(): Storage {
+  const store = new Map<string, string>();
+  return {
+    get length() {
+      return store.size;
+    },
+    clear() {
+      store.clear();
+    },
+    getItem(key: string) {
+      return store.has(String(key)) ? (store.get(String(key)) ?? null) : null;
+    },
+    key(index: number) {
+      return Array.from(store.keys())[index] ?? null;
+    },
+    removeItem(key: string) {
+      store.delete(String(key));
+    },
+    setItem(key: string, value: string) {
+      store.set(String(key), String(value));
+    },
+  };
+}
+
+if (typeof window !== 'undefined') {
+  let hasWorkingLocalStorage = false;
+  try {
+    hasWorkingLocalStorage =
+      Boolean(window.localStorage) &&
+      typeof window.localStorage.clear === 'function';
+  } catch {
+    hasWorkingLocalStorage = false;
+  }
+  if (!hasWorkingLocalStorage) {
+    const memoryStorage = createMemoryStorage();
+    Object.defineProperty(window, 'localStorage', {
+      value: memoryStorage,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: memoryStorage,
+      configurable: true,
+      writable: true,
+    });
+  }
+}
+
 // jsdom doesn't implement ResizeObserver, but some Radix UI primitives
 // (e.g. Popover.Arrow) depend on it being present at mount time.
 if (typeof globalThis.ResizeObserver === 'undefined') {

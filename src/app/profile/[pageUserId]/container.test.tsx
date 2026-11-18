@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { fromPartial } from '@total-typescript/shoehorn';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -14,11 +14,35 @@ vi.mock('next/navigation', () => ({
 }));
 
 // ProfilePageUI is loaded via next/dynamic; swap it for a shim that renders
-// nothing but the injected editorDialog, so these tests assert exactly one
-// thing: whether the container decided to hand the editor down at all.
+// editorDialog, inPlaceEditor, and an edit trigger button so container tests
+// can verify both Mentor /edit navigation and Mentee in-place toggle (#828).
 vi.mock('next/dynamic', () => ({
-  default: () => (props: { editorDialog?: React.ReactNode }) => (
-    <div data-testid="profile-page-ui">{props.editorDialog}</div>
+  default:
+    () =>
+    (props: {
+      editorDialog?: React.ReactNode;
+      inPlaceEditor?: React.ReactNode;
+      onEditProfile?: () => void;
+    }) => (
+      <div data-testid="profile-page-ui">
+        {props.onEditProfile && (
+          <button type="button" onClick={props.onEditProfile}>
+            編輯個人資訊
+          </button>
+        )}
+        {props.editorDialog}
+        {props.inPlaceEditor}
+      </div>
+    ),
+}));
+
+vi.mock('@/components/profile/edit/MenteeInPlaceEditor', () => ({
+  MenteeInPlaceEditor: ({ onExitEdit }: { onExitEdit: () => void }) => (
+    <div data-testid="mentee-inplace-editor">
+      <button type="button" onClick={onExitEdit}>
+        退出原地編輯
+      </button>
+    </div>
   ),
 }));
 
@@ -493,5 +517,65 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
     expect(
       screen.queryByText(FAVORITE_SELF_BLOCKED_TOAST_MESSAGE)
     ).not.toBeInTheDocument();
+  });
+
+  it('toggles Mentee in-place edit mode on the same page without router.push, while keeping Mentor /edit navigation (#828)', async () => {
+    mockUseResolvedIdentity.mockReturnValue(
+      identity({
+        sessionSettled: true,
+        hasFullUser: true,
+        userId: PAGE_USER_ID,
+      })
+    );
+
+    // 1. Mentor clicking 編輯個人資訊 still navigates to /profile/123/edit (pending #830)
+    const mentorView = renderContainer();
+    fireEvent.click(screen.getByRole('button', { name: '編輯個人資訊' }));
+    expect(mockPush).toHaveBeenCalledWith('/profile/123/edit');
+    mentorView.unmount();
+
+    // 2. Mentee clicking 編輯個人資訊 opens MenteeInPlaceEditor in-place without router.push
+    mockPush.mockClear();
+    mockUseUserData.mockReturnValue({
+      userData: {
+        user_id: 123,
+        name: 'Test Mentee',
+        avatar: '/avatars/default_1.webp',
+        job_title: 'UI/UX 設計師',
+        company: '新創科技',
+        is_mentor: false,
+        want_position: [],
+        want_skill: [],
+        want_topic: [],
+        have_skill: [],
+        have_topic: [],
+      },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    renderContainer();
+    expect(
+      screen.queryByTestId('mentee-inplace-editor')
+    ).not.toBeInTheDocument();
+
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: '編輯個人資訊' }));
+    });
+
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(
+      await screen.findByTestId('mentee-inplace-editor')
+    ).toBeInTheDocument();
+
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: '退出原地編輯' }));
+    });
+    await vi.waitFor(() => {
+      expect(
+        screen.queryByTestId('mentee-inplace-editor')
+      ).not.toBeInTheDocument();
+    });
   });
 });
