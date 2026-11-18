@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import React from 'react';
 
-import { buildDesktopGuestAuth } from '@/hooks/layout/useHeaderNavigation';
+import { buildDesktopGuestAuth } from '@/lib/navigation/headerNavigationModel';
 import { GUEST_IDENTITY, UNKNOWN_IDENTITY } from '@/test/mocks/identity';
 
 import { AuthHintProvider } from './AuthHintGate';

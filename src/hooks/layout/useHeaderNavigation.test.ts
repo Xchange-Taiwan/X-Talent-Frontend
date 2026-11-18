@@ -93,6 +93,7 @@ describe('useHeaderNavigation', () => {
 
   afterEach(() => {
     process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT = originalEnv;
+    vi.unstubAllEnvs();
     vi.unstubAllGlobals();
   });
 
@@ -402,7 +403,19 @@ describe('useHeaderNavigation', () => {
   });
 
   describe('canDeleteAccount & single-instance activeDialog state', () => {
-    it('includes delete-account action only when NEXT_PUBLIC_CAN_DELETE_ACCOUNT is true', () => {
+    it('includes delete-account action only when NEXT_PUBLIC_CAN_DELETE_ACCOUNT is true (fail-closed when unset in development)', () => {
+      vi.stubEnv('NODE_ENV', 'development');
+      delete process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT;
+      const { result: unsetInDev } = renderHook(() =>
+        useHeaderNavigation({
+          identity: authenticatedIdentity('user-1', { isMentor: false }),
+        })
+      );
+      expect(unsetInDev.current.canDeleteAccount).toBe(false);
+      expect(
+        unsetInDev.current.desktopAccountMenu.accountActions.map((a) => a.id)
+      ).toEqual(['logout']);
+
       process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT = 'false';
       const { result: disabled } = renderHook(() =>
         useHeaderNavigation({
@@ -414,7 +427,7 @@ describe('useHeaderNavigation', () => {
         disabled.current.desktopAccountMenu.accountActions.map((a) => a.id)
       ).toEqual(['logout']);
 
-      process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT = 'true';
+      process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT = ' true ';
       const { result: enabled } = renderHook(() =>
         useHeaderNavigation({
           identity: authenticatedIdentity('user-1', { isMentor: false }),

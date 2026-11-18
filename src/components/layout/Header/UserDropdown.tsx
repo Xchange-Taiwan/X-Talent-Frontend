@@ -15,7 +15,7 @@ import {
   type DesktopAccountMenuModel,
   getNavAnalyticsAttributes,
   type ProfileHeaderDescriptor,
-} from '@/hooks/layout/useHeaderNavigation';
+} from '@/lib/navigation/headerNavigationModel';
 import { GROUP_FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 
@@ -25,25 +25,16 @@ import { UserAvatar } from './UserAvatar';
 export type UserDropdownProps = {
   profileHeader: ProfileHeaderDescriptor;
   menu: DesktopAccountMenuModel;
-  showFavorites?: boolean;
 };
 
 export const UserDropdown = React.memo(function UserDropdown({
   profileHeader,
   menu,
-  showFavorites,
 }: UserDropdownProps): JSX.Element {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const closeMenu = React.useCallback(() => setMenuOpen(false), []);
 
-  const { shareProfile, navItems: rawNavItems, accountActions } = menu;
-  const navItems = React.useMemo(
-    () =>
-      showFavorites === false
-        ? rawNavItems.filter((item) => item.id !== 'my-favorites')
-        : rawNavItems,
-    [rawNavItems, showFavorites]
-  );
+  const { shareProfile, navItems, accountActions } = menu;
 
   return (
     <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>

@@ -1,6 +1,8 @@
+import { fromPartial } from '@total-typescript/shoehorn';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  isAccountDeletionEnabled,
   isFavoritesEnabled,
   isFeedbackEnabled,
   resolveFeatureFlag,
@@ -152,5 +154,86 @@ describe('isFavoritesEnabled & isFeedbackEnabled', () => {
     );
     expect(isFavoritesEnabled()).toBe(true);
     expect(isFeedbackEnabled()).toBe(true);
+  });
+});
+
+describe('isAccountDeletionEnabled', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('returns true only when NEXT_PUBLIC_CAN_DELETE_ACCOUNT is explicitly "true" (trimmed, case-insensitive)', () => {
+    expect(
+      isAccountDeletionEnabled(
+        fromPartial<NodeJS.ProcessEnv>({
+          NEXT_PUBLIC_CAN_DELETE_ACCOUNT: 'true',
+        })
+      )
+    ).toBe(true);
+    expect(
+      isAccountDeletionEnabled(
+        fromPartial<NodeJS.ProcessEnv>({
+          NEXT_PUBLIC_CAN_DELETE_ACCOUNT: '  TRUE ',
+        })
+      )
+    ).toBe(true);
+    expect(
+      isAccountDeletionEnabled(
+        fromPartial<NodeJS.ProcessEnv>({
+          NEXT_PUBLIC_CAN_DELETE_ACCOUNT: '1',
+        })
+      )
+    ).toBe(false);
+    expect(
+      isAccountDeletionEnabled(
+        fromPartial<NodeJS.ProcessEnv>({
+          NEXT_PUBLIC_CAN_DELETE_ACCOUNT: 'false',
+        })
+      )
+    ).toBe(false);
+  });
+
+  it('fails closed (false) when unset or empty across development, test, staging, preview, /dev/api, and production', () => {
+    const environments: NodeJS.ProcessEnv[] = [
+      fromPartial<NodeJS.ProcessEnv>({ NODE_ENV: 'development' }),
+      fromPartial<NodeJS.ProcessEnv>({
+        NODE_ENV: 'test',
+        NEXT_PUBLIC_CAN_DELETE_ACCOUNT: '',
+      }),
+      fromPartial<NodeJS.ProcessEnv>({
+        NODE_ENV: 'production',
+        NEXT_PUBLIC_SENTRY_ENV: 'staging',
+      }),
+      fromPartial<NodeJS.ProcessEnv>({
+        NODE_ENV: 'production',
+        NEXT_PUBLIC_VERCEL_ENV: 'preview',
+      }),
+      fromPartial<NodeJS.ProcessEnv>({
+        NODE_ENV: 'production',
+        NEXT_PUBLIC_API_URL:
+          'https://8br2lpf3ll.execute-api.ap-northeast-1.amazonaws.com/dev/api',
+      }),
+      fromPartial<NodeJS.ProcessEnv>({
+        NODE_ENV: 'production',
+        NEXT_PUBLIC_SENTRY_ENV: 'production',
+        NEXT_PUBLIC_CAN_DELETE_ACCOUNT: '   ',
+      }),
+    ];
+
+    for (const env of environments) {
+      expect(isAccountDeletionEnabled(env)).toBe(false);
+    }
+  });
+
+  it('reads process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT dynamically when called with no arguments', () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('NEXT_PUBLIC_CAN_DELETE_ACCOUNT', '');
+    expect(isAccountDeletionEnabled()).toBe(false);
+
+    vi.stubEnv('NEXT_PUBLIC_CAN_DELETE_ACCOUNT', 'true');
+    expect(isAccountDeletionEnabled()).toBe(true);
+
+    vi.stubEnv('NEXT_PUBLIC_CAN_DELETE_ACCOUNT', 'false');
+    expect(isAccountDeletionEnabled()).toBe(false);
   });
 });

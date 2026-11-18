@@ -3,12 +3,12 @@
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
+import { type ResolvedIdentity } from '@/lib/auth/sessionHint';
 import {
   buildDesktopGuestAuth,
   getNavAnalyticsAttributes,
   type HeaderLinkDescriptor,
-} from '@/hooks/layout/useHeaderNavigation';
-import { type ResolvedIdentity } from '@/lib/auth/sessionHint';
+} from '@/lib/navigation/headerNavigationModel';
 
 import { AuthHintGate } from './AuthHintGate';
 

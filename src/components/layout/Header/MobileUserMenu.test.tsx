@@ -51,10 +51,12 @@ import { MobileUserMenu } from './MobileUserMenu';
 
 function MobileUserMenuHarness({
   identity,
+  showFavorites,
 }: {
   identity: ResolvedIdentity;
+  showFavorites?: boolean;
 }): JSX.Element {
-  const navigation = useHeaderNavigation({ identity });
+  const navigation = useHeaderNavigation({ identity, showFavorites });
   return (
     <MobileUserMenu
       profileHeader={navigation.profileHeader}
@@ -151,5 +153,21 @@ describe('MobileUserMenu shell', () => {
     expect(
       screen.queryByRole('link', { name: '我的收藏' })
     ).not.toBeInTheDocument();
+  });
+
+  it('omits 我的收藏 when headerNavigationModel filters favorites via showFavorites=false', () => {
+    render(
+      <MobileUserMenuHarness
+        identity={authenticatedIdentity('user-1', { isMentor: false })}
+        showFavorites={false}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '開啟用戶選單' }));
+
+    expect(
+      screen.queryByRole('link', { name: '我的收藏' })
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '我的預約' })).toBeInTheDocument();
   });
 });
