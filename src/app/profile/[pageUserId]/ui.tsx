@@ -442,7 +442,7 @@ export default function ProfilePageUI({
                     {canShowOwnerControls && !userData.is_mentor && (
                       <Button
                         variant="outline"
-                        className="rounded-full px-5 py-2.5"
+                        className="focus-visible:border-ring rounded-full px-5 py-2.5 focus-visible:ring-offset-0"
                         onClick={onEditProfile}
                         data-analytics-click="profile_edit_click"
                         data-analytics-feature="profile"
