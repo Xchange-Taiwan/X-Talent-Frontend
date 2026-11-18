@@ -119,10 +119,11 @@ jobs:
         if: failure() && steps.smoke_test.outcome == 'failure' && steps.prev_prod.outputs.deployment_id != ''
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           PREV_ID: ${{ steps.prev_prod.outputs.deployment_id }}
         run: |
           echo "Boundary verification failed; initiating automatic rollback to ${PREV_ID}..."
-          vercel rollback "$PREV_ID" --yes --token="$VERCEL_TOKEN"
+          vercel rollback "$PREV_ID" --yes --scope "$VERCEL_ORG_ID" --token="$VERCEL_TOKEN"
 
       - name: Notify on failure
         if: failure() && steps.smoke_test.outcome == 'failure'

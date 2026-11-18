@@ -118,5 +118,14 @@ describe('sanitizeSentryEvent', () => {
       user: { id: 'oops@example.com' },
     } as never);
     expect(emailIdEvent.user).toBeUndefined();
+
+    // Handles circular references without throwing or dropping the event
+    const circular: Record<string, unknown> = { label: 'root' };
+    circular.self = circular;
+    const circularCleaned = sanitizeSentryEvent({
+      message: 'Circular test',
+      extra: { circular },
+    } as never);
+    expect(JSON.stringify(circularCleaned.extra)).toContain('[Circular]');
   });
 });
