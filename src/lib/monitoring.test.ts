@@ -838,4 +838,26 @@ describe('captureFlowFailure', () => {
     });
     expect(mockCaptureEvent).toHaveBeenCalledTimes(2);
   });
+
+  it('attaches pagehide/beforeunload listeners eagerly on module load so the very first navigation abort is suppressed (#952)', async () => {
+    vi.resetModules();
+    mockCaptureEvent.mockClear();
+
+    const freshMonitoring = await import('@/lib/monitoring');
+
+    // Trigger pagehide BEFORE captureApiFailure has ever been called
+    window.dispatchEvent(new Event('pagehide'));
+    try {
+      await freshMonitoring.captureApiFailure({
+        endpoint: '/v1/users/1/notifications/unread-count',
+        method: 'GET',
+        status: 0,
+        message: 'Load failed',
+        route: '/auth/onboarding',
+      });
+      expect(mockCaptureEvent).not.toHaveBeenCalled();
+    } finally {
+      window.dispatchEvent(new Event('pageshow'));
+    }
+  });
 });

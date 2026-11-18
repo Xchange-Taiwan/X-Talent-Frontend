@@ -9,12 +9,15 @@ import {
   lazyLoadIntegration,
 } from '@sentry/nextjs';
 
+import { ensureUnloadListenersAttached } from '@/lib/monitoring';
 import {
   attachLazyReplayIntegration,
   resolveSentryRuntimeConfig,
   SENTRY_CLIENT_IGNORE_ERRORS,
 } from '@/lib/sentryEnv';
 import { sanitizeSentryEvent } from '@/lib/sentrySanitize';
+
+ensureUnloadListenersAttached();
 
 const { environment: sentryEnvironment, enabled: sentryEnabled } =
   resolveSentryRuntimeConfig();

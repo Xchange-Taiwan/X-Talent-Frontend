@@ -442,7 +442,7 @@ const reportedErrorCauses = new WeakSet<object>();
 let isBrowserUnloading = false;
 let unloadListenersAttached = false;
 
-function ensureUnloadListenersAttached(): void {
+export function ensureUnloadListenersAttached(): void {
   if (unloadListenersAttached || typeof window === 'undefined') {
     return;
   }
@@ -456,6 +456,14 @@ function ensureUnloadListenersAttached(): void {
   window.addEventListener('pageshow', () => {
     isBrowserUnloading = false;
   });
+}
+
+// Register unload listeners eagerly at module evaluation time in browser
+// runtimes so the very first in-flight request aborted during initial page
+// navigation (`pagehide` / `beforeunload`) is suppressed even before
+// `captureApiFailure` has ever been invoked.
+if (typeof window !== 'undefined') {
+  ensureUnloadListenersAttached();
 }
 
 function recordRecentApiError(
