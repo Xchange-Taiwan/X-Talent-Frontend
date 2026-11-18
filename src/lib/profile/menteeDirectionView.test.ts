@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import type { UserType } from '@/types/user';
@@ -105,6 +108,12 @@ describe('menteeDirectionView', () => {
   });
 
   it('resolves Mentee default_1 avatar, preset codes, latest work role, and summed experience years (#960)', () => {
+    const publicDir = path.resolve(process.cwd(), 'public');
+    for (let i = 1; i <= 6; i += 1) {
+      const p = path.join(publicDir, 'avatars', `default_${i}.webp`);
+      expect(fs.existsSync(p)).toBe(true);
+    }
+
     expect(resolveMenteeAvatarSrc('')).toBe(DEFAULT_MENTEE_AVATAR_URL);
     expect(resolveMenteeAvatarSrc('default_3')).toBe('/avatars/default_3.webp');
     expect(resolveMenteeLatestRole({ workExperiences: [] }, 2026)).toBeNull();
@@ -112,6 +121,16 @@ describe('menteeDirectionView', () => {
       resolveMenteeLatestRole(
         {
           workExperiences: [
+            {
+              job: 'Intern Designer',
+              company: 'Early Co',
+              job_period_start: '2021',
+              job_period_end: '2023',
+              industry: 'DESIGN',
+              job_location: 'TWN',
+              description: '',
+              is_primary: false,
+            },
             {
               job: 'Product Designer',
               company: 'Flow Studio',
@@ -132,6 +151,16 @@ describe('menteeDirectionView', () => {
         {
           workExperiences: [
             {
+              job: 'Intern Designer',
+              company: 'Early Co',
+              job_period_start: '2021',
+              job_period_end: '2023',
+              industry: 'DESIGN',
+              job_location: 'TWN',
+              description: '',
+              is_primary: false,
+            },
+            {
               job: 'Product Designer',
               company: 'Flow Studio',
               job_period_start: '2024',
@@ -145,7 +174,7 @@ describe('menteeDirectionView', () => {
         },
         2026
       )
-    ).toBe('2 年');
+    ).toBe('4 年');
   });
 
   it('detects empty vs filled Mentee profile state and normalizes industry hashtag', () => {
