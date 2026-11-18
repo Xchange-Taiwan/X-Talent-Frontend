@@ -593,3 +593,80 @@ describe('profileSaveAdapter', () => {
     });
   });
 });
+
+describe('profileSaveAdapter #959 cross-role preservation & preset avatar codes', () => {
+  it('defaults empty avatar to default_1 during Mentor onboarding while keeping empty string for regular Mentee/Mentor hydration', () => {
+    expect(
+      mapVoToFormValues(
+        { user_id: 1, name: 'M', avatar: '', is_mentor: false } as never,
+        false
+      ).avatar
+    ).toBe('');
+    expect(
+      mapVoToFormValues(
+        { user_id: 1, name: 'M', avatar: '', is_mentor: false } as never,
+        true
+      ).avatar
+    ).toBe('default_1');
+    expect(
+      mapVoToFormValues(
+        { user_id: 1, name: 'M', avatar: '', is_mentor: true } as never,
+        false
+      ).avatar
+    ).toBe('');
+  });
+
+  it('preserves hidden opposite-role preference arrays and converts preset URL to backend code on payload', () => {
+    const existingDto = {
+      user_id: 1,
+      want_position: ['uiux'],
+      want_skill: ['figma'],
+      want_topic: ['portfolio'],
+      have_skill: ['react'],
+      have_topic: ['career'],
+    } as never;
+
+    const mentorPayload = mapFormValuesToPayload(
+      {
+        ...defaultValues,
+        name: 'Mentor',
+        is_mentor: true,
+        have_skill: ['ts'],
+        have_topic: ['interview'],
+        want_position: [],
+        want_skill: [],
+        want_topic: [],
+      },
+      'https://cdn.example.com/real.jpg',
+      false,
+      existingDto,
+      false
+    );
+    expect(mentorPayload.want_position).toEqual(['uiux']);
+    expect(mentorPayload.want_skill).toEqual(['figma']);
+    expect(mentorPayload.want_topic).toEqual(['portfolio']);
+    expect(mentorPayload.have_skill).toEqual(['ts']);
+
+    const menteePayload = mapFormValuesToPayload(
+      {
+        ...defaultValues,
+        name: 'Mentee',
+        is_mentor: false,
+        want_position: ['fe'],
+        want_skill: [],
+        want_topic: [],
+        have_skill: [],
+        have_topic: [],
+      },
+      '/avatars/default_3.webp',
+      false,
+      existingDto,
+      false
+    );
+    expect(menteePayload.avatar).toBe('default_3');
+    expect(menteePayload.have_skill).toEqual(['react']);
+    expect(menteePayload.have_topic).toEqual(['career']);
+    expect(menteePayload.want_position).toEqual(['fe']);
+    expect(menteePayload.want_skill).toEqual([]);
+  });
+});

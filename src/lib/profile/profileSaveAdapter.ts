@@ -1,3 +1,7 @@
+import {
+  DEFAULT_PRESET_AVATAR_CODE,
+  toPresetAvatarCode,
+} from '@/lib/avatar/avatarUrl';
 import { hasProfileDtoConverged } from '@/lib/profile/convergence';
 import {
   encode,
@@ -50,10 +54,14 @@ export function mapVoToFormValues(
   const industryTag = readIndustryTag(userDto.industry);
   const industrySg = industryTag?.subject_group ?? '';
 
+  const rawAvatar = userDto.avatar?.trim() ?? '';
+  const defaultAvatarFallback = isMentorOnboarding
+    ? DEFAULT_PRESET_AVATAR_CODE
+    : '';
+
   return {
     is_mentor: mentorFlag,
-    avatar:
-      userDto.avatar || (isMentorOnboarding ? '/avatars/default_1.webp' : ''),
+    avatar: rawAvatar || defaultAvatarFallback,
     avatarFile: undefined,
     name: userDto.name || '',
     location: userDto.location || '',
@@ -190,9 +198,12 @@ export function mapFormValuesToPayload(
     ? (values.have_topic ?? [])
     : (currentDto?.have_topic ?? values.have_topic ?? []);
 
+  const wireAvatar =
+    avatar !== undefined ? (toPresetAvatarCode(avatar) ?? avatar) : undefined;
+
   return {
     name: values.name,
-    ...(avatar !== undefined ? { avatar } : {}),
+    ...(wireAvatar !== undefined ? { avatar: wireAvatar } : {}),
     location: values.location ?? '',
     years_of_experience: values.years_of_experience ?? '',
     industry: values.industry ?? '',

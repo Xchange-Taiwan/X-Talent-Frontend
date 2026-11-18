@@ -1,5 +1,7 @@
 'use client';
 
+import { Camera } from 'lucide-react';
+import Image from 'next/image';
 import { useSession } from 'next-auth/react';
 import React, { useState } from 'react';
 import {
@@ -12,6 +14,10 @@ import {
 
 import AvatarUpload from '@/components/ui/avatar-upload';
 import { Button } from '@/components/ui/button';
+import { useObjectUrl } from '@/hooks/useObjectUrl';
+import { resolveAvatarDisplayUrl } from '@/lib/avatar/avatarUrl';
+import { FOCUS_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
+import { cn } from '@/lib/utils';
 
 import { MenteeAvatarDialog } from './MenteeAvatarDialog';
 import { Section } from './Section';
@@ -61,26 +67,45 @@ export const AvatarSection = <T extends FieldValues>({
   const avatarUrl =
     typeof watchedAvatar === 'string' &&
     (watchedAvatar.length > 0 || isAvatarDirty)
-      ? watchedAvatar
-      : (session?.user?.avatar ?? '');
+      ? resolveAvatarDisplayUrl(watchedAvatar)
+      : resolveAvatarDisplayUrl(session?.user?.avatar ?? '');
 
   const currentFile =
     typeof File !== 'undefined' && (watchedFile as unknown) instanceof File
       ? (watchedFile as unknown as File)
       : undefined;
 
-  return (
-    <Section id={id} title="個人頭像" required={isMentor} variant={variant}>
-      <div className="flex flex-col items-start gap-3">
-        <AvatarUpload
-          control={control}
-          name={name}
-          avatarUrl={avatarUrl}
-          onFileChange={onFileChange}
-        />
+  const customFilePreviewUrl = useObjectUrl(currentFile);
+  const effectiveDisplayUrl =
+    customFilePreviewUrl ??
+    (avatarUrl || resolveAvatarDisplayUrl(undefined, !isMentor));
 
-        {!isMentor && onSelectPresetAvatar && (
-          <>
+  if (!isMentor && onSelectPresetAvatar) {
+    return (
+      <Section id={id} title="個人頭像" required={false} variant={variant}>
+        <div className="flex items-center gap-4 p-0.5">
+          <button
+            type="button"
+            aria-label="點擊編輯頭像"
+            onClick={() => setPresetDialogOpen(true)}
+            className={cn(
+              FOCUS_RING_NO_OFFSET_CLASSES,
+              'group border-background-border relative block size-24 shrink-0 cursor-pointer overflow-hidden rounded-full border-2 shadow-sm'
+            )}
+          >
+            <Image
+              src={effectiveDisplayUrl}
+              alt={userName ? `${userName} 的個人頭像` : '個人頭像'}
+              fill
+              sizes="96px"
+              className="object-cover"
+            />
+            <span className="bg-dark/35 text-background-white group-hover:bg-dark/50 absolute inset-0 grid place-items-center opacity-0 transition-opacity group-hover:opacity-100">
+              <Camera className="size-6" aria-hidden="true" />
+            </span>
+          </button>
+
+          <div className="flex flex-col items-start gap-1.5">
             <Button
               type="button"
               variant="outline"
@@ -88,24 +113,40 @@ export const AvatarSection = <T extends FieldValues>({
               className="rounded-full px-4"
               onClick={() => setPresetDialogOpen(true)}
             >
-              選擇預設插畫頭像
+              編輯頭像
             </Button>
+            <p className="text-text-tertiary text-xs">
+              可選擇預設插畫頭像或自行上傳照片
+            </p>
+          </div>
 
-            <MenteeAvatarDialog
-              open={presetDialogOpen}
-              onOpenChange={setPresetDialogOpen}
-              currentAvatarUrl={avatarUrl}
-              currentAvatarFile={currentFile}
-              userName={userName}
-              onSavePreset={(presetUrl) => {
-                onSelectPresetAvatar(presetUrl);
-              }}
-              onSaveCustomFile={(file) => {
-                onFileChange?.(file);
-              }}
-            />
-          </>
-        )}
+          <MenteeAvatarDialog
+            open={presetDialogOpen}
+            onOpenChange={setPresetDialogOpen}
+            currentAvatarUrl={avatarUrl}
+            currentAvatarFile={currentFile}
+            userName={userName}
+            onSavePreset={(presetUrl) => {
+              onSelectPresetAvatar(presetUrl);
+            }}
+            onSaveCustomFile={(file) => {
+              onFileChange?.(file);
+            }}
+          />
+        </div>
+      </Section>
+    );
+  }
+
+  return (
+    <Section id={id} title="個人頭像" required={isMentor} variant={variant}>
+      <div className="flex flex-col items-start gap-3">
+        <AvatarUpload
+          control={control}
+          name={name}
+          avatarUrl={customFilePreviewUrl ?? avatarUrl}
+          onFileChange={onFileChange}
+        />
       </div>
     </Section>
   );

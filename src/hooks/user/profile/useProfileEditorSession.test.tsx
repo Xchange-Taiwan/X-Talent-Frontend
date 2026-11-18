@@ -431,7 +431,23 @@ describe('useProfileEditorSession (#787 / #905)', () => {
       })
     );
 
-    // Invalid MIME type must not trigger updateAvatar S3 upload
+    // 1. Before saving, changing only directionMap (form.isDirty === false) opens unsaved prompt on leave
+    expect(result.current.form.formState.isDirty).toBe(false);
+    act(() => {
+      result.current.setDirectionMap({
+        uiux: { skills: [], topics: [] },
+        fe: { skills: ['ux_research'], topics: [] },
+      });
+    });
+    act(() => {
+      result.current.handleGoToPrev();
+    });
+    expect(result.current.isPromptOpen).toBe(true);
+    act(() => {
+      result.current.cancelLeave();
+    });
+
+    // 2. Invalid MIME type must not trigger updateAvatar S3 upload
     const badFile = new File(['bad'], 'malicious.svg', {
       type: 'image/svg+xml',
     });
@@ -440,7 +456,7 @@ describe('useProfileEditorSession (#787 / #905)', () => {
     });
     expect(mockUpdateAvatar).not.toHaveBeenCalled();
 
-    // Valid file kicks off S3 upload, then preset selection sets preset URL
+    // 3. Valid file kicks off S3 upload, then preset selection overrides with preset code 'default_3'
     const goodFile = new File(['ok'], 'photo.png', { type: 'image/png' });
     await act(async () => {
       result.current.handleAvatarFileChange(goodFile);
@@ -451,26 +467,22 @@ describe('useProfileEditorSession (#787 / #905)', () => {
     act(() => {
       result.current.handleSelectPresetAvatar('/avatars/default_3.webp');
     });
-    expect(result.current.form.getValues('avatar')).toBe(
-      '/avatars/default_3.webp'
+    expect(result.current.form.getValues('avatar')).toBe('default_3');
+    expect(result.current.form.getValues('avatarFile')).toBeUndefined();
+
+    // Submit form -> verify commitProfileMutation receives preset code 'default_3' (not S3 URL)
+    await act(async () => {
+      await result.current.handleFormSubmit();
+    });
+    expect(mockCommitProfileMutation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        values: expect.objectContaining({
+          avatar: 'default_3',
+          avatarFile: undefined,
+        }),
+      }),
+      expect.anything(),
+      expect.anything()
     );
-
-    // Reset form dirty state, then change only directionMap -> handleGoToPrev opens unsaved prompt
-    act(() => {
-      result.current.form.reset(result.current.form.getValues());
-    });
-    expect(result.current.form.formState.isDirty).toBe(false);
-
-    act(() => {
-      result.current.setDirectionMap({
-        uiux: { skills: [], topics: [] },
-        fe: { skills: ['ux_research'], topics: [] },
-      });
-    });
-
-    act(() => {
-      result.current.handleGoToPrev();
-    });
-    expect(result.current.isPromptOpen).toBe(true);
   });
 });

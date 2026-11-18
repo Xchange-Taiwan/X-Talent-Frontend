@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { FOCUS_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
@@ -38,11 +38,40 @@ export function ProfileEditChapterNav({
   onSelectChapter,
   className,
 }: ProfileEditChapterNavProps) {
-  const chapters = getProfileEditChapters(isMentor);
+  const chapters = useMemo(() => getProfileEditChapters(isMentor), [isMentor]);
   const [internalActiveId, setInternalActiveId] = useState<string>(
     chapters[0].id
   );
   const activeId = controlledActiveId ?? internalActiveId;
+
+  useEffect(() => {
+    if (
+      controlledActiveId !== undefined ||
+      typeof window === 'undefined' ||
+      typeof IntersectionObserver === 'undefined'
+    ) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible[0]?.target?.id) {
+          setInternalActiveId(visible[0].target.id);
+        }
+      },
+      { rootMargin: '-120px 0px -60% 0px', threshold: 0 }
+    );
+
+    for (const chapter of chapters) {
+      const el = document.getElementById(chapter.id);
+      if (el) observer.observe(el);
+    }
+
+    return () => observer.disconnect();
+  }, [chapters, controlledActiveId]);
 
   const handleSelect = useCallback(
     (chapterId: string) => {

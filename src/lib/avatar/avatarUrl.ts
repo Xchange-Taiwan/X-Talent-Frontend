@@ -1,5 +1,18 @@
 export type AvatarVersionParam = 'v' | 'cb';
 
+export const PRESET_AVATAR_CODES = [
+  'default_1',
+  'default_2',
+  'default_3',
+  'default_4',
+  'default_5',
+  'default_6',
+] as const;
+
+export type PresetAvatarCode = (typeof PRESET_AVATAR_CODES)[number];
+
+export const DEFAULT_PRESET_AVATAR_CODE: PresetAvatarCode = 'default_1';
+
 export const PRESET_AVATAR_URLS = [
   '/avatars/default_1.webp',
   '/avatars/default_2.webp',
@@ -11,27 +24,84 @@ export const PRESET_AVATAR_URLS = [
 
 export type PresetAvatarUrl = (typeof PRESET_AVATAR_URLS)[number];
 
-const PRESET_AVATAR_SET = new Set<string>(PRESET_AVATAR_URLS);
+const PRESET_AVATAR_URL_SET = new Set<string>(PRESET_AVATAR_URLS);
+const PRESET_AVATAR_CODE_SET = new Set<string>(PRESET_AVATAR_CODES);
+
+const CODE_TO_URL: Readonly<Record<PresetAvatarCode, PresetAvatarUrl>> = {
+  default_1: '/avatars/default_1.webp',
+  default_2: '/avatars/default_2.webp',
+  default_3: '/avatars/default_3.webp',
+  default_4: '/avatars/default_4.webp',
+  default_5: '/avatars/default_5.webp',
+  default_6: '/avatars/default_6.webp',
+};
+
+const URL_TO_CODE: Readonly<Record<string, PresetAvatarCode>> = {
+  '/avatars/default_1.webp': 'default_1',
+  '/avatars/default_2.webp': 'default_2',
+  '/avatars/default_3.webp': 'default_3',
+  '/avatars/default_4.webp': 'default_4',
+  '/avatars/default_5.webp': 'default_5',
+  '/avatars/default_6.webp': 'default_6',
+};
 
 /**
- * Returns true when `url` is a single-slash local static path (e.g. `/avatars/default_1.webp`),
+ * Normalizes a preset avatar URL or code into its backend wire code (`default_1` ~ `default_6`),
+ * or returns `null` when `value` is not a preset avatar.
+ */
+export function toPresetAvatarCode(
+  value: string | null | undefined
+): PresetAvatarCode | null {
+  if (typeof value !== 'string' || !value) return null;
+  const trimmed = value.trim();
+  if (PRESET_AVATAR_CODE_SET.has(trimmed)) {
+    return trimmed as PresetAvatarCode;
+  }
+  const { base } = parseAvatarUrl(trimmed);
+  return Object.hasOwn(URL_TO_CODE, base) ? URL_TO_CODE[base] : null;
+}
+
+/**
+ * Resolves a stored avatar value (preset code like `default_3`, local `/avatars/...` URL,
+ * or S3 URL) into a displayable `<Image src>` string.
+ */
+export function resolveAvatarDisplayUrl(
+  value: string | null | undefined,
+  fallbackToDefault = false
+): string {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  if (!trimmed) {
+    return fallbackToDefault ? CODE_TO_URL[DEFAULT_PRESET_AVATAR_CODE] : '';
+  }
+  if (PRESET_AVATAR_CODE_SET.has(trimmed)) {
+    return CODE_TO_URL[trimmed as PresetAvatarCode];
+  }
+  return trimmed;
+}
+
+/**
+ * Returns true when `url` is a single-slash local static path or preset code,
  * excluding protocol-relative URLs (`//...`).
  */
 export function isLocalStaticAvatarUrl(
   url: string | null | undefined
 ): boolean {
   if (typeof url !== 'string' || !url) return false;
-  return url.startsWith('/') && !url.startsWith('//');
+  const trimmed = url.trim();
+  if (PRESET_AVATAR_CODE_SET.has(trimmed)) return true;
+  return trimmed.startsWith('/') && !trimmed.startsWith('//');
 }
 
 /**
  * Returns true when `url` points to one of the 6 decoupled Mentee preset
- * illustrations (`/avatars/default_1.webp` ~ `/avatars/default_6.webp`).
+ * illustrations (`default_1` ~ `default_6` or `/avatars/default_1.webp` ~ `/avatars/default_6.webp`).
  */
 export function isPresetAvatarUrl(url: string | null | undefined): boolean {
   if (typeof url !== 'string' || !url) return false;
-  const { base } = parseAvatarUrl(url);
-  return PRESET_AVATAR_SET.has(base);
+  const trimmed = url.trim();
+  if (PRESET_AVATAR_CODE_SET.has(trimmed)) return true;
+  const { base } = parseAvatarUrl(trimmed);
+  return PRESET_AVATAR_URL_SET.has(base);
 }
 
 interface ParsedAvatarUrl {
@@ -89,7 +159,8 @@ export function withAvatarVersion(
   if (!avatarUrl) return avatarUrl;
 
   if (isLocalStaticAvatarUrl(avatarUrl)) {
-    const { base, hash } = parseAvatarUrl(avatarUrl);
+    const resolved = resolveAvatarDisplayUrl(avatarUrl);
+    const { base, hash } = parseAvatarUrl(resolved);
     return `${base}${hash}`;
   }
 
@@ -139,8 +210,8 @@ export function hasAvatarVersionConverged(
     return false;
   }
 
-  const expectedParsed = parseAvatarUrl(expected);
-  const actualParsed = parseAvatarUrl(actual);
+  const expectedParsed = parseAvatarUrl(resolveAvatarDisplayUrl(expected));
+  const actualParsed = parseAvatarUrl(resolveAvatarDisplayUrl(actual));
 
   if (expectedParsed.base !== actualParsed.base) {
     return false;
