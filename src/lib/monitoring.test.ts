@@ -763,4 +763,56 @@ describe('captureFlowFailure', () => {
     ]);
     expect(arg.extra.endpoint).toContain('token=[REDACTED]');
   });
+
+  it('downgrades 4xx statuses to info level, skips status=0 during page unload, and deduplicates back-to-back api.failure + flow.failure (#952)', async () => {
+    mockCaptureEvent.mockClear();
+
+    await captureApiFailure({
+      endpoint: '/v1/mentors/999/zh_TW/profile',
+      method: 'GET',
+      status: 404,
+      message: 'No such user',
+      route: '/profile/999',
+    });
+
+    expect(mockCaptureEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        level: 'info',
+      })
+    );
+
+    // Simulate page unload suppressing in-flight status=0 network abort
+    mockCaptureEvent.mockClear();
+    window.dispatchEvent(new Event('pagehide'));
+    try {
+      await captureApiFailure({
+        endpoint: '/v1/users/1/notifications/unread-count',
+        method: 'GET',
+        status: 0,
+        message:
+          'Load failed (i2hggyv2eh.execute-api.ap-northeast-1.amazonaws.com)',
+        route: '/auth/onboarding',
+      });
+      expect(mockCaptureEvent).not.toHaveBeenCalled();
+    } finally {
+      window.dispatchEvent(new Event('pageshow'));
+    }
+
+    // Back-to-back 500 api.failure + flow.profile_update.failure emits only one error issue
+    mockCaptureEvent.mockClear();
+    await captureApiFailure({
+      endpoint: '/v1/mentors/123/profile',
+      method: 'PUT',
+      status: 500,
+      message: 'Internal Server Error',
+      route: '/profile/123/edit',
+    });
+    await captureFlowFailure({
+      flow: 'profile_update',
+      step: 'profile_write',
+      message: 'Internal Server Error',
+      route: '/profile/123/edit',
+    });
+    expect(mockCaptureEvent).toHaveBeenCalledTimes(1);
+  });
 });

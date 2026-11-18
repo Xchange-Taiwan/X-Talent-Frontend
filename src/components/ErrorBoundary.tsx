@@ -5,6 +5,7 @@ import Link from 'next/link';
 import React from 'react';
 
 import StatusRecoveryCard from '@/components/StatusRecoveryCard';
+import { tryRecoverFromChunkLoadError } from '@/lib/chunkErrorRecovery';
 import { buildBaseEvent, captureError } from '@/lib/monitoring';
 import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
@@ -98,6 +99,9 @@ export default class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
+    if (tryRecoverFromChunkLoadError(error)) {
+      return;
+    }
     captureError({
       ...buildBaseEvent('runtime_error.react_render', error),
       componentStack: info.componentStack ?? undefined,

@@ -430,6 +430,55 @@ export function sanitize(text: string | undefined): string | undefined {
   return maskSensitiveJsonValues(maskSensitiveQueryParams(text));
 }
 
+// ─── Unload & Duplicate-Issue Suppression State ──────────────────────────────
+
+const API_FLOW_DEDUP_WINDOW_MS = 250;
+const recentErrorApiFailures = new Map<string, number>();
+let isBrowserUnloading = false;
+let unloadListenersAttached = false;
+
+function ensureUnloadListenersAttached(): void {
+  if (unloadListenersAttached || typeof window === 'undefined') {
+    return;
+  }
+  unloadListenersAttached = true;
+  window.addEventListener('beforeunload', () => {
+    isBrowserUnloading = true;
+  });
+  window.addEventListener('pagehide', () => {
+    isBrowserUnloading = true;
+  });
+  window.addEventListener('pageshow', () => {
+    isBrowserUnloading = false;
+  });
+}
+
+function makeDedupSignature(route: string, message: string): string {
+  return `${route}::${message}`;
+}
+
+function recordRecentApiError(route: string, message: string): void {
+  const now = Date.now();
+  recentErrorApiFailures.forEach((ts, key) => {
+    if (now - ts > API_FLOW_DEDUP_WINDOW_MS) {
+      recentErrorApiFailures.delete(key);
+    }
+  });
+  recentErrorApiFailures.set(makeDedupSignature(route, message), now);
+}
+
+function hasRecentApiError(route: string, message: string): boolean {
+  const key = makeDedupSignature(route, message);
+  const ts = recentErrorApiFailures.get(key);
+  if (ts === undefined) return false;
+  if (Date.now() - ts > API_FLOW_DEDUP_WINDOW_MS) {
+    recentErrorApiFailures.delete(key);
+    return false;
+  }
+  recentErrorApiFailures.delete(key);
+  return true;
+}
+
 // ─── Sentry Dispatch Helper ───────────────────────────────────────────────────
 
 /**
@@ -573,6 +622,13 @@ export async function captureFlowFailure(
     level: event.level ?? 'error',
   };
 
+  if (
+    fullEvent.level === 'error' &&
+    hasRecentApiError(fullEvent.route, fullEvent.message)
+  ) {
+    return;
+  }
+
   await dispatchSentryEvent(
     {
       message: fullEvent.name,
@@ -607,6 +663,11 @@ export async function captureApiFailure(
     Partial<Pick<ApiFailureEvent, 'route'>>
 ): Promise<void> {
   if (process.env.NODE_ENV !== 'production') return;
+  ensureUnloadListenersAttached();
+
+  if (event.status === 0 && isBrowserUnloading) {
+    return;
+  }
 
   const fullEvent: ApiFailureEvent = {
     name: 'api.failure',
@@ -622,6 +683,13 @@ export async function captureApiFailure(
     duration: event.duration,
   };
 
+  const severity: 'error' | 'info' =
+    fullEvent.status >= 500 || fullEvent.status === 0 ? 'error' : 'info';
+
+  if (severity === 'error') {
+    recordRecentApiError(fullEvent.route, fullEvent.message);
+  }
+
   const normalizedEndpoint = (fullEvent.endpoint || '')
     .split('?')[0]
     .replace(
@@ -632,7 +700,7 @@ export async function captureApiFailure(
   await dispatchSentryEvent(
     {
       message: fullEvent.message,
-      level: 'error',
+      level: severity,
       fingerprint: [
         'api.failure',
         fullEvent.method,
