@@ -21,7 +21,7 @@ function attachHistoryObserver(): void {
   const origPushState = window.history.pushState;
   const origReplaceState = window.history.replaceState;
 
-  window.history.pushState = (
+  const patchedPushState = (
     data: unknown,
     unused: string,
     url?: string | URL | null
@@ -30,7 +30,7 @@ function attachHistoryObserver(): void {
     scheduleNotify();
   };
 
-  window.history.replaceState = (
+  const patchedReplaceState = (
     data: unknown,
     unused: string,
     url?: string | URL | null
@@ -39,11 +39,19 @@ function attachHistoryObserver(): void {
     scheduleNotify();
   };
 
+  window.history.pushState = patchedPushState;
+  window.history.replaceState = patchedReplaceState;
   window.addEventListener('popstate', scheduleNotify);
 
   teardownHistory = () => {
-    window.history.pushState = origPushState;
-    window.history.replaceState = origReplaceState;
+    // Only restore original methods if no outer wrapper (e.g. Sentry / analytics)
+    // has subsequently wrapped our patched reference (#961).
+    if (window.history.pushState === patchedPushState) {
+      window.history.pushState = origPushState;
+    }
+    if (window.history.replaceState === patchedReplaceState) {
+      window.history.replaceState = origReplaceState;
+    }
     window.removeEventListener('popstate', scheduleNotify);
     teardownHistory = null;
   };

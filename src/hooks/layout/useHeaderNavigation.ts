@@ -85,6 +85,10 @@ export function useHeaderNavigation({
     };
     sync();
     return subscribeLocationSearch(sync);
+  }, []);
+
+  useIsomorphicLayoutEffect(() => {
+    setRawLocationSearch(getLocationSearchSnapshot());
   }, [pathname]);
 
   const isMentorOnboarding = React.useMemo(

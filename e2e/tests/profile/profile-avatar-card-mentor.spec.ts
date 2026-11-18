@@ -638,10 +638,24 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
     await flipCard.click();
     await expect(page.getByText('WELCOME TO X-TALENT')).toBeVisible();
 
+    const setupScheduleBtn = page.getByRole('button', {
+      name: '設定時段',
+    });
+    await expect(setupScheduleBtn).toBeVisible();
+    await setupScheduleBtn.click();
+
+    await expect(page).toHaveURL(
+      new RegExp(`/profile/${USER_ID}(?:\\?open-schedule=true)?$`),
+      { timeout: 15_000 }
+    );
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 15_000 });
+
+    // Also verify 前往導師頁 from /profile/card navigates cleanly to /profile/:id
+    await page.goto('/profile/card');
     const backToProfileBtn = page.getByRole('button', {
       name: '前往導師頁',
     });
-    await expect(backToProfileBtn).toBeVisible();
+    await expect(backToProfileBtn).toBeVisible({ timeout: 15_000 });
     await backToProfileBtn.click();
 
     await expect(page).toHaveURL(`/profile/${USER_ID}`, { timeout: 15_000 });
@@ -703,10 +717,13 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
     await page.goto(`/profile/${USER_ID}/edit?mentor-onboarding=true`);
 
     // Even though session.user.isMentor is false, ?mentor-onboarding=true
-    // unlocks the Mentor-only sections.
+    // unlocks the Mentor-only sections and marks Header 成為導師 as current page (#961).
     await expect(page.getByText('我能提供的服務')).toBeVisible({
       timeout: 15_000,
     });
+    await expect(
+      page.getByRole('banner').getByRole('link', { name: '成為導師' })
+    ).toHaveAttribute('aria-current', 'page');
     await expect(page.getByText('專業能力')).toBeVisible();
 
     // Wait for dynamic sections (JobExperienceSection & EducationSection) to mount
