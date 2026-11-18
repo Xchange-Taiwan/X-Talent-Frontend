@@ -2,11 +2,26 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from '@/lib/apiClient';
+import {
+  buildReservationFixture,
+  resolveReservationViewer,
+} from '@/lib/reservation/reservationProjection';
 import { fetchReservationMeetLink } from '@/services/reservations';
 import { mockToast } from '@/test/mocks/useToast';
 import type { Reservation } from '@/types/reservation';
 
 import { ReservationCard } from './ReservationCard';
+
+vi.mock('@/lib/reservation/reservationProjection', async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import('@/lib/reservation/reservationProjection')
+    >();
+  return {
+    ...actual,
+    resolveReservationViewer: vi.fn(actual.resolveReservationViewer),
+  };
+});
 
 // Mock useToast
 vi.mock('@/components/ui/use-toast', async () => {
@@ -515,6 +530,39 @@ describe('ReservationCard', () => {
         screen.getByRole('button', { name: '填寫回饋' })
       ).toBeInTheDocument();
       expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    });
+
+    it('reads pre-projected cancelledByLabel off item and skips resolveReservationViewer when headerAction is supplied (#932)', () => {
+      const preProjected = buildReservationFixture({
+        id: 'res-proj-card',
+        cancelledBy: 'MENTEE',
+        viewerRole: 'MENTOR',
+        myUserId: 'user-mentor-222',
+      });
+
+      vi.mocked(resolveReservationViewer).mockClear();
+
+      const { rerender } = render(
+        <ReservationCard
+          item={preProjected}
+          myUserId="user-mentor-222"
+          variant="history"
+          sourceRole="mentor"
+        />
+      );
+      expect(screen.getByRole('status')).toHaveTextContent('已由學員取消');
+      expect(resolveReservationViewer).not.toHaveBeenCalled();
+
+      rerender(
+        <ReservationCard
+          item={{ ...mockReservation, cancelledBy: 'MENTOR' }}
+          variant="history"
+          sourceRole="mentee"
+          headerAction={<span>預先傳入標籤</span>}
+        />
+      );
+      expect(screen.getByText('預先傳入標籤')).toBeInTheDocument();
+      expect(resolveReservationViewer).not.toHaveBeenCalled();
     });
   });
 });

@@ -16,7 +16,10 @@ import { trackEvent } from '@/lib/analytics';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 import { getInitials } from '@/lib/avatar/getInitials';
 import { resolveSystemAutoCancelNotice } from '@/lib/reservation/reservationLifecyclePolicy';
-import { resolveReservationMessages } from '@/lib/reservation/resolveReservationMessages';
+import {
+  isReservationMessagesProjected,
+  resolveReservationMessages,
+} from '@/lib/reservation/reservationProjection';
 import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 import type {
@@ -47,7 +50,9 @@ export default function ReservationConversationDialog({
   const [open, setOpen] = useState(false);
 
   const { messages: resolvedMessages, cancelReasonMessage } =
-    resolveReservationMessages(reservation);
+    isReservationMessagesProjected(reservation)
+      ? reservation
+      : resolveReservationMessages(reservation);
   const hasCancelReason = Boolean(cancelReasonMessage);
   const systemCancelNotice = resolveSystemAutoCancelNotice(
     reservation,

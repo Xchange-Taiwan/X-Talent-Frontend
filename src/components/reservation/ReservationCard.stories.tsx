@@ -9,6 +9,7 @@ import {
 } from '@/components/reservation/ReservationFeedbackBlock';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { buildReservationFixture } from '@/lib/reservation/reservationProjection';
 import { UNPUBLICIZED_FEEDBACK_NOTICE } from '@/lib/reservation/resolveHistoryFeedbackState';
 
 import { mockReservation } from './mocks';
@@ -510,5 +511,29 @@ export const HistoryMenteeResumeRateStep: Story = {
         onSubmitFeedback={async () => {}}
       />
     ),
+  },
+};
+
+// 14. History - Pre-Projected Cancelled Card (#932: reads cancelledByLabel & profileHref directly off Reservation)
+export const HistoryPreProjectedCancelled: Story = {
+  args: {
+    variant: 'history',
+    sourceRole: 'mentee',
+    myUserId: 'user-mentee-111',
+    profileHref: '/profile/user-mentor-222',
+    item: buildReservationFixture({
+      ...mockReservation,
+      id: 'res-card-preprojected-932',
+      viewerRole: 'MENTEE',
+      myUserId: 'user-mentee-111',
+      cancelledBy: 'MENTOR',
+      messages: [
+        ...mockReservation.messages,
+        {
+          content: '抱歉當日臨時有線上架構事故需處理，改約下週同一時段！',
+          role: 'MENTOR',
+        },
+      ],
+    }),
   },
 };

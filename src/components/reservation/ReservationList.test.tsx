@@ -7,10 +7,25 @@ import {
 } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  buildReservationFixture,
+  resolveReservationViewer,
+} from '@/lib/reservation/reservationProjection';
 import { updateReservationStatus } from '@/services/reservations';
 import type { Reservation } from '@/types/reservation';
 
 import { ReservationList } from './ReservationList';
+
+vi.mock('@/lib/reservation/reservationProjection', async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import('@/lib/reservation/reservationProjection')
+    >();
+  return {
+    ...actual,
+    resolveReservationViewer: vi.fn(actual.resolveReservationViewer),
+  };
+});
 
 vi.mock('next-auth/react', async () => {
   const { nextAuthMockFactory } = await import('@/test/mocks/nextAuth');
@@ -994,6 +1009,84 @@ describe('ReservationList', () => {
         expect(onSkipFeedbackQueueItem).toHaveBeenCalledWith(queueItem2);
         expect(onFeedbackQueueClose).toHaveBeenCalledTimes(1);
       });
+    });
+
+    it('reads pre-projected profileHref and cancelledByLabel directly off Reservation without re-running resolveReservationViewer (#932)', () => {
+      const preProjectedCancelled = buildReservationFixture({
+        id: 'proj-hist-cancelled',
+        senderUserId: 'user-123',
+        participantUserId: 'user-456',
+        viewerRole: 'MENTEE',
+        myUserId: 'user-123',
+        cancelledBy: 'MENTOR',
+      });
+
+      vi.mocked(resolveReservationViewer).mockClear();
+
+      render(
+        <ReservationList
+          items={[preProjectedCancelled]}
+          variant="history"
+          sourceRole="mentee"
+          myUserId="user-123"
+        />
+      );
+
+      expect(resolveReservationViewer).not.toHaveBeenCalled();
+      expect(
+        screen.getByTestId('reservation-card-proj-hist-cancelled')
+      ).toHaveAttribute('data-profile-href', '/profile/user-456');
+      expect(screen.getByText('已由導師取消')).toBeInTheDocument();
+    });
+
+    it('re-runs resolveReservationViewer when fixture has viewerRole without myUserId or stale profileHref from another viewer (#932)', () => {
+      const fixtureWithoutMyUserId = buildReservationFixture({
+        id: 'fixture-without-my-user-id',
+        senderUserId: 'user-123',
+        participantUserId: 'user-456',
+        viewerRole: 'MENTEE',
+      });
+
+      vi.mocked(resolveReservationViewer).mockClear();
+
+      const { rerender } = render(
+        <ReservationList
+          items={[fixtureWithoutMyUserId]}
+          variant="upcoming"
+          sourceRole="mentee"
+          myUserId="user-123"
+        />
+      );
+
+      expect(resolveReservationViewer).toHaveBeenCalledTimes(1);
+      expect(
+        screen.getByTestId('reservation-card-fixture-without-my-user-id')
+      ).toHaveAttribute('data-profile-href', '/profile/user-456');
+
+      const preProjectedFor10 = buildReservationFixture({
+        id: 'projected-for-10',
+        senderUserId: '10',
+        participantUserId: '20',
+        viewerRole: 'MENTEE',
+        myUserId: '10',
+      });
+      expect(preProjectedFor10.profileHref).toBe('/profile/20');
+
+      vi.mocked(resolveReservationViewer).mockClear();
+
+      rerender(
+        <ReservationList
+          items={[preProjectedFor10]}
+          variant="upcoming"
+          sourceRole="mentor"
+          myUserId="user-admin"
+        />
+      );
+
+      expect(resolveReservationViewer).toHaveBeenCalledTimes(1);
+      expect(
+        screen.getByTestId('reservation-card-projected-for-10')
+      ).toHaveAttribute('data-profile-href', '/profile/10');
     });
   });
 });

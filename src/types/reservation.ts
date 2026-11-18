@@ -53,9 +53,19 @@ export type Reservation = {
   // Which side the viewer this reservation was mapped for (mapToReservation's
   // myUserId) occupies - MENTEE or MENTOR. Undefined when the reservation was
   // mapped with no signed-in viewer. Consumed by resolveReservationViewer
-  // (src/lib/reservation/reservationViewerModel.ts) so a caller never has to
+  // (src/lib/reservation/reservationProjection.ts) so a caller never has to
   // hardcode which role it's rendering for.
   viewerRole?: 'MENTEE' | 'MENTOR';
+
+  // Optional pre-projected counterparty, viewer, and cancellation fields
+  // computed once during DTO projection (reservationProjection.ts) so UI
+  // surfaces can read them directly without redundant render-time re-runs,
+  // while keeping raw test/Storybook literals valid when omitted (#932).
+  counterpartyUserId?: string;
+  profileHref?: string;
+  cancelledByLabel?: string;
+  normalizedViewerRole?: 'mentor' | 'mentee';
+  targetMentorId?: string;
 
   // Post-meeting feedback & rating state (X-Tracker #730). Optional so
   // pre-deployment responses without `feedback` degrade gracefully.

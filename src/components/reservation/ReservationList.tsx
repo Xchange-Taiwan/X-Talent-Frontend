@@ -24,7 +24,10 @@ import {
   canOpenHistoryConversation,
   resolveFeedbackInitialStep,
 } from '@/lib/reservation/reservationLifecyclePolicy';
-import { resolveReservationViewer } from '@/lib/reservation/reservationViewerModel';
+import {
+  isReservationViewerProjected,
+  resolveReservationViewer,
+} from '@/lib/reservation/reservationProjection';
 import { resolveHistoryFeedbackState } from '@/lib/reservation/resolveHistoryFeedbackState';
 import type { Reservation } from '@/types/reservation';
 
@@ -129,10 +132,17 @@ function ReservationItem({
       myRole: sourceRole,
     });
 
-  const viewer = resolveReservationViewer({
-    reservation,
-    myUserId,
-  });
+  const viewer = isReservationViewerProjected(reservation, myUserId)
+    ? {
+        profileHref: myUserId ? reservation.profileHref : undefined,
+        cancelledByLabel: reservation.cancelledBy
+          ? reservation.cancelledByLabel
+          : undefined,
+      }
+    : resolveReservationViewer({
+        reservation,
+        myUserId,
+      });
 
   const historyState =
     variant === 'history'

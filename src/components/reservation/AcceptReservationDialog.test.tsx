@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { buildReservationFixture } from '@/lib/reservation/reservationProjection';
 import type { Reservation } from '@/types/reservation';
 
 import AcceptReservationDialog from './AcceptReservationDialog';
@@ -76,6 +77,53 @@ describe('AcceptReservationDialog', () => {
       screen.queryByRole('link', { name: 'Carol Mentee' })
     ).not.toBeInTheDocument();
     expect(screen.getByText('Carol Mentee')).toBeInTheDocument();
+  });
+
+  it('uses pre-projected profileHref/menteeMessage when available and resolves unprojected thread messages cleanly (#932)', () => {
+    const preProjected = buildReservationFixture({
+      id: 'res-proj-201',
+      name: 'Projected Mentee',
+      senderUserId: 'user-mentee',
+      participantUserId: 'user-mentor',
+      viewerRole: 'MENTOR',
+      myUserId: 'user-mentor',
+      messages: [{ content: '預先投影的學員提問', role: 'MENTEE' }],
+    });
+
+    const { unmount } = render(
+      <AcceptReservationDialog
+        reservation={preProjected}
+        myUserId="user-mentor"
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '接受' }));
+    expect(
+      screen.getByRole('link', { name: 'Projected Mentee' })
+    ).toHaveAttribute('href', '/profile/user-mentee');
+    expect(screen.getByText('預先投影的學員提問')).toBeInTheDocument();
+    unmount();
+
+    const unprojectedCancelled: Reservation = {
+      ...mockReservation,
+      cancelledBy: 'MENTEE',
+      messages: [
+        { content: '原始預約問題', role: 'MENTEE' },
+        { content: '取消原因不應當成提問', role: 'MENTEE' },
+      ],
+      menteeMessage: { content: '取消原因不應當成提問', role: 'MENTEE' },
+    };
+
+    render(
+      <AcceptReservationDialog
+        reservation={unprojectedCancelled}
+        myUserId="user-mentor"
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '接受' }));
+    expect(screen.getByText('原始預約問題')).toBeInTheDocument();
+    expect(screen.queryByText('取消原因不應當成提問')).not.toBeInTheDocument();
   });
 
   it('closes the dialog when clicking the profile link under non-submitting state', () => {
