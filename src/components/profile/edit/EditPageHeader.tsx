@@ -17,6 +17,8 @@ export function EditPageHeader({
   isMentor = false,
   submitDisabled = false,
 }: EditPageHeaderProps) {
+  const roleSubtitle =
+    isMentorOnboarding || isMentor ? '導師個人資料' : '學員個人資料';
   const pageTitle = isMentorOnboarding
     ? '建立導師資料'
     : isMentor
@@ -31,9 +33,14 @@ export function EditPageHeader({
           className={`shrink-0 sm:hidden ${isSaving ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}
           onClick={isSaving ? undefined : onBack}
         />
-        <h1 className="text-text-primary sm:text-28 truncate text-2xl font-bold">
-          {pageTitle}
-        </h1>
+        <div className="min-w-0">
+          <p className="text-text-tertiary mb-0.5 text-xs font-medium">
+            {roleSubtitle}
+          </p>
+          <h1 className="text-text-primary sm:text-28 truncate text-2xl font-bold">
+            {pageTitle}
+          </h1>
+        </div>
       </div>
 
       <div className="flex shrink-0 items-center gap-3 sm:gap-4">

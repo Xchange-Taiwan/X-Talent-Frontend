@@ -80,6 +80,17 @@ export function resolveAvatarDisplayUrl(
 }
 
 /**
+ * Returns true when a `<Image src>` value should skip Next.js image optimization
+ * (local static `/avatars/*` assets or transient `blob:` object URLs).
+ */
+export function shouldUnoptimizeAvatarSrc(src: unknown): boolean {
+  return (
+    typeof src === 'string' &&
+    (src.startsWith('/avatars/') || src.startsWith('blob:'))
+  );
+}
+
+/**
  * Returns true when `url` is a single-slash local static path or preset code,
  * excluding protocol-relative URLs (`//...`).
  */

@@ -5,6 +5,7 @@ import {
   isLocalStaticAvatarUrl,
   isPresetAvatarUrl,
   PRESET_AVATAR_URLS,
+  shouldUnoptimizeAvatarSrc,
   toAvatarThumbUrl,
   withAvatarVersion,
 } from './avatarUrl';
@@ -130,6 +131,15 @@ describe('avatarUrl', () => {
       expect(isLocalStaticAvatarUrl('https://example.com/a.webp')).toBe(false);
       expect(isLocalStaticAvatarUrl('')).toBe(false);
       expect(isLocalStaticAvatarUrl(null)).toBe(false);
+
+      expect(shouldUnoptimizeAvatarSrc('/avatars/default_2.webp')).toBe(true);
+      expect(shouldUnoptimizeAvatarSrc('blob:http://localhost:3000/abc')).toBe(
+        true
+      );
+      expect(shouldUnoptimizeAvatarSrc('https://cdn.example.com/a.webp')).toBe(
+        false
+      );
+      expect(shouldUnoptimizeAvatarSrc(null)).toBe(false);
     });
   });
 

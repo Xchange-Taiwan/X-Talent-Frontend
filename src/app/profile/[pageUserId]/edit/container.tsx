@@ -283,6 +283,11 @@ export default function EditProfileContainer({
                 className="scroll-mt-28"
                 title="關於我"
                 required={isMentorRole}
+                subtitle={
+                  isMentorRole
+                    ? '建議 150–300 字，分享你的專業背景與可協助的方向。'
+                    : undefined
+                }
                 headerAction={<AboutLengthCounter form={form} />}
               >
                 <TextareaField
@@ -304,6 +309,7 @@ export default function EditProfileContainer({
                     variant="default"
                     title="我能提供的服務"
                     required
+                    subtitle="選擇最有把握協助的項目。建議選擇 2–4 項。"
                   >
                     <CategoryMultiSelectField
                       form={form}
@@ -319,6 +325,7 @@ export default function EditProfileContainer({
                     variant="default"
                     title="專業能力"
                     required
+                    subtitle="加入學員可能搜尋的技能。建議選擇 3–8 項。"
                   >
                     <CategoryMultiSelectField
                       form={form}
