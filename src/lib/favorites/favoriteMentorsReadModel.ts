@@ -1,6 +1,5 @@
 import type { AnalyticsEvent } from '@/lib/analytics';
 import * as analyticsModule from '@/lib/analytics';
-import { AsyncReadManager, type AsyncReadResult } from '@/lib/asyncReadManager';
 import { isFavoritesEnabled } from '@/lib/featureFlags';
 import { getSignInUrl } from '@/lib/routes';
 import {
@@ -18,9 +17,21 @@ import {
 
 export type FavoriteMentorFeature = 'mentor_pool' | 'profile' | 'favorites';
 
+export type FavoritesListStatus = 'loading' | 'error' | 'empty' | 'success';
+
+export interface MentorBookmarkState {
+  readonly isFavorited: boolean;
+  readonly isPending: boolean;
+  readonly isSelf: boolean;
+}
+
 export interface FavoriteMentorsSnapshot {
-  mentors: MentorType[];
-  mentorIds: ReadonlySet<number>;
+  readonly mentors: MentorType[];
+  readonly mentorIds: ReadonlySet<number>;
+  readonly listStatus: FavoritesListStatus;
+  readonly isLoading: boolean;
+  readonly isStoreReadyForUser: boolean;
+  readonly error: Error | null;
 }
 
 export type BookmarkActionOutcome =
@@ -68,7 +79,7 @@ export interface CreateFavoriteMentorsReadModelOptions {
 export interface FavoriteMentorsReadModel {
   subscribe(
     userId: string,
-    onUpdate: (res: AsyncReadResult<FavoriteMentorsSnapshot>) => void,
+    onChange: (snapshot: FavoriteMentorsSnapshot) => void,
     opts?: { force?: boolean }
   ): () => void;
   subscribeMentorState(
@@ -79,7 +90,8 @@ export interface FavoriteMentorsReadModel {
   getMentorState(
     userId: string | null,
     mentorId: number
-  ): { isFavorited: boolean; isPending: boolean; isSelf: boolean };
+  ): MentorBookmarkState;
+  getListSnapshot(userId: string | null): FavoriteMentorsSnapshot;
   toggle(params: {
     userId: string | null;
     mentorId: number;
@@ -89,13 +101,67 @@ export interface FavoriteMentorsReadModel {
   replayPendingForPage(params: {
     userId: string;
     pageMentorId: number;
-    mentor: { isMentor: boolean; snapshot?: MentorType };
+    mentor: { isMentor: boolean; snapshot?: MentorType } | null;
   }): Promise<BookmarkActionOutcome>;
   retry(userId: string): Promise<void>;
   seed(userId: string | null, mentors: Array<MentorType | number>): void;
   setTransport(transport?: Partial<FavoriteMentorsTransport>): void;
   getSnapshot(userId: string): FavoriteMentorsSnapshot | undefined;
   clear(): void;
+}
+
+const NOOP_UNSUBSCRIBE = (): void => {};
+
+const EMPTY_MENTORS: MentorType[] = [];
+Object.freeze(EMPTY_MENTORS);
+
+const EMPTY_MENTOR_IDS: ReadonlySet<number> = new Set<number>();
+
+const LOADING_LIST_SNAPSHOT: FavoriteMentorsSnapshot = Object.freeze({
+  mentors: EMPTY_MENTORS,
+  mentorIds: EMPTY_MENTOR_IDS,
+  listStatus: 'loading',
+  isLoading: true,
+  isStoreReadyForUser: false,
+  error: null,
+});
+
+const DISABLED_LIST_SNAPSHOT: FavoriteMentorsSnapshot = Object.freeze({
+  mentors: EMPTY_MENTORS,
+  mentorIds: EMPTY_MENTOR_IDS,
+  listStatus: 'empty',
+  isLoading: false,
+  isStoreReadyForUser: false,
+  error: null,
+});
+
+const EMPTY_READY_LIST_SNAPSHOT: FavoriteMentorsSnapshot = Object.freeze({
+  mentors: EMPTY_MENTORS,
+  mentorIds: EMPTY_MENTOR_IDS,
+  listStatus: 'empty',
+  isLoading: false,
+  isStoreReadyForUser: true,
+  error: null,
+});
+
+const MENTOR_STATE_SINGLETONS: readonly MentorBookmarkState[] = [
+  Object.freeze({ isFavorited: false, isPending: false, isSelf: false }),
+  Object.freeze({ isFavorited: true, isPending: false, isSelf: false }),
+  Object.freeze({ isFavorited: false, isPending: true, isSelf: false }),
+  Object.freeze({ isFavorited: true, isPending: true, isSelf: false }),
+  Object.freeze({ isFavorited: false, isPending: false, isSelf: true }),
+  Object.freeze({ isFavorited: true, isPending: false, isSelf: true }),
+  Object.freeze({ isFavorited: false, isPending: true, isSelf: true }),
+  Object.freeze({ isFavorited: true, isPending: true, isSelf: true }),
+];
+
+function selectMentorStateSingleton(
+  isFavorited: boolean,
+  isPending: boolean,
+  isSelf: boolean
+): MentorBookmarkState {
+  const index = (isFavorited ? 1 : 0) | (isPending ? 2 : 0) | (isSelf ? 4 : 0);
+  return MENTOR_STATE_SINGLETONS[index];
 }
 
 const defaultTransport: FavoriteMentorsTransport = {
@@ -120,18 +186,56 @@ function isValidMentorId(value: number): boolean {
   return Number.isSafeInteger(value) && value > 0;
 }
 
-function getMentorKey(userId: string, mentorId: number): string {
-  return `${userId}:${mentorId}`;
+function areSetsEqual(a: ReadonlySet<number>, b: ReadonlySet<number>): boolean {
+  if (a.size !== b.size) return false;
+  let equal = true;
+  a.forEach((value) => {
+    if (!b.has(value)) {
+      equal = false;
+    }
+  });
+  return equal;
 }
 
-interface UserMutationState {
-  serverMentors: MentorType[];
-  hasLoadedServer: boolean;
+function areMentorListsEqual(a: MentorType[], b: MentorType[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (!Object.is(a[i], b[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+type ActiveSessionStatus = 'idle' | 'loading' | 'ready' | 'error';
+
+interface SettledMutationEntry {
+  favorited: boolean;
+  snapshot?: MentorType;
+}
+
+interface ListSubscriberEntry {
+  userId: string;
+  onChange: (snapshot: FavoriteMentorsSnapshot) => void;
+}
+
+interface ActiveUserSession {
+  userId: string;
+  status: ActiveSessionStatus;
+  mentors: MentorType[];
   confirmedIdOnly: Set<number>;
-  settledBeforeLoad: Map<number, { favorited: boolean; snapshot?: MentorType }>;
-  optimistic: Map<number, { favorited: boolean; snapshot?: MentorType }>;
+  settledBeforeLoad: Map<number, SettledMutationEntry>;
+  optimistic: Map<number, SettledMutationEntry>;
   pendingIds: Set<number>;
+  error: Error | null;
   controllers: Set<AbortController>;
+  fetchController: AbortController | null;
+  fetchPromise: Promise<'loaded' | 'error' | 'aborted'> | null;
+  inflightReplays: Map<number, Promise<BookmarkActionOutcome>>;
+  effectiveMentorIds: ReadonlySet<number>;
+  effectiveMentors: MentorType[];
+  dataSnapshot: FavoriteMentorsSnapshot | undefined;
+  listSnapshot: FavoriteMentorsSnapshot;
 }
 
 export function createFavoriteMentorsReadModel(
@@ -149,68 +253,42 @@ export function createFavoriteMentorsReadModel(
     });
   const now = options.now ?? (() => Date.now());
 
-  const readManager = new AsyncReadManager<string, FavoriteMentorsSnapshot>();
-  const userStates = new Map<string, UserMutationState>();
-  const mentorListeners = new Map<string, Set<() => void>>();
-  const sharedReadUnsubscribers = new Map<string, () => void>();
-  const sharedReadRefCounts = new Map<string, number>();
-  const inflightReplays = new Map<string, Promise<BookmarkActionOutcome>>();
+  let activeSession: ActiveUserSession | null = null;
+  const listListeners = new Set<ListSubscriberEntry>();
+  const mentorListeners = new Map<number, Set<() => void>>();
 
-  let activeUserId: string | null = null;
-
-  function getOrCreateUserState(userId: string): UserMutationState {
-    const existing = userStates.get(userId);
-    if (existing) {
-      return existing;
-    }
-    const created: UserMutationState = {
-      serverMentors: [],
-      hasLoadedServer: false,
+  function createSession(userId: string): ActiveUserSession {
+    return {
+      userId,
+      status: 'idle',
+      mentors: EMPTY_MENTORS,
       confirmedIdOnly: new Set<number>(),
       settledBeforeLoad: new Map(),
       optimistic: new Map(),
       pendingIds: new Set<number>(),
+      error: null,
       controllers: new Set<AbortController>(),
+      fetchController: null,
+      fetchPromise: null,
+      inflightReplays: new Map(),
+      effectiveMentorIds: EMPTY_MENTOR_IDS,
+      effectiveMentors: EMPTY_MENTORS,
+      dataSnapshot: undefined,
+      listSnapshot: LOADING_LIST_SNAPSHOT,
     };
-    userStates.set(userId, created);
-    return created;
   }
 
-  function notifyMentorListeners(userId: string, mentorIds: Iterable<number>) {
-    Array.from(mentorIds).forEach((mentorId) => {
-      const listeners = mentorListeners.get(getMentorKey(userId, mentorId));
-      if (!listeners) return;
-      Array.from(listeners).forEach((listener) => {
-        if (listeners.has(listener)) {
-          listener();
-        }
-      });
-    });
-  }
-
-  function notifyAllMentorListenersForUser(userId: string): void {
-    const prefix = `${userId}:`;
-    Array.from(mentorListeners.entries()).forEach(([key, listeners]) => {
-      if (!key.startsWith(prefix)) return;
-      Array.from(listeners).forEach((listener) => {
-        if (listeners.has(listener)) {
-          listener();
-        }
-      });
-    });
-  }
-
-  function computeEffectiveMentorIds(state: UserMutationState): Set<number> {
+  function computeEffectiveMentorIds(session: ActiveUserSession): Set<number> {
     const ids = new Set<number>();
-    state.serverMentors.forEach((mentor) => {
+    session.mentors.forEach((mentor) => {
       if (isValidMentorId(mentor.user_id)) {
         ids.add(mentor.user_id);
       }
     });
-    Array.from(state.confirmedIdOnly).forEach((id) => {
+    session.confirmedIdOnly.forEach((id) => {
       ids.add(id);
     });
-    Array.from(state.optimistic.entries()).forEach(([mentorId, entry]) => {
+    session.optimistic.forEach((entry, mentorId) => {
       if (entry.favorited) {
         ids.add(mentorId);
       } else {
@@ -220,206 +298,355 @@ export function createFavoriteMentorsReadModel(
     return ids;
   }
 
-  function computeSnapshot(userId: string): FavoriteMentorsSnapshot {
-    const state = getOrCreateUserState(userId);
-    const mentorIds = computeEffectiveMentorIds(state);
+  function computeEffectiveMentors(
+    session: ActiveUserSession,
+    mentorIds: ReadonlySet<number>
+  ): MentorType[] {
+    if (mentorIds.size === 0) {
+      return EMPTY_MENTORS;
+    }
     const byId = new Map<number, MentorType>();
 
     // Optimistic newly-added snapshots appear first while preserving server ordering
-    Array.from(state.optimistic.entries()).forEach(([mentorId, entry]) => {
+    session.optimistic.forEach((entry, mentorId) => {
       if (entry.favorited && entry.snapshot && mentorIds.has(mentorId)) {
         byId.set(mentorId, entry.snapshot);
       }
     });
 
-    state.serverMentors.forEach((mentor) => {
+    session.mentors.forEach((mentor) => {
       if (mentorIds.has(mentor.user_id) && !byId.has(mentor.user_id)) {
         byId.set(mentor.user_id, mentor);
       }
     });
 
-    return {
-      mentors: Array.from(byId.values()),
-      mentorIds,
-    };
+    return byId.size > 0 ? Array.from(byId.values()) : EMPTY_MENTORS;
   }
 
-  function publishSnapshotIfLoaded(userId: string): void {
-    const state = userStates.get(userId);
-    if (!state || !state.hasLoadedServer) {
-      return;
+  function syncSessionSnapshots(session: ActiveUserSession): boolean {
+    const prevListSnapshot = session.listSnapshot;
+    const rawIds = computeEffectiveMentorIds(session);
+    const stableIds: ReadonlySet<number> =
+      rawIds.size === 0
+        ? EMPTY_MENTOR_IDS
+        : areSetsEqual(session.effectiveMentorIds, rawIds)
+          ? session.effectiveMentorIds
+          : rawIds;
+
+    const rawMentors = computeEffectiveMentors(session, stableIds);
+    const stableMentors =
+      rawMentors.length === 0
+        ? EMPTY_MENTORS
+        : areMentorListsEqual(session.effectiveMentors, rawMentors)
+          ? session.effectiveMentors
+          : rawMentors;
+
+    session.effectiveMentorIds = stableIds;
+    session.effectiveMentors = stableMentors;
+
+    if (session.status === 'idle' || session.status === 'loading') {
+      session.dataSnapshot = undefined;
+      session.listSnapshot = LOADING_LIST_SNAPSHOT;
+      return !Object.is(prevListSnapshot, session.listSnapshot);
     }
-    readManager.set(userId, computeSnapshot(userId));
+
+    if (session.status === 'error') {
+      session.dataSnapshot = undefined;
+      if (
+        prevListSnapshot.listStatus === 'error' &&
+        Object.is(prevListSnapshot.error, session.error)
+      ) {
+        return false;
+      }
+      session.listSnapshot = Object.freeze({
+        mentors: EMPTY_MENTORS,
+        mentorIds: EMPTY_MENTOR_IDS,
+        listStatus: 'error',
+        isLoading: false,
+        isStoreReadyForUser: true,
+        error: session.error,
+      });
+      return true;
+    }
+
+    const nextListStatus: FavoritesListStatus =
+      stableMentors.length > 0 ? 'success' : 'empty';
+
+    if (stableMentors.length === 0 && stableIds.size === 0) {
+      session.dataSnapshot = EMPTY_READY_LIST_SNAPSHOT;
+      session.listSnapshot = EMPTY_READY_LIST_SNAPSHOT;
+      return !Object.is(prevListSnapshot, session.listSnapshot);
+    }
+
+    if (
+      session.dataSnapshot &&
+      Object.is(session.dataSnapshot.mentors, stableMentors) &&
+      Object.is(session.dataSnapshot.mentorIds, stableIds) &&
+      session.dataSnapshot.listStatus === nextListStatus
+    ) {
+      session.listSnapshot = session.dataSnapshot;
+      return !Object.is(prevListSnapshot, session.listSnapshot);
+    }
+
+    const readySnapshot: FavoriteMentorsSnapshot = Object.freeze({
+      mentors: stableMentors,
+      mentorIds: stableIds,
+      listStatus: nextListStatus,
+      isLoading: false,
+      isStoreReadyForUser: true,
+      error: null,
+    });
+    session.dataSnapshot = readySnapshot;
+    session.listSnapshot = readySnapshot;
+    return true;
   }
 
-  function buildFetcher(userId: string) {
-    return async (signal: AbortSignal): Promise<FavoriteMentorsSnapshot> => {
-      const state = getOrCreateUserState(userId);
-      const prevIds = computeEffectiveMentorIds(state);
-      const fetched = await transport.fetchFavoriteMentors(userId, signal);
-      if (signal.aborted) {
-        return computeSnapshot(userId);
-      }
-
-      const deduped: MentorType[] = [];
-      const seen = new Set<number>();
-      fetched.forEach((mentor) => {
-        if (isValidMentorId(mentor.user_id) && !seen.has(mentor.user_id)) {
-          seen.add(mentor.user_id);
-          deduped.push(mentor);
-          state.confirmedIdOnly.delete(mentor.user_id);
-        }
-      });
-
-      // Re-apply any mutations that settled while this initial GET was in flight
-      let mergedServer = deduped;
-      let needsPostLoadRefresh = false;
-      if (state.settledBeforeLoad.size > 0) {
-        Array.from(state.settledBeforeLoad.entries()).forEach(
-          ([mentorId, settled]) => {
-            if (settled.favorited) {
-              if (settled.snapshot) {
-                state.confirmedIdOnly.delete(mentorId);
-                mergedServer = [
-                  settled.snapshot,
-                  ...mergedServer.filter((m) => m.user_id !== mentorId),
-                ];
-              } else if (!mergedServer.some((m) => m.user_id === mentorId)) {
-                state.confirmedIdOnly.add(mentorId);
-                needsPostLoadRefresh = true;
-              }
-            } else {
-              state.confirmedIdOnly.delete(mentorId);
-              mergedServer = mergedServer.filter((m) => m.user_id !== mentorId);
-            }
-          }
-        );
-        state.settledBeforeLoad.clear();
-      }
-
-      state.serverMentors = mergedServer;
-      state.hasLoadedServer = true;
-
-      if (needsPostLoadRefresh) {
-        void readManager.refresh(userId, buildFetcher(userId));
-      }
-
-      // Drop any non-pending optimistic overrides superseded by server truth
-      Array.from(state.optimistic.keys()).forEach((mentorId) => {
-        if (!state.pendingIds.has(mentorId)) {
-          state.optimistic.delete(mentorId);
-        }
-      });
-
-      const snapshot = computeSnapshot(userId);
-      const changedIds = new Set<number>();
-      Array.from(prevIds).forEach((id) => {
-        if (!snapshot.mentorIds.has(id)) changedIds.add(id);
-      });
-      Array.from(snapshot.mentorIds).forEach((id) => {
-        if (!prevIds.has(id)) changedIds.add(id);
-      });
-
-      if (changedIds.size > 0) {
-        notifyMentorListeners(userId, changedIds);
-      }
-
-      return snapshot;
-    };
-  }
-
-  function teardownUser(userId: string): void {
-    const sharedUnsub = sharedReadUnsubscribers.get(userId);
-    if (sharedUnsub) {
-      sharedReadUnsubscribers.delete(userId);
-      sharedReadRefCounts.delete(userId);
-      sharedUnsub();
-    }
-
-    const state = userStates.get(userId);
-    if (state) {
-      Array.from(state.controllers).forEach((controller) => {
-        controller.abort();
-      });
-      state.controllers.clear();
-      state.pendingIds.clear();
-      state.optimistic.clear();
-      state.settledBeforeLoad.clear();
-      state.confirmedIdOnly.clear();
-      state.serverMentors = [];
-      state.hasLoadedServer = false;
-      userStates.delete(userId);
-    }
-
-    Array.from(inflightReplays.keys()).forEach((key) => {
-      if (key.startsWith(`${userId}:`)) {
-        inflightReplays.delete(key);
+  function notifyListListeners(): void {
+    Array.from(listListeners).forEach((entry) => {
+      if (listListeners.has(entry)) {
+        entry.onChange(getListSnapshot(entry.userId));
       }
     });
-
-    readManager.invalidate(userId);
-    notifyAllMentorListenersForUser(userId);
   }
 
-  function ensureActiveUser(userId: string): void {
-    if (activeUserId !== null && activeUserId !== userId) {
-      teardownUser(activeUserId);
-    }
-    activeUserId = userId;
-  }
-
-  function retainSharedUserRead(userId: string): () => void {
-    ensureActiveUser(userId);
-    const prevCount = sharedReadRefCounts.get(userId) ?? 0;
-    sharedReadRefCounts.set(userId, prevCount + 1);
-
-    if (!sharedReadUnsubscribers.has(userId)) {
-      const unsub = readManager.subscribe(userId, buildFetcher(userId), () => {
-        // Snapshot updates already notify changed mentor keys inside buildFetcher.
-      });
-      sharedReadUnsubscribers.set(userId, unsub);
-    }
-
-    let released = false;
-    return () => {
-      if (released) return;
-      released = true;
-      const current = sharedReadRefCounts.get(userId) ?? 0;
-      if (current <= 1) {
-        sharedReadRefCounts.delete(userId);
-        const unsub = sharedReadUnsubscribers.get(userId);
-        if (unsub) {
-          sharedReadUnsubscribers.delete(userId);
-          unsub();
+  function notifyMentorListeners(mentorIds: Iterable<number>): void {
+    Array.from(mentorIds).forEach((mentorId) => {
+      const listeners = mentorListeners.get(mentorId);
+      if (!listeners) return;
+      Array.from(listeners).forEach((listener) => {
+        if (listeners.has(listener)) {
+          listener();
         }
-      } else {
-        sharedReadRefCounts.set(userId, current - 1);
+      });
+    });
+  }
+
+  function notifyAllMentorListeners(): void {
+    Array.from(mentorListeners.values()).forEach((listeners) => {
+      Array.from(listeners).forEach((listener) => {
+        if (listeners.has(listener)) {
+          listener();
+        }
+      });
+    });
+  }
+
+  function cancelSessionFetch(session: ActiveUserSession): void {
+    if (session.fetchController) {
+      const controller = session.fetchController;
+      session.fetchController = null;
+      session.fetchPromise = null;
+      session.controllers.delete(controller);
+      controller.abort();
+    }
+  }
+
+  function teardownActiveSession(): void {
+    const prev = activeSession;
+    if (!prev) return;
+    activeSession = null;
+
+    Array.from(prev.controllers).forEach((controller) => {
+      controller.abort();
+    });
+    prev.controllers.clear();
+    prev.fetchController = null;
+    prev.fetchPromise = null;
+    prev.pendingIds.clear();
+    prev.optimistic.clear();
+    prev.settledBeforeLoad.clear();
+    prev.confirmedIdOnly.clear();
+    prev.inflightReplays.clear();
+    prev.mentors = EMPTY_MENTORS;
+    prev.effectiveMentorIds = EMPTY_MENTOR_IDS;
+    prev.effectiveMentors = EMPTY_MENTORS;
+    prev.dataSnapshot = undefined;
+
+    notifyListListeners();
+    notifyAllMentorListeners();
+  }
+
+  function ensureActiveSession(userId: string): ActiveUserSession {
+    if (activeSession && activeSession.userId === userId) {
+      return activeSession;
+    }
+    if (activeSession) {
+      teardownActiveSession();
+    }
+    const created = createSession(userId);
+    activeSession = created;
+    return created;
+  }
+
+  function fetchSessionMentors(
+    session: ActiveUserSession,
+    opts: { force: boolean }
+  ): Promise<'loaded' | 'error' | 'aborted'> {
+    if (!opts.force) {
+      if (session.status === 'ready') {
+        return Promise.resolve('loaded');
       }
-    };
+      if (session.fetchPromise) {
+        return session.fetchPromise;
+      }
+    } else {
+      cancelSessionFetch(session);
+    }
+
+    if (session.status !== 'ready') {
+      session.status = 'loading';
+      session.error = null;
+      if (syncSessionSnapshots(session)) {
+        notifyListListeners();
+      }
+    }
+
+    const controller = new AbortController();
+    session.controllers.add(controller);
+    session.fetchController = controller;
+
+    const promise = (async (): Promise<'loaded' | 'error' | 'aborted'> => {
+      try {
+        const fetched = await transport.fetchFavoriteMentors(
+          session.userId,
+          controller.signal
+        );
+        session.controllers.delete(controller);
+        if (session.fetchController === controller) {
+          session.fetchController = null;
+          session.fetchPromise = null;
+        }
+        if (controller.signal.aborted || activeSession !== session) {
+          return 'aborted';
+        }
+
+        const prevIds = session.effectiveMentorIds;
+        const deduped: MentorType[] = [];
+        const seen = new Set<number>();
+        fetched.forEach((mentor) => {
+          if (isValidMentorId(mentor.user_id) && !seen.has(mentor.user_id)) {
+            seen.add(mentor.user_id);
+            deduped.push(mentor);
+            session.confirmedIdOnly.delete(mentor.user_id);
+          }
+        });
+
+        let mergedServer = deduped;
+        let needsPostLoadRefresh = false;
+        if (session.settledBeforeLoad.size > 0) {
+          Array.from(session.settledBeforeLoad.entries()).forEach(
+            ([mentorId, settled]) => {
+              if (settled.favorited) {
+                if (settled.snapshot) {
+                  session.confirmedIdOnly.delete(mentorId);
+                  mergedServer = [
+                    settled.snapshot,
+                    ...mergedServer.filter((m) => m.user_id !== mentorId),
+                  ];
+                } else if (!mergedServer.some((m) => m.user_id === mentorId)) {
+                  session.confirmedIdOnly.add(mentorId);
+                  needsPostLoadRefresh = true;
+                }
+              } else {
+                session.confirmedIdOnly.delete(mentorId);
+                mergedServer = mergedServer.filter(
+                  (m) => m.user_id !== mentorId
+                );
+              }
+            }
+          );
+          session.settledBeforeLoad.clear();
+        }
+
+        Array.from(session.optimistic.keys()).forEach((mentorId) => {
+          if (!session.pendingIds.has(mentorId)) {
+            session.optimistic.delete(mentorId);
+          }
+        });
+
+        session.mentors = mergedServer.length > 0 ? mergedServer : EMPTY_MENTORS;
+        session.status = 'ready';
+        session.error = null;
+
+        const listChanged = syncSessionSnapshots(session);
+        const nextIds = session.effectiveMentorIds;
+        const changedIds = new Set<number>();
+        prevIds.forEach((id) => {
+          if (!nextIds.has(id)) changedIds.add(id);
+        });
+        nextIds.forEach((id) => {
+          if (!prevIds.has(id)) changedIds.add(id);
+        });
+
+        if (listChanged) {
+          notifyListListeners();
+        }
+        if (changedIds.size > 0) {
+          notifyMentorListeners(changedIds);
+        }
+        if (needsPostLoadRefresh) {
+          void fetchSessionMentors(session, { force: true });
+        }
+
+        return 'loaded';
+      } catch (err) {
+        session.controllers.delete(controller);
+        if (session.fetchController === controller) {
+          session.fetchController = null;
+          session.fetchPromise = null;
+        }
+        if (controller.signal.aborted || activeSession !== session) {
+          return 'aborted';
+        }
+
+        if (session.status !== 'ready') {
+          session.status = 'error';
+          session.error = err instanceof Error ? err : new Error(String(err));
+          if (syncSessionSnapshots(session)) {
+            notifyListListeners();
+          }
+        }
+        return 'error';
+      }
+    })();
+
+    if (!controller.signal.aborted) {
+      session.fetchPromise = promise;
+    }
+    return promise;
   }
 
   function subscribe(
     rawUserId: string,
-    onUpdate: (res: AsyncReadResult<FavoriteMentorsSnapshot>) => void,
+    onChange: (snapshot: FavoriteMentorsSnapshot) => void,
     opts?: { force?: boolean }
   ): () => void {
     if (!isFavoritesEnabled()) {
-      onUpdate({
-        data: { mentors: [], mentorIds: new Set<number>() },
-        isLoading: false,
-        error: null,
-      });
-      return () => {};
+      return NOOP_UNSUBSCRIBE;
     }
     const userId = normalizeUserId(rawUserId);
     if (!userId) {
-      onUpdate({ data: null, isLoading: false, error: null });
-      return () => {};
+      return NOOP_UNSUBSCRIBE;
     }
-    ensureActiveUser(userId);
-    return readManager.subscribe(userId, buildFetcher(userId), onUpdate, {
-      force: opts?.force,
-    });
+
+    const hadUserListSubscribers = Array.from(listListeners).some(
+      (item) => item.userId === userId
+    );
+    const entry: ListSubscriberEntry = { userId, onChange };
+    listListeners.add(entry);
+
+    const session = ensureActiveSession(userId);
+    if (
+      opts?.force ||
+      session.status === 'idle' ||
+      (session.status === 'error' && !hadUserListSubscribers)
+    ) {
+      void fetchSessionMentors(session, { force: Boolean(opts?.force) });
+    }
+
+    return () => {
+      listListeners.delete(entry);
+    };
   }
 
   function subscribeMentorState(
@@ -428,59 +655,69 @@ export function createFavoriteMentorsReadModel(
     onChange: () => void
   ): () => void {
     if (!isFavoritesEnabled()) {
-      return () => {};
+      return NOOP_UNSUBSCRIBE;
     }
     const userId = normalizeUserId(rawUserId);
     if (!userId || !isValidMentorId(mentorId) || userId === String(mentorId)) {
-      return () => {};
+      return NOOP_UNSUBSCRIBE;
     }
 
-    const key = getMentorKey(userId, mentorId);
-    let listeners = mentorListeners.get(key);
+    let listeners = mentorListeners.get(mentorId);
     if (!listeners) {
       listeners = new Set();
-      mentorListeners.set(key, listeners);
+      mentorListeners.set(mentorId, listeners);
     }
     listeners.add(onChange);
 
-    const releaseSharedRead = retainSharedUserRead(userId);
+    const session = ensureActiveSession(userId);
+    if (session.status === 'idle') {
+      void fetchSessionMentors(session, { force: false });
+    }
 
     return () => {
-      const currentListeners = mentorListeners.get(key);
+      const currentListeners = mentorListeners.get(mentorId);
       if (currentListeners) {
         currentListeners.delete(onChange);
         if (currentListeners.size === 0) {
-          mentorListeners.delete(key);
+          mentorListeners.delete(mentorId);
         }
       }
-      releaseSharedRead();
     };
   }
 
   function getMentorState(
     rawUserId: string | null,
     mentorId: number
-  ): { isFavorited: boolean; isPending: boolean; isSelf: boolean } {
+  ): MentorBookmarkState {
+    if (!isFavoritesEnabled()) {
+      return selectMentorStateSingleton(false, false, false);
+    }
     const userId = normalizeUserId(rawUserId);
     if (!userId || !isValidMentorId(mentorId)) {
-      return { isFavorited: false, isPending: false, isSelf: false };
+      return selectMentorStateSingleton(false, false, false);
     }
     if (userId === String(mentorId)) {
-      return { isFavorited: false, isPending: false, isSelf: true };
+      return selectMentorStateSingleton(false, false, true);
     }
+    if (!activeSession || activeSession.userId !== userId) {
+      return selectMentorStateSingleton(false, false, false);
+    }
+    return selectMentorStateSingleton(
+      activeSession.effectiveMentorIds.has(mentorId),
+      activeSession.pendingIds.has(mentorId),
+      false
+    );
+  }
+
+  function getListSnapshot(rawUserId: string | null): FavoriteMentorsSnapshot {
     if (!isFavoritesEnabled()) {
-      return { isFavorited: false, isPending: false, isSelf: false };
+      return DISABLED_LIST_SNAPSHOT;
     }
-    const state = userStates.get(userId);
-    if (!state) {
-      return { isFavorited: false, isPending: false, isSelf: false };
+    const userId = normalizeUserId(rawUserId);
+    if (!userId || !activeSession || activeSession.userId !== userId) {
+      return LOADING_LIST_SNAPSHOT;
     }
-    const effectiveIds = computeEffectiveMentorIds(state);
-    return {
-      isFavorited: effectiveIds.has(mentorId),
-      isPending: state.pendingIds.has(mentorId),
-      isSelf: false,
-    };
+    return activeSession.listSnapshot;
   }
 
   async function toggle(params: {
@@ -500,6 +737,15 @@ export function createFavoriteMentorsReadModel(
     const userId = normalizeUserId(params.userId);
     if (!userId) {
       storage.savePending(mentorId, now());
+      trackAnalytics({
+        name: 'auth_gate_triggered',
+        feature: 'favorites',
+        metadata: {
+          gate_feature: 'favorites',
+          trigger_type: 'click_cta',
+          mentor_id: mentorId,
+        },
+      });
       return {
         status: 'guest_redirect',
         signInUrl: getSignInUrl(`/profile/${mentorId}`),
@@ -511,17 +757,13 @@ export function createFavoriteMentorsReadModel(
       return { status: 'self_blocked', nextFavorited: false };
     }
 
-    ensureActiveUser(userId);
-    const state = getOrCreateUserState(userId);
-
-    if (!state.hasLoadedServer) {
-      void readManager.prefetch(userId, buildFetcher(userId));
+    const session = ensureActiveSession(userId);
+    if (session.status === 'idle') {
+      void fetchSessionMentors(session, { force: false });
     }
 
-    const currentIds = computeEffectiveMentorIds(state);
-    const currentlyFavorited = currentIds.has(mentorId);
-
-    if (state.pendingIds.has(mentorId)) {
+    const currentlyFavorited = session.effectiveMentorIds.has(mentorId);
+    if (session.pendingIds.has(mentorId)) {
       return { status: 'skipped', nextFavorited: currentlyFavorited };
     }
 
@@ -532,16 +774,18 @@ export function createFavoriteMentorsReadModel(
         ? mentorSnapshot
         : undefined;
 
-    state.pendingIds.add(mentorId);
-    state.optimistic.set(mentorId, {
+    session.pendingIds.add(mentorId);
+    session.optimistic.set(mentorId, {
       favorited: nextFavorited,
       snapshot: normalizedSnapshot,
     });
-    publishSnapshotIfLoaded(userId);
-    notifyMentorListeners(userId, [mentorId]);
+    if (syncSessionSnapshots(session)) {
+      notifyListListeners();
+    }
+    notifyMentorListeners([mentorId]);
 
     const controller = new AbortController();
-    state.controllers.add(controller);
+    session.controllers.add(controller);
 
     try {
       if (nextFavorited) {
@@ -554,16 +798,16 @@ export function createFavoriteMentorsReadModel(
         );
       }
 
-      state.controllers.delete(controller);
-      if (controller.signal.aborted || activeUserId !== userId) {
+      session.controllers.delete(controller);
+      if (controller.signal.aborted || activeSession !== session) {
         return { status: 'aborted', nextFavorited: false };
       }
 
-      state.pendingIds.delete(mentorId);
-      state.optimistic.delete(mentorId);
+      session.pendingIds.delete(mentorId);
+      session.optimistic.delete(mentorId);
 
-      if (!state.hasLoadedServer) {
-        state.settledBeforeLoad.set(mentorId, {
+      if (session.status !== 'ready') {
+        session.settledBeforeLoad.set(mentorId, {
           favorited: nextFavorited,
           snapshot: normalizedSnapshot,
         });
@@ -572,32 +816,33 @@ export function createFavoriteMentorsReadModel(
       let needsBackgroundRefresh = false;
       if (nextFavorited) {
         if (normalizedSnapshot) {
-          state.confirmedIdOnly.delete(mentorId);
-          const filtered = state.serverMentors.filter(
+          session.confirmedIdOnly.delete(mentorId);
+          const filtered = session.mentors.filter(
             (m) => m.user_id !== mentorId
           );
-          state.serverMentors = [normalizedSnapshot, ...filtered];
+          session.mentors = [normalizedSnapshot, ...filtered];
         } else {
-          const alreadyHasCard = state.serverMentors.some(
+          const alreadyHasCard = session.mentors.some(
             (m) => m.user_id === mentorId
           );
           if (!alreadyHasCard) {
-            state.confirmedIdOnly.add(mentorId);
-            needsBackgroundRefresh = true;
+            session.confirmedIdOnly.add(mentorId);
+            needsBackgroundRefresh = session.status === 'ready';
           }
         }
       } else {
-        state.confirmedIdOnly.delete(mentorId);
-        state.serverMentors = state.serverMentors.filter(
-          (m) => m.user_id !== mentorId
-        );
+        session.confirmedIdOnly.delete(mentorId);
+        const filtered = session.mentors.filter((m) => m.user_id !== mentorId);
+        session.mentors = filtered.length > 0 ? filtered : EMPTY_MENTORS;
       }
 
-      publishSnapshotIfLoaded(userId);
-      if (needsBackgroundRefresh) {
-        void readManager.refresh(userId, buildFetcher(userId));
+      if (syncSessionSnapshots(session)) {
+        notifyListListeners();
       }
-      notifyMentorListeners(userId, [mentorId]);
+      if (needsBackgroundRefresh) {
+        void fetchSessionMentors(session, { force: true });
+      }
+      notifyMentorListeners([mentorId]);
 
       trackAnalytics({
         name: 'mentor_bookmark_toggle',
@@ -612,20 +857,21 @@ export function createFavoriteMentorsReadModel(
         ? { status: 'added', nextFavorited: true }
         : { status: 'removed', nextFavorited: false };
     } catch (error) {
-      state.controllers.delete(controller);
-      if (controller.signal.aborted || activeUserId !== userId) {
+      session.controllers.delete(controller);
+      if (controller.signal.aborted || activeSession !== session) {
         return { status: 'aborted', nextFavorited: false };
       }
 
-      state.pendingIds.delete(mentorId);
-      state.optimistic.delete(mentorId);
-      publishSnapshotIfLoaded(userId);
-      notifyMentorListeners(userId, [mentorId]);
+      session.pendingIds.delete(mentorId);
+      session.optimistic.delete(mentorId);
+      if (syncSessionSnapshots(session)) {
+        notifyListListeners();
+      }
+      notifyMentorListeners([mentorId]);
 
-      const settledFavorited = computeEffectiveMentorIds(state).has(mentorId);
       return {
         status: 'failed',
-        nextFavorited: settledFavorited,
+        nextFavorited: session.effectiveMentorIds.has(mentorId),
         error,
       };
     }
@@ -634,7 +880,7 @@ export function createFavoriteMentorsReadModel(
   async function replayPendingForPage(params: {
     userId: string;
     pageMentorId: number;
-    mentor: { isMentor: boolean; snapshot?: MentorType };
+    mentor: { isMentor: boolean; snapshot?: MentorType } | null;
   }): Promise<BookmarkActionOutcome> {
     if (!isFavoritesEnabled()) {
       storage.clearPending();
@@ -661,29 +907,35 @@ export function createFavoriteMentorsReadModel(
       return { status: 'self_blocked', nextFavorited: false };
     }
 
+    if (!mentor) {
+      return {
+        status: 'noop',
+        nextFavorited: getMentorState(userId, pageMentorId).isFavorited,
+      };
+    }
+
     if (!mentor.isMentor) {
       storage.clearPending();
       return { status: 'non_mentor', nextFavorited: false };
     }
 
-    const replayKey = getMentorKey(userId, pageMentorId);
-    const existingReplay = inflightReplays.get(replayKey);
+    const session = ensureActiveSession(userId);
+    const existingReplay = session.inflightReplays.get(pageMentorId);
     if (existingReplay) {
       return existingReplay;
     }
 
     const replayPromise = (async (): Promise<BookmarkActionOutcome> => {
-      ensureActiveUser(userId);
-      const state = getOrCreateUserState(userId);
-
-      if (!state.hasLoadedServer) {
-        const loaded = await readManager.prefetch(userId, buildFetcher(userId));
-        if (activeUserId !== userId || loaded === null) {
+      if (session.status !== 'ready') {
+        const fetchResult = await fetchSessionMentors(session, {
+          force: false,
+        });
+        if (fetchResult === 'aborted' || activeSession !== session) {
           return { status: 'aborted', nextFavorited: false };
         }
       }
 
-      if (computeEffectiveMentorIds(state).has(pageMentorId)) {
+      if (session.effectiveMentorIds.has(pageMentorId)) {
         storage.clearPending();
         return { status: 'already_favorited', nextFavorited: true };
       }
@@ -701,12 +953,12 @@ export function createFavoriteMentorsReadModel(
 
       return outcome;
     })().finally(() => {
-      if (inflightReplays.get(replayKey) === replayPromise) {
-        inflightReplays.delete(replayKey);
+      if (session.inflightReplays.get(pageMentorId) === replayPromise) {
+        session.inflightReplays.delete(pageMentorId);
       }
     });
 
-    inflightReplays.set(replayKey, replayPromise);
+    session.inflightReplays.set(pageMentorId, replayPromise);
     return replayPromise;
   }
 
@@ -714,8 +966,8 @@ export function createFavoriteMentorsReadModel(
     if (!isFavoritesEnabled()) return;
     const userId = normalizeUserId(rawUserId);
     if (!userId) return;
-    ensureActiveUser(userId);
-    await readManager.refresh(userId, buildFetcher(userId));
+    const session = ensureActiveSession(userId);
+    await fetchSessionMentors(session, { force: true });
   }
 
   function seed(
@@ -727,28 +979,36 @@ export function createFavoriteMentorsReadModel(
       clear();
       return;
     }
-    ensureActiveUser(userId);
-    const state = getOrCreateUserState(userId);
-    state.pendingIds.clear();
-    state.optimistic.clear();
-    state.settledBeforeLoad.clear();
-    state.confirmedIdOnly.clear();
+    if (!isFavoritesEnabled()) {
+      return;
+    }
+    const session = ensureActiveSession(userId);
+    cancelSessionFetch(session);
+    session.pendingIds.clear();
+    session.optimistic.clear();
+    session.settledBeforeLoad.clear();
+    session.confirmedIdOnly.clear();
+    session.error = null;
 
     const fullMentors: MentorType[] = [];
+    const seen = new Set<number>();
     mentors.forEach((entry) => {
       if (typeof entry === 'number') {
-        if (isValidMentorId(entry)) {
-          state.confirmedIdOnly.add(entry);
+        if (isValidMentorId(entry) && !seen.has(entry)) {
+          session.confirmedIdOnly.add(entry);
         }
-      } else if (isValidMentorId(entry.user_id)) {
+      } else if (isValidMentorId(entry.user_id) && !seen.has(entry.user_id)) {
+        seen.add(entry.user_id);
+        session.confirmedIdOnly.delete(entry.user_id);
         fullMentors.push(entry);
       }
     });
 
-    state.serverMentors = fullMentors;
-    state.hasLoadedServer = true;
-    readManager.set(userId, computeSnapshot(userId));
-    notifyAllMentorListenersForUser(userId);
+    session.mentors = fullMentors.length > 0 ? fullMentors : EMPTY_MENTORS;
+    session.status = 'ready';
+    syncSessionSnapshots(session);
+    notifyListListeners();
+    notifyAllMentorListeners();
   }
 
   function setTransport(next?: Partial<FavoriteMentorsTransport>): void {
@@ -759,45 +1019,24 @@ export function createFavoriteMentorsReadModel(
   }
 
   function getSnapshot(rawUserId: string): FavoriteMentorsSnapshot | undefined {
+    if (!isFavoritesEnabled()) return undefined;
     const userId = normalizeUserId(rawUserId);
-    if (!userId) return undefined;
-    return readManager.get(userId);
+    if (!userId || !activeSession || activeSession.userId !== userId) {
+      return undefined;
+    }
+    return activeSession.dataSnapshot;
   }
 
   function clear(): void {
-    Array.from(sharedReadUnsubscribers.values()).forEach((unsub) => {
-      unsub();
-    });
-    sharedReadUnsubscribers.clear();
-    sharedReadRefCounts.clear();
-
-    Array.from(userStates.keys()).forEach((userId) => {
-      const state = userStates.get(userId);
-      if (state) {
-        Array.from(state.controllers).forEach((controller) => {
-          controller.abort();
-        });
-        state.controllers.clear();
-      }
-    });
-    userStates.clear();
-    inflightReplays.clear();
-    activeUserId = null;
-    readManager.clear();
-
-    Array.from(mentorListeners.values()).forEach((listeners) => {
-      Array.from(listeners).forEach((listener) => {
-        if (listeners.has(listener)) {
-          listener();
-        }
-      });
-    });
+    teardownActiveSession();
+    storage.clearPending();
   }
 
   return {
     subscribe,
     subscribeMentorState,
     getMentorState,
+    getListSnapshot,
     toggle,
     replayPendingForPage,
     retry,

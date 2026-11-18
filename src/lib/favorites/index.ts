@@ -7,6 +7,8 @@ export {
   favoriteMentorsReadModel,
   type FavoriteMentorsSnapshot,
   type FavoriteMentorsTransport,
+  type FavoritesListStatus,
+  type MentorBookmarkState,
   type PendingFavoriteStoragePort,
   resetFavoriteMentorsReadModel,
 } from './favoriteMentorsReadModel';

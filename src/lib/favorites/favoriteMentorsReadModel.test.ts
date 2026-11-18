@@ -96,9 +96,10 @@ describe('createFavoriteMentorsReadModel (#908)', () => {
 
     // Switching to user-2 aborts both user-1 GET and PUT signals immediately
     const updatesUser2: Array<number[]> = [];
-    const unsub2 = model.subscribe('user-2', (res) => {
-      if (res.data) {
-        updatesUser2.push(res.data.mentors.map((m) => m.user_id));
+    const unsub2 = model.subscribe('user-2', () => {
+      const snap = model.getSnapshot('user-2');
+      if (snap) {
+        updatesUser2.push(snap.mentors.map((m) => m.user_id));
       }
     });
 
@@ -162,8 +163,9 @@ describe('createFavoriteMentorsReadModel (#908)', () => {
     });
 
     const snapshots: MentorType[][] = [];
-    model.subscribe('user-1', (res) => {
-      if (res.data) snapshots.push(res.data.mentors);
+    model.subscribe('user-1', () => {
+      const snap = model.getSnapshot('user-1');
+      if (snap) snapshots.push(snap.mentors);
     });
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 
@@ -216,7 +218,7 @@ describe('createFavoriteMentorsReadModel (#908)', () => {
       trackAnalytics,
     });
 
-    // 1. Guest toggle stores pending ID and returns canonical getSignInUrl
+    // 1. Guest toggle stores pending ID, emits centralized auth_gate_triggered analytics, and returns canonical getSignInUrl
     const guestOutcome = await model.toggle({
       userId: null,
       mentorId: 101,
@@ -228,7 +230,17 @@ describe('createFavoriteMentorsReadModel (#908)', () => {
       nextFavorited: false,
     });
     expect(storage.peekRaw()).toBe(101);
-    expect(trackAnalytics).not.toHaveBeenCalled();
+    expect(trackAnalytics).toHaveBeenCalledOnce();
+    expect(trackAnalytics).toHaveBeenCalledWith({
+      name: 'auth_gate_triggered',
+      feature: 'favorites',
+      metadata: {
+        gate_feature: 'favorites',
+        trigger_type: 'click_cta',
+        mentor_id: 101,
+      },
+    });
+    trackAnalytics.mockClear();
 
     // 2. Direct self-bookmark toggle is blocked without network call
     expect(
@@ -296,6 +308,164 @@ describe('createFavoriteMentorsReadModel (#908)', () => {
     });
     expect(model.getMentorState('user-1', 101).isFavorited).toBe(true);
   });
+
+  it('returns frozen singleton MentorBookmarkState objects across all states and referentially stable list snapshots with listStatus + Error (#941)', async () => {
+    const serverFailure = new Error('502 Bad Gateway');
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(serverFailure)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([makeMentor(101)]);
+
+    let resolveAdd!: () => void;
+    const addMock = vi.fn().mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveAdd = resolve;
+        })
+    );
+
+    const model = createFavoriteMentorsReadModel({
+      transport: {
+        fetchFavoriteMentors: fetchMock,
+        addFavoriteMentor: addMock,
+        removeFavoriteMentor: vi.fn().mockResolvedValue(undefined),
+      },
+      trackAnalytics: vi.fn(),
+    });
+
+    // Frozen singletons for guest / self / member states
+    const guestStateA = model.getMentorState(null, 101);
+    const guestStateB = model.getMentorState(null, 202);
+    expect(Object.isFrozen(guestStateA)).toBe(true);
+    expect(guestStateA).toBe(guestStateB);
+
+    const selfStateA = model.getMentorState('101', 101);
+    const selfStateB = model.getMentorState('202', 202);
+    expect(Object.isFrozen(selfStateA)).toBe(true);
+    expect(selfStateA).toBe(selfStateB);
+    expect(selfStateA).toEqual({
+      isFavorited: false,
+      isPending: false,
+      isSelf: true,
+    });
+
+    // Initial loading list snapshot is referentially stable
+    const loadingSnapA = model.getListSnapshot('user-1');
+    const loadingSnapB = model.getListSnapshot('user-1');
+    expect(loadingSnapA).toBe(loadingSnapB);
+    expect(loadingSnapA.listStatus).toBe('loading');
+    expect(loadingSnapA.isLoading).toBe(true);
+    expect(loadingSnapA.isStoreReadyForUser).toBe(false);
+    expect(loadingSnapA.error).toBeNull();
+
+    const unsub = model.subscribe('user-1', () => {});
+
+    // Error state preserves exact Error reference and referential snapshot stability
+    await vi.waitFor(() => {
+      expect(model.getListSnapshot('user-1').listStatus).toBe('error');
+    });
+    const errorSnapA = model.getListSnapshot('user-1');
+    const errorSnapB = model.getListSnapshot('user-1');
+    expect(errorSnapA).toBe(errorSnapB);
+    expect(errorSnapA.error).toBe(serverFailure);
+    expect(errorSnapA.isStoreReadyForUser).toBe(true);
+    expect(errorSnapA.isLoading).toBe(false);
+
+    // Retry transitions to empty list snapshot
+    await model.retry('user-1');
+    const emptySnapA = model.getListSnapshot('user-1');
+    const emptySnapB = model.getListSnapshot('user-1');
+    expect(emptySnapA).toBe(emptySnapB);
+    expect(emptySnapA.listStatus).toBe('empty');
+    expect(emptySnapA.error).toBeNull();
+
+    // Retry with populated mentor transitions to success list snapshot
+    await model.retry('user-1');
+    const successSnapA = model.getListSnapshot('user-1');
+    const successSnapB = model.getListSnapshot('user-1');
+    expect(successSnapA).toBe(successSnapB);
+    expect(model.getSnapshot('user-1')).toBe(successSnapA);
+    expect(successSnapA.listStatus).toBe('success');
+    expect(successSnapA.mentors.map((m) => m.user_id)).toEqual([101]);
+
+    // Pending + favorited singleton check during toggle
+    const togglePromise = model.toggle({
+      userId: 'user-1',
+      mentorId: 303,
+      mentorSnapshot: makeMentor(303),
+      feature: 'mentor_pool',
+    });
+    const pendingStateA = model.getMentorState('user-1', 303);
+    const pendingStateB = model.getMentorState('user-1', 303);
+    expect(Object.isFrozen(pendingStateA)).toBe(true);
+    expect(pendingStateA).toBe(pendingStateB);
+    expect(pendingStateA).toEqual({
+      isFavorited: true,
+      isPending: true,
+      isSelf: false,
+    });
+
+    resolveAdd();
+    await togglePromise;
+    const settledStateA = model.getMentorState('user-1', 303);
+    const settledStateB = model.getMentorState('user-1', 101);
+    expect(settledStateA).toBe(settledStateB);
+    expect(Object.isFrozen(settledStateA)).toBe(true);
+
+    unsub();
+  });
+
+  it('atomically clears both in-memory session state and pendingFavoriteStorage on clear(), and handles null mentor profile during replayPendingForPage (#941)', async () => {
+    const storage = createInMemoryPendingStorage();
+    const model = createFavoriteMentorsReadModel({
+      storage,
+      transport: {
+        fetchFavoriteMentors: vi.fn().mockResolvedValue([]),
+        addFavoriteMentor: vi.fn().mockResolvedValue(undefined),
+        removeFavoriteMentor: vi.fn().mockResolvedValue(undefined),
+      },
+      trackAnalytics: vi.fn(),
+    });
+
+    storage.savePending(101);
+    // Non-self replay with mentor: null waits without clearing pending storage
+    const waitingOutcome = await model.replayPendingForPage({
+      userId: '999',
+      pageMentorId: 101,
+      mentor: null,
+    });
+    expect(waitingOutcome).toEqual({ status: 'noop', nextFavorited: false });
+    expect(storage.peekRaw()).toBe(101);
+
+    // Self replay with mentor: null immediately blocks and clears pending storage
+    const selfOutcome = await model.replayPendingForPage({
+      userId: '101',
+      pageMentorId: 101,
+      mentor: null,
+    });
+    expect(selfOutcome).toEqual({
+      status: 'self_blocked',
+      nextFavorited: false,
+    });
+    expect(storage.peekRaw()).toBeNull();
+
+    // Seed in-memory state + save pending storage, then verify clear() wipes both atomically
+    model.seed('999', [makeMentor(202)]);
+    storage.savePending(303);
+    expect(model.getSnapshot('999')).toBeDefined();
+    expect(storage.peekRaw()).toBe(303);
+
+    model.clear();
+
+    expect(model.getSnapshot('999')).toBeUndefined();
+    expect(model.getMentorState('999', 202)).toEqual({
+      isFavorited: false,
+      isPending: false,
+      isSelf: false,
+    });
+    expect(storage.peekRaw()).toBeNull();
+  });
 });
 
 describe('favoriteMentorsReadModel disabled flag guard (#913)', () => {
@@ -323,7 +493,13 @@ describe('favoriteMentorsReadModel disabled flag guard (#913)', () => {
 
       const updates: unknown[] = [];
       const unsub = model.subscribe('user-1', (res) => updates.push(res));
-      expect(updates).toHaveLength(1);
+      expect(model.getListSnapshot('user-1')).toMatchObject({
+        mentors: [],
+        listStatus: 'empty',
+        isLoading: false,
+        isStoreReadyForUser: false,
+        error: null,
+      });
       unsub();
 
       const toggleRes = await model.toggle({
