@@ -33,10 +33,20 @@ export function parseMonthKey(key: MonthKey): { year: number; month: number } {
 }
 
 /**
- * Safari-safe end-of-month unix timestamp (`23:59:59` local time on the last
- * day of `month`, where `month` is 1-12). Uses numeric `new Date(year, monthIndex, 1)`
- * rather than string `Date.parse`, avoiding Safari Invalid Date on unpadded strings.
- * Returns `0` when `year` or `month` is invalid or out of range.
+ * Safari-safe local end-of-month unix timestamp (`23:59:59` in the viewer's
+ * local timezone on the last calendar day of `month`, where `month` is 1-12).
+ *
+ * Intentionally uses local calendar boundaries (matching `monthKeyFromUnix`,
+ * `MonthDraftStore` month bucketing, and `loadMonthSchedule` local-month
+ * filtering) rather than UTC `23:59:59Z`: in negative-offset timezones such as
+ * `America/Toronto` (`UTC-5`/`UTC-4`) or `America/Los_Angeles` (`UTC-8`/`UTC-7`),
+ * evening slots on the last day of a local month fall on the 1st of the next
+ * UTC month and would be prematurely truncated if `until` used UTC month-end.
+ *
+ * Uses numeric `new Date(year, month, 0, 23, 59, 59, 0)` (day 0 of `month + 1`
+ * resolves to the last day of 1-indexed `month`), avoiding Safari `Date.parse`
+ * `Invalid Date` on unpadded strings. Returns `0` when `year` or `month` is
+ * invalid or out of range.
  */
 export function endOfMonthUnix(year: number, month: number): number {
   if (
@@ -48,9 +58,9 @@ export function endOfMonthUnix(year: number, month: number): number {
   ) {
     return 0;
   }
-  return dayjs(new Date(year, month - 1, 1))
-    .endOf('month')
-    .unix();
+  const endDate = new Date(year, month, 0, 23, 59, 59, 0);
+  endDate.setFullYear(year);
+  return Math.floor(endDate.getTime() / 1000);
 }
 
 const DATE_KEY_PATTERN = /^(\d{4})-(\d{1,2})-(\d{1,2})$/;

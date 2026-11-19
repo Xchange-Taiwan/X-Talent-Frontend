@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   checkCrossMonthOverlap,
@@ -8,6 +8,7 @@ import {
   findRestorableExdatedRow,
   isReadOnlyVirtualSlot,
   listWeeklyDatesInMonth,
+  monthKeyFromUnix,
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
 
@@ -294,35 +295,43 @@ describe('deduplicateBookingSlots', () => {
 });
 
 describe('endOfMonthUnix', () => {
-  beforeAll(() => {
-    vi.stubEnv('TZ', 'UTC');
-  });
-
-  afterAll(() => {
+  afterEach(() => {
     vi.unstubAllEnvs();
   });
 
-  it('computes 23:59:59 unix timestamp for 31-day and 30-day months without string Date.parse', () => {
-    // 2026-05-31T23:59:59Z
+  it('computes local 23:59:59 unix timestamp for 31-day and 30-day months without string Date.parse', () => {
     expect(endOfMonthUnix(2026, 5)).toBe(
-      Math.floor(Date.UTC(2026, 4, 31, 23, 59, 59) / 1000)
+      Math.floor(new Date(2026, 4, 31, 23, 59, 59, 0).getTime() / 1000)
     );
-    // 2026-06-30T23:59:59Z
     expect(endOfMonthUnix(2026, 6)).toBe(
-      Math.floor(Date.UTC(2026, 5, 30, 23, 59, 59) / 1000)
+      Math.floor(new Date(2026, 5, 30, 23, 59, 59, 0).getTime() / 1000)
     );
   });
 
   it('handles leap-year February (29 days) vs non-leap-year February (28 days)', () => {
-    // 2024-02-29T23:59:59Z
     expect(endOfMonthUnix(2024, 2)).toBe(
-      Math.floor(Date.UTC(2024, 1, 29, 23, 59, 59) / 1000)
+      Math.floor(new Date(2024, 1, 29, 23, 59, 59, 0).getTime() / 1000)
     );
-    // 2026-02-28T23:59:59Z
     expect(endOfMonthUnix(2026, 2)).toBe(
-      Math.floor(Date.UTC(2026, 1, 28, 23, 59, 59) / 1000)
+      Math.floor(new Date(2026, 1, 28, 23, 59, 59, 0).getTime() / 1000)
     );
   });
+
+  it.each(['Asia/Taipei', 'America/Los_Angeles', 'UTC'])(
+    'aligns exact month boundary with monthKeyFromUnix and covers evening slots in %s',
+    (tz) => {
+      vi.stubEnv('TZ', tz);
+      const mayEnd = endOfMonthUnix(2026, 5);
+      expect(monthKeyFromUnix(mayEnd)).toBe('2026-05');
+      expect(monthKeyFromUnix(mayEnd + 1)).toBe('2026-06');
+
+      // A 21:00 local evening slot on May 31 must stay <= endOfMonthUnix(2026, 5)
+      const localLateEveningUnix = Math.floor(
+        new Date(2026, 4, 31, 21, 0, 0, 0).getTime() / 1000
+      );
+      expect(localLateEveningUnix).toBeLessThanOrEqual(mayEnd);
+    }
+  );
 
   it('returns 0 when year or month is invalid or out of range', () => {
     expect(endOfMonthUnix(0, 5)).toBe(0);
