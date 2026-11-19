@@ -2,10 +2,22 @@ import { act, renderHook } from '@testing-library/react';
 import { useSession } from 'next-auth/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { getAvatarSnapshot } from '@/services/profile/getAvatarSnapshot';
+import { apiClient } from '@/lib/apiClient';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 
 import { useBackgroundAvatarUpload } from './useBackgroundAvatarUpload';
+
+vi.mock('@/lib/apiClient', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/apiClient')>();
+  return {
+    ...actual,
+    apiClient: {
+      ...actual.apiClient,
+      getExternalBlob: vi.fn(),
+      getUnwrapped: vi.fn().mockResolvedValue(null),
+    },
+  };
+});
 
 vi.mock('@/services/profile/updateAvatar', async (importOriginal) => {
   const actual =
@@ -15,10 +27,6 @@ vi.mock('@/services/profile/updateAvatar', async (importOriginal) => {
     updateAvatar: vi.fn(),
   };
 });
-
-vi.mock('@/services/profile/getAvatarSnapshot', () => ({
-  getAvatarSnapshot: vi.fn(),
-}));
 
 const mockTrackEvent = vi.fn();
 const mockUpgradeClaritySession = vi.fn();
@@ -37,14 +45,14 @@ vi.mock('next-auth/react', () => ({
 }));
 
 const mockUpdateAvatar = vi.mocked(updateAvatar);
-const mockGetAvatarSnapshot = vi.mocked(getAvatarSnapshot);
+const mockGetExternalBlob = vi.mocked(apiClient.getExternalBlob);
 const mockUseSession = vi.mocked(useSession);
 
 const TEST_USER_ID = 42;
 
 describe('useBackgroundAvatarUpload', () => {
   beforeEach(() => {
-    mockGetAvatarSnapshot.mockReset();
+    mockGetExternalBlob.mockReset();
     mockUpdateAvatar.mockReset();
     mockUseSession.mockReturnValue({
       data: { user: { id: TEST_USER_ID } },
@@ -241,7 +249,7 @@ describe('useBackgroundAvatarUpload', () => {
     mockUpdateAvatar.mockResolvedValueOnce(mockUrl);
 
     const mockOldBlob = new Blob(['old-avatar-bytes'], { type: 'image/jpeg' });
-    mockGetAvatarSnapshot.mockResolvedValue(mockOldBlob);
+    mockGetExternalBlob.mockResolvedValue(mockOldBlob);
 
     const { result } = renderHook(() => useBackgroundAvatarUpload());
 
@@ -258,7 +266,7 @@ describe('useBackgroundAvatarUpload', () => {
       await result.current.rollback();
     });
 
-    expect(mockGetAvatarSnapshot).toHaveBeenCalledWith(
+    expect(mockGetExternalBlob).toHaveBeenCalledWith(
       'https://old-avatar.com/old.png'
     );
     expect(mockUpdateAvatar).toHaveBeenCalledTimes(2);
@@ -276,7 +284,7 @@ describe('useBackgroundAvatarUpload', () => {
     mockUpdateAvatar.mockResolvedValueOnce(mockUrl);
 
     // Force snapshot fetch to fail
-    mockGetAvatarSnapshot.mockRejectedValue(new Error('Network error'));
+    mockGetExternalBlob.mockRejectedValue(new Error('Network error'));
 
     const { result } = renderHook(() => useBackgroundAvatarUpload());
 
@@ -294,7 +302,7 @@ describe('useBackgroundAvatarUpload', () => {
       await expect(result.current.rollback()).resolves.toBeUndefined();
     });
 
-    expect(mockGetAvatarSnapshot).toHaveBeenCalledWith(
+    expect(mockGetExternalBlob).toHaveBeenCalledWith(
       'https://old-avatar.com/old.png'
     );
     // It should NOT call updateAvatar a second time because snapshot was null
@@ -324,8 +332,8 @@ describe('useBackgroundAvatarUpload', () => {
       await expect(result.current.rollback()).resolves.toBeUndefined();
     });
 
-    // Verified that getAvatarSnapshot is never called because the URL was null
-    expect(mockGetAvatarSnapshot).not.toHaveBeenCalled();
+    // Verified that getExternalBlob is never called because the URL was null
+    expect(mockGetExternalBlob).not.toHaveBeenCalled();
     // updateAvatar should only be called once (for the upload, not for restoration)
     expect(mockUpdateAvatar).toHaveBeenCalledTimes(1);
   });
@@ -477,7 +485,7 @@ describe('useBackgroundAvatarUpload', () => {
     const mockOldBlob = new Blob(['original-avatar-bytes'], {
       type: 'image/jpeg',
     });
-    mockGetAvatarSnapshot.mockResolvedValue(mockOldBlob);
+    mockGetExternalBlob.mockResolvedValue(mockOldBlob);
 
     const { result, unmount } = renderHook(() => useBackgroundAvatarUpload());
 
@@ -508,7 +516,7 @@ describe('useBackgroundAvatarUpload', () => {
     mockUpdateAvatar.mockResolvedValue(
       'https://s3.amazonaws.com/bucket/avatar.png?v=1001'
     );
-    mockGetAvatarSnapshot.mockResolvedValue(
+    mockGetExternalBlob.mockResolvedValue(
       new Blob(['original-bytes'], { type: 'image/png' })
     );
 
@@ -600,6 +608,38 @@ describe('useBackgroundAvatarUpload', () => {
       await Promise.resolve();
     });
 
-    expect(mockGetAvatarSnapshot).not.toHaveBeenCalled();
+    expect(mockGetExternalBlob).not.toHaveBeenCalled();
+  });
+
+  it('supports two-phase resolve() + rollback() on unmount when markCommitted() was not called (#929)', async () => {
+    const file = new File(['new-avatar-bytes'], 'avatar.png', {
+      type: 'image/png',
+    });
+    mockUpdateAvatar
+      .mockResolvedValueOnce('https://s3.amazonaws.com/bucket/avatar.png?v=1')
+      .mockResolvedValueOnce('https://s3.amazonaws.com/bucket/avatar.png?v=2');
+    mockGetExternalBlob.mockResolvedValue(
+      new Blob(['pre-edit-bytes'], { type: 'image/png' })
+    );
+
+    const { result, unmount } = renderHook(() => useBackgroundAvatarUpload(42));
+
+    await act(async () => {
+      result.current.stage(file, 'https://old-avatar.com/old.png');
+      const resolvedUrl = await result.current.resolve(file);
+      expect(resolvedUrl).toBe(
+        'https://s3.amazonaws.com/bucket/avatar.png?v=1'
+      );
+    });
+
+    expect(mockUpdateAvatar).toHaveBeenCalledTimes(1);
+
+    // Unmount without calling markCommitted() (simulating failed PUT /profile + cancel)
+    unmount();
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockUpdateAvatar).toHaveBeenCalledTimes(2);
   });
 });

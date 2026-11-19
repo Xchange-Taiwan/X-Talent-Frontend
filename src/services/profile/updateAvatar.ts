@@ -1,9 +1,33 @@
+import { apiClient } from '@/lib/apiClient';
 import { withAvatarVersion } from '@/lib/avatar/avatarUrl';
-import {
-  fetchPresignedUrl,
-  PresignedUrlData,
-  PresignedUrlFields,
-} from '@/services/profile/presignedUrl';
+
+export interface PresignedUrlFields {
+  key: string;
+  AWSAccessKeyId: string;
+  'x-amz-security-token': string;
+  policy: string;
+  signature: string;
+  [key: string]: string;
+}
+
+export interface PresignedUrlData {
+  url: string;
+  fields: PresignedUrlFields;
+}
+
+async function fetchPresignedUrl(
+  userId: number
+): Promise<PresignedUrlData | null> {
+  try {
+    const data = await apiClient.getUnwrapped<PresignedUrlData>(
+      `/v1/storage/presigned-url/${userId}`
+    );
+    return data ?? null;
+  } catch (error) {
+    console.error('Fetch Presigned Url Error:', error);
+    return null;
+  }
+}
 
 // S3 presigned POST URLs are valid for 15 minutes; cap our cache at 10 to
 // leave headroom for the actual upload to complete before expiry.
@@ -67,24 +91,6 @@ export function createPresignedUrlCache(
   };
 }
 
-const defaultPresignedCache = createPresignedUrlCache();
-
-export function resetPresignedUrlCache(): void {
-  defaultPresignedCache.clear();
-}
-
-/**
- * Fire-and-forget warm-up for the avatar presigned URL. Caller should not
- * await — the cached promise is consumed by `updateAvatar` at submit time
- * to remove one serial request from the upload waterfall.
- */
-export function prefetchPresignedUrl(
-  userId: number,
-  cache: PresignedUrlCache = defaultPresignedCache
-): void {
-  cache.prefetch(userId);
-}
-
 // 你的後端 policy 有這條：["starts-with", "$Content-Type", "image/"]
 // 所以 file.type 必須是 image/*
 async function uploadToS3WithPresignedPost(
@@ -143,7 +149,7 @@ export async function updateAvatar(
   avatarFile: File,
   userId: number | undefined,
   signal?: AbortSignal,
-  cache: PresignedUrlCache = defaultPresignedCache
+  cache?: PresignedUrlCache
 ): Promise<string | undefined> {
   try {
     if (!userId || !Number.isFinite(userId)) {
@@ -154,7 +160,9 @@ export async function updateAvatar(
       throw new Error('頭像檔案必須是圖片格式 (image/*)。');
     }
 
-    const presigned = await cache.consume(userId);
+    const presigned = cache
+      ? await cache.consume(userId)
+      : await fetchPresignedUrl(userId);
     if (!presigned?.url || !presigned?.fields?.key) {
       throw new Error('取得 presigned url 失敗或回傳格式不完整');
     }

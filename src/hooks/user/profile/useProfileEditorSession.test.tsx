@@ -47,6 +47,18 @@ vi.mock('./useFormErrorScroll', () => ({
   }),
 }));
 
+vi.mock('@/lib/apiClient', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/apiClient')>();
+  return {
+    ...actual,
+    apiClient: {
+      ...actual.apiClient,
+      getExternalBlob: vi.fn(),
+      getUnwrapped: vi.fn().mockResolvedValue(null),
+    },
+  };
+});
+
 vi.mock('@/services/profile/updateAvatar', async (importOriginal) => {
   const actual =
     await importOriginal<typeof import('@/services/profile/updateAvatar')>();
@@ -56,11 +68,7 @@ vi.mock('@/services/profile/updateAvatar', async (importOriginal) => {
   };
 });
 
-vi.mock('@/services/profile/getAvatarSnapshot', () => ({
-  getAvatarSnapshot: vi.fn(),
-}));
-
-import { getAvatarSnapshot } from '@/services/profile/getAvatarSnapshot';
+import { apiClient } from '@/lib/apiClient';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 import { mockUserDTO } from '@/test/fixtures/profile';
 import { mockSession, mockUseSession } from '@/test/mocks/nextAuth';
@@ -68,7 +76,7 @@ import { mockSession, mockUseSession } from '@/test/mocks/nextAuth';
 import { useProfileEditorSession } from './useProfileEditorSession';
 
 const mockUpdateAvatar = vi.mocked(updateAvatar);
-const mockGetAvatarSnapshot = vi.mocked(getAvatarSnapshot);
+const mockGetExternalBlob = vi.mocked(apiClient.getExternalBlob);
 
 describe('useProfileEditorSession (#787 / #905)', () => {
   beforeEach(() => {
@@ -240,7 +248,7 @@ describe('useProfileEditorSession (#787 / #905)', () => {
     mockUpdateAvatar.mockResolvedValueOnce(
       'https://s3.amazonaws.com/bucket/new.png'
     );
-    mockGetAvatarSnapshot.mockResolvedValue(
+    mockGetExternalBlob.mockResolvedValue(
       new Blob(['old-bytes'], { type: 'image/png' })
     );
 
@@ -272,7 +280,7 @@ describe('useProfileEditorSession (#787 / #905)', () => {
     mockUpdateAvatar.mockResolvedValueOnce(
       'https://s3.amazonaws.com/bucket/new.png'
     );
-    mockGetAvatarSnapshot.mockResolvedValue(
+    mockGetExternalBlob.mockResolvedValue(
       new Blob(['old-bytes'], { type: 'image/png' })
     );
 
