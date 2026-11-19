@@ -10,38 +10,38 @@ import { Textarea } from '@/components/ui/textarea';
 import { useBookingForm } from '@/hooks/user/reservation/useBookingForm';
 import { trackEvent } from '@/lib/analytics';
 import type { BookingSlot } from '@/lib/profile/bookingAvailability';
-import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
 import { isSlotTaken } from '@/lib/profile/scheduleHelpers';
 import { FOCUS_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
-import type { BookingFormValues } from '@/schemas/bookingSchema';
 
-import { BOOKED_SLOT_CLASSES, ScheduleSlotList } from './ScheduleSlotList';
+import { ScheduleSlotList } from './ScheduleSlotList';
 
-interface MenteeBookingFormProps {
+export interface MenteeBookingFormProps {
   mentorId?: number | string;
+  myUserId?: string;
   slots: BookingSlot[];
   monthLoaded: boolean;
   selectedSlot: BookingSlot | null;
   setSelectedSlot: (slot: BookingSlot | null) => void;
-  isSubmitting: boolean;
   selectedDate: string | null;
-  onConfirmReservation: (question?: string) => Promise<boolean>;
+  isSubmitting?: boolean;
   isAuthenticated: boolean;
   isIdentityResolved?: boolean;
+  onMutationSuccess?: () => void | Promise<void>;
 }
 
 export function MenteeBookingForm({
   mentorId,
+  myUserId,
   slots,
   monthLoaded,
   selectedSlot,
   setSelectedSlot,
-  isSubmitting,
   selectedDate,
-  onConfirmReservation,
+  isSubmitting: isSubmittingProp,
   isAuthenticated,
   isIdentityResolved = true,
+  onMutationSuccess,
 }: MenteeBookingFormProps) {
   const normalizedMentorId =
     mentorId !== undefined && String(mentorId).trim() !== ''
@@ -78,47 +78,27 @@ export function MenteeBookingForm({
 
   const {
     register,
-    handleSubmit,
-    reset,
+    onSubmitForm,
+    isSubmitting: isFormSubmitting,
     formState: { errors },
-  } = useBookingForm();
+  } = useBookingForm({
+    loginUserId: myUserId,
+    mentorId: numericMentorId ?? normalizedMentorId,
+    selectedSlot,
+    setSelectedSlot,
+    onMutationSuccess,
+  });
 
-  const onSubmit = async (data: BookingFormValues) => {
-    const success = await onConfirmReservation(data.bookingQuestion);
-    if (success) {
-      reset();
-    }
-  };
+  const isSubmitting = isSubmittingProp ?? isFormSubmitting;
 
   const slotList = (
     <ScheduleSlotList
+      mode="interactive"
       slots={slots}
       monthLoaded={monthLoaded}
-      renderSlot={(slot) => {
-        const isSelected =
-          selectedSlot?.start.getTime() === slot.start.getTime();
-        const taken = isSlotTaken(slot);
-        return (
-          <Button
-            key={`${slot.scheduleId}_${slot.start.getTime()}`}
-            type="button"
-            variant={isSelected ? 'default' : 'outline'}
-            disabled={taken}
-            onClick={() => setSelectedSlot(slot)}
-            data-analytics-click="profile_booking_slot_select"
-            data-analytics-feature="reservation"
-            data-analytics-location="profile_booking_card"
-            {...(normalizedMentorId
-              ? { 'data-analytics-param-mentor-id': normalizedMentorId }
-              : {})}
-            className={`h-10 w-full text-sm ${
-              taken ? BOOKED_SLOT_CLASSES : ''
-            }`}
-          >
-            {formatBookingSlotTime(slot)}
-          </Button>
-        );
-      }}
+      selectedSlot={selectedSlot}
+      onSelectSlot={setSelectedSlot}
+      mentorId={normalizedMentorId}
     />
   );
 
@@ -176,10 +156,7 @@ export function MenteeBookingForm({
     Object.keys(errors).length > 0;
 
   return (
-    <form
-      onSubmit={handleSubmit(onSubmit)}
-      className="flex w-full flex-col gap-4"
-    >
+    <form onSubmit={onSubmitForm} className="flex w-full flex-col gap-4">
       {slotList}
 
       <div className="flex w-full flex-col gap-2">

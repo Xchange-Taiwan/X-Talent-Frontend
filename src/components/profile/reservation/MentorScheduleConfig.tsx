@@ -18,6 +18,7 @@ import type { Reservation } from '@/types/reservation';
 
 import { ConfirmedReservationDialog } from './ConfirmedReservationDialog';
 import { QuickReplyDialog } from './QuickReplyDialog';
+import { ScheduleSlotList } from './ScheduleSlotList';
 
 interface MentorScheduleConfigProps {
   slotsSnapshot: SlotsSnapshot;
@@ -182,29 +183,11 @@ export function MentorScheduleConfig({
       </div>
 
       {/* 2. 可預約時段區塊 */}
-      <div className="flex w-full flex-col items-start gap-3">
-        <p className="text-text-primary text-sm font-semibold">
-          當日可預約時段
-        </p>
-        {!monthLoaded ? (
-          <LoadingIndicator />
-        ) : availableSlots.length === 0 ? (
-          <div className="text-text-disable flex min-h-10 items-center text-sm">
-            無可預約的時段
-          </div>
-        ) : (
-          <div className="grid w-full grid-cols-2 gap-2">
-            {availableSlots.map((slot) => (
-              <div
-                key={`${slot.scheduleId}_${slot.start.getTime()}`}
-                className="border-background-border flex h-10 items-center justify-center rounded-lg border text-sm font-medium select-none"
-              >
-                {formatBookingSlotTime(slot)}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <ScheduleSlotList
+        mode="readonly"
+        slots={availableSlots}
+        monthLoaded={monthLoaded}
+      />
 
       <Button
         variant="default"

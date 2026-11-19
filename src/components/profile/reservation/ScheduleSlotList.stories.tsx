@@ -1,12 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
-import React from 'react';
-
-import { Button } from '@/components/ui/button';
-import type { BookingSlot } from '@/lib/profile/bookingAvailability';
-import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
 
 import { mockBookingSlots } from './__mocks__/reservationStories.mock';
-import { BOOKED_SLOT_CLASSES, ScheduleSlotList } from './ScheduleSlotList';
+import { ScheduleSlotList } from './ScheduleSlotList';
 
 const meta: Meta<typeof ScheduleSlotList> = {
   title: '業務模組元件/個人檔案(Profile)/Reservation/ScheduleSlotList',
@@ -17,37 +12,41 @@ const meta: Meta<typeof ScheduleSlotList> = {
 export default meta;
 type Story = StoryObj<typeof ScheduleSlotList>;
 
-const defaultRenderSlot = (slot: BookingSlot) => (
-  <Button
-    type="button"
-    variant={slot.isBooked ? 'ghost' : 'outline'}
-    disabled={slot.isBooked}
-    className={`h-10 w-full text-sm ${slot.isBooked ? BOOKED_SLOT_CLASSES : ''}`}
-  >
-    {formatBookingSlotTime(slot)}
-  </Button>
-);
-
 export const Loading: Story = {
   args: {
+    mode: 'interactive',
     slots: [],
     monthLoaded: false,
-    renderSlot: defaultRenderSlot,
+    onSelectSlot: () => {},
   },
 };
 
 export const Empty: Story = {
   args: {
+    mode: 'interactive',
     slots: [],
     monthLoaded: true,
-    renderSlot: defaultRenderSlot,
+    onSelectSlot: () => {},
   },
 };
 
 export const WithSlots: Story = {
   args: {
+    mode: 'interactive',
     slots: mockBookingSlots,
     monthLoaded: true,
-    renderSlot: defaultRenderSlot,
+    selectedSlot: mockBookingSlots[0],
+    onSelectSlot: () => {},
+    mentorId: '7482008160728084',
+  },
+};
+
+export const ReadOnlyPreview: Story = {
+  args: {
+    mode: 'readonly',
+    slots: mockBookingSlots.filter(
+      (slot) => !slot.isBooked && slot.status === null
+    ),
+    monthLoaded: true,
   },
 };
