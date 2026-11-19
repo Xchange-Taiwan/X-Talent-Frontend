@@ -423,13 +423,15 @@ describe('useProfileEditorSession (#787 / #905)', () => {
       error: null,
     });
 
-    const { result } = renderHook(() =>
-      useProfileEditorSession({
+    const { result } = renderHook(() => {
+      const sessionState = useProfileEditorSession({
         pageUserId: '1',
         isAuthorized: true,
         isMentorOnboarding: false,
-      })
-    );
+      });
+      void sessionState.form.formState.errors;
+      return sessionState;
+    });
 
     // 1. Before saving, changing only directionMap (form.isDirty === false) opens unsaved prompt on leave
     expect(result.current.form.formState.isDirty).toBe(false);
@@ -470,6 +472,23 @@ describe('useProfileEditorSession (#787 / #905)', () => {
     expect(result.current.form.getValues('avatar')).toBe('default_3');
     expect(result.current.form.getValues('avatarFile')).toBeUndefined();
 
+    // 4. Legacy 2-position want_position is preserved on hydration without silent truncation,
+    // and blocked on submit until user reduces to 1 position
+    await act(async () => {
+      await result.current.handleFormSubmit();
+    });
+    expect(mockCommitProfileMutation).not.toHaveBeenCalled();
+    expect(result.current.form.formState.errors.want_position?.message).toBe(
+      '目前僅開放選擇 1 個職位方向'
+    );
+
+    act(() => {
+      result.current.form.setValue('want_position', ['fe'], {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    });
+
     // Submit form -> verify commitProfileMutation receives preset code 'default_3' (not S3 URL)
     await act(async () => {
       await result.current.handleFormSubmit();
@@ -479,6 +498,7 @@ describe('useProfileEditorSession (#787 / #905)', () => {
         values: expect.objectContaining({
           avatar: 'default_3',
           avatarFile: undefined,
+          want_position: ['fe'],
         }),
       }),
       expect.anything(),

@@ -41,19 +41,19 @@ function MenteeAvatarTriggerButton({
       onClick={onClick}
       className={cn(
         FOCUS_RING_NO_OFFSET_CLASSES,
-        'group border-background-border relative block size-24 shrink-0 cursor-pointer overflow-hidden rounded-full border-2 shadow-xs'
+        'group border-background-border relative block size-16 shrink-0 cursor-pointer overflow-hidden rounded-full border-2 shadow-xs sm:size-[88px]'
       )}
     >
       <Image
         src={src}
         alt={userName ? `${userName} 的個人頭像` : '個人頭像'}
         fill
-        sizes="96px"
+        sizes="88px"
         loading="eager"
         unoptimized={shouldUnoptimizeAvatarSrc(src)}
         className="object-cover"
       />
-      <span className="bg-dark/35 text-background-white group-hover:bg-dark/50 absolute inset-0 grid place-items-center opacity-0 transition-opacity group-hover:opacity-100">
+      <span className="bg-avatar-overlay text-background-white absolute inset-0 grid place-items-center opacity-0 transition-opacity group-hover:opacity-75">
         <Camera className="size-6" aria-hidden="true" />
       </span>
     </button>

@@ -669,4 +669,33 @@ describe('profileSaveAdapter #959 cross-role preservation & preset avatar codes'
     expect(menteePayload.want_position).toEqual(['fe']);
     expect(menteePayload.want_skill).toEqual([]);
   });
+
+  it('normalizes preset URL to code in mapVoToFormValues while preserving custom URLs and legacy multi-position arrays without silent truncation', () => {
+    const presetHydrated = mapVoToFormValues(
+      {
+        user_id: 9,
+        name: 'Mentee',
+        avatar: '/avatars/default_4.webp',
+        is_mentor: false,
+        want_position: ['intl_trade', 'ad_creative'],
+      } as never,
+      false
+    );
+    expect(presetHydrated.avatar).toBe('default_4');
+    expect(presetHydrated.want_position).toEqual(['intl_trade', 'ad_creative']);
+
+    const customHydrated = mapVoToFormValues(
+      {
+        user_id: 10,
+        name: 'Mentee',
+        avatar:
+          'https://x-career-multimedia.s3.amazonaws.com/dev/files/10/avatar?v=1',
+        is_mentor: false,
+      } as never,
+      false
+    );
+    expect(customHydrated.avatar).toBe(
+      'https://x-career-multimedia.s3.amazonaws.com/dev/files/10/avatar?v=1'
+    );
+  });
 });

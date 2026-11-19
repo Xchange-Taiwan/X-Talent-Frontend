@@ -33,6 +33,30 @@ export const SOCIAL_PLATFORM_SPECS = {
   },
 } as const;
 
+export const SOCIAL_PLATFORM_SHORT_LABELS: Readonly<
+  Record<keyof typeof SOCIAL_PLATFORM_SPECS, string>
+> = {
+  linkedin: 'LinkedIn',
+  facebook: 'Facebook',
+  instagram: 'Instagram',
+  twitter: 'X',
+  youtube: 'YouTube',
+  github: 'GitHub',
+  website: '個人網站',
+};
+
+export const SOCIAL_PLATFORM_PLACEHOLDERS: Readonly<
+  Record<keyof typeof SOCIAL_PLATFORM_SPECS, string>
+> = {
+  linkedin: 'https://linkedin.com/in/yourname',
+  facebook: 'https://facebook.com/yourname',
+  instagram: 'https://instagram.com/yourname',
+  twitter: 'https://x.com/yourname',
+  youtube: 'https://youtube.com/@yourname',
+  github: 'https://github.com/yourname',
+  website: 'https://your-portfolio.com',
+};
+
 export type SocialPlatformKey = keyof typeof SOCIAL_PLATFORM_SPECS;
 
 export interface PersonalLink {

@@ -103,6 +103,14 @@ describe('LinksSection (#862)', () => {
         'GitHub',
         '個人網站',
       ]);
+
+      expect(screen.getByText('選填')).toBeInTheDocument();
+      const linkedinInput = screen.getByLabelText('LinkedIn');
+      expect(linkedinInput).toHaveAttribute(
+        'placeholder',
+        'https://linkedin.com/in/yourname'
+      );
+      expect(linkedinInput).toHaveAttribute('autocapitalize', 'none');
     }
   );
 

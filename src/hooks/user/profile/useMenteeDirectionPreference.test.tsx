@@ -70,15 +70,15 @@ describe('useMenteeDirectionPreference (#828)', () => {
     rerender({
       currentDto: fromPartial<MentorProfileVO>({
         user_id: 77,
-        want_position: ['frontend_engineer', 'product_manager'],
+        want_position: ['product_manager', 'frontend_engineer'],
         want_skill: ['react', 'product_strategy'],
         want_topic: ['career_planning'],
       }),
     });
 
     expect(Object.keys(result.current.directionMap)).toEqual([
-      'frontend_engineer',
       'product_manager',
+      'frontend_engineer',
     ]);
   });
 });

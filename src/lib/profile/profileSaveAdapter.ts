@@ -55,13 +55,14 @@ export function mapVoToFormValues(
   const industrySg = industryTag?.subject_group ?? '';
 
   const rawAvatar = userDto.avatar?.trim() ?? '';
+  const normalizedAvatar = toPresetAvatarCode(rawAvatar) ?? rawAvatar;
   const defaultAvatarFallback = isMentorOnboarding
     ? DEFAULT_PRESET_AVATAR_CODE
     : '';
 
   return {
     is_mentor: mentorFlag,
-    avatar: rawAvatar || defaultAvatarFallback,
+    avatar: normalizedAvatar || defaultAvatarFallback,
     avatarFile: undefined,
     name: userDto.name || '',
     location: userDto.location || '',

@@ -804,17 +804,29 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
 
     // 2. Select at least one topic in '我能提供的服務' (#have_topic)
     await page
-      .locator('#have_topic .max-h-80 button[type="button"]')
+      .locator('#have_topic')
+      .getByRole('button', { name: '新增服務' })
+      .click();
+    const topicDialog = page.locator('[data-radix-popper-content-wrapper]');
+    await topicDialog
+      .locator('.max-h-80 button[type="button"]')
       .first()
       .click();
-    await page.locator('#have_topic [role="checkbox"]').first().click();
+    await topicDialog.locator('[role="checkbox"]').first().click();
+    await page.keyboard.press('Escape');
 
     // 3. Select at least one skill in '專業能力' (#have_skill)
     await page
-      .locator('#have_skill .max-h-80 button[type="button"]')
+      .locator('#have_skill')
+      .getByRole('button', { name: '新增技能' })
+      .click();
+    const skillDialog = page.locator('[data-radix-popper-content-wrapper]');
+    await skillDialog
+      .locator('.max-h-80 button[type="button"]')
       .first()
       .click();
-    await page.locator('#have_skill [role="checkbox"]').first().click();
+    await skillDialog.locator('[role="checkbox"]').first().click();
+    await page.keyboard.press('Escape');
 
     // 4. Add and fill a work experience entry (#work_experiences)
     await workSection.getByRole('button', { name: '新增' }).click();

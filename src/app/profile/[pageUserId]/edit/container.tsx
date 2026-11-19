@@ -180,7 +180,7 @@ export default function EditProfileContainer({
   if (isHydrating) return <PageLoading />;
 
   return (
-    <div className="mx-auto w-11/12 max-w-[1160px] pb-24">
+    <div className="pb-24">
       <EditPageHeader
         isSaving={isSaving}
         onBack={handleGoToPrev}
@@ -188,7 +188,7 @@ export default function EditProfileContainer({
         isMentor={isMentorRole}
       />
 
-      <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:gap-12">
+      <div className="mx-auto flex w-11/12 max-w-[1160px] flex-col gap-8 lg:flex-row lg:items-start lg:gap-12">
         <ProfileEditChapterNav isMentor={isMentorRole} />
 
         <div className="min-w-0 flex-1">
@@ -203,7 +203,7 @@ export default function EditProfileContainer({
               <div id="basic-info" className="scroll-mt-28 space-y-6">
                 <div
                   aria-hidden="true"
-                  className="from-auth-gradient-1 via-auth-gradient-2/55 to-auth-gradient-3 h-20 w-full rounded-2xl bg-gradient-to-r"
+                  className="from-auth-gradient-1 via-auth-gradient-2/55 to-auth-gradient-3 h-20 w-full rounded-2xl bg-gradient-to-r sm:h-[72px]"
                 />
 
                 <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-6">
@@ -226,11 +226,14 @@ export default function EditProfileContainer({
                     className="flex-1"
                     title="姓名"
                     required
+                    requiredPosition="suffix"
                     headerAction={<NameLengthCounter form={form} />}
                   >
                     <TextField
                       control={form.control}
                       name="name"
+                      maxLength={20}
+                      autoComplete="name"
                       placeholder="請填入您的姓名"
                     />
                   </Section>
@@ -254,7 +257,7 @@ export default function EditProfileContainer({
                   />
                 )}
 
-                <div className="grid grid-cols-1 gap-5 pt-1 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-5 pt-1 sm:grid-cols-2 md:grid-cols-[1fr_1fr_1.2fr]">
                   <Section
                     id="location"
                     variant="inline"
@@ -287,6 +290,7 @@ export default function EditProfileContainer({
                   <Section
                     id="industry"
                     variant="inline"
+                    className="sm:col-span-2 md:col-span-1"
                     title="產業"
                     required={isMentorRole}
                   >
@@ -309,30 +313,29 @@ export default function EditProfileContainer({
                 className="scroll-mt-28"
                 title="關於我"
                 required={isMentorRole}
-                subtitle={
-                  isMentorRole
-                    ? '建議 150–300 字，分享你的專業背景與可協助的方向。'
-                    : undefined
-                }
                 headerAction={<AboutLengthCounter form={form} />}
               >
                 <TextareaField
                   control={form.control}
                   name="about"
-                  rows={6}
+                  rows={7}
                   placeholder={
                     isMentorRole
                       ? '介紹目前工作、能協助的問題與成為 Mentor 的原因。建議 150–300 字。'
-                      : '分享你的背景、目前關注的方向與想交流的主題。'
+                      : '介紹自己、目前的方向與希望交流的內容…'
                   }
                 />
               </Section>
 
               {isMentorRole ? (
-                <div id="mentor-expertise" className="scroll-mt-28 space-y-8">
+                <div
+                  id="mentor-expertise"
+                  className="border-background-border scroll-mt-28 space-y-8 border-t pt-8"
+                >
                   <Section
                     id="have_topic"
                     variant="option-a"
+                    noBorderTop
                     title="我能提供的服務"
                     required
                     subtitle="選擇最有把握協助的項目。建議選擇 2–4 項。"
@@ -342,6 +345,7 @@ export default function EditProfileContainer({
                       name="have_topic"
                       categories={haveTopicCategories}
                       maxSelected={10}
+                      addLabel="新增服務"
                       searchPlaceholder="搜尋服務"
                     />
                   </Section>
@@ -349,6 +353,7 @@ export default function EditProfileContainer({
                   <Section
                     id="have_skill"
                     variant="option-a"
+                    noBorderTop
                     title="專業能力"
                     required
                     subtitle="加入學員可能搜尋的技能。建議選擇 3–8 項。"
@@ -358,6 +363,7 @@ export default function EditProfileContainer({
                       name="have_skill"
                       categories={haveSkillCategories}
                       maxSelected={10}
+                      addLabel="新增技能"
                       searchPlaceholder="搜尋專業能力"
                     />
                   </Section>
@@ -388,8 +394,8 @@ export default function EditProfileContainer({
                 <EducationSection form={form} isMentor={isMentorRole} />
               </div>
 
-              <div id="links" className="scroll-mt-28">
-                <LinksSection form={form} />
+              <div className="scroll-mt-28">
+                <LinksSection id="links" form={form} />
               </div>
             </form>
           </Form>
@@ -405,9 +411,7 @@ export default function EditProfileContainer({
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>尚未儲存的變更</DialogTitle>
-            <DialogDescription>
-              你的更動會直接遺失，確定要離開嗎？
-            </DialogDescription>
+            <DialogDescription>尚未儲存的變更將不會保留。</DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:justify-end">
             <Button variant="outline" onClick={cancelLeave}>

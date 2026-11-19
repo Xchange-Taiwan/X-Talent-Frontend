@@ -73,6 +73,7 @@ const STATIC_BYPASS_PREFIXES = [
   '/static/',
   '/assets/',
   '/landing/',
+  '/avatars/',
   `${MONITORING_HREF}/`,
 ] as const;
 
@@ -466,15 +467,25 @@ export function sanitizeCallbackUrl(
  * - `onboarding` (`/auth/onboarding`): redirects unauthenticated visitors to
  *   `/auth/signin` and already-onboarded users to `/`.
  */
+export function hasCompletedOnboarding(
+  user?: {
+    onBoarding?: boolean | null;
+    isMentor?: boolean | null;
+  } | null
+): boolean {
+  return user?.onBoarding !== false || Boolean(user?.isMentor);
+}
+
 export function resolveAuthSurfaceRedirect(
   surface: AuthSurface,
   user: AuthSurfaceUser | null | undefined
 ): string | null {
   const isAuthenticated = Boolean(user && user.id);
+  const completedOnboarding = hasCompletedOnboarding(user);
 
   switch (surface) {
     case 'sign_shell': {
-      if (isAuthenticated && user?.onBoarding !== false) {
+      if (isAuthenticated && completedOnboarding) {
         return HOME_HREF;
       }
       return null;
@@ -483,13 +494,13 @@ export function resolveAuthSurfaceRedirect(
       if (!isAuthenticated) {
         return null;
       }
-      return user?.onBoarding === false ? ONBOARDING_HREF : HOME_HREF;
+      return !completedOnboarding ? ONBOARDING_HREF : HOME_HREF;
     }
     case 'onboarding': {
       if (!isAuthenticated) {
         return DEFAULT_LOGIN;
       }
-      return user?.onBoarding !== false ? HOME_HREF : null;
+      return completedOnboarding ? HOME_HREF : null;
     }
   }
 }
@@ -567,8 +578,8 @@ export function evaluateMiddlewareGate({
   }
 
   const isAuthenticated = Boolean(session?.isAuthenticated);
-  const hasCompletedOnboarding = session?.onBoarding !== false;
   const isMentor = Boolean(session?.isMentor);
+  const completedOnboarding = hasCompletedOnboarding(session);
   const authSurfaceUser: AuthSurfaceUser | null = isAuthenticated
     ? {
         id: 'authenticated',
@@ -645,7 +656,7 @@ export function evaluateMiddlewareGate({
     };
   }
 
-  if (!hasCompletedOnboarding && classification.requiresCompletedOnboarding) {
+  if (!completedOnboarding && classification.requiresCompletedOnboarding) {
     return {
       action: 'redirect',
       destination: ONBOARDING_HREF,

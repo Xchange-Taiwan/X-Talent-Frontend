@@ -21,7 +21,11 @@ import {
 import { ProfileBanner } from '@/components/profile/profile-banner';
 import { BookingForm } from '@/components/profile/reservation/BookingForm';
 import { ScheduleCalendar } from '@/components/profile/reservation/ScheduleCalendar';
-import { resolveDisplaySocialLinks } from '@/components/profile/social-links/platformLabelMap';
+import { PersonalLinksGrid } from '@/components/profile/social-links/PersonalLinksGrid';
+import {
+  type ResolvedDisplaySocialLink,
+  resolveDisplaySocialLinks,
+} from '@/components/profile/social-links/platformLabelMap';
 import { ProfileBadgeSection } from '@/components/profile/view/ProfileBadgeSection';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -54,12 +58,14 @@ interface ProfileIntroSectionsProps {
   userData: UserType;
   industryHashtag?: string | null;
   badgeSections: React.ReactNode;
+  personalLinks: ReadonlyArray<ResolvedDisplaySocialLink>;
 }
 
 function ProfileIntroSections({
   userData,
   industryHashtag,
   badgeSections,
+  personalLinks,
 }: ProfileIntroSectionsProps) {
   const hasAboutSection = Boolean(userData.about || industryHashtag);
 
@@ -106,18 +112,30 @@ function ProfileIntroSections({
       {badgeSections}
 
       {!!userData.workExperiences?.length && (
-        <div className="mt-10">
+        <div className="border-background-border mt-8 border-t pt-8">
           <p className="mb-4 text-xl font-bold">工作經驗</p>
-          <WorkExperienceSection workExperiences={userData.workExperiences} />
+          <WorkExperienceSection
+            workExperiences={userData.workExperiences}
+            industries={userData.industries}
+          />
         </div>
       )}
 
       {!!userData.educations?.length && (
-        <div className="mt-10">
-          <p className="mb-4 text-xl font-bold">教育</p>
+        <div className="border-background-border mt-8 border-t pt-8">
+          <p className="mb-4 text-xl font-bold">教育經歷</p>
           <EducationSection educations={userData.educations} />
         </div>
       )}
+
+      <div className="border-background-border mt-8 border-t pt-8">
+        <p className="mb-4 text-xl font-bold">個人連結</p>
+        <PersonalLinksGrid
+          links={personalLinks}
+          isMentor={Boolean(userData.is_mentor)}
+          location="profile_links_section"
+        />
+      </div>
     </>
   );
 }
@@ -316,32 +334,6 @@ export default function ProfilePageUI({
                       <p className="text-2xl font-semibold break-words">
                         {userData.name}
                       </p>
-                      {userData.is_mentor && safePersonalLinks.length > 0 && (
-                        <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-                          {safePersonalLinks.map((link, index) => (
-                            <a
-                              key={`${link.platform}-${index}`}
-                              href={link.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              aria-label={link.label}
-                              title={link.label}
-                              data-analytics-click="profile_social_link"
-                              data-analytics-event="profile_social_link_click"
-                              data-analytics-feature="profile"
-                              data-analytics-location="profile_header"
-                              data-analytics-omit-destination="true"
-                              data-analytics-param-platform={link.platform}
-                              data-analytics-param-mentor-id={String(
-                                userData.user_id
-                              )}
-                              className="text-text-secondary hover:text-brand-500"
-                            >
-                              {link.icon}
-                            </a>
-                          ))}
-                        </div>
-                      )}
                     </div>
                     {userData.is_mentor ? (
                       (userData.job_title || userData.company) && (
@@ -379,7 +371,7 @@ export default function ProfilePageUI({
                     {canShowOwnerControls && !userData.is_mentor && (
                       <Button
                         variant="outline"
-                        className="focus-visible:border-ring rounded-full px-5 py-2.5 focus-visible:ring-offset-0"
+                        className="focus-visible:border-ring rounded-lg px-4 py-2.5 focus-visible:ring-offset-0"
                         onClick={onEditProfile}
                         data-analytics-click="profile_edit_click"
                         data-analytics-feature="profile"
@@ -397,12 +389,13 @@ export default function ProfilePageUI({
                         withhold buttons rather than flash a guest view before correcting. */}
                     <Button
                       variant="outline"
-                      className="grow rounded-full px-6 py-3 sm:grow-0"
+                      className="grow rounded-lg px-4 py-2.5 focus-visible:ring-offset-0 sm:grow-0"
                       onClick={onEditProfile}
                       data-analytics-click="profile_edit_click"
                       data-analytics-feature="profile"
                       data-analytics-location="profile_header"
                     >
+                      <Pencil className="mr-1.5 size-4" aria-hidden="true" />
                       編輯個人資訊
                     </Button>
                   </div>
@@ -440,17 +433,28 @@ export default function ProfilePageUI({
                     <ProfileIntroSections
                       userData={userData}
                       industryHashtag={mentorIndustryHashtag}
+                      personalLinks={safePersonalLinks}
                       badgeSections={
-                        <>
-                          <ProfileBadgeSection
-                            title="專業能力"
-                            items={userData.have_skill}
-                          />
-                          <ProfileBadgeSection
-                            title="我能提供的服務"
-                            items={userData.have_topic}
-                          />
-                        </>
+                        Boolean(
+                          userData.have_topic?.length ||
+                          userData.have_skill?.length
+                        ) ? (
+                          <div className="border-background-border mt-8 space-y-6 border-t pt-8">
+                            <p className="text-xl font-bold">服務與專長</p>
+                            <ProfileBadgeSection
+                              title="我能提供的服務"
+                              items={userData.have_topic}
+                              tone="brand"
+                              subheading
+                            />
+                            <ProfileBadgeSection
+                              title="專業能力"
+                              items={userData.have_skill}
+                              tone="subtle"
+                              subheading
+                            />
+                          </div>
+                        ) : null
                       }
                     />
                   );

@@ -1,15 +1,11 @@
 'use client';
 
-import {
-  ChevronDownIcon,
-  ChevronUpIcon,
-  PlusIcon,
-  TrashIcon,
-} from '@radix-ui/react-icons';
+import { PlusIcon, TrashIcon } from '@radix-ui/react-icons';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { ConfirmDialog } from '@/components/profile/edit/ConfirmDialog';
+import { ExperienceReorderHeader } from '@/components/profile/edit/ExperienceReorderHeader';
 import { Button } from '@/components/ui/button';
 import {
   CommandEmpty,
@@ -84,7 +80,7 @@ export function SchoolComboboxField({
               variant="outline"
               role="combobox"
               aria-expanded={open}
-              className="w-full justify-between font-normal"
+              className="w-full justify-between font-normal focus-visible:ring-offset-0"
             >
               <span className={cn(!field.value && 'text-text-tertiary')}>
                 {field.value || '請選擇學校'}
@@ -157,35 +153,33 @@ export const EducationSection = ({ form, isMentor }: Props) => {
   };
 
   return (
-    <Section title="教育經歷" required={isMentor} variant="option-a">
+    <Section
+      title="教育經歷"
+      required={isMentor}
+      optional={!isMentor}
+      subtitle={
+        isMentor ? '補充與服務主題相關的背景。建議 1–2 筆。' : undefined
+      }
+      variant="option-a"
+    >
+      {isMentor && fields.length === 0 && (
+        <p className="text-text-tertiary mb-4 text-sm">
+          請新增至少一項教育經歷
+        </p>
+      )}
       {fields.map((field, index) => {
         const { handleStartYearChange, handleEndYearChange } =
           createPeriodChangeHandlers(index);
+        const canRemove = !isMentor || fields.length > 1;
 
         return (
-          <div key={field.id} className="mb-4 rounded-lg border p-4">
-            {fields.length > 1 && (
-              <div className="mb-4 flex justify-end gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  disabled={index === 0}
-                  onClick={() => move(index, index - 1)}
-                >
-                  <ChevronUpIcon className="size-5" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  disabled={index === fields.length - 1}
-                  onClick={() => move(index, index + 1)}
-                >
-                  <ChevronDownIcon className="size-5" />
-                </Button>
-              </div>
-            )}
+          <div key={field.id} className="mb-4 rounded-xl border p-5">
+            <ExperienceReorderHeader
+              index={index}
+              total={fields.length}
+              itemLabel="教育經歷"
+              onMove={move}
+            />
             <div className="mb-6 gap-6 md:flex">
               <FormField
                 control={control}
@@ -194,7 +188,11 @@ export const EducationSection = ({ form, isMentor }: Props) => {
                   <FormItem className="mb-4 grow md:mb-0">
                     <FormLabel>主修</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input
+                        {...field}
+                        placeholder="例如：資訊工程學系"
+                        className="focus-visible:ring-offset-0"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -207,19 +205,19 @@ export const EducationSection = ({ form, isMentor }: Props) => {
               />
             </div>
 
-            <div className="mb-2 gap-2 md:flex md:basis-1/2">
+            <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
               <FormField
                 control={control}
                 name={`educations.${index}.education_period_start`}
                 render={({ field }) => (
-                  <FormItem className="mb-4 grow basis-1/2 md:mb-0">
+                  <FormItem className="grow">
                     <FormLabel>開始年份</FormLabel>
                     <Select
                       onValueChange={handleStartYearChange(field.onChange)}
                       defaultValue={field.value}
                     >
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger className="focus-visible:ring-offset-0">
                           <SelectValue placeholder="請選擇年份" />
                         </SelectTrigger>
                       </FormControl>
@@ -235,26 +233,18 @@ export const EducationSection = ({ form, isMentor }: Props) => {
                   </FormItem>
                 )}
               />
-              <p className="relative bottom-[-8px] mx-2 my-auto hidden text-center md:block">
-                ～
-              </p>
-              <p className="relative bottom-[-8px] mx-2 my-auto text-center text-sm md:hidden">
-                至
-              </p>
               <FormField
                 control={control}
                 name={`educations.${index}.education_period_end`}
                 render={({ field }) => (
-                  <FormItem className="grow basis-1/2">
-                    <FormLabel className="invisible md:visible">
-                      &nbsp;
-                    </FormLabel>
+                  <FormItem className="grow">
+                    <FormLabel>結束年份</FormLabel>
                     <Select
                       onValueChange={handleEndYearChange(field.onChange)}
                       defaultValue={field.value}
                     >
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger className="focus-visible:ring-offset-0">
                           <SelectValue placeholder="請選擇年份" />
                         </SelectTrigger>
                       </FormControl>
@@ -273,13 +263,17 @@ export const EducationSection = ({ form, isMentor }: Props) => {
               />
             </div>
 
-            {fields.length > 1 && (
+            {canRemove && (
               <ConfirmDialog
-                title="要刪除這筆學歷嗎?"
-                description="您確定要移除這個區塊嗎?"
+                title="要刪除這筆學歷嗎？"
+                description="您確定要移除這個區塊嗎？"
                 onConfirm={() => remove(index)}
                 trigger={
-                  <Button variant="destructive">
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    className="focus-visible:ring-offset-0"
+                  >
                     <TrashIcon className="mr-2 size-5" />
                     移除
                   </Button>
@@ -291,12 +285,13 @@ export const EducationSection = ({ form, isMentor }: Props) => {
       })}
 
       <Button
+        type="button"
         variant="ghost"
-        className="text-brand-500 rounded-full px-4 py-3"
+        className="text-brand-500 rounded-full px-4 py-3 focus-visible:ring-offset-0"
         onClick={addEducation}
       >
         <PlusIcon className="mr-2 size-5" />
-        新增
+        新增教育經歷
       </Button>
       {(errors.educations?.message ?? errors.educations?.root?.message) && (
         <p className="text-status-error-default mt-2 text-sm font-medium">

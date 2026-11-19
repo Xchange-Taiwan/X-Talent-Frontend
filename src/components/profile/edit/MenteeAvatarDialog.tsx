@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { useObjectUrl } from '@/hooks/useObjectUrl';
 import {
+  createCroppedAvatarFile,
   isPresetAvatarUrl,
   PRESET_AVATAR_URLS,
   resolveAvatarDisplayUrl,
@@ -111,9 +112,7 @@ export function MenteeAvatarDialog({
   };
 
   const handleCropSave = (croppedBlob: Blob) => {
-    const croppedFile = new File([croppedBlob], 'croppedAvatar.png', {
-      type: 'image/png',
-    });
+    const croppedFile = createCroppedAvatarFile(croppedBlob);
     const err = validateAvatarFile(croppedFile);
     if (err) {
       setFileError(err);
@@ -143,7 +142,7 @@ export function MenteeAvatarDialog({
           onOpenChange(nextOpen);
         }}
       >
-        <DialogContent className="animate-in fade-in-0 zoom-in-95 w-[calc(100%-32px)] max-w-[432px] gap-6 rounded-2xl p-6 duration-200">
+        <DialogContent className="animate-in fade-in-0 zoom-in-95 w-[calc(100%-32px)] max-w-lg gap-6 rounded-xl p-6 duration-200">
           <DialogHeader>
             <DialogTitle className="text-xl leading-7 font-semibold">
               編輯頭像
@@ -183,7 +182,7 @@ export function MenteeAvatarDialog({
                     unoptimized={typeof previewSrc === 'string'}
                     className="size-full object-cover"
                   />
-                  <span className="bg-dark/35 text-background-white group-hover:bg-dark/50 group-focus-visible:bg-dark/50 absolute inset-0 grid place-items-center transition-colors duration-150">
+                  <span className="bg-avatar-overlay text-background-white absolute inset-0 grid place-items-center opacity-0 transition-opacity duration-150 group-hover:opacity-75 group-focus-visible:opacity-75">
                     <Camera className="size-7" aria-hidden="true" />
                   </span>
                 </span>
@@ -201,7 +200,7 @@ export function MenteeAvatarDialog({
             <div
               role="group"
               aria-label="預設頭像"
-              className="mx-auto grid grid-cols-3 justify-center gap-4 p-1"
+              className="mx-auto grid grid-cols-3 justify-center gap-3 p-1 sm:grid-cols-6"
             >
               {PRESET_AVATAR_URLS.map((presetUrl, index) => {
                 const label = `預設頭像 ${index + 1}`;
@@ -223,7 +222,7 @@ export function MenteeAvatarDialog({
                   >
                     <Image
                       src={presetUrl}
-                      alt={label}
+                      alt=""
                       width={48}
                       height={48}
                       sizes="48px"

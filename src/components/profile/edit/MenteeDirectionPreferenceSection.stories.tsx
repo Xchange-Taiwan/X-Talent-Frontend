@@ -112,11 +112,11 @@ function DirectionPreferenceDemo({
   );
 }
 
-export const TwoDirectionsFilled: Story = {
-  name: '已選擇多個職位方向（分頁獨立保留技能與主題）',
+export const SingleDirectionFilled: Story = {
+  name: '已選擇單一職位方向（含技能與主題膠囊）',
   render: () => (
     <DirectionPreferenceDemo
-      initialPositions={['frontend_engineer', 'backend_engineer']}
+      initialPositions={['frontend_engineer']}
       initialSkills={['react', 'typescript']}
       initialTopics={['portfolio_guidance', 'interview_skills']}
     />
@@ -124,7 +124,7 @@ export const TwoDirectionsFilled: Story = {
 };
 
 export const EmptyDirections: Story = {
-  name: '尚未選擇職位方向（顯示引導提示）',
+  name: '尚未選擇職位方向',
   render: () => (
     <DirectionPreferenceDemo
       initialPositions={[]}

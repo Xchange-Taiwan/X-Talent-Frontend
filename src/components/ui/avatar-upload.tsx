@@ -4,7 +4,11 @@ import Image from 'next/image';
 import { useRef, useState } from 'react';
 import { Control, FieldValues, Path, useController } from 'react-hook-form';
 
-import { shouldUnoptimizeAvatarSrc } from '@/lib/avatar/avatarUrl';
+import { useObjectUrl } from '@/hooks/useObjectUrl';
+import {
+  createCroppedAvatarFile,
+  shouldUnoptimizeAvatarSrc,
+} from '@/lib/avatar/avatarUrl';
 import {
   FOCUS_RING_CLASSES,
   FOCUS_RING_NO_OFFSET_CLASSES,
@@ -35,10 +39,12 @@ const AvatarUpload = <T extends FieldValues>({
   const errorMessage = fieldState.error?.message;
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  const imagePreviewUrl = field.value
-    ? URL.createObjectURL(field.value)
-    : avatarUrl;
+  const currentFile =
+    typeof File !== 'undefined' && (field.value as unknown) instanceof File
+      ? (field.value as unknown as File)
+      : undefined;
+  const blobPreviewUrl = useObjectUrl(currentFile);
+  const imagePreviewUrl = blobPreviewUrl ?? avatarUrl;
 
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [open, setOpen] = useState(false);
@@ -56,9 +62,7 @@ const AvatarUpload = <T extends FieldValues>({
 
   const handleSaveImage = (croppedImageBlob: Blob) => {
     if (croppedImageBlob) {
-      const croppedFile = new File([croppedImageBlob], 'croppedAvatar.png', {
-        type: 'image/png',
-      });
+      const croppedFile = createCroppedAvatarFile(croppedImageBlob);
       field.onChange(croppedFile);
       setSelectedImage(croppedFile);
       onFileChange?.(croppedFile);
@@ -76,7 +80,9 @@ const AvatarUpload = <T extends FieldValues>({
       <div className="relative inline-block">
         <div
           className={`group bg-avatar-background relative flex cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 ${
-            compact ? 'size-24 shadow-xs' : 'size-36 lg:h-[150px] lg:w-[150px]'
+            compact
+              ? 'size-16 shadow-xs sm:size-[88px]'
+              : 'size-36 lg:h-[150px] lg:w-[150px]'
           } ${
             errorMessage
               ? 'border-status-error-default'
@@ -96,24 +102,24 @@ const AvatarUpload = <T extends FieldValues>({
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/gif,image/webp"
             className="hidden"
             onChange={handleUploadAvatar}
             onClick={(e) => e.stopPropagation()}
           />
 
           {/* Hover show upload icon */}
-          <div className="bg-avatar-overlay absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-75">
-            <Camera size={compact ? 24 : 50} className="text-avatar-border" />
+          <div className="bg-avatar-overlay absolute inset-0 z-10 flex items-center justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-75">
+            <Camera size={compact ? 22 : 50} className="text-avatar-border" />
           </div>
 
           {imagePreviewUrl ? (
             <Image
               src={imagePreviewUrl}
               alt="Avatar Preview"
-              width={compact ? 96 : 150}
-              height={compact ? 96 : 150}
-              sizes={compact ? '96px' : '150px'}
+              width={compact ? 88 : 150}
+              height={compact ? 88 : 150}
+              sizes={compact ? '88px' : '150px'}
               unoptimized={shouldUnoptimizeAvatarSrc(imagePreviewUrl)}
               className="size-full rounded-full object-cover"
               priority
@@ -121,7 +127,7 @@ const AvatarUpload = <T extends FieldValues>({
           ) : (
             // Show default avatar if no image is selected
             <ImageIcon
-              size={compact ? 32 : 50}
+              size={compact ? 28 : 50}
               className="text-avatar-border"
             />
           )}

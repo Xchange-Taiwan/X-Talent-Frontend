@@ -1,11 +1,20 @@
+import { zodResolver } from '@hookform/resolvers/zod';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { describe, expect, it } from 'vitest';
+import type { z } from 'zod';
 
 import { Form, FormField } from '@/components/ui/form';
+import {
+  createProfileFormSchema,
+  defaultValues,
+  type educationSchema,
+  type ProfileFormInput,
+  type ProfileFormValues,
+} from '@/schemas/profileSchema';
 
-import { SchoolComboboxField } from './educationSection';
+import { EducationSection, SchoolComboboxField } from './educationSection';
 
 interface FormValues {
   school: string;
@@ -108,6 +117,93 @@ describe('SchoolComboboxField', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('combobox')).toHaveTextContent('國立臺灣大學');
+    });
+  });
+});
+
+type EducationEntry = z.infer<typeof educationSchema>;
+
+function EducationSectionHarness({
+  initialItems = [],
+  isMentor = true,
+}: {
+  initialItems?: EducationEntry[];
+  isMentor?: boolean;
+}) {
+  const form = useForm<ProfileFormInput, unknown, ProfileFormValues>({
+    resolver: zodResolver(createProfileFormSchema(isMentor)),
+    defaultValues: {
+      ...defaultValues,
+      is_mentor: isMentor,
+      educations: initialItems,
+    },
+  });
+
+  return (
+    <Form {...form}>
+      <form onSubmit={(e) => e.preventDefault()}>
+        <EducationSection form={form} isMentor={isMentor} />
+      </form>
+    </Form>
+  );
+}
+
+describe('EducationSection (#959)', () => {
+  it('shows empty guidance for Mentor, adds education entries, reorders via 調整順序, and allows Mentee to delete their last optional entry', async () => {
+    const { unmount } = render(<EducationSectionHarness isMentor />);
+    expect(screen.getByText('請新增至少一項教育經歷')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '新增教育經歷' }));
+    await waitFor(() => {
+      expect(screen.getByLabelText('主修')).toHaveValue('');
+    });
+    expect(
+      screen.queryByRole('button', { name: '移除' })
+    ).not.toBeInTheDocument();
+    unmount();
+
+    const twoEntries: EducationEntry[] = [
+      {
+        id: 1,
+        school: '國立臺灣大學',
+        subject: '資訊工程學系',
+        education_period_start: '2016',
+        education_period_end: '2020',
+      },
+      {
+        id: 2,
+        school: '國立成功大學',
+        subject: '電機工程學系',
+        education_period_start: '2020',
+        education_period_end: '2022',
+      },
+    ];
+
+    const { unmount: unmountTwo } = render(
+      <EducationSectionHarness initialItems={twoEntries} isMentor />
+    );
+    expect(screen.getByText('第 1 筆／共 2 筆')).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole('button', { name: '調整第 1 筆教育經歷順序' })
+    );
+    fireEvent.click(screen.getByRole('button', { name: '移到最後' }));
+    await waitFor(() => {
+      expect(screen.getAllByLabelText('主修')[0]).toHaveValue('電機工程學系');
+    });
+    unmountTwo();
+
+    // Mentee can delete their sole optional education entry
+    render(
+      <EducationSectionHarness
+        initialItems={[twoEntries[0]]}
+        isMentor={false}
+      />
+    );
+    expect(screen.getByText('選填')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '移除' }));
+    fireEvent.click(screen.getByRole('button', { name: '確認' }));
+    await waitFor(() => {
+      expect(screen.queryByLabelText('主修')).not.toBeInTheDocument();
     });
   });
 });

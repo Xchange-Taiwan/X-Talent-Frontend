@@ -6,8 +6,10 @@ import {
   EducationSection,
   WorkExperienceSection,
 } from '@/components/profile/experience-section/ExperienceSection';
+import { PersonalLinksGrid } from '@/components/profile/social-links/PersonalLinksGrid';
 import type { ResolvedDisplaySocialLink } from '@/components/profile/social-links/platformLabelMap';
-import type { TagDisplay, UserType } from '@/hooks/user/user-data/useUserData';
+import { ProfileBadgeSection } from '@/components/profile/view/ProfileBadgeSection';
+import type { UserType } from '@/hooks/user/user-data/useUserData';
 import type { MenteeDirectionReadGroup } from '@/lib/profile/menteeDirectionView';
 import { cn } from '@/lib/utils';
 
@@ -19,40 +21,6 @@ export interface MenteeProfileContentProps {
   activeDirection: string | null;
   onSelectDirection: (directionKey: string) => void;
   personalLinks: ReadonlyArray<ResolvedDisplaySocialLink>;
-}
-
-function PreferenceTagGroup({
-  title,
-  items,
-  tone,
-}: {
-  title: string;
-  items: ReadonlyArray<TagDisplay>;
-  tone: 'skill' | 'topic';
-}) {
-  if (items.length === 0) return null;
-  return (
-    <div>
-      <h3 className="text-text-secondary mb-3 text-sm font-semibold">
-        {title}
-      </h3>
-      <div className="flex flex-wrap gap-2.5">
-        {items.map((item) => (
-          <span
-            key={item.subject_group}
-            className={cn(
-              'inline-flex items-center rounded-full font-medium',
-              tone === 'skill'
-                ? 'bg-brand-100 text-brand-700 px-3.5 py-1.5 text-sm'
-                : 'border-background-border bg-background-white text-text-primary border px-3.5 py-1 text-xs'
-            )}
-          >
-            {item.subject}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 export function MenteeProfileContent({
@@ -94,7 +62,6 @@ export function MenteeProfileContent({
 
   const hasWork = Boolean(userData.workExperiences?.length);
   const hasEducation = Boolean(userData.educations?.length);
-  const hasPersonalLinks = personalLinks.length > 0;
 
   let renderedBefore = false;
   const nextSpacing = () => {
@@ -185,15 +152,17 @@ export function MenteeProfileContent({
                   </p>
                 ) : (
                   <>
-                    <PreferenceTagGroup
+                    <ProfileBadgeSection
                       title="想加強的技能"
                       items={resolvedActiveGroup.skills}
-                      tone="skill"
+                      tone="brand"
+                      subheading
                     />
-                    <PreferenceTagGroup
+                    <ProfileBadgeSection
                       title="想了解的主題"
                       items={resolvedActiveGroup.topics}
-                      tone="topic"
+                      tone="subtle"
+                      subheading
                     />
                   </>
                 )}
@@ -201,15 +170,17 @@ export function MenteeProfileContent({
             </div>
           ) : (
             <div className="flex flex-col gap-6">
-              <PreferenceTagGroup
+              <ProfileBadgeSection
                 title="想加強的技能"
                 items={userData.want_skill}
-                tone="skill"
+                tone="brand"
+                subheading
               />
-              <PreferenceTagGroup
+              <ProfileBadgeSection
                 title="想了解的主題"
                 items={userData.want_topic}
-                tone="topic"
+                tone="subtle"
+                subheading
               />
             </div>
           )}
@@ -221,6 +192,7 @@ export function MenteeProfileContent({
           <h2 className="mb-4 text-xl font-bold">工作經驗</h2>
           <WorkExperienceSection
             workExperiences={userData.workExperiences ?? []}
+            industries={userData.industries}
           />
         </section>
       )}
@@ -232,33 +204,14 @@ export function MenteeProfileContent({
         </section>
       )}
 
-      {hasPersonalLinks && (
-        <section className={nextSpacing()}>
-          <h2 className="mb-4 text-xl font-bold">個人連結</h2>
-          <div className="flex flex-wrap items-center gap-2.5 p-0.5">
-            {personalLinks.map((link, index) => (
-              <a
-                key={`${link.platform}-${index}`}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={link.label}
-                data-analytics-click="profile_social_link"
-                data-analytics-event="profile_social_link_click"
-                data-analytics-feature="profile"
-                data-analytics-location="profile_links_section"
-                data-analytics-omit-destination="true"
-                data-analytics-param-platform={link.platform}
-                data-analytics-param-mentor-id={String(userData.user_id)}
-                className="border-background-border bg-background-white text-text-primary hover:border-brand-400 hover:text-brand-700 focus-visible:ring-brand-500 inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
-              >
-                {link.icon}
-                <span>{link.label}</span>
-              </a>
-            ))}
-          </div>
-        </section>
-      )}
+      <section className={nextSpacing()}>
+        <h2 className="mb-4 text-xl font-bold">個人連結</h2>
+        <PersonalLinksGrid
+          links={personalLinks}
+          isMentor={false}
+          location="profile_links_section"
+        />
+      </section>
     </div>
   );
 }

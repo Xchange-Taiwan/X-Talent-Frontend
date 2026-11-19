@@ -153,6 +153,7 @@ export const ALLOWED_AVATAR_MIME_TYPES = [
 ] as const;
 
 export const MAX_AVATAR_FILE_BYTES = 5 * 1024 * 1024;
+export const MENTEE_MAX_WANT_POSITIONS = 1;
 
 export function validateAvatarFile(
   file: File | undefined | null
@@ -224,7 +225,11 @@ export const createProfileFormSchema = (
             .max(10, '最多選 10 個')
         : z.array(z.string()).max(10, '最多選 10 個'),
 
-      want_position: z.array(z.string()).max(10, '最多選 10 個'),
+      want_position: isMentor
+        ? z.array(z.string()).max(10, '最多選 10 個')
+        : z
+            .array(z.string())
+            .max(MENTEE_MAX_WANT_POSITIONS, '目前僅開放選擇 1 個職位方向'),
       want_skill: z.array(z.string()).max(10, '最多選 10 個'),
       want_topic: z.array(z.string()).max(10, '最多選 10 個'),
     })
@@ -244,6 +249,18 @@ export const createProfileFormSchema = (
             message: '請上傳真人照片，預設頭像僅供預覽',
           });
         }
+      }
+      if (
+        !isMentor &&
+        data.want_position.length > 0 &&
+        data.want_skill.length === 0 &&
+        data.want_topic.length === 0
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['want_skill'],
+          message: '已選擇職位方向時，請至少選擇一項想加強的技能或想了解的主題',
+        });
       }
     });
 

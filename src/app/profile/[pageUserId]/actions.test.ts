@@ -24,7 +24,7 @@ describe('revalidateProfilePath', () => {
   it('revalidates both the profile page and mentor-pool', async () => {
     await revalidateProfilePath('42');
 
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/profile/42');
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/profile/42', 'page');
     expect(mockRevalidatePath).toHaveBeenCalledWith('/mentor-pool');
   });
 

@@ -188,6 +188,16 @@ describe('identitySnapshotFromDto / identityPatchesEqual', () => {
     });
   });
 
+  it('keeps onBoarding true when is_mentor is true even if backend omits want_tags (onboarding=false)', () => {
+    const mentorWithoutWantTags = makeDto({
+      is_mentor: true,
+      onboarding: false,
+    });
+    expect(identitySnapshotFromDto(mentorWithoutWantTags).onBoarding).toBe(
+      true
+    );
+  });
+
   it('treats two snapshots with identical tracked fields (including cloned personalLinks and differing avatarUpdatedAt) as equal', () => {
     const a: IdentityPatch = {
       name: 'Ada',
@@ -366,7 +376,7 @@ describe('reconcileIdentityWithBackend', () => {
       avatar: 'a.png',
       avatarUpdatedAt: 1750000000000,
       isMentor: true,
-      onBoarding: false,
+      onBoarding: true,
       jobTitle: 'Engineer',
       company: 'Acme',
       personalLinks: [{ platform: 'github', url: 'https://github.com/ada' }],

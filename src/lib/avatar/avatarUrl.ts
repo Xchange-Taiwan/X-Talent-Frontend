@@ -90,6 +90,27 @@ export function shouldUnoptimizeAvatarSrc(src: unknown): boolean {
   );
 }
 
+const CROPPED_MIME_TO_EXT: Readonly<Record<string, string>> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+};
+
+/**
+ * Wraps a cropped avatar `Blob` in a `File` whose filename extension and
+ * `type` match the actual encoded MIME type (e.g. `image/jpeg` when
+ * `AvatarCropModal` falls back to JPEG for >2MB canvases).
+ */
+export function createCroppedAvatarFile(croppedBlob: Blob): File {
+  const rawType = croppedBlob.type?.trim().toLowerCase() ?? '';
+  const mimeType = Object.hasOwn(CROPPED_MIME_TO_EXT, rawType)
+    ? rawType
+    : 'image/png';
+  const ext = CROPPED_MIME_TO_EXT[mimeType] ?? 'png';
+  return new File([croppedBlob], `croppedAvatar.${ext}`, { type: mimeType });
+}
+
 /**
  * Returns true when `url` is a single-slash local static path or preset code,
  * excluding protocol-relative URLs (`//...`).

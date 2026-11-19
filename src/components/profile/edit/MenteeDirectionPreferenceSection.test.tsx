@@ -54,7 +54,7 @@ const TOPIC_CATEGORIES: Category[] = [
 ];
 
 function Harness({
-  initialPositions = ['frontend_engineer', 'backend_engineer'],
+  initialPositions = ['frontend_engineer'],
   initialSkills = ['react'],
   initialTopics = ['portfolio_guidance'],
 }: {
@@ -66,6 +66,7 @@ function Harness({
     resolver: zodResolver(createProfileFormSchema(false)),
     defaultValues: {
       ...defaultValues,
+      name: '陳小華',
       want_position: initialPositions,
       want_skill: initialSkills,
       want_topic: initialTopics,
@@ -80,12 +81,13 @@ function Harness({
     })
   );
 
+  const watchedPos = form.watch('want_position');
   const watchedSkill = form.watch('want_skill');
   const watchedTopic = form.watch('want_topic');
 
   return (
     <Form {...form}>
-      <form>
+      <form onSubmit={form.handleSubmit(() => undefined)}>
         <MenteeDirectionPreferenceSection
           form={form}
           wantPositionCategories={POS_CATEGORIES}
@@ -94,67 +96,57 @@ function Harness({
           directionMap={directionMap}
           onDirectionMapChange={setDirectionMap}
         />
+        <output data-testid="flat-positions">{watchedPos.join(',')}</output>
         <output data-testid="flat-skills">{watchedSkill.join(',')}</output>
         <output data-testid="flat-topics">{watchedTopic.join(',')}</output>
+        <button type="submit">送出驗證</button>
       </form>
     </Form>
   );
 }
 
-describe('MenteeDirectionPreferenceSection (#828)', () => {
-  it('shows empty guidance when no position direction is selected yet', () => {
+describe('MenteeDirectionPreferenceSection (#828 / #959 / #966)', () => {
+  it('hides direction tabs when no position is selected and shows 已選 0 / 1', () => {
     render(
       <Harness initialPositions={[]} initialSkills={[]} initialTopics={[]} />
     );
 
-    expect(
-      screen.getByText(/請先在上方選擇至少 1 個職位方向/)
-    ).toBeInTheDocument();
+    expect(screen.getByText('已選 0 / 1')).toBeInTheDocument();
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
   });
 
-  it('retains independent skills and topics per direction tab and clears deselected direction items', () => {
+  it('switches single-selected position cleanly, clears previous direction tags, and blocks submit if new direction has 0 skills and 0 topics', async () => {
     render(<Harness />);
 
     const tablist = screen.getByRole('tablist', { name: '職位方向' });
-    const feTab = within(tablist).getByRole('tab', { name: '前端工程師' });
-    const beTab = within(tablist).getByRole('tab', { name: '後端工程師' });
+    expect(
+      within(tablist).getByRole('tab', { name: '前端工程師' })
+    ).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('flat-skills')).toHaveTextContent('react');
 
-    expect(feTab).toHaveAttribute('aria-selected', 'true');
+    // Open position picker and switch to 後端工程師 (single-select replaces 前端工程師)
+    fireEvent.click(screen.getByRole('button', { name: '新增職位' }));
+    fireEvent.click(screen.getByRole('button', { name: /軟體開發/ }));
+    fireEvent.click(screen.getByText('後端工程師'));
 
-    // Switch to 後端工程師 tab and select Go skill + 模擬面試 topic
-    fireEvent.click(beTab);
-    expect(beTab).toHaveAttribute('aria-selected', 'true');
-
-    const directionRegion = screen.getByTestId('mentee-direction-panel');
-    // Expand skill and topic categories inside active direction panel
-    const categoryTriggers = within(directionRegion).getAllByRole('button', {
-      name: /軟體開發|職涯發展/,
-    });
-    categoryTriggers.forEach((btn) => fireEvent.click(btn));
-
-    fireEvent.click(within(directionRegion).getByText('Go'));
-    fireEvent.click(within(directionRegion).getByText('模擬面試'));
-
-    expect(screen.getByTestId('flat-skills')).toHaveTextContent('react,go');
-    expect(screen.getByTestId('flat-topics')).toHaveTextContent(
-      'portfolio_guidance,interview_skills'
+    expect(screen.getByTestId('flat-positions')).toHaveTextContent(
+      'backend_engineer'
     );
+    expect(screen.getByTestId('flat-skills')).toHaveTextContent('');
+    expect(screen.getByTestId('flat-topics')).toHaveTextContent('');
 
-    // Switch back to 前端工程師 tab -> React is still selected, Go is NOT selected under 前端工程師
-    fireEvent.click(feTab);
-    expect(feTab).toHaveAttribute('aria-selected', 'true');
+    // Submitting with 後端工程師 selected and 0 skills & 0 topics must fail validation!
+    fireEvent.click(screen.getByRole('button', { name: '送出驗證' }));
+    expect(
+      await screen.findByText(
+        '已選擇職位方向時，請至少選擇一項想加強的技能或想了解的主題'
+      )
+    ).toBeInTheDocument();
 
-    // Uncheck 前端工程師 in 有興趣多了解的職位 -> React and 履歷健檢 are cleared, while 後端工程師's Go & 模擬面試 remain!
-    const posCategoryBtn = screen.getAllByRole('button', {
-      name: /軟體開發/,
-    })[0];
-    fireEvent.click(posCategoryBtn);
-    const positionCheckboxes = screen.getAllByText('前端工程師');
-    fireEvent.click(positionCheckboxes[0]);
-
+    // Selecting Go skill clears validation error
+    fireEvent.click(screen.getByRole('button', { name: '新增技能' }));
+    fireEvent.click(screen.getByRole('button', { name: /軟體開發/ }));
+    fireEvent.click(screen.getByText('Go'));
     expect(screen.getByTestId('flat-skills')).toHaveTextContent('go');
-    expect(screen.getByTestId('flat-topics')).toHaveTextContent(
-      'interview_skills'
-    );
   });
 });

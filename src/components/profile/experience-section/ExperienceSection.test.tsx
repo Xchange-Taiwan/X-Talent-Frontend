@@ -37,17 +37,19 @@ describe('ExperienceSection (#857)', () => {
     const heading = screen.getByRole('heading', {
       name: 'Staff Backend Engineer',
     });
-    const descriptionParagraph = heading.nextElementSibling;
+    expect(heading).toBeInTheDocument();
+    expect(screen.getByText('Cloud Corp · 台灣 · TECH')).toBeInTheDocument();
+    expect(screen.getByText('2021 — 至今')).toBeInTheDocument();
 
-    expect(descriptionParagraph).toBeInTheDocument();
+    const descriptionParagraph = screen.getByText(/負責大型分散式系統架構/);
     expect(descriptionParagraph).toHaveClass(
       'whitespace-pre-line',
       'break-words'
     );
-    expect(descriptionParagraph?.textContent).toBe(multilineDescription);
+    expect(descriptionParagraph.textContent).toBe(multilineDescription);
   });
 
-  it('omits description paragraph when description is empty', () => {
+  it('renders school as heading and subject below in EducationSection while omitting empty description', () => {
     render(
       <EducationSection
         educations={[
@@ -61,8 +63,10 @@ describe('ExperienceSection (#857)', () => {
       />
     );
 
-    const heading = screen.getByRole('heading', { name: '資訊工程學系' });
-    expect(heading.nextElementSibling).toBeNull();
+    const heading = screen.getByRole('heading', { name: '國立臺灣大學' });
+    expect(heading).toBeInTheDocument();
+    expect(screen.getByText('資訊工程學系')).toBeInTheDocument();
+    expect(screen.getByText('2017 — 2021')).toBeInTheDocument();
   });
 
   it('renders multiple items in ExperienceSection with dividers between items', () => {
