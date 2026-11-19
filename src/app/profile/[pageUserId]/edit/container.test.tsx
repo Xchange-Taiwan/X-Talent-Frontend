@@ -73,12 +73,7 @@ vi.mock('@/hooks/user/tags/useTagCatalog', () => ({
 
 // Mock the child sections so the form renders with zero issues
 vi.mock('@/components/profile/edit/EditPageHeader', () => ({
-  EditPageHeader: ({ submitDisabled }: { submitDisabled?: boolean }) => (
-    <div
-      data-testid="edit-header"
-      data-submit-disabled={String(Boolean(submitDisabled))}
-    />
-  ),
+  EditPageHeader: () => <div data-testid="edit-header" />,
 }));
 vi.mock('@/components/profile/edit/AvatarSection', () => ({
   AvatarSection: ({ id, isMentor }: { id?: string; isMentor?: boolean }) => (

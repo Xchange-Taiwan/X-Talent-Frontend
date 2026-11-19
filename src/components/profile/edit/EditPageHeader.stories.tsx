@@ -37,22 +37,11 @@ export const MentorEditProfile: Story = {
 };
 
 export const MentorOnboarding: Story = {
-  name: '導師建立導師資料 (D-1 已勾選規範)',
+  name: '導師建立導師資料 (D-1)',
   args: {
     isMentorOnboarding: true,
     isMentor: true,
     isSaving: false,
-    submitDisabled: false,
-  },
-};
-
-export const MentorOnboardingDisabledBeforeGuidelines: Story = {
-  name: '導師建立導師資料 (D-1 未勾選規範禁用儲存並建立)',
-  args: {
-    isMentorOnboarding: true,
-    isMentor: true,
-    isSaving: false,
-    submitDisabled: true,
   },
 };
 

@@ -251,16 +251,25 @@ export function isMentorOnboardingTarget(
 }
 
 /**
- * Checks whether a sanitized internal `callbackUrl` (e.g. `/profile/78/edit?mentor-onboarding=true`)
+ * Checks whether an internal relative `callbackUrl` (e.g. `/profile/78/edit?mentor-onboarding=true`)
  * targets the authenticated owner's Become-Mentor setup screen (#969).
+ *
+ * Strictly rejects absolute/external URLs and protocol-relative paths via
+ * `sanitizeCallbackUrl` so direct callers of `resolvePostAuthRedirect` remain
+ * immune to open-redirect spoofing.
  */
 export function isMentorOnboardingCallbackUrl(
   callbackUrl: string | null | undefined,
   ownerUserId?: string | null
 ): boolean {
   if (!callbackUrl || !ownerUserId) return false;
+  if (!callbackUrl.startsWith('/') || callbackUrl.startsWith('//')) {
+    return false;
+  }
+  const sanitized = sanitizeCallbackUrl(callbackUrl);
+  if (!sanitized) return false;
   try {
-    const parsed = new URL(callbackUrl, 'http://localhost');
+    const parsed = new URL(sanitized, 'http://localhost');
     return isMentorOnboardingTarget(
       parsed.pathname,
       parsed.search,

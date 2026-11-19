@@ -19,6 +19,8 @@ import {
   getSignInUrl,
   HOME_HREF,
   isDisallowedCallbackPathname,
+  isMentorOnboardingCallbackUrl,
+  isMentorOnboardingTarget,
   MAINTENANCE_HREF,
   MENTOR_ONBOARDING_KEY,
   type MiddlewareGateDecision,
@@ -888,6 +890,58 @@ describe('src/lib/routes', () => {
         action: 'next',
         syncSessionHint: false,
       });
+
+      expect(
+        isMentorOnboardingTarget(
+          '/profile/42/edit',
+          '?mentor-onboarding=true',
+          '42'
+        )
+      ).toBe(true);
+      expect(
+        isMentorOnboardingTarget(
+          '/profile/user%2D42/edit',
+          '?mentor-onboarding=true',
+          'user-42'
+        )
+      ).toBe(true);
+      expect(
+        isMentorOnboardingTarget(
+          '/profile/999/edit',
+          '?mentor-onboarding=true',
+          '42'
+        )
+      ).toBe(false);
+      expect(
+        isMentorOnboardingCallbackUrl(
+          '/profile/42/edit?mentor-onboarding=true',
+          '42'
+        )
+      ).toBe(true);
+      expect(
+        isMentorOnboardingCallbackUrl(
+          '/profile/999/edit?mentor-onboarding=true',
+          '42'
+        )
+      ).toBe(false);
+      expect(
+        isMentorOnboardingCallbackUrl(
+          'https://evil.example/profile/42/edit?mentor-onboarding=true',
+          '42'
+        )
+      ).toBe(false);
+      expect(
+        isMentorOnboardingCallbackUrl(
+          '//evil.example/profile/42/edit?mentor-onboarding=true',
+          '42'
+        )
+      ).toBe(false);
+      expect(
+        isMentorOnboardingCallbackUrl(
+          '/\\evil.example/profile/42/edit?mentor-onboarding=true',
+          '42'
+        )
+      ).toBe(false);
     });
   });
 });

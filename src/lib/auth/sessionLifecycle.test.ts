@@ -393,6 +393,39 @@ describe('sessionLifecycle (#885)', () => {
         '/profile/78/edit?mentor-onboarding=true'
       );
 
+      // Case 2d (#969 negative boundaries): non-owner ID, plain /edit without mentor-onboarding, and cross-origin URLs MUST still redirect to /auth/onboarding!
+      for (const rejectedCallback of [
+        '?callbackUrl=%2Fprofile%2F999%2Fedit%3Fmentor-onboarding%3Dtrue',
+        '?callbackUrl=%2Fprofile%2F78%2Fedit',
+        '?callbackUrl=https%3A%2F%2Fevil.example%2Fprofile%2F78%2Fedit%3Fmentor-onboarding%3Dtrue',
+      ]) {
+        navigate.mockClear();
+        await signInWithCredentials(validCredentials, {
+          signIn,
+          getSession: vi.fn().mockResolvedValue(
+            fromPartial<Session>({
+              accessToken: 'jwt_2d',
+              user: { id: '78', onBoarding: false, isMentor: false },
+            })
+          ),
+          navigate,
+          search: rejectedCallback,
+          currentOrigin: 'https://xtalent.tw',
+          storage,
+          setAnalyticsUserContext,
+          trackEvent,
+        });
+        expect(navigate).toHaveBeenCalledWith('/auth/onboarding');
+      }
+      expect(
+        resolvePostAuthRedirect({
+          explicitCallbackUrl:
+            'https://evil.example/profile/78/edit?mentor-onboarding=true',
+          isOnboarded: false,
+          userId: '78',
+        })
+      ).toBe('/auth/onboarding');
+
       // Case 2b: isMentor === true with backend onBoarding === false (empty want_tags) -> treated as onboarded, skips /auth/onboarding
       navigate.mockClear();
       await signInWithCredentials(validCredentials, {
