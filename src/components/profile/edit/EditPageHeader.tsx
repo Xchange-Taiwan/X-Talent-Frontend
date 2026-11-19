@@ -1,3 +1,5 @@
+import { Loader2 } from 'lucide-react';
+
 import { Button } from '@/components/ui/button';
 
 export interface EditPageHeaderProps {
@@ -52,7 +54,17 @@ export function EditPageHeader({
             form="edit-profile-form"
             disabled={isSaving || submitDisabled}
           >
-            {isSaving ? '儲存中…' : submitLabel}
+            {isSaving ? (
+              <>
+                <Loader2
+                  className="mr-2 size-4 animate-spin"
+                  aria-hidden="true"
+                />
+                儲存中...
+              </>
+            ) : (
+              submitLabel
+            )}
           </Button>
         </div>
       </div>

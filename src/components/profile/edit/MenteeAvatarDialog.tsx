@@ -185,7 +185,7 @@ export function MenteeAvatarDialog({
                     unoptimized={typeof previewSrc === 'string'}
                     className="size-full object-cover"
                   />
-                  <span className="bg-dark/35 text-background-white group-hover:bg-dark/50 group-focus-visible:bg-dark/50 absolute inset-0 grid place-items-center transition-colors duration-150">
+                  <span className="bg-avatar-overlay text-background-white absolute inset-0 grid place-items-center opacity-0 transition-opacity duration-150 group-hover:opacity-75 group-focus-visible:opacity-75">
                     <Camera className="size-7" aria-hidden="true" />
                   </span>
                 </span>

@@ -14,6 +14,7 @@ import {
 } from '@/lib/profile/menteeDirectionPreference';
 import { FOCUS_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
+import { MENTEE_MAX_WANT_POSITIONS } from '@/schemas/profileSchema';
 
 import { Section } from './Section';
 
@@ -92,8 +93,17 @@ export const MenteeDirectionPreferenceSection = React.memo(
       control: form.control,
     });
 
+    const isSinglePositionMode = MENTEE_MAX_WANT_POSITIONS === 1;
+    const hasLegacyMultiplePositions =
+      isSinglePositionMode &&
+      selectedPositions.length > MENTEE_MAX_WANT_POSITIONS;
+
     const handlePositionsChange = (rawNextPositions: string[]) => {
-      const nextPositions = rawNextPositions.slice(-1);
+      const nextPositions = isSinglePositionMode
+        ? rawNextPositions.length > selectedPositions.length
+          ? rawNextPositions.slice(-1)
+          : rawNextPositions
+        : rawNextPositions.slice(0, MENTEE_MAX_WANT_POSITIONS);
       const synced = syncMenteePositions(directionMap, nextPositions, 10);
       onDirectionMapChange(synced.directionMap);
       form.setValue('want_position', nextPositions, {
@@ -207,12 +217,20 @@ export const MenteeDirectionPreferenceSection = React.memo(
               categories={wantPositionCategories}
               value={selectedPositions}
               onChange={handlePositionsChange}
-              maxSelected={1}
-              singleSelect
+              maxSelected={MENTEE_MAX_WANT_POSITIONS}
+              singleSelect={isSinglePositionMode}
               addLabel="新增職位"
               searchPlaceholder="搜尋職位"
-              countText={`已選 ${selectedPositions.length} / 1`}
+              countText={`已選 ${selectedPositions.length} / ${MENTEE_MAX_WANT_POSITIONS}`}
             />
+            {hasLegacyMultiplePositions && !positionError && (
+              <p
+                role="alert"
+                className="text-status-error-default text-xs font-medium"
+              >
+                目前僅開放選擇 1 個職位方向，請先移除多餘項目後再儲存變更。
+              </p>
+            )}
             {positionError && (
               <p className="text-status-error-default text-sm font-medium">
                 {String(positionError)}

@@ -153,6 +153,7 @@ export const ALLOWED_AVATAR_MIME_TYPES = [
 ] as const;
 
 export const MAX_AVATAR_FILE_BYTES = 5 * 1024 * 1024;
+export const MENTEE_MAX_WANT_POSITIONS = 1;
 
 export function validateAvatarFile(
   file: File | undefined | null
@@ -226,7 +227,9 @@ export const createProfileFormSchema = (
 
       want_position: isMentor
         ? z.array(z.string()).max(10, '最多選 10 個')
-        : z.array(z.string()).max(1, '目前僅開放選擇 1 個職位方向'),
+        : z
+            .array(z.string())
+            .max(MENTEE_MAX_WANT_POSITIONS, '目前僅開放選擇 1 個職位方向'),
       want_skill: z.array(z.string()).max(10, '最多選 10 個'),
       want_topic: z.array(z.string()).max(10, '最多選 10 個'),
     })

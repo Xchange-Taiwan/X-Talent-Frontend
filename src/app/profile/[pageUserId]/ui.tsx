@@ -130,6 +130,7 @@ function ProfileIntroSections({
         <PersonalLinksGrid
           links={personalLinks}
           userId={userData.user_id}
+          isMentor={Boolean(userData.is_mentor)}
           location="profile_links_section"
         />
       </div>

@@ -237,6 +237,7 @@ export function MenteeProfileContent({
         <PersonalLinksGrid
           links={personalLinks}
           userId={userData.user_id}
+          isMentor={false}
           location="profile_links_section"
         />
       </section>

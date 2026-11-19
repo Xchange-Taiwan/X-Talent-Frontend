@@ -13,14 +13,22 @@ const meta: Meta<typeof AvatarUpload> = {
 export default meta;
 type Story = StoryObj<typeof AvatarUpload>;
 
-const AvatarUploadWrapper = (args: { avatarUrl?: string }) => {
+const AvatarUploadWrapper = (args: {
+  avatarUrl?: string;
+  compact?: boolean;
+}) => {
   const { control } = useForm({
     defaultValues: {
       avatar: null,
     },
   });
   return (
-    <AvatarUpload control={control} name="avatar" avatarUrl={args.avatarUrl} />
+    <AvatarUpload
+      control={control}
+      name="avatar"
+      avatarUrl={args.avatarUrl}
+      compact={args.compact}
+    />
   );
 };
 
@@ -36,5 +44,13 @@ export const WithInitialAvatar: Story = {
   args: {
     avatarUrl:
       'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&h=150&q=80',
+  },
+};
+
+export const CompactOptionA: Story = {
+  render: (args) => <AvatarUploadWrapper {...args} />,
+  args: {
+    avatarUrl: '/avatars/default_1.webp',
+    compact: true,
   },
 };

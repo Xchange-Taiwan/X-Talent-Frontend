@@ -203,7 +203,7 @@ export default function EditProfileContainer({
               <div id="basic-info" className="scroll-mt-28 space-y-6">
                 <div
                   aria-hidden="true"
-                  className="from-auth-gradient-1 via-auth-gradient-2/55 to-auth-gradient-3 h-12 w-full rounded-xl bg-gradient-to-r sm:h-[72px]"
+                  className="from-auth-gradient-1 via-auth-gradient-2/55 to-auth-gradient-3 h-20 w-full rounded-2xl bg-gradient-to-r sm:h-[72px]"
                 />
 
                 <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-6">

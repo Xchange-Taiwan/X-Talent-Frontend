@@ -48,6 +48,7 @@ import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
 import {
   EMAIL_VERIFY_HREF,
   FIND_MENTOR_HREF,
+  hasCompletedOnboarding,
   HOME_HREF,
   ONBOARDING_HREF,
   PASSWORD_FORGOT_SUCCESS_HREF,
@@ -407,8 +408,7 @@ async function completePostLoginChoreography({
   navigate(
     resolvePostAuthRedirect({
       explicitCallbackUrl: safeCallbackUrl,
-      isOnboarded:
-        session.user?.onBoarding !== false || Boolean(session.user?.isMentor),
+      isOnboarded: hasCompletedOnboarding(session.user),
     })
   );
 }

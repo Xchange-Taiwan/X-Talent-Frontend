@@ -370,6 +370,26 @@ describe('sessionLifecycle (#885)', () => {
 
       expect(navigate).toHaveBeenCalledWith('/auth/onboarding');
 
+      // Case 2b: isMentor === true with backend onBoarding === false (empty want_tags) -> treated as onboarded, skips /auth/onboarding
+      navigate.mockClear();
+      await signInWithCredentials(validCredentials, {
+        signIn,
+        getSession: vi.fn().mockResolvedValue(
+          fromPartial<Session>({
+            accessToken: 'jwt_2b',
+            user: { id: '780', onBoarding: false, isMentor: true },
+          })
+        ),
+        navigate,
+        search: '?callbackUrl=%2Freservation%2Fmentor',
+        currentOrigin: 'https://xtalent.tw',
+        storage,
+        setAnalyticsUserContext,
+        trackEvent,
+      });
+
+      expect(navigate).toHaveBeenCalledWith('/reservation/mentor');
+
       // Case 3: pendingFavoriteMentor without explicit callbackUrl -> routes to /profile/:id and retains pending favorite
       navigate.mockClear();
       savePendingFavoriteMentor(101);

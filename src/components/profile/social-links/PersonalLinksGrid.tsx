@@ -16,12 +16,14 @@ import {
 export interface PersonalLinksGridProps {
   links: ReadonlyArray<ResolvedDisplaySocialLink>;
   userId?: string | number;
+  isMentor?: boolean;
   location?: string;
 }
 
 export function PersonalLinksGrid({
   links,
   userId,
+  isMentor = false,
   location = 'profile_links_section',
 }: PersonalLinksGridProps): React.ReactElement {
   const linkByPlatform = useMemo(() => {
@@ -57,8 +59,12 @@ export function PersonalLinksGrid({
               data-analytics-location={location}
               data-analytics-omit-destination="true"
               data-analytics-param-platform={platform}
-              data-analytics-param-mentor-id={
+              data-analytics-param-role={isMentor ? 'mentor' : 'mentee'}
+              data-analytics-param-user-id={
                 userId !== undefined ? String(userId) : undefined
+              }
+              data-analytics-param-mentor-id={
+                isMentor && userId !== undefined ? String(userId) : undefined
               }
               className={cn(
                 FOCUS_RING_NO_OFFSET_CLASSES,

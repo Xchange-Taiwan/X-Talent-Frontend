@@ -53,7 +53,7 @@ function MenteeAvatarTriggerButton({
         unoptimized={shouldUnoptimizeAvatarSrc(src)}
         className="object-cover"
       />
-      <span className="bg-dark/35 text-background-white group-hover:bg-dark/50 absolute inset-0 grid place-items-center opacity-0 transition-opacity group-hover:opacity-100">
+      <span className="bg-avatar-overlay text-background-white absolute inset-0 grid place-items-center opacity-0 transition-opacity group-hover:opacity-75">
         <Camera className="size-6" aria-hidden="true" />
       </span>
     </button>

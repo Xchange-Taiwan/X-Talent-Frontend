@@ -78,6 +78,7 @@ describe('useMenteeDirectionPreference (#828)', () => {
 
     expect(Object.keys(result.current.directionMap)).toEqual([
       'product_manager',
+      'frontend_engineer',
     ]);
   });
 });

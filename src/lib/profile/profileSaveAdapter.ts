@@ -59,9 +59,6 @@ export function mapVoToFormValues(
   const defaultAvatarFallback = isMentorOnboarding
     ? DEFAULT_PRESET_AVATAR_CODE
     : '';
-  const hydratedWantPositions = mentorFlag
-    ? (userDto.want_position ?? [])
-    : (userDto.want_position ?? []).slice(0, 1);
 
   return {
     is_mentor: mentorFlag,
@@ -78,7 +75,7 @@ export function mapVoToFormValues(
     links: parsedLinks ?? createEmptySocialLinks(),
     have_topic: userDto.have_topic ?? [],
     have_skill: userDto.have_skill ?? [],
-    want_position: hydratedWantPositions,
+    want_position: userDto.want_position ?? [],
     want_skill: userDto.want_skill ?? [],
     want_topic: userDto.want_topic ?? [],
   };

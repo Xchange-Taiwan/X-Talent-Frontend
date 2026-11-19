@@ -110,8 +110,8 @@ const AvatarUpload = <T extends FieldValues>({
           />
 
           {/* Hover show upload icon */}
-          <div className="bg-dark/35 text-background-white absolute inset-0 z-10 flex items-center justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-            <Camera size={compact ? 22 : 50} />
+          <div className="bg-avatar-overlay absolute inset-0 z-10 flex items-center justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-75">
+            <Camera size={compact ? 22 : 50} className="text-avatar-border" />
           </div>
 
           {imagePreviewUrl ? (
@@ -133,6 +133,15 @@ const AvatarUpload = <T extends FieldValues>({
             />
           )}
         </div>
+        {compact && (
+          <span
+            aria-hidden="true"
+            onClick={() => fileInputRef.current?.click()}
+            className="border-background-border bg-background-white text-text-secondary hover:text-text-primary absolute right-0 bottom-0 grid size-8 cursor-pointer place-items-center rounded-full border shadow-xs transition-colors"
+          >
+            <Camera className="size-4" />
+          </span>
+        )}
       </div>
       {errorMessage && (
         <p className="text-status-error-default mt-2 text-center text-sm font-medium lg:text-left">

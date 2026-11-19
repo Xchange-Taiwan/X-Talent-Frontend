@@ -105,10 +105,10 @@ export function ProfileEditChapterNav({
                 onClick={() => handleSelect(chapter.id)}
                 className={cn(
                   FOCUS_RING_NO_OFFSET_CLASSES,
-                  'flex w-full cursor-pointer items-center rounded-lg px-3.5 py-2.5 text-left text-sm transition-colors',
+                  'flex w-full cursor-pointer items-center px-3.5 py-2.5 text-left text-sm font-medium transition-colors',
                   isActive
-                    ? 'border-brand-500 bg-brand-50 text-brand-700 border-l-[3px] font-semibold'
-                    : 'text-text-secondary hover:bg-background-bottom-secondary hover:text-text-primary font-normal'
+                    ? 'border-brand-500 bg-brand-100/55 text-brand-700 rounded-l-sm rounded-r-xl border-l-[3px] font-semibold'
+                    : 'text-text-secondary hover:bg-background-bottom-secondary hover:text-text-primary rounded-xl'
                 )}
               >
                 {chapter.label}

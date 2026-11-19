@@ -21,6 +21,13 @@ describe('PersonalLinksGrid', () => {
       'href',
       'https://www.linkedin.com/in/zahra'
     );
+    expect(linkedinLink).toHaveAttribute(
+      'data-analytics-param-platform',
+      'linkedin'
+    );
+    expect(linkedinLink).toHaveAttribute('data-analytics-param-role', 'mentee');
+    expect(linkedinLink).toHaveAttribute('data-analytics-param-user-id', '42');
+    expect(linkedinLink).not.toHaveAttribute('data-analytics-param-mentor-id');
 
     const xLink = screen.getByRole('link', { name: 'X (formerly Twitter)' });
     expect(xLink).toHaveAttribute('href', 'https://x.com/zahra');
@@ -30,5 +37,17 @@ describe('PersonalLinksGrid', () => {
       .getByText('GitHub')
       .closest('[aria-disabled]');
     expect(githubDisabled).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('includes data-analytics-param-mentor-id only when isMentor is true', () => {
+    const links = resolveDisplaySocialLinks([
+      { platform: 'github', url: 'https://github.com/mentor' },
+    ]);
+
+    render(<PersonalLinksGrid links={links} userId="88" isMentor />);
+    const ghLink = screen.getByRole('link', { name: 'GitHub' });
+    expect(ghLink).toHaveAttribute('data-analytics-param-role', 'mentor');
+    expect(ghLink).toHaveAttribute('data-analytics-param-user-id', '88');
+    expect(ghLink).toHaveAttribute('data-analytics-param-mentor-id', '88');
   });
 });
