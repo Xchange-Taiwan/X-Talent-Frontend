@@ -10,7 +10,6 @@ import {
   normalizeBffAuthUser,
   resolveBffBaseUrl,
 } from '@/lib/auth/bffAuth';
-import type { PreExchangedGoogleOAuthResult } from '@/lib/auth/oauthOutcome';
 import {
   consumeOAuthRefreshBridge,
   type CookieStore,
@@ -22,6 +21,7 @@ import {
   sealRefreshBridgeToken,
   unsealRefreshBridgeToken,
 } from '@/lib/auth/oauthRefreshBridge.server';
+import type { PreExchangedGoogleOAuthResult } from '@/lib/auth/sessionLifecycle';
 import { isValidUserId } from '@/lib/auth/userGuard';
 import { isLiveProductionEnv } from '@/lib/env';
 import { singleFlight } from '@/lib/singleFlight';

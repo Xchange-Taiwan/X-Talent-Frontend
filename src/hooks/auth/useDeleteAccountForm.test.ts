@@ -129,7 +129,7 @@ describe('useDeleteAccountForm', () => {
     expect(result.current.mode).toBe('google');
   });
 
-  it('onSubmitXC checks environment flag and toast if false', async () => {
+  it('onSubmitXC uses isAccountDeletionEnabled() (blocks when false/unset, allows trimmed case-insensitive " TRUE " while preserving blocked_reservations)', async () => {
     process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT = 'false';
 
     const { result } = renderHook(() => useDeleteAccountForm());
@@ -147,6 +147,23 @@ describe('useDeleteAccountForm', () => {
       duration: 3000,
     });
     expect(mockDeleteAccount).not.toHaveBeenCalled();
+
+    mockToast.mockClear();
+    process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT = ' TRUE ';
+    mockDeleteAccount.mockResolvedValueOnce({
+      status: 'blocked_reservations',
+    });
+
+    await act(async () => {
+      await result.current.onSubmitXC({
+        email: 'test@example.com',
+        password: 'Password1!',
+      });
+    });
+
+    expect(mockToast).not.toHaveBeenCalled();
+    expect(mockDeleteAccount).toHaveBeenCalledTimes(1);
+    expect(result.current.blockedByReservations).toBe(true);
   });
 
   it('onSubmitXC success flow atomically clears sessionHint, authFlowStorage, stores, and revalidates before signOut', async () => {
@@ -249,7 +266,7 @@ describe('useDeleteAccountForm', () => {
     });
   });
 
-  it('initiateGoogleReauth checks environment flag and toast if false', async () => {
+  it('initiateGoogleReauth uses isAccountDeletionEnabled() (blocks when false, allows trimmed case-insensitive " TRUE ")', async () => {
     process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT = 'false';
 
     const { result } = renderHook(() => useDeleteAccountForm());
@@ -264,6 +281,20 @@ describe('useDeleteAccountForm', () => {
       duration: 3000,
     });
     expect(mockGetGoogleAuthorizeLoginUrl).not.toHaveBeenCalled();
+
+    mockToast.mockClear();
+    process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT = ' TRUE ';
+    mockGetGoogleAuthorizeLoginUrl.mockResolvedValueOnce({
+      authorization_url: 'https://google-auth-url.com',
+      state: 'mock-state',
+    });
+
+    await act(async () => {
+      await result.current.initiateGoogleReauth();
+    });
+
+    expect(mockToast).not.toHaveBeenCalled();
+    expect(mockGetGoogleAuthorizeLoginUrl).toHaveBeenCalledTimes(1);
   });
 
   it('initiateGoogleReauth success flow', async () => {

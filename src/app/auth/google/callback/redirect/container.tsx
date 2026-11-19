@@ -2,7 +2,7 @@
 
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useGoogleOAuthCallback } from '@/hooks/auth/useGoogleOAuthCallback';
-import type { PreExchangedGoogleOAuthResult } from '@/lib/auth/oauthOutcome';
+import type { PreExchangedGoogleOAuthResult } from '@/lib/auth/sessionLifecycle';
 
 export function GoogleOAuthRedirectShell({
   loading = true,

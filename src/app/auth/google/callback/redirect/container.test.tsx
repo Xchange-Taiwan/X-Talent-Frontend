@@ -2,8 +2,10 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { fromPartial } from '@total-typescript/shoehorn';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { revalidateProfilePathAfterDelete } from '@/actions/auth';
-import { googleCallback } from '@/lib/actions/googleCallback';
+import {
+  googleCallback,
+  revalidateProfilePathAfterDelete,
+} from '@/actions/auth';
 import {
   clearAnalyticsUser,
   setAnalyticsUserContext,
@@ -82,11 +84,8 @@ vi.mock('@/lib/analytics', async (importOriginal) => {
 });
 
 vi.mock('@/actions/auth', () => ({
-  revalidateProfilePathAfterDelete: vi.fn(),
-}));
-
-vi.mock('@/lib/actions/googleCallback', () => ({
   googleCallback: vi.fn(),
+  revalidateProfilePathAfterDelete: vi.fn(),
 }));
 
 vi.mock('@/services/auth/authClient', () => ({

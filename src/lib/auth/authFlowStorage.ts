@@ -193,3 +193,75 @@ export function clearAuthFlowStorage(
     deleteKey(key, storage);
   }
 }
+
+export interface AuthFlowStore {
+  getVerificationEmail(override?: SessionStorageLike | null): string | null;
+  setVerificationEmail(
+    email: string,
+    override?: SessionStorageLike | null
+  ): void;
+  clearVerificationEmail(override?: SessionStorageLike | null): void;
+  getPasswordResetEmail(override?: SessionStorageLike | null): string | null;
+  setPasswordResetEmail(
+    email: string,
+    override?: SessionStorageLike | null
+  ): void;
+  clearPasswordResetEmail(override?: SessionStorageLike | null): void;
+  getDeleteAccountEmail(override?: SessionStorageLike | null): string | null;
+  setDeleteAccountEmail(
+    email: string,
+    override?: SessionStorageLike | null
+  ): void;
+  clearDeleteAccountEmail(override?: SessionStorageLike | null): void;
+  persistCallbackUrlFromSearch(
+    search: string,
+    currentOrigin?: string,
+    override?: SessionStorageLike | null
+  ): void;
+  clearCallbackUrl(override?: SessionStorageLike | null): void;
+  consumeCallbackUrl(
+    currentOrigin?: string,
+    override?: SessionStorageLike | null
+  ): string | null;
+  clearAll(override?: SessionStorageLike | null): void;
+}
+
+export function createAuthFlowStore(
+  defaultStorage?: SessionStorageLike | null
+): AuthFlowStore {
+  const pick = (
+    override?: SessionStorageLike | null
+  ): SessionStorageLike | null | undefined =>
+    override !== undefined ? override : defaultStorage;
+
+  return {
+    getVerificationEmail: (override) =>
+      getPendingVerificationEmail(pick(override)),
+    setVerificationEmail: (email, override) =>
+      setPendingVerificationEmail(email, pick(override)),
+    clearVerificationEmail: (override) =>
+      clearPendingVerificationEmail(pick(override)),
+    getPasswordResetEmail: (override) =>
+      getPendingPasswordResetEmail(pick(override)),
+    setPasswordResetEmail: (email, override) =>
+      setPendingPasswordResetEmail(email, pick(override)),
+    clearPasswordResetEmail: (override) =>
+      clearPendingPasswordResetEmail(pick(override)),
+    getDeleteAccountEmail: (override) =>
+      getPendingDeleteAccountEmail(pick(override)),
+    setDeleteAccountEmail: (email, override) =>
+      setPendingDeleteAccountEmail(email, pick(override)),
+    clearDeleteAccountEmail: (override) =>
+      clearPendingDeleteAccountEmail(pick(override)),
+    persistCallbackUrlFromSearch: (search, currentOrigin, override) =>
+      persistPendingCallbackUrlFromSearch(
+        search,
+        currentOrigin,
+        pick(override)
+      ),
+    clearCallbackUrl: (override) => clearPendingCallbackUrl(pick(override)),
+    consumeCallbackUrl: (currentOrigin, override) =>
+      consumePendingCallbackUrl(currentOrigin, pick(override)),
+    clearAll: (override) => clearAuthFlowStorage(pick(override)),
+  };
+}
