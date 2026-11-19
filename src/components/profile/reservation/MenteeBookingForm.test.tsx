@@ -5,19 +5,28 @@ import { trackEvent } from '@/lib/analytics';
 
 import { MenteeBookingForm } from './MenteeBookingForm';
 
+vi.mock('next/navigation', async () => {
+  const { navigationMockFactory } = await import('@/test/mocks/navigation');
+  return navigationMockFactory();
+});
+
+vi.mock('@/components/ui/use-toast', async () => {
+  const { useToastMockFactory } = await import('@/test/mocks/useToast');
+  return useToastMockFactory();
+});
+
 vi.mock('@/lib/analytics', () => ({
   trackEvent: vi.fn(),
 }));
 
 const baseProps = {
   mentorId: 7488864558908473,
+  myUserId: '7482008160728087',
   slots: [],
   monthLoaded: true,
   selectedSlot: null,
   setSelectedSlot: vi.fn(),
-  isSubmitting: false,
   selectedDate: '2026-11-20',
-  onConfirmReservation: vi.fn().mockResolvedValue(true),
 };
 
 describe('MenteeBookingForm analytics & Clarity masking', () => {

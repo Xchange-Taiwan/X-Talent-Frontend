@@ -157,8 +157,6 @@ interface Props {
   onEditProfile: () => void;
   selectedSlot?: BookingSlot | null;
   setSelectedSlot?: (slot: BookingSlot | null) => void;
-  isSubmitting: boolean;
-  onConfirmReservation: (question?: string) => Promise<boolean>;
   editorDialog?: React.ReactNode;
   showBookmark?: boolean;
   feedbackEnabled?: boolean;
@@ -182,8 +180,6 @@ export default function ProfilePageUI({
   onEditProfile,
   selectedSlot,
   setSelectedSlot,
-  isSubmitting,
-  onConfirmReservation,
   editorDialog,
   showBookmark,
   feedbackEnabled: feedbackEnabledProp,
@@ -191,9 +187,6 @@ export default function ProfilePageUI({
 }: Props) {
   const { selectedDate, setSelectedDate, getDayBookingStatus } = schedule;
   const resolvedAllowedDates = allowedDates ?? schedule.allowedDates;
-  const resolvedSelectedSlot = selectedSlot ?? schedule.selectedSlot ?? null;
-  const resolvedSetSelectedSlot =
-    setSelectedSlot ?? schedule.setSelectedSlot ?? (() => {});
   const resolvedOnMonthChange =
     onScheduleMonthChange ?? ((d: Date) => schedule.onMonthChange?.(d));
 
@@ -586,13 +579,10 @@ export default function ProfilePageUI({
                       isAuthenticated={!!loginUserId}
                       isIdentityResolved={isIdentityResolved}
                       mentorId={userData?.user_id}
-                      slotsSnapshot={schedule.slotsSnapshot}
-                      selectedSlot={resolvedSelectedSlot}
-                      setSelectedSlot={resolvedSetSelectedSlot}
-                      isSubmitting={isSubmitting}
-                      selectedDate={selectedDate}
+                      reader={schedule}
+                      selectedSlot={selectedSlot}
+                      setSelectedSlot={setSelectedSlot}
                       onReservation={onReservation}
-                      onConfirmReservation={onConfirmReservation}
                       myUserId={loginUserId}
                     />
                   )}

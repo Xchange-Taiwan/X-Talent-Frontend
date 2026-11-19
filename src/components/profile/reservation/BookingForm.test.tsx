@@ -8,8 +8,14 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { trackEvent } from '@/lib/analytics';
-import type { BookingSlot } from '@/lib/profile/bookingAvailability';
+import type {
+  BookingCalendarReader,
+  BookingSlot,
+} from '@/lib/profile/bookingAvailability';
+import { createReservation } from '@/services/reservations';
 import { mockRouter } from '@/test/mocks/navigation';
+import type { components } from '@/types/api';
+import type { Reservation } from '@/types/reservation';
 
 import { BookingForm } from './BookingForm';
 
@@ -18,9 +24,30 @@ vi.mock('next/navigation', async () => {
   return navigationMockFactory();
 });
 
+vi.mock('@/components/ui/use-toast', async () => {
+  const { useToastMockFactory } = await import('@/test/mocks/useToast');
+  return useToastMockFactory();
+});
+
 vi.mock('@/lib/analytics', () => ({
   trackEvent: vi.fn(),
 }));
+
+vi.mock('@/lib/monitoring', () => ({
+  captureFlowFailure: vi.fn(),
+}));
+
+vi.mock('@/services/reservations', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/services/reservations')>();
+  return {
+    ...actual,
+    createReservation: vi.fn(),
+    acceptReservation: vi.fn(),
+  };
+});
+
+const mockCreateReservation = vi.mocked(createReservation);
 
 describe('BookingForm', () => {
   const mockSlots: BookingSlot[] = [
@@ -51,6 +78,7 @@ describe('BookingForm', () => {
     isOwnMentorProfile: false,
     isUserDataLoading: false,
     isAuthenticated: true,
+    myUserId: '999',
     slotsSnapshot: {
       slots: mockSlots,
       monthLoaded: true,
@@ -58,10 +86,8 @@ describe('BookingForm', () => {
     },
     selectedSlot: null,
     setSelectedSlot: vi.fn(),
-    isSubmitting: false,
     selectedDate: '2026-07-26',
     onReservation: vi.fn(),
-    onConfirmReservation: vi.fn().mockResolvedValue(true),
   };
 
   beforeEach(() => {
@@ -186,13 +212,37 @@ describe('BookingForm', () => {
     });
   });
 
-  it('enables the submit button, handles confirm, and resets the textarea on success', async () => {
-    const onConfirmReservation = vi.fn().mockResolvedValue(true);
+  it('enables the submit button, submits booking via localized useBookingForm, resets textarea, and triggers reader.reload on success', async () => {
+    mockCreateReservation.mockResolvedValue(
+      {} as unknown as components['schemas']['ReservationVO']
+    );
+    const setSelectedSlot = vi.fn();
+    const reload = vi.fn().mockResolvedValue(undefined);
+    const reader: BookingCalendarReader = {
+      selectedDate: '2026-07-26',
+      setSelectedDate: vi.fn(),
+      selectedSlot: mockSlots[0],
+      setSelectedSlot,
+      allowedDates: ['2026-07-26'],
+      slotsSnapshot: {
+        slots: mockSlots,
+        monthLoaded: true,
+        reservationsLoaded: true,
+      },
+      getDayBookingStatus: () => null,
+      isFetching: false,
+      reload,
+    };
+
     render(
       <BookingForm
-        {...defaultProps}
-        selectedSlot={mockSlots[0]}
-        onConfirmReservation={onConfirmReservation}
+        isOwnMentorProfile={false}
+        isUserDataLoading={false}
+        isAuthenticated={true}
+        mentorId={123}
+        myUserId="999"
+        reader={reader}
+        onReservation={vi.fn()}
       />
     );
 
@@ -209,11 +259,90 @@ describe('BookingForm', () => {
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
-      expect(onConfirmReservation).toHaveBeenCalledWith('How to learn TS?');
+      expect(mockCreateReservation).toHaveBeenCalledWith({
+        userId: 999,
+        body: {
+          my_user_id: 999,
+          my_status: 'PENDING',
+          user_id: 123,
+          schedule_id: 101,
+          dtstart: Math.floor(mockSlots[0].start.getTime() / 1000),
+          dtend: Math.floor(mockSlots[0].end.getTime() / 1000),
+          messages: [{ user_id: 999, content: 'How to learn TS?' }],
+        },
+        debug: false,
+      });
     });
 
     await waitFor(() => {
       expect(textarea.value).toBe('');
+    });
+    expect(setSelectedSlot).toHaveBeenCalledWith(null);
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('automatically binds onMutationSuccess={reader.reload} in own mentor profile mode when accepting a pending booking (#942)', async () => {
+    const { acceptReservation } = await import('@/services/reservations');
+    vi.mocked(acceptReservation).mockResolvedValue(undefined);
+
+    const reload = vi.fn().mockResolvedValue(undefined);
+    const pendingReservation: Reservation = {
+      id: 'res-103',
+      name: 'Bob',
+      roleLine: 'Mentee',
+      date: '2026-07-26',
+      time: '12:00 PM – 12:30 PM',
+      dtstart: Math.floor(new Date('2026-07-26T12:00:00Z').getTime() / 1000),
+      dtend: Math.floor(new Date('2026-07-26T12:30:00Z').getTime() / 1000),
+      messages: [],
+      scheduleId: 103,
+      version: 1,
+      senderUserId: '999',
+      participantUserId: '123',
+    };
+
+    const reader: BookingCalendarReader = {
+      selectedDate: '2026-07-26',
+      setSelectedDate: vi.fn(),
+      allowedDates: ['2026-07-26'],
+      slotsSnapshot: {
+        slots: [
+          {
+            ...mockSlots[2],
+            menteeName: 'Bob',
+            reservation: pendingReservation,
+          },
+        ],
+        monthLoaded: true,
+        reservationsLoaded: true,
+      },
+      getDayBookingStatus: () => 'PENDING',
+      isFetching: false,
+      reload,
+    };
+
+    render(
+      <BookingForm
+        isOwnMentorProfile={true}
+        isUserDataLoading={false}
+        isAuthenticated={true}
+        mentorId={123}
+        myUserId="123"
+        reader={reader}
+        onReservation={vi.fn()}
+      />
+    );
+
+    const rowButton = screen.getByRole('button', {
+      name: /查看.*Bob.*預約詳情/,
+    });
+    fireEvent.click(rowButton);
+
+    const acceptBtn = await screen.findByRole('button', { name: '接受' });
+    fireEvent.click(acceptBtn);
+
+    await waitFor(() => {
+      expect(reload).toHaveBeenCalledTimes(1);
     });
   });
 

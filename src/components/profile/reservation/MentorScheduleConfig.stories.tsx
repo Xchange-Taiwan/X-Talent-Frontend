@@ -45,5 +45,8 @@ export const WithMixedSlots: Story = {
       reservationsLoaded: true,
     },
     onReservation: () => alert('設定預約被點擊'),
+    onBookedSlotClick: () => {},
+    myUserId: '7482008160728084',
+    onMutationSuccess: async () => {},
   },
 };

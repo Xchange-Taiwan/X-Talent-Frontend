@@ -29,10 +29,25 @@ vi.mock('next/image', () => ({
 // The reservation subtree pulls in dialogs/toasts/date logic unrelated to
 // the flash-prevention gating this file tests - stub each with a marker so
 // we can assert whether it rendered and inspect the props that matter here.
+const bookingFormMock = vi.hoisted(() => ({
+  lastProps: null as {
+    isUserDataLoading?: boolean;
+    reader?: BookingCalendarReader;
+  } | null,
+}));
 vi.mock('@/components/profile/reservation/BookingForm', () => ({
-  BookingForm: ({ isUserDataLoading }: { isUserDataLoading: boolean }) => (
-    <div data-testid="booking-form" data-loading={String(isUserDataLoading)} />
-  ),
+  BookingForm: (props: {
+    isUserDataLoading: boolean;
+    reader?: BookingCalendarReader;
+  }) => {
+    bookingFormMock.lastProps = props;
+    return (
+      <div
+        data-testid="booking-form"
+        data-loading={String(props.isUserDataLoading)}
+      />
+    );
+  },
 }));
 const scheduleCalendarMock = vi.hoisted(() => ({
   lastProps: null as { getDateStatus?: (date: Date) => unknown } | null,
@@ -95,7 +110,6 @@ function buildUserData(overrides: Partial<UserType> = {}): UserType {
 }
 
 const noop = () => {};
-const asyncNoop = async () => true;
 
 function baseProps(
   overrides: Partial<React.ComponentProps<typeof ProfilePageUI>> = {}
@@ -116,8 +130,6 @@ function baseProps(
     onEditProfile: noop,
     selectedSlot: null,
     setSelectedSlot: noop,
-    isSubmitting: false,
-    onConfirmReservation: asyncNoop,
     ...overrides,
   };
 }
@@ -573,6 +585,21 @@ describe('ProfilePageUI - mentee B-1 v2 display sections and mentor gating (#598
 });
 
 describe('ProfilePageUI - BookingForm visibility', () => {
+  it('passes schedule directly as reader to BookingForm when schedule has no error (#942)', () => {
+    const schedule = buildSchedule();
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({ is_mentor: true }),
+          isIdentityResolved: true,
+          schedule,
+        })}
+      />
+    );
+    expect(screen.getByTestId('booking-form')).toBeInTheDocument();
+    expect(bookingFormMock.lastProps?.reader).toBe(schedule);
+  });
+
   it('hides BookingForm when schedule has an error', () => {
     const schedule = buildSchedule();
     schedule.hasError = true;

@@ -11,7 +11,6 @@ import { useConsumePendingFavorite } from '@/hooks/favorites';
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
 import { useMentorFeedback } from '@/hooks/user/feedback/useMentorFeedback';
-import { useBookingConfirmation } from '@/hooks/user/reservation/useBookingConfirmation';
 import useUserData from '@/hooks/user/user-data/useUserData';
 import { useTrackMentorNoAvailableSlots } from '@/hooks/useTrackMentorNoAvailableSlots';
 import { isFeedbackEnabled } from '@/lib/featureFlags';
@@ -178,13 +177,6 @@ export default function ProfilePageContainer({
     router.replace?.(`/profile/${pageUserId}`, { scroll: false });
   }, [reader, router, pageUserId]);
 
-  const { isSubmitting, handleConfirmReservation } = useBookingConfirmation({
-    loginUserId,
-    userData,
-    selectedSlot: reader.selectedSlot ?? null,
-    setSelectedSlot: reader.setSelectedSlot ?? (() => {}),
-  });
-
   if (error === 'FETCH_FAILED') {
     return (
       <div className="flex h-[50vh] flex-col items-center justify-center gap-4 text-center">
@@ -236,8 +228,6 @@ export default function ProfilePageContainer({
       avatarSrc={avatarSrc}
       onReservation={reservationHandler}
       onScheduleMonthChange={handleScheduleMonthChange}
-      isSubmitting={isSubmitting}
-      onConfirmReservation={handleConfirmReservation}
       onEditProfile={() => router.push(`/profile/${pageUserId}/edit`)}
       editorDialog={
         // canShowOwnerControls and the hook's own editor gating are both

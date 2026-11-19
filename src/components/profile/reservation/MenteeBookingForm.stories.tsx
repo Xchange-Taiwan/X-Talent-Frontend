@@ -17,6 +17,7 @@ const meta: Meta<typeof MenteeBookingForm> = {
   },
   args: {
     mentorId: 7482008160728084,
+    myUserId: '7482008160728087',
   },
 };
 
@@ -29,9 +30,7 @@ export const Loading: Story = {
     monthLoaded: false,
     selectedSlot: null,
     setSelectedSlot: () => {},
-    isSubmitting: false,
     selectedDate: '2026-08-05',
-    onConfirmReservation: async () => true,
     isAuthenticated: true,
   },
 };
@@ -42,9 +41,7 @@ export const Unauthenticated: Story = {
     monthLoaded: true,
     selectedSlot: null,
     setSelectedSlot: () => {},
-    isSubmitting: false,
     selectedDate: '2026-08-05',
-    onConfirmReservation: async () => true,
     isAuthenticated: false,
   },
 };
@@ -55,9 +52,7 @@ export const UnauthenticatedSignInPrompt: Story = {
     monthLoaded: true,
     selectedSlot: null,
     setSelectedSlot: () => {},
-    isSubmitting: false,
     selectedDate: '2026-08-05',
-    onConfirmReservation: async () => true,
     isAuthenticated: false,
   },
 };
@@ -68,9 +63,7 @@ export const NoAvailableSlots: Story = {
     monthLoaded: true,
     selectedSlot: null,
     setSelectedSlot: () => {},
-    isSubmitting: false,
     selectedDate: '2026-08-05',
-    onConfirmReservation: async () => true,
     isAuthenticated: true,
   },
 };
@@ -81,9 +74,7 @@ export const NotSelected: Story = {
     monthLoaded: true,
     selectedSlot: null,
     setSelectedSlot: () => {},
-    isSubmitting: false,
     selectedDate: '2026-08-05',
-    onConfirmReservation: async () => true,
     isAuthenticated: true,
   },
 };
@@ -94,9 +85,7 @@ export const SlotSelected: Story = {
     monthLoaded: true,
     selectedSlot: mockBookingSlots[0],
     setSelectedSlot: () => {},
-    isSubmitting: false,
     selectedDate: '2026-08-05',
-    onConfirmReservation: async () => true,
     isAuthenticated: true,
   },
 };
@@ -109,7 +98,6 @@ export const Submitting: Story = {
     setSelectedSlot: () => {},
     isSubmitting: true,
     selectedDate: '2026-08-05',
-    onConfirmReservation: async () => true,
     isAuthenticated: true,
   },
 };

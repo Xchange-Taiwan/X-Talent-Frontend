@@ -221,8 +221,6 @@ export const MentorOwnerView: Story = {
     onEditProfile: () => {},
     selectedSlot: null,
     setSelectedSlot: () => {},
-    isSubmitting: false,
-    onConfirmReservation: async () => true,
   },
 };
 
@@ -255,8 +253,6 @@ export const MentorVisitorView: Story = {
     onEditProfile: () => {},
     selectedSlot: mockBookingSlots[0],
     setSelectedSlot: () => {},
-    isSubmitting: false,
-    onConfirmReservation: async () => true,
   },
 };
 
@@ -331,8 +327,6 @@ export const MenteeProfileView: Story = {
     onEditProfile: () => {},
     selectedSlot: null,
     setSelectedSlot: () => {},
-    isSubmitting: false,
-    onConfirmReservation: async () => true,
   },
 };
 
@@ -358,8 +352,6 @@ export const LoadingSkeleton: Story = {
     onEditProfile: () => {},
     selectedSlot: null,
     setSelectedSlot: () => {},
-    isSubmitting: false,
-    onConfirmReservation: async () => true,
   },
 };
 
@@ -423,7 +415,5 @@ export const MenteeEmptyOwnerView: Story = {
     onEditProfile: () => {},
     selectedSlot: null,
     setSelectedSlot: () => {},
-    isSubmitting: false,
-    onConfirmReservation: async () => true,
   },
 };

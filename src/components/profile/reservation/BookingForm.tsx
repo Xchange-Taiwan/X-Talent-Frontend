@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 
 import { Skeleton } from '@/components/ui/skeleton';
 import type {
+  BookingCalendarReader,
   BookingSlot,
   SlotsSnapshot,
 } from '@/lib/profile/bookingAvailability';
@@ -11,20 +12,29 @@ import type {
 import { MenteeBookingForm } from './MenteeBookingForm';
 import { MentorScheduleConfig } from './MentorScheduleConfig';
 
-interface BookingFormProps {
+const EMPTY_SLOTS_SNAPSHOT: SlotsSnapshot = {
+  slots: [],
+  monthLoaded: false,
+  reservationsLoaded: false,
+};
+
+const NOOP_SET_SELECTED_SLOT = (_slot: BookingSlot | null) => {};
+
+export interface BookingFormProps {
   isOwnMentorProfile: boolean;
   isUserDataLoading: boolean;
   isAuthenticated: boolean;
   isIdentityResolved?: boolean;
   mentorId?: number | string;
-  slotsSnapshot: SlotsSnapshot;
-  selectedSlot: BookingSlot | null;
-  setSelectedSlot: (slot: BookingSlot | null) => void;
-  isSubmitting: boolean;
-  selectedDate: string | null;
-  onReservation: () => void;
-  onConfirmReservation: (question?: string) => Promise<boolean>;
   myUserId?: string;
+  reader?: BookingCalendarReader;
+  /** Optional fallback / override for Storybook stories (#850) and isolated component tests when `reader` is omitted. */
+  slotsSnapshot?: SlotsSnapshot;
+  selectedSlot?: BookingSlot | null;
+  setSelectedSlot?: (slot: BookingSlot | null) => void;
+  selectedDate?: string | null;
+  isSubmitting?: boolean;
+  onReservation: () => void;
   onMutationSuccess?: () => void | Promise<void>;
 }
 
@@ -34,18 +44,27 @@ export function BookingForm({
   isAuthenticated,
   isIdentityResolved = true,
   mentorId,
+  myUserId,
+  reader,
   slotsSnapshot,
   selectedSlot,
   setSelectedSlot,
-  isSubmitting,
   selectedDate,
+  isSubmitting,
   onReservation,
-  onConfirmReservation,
-  myUserId,
   onMutationSuccess,
 }: BookingFormProps) {
   const router = useRouter();
-  const { slots, monthLoaded } = slotsSnapshot;
+  const resolvedSlotsSnapshot =
+    slotsSnapshot ?? reader?.slotsSnapshot ?? EMPTY_SLOTS_SNAPSHOT;
+  const resolvedSelectedSlot =
+    selectedSlot !== undefined ? selectedSlot : (reader?.selectedSlot ?? null);
+  const resolvedSetSelectedSlot =
+    setSelectedSlot ?? reader?.setSelectedSlot ?? NOOP_SET_SELECTED_SLOT;
+  const resolvedSelectedDate =
+    selectedDate !== undefined ? selectedDate : (reader?.selectedDate ?? null);
+  const resolvedOnMutationSuccess = onMutationSuccess ?? reader?.reload;
+  const { slots, monthLoaded } = resolvedSlotsSnapshot;
 
   // Prevent view flash: if userData is loading/unresolved, render a loading skeleton
   if (isUserDataLoading) {
@@ -74,24 +93,25 @@ export function BookingForm({
     <div className="flex w-full max-w-[335px] flex-col gap-4 md:max-w-[695px] xl:max-w-[414px]">
       {isOwnMentorProfile ? (
         <MentorScheduleConfig
-          slotsSnapshot={slotsSnapshot}
+          slotsSnapshot={resolvedSlotsSnapshot}
           onReservation={onReservation}
           onBookedSlotClick={() => router.push('/reservation/mentor')}
           myUserId={myUserId}
-          onMutationSuccess={onMutationSuccess}
+          onMutationSuccess={resolvedOnMutationSuccess}
         />
       ) : (
         <MenteeBookingForm
           mentorId={mentorId}
+          myUserId={myUserId}
           slots={slots}
           monthLoaded={monthLoaded}
-          selectedSlot={selectedSlot}
-          setSelectedSlot={setSelectedSlot}
+          selectedSlot={resolvedSelectedSlot}
+          setSelectedSlot={resolvedSetSelectedSlot}
+          selectedDate={resolvedSelectedDate}
           isSubmitting={isSubmitting}
-          selectedDate={selectedDate}
-          onConfirmReservation={onConfirmReservation}
           isAuthenticated={isAuthenticated}
           isIdentityResolved={isIdentityResolved}
+          onMutationSuccess={resolvedOnMutationSuccess}
         />
       )}
     </div>

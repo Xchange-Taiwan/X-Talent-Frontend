@@ -65,13 +65,6 @@ vi.mock('@/hooks/useMentorSchedule', () => ({
   }),
 }));
 
-vi.mock('@/hooks/user/reservation/useBookingConfirmation', () => ({
-  useBookingConfirmation: () => ({
-    isSubmitting: false,
-    handleConfirmReservation: vi.fn(),
-  }),
-}));
-
 import { Toaster } from '@/components/ui/toaster';
 import { clearToasts } from '@/components/ui/use-toast';
 import { FAVORITE_SELF_BLOCKED_TOAST_MESSAGE } from '@/hooks/favorites';
