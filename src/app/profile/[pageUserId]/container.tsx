@@ -19,7 +19,7 @@ import {
   normalizePositiveUserId,
   resolveProfileUserId,
 } from '@/lib/profile/userId';
-import { getMentorOnboardingUrl, OPEN_SCHEDULE_DIALOG_KEY } from '@/lib/routes';
+import { OPEN_SCHEDULE_DIALOG_KEY } from '@/lib/routes';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
 
@@ -215,7 +215,6 @@ export default function ProfilePageContainer({
       isSubmitting={isSubmitting}
       onConfirmReservation={handleConfirmReservation}
       onEditProfile={() => router.push(`/profile/${pageUserId}/edit`)}
-      onBecomeMentor={() => router.push(getMentorOnboardingUrl(pageUserId))}
       editorDialog={
         // canShowOwnerControls and the hook's own editor gating are both
         // driven by the same loginUserId === pageUserId check, so editor is

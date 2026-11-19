@@ -1,5 +1,6 @@
 'use client';
 
+import { Pencil } from 'lucide-react';
 import Image, { type StaticImageData } from 'next/image';
 import { useCallback, useMemo } from 'react';
 
@@ -12,6 +13,11 @@ import {
   MentorFeedbackSection,
   MentorSummaryBar,
 } from '@/components/profile/feedback';
+import {
+  MenteeProfileContent,
+  MenteeSummaryBar,
+  MenteeWatchedPositionsCard,
+} from '@/components/profile/mentee';
 import { ProfileBanner } from '@/components/profile/profile-banner';
 import { BookingForm } from '@/components/profile/reservation/BookingForm';
 import { ScheduleCalendar } from '@/components/profile/reservation/ScheduleCalendar';
@@ -19,6 +25,7 @@ import { resolveDisplaySocialLinks } from '@/components/profile/social-links/pla
 import { ProfileBadgeSection } from '@/components/profile/view/ProfileBadgeSection';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useMenteeProfileView } from '@/hooks/profile/useMenteeProfileView';
 import type { MentorFeedbackState } from '@/hooks/user/feedback/useMentorFeedback';
 import { UserType } from '@/hooks/user/user-data/useUserData';
 import { isFavoritesEnabled, isFeedbackEnabled } from '@/lib/featureFlags';
@@ -28,6 +35,7 @@ import {
   BookingCalendarReader,
   BookingSlot,
 } from '@/lib/profile/bookingAvailability';
+import type { StoredMenteeDirectionMap } from '@/lib/profile/menteeDirectionView';
 import {
   formatSelectedDate,
   toDateKey,
@@ -129,7 +137,6 @@ interface Props {
   onScheduleMonthChange?: (date: Date) => void;
   onReservation: () => void;
   onEditProfile: () => void;
-  onBecomeMentor: () => void;
   selectedSlot?: BookingSlot | null;
   setSelectedSlot?: (slot: BookingSlot | null) => void;
   isSubmitting: boolean;
@@ -137,6 +144,7 @@ interface Props {
   editorDialog?: React.ReactNode;
   showBookmark?: boolean;
   feedbackEnabled?: boolean;
+  storedDirectionMap?: StoredMenteeDirectionMap | null;
 }
 
 export default function ProfilePageUI({
@@ -154,7 +162,6 @@ export default function ProfilePageUI({
   onScheduleMonthChange,
   onReservation,
   onEditProfile,
-  onBecomeMentor,
   selectedSlot,
   setSelectedSlot,
   isSubmitting,
@@ -162,6 +169,7 @@ export default function ProfilePageUI({
   editorDialog,
   showBookmark,
   feedbackEnabled: feedbackEnabledProp,
+  storedDirectionMap,
 }: Props) {
   const { selectedDate, setSelectedDate, getDayBookingStatus } = schedule;
   const resolvedAllowedDates = allowedDates ?? schedule.allowedDates;
@@ -259,6 +267,23 @@ export default function ProfilePageUI({
     [userData?.personalLinks]
   );
 
+  const {
+    menteeIndustryHashtag,
+    menteeDirectionGroups,
+    activeMenteeDirection,
+    setActiveMenteeDirection,
+    menteeEmpty,
+    effectiveAvatarSrc,
+    menteeLatestRole,
+    menteeExperienceDisplay,
+  } = useMenteeProfileView({
+    userData,
+    avatarSrc,
+    resolvedLocation,
+    safePersonalLinksCount: safePersonalLinks.length,
+    storedDirectionMap,
+  });
+
   return (
     <div>
       <ProfileBanner />
@@ -271,106 +296,121 @@ export default function ProfilePageUI({
             <div className="-mt-10 mb-6 flex h-auto flex-col sm:flex-row sm:items-start">
               <div className="border-background-white bg-background-white relative mx-auto h-[160px] w-[160px] flex-shrink-0 overflow-hidden rounded-full border-4 shadow-sm sm:mx-0">
                 <Image
-                  src={avatarSrc}
+                  src={effectiveAvatarSrc}
                   alt={'Avatar of ' + userData.name}
                   fill
                   sizes="160px"
                   className="object-cover"
+                  unoptimized={
+                    typeof effectiveAvatarSrc === 'string' &&
+                    effectiveAvatarSrc.startsWith('/avatars/')
+                  }
                   priority
                 />
               </div>
 
               <div className="mt-4 flex min-w-0 flex-1 flex-col items-center sm:mt-14 sm:ml-6 sm:items-start">
-                <div className="mb-2 flex w-full flex-col items-center gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex flex-col items-center gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
-                    <p className="text-2xl font-semibold break-words">
-                      {userData.name}
-                    </p>
-                    {safePersonalLinks.length > 0 && (
-                      <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-                        {safePersonalLinks.map((link, index) => (
-                          <a
-                            key={`${link.platform}-${index}`}
-                            href={link.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            aria-label={link.label}
-                            title={link.label}
-                            data-analytics-click="profile_social_link"
-                            data-analytics-event="profile_social_link_click"
-                            data-analytics-feature="profile"
-                            data-analytics-location="profile_header"
-                            data-analytics-omit-destination="true"
-                            data-analytics-param-platform={link.platform}
-                            data-analytics-param-mentor-id={String(
-                              userData.user_id
-                            )}
-                            className="text-text-secondary hover:text-brand-500"
-                          >
-                            {link.icon}
-                          </a>
-                        ))}
-                      </div>
-                    )}
+                <div className="flex w-full flex-col items-center gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 flex-col items-center sm:items-start">
+                    <div className="flex flex-col items-center gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+                      <p className="text-2xl font-semibold break-words">
+                        {userData.name}
+                      </p>
+                      {userData.is_mentor && safePersonalLinks.length > 0 && (
+                        <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+                          {safePersonalLinks.map((link, index) => (
+                            <a
+                              key={`${link.platform}-${index}`}
+                              href={link.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-label={link.label}
+                              title={link.label}
+                              data-analytics-click="profile_social_link"
+                              data-analytics-event="profile_social_link_click"
+                              data-analytics-feature="profile"
+                              data-analytics-location="profile_header"
+                              data-analytics-omit-destination="true"
+                              data-analytics-param-platform={link.platform}
+                              data-analytics-param-mentor-id={String(
+                                userData.user_id
+                              )}
+                              className="text-text-secondary hover:text-brand-500"
+                            >
+                              {link.icon}
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {userData.is_mentor ? (
+                      (userData.job_title || userData.company) && (
+                        <p className="text-text-secondary mt-1.5 text-sm">
+                          {userData.job_title}
+                          {userData.job_title && userData.company && (
+                            <span className="text-text-tertiary"> · </span>
+                          )}
+                          {userData.company}
+                        </p>
+                      )
+                    ) : menteeLatestRole ? (
+                      <p className="text-text-secondary mt-1.5 text-sm">
+                        {menteeLatestRole.jobTitle}
+                        {menteeLatestRole.jobTitle &&
+                          menteeLatestRole.company && (
+                            <span className="text-text-tertiary"> at </span>
+                          )}
+                        {menteeLatestRole.company}
+                      </p>
+                    ) : null}
                   </div>
-                  {canShowMentorBookmark && (
-                    <MentorBookmarkButton
-                      mentorId={userData.user_id}
-                      mentorName={userData.name}
-                      mentorSnapshot={mentorSnapshot}
-                      feature="profile"
-                      variant="outline"
-                      tooltipSide="top"
-                      tooltipAlign="end"
-                    />
-                  )}
-                </div>
-                {(userData.job_title || userData.company) && (
-                  <p className="text-text-secondary text-sm">
-                    {userData.job_title}
-                    {userData.job_title && userData.company && (
-                      <span className="text-text-tertiary"> · </span>
+                  <div className="flex shrink-0 items-center gap-3">
+                    {canShowMentorBookmark && (
+                      <MentorBookmarkButton
+                        mentorId={userData.user_id}
+                        mentorName={userData.name}
+                        mentorSnapshot={mentorSnapshot}
+                        feature="profile"
+                        variant="outline"
+                        tooltipSide="top"
+                        tooltipAlign="end"
+                      />
                     )}
-                    {userData.company}
-                  </p>
-                )}
-                {(canShowOwnerControls || !userData.is_mentor) && (
-                  <div className="mt-4 flex items-center justify-center gap-4 sm:justify-start">
-                    {/* canShowOwnerControls gates these: until useSession() settles,
-                        we don't yet know if this is the viewer's own profile, so
-                        withhold the buttons entirely rather than flash a guest
-                        view before correcting to the owner view (or vice versa). */}
-                    {canShowOwnerControls && (
+                    {canShowOwnerControls && !userData.is_mentor && (
                       <Button
                         variant="outline"
-                        className="grow rounded-full px-6 py-3 sm:grow-0"
+                        className="focus-visible:border-ring rounded-full px-5 py-2.5 focus-visible:ring-offset-0"
                         onClick={onEditProfile}
                         data-analytics-click="profile_edit_click"
                         data-analytics-feature="profile"
                         data-analytics-location="profile_header"
                       >
+                        <Pencil className="mr-1.5 size-4" aria-hidden="true" />
                         編輯個人資訊
                       </Button>
                     )}
-
-                    {canShowOwnerControls && !userData.is_mentor && (
-                      <Button
-                        variant="default"
-                        className="grow rounded-full px-6 py-3 sm:grow-0"
-                        onClick={onBecomeMentor}
-                        data-analytics-click="profile_become_mentor_click"
-                        data-analytics-feature="onboarding"
-                        data-analytics-location="profile_header"
-                      >
-                        成為導師
-                      </Button>
-                    )}
+                  </div>
+                </div>
+                {canShowOwnerControls && userData.is_mentor && (
+                  <div className="mt-4 flex items-center justify-center gap-4 sm:justify-start">
+                    {/* canShowOwnerControls gates owner actions: until useSession() settles,
+                        withhold buttons rather than flash a guest view before correcting. */}
+                    <Button
+                      variant="outline"
+                      className="grow rounded-full px-6 py-3 sm:grow-0"
+                      onClick={onEditProfile}
+                      data-analytics-click="profile_edit_click"
+                      data-analytics-feature="profile"
+                      data-analytics-location="profile_header"
+                    >
+                      編輯個人資訊
+                    </Button>
                   </div>
                 )}
               </div>
             </div>
 
-            {userData.is_mentor && (
+            {userData.is_mentor ? (
               <MentorSummaryBar
                 ratingAverage={effectiveRatingAverage}
                 ratingCount={effectiveRatingCount}
@@ -379,7 +419,13 @@ export default function ProfilePageUI({
                 location={resolvedLocation}
                 includeRating={feedbackEnabled}
               />
-            )}
+            ) : !menteeEmpty ? (
+              <MenteeSummaryBar
+                yearsOfExperience={menteeExperienceDisplay}
+                location={resolvedLocation}
+                directionCount={menteeDirectionGroups.length}
+              />
+            ) : null}
           </>
         ) : null}
 
@@ -473,58 +519,20 @@ export default function ProfilePageUI({
                   );
                 })()
               ) : (
-                <ProfileIntroSections
+                <MenteeProfileContent
                   userData={userData}
-                  badgeSections={
-                    <>
-                      <ProfileBadgeSection
-                        title="經驗"
-                        items={
-                          userData.years_of_experience
-                            ? [
-                                {
-                                  subject_group: 'years_of_experience',
-                                  subject: userData.years_of_experience,
-                                },
-                              ]
-                            : []
-                        }
-                      />
-
-                      <ProfileBadgeSection
-                        title="產業"
-                        items={
-                          userData.industry
-                            ? [
-                                {
-                                  subject_group: 'industry',
-                                  subject: userData.industry,
-                                },
-                              ]
-                            : []
-                        }
-                      />
-
-                      <ProfileBadgeSection
-                        title="有興趣多了解的職位"
-                        items={userData.want_position}
-                      />
-                      <ProfileBadgeSection
-                        title="想多了解、加強的技能"
-                        items={userData.want_skill}
-                      />
-                      <ProfileBadgeSection
-                        title="想多了解的主題"
-                        items={userData.want_topic}
-                      />
-                    </>
-                  }
+                  isEmpty={menteeEmpty}
+                  industryHashtag={menteeIndustryHashtag}
+                  directionGroups={menteeDirectionGroups}
+                  activeDirection={activeMenteeDirection}
+                  onSelectDirection={setActiveMenteeDirection}
+                  personalLinks={safePersonalLinks}
                 />
               )
             ) : null}
           </div>
 
-          {showScheduleRegion && (
+          {showScheduleRegion ? (
             <div className="w-full xl:w-2/5">
               {!scheduleLoaded ? (
                 <ScheduleSkeleton />
@@ -588,7 +596,15 @@ export default function ProfilePageUI({
                 </div>
               )}
             </div>
-          )}
+          ) : !userLoading && userData && !userData.is_mentor ? (
+            <div className="w-full xl:w-2/5">
+              <MenteeWatchedPositionsCard
+                groups={menteeDirectionGroups}
+                activeDirection={activeMenteeDirection}
+                onSelectDirection={setActiveMenteeDirection}
+              />
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

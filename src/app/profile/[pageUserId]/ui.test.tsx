@@ -114,7 +114,6 @@ function baseProps(
     onScheduleMonthChange: noop,
     onReservation: noop,
     onEditProfile: noop,
-    onBecomeMentor: noop,
     selectedSlot: null,
     setSelectedSlot: noop,
     isSubmitting: false,
@@ -153,7 +152,7 @@ describe('ProfilePageUI - identity-resolution flash prevention', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('renders the become-mentor button (alongside edit) once canShowOwnerControls is true for a mentee viewing their own profile', () => {
+  it('renders only the edit button (without become-mentor) once canShowOwnerControls is true for a mentee viewing their own profile (#960)', () => {
     render(
       <ProfilePageUI
         {...baseProps({
@@ -167,8 +166,8 @@ describe('ProfilePageUI - identity-resolution flash prevention', () => {
       screen.getByRole('button', { name: '編輯個人資訊' })
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: '成為導師' })
-    ).toBeInTheDocument();
+      screen.queryByRole('button', { name: '成為導師' })
+    ).not.toBeInTheDocument();
   });
 
   it('keeps BookingForm in its loading state while identity is still resolving, even once userData has loaded', () => {
@@ -290,24 +289,250 @@ describe('ProfilePageUI - calendar status-dot gating (#603)', () => {
   });
 });
 
-describe('ProfilePageUI - mentee-specific sections gating for mentor profiles (#598)', () => {
-  it('displays the mentee sections on a mentee profile', () => {
+describe('ProfilePageUI - mentee B-1 v2 display sections and mentor gating (#598 / #960)', () => {
+  it('displays B-1 summary bar, #industry hashtag, per-direction preference tabs, and right-column watched positions card on a mentee profile', async () => {
+    const user = userEvent.setup();
     render(
       <ProfilePageUI
         {...baseProps({
+          storedDirectionMap: {
+            uiux: { skills: ['ux_research'], topics: ['portfolio'] },
+            fe: { skills: ['react'], topics: ['career'] },
+          },
           userData: buildUserData({
+            user_id: 123,
             is_mentor: false,
-            want_position: [{ subject_group: 'role', subject: 'PM' }],
-            want_skill: [{ subject_group: 'skill', subject: 'Figma' }],
-            want_topic: [{ subject_group: 'topic', subject: 'Career' }],
+            avatar: '',
+            job_title: 'Product Designer',
+            company: 'Flow Studio',
+            about: '喜歡透過研究理解使用者需求。',
+            industry: '設計及創意相關業',
+            years_of_experience: '1~3 年',
+            location: '臺灣',
+            workExperiences: [
+              {
+                job: 'Product Designer',
+                company: 'Flow Studio',
+                job_period_start: '2024',
+                job_period_end: '至今',
+                industry: '設計及創意相關業',
+                job_location: '臺灣',
+                description: '設計流程改善',
+                is_primary: true,
+              },
+            ],
+            personalLinks: [
+              { platform: 'linkedin', url: 'https://www.linkedin.com/in/xh' },
+              { platform: 'github', url: 'https://github.com/xh' },
+            ],
+            want_position: [
+              { subject_group: 'uiux', subject: '產品設計／UIUX' },
+              { subject_group: 'fe', subject: '前端工程' },
+            ],
+            want_skill: [
+              { subject_group: 'ux_research', subject: 'UX Research' },
+              { subject_group: 'react', subject: 'React' },
+            ],
+            want_topic: [
+              { subject_group: 'portfolio', subject: '作品集檢視' },
+              { subject_group: 'career', subject: '職涯規劃' },
+            ],
           }),
         })}
       />
     );
 
-    expect(screen.getByText('有興趣多了解的職位')).toBeInTheDocument();
-    expect(screen.getByText('想多了解、加強的技能')).toBeInTheDocument();
-    expect(screen.getByText('想多了解的主題')).toBeInTheDocument();
+    expect(screen.getAllByText(/Product Designer/)[0]).toHaveTextContent(
+      'Product Designer at Flow Studio'
+    );
+    expect(screen.getByAltText('Avatar of Test Mentor')).toHaveAttribute(
+      'src',
+      '/avatars/default_1.webp'
+    );
+    expect(screen.getByText('個人連結')).toBeInTheDocument();
+    const ghLink = screen.getByRole('link', { name: 'GitHub' });
+    expect(ghLink).toHaveAttribute(
+      'data-analytics-location',
+      'profile_links_section'
+    );
+    expect(
+      document.querySelector('[data-analytics-location="profile_header"] a')
+    ).toBeNull();
+    const summaryGrid = screen.getByTestId('mentee-summary-grid');
+    expect(within(summaryGrid).getByText('經驗')).toBeInTheDocument();
+    expect(within(summaryGrid).getByText('地點')).toBeInTheDocument();
+    expect(within(summaryGrid).getByText('探索方向')).toBeInTheDocument();
+    expect(within(summaryGrid).getByText('個職位方向')).toBeInTheDocument();
+
+    expect(screen.getByTestId('mentee-industry-hashtag')).toHaveTextContent(
+      '#設計及創意相關業'
+    );
+    expect(screen.getByText('交流偏好')).toBeInTheDocument();
+    expect(screen.getByText('想加強的技能')).toBeInTheDocument();
+    expect(screen.getByText('想了解的主題')).toBeInTheDocument();
+    expect(screen.getByText('UX Research')).toBeInTheDocument();
+    expect(screen.queryByText('React')).not.toBeInTheDocument();
+
+    const watchedCard = screen.getByTestId('mentee-watched-positions-card');
+    expect(within(watchedCard).getByText('關注的職位')).toBeInTheDocument();
+    expect(
+      within(watchedCard).getAllByText('1 項技能 · 1 個主題')
+    ).toHaveLength(2);
+
+    // Switch direction via right-column watched positions card button (#960)
+    const feWatchBtn = within(watchedCard).getByRole('button', {
+      name: /前端工程/,
+    });
+    await user.click(feWatchBtn);
+    expect(feWatchBtn).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('React')).toBeInTheDocument();
+    expect(screen.getByText('職涯規劃')).toBeInTheDocument();
+  });
+
+  it('preserves legacy skills/topics when want_position is empty, shows empty-direction message, and resets stored map across user_id changes (#960)', async () => {
+    const user = userEvent.setup();
+
+    // 1. Legacy Mentee: want_position=[] with non-empty want_skill / want_topic
+    const { rerender } = render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            user_id: 301,
+            is_mentor: false,
+            want_position: [],
+            want_skill: [{ subject_group: 'figma', subject: 'Figma' }],
+            want_topic: [{ subject_group: 'resume', subject: '履歷健檢' }],
+          }),
+        })}
+      />
+    );
+
+    expect(
+      screen.queryByTestId('mentee-profile-empty-state')
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+    expect(screen.getByText('Figma')).toBeInTheDocument();
+    expect(screen.getByText('履歷健檢')).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('mentee-watched-positions-card')).getByText(
+        '尚未選擇職位'
+      )
+    ).toBeInTheDocument();
+
+    // 2. Mentee with two positions where second direction has 0 skills/topics
+    rerender(
+      <ProfilePageUI
+        {...baseProps({
+          storedDirectionMap: {
+            uiux: { skills: ['figma'], topics: [] },
+            pm: { skills: [], topics: [] },
+          },
+          userData: buildUserData({
+            user_id: 302,
+            is_mentor: false,
+            want_position: [
+              { subject_group: 'uiux', subject: '產品設計' },
+              { subject_group: 'pm', subject: '產品經理' },
+            ],
+            want_skill: [{ subject_group: 'figma', subject: 'Figma' }],
+            want_topic: [],
+          }),
+        })}
+      />
+    );
+
+    await user.click(screen.getByRole('tab', { name: /產品經理/ }));
+    expect(screen.getByText('尚未設定此方向的技能與主題')).toBeInTheDocument();
+  });
+
+  it('loads stored direction map from window.localStorage in production mode and resets cleanly across user_id changes (#960)', () => {
+    window.localStorage.setItem(
+      'xtalent:mentee-direction-map:v1:701',
+      JSON.stringify({
+        uiux: { skills: [], topics: [] },
+        fe: { skills: ['react'], topics: [] },
+      })
+    );
+
+    try {
+      const { rerender } = render(
+        <ProfilePageUI
+          {...baseProps({
+            userData: buildUserData({
+              user_id: 701,
+              is_mentor: false,
+              workExperiences: [],
+              want_position: [
+                { subject_group: 'uiux', subject: '產品設計' },
+                { subject_group: 'fe', subject: '前端工程' },
+              ],
+              want_skill: [{ subject_group: 'react', subject: 'React' }],
+              want_topic: [],
+            }),
+          })}
+        />
+      );
+
+      expect(screen.queryByText(/Engineer/)).not.toBeInTheDocument();
+      expect(
+        screen.getByText('尚未設定此方向的技能與主題')
+      ).toBeInTheDocument();
+
+      rerender(
+        <ProfilePageUI
+          {...baseProps({
+            userData: buildUserData({
+              user_id: 702,
+              is_mentor: false,
+              want_position: [
+                { subject_group: 'uiux', subject: '產品設計' },
+                { subject_group: 'fe', subject: '前端工程' },
+              ],
+              want_skill: [{ subject_group: 'react', subject: 'React' }],
+              want_topic: [],
+            }),
+          })}
+        />
+      );
+
+      expect(screen.getByText('React')).toBeInTheDocument();
+    } finally {
+      window.localStorage.clear();
+    }
+  });
+
+  it('displays empty-state cards when Mentee optional profile fields are all empty (#960)', () => {
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: false,
+            job_title: '',
+            company: '',
+            about: '',
+            industry: '',
+            years_of_experience: '',
+            location: '',
+            want_position: [],
+            want_skill: [],
+            want_topic: [],
+            workExperiences: [],
+            educations: [],
+            personalLinks: [],
+          }),
+        })}
+      />
+    );
+
+    expect(screen.queryByTestId('mentee-summary-grid')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mentee-profile-empty-state')).toHaveTextContent(
+      '尚未填寫個人資料'
+    );
+    expect(
+      within(screen.getByTestId('mentee-watched-positions-card')).getByText(
+        '尚未選擇職位'
+      )
+    ).toBeInTheDocument();
   });
 
   it('hides the mentee sections on a mentor profile', () => {
@@ -324,9 +549,26 @@ describe('ProfilePageUI - mentee-specific sections gating for mentor profiles (#
       />
     );
 
-    expect(screen.queryByText('有興趣多了解的職位')).not.toBeInTheDocument();
-    expect(screen.queryByText('想多了解、加強的技能')).not.toBeInTheDocument();
-    expect(screen.queryByText('想多了解的主題')).not.toBeInTheDocument();
+    expect(screen.queryByText('交流偏好')).not.toBeInTheDocument();
+    expect(screen.queryByText('想加強的技能')).not.toBeInTheDocument();
+    expect(screen.queryByText('想了解的主題')).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('mentee-watched-positions-card')
+    ).not.toBeInTheDocument();
+  });
+
+  it('never renders mentee-watched-positions-card while userLoading is true (#960)', () => {
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userLoading: true,
+          userData: buildUserData({ is_mentor: false }),
+        })}
+      />
+    );
+    expect(
+      screen.queryByTestId('mentee-watched-positions-card')
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -773,7 +1015,9 @@ describe('ProfilePageUI - mentor summary bar and feedback tabs (#736)', () => {
     expect(
       screen.queryByTestId('mentor-industry-hashtag')
     ).not.toBeInTheDocument();
-    expect(screen.getByText('產業')).toBeInTheDocument();
+    expect(screen.getByTestId('mentee-industry-hashtag')).toHaveTextContent(
+      '#軟體及網路相關業'
+    );
     expect(screen.getByText('學員自我介紹')).toBeInTheDocument();
   });
 
