@@ -90,7 +90,7 @@ export function ProfileEditChapterNav({
       aria-label="編輯章節導覽"
       data-testid="profile-edit-chapter-nav"
       className={cn(
-        'border-background-border bg-background-white sticky top-[64px] z-10 w-full border-b py-2 lg:top-[100px] lg:w-[152px] lg:shrink-0 lg:border-b-0 lg:bg-transparent lg:py-0',
+        'border-background-border bg-background-white sticky top-[64px] z-10 w-full border-b py-2 lg:top-[168px] lg:w-44 lg:shrink-0 lg:border-b-0 lg:bg-transparent lg:py-0 xl:w-48',
         className
       )}
     >

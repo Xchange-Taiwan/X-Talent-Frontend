@@ -132,7 +132,6 @@ function ProfileIntroSections({
         <p className="mb-4 text-xl font-bold">個人連結</p>
         <PersonalLinksGrid
           links={personalLinks}
-          userId={userData.user_id}
           isMentor={Boolean(userData.is_mentor)}
           location="profile_links_section"
         />

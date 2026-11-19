@@ -14,7 +14,6 @@ type Story = StoryObj<typeof PersonalLinksGrid>;
 
 export const MixedAvailableAndUnavailable: Story = {
   args: {
-    userId: '7482008160728084',
     links: resolveDisplaySocialLinks([
       { platform: 'linkedin', url: 'https://www.linkedin.com/in/zahra' },
       { platform: 'github', url: 'https://github.com/zahra' },
@@ -25,7 +24,6 @@ export const MixedAvailableAndUnavailable: Story = {
 
 export const AllAvailable: Story = {
   args: {
-    userId: '7482008160728087',
     links: resolveDisplaySocialLinks([
       { platform: 'linkedin', url: 'https://www.linkedin.com/in/zahra' },
       { platform: 'facebook', url: 'https://www.facebook.com/zahra' },
@@ -40,7 +38,6 @@ export const AllAvailable: Story = {
 
 export const AllEmpty: Story = {
   args: {
-    userId: '7482008160728084',
     links: [],
   },
 };

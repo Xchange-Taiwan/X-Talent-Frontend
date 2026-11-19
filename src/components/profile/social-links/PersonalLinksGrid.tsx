@@ -15,14 +15,12 @@ import {
 
 export interface PersonalLinksGridProps {
   links: ReadonlyArray<ResolvedDisplaySocialLink>;
-  userId?: string | number;
   isMentor?: boolean;
   location?: string;
 }
 
 export function PersonalLinksGrid({
   links,
-  userId,
   isMentor = false,
   location = 'profile_links_section',
 }: PersonalLinksGridProps): React.ReactElement {

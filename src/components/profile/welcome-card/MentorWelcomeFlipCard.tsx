@@ -53,10 +53,9 @@ export function MentorWelcomeFlipCard({
   const servicesSummary = (userData.have_topic ?? [])
     .map((item) => item.subject)
     .filter(Boolean)
-    .slice(0, 3)
     .join(' · ');
 
-  const skills = (userData.have_skill ?? []).slice(0, 3);
+  const skills = (userData.have_skill ?? []).slice(0, 6);
   const rawYears = userData.years_of_experience?.trim() ?? '';
   const localizedYears = Object.hasOwn(LEGACY_SPAN_MAP, rawYears)
     ? LEGACY_SPAN_MAP[rawYears]
@@ -76,14 +75,14 @@ export function MentorWelcomeFlipCard({
   return (
     <div
       className={cn(
-        'mx-auto w-full max-w-[333px] p-1 [perspective:1200px]',
+        'mx-auto w-full max-w-[368px] p-2 [perspective:1200px]',
         className
       )}
     >
       <div
         className={cn(
-          'group relative block min-h-[488px] w-full rounded-3xl text-left transition-transform duration-500 [transform-style:preserve-3d]',
-          isFlipped && '[transform:rotateY(180deg)]'
+          'group relative block min-h-[476px] w-full rounded-3xl text-left transition-transform duration-500 [transform-style:preserve-3d]',
+          isFlipped ? '[transform:rotateY(180deg)]' : '-rotate-1 hover:rotate-0'
         )}
       >
         <button

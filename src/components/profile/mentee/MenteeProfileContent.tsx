@@ -208,7 +208,6 @@ export function MenteeProfileContent({
         <h2 className="mb-4 text-xl font-bold">個人連結</h2>
         <PersonalLinksGrid
           links={personalLinks}
-          userId={userData.user_id}
           isMentor={false}
           location="profile_links_section"
         />

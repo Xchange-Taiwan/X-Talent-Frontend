@@ -11,7 +11,7 @@ describe('PersonalLinksGrid', () => {
       { platform: 'twitter', url: 'https://x.com/zahra' },
     ]);
 
-    render(<PersonalLinksGrid links={links} userId="42" />);
+    render(<PersonalLinksGrid links={links} />);
 
     const nav = screen.getByRole('navigation', { name: '個人連結' });
     expect(nav).toBeInTheDocument();
@@ -44,7 +44,7 @@ describe('PersonalLinksGrid', () => {
       { platform: 'github', url: 'https://github.com/mentor' },
     ]);
 
-    render(<PersonalLinksGrid links={links} userId="88" isMentor />);
+    render(<PersonalLinksGrid links={links} isMentor />);
     const ghLink = screen.getByRole('link', { name: 'GitHub' });
     expect(ghLink).toHaveAttribute('data-analytics-param-role', 'mentor');
     expect(ghLink).not.toHaveAttribute('data-analytics-param-user-id');
