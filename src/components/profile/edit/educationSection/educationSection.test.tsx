@@ -1,7 +1,9 @@
+import { zodResolver } from '@hookform/resolvers/zod';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { describe, expect, it } from 'vitest';
+import type { z } from 'zod';
 
 import { Form, FormField } from '@/components/ui/form';
 import {
@@ -11,8 +13,6 @@ import {
   type ProfileFormInput,
   type ProfileFormValues,
 } from '@/schemas/profileSchema';
-import { zodResolver } from '@hookform/resolvers/zod';
-import type { z } from 'zod';
 
 import { EducationSection, SchoolComboboxField } from './educationSection';
 

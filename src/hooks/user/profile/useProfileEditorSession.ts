@@ -82,15 +82,18 @@ export function useProfileEditorSession({
 
   const [isHydrating, setIsHydrating] = useState(true);
   const [prevPageUserId, setPrevPageUserId] = useState(pageUserId);
+  const [cachedUserDto, setCachedUserDto] = useState<MentorProfileVO | null>(
+    null
+  );
+  const [hasAvatarEdited, setHasAvatarEdited] = useState(false);
   const hydratedScopeRef = useRef<string | null>(null);
-  const lastHydratedDtoRef = useRef<MentorProfileVO | null>(null);
-  const avatarChangedRef = useRef(false);
+  const hasAvatarEditedRef = useRef(false);
   const hydrationScopeKey = `${pageUserId}:${isMentorOnboarding ? 'mentor-onboarding' : 'edit'}`;
 
   if (pageUserId !== prevPageUserId) {
     setPrevPageUserId(pageUserId);
-    lastHydratedDtoRef.current = null;
-    avatarChangedRef.current = false;
+    setCachedUserDto(null);
+    setHasAvatarEdited(false);
     setIsHydrating(true);
   }
 
@@ -101,11 +104,12 @@ export function useProfileEditorSession({
 
   if (
     userDto &&
+    userDto !== cachedUserDto &&
     (userDto.user_id === undefined || String(userDto.user_id) === pageUserId)
   ) {
-    lastHydratedDtoRef.current = userDto;
+    setCachedUserDto(userDto);
   }
-  const effectiveUserDto = userDto ?? lastHydratedDtoRef.current;
+  const effectiveUserDto = userDto ?? cachedUserDto;
 
   useEffect(() => {
     if (!dtoError) return;
@@ -147,7 +151,8 @@ export function useProfileEditorSession({
 
     const formValues = mapVoToFormValues(userDto, isMentorOnboarding);
     form.reset(formValues);
-    avatarChangedRef.current = false;
+    hasAvatarEditedRef.current = false;
+    setHasAvatarEdited(false);
     hydratedScopeRef.current = hydrationScopeKey;
     setIsHydrating(false);
   }, [
@@ -173,7 +178,8 @@ export function useProfileEditorSession({
   const handleAvatarFileChange = useCallback(
     (file: File) => {
       presetSelectedRef.current = false;
-      avatarChangedRef.current = true;
+      hasAvatarEditedRef.current = true;
+      setHasAvatarEdited(true);
       if (form.getValues('avatarFile') !== file) {
         form.setValue('avatarFile', file, {
           shouldDirty: true,
@@ -191,7 +197,8 @@ export function useProfileEditorSession({
   const handleSelectPresetAvatar = useCallback(
     (presetUrlOrCode: string) => {
       presetSelectedRef.current = true;
-      avatarChangedRef.current = true;
+      hasAvatarEditedRef.current = true;
+      setHasAvatarEdited(true);
       void avatarUpload.rollback();
       const normalizedCode =
         toPresetAvatarCode(presetUrlOrCode) ??
@@ -252,7 +259,7 @@ export function useProfileEditorSession({
       dirtyFields?: ProfileDirtyFields
     ): Promise<MentorProfileVO | undefined> => {
       const effectiveDirtyFields =
-        dirtyFields && avatarChangedRef.current
+        dirtyFields && hasAvatarEditedRef.current
           ? { ...dirtyFields, avatar: true }
           : dirtyFields;
       const saved = await run(() =>
@@ -320,7 +327,7 @@ export function useProfileEditorSession({
 
   const hasUnsavedChanges =
     form.formState.isDirty ||
-    avatarChangedRef.current ||
+    hasAvatarEdited ||
     (!isMentorRole && isDirectionMapDirty);
   const unsaved = useUnsavedChangesPrompt(hasUnsavedChanges && !isSaving);
 

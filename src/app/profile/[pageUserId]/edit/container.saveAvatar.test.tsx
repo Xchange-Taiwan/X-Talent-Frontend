@@ -65,6 +65,32 @@ vi.mock('@/services/profile/user', () => ({
   fetchUserById: (...args: unknown[]) => fetchUserMock(...args),
 }));
 
+vi.mock('@/components/ui/avatar-crop-modal', () => ({
+  default: ({
+    isOpen,
+    onSave,
+  }: {
+    isOpen: boolean;
+    onSave: (blob: Blob) => void;
+  }) =>
+    isOpen ? (
+      <button
+        type="button"
+        onClick={() =>
+          onSave(new Blob(['cropped-bytes'], { type: 'image/jpeg' }))
+        }
+      >
+        模擬完成裁切
+      </button>
+    ) : null,
+}));
+
+vi.mock('@/services/profile/getAvatarSnapshot', () => ({
+  getAvatarSnapshot: vi
+    .fn()
+    .mockResolvedValue(new Blob(['prev-s3-bytes'], { type: 'image/png' })),
+}));
+
 vi.mock('@/services/profile/presignedUrl', () => ({
   fetchPresignedUrl: vi.fn().mockResolvedValue({
     url: 'https://x-career-multimedia.s3.amazonaws.com',
@@ -185,11 +211,19 @@ describe('EditProfileContainer real save pipeline regression (#959)', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('still writes PUT /profile when switching from a custom photo draft back to the initial preset avatar (default_1)', async () => {
+  it('uploads custom cropped photo to S3, rolls back S3 on switching back to initial preset avatar (default_1), prompts on unsaved leave, and still writes PUT /profile', async () => {
     revalidateMock.mockResolvedValue(undefined);
+    const s3AvatarDto: MentorProfileVO = {
+      ...INITIAL_MENTEE_DTO,
+      avatar:
+        'https://x-career-multimedia.s3.amazonaws.com/dev/files/42/avatar?v=100',
+    };
+    profileReadModel.set({ userId: 42, language: 'zh_TW' }, s3AvatarDto);
+    fetchUserMock.mockResolvedValue(s3AvatarDto);
+
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(null, { status: 204 }));
+      .mockImplementation(async () => new Response(null, { status: 204 }));
 
     try {
       render(
@@ -199,21 +233,41 @@ describe('EditProfileContainer real save pipeline regression (#959)', () => {
         />
       );
 
-      // First select preset 2, then switch back to initial default_1
+      // 1. Upload a custom image -> crop -> confirm dialog -> kicks off S3 POST upload
       fireEvent.click(await screen.findByRole('button', { name: '編輯頭像' }));
-      fireEvent.click(
-        await screen.findByRole('button', { name: '預設頭像 2' })
-      );
-      fireEvent.click(screen.getByRole('button', { name: '儲存頭像' }));
+      const fileInput = screen.getByLabelText('選擇個人照片');
+      fireEvent.change(fileInput, {
+        target: {
+          files: [new File(['raw'], 'raw.png', { type: 'image/png' })],
+        },
+      });
 
+      fireEvent.click(
+        await screen.findByRole('button', { name: '模擬完成裁切' })
+      );
+      fireEvent.click(await screen.findByRole('button', { name: '儲存頭像' }));
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+      });
+
+      // 2. Reopen dialog and switch to 預設頭像 1 -> triggers S3 rollback re-upload of old bytes!
       fireEvent.click(await screen.findByRole('button', { name: '編輯頭像' }));
       fireEvent.click(
         await screen.findByRole('button', { name: '預設頭像 1' })
       );
       fireEvent.click(screen.getByRole('button', { name: '儲存頭像' }));
 
-      // Even though default_1 equals the initial hydrated value, avatarChangedRef
-      // ensures PUT /profile still commits default_1 cleanly!
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledTimes(2);
+      });
+
+      // 3. Verify reactive hasUnsavedChanges opens prompt when clicking 取消
+      fireEvent.click(screen.getByRole('button', { name: '取消' }));
+      expect(await screen.findByText('尚未儲存的變更')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: '繼續編輯' }));
+
+      // 4. Submit form -> commits avatar: 'default_1' cleanly!
       fireEvent.click(screen.getByRole('button', { name: '儲存變更' }));
 
       await waitFor(() => {
