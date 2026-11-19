@@ -302,7 +302,14 @@ async function mockDropdowns(page: Page): Promise<void> {
 }
 
 async function cropAndConfirmAvatar(page: Page): Promise<void> {
-  const fileInput = page.locator('input[type="file"][accept="image/*"]');
+  const menteeTrigger = page.getByRole('button', { name: '點擊編輯頭像' });
+  const usedMenteeDialog = await menteeTrigger.isVisible();
+  if (usedMenteeDialog) {
+    await menteeTrigger.click();
+    await expect(page.getByRole('dialog', { name: '編輯頭像' })).toBeVisible();
+  }
+
+  const fileInput = page.locator('input[type="file"]');
   await fileInput.setInputFiles({
     name: 'avatar.png',
     mimeType: 'image/png',
@@ -334,6 +341,12 @@ async function cropAndConfirmAvatar(page: Page): Promise<void> {
 
   await cropDialog.getByRole('button', { name: '儲存' }).click();
   await expect(cropDialog).toBeHidden();
+
+  if (usedMenteeDialog) {
+    const avatarDialog = page.getByRole('dialog', { name: '編輯頭像' });
+    await avatarDialog.getByRole('button', { name: '儲存' }).click();
+    await expect(avatarDialog).toBeHidden();
+  }
 }
 
 test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () => {
@@ -590,42 +603,107 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
     await expect(page).toHaveURL('/mentor-pool', { timeout: 15_000 });
   });
 
-  test('Mentor 造訪 /profile/card → 顯示恭喜成為導師訊息，點擊「返回我的個人頁面」導向 /profile/:id', async ({
+  test('Mentor 造訪 /profile/card → 顯示 D-2 Mentor 資料已建立完成翻面小卡，點擊「前往導師頁」導向 /profile/:id', async ({
     page,
   }) => {
-    await seedProfileUser(page, true);
+    const seededMentorId = '7482008160728084';
+    await seedMockAuthSession(page, {
+      id: seededMentorId,
+      name: 'Mentee',
+      avatar: '',
+      isMentor: true,
+      onBoarding: true,
+      jobTitle: 'Frontend Engineer',
+      company: 'XChange',
+    });
 
     await mockApiRoute(
       page,
-      new RegExp(`/v1/mentors/${USER_ID}/zh_TW/profile`),
+      new RegExp(`/v1/mentors/${seededMentorId}/zh_TW/profile`),
       {
-        body: makeProfile({
-          name: 'Test Mentor',
-          isMentor: true,
-          about: '資深前端導師',
-        }),
+        body: {
+          ...makeProfile({
+            name: 'Mentee',
+            isMentor: true,
+            about: '資深前端導師',
+          }),
+          data: {
+            ...makeProfile({
+              name: 'Mentee',
+              isMentor: true,
+              about: '資深前端導師',
+            }).data,
+            user_id: Number(seededMentorId),
+          },
+        },
       }
     );
 
     await page.goto('/profile/card');
 
-    await expect(page.getByText('恭喜！', { exact: true })).toBeVisible({
+    await expect(
+      page.getByRole('heading', { name: 'Mentor 資料已建立完成' })
+    ).toBeVisible({
       timeout: 15_000,
     });
-    await expect(
-      page.getByRole('heading', { name: 'Test Mentor' })
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Mentee' })).toBeVisible();
     await expect(
       page.getByRole('button', { name: '成為導師' })
     ).not.toBeVisible();
 
-    const backToProfileBtn = page.getByRole('button', {
-      name: '返回我的個人頁面',
+    const flipCard = page.getByTestId('mentor-welcome-flip-card');
+    await expect(flipCard).toHaveAttribute('aria-pressed', 'false');
+    await flipCard.click();
+    await expect(flipCard).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('mentor-card-front')).toHaveAttribute(
+      'aria-hidden',
+      'true'
+    );
+    await expect(page.getByTestId('mentor-card-back')).toHaveAttribute(
+      'aria-hidden',
+      'false'
+    );
+    await expect(page.getByText('WELCOME TO X-TALENT')).toBeVisible();
+
+    // Verify native <button> keyboard Space and Enter flip without double-toggle (#961)
+    await flipCard.focus();
+    await page.keyboard.press('Space');
+    await expect(flipCard).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.getByTestId('mentor-card-front')).toHaveAttribute(
+      'aria-hidden',
+      'false'
+    );
+
+    await page.keyboard.press('Enter');
+    await expect(flipCard).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('mentor-card-back')).toHaveAttribute(
+      'aria-hidden',
+      'false'
+    );
+
+    const setupScheduleBtn = page.getByRole('button', {
+      name: '設定時段',
     });
-    await expect(backToProfileBtn).toBeVisible();
+    await expect(setupScheduleBtn).toBeVisible();
+    await setupScheduleBtn.click();
+
+    await expect(page).toHaveURL(
+      new RegExp(`/profile/${seededMentorId}(?:\\?open-schedule=true)?$`),
+      { timeout: 15_000 }
+    );
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 15_000 });
+
+    // Also verify 前往導師頁 from /profile/card navigates cleanly to /profile/:id
+    await page.goto('/profile/card');
+    const backToProfileBtn = page.getByRole('button', {
+      name: '前往導師頁',
+    });
+    await expect(backToProfileBtn).toBeVisible({ timeout: 15_000 });
     await backToProfileBtn.click();
 
-    await expect(page).toHaveURL(`/profile/${USER_ID}`, { timeout: 15_000 });
+    await expect(page).toHaveURL(`/profile/${seededMentorId}`, {
+      timeout: 15_000,
+    });
   });
 
   test('Mentee 進入 ?mentor-onboarding=true → 透過 UI 補齊所有 Mentor 必填欄位後以 is_mentor=true 送出，並可於 /mentor-pool 搜尋', async ({
@@ -684,10 +762,13 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
     await page.goto(`/profile/${USER_ID}/edit?mentor-onboarding=true`);
 
     // Even though session.user.isMentor is false, ?mentor-onboarding=true
-    // unlocks the Mentor-only sections.
+    // unlocks the Mentor-only sections and marks Header 成為導師 as current page (#961).
     await expect(page.getByText('我能提供的服務')).toBeVisible({
       timeout: 15_000,
     });
+    await expect(
+      page.getByRole('banner').getByRole('link', { name: '成為導師' })
+    ).toHaveAttribute('aria-current', 'page');
     await expect(page.getByText('專業能力')).toBeVisible();
 
     // Wait for dynamic sections (JobExperienceSection & EducationSection) to mount
@@ -700,8 +781,15 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
       timeout: 15_000,
     });
 
-    // Submitting while Mentor-only required fields are empty triggers validation errors
-    await page.getByRole('button', { name: '儲存' }).click();
+    // Submitting while Mentor guidelines & required fields are empty triggers Zod validation errors (#961)
+    const submitBtn = page.getByRole('button', { name: '儲存並建立' });
+    await submitBtn.click();
+    await expect(page.getByText('請先閱讀並勾選同意導師規範')).toBeVisible();
+    await page.getByRole('button', { name: '查看規範' }).click();
+    await expect(page.getByText('真實身分')).toBeVisible();
+    await page
+      .getByRole('checkbox', { name: /我已閱讀並同意導師規範/ })
+      .click();
     await expect(page.getByText('請填寫關於我')).toBeVisible();
     await expect(page.getByText('請至少選擇一個主題')).toBeVisible();
     await expect(page.getByText('請至少選擇一個技能')).toBeVisible();
@@ -776,6 +864,9 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
     expect(submittedPayload).not.toBeNull();
     expect(submittedPayload?.['is_mentor']).toBe(true);
     expect(submittedPayload?.['about']).toBe('我擁有豐富的前端與職涯輔導經驗');
+    expect(submittedPayload?.['want_position']).toEqual(['TEST_POS']);
+    expect(submittedPayload?.['want_skill']).toEqual(['TEST_SKILL']);
+    expect(submittedPayload?.['want_topic']).toEqual(['TEST_TOPIC']);
     expect(
       Array.isArray(submittedPayload?.['have_topic']) &&
         (submittedPayload?.['have_topic'] as unknown[]).length > 0
@@ -789,8 +880,10 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
         (submittedPayload?.['experiences'] as unknown[]).length >= 2
     ).toBe(true);
 
-    // Verify /profile/card displays Mentor completion state
-    await expect(page.getByText('恭喜！', { exact: true })).toBeVisible({
+    // Verify /profile/card displays D-2 Mentor completion state
+    await expect(
+      page.getByRole('heading', { name: 'Mentor 資料已建立完成' })
+    ).toBeVisible({
       timeout: 15_000,
     });
 

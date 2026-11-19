@@ -13,6 +13,7 @@ import {
 
 vi.mock('@/lib/apiClient', () => ({
   apiClient: {
+    get: vi.fn(),
     getUnwrapped: vi.fn(),
   },
 }));
@@ -132,11 +133,92 @@ describe('tagCatalog services', () => {
       expect(result.want_skill).toEqual([]);
     });
 
-    it('propagates network/API failures as errors', async () => {
+    it('propagates network/API failures as errors when fallback is unavailable or fails', async () => {
       vi.mocked(apiClient.getUnwrapped).mockRejectedValue(
         new Error('Network error')
       );
-      await expect(fetchTagCatalog('zh-TW')).rejects.toThrow('Network error');
+      vi.mocked(apiClient.get).mockRejectedValue(new Error('Fallback error'));
+      await expect(
+        fetchTagCatalog('zh-TW', undefined, { allowSameOriginFallback: true })
+      ).rejects.toThrow('Network error');
+    });
+
+    it('falls back to same-origin /api/tags/[language]/catalog via apiClient.get({ isLocal: true }) when direct BFF fetch fails in browser', async () => {
+      vi.mocked(apiClient.getUnwrapped).mockRejectedValueOnce(
+        new TypeError('Failed to fetch')
+      );
+      const populated = fromPartial<TagCatalogsByBucket>({
+        ...EMPTY_TAG_CATALOGS,
+        want_position: [
+          {
+            subject_group: 'software_dev',
+            subject: '軟體開發',
+            language: 'zh_TW',
+            leaves: [
+              {
+                tag_id: 7,
+                subject_group: 'frontend_engineer',
+                subject: '前端工程師',
+                language: 'zh_TW',
+              },
+            ],
+          },
+        ],
+        want_skill: [
+          {
+            subject_group: 'eng_skill',
+            subject: '工程技能',
+            language: 'zh_TW',
+            leaves: [
+              {
+                tag_id: 8,
+                subject_group: 'react',
+                subject: 'React',
+                language: 'zh_TW',
+              },
+            ],
+          },
+        ],
+        want_topic: [
+          {
+            subject_group: 'career_topic',
+            subject: '職涯主題',
+            language: 'zh_TW',
+            leaves: [
+              {
+                tag_id: 9,
+                subject_group: 'interview_skills',
+                subject: '面試技巧',
+                language: 'zh_TW',
+              },
+            ],
+          },
+        ],
+      });
+      vi.mocked(apiClient.get).mockResolvedValueOnce(populated);
+
+      const result = await fetchTagCatalog('zh_TW', undefined, {
+        allowSameOriginFallback: true,
+      });
+      expect(apiClient.get).toHaveBeenCalledWith('/api/tags/zh_TW/catalog', {
+        auth: false,
+        isLocal: true,
+      });
+      expect(result.want_position).toHaveLength(1);
+    });
+
+    it('rethrows AbortError immediately without invoking same-origin fallback', async () => {
+      const controller = new AbortController();
+      controller.abort();
+      const abortErr = new DOMException('Aborted', 'AbortError');
+      vi.mocked(apiClient.getUnwrapped).mockRejectedValueOnce(abortErr);
+
+      await expect(
+        fetchTagCatalog('zh_TW', controller.signal, {
+          allowSameOriginFallback: true,
+        })
+      ).rejects.toBe(abortErr);
+      expect(apiClient.get).not.toHaveBeenCalled();
     });
   });
 });

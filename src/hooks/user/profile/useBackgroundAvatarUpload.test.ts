@@ -589,4 +589,17 @@ describe('useBackgroundAvatarUpload', () => {
     });
     expect(mockUpgradeClaritySession).not.toHaveBeenCalled();
   });
+
+  it('skips S3 snapshot fetch when currentAvatarUrl is a local /avatars/ static preset path (#959)', async () => {
+    mockUpdateAvatar.mockResolvedValueOnce('https://cdn.example.com/ok.jpg');
+    const { result } = renderHook(() => useBackgroundAvatarUpload(42));
+    const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
+
+    await act(async () => {
+      result.current.kickOff(file, '/avatars/default_2.webp');
+      await Promise.resolve();
+    });
+
+    expect(mockGetAvatarSnapshot).not.toHaveBeenCalled();
+  });
 });

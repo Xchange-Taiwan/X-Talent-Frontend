@@ -1,10 +1,50 @@
 import { apiClient } from '@/lib/apiClient';
+import { isAbortError } from '@/lib/errorUtils';
 import {
   IndustryOption,
   TagCatalogsByBucket,
   TagCatalogsVO,
   TagCatalogVO,
 } from '@/types/tagCatalog';
+
+const SAFE_LANGUAGE_RE = /^[A-Za-z]{2,3}(?:[_-][A-Za-z0-9]{2,8})?$/;
+
+export function isValidCatalogLanguage(language: string): boolean {
+  return SAFE_LANGUAGE_RE.test(language.trim());
+}
+
+/**
+ * Requires all three mandatory onboarding tag buckets (`want_position`,
+ * `want_skill`, `want_topic`) to be non-empty before caching or accepting
+ * a fallback response so partial degradation never bricks Step 3 ("有興趣多了解的職位").
+ */
+export function isOnboardingCatalogComplete(
+  catalog: TagCatalogsByBucket
+): boolean {
+  return (
+    catalog.want_position.length > 0 &&
+    catalog.want_skill.length > 0 &&
+    catalog.want_topic.length > 0
+  );
+}
+
+function isValidCatalogBucketPayload(
+  candidate: unknown
+): candidate is TagCatalogsByBucket {
+  if (!candidate || typeof candidate !== 'object') return false;
+  const rec = candidate as Record<string, unknown>;
+  if (
+    !Array.isArray(rec.want_position) ||
+    !Array.isArray(rec.want_skill) ||
+    !Array.isArray(rec.want_topic) ||
+    !Array.isArray(rec.have_skill) ||
+    !Array.isArray(rec.have_topic) ||
+    !Array.isArray(rec.industry)
+  ) {
+    return false;
+  }
+  return isOnboardingCatalogComplete(candidate as TagCatalogsByBucket);
+}
 
 export const EMPTY_TAG_CATALOGS: TagCatalogsByBucket = {
   want_position: [],
@@ -50,13 +90,53 @@ export function splitCatalogsByBucket(
   };
 }
 
+export interface FetchTagCatalogOptions {
+  allowSameOriginFallback?: boolean;
+}
+
 export async function fetchTagCatalog(
   language: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  options?: FetchTagCatalogOptions
 ): Promise<TagCatalogsByBucket> {
-  const data = await apiClient.getUnwrapped<TagCatalogsVO>(
-    `/v1/users/${language}/tags/catalog`,
-    { auth: false, signal }
-  );
-  return splitCatalogsByBucket(data);
+  try {
+    const data = await apiClient.getUnwrapped<TagCatalogsVO>(
+      `/v1/users/${language}/tags/catalog`,
+      {
+        auth: false,
+        ...(signal !== undefined ? { signal } : {}),
+      }
+    );
+    return splitCatalogsByBucket(data);
+  } catch (err) {
+    if (isAbortError(err, signal)) {
+      throw err;
+    }
+
+    const canUseSameOriginFallback =
+      options?.allowSameOriginFallback ?? typeof window !== 'undefined';
+    const trimmedLanguage = language.trim();
+
+    if (canUseSameOriginFallback && isValidCatalogLanguage(trimmedLanguage)) {
+      try {
+        const parsed = await apiClient.get<unknown>(
+          `/api/tags/${encodeURIComponent(trimmedLanguage)}/catalog`,
+          {
+            auth: false,
+            isLocal: true,
+            ...(signal !== undefined ? { signal } : {}),
+          }
+        );
+        if (isValidCatalogBucketPayload(parsed)) {
+          return parsed;
+        }
+      } catch (fallbackErr) {
+        if (isAbortError(fallbackErr, signal)) {
+          throw fallbackErr;
+        }
+      }
+    }
+
+    throw err;
+  }
 }

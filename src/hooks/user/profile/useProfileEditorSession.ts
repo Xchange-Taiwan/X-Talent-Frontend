@@ -18,6 +18,10 @@ import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useUserProfileDto } from '@/hooks/user/user-data/useUserProfileDto';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { trackFormValidationFailed } from '@/lib/analytics';
+import {
+  DEFAULT_PRESET_AVATAR_CODE,
+  toPresetAvatarCode,
+} from '@/lib/avatar/avatarUrl';
 import { getSafeErrorMessage } from '@/lib/errorUtils';
 import {
   mapVoToFormValues,
@@ -33,12 +37,14 @@ import {
   defaultValues,
   type ProfileFormInput,
   type ProfileFormValues,
+  validateAvatarFile,
 } from '@/schemas/profileSchema';
 import type { IndustryOption } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
 
 import { useBackgroundAvatarUpload } from './useBackgroundAvatarUpload';
 import { useFormErrorScroll } from './useFormErrorScroll';
+import { useMenteeDirectionPreference } from './useMenteeDirectionPreference';
 
 export type ProfileFormContext = UseFormReturn<
   ProfileFormInput,
@@ -76,7 +82,8 @@ export function useProfileEditorSession({
 
   const [isHydrating, setIsHydrating] = useState(true);
   const [prevPageUserId, setPrevPageUserId] = useState(pageUserId);
-  const hydratedPageUserIdRef = useRef<string | null>(null);
+  const hydratedScopeRef = useRef<string | null>(null);
+  const hydrationScopeKey = `${pageUserId}:${isMentorOnboarding ? 'mentor-onboarding' : 'edit'}`;
 
   if (pageUserId !== prevPageUserId) {
     setPrevPageUserId(pageUserId);
@@ -100,9 +107,9 @@ export function useProfileEditorSession({
   const resolver = useMemo(
     () =>
       zodResolver<ProfileFormInput, unknown, ProfileFormValues>(
-        createProfileFormSchema(isMentorRole)
+        createProfileFormSchema(isMentorRole, isMentorOnboarding)
       ),
-    [isMentorRole]
+    [isMentorOnboarding, isMentorRole]
   );
 
   const form = useForm<ProfileFormInput, unknown, ProfileFormValues>({
@@ -120,18 +127,19 @@ export function useProfileEditorSession({
     ) {
       return;
     }
-    if (hydratedPageUserIdRef.current === pageUserId && !isHydrating) {
+    if (hydratedScopeRef.current === hydrationScopeKey && !isHydrating) {
       return;
     }
 
     const formValues = mapVoToFormValues(userDto, isMentorOnboarding);
     form.reset(formValues);
-    hydratedPageUserIdRef.current = pageUserId;
+    hydratedScopeRef.current = hydrationScopeKey;
     setIsHydrating(false);
   }, [
     userDto,
     isAuthorized,
     isMentorOnboarding,
+    hydrationScopeKey,
     pageUserId,
     form,
     isHydrating,
@@ -145,19 +153,61 @@ export function useProfileEditorSession({
     : undefined;
   const avatarUpload = useBackgroundAvatarUpload(effectiveUploadUserId);
 
+  const presetSelectedRef = useRef(false);
+
   const handleAvatarFileChange = useCallback(
     (file: File) => {
+      presetSelectedRef.current = false;
+      if (form.getValues('avatarFile') !== file) {
+        form.setValue('avatarFile', file, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+      }
+      if (validateAvatarFile(file) !== null) {
+        return;
+      }
       avatarUpload.kickOff(file, form.getValues('avatar'));
     },
     [avatarUpload, form]
   );
+
+  const handleSelectPresetAvatar = useCallback(
+    (presetUrlOrCode: string) => {
+      presetSelectedRef.current = true;
+      void avatarUpload.rollback();
+      const normalizedCode =
+        toPresetAvatarCode(presetUrlOrCode) ??
+        presetUrlOrCode ??
+        DEFAULT_PRESET_AVATAR_CODE;
+      form.setValue('avatarFile', undefined, {
+        shouldDirty: false,
+        shouldValidate: true,
+      });
+      form.setValue('avatar', normalizedCode, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    },
+    [avatarUpload, form]
+  );
+
+  const {
+    directionMap,
+    setDirectionMap,
+    isDirectionMapDirty,
+    persistDirectionMap,
+  } = useMenteeDirectionPreference(pageUserId, isMentorRole ? null : userDto);
 
   const savePort = useMemo<ProfileSavePort>(
     () => ({
       updateSession,
       navigate: (href: string) => router.push(href),
       revalidateProfilePath,
-      uploadAvatar: (file: File) => avatarUpload.consume(file),
+      uploadAvatar: (file: File) =>
+        presetSelectedRef.current
+          ? Promise.resolve(undefined)
+          : avatarUpload.consume(file),
       ...portOverrides,
     }),
     [avatarUpload, portOverrides, router, updateSession]
@@ -181,7 +231,7 @@ export function useProfileEditorSession({
       values: ProfileFormValues,
       dirtyFields?: ProfileDirtyFields
     ): Promise<MentorProfileVO | undefined> => {
-      return await run(() =>
+      const saved = await run(() =>
         commitProfileMutation(
           {
             mode: isMentorOnboarding ? 'mentor-onboarding' : 'edit',
@@ -197,11 +247,17 @@ export function useProfileEditorSession({
           savePort
         )
       );
+      if (saved && !isMentorRole) {
+        persistDirectionMap();
+      }
+      return saved;
     },
     [
       industryCatalog,
       isMentorOnboarding,
+      isMentorRole,
       pageUserId,
+      persistDirectionMap,
       run,
       savePort,
       session,
@@ -238,7 +294,9 @@ export function useProfileEditorSession({
     [form, onSubmit, handleFormInvalid]
   );
 
-  const unsaved = useUnsavedChangesPrompt(form.formState.isDirty && !isSaving);
+  const hasUnsavedChanges =
+    form.formState.isDirty || (!isMentorRole && isDirectionMapDirty);
+  const unsaved = useUnsavedChangesPrompt(hasUnsavedChanges && !isSaving);
 
   const handleGoToPrev = useCallback(() => {
     unsaved.guardNavigate(() => router.push(`/profile/${pageUserId}`));
@@ -257,7 +315,10 @@ export function useProfileEditorSession({
     isError,
     isHydrating,
     isSaving,
+    directionMap,
+    setDirectionMap,
     handleAvatarFileChange,
+    handleSelectPresetAvatar,
     handleFormSubmit,
     handleGoToPrev,
     isPromptOpen: unsaved.isPromptOpen,

@@ -310,7 +310,7 @@ describe('EditProfileContainer error handling and scrolling', () => {
     const getBoundingClientRectSpy = vi
       .spyOn(Element.prototype, 'getBoundingClientRect')
       .mockImplementation(function (this: Element) {
-        if (this.id === 'want_position') {
+        if (this.id === 'location') {
           return {
             top: 150,
             left: 0,
@@ -358,10 +358,10 @@ describe('EditProfileContainer error handling and scrolling', () => {
       );
 
       const nameEl = container.querySelector('#name');
-      const wantPositionEl = container.querySelector('#want_position');
+      const locationEl = container.querySelector('#location');
 
       expect(nameEl).not.toBeNull();
-      expect(wantPositionEl).not.toBeNull();
+      expect(locationEl).not.toBeNull();
 
       const formEl = container.querySelector('form');
       if (formEl) {
@@ -374,8 +374,8 @@ describe('EditProfileContainer error handling and scrolling', () => {
         expect(scrolledIds.length).toBeGreaterThan(0);
       });
 
-      // It should have scrolled to 'want_position' first because 150 < 300 (it's higher up in the layout)
-      expect(scrolledIds[0]).toBe('want_position');
+      // It should have scrolled to 'location' first because 150 < 300 (it's higher up in the layout)
+      expect(scrolledIds[0]).toBe('location');
     } finally {
       delete (Element.prototype as unknown as Record<string, unknown>)
         .scrollIntoView;
@@ -618,27 +618,41 @@ describe('EditProfileContainer isMentorRole logic', () => {
       );
 
       if (expectedIsMentor) {
-        // Verify asterisks on about and industry sections
+        // Verify asterisks on about, location, years_of_experience, and industry sections
         expect(getByTestId('section-about-title')).toHaveTextContent(
           '* 關於我'
         );
+        expect(getByTestId('section-location-title')).toHaveTextContent(
+          '* 地區'
+        );
+        expect(
+          getByTestId('section-years_of_experience-title')
+        ).toHaveTextContent('* 經驗');
         expect(getByTestId('section-industry-title')).toHaveTextContent(
           '* 產業'
         );
 
-        // Verify mentor-only sections render
+        // Verify mentor-only sections render and mentee preferences are hidden
         expect(queryByTestId('section-have_topic')).toBeInTheDocument();
         expect(queryByTestId('section-have_skill')).toBeInTheDocument();
+        expect(queryByTestId('section-want_position')).not.toBeInTheDocument();
       } else {
-        // Verify NO asterisks on about and industry sections
+        // Verify NO asterisks on about, location, years_of_experience, and industry sections
         expect(getByTestId('section-about-title')).not.toHaveTextContent('*');
+        expect(getByTestId('section-location-title')).not.toHaveTextContent(
+          '*'
+        );
+        expect(
+          getByTestId('section-years_of_experience-title')
+        ).not.toHaveTextContent('*');
         expect(getByTestId('section-industry-title')).not.toHaveTextContent(
           '*'
         );
 
-        // Verify mentor-only sections do NOT render
+        // Verify mentor-only sections do NOT render and mentee direction preferences render
         expect(queryByTestId('section-have_topic')).not.toBeInTheDocument();
         expect(queryByTestId('section-have_skill')).not.toBeInTheDocument();
+        expect(queryByTestId('section-want_position')).toBeInTheDocument();
       }
     }
   );

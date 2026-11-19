@@ -1,5 +1,6 @@
 import * as z from 'zod';
 
+import { isPresetAvatarUrl } from '@/lib/avatar/avatarUrl';
 import {
   createEmptySocialLinks,
   socialLinksFormSchema,
@@ -144,23 +145,52 @@ export const jobSchema = z
     }
   });
 
-export const createProfileFormSchema = (isMentor: boolean) =>
+export const ALLOWED_AVATAR_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+] as const;
+
+export const MAX_AVATAR_FILE_BYTES = 5 * 1024 * 1024;
+
+export function validateAvatarFile(
+  file: File | undefined | null
+): string | null {
+  if (!file) return null;
+  if (!(ALLOWED_AVATAR_MIME_TYPES as readonly string[]).includes(file.type)) {
+    return '只允許 jpg / png / gif / webp';
+  }
+  if (file.size > MAX_AVATAR_FILE_BYTES) {
+    return '頭像檔案大小不可超過 5MB';
+  }
+  return null;
+}
+
+export const createProfileFormSchema = (
+  isMentor: boolean,
+  isMentorOnboarding = false
+) =>
   z
     .object({
       avatar: z.string().optional(),
+      agreed_guidelines: z.boolean().optional(),
       avatarFile: z
         .union([z.instanceof(File), z.undefined()])
         .optional()
-        .refine(
-          (f) =>
-            !f ||
-            ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(
-              f.type
-            ),
-          '只允許 jpg / png / gif / webp'
-        ),
+        .superRefine((f, ctx) => {
+          const errorMsg = validateAvatarFile(f);
+          if (errorMsg) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: errorMsg,
+            });
+          }
+        }),
       name: z.string().min(1, '請輸入姓名').max(20, '最多不可超過 20 字'),
-      location: z.string().min(1, '請選擇地區'),
+      location: isMentor
+        ? z.string().min(1, '請選擇地區')
+        : z.string().optional(),
       statement: z.string().optional(),
       about: isMentor
         ? z.string().min(1, '請填寫關於我')
@@ -168,7 +198,9 @@ export const createProfileFormSchema = (isMentor: boolean) =>
       industry: isMentor
         ? z.string().min(1, '請選擇產業')
         : z.string().optional(),
-      years_of_experience: z.string({ required_error: '請選擇經驗' }),
+      years_of_experience: isMentor
+        ? z.string({ required_error: '請選擇經驗' }).min(1, '請選擇經驗')
+        : z.string().optional(),
       work_experiences: isMentor
         ? z.array(jobSchema).min(1, '請填寫至少一項工作經歷')
         : z.array(jobSchema),
@@ -192,26 +224,26 @@ export const createProfileFormSchema = (isMentor: boolean) =>
             .max(10, '最多選 10 個')
         : z.array(z.string()).max(10, '最多選 10 個'),
 
-      want_position: z
-        .array(z.string())
-        .min(1, '請至少選擇一個職位')
-        .max(10, '最多選 10 個'),
-      want_skill: z
-        .array(z.string())
-        .min(1, '請至少選擇一個技能')
-        .max(10, '最多選 10 個'),
-      want_topic: z
-        .array(z.string())
-        .min(1, '請至少選擇一個主題')
-        .max(10, '最多選 10 個'),
+      want_position: z.array(z.string()).max(10, '最多選 10 個'),
+      want_skill: z.array(z.string()).max(10, '最多選 10 個'),
+      want_topic: z.array(z.string()).max(10, '最多選 10 個'),
     })
     .superRefine((data, ctx) => {
-      if (isMentor && !data.avatar && !data.avatarFile) {
+      if (isMentorOnboarding && data.agreed_guidelines !== true) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ['avatarFile'],
-          message: '請上傳個人頭像',
+          path: ['agreed_guidelines'],
+          message: '請先閱讀並勾選同意導師規範',
         });
+      }
+      if (isMentor && !data.avatarFile) {
+        if (!data.avatar || isPresetAvatarUrl(data.avatar)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['avatarFile'],
+            message: '請上傳真人照片，預設頭像僅供預覽',
+          });
+        }
       }
     });
 
@@ -221,6 +253,7 @@ export type ProfileFormValues = z.infer<ProfileFormSchema>;
 
 export const defaultValues: ProfileFormValues = {
   avatar: '',
+  agreed_guidelines: false,
   avatarFile: undefined,
   name: '',
   location: '',

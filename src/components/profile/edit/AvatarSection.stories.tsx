@@ -93,3 +93,82 @@ export const HydratedFormAvatarOverridesStaleSession: Story = {
     </ProfileStoryWrapper>
   ),
 };
+
+export const MenteeWithPresetPicker: Story = {
+  name: '學員支援選擇 6 款預設插畫頭像 (#959)',
+  parameters: {
+    nextAuth: {
+      user: {
+        avatar: '',
+      },
+    },
+  },
+  render: () => (
+    <ProfileStoryWrapper defaultValues={{ avatar: '/avatars/default_2.webp' }}>
+      {(form) => (
+        <AvatarSection
+          control={form.control}
+          name="avatarFile"
+          isMentor={false}
+          onSelectPresetAvatar={(url) =>
+            form.setValue('avatar', url, { shouldDirty: true })
+          }
+        />
+      )}
+    </ProfileStoryWrapper>
+  ),
+};
+
+export const CompactMenteePreset: Story = {
+  name: '方案 A 緊湊頭像（學員預設插畫 + 相機徽章 #959）',
+  parameters: {
+    nextAuth: {
+      user: {
+        avatar: 'default_2',
+      },
+    },
+  },
+  render: () => (
+    <ProfileStoryWrapper defaultValues={{ avatar: 'default_2' }}>
+      {(form) => (
+        <AvatarSection
+          variant="compact"
+          control={form.control}
+          name="avatarFile"
+          isMentor={false}
+          onSelectPresetAvatar={(url) =>
+            form.setValue('avatar', url, { shouldDirty: true })
+          }
+        />
+      )}
+    </ProfileStoryWrapper>
+  ),
+};
+
+export const CompactMentorUpload: Story = {
+  name: '方案 A 緊湊頭像（導師照片裁切上傳 #959）',
+  parameters: {
+    nextAuth: {
+      user: {
+        avatar: '',
+      },
+    },
+  },
+  render: () => (
+    <ProfileStoryWrapper
+      defaultValues={{
+        avatar:
+          'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&h=150&q=80',
+      }}
+    >
+      {(form) => (
+        <AvatarSection
+          variant="compact"
+          control={form.control}
+          name="avatarFile"
+          isMentor={true}
+        />
+      )}
+    </ProfileStoryWrapper>
+  ),
+};

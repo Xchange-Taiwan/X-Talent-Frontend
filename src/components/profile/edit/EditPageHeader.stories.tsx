@@ -9,6 +9,7 @@ const meta: Meta<typeof EditPageHeader> = {
   args: {
     isSaving: false,
     isMentorOnboarding: false,
+    isMentor: false,
     onBack: () => console.log('Back button clicked'),
   },
 };
@@ -18,17 +19,28 @@ export default meta;
 type Story = StoryObj<typeof EditPageHeader>;
 
 export const EditProfile: Story = {
-  name: '編輯個人頁面',
+  name: '學員編輯個人資訊',
   args: {
     isMentorOnboarding: false,
+    isMentor: false,
+    isSaving: false,
+  },
+};
+
+export const MentorEditProfile: Story = {
+  name: '導師編輯導師資料',
+  args: {
+    isMentorOnboarding: false,
+    isMentor: true,
     isSaving: false,
   },
 };
 
 export const MentorOnboarding: Story = {
-  name: '導師完成個人資料',
+  name: '導師建立導師資料 (D-1)',
   args: {
     isMentorOnboarding: true,
+    isMentor: true,
     isSaving: false,
   },
 };

@@ -407,4 +407,122 @@ describe('useProfileEditorSession (#787 / #905)', () => {
       JSON.stringify(mockTrackFormValidationFailed.mock.calls)
     ).not.toContain('Initial Name');
   });
+
+  it('skips background S3 upload for invalid avatar files, selects preset avatar, and prompts on unsaved Mentee direction map changes (#959)', async () => {
+    mockUpdateAvatar.mockResolvedValue('https://cdn.example.com/ok.jpg');
+    mockUseUserProfileDto.mockReturnValue({
+      userDto: {
+        ...mockUserDTO,
+        user_id: 1,
+        name: 'Mentee User',
+        is_mentor: false,
+        want_position: ['uiux', 'fe'],
+        want_skill: ['ux_research'],
+        want_topic: [],
+      },
+      error: null,
+    });
+
+    const { result } = renderHook(() =>
+      useProfileEditorSession({
+        pageUserId: '1',
+        isAuthorized: true,
+        isMentorOnboarding: false,
+      })
+    );
+
+    // 1. Before saving, changing only directionMap (form.isDirty === false) opens unsaved prompt on leave
+    expect(result.current.form.formState.isDirty).toBe(false);
+    act(() => {
+      result.current.setDirectionMap({
+        uiux: { skills: [], topics: [] },
+        fe: { skills: ['ux_research'], topics: [] },
+      });
+    });
+    act(() => {
+      result.current.handleGoToPrev();
+    });
+    expect(result.current.isPromptOpen).toBe(true);
+    act(() => {
+      result.current.cancelLeave();
+    });
+
+    // 2. Invalid MIME type must not trigger updateAvatar S3 upload
+    const badFile = new File(['bad'], 'malicious.svg', {
+      type: 'image/svg+xml',
+    });
+    act(() => {
+      result.current.handleAvatarFileChange(badFile);
+    });
+    expect(mockUpdateAvatar).not.toHaveBeenCalled();
+
+    // 3. Valid file kicks off S3 upload, then preset selection overrides with preset code 'default_3'
+    const goodFile = new File(['ok'], 'photo.png', { type: 'image/png' });
+    await act(async () => {
+      result.current.handleAvatarFileChange(goodFile);
+      await Promise.resolve();
+    });
+    expect(mockUpdateAvatar).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      result.current.handleSelectPresetAvatar('/avatars/default_3.webp');
+    });
+    expect(result.current.form.getValues('avatar')).toBe('default_3');
+    expect(result.current.form.getValues('avatarFile')).toBeUndefined();
+
+    // Submit form -> verify commitProfileMutation receives preset code 'default_3' (not S3 URL)
+    await act(async () => {
+      await result.current.handleFormSubmit();
+    });
+    expect(mockCommitProfileMutation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        values: expect.objectContaining({
+          avatar: 'default_3',
+          avatarFile: undefined,
+        }),
+      }),
+      expect.anything(),
+      expect.anything()
+    );
+  });
+
+  it('re-hydrates form values when isMentorOnboarding toggles on the same pageUserId (#1336)', () => {
+    mockUseUserProfileDto.mockReturnValue({
+      userDto: {
+        ...mockUserDTO,
+        user_id: 1,
+        name: 'Mentee User',
+        avatar: '',
+        is_mentor: false,
+        want_position: ['frontend_engineer'],
+      },
+      error: null,
+    });
+
+    const { result, rerender } = renderHook(
+      ({ isMentorOnboarding }: { isMentorOnboarding: boolean }) =>
+        useProfileEditorSession({
+          pageUserId: '1',
+          isAuthorized: true,
+          isMentorOnboarding,
+        }),
+      { initialProps: { isMentorOnboarding: false } }
+    );
+
+    expect(result.current.isMentorRole).toBe(false);
+    expect(result.current.form.getValues('is_mentor')).toBe(false);
+    expect(result.current.form.getValues('avatar')).toBe('');
+    expect(result.current.form.getValues('want_position')).toEqual([
+      'frontend_engineer',
+    ]);
+
+    rerender({ isMentorOnboarding: true });
+
+    expect(result.current.isMentorRole).toBe(true);
+    expect(result.current.form.getValues('is_mentor')).toBe(true);
+    expect(result.current.form.getValues('avatar')).toBe('default_1');
+    expect(result.current.form.getValues('want_position')).toEqual([
+      'frontend_engineer',
+    ]);
+  });
 });

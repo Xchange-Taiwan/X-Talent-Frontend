@@ -163,8 +163,20 @@ test('complete all 5 steps (happy path) → redirects to /profile/card', async (
   });
 
   // PUT /v1/mentors/:id/profile — updateProfile (no /zh_TW/ segment)
-  await mockApiRoute(page, /\/v1\/mentors\/[^/]+\/profile/, {
-    body: { code: '0', msg: 'ok', data: null },
+  let capturedOnboardingPut: Record<string, unknown> | null = null;
+  await page.route(/\/v1\/mentors\/[^/]+\/profile$/, (route) => {
+    if (route.request().method() === 'PUT') {
+      capturedOnboardingPut = route.request().postDataJSON() as Record<
+        string,
+        unknown
+      >;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
+      });
+    }
+    return route.fallback();
   });
 
   // Step 1 — fill name
@@ -183,9 +195,15 @@ test('complete all 5 steps (happy path) → redirects to /profile/card', async (
   // SSR-vs-browser-mock gap as mentor-pool.spec.ts). Select whichever real
   // option renders first instead of matching mocked text.
 
-  // Step 3 — select one interested position
+  // Step 3 — select one interested position (有興趣多了解的職位)
   await expect(page.getByText('步驟 3 / 5')).toBeVisible();
+  await expect(page.getByText('有興趣多了解的職位')).toBeVisible();
+  const firstPositionLabel = (
+    await page.locator('form label span').first().textContent()
+  )?.trim();
+  expect(Boolean(firstPositionLabel)).toBe(true);
   await page.getByRole('checkbox').first().click();
+  await expect(page.getByText('已選 1 / 10')).toBeVisible();
   await page.getByRole('button', { name: '下一步' }).click();
 
   // Step 4 — select one skill
@@ -199,6 +217,16 @@ test('complete all 5 steps (happy path) → redirects to /profile/card', async (
   await page.getByRole('button', { name: '提交' }).click();
 
   await expect(page).toHaveURL('/profile/card', { timeout: 15_000 });
+  expect(
+    Array.isArray(capturedOnboardingPut?.['want_position']) &&
+      (capturedOnboardingPut?.['want_position'] as unknown[]).length === 1
+  ).toBe(true);
+  await expect(
+    page.getByRole('heading', { name: '有興趣多了解的職位' })
+  ).toBeVisible();
+  if (firstPositionLabel) {
+    await expect(page.getByText(firstPositionLabel)).toBeVisible();
+  }
 });
 
 test('click 上一步 on Step 3 → returns to Step 2, previously entered Step 2 data is preserved', async ({
@@ -256,4 +284,16 @@ test('Step 1 頭像預覽 URL 已含 query string 時以 &cb= 附加快取參數
     'https://x-career-multimedia.s3.ap-northeast-1.amazonaws.com/avatars/1/cropped-avatar.png?v=1700000000&cb=1700000456'
   );
   expect(decodedSrc).not.toContain('?v=1700000000?cb=');
+});
+
+test('GET /api/tags/zh_TW/catalog same-origin proxy returns populated want_position for PR preview CORS fallback (#1336)', async ({
+  request,
+}) => {
+  const res = await request.get('/api/tags/zh_TW/catalog');
+  expect(res.status()).toBe(200);
+  const body = (await res.json()) as {
+    want_position?: Array<{ leaves?: Array<{ subject_group?: string }> }>;
+  };
+  expect(Array.isArray(body.want_position)).toBe(true);
+  expect((body.want_position ?? []).length).toBeGreaterThan(0);
 });

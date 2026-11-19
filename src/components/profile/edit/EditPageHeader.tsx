@@ -2,33 +2,52 @@ import { ChevronLeft, Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 
-interface Props {
+export interface EditPageHeaderProps {
   isSaving: boolean;
   onBack: () => void;
   isMentorOnboarding?: boolean;
+  isMentor?: boolean;
+  submitDisabled?: boolean;
 }
 
 export function EditPageHeader({
   isSaving,
   onBack,
-  isMentorOnboarding,
-}: Props) {
+  isMentorOnboarding = false,
+  isMentor = false,
+  submitDisabled = false,
+}: EditPageHeaderProps) {
+  const roleSubtitle =
+    isMentorOnboarding || isMentor ? '導師個人資料' : '學員個人資料';
+  const pageTitle = isMentorOnboarding
+    ? '建立導師資料'
+    : isMentor
+      ? '編輯導師資料'
+      : '編輯個人資訊';
+  const submitLabel = isMentorOnboarding ? '儲存並建立' : '儲存變更';
+
   return (
-    <div className="border-background-border bg-light/95 supports-[backdrop-filter]:bg-light/80 sticky top-[70px] z-40 mb-6 flex justify-between border-b py-4 backdrop-blur">
-      <div className="flex items-center gap-3">
+    <div className="border-background-border bg-background-white sticky top-[70px] z-20 mb-8 flex items-center justify-between gap-4 border-b py-5">
+      <div className="flex min-w-0 items-center gap-3">
         <ChevronLeft
-          className={`sm:hidden ${isSaving ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}
+          className={`shrink-0 sm:hidden ${isSaving ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}
           onClick={isSaving ? undefined : onBack}
         />
-        <p className="text-4xl font-bold whitespace-nowrap">
-          {isMentorOnboarding ? '完成個人資料' : '編輯個人頁面'}
-        </p>
+        <div className="min-w-0">
+          <p className="text-text-tertiary mb-0.5 text-xs font-medium">
+            {roleSubtitle}
+          </p>
+          <h1 className="text-text-primary sm:text-28 truncate text-2xl font-bold">
+            {pageTitle}
+          </h1>
+        </div>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex shrink-0 items-center gap-3 sm:gap-4">
         <Button
-          variant="outline"
-          className="hidden grow rounded-full px-6 py-3 sm:inline-flex sm:grow-0"
+          type="button"
+          variant="ghost"
+          className="text-text-primary hidden rounded-lg px-4 py-2.5 font-medium focus-visible:ring-offset-0 sm:inline-flex"
           onClick={onBack}
           disabled={isSaving}
         >
@@ -38,9 +57,9 @@ export function EditPageHeader({
         <Button
           type="submit"
           variant="default"
-          className="min-w-[88px] rounded-full px-4 py-3 whitespace-nowrap sm:w-auto sm:grow-0 sm:px-6"
+          className="focus-visible:ring-brand-700 min-w-[104px] rounded-lg px-5 py-2.5 whitespace-nowrap focus-visible:ring-offset-0"
           form="edit-profile-form"
-          disabled={isSaving}
+          disabled={isSaving || submitDisabled}
         >
           {isSaving ? (
             <>
@@ -48,7 +67,7 @@ export function EditPageHeader({
               儲存中...
             </>
           ) : (
-            '儲存'
+            submitLabel
           )}
         </Button>
       </div>

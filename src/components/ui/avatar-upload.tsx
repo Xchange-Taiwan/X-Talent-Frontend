@@ -4,7 +4,11 @@ import Image from 'next/image';
 import { useRef, useState } from 'react';
 import { Control, FieldValues, Path, useController } from 'react-hook-form';
 
-import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
+import { shouldUnoptimizeAvatarSrc } from '@/lib/avatar/avatarUrl';
+import {
+  FOCUS_RING_CLASSES,
+  FOCUS_RING_NO_OFFSET_CLASSES,
+} from '@/lib/ui/focusRing';
 
 // Lazy-load the crop modal — it pulls in react-avatar-editor and Radix UI components
 // (~100kB+), which are only needed when the user actually opens the crop dialog.
@@ -17,6 +21,7 @@ interface AvatarUploadProps<T extends FieldValues> {
   name: Path<T>;
   avatarUrl?: string;
   onFileChange?: (file: File) => void;
+  compact?: boolean;
 }
 
 const AvatarUpload = <T extends FieldValues>({
@@ -24,6 +29,7 @@ const AvatarUpload = <T extends FieldValues>({
   name,
   avatarUrl,
   onFileChange,
+  compact = false,
 }: AvatarUploadProps<T>) => {
   const { field, fieldState } = useController({ control, name });
   const errorMessage = fieldState.error?.message;
@@ -60,48 +66,74 @@ const AvatarUpload = <T extends FieldValues>({
   };
 
   return (
-    <div className="mb-10 flex flex-col items-center lg:items-start">
-      <div
-        className={`group bg-avatar-background relative flex size-36 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 lg:h-[150px] lg:w-[150px] ${
-          errorMessage ? 'border-status-error-default' : 'border-avatar-border'
-        } ${FOCUS_RING_CLASSES}`}
-        onClick={() => fileInputRef.current?.click()}
-        onKeyDown={(e) => {
-          if (e.key === ' ' || e.key === 'Enter') {
-            e.preventDefault();
-            fileInputRef.current?.click();
-          }
-        }}
-        role="button"
-        tabIndex={0}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleUploadAvatar}
-          onClick={(e) => e.stopPropagation()}
-        />
-
-        {/* Hover show upload icon */}
-        <div className="bg-avatar-overlay absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-75">
-          <Camera size={50} className="text-avatar-border" />
-        </div>
-
-        {imagePreviewUrl ? (
-          <Image
-            src={imagePreviewUrl}
-            alt="Avatar Preview"
-            width={150}
-            height={150}
-            sizes="150px"
-            className="size-full rounded-full object-cover"
-            priority
+    <div
+      className={
+        compact
+          ? 'relative inline-flex flex-col items-center'
+          : 'mb-10 flex flex-col items-center lg:items-start'
+      }
+    >
+      <div className="relative inline-block">
+        <div
+          className={`group bg-avatar-background relative flex cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 ${
+            compact ? 'size-24 shadow-xs' : 'size-36 lg:h-[150px] lg:w-[150px]'
+          } ${
+            errorMessage
+              ? 'border-status-error-default'
+              : 'border-avatar-border'
+          } ${compact ? FOCUS_RING_NO_OFFSET_CLASSES : FOCUS_RING_CLASSES}`}
+          onClick={() => fileInputRef.current?.click()}
+          onKeyDown={(e) => {
+            if (e.key === ' ' || e.key === 'Enter') {
+              e.preventDefault();
+              fileInputRef.current?.click();
+            }
+          }}
+          role="button"
+          aria-label="點擊上傳或更換頭像"
+          tabIndex={0}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleUploadAvatar}
+            onClick={(e) => e.stopPropagation()}
           />
-        ) : (
-          // Show default avatar if no image is selected
-          <ImageIcon size={50} className="text-avatar-border" />
+
+          {/* Hover show upload icon */}
+          <div className="bg-avatar-overlay absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-75">
+            <Camera size={compact ? 24 : 50} className="text-avatar-border" />
+          </div>
+
+          {imagePreviewUrl ? (
+            <Image
+              src={imagePreviewUrl}
+              alt="Avatar Preview"
+              width={compact ? 96 : 150}
+              height={compact ? 96 : 150}
+              sizes={compact ? '96px' : '150px'}
+              unoptimized={shouldUnoptimizeAvatarSrc(imagePreviewUrl)}
+              className="size-full rounded-full object-cover"
+              priority
+            />
+          ) : (
+            // Show default avatar if no image is selected
+            <ImageIcon
+              size={compact ? 32 : 50}
+              className="text-avatar-border"
+            />
+          )}
+        </div>
+        {compact && (
+          <span
+            aria-hidden="true"
+            onClick={() => fileInputRef.current?.click()}
+            className="border-background-border bg-background-white text-text-secondary hover:text-text-primary absolute right-0 bottom-0 grid size-8 cursor-pointer place-items-center rounded-full border shadow-xs transition-colors"
+          >
+            <Camera className="size-4" />
+          </span>
         )}
       </div>
       {errorMessage && (

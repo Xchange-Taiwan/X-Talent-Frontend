@@ -769,5 +769,30 @@ describe('src/lib/routes', () => {
       expect(isDisallowedCallbackPathname('/favorites/list')).toBe(true);
       expect(sanitizeCallbackUrl('/favorites')).toBeNull();
     });
+
+    it('allows /api/tags/[language]/catalog as api_public for both visitors and incomplete onboarding users (#1336)', () => {
+      expect(
+        evaluateMiddlewareGate({
+          pathname: '/api/tags/zh_TW/catalog',
+          session: VISITOR_SESSION,
+        })
+      ).toEqual({
+        action: 'next',
+        syncSessionHint: true,
+      });
+      expect(
+        evaluateMiddlewareGate({
+          pathname: '/api/tags/zh_TW/catalog',
+          session: {
+            isAuthenticated: true,
+            onBoarding: false,
+            isMentor: false,
+          },
+        })
+      ).toEqual({
+        action: 'next',
+        syncSessionHint: true,
+      });
+    });
   });
 });

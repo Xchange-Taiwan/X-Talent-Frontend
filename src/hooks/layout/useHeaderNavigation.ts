@@ -20,6 +20,11 @@ import {
   type HeaderDialogType,
   toResolvedIdentitySnapshot,
 } from '@/lib/navigation/headerNavigationModel';
+import {
+  getLocationSearchSnapshot,
+  subscribeLocationSearch,
+} from '@/lib/navigation/locationSearchStore';
+import { MENTOR_ONBOARDING_KEY } from '@/lib/routes';
 
 export * from '@/lib/navigation/headerNavigationModel';
 
@@ -48,12 +53,48 @@ function handleFeedbackClick(): void {
   trackEvent({ name: 'feedback_open' });
 }
 
+function parseIsMentorOnboarding(
+  pathname: string | null,
+  rawSearch: string
+): boolean {
+  if (!pathname?.endsWith('/edit') || !rawSearch) {
+    return false;
+  }
+  const params = new URLSearchParams(rawSearch);
+  return (
+    params.get(MENTOR_ONBOARDING_KEY) === 'true' ||
+    params.get('onboarding') === 'true'
+  );
+}
+
+const useIsomorphicLayoutEffect =
+  typeof window !== 'undefined' ? React.useLayoutEffect : React.useEffect;
+
 export function useHeaderNavigation({
   identity,
   user,
   showFavorites,
 }: UseHeaderNavigationOptions): HeaderNavigationModel {
   const pathname = usePathname();
+  // Hydration-safe location.search state: initializes to '' on SSR/hydration,
+  // then syncs before browser paint via useLayoutEffect to prevent flash.
+  const [rawLocationSearch, setRawLocationSearch] = React.useState('');
+  useIsomorphicLayoutEffect(() => {
+    const sync = () => {
+      setRawLocationSearch(getLocationSearchSnapshot());
+    };
+    sync();
+    return subscribeLocationSearch(sync);
+  }, []);
+
+  useIsomorphicLayoutEffect(() => {
+    setRawLocationSearch(getLocationSearchSnapshot());
+  }, [pathname]);
+
+  const isMentorOnboarding = React.useMemo(
+    () => parseIsMentorOnboarding(pathname, rawLocationSearch),
+    [pathname, rawLocationSearch]
+  );
   const [activeDialog, setActiveDialog] =
     React.useState<HeaderDialogType | null>(null);
   const dialogRafRef = React.useRef<number | null>(null);
@@ -132,6 +173,7 @@ export function useHeaderNavigation({
           identity: stableIdentity,
           user,
           pathname,
+          isMentorOnboarding,
           showFavorites: favoritesEnabled,
           canDeleteAccount,
         }),
@@ -141,6 +183,7 @@ export function useHeaderNavigation({
       canDeleteAccount,
       favoritesEnabled,
       handleAction,
+      isMentorOnboarding,
       pathname,
       stableIdentity,
       user,

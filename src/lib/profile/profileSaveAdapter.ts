@@ -1,3 +1,7 @@
+import {
+  DEFAULT_PRESET_AVATAR_CODE,
+  toPresetAvatarCode,
+} from '@/lib/avatar/avatarUrl';
 import { hasProfileDtoConverged } from '@/lib/profile/convergence';
 import {
   encode,
@@ -50,9 +54,14 @@ export function mapVoToFormValues(
   const industryTag = readIndustryTag(userDto.industry);
   const industrySg = industryTag?.subject_group ?? '';
 
+  const rawAvatar = userDto.avatar?.trim() ?? '';
+  const defaultAvatarFallback = isMentorOnboarding
+    ? DEFAULT_PRESET_AVATAR_CODE
+    : '';
+
   return {
     is_mentor: mentorFlag,
-    avatar: userDto.avatar || '',
+    avatar: rawAvatar || defaultAvatarFallback,
     avatarFile: undefined,
     name: userDto.name || '',
     location: userDto.location || '',
@@ -166,14 +175,40 @@ export function mapFormValuesToPayload(
   const personalStatement =
     values.statement ?? currentDto?.personal_statement ?? '';
 
+  const effectiveIsMentor = isMentorOnboarding
+    ? true
+    : Boolean(values.is_mentor);
+
+  // Preserve hidden opposite-role preference arrays from currentDto so Mentor
+  // editing never wipes Mentee want_* tags and Mentee editing never wipes
+  // Mentor have_* tags (#959).
+  const resolvedWantPosition = effectiveIsMentor
+    ? (currentDto?.want_position ?? values.want_position ?? [])
+    : (values.want_position ?? []);
+  const resolvedWantSkill = effectiveIsMentor
+    ? (currentDto?.want_skill ?? values.want_skill ?? [])
+    : (values.want_skill ?? []);
+  const resolvedWantTopic = effectiveIsMentor
+    ? (currentDto?.want_topic ?? values.want_topic ?? [])
+    : (values.want_topic ?? []);
+  const resolvedHaveSkill = effectiveIsMentor
+    ? (values.have_skill ?? [])
+    : (currentDto?.have_skill ?? values.have_skill ?? []);
+  const resolvedHaveTopic = effectiveIsMentor
+    ? (values.have_topic ?? [])
+    : (currentDto?.have_topic ?? values.have_topic ?? []);
+
+  const wireAvatar =
+    avatar !== undefined ? (toPresetAvatarCode(avatar) ?? avatar) : undefined;
+
   return {
     name: values.name,
-    ...(avatar !== undefined ? { avatar } : {}),
+    ...(wireAvatar !== undefined ? { avatar: wireAvatar } : {}),
     location: values.location ?? '',
     years_of_experience: values.years_of_experience ?? '',
     industry: values.industry ?? '',
     language: 'zh_TW',
-    is_mentor: isMentorOnboarding ? true : Boolean(values.is_mentor),
+    is_mentor: effectiveIsMentor,
     ...(isMentorOnboarding || values.onboarding !== undefined
       ? { onboarding: isMentorOnboarding ? true : Boolean(values.onboarding) }
       : {}),
@@ -181,11 +216,11 @@ export function mapFormValuesToPayload(
     personal_statement: personalStatement,
     job_title,
     company: companyFromPrimary,
-    want_position: values.want_position ?? [],
-    want_skill: values.want_skill ?? [],
-    want_topic: values.want_topic ?? [],
-    have_skill: values.have_skill ?? [],
-    have_topic: values.have_topic ?? [],
+    want_position: resolvedWantPosition,
+    want_skill: resolvedWantSkill,
+    want_topic: resolvedWantTopic,
+    have_skill: resolvedHaveSkill,
+    have_topic: resolvedHaveTopic,
     // Three-state semantic on the wire: omit when no experience section
     // changed (backend leaves the column alone); include the full set
     // when any section is dirty (backend overwrites). Replace semantics:

@@ -31,6 +31,7 @@ export const RESERVATION_HISTORY_HREF = '/reservation/history';
 
 export const API_AUTH_PREFIX = '/api/auth';
 export const API_ANNOUNCEMENT_HREF = '/api/announcement';
+export const API_TAG_CATALOG_PATTERN = '/api/tags/[language]/catalog';
 export const MONITORING_HREF = '/monitoring';
 
 export const MENTOR_ONBOARDING_KEY = 'mentor-onboarding';
@@ -101,6 +102,9 @@ const PRECOMPILED_AUTH_PUBLIC_MATCHERS = [
 const matchMaintenanceRoute = compileRouteMatcher(MAINTENANCE_HREF);
 const matchOnboardingRoute = compileRouteMatcher(ONBOARDING_HREF);
 const matchApiAnnouncementRoute = compileRouteMatcher(API_ANNOUNCEMENT_HREF);
+const matchApiTagCatalogRoute = compileRouteMatcher<{ language: string }>(
+  API_TAG_CATALOG_PATTERN
+);
 const matchProfileCardRoute = compileRouteMatcher(PROFILE_CARD_HREF);
 const matchProfileEditRoute = compileRouteMatcher<{ pageUserId: string }>(
   '/profile/[pageUserId]/edit'
@@ -250,7 +254,10 @@ export function classifyPathname(pathname: string): PathnameClassification {
     return { kind: 'api_auth', pathname };
   }
 
-  if (matchApiAnnouncementRoute(pathname)) {
+  if (
+    matchApiAnnouncementRoute(pathname) ||
+    matchApiTagCatalogRoute(pathname)
+  ) {
     return { kind: 'api_public', pathname };
   }
 

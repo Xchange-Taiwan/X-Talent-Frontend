@@ -28,7 +28,7 @@ interface Props {
 }
 
 export const LinksSection = ({ id = 'links', form }: Props) => (
-  <Section id={id} title="個人連結">
+  <Section id={id} title="個人連結" variant="option-a">
     {SOCIAL_LINKS.map(({ platform, label, icon }) => (
       <FormField
         key={platform}

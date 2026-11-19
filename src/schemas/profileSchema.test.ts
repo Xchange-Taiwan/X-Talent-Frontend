@@ -66,7 +66,7 @@ describe('createProfileFormSchema mentor avatar requirement', () => {
     expect(result.success).toBe(true);
   });
 
-  it('mentor with neither avatar nor avatarFile fails with 請上傳個人頭像', () => {
+  it('mentor with neither avatar nor avatarFile fails with 請上傳真人照片，預設頭像僅供預覽', () => {
     const result = createProfileFormSchema(true).safeParse({
       ...baseData,
       ...mentorRequiredFields,
@@ -75,7 +75,7 @@ describe('createProfileFormSchema mentor avatar requirement', () => {
     });
     expect(result.success).toBe(false);
     const issue = result.error!.issues.find((i) => i.path[0] === 'avatarFile');
-    expect(issue?.message).toBe('請上傳個人頭像');
+    expect(issue?.message).toBe('請上傳真人照片，預設頭像僅供預覽');
   });
 
   it('mentee with neither avatar nor avatarFile passes', () => {
@@ -328,4 +328,69 @@ describe('jobSchema and educationSchema chronological period rules (#898)', () =
       )
     ).toBe(true);
   });
+});
+
+describe('createProfileFormSchema Option A Mentor vs Mentee rules (#959)', () => {
+  it('blocks mentor with preset illustration avatar and returns 請上傳真人照片，預設頭像僅供預覽', () => {
+    const result = createProfileFormSchema(true).safeParse({
+      ...baseData,
+      ...mentorRequiredFields,
+      avatar: '/avatars/default_1.webp',
+      avatarFile: undefined,
+    });
+    expect(result.success).toBe(false);
+    const issue = result.error?.issues.find((i) => i.path[0] === 'avatarFile');
+    expect(issue?.message).toBe('請上傳真人照片，預設頭像僅供預覽');
+  });
+
+  it('allows mentor to save even when hidden Mentee want_* arrays are empty', () => {
+    const result = createProfileFormSchema(true).safeParse({
+      ...baseData,
+      ...mentorRequiredFields,
+      avatar: 'https://example.com/real-photo.jpg',
+      want_position: [],
+      want_skill: [],
+      want_topic: [],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('allows mentee to save with only name filled (location, years_of_experience, and want_* optional)', () => {
+    const result = createProfileFormSchema(false).safeParse({
+      ...defaultValues,
+      name: '陳小華',
+      avatar: '/avatars/default_3.webp',
+      location: '',
+      years_of_experience: '',
+      want_position: [],
+      want_skill: [],
+      want_topic: [],
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+it('enforces agreed_guidelines === true during mentor onboarding (D-1, #961)', () => {
+  const blocked = createProfileFormSchema(true, true).safeParse({
+    ...baseData,
+    ...mentorRequiredFields,
+    avatar: 'https://example.com/real-photo.jpg',
+    agreed_guidelines: false,
+  });
+  expect(blocked.success).toBe(false);
+  expect(
+    blocked.error?.issues.some(
+      (i) =>
+        i.path[0] === 'agreed_guidelines' &&
+        i.message === '請先閱讀並勾選同意導師規範'
+    )
+  ).toBe(true);
+
+  const passed = createProfileFormSchema(true, true).safeParse({
+    ...baseData,
+    ...mentorRequiredFields,
+    avatar: 'https://example.com/real-photo.jpg',
+    agreed_guidelines: true,
+  });
+  expect(passed.success).toBe(true);
 });
