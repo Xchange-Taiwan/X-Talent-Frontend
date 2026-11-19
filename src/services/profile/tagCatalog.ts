@@ -9,22 +9,41 @@ import {
 
 const SAFE_LANGUAGE_RE = /^[A-Za-z]{2,3}(?:[_-][A-Za-z0-9]{2,8})?$/;
 
+export function isValidCatalogLanguage(language: string): boolean {
+  return SAFE_LANGUAGE_RE.test(language.trim());
+}
+
+/**
+ * Requires all three mandatory onboarding tag buckets (`want_position`,
+ * `want_skill`, `want_topic`) to be non-empty before caching or accepting
+ * a fallback response so partial degradation never bricks Step 3 ("有興趣多了解的職位").
+ */
+export function isOnboardingCatalogComplete(
+  catalog: TagCatalogsByBucket
+): boolean {
+  return (
+    catalog.want_position.length > 0 &&
+    catalog.want_skill.length > 0 &&
+    catalog.want_topic.length > 0
+  );
+}
+
 function isValidCatalogBucketPayload(
   candidate: unknown
 ): candidate is TagCatalogsByBucket {
   if (!candidate || typeof candidate !== 'object') return false;
   const rec = candidate as Record<string, unknown>;
-  return (
-    Array.isArray(rec.want_position) &&
-    Array.isArray(rec.want_skill) &&
-    Array.isArray(rec.want_topic) &&
-    Array.isArray(rec.have_skill) &&
-    Array.isArray(rec.have_topic) &&
-    Array.isArray(rec.industry) &&
-    rec.want_position.length > 0 &&
-    rec.want_skill.length > 0 &&
-    rec.want_topic.length > 0
-  );
+  if (
+    !Array.isArray(rec.want_position) ||
+    !Array.isArray(rec.want_skill) ||
+    !Array.isArray(rec.want_topic) ||
+    !Array.isArray(rec.have_skill) ||
+    !Array.isArray(rec.have_topic) ||
+    !Array.isArray(rec.industry)
+  ) {
+    return false;
+  }
+  return isOnboardingCatalogComplete(candidate as TagCatalogsByBucket);
 }
 
 export const EMPTY_TAG_CATALOGS: TagCatalogsByBucket = {
@@ -71,10 +90,14 @@ export function splitCatalogsByBucket(
   };
 }
 
+export interface FetchTagCatalogOptions {
+  allowSameOriginFallback?: boolean;
+}
+
 export async function fetchTagCatalog(
   language: string,
   signal?: AbortSignal,
-  localFetch?: typeof fetch | null
+  options?: FetchTagCatalogOptions
 ): Promise<TagCatalogsByBucket> {
   try {
     const data = await apiClient.getUnwrapped<TagCatalogsVO>(
@@ -90,25 +113,22 @@ export async function fetchTagCatalog(
       throw err;
     }
 
-    const effectiveLocalFetch =
-      localFetch !== undefined
-        ? localFetch
-        : typeof window !== 'undefined' && typeof window.fetch === 'function'
-          ? window.fetch.bind(window)
-          : null;
-
+    const canUseSameOriginFallback =
+      options?.allowSameOriginFallback ?? typeof window !== 'undefined';
     const trimmedLanguage = language.trim();
-    if (effectiveLocalFetch && SAFE_LANGUAGE_RE.test(trimmedLanguage)) {
+
+    if (canUseSameOriginFallback && isValidCatalogLanguage(trimmedLanguage)) {
       try {
-        const res = await effectiveLocalFetch(
+        const parsed = await apiClient.get<unknown>(
           `/api/tags/${encodeURIComponent(trimmedLanguage)}/catalog`,
-          { signal }
-        );
-        if (res.ok) {
-          const parsed: unknown = await res.json();
-          if (isValidCatalogBucketPayload(parsed)) {
-            return parsed;
+          {
+            auth: false,
+            isLocal: true,
+            ...(signal !== undefined ? { signal } : {}),
           }
+        );
+        if (isValidCatalogBucketPayload(parsed)) {
+          return parsed;
         }
       } catch (fallbackErr) {
         if (isAbortError(fallbackErr, signal)) {

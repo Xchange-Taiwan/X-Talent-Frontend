@@ -13,6 +13,7 @@ import {
 
 vi.mock('@/lib/apiClient', () => ({
   apiClient: {
+    get: vi.fn(),
     getUnwrapped: vi.fn(),
   },
 }));
@@ -136,12 +137,13 @@ describe('tagCatalog services', () => {
       vi.mocked(apiClient.getUnwrapped).mockRejectedValue(
         new Error('Network error')
       );
-      await expect(fetchTagCatalog('zh-TW', undefined, null)).rejects.toThrow(
-        'Network error'
-      );
+      vi.mocked(apiClient.get).mockRejectedValue(new Error('Fallback error'));
+      await expect(
+        fetchTagCatalog('zh-TW', undefined, { allowSameOriginFallback: true })
+      ).rejects.toThrow('Network error');
     });
 
-    it('falls back to same-origin /api/tags/[language]/catalog when direct BFF fetch fails in browser (e.g. PR preview CORS)', async () => {
+    it('falls back to same-origin /api/tags/[language]/catalog via apiClient.get({ isLocal: true }) when direct BFF fetch fails in browser', async () => {
       vi.mocked(apiClient.getUnwrapped).mockRejectedValueOnce(
         new TypeError('Failed to fetch')
       );
@@ -193,20 +195,14 @@ describe('tagCatalog services', () => {
           },
         ],
       });
-      const mockLocalFetch = vi.fn().mockResolvedValueOnce(
-        new Response(JSON.stringify(populated), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      );
+      vi.mocked(apiClient.get).mockResolvedValueOnce(populated);
 
-      const result = await fetchTagCatalog(
-        'zh_TW',
-        undefined,
-        mockLocalFetch as unknown as typeof fetch
-      );
-      expect(mockLocalFetch).toHaveBeenCalledWith('/api/tags/zh_TW/catalog', {
-        signal: undefined,
+      const result = await fetchTagCatalog('zh_TW', undefined, {
+        allowSameOriginFallback: true,
+      });
+      expect(apiClient.get).toHaveBeenCalledWith('/api/tags/zh_TW/catalog', {
+        auth: false,
+        isLocal: true,
       });
       expect(result.want_position).toHaveLength(1);
     });
@@ -216,16 +212,13 @@ describe('tagCatalog services', () => {
       controller.abort();
       const abortErr = new DOMException('Aborted', 'AbortError');
       vi.mocked(apiClient.getUnwrapped).mockRejectedValueOnce(abortErr);
-      const mockLocalFetch = vi.fn();
 
       await expect(
-        fetchTagCatalog(
-          'zh_TW',
-          controller.signal,
-          mockLocalFetch as unknown as typeof fetch
-        )
+        fetchTagCatalog('zh_TW', controller.signal, {
+          allowSameOriginFallback: true,
+        })
       ).rejects.toBe(abortErr);
-      expect(mockLocalFetch).not.toHaveBeenCalled();
+      expect(apiClient.get).not.toHaveBeenCalled();
     });
   });
 });
