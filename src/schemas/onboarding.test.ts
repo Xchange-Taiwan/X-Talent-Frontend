@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   formSchema,
+  onboardingDefaultValues,
   step1Schema,
   step2Schema,
   step3Schema,
@@ -93,13 +94,15 @@ describe('onboarding schemas', () => {
       }
     });
 
-    it('fails if positions list exceeds 10 items', () => {
+    it('fails if positions list exceeds 1 item (single-select lock #966)', () => {
       const result = step3Schema.safeParse({
-        want_position: Array(11).fill('position'),
+        want_position: ['position1', 'position2'],
       });
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.errors[0].message).toBe('最多選 10 個');
+        expect(result.error.errors[0].message).toBe(
+          '目前僅開放選擇 1 個職位方向'
+        );
       }
     });
   });
@@ -157,8 +160,10 @@ describe('onboarding schemas', () => {
   });
 
   describe('formSchema', () => {
-    it('aggregates all step schemas successfully', () => {
+    it('aggregates all step schemas successfully and supports Mentor single-page mode (#836)', () => {
       const result = formSchema.safeParse({
+        ...onboardingDefaultValues,
+        role: 'mentee',
         name: 'John Doe',
         language: 'zh_TW',
         location: 'TWN',
@@ -169,6 +174,15 @@ describe('onboarding schemas', () => {
         want_topic: ['topic1'],
       });
       expect(result.success).toBe(true);
+
+      const mentorBlocked = formSchema.safeParse({
+        ...onboardingDefaultValues,
+        role: 'mentor',
+        name: '林導師',
+        avatar: 'default_1',
+        agreed_guidelines: false,
+      });
+      expect(mentorBlocked.success).toBe(false);
     });
   });
 });

@@ -69,6 +69,20 @@ export interface SaveProfileConvergenceBudget {
   searchIndexIntervalMs?: number;
 }
 
+export type MenteeOnboardingIntentValues = Pick<
+  OnboardingFormValues,
+  | 'name'
+  | 'avatar'
+  | 'avatarFile'
+  | 'language'
+  | 'location'
+  | 'years_of_experience'
+  | 'industry'
+  | 'want_position'
+  | 'want_skill'
+  | 'want_topic'
+>;
+
 export type ProfileMutationIntent =
   | {
       mode: 'edit' | 'mentor-onboarding';
@@ -78,7 +92,7 @@ export type ProfileMutationIntent =
     }
   | {
       mode: 'mentee-onboarding';
-      values: OnboardingFormValues;
+      values: MenteeOnboardingIntentValues;
     };
 
 export interface CommitProfileContext {
@@ -156,7 +170,7 @@ async function fastSyncProfileRecord(
 }
 
 function buildMenteeOnboardingWritePayload(
-  values: OnboardingFormValues,
+  values: MenteeOnboardingIntentValues,
   avatar: string
 ): MentorProfileWritePayload {
   return {

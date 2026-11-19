@@ -9,32 +9,45 @@ import { useForm, type UseFormReturn } from 'react-hook-form';
 import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
 import { useToast } from '@/components/ui/use-toast';
 import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
+import { useFormErrorScroll } from '@/hooks/user/profile/useFormErrorScroll';
 import { trackEvent, trackFormValidationFailed } from '@/lib/analytics';
 import {
   clampOnboardingName,
   sanitizePrefillAvatarUrl,
 } from '@/lib/auth/oauthOutcome';
+import {
+  DEFAULT_PRESET_AVATAR_CODE,
+  toPresetAvatarCode,
+} from '@/lib/avatar/avatarUrl';
+import { getPendingFavoriteProfilePath } from '@/lib/favorites';
 import { captureFlowFailure } from '@/lib/monitoring';
+import {
+  type MenteeDirectionMap,
+  writeStoredMenteeDirectionMap,
+} from '@/lib/profile/menteeDirectionPreference';
 import {
   commitProfileMutation,
   type ProfileSavePort,
 } from '@/lib/profile/saveProfile';
-import { formSchema, type OnboardingFormValues } from '@/schemas/onboarding';
+import {
+  formSchema,
+  onboardingDefaultValues,
+  type OnboardingFormInput,
+  type OnboardingFormValues,
+  type OnboardingRole,
+} from '@/schemas/onboarding';
+import {
+  type ProfileFormValues,
+  validateAvatarFile,
+} from '@/schemas/profileSchema';
 import { fetchUserById } from '@/services/profile/user';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 
-export type OnboardingStepNumber = 1 | 2 | 3 | 4 | 5;
-
-export const STEP_FIELDS: Record<
-  OnboardingStepNumber,
-  Array<keyof OnboardingFormValues>
-> = {
-  1: ['name', 'avatar', 'avatarFile', 'language'],
-  2: ['location', 'years_of_experience', 'industry'],
-  3: ['want_position'],
-  4: ['want_skill'],
-  5: ['want_topic'],
-};
+export type OnboardingFormContext = UseFormReturn<
+  OnboardingFormInput,
+  unknown,
+  OnboardingFormValues
+>;
 
 interface Options {
   industries: TagCatalogsByBucket['industry'];
@@ -42,12 +55,16 @@ interface Options {
 }
 
 export interface UseOnboardingFormResult {
-  currentStep: OnboardingStepNumber;
   isSubmitting: boolean;
-  form: UseFormReturn<OnboardingFormValues>;
-  advanceStep: () => Promise<boolean>;
+  role: OnboardingRole;
+  setRole: (next: OnboardingRole) => void;
+  form: OnboardingFormContext;
+  formRef: React.RefObject<HTMLFormElement>;
+  directionMap: MenteeDirectionMap;
+  setDirectionMap: (next: MenteeDirectionMap) => void;
+  handleAvatarFileChange: (file: File) => void;
+  handleSelectPresetAvatar: (presetUrlOrCode: string) => void;
   submitOnboarding: () => Promise<void>;
-  handleGoToPrev: () => void;
 }
 
 export function useOnboardingForm({
@@ -56,8 +73,8 @@ export function useOnboardingForm({
 }: Options): UseOnboardingFormResult {
   const router = useRouter();
   const { toast } = useToast();
-  const [currentStep, setCurrentStep] = useState<OnboardingStepNumber>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [directionMap, setDirectionMap] = useState<MenteeDirectionMap>({});
   const { data: session, status, update: updateSession } = useSession();
   const latestSessionRef = useRef(session);
   latestSessionRef.current = session;
@@ -65,6 +82,7 @@ export function useOnboardingForm({
   latestUpdateSessionRef.current = updateSession;
 
   const isSubmittingRef = useRef(false);
+  const presetSelectedRef = useRef(false);
 
   const backfilledProfileUserIdRef = useRef<number | null>(null);
   const backfillControllerRef = useRef<AbortController | null>(null);
@@ -96,25 +114,28 @@ export function useOnboardingForm({
 
   const avatarUpload = useBackgroundAvatarUpload(sessionUserId);
 
-  const form = useForm<OnboardingFormValues>({
+  const form = useForm<OnboardingFormInput, unknown, OnboardingFormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: '',
-      avatarFile: undefined,
-      avatar: '',
-      language: 'zh_TW',
-      location: 'TWN',
-      years_of_experience: '',
-      industry: '',
-      want_position: [],
-      want_skill: [],
-      want_topic: [],
-    },
+    defaultValues: onboardingDefaultValues,
   });
 
-  // Subscribe to RHF's Proxy-tracked dirtyFields so form.getFieldState(..., form.formState)
-  // always reflects live user edits across steps and headless tests.
+  const { formRef, onError } = useFormErrorScroll<OnboardingFormValues>();
+
   void form.formState.dirtyFields;
+
+  const watchedRole = form.watch('role') ?? 'mentee';
+
+  const setRole = useCallback(
+    (next: OnboardingRole) => {
+      if (form.getValues('role') === next) return;
+      form.setValue('role', next, {
+        shouldDirty: true,
+        shouldValidate: false,
+      });
+      form.clearErrors();
+    },
+    [form]
+  );
 
   const applyNonDirtyPrefill = useCallback(
     (
@@ -245,9 +266,9 @@ export function useOnboardingForm({
     trackEvent({
       name: 'onboarding_step_viewed',
       feature: 'onboarding',
-      metadata: { step: currentStep },
+      metadata: { step: 1, role: watchedRole },
     });
-  }, [currentStep]);
+  }, [watchedRole]);
 
   const watchedAvatarFile = form.watch('avatarFile');
   useEffect(() => {
@@ -256,65 +277,46 @@ export function useOnboardingForm({
     }
   }, [watchedAvatarFile, form]);
 
-  const advanceStep = useCallback(async (): Promise<boolean> => {
-    if (currentStep >= 5) {
-      return false;
-    }
-    const fields = STEP_FIELDS[currentStep];
-    const isValid = await form.trigger(fields);
-    if (!isValid) {
-      const parsedStep = formSchema.safeParse(form.getValues());
-      const schemaInvalidSet = new Set<string>(
-        parsedStep.success
-          ? []
-          : parsedStep.error.issues
-              .map((issue) => String(issue.path[0] ?? ''))
-              .filter(Boolean)
-      );
-      const stepErrorKeys = fields
-        .map((f) => String(f))
-        .filter(
-          (key) =>
-            schemaInvalidSet.has(key) ||
-            form.getFieldState(key as keyof OnboardingFormValues).invalid
-        );
-      trackFormValidationFailed({
-        feature: 'onboarding',
-        formId: 'mentee_onboarding',
-        invalidKeys:
-          stepErrorKeys.length > 0 ? stepErrorKeys : [String(fields[0])],
-        step: currentStep,
+  const handleAvatarFileChange = useCallback(
+    (file: File) => {
+      presetSelectedRef.current = false;
+      form.setValue('avatarFile', file, {
+        shouldDirty: true,
+        shouldValidate: true,
       });
-      return false;
-    }
-
-    if (currentStep === 1) {
-      const avatarFile = form.getValues('avatarFile');
-      if (avatarFile) {
-        const currentAvatar = form.getValues('avatar') ?? '';
-        const snapshotAvatarUrl = currentAvatar.startsWith(
-          'https://lh3.googleusercontent.com/'
-        )
-          ? ''
-          : currentAvatar;
-        avatarUpload.kickOff(avatarFile, snapshotAvatarUrl);
-      } else {
-        avatarUpload.abort();
+      if (validateAvatarFile(file) !== null) {
+        return;
       }
-      trackEvent({
-        name: 'onboarding_step_1_completed',
-        feature: 'onboarding',
-      });
-    } else {
-      trackEvent({
-        name: `onboarding_step_${currentStep}_completed`,
-        feature: 'onboarding',
-      });
-    }
+      const currentAvatar = form.getValues('avatar') ?? '';
+      const snapshotAvatarUrl = currentAvatar.startsWith(
+        'https://lh3.googleusercontent.com/'
+      )
+        ? ''
+        : currentAvatar;
+      avatarUpload.kickOff(file, snapshotAvatarUrl);
+    },
+    [avatarUpload, form]
+  );
 
-    setCurrentStep((prev) => Math.min(5, prev + 1) as OnboardingStepNumber);
-    return true;
-  }, [avatarUpload, currentStep, form]);
+  const handleSelectPresetAvatar = useCallback(
+    (presetUrlOrCode: string) => {
+      presetSelectedRef.current = true;
+      void avatarUpload.rollback();
+      const normalizedCode =
+        toPresetAvatarCode(presetUrlOrCode) ??
+        presetUrlOrCode ??
+        DEFAULT_PRESET_AVATAR_CODE;
+      form.setValue('avatarFile', undefined, {
+        shouldDirty: false,
+        shouldValidate: true,
+      });
+      form.setValue('avatar', normalizedCode, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    },
+    [avatarUpload, form]
+  );
 
   const savePort = useMemo<ProfileSavePort>(
     () => ({
@@ -347,19 +349,20 @@ export function useOnboardingForm({
                 .map((issue) => String(issue.path[0] ?? ''))
                 .filter(Boolean)),
         ]);
-        const orderedSteps: OnboardingStepNumber[] = [1, 2, 3, 4, 5];
-        const earliestStep = orderedSteps.find((step) =>
-          STEP_FIELDS[step].some((field) => errorFieldNames.has(field))
-        );
+        const activeRole = rawValues.role === 'mentor' ? 'mentor' : 'mentee';
         trackFormValidationFailed({
           feature: 'onboarding',
-          formId: 'mentee_onboarding',
+          formId:
+            activeRole === 'mentor' ? 'mentor_onboarding' : 'mentee_onboarding',
           invalidKeys: Array.from(errorFieldNames),
-          step: earliestStep ?? currentStep,
+          step: 1,
         });
-        if (earliestStep && earliestStep !== currentStep) {
-          setCurrentStep(earliestStep);
-        }
+        (
+          onError as (
+            errs: typeof form.formState.errors,
+            ev?: React.BaseSyntheticEvent
+          ) => void
+        )(form.formState.errors);
         return;
       }
 
@@ -368,14 +371,12 @@ export function useOnboardingForm({
 
       if (backfillUpdatePromiseRef.current) {
         await backfillUpdatePromiseRef.current.catch(() => undefined);
-        // Yield one macrotask so NextAuth SessionProvider flushes setLoading(false)
-        // and refreshes latestUpdateSessionRef before commitProfileMutation updates session.
         await new Promise<void>((resolve) => {
           setTimeout(resolve, 0);
         });
       }
 
-      if (values.avatarFile) {
+      if (values.avatarFile && !presetSelectedRef.current) {
         try {
           const uploadedUrl = await avatarUpload.consume(values.avatarFile);
           values.avatar = uploadedUrl ?? values.avatar;
@@ -395,26 +396,84 @@ export function useOnboardingForm({
             type: 'custom',
             message: '頭像上傳失敗，請重新選擇。',
           });
-          setCurrentStep(1);
           return;
         }
       }
 
       const activeSession = latestSessionRef.current;
+      const resolvedPageUserId = activeSession?.user?.id
+        ? String(activeSession.user.id)
+        : undefined;
+
+      if (values.role === 'mentor') {
+        const mentorValues: ProfileFormValues = {
+          is_mentor: true,
+          onboarding: true,
+          agreed_guidelines: true,
+          avatar: values.avatar ?? '',
+          avatarFile: undefined,
+          name: values.name,
+          location: values.location,
+          years_of_experience: values.years_of_experience,
+          industry: values.industry ?? '',
+          statement: '',
+          about: values.about ?? '',
+          have_topic: values.have_topic,
+          have_skill: values.have_skill,
+          want_position: [],
+          want_skill: [],
+          want_topic: [],
+          work_experiences: values.work_experiences,
+          educations: values.educations,
+          links: values.links,
+        };
+
+        await commitProfileMutation(
+          {
+            mode: 'mentor-onboarding',
+            values: mentorValues,
+          },
+          {
+            pageUserId: resolvedPageUserId,
+            session: activeSession,
+            industryCatalog: industries,
+            navigationTarget: '/profile/card',
+          },
+          savePort
+        );
+        return;
+      }
+
+      const resolvedMenteeAvatar = values.avatar?.trim()
+        ? (toPresetAvatarCode(values.avatar) ?? values.avatar)
+        : DEFAULT_PRESET_AVATAR_CODE;
+
+      const menteeTarget =
+        getPendingFavoriteProfilePath() ??
+        (resolvedPageUserId
+          ? `/profile/${resolvedPageUserId}`
+          : '/profile/card');
+
       await commitProfileMutation(
         {
           mode: 'mentee-onboarding',
-          values,
+          values: {
+            ...values,
+            avatar: resolvedMenteeAvatar,
+          },
         },
         {
-          pageUserId: activeSession?.user?.id
-            ? String(activeSession.user.id)
-            : undefined,
+          pageUserId: resolvedPageUserId,
           session: activeSession,
           industryCatalog: industries,
+          navigationTarget: menteeTarget,
         },
         savePort
       );
+
+      if (resolvedPageUserId) {
+        writeStoredMenteeDirectionMap(resolvedPageUserId, directionMap);
+      }
     } catch {
       toast({
         variant: 'destructive',
@@ -425,18 +484,18 @@ export function useOnboardingForm({
       isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
-  }, [avatarUpload, currentStep, form, industries, savePort, toast]);
-
-  const handleGoToPrev = useCallback(() => {
-    setCurrentStep((s) => Math.max(1, s - 1) as OnboardingStepNumber);
-  }, []);
+  }, [avatarUpload, directionMap, form, industries, onError, savePort, toast]);
 
   return {
-    currentStep,
     isSubmitting,
+    role: watchedRole,
+    setRole,
     form,
-    advanceStep,
+    formRef,
+    directionMap,
+    setDirectionMap,
+    handleAvatarFileChange,
+    handleSelectPresetAvatar,
     submitOnboarding,
-    handleGoToPrev,
   };
 }

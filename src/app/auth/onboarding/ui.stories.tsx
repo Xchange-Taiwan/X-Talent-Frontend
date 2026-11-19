@@ -1,0 +1,80 @@
+import { zodResolver } from '@hookform/resolvers/zod';
+import type { Meta, StoryObj } from '@storybook/nextjs';
+import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
+
+import type { MenteeDirectionMap } from '@/lib/profile/menteeDirectionPreference';
+import {
+  formSchema,
+  onboardingDefaultValues,
+  type OnboardingFormInput,
+  type OnboardingFormValues,
+  type OnboardingRole,
+} from '@/schemas/onboarding';
+import type { TagCatalogGroupVO } from '@/types/tagCatalog';
+
+import OnboardingUI from './ui';
+
+const SAMPLE_GROUPS: TagCatalogGroupVO[] = [
+  {
+    key: 'software',
+    subject_group: 'software',
+    subject: '軟體開發',
+    children: [
+      { subject_group: 'fe', subject: '前端工程師' },
+      { subject_group: 'react', subject: 'React' },
+      { subject_group: 'resume', subject: '履歷健檢' },
+    ],
+  } as unknown as TagCatalogGroupVO,
+];
+
+function OnboardingStoryDemo({ initialRole }: { initialRole: OnboardingRole }) {
+  const form = useForm<OnboardingFormInput, unknown, OnboardingFormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      ...onboardingDefaultValues,
+      role: initialRole,
+      name: '陳大明 Alex Chen',
+    },
+  });
+  const [directionMap, setDirectionMap] = useState<MenteeDirectionMap>({});
+  const role = form.watch('role') ?? initialRole;
+
+  return (
+    <OnboardingUI
+      role={role}
+      onRoleChange={(next) => form.setValue('role', next)}
+      form={form}
+      locations={[{ value: 'TWN', text: '台灣' }]}
+      industries={[{ subject_group: 'TECH', subject: '科技與軟體' }]}
+      haveTopicGroups={SAMPLE_GROUPS}
+      haveSkillGroups={SAMPLE_GROUPS}
+      wantPositionGroups={SAMPLE_GROUPS}
+      wantSkillGroups={SAMPLE_GROUPS}
+      wantTopicGroups={SAMPLE_GROUPS}
+      directionMap={directionMap}
+      onDirectionMapChange={setDirectionMap}
+      onAvatarFileChange={() => {}}
+      onSelectPresetAvatar={(code) => form.setValue('avatar', code)}
+      isSubmitting={false}
+      onSubmit={async () => {}}
+    />
+  );
+}
+
+const meta: Meta<typeof OnboardingUI> = {
+  title: '頁面(Pages)/Auth/SinglePageOnboarding',
+  component: OnboardingUI,
+  parameters: { layout: 'fullscreen' },
+};
+
+export default meta;
+type Story = StoryObj<typeof OnboardingUI>;
+
+export const MenteeMode: Story = {
+  render: () => <OnboardingStoryDemo initialRole="mentee" />,
+};
+
+export const MentorMode: Story = {
+  render: () => <OnboardingStoryDemo initialRole="mentor" />,
+};

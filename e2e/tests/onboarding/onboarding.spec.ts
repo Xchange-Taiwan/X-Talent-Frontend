@@ -1,5 +1,6 @@
 import { expect, Page, test } from '@playwright/test';
 
+import { captureEvidence } from '../../helpers/evidence';
 import { mockApiRoute } from '../../helpers/route';
 import { seedMockAuthSession } from '../../helpers/session';
 
@@ -131,38 +132,28 @@ async function gotoOnboarding(page: Page): Promise<void> {
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
-test('submit Step 1 with empty name → inline validation error shown, does NOT advance to Step 2', async ({
+test('submit single-page onboarding with empty name → inline validation error shown (#836)', async ({
   page,
 }) => {
   await gotoOnboarding(page);
 
-  // useOnboardingForm's session-driven useEffect calls step1Form.reset({name:
-  // session.user.name, ...}) once useSession() resolves — asynchronously,
-  // after mount. Clearing the field immediately races that effect: if it
-  // fires after our fill(''), it silently repopulates "Test User" and the
-  // form submits successfully instead of showing the validation error. Wait
-  // for the effect to have already run (field shows the session name) before
-  // clearing it, so there's no pending reset left to race against.
   const nameInput = page.locator('input[name="name"]');
   await expect(nameInput).toHaveValue('Test User');
   await nameInput.fill('');
-  await page.getByRole('button', { name: '下一步' }).click();
+  await page.getByRole('button', { name: '提交' }).click();
 
   await expect(page.getByText('請輸入姓名')).toBeVisible();
-  await expect(page.getByText('步驟 1 / 5')).toBeVisible();
 });
 
-test('complete all 5 steps (happy path) → redirects to /profile/card', async ({
+test('complete single-page Mentee onboarding → saves default_1 avatar & single position and redirects to /profile/1 (#836)', async ({
   page,
 }) => {
   await gotoOnboarding(page);
 
-  // GET /v1/mentors/:id/zh_TW/profile — fetchUser after submit
   await mockApiRoute(page, /\/v1\/mentors\/[^/]+\/zh_TW\/profile/, {
     body: MOCK_USER_PROFILE,
   });
 
-  // PUT /v1/mentors/:id/profile — updateProfile (no /zh_TW/ segment)
   let capturedOnboardingPut: Record<string, unknown> | null = null;
   await page.route(/\/v1\/mentors\/[^/]+\/profile$/, (route) => {
     if (route.request().method() === 'PUT') {
@@ -179,85 +170,58 @@ test('complete all 5 steps (happy path) → redirects to /profile/card', async (
     return route.fallback();
   });
 
-  // Step 1 — fill name
   await page.fill('input[name="name"]', 'Test User');
-  await page.getByRole('button', { name: '下一步' }).click();
-
-  // Step 2 — select years_of_experience
-  await expect(page.getByText('步驟 2 / 5')).toBeVisible();
   await page.getByText('請選擇您的年資區間').click();
   await page.getByRole('option', { name: '1 年以下' }).click();
-  await page.getByRole('button', { name: '下一步' }).click();
 
-  // Steps 3-5's option catalogs (want_position/want_skill/want_topic) come
-  // from fetchTagCatalogServer — a server-side (RSC) fetch that page.route()
-  // cannot mock, so the mocked '測試職位' etc. text never renders here (same
-  // SSR-vs-browser-mock gap as mentor-pool.spec.ts). Select whichever real
-  // option renders first instead of matching mocked text.
+  // Select 1 interested position via CompactCategoryPicker
+  await page.getByRole('button', { name: '新增職位' }).click();
+  const posPopover = page.locator('[data-radix-popper-content-wrapper]');
+  await posPopover.locator('.max-h-80 button[type="button"]').first().click();
+  await posPopover.locator('[role="checkbox"]').first().click();
+  await expect(page.getByText('已選 1 / 1')).toBeVisible();
 
-  // Step 3 — select one interested position (有興趣多了解的職位)
-  await expect(page.getByText('步驟 3 / 5')).toBeVisible();
-  await expect(page.getByText('有興趣多了解的職位')).toBeVisible();
-  const firstPositionLabel = (
-    await page.locator('form label span').first().textContent()
-  )?.trim();
-  expect(Boolean(firstPositionLabel)).toBe(true);
-  await page.getByRole('checkbox').first().click();
-  await expect(page.getByText('已選 1 / 10')).toBeVisible();
-  await page.getByRole('button', { name: '下一步' }).click();
+  // Select 1 skill
+  await page.getByRole('button', { name: '新增技能' }).click();
+  const skillPopover = page.locator('[data-radix-popper-content-wrapper]');
+  await skillPopover.locator('.max-h-80 button[type="button"]').first().click();
+  await skillPopover.locator('[role="checkbox"]').first().click();
+  await page.keyboard.press('Escape');
 
-  // Step 4 — select one skill
-  await expect(page.getByText('步驟 4 / 5')).toBeVisible();
-  await page.getByRole('checkbox').first().click();
-  await page.getByRole('button', { name: '下一步' }).click();
+  // Select 1 topic
+  await page.getByRole('button', { name: '新增主題' }).click();
+  const topicPopover = page.locator('[data-radix-popper-content-wrapper]');
+  await topicPopover.locator('.max-h-80 button[type="button"]').first().click();
+  await topicPopover.locator('[role="checkbox"]').first().click();
+  await page.keyboard.press('Escape');
 
-  // Step 5 — select one topic and submit
-  await expect(page.getByText('步驟 5 / 5')).toBeVisible();
-  await page.getByRole('checkbox').first().click();
+  await captureEvidence(page, 'onboarding-single-page-mentee');
   await page.getByRole('button', { name: '提交' }).click();
 
-  await expect(page).toHaveURL('/profile/card', { timeout: 15_000 });
+  await expect(page).toHaveURL('/profile/1', { timeout: 15_000 });
   expect(
     Array.isArray(capturedOnboardingPut?.['want_position']) &&
       (capturedOnboardingPut?.['want_position'] as unknown[]).length === 1
   ).toBe(true);
-  await expect(
-    page.getByRole('heading', { name: '有興趣多了解的職位' })
-  ).toBeVisible();
-  if (firstPositionLabel) {
-    await expect(page.getByText(firstPositionLabel)).toBeVisible();
-  }
 });
 
-test('click 上一步 on Step 3 → returns to Step 2, previously entered Step 2 data is preserved', async ({
+test('switch between Mentee and Mentor role on single-page onboarding → enforces Mentor required fields (#836)', async ({
   page,
 }) => {
   await gotoOnboarding(page);
 
-  // Step 1
-  await page.fill('input[name="name"]', 'Test User');
-  await page.getByRole('button', { name: '下一步' }).click();
+  await page.getByTestId('onboarding-role-mentor').click();
+  await expect(page.getByText('我已閱讀並同意導師規範')).toBeVisible();
+  await captureEvidence(page, 'onboarding-single-page-mentor');
 
-  // Step 2 — select years_of_experience so we have data to verify later
-  await expect(page.getByText('步驟 2 / 5')).toBeVisible();
-  await page.getByText('請選擇您的年資區間').click();
-  await page.getByRole('option', { name: '1 年以下' }).click();
-  await page.getByRole('button', { name: '下一步' }).click();
-
-  // Step 3 — click the back arrow (ChevronLeft icon)
-  await expect(page.getByText('步驟 3 / 5')).toBeVisible();
-  await page.locator('.lucide-chevron-left').click();
-
-  // Back on Step 2 — years_of_experience value should still be shown in the
-  // combobox trigger. Use getByRole to avoid strict-mode violation from the
-  // hidden <option> element that also contains the same text.
-  await expect(page.getByText('步驟 2 / 5')).toBeVisible();
-  await expect(page.getByRole('combobox', { name: '經驗' })).toContainText(
-    '1 年以下'
-  );
+  await page.getByRole('button', { name: '提交' }).click();
+  await expect(page.getByText('請先閱讀並勾選同意導師規範')).toBeVisible();
+  await expect(
+    page.getByText('請上傳真人照片，預設頭像僅供預覽')
+  ).toBeVisible();
 });
 
-test('Step 1 頭像預覽 URL 已含 query string 時以 &cb= 附加快取參數而非重複 ?cb= (#857)', async ({
+test('頭像預覽 URL 已含 query string 時以 &cb= 附加快取參數而非重複 ?cb= (#857)', async ({
   page,
 }) => {
   const versionedAvatarUrl =
@@ -275,7 +239,7 @@ test('Step 1 頭像預覽 URL 已含 query string 時以 &cb= 附加快取參數
 
   await page.goto('/auth/onboarding');
 
-  const avatarImg = page.getByRole('img', { name: 'Avatar Preview' });
+  const avatarImg = page.getByRole('img', { name: 'Test User 的個人頭像' });
   await expect(avatarImg).toBeVisible();
 
   const srcAttr = (await avatarImg.getAttribute('src')) ?? '';
