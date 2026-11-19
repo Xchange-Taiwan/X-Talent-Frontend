@@ -19,6 +19,7 @@ import {
   type SlotFormState,
   snapMinute,
 } from '@/lib/profile/scheduleFormatters';
+import { listWeeklyDatesInMonth } from '@/lib/profile/scheduleHelpers';
 
 import { DurationRadio, TimeSelectPair } from './SlotFormControls';
 
@@ -61,16 +62,12 @@ export function AddSlotModal({
   }, [selectedDate]);
 
   const previewDates = useMemo(() => {
-    if (!parsedSelectedDate || !weekly) return [];
-    const dates: string[] = [];
-    const startMonth = parsedSelectedDate.month();
-    let cursor = parsedSelectedDate;
-    while (cursor.month() === startMonth) {
-      dates.push(cursor.format('M/D'));
-      cursor = cursor.add(7, 'day');
-    }
-    return dates;
-  }, [parsedSelectedDate, weekly]);
+    if (!selectedDate || !weekly) return [];
+    return listWeeklyDatesInMonth(selectedDate).map((dateKey) => {
+      const [, monthStr, dayStr] = dateKey.split('-');
+      return `${Number(monthStr)}/${Number(dayStr)}`;
+    });
+  }, [selectedDate, weekly]);
 
   const weekdayLabel = parsedSelectedDate
     ? (WEEKDAY_LABELS[parsedSelectedDate.day()] ?? '')

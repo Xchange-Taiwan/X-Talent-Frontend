@@ -211,9 +211,20 @@ describe('Storybook stories coverage and state verification (#850)', () => {
     const defaultSchedule = MentorScheduleDialogStories.Default.args?.schedule;
     expect(defaultSchedule?.slotsWithMeta.length).toBeGreaterThanOrEqual(4);
     expect(defaultSchedule?.futureSlots.length).toBeGreaterThanOrEqual(3);
+    expect(
+      defaultSchedule?.addSlotForSelectedDate({
+        startTime: '09:00',
+        durationMinutes: 30,
+      })
+    ).toEqual({ success: true, added: 1 });
 
+    expect(MentorScheduleDialogStories.OverlapDraftAddError).toBeDefined();
+    expect(
+      MentorScheduleDialogStories.PartialMultiMonthSyncConflictError
+    ).toBeDefined();
     expect(AddSlotModalStories.DefaultEmptyDay).toBeDefined();
     expect(AddSlotModalStories.AfterExistingSlots).toBeDefined();
+    expect(AddSlotModalStories.EarlyMonthWeeklyPreview).toBeDefined();
     expect(EditSlotModalStories.Default).toBeDefined();
     expect(
       ReservationBlockPromptDialogStories.BookedWithMenteeName

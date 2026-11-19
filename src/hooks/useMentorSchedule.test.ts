@@ -30,6 +30,7 @@ import {
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   buildDateTime,
+  endOfMonthUnix,
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
 import {
@@ -92,9 +93,7 @@ function reservationKey(
 }
 
 function computeEndOfMonthUnix(year: number, month: number): number {
-  return dayjs(new Date(year, month - 1, 1))
-    .endOf('month')
-    .unix();
+  return endOfMonthUnix(year, month);
 }
 
 describe('useMentorSchedule', () => {
@@ -2588,7 +2587,7 @@ describe('useMentorSchedule', () => {
         outcome = await result.current.editor!.confirmChanges();
       });
 
-      expect(outcome).toEqual({ ok: true });
+      expect(outcome).toEqual({ ok: true, committedMonthKeys: [] });
       expect(mockSyncMonths).not.toHaveBeenCalled();
     });
 
@@ -2618,7 +2617,7 @@ describe('useMentorSchedule', () => {
       expect(result.current.editor!.draftOccurrences!).toBe(draftBefore);
     });
 
-    it('addSlotForSelectedDate returns zero added/skipped and leaves the draft untouched when no date is selected', async () => {
+    it('addSlotForSelectedDate returns NO_DATE_SELECTED and leaves the draft untouched when no date is selected', async () => {
       const { result } = setupSchedule();
 
       await waitFor(() => expect(result.current.loaded).toBe(true));
@@ -2637,9 +2636,84 @@ describe('useMentorSchedule', () => {
         });
       });
 
-      expect(res).toEqual({ added: 0, skipped: 0 });
+      expect(res).toEqual({ success: false, reason: 'NO_DATE_SELECTED' });
+      expect('skipped' in res).toBe(false);
       // The single pre-existing slot from defaultMockRaws is untouched.
       expect(result.current.editor!.draftOccurrences!).toHaveLength(1);
+    });
+
+    it('addSlotForSelectedDate preserves OVERLAP failure reason on atomic weekly conflict and confirmChanges preserves failedMonthKey & committedMonthKeys', async () => {
+      const { result } = setupSchedule();
+
+      await waitFor(() => expect(result.current.loaded).toBe(true));
+
+      act(() => {
+        result.current.reader.setSelectedDate('2026-07-05');
+      });
+
+      const conflictStartHM = dayjs(1785070000 * 1000).format('HH:mm');
+      let overlapRes!: ReturnType<
+        NonNullable<typeof result.current.editor>['addSlotForSelectedDate']
+      >;
+      act(() => {
+        overlapRes = result.current.editor!.addSlotForSelectedDate({
+          startTime: conflictStartHM,
+          durationMinutes: 30,
+          weeklyWithinMonth: true,
+        });
+      });
+
+      expect(overlapRes).toEqual({ success: false, reason: 'OVERLAP' });
+      expect('skipped' in overlapRes).toBe(false);
+      expect(result.current.editor!.draftOccurrences!).toHaveLength(1);
+
+      // Now add non-conflicting edits in July and August, and simulate partial multi-month sync failure
+      scheduleReadModel.set(scheduleKey(8), []);
+      act(() => {
+        result.current.reader.setSelectedDate('2026-07-26');
+      });
+      act(() => {
+        result.current.editor!.addSlotForSelectedDate({
+          startTime: '15:00',
+          durationMinutes: 30,
+        });
+      });
+      act(() => {
+        result.current.reader.setSelectedDate('2026-08-02');
+      });
+      act(() => {
+        result.current.editor!.addSlotForSelectedDate({
+          startTime: '10:00',
+          durationMinutes: 30,
+        });
+      });
+
+      vi.mocked(syncMonths).mockResolvedValueOnce([
+        { monthKey: '2026-07', outcome: { ok: true, raws: defaultMockRaws } },
+        {
+          monthKey: '2026-08',
+          outcome: {
+            ok: false,
+            reason: 'conflict',
+            message: 'Conflict in August',
+          },
+        },
+      ]);
+
+      let syncRes!: Awaited<
+        ReturnType<NonNullable<typeof result.current.editor>['confirmChanges']>
+      >;
+      await act(async () => {
+        syncRes = await result.current.editor!.confirmChanges();
+      });
+
+      expect(syncRes).toEqual({
+        ok: false,
+        reason: 'conflict',
+        message: 'Conflict in August',
+        failedMonthKey: '2026-08',
+        committedMonthKeys: ['2026-07'],
+      });
     });
 
     it('never calls loadMonthSchedule when backend.userId is missing - there is no key to fetch with', async () => {

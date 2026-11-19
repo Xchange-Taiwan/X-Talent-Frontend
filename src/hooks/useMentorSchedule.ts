@@ -1,9 +1,6 @@
 'use client';
 
 import dayjs from 'dayjs';
-import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
-dayjs.extend(isSameOrBefore);
-
 import {
   useCallback,
   useEffect,
@@ -31,6 +28,7 @@ import {
 import { MonthDraftStore } from '@/lib/profile/MonthDraftStore';
 import { toDateKey } from '@/lib/profile/scheduleFormatters';
 import {
+  endOfMonthUnix,
   monthKeyFromYearMonth,
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
@@ -252,17 +250,8 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   // Reservations for the viewed month
   // --------------------------------------------------------------------
 
-  // Native Date(year, monthIndex, day) rather than dayjs's string parser:
-  // Safari's Date.parse rejects unpadded YYYY-M-DD strings (e.g. '2026-7-01')
-  // as Invalid Date, which would make endOfMonthUnix NaN and defeat the
-  // `res.next_dtend >= endOfMonthUnix` pagination-loop guard downstream.
-  const endOfMonthUnix = useMemo(
-    () =>
-      activeYear && activeMonth
-        ? dayjs(new Date(activeYear, activeMonth - 1, 1))
-            .endOf('month')
-            .unix()
-        : 0,
+  const monthEndUnix = useMemo(
+    () => endOfMonthUnix(activeYear, activeMonth),
     [activeYear, activeMonth]
   );
 
@@ -271,16 +260,24 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   const upcomingKey = useMemo<ReservationReadKey | null>(
     () =>
       reservationsActive && loginUserId
-        ? { userId: loginUserId, state: 'MENTOR_UPCOMING', endOfMonthUnix }
+        ? {
+            userId: loginUserId,
+            state: 'MENTOR_UPCOMING',
+            endOfMonthUnix: monthEndUnix,
+          }
         : null,
-    [reservationsActive, loginUserId, endOfMonthUnix]
+    [reservationsActive, loginUserId, monthEndUnix]
   );
   const pendingKey = useMemo<ReservationReadKey | null>(
     () =>
       reservationsActive && loginUserId
-        ? { userId: loginUserId, state: 'MENTOR_PENDING', endOfMonthUnix }
+        ? {
+            userId: loginUserId,
+            state: 'MENTOR_PENDING',
+            endOfMonthUnix: monthEndUnix,
+          }
         : null,
-    [reservationsActive, loginUserId, endOfMonthUnix]
+    [reservationsActive, loginUserId, monthEndUnix]
   );
 
   const createReservationsFetcher = useCallback(
@@ -291,7 +288,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
           const items = await fetchAllReservationsForState(
             loginUserId,
             state,
-            endOfMonthUnix,
+            monthEndUnix,
             signal
           );
           return { items, next_dtend: 0 };
@@ -310,7 +307,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
           throw err;
         }
       },
-    [loginUserId, endOfMonthUnix]
+    [loginUserId, monthEndUnix]
   );
 
   const fetchUpcoming = useMemo(
@@ -532,17 +529,15 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   const addSlotForSelectedDate: MentorScheduleEditor['addSlotForSelectedDate'] =
     useCallback(
       ({ startTime, durationMinutes, weeklyWithinMonth }) => {
-        if (!selectedDate) return { added: 0, skipped: 0 };
-        const res = store.add({
+        if (!selectedDate) {
+          return { success: false, reason: 'NO_DATE_SELECTED' };
+        }
+        return store.add({
           startTime,
           durationMinutes,
           weeklyWithinMonth,
           selectedDate,
         });
-        return {
-          added: res.added,
-          skipped: res.skipped,
-        };
       },
       [store, selectedDate]
     );
@@ -597,12 +592,12 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         fetchAllReservationsForState(
           loginUserId,
           'MENTOR_UPCOMING',
-          endOfMonthUnix
+          monthEndUnix
         ),
         fetchAllReservationsForState(
           loginUserId,
           'MENTOR_PENDING',
-          endOfMonthUnix
+          monthEndUnix
         ),
       ]);
       if (accountSwitchGenRef.current !== genAtStart) return;
@@ -625,7 +620,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         level: 'warning',
       });
     }
-  }, [upcomingKey, pendingKey, loginUserId, endOfMonthUnix]);
+  }, [upcomingKey, pendingKey, loginUserId, monthEndUnix]);
 
   const reloadSchedule = useCallback(async () => {
     if (!scheduleKey) return;

@@ -1,8 +1,16 @@
 import dayjs from 'dayjs';
-import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
-dayjs.extend(isSameOrBefore);
 
-import type { UpdateDraftSlotResult } from '@/lib/profile/bookingAvailability/types';
+import type {
+  AddDraftSlotResult,
+  MonthKey,
+  MonthSyncRequest,
+  MonthSyncResult,
+  RawMentorTimeslot,
+  ScheduleUpsertSlot,
+  SlotDurationMinutes,
+  SyncResult,
+  UpdateDraftSlotResult,
+} from '@/lib/profile/bookingAvailability/types';
 import {
   activeOccurrences,
   buildDateTime,
@@ -10,21 +18,14 @@ import {
   deduplicateRawSlots,
   findRestorableExdatedRow,
   hasAnyOccurrenceOverlap,
-  MonthKey,
+  listWeeklyDatesInMonth,
   monthKeyFromDateStr,
   monthKeyFromUnix,
   nextTempId,
   parseMonthKey,
-  RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
-import { TimeSlotDTO, utcYearMonth } from '@/services/mentor-schedule/schedule';
-import {
-  MonthSyncRequest,
-  MonthSyncResult,
-  type SyncResult,
-} from '@/services/mentor-schedule/sync';
 
-export type SlotDurationMinutes = 30 | 45 | 60;
+export type { SlotDurationMinutes };
 
 export interface MonthDraftStoreSnapshot {
   savedByMonth: Map<MonthKey, RawMentorTimeslot[]>;
@@ -126,13 +127,13 @@ export class MonthDraftStore {
   }
 
   /**
-   * The dirty months' changes, shaped as ready-to-send `MonthSyncRequest`s
+   * The dirty months' changes, shaped as pure domain `MonthSyncRequest` plans
    * for `syncMonths()` — one request per dirty month, in the same order the
    * months became dirty. Each request's `upsertPayload` carries only ALLOW
-   * rows not already queued for deletion, deduped by (dtstart, dtend) with
-   * any persisted duplicate routed into `deleteIds` instead, mirroring
-   * `syncMonthSchedule`'s PUT-before-DELETE contract per month. Returns `[]`
-   * when nothing is dirty.
+   * domain slots not already queued for deletion (zero transport DTO fields),
+   * deduped by (dtstart, dtend) with any persisted duplicate routed into
+   * `deleteIds` instead, mirroring `syncMonthSchedule`'s PUT-before-DELETE
+   * contract per month. Returns `[]` when nothing is dirty.
    */
   public getSyncRequests(userId: string): MonthSyncRequest[] {
     const persistedIdSet = new Set<number>();
@@ -140,17 +141,11 @@ export class MonthDraftStore {
       for (const r of raws) if (r.id > 0) persistedIdSet.add(r.id);
     });
 
-    const toServiceSlot = (r: RawMentorTimeslot): TimeSlotDTO => {
-      const { year, month } = utcYearMonth(r.dtstart);
-      const slot: TimeSlotDTO = {
-        user_id: 0,
-        dt_type: 'ALLOW',
-        dt_year: year,
-        dt_month: month,
+    const toUpsertSlot = (r: RawMentorTimeslot): ScheduleUpsertSlot => {
+      const slot: ScheduleUpsertSlot = {
         dtstart: r.dtstart,
         dtend: r.dtend,
-        rrule: r.rrule,
-        timezone: 'UTC',
+        ...(r.rrule ? { rrule: r.rrule } : {}),
         exdate: r.exdate,
       };
       if (r.id > 0 && persistedIdSet.has(r.id)) slot.id = r.id;
@@ -164,12 +159,12 @@ export class MonthDraftStore {
 
       const rawUpsert = draftRaws
         .filter((r) => !pendingDeletes.includes(r.id) && r.type === 'ALLOW')
-        .map(toServiceSlot);
+        .map(toUpsertSlot);
 
       // Dedupe by (dtstart, dtend) within this month; queue any persisted
       // duplicate for deletion to avoid PUT conflicts.
       const seenKeys = new Map<string, number>();
-      const upsertPayload: TimeSlotDTO[] = [];
+      const upsertPayload: ScheduleUpsertSlot[] = [];
       const extraDeleteIds: number[] = [];
       for (const slot of rawUpsert) {
         const key = `${slot.dtstart}_${slot.dtend}`;
@@ -333,47 +328,39 @@ export class MonthDraftStore {
     durationMinutes: SlotDurationMinutes;
     weeklyWithinMonth?: boolean;
     selectedDate: string;
-  }): UpdateDraftSlotResult & { added: number; skipped: number } {
+  }): AddDraftSlotResult {
     const { startTime, durationMinutes, weeklyWithinMonth, selectedDate } =
       patch;
-    if (!selectedDate || !startTime || !durationMinutes) {
-      return { success: false, added: 0, skipped: 0 };
+    if (!selectedDate) {
+      return { success: false, reason: 'NO_DATE_SELECTED' };
+    }
+    if (!startTime || !durationMinutes) {
+      return { success: false, reason: 'INVALID_INPUT' };
     }
 
-    const startDayjs = buildDateTime(selectedDate, startTime);
-    if (!startDayjs.isValid()) return { success: false, added: 0, skipped: 0 };
+    const weeklyDates = listWeeklyDatesInMonth(selectedDate);
+    if (weeklyDates.length === 0) {
+      return { success: false, reason: 'INVALID_INPUT' };
+    }
 
-    const monthKey = monthKeyFromDateStr(selectedDate);
-    const durationSeconds = durationMinutes * 60;
-
+    const targetDates = weeklyWithinMonth ? weeklyDates : [weeklyDates[0]!];
     const candidateOccurrences: number[] = [];
-    if (weeklyWithinMonth) {
-      const selectedDay = dayjs(selectedDate);
-      let cursor = selectedDay;
-      while (cursor.month() === selectedDay.month()) {
-        const d = buildDateTime(cursor.format('YYYY-MM-DD'), startTime);
-        if (d.isValid()) {
-          candidateOccurrences.push(Math.floor(d.valueOf() / 1000));
-        }
-        cursor = cursor.add(7, 'day');
+    for (const dateStr of targetDates) {
+      const d = buildDateTime(dateStr, startTime);
+      if (!d.isValid()) {
+        return { success: false, reason: 'INVALID_INPUT' };
       }
-    } else {
-      candidateOccurrences.push(Math.floor(startDayjs.valueOf() / 1000));
+      candidateOccurrences.push(Math.floor(d.valueOf() / 1000));
     }
 
-    if (candidateOccurrences.length === 0) {
-      return { success: false, added: 0, skipped: 0 };
-    }
-
-    let added = 0;
-    let skipped = 0;
+    const monthKey = monthKeyFromDateStr(weeklyDates[0]!);
+    const durationSeconds = durationMinutes * 60;
     const prev = this.draftByMonth.get(monthKey) ?? [];
 
     if (
       hasAnyOccurrenceOverlap(prev, null, candidateOccurrences, durationSeconds)
     ) {
-      skipped = candidateOccurrences.length;
-      return { success: false, reason: 'OVERLAP', added: 0, skipped };
+      return { success: false, reason: 'OVERLAP' };
     }
 
     if (candidateOccurrences.length === 1) {
@@ -383,7 +370,6 @@ export class MonthDraftStore {
         durationSeconds
       );
       if (restoreTarget) {
-        added = 1;
         const updated = prev.map((r) =>
           r.id === restoreTarget.id
             ? {
@@ -396,7 +382,7 @@ export class MonthDraftStore {
         this.draftByMonth.set(monthKey, updated);
         this.markDirty(monthKey);
         this.emitChange();
-        return { success: true, added, skipped };
+        return { success: true, added: 1 };
       }
     }
 
@@ -404,7 +390,6 @@ export class MonthDraftStore {
     const count = candidateOccurrences.length;
     const rrule = count > 1 ? `FREQ=WEEKLY;COUNT=${count}` : undefined;
 
-    added = count;
     const nextId = nextTempId(Array.from(this.draftByMonth.values()).flat());
     this.draftByMonth = new Map(this.draftByMonth);
     this.draftByMonth.set(monthKey, [
@@ -421,7 +406,7 @@ export class MonthDraftStore {
 
     this.markDirty(monthKey);
     this.emitChange();
-    return { success: true, added, skipped };
+    return { success: true, added: count };
   }
 
   public edit(
@@ -650,7 +635,7 @@ export class MonthDraftStore {
     syncFn: (requests: MonthSyncRequest[]) => Promise<MonthSyncResult[]>
   ): Promise<SyncResult> {
     if (!userId || this.dirtyMonths.size === 0) {
-      return { ok: true };
+      return { ok: true, committedMonthKeys: [] };
     }
     const generationAtStart = this.generation;
     const requests = this.getSyncRequests(userId);
@@ -660,15 +645,21 @@ export class MonthDraftStore {
       this.commit(results);
     }
 
+    const committedMonthKeys = results
+      .filter((r) => r.outcome.ok)
+      .map((r) => r.monthKey);
+
     const firstFail = results.find((r) => !r.outcome.ok);
     if (firstFail && !firstFail.outcome.ok) {
       return {
         ok: false,
         reason: firstFail.outcome.reason,
         message: firstFail.outcome.message,
+        failedMonthKey: firstFail.monthKey,
+        committedMonthKeys,
       };
     }
-    return { ok: true };
+    return { ok: true, committedMonthKeys };
   }
 
   public commit(results: MonthSyncResult[]): void {

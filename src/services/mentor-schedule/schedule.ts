@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/apiClient';
+import type { ScheduleUpsertSlot } from '@/lib/profile/bookingAvailability/types';
 import { components } from '@/types/api';
 
 export interface ScheduleRequest {
@@ -10,6 +11,21 @@ export interface ScheduleRequest {
 export type TimeSlotDTO = components['schemas']['TimeSlotDTO'];
 export type SegmentVO = TimeSlotDTO;
 export type ScheduleData = components['schemas']['MentorScheduleQueryVO'];
+
+/**
+ * Input slot shape accepted by `saveMentorSchedule`. Accepts pure domain
+ * `ScheduleUpsertSlot` items directly (defaulting `dt_type` to `'ALLOW'`) so
+ * DTO serialization happens exclusively inside `saveMentorSchedule`.
+ */
+export type SaveMentorScheduleSlotInput = Omit<
+  ScheduleUpsertSlot,
+  'id' | 'rrule' | 'exdate'
+> & {
+  id?: number | null;
+  dt_type?: string;
+  rrule?: string | null;
+  exdate?: number[];
+};
 
 /**
  * `signal` lets a caller cancel the request when the month it belongs to is
@@ -52,7 +68,7 @@ export function utcYearMonth(unixSeconds: number): {
  */
 export async function saveMentorSchedule(params: {
   userId: string;
-  timeslots: TimeSlotDTO[];
+  timeslots: SaveMentorScheduleSlotInput[];
   until?: number | null;
 }): Promise<void> {
   const cleanOptional = (obj: CleanObject): CleanObject =>
@@ -62,25 +78,32 @@ export async function saveMentorSchedule(params: {
       )
     );
 
+  const serializeSlotToDTO = (t: SaveMentorScheduleSlotInput): CleanObject => {
+    const { year, month } = utcYearMonth(t.dtstart);
+    const dto: Omit<TimeSlotDTO, 'id' | 'rrule' | 'exdate'> & {
+      id?: number | null;
+      rrule?: string | null;
+      exdate?: number[];
+    } = {
+      id: t.id,
+      user_id: Number(params.userId),
+      dt_type: t.dt_type ?? 'ALLOW',
+      // The schedule API requires the UTC month bucket for every slot.
+      // Derive it from dtstart so callers never construct DTO fields.
+      dt_year: year,
+      dt_month: month,
+      dtstart: t.dtstart,
+      dtend: t.dtend,
+      rrule: t.rrule,
+      timezone: 'UTC',
+      exdate: t.exdate,
+    };
+    return cleanOptional(dto);
+  };
+
   const body = cleanOptional({
     until: params.until,
-    timeslots: params.timeslots.map((t) => {
-      const { year, month } = utcYearMonth(t.dtstart);
-      return cleanOptional({
-        id: t.id,
-        user_id: Number(params.userId),
-        dt_type: t.dt_type,
-        // The schedule API requires the UTC month bucket for every slot.
-        // Derive it from dtstart so callers cannot omit stale generated DTO fields.
-        dt_year: year,
-        dt_month: month,
-        dtstart: t.dtstart,
-        dtend: t.dtend,
-        rrule: t.rrule,
-        timezone: 'UTC',
-        exdate: t.exdate,
-      });
-    }),
+    timeslots: params.timeslots.map(serializeSlotToDTO),
   });
 
   await apiClient.putUnwrapped<null>(

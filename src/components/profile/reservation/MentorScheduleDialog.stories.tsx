@@ -184,10 +184,13 @@ function buildScheduleMock(
     draftForSelectedDate,
     slotsWithMeta,
     futureSlots,
-    addSlotForSelectedDate: () => ({ added: 1, skipped: 0 }),
+    addSlotForSelectedDate: () => ({ success: true, added: 1 }),
     updateDraftSlot: () => ({ success: true }),
     deleteDraftSlot: () => {},
-    confirmChanges: async () => ({ ok: true }),
+    confirmChanges: async () => ({
+      ok: true,
+      committedMonthKeys: [targetDay.format('YYYY-MM')],
+    }),
     resetChanges: () => {},
     reservations,
   };
@@ -317,6 +320,21 @@ export const OverlapDraftEditError: Story = {
   },
 };
 
+export const OverlapDraftAddError: Story = {
+  render: (args) => (
+    <DialogWrapper reader={args.reader} schedule={args.schedule} />
+  ),
+  args: {
+    open: true,
+    onOpenChange: () => {},
+    reader: defaultReaderMock,
+    schedule: {
+      ...defaultScheduleMock,
+      addSlotForSelectedDate: () => ({ success: false, reason: 'OVERLAP' }),
+    },
+  },
+};
+
 export const SaveConflictError: Story = {
   render: (args) => (
     <DialogWrapper reader={args.reader} schedule={args.schedule} />
@@ -331,6 +349,29 @@ export const SaveConflictError: Story = {
         ok: false,
         reason: 'conflict',
         message: '此時段與既有預約衝突',
+        failedMonthKey: targetDay.format('YYYY-MM'),
+        committedMonthKeys: [],
+      }),
+    },
+  },
+};
+
+export const PartialMultiMonthSyncConflictError: Story = {
+  render: (args) => (
+    <DialogWrapper reader={args.reader} schedule={args.schedule} />
+  ),
+  args: {
+    open: true,
+    onOpenChange: () => {},
+    reader: defaultReaderMock,
+    schedule: {
+      ...defaultScheduleMock,
+      confirmChanges: async () => ({
+        ok: false,
+        reason: 'conflict',
+        message: '此時段與既有預約衝突',
+        failedMonthKey: targetDay.add(1, 'month').format('YYYY-MM'),
+        committedMonthKeys: [targetDay.format('YYYY-MM')],
       }),
     },
   },

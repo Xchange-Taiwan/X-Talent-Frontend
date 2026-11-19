@@ -912,20 +912,129 @@ describe('computeBookingAvailability', () => {
   });
 
   describe('resolveScheduleDraftErrorMessage', () => {
-    it('maps each UpdateDraftSlotResult reason to its canonical Chinese toast copy', async () => {
+    it('maps add, edit, and single/multi-month sync failures to canonical Chinese toast copy', async () => {
       const { resolveScheduleDraftErrorMessage } = await import('./index');
-      expect(resolveScheduleDraftErrorMessage('TARGET_MONTH_NOT_LOADED')).toBe(
-        '目標月份排程尚未載入，請先在行事曆中切換至目標月份。'
+
+      // Edit reasons
+      expect(
+        resolveScheduleDraftErrorMessage({
+          kind: 'edit',
+          reason: 'TARGET_MONTH_NOT_LOADED',
+        })
+      ).toBe('目標月份排程尚未載入，請先在行事曆中切換至目標月份。');
+      expect(
+        resolveScheduleDraftErrorMessage({
+          kind: 'edit',
+          reason: 'OVERLAP',
+        })
+      ).toBe('此時段與其他時段重疊');
+      expect(
+        resolveScheduleDraftErrorMessage({
+          kind: 'edit',
+          reason: 'READ_ONLY',
+        })
+      ).toBe('此時段已被預約引用，無法編輯，請改為新增新時段');
+      expect(
+        resolveScheduleDraftErrorMessage({
+          kind: 'edit',
+          reason: undefined,
+        })
+      ).toBe('更新時段失敗，發生未知的錯誤，請稍後再試。');
+
+      // Add reasons
+      expect(
+        resolveScheduleDraftErrorMessage({
+          kind: 'add',
+          reason: 'OVERLAP',
+        })
+      ).toBe('此時段與其他時段重疊');
+      expect(
+        resolveScheduleDraftErrorMessage({
+          kind: 'add',
+          reason: 'NO_DATE_SELECTED',
+        })
+      ).toBe('請先選擇日期後再新增時段');
+      expect(
+        resolveScheduleDraftErrorMessage({
+          kind: 'add',
+          reason: 'INVALID_INPUT',
+        })
+      ).toBe('新增時段失敗，請確認時間設定後再試。');
+
+      // Sync: single-month conflict & unknown & unexpected exception
+      expect(
+        resolveScheduleDraftErrorMessage({
+          kind: 'sync',
+          result: {
+            ok: false,
+            reason: 'conflict',
+            message: 'Conflict',
+            failedMonthKey: '2026-07',
+            committedMonthKeys: [],
+          },
+          viewedMonthKey: '2026-07',
+        })
+      ).toBe('此時段與既有預約衝突,請新增新時段後再試');
+      expect(
+        resolveScheduleDraftErrorMessage({
+          kind: 'sync',
+          result: {
+            ok: false,
+            reason: 'unknown',
+            message: 'Server error',
+            failedMonthKey: '2026-07',
+            committedMonthKeys: [],
+          },
+          viewedMonthKey: '2026-07',
+        })
+      ).toBe('儲存失敗,請稍後再試');
+      expect(resolveScheduleDraftErrorMessage({ kind: 'sync' })).toBe(
+        '儲存失敗,請稍後再試'
       );
-      expect(resolveScheduleDraftErrorMessage('OVERLAP')).toBe(
-        '此時段與其他時段重疊'
+
+      // Sync: unviewed cross-month failure
+      expect(
+        resolveScheduleDraftErrorMessage({
+          kind: 'sync',
+          result: {
+            ok: false,
+            reason: 'conflict',
+            message: 'Conflict in May',
+            failedMonthKey: '2026-05',
+            committedMonthKeys: [],
+          },
+          viewedMonthKey: '2026-07',
+        })
+      ).toBe('5 月此時段與既有預約衝突,請新增新時段後再試');
+
+      // Sync: multi-month partial commit + conflict / unknown failure
+      expect(
+        resolveScheduleDraftErrorMessage({
+          kind: 'sync',
+          result: {
+            ok: false,
+            reason: 'conflict',
+            message: 'Conflict in August',
+            failedMonthKey: '2026-08',
+            committedMonthKeys: ['2026-06', '2026-07'],
+          },
+          viewedMonthKey: '2026-08',
+        })
+      ).toBe(
+        '已儲存 6 月、7 月，但 8 月此時段與既有預約衝突,請新增新時段後再試'
       );
-      expect(resolveScheduleDraftErrorMessage('READ_ONLY')).toBe(
-        '此時段已被預約引用，無法編輯，請改為新增新時段'
-      );
-      expect(resolveScheduleDraftErrorMessage(undefined)).toBe(
-        '更新時段失敗，發生未知的錯誤，請稍後再試。'
-      );
+      expect(
+        resolveScheduleDraftErrorMessage({
+          kind: 'sync',
+          result: {
+            ok: false,
+            reason: 'unknown',
+            message: 'Network failure',
+            failedMonthKey: '2026-08',
+            committedMonthKeys: ['2026-07'],
+          },
+        })
+      ).toBe('已儲存 7 月，但 8 月儲存失敗,請稍後再試');
     });
   });
 });

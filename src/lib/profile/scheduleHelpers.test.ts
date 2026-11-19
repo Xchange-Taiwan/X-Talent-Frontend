@@ -1,11 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   checkCrossMonthOverlap,
   deduplicateBookingSlots,
   deduplicateRawSlots,
+  endOfMonthUnix,
   findRestorableExdatedRow,
   isReadOnlyVirtualSlot,
+  listWeeklyDatesInMonth,
+  monthKeyFromUnix,
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
 
@@ -288,5 +291,97 @@ describe('deduplicateBookingSlots', () => {
     const result = deduplicateBookingSlots([slot1, slot2]);
     expect(result).toHaveLength(1);
     expect(result[0].status).toBe('PENDING');
+  });
+});
+
+describe('endOfMonthUnix', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('computes local 23:59:59 unix timestamp for 31-day and 30-day months without string Date.parse', () => {
+    expect(endOfMonthUnix(2026, 5)).toBe(
+      Math.floor(new Date(2026, 4, 31, 23, 59, 59, 0).getTime() / 1000)
+    );
+    expect(endOfMonthUnix(2026, 6)).toBe(
+      Math.floor(new Date(2026, 5, 30, 23, 59, 59, 0).getTime() / 1000)
+    );
+  });
+
+  it('handles leap-year February (29 days) vs non-leap-year February (28 days)', () => {
+    expect(endOfMonthUnix(2024, 2)).toBe(
+      Math.floor(new Date(2024, 1, 29, 23, 59, 59, 0).getTime() / 1000)
+    );
+    expect(endOfMonthUnix(2026, 2)).toBe(
+      Math.floor(new Date(2026, 1, 28, 23, 59, 59, 0).getTime() / 1000)
+    );
+  });
+
+  it.each(['Asia/Taipei', 'America/Los_Angeles', 'UTC'])(
+    'aligns exact month boundary with monthKeyFromUnix and covers evening slots in %s',
+    (tz) => {
+      vi.stubEnv('TZ', tz);
+      const mayEnd = endOfMonthUnix(2026, 5);
+      expect(monthKeyFromUnix(mayEnd)).toBe('2026-05');
+      expect(monthKeyFromUnix(mayEnd + 1)).toBe('2026-06');
+
+      // A 21:00 local evening slot on May 31 must stay <= endOfMonthUnix(2026, 5)
+      const localLateEveningUnix = Math.floor(
+        new Date(2026, 4, 31, 21, 0, 0, 0).getTime() / 1000
+      );
+      expect(localLateEveningUnix).toBeLessThanOrEqual(mayEnd);
+    }
+  );
+
+  it('returns 0 when year or month is invalid or out of range', () => {
+    expect(endOfMonthUnix(0, 5)).toBe(0);
+    expect(endOfMonthUnix(2026, 0)).toBe(0);
+    expect(endOfMonthUnix(2026, 13)).toBe(0);
+    expect(endOfMonthUnix(Number.NaN, 5)).toBe(0);
+  });
+});
+
+describe('listWeeklyDatesInMonth', () => {
+  it('lists the starting date and all remaining +7-day dates within the same month', () => {
+    expect(listWeeklyDatesInMonth('2026-07-17')).toEqual([
+      '2026-07-17',
+      '2026-07-24',
+      '2026-07-31',
+    ]);
+    expect(listWeeklyDatesInMonth('2026-07-01')).toEqual([
+      '2026-07-01',
+      '2026-07-08',
+      '2026-07-15',
+      '2026-07-22',
+      '2026-07-29',
+    ]);
+  });
+
+  it('stops at month/year boundaries without spilling into the next month or year', () => {
+    expect(listWeeklyDatesInMonth('2026-07-26')).toEqual(['2026-07-26']);
+    expect(listWeeklyDatesInMonth('2026-12-28')).toEqual(['2026-12-28']);
+  });
+
+  it('includes Feb 29 in leap years and stops at Feb 22 in non-leap years', () => {
+    expect(listWeeklyDatesInMonth('2024-02-01')).toEqual([
+      '2024-02-01',
+      '2024-02-08',
+      '2024-02-15',
+      '2024-02-22',
+      '2024-02-29',
+    ]);
+    expect(listWeeklyDatesInMonth('2026-02-01')).toEqual([
+      '2026-02-01',
+      '2026-02-08',
+      '2026-02-15',
+      '2026-02-22',
+    ]);
+  });
+
+  it('returns an empty array for empty, unparseable, or calendar-rollover invalid date strings', () => {
+    expect(listWeeklyDatesInMonth('')).toEqual([]);
+    expect(listWeeklyDatesInMonth('not-a-real-date')).toEqual([]);
+    expect(listWeeklyDatesInMonth('2026-02-30')).toEqual([]);
+    expect(listWeeklyDatesInMonth('2026-13-01')).toEqual([]);
   });
 });
