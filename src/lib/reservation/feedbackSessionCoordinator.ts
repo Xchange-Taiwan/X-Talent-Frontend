@@ -144,7 +144,7 @@ export interface CreateFeedbackSessionCoordinatorOptions {
   ) => void;
 }
 
-export type ConsumedLookupSeed =
+type ConsumedLookupSeed =
   { hit: false } | { hit: true; result: SeededReservationLookup | null };
 
 export interface ResolvedHistoryRedirect {
@@ -550,6 +550,15 @@ interface InFlightLoginFetch {
   promise: Promise<Reservation[] | null>;
 }
 
+interface InFlightHistoryLookup {
+  targetKey: string;
+  controller: AbortController;
+  subscribers: Set<symbol>;
+  unscopedPromise: Promise<ReconcileHistoryRouteStep> | null;
+  scopedPromises: WeakMap<AbortSignal, Promise<ReconcileHistoryRouteStep>>;
+  promise: Promise<ReconcileHistoryRouteStep>;
+}
+
 export function createFeedbackSessionCoordinator(
   options: CreateFeedbackSessionCoordinatorOptions = {}
 ) {
@@ -604,9 +613,6 @@ export function createFeedbackSessionCoordinator(
   };
 
   const stateListeners = new Set<() => void>();
-  const submittedListeners = new Set<
-    (userId: string, reservationId: string) => void
-  >();
 
   const runtimeSubmittedByUser = new Map<string, Set<string>>();
   const seededLookups = new Map<string, StoredLookupSeedEntry>();
@@ -639,9 +645,7 @@ export function createFeedbackSessionCoordinator(
     isFeedbackQueueRequested: false,
     activeTargetKey: null as string | null,
     handledKey: null as string | null,
-    singleLookupKey: null as string | null,
-    lookupController: null as AbortController | null,
-    pendingLookupPromise: null as Promise<ReconcileHistoryRouteStep> | null,
+    inFlightLookup: null as InFlightHistoryLookup | null,
     autoLoadCount: 0,
     lastAutoLoadHistoryLength: -1,
     deepLinkDialogReservation: null as Reservation | null,
@@ -654,12 +658,13 @@ export function createFeedbackSessionCoordinator(
   };
 
   function cancelHistoryLookup(): void {
-    if (historyRuntime.lookupController) {
-      historyRuntime.lookupController.abort();
-      historyRuntime.lookupController = null;
+    if (!historyRuntime.inFlightLookup) {
+      return;
     }
-    historyRuntime.pendingLookupPromise = null;
-    historyRuntime.singleLookupKey = null;
+    const activeLookup = historyRuntime.inFlightLookup;
+    historyRuntime.inFlightLookup = null;
+    activeLookup.subscribers.clear();
+    activeLookup.controller.abort();
   }
 
   function buildHistoryRouteSnapshot(
@@ -681,8 +686,8 @@ export function createFeedbackSessionCoordinator(
         ? historyRuntime.latchedQueue
         : null;
     const isLookingUpSingleReservation =
-      historyRuntime.lookupController !== null &&
-      !historyRuntime.lookupController.signal.aborted;
+      historyRuntime.inFlightLookup !== null &&
+      !historyRuntime.inFlightLookup.controller.signal.aborted;
 
     const prev = historyRuntime.cachedSnapshot;
     if (
@@ -754,16 +759,6 @@ export function createFeedbackSessionCoordinator(
     Array.from(stateListeners).forEach((listener) => {
       listener();
     });
-  }
-
-  function notifyReservationSubmitted(
-    userId: string,
-    reservationId: string
-  ): void {
-    Array.from(submittedListeners).forEach((listener) => {
-      listener(userId, reservationId);
-    });
-    notifyStateChange();
   }
 
   function getRuntimeSubmittedSet(userId: string): Set<string> {
@@ -919,7 +914,7 @@ export function createFeedbackSessionCoordinator(
     if (loginRuntime.trackedUserId === userId) {
       pruneLoginQueueForUser(userId, !loginRuntime.isPresenting);
     }
-    notifyReservationSubmitted(userId, reservationId);
+    notifyStateChange();
   }
 
   function markReservationSkipped(userId: string, reservationId: string): void {
@@ -1114,15 +1109,6 @@ export function createFeedbackSessionCoordinator(
       }
       return null;
     }
-  }
-
-  async function loadLoginQueue(opts: {
-    userId: string;
-    isMentor: boolean;
-    signal?: AbortSignal;
-    fetchPending?: FeedbackSessionLookupPort['fetchPendingFeedbackReservations'];
-  }): Promise<Reservation[] | null> {
-    return loadLoginQueueInternal(opts);
   }
 
   async function reconcileLoginSession(
@@ -1425,26 +1411,6 @@ export function createFeedbackSessionCoordinator(
     };
   }
 
-  function clearSeededLookup(opts: {
-    userId?: string;
-    reservationId: string;
-  }): void {
-    const cleanReservationId = opts.reservationId.trim();
-    if (!cleanReservationId) return;
-    const cleanUserId = opts.userId?.trim() ?? '';
-
-    if (cleanUserId) {
-      seededLookups.delete(getLookupSeedKey(cleanUserId, cleanReservationId));
-      return;
-    }
-
-    Array.from(seededLookups.entries()).forEach(([key, entry]) => {
-      if (entry.reservationId === cleanReservationId) {
-        seededLookups.delete(key);
-      }
-    });
-  }
-
   function applyResolvedDeepLinkToRuntime(
     targetKey: string,
     outcome: Exclude<FeedbackDeepLinkResolution, { kind: 'not-found' }>,
@@ -1613,18 +1579,17 @@ export function createFeedbackSessionCoordinator(
         );
   }
 
-  function startSingleReservationLookup(opts: {
+  function createSharedHistoryLookup(opts: {
     targetKey: string;
     role: ReservationRouteRole;
     userId: string;
     targetReservationId: string;
     pathname: string;
     normalizedRawSearch: string;
-    signal?: AbortSignal;
     lookupFn: NonNullable<
       FeedbackSessionLookupPort['fetchSingleReservationFeedback']
     >;
-  }): Promise<ReconcileHistoryRouteStep> {
+  }): InFlightHistoryLookup {
     const {
       targetKey,
       role,
@@ -1632,18 +1597,25 @@ export function createFeedbackSessionCoordinator(
       targetReservationId,
       pathname,
       normalizedRawSearch,
-      signal,
       lookupFn,
     } = opts;
 
     const controller = new AbortController();
-    const onExternalAbort = () => controller.abort();
-    signal?.addEventListener('abort', onExternalAbort, { once: true });
+    const subscribers = new Set<symbol>();
+    const createdLookup: InFlightHistoryLookup = {
+      targetKey,
+      controller,
+      subscribers,
+      unscopedPromise: null,
+      scopedPromises: new WeakMap(),
+      promise: Promise.resolve({
+        state: DISABLED_HISTORY_ROUTE_STATE,
+        commands: EMPTY_HISTORY_ROUTE_COMMANDS,
+        aborted: true,
+      }),
+    };
 
-    historyRuntime.singleLookupKey = targetKey;
-    historyRuntime.lookupController = controller;
-
-    const lookupPromise = (async (): Promise<ReconcileHistoryRouteStep> => {
+    createdLookup.promise = (async (): Promise<ReconcileHistoryRouteStep> => {
       let lookupResult: SeededReservationLookup | null = null;
       try {
         lookupResult = await lookupFn({
@@ -1655,19 +1627,21 @@ export function createFeedbackSessionCoordinator(
       } catch {
         lookupResult = null;
       } finally {
-        signal?.removeEventListener('abort', onExternalAbort);
-        if (historyRuntime.lookupController === controller) {
-          historyRuntime.lookupController = null;
-          historyRuntime.pendingLookupPromise = null;
+        if (historyRuntime.inFlightLookup === createdLookup) {
+          historyRuntime.inFlightLookup = null;
         }
       }
 
       if (
         controller.signal.aborted ||
-        historyRuntime.activeTargetKey !== targetKey
+        historyRuntime.activeTargetKey !== targetKey ||
+        historyRuntime.handledKey === targetKey
       ) {
+        const prevSnap = historyRuntime.cachedSnapshot;
         const abortedState = buildHistoryRouteSnapshot(true);
-        notifyStateChange();
+        if (abortedState !== prevSnap) {
+          notifyStateChange();
+        }
         return {
           state: abortedState,
           commands: EMPTY_HISTORY_ROUTE_COMMANDS,
@@ -1692,8 +1666,70 @@ export function createFeedbackSessionCoordinator(
       };
     })();
 
-    historyRuntime.pendingLookupPromise = lookupPromise;
-    return lookupPromise;
+    historyRuntime.inFlightLookup = createdLookup;
+    return createdLookup;
+  }
+
+  function subscribeCallerToHistoryLookup(
+    targetLookup: InFlightHistoryLookup,
+    signal?: AbortSignal
+  ): Promise<ReconcileHistoryRouteStep> {
+    if (!signal) {
+      if (targetLookup.unscopedPromise) {
+        return targetLookup.unscopedPromise;
+      }
+      const unscopedToken = Symbol('history-lookup-unscoped');
+      targetLookup.subscribers.add(unscopedToken);
+      const unscopedPromise = targetLookup.promise.finally(() => {
+        targetLookup.subscribers.delete(unscopedToken);
+      });
+      targetLookup.unscopedPromise = unscopedPromise;
+      return unscopedPromise;
+    }
+
+    const existingScoped = targetLookup.scopedPromises.get(signal);
+    if (existingScoped) {
+      return existingScoped;
+    }
+
+    const subscriberToken = Symbol('history-lookup-subscriber');
+    targetLookup.subscribers.add(subscriberToken);
+
+    const onCallerAbort = () => {
+      targetLookup.subscribers.delete(subscriberToken);
+      if (targetLookup.subscribers.size === 0) {
+        if (historyRuntime.inFlightLookup === targetLookup) {
+          historyRuntime.inFlightLookup = null;
+        }
+        targetLookup.controller.abort();
+        const prevSnap = historyRuntime.cachedSnapshot;
+        const abortedSnap = buildHistoryRouteSnapshot(true);
+        if (abortedSnap !== prevSnap) {
+          notifyStateChange();
+        }
+      }
+    };
+
+    signal.addEventListener('abort', onCallerAbort, { once: true });
+
+    const scopedPromise = targetLookup.promise
+      .then((settled): ReconcileHistoryRouteStep => {
+        if (signal.aborted) {
+          return {
+            state: buildHistoryRouteSnapshot(true),
+            commands: EMPTY_HISTORY_ROUTE_COMMANDS,
+            aborted: true,
+          };
+        }
+        return settled;
+      })
+      .finally(() => {
+        signal.removeEventListener('abort', onCallerAbort);
+        targetLookup.subscribers.delete(subscriberToken);
+      });
+
+    targetLookup.scopedPromises.set(signal, scopedPromise);
+    return scopedPromise;
   }
 
   function resolveMissingHistoryDeepLink(opts: {
@@ -1732,6 +1768,7 @@ export function createFeedbackSessionCoordinator(
         reservationId: targetReservationId,
       });
       if (seeded.hit) {
+        cancelHistoryLookup();
         return {
           commands: applySingleLookupResultToRuntime({
             targetKey,
@@ -1778,16 +1815,6 @@ export function createFeedbackSessionCoordinator(
       };
     }
 
-    if (
-      historyRuntime.singleLookupKey === targetKey &&
-      historyRuntime.pendingLookupPromise
-    ) {
-      return {
-        commands: EMPTY_HISTORY_ROUTE_COMMANDS,
-        pendingLookup: historyRuntime.pendingLookupPromise,
-      };
-    }
-
     const lookupFn =
       lookupSingleFeedback ?? defaultLookup?.fetchSingleReservationFeedback;
 
@@ -1813,18 +1840,27 @@ export function createFeedbackSessionCoordinator(
       };
     }
 
-    return {
-      commands: EMPTY_HISTORY_ROUTE_COMMANDS,
-      pendingLookup: startSingleReservationLookup({
+    let activeLookup = historyRuntime.inFlightLookup;
+    if (
+      !activeLookup ||
+      activeLookup.targetKey !== targetKey ||
+      activeLookup.controller.signal.aborted
+    ) {
+      cancelHistoryLookup();
+      activeLookup = createSharedHistoryLookup({
         targetKey,
         role,
         userId: cleanUserId,
         targetReservationId,
         pathname,
         normalizedRawSearch,
-        signal,
         lookupFn,
-      }),
+      });
+    }
+
+    return {
+      commands: EMPTY_HISTORY_ROUTE_COMMANDS,
+      pendingLookup: subscribeCallerToHistoryLookup(activeLookup, signal),
     };
   }
 
@@ -1922,7 +1958,7 @@ export function createFeedbackSessionCoordinator(
         }
 
         if (historyRuntime.handledKey === targetKey) {
-          pendingLookup = historyRuntime.pendingLookupPromise;
+          pendingLookup = null;
         } else if (
           opts.isHistoryLoaded &&
           !opts.isLoadingHistory &&
@@ -1935,6 +1971,7 @@ export function createFeedbackSessionCoordinator(
           });
 
           if (outcome.kind !== 'not-found') {
+            cancelHistoryLookup();
             commands = applyResolvedDeepLinkToRuntime(
               targetKey,
               outcome,
@@ -2242,42 +2279,18 @@ export function createFeedbackSessionCoordinator(
     };
   }
 
-  function subscribeReservationSubmitted(
-    listener: (userId: string, reservationId: string) => void
-  ): () => void {
-    submittedListeners.add(listener);
-    return () => {
-      submittedListeners.delete(listener);
-    };
-  }
-
   return {
     getSessionState,
-    markChecked,
-    markDismissed,
-    markReservationSubmitted,
-    markReservationSkipped,
+    getPresentedLoginQueue,
+    getHistoryRouteState,
     clearAllSessionState,
     resetRuntimeLoginSession,
     resetHistoryRouteSession,
-    syncAuthSession,
-    syncLoginQueuePresentation,
-    getPresentedLoginQueue,
-    shouldFetchLoginQueue,
-    loadLoginQueue,
-    consumeLoginPromptShown,
     reconcileLoginSession,
-    dismissLoginQueue,
-    resolveExplicitQueueItems,
-    seedLookupResult,
-    consumeSeededLookup,
-    clearSeededLookup,
-    getHistoryRouteState,
     reconcileHistoryRoute,
     recordFeedbackOutcome,
     resolveHistoryRedirect,
     subscribe,
-    subscribeReservationSubmitted,
   };
 }
 

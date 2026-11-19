@@ -5,14 +5,18 @@ import * as monitoring from '@/lib/monitoring';
 import type { Reservation } from '@/types/reservation';
 
 import {
+  createBrowserFeedbackSessionStoragePort,
   createFeedbackSessionCoordinator,
   createInMemoryFeedbackSessionLookupPort,
   createInMemoryFeedbackSessionStoragePort,
   defaultFeedbackSessionLookupPort,
   feedbackSessionCoordinator,
+  isAuthResetRoute,
   MAX_DEEP_LINK_LOAD_MORE_PAGES,
+  PENDING_FEEDBACK_SESSION_PREFIX,
   resolveDeepLinkOutcome,
   shouldSuppressPendingFeedbackPopup,
+  sortPendingFeedbackOldestFirst,
 } from './feedbackSessionCoordinator';
 
 function makeReservation(
@@ -36,8 +40,28 @@ function makeReservation(
   });
 }
 
-describe('createFeedbackSessionCoordinator (#906)', () => {
-  it('loads login queue oldest-first across bilateral sessions, handles AbortSignal cancellation, and tracks empty queues', async () => {
+describe('createFeedbackSessionCoordinator (#906 / #946 contracted surface)', () => {
+  it('exposes only the 4 core state-machine transitions plus clean state query, lifecycle reset, and store subscription helpers (#946)', () => {
+    const coordinator = createFeedbackSessionCoordinator({
+      storage: createInMemoryFeedbackSessionStoragePort(),
+    });
+
+    expect(Object.keys(coordinator).sort()).toEqual([
+      'clearAllSessionState',
+      'getHistoryRouteState',
+      'getPresentedLoginQueue',
+      'getSessionState',
+      'reconcileHistoryRoute',
+      'reconcileLoginSession',
+      'recordFeedbackOutcome',
+      'resetHistoryRouteSession',
+      'resetRuntimeLoginSession',
+      'resolveHistoryRedirect',
+      'subscribe',
+    ]);
+  });
+
+  it('loads login queue oldest-first across bilateral sessions, handles AbortSignal cancellation, and tracks empty queues via reconcileLoginSession', async () => {
     const storage = createInMemoryFeedbackSessionStoragePort();
     const fetchPending = vi
       .fn()
@@ -51,12 +75,18 @@ describe('createFeedbackSessionCoordinator (#906)', () => {
       lookup: { fetchPendingFeedbackReservations: fetchPending },
     });
 
-    const loaded = await coordinator.loadLoginQueue({
+    const loaded = await coordinator.reconcileLoginSession({
+      authStatus: 'authenticated',
       userId: '10',
       isMentor: true,
+      isOnboardingComplete: true,
+      route: { pathname: '/mentor-pool', searchParams: new URLSearchParams() },
     });
 
-    expect(loaded?.map((item) => item.id)).toEqual(['res-older', 'res-newer']);
+    expect(loaded.queueItems?.map((item) => item.id)).toEqual([
+      'res-older',
+      'res-newer',
+    ]);
     expect(coordinator.getSessionState('10')).toEqual({
       checked: true,
       dismissed: false,
@@ -77,12 +107,15 @@ describe('createFeedbackSessionCoordinator (#906)', () => {
       lookup: { fetchPendingFeedbackReservations: abortedFetch },
     });
 
-    const abortedResult = await coordinator2.loadLoginQueue({
+    const abortedResult = await coordinator2.reconcileLoginSession({
+      authStatus: 'authenticated',
       userId: '10',
       isMentor: false,
+      isOnboardingComplete: true,
+      route: { pathname: '/mentor-pool', searchParams: new URLSearchParams() },
       signal: controller.signal,
     });
-    expect(abortedResult).toBeNull();
+    expect(abortedResult.queueItems).toBeNull();
     expect(coordinator2.getSessionState('10').checked).toBe(false);
 
     // Non-aborted fetch error reports to onError callback without writing checked=true
@@ -96,12 +129,14 @@ describe('createFeedbackSessionCoordinator (#906)', () => {
       },
       onError,
     });
-    expect(
-      await failingCoordinator.loadLoginQueue({
-        userId: '10',
-        isMentor: false,
-      })
-    ).toBeNull();
+    const failedResult = await failingCoordinator.reconcileLoginSession({
+      authStatus: 'authenticated',
+      userId: '10',
+      isMentor: false,
+      isOnboardingComplete: true,
+      route: { pathname: '/mentor-pool', searchParams: new URLSearchParams() },
+    });
+    expect(failedResult.queueItems).toBeNull();
     expect(onError).toHaveBeenCalledWith(expect.any(Error), {
       step: 'load_login_queue',
       userId: '10',
@@ -109,7 +144,9 @@ describe('createFeedbackSessionCoordinator (#906)', () => {
   });
 
   it('persists skipped and submitted reservations, keeps presented array stable while presenting, and prunes on yield or dismiss', async () => {
-    const storage = createInMemoryFeedbackSessionStoragePort();
+    const storage = createInMemoryFeedbackSessionStoragePort({
+      'unrelated-key': 'keep',
+    });
     const coordinator = createFeedbackSessionCoordinator({
       storage,
       lookup: {
@@ -123,38 +160,68 @@ describe('createFeedbackSessionCoordinator (#906)', () => {
       },
     });
 
-    const submittedSpy = vi.fn();
-    coordinator.subscribeReservationSubmitted(submittedSpy);
-
-    await coordinator.loadLoginQueue({ userId: 'u-1', isMentor: false });
-    coordinator.syncLoginQueuePresentation({ userId: 'u-1', canPresent: true });
+    await coordinator.reconcileLoginSession({
+      authStatus: 'authenticated',
+      userId: 'u-1',
+      isMentor: false,
+      isOnboardingComplete: true,
+      route: { pathname: '/mentor-pool', searchParams: new URLSearchParams() },
+    });
 
     // Submitting r-1 while presenting keeps presentedItems length stable for queue motion
-    coordinator.markReservationSubmitted('u-1', 'r-1');
-    expect(submittedSpy).toHaveBeenCalledWith('u-1', 'r-1');
+    coordinator.recordFeedbackOutcome({
+      action: 'submit',
+      source: 'login-queue',
+      userId: 'u-1',
+      reservationId: 'r-1',
+    });
     expect(
       coordinator
         .getPresentedLoginQueue({ userId: 'u-1', canPresent: true })
         ?.map((i) => i.id)
     ).toEqual(['r-1', 'r-2', 'r-3']);
 
-    // Skipping r-2 persists in storage
-    coordinator.markReservationSkipped('u-1', 'r-2');
+    // Skipping r-2 persists in storage (idempotently on repeat)
+    coordinator.recordFeedbackOutcome({
+      action: 'skip',
+      source: 'login-queue',
+      userId: 'u-1',
+      reservationId: 'r-2',
+    });
+    coordinator.recordFeedbackOutcome({
+      action: 'skip',
+      source: 'login-queue',
+      userId: 'u-1',
+      reservationId: 'r-2',
+    });
     expect(coordinator.getSessionState('u-1').skippedIds).toEqual(['r-2']);
 
     // Yielding route (!canPresent) prunes r-1 and r-2 leaving only r-3
-    coordinator.syncLoginQueuePresentation({
+    await coordinator.reconcileLoginSession({
+      authStatus: 'authenticated',
       userId: 'u-1',
-      canPresent: false,
+      isMentor: false,
+      isOnboardingComplete: true,
+      route: {
+        pathname: '/reservation/mentee',
+        searchParams: new URLSearchParams(),
+      },
     });
-    expect(
-      coordinator
-        .syncLoginQueuePresentation({ userId: 'u-1', canPresent: true })
-        ?.map((i) => i.id)
-    ).toEqual(['r-3']);
+    const returned = await coordinator.reconcileLoginSession({
+      authStatus: 'authenticated',
+      userId: 'u-1',
+      isMentor: false,
+      isOnboardingComplete: true,
+      route: { pathname: '/mentor-pool', searchParams: new URLSearchParams() },
+    });
+    expect(returned.queueItems?.map((i) => i.id)).toEqual(['r-3']);
 
     // Dismissing marks remaining r-3 as skipped and dismissed
-    coordinator.dismissLoginQueue('u-1');
+    coordinator.recordFeedbackOutcome({
+      action: 'dismiss',
+      source: 'login-queue',
+      userId: 'u-1',
+    });
     expect(coordinator.getSessionState('u-1')).toEqual({
       checked: true,
       dismissed: true,
@@ -162,6 +229,20 @@ describe('createFeedbackSessionCoordinator (#906)', () => {
       submittedIds: ['r-1'],
       skippedIds: ['r-2', 'r-3'],
     });
+
+    // clearAllSessionState removes only xtalent:pending-feedback:* keys while keeping unrelated keys
+    expect(storage.getItem(`${PENDING_FEEDBACK_SESSION_PREFIX}u-1`)).not.toBe(
+      null
+    );
+    coordinator.clearAllSessionState();
+    expect(coordinator.getSessionState('u-1')).toEqual({
+      checked: false,
+      dismissed: false,
+      queueEmpty: false,
+      submittedIds: [],
+      skippedIds: [],
+    });
+    expect(storage.getItem('unrelated-key')).toBe('keep');
   });
 
   it('seeds single-reservation lookup across /reservation/history redirect, enforces one-shot consumption and TTL expiry, and clears on account switch', async () => {
@@ -170,14 +251,30 @@ describe('createFeedbackSessionCoordinator (#906)', () => {
     const targetReservation = makeReservation('205', 1761000000, {
       viewerRole: 'MENTOR',
     });
-    const fetchSingle = vi.fn().mockResolvedValue({
-      viewerRole: 'mentor' as const,
-      reservation: targetReservation,
+    const lookup = createInMemoryFeedbackSessionLookupPort({
+      singleReservations: {
+        '205': {
+          viewerRole: 'mentor',
+          reservation: targetReservation,
+        },
+        '206': {
+          viewerRole: 'mentor',
+          reservation: makeReservation('206', 1762000000, {
+            viewerRole: 'MENTOR',
+          }),
+        },
+        '207': {
+          viewerRole: 'mentor',
+          reservation: makeReservation('207', 1763000000, {
+            viewerRole: 'MENTOR',
+          }),
+        },
+      },
     });
 
     const coordinator = createFeedbackSessionCoordinator({
       storage,
-      lookup: { fetchSingleReservationFeedback: fetchSingle },
+      lookup,
       now: () => currentTime,
       seedTtlMs: 10_000,
     });
@@ -188,69 +285,125 @@ describe('createFeedbackSessionCoordinator (#906)', () => {
       rawSearch: 'reservation_id=205',
     });
 
-    expect(fetchSingle).toHaveBeenCalledTimes(1);
+    expect(lookup.calls.fetchSingleReservationFeedback).toHaveLength(1);
     expect(redirect.resolvedRole).toBe('mentor');
     expect(redirect.redirectHref).toBe(
       '/reservation/mentor?tab=history&reservation_id=205'
     );
 
-    // First consumption hits seeded lookup without extra HTTP fetch
-    const firstConsume = coordinator.consumeSeededLookup({
+    // First consumption via reconcileHistoryRoute hits seeded lookup synchronously without extra HTTP fetch
+    const firstConsume = coordinator.reconcileHistoryRoute({
+      role: 'mentor',
       userId: '20',
-      reservationId: '205',
+      pathname: '/reservation/mentor',
+      rawSearch: 'tab=history&reservation_id=205',
+      history: [],
+      isHistoryLoaded: true,
+      isLoadingHistory: false,
+      hasMoreHistory: true,
+      canLoadMoreHistory: true,
     });
-    expect(firstConsume).toEqual({
-      hit: true,
-      result: {
-        viewerRole: 'mentor',
-        reservation: targetReservation,
-      },
-    });
+    expect(firstConsume.state.deepLinkDialogReservation).toBe(
+      targetReservation
+    );
+    expect(lookup.calls.fetchSingleReservationFeedback).toHaveLength(1);
 
-    // Second consumption misses (one-shot)
-    expect(
-      coordinator.consumeSeededLookup({ userId: '20', reservationId: '205' })
-    ).toEqual({ hit: false });
+    // Second consumption after reset misses seed (one-shot) and triggers pagination / lookup
+    coordinator.resetHistoryRouteSession();
+    const secondConsume = coordinator.reconcileHistoryRoute({
+      role: 'mentor',
+      userId: '20',
+      pathname: '/reservation/mentor',
+      rawSearch: 'tab=history&reservation_id=205',
+      history: [],
+      isHistoryLoaded: true,
+      isLoadingHistory: false,
+      hasMoreHistory: true,
+      canLoadMoreHistory: true,
+    });
+    expect(secondConsume.commands.shouldLoadMoreHistory).toBe(true);
 
     // Expired seed misses after TTL
-    coordinator.seedLookupResult({
+    coordinator.resetHistoryRouteSession();
+    await coordinator.resolveHistoryRedirect({
       userId: '20',
-      reservationId: '206',
-      result: { viewerRole: 'mentor', reservation: targetReservation },
+      fallbackRole: 'mentor',
+      rawSearch: 'reservation_id=206',
     });
+    expect(lookup.calls.fetchSingleReservationFeedback).toHaveLength(2);
     currentTime += 10_001;
-    expect(
-      coordinator.consumeSeededLookup({ userId: '20', reservationId: '206' })
-    ).toEqual({ hit: false });
+    const expiredStep = coordinator.reconcileHistoryRoute({
+      role: 'mentor',
+      userId: '20',
+      pathname: '/reservation/mentor',
+      rawSearch: 'tab=history&reservation_id=206',
+      history: [],
+      isHistoryLoaded: true,
+      isLoadingHistory: false,
+      hasMoreHistory: true,
+      canLoadMoreHistory: true,
+    });
+    expect(expiredStep.commands.shouldLoadMoreHistory).toBe(true);
 
     // Account switch wipes persisted state and seeded lookups
-    coordinator.markReservationSkipped('20', '900');
-    coordinator.seedLookupResult({
+    coordinator.resetHistoryRouteSession();
+    coordinator.recordFeedbackOutcome({
+      action: 'skip',
+      source: 'login-queue',
       userId: '20',
-      reservationId: '207',
-      result: null,
+      reservationId: '900',
     });
-    coordinator.syncAuthSession({
-      isResetRouteOrUnauthenticated: false,
+    await coordinator.resolveHistoryRedirect({
       userId: '20',
+      fallbackRole: 'mentor',
+      rawSearch: 'reservation_id=207',
     });
-    coordinator.syncAuthSession({
-      isResetRouteOrUnauthenticated: false,
+    await coordinator.reconcileLoginSession({
+      authStatus: 'authenticated',
+      userId: '20',
+      isMentor: true,
+      isOnboardingComplete: false,
+      route: { pathname: '/mentor-pool', searchParams: new URLSearchParams() },
+    });
+    await coordinator.reconcileLoginSession({
+      authStatus: 'authenticated',
       userId: '99',
+      isMentor: true,
+      isOnboardingComplete: false,
+      route: { pathname: '/mentor-pool', searchParams: new URLSearchParams() },
     });
 
     expect(coordinator.getSessionState('20').skippedIds).toEqual([]);
-    expect(
-      coordinator.consumeSeededLookup({ userId: '20', reservationId: '207' })
-    ).toEqual({ hit: false });
+    const postSwitchStep = coordinator.reconcileHistoryRoute({
+      role: 'mentor',
+      userId: '20',
+      pathname: '/reservation/mentor',
+      rawSearch: 'tab=history&reservation_id=207',
+      history: [],
+      isHistoryLoaded: true,
+      isLoadingHistory: false,
+      hasMoreHistory: true,
+      canLoadMoreHistory: true,
+    });
+    expect(postSwitchStep.commands.shouldLoadMoreHistory).toBe(true);
   });
 
   it('orders bilateral ?feedback=queue items oldest-first for both mentor and mentee while excluding skipped/submitted IDs', () => {
     const storage = createInMemoryFeedbackSessionStoragePort();
     const coordinator = createFeedbackSessionCoordinator({ storage });
 
-    coordinator.markReservationSkipped('mentor-1', 'm-skip');
-    coordinator.markReservationSubmitted('mentor-1', 'm-done');
+    coordinator.recordFeedbackOutcome({
+      action: 'skip',
+      source: 'explicit-queue',
+      userId: 'mentor-1',
+      reservationId: 'm-skip',
+    });
+    coordinator.recordFeedbackOutcome({
+      action: 'submit',
+      source: 'card',
+      userId: 'mentor-1',
+      reservationId: 'm-done',
+    });
 
     const mentorHistory: Reservation[] = [
       makeReservation('m-late', 1765000000, { viewerRole: 'MENTOR' }),
@@ -263,37 +416,356 @@ describe('createFeedbackSessionCoordinator (#906)', () => {
       }),
     ];
 
-    const resolved = coordinator.resolveExplicitQueueItems({
-      userId: 'mentor-1',
+    const step = coordinator.reconcileHistoryRoute({
+      mode: 'queue',
       role: 'mentor',
+      userId: 'mentor-1',
+      pathname: '/reservation/mentor',
+      rawSearch: 'tab=history&feedback=queue',
       history: mentorHistory,
+      isHistoryLoaded: true,
+      isLoadingHistory: false,
     });
 
-    expect(resolved.map((item) => item.id)).toEqual(['m-early', 'm-late']);
+    expect(step.state.feedbackQueueItems?.map((item) => item.id)).toEqual([
+      'm-early',
+      'm-late',
+    ]);
   });
 
-  it('suppresses login popup on auth, onboarding, reservation, and deep-link/queue query routes', () => {
+  it('evaluates popup suppression rules, auth reset routes, oldest-first sorting, and browser storage port safely (#740 / #946)', () => {
+    // 1. Eligible browsing pages allow popup
+    for (const pathname of [
+      '/',
+      '/mentor-pool',
+      '/about',
+      '/profile/123',
+      '/profile/123/edit',
+      '/profile/card',
+    ]) {
+      expect(
+        shouldSuppressPendingFeedbackPopup({
+          pathname,
+          searchParams: new URLSearchParams(),
+        })
+      ).toBe(false);
+    }
+
+    // 2. Auth, onboarding, reservation, booking, maintenance, and modal query routes suppress popup
+    for (const pathname of [
+      null,
+      '',
+      '/auth',
+      '/auth/signin',
+      '/auth/signup',
+      '/auth/onboarding',
+      '/auth/google/callback/redirect',
+      '/onboarding',
+      '/onboarding/step-1',
+      '/reservation',
+      '/reservation/mentee',
+      '/reservation/mentor',
+      '/booking',
+      '/booking/confirm',
+      '/maintenance',
+    ]) {
+      expect(
+        shouldSuppressPendingFeedbackPopup({
+          pathname,
+          searchParams: new URLSearchParams(),
+        })
+      ).toBe(true);
+    }
+
+    expect(
+      shouldSuppressPendingFeedbackPopup({
+        pathname: '/profile/42/edit',
+        searchParams: new URLSearchParams('mentor-onboarding=true'),
+      })
+    ).toBe(true);
+    expect(
+      shouldSuppressPendingFeedbackPopup({
+        pathname: '/profile/42/edit',
+        searchParams: new URLSearchParams('onboarding=true'),
+      })
+    ).toBe(true);
+    expect(
+      shouldSuppressPendingFeedbackPopup({
+        pathname: '/profile/42',
+        searchParams: new URLSearchParams('open-schedule=true'),
+      })
+    ).toBe(true);
+
+    // 3. Deep-link and feedback=queue queries suppress, while boolean flags and whitespace do not
+    for (const query of [
+      'reservationId=101',
+      'reservation_id=102',
+      'feedbackReservationId=202',
+      'feedback=queue',
+      'feedback=404',
+    ]) {
+      expect(
+        shouldSuppressPendingFeedbackPopup({
+          pathname: '/mentor-pool',
+          searchParams: new URLSearchParams(query),
+        })
+      ).toBe(true);
+    }
     expect(
       shouldSuppressPendingFeedbackPopup({
         pathname: '/mentor-pool',
-        searchParams: new URLSearchParams(),
+        searchParams: new URLSearchParams('feedback=1'),
       })
     ).toBe(false);
     expect(
       shouldSuppressPendingFeedbackPopup({
         pathname: '/mentor-pool',
-        searchParams: new URLSearchParams('feedback=queue'),
+        searchParams: new URLSearchParams('reservationId=   '),
       })
-    ).toBe(true);
-    expect(
-      shouldSuppressPendingFeedbackPopup({
-        pathname: '/mentor-pool',
-        searchParams: new URLSearchParams('reservation_id=101'),
-      })
-    ).toBe(true);
+    ).toBe(false);
+
+    // 4. isAuthResetRoute
+    expect(isAuthResetRoute('/auth')).toBe(true);
+    expect(isAuthResetRoute('/auth/signin')).toBe(true);
+    expect(isAuthResetRoute('/mentor-pool')).toBe(false);
+    expect(isAuthResetRoute(null)).toBe(false);
+
+    // 5. sortPendingFeedbackOldestFirst (#760 §6: dtend asc -> dtstart asc -> id, without mutating input)
+    const unsorted: Reservation[] = [
+      fromPartial<Reservation>({
+        id: '2',
+        dtstart: 1760000000,
+        dtend: 1760005400,
+      }),
+      fromPartial<Reservation>({
+        id: '1',
+        dtstart: 1760001800,
+        dtend: 1760003600,
+      }),
+      fromPartial<Reservation>({
+        id: '3',
+        dtstart: 1760000900,
+        dtend: 1760003600,
+      }),
+    ];
+    expect(sortPendingFeedbackOldestFirst(unsorted).map((i) => i.id)).toEqual([
+      '3',
+      '1',
+      '2',
+    ]);
+    expect(unsorted.map((i) => i.id)).toEqual(['2', '1', '3']);
+
+    // 6. createBrowserFeedbackSessionStoragePort handles SSR (typeof window === 'undefined') safely
+    const browserPort = createBrowserFeedbackSessionStoragePort();
+    expect(browserPort.getItem('k')).toBeNull();
+    expect(() => browserPort.setItem('k', 'v')).not.toThrow();
+    expect(() => browserPort.removeItem('k')).not.toThrow();
+    expect(browserPort.keys()).toEqual([]);
   });
 
-  it('tracks one-shot consumeLoginPromptShown and idempotent dismissLoginQueue dismissedSkippedCount across partial submits (#950)', async () => {
+  it('resolves all mentee and mentor deep-link outcomes cleanly via resolveDeepLinkOutcome (#733 / #735)', () => {
+    const pendingReservation = makeReservation('101', 1760000000, {
+      feedback: { meetingHappened: null, rating: null, nextStep: 'ANSWER' },
+    });
+    const pendingRateReservation = makeReservation('105', 1761000000, {
+      feedback: { meetingHappened: true, rating: null, nextStep: 'RATE' },
+    });
+    const ratedReservation = makeReservation('102', 1762000000, {
+      feedback: {
+        meetingHappened: true,
+        rating: {
+          rating: 9,
+          content: '收穫滿滿',
+          createdAt: 1760000000,
+          updatedAt: 1760000000,
+          authorName: 'T***',
+          isPublic: true,
+        },
+        nextStep: null,
+      },
+    });
+    const notHappenedReservation = makeReservation('103', 1763000000, {
+      feedback: { meetingHappened: false, rating: null, nextStep: null },
+    });
+    const cancelledReservation = makeReservation('104', 1764000000, {
+      cancelledBy: 'MENTOR',
+    });
+    const completedWithoutRating = makeReservation('109', 1765000000, {
+      feedback: { meetingHappened: true, rating: null, nextStep: null },
+    });
+
+    const history = [
+      pendingReservation,
+      pendingRateReservation,
+      ratedReservation,
+      notHappenedReservation,
+      cancelledReservation,
+      completedWithoutRating,
+    ];
+
+    expect(
+      resolveDeepLinkOutcome({
+        role: 'mentee',
+        targetReservationId: '999',
+        history,
+      })
+    ).toEqual({ kind: 'not-found' });
+    expect(
+      resolveDeepLinkOutcome({
+        role: 'mentee',
+        targetReservationId: '101',
+        history,
+      })
+    ).toEqual({ kind: 'mentee-open-dialog', reservation: pendingReservation });
+    expect(
+      resolveDeepLinkOutcome({
+        role: 'mentee',
+        targetReservationId: '105',
+        history,
+      })
+    ).toEqual({
+      kind: 'mentee-open-dialog',
+      reservation: pendingRateReservation,
+    });
+    expect(
+      resolveDeepLinkOutcome({
+        role: 'mentee',
+        targetReservationId: '102',
+        history,
+      })
+    ).toEqual({ kind: 'mentee-already-rated', reservation: ratedReservation });
+    expect(
+      resolveDeepLinkOutcome({
+        role: 'mentee',
+        targetReservationId: '103',
+        history,
+      })
+    ).toEqual({
+      kind: 'mentee-already-resolved',
+      reservation: notHappenedReservation,
+      reason: 'not-happened',
+    });
+    expect(
+      resolveDeepLinkOutcome({
+        role: 'mentee',
+        targetReservationId: '104',
+        history,
+      })
+    ).toEqual({
+      kind: 'mentee-already-resolved',
+      reservation: cancelledReservation,
+      reason: 'cancelled',
+    });
+    expect(
+      resolveDeepLinkOutcome({
+        role: 'mentee',
+        targetReservationId: '109',
+        history,
+      })
+    ).toEqual({
+      kind: 'mentee-already-resolved',
+      reservation: completedWithoutRating,
+      reason: 'completed',
+    });
+
+    // Mentor outcomes
+    expect(
+      resolveDeepLinkOutcome({
+        role: 'mentor',
+        targetReservationId: '101',
+        history,
+      })
+    ).toEqual({ kind: 'mentor-open-dialog', reservation: pendingReservation });
+    expect(
+      resolveDeepLinkOutcome({
+        role: 'mentor',
+        targetReservationId: '102',
+        history,
+      })
+    ).toEqual({
+      kind: 'mentor-locate-card',
+      reservation: ratedReservation,
+      shouldExpandFeedback: true,
+    });
+    expect(
+      resolveDeepLinkOutcome({
+        role: 'mentor',
+        targetReservationId: '103',
+        history,
+      })
+    ).toEqual({
+      kind: 'mentor-locate-card',
+      reservation: notHappenedReservation,
+      shouldExpandFeedback: false,
+    });
+    expect(
+      resolveDeepLinkOutcome({
+        role: 'mentor',
+        targetReservationId: '104',
+        history,
+      })
+    ).toEqual({
+      kind: 'mentor-locate-card',
+      reservation: cancelledReservation,
+      shouldExpandFeedback: false,
+    });
+
+    const mentorUnansweredMenteeYesNoRating = makeReservation(
+      '106',
+      1766000000,
+      {
+        feedback: {
+          meetingHappened: true,
+          myMeetingHappened: null,
+          rating: null,
+          nextStep: null,
+        },
+      }
+    );
+    const mentorConfirmedYesNoRating = makeReservation('107', 1767000000, {
+      feedback: {
+        meetingHappened: false,
+        myMeetingHappened: true,
+        rating: null,
+        nextStep: null,
+      },
+    });
+    expect(
+      resolveDeepLinkOutcome({
+        role: 'mentor',
+        targetReservationId: '106',
+        history: [mentorUnansweredMenteeYesNoRating],
+      })
+    ).toEqual({
+      kind: 'mentor-locate-card',
+      reservation: mentorUnansweredMenteeYesNoRating,
+      shouldExpandFeedback: false,
+    });
+    expect(
+      resolveDeepLinkOutcome({
+        role: 'mentor',
+        targetReservationId: '107',
+        history: [mentorConfirmedYesNoRating],
+      })
+    ).toEqual({
+      kind: 'mentor-locate-card',
+      reservation: mentorConfirmedYesNoRating,
+      shouldExpandFeedback: true,
+    });
+    expect(
+      resolveDeepLinkOutcome({
+        role: 'mentor',
+        targetReservationId: '109',
+        history: [completedWithoutRating],
+      })
+    ).toEqual({
+      kind: 'mentor-locate-card',
+      reservation: completedWithoutRating,
+      shouldExpandFeedback: true,
+    });
+  });
+
+  it('tracks one-shot promptShownCount and idempotent dismiss skipped count across partial submits (#950)', async () => {
     const storage = createInMemoryFeedbackSessionStoragePort();
     const coordinator = createFeedbackSessionCoordinator({
       storage,
@@ -308,29 +780,70 @@ describe('createFeedbackSessionCoordinator (#906)', () => {
       },
     });
 
-    await coordinator.loadLoginQueue({ userId: 'u-9', isMentor: false });
-
-    // Suppressed (!canPresent) returns null without consuming the one-shot token
-    expect(
-      coordinator.consumeLoginPromptShown({ userId: 'u-9', canPresent: false })
-    ).toBeNull();
-
-    // First eligible presentation returns 3; repeat calls return null
-    expect(
-      coordinator.consumeLoginPromptShown({ userId: 'u-9', canPresent: true })
-    ).toBe(3);
-    expect(
-      coordinator.consumeLoginPromptShown({ userId: 'u-9', canPresent: true })
-    ).toBeNull();
-
-    // Submit t-1, skip t-2, leave t-3 unaddressed -> dismissLoginQueue reports 2 once, then 0 on repeat
-    coordinator.markReservationSubmitted('u-9', 't-1');
-    coordinator.markReservationSkipped('u-9', 't-2');
-    expect(coordinator.dismissLoginQueue('u-9')).toEqual({
-      dismissedSkippedCount: 2,
+    // Suppressed route returns promptShownCount: null without consuming one-shot token
+    const suppressed = await coordinator.reconcileLoginSession({
+      authStatus: 'authenticated',
+      userId: 'u-9',
+      isMentor: false,
+      isOnboardingComplete: true,
+      route: {
+        pathname: '/reservation/mentee',
+        searchParams: new URLSearchParams(),
+      },
     });
-    expect(coordinator.dismissLoginQueue('u-9')).toEqual({
+    expect(suppressed.promptShownCount).toBeNull();
+
+    // First eligible presentation returns promptShownCount: 3; repeat calls return null
+    const firstEligible = await coordinator.reconcileLoginSession({
+      authStatus: 'authenticated',
+      userId: 'u-9',
+      isMentor: false,
+      isOnboardingComplete: true,
+      route: { pathname: '/mentor-pool', searchParams: new URLSearchParams() },
+    });
+    expect(firstEligible.promptShownCount).toBe(3);
+
+    const repeatEligible = await coordinator.reconcileLoginSession({
+      authStatus: 'authenticated',
+      userId: 'u-9',
+      isMentor: false,
+      isOnboardingComplete: true,
+      route: { pathname: '/about', searchParams: new URLSearchParams() },
+    });
+    expect(repeatEligible.promptShownCount).toBeNull();
+
+    // Submit t-1, skip t-2, leave t-3 unaddressed -> dismiss reports 2 once, then 0 on repeat
+    coordinator.recordFeedbackOutcome({
+      action: 'submit',
+      source: 'login-queue',
+      userId: 'u-9',
+      reservationId: 't-1',
+    });
+    coordinator.recordFeedbackOutcome({
+      action: 'skip',
+      source: 'login-queue',
+      userId: 'u-9',
+      reservationId: 't-2',
+    });
+    expect(
+      coordinator.recordFeedbackOutcome({
+        action: 'dismiss',
+        source: 'login-queue',
+        userId: 'u-9',
+      })
+    ).toEqual({
+      dismissedSkippedCount: 2,
+      replaceHref: null,
+    });
+    expect(
+      coordinator.recordFeedbackOutcome({
+        action: 'dismiss',
+        source: 'login-queue',
+        userId: 'u-9',
+      })
+    ).toEqual({
       dismissedSkippedCount: 0,
+      replaceHref: null,
     });
   });
 });
@@ -605,14 +1118,15 @@ describe('FeedbackSessionCoordinator core APIs — History Route & Outcomes (#94
     expect(mentorStep.state.deepLinkDialogReservation).toBe(mentorCard);
     expect(mentorStep.state.highlightedReservationId).toBe('889');
 
-    // 3. Pre-seeded lookup on wrong role tab ALSO re-seeds and redirects without hitting HTTP
-    coordinator.seedLookupResult({
+    // 3. Pre-seeded lookup on wrong role tab ALSO re-seeds and redirects without hitting default lookup HTTP
+    await coordinator.resolveHistoryRedirect({
       userId: '20',
-      reservationId: '890',
-      result: {
+      fallbackRole: 'mentor',
+      rawSearch: 'reservation_id=890',
+      lookupSingleFeedback: async () => ({
         viewerRole: 'mentee',
         reservation: makeReservation('890', 1762000000),
-      },
+      }),
     });
     const wrongRoleSeeded = coordinator.reconcileHistoryRoute({
       role: 'mentor',
@@ -1681,5 +2195,239 @@ describe('FeedbackSessionCoordinator core APIs — History Route & Outcomes (#94
     listener.mockClear();
     coordinator.clearAllSessionState();
     expect(listener).toHaveBeenCalledTimes(0);
+  });
+
+  it('supports StrictMode same-tick abort-and-retry and multi-caller AbortSignal subscriber reference counting on single-reservation lookups (#946)', async () => {
+    const capturedSignals: AbortSignal[] = [];
+    const resolvers: Array<
+      (res: { viewerRole: 'mentee'; reservation: Reservation } | null) => void
+    > = [];
+    const lookup = createInMemoryFeedbackSessionLookupPort({
+      singleReservations: ({ signal }) => {
+        if (signal) capturedSignals.push(signal);
+        return new Promise((resolve) => {
+          resolvers.push(resolve);
+        });
+      },
+    });
+    const coordinator = createFeedbackSessionCoordinator({
+      storage: createInMemoryFeedbackSessionStoragePort(),
+      lookup,
+    });
+
+    // (a) React StrictMode simulation: Call 1 mounts -> synchronously aborts in same tick -> Call 2 mounts immediately
+    const strictController1 = new AbortController();
+    const strictController2 = new AbortController();
+
+    const strictStep1 = coordinator.reconcileHistoryRoute({
+      role: 'mentee',
+      userId: '10',
+      pathname: '/reservation/mentee',
+      rawSearch: 'tab=history&reservation_id=951',
+      history: [],
+      isHistoryLoaded: true,
+      isLoadingHistory: false,
+      hasMoreHistory: false,
+      signal: strictController1.signal,
+    });
+    expect(capturedSignals).toHaveLength(1);
+    expect(capturedSignals[0]?.aborted).toBe(false);
+
+    // Synchronous cleanup in same tick before .finally() microtask runs!
+    strictController1.abort();
+    expect(capturedSignals[0]?.aborted).toBe(true);
+
+    // Immediate StrictMode second mount in the exact same tick must start a fresh lookup, NOT return the aborted promise
+    const strictStep2 = coordinator.reconcileHistoryRoute({
+      role: 'mentee',
+      userId: '10',
+      pathname: '/reservation/mentee',
+      rawSearch: 'tab=history&reservation_id=951',
+      history: [],
+      isHistoryLoaded: true,
+      isLoadingHistory: false,
+      hasMoreHistory: false,
+      signal: strictController2.signal,
+    });
+    expect(strictStep2.pendingLookup).not.toBe(strictStep1.pendingLookup);
+    expect(capturedSignals).toHaveLength(2);
+    expect(capturedSignals[1]?.aborted).toBe(false);
+
+    const card951 = makeReservation('951', 1760000000);
+    resolvers[0]?.(null);
+    resolvers[1]?.({ viewerRole: 'mentee', reservation: card951 });
+
+    const [settledStrict1, settledStrict2] = await Promise.all([
+      strictStep1.pendingLookup!,
+      strictStep2.pendingLookup!,
+    ]);
+    expect(settledStrict1.aborted).toBe(true);
+    expect(settledStrict1.commands.toast).toBeNull();
+    expect(settledStrict2.aborted).toBeUndefined();
+    expect(settledStrict2.state.deepLinkDialogReservation).toBe(card951);
+
+    // (b) Multi-caller subscriber reference counting: Caller A aborts while Caller B stays active on shared lookup
+    coordinator.resetHistoryRouteSession();
+    const callerAController = new AbortController();
+    const callerBController = new AbortController();
+    const removeASpy = vi.spyOn(
+      callerAController.signal,
+      'removeEventListener'
+    );
+    const removeBSpy = vi.spyOn(
+      callerBController.signal,
+      'removeEventListener'
+    );
+
+    const stepA = coordinator.reconcileHistoryRoute({
+      role: 'mentee',
+      userId: '10',
+      pathname: '/reservation/mentee',
+      rawSearch: 'tab=history&reservation_id=952',
+      history: [],
+      isHistoryLoaded: true,
+      isLoadingHistory: false,
+      hasMoreHistory: false,
+      signal: callerAController.signal,
+    });
+    const stepB = coordinator.reconcileHistoryRoute({
+      role: 'mentee',
+      userId: '10',
+      pathname: '/reservation/mentee',
+      rawSearch: 'tab=history&reservation_id=952',
+      history: [],
+      isHistoryLoaded: true,
+      isLoadingHistory: false,
+      hasMoreHistory: false,
+      signal: callerBController.signal,
+    });
+    expect(capturedSignals).toHaveLength(3);
+
+    // Caller A aborts -> shared underlying request MUST stay alive for Caller B!
+    callerAController.abort();
+    expect(capturedSignals[2]?.aborted).toBe(false);
+
+    const card952 = makeReservation('952', 1761000000);
+    resolvers[2]?.({ viewerRole: 'mentee', reservation: card952 });
+
+    const [settledA, settledB] = await Promise.all([
+      stepA.pendingLookup!,
+      stepB.pendingLookup!,
+    ]);
+    expect(settledA.aborted).toBe(true);
+    expect(settledA.commands).toEqual({
+      replaceHref: null,
+      toast: null,
+      shouldLoadMoreHistory: false,
+    });
+    expect(settledB.aborted).toBeUndefined();
+    expect(settledB.state.deepLinkDialogReservation).toBe(card952);
+    expect(removeASpy).toHaveBeenCalledWith('abort', expect.any(Function));
+    expect(removeBSpy).toHaveBeenCalledWith('abort', expect.any(Function));
+
+    // (c) When ALL concurrent callers abort, shared underlying lookup aborts immediately
+    coordinator.resetHistoryRouteSession();
+    const bothA = new AbortController();
+    const bothB = new AbortController();
+    const bothStepA = coordinator.reconcileHistoryRoute({
+      role: 'mentee',
+      userId: '10',
+      pathname: '/reservation/mentee',
+      rawSearch: 'tab=history&reservation_id=953',
+      history: [],
+      isHistoryLoaded: true,
+      isLoadingHistory: false,
+      hasMoreHistory: false,
+      signal: bothA.signal,
+    });
+    const bothStepB = coordinator.reconcileHistoryRoute({
+      role: 'mentee',
+      userId: '10',
+      pathname: '/reservation/mentee',
+      rawSearch: 'tab=history&reservation_id=953',
+      history: [],
+      isHistoryLoaded: true,
+      isLoadingHistory: false,
+      hasMoreHistory: false,
+      signal: bothB.signal,
+    });
+    bothA.abort();
+    expect(capturedSignals[3]?.aborted).toBe(false);
+    bothB.abort();
+    expect(capturedSignals[3]?.aborted).toBe(true);
+    resolvers[3]?.(null);
+    const [settledBothA, settledBothB] = await Promise.all([
+      bothStepA.pendingLookup!,
+      bothStepB.pendingLookup!,
+    ]);
+    expect(settledBothA.aborted).toBe(true);
+    expect(settledBothB.aborted).toBe(true);
+  });
+
+  it('cancels in-flight single-reservation lookup immediately when opts.history resolves targetReservationId first without clobbering dialog or double-incrementing deepLinkTriggerSeq (#946)', async () => {
+    let capturedSignal: AbortSignal | undefined;
+    let resolveInFlight:
+      | ((
+          res: { viewerRole: 'mentee'; reservation: Reservation } | null
+        ) => void)
+      | undefined;
+
+    const lookup = createInMemoryFeedbackSessionLookupPort({
+      singleReservations: ({ signal }) => {
+        capturedSignal = signal;
+        return new Promise((resolve) => {
+          resolveInFlight = resolve;
+        });
+      },
+    });
+    const coordinator = createFeedbackSessionCoordinator({
+      storage: createInMemoryFeedbackSessionStoragePort(),
+      lookup,
+    });
+
+    // 1. Initial call with empty history starts single-reservation fallback lookup
+    const initial = coordinator.reconcileHistoryRoute({
+      role: 'mentee',
+      userId: '10',
+      pathname: '/reservation/mentee',
+      rawSearch: 'tab=history&reservation_id=960',
+      history: [],
+      isHistoryLoaded: true,
+      isLoadingHistory: false,
+      hasMoreHistory: false,
+    });
+    expect(initial.state.isLookingUpSingleReservation).toBe(true);
+    expect(capturedSignal?.aborted).toBe(false);
+
+    // 2. Before lookup settles, opts.history refreshes with target card 960 -> opens dialog & cancels in-flight lookup immediately
+    const card960 = makeReservation('960', 1762000000);
+    const historyResolved = coordinator.reconcileHistoryRoute({
+      role: 'mentee',
+      userId: '10',
+      pathname: '/reservation/mentee',
+      rawSearch: 'tab=history&reservation_id=960',
+      history: [card960],
+      isHistoryLoaded: true,
+      isLoadingHistory: false,
+      hasMoreHistory: false,
+    });
+    expect(capturedSignal?.aborted).toBe(true);
+    expect(historyResolved.state.isLookingUpSingleReservation).toBe(false);
+    expect(historyResolved.state.deepLinkDialogReservation).toBe(card960);
+    expect(historyResolved.state.deepLinkTriggerSeq).toBe(1);
+
+    // 3. Stale in-flight lookup resolving 404 (null) afterwards MUST NOT close the open dialog, emit not-found toast, or increment deepLinkTriggerSeq
+    resolveInFlight?.(null);
+    const staleLookupSettled = await initial.pendingLookup!;
+    expect(staleLookupSettled.aborted).toBe(true);
+    expect(staleLookupSettled.commands).toEqual({
+      replaceHref: null,
+      toast: null,
+      shouldLoadMoreHistory: false,
+    });
+    expect(coordinator.getHistoryRouteState().deepLinkDialogReservation).toBe(
+      card960
+    );
+    expect(coordinator.getHistoryRouteState().deepLinkTriggerSeq).toBe(1);
   });
 });

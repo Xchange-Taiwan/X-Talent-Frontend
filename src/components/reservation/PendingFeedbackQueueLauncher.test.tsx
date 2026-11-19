@@ -58,7 +58,7 @@ import {
   QUEUE_PROMOTE_MS,
   QUEUE_SWIPE_OUT_MS,
 } from '@/hooks/user/reservation/useFeedbackQueueMotion';
-import { getSessionPendingFeedbackState } from '@/lib/reservation/pendingFeedbackGuard';
+import { feedbackSessionCoordinator } from '@/lib/reservation/feedbackSessionCoordinator';
 import {
   fetchPendingFeedbackReservations,
   submitReservationFeedback,
@@ -95,6 +95,7 @@ describe('PendingFeedbackQueueLauncher + usePendingFeedbackQueue real integratio
   beforeEach(() => {
     vi.clearAllMocks();
     window.sessionStorage.clear();
+    feedbackSessionCoordinator.clearAllSessionState();
     if (typeof globalThis.ResizeObserver === 'undefined') {
       globalThis.ResizeObserver = class ResizeObserver {
         observe() {}
@@ -231,7 +232,7 @@ describe('PendingFeedbackQueueLauncher + usePendingFeedbackQueue real integratio
     });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
-    expect(getSessionPendingFeedbackState('1')).toEqual({
+    expect(feedbackSessionCoordinator.getSessionState('1')).toEqual({
       checked: true,
       dismissed: true,
       queueEmpty: false,
@@ -298,7 +299,7 @@ describe('PendingFeedbackQueueLauncher + usePendingFeedbackQueue real integratio
       description: 'X-Talent 已收到您的回饋，謝謝您！',
     });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(getSessionPendingFeedbackState('1')).toEqual({
+    expect(feedbackSessionCoordinator.getSessionState('1')).toEqual({
       checked: true,
       dismissed: false,
       queueEmpty: true,
@@ -369,7 +370,7 @@ describe('PendingFeedbackQueueLauncher + usePendingFeedbackQueue real integratio
     mockUsePathname.mockReturnValue('/mentor-pool');
     rerender(<PendingFeedbackQueueLauncher />);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(getSessionPendingFeedbackState('1')).toEqual({
+    expect(feedbackSessionCoordinator.getSessionState('1')).toEqual({
       checked: true,
       dismissed: false,
       queueEmpty: true,

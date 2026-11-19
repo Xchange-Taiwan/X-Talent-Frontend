@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fromPartial } from '@total-typescript/shoehorn';
 import { describe, expect, it } from 'vitest';
 
-import { shouldSuppressPendingFeedbackPopup } from '@/lib/reservation/pendingFeedbackGuard';
+import { shouldSuppressPendingFeedbackPopup } from '@/lib/reservation/feedbackSessionCoordinator';
 import type { Reservation } from '@/types/reservation';
 import type { ReservationFeedback } from '@/types/reservationFeedback';
 

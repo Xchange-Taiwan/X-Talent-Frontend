@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 
 import { isFeedbackEnabled } from '@/lib/featureFlags';
 import {
@@ -9,7 +9,6 @@ import {
   feedbackSessionCoordinator,
 } from '@/lib/reservation/feedbackSessionCoordinator';
 import {
-  buildCleanedFeedbackQueueHref,
   isFeedbackQueueQueryRequested,
   type ReservationRouteRole,
 } from '@/lib/reservation/reservationRoutes';
@@ -52,113 +51,117 @@ export function useFeedbackQueueParam({
   const feedbackEnabled = isFeedbackEnabled();
   const resolvedRole: ReservationRouteRole =
     role ?? (isMentee === false ? 'mentor' : 'mentee');
+  const rawSearch = searchParams.toString();
   const isFeedbackQueueRequested = feedbackEnabled
     ? isFeedbackQueueQueryRequested(searchParams)
     : false;
 
-  const pendingItems = useMemo(
-    () =>
-      feedbackEnabled
-        ? coordinator.resolveExplicitQueueItems({
-            userId,
-            role: resolvedRole,
-            history,
-          })
-        : [],
-    [coordinator, feedbackEnabled, history, resolvedRole, userId]
+  const latestRef = useRef({
+    router,
+    searchParams,
+    pathname,
+    userId,
+    feedbackEnabled,
+  });
+  latestRef.current = {
+    router,
+    searchParams,
+    pathname,
+    userId,
+    feedbackEnabled,
+  };
+
+  const routeState = useSyncExternalStore(
+    coordinator.subscribe,
+    () => coordinator.getHistoryRouteState({ feedbackEnabled }),
+    () => coordinator.getHistoryRouteState({ feedbackEnabled: false })
   );
 
-  const isHistoryReadyForQueueCheck =
-    isHistoryLoaded &&
-    !isLoadingHistory &&
-    !(isLoadingUpcoming && isLoadingPending);
+  useEffect(() => {
+    return () => {
+      coordinator.resetHistoryRouteSession();
+    };
+  }, [coordinator]);
 
-  const [latchedQueue, setLatchedQueue] = useState<Reservation[] | null>(() =>
-    feedbackEnabled && isFeedbackQueueRequested && pendingItems.length > 0
-      ? pendingItems
-      : null
-  );
-  const [dismissed, setDismissed] = useState(false);
-
-  const clearFeedbackQueueParam = useCallback(() => {
-    if (!feedbackEnabled) return;
-    const nextHref = buildCleanedFeedbackQueueHref(
+  useEffect(() => {
+    const step = coordinator.reconcileHistoryRoute({
+      mode: 'queue',
+      role: resolvedRole,
+      userId,
       pathname,
-      searchParams.toString()
-    );
-    if (!nextHref) return;
-    router.replace(nextHref, { scroll: false });
-  }, [feedbackEnabled, pathname, router, searchParams]);
+      rawSearch,
+      searchParams: latestRef.current.searchParams,
+      history,
+      isHistoryLoaded,
+      isLoadingHistory,
+      isLoadingUpcoming,
+      isLoadingPending,
+      feedbackEnabled,
+    });
+
+    if (step.commands.replaceHref) {
+      latestRef.current.router.replace(step.commands.replaceHref, {
+        scroll: false,
+      });
+    }
+  }, [
+    coordinator,
+    feedbackEnabled,
+    history,
+    isFeedbackQueueRequested,
+    isHistoryLoaded,
+    isLoadingHistory,
+    isLoadingPending,
+    isLoadingUpcoming,
+    pathname,
+    rawSearch,
+    resolvedRole,
+    userId,
+  ]);
 
   const skipFeedbackQueueItem = useCallback(
     (reservation: Reservation) => {
-      if (!feedbackEnabled || !reservation?.id) return;
-      coordinator.markReservationSkipped(userId?.trim() ?? '', reservation.id);
+      const { feedbackEnabled: enabled, userId: uid } = latestRef.current;
+      if (!enabled || !reservation?.id) return;
+      coordinator.recordFeedbackOutcome({
+        action: 'skip',
+        source: 'explicit-queue',
+        userId: uid ?? '',
+        reservationId: reservation.id,
+        feedbackEnabled: enabled,
+      });
     },
-    [coordinator, feedbackEnabled, userId]
+    [coordinator]
   );
 
   const dismissFeedbackQueue = useCallback(() => {
-    setDismissed(true);
-    clearFeedbackQueueParam();
-  }, [clearFeedbackQueueParam]);
+    const {
+      feedbackEnabled: enabled,
+      pathname: currentPath,
+      router: currentRouter,
+      searchParams: currentParams,
+      userId: uid,
+    } = latestRef.current;
+    if (!enabled) return;
 
-  useEffect(() => {
-    if (!feedbackEnabled) {
-      if (latchedQueue !== null) {
-        setLatchedQueue(null);
-      }
-      if (dismissed) {
-        setDismissed(false);
-      }
-      return;
+    const { replaceHref } = coordinator.recordFeedbackOutcome({
+      action: 'dismiss',
+      source: 'explicit-queue',
+      userId: uid,
+      pathname: currentPath,
+      rawSearch: currentParams.toString(),
+      feedbackEnabled: enabled,
+    });
+    if (replaceHref) {
+      currentRouter.replace(replaceHref, { scroll: false });
     }
-
-    if (!isFeedbackQueueRequested) {
-      if (latchedQueue !== null) {
-        setLatchedQueue(null);
-      }
-      if (dismissed) {
-        setDismissed(false);
-      }
-      return;
-    }
-
-    if (!dismissed && latchedQueue === null && pendingItems.length > 0) {
-      setLatchedQueue(pendingItems);
-      return;
-    }
-
-    if (
-      isHistoryReadyForQueueCheck &&
-      pendingItems.length === 0 &&
-      latchedQueue === null &&
-      !dismissed
-    ) {
-      clearFeedbackQueueParam();
-    }
-  }, [
-    clearFeedbackQueueParam,
-    dismissed,
-    feedbackEnabled,
-    isFeedbackQueueRequested,
-    isHistoryReadyForQueueCheck,
-    latchedQueue,
-    pendingItems,
-  ]);
-
-  const feedbackQueueItems =
-    feedbackEnabled &&
-    isFeedbackQueueRequested &&
-    !dismissed &&
-    latchedQueue &&
-    latchedQueue.length > 0
-      ? latchedQueue
-      : null;
+  }, [coordinator]);
 
   return {
     isFeedbackQueueRequested,
-    feedbackQueueItems,
+    feedbackQueueItems: isFeedbackQueueRequested
+      ? routeState.feedbackQueueItems
+      : null,
     skipFeedbackQueueItem,
     dismissFeedbackQueue,
   };

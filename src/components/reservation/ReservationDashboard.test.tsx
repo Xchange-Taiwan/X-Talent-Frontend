@@ -9,6 +9,7 @@ import {
   type UseReservationDashboardReturn,
 } from '@/hooks/user/reservation/useReservationData';
 import { trackEvent } from '@/lib/analytics';
+import { feedbackSessionCoordinator } from '@/lib/reservation/feedbackSessionCoordinator';
 import type { Reservation } from '@/types/reservation';
 
 import { ReservationDashboard } from './ReservationDashboard';
@@ -151,6 +152,7 @@ describe('ReservationDashboard', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    feedbackSessionCoordinator.clearAllSessionState();
     mockGet.mockReturnValue(null);
     mockToString.mockReturnValue('');
     mockPathname.mockReturnValue('/reservation/mentor');
@@ -368,10 +370,11 @@ describe('ReservationDashboard', () => {
 
     render(<ReservationDashboard userRole="mentee" />);
     expect(mockReplace).not.toHaveBeenCalled();
-    const historyCall = vi
+    const historyCalls = vi
       .mocked(ReservationList)
-      .mock.calls.find(([props]) => props.variant === 'history');
-    expect(historyCall?.[0].feedbackQueueItems).toEqual([
+      .mock.calls.filter(([props]) => props.variant === 'history');
+    const latestHistoryCall = historyCalls[historyCalls.length - 1];
+    expect(latestHistoryCall?.[0].feedbackQueueItems).toEqual([
       expect.objectContaining({ id: 'hist-pending-answer' }),
     ]);
   });
