@@ -30,6 +30,11 @@ export interface CategoryMultiSelectProps {
   value: string[];
   onChange: (next: string[]) => void;
   maxSelected?: number;
+  /**
+   * When true, selecting a different option replaces the current selection
+   * instead of disabling unselected options at `maxSelected === 1`.
+   */
+  singleSelect?: boolean;
   searchPlaceholder?: string;
   emptyText?: string;
   limitHelperText?: (selected: number, max: number) => string;
@@ -98,6 +103,7 @@ export function CategoryMultiSelect({
   value,
   onChange,
   maxSelected = 10,
+  singleSelect = false,
   searchPlaceholder = 'Search...',
   emptyText = '沒有符合的選項',
   limitHelperText = defaultLimitHelper,
@@ -127,12 +133,16 @@ export function CategoryMultiSelect({
   }, [categories, trimmedQuery, isSearching]);
 
   const selectedSet = React.useMemo(() => new Set(value), [value]);
-  const limitReached = value.length >= maxSelected;
+  const limitReached = !singleSelect && value.length >= maxSelected;
 
   const toggle = (optionValue: string): void => {
     if (disabled) return;
     if (selectedSet.has(optionValue)) {
       onChange(value.filter((v) => v !== optionValue));
+      return;
+    }
+    if (singleSelect) {
+      onChange([optionValue]);
       return;
     }
     if (limitReached) return;

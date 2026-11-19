@@ -55,13 +55,17 @@ export function mapVoToFormValues(
   const industrySg = industryTag?.subject_group ?? '';
 
   const rawAvatar = userDto.avatar?.trim() ?? '';
+  const normalizedAvatar = toPresetAvatarCode(rawAvatar) ?? rawAvatar;
   const defaultAvatarFallback = isMentorOnboarding
     ? DEFAULT_PRESET_AVATAR_CODE
     : '';
+  const hydratedWantPositions = mentorFlag
+    ? (userDto.want_position ?? [])
+    : (userDto.want_position ?? []).slice(0, 1);
 
   return {
     is_mentor: mentorFlag,
-    avatar: rawAvatar || defaultAvatarFallback,
+    avatar: normalizedAvatar || defaultAvatarFallback,
     avatarFile: undefined,
     name: userDto.name || '',
     location: userDto.location || '',
@@ -74,7 +78,7 @@ export function mapVoToFormValues(
     links: parsedLinks ?? createEmptySocialLinks(),
     have_topic: userDto.have_topic ?? [],
     have_skill: userDto.have_skill ?? [],
-    want_position: userDto.want_position ?? [],
+    want_position: hydratedWantPositions,
     want_skill: userDto.want_skill ?? [],
     want_topic: userDto.want_topic ?? [],
   };

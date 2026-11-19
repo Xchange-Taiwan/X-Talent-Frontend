@@ -318,10 +318,12 @@ export async function commitProfileMutation(
   }
 
   // Step 3: Cache Invalidation & Server Path Revalidation
-  async function step3InvalidateCachesAndRevalidate() {
-    if (hasValidResolvedUserId) {
-      profileReadModel.invalidateUser(resolvedUserId);
-    }
+  // Note: Do NOT call `profileReadModel.invalidateUser(resolvedUserId)` before
+  // priming the optimistic DTO — synchronously clearing the active user's DTO
+  // while `EditProfileContainer` is still mounted and awaiting async server
+  // revalidation causes `useUserProfileDto` to emit `USER_NOT_FOUND` and
+  // briefly flash "載入失敗，請稍後再試。" before navigation completes.
+  async function step3RevalidateServerPaths() {
     mentorPoolReadModel.clear();
 
     if (resolvedPageUserId) {
@@ -478,6 +480,23 @@ export async function commitProfileMutation(
       have_topic: payload.have_topic ?? [],
       experiences: resolvedExperiences,
     };
+
+    if (hasValidResolvedUserId) {
+      // Evict alternate language cache entries while immediately priming the
+      // active language synchronously so active subscribers never observe a
+      // null DTO gap during revalidation / session sync.
+      for (const altLang of ['zh_TW', 'en_US']) {
+        if (altLang !== resolvedLanguage) {
+          profileReadModel.evict({ userId: resolvedUserId, language: altLang });
+        }
+      }
+      profileReadModel.prime(
+        { userId: resolvedUserId, language: resolvedLanguage },
+        optimisticDto
+      );
+    }
+
+    await step3RevalidateServerPaths();
 
     await applyIdentityPatch(identitySnapshot, {
       primeProfileDto: () => {
@@ -655,7 +674,6 @@ export async function commitProfileMutation(
   // Enforce the execution order of the six steps structurally
   const avatarUrl = await step1UploadAvatar();
   const { payload, experiencesDirty } = await step2WriteProfile(avatarUrl);
-  await step3InvalidateCachesAndRevalidate();
 
   const avatarExplicitlyCleared =
     intent.mode !== 'mentee-onboarding' &&

@@ -407,7 +407,8 @@ async function completePostLoginChoreography({
   navigate(
     resolvePostAuthRedirect({
       explicitCallbackUrl: safeCallbackUrl,
-      isOnboarded: session.user?.onBoarding !== false,
+      isOnboarded:
+        session.user?.onBoarding !== false || Boolean(session.user?.isMentor),
     })
   );
 }

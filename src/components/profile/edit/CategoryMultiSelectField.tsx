@@ -6,6 +6,7 @@ import {
   type Category,
   CategoryMultiSelect,
 } from '@/components/ui/category-multi-select';
+import { CompactCategoryPicker } from '@/components/ui/compact-category-picker';
 import {
   FormControl,
   FormField,
@@ -19,6 +20,8 @@ interface CategoryMultiSelectFieldProps<T extends FieldValues> {
   categories: Category[];
   flat?: boolean;
   maxSelected?: number;
+  singleSelect?: boolean;
+  addLabel?: string;
   searchPlaceholder?: string;
 }
 
@@ -28,6 +31,8 @@ export function CategoryMultiSelectField<T extends FieldValues>({
   categories,
   flat = false,
   maxSelected = 10,
+  singleSelect = false,
+  addLabel,
   searchPlaceholder,
 }: CategoryMultiSelectFieldProps<T>) {
   return (
@@ -37,14 +42,28 @@ export function CategoryMultiSelectField<T extends FieldValues>({
       render={({ field }) => (
         <FormItem>
           <FormControl>
-            <CategoryMultiSelect
-              flat={flat}
-              categories={categories}
-              value={(field.value as string[]) ?? []}
-              onChange={field.onChange}
-              maxSelected={maxSelected}
-              searchPlaceholder={searchPlaceholder ?? '搜尋'}
-            />
+            {addLabel ? (
+              <CompactCategoryPicker
+                flat={flat}
+                categories={categories}
+                value={(field.value as string[]) ?? []}
+                onChange={field.onChange}
+                maxSelected={maxSelected}
+                singleSelect={singleSelect}
+                addLabel={addLabel}
+                searchPlaceholder={searchPlaceholder ?? '搜尋'}
+              />
+            ) : (
+              <CategoryMultiSelect
+                flat={flat}
+                categories={categories}
+                value={(field.value as string[]) ?? []}
+                onChange={field.onChange}
+                maxSelected={maxSelected}
+                singleSelect={singleSelect}
+                searchPlaceholder={searchPlaceholder ?? '搜尋'}
+              />
+            )}
           </FormControl>
           <FormMessage />
         </FormItem>

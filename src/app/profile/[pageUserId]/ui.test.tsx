@@ -691,7 +691,10 @@ describe('ProfilePageUI - multiline text whitespace preservation (#857)', () => 
     const jobTitleHeading = screen.getByRole('heading', {
       name: 'Senior Engineer',
     });
-    const jobDescParagraph = jobTitleHeading.nextElementSibling;
+    expect(jobTitleHeading).toBeInTheDocument();
+    const jobDescParagraph = jobTitleHeading.parentElement?.querySelector(
+      'p.whitespace-pre-line'
+    );
     expect(jobDescParagraph).toHaveClass('whitespace-pre-line', 'break-words');
     expect(jobDescParagraph?.textContent).toBe(multilineJobDesc);
   });

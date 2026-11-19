@@ -61,6 +61,20 @@ export const CardVariant: Story = {
   ),
 };
 
+export const OptionAOptional: Story = {
+  name: '方案 A 選填區塊樣式 (variant="option-a", optional)',
+  args: {
+    title: '個人連結',
+    optional: true,
+    variant: 'option-a',
+  },
+  render: (args) => (
+    <Section {...args}>
+      <p className="text-text-secondary text-sm">個人連結輸入列區域</p>
+    </Section>
+  ),
+};
+
 export const RequiredIndicatorDemo: Story = {
   name: 'RequiredIndicator 獨立展示',
   render: () => (

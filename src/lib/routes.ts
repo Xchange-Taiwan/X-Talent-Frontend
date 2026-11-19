@@ -73,6 +73,7 @@ const STATIC_BYPASS_PREFIXES = [
   '/static/',
   '/assets/',
   '/landing/',
+  '/avatars/',
   `${MONITORING_HREF}/`,
 ] as const;
 
@@ -471,10 +472,12 @@ export function resolveAuthSurfaceRedirect(
   user: AuthSurfaceUser | null | undefined
 ): string | null {
   const isAuthenticated = Boolean(user && user.id);
+  const hasCompletedOnboarding =
+    user?.onBoarding !== false || Boolean(user?.isMentor);
 
   switch (surface) {
     case 'sign_shell': {
-      if (isAuthenticated && user?.onBoarding !== false) {
+      if (isAuthenticated && hasCompletedOnboarding) {
         return HOME_HREF;
       }
       return null;
@@ -483,13 +486,13 @@ export function resolveAuthSurfaceRedirect(
       if (!isAuthenticated) {
         return null;
       }
-      return user?.onBoarding === false ? ONBOARDING_HREF : HOME_HREF;
+      return !hasCompletedOnboarding ? ONBOARDING_HREF : HOME_HREF;
     }
     case 'onboarding': {
       if (!isAuthenticated) {
         return DEFAULT_LOGIN;
       }
-      return user?.onBoarding !== false ? HOME_HREF : null;
+      return hasCompletedOnboarding ? HOME_HREF : null;
     }
   }
 }
@@ -567,8 +570,8 @@ export function evaluateMiddlewareGate({
   }
 
   const isAuthenticated = Boolean(session?.isAuthenticated);
-  const hasCompletedOnboarding = session?.onBoarding !== false;
   const isMentor = Boolean(session?.isMentor);
+  const hasCompletedOnboarding = session?.onBoarding !== false || isMentor;
   const authSurfaceUser: AuthSurfaceUser | null = isAuthenticated
     ? {
         id: 'authenticated',
@@ -645,7 +648,24 @@ export function evaluateMiddlewareGate({
     };
   }
 
-  if (!hasCompletedOnboarding && classification.requiresCompletedOnboarding) {
+  const isMentorOnboardingEditRequest =
+    Boolean(matchProfileEditRoute(pathname)) &&
+    (() => {
+      if (!search) return false;
+      const params = new URLSearchParams(
+        search.startsWith('?') ? search.slice(1) : search
+      );
+      return (
+        params.get(MENTOR_ONBOARDING_KEY) === 'true' ||
+        params.get('onboarding') === 'true'
+      );
+    })();
+
+  if (
+    !hasCompletedOnboarding &&
+    classification.requiresCompletedOnboarding &&
+    !isMentorOnboardingEditRequest
+  ) {
     return {
       action: 'redirect',
       destination: ONBOARDING_HREF,

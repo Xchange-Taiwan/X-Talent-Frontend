@@ -34,7 +34,7 @@ export default function ProfileCardUI({
 
   if (isMentor) {
     return (
-      <div className="mx-auto w-11/12 max-w-[630px] pt-10 pb-20">
+      <div className="mx-auto w-11/12 max-w-[800px] pt-10 pb-20">
         <div className="flex items-center justify-center gap-3 text-center">
           <span
             aria-hidden="true"
@@ -42,7 +42,7 @@ export default function ProfileCardUI({
           >
             <Check className="size-4 stroke-[2.5]" />
           </span>
-          <h1 className="text-text-primary text-2xl font-bold sm:text-3xl">
+          <h1 className="text-text-primary text-2xl font-bold">
             Mentor 資料已建立完成
           </h1>
         </div>
@@ -58,7 +58,7 @@ export default function ProfileCardUI({
 
         <section
           aria-label="開放可預約時段"
-          className="border-brand-100 bg-brand-50/70 mx-auto flex max-w-[560px] flex-col items-center justify-between gap-4 rounded-2xl border px-6 py-4 sm:flex-row"
+          className="border-background-border bg-brand-50/55 mx-auto flex max-w-[560px] flex-col items-center justify-between gap-4 rounded-xl border p-4 sm:flex-row"
         >
           <div className="flex items-center gap-3">
             <span
@@ -73,17 +73,17 @@ export default function ProfileCardUI({
           </div>
           <Button
             variant="default"
-            className="focus-visible:ring-brand-700 rounded-lg px-5 py-2.5 font-semibold focus-visible:ring-offset-0"
+            className="bg-brand-500 text-text-primary hover:bg-brand-600 focus-visible:ring-brand-700 h-10 rounded-md px-4 font-semibold focus-visible:ring-offset-0"
             onClick={onSetupSchedule ?? onBackToProfile}
           >
             設定時段
           </Button>
         </section>
 
-        <div className="mt-4 text-center">
+        <div className="mx-auto mt-4 flex max-w-[560px] justify-end">
           <Button
             variant="ghost"
-            className="text-text-secondary hover:text-text-primary rounded-lg px-4 py-2 text-sm font-medium focus-visible:ring-offset-0"
+            className="text-text-secondary hover:text-text-primary rounded-md px-4 py-2 text-sm font-medium focus-visible:ring-offset-0"
             onClick={onBackToProfile}
           >
             前往導師頁

@@ -111,8 +111,10 @@ export function MenteeAvatarDialog({
   };
 
   const handleCropSave = (croppedBlob: Blob) => {
-    const croppedFile = new File([croppedBlob], 'croppedAvatar.png', {
-      type: 'image/png',
+    const mimeType = croppedBlob.type || 'image/png';
+    const ext = mimeType === 'image/jpeg' ? 'jpg' : 'png';
+    const croppedFile = new File([croppedBlob], `croppedAvatar.${ext}`, {
+      type: mimeType,
     });
     const err = validateAvatarFile(croppedFile);
     if (err) {
@@ -143,7 +145,7 @@ export function MenteeAvatarDialog({
           onOpenChange(nextOpen);
         }}
       >
-        <DialogContent className="animate-in fade-in-0 zoom-in-95 w-[calc(100%-32px)] max-w-[432px] gap-6 rounded-2xl p-6 duration-200">
+        <DialogContent className="animate-in fade-in-0 zoom-in-95 w-[calc(100%-32px)] max-w-lg gap-6 rounded-xl p-6 duration-200">
           <DialogHeader>
             <DialogTitle className="text-xl leading-7 font-semibold">
               編輯頭像
@@ -201,7 +203,7 @@ export function MenteeAvatarDialog({
             <div
               role="group"
               aria-label="預設頭像"
-              className="mx-auto grid grid-cols-3 justify-center gap-4 p-1"
+              className="mx-auto grid grid-cols-3 justify-center gap-3 p-1 sm:grid-cols-6"
             >
               {PRESET_AVATAR_URLS.map((presetUrl, index) => {
                 const label = `預設頭像 ${index + 1}`;
@@ -223,7 +225,7 @@ export function MenteeAvatarDialog({
                   >
                     <Image
                       src={presetUrl}
-                      alt={label}
+                      alt=""
                       width={48}
                       height={48}
                       sizes="48px"

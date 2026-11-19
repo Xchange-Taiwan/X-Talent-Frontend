@@ -1,12 +1,10 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { useWatch } from 'react-hook-form';
+import { useFormState, useWatch } from 'react-hook-form';
 
-import {
-  type Category,
-  CategoryMultiSelect,
-} from '@/components/ui/category-multi-select';
+import type { Category } from '@/components/ui/category-multi-select';
+import { CompactCategoryPicker } from '@/components/ui/compact-category-picker';
 import type { ProfileFormContext } from '@/hooks/user/profile/useProfileEditorSession';
 import {
   computeDirectionSelectLimit,
@@ -90,11 +88,12 @@ export const MenteeDirectionPreferenceSection = React.memo(
       [wantPositionCategories]
     );
 
-    const {
-      formState: { errors, isSubmitted },
-    } = form;
+    const { errors, isSubmitted } = useFormState({
+      control: form.control,
+    });
 
-    const handlePositionsChange = (nextPositions: string[]) => {
+    const handlePositionsChange = (rawNextPositions: string[]) => {
+      const nextPositions = rawNextPositions.slice(-1);
       const synced = syncMenteePositions(directionMap, nextPositions, 10);
       onDirectionMapChange(synced.directionMap);
       form.setValue('want_position', nextPositions, {
@@ -109,6 +108,9 @@ export const MenteeDirectionPreferenceSection = React.memo(
         shouldDirty: true,
         shouldValidate: isSubmitted,
       });
+      if (nextPositions.length === 0) {
+        form.clearErrors(['want_position', 'want_skill', 'want_topic']);
+      }
 
       if (
         nextPositions.length > 0 &&
@@ -133,6 +135,9 @@ export const MenteeDirectionPreferenceSection = React.memo(
         shouldDirty: true,
         shouldValidate: isSubmitted,
       });
+      if (updated.flatItems.length > 0) {
+        form.clearErrors('want_skill');
+      }
     };
 
     const handleDirectionTopicsChange = (nextTopics: string[]) => {
@@ -150,6 +155,9 @@ export const MenteeDirectionPreferenceSection = React.memo(
         shouldDirty: true,
         shouldValidate: isSubmitted,
       });
+      if (updated.flatItems.length > 0) {
+        form.clearErrors(['want_skill', 'want_topic']);
+      }
     };
 
     const activeSkills = resolvedActiveDirection
@@ -195,12 +203,15 @@ export const MenteeDirectionPreferenceSection = React.memo(
           title="有興趣多了解的職位"
         >
           <div className="space-y-2">
-            <CategoryMultiSelect
+            <CompactCategoryPicker
               categories={wantPositionCategories}
               value={selectedPositions}
               onChange={handlePositionsChange}
-              maxSelected={10}
+              maxSelected={1}
+              singleSelect
+              addLabel="新增職位"
               searchPlaceholder="搜尋職位"
+              countText={`已選 ${selectedPositions.length} / 1`}
             />
             {positionError && (
               <p className="text-status-error-default text-sm font-medium">
@@ -216,28 +227,26 @@ export const MenteeDirectionPreferenceSection = React.memo(
           className="space-y-6"
         >
           {selectedPositions.length === 0 ? (
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-8">
-              <div className="hidden lg:block lg:w-48 lg:shrink-0" />
-              <div className="min-w-0 flex-1 space-y-2">
-                <p className="text-text-tertiary py-1 text-sm">
-                  請先在上方選擇至少 1
-                  個職位方向，再依方向挑選想加強的技能與主題。
-                </p>
-                {skillError && (
-                  <p className="text-status-error-default text-sm font-medium">
-                    {String(skillError)}
-                  </p>
-                )}
-                {topicError && (
-                  <p
-                    id="want_topic"
-                    className="text-status-error-default text-sm font-medium"
-                  >
-                    {String(topicError)}
-                  </p>
-                )}
+            skillError || topicError ? (
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-8">
+                <div className="hidden lg:block lg:w-48 lg:shrink-0" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  {skillError && (
+                    <p className="text-status-error-default text-sm font-medium">
+                      {String(skillError)}
+                    </p>
+                  )}
+                  {topicError && (
+                    <p
+                      id="want_topic"
+                      className="text-status-error-default text-sm font-medium"
+                    >
+                      {String(topicError)}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
+            ) : null
           ) : (
             <>
               <div className="flex flex-col lg:flex-row lg:items-start lg:gap-8">
@@ -293,13 +302,15 @@ export const MenteeDirectionPreferenceSection = React.memo(
                   </p>
                 </div>
                 <div className="min-w-0 flex-1 space-y-2">
-                  <CategoryMultiSelect
+                  <CompactCategoryPicker
                     key={`skill-${resolvedActiveDirection}`}
                     categories={wantSkillCategories}
                     value={activeSkills}
                     onChange={handleDirectionSkillsChange}
                     maxSelected={skillMaxForActive}
+                    addLabel="新增技能"
                     searchPlaceholder="搜尋技能"
+                    countText={`已選 ${totalUniqueSkills} / 10`}
                     limitHelperText={(selected) =>
                       totalUniqueSkills >= 10
                         ? `此方向已選 ${selected} 項（全方向共 ${totalUniqueSkills} / 10 — 取消其他項目以繼續選擇）`
@@ -307,7 +318,10 @@ export const MenteeDirectionPreferenceSection = React.memo(
                     }
                   />
                   {skillError && (
-                    <p className="text-status-error-default text-sm font-medium">
+                    <p
+                      role="alert"
+                      className="text-status-error-default text-sm font-medium"
+                    >
                       {String(skillError)}
                     </p>
                   )}
@@ -324,13 +338,15 @@ export const MenteeDirectionPreferenceSection = React.memo(
                   </p>
                 </div>
                 <div className="min-w-0 flex-1 space-y-2">
-                  <CategoryMultiSelect
+                  <CompactCategoryPicker
                     key={`topic-${resolvedActiveDirection}`}
                     categories={wantTopicCategories}
                     value={activeTopics}
                     onChange={handleDirectionTopicsChange}
                     maxSelected={topicMaxForActive}
+                    addLabel="新增主題"
                     searchPlaceholder="搜尋主題"
+                    countText={`已選 ${totalUniqueTopics} / 10`}
                     limitHelperText={(selected) =>
                       totalUniqueTopics >= 10
                         ? `此方向已選 ${selected} 項（全方向共 ${totalUniqueTopics} / 10 — 取消其他項目以繼續選擇）`
@@ -338,7 +354,10 @@ export const MenteeDirectionPreferenceSection = React.memo(
                     }
                   />
                   {topicError && (
-                    <p className="text-status-error-default text-sm font-medium">
+                    <p
+                      role="alert"
+                      className="text-status-error-default text-sm font-medium"
+                    >
                       {String(topicError)}
                     </p>
                   )}

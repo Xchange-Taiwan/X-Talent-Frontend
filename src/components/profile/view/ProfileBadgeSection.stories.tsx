@@ -27,6 +27,8 @@ export const MentorExpertise: Story = {
 export const MentorServices: Story = {
   args: {
     title: '我能提供的服務',
+    tone: 'service',
+    subheading: true,
     items: [
       { subject_group: 'offer-resume', subject: '履歷健檢' },
       { subject_group: 'offer-mock', subject: '模擬面試' },

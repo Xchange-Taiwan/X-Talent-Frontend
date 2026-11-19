@@ -19,6 +19,7 @@ import { Section } from './Section';
 const SOCIAL_LINKS = SOCIAL_PLATFORM_KEYS.map((platform) => ({
   platform,
   label: platformLabelMap[platform].label,
+  placeholder: platformLabelMap[platform].placeholder,
   icon: platformLabelMap[platform].icon,
 }));
 
@@ -28,36 +29,47 @@ interface Props {
 }
 
 export const LinksSection = ({ id = 'links', form }: Props) => (
-  <Section id={id} title="個人連結" variant="option-a">
-    {SOCIAL_LINKS.map(({ platform, label, icon }) => (
-      <FormField
-        key={platform}
-        control={form.control}
-        name={`links.${platform}`}
-        render={({ field }) => (
-          <FormItem className="mb-4">
-            <FormLabel>
-              <div className="flex items-center gap-2">
-                {icon}
-                <span>{label}</span>
+  <Section id={id} title="個人連結" optional variant="option-a">
+    <div className="grid grid-cols-1 gap-5">
+      {SOCIAL_LINKS.map(({ platform, label, placeholder, icon }) => (
+        <FormField
+          key={platform}
+          control={form.control}
+          name={`links.${platform}`}
+          render={({ field }) => (
+            <FormItem className="space-y-2">
+              <FormLabel className="text-text-primary text-sm font-medium">
+                {label}
+              </FormLabel>
+              <div className="flex items-center p-0.5">
+                <div
+                  aria-hidden="true"
+                  className="mr-3 flex size-5 shrink-0 items-center justify-center"
+                >
+                  {icon}
+                </div>
+                <FormControl>
+                  <Input
+                    type="text"
+                    inputMode="url"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    placeholder={placeholder}
+                    className="min-h-[44px] rounded-lg focus-visible:ring-offset-0"
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    name={field.name}
+                    ref={field.ref}
+                  />
+                </FormControl>
               </div>
-            </FormLabel>
-            <FormControl>
-              <Input
-                type="text"
-                inputMode="url"
-                placeholder=""
-                value={field.value ?? ''}
-                onChange={field.onChange}
-                onBlur={field.onBlur}
-                name={field.name}
-                ref={field.ref}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-    ))}
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      ))}
+    </div>
   </Section>
 );

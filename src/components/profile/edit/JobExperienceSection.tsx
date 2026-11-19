@@ -1,14 +1,10 @@
 'use client';
 
-import {
-  ChevronDownIcon,
-  ChevronUpIcon,
-  PlusIcon,
-  TrashIcon,
-} from '@radix-ui/react-icons';
+import { PlusIcon, TrashIcon } from '@radix-ui/react-icons';
 import React from 'react';
 
 import { ConfirmDialog } from '@/components/profile/edit/ConfirmDialog';
+import { ExperienceReorderHeader } from '@/components/profile/edit/ExperienceReorderHeader';
 import { SelectField } from '@/components/profile/edit/Fields';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -110,35 +106,33 @@ export const JobExperienceSection = ({
   };
 
   return (
-    <Section title="工作經驗" required={isMentor} variant="option-a">
+    <Section
+      title="工作經驗"
+      required={isMentor}
+      optional={!isMentor}
+      subtitle={
+        isMentor ? '補充與專業相關的工作經歷。建議至少 1 筆。' : undefined
+      }
+      variant="option-a"
+    >
+      {isMentor && fields.length === 0 && (
+        <p className="text-text-tertiary mb-4 text-sm">
+          請新增至少一項工作經歷
+        </p>
+      )}
       {fields.map((field, index) => {
         const { handleStartYearChange, handleEndYearChange } =
           createPeriodChangeHandlers(index);
+        const canRemove = !isMentor || fields.length > 1;
 
         return (
-          <div key={field.id} className="mb-4 rounded-lg border p-4">
-            {fields.length > 1 && (
-              <div className="mb-4 flex justify-end gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  disabled={index === 0}
-                  onClick={() => move(index, index - 1)}
-                >
-                  <ChevronUpIcon className="size-5" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  disabled={index === fields.length - 1}
-                  onClick={() => move(index, index + 1)}
-                >
-                  <ChevronDownIcon className="size-5" />
-                </Button>
-              </div>
-            )}
+          <div key={field.id} className="mb-4 rounded-xl border p-5">
+            <ExperienceReorderHeader
+              index={index}
+              total={fields.length}
+              itemLabel="工作經驗"
+              onMove={move}
+            />
             {/* Title & Company */}
             <div className="mb-6 gap-6 md:flex">
               <FormField
@@ -148,7 +142,7 @@ export const JobExperienceSection = ({
                   <FormItem className="mb-4 grow md:mb-0">
                     <FormLabel>職稱</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input {...field} placeholder="例如：前端工程師" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -161,7 +155,7 @@ export const JobExperienceSection = ({
                   <FormItem className="grow">
                     <FormLabel>公司名稱</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input {...field} placeholder="例如：Startup Studio" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -170,12 +164,12 @@ export const JobExperienceSection = ({
             </div>
 
             {/* Period */}
-            <div className="mb-2 gap-2 md:flex">
+            <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
               <FormField
                 control={control}
                 name={`work_experiences.${index}.job_period_start`}
                 render={({ field }) => (
-                  <FormItem className="mb-4 grow basis-1/2 md:mb-0">
+                  <FormItem className="grow">
                     <FormLabel>開始年份</FormLabel>
                     <Select
                       onValueChange={handleStartYearChange(field.onChange)}
@@ -198,20 +192,12 @@ export const JobExperienceSection = ({
                   </FormItem>
                 )}
               />
-              <p className="relative -bottom-3 my-auto hidden text-center md:block">
-                ～
-              </p>
-              <p className="relative -bottom-3 my-auto text-center text-sm md:hidden">
-                至
-              </p>
               <FormField
                 control={control}
                 name={`work_experiences.${index}.job_period_end`}
                 render={({ field }) => (
-                  <FormItem className="grow basis-1/2">
-                    <FormLabel className="invisible md:visible">
-                      &nbsp;
-                    </FormLabel>
+                  <FormItem className="grow">
+                    <FormLabel>結束年份</FormLabel>
                     <Select
                       onValueChange={handleEndYearChange(field.onChange)}
                       defaultValue={field.value}
@@ -273,7 +259,11 @@ export const JobExperienceSection = ({
                 <FormItem className="mb-6">
                   <FormLabel>描述</FormLabel>
                   <FormControl>
-                    <Textarea {...field} className="h-24" />
+                    <Textarea
+                      {...field}
+                      placeholder="例如：負責產品前端介面，與產品及設計團隊協作。"
+                      className="h-24"
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -302,13 +292,13 @@ export const JobExperienceSection = ({
               )}
             />
 
-            {fields.length > 1 && (
+            {canRemove && (
               <ConfirmDialog
                 title="要刪除這段工作經驗嗎？"
                 description="您確定要移除這個區塊嗎？"
                 onConfirm={() => removeAndReassignPrimary(index)}
                 trigger={
-                  <Button variant="destructive">
+                  <Button type="button" variant="destructive">
                     <TrashIcon className="mr-2 size-5" />
                     移除
                   </Button>
@@ -320,12 +310,13 @@ export const JobExperienceSection = ({
       })}
 
       <Button
+        type="button"
         variant="ghost"
         className="text-brand-500 rounded-full px-4 py-3"
         onClick={addJob}
       >
         <PlusIcon className="mr-2 size-5" />
-        新增
+        新增工作經驗
       </Button>
       {(errors.work_experiences?.message ??
         errors.work_experiences?.root?.message) && (

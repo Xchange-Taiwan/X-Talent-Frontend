@@ -114,7 +114,7 @@ describe('JobExperienceSection', () => {
     render(<Harness defaultValue={[]} />);
 
     // Click add button
-    const addButton = screen.getByRole('button', { name: '新增' });
+    const addButton = screen.getByRole('button', { name: '新增工作經驗' });
     fireEvent.click(addButton);
 
     await waitFor(() => {
@@ -137,7 +137,7 @@ describe('JobExperienceSection', () => {
       ];
 
       render(<Harness defaultValue={incomplete} />);
-      const addButton = screen.getByRole('button', { name: '新增' });
+      const addButton = screen.getByRole('button', { name: '新增工作經驗' });
       fireEvent.click(addButton);
 
       // Verify that no new item was added
@@ -241,16 +241,23 @@ describe('JobExperienceSection', () => {
     });
   });
 
-  it('hides the remove button for the sole remaining experience, so it can never be deleted down to an empty (broken) state', () => {
+  it('hides the remove button for Mentor sole remaining experience, while allowing Mentee to remove their last optional experience', async () => {
     const existing = [createMockExperience()];
 
-    render(<Harness defaultValue={existing} />);
-
+    const { unmount } = render(<Harness defaultValue={existing} isMentor />);
     expect(
       screen.queryByRole('button', { name: '移除' })
     ).not.toBeInTheDocument();
-    // The field itself is still there and usable.
     expect(screen.getByLabelText('職稱')).toHaveValue('工程師 A');
+    unmount();
+
+    render(<Harness defaultValue={existing} isMentor={false} />);
+    const menteeRemoveBtn = screen.getByRole('button', { name: '移除' });
+    fireEvent.click(menteeRemoveBtn);
+    fireEvent.click(screen.getByRole('button', { name: '確認' }));
+    await waitFor(() => {
+      expect(screen.queryByLabelText('職稱')).not.toBeInTheDocument();
+    });
   });
 
   it('shows the remove button again once a second experience exists', () => {
@@ -298,7 +305,7 @@ describe('JobExperienceSection', () => {
     });
   });
 
-  it('can reorder items up and down', async () => {
+  it('can reorder items up and down via 調整順序 menu', async () => {
     const existing = [
       createMockExperience({ job: '工程師 A', company: '公司 A' }),
       createMockExperience({
@@ -311,28 +318,23 @@ describe('JobExperienceSection', () => {
 
     render(<Harness defaultValue={existing} />);
 
-    const buttons = screen.getAllByRole('button');
-    // Filter out buttons without text content (the icon-only Up/Down move buttons)
-    const iconButtons = buttons.filter((b) => !b.textContent);
+    expect(screen.getByText('第 1 筆／共 2 筆')).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole('button', { name: '調整第 1 筆工作經驗順序' })
+    );
+    expect(screen.getByRole('button', { name: '移到最前' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '移到上一筆' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: '移到下一筆' }));
 
-    // For first item (index 0): Up is iconButtons[0] (disabled), Down is iconButtons[1] (enabled)
-    // For second item (index 1): Up is iconButtons[2] (enabled), Down is iconButtons[3] (disabled)
-    expect(iconButtons[0]).toBeDisabled();
-    expect(iconButtons[1]).toBeEnabled();
-    expect(iconButtons[2]).toBeEnabled();
-    expect(iconButtons[3]).toBeDisabled();
-
-    // Click the down button on first item
-    fireEvent.click(iconButtons[1]);
     await waitFor(() => {
       expect(screen.getAllByLabelText('職稱')[0]).toHaveValue('工程師 B');
     });
 
-    const updatedButtons = screen.getAllByRole('button');
-    const updatedIconButtons = updatedButtons.filter((b) => !b.textContent);
+    fireEvent.click(
+      screen.getByRole('button', { name: '調整第 2 筆工作經驗順序' })
+    );
+    fireEvent.click(screen.getByRole('button', { name: '移到上一筆' }));
 
-    // Click the up button on second item (which is now Engineer A)
-    fireEvent.click(updatedIconButtons[2]);
     await waitFor(() => {
       expect(screen.getAllByLabelText('職稱')[0]).toHaveValue('工程師 A');
     });

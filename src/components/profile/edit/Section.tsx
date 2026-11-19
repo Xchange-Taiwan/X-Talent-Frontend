@@ -13,6 +13,9 @@ interface SectionProps {
   children: React.ReactNode;
   id?: string;
   required?: boolean;
+  optional?: boolean;
+  requiredPosition?: 'prefix' | 'suffix';
+  noBorderTop?: boolean;
   variant?: 'default' | 'card' | 'inline' | 'option-a';
   subtitle?: string;
   headerAction?: React.ReactNode;
@@ -25,12 +28,32 @@ export const Section = ({
   children,
   id,
   required = false,
+  optional = false,
+  requiredPosition = 'prefix',
+  noBorderTop = false,
   variant = 'default',
   subtitle,
   headerAction,
   dataTestId,
   className,
 }: SectionProps) => {
+  const renderTitleContent = () => (
+    <>
+      {requiredPosition === 'prefix' && <RequiredIndicator show={required} />}
+      {title}
+      {requiredPosition === 'suffix' && required && (
+        <span className="text-status-error-default ml-1" aria-hidden="true">
+          *
+        </span>
+      )}
+      {!required && optional && (
+        <span className="text-text-tertiary ml-2 text-xs font-normal">
+          選填
+        </span>
+      )}
+    </>
+  );
+
   if (variant === 'inline') {
     return (
       <div
@@ -40,8 +63,7 @@ export const Section = ({
       >
         <div className="mb-2 flex items-center justify-between gap-2">
           <p className="text-text-primary text-sm font-bold">
-            <RequiredIndicator show={required} />
-            {title}
+            {renderTitleContent()}
           </p>
           {headerAction}
         </div>
@@ -66,8 +88,7 @@ export const Section = ({
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <h2 className="text-text-primary text-xl font-bold">
-              <RequiredIndicator show={required} />
-              {title}
+              {renderTitleContent()}
             </h2>
             {subtitle && (
               <p className="text-text-tertiary mt-1 text-sm">{subtitle}</p>
@@ -86,14 +107,14 @@ export const Section = ({
         id={id}
         data-testid={dataTestId}
         className={cn(
-          'border-background-border flex flex-col gap-4 border-t pt-8 lg:flex-row lg:items-start lg:gap-8',
+          'flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-8',
+          !noBorderTop && 'border-background-border border-t pt-8',
           className
         )}
       >
         <div className="lg:w-48 lg:shrink-0">
           <p className="text-text-primary text-sm font-bold">
-            <RequiredIndicator show={required} />
-            {title}
+            {renderTitleContent()}
           </p>
           {subtitle && (
             <p className="text-text-tertiary mt-1.5 text-xs leading-relaxed">
@@ -121,10 +142,7 @@ export const Section = ({
       )}
     >
       <div className="max-w-80 grow">
-        <p className="mb-4 text-xl font-bold">
-          <RequiredIndicator show={required} />
-          {title}
-        </p>
+        <p className="mb-4 text-xl font-bold">{renderTitleContent()}</p>
       </div>
       <div className="grow">{children}</div>
     </div>

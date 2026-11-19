@@ -6,6 +6,7 @@ import {
   EducationSection,
   WorkExperienceSection,
 } from '@/components/profile/experience-section/ExperienceSection';
+import { PersonalLinksGrid } from '@/components/profile/social-links/PersonalLinksGrid';
 import type { ResolvedDisplaySocialLink } from '@/components/profile/social-links/platformLabelMap';
 import type { TagDisplay, UserType } from '@/hooks/user/user-data/useUserData';
 import type { MenteeDirectionReadGroup } from '@/lib/profile/menteeDirectionView';
@@ -41,10 +42,10 @@ function PreferenceTagGroup({
           <span
             key={item.subject_group}
             className={cn(
-              'inline-flex items-center rounded-full font-medium',
+              'inline-flex items-center rounded-full px-4 py-2 text-sm font-medium',
               tone === 'skill'
-                ? 'bg-brand-100 text-brand-700 px-3.5 py-1.5 text-sm'
-                : 'border-background-border bg-background-white text-text-primary border px-3.5 py-1 text-xs'
+                ? 'bg-brand-100 text-brand-700'
+                : 'border-background-border bg-background-bottom-secondary/70 text-text-primary border'
             )}
           >
             {item.subject}
@@ -94,7 +95,6 @@ export function MenteeProfileContent({
 
   const hasWork = Boolean(userData.workExperiences?.length);
   const hasEducation = Boolean(userData.educations?.length);
-  const hasPersonalLinks = personalLinks.length > 0;
 
   let renderedBefore = false;
   const nextSpacing = () => {
@@ -232,33 +232,14 @@ export function MenteeProfileContent({
         </section>
       )}
 
-      {hasPersonalLinks && (
-        <section className={nextSpacing()}>
-          <h2 className="mb-4 text-xl font-bold">個人連結</h2>
-          <div className="flex flex-wrap items-center gap-2.5 p-0.5">
-            {personalLinks.map((link, index) => (
-              <a
-                key={`${link.platform}-${index}`}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={link.label}
-                data-analytics-click="profile_social_link"
-                data-analytics-event="profile_social_link_click"
-                data-analytics-feature="profile"
-                data-analytics-location="profile_links_section"
-                data-analytics-omit-destination="true"
-                data-analytics-param-platform={link.platform}
-                data-analytics-param-mentor-id={String(userData.user_id)}
-                className="border-background-border bg-background-white text-text-primary hover:border-brand-400 hover:text-brand-700 focus-visible:ring-brand-500 inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
-              >
-                {link.icon}
-                <span>{link.label}</span>
-              </a>
-            ))}
-          </div>
-        </section>
-      )}
+      <section className={nextSpacing()}>
+        <h2 className="mb-4 text-xl font-bold">個人連結</h2>
+        <PersonalLinksGrid
+          links={personalLinks}
+          userId={userData.user_id}
+          location="profile_links_section"
+        />
+      </section>
     </div>
   );
 }

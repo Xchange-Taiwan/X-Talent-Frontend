@@ -135,3 +135,22 @@ export const SearchAndFilterShowcase: Story = {
     </ProfileStoryWrapper>
   ),
 };
+
+export const CompactPopoverMode: Story = {
+  name: '精簡膠囊與彈窗挑選模式 (addLabel)',
+  render: () => (
+    <ProfileStoryWrapper
+      defaultValues={{ selected_skills: ['resume', 'career'] }}
+    >
+      {(form) => (
+        <CategoryMultiSelectField
+          form={form}
+          name="selected_skills"
+          categories={CATEGORIES}
+          addLabel="新增服務"
+          searchPlaceholder="搜尋服務..."
+        />
+      )}
+    </ProfileStoryWrapper>
+  ),
+};

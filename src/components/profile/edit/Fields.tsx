@@ -47,6 +47,8 @@ export interface TextFieldProps<
   placeholder?: string;
   /** HTML input type (e.g. "text", "email") */
   type?: React.HTMLInputTypeAttribute;
+  maxLength?: number;
+  autoComplete?: string;
   className?: string;
 }
 
@@ -58,6 +60,8 @@ export const TextField = <TFieldValues extends FieldValues>({
   name,
   placeholder,
   type = 'text',
+  maxLength,
+  autoComplete,
   className,
 }: TextFieldProps<TFieldValues>) => (
   <FormField
@@ -72,8 +76,10 @@ export const TextField = <TFieldValues extends FieldValues>({
             value={typeof field.value === 'string' ? field.value : ''}
             placeholder={placeholder}
             type={type}
+            maxLength={maxLength}
+            autoComplete={autoComplete}
             className={cn(
-              'focus-visible:border-transparent focus-visible:ring-offset-0',
+              'min-h-[44px] rounded-lg focus-visible:border-transparent focus-visible:ring-offset-0',
               className
             )}
           />
@@ -152,7 +158,7 @@ export const SelectField = <T extends FieldValues>({
           defaultValue={typeof field.value === 'string' ? field.value : ''}
         >
           <FormControl>
-            <SelectTrigger>
+            <SelectTrigger className="min-h-[44px] rounded-lg focus-visible:ring-offset-0">
               <SelectValue placeholder={placeholder} />
             </SelectTrigger>
           </FormControl>
@@ -231,7 +237,7 @@ export const ComboboxField = <T extends FieldValues>({
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
-                    className="hover:bg-background-white hover:text-text-primary w-full justify-between px-3 py-2 text-base font-normal disabled:cursor-not-allowed md:text-sm"
+                    className="hover:bg-background-white hover:text-text-primary min-h-[44px] w-full justify-between rounded-lg px-3 py-2 text-base font-normal focus-visible:ring-offset-0 disabled:cursor-not-allowed md:text-sm"
                   >
                     <span className={cn(!selected && 'text-text-tertiary')}>
                       {selected ? selected.label : placeholder}

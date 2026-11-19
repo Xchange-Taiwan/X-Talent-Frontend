@@ -51,7 +51,7 @@ export function useMenteeDirectionPreference(
 
     const stored = readStoredMenteeDirectionMap(pageUserId);
     const hydrated = hydrateMenteeDirectionMap({
-      positions: userDto.want_position ?? [],
+      positions: (userDto.want_position ?? []).slice(0, 1),
       flatSkills: userDto.want_skill ?? [],
       flatTopics: userDto.want_topic ?? [],
       storedMap: stored,

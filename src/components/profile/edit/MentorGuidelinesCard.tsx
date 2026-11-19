@@ -57,10 +57,7 @@ export function MentorGuidelinesCard({
       id={id}
       aria-label="導師規範"
       data-testid="mentor-guidelines-card"
-      className={cn(
-        'border-background-border/80 bg-background-hover rounded-xl border px-5 py-4',
-        className
-      )}
+      className={cn('bg-background-hover rounded-[10px] px-4 py-3', className)}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">

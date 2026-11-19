@@ -794,5 +794,62 @@ describe('src/lib/routes', () => {
         syncSessionHint: true,
       });
     });
+
+    it('exempts /profile/[pageUserId]/edit?mentor-onboarding=true for incomplete-onboarding users and bypasses /avatars/* (#830, #961)', () => {
+      expect(
+        evaluateMiddlewareGate({
+          pathname: '/profile/42/edit',
+          search: '?mentor-onboarding=true',
+          session: {
+            isAuthenticated: true,
+            onBoarding: false,
+            isMentor: false,
+          },
+        })
+      ).toEqual({
+        action: 'next',
+        syncSessionHint: true,
+      });
+
+      expect(
+        evaluateMiddlewareGate({
+          pathname: '/profile/42/edit',
+          search: '',
+          session: {
+            isAuthenticated: true,
+            onBoarding: false,
+            isMentor: false,
+          },
+        })
+      ).toEqual({
+        action: 'redirect',
+        destination: '/auth/onboarding',
+        syncSessionHint: false,
+      });
+
+      expect(
+        evaluateMiddlewareGate({
+          pathname: '/reservation/mentor',
+          session: {
+            isAuthenticated: true,
+            onBoarding: false,
+            isMentor: true,
+          },
+        })
+      ).toEqual({
+        action: 'next',
+        syncSessionHint: true,
+      });
+
+      expect(
+        evaluateMiddlewareGate({
+          pathname: '/avatars/default_1.webp',
+          session: VISITOR_SESSION,
+        })
+      ).toEqual({
+        action: 'next',
+        syncSessionHint: false,
+      });
+    });
   });
 });

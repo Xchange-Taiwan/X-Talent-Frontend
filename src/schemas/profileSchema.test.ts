@@ -368,6 +368,61 @@ describe('createProfileFormSchema Option A Mentor vs Mentee rules (#959)', () =>
     });
     expect(result.success).toBe(true);
   });
+
+  it('locks mentee want_position to single-select (max 1) until backend want_direction_map lands (#966)', () => {
+    const result = createProfileFormSchema(false).safeParse({
+      ...defaultValues,
+      name: '陳小華',
+      want_position: ['intl_trade', 'ad_creative'],
+      want_skill: ['system_performance'],
+      want_topic: ['upward_management'],
+    });
+    expect(result.success).toBe(false);
+    expect(
+      result.error?.issues.some(
+        (i) =>
+          i.path[0] === 'want_position' &&
+          i.message === '目前僅開放選擇 1 個職位方向'
+      )
+    ).toBe(true);
+  });
+
+  it('blocks mentee save when a position direction is selected (e.g. 廣告創意) without any skill or topic', () => {
+    const blocked = createProfileFormSchema(false).safeParse({
+      ...defaultValues,
+      name: '陳小華',
+      want_position: ['ad_creative'],
+      want_skill: [],
+      want_topic: [],
+    });
+    expect(blocked.success).toBe(false);
+    expect(
+      blocked.error?.issues.some(
+        (i) =>
+          i.path[0] === 'want_skill' &&
+          i.message ===
+            '已選擇職位方向時，請至少選擇一項想加強的技能或想了解的主題'
+      )
+    ).toBe(true);
+
+    const skillOnly = createProfileFormSchema(false).safeParse({
+      ...defaultValues,
+      name: '陳小華',
+      want_position: ['ad_creative'],
+      want_skill: ['copywriting'],
+      want_topic: [],
+    });
+    expect(skillOnly.success).toBe(true);
+
+    const topicOnly = createProfileFormSchema(false).safeParse({
+      ...defaultValues,
+      name: '陳小華',
+      want_position: ['ad_creative'],
+      want_skill: [],
+      want_topic: ['career_planning'],
+    });
+    expect(topicOnly.success).toBe(true);
+  });
 });
 
 it('enforces agreed_guidelines === true during mentor onboarding (D-1, #961)', () => {
