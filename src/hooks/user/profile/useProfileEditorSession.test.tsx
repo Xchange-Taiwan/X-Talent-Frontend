@@ -485,4 +485,44 @@ describe('useProfileEditorSession (#787 / #905)', () => {
       expect.anything()
     );
   });
+
+  it('re-hydrates form values when isMentorOnboarding toggles on the same pageUserId (#1336)', () => {
+    mockUseUserProfileDto.mockReturnValue({
+      userDto: {
+        ...mockUserDTO,
+        user_id: 1,
+        name: 'Mentee User',
+        avatar: '',
+        is_mentor: false,
+        want_position: ['frontend_engineer'],
+      },
+      error: null,
+    });
+
+    const { result, rerender } = renderHook(
+      ({ isMentorOnboarding }: { isMentorOnboarding: boolean }) =>
+        useProfileEditorSession({
+          pageUserId: '1',
+          isAuthorized: true,
+          isMentorOnboarding,
+        }),
+      { initialProps: { isMentorOnboarding: false } }
+    );
+
+    expect(result.current.isMentorRole).toBe(false);
+    expect(result.current.form.getValues('is_mentor')).toBe(false);
+    expect(result.current.form.getValues('avatar')).toBe('');
+    expect(result.current.form.getValues('want_position')).toEqual([
+      'frontend_engineer',
+    ]);
+
+    rerender({ isMentorOnboarding: true });
+
+    expect(result.current.isMentorRole).toBe(true);
+    expect(result.current.form.getValues('is_mentor')).toBe(true);
+    expect(result.current.form.getValues('avatar')).toBe('default_1');
+    expect(result.current.form.getValues('want_position')).toEqual([
+      'frontend_engineer',
+    ]);
+  });
 });

@@ -82,7 +82,8 @@ export function useProfileEditorSession({
 
   const [isHydrating, setIsHydrating] = useState(true);
   const [prevPageUserId, setPrevPageUserId] = useState(pageUserId);
-  const hydratedPageUserIdRef = useRef<string | null>(null);
+  const hydratedScopeRef = useRef<string | null>(null);
+  const hydrationScopeKey = `${pageUserId}:${isMentorOnboarding ? 'mentor-onboarding' : 'edit'}`;
 
   if (pageUserId !== prevPageUserId) {
     setPrevPageUserId(pageUserId);
@@ -126,18 +127,19 @@ export function useProfileEditorSession({
     ) {
       return;
     }
-    if (hydratedPageUserIdRef.current === pageUserId && !isHydrating) {
+    if (hydratedScopeRef.current === hydrationScopeKey && !isHydrating) {
       return;
     }
 
     const formValues = mapVoToFormValues(userDto, isMentorOnboarding);
     form.reset(formValues);
-    hydratedPageUserIdRef.current = pageUserId;
+    hydratedScopeRef.current = hydrationScopeKey;
     setIsHydrating(false);
   }, [
     userDto,
     isAuthorized,
     isMentorOnboarding,
+    hydrationScopeKey,
     pageUserId,
     form,
     isHydrating,

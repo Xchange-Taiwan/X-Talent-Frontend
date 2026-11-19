@@ -1,6 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import {
   hydrateMenteeDirectionMap,
@@ -9,6 +16,9 @@ import {
   writeStoredMenteeDirectionMap,
 } from '@/lib/profile/menteeDirectionPreference';
 import type { MentorProfileVO } from '@/types/user';
+
+const useIsomorphicLayoutEffect =
+  typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 export interface UseMenteeDirectionPreferenceResult {
   directionMap: MenteeDirectionMap;
@@ -31,8 +41,11 @@ export function useMenteeDirectionPreference(
   latestMapRef.current = directionMap;
   const hydratedUserRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    if (!userDto) return;
+  useIsomorphicLayoutEffect(() => {
+    if (!userDto) {
+      hydratedUserRef.current = null;
+      return;
+    }
     if (hydratedUserRef.current === pageUserId) return;
     hydratedUserRef.current = pageUserId;
 

@@ -1764,6 +1764,67 @@ describe('commitProfileMutation & saveProfile (Deep Module with ProfileSavePort)
     });
   });
 
+  it('preserves hidden opposite-role want_position in optimisticDto and convergence during mentor-onboarding (#1336)', async () => {
+    const currentMenteeDto = makeSyncedDtoFromValues({
+      is_mentor: false,
+      onboarding: true,
+      want_position: ['frontend_engineer', 'product_manager'],
+      want_skill: ['react'],
+      want_topic: ['career_planning'],
+    });
+    const backendAfterUpgrade = makeSyncedDtoFromValues({
+      is_mentor: true,
+      onboarding: true,
+      want_position: ['frontend_engineer', 'product_manager'],
+      want_skill: ['react'],
+      want_topic: ['career_planning'],
+      have_skill: ['system_design'],
+      have_topic: ['mock_interview'],
+    });
+    const fetchProfile = vi
+      .fn<FetchProfileFn>()
+      .mockResolvedValueOnce(backendAfterUpgrade);
+    const { port, spies } = createInMemoryProfileSavePort({ fetchProfile });
+
+    const optimistic = await commitProfileMutation(
+      {
+        mode: 'mentor-onboarding',
+        values: {
+          ...baseValues,
+          is_mentor: true,
+          want_position: [],
+          want_skill: [],
+          want_topic: [],
+          have_skill: ['system_design'],
+          have_topic: ['mock_interview'],
+        },
+        currentDto: currentMenteeDto,
+      },
+      makeCommitContext(),
+      port
+    );
+
+    expect(spies.writeProfile).toHaveBeenCalledWith(
+      '1',
+      expect.objectContaining({
+        want_position: ['frontend_engineer', 'product_manager'],
+        want_skill: ['react'],
+        want_topic: ['career_planning'],
+      })
+    );
+    expect(optimistic.want_position).toEqual([
+      'frontend_engineer',
+      'product_manager',
+    ]);
+    expect(
+      profileReadModel.peek({ userId: 1, language: 'zh_TW' })?.want_position
+    ).toEqual(['frontend_engineer', 'product_manager']);
+
+    await vi.waitFor(() => {
+      expect(fetchProfile).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('imports profileReadModel directly in saveProfile.ts with zero legacy userProfileDtoCache or React/Next/hook imports (#936)', () => {
     const source = fs.readFileSync(
       path.resolve(__dirname, 'saveProfile.ts'),

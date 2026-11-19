@@ -47,4 +47,38 @@ describe('useMenteeDirectionPreference (#828)', () => {
       ['react']
     );
   });
+
+  it('re-hydrates directionMap when userDto transitions from null (mentor-onboarding) back to Mentee DTO on the same pageUserId (#1336)', () => {
+    const dto = fromPartial<MentorProfileVO>({
+      user_id: 77,
+      want_position: ['frontend_engineer'],
+      want_skill: ['react'],
+      want_topic: ['career_planning'],
+    });
+
+    const { result, rerender } = renderHook(
+      ({ currentDto }: { currentDto: MentorProfileVO | null }) =>
+        useMenteeDirectionPreference('77', currentDto),
+      { initialProps: { currentDto: dto as MentorProfileVO | null } }
+    );
+
+    expect(result.current.directionMap.frontend_engineer?.skills).toEqual([
+      'react',
+    ]);
+
+    rerender({ currentDto: null });
+    rerender({
+      currentDto: fromPartial<MentorProfileVO>({
+        user_id: 77,
+        want_position: ['frontend_engineer', 'product_manager'],
+        want_skill: ['react', 'product_strategy'],
+        want_topic: ['career_planning'],
+      }),
+    });
+
+    expect(Object.keys(result.current.directionMap)).toEqual([
+      'frontend_engineer',
+      'product_manager',
+    ]);
+  });
 });
