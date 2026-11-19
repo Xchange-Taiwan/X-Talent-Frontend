@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useRef } from 'react';
+import { Suspense } from 'react';
 
 import { ReservationListSkeleton } from '@/app/reservation/skeleton';
 import { ReservationList } from '@/components/reservation/ReservationList';
@@ -10,47 +10,35 @@ import { useFeedbackDeepLinkParam } from '@/hooks/user/reservation/useFeedbackDe
 import { useFeedbackQueueParam } from '@/hooks/user/reservation/useFeedbackQueueParam';
 import {
   type ReservationRole,
-  useReservationData,
+  useReservationDashboard,
+  type UseReservationDashboardReturn,
 } from '@/hooks/user/reservation/useReservationData';
 import { trackEvent } from '@/lib/analytics';
 import {
   buildReservationTabSwitchHref,
   type ReservationTabParam,
 } from '@/lib/reservation/reservationRoutes';
-import type { Reservation } from '@/types/reservation';
 
 export interface ReservationDashboardProps {
   userRole: ReservationRole;
+  /** Optional pre-built state for deterministic Storybook stories without live NextAuth / API calls. */
+  initialDashboard?: UseReservationDashboardReturn;
 }
 
-export function ReservationDashboard({ userRole }: ReservationDashboardProps) {
-  const {
-    data,
-    initialState,
-    loadingMoreStates,
-    isLoadingHistory,
-    isHistoryLoaded,
-    myUserId,
-    loadMore,
-    loadHistory,
-  } = useReservationData({ role: userRole });
+const VALID_TAB_VALUES = new Set<ReservationTabParam>([
+  'pending',
+  'upcoming',
+  'history',
+]);
 
-  const upcoming = data?.upcoming ?? [];
-  const pending = data?.pending ?? [];
-  const history = data?.history ?? [];
-  const nextTokens = data?.nextTokens ?? {
-    upcoming: 0,
-    pending: 0,
-    history: 0,
-  };
+function isReservationTabParam(value: string): value is ReservationTabParam {
+  return VALID_TAB_VALUES.has(value as ReservationTabParam);
+}
 
-  const loadMoreUpcoming = useCallback(() => loadMore('upcoming'), [loadMore]);
-  const loadMorePending = useCallback(() => loadMore('pending'), [loadMore]);
-  const loadMoreHistory = useCallback(() => loadMore('history'), [loadMore]);
-
-  const isLoadingUpcoming = initialState.upcoming === 'loading';
-  const isLoadingPending = initialState.pending === 'loading';
-
+export function ReservationDashboard({
+  userRole,
+  initialDashboard,
+}: ReservationDashboardProps) {
   return (
     <Suspense
       fallback={
@@ -61,85 +49,39 @@ export function ReservationDashboard({ userRole }: ReservationDashboardProps) {
         </div>
       }
     >
-      <ReservationDashboardView
-        userRole={userRole}
-        myUserId={myUserId}
-        upcoming={upcoming}
-        pending={pending}
-        history={history}
-        isLoadingUpcoming={isLoadingUpcoming}
-        isLoadingPending={isLoadingPending}
-        isLoadingHistory={isLoadingHistory}
-        isHistoryLoaded={isHistoryLoaded}
-        nextTokens={nextTokens}
-        loadingMoreStates={loadingMoreStates}
-        onLoadMoreUpcoming={loadMoreUpcoming}
-        onLoadMorePending={loadMorePending}
-        onLoadMoreHistory={loadMoreHistory}
-        onLoadHistory={loadHistory}
-      />
+      {initialDashboard ? (
+        <ReservationDashboardPanel
+          userRole={userRole}
+          dashboard={initialDashboard}
+        />
+      ) : (
+        <ReservationDashboardConnected userRole={userRole} />
+      )}
     </Suspense>
   );
 }
 
-export interface ReservationDashboardViewProps {
+function ReservationDashboardConnected({
+  userRole,
+}: {
   userRole: ReservationRole;
-  myUserId: string | undefined;
-  upcoming: Reservation[];
-  pending: Reservation[];
-  history: Reservation[];
-  isLoadingUpcoming: boolean;
-  isLoadingPending: boolean;
-  isLoadingHistory: boolean;
-  isHistoryLoaded: boolean;
-  nextTokens: {
-    upcoming: number;
-    pending: number;
-    history: number;
-  };
-  loadingMoreStates: {
-    upcoming: boolean;
-    pending: boolean;
-    history: boolean;
-  };
-  onLoadMoreUpcoming: () => void;
-  onLoadMorePending: () => void;
-  onLoadMoreHistory: () => void;
-  onLoadHistory: () => void;
+}) {
+  const dashboard = useReservationDashboard({ role: userRole });
+  return (
+    <ReservationDashboardPanel userRole={userRole} dashboard={dashboard} />
+  );
 }
 
-export function ReservationDashboardView({
+function ReservationDashboardPanel({
   userRole,
-  myUserId,
-  upcoming,
-  pending,
-  history,
-  isLoadingUpcoming,
-  isLoadingPending,
-  isLoadingHistory,
-  isHistoryLoaded,
-  nextTokens,
-  loadingMoreStates,
-  onLoadMoreUpcoming,
-  onLoadMorePending,
-  onLoadMoreHistory,
-  onLoadHistory,
-}: ReservationDashboardViewProps) {
+  dashboard,
+}: {
+  userRole: ReservationRole;
+  dashboard: UseReservationDashboardReturn;
+}) {
+  const { activeTab, myUserId, tabs, loadHistory } = dashboard;
   const isMentee = userRole === 'mentee';
-  const upcomingTabValue = isMentee ? 'upcoming-mentee' : 'upcoming-mentor';
-  const pendingTabValue = isMentee ? 'pending-mentee' : 'pending-mentor';
-
-  const TAB_MAPPING: Record<string, string> = {
-    upcoming: upcomingTabValue,
-    pending: pendingTabValue,
-    history: 'history',
-  };
-
-  const URL_PARAM_MAPPING: Record<string, ReservationTabParam> = {
-    [upcomingTabValue]: 'upcoming',
-    [pendingTabValue]: 'pending',
-    history: 'history',
-  };
+  const normalizedUserId = myUserId || undefined;
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -155,99 +97,26 @@ export function ReservationDashboardView({
     clearDeepLinkFocus,
   } = useFeedbackDeepLinkParam({
     userRole,
-    myUserId,
-    history,
-    isHistoryLoaded,
-    isLoadingHistory,
-    isLoadingMoreHistory: loadingMoreStates.history,
-    hasMoreHistory: nextTokens.history !== 0,
-    onLoadMoreHistory,
+    myUserId: normalizedUserId,
+    history: tabs.history.items,
+    isHistoryLoaded: tabs.history.isLoaded,
+    isLoadingHistory: tabs.history.isFetching,
+    isLoadingMoreHistory: tabs.history.isLoadingMore,
+    hasMoreHistory: tabs.history.hasMore,
+    onLoadMoreHistory: tabs.history.loadMore,
   });
 
-  const {
-    isFeedbackQueueRequested,
-    feedbackQueueItems,
-    skipFeedbackQueueItem,
-    dismissFeedbackQueue,
-  } = useFeedbackQueueParam({
-    role: userRole,
-    isMentee,
-    userId: myUserId,
-    history,
-    isHistoryLoaded,
-    isLoadingHistory,
-    isLoadingUpcoming,
-    isLoadingPending,
-  });
-
-  const tabParam = searchParams.get('tab');
-  const activeTab =
-    isFeedbackQueueRequested || hasDeepLinkTarget
-      ? 'history'
-      : (tabParam && TAB_MAPPING[tabParam]) || pendingTabValue;
-
-  // Load history automatically whenever History is active (via ?tab=history,
-  // ?feedback=queue, or a reservationId deep link without ?tab=history).
-  useEffect(() => {
-    if (activeTab === 'history' && !isHistoryLoaded && !isLoadingHistory) {
-      onLoadHistory();
-    }
-  }, [activeTab, isHistoryLoaded, isLoadingHistory, onLoadHistory]);
-
-  const lastCountsRef = useRef<{
-    role: ReservationRole;
-    upcoming: number;
-    pending: number;
-    history: number;
-    hasHistoryLoadedOnce: boolean;
-  }>({
-    role: userRole,
-    upcoming: upcoming.length,
-    pending: pending.length,
-    history: history.length,
-    hasHistoryLoadedOnce: isHistoryLoaded,
-  });
-
-  if (lastCountsRef.current.role !== userRole) {
-    lastCountsRef.current = {
+  const { feedbackQueueItems, skipFeedbackQueueItem, dismissFeedbackQueue } =
+    useFeedbackQueueParam({
       role: userRole,
-      upcoming: upcoming.length,
-      pending: pending.length,
-      history: history.length,
-      hasHistoryLoadedOnce: isHistoryLoaded,
-    };
-  }
-
-  const isAnyTabLoading =
-    isLoadingUpcoming || isLoadingPending || isLoadingHistory;
-
-  if (!isLoadingUpcoming && (upcoming.length > 0 || !isAnyTabLoading)) {
-    lastCountsRef.current.upcoming = upcoming.length;
-  }
-  if (!isLoadingPending && (pending.length > 0 || !isAnyTabLoading)) {
-    lastCountsRef.current.pending = pending.length;
-  }
-  if (isHistoryLoaded && !isLoadingHistory) {
-    lastCountsRef.current.history = history.length;
-    lastCountsRef.current.hasHistoryLoadedOnce = true;
-  }
-
-  const upcomingBadgeCount =
-    upcoming.length === 0 && isAnyTabLoading
-      ? lastCountsRef.current.upcoming
-      : upcoming.length;
-  const pendingBadgeCount =
-    pending.length === 0 && isAnyTabLoading
-      ? lastCountsRef.current.pending
-      : pending.length;
-  const showHistoryBadge =
-    isHistoryLoaded || lastCountsRef.current.hasHistoryLoadedOnce;
-  const historyBadgeCount =
-    (!isHistoryLoaded || isLoadingHistory) &&
-    history.length === 0 &&
-    lastCountsRef.current.hasHistoryLoadedOnce
-      ? lastCountsRef.current.history
-      : history.length;
+      isMentee,
+      userId: normalizedUserId,
+      history: tabs.history.items,
+      isHistoryLoaded: tabs.history.isLoaded,
+      isLoadingHistory: tabs.history.isFetching,
+      isLoadingUpcoming: tabs.upcoming.isInitialLoading,
+      isLoadingPending: tabs.pending.isInitialLoading,
+    });
 
   const triggerClass =
     'group shrink-0 rounded-full border border-background-border px-3 py-1.5 text-sm ' +
@@ -258,25 +127,28 @@ export function ReservationDashboardView({
     'ml-1 text-xs text-text-tertiary group-data-[state=active]:text-text-white/80';
 
   const handleValueChange = (value: string) => {
+    const nextTab: ReservationTabParam = isReservationTabParam(value)
+      ? value
+      : 'pending';
+
     trackEvent({
       name: 'reservation_tab_changed',
       feature: 'reservation',
       metadata: {
         role: userRole,
-        tab: URL_PARAM_MAPPING[value] ?? value,
+        tab: nextTab,
       },
     });
-    if (value !== 'history') {
+    if (nextTab !== 'history') {
       clearDeepLinkFocus();
-    }
-    if (value === 'history' && !isHistoryLoaded && !isLoadingHistory) {
-      onLoadHistory();
+    } else if (!tabs.history.isLoaded && !tabs.history.isFetching) {
+      void loadHistory();
     }
 
     const nextHref = buildReservationTabSwitchHref(
       pathname,
       searchParams.toString(),
-      URL_PARAM_MAPPING[value]
+      nextTab
     );
     router.replace(nextHref, { scroll: false });
   };
@@ -306,27 +178,25 @@ export function ReservationDashboardView({
                 >
                   <div className="flex justify-center">
                     <TabsList className="inline-flex w-max items-center gap-2 bg-transparent px-0">
-                      <TabsTrigger
-                        value={pendingTabValue}
-                        className={triggerClass}
-                      >
+                      <TabsTrigger value="pending" className={triggerClass}>
                         {pendingLabel}
-                        <span className={countClass}>{pendingBadgeCount}</span>
+                        <span className={countClass}>
+                          {tabs.pending.badgeCount}
+                        </span>
                       </TabsTrigger>
 
-                      <TabsTrigger
-                        value={upcomingTabValue}
-                        className={triggerClass}
-                      >
+                      <TabsTrigger value="upcoming" className={triggerClass}>
                         即將到來
-                        <span className={countClass}>{upcomingBadgeCount}</span>
+                        <span className={countClass}>
+                          {tabs.upcoming.badgeCount}
+                        </span>
                       </TabsTrigger>
 
                       <TabsTrigger value="history" className={triggerClass}>
                         歷史紀錄
-                        {showHistoryBadge ? (
+                        {tabs.history.showBadge ? (
                           <span className={countClass}>
-                            {historyBadgeCount}
+                            {tabs.history.badgeCount}
                           </span>
                         ) : null}
                       </TabsTrigger>
@@ -337,50 +207,50 @@ export function ReservationDashboardView({
             </div>
 
             <div className="px-3 pt-2 sm:px-0">
-              <TabsContent value={pendingTabValue} className="mt-4 sm:mt-6">
-                {isLoadingPending ? (
+              <TabsContent value="pending" className="mt-4 sm:mt-6">
+                {tabs.pending.isInitialLoading ? (
                   <ReservationListSkeleton />
                 ) : (
                   <ReservationList
-                    items={pending}
+                    items={tabs.pending.items}
                     variant={pendingVariant}
                     sourceRole={userRole}
-                    myUserId={myUserId}
-                    hasMore={nextTokens.pending !== 0}
-                    onLoadMore={onLoadMorePending}
-                    isLoadingMore={loadingMoreStates.pending}
+                    myUserId={normalizedUserId}
+                    hasMore={tabs.pending.hasMore}
+                    onLoadMore={tabs.pending.loadMore}
+                    isLoadingMore={tabs.pending.isLoadingMore}
                   />
                 )}
               </TabsContent>
 
-              <TabsContent value={upcomingTabValue} className="mt-4 sm:mt-6">
-                {isLoadingUpcoming ? (
+              <TabsContent value="upcoming" className="mt-4 sm:mt-6">
+                {tabs.upcoming.isInitialLoading ? (
                   <ReservationListSkeleton />
                 ) : (
                   <ReservationList
-                    items={upcoming}
+                    items={tabs.upcoming.items}
                     variant="upcoming"
                     sourceRole={userRole}
-                    myUserId={myUserId}
-                    hasMore={nextTokens.upcoming !== 0}
-                    onLoadMore={onLoadMoreUpcoming}
-                    isLoadingMore={loadingMoreStates.upcoming}
+                    myUserId={normalizedUserId}
+                    hasMore={tabs.upcoming.hasMore}
+                    onLoadMore={tabs.upcoming.loadMore}
+                    isLoadingMore={tabs.upcoming.isLoadingMore}
                   />
                 )}
               </TabsContent>
 
               <TabsContent value="history" className="mt-4 sm:mt-6">
-                {isLoadingHistory && !isHistoryLoaded ? (
+                {tabs.history.isInitialLoading ? (
                   <ReservationListSkeleton />
                 ) : (
                   <ReservationList
-                    items={history}
+                    items={tabs.history.items}
                     variant="history"
                     sourceRole={userRole}
-                    myUserId={myUserId}
-                    hasMore={nextTokens.history !== 0}
-                    onLoadMore={onLoadMoreHistory}
-                    isLoadingMore={loadingMoreStates.history}
+                    myUserId={normalizedUserId}
+                    hasMore={tabs.history.hasMore}
+                    onLoadMore={tabs.history.loadMore}
+                    isLoadingMore={tabs.history.isLoadingMore}
                     feedbackQueueItems={
                       hasDeepLinkTarget || deepLinkDialogReservation
                         ? null

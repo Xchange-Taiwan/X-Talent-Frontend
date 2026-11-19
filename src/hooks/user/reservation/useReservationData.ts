@@ -1,39 +1,30 @@
 'use client';
 
+import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { useAsyncRead } from '@/hooks/useAsyncRead';
 import { getSafeErrorMessage, isAbortError } from '@/lib/errorUtils';
+import { isFeedbackEnabled } from '@/lib/featureFlags';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { partitionReservationTabSlices } from '@/lib/reservation/reservationLifecyclePolicy';
 import {
   type ReservationReadKey,
   reservationReadModel,
 } from '@/lib/reservation/reservationReadModel';
+import {
+  parseReservationSearchParams,
+  type ReservationTabParam,
+} from '@/lib/reservation/reservationRoutes';
 import { fetchReservations, ReservationState } from '@/services/reservations';
 import { Reservation } from '@/types/reservation';
 
 export type ReservationRole = 'mentee' | 'mentor';
 
-interface NextTokens {
-  upcoming: number;
-  pending: number;
-  history: number;
-}
-
-interface ReservationData {
-  upcoming: Reservation[];
-  pending: Reservation[];
-  history: Reservation[];
-  nextTokens: NextTokens;
-}
-
-type ListKey = 'upcoming' | 'pending' | 'history';
-
 const ROLE_STATES: Record<
   ReservationRole,
-  Record<ListKey, ReservationState>
+  Record<ReservationTabParam, ReservationState>
 > = {
   mentee: {
     upcoming: 'MENTEE_UPCOMING',
@@ -47,11 +38,7 @@ const ROLE_STATES: Record<
   },
 };
 
-type ListLoadState = 'idle' | 'loading' | 'ready';
-
-type InitialListState = Record<ListKey, ListLoadState>;
-
-type LoadingMoreStates = Record<ListKey, boolean>;
+type LoadingMoreStates = Record<ReservationTabParam, boolean>;
 
 const EMPTY_LOADING_MORE: LoadingMoreStates = {
   upcoming: false,
@@ -59,16 +46,107 @@ const EMPTY_LOADING_MORE: LoadingMoreStates = {
   history: false,
 };
 
-export interface UseReservationDataReturn {
-  data: ReservationData | null;
-  initialState: InitialListState;
-  isLoading: boolean;
-  loadingMoreStates: LoadingMoreStates;
-  isLoadingHistory: boolean;
-  isHistoryLoaded: boolean;
+export interface ReservationTabSlice {
+  items: Reservation[];
+  badgeCount: number;
+  showBadge: boolean;
+  isInitialLoading: boolean;
+  isFetching: boolean;
+  isLoadingMore: boolean;
+  isLoaded: boolean;
+  hasMore: boolean;
+  loadMore: () => Promise<void>;
+}
+
+export interface ReservationDashboardTabs {
+  pending: ReservationTabSlice;
+  upcoming: ReservationTabSlice;
+  history: ReservationTabSlice;
+}
+
+export interface UseReservationDashboardOptions {
+  role: ReservationRole;
+}
+
+export interface UseReservationDashboardReturn {
+  activeTab: ReservationTabParam;
   myUserId: string;
-  loadMore: (tab: ListKey) => Promise<void>;
+  tabs: ReservationDashboardTabs;
   loadHistory: () => Promise<void>;
+}
+
+interface RetainedTabCounts {
+  scopeKey: string;
+  upcoming: number;
+  pending: number;
+  history: number;
+  hasHistoryLoadedOnce: boolean;
+}
+
+function reconcileRetainedCounts(
+  prev: RetainedTabCounts,
+  nextInput: {
+    scopeKey: string;
+    upcomingCount: number;
+    pendingCount: number;
+    historyCount: number;
+    isUpcomingLoading: boolean;
+    isPendingLoading: boolean;
+    isHistoryLoading: boolean;
+    isHistoryLoaded: boolean;
+  }
+): RetainedTabCounts {
+  const base: RetainedTabCounts =
+    prev.scopeKey === nextInput.scopeKey
+      ? prev
+      : {
+          scopeKey: nextInput.scopeKey,
+          upcoming: nextInput.upcomingCount,
+          pending: nextInput.pendingCount,
+          history: nextInput.historyCount,
+          hasHistoryLoadedOnce:
+            nextInput.isHistoryLoaded && !nextInput.isHistoryLoading,
+        };
+
+  const isAnyTabLoading =
+    nextInput.isUpcomingLoading ||
+    nextInput.isPendingLoading ||
+    nextInput.isHistoryLoading;
+
+  const upcoming =
+    !nextInput.isUpcomingLoading &&
+    (nextInput.upcomingCount > 0 || !isAnyTabLoading)
+      ? nextInput.upcomingCount
+      : base.upcoming;
+
+  const pending =
+    !nextInput.isPendingLoading &&
+    (nextInput.pendingCount > 0 || !isAnyTabLoading)
+      ? nextInput.pendingCount
+      : base.pending;
+
+  const historySettled =
+    nextInput.isHistoryLoaded && !nextInput.isHistoryLoading;
+  const history = historySettled ? nextInput.historyCount : base.history;
+  const hasHistoryLoadedOnce = base.hasHistoryLoadedOnce || historySettled;
+
+  if (
+    prev.scopeKey === nextInput.scopeKey &&
+    prev.upcoming === upcoming &&
+    prev.pending === pending &&
+    prev.history === history &&
+    prev.hasHistoryLoadedOnce === hasHistoryLoadedOnce
+  ) {
+    return prev;
+  }
+
+  return {
+    scopeKey: nextInput.scopeKey,
+    upcoming,
+    pending,
+    history,
+    hasHistoryLoadedOnce,
+  };
 }
 
 function toReservationReadKey(
@@ -78,30 +156,50 @@ function toReservationReadKey(
   return userId ? { userId: String(userId), state } : null;
 }
 
-export function useReservationData({
+export function useReservationDashboard({
   role,
-}: {
-  role: ReservationRole;
-}): UseReservationDataReturn {
+}: UseReservationDashboardOptions): UseReservationDashboardReturn {
+  const searchParams = useSearchParams();
+  const parsedParams = parseReservationSearchParams(searchParams);
+  const feedbackEnabled = isFeedbackEnabled();
+  const forceHistoryTab =
+    feedbackEnabled &&
+    (parsedParams.isFeedbackQueue ||
+      parsedParams.deepLinkReservationId !== null);
+  const activeTab: ReservationTabParam = forceHistoryTab
+    ? 'history'
+    : (parsedParams.tab ?? 'pending');
+
   const { data: session, status } = useSession();
-  const lastUserIdRef = useRef('');
+  const [retainedUserId, setRetainedUserId] = useState('');
   const currentSessionUserId = session?.user?.id ? String(session.user.id) : '';
-  if (currentSessionUserId) {
-    lastUserIdRef.current = currentSessionUserId;
-  } else if (status === 'unauthenticated') {
-    lastUserIdRef.current = '';
+  if (currentSessionUserId && retainedUserId !== currentSessionUserId) {
+    setRetainedUserId(currentSessionUserId);
+  } else if (status === 'unauthenticated' && retainedUserId !== '') {
+    setRetainedUserId('');
   }
-  const myUserId = currentSessionUserId || lastUserIdRef.current;
+  const myUserId =
+    currentSessionUserId ||
+    (status === 'unauthenticated' ? '' : retainedUserId);
+  const scopeKey = `${role}:${myUserId}`;
   const states = ROLE_STATES[role];
 
   const [loadingMoreStates, setLoadingMoreStates] =
     useState<LoadingMoreStates>(EMPTY_LOADING_MORE);
-  const [historyActive, setHistoryActive] = useState(false);
+  const [historyLatchedScope, setHistoryLatchedScope] = useState<string | null>(
+    () => (activeTab === 'history' && myUserId ? scopeKey : null)
+  );
+
+  if (activeTab === 'history' && myUserId && historyLatchedScope !== scopeKey) {
+    setHistoryLatchedScope(scopeKey);
+  }
+
+  const isHistoryEnabled =
+    activeTab === 'history' || historyLatchedScope === scopeKey;
 
   // useAsyncRead compares keys by reference to detect a "key changed" edge
   // during render, so these must stay referentially stable across renders
-  // when (userId, state) hasn't actually changed - hence useMemo rather than
-  // a fresh object literal per render.
+  // when (userId, state) hasn't actually changed.
   const upcomingKey = useMemo(
     () => toReservationReadKey(myUserId, states.upcoming),
     [myUserId, states.upcoming]
@@ -112,17 +210,12 @@ export function useReservationData({
   );
   const historyKey = useMemo(
     () =>
-      historyActive ? toReservationReadKey(myUserId, states.history) : null,
-    [historyActive, myUserId, states.history]
+      isHistoryEnabled ? toReservationReadKey(myUserId, states.history) : null,
+    [isHistoryEnabled, myUserId, states.history]
   );
 
   const createReservationFetcher = useCallback(
-    (
-      state: ReservationState,
-      flow: string,
-      step: string,
-      onError?: () => void
-    ) => {
+    (state: ReservationState, flow: string, step: string) => {
       return async (signal: AbortSignal) => {
         try {
           return await fetchReservations({
@@ -142,7 +235,6 @@ export function useReservationData({
                 ? err.message
                 : `Failed to fetch ${step} reservations`,
           });
-          onError?.();
           throw err;
         }
       };
@@ -175,8 +267,7 @@ export function useReservationData({
       createReservationFetcher(
         states.history,
         'reservation_history_fetch',
-        'history',
-        () => setHistoryActive(false)
+        'history'
       ),
     [createReservationFetcher, states.history]
   );
@@ -193,11 +284,11 @@ export function useReservationData({
     fetchPending
   );
 
-  const { data: historyResult, isLoading: isHistoryLoading } = useAsyncRead(
-    reservationReadModel,
-    historyKey,
-    fetchHistory
-  );
+  const {
+    data: historyResult,
+    isLoading: isHistoryLoading,
+    refetch: refetchHistory,
+  } = useAsyncRead(reservationReadModel, historyKey, fetchHistory);
 
   const isHistoryLoaded = historyResult !== null && !isHistoryLoading;
 
@@ -215,42 +306,82 @@ export function useReservationData({
     [upcomingResult, pendingResult, historyResult]
   );
 
-  const data = useMemo<ReservationData | null>(() => {
-    if (!myUserId) return null;
-    if (!upcomingResult && !pendingResult) return null;
-
-    return {
-      upcoming: upcomingSorted,
-      pending: pendingSorted,
-      history: historyItems,
-      nextTokens: {
-        upcoming: upcomingResult ? upcomingResult.next_dtend : 0,
-        pending: pendingResult ? pendingResult.next_dtend : 0,
-        history: historyResult ? historyResult.next_dtend : 0,
+  const [retainedCounts, setRetainedCounts] = useState<RetainedTabCounts>(() =>
+    reconcileRetainedCounts(
+      {
+        scopeKey,
+        upcoming: 0,
+        pending: 0,
+        history: 0,
+        hasHistoryLoadedOnce: false,
       },
-    };
-  }, [
-    myUserId,
-    upcomingResult,
-    pendingResult,
-    historyResult,
-    upcomingSorted,
-    pendingSorted,
-    historyItems,
-  ]);
+      {
+        scopeKey,
+        upcomingCount: upcomingSorted.length,
+        pendingCount: pendingSorted.length,
+        historyCount: historyItems.length,
+        isUpcomingLoading,
+        isPendingLoading,
+        isHistoryLoading,
+        isHistoryLoaded,
+      }
+    )
+  );
+
+  const nextRetained = reconcileRetainedCounts(retainedCounts, {
+    scopeKey,
+    upcomingCount: upcomingSorted.length,
+    pendingCount: pendingSorted.length,
+    historyCount: historyItems.length,
+    isUpcomingLoading,
+    isPendingLoading,
+    isHistoryLoading,
+    isHistoryLoaded,
+  });
+
+  if (nextRetained !== retainedCounts) {
+    setRetainedCounts(nextRetained);
+  }
+
+  const isAnyTabLoading =
+    isUpcomingLoading || isPendingLoading || isHistoryLoading;
+
+  const upcomingBadgeCount =
+    upcomingSorted.length === 0 && isAnyTabLoading
+      ? nextRetained.upcoming
+      : upcomingSorted.length;
+  const pendingBadgeCount =
+    pendingSorted.length === 0 && isAnyTabLoading
+      ? nextRetained.pending
+      : pendingSorted.length;
+  const showHistoryBadge = isHistoryLoaded || nextRetained.hasHistoryLoadedOnce;
+  const historyBadgeCount =
+    (!isHistoryLoaded || isHistoryLoading) &&
+    historyItems.length === 0 &&
+    nextRetained.hasHistoryLoadedOnce
+      ? nextRetained.history
+      : historyItems.length;
 
   const loadHistory = useCallback(async () => {
-    if (!myUserId || (historyActive && isHistoryLoaded) || isHistoryLoading)
+    if (!myUserId || isHistoryLoaded || isHistoryLoading) return;
+    if (historyKey !== null) {
+      refetchHistory();
       return;
-    setHistoryActive(true);
-  }, [myUserId, historyActive, isHistoryLoading, isHistoryLoaded]);
+    }
+    setHistoryLatchedScope(scopeKey);
+  }, [
+    myUserId,
+    isHistoryLoaded,
+    isHistoryLoading,
+    historyKey,
+    refetchHistory,
+    scopeKey,
+  ]);
 
-  const loadMore = useCallback(
-    async (tab: ListKey): Promise<void> => {
+  const loadMoreForTab = useCallback(
+    async (tab: ReservationTabParam): Promise<void> => {
       if (!myUserId) return;
       const key = toReservationReadKey(myUserId, states[tab])!;
-      const currentData = reservationReadModel.get(key);
-      if (!currentData || currentData.next_dtend === 0) return;
 
       setLoadingMoreStates((prev) => ({ ...prev, [tab]: true }));
       try {
@@ -273,7 +404,7 @@ export function useReservationData({
                 : 'Failed to load more reservations',
           });
           console.error(
-            '[useReservationData] loadMore error:',
+            '[useReservationDashboard] loadMore error:',
             getSafeErrorMessage(err)
           );
         }
@@ -284,44 +415,97 @@ export function useReservationData({
     [myUserId, states]
   );
 
-  const initialUpcoming: ListLoadState =
-    upcomingKey === null
-      ? 'idle'
-      : isUpcomingLoading && !upcomingResult
-        ? 'loading'
-        : 'ready';
-  const initialPending: ListLoadState =
-    pendingKey === null
-      ? 'idle'
-      : isPendingLoading && !pendingResult
-        ? 'loading'
-        : 'ready';
-  const historyLoadState: ListLoadState = !historyActive
-    ? 'idle'
-    : isHistoryLoading && !historyResult
-      ? 'loading'
-      : isHistoryLoaded
-        ? 'ready'
-        : 'idle';
+  const loadMorePending = useCallback(
+    () => loadMoreForTab('pending'),
+    [loadMoreForTab]
+  );
+  const loadMoreUpcoming = useCallback(
+    () => loadMoreForTab('upcoming'),
+    [loadMoreForTab]
+  );
+  const loadMoreHistory = useCallback(
+    () => loadMoreForTab('history'),
+    [loadMoreForTab]
+  );
 
-  const initialState: InitialListState = {
-    upcoming: initialUpcoming,
-    pending: initialPending,
-    history: historyLoadState,
-  };
+  const isSessionLoading = status === 'loading' && !myUserId;
+  const isPendingInitialLoading =
+    isSessionLoading ||
+    (pendingKey !== null && isPendingLoading && !pendingResult);
+  const isUpcomingInitialLoading =
+    isSessionLoading ||
+    (upcomingKey !== null && isUpcomingLoading && !upcomingResult);
+  const isHistoryInitialLoading =
+    isSessionLoading ||
+    (historyKey !== null && isHistoryLoading && !historyResult);
 
-  const isLoading =
-    initialUpcoming === 'loading' || initialPending === 'loading';
+  const tabs = useMemo<ReservationDashboardTabs>(
+    () => ({
+      pending: {
+        items: pendingSorted,
+        badgeCount: pendingBadgeCount,
+        showBadge: true,
+        isInitialLoading: isPendingInitialLoading,
+        isFetching: isPendingLoading,
+        isLoadingMore: loadingMoreStates.pending,
+        isLoaded: pendingResult !== null && !isPendingLoading,
+        hasMore: (pendingResult?.next_dtend ?? 0) !== 0,
+        loadMore: loadMorePending,
+      },
+      upcoming: {
+        items: upcomingSorted,
+        badgeCount: upcomingBadgeCount,
+        showBadge: true,
+        isInitialLoading: isUpcomingInitialLoading,
+        isFetching: isUpcomingLoading,
+        isLoadingMore: loadingMoreStates.upcoming,
+        isLoaded: upcomingResult !== null && !isUpcomingLoading,
+        hasMore: (upcomingResult?.next_dtend ?? 0) !== 0,
+        loadMore: loadMoreUpcoming,
+      },
+      history: {
+        items: historyItems,
+        badgeCount: historyBadgeCount,
+        showBadge: showHistoryBadge,
+        isInitialLoading: isHistoryInitialLoading,
+        isFetching: isHistoryLoading,
+        isLoadingMore: loadingMoreStates.history,
+        isLoaded: isHistoryLoaded,
+        hasMore: (historyResult?.next_dtend ?? 0) !== 0,
+        loadMore: loadMoreHistory,
+      },
+    }),
+    [
+      pendingSorted,
+      pendingBadgeCount,
+      isPendingInitialLoading,
+      isPendingLoading,
+      loadingMoreStates.pending,
+      pendingResult,
+      loadMorePending,
+      upcomingSorted,
+      upcomingBadgeCount,
+      isUpcomingInitialLoading,
+      isUpcomingLoading,
+      loadingMoreStates.upcoming,
+      upcomingResult,
+      loadMoreUpcoming,
+      historyItems,
+      historyBadgeCount,
+      showHistoryBadge,
+      isHistoryInitialLoading,
+      isHistoryLoading,
+      loadingMoreStates.history,
+      isHistoryLoaded,
+      historyResult,
+      loadMoreHistory,
+    ]
+  );
 
   return {
-    data,
-    initialState,
-    isLoading,
-    loadingMoreStates,
-    isLoadingHistory: isHistoryLoading,
-    isHistoryLoaded,
+    activeTab,
     myUserId,
-    loadMore,
+    tabs,
     loadHistory,
   };
 }
