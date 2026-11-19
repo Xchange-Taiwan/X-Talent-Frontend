@@ -1,23 +1,16 @@
 import { apiClient, ApiError } from '@/lib/apiClient';
+import { normalizeFeedbackCandidateDto } from '@/lib/reservation/mapReservationFeedbackDto';
 import {
-  mapReservationFeedbackDto,
-  normalizeCancelledByDto,
-  normalizeFeedbackCounterpartDto,
-  resolveFeedbackPartyIds,
-} from '@/lib/reservation/mapReservationFeedbackDto';
+  formatDateTime,
+  projectFeedbackCandidate,
+} from '@/lib/reservation/reservationProjection';
 import type { Reservation } from '@/types/reservation';
-import type { RawReservationFeedback } from '@/types/reservationFeedback';
+import type {
+  RawPendingFeedbackCounterpart,
+  RawReservationFeedback,
+} from '@/types/reservationFeedback';
 
-import { formatDateTime } from './reservationService';
-
-export interface RawSingleFeedbackCounterpart {
-  user_id?: number;
-  name?: string | null;
-  avatar?: string | null;
-  job_title?: string | null;
-  company?: string | null;
-  years_of_experience?: string | null;
-}
+export type RawSingleFeedbackCounterpart = RawPendingFeedbackCounterpart;
 
 export interface RawSingleReservationFeedbackVO {
   reservation_id?: number | string;
@@ -48,70 +41,20 @@ export function mapSingleReservationFeedbackLookup(
   userId: string | number,
   fallbackRole: 'mentee' | 'mentor' = 'mentee'
 ): ReservationFeedbackLookupResult | null {
-  if (!raw || typeof raw !== 'object') {
+  const candidate = normalizeFeedbackCandidateDto(raw, userId, {
+    fallbackViewerRole: fallbackRole === 'mentor' ? 'MENTOR' : 'MENTEE',
+    preferReservationId: true,
+    preferRoleField: true,
+  });
+  if (!candidate || !candidate.viewerRole) {
     return null;
   }
-
-  const rawId = raw.reservation_id ?? raw.id;
-  if (rawId === undefined || rawId === null || String(rawId).trim() === '') {
-    return null;
-  }
-
-  const normalizedRoleToken = String(raw.role ?? raw.viewer_role ?? '')
-    .trim()
-    .toUpperCase();
-  const upperRole: 'MENTEE' | 'MENTOR' =
-    normalizedRoleToken === 'MENTOR'
-      ? 'MENTOR'
-      : normalizedRoleToken === 'MENTEE'
-        ? 'MENTEE'
-        : fallbackRole === 'mentor'
-          ? 'MENTOR'
-          : 'MENTEE';
-  const viewerRole: 'mentee' | 'mentor' =
-    upperRole === 'MENTOR' ? 'mentor' : 'mentee';
-
-  const { name, avatar, roleLine, counterpartyUserId } =
-    normalizeFeedbackCounterpartDto(raw);
-
-  const dtstart =
-    typeof raw.dtstart === 'number' && Number.isFinite(raw.dtstart)
-      ? raw.dtstart
-      : 0;
-  const dtend =
-    typeof raw.dtend === 'number' && Number.isFinite(raw.dtend)
-      ? raw.dtend
-      : dtstart;
-  const { date, time } = formatDateTime(dtstart, dtend);
-
-  const { senderUserId, participantUserId } = resolveFeedbackPartyIds(
-    userId,
-    counterpartyUserId,
-    upperRole
-  );
-  const cancelledBy = normalizeCancelledByDto(raw.cancelled_by);
-  const feedback = mapReservationFeedbackDto(raw.feedback);
 
   return {
-    viewerRole,
-    reservation: {
-      id: String(rawId).trim(),
-      name,
-      roleLine,
-      date,
-      time,
-      avatar,
-      messages: [],
-      scheduleId: raw.schedule_id ?? 0,
-      dtstart,
-      dtend,
-      senderUserId,
-      participantUserId,
-      cancelledBy,
-      viewerRole: upperRole,
-      version: raw.version ?? 0,
-      ...(feedback ? { feedback } : {}),
-    },
+    viewerRole: candidate.viewerRole === 'MENTOR' ? 'mentor' : 'mentee',
+    reservation: projectFeedbackCandidate(candidate, userId, {
+      formatSlotDateTime: formatDateTime,
+    }),
   };
 }
 

@@ -3,8 +3,8 @@ import dayjs from 'dayjs';
 import {
   formatExperience,
   mapReservationFeedbackDto,
-  normalizeFeedbackCounterpartDto,
-  resolveFeedbackPartyIds,
+  type NormalizedFeedbackCandidateDto,
+  normalizeFeedbackCandidateDto,
 } from '@/lib/reservation/mapReservationFeedbackDto';
 import {
   resolveCancelledBy,
@@ -798,6 +798,64 @@ export function extractRawPendingFeedbackList(
   return [];
 }
 
+export interface ProjectFeedbackCandidateOptions {
+  formatSlotDateTime?: (
+    dtstart: number,
+    dtend: number
+  ) => { date: string; time: string };
+  defaultPendingFeedback?: boolean;
+}
+
+/**
+ * Projects a normalized feedback candidate DTO into a complete `Reservation`
+ * with pre-projected viewer and cancellation fields, shared across pending
+ * feedback queues and single-reservation deep-link lookups (#944).
+ */
+export function projectFeedbackCandidate(
+  candidate: NormalizedFeedbackCandidateDto,
+  userId: string | number,
+  options: ProjectFeedbackCandidateOptions = {}
+): Reservation {
+  const formatter = options.formatSlotDateTime ?? formatDateTime;
+  const { date, time } = formatter(candidate.dtstart, candidate.dtend);
+  const projectedViewerFields = projectViewerFields({
+    senderUserId: candidate.senderUserId,
+    participantUserId: candidate.participantUserId,
+    viewerRole: candidate.viewerRole,
+    cancelledBy: candidate.cancelledBy,
+    myUserId: userId,
+  });
+  const feedback =
+    candidate.feedback ??
+    (options.defaultPendingFeedback
+      ? {
+          meetingHappened: null,
+          rating: null,
+          nextStep: 'ANSWER' as const,
+        }
+      : undefined);
+
+  return {
+    id: candidate.id,
+    name: candidate.name,
+    roleLine: candidate.roleLine,
+    date,
+    time,
+    avatar: candidate.avatar,
+    messages: [],
+    scheduleId: candidate.scheduleId,
+    dtstart: candidate.dtstart,
+    dtend: candidate.dtend,
+    senderUserId: candidate.senderUserId,
+    participantUserId: candidate.participantUserId,
+    cancelledBy: candidate.cancelledBy,
+    viewerRole: candidate.viewerRole,
+    ...projectedViewerFields,
+    version: candidate.version,
+    ...(feedback ? { feedback } : {}),
+  };
+}
+
 export function mapPendingFeedbackCandidate(
   candidate: PendingFeedbackCandidate,
   userId: string | number,
@@ -861,66 +919,18 @@ export function mapPendingFeedbackCandidate(
     return null;
   }
 
-  const rawId = candidate.id ?? candidate.reservation_id;
-  if (rawId === undefined || rawId === null || String(rawId).trim() === '') {
+  const normalized = normalizeFeedbackCandidateDto(candidate, userId, {
+    fallbackViewerRole,
+  });
+  if (!normalized) {
     return null;
   }
 
-  const dtstart =
-    typeof candidate.dtstart === 'number' && Number.isFinite(candidate.dtstart)
-      ? candidate.dtstart
-      : 0;
-  const dtend =
-    typeof candidate.dtend === 'number' && Number.isFinite(candidate.dtend)
-      ? candidate.dtend
-      : dtstart;
-  const { date, time } =
-    dtstart > 0
-      ? formatPendingFeedbackDateTime(dtstart, dtend)
-      : formatDateTime(dtstart, dtend);
-
-  const rawRole = candidate.viewer_role ?? candidate.role ?? fallbackViewerRole;
-  const viewerRole: 'MENTEE' | 'MENTOR' | undefined =
-    rawRole === 'MENTOR' || rawRole === 'MENTEE' ? rawRole : undefined;
-
-  const { name, avatar, roleLine, counterpartyUserId } =
-    normalizeFeedbackCounterpartDto(candidate);
-  const { senderUserId, participantUserId } = resolveFeedbackPartyIds(
-    userId,
-    counterpartyUserId,
-    viewerRole
-  );
-
-  const mappedFeedback = mapReservationFeedbackDto(candidate.feedback);
-  const projectedViewerFields = projectViewerFields({
-    senderUserId,
-    participantUserId,
-    viewerRole,
-    myUserId: userId,
+  return projectFeedbackCandidate(normalized, userId, {
+    formatSlotDateTime:
+      normalized.dtstart > 0 ? formatPendingFeedbackDateTime : formatDateTime,
+    defaultPendingFeedback: true,
   });
-
-  return {
-    id: String(rawId),
-    name,
-    roleLine,
-    date,
-    time,
-    avatar,
-    messages: [],
-    scheduleId: candidate.schedule_id ?? 0,
-    dtstart,
-    dtend,
-    senderUserId,
-    participantUserId,
-    viewerRole,
-    ...projectedViewerFields,
-    version: candidate.version ?? 0,
-    feedback: mappedFeedback ?? {
-      meetingHappened: null,
-      rating: null,
-      nextStep: 'ANSWER',
-    },
-  };
 }
 
 /**

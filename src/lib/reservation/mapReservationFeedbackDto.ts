@@ -27,6 +27,42 @@ export interface NormalizedFeedbackCounterpart {
   counterpartyUserId: number;
 }
 
+export interface FeedbackCandidateDtoInput extends FeedbackCounterpartDtoInput {
+  id?: number | string | null;
+  reservation_id?: number | string | null;
+  schedule_id?: number | null;
+  dtstart?: number | null;
+  dtend?: number | null;
+  version?: number | null;
+  role?: string | null;
+  viewer_role?: string | null;
+  cancelled_by?: 'MENTEE' | 'MENTOR' | 'SYSTEM' | string | null;
+  feedback?: RawReservationFeedback | null;
+}
+
+export interface NormalizeFeedbackCandidateOptions {
+  fallbackViewerRole?: 'MENTEE' | 'MENTOR';
+  preferReservationId?: boolean;
+  preferRoleField?: boolean;
+}
+
+export interface NormalizedFeedbackCandidateDto {
+  id: string;
+  name: string;
+  avatar: string | undefined;
+  roleLine: string;
+  counterpartyUserId: number;
+  senderUserId: number;
+  participantUserId: number;
+  dtstart: number;
+  dtend: number;
+  scheduleId: number;
+  version: number;
+  viewerRole: 'MENTEE' | 'MENTOR' | undefined;
+  cancelledBy: 'MENTEE' | 'MENTOR' | 'SYSTEM' | undefined;
+  feedback: ReservationFeedback | undefined;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -159,6 +195,89 @@ export function normalizeCancelledByDto(
     cancelledBy === 'SYSTEM'
     ? cancelledBy
     : undefined;
+}
+
+/**
+ * Canonical wire-to-domain candidate normalizer shared by pending-feedback list
+ * items (`RawPendingFeedbackItem`) and single-reservation feedback lookups
+ * (`RawSingleReservationFeedbackVO`), eliminating duplicate counterpart, party-ID,
+ * role, and timestamp assembly (#944).
+ */
+export function normalizeFeedbackCandidateDto(
+  raw: FeedbackCandidateDtoInput | null | undefined,
+  userId: string | number,
+  options: NormalizeFeedbackCandidateOptions = {}
+): NormalizedFeedbackCandidateDto | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return null;
+  }
+
+  const rawId = options.preferReservationId
+    ? (raw.reservation_id ?? raw.id)
+    : (raw.id ?? raw.reservation_id);
+  if (rawId === undefined || rawId === null) {
+    return null;
+  }
+  const id = String(rawId).trim();
+  if (!id) {
+    return null;
+  }
+
+  const rawRole = options.preferRoleField
+    ? (raw.role ?? raw.viewer_role)
+    : (raw.viewer_role ?? raw.role);
+  const roleToken =
+    typeof rawRole === 'string' ? rawRole.trim().toUpperCase() : '';
+  const viewerRole: 'MENTEE' | 'MENTOR' | undefined =
+    roleToken === 'MENTOR'
+      ? 'MENTOR'
+      : roleToken === 'MENTEE'
+        ? 'MENTEE'
+        : options.fallbackViewerRole;
+
+  const dtstart =
+    typeof raw.dtstart === 'number' && Number.isFinite(raw.dtstart)
+      ? raw.dtstart
+      : 0;
+  const dtend =
+    typeof raw.dtend === 'number' && Number.isFinite(raw.dtend)
+      ? raw.dtend
+      : dtstart;
+
+  const { name, avatar, roleLine, counterpartyUserId } =
+    normalizeFeedbackCounterpartDto(raw);
+  const { senderUserId, participantUserId } = resolveFeedbackPartyIds(
+    userId,
+    counterpartyUserId,
+    viewerRole
+  );
+  const cancelledBy = normalizeCancelledByDto(raw.cancelled_by);
+  const feedback = mapReservationFeedbackDto(raw.feedback);
+  const scheduleId =
+    typeof raw.schedule_id === 'number' && Number.isFinite(raw.schedule_id)
+      ? raw.schedule_id
+      : 0;
+  const version =
+    typeof raw.version === 'number' && Number.isFinite(raw.version)
+      ? raw.version
+      : 0;
+
+  return {
+    id,
+    name,
+    avatar,
+    roleLine,
+    counterpartyUserId,
+    senderUserId,
+    participantUserId,
+    dtstart,
+    dtend,
+    scheduleId,
+    version,
+    viewerRole,
+    cancelledBy,
+    feedback,
+  };
 }
 
 export function extractBackendIsPublic(
