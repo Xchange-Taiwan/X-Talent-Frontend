@@ -133,6 +133,10 @@ export async function middleware(req: NextRequest) {
     session: isLoggedIn
       ? {
           isAuthenticated: true,
+          userId:
+            token?.id !== undefined && token?.id !== null
+              ? String(token.id)
+              : undefined,
           onBoarding:
             typeof token?.onBoarding === 'boolean'
               ? token.onBoarding

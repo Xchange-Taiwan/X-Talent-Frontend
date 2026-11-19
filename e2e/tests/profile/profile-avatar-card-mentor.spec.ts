@@ -1,5 +1,6 @@
 import { expect, Page, test } from '@playwright/test';
 
+import { captureEvidence } from '../../helpers/evidence';
 import { mockApiRoute } from '../../helpers/route';
 import { seedMockAuthSession } from '../../helpers/session';
 
@@ -953,5 +954,71 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
       .filter({ hasText: 'Test Mentee' });
     await expect(mentorCard).toBeVisible({ timeout: 15_000 });
     await expect(mentorCard).toContainText('Senior Frontend Engineer');
+  });
+
+  test('onBoarding=false 的學員點擊 Header「成為導師」直接進入建立導師資料編輯頁（不跳轉 /auth/onboarding），且導覽列「成為導師」顯示當前頁青綠底線與預設頭像提示 (#969)', async ({
+    page,
+  }) => {
+    await seedMockAuthSession(page, {
+      id: USER_ID,
+      name: 'Test Mentee',
+      onBoarding: false,
+      isMentor: false,
+      avatar: 'default_1',
+    });
+    await mockDropdowns(page);
+
+    await page.route(
+      new RegExp(`/v1/mentors/${USER_ID}/zh_TW/profile`),
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(
+            makeProfile({
+              isMentor: false,
+              avatar: 'default_1',
+              about: '',
+              includeMentorFields: false,
+            })
+          ),
+        })
+    );
+
+    await page.goto('/auth/onboarding');
+    const headerBecomeMentor = page
+      .getByRole('banner')
+      .getByRole('link', { name: '成為導師' });
+    await expect(headerBecomeMentor).toBeVisible({ timeout: 15_000 });
+    await headerBecomeMentor.click();
+
+    await expect(page).toHaveURL(
+      `/profile/${USER_ID}/edit?mentor-onboarding=true`,
+      { timeout: 20_000 }
+    );
+    await expect(
+      page.getByRole('heading', { name: '建立導師資料' })
+    ).toBeVisible();
+    await expect(headerBecomeMentor).toHaveAttribute('aria-current', 'page');
+    await expect(
+      page.getByText('成為導師需使用本人真實照片，請點擊相機圖示上傳照片。')
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: '新增工作經驗' })
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.getByRole('button', { name: '新增教育經歷' })
+    ).toBeVisible({ timeout: 15_000 });
+
+    await captureEvidence(page, 'become-mentor-d1-edit', { fullPage: true });
+
+    await page.getByRole('button', { name: '查看規範' }).click();
+    await expect(page.getByText('真實身分')).toBeVisible();
+    await captureEvidence(page, 'become-mentor-d1-guidelines-expanded');
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await captureEvidence(page, 'become-mentor-d1-edit-mobile', {
+      fullPage: true,
+    });
   });
 });

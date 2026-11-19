@@ -165,7 +165,28 @@ export const AboutActiveRouteState: Story = {
   },
 };
 
-// 8. Mobile Viewport Pre-Hydration Hint State (single --auth-avatar placeholder, no double skeleton)
+// 8. Mentee on Become-Mentor D-1 Edit Route (aria-current="page" teal underline on 成為導師, #969)
+export const BecomeMentorActiveRouteState: Story = {
+  parameters: {
+    nextjs: {
+      appDirectory: true,
+      navigation: {
+        pathname: `/profile/${mockMenteeUser.id}/edit`,
+        query: { 'mentor-onboarding': 'true' },
+      },
+    },
+    auth: {
+      status: 'authenticated',
+      session: {
+        user: mockMenteeUser,
+        expires: '2099-01-01T00:00:00.000Z',
+      },
+      sessionHint: menteeV2SessionHint,
+    },
+  },
+};
+
+// 9. Mobile Viewport Pre-Hydration Hint State (single --auth-avatar placeholder, no double skeleton)
 export const MobilePreHydrationHintState: Story = {
   parameters: {
     viewport: { defaultViewport: 'mobile1' },

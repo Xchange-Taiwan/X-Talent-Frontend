@@ -927,6 +927,21 @@ describe('middleware public routes', () => {
     expect(onboardingRes.status).toBe(200);
     expect(onboardingRes.cookies.get(SESSION_HINT_COOKIE)?.value).toBe('0|77');
 
+    // #969: Mentee (id=77, onBoarding=false) clicking 成為導師 (/profile/77/edit?mentor-onboarding=true) lands on edit screen (200), NOT /auth/onboarding!
+    const ownBecomeMentorRes = await middleware(
+      makeRequest('/profile/77/edit?mentor-onboarding=true')
+    );
+    expect(ownBecomeMentorRes.status).toBe(200);
+
+    // Non-owner pageUserId (id=888 != 77) with onBoarding=false is still redirected to /auth/onboarding
+    const otherBecomeMentorRes = await middleware(
+      makeRequest('/profile/888/edit?mentor-onboarding=true')
+    );
+    expect(otherBecomeMentorRes.status).toBe(307);
+    expect(
+      new URL(otherBecomeMentorRes.headers.get('location')!).pathname
+    ).toBe('/auth/onboarding');
+
     mockGetToken.mockResolvedValue(
       fromPartial({ id: '78', onBoarding: true, isMentor: false })
     );

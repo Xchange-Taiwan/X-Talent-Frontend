@@ -19,6 +19,8 @@ import {
   getSignInUrl,
   HOME_HREF,
   isDisallowedCallbackPathname,
+  isMentorOnboardingCallbackUrl,
+  isMentorOnboardingTarget,
   MAINTENANCE_HREF,
   MENTOR_ONBOARDING_KEY,
   type MiddlewareGateDecision,
@@ -796,12 +798,50 @@ describe('src/lib/routes', () => {
     });
 
     it('enforces onboarding gate on /profile/[pageUserId]/edit for un-onboarded non-mentors, allows onboarded mentees & mentors, and bypasses /avatars/* (#830, #961)', () => {
+      // #969: Mentee clicking "成為導師" (/profile/42/edit?mentor-onboarding=true) for their OWN userId
+      // MUST enter the Mentor Edit screen directly instead of being hijacked to /auth/onboarding!
       expect(
         evaluateMiddlewareGate({
           pathname: '/profile/42/edit',
           search: '?mentor-onboarding=true',
           session: {
             isAuthenticated: true,
+            userId: '42',
+            onBoarding: false,
+            isMentor: false,
+          },
+        })
+      ).toEqual({
+        action: 'next',
+        syncSessionHint: true,
+      });
+
+      // Forged attempt against ANOTHER user's pageUserId while onBoarding === false still redirects to /auth/onboarding
+      expect(
+        evaluateMiddlewareGate({
+          pathname: '/profile/999/edit',
+          search: '?mentor-onboarding=true',
+          session: {
+            isAuthenticated: true,
+            userId: '42',
+            onBoarding: false,
+            isMentor: false,
+          },
+        })
+      ).toEqual({
+        action: 'redirect',
+        destination: '/auth/onboarding',
+        syncSessionHint: false,
+      });
+
+      // Plain /profile/42/edit (without mentor-onboarding=true) while onBoarding === false still redirects to /auth/onboarding
+      expect(
+        evaluateMiddlewareGate({
+          pathname: '/profile/42/edit',
+          search: '',
+          session: {
+            isAuthenticated: true,
+            userId: '42',
             onBoarding: false,
             isMentor: false,
           },
@@ -850,6 +890,58 @@ describe('src/lib/routes', () => {
         action: 'next',
         syncSessionHint: false,
       });
+
+      expect(
+        isMentorOnboardingTarget(
+          '/profile/42/edit',
+          '?mentor-onboarding=true',
+          '42'
+        )
+      ).toBe(true);
+      expect(
+        isMentorOnboardingTarget(
+          '/profile/user%2D42/edit',
+          '?mentor-onboarding=true',
+          'user-42'
+        )
+      ).toBe(true);
+      expect(
+        isMentorOnboardingTarget(
+          '/profile/999/edit',
+          '?mentor-onboarding=true',
+          '42'
+        )
+      ).toBe(false);
+      expect(
+        isMentorOnboardingCallbackUrl(
+          '/profile/42/edit?mentor-onboarding=true',
+          '42'
+        )
+      ).toBe(true);
+      expect(
+        isMentorOnboardingCallbackUrl(
+          '/profile/999/edit?mentor-onboarding=true',
+          '42'
+        )
+      ).toBe(false);
+      expect(
+        isMentorOnboardingCallbackUrl(
+          'https://evil.example/profile/42/edit?mentor-onboarding=true',
+          '42'
+        )
+      ).toBe(false);
+      expect(
+        isMentorOnboardingCallbackUrl(
+          '//evil.example/profile/42/edit?mentor-onboarding=true',
+          '42'
+        )
+      ).toBe(false);
+      expect(
+        isMentorOnboardingCallbackUrl(
+          '/\\evil.example/profile/42/edit?mentor-onboarding=true',
+          '42'
+        )
+      ).toBe(false);
     });
   });
 });

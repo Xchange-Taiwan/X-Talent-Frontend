@@ -37,6 +37,10 @@ import {
   useProfileEditorSession,
 } from '@/hooks/user/profile/useProfileEditorSession';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
+import {
+  isGooglePrefillAvatarUrl,
+  isPresetAvatarUrl,
+} from '@/lib/avatar/avatarUrl';
 import { tagGroupsToCategories } from '@/lib/profile/categoryGrouping';
 import { MENTOR_ONBOARDING_KEY } from '@/lib/routes';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
@@ -95,6 +99,42 @@ function AboutLengthCounter({ form }: { form: ProfileFormContext }) {
   return (
     <span className="text-text-tertiary text-xs tabular-nums">{len} 字</span>
   );
+}
+
+function MentorOnboardingAvatarHint({
+  form,
+  isMentorOnboarding,
+}: {
+  form: ProfileFormContext;
+  isMentorOnboarding: boolean;
+}) {
+  const watchedAvatar = useWatch({ control: form.control, name: 'avatar' });
+  const watchedAvatarFile = useWatch({
+    control: form.control,
+    name: 'avatarFile',
+  });
+
+  if (!isMentorOnboarding || watchedAvatarFile) {
+    return null;
+  }
+
+  if (isGooglePrefillAvatarUrl(watchedAvatar)) {
+    return (
+      <p className="text-text-tertiary max-w-[220px] text-xs leading-relaxed">
+        請確認預填頭像為本人真實照片，或點擊更換照片。
+      </p>
+    );
+  }
+
+  if (!watchedAvatar || isPresetAvatarUrl(watchedAvatar)) {
+    return (
+      <p className="text-text-tertiary max-w-[220px] text-xs leading-relaxed">
+        成為導師需使用本人真實照片，請點擊相機圖示上傳照片。
+      </p>
+    );
+  }
+
+  return null;
 }
 
 interface Props {
@@ -207,18 +247,24 @@ export default function EditProfileContainer({
                 />
 
                 <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-6">
-                  <AvatarSection
-                    id="avatarFile"
-                    variant="compact"
-                    control={form.control}
-                    name="avatarFile"
-                    isMentor={isMentorRole}
-                    userName={userDto?.name ?? undefined}
-                    onFileChange={handleAvatarFileChange}
-                    onSelectPresetAvatar={
-                      isMentorRole ? undefined : handleSelectPresetAvatar
-                    }
-                  />
+                  <div className="flex flex-col items-start gap-1.5">
+                    <AvatarSection
+                      id="avatarFile"
+                      variant="compact"
+                      control={form.control}
+                      name="avatarFile"
+                      isMentor={isMentorRole}
+                      userName={userDto?.name ?? undefined}
+                      onFileChange={handleAvatarFileChange}
+                      onSelectPresetAvatar={
+                        isMentorRole ? undefined : handleSelectPresetAvatar
+                      }
+                    />
+                    <MentorOnboardingAvatarHint
+                      form={form}
+                      isMentorOnboarding={isMentorOnboarding}
+                    />
+                  </div>
 
                   <Section
                     id="name"

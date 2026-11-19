@@ -22,7 +22,9 @@ import { NotificationBell } from './NotificationBell';
 import { ShareProfileDialog } from './ShareProfileDialog';
 import { UserDropdown } from './UserDropdown';
 
-const DESKTOP_NAV_LINK_BASE = `text-text-primary font-open-sans rounded-sm text-base ${FOCUS_RING_CLASSES}`;
+const ACTIVE_NAV_LINK_CLASSES =
+  'aria-[current=page]:text-brand-700 aria-[current=page]:font-semibold aria-[current=page]:after:scale-x-100 aria-[current=page]:after:bg-brand-700';
+const DESKTOP_NAV_LINK_BASE = `text-text-primary font-open-sans rounded-sm text-base ${FOCUS_RING_CLASSES} ${ACTIVE_NAV_LINK_CLASSES}`;
 const DESKTOP_NAV_LINK = `${DESKTOP_NAV_LINK_BASE} ${HOVER_NAV_UNDERLINE_CLASSES}`;
 
 export function Header(): JSX.Element {
