@@ -1766,14 +1766,13 @@ describe('useMentorSchedule', () => {
       });
     });
 
-    it('reports the failure and leaves reservationsLoaded false when the reservations fetch throws unexpectedly', async () => {
-      // fetchAllReservationsForState propagates transport failures in
-      // production (see reservationService.ts), and this also exercises the
-      // hook's own catch for anything else that could throw.
-      // reservationsLoaded must stay false here - it's only ever set true on
-      // the success path, deliberately not in a `finally` (which would run on
-      // this failure too and mark the flag loaded despite `reservations` never
-      // actually being written).
+    it('leaves reservationsLoaded false without duplicating captureFlowFailure when fetchAllReservationsForState throws', async () => {
+      // fetchAllReservationsForState already reports non-abort transport
+      // failures via captureFlowFailure in reservationService.ts before
+      // rethrowing (see reservationService.test.ts). MentorScheduleSession
+      // must NOT emit a duplicate captureFlowFailure on top of it, and
+      // reservationsLoaded must stay false.
+      mockCaptureFlowFailure.mockClear();
       mockLoadMonthSchedule.mockResolvedValue(defaultMockRaws);
       mockFetchAllReservationsForState.mockRejectedValue(new Error('boom'));
 
@@ -1785,21 +1784,18 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
-          expect.objectContaining({
-            flow: 'mentor_schedule_fetch_reservations',
-            step: 'fetch_all_reservations',
-            message: 'boom',
-          })
-        );
+        expect(result.current.loaded).toBe(true);
+        expect(mockFetchAllReservationsForState).toHaveBeenCalled();
       });
 
+      expect(mockCaptureFlowFailure).not.toHaveBeenCalled();
       expect(result.current.reader.slotsSnapshot.reservationsLoaded).toBe(
         false
       );
     });
 
-    it('holds reservationsLoaded === false when MENTOR_PENDING read fails even if MENTOR_UPCOMING succeeds', async () => {
+    it('holds reservationsLoaded === false without duplicating captureFlowFailure when MENTOR_PENDING read fails even if MENTOR_UPCOMING succeeds', async () => {
+      mockCaptureFlowFailure.mockClear();
       mockLoadMonthSchedule.mockResolvedValue(defaultMockRaws);
       mockFetchAllReservationsForState.mockImplementation(
         async (_userId, state) => {
@@ -1818,16 +1814,16 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
-          expect.objectContaining({
-            flow: 'mentor_schedule_fetch_reservations',
-            step: 'fetch_all_reservations',
-            message: 'MENTOR_PENDING 503',
-          })
+        expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true);
+        expect(mockFetchAllReservationsForState).toHaveBeenCalledWith(
+          '123',
+          'MENTOR_PENDING',
+          expect.any(Number),
+          expect.any(AbortSignal)
         );
       });
 
-      expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true);
+      expect(mockCaptureFlowFailure).not.toHaveBeenCalled();
       expect(result.current.reader.slotsSnapshot.reservationsLoaded).toBe(
         false
       );
