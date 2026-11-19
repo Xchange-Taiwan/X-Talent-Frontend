@@ -5,7 +5,6 @@ import { useFormState, useWatch } from 'react-hook-form';
 
 import type { Category } from '@/components/ui/category-multi-select';
 import { CompactCategoryPicker } from '@/components/ui/compact-category-picker';
-import type { OnboardingFormContext } from '@/hooks/user/onboarding/useOnboardingForm';
 import type { ProfileFormContext } from '@/hooks/user/profile/useProfileEditorSession';
 import {
   computeDirectionSelectLimit,
@@ -15,32 +14,23 @@ import {
 } from '@/lib/profile/menteeDirectionPreference';
 import { FOCUS_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
-import type { OnboardingFormValues } from '@/schemas/onboarding';
-import {
-  MENTEE_MAX_WANT_POSITIONS,
-  type ProfileFormValues,
-} from '@/schemas/profileSchema';
+import { MENTEE_MAX_WANT_POSITIONS } from '@/schemas/profileSchema';
 
+import { RequiredIndicator } from './RequiredIndicator';
 import { Section } from './Section';
-
-type VerifyMenteeDirectionContract =
-  Pick<
-    OnboardingFormValues,
-    'want_position' | 'want_skill' | 'want_topic'
-  > extends Pick<
-    ProfileFormValues,
-    'want_position' | 'want_skill' | 'want_topic'
-  >
-    ? ProfileFormContext | OnboardingFormContext
-    : never;
+import {
+  asProfileFormContext,
+  type SharedProfileEditorForm,
+} from './sharedEditorForm';
 
 export interface MenteeDirectionPreferenceSectionProps {
-  form: VerifyMenteeDirectionContract;
+  form: SharedProfileEditorForm;
   wantPositionCategories: Category[];
   wantSkillCategories: Category[];
   wantTopicCategories: Category[];
   directionMap: MenteeDirectionMap;
   onDirectionMapChange: (next: MenteeDirectionMap) => void;
+  required?: boolean;
 }
 
 function buildOptionLabelMap(categories: Category[]): Map<string, string> {
@@ -60,6 +50,7 @@ function MenteeDirectionPreferenceSectionInner({
   wantTopicCategories,
   directionMap,
   onDirectionMapChange,
+  required = false,
 }: {
   form: ProfileFormContext;
   wantPositionCategories: Category[];
@@ -67,6 +58,7 @@ function MenteeDirectionPreferenceSectionInner({
   wantTopicCategories: Category[];
   directionMap: MenteeDirectionMap;
   onDirectionMapChange: (next: MenteeDirectionMap) => void;
+  required?: boolean;
 }) {
   const watchedPositions = useWatch({
     control: form.control,
@@ -237,6 +229,7 @@ function MenteeDirectionPreferenceSectionInner({
         dataTestId="mentee-section-preferences"
         variant="option-a"
         title="有興趣多了解的職位"
+        required={required}
       >
         <div className="space-y-2">
           <CompactCategoryPicker
@@ -342,6 +335,7 @@ function MenteeDirectionPreferenceSectionInner({
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-8">
               <div className="lg:w-48 lg:shrink-0">
                 <p className="text-text-primary text-sm font-bold">
+                  {required && <RequiredIndicator />}
                   想加強的技能
                 </p>
               </div>
@@ -378,6 +372,7 @@ function MenteeDirectionPreferenceSectionInner({
             >
               <div className="lg:w-48 lg:shrink-0">
                 <p className="text-text-primary text-sm font-bold">
+                  {required && <RequiredIndicator />}
                   想了解的主題
                 </p>
               </div>
@@ -424,7 +419,7 @@ export function MenteeDirectionPreferenceSection({
 }: MenteeDirectionPreferenceSectionProps) {
   return (
     <MemoizedMenteeDirectionPreferenceSection
-      form={form as ProfileFormContext}
+      form={asProfileFormContext(form)}
       {...rest}
     />
   );

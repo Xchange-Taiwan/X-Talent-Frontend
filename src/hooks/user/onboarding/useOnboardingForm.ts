@@ -17,6 +17,7 @@ import {
 } from '@/lib/auth/oauthOutcome';
 import {
   DEFAULT_PRESET_AVATAR_CODE,
+  isGooglePrefillAvatarUrl,
   toPresetAvatarCode,
 } from '@/lib/avatar/avatarUrl';
 import { getPendingFavoriteProfilePath } from '@/lib/favorites';
@@ -288,9 +289,7 @@ export function useOnboardingForm({
         return;
       }
       const currentAvatar = form.getValues('avatar') ?? '';
-      const snapshotAvatarUrl = currentAvatar.startsWith(
-        'https://lh3.googleusercontent.com/'
-      )
+      const snapshotAvatarUrl = isGooglePrefillAvatarUrl(currentAvatar)
         ? ''
         : currentAvatar;
       avatarUpload.kickOff(file, snapshotAvatarUrl);

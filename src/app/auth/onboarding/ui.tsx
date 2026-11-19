@@ -19,10 +19,14 @@ import { MentorGuidelinesCard } from '@/components/profile/edit/MentorGuidelines
 import { Section } from '@/components/profile/edit/Section';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
+import { Skeleton } from '@/components/ui/skeleton';
 import { totalWorkSpanOptions } from '@/constant/seniority';
 import type { OnboardingFormContext } from '@/hooks/user/onboarding/useOnboardingForm';
+import { isGooglePrefillAvatarUrl } from '@/lib/avatar/avatarUrl';
 import { tagGroupsToCategories } from '@/lib/profile/categoryGrouping';
 import type { MenteeDirectionMap } from '@/lib/profile/menteeDirectionPreference';
+import { FOCUS_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
+import { cn } from '@/lib/utils';
 import type { OnboardingRole } from '@/schemas/onboarding';
 import type { LocationType } from '@/types/location';
 import type { IndustryOption, TagCatalogGroupVO } from '@/types/tagCatalog';
@@ -34,9 +38,7 @@ const JobExperienceSection = dynamic(
   },
   {
     ssr: false,
-    loading: () => (
-      <div className="bg-muted h-40 w-full animate-pulse rounded" />
-    ),
+    loading: () => <Skeleton className="h-40 w-full rounded" />,
   }
 );
 
@@ -48,9 +50,7 @@ const EducationSection = dynamic(
   },
   {
     ssr: false,
-    loading: () => (
-      <div className="bg-muted h-40 w-full animate-pulse rounded" />
-    ),
+    loading: () => <Skeleton className="h-40 w-full rounded" />,
   }
 );
 
@@ -61,9 +61,7 @@ const LinksSection = dynamic(
   },
   {
     ssr: false,
-    loading: () => (
-      <div className="bg-muted h-32 w-full animate-pulse rounded" />
-    ),
+    loading: () => <Skeleton className="h-32 w-full rounded" />,
   }
 );
 
@@ -87,9 +85,7 @@ function OnboardingIdentitySection({
 
   const nameLen = typeof watchedName === 'string' ? watchedName.length : 0;
   const hasGooglePrefillAvatar =
-    typeof watchedAvatar === 'string' &&
-    watchedAvatar.startsWith('https://lh3.googleusercontent.com/') &&
-    !watchedAvatarFile;
+    isGooglePrefillAvatarUrl(watchedAvatar) && !watchedAvatarFile;
 
   return (
     <section className="flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-6">
@@ -404,6 +400,7 @@ export default function OnboardingUI({
                 wantTopicCategories={wantTopicCategories}
                 directionMap={directionMap}
                 onDirectionMapChange={onDirectionMapChange}
+                required
               />
             </div>
           )}
@@ -412,7 +409,10 @@ export default function OnboardingUI({
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="bg-brand-500 text-text-primary hover:bg-brand-600 focus-visible:ring-brand-700 h-11 min-w-[128px] rounded-lg px-6 font-semibold focus-visible:ring-offset-0"
+              className={cn(
+                FOCUS_RING_NO_OFFSET_CLASSES,
+                'bg-brand-500 text-text-primary hover:bg-brand-600 focus-visible:ring-brand-700 h-11 min-w-[128px] rounded-lg px-6 font-semibold'
+              )}
             >
               {isSubmitting ? (
                 <>

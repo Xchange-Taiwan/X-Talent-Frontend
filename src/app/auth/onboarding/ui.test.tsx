@@ -41,6 +41,7 @@ const SAMPLE_GROUPS: TagCatalogGroupVO[] = [
 
 function Harness({
   initialRole = 'mentee',
+  initialAvatar = '',
   initialDirectionMap = {},
   initialPositions = [],
   initialSkills = [],
@@ -48,6 +49,7 @@ function Harness({
   onInspectForm,
 }: {
   initialRole?: OnboardingRole;
+  initialAvatar?: string;
   initialDirectionMap?: MenteeDirectionMap;
   initialPositions?: string[];
   initialSkills?: string[];
@@ -59,6 +61,7 @@ function Harness({
     defaultValues: {
       ...onboardingDefaultValues,
       role: initialRole,
+      avatar: initialAvatar,
       name: '陳大明',
       want_position: initialPositions,
       want_skill: initialSkills,
@@ -78,7 +81,10 @@ function Harness({
     <>
       <OnboardingUI
         role={role}
-        onRoleChange={(next) => form.setValue('role', next)}
+        onRoleChange={(next) => {
+          form.setValue('role', next);
+          form.clearErrors();
+        }}
         form={form}
         locations={[{ value: 'TWN', text: '台灣' }]}
         industries={[{ subject_group: 'TECH', subject: '科技業' }]}
@@ -149,5 +155,29 @@ describe('OnboardingUI single-page dual-role (#836 A-4)', () => {
     expect(screen.getByTestId('flat-positions')).toHaveTextContent('');
     expect(screen.getByTestId('flat-skills')).toHaveTextContent('');
     expect(screen.getByTestId('flat-topics')).toHaveTextContent('');
+  });
+
+  it('shows Google OAuth prefill photo confirmation hint only in Mentor mode and clears role validation errors when switching roles', async () => {
+    render(
+      <Harness
+        initialRole="mentee"
+        initialAvatar="https://lh3.googleusercontent.com/a/ACg8oc=s512-c"
+      />
+    );
+
+    expect(
+      screen.queryByText('請確認預填頭像為本人真實照片，或點擊更換照片。')
+    ).not.toBeInTheDocument();
+
+    // Trigger Mentee validation errors first
+    fireEvent.click(screen.getByRole('button', { name: '提交' }));
+    expect(await screen.findByText('請至少選擇一個職位')).toBeInTheDocument();
+
+    // Switch to Mentor -> clears Mentee errors and displays Google prefill avatar confirmation hint
+    fireEvent.click(screen.getByTestId('onboarding-role-mentor'));
+    expect(screen.queryByText('請至少選擇一個職位')).not.toBeInTheDocument();
+    expect(
+      screen.getByText('請確認預填頭像為本人真實照片，或點擊更換照片。')
+    ).toBeInTheDocument();
   });
 });

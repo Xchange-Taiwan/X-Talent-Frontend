@@ -125,6 +125,19 @@ export function isLocalStaticAvatarUrl(
 }
 
 /**
+ * Returns true when `url` is a Google OAuth profile avatar URL (`https://lh3.googleusercontent.com/...`)
+ * prefilled during registration before the user uploads or crops an S3 avatar.
+ */
+export function isGooglePrefillAvatarUrl(
+  url: string | null | undefined
+): boolean {
+  return (
+    typeof url === 'string' &&
+    url.trim().startsWith('https://lh3.googleusercontent.com/')
+  );
+}
+
+/**
  * Returns true when `url` points to one of the 6 decoupled Mentee preset
  * illustrations (`default_1` ~ `default_6` or `/avatars/default_1.webp` ~ `/avatars/default_6.webp`).
  */

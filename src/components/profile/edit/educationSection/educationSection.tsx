@@ -28,18 +28,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { OnboardingFormContext } from '@/hooks/user/onboarding/useOnboardingForm';
-import { ProfileFormContext } from '@/hooks/user/profile/useProfileEditorSession';
 import {
   useRepeatablePeriodSection,
   YEAR_OPTIONS,
 } from '@/hooks/user/profile/useRepeatablePeriodSection';
 import { hasExactMatch, searchSchools } from '@/lib/profile/searchSchools';
 import { cn } from '@/lib/utils';
-import type { OnboardingFormValues } from '@/schemas/onboarding';
-import type { ProfileFormValues } from '@/schemas/profileSchema';
 
 import { Section } from '../Section';
+import {
+  asProfileFormContext,
+  type SharedProfileEditorForm,
+} from '../sharedEditorForm';
 import { taiwanSchools } from './schoolData';
 
 export function SchoolComboboxField({
@@ -123,20 +123,13 @@ export function SchoolComboboxField({
   );
 }
 
-type VerifyEducationContract =
-  NonNullable<
-    OnboardingFormValues['educations']
-  > extends ProfileFormValues['educations']
-    ? ProfileFormContext | OnboardingFormContext
-    : never;
-
 interface Props {
-  form: VerifyEducationContract;
+  form: SharedProfileEditorForm;
   isMentor: boolean;
 }
 
 export const EducationSection = ({ form: rawForm, isMentor }: Props) => {
-  const form = rawForm as ProfileFormContext;
+  const form = asProfileFormContext(rawForm);
   const {
     control,
     formState: { errors },

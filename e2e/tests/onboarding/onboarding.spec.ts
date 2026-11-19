@@ -309,7 +309,9 @@ test('switch between Mentee and Mentor role on single-page onboarding → enforc
 
   // Also capture 390x844 mobile layout for single-page onboarding
   await page.setViewportSize({ width: 390, height: 844 });
-  await captureEvidence(page, 'onboarding-single-page-mentor-mobile');
+  await captureEvidence(page, 'onboarding-single-page-mentor-mobile', {
+    fullPage: true,
+  });
   await page.setViewportSize({ width: 1280, height: 720 });
 
   await page.getByRole('button', { name: '提交' }).click();
