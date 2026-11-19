@@ -423,13 +423,15 @@ describe('useProfileEditorSession (#787 / #905)', () => {
       error: null,
     });
 
-    const { result } = renderHook(() =>
-      useProfileEditorSession({
+    const { result } = renderHook(() => {
+      const sessionState = useProfileEditorSession({
         pageUserId: '1',
         isAuthorized: true,
         isMentorOnboarding: false,
-      })
-    );
+      });
+      void sessionState.form.formState.errors;
+      return sessionState;
+    });
 
     // 1. Before saving, changing only directionMap (form.isDirty === false) opens unsaved prompt on leave
     expect(result.current.form.formState.isDirty).toBe(false);
