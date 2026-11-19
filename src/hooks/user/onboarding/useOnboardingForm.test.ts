@@ -99,7 +99,10 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
     } as unknown as ReturnType<typeof useSession>);
 
     mockUseBackgroundAvatarUpload.mockReturnValue({
+      stage: mockKickOff,
       kickOff: mockKickOff,
+      resolve: mockConsume,
+      markCommitted: vi.fn(),
       consume: mockConsume,
       rollback: mockRollback,
       abort: mockAbort,

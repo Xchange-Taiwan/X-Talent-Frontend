@@ -85,24 +85,28 @@ vi.mock('@/components/ui/avatar-crop-modal', () => ({
     ) : null,
 }));
 
-vi.mock('@/services/profile/getAvatarSnapshot', () => ({
-  getAvatarSnapshot: vi
-    .fn()
-    .mockResolvedValue(new Blob(['prev-s3-bytes'], { type: 'image/png' })),
-}));
-
-vi.mock('@/services/profile/presignedUrl', () => ({
-  fetchPresignedUrl: vi.fn().mockResolvedValue({
-    url: 'https://x-career-multimedia.s3.amazonaws.com',
-    fields: {
-      key: 'dev/files/42/avatar',
-      AWSAccessKeyId: 'test',
-      'x-amz-security-token': 'test',
-      policy: 'test',
-      signature: 'test',
+vi.mock('@/lib/apiClient', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/apiClient')>();
+  return {
+    ...actual,
+    apiClient: {
+      ...actual.apiClient,
+      getExternalBlob: vi
+        .fn()
+        .mockResolvedValue(new Blob(['prev-s3-bytes'], { type: 'image/png' })),
+      getUnwrapped: vi.fn().mockResolvedValue({
+        url: 'https://x-career-multimedia.s3.amazonaws.com',
+        fields: {
+          key: 'dev/files/42/avatar',
+          AWSAccessKeyId: 'test',
+          'x-amz-security-token': 'test',
+          policy: 'test',
+          signature: 'test',
+        },
+      }),
     },
-  }),
-}));
+  };
+});
 
 import EditProfileContainer from './container';
 
