@@ -72,7 +72,9 @@ describe('profile/card Page', () => {
 
     const result = await Page();
 
-    expect(mockFetchUserByIdServer).toHaveBeenCalledWith(42, 'zh_TW');
+    expect(mockFetchUserByIdServer).toHaveBeenCalledWith(42, 'zh_TW', {
+      bypassCache: true,
+    });
     expect(mockFetchTagCatalogServer).toHaveBeenCalledWith('zh_TW');
     expect(result.props).toEqual({
       loginUserId: 42,

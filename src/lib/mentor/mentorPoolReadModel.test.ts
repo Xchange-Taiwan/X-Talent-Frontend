@@ -1275,5 +1275,115 @@ describe('mentorPoolReadModel', () => {
       expect(recoveredSnap.listStatus).toBe('success');
       expect(recoveredSnap.mentors.map((m) => m.user_id)).toEqual([88]);
     });
+
+    it('arms post-mutation unfiltered refresh across aborted subscriptions until an unfiltered fetch settles, and resets on clear() (#974)', async () => {
+      let callCount = 0;
+      const model = createMentorPoolReadModel({
+        transport: {
+          fetchMentors: (_req, signal) =>
+            new Promise((resolve, reject) => {
+              callCount += 1;
+              const currentCall = callCount;
+              const timer = setTimeout(() => {
+                resolve({
+                  mentors: [makeMentor(900 + currentCall)],
+                  nextCursor: null,
+                });
+              }, 5);
+              signal?.addEventListener('abort', () => {
+                clearTimeout(timer);
+                reject(new DOMException('Aborted', 'AbortError'));
+              });
+            }),
+        },
+      });
+
+      model.invalidateAfterMutation();
+
+      // First subscription aborts before settling (simulating StrictMode or fast route leave)
+      const unsub1 = model.subscribeSnapshot(
+        UNFILTERED_MENTOR_POOL_QUERY,
+        () => {},
+        {
+          ssrSeed: {
+            initialMentors: [makeMentor(1)],
+            initialMentorCount: 1,
+          },
+        }
+      );
+      // Stale ssrSeed stays visible while refresh is in-flight (no blank skeleton)
+      expect(
+        model.getSnapshot(UNFILTERED_MENTOR_POOL_QUERY).mentors[0].user_id
+      ).toBe(1);
+      unsub1();
+
+      // Second subscription must still force-refresh because first was aborted
+      const unsub2 = model.subscribeSnapshot(
+        UNFILTERED_MENTOR_POOL_QUERY,
+        () => {},
+        {
+          ssrSeed: {
+            initialMentors: [makeMentor(1)],
+            initialMentorCount: 1,
+          },
+        }
+      );
+
+      await new Promise((r) => setTimeout(r, 20));
+      expect(callCount).toBe(2);
+      expect(
+        model.getSnapshot(UNFILTERED_MENTOR_POOL_QUERY).mentors[0].user_id
+      ).toBe(902);
+      unsub2();
+
+      // clear() resets pendingPostMutationRefresh so clean SSR seeds do not fetch unnecessarily
+      model.invalidateAfterMutation();
+      model.clear();
+      const unsub3 = model.subscribeSnapshot(
+        UNFILTERED_MENTOR_POOL_QUERY,
+        () => {},
+        {
+          ssrSeed: {
+            initialMentors: [makeMentor(77)],
+            initialMentorCount: 1,
+          },
+        }
+      );
+      await new Promise((r) => setTimeout(r, 15));
+      expect(callCount).toBe(2);
+      expect(
+        model.getSnapshot(UNFILTERED_MENTOR_POOL_QUERY).mentors[0].user_id
+      ).toBe(77);
+      unsub3();
+
+      // Calling invalidateAfterMutation() while a filtered subscriber is mounted
+      // still preserves pendingPostMutationRefresh for subsequent unfiltered mount
+      const filteredQuery = { search_pattern: 'pm' };
+      const unsubFiltered = model.subscribeSnapshot(filteredQuery, () => {});
+      await new Promise((r) => setTimeout(r, 15));
+      expect(callCount).toBe(3);
+
+      model.invalidateAfterMutation();
+      await new Promise((r) => setTimeout(r, 15));
+      expect(callCount).toBe(4); // active filtered subscriber refreshed
+      unsubFiltered();
+
+      const unsubUnfilteredAfterFiltered = model.subscribeSnapshot(
+        UNFILTERED_MENTOR_POOL_QUERY,
+        () => {},
+        {
+          ssrSeed: {
+            initialMentors: [makeMentor(1)],
+            initialMentorCount: 1,
+          },
+        }
+      );
+      await new Promise((r) => setTimeout(r, 15));
+      expect(callCount).toBe(5);
+      expect(
+        model.getSnapshot(UNFILTERED_MENTOR_POOL_QUERY).mentors[0].user_id
+      ).toBe(905);
+      unsubUnfilteredAfterFiltered();
+    });
   });
 });

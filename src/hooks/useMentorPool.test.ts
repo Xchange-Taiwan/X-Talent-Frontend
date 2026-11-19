@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { fromPartial } from '@total-typescript/shoehorn';
 import type { ReadonlyURLSearchParams } from 'next/navigation';
 import React from 'react';
@@ -1682,6 +1682,167 @@ describe('useMentorPool', () => {
       'SSR V2 Mentor',
       'Client Page 2 Mentor',
     ]);
+  });
+
+  it('refetches live /v1/mentors on mount under React.StrictMode after mentorPoolReadModel.invalidateAfterMutation() even when initialMentors ssrSeed is stale (#974)', async () => {
+    mockSearchParams.toString.mockReturnValue('');
+    mockSearchParams.get.mockReturnValue(null);
+
+    const staleMentor = {
+      ...mockInitialMentors[0],
+      user_id: 700,
+      name: 'Existing Mentor',
+    };
+    const newlyOnboardedMentor = {
+      ...mockInitialMentors[0],
+      user_id: 701,
+      name: 'Newly Promoted Mentor',
+    };
+
+    mockFetchMentors.mockImplementation((_req, signal) => {
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          resolve({
+            mentors: [newlyOnboardedMentor, staleMentor],
+            nextCursor: null,
+          });
+        }, 5);
+        signal?.addEventListener('abort', () => {
+          clearTimeout(timer);
+          reject(new DOMException('Aborted', 'AbortError'));
+        });
+      });
+    });
+
+    mentorPoolReadModel.invalidateAfterMutation();
+
+    const { result } = renderHook(
+      () =>
+        useMentorPool({
+          initialMentors: [staleMentor],
+          initialNextCursor: null,
+          initialMentorCount: 1,
+          params: mockSearchParams as unknown as ReadonlyURLSearchParams,
+        }),
+      { wrapper: React.StrictMode }
+    );
+
+    await waitFor(() => {
+      expect(result.current.mentors.map((m) => m.name)).toEqual([
+        'Newly Promoted Mentor',
+        'Existing Mentor',
+      ]);
+    });
+    mockFetchMentors.mockReset();
+  });
+
+  it('preserves pending unfiltered refresh when mounting a filtered query first after invalidateAfterMutation(), then clearing filters (#974)', async () => {
+    const staleMentor = {
+      ...mockInitialMentors[0],
+      user_id: 710,
+      name: 'Stale SSR Mentor',
+    };
+    const filteredMentor = {
+      ...mockInitialMentors[0],
+      user_id: 711,
+      name: 'Filtered Mentor',
+    };
+    const freshUnfilteredMentor = {
+      ...mockInitialMentors[0],
+      user_id: 712,
+      name: 'Fresh Unfiltered Mentor',
+    };
+
+    mockSearchParams.toString.mockReturnValue('q=pm');
+    mockSearchParams.get.mockImplementation((key: string) =>
+      key === 'q' ? 'pm' : null
+    );
+
+    mockFetchMentors
+      .mockResolvedValueOnce({
+        mentors: [filteredMentor],
+        nextCursor: null,
+      })
+      .mockResolvedValueOnce({
+        mentors: [freshUnfilteredMentor, staleMentor],
+        nextCursor: null,
+      });
+
+    mentorPoolReadModel.invalidateAfterMutation();
+
+    const { result, rerender } = renderHook(() =>
+      useMentorPool({
+        initialMentors: [staleMentor],
+        initialNextCursor: null,
+        initialMentorCount: 1,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
+      })
+    );
+
+    await waitFor(() => {
+      expect(result.current.mentors.map((m) => m.name)).toEqual([
+        'Filtered Mentor',
+      ]);
+    });
+
+    // Clear filters back to unfiltered /mentor-pool -> must still fetch fresh unfiltered list
+    mockSearchParams.toString.mockReturnValue('');
+    mockSearchParams.get.mockReturnValue(null);
+    rerender();
+
+    await waitFor(() => {
+      expect(mockFetchMentors).toHaveBeenCalledTimes(2);
+      expect(result.current.mentors.map((m) => m.name)).toEqual([
+        'Fresh Unfiltered Mentor',
+        'Stale SSR Mentor',
+      ]);
+    });
+  });
+
+  it('immediately refreshes active mounted useMentorPool subscribers when invalidateAfterMutation() runs (#974)', async () => {
+    mockSearchParams.toString.mockReturnValue('');
+    mockSearchParams.get.mockReturnValue(null);
+
+    const staleMentor = {
+      ...mockInitialMentors[0],
+      user_id: 720,
+      name: 'Mounted Stale Mentor',
+    };
+    const updatedMentor = {
+      ...mockInitialMentors[0],
+      user_id: 721,
+      name: 'Mounted Fresh Mentor',
+    };
+
+    const { result } = renderHook(() =>
+      useMentorPool({
+        initialMentors: [staleMentor],
+        initialNextCursor: null,
+        initialMentorCount: 1,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
+      })
+    );
+
+    expect(result.current.mentors.map((m) => m.name)).toEqual([
+      'Mounted Stale Mentor',
+    ]);
+
+    mockFetchMentors.mockResolvedValueOnce({
+      mentors: [updatedMentor, staleMentor],
+      nextCursor: null,
+    });
+
+    await act(async () => {
+      mentorPoolReadModel.invalidateAfterMutation();
+    });
+
+    await waitFor(() => {
+      expect(mockFetchMentors).toHaveBeenCalledTimes(1);
+      expect(result.current.mentors.map((m) => m.name)).toEqual([
+        'Mounted Fresh Mentor',
+        'Mounted Stale Mentor',
+      ]);
+    });
   });
 });
 

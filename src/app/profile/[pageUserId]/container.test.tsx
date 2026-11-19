@@ -494,4 +494,109 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
       screen.queryByText(FAVORITE_SELF_BLOCKED_TOAST_MESSAGE)
     ).not.toBeInTheDocument();
   });
+
+  it('discards stale Mentee SSR initialDto and triggers fresh refetch at most once ONLY when confirmed owner session is already Mentor (#974)', () => {
+    const refetchMock = vi.fn();
+    const staleMenteeInitialDto = fromPartial<MentorProfileVO>({
+      user_id: 123,
+      is_mentor: false,
+    });
+    mockUseResolvedIdentity.mockReturnValue({
+      state: 'confirmed-member',
+      userId: PAGE_USER_ID,
+      isMentor: true,
+      avatar: undefined,
+    });
+    mockUseUserData.mockReturnValue({
+      userData: { user_id: 123, name: 'Stale Mentee', is_mentor: false },
+      isLoading: false,
+      error: null,
+      refetch: refetchMock,
+    });
+
+    const { rerender } = render(
+      <ProfilePageContainer
+        pageUserId={PAGE_USER_ID}
+        initialDto={staleMenteeInitialDto}
+        initialCatalogs={emptyCatalogs}
+      />
+    );
+
+    expect(mockUseUserData).toHaveBeenCalledWith(
+      123,
+      'zh_TW',
+      null,
+      emptyCatalogs
+    );
+    expect(refetchMock).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <ProfilePageContainer
+        pageUserId={PAGE_USER_ID}
+        initialDto={staleMenteeInitialDto}
+        initialCatalogs={emptyCatalogs}
+      />
+    );
+    expect(refetchMock).toHaveBeenCalledTimes(1);
+
+    // Non-owner Mentor viewing a Mentee profile preserves initialDto without refetch
+    vi.clearAllMocks();
+    const nonOwnerRefetch = vi.fn();
+    mockUseResolvedIdentity.mockReturnValue({
+      state: 'confirmed-member',
+      userId: '999',
+      isMentor: true,
+      avatar: undefined,
+    });
+    mockUseUserData.mockReturnValue({
+      userData: { user_id: 123, name: 'Mentee', is_mentor: false },
+      isLoading: false,
+      error: null,
+      refetch: nonOwnerRefetch,
+    });
+    render(
+      <ProfilePageContainer
+        pageUserId={PAGE_USER_ID}
+        initialDto={staleMenteeInitialDto}
+        initialCatalogs={emptyCatalogs}
+      />
+    );
+    expect(mockUseUserData).toHaveBeenCalledWith(
+      123,
+      'zh_TW',
+      staleMenteeInitialDto,
+      emptyCatalogs
+    );
+    expect(nonOwnerRefetch).not.toHaveBeenCalled();
+
+    // Mentee owner viewing own Mentee profile preserves initialDto without refetch
+    vi.clearAllMocks();
+    const menteeOwnerRefetch = vi.fn();
+    mockUseResolvedIdentity.mockReturnValue({
+      state: 'confirmed-member',
+      userId: PAGE_USER_ID,
+      isMentor: false,
+      avatar: undefined,
+    });
+    mockUseUserData.mockReturnValue({
+      userData: { user_id: 123, name: 'Mentee', is_mentor: false },
+      isLoading: false,
+      error: null,
+      refetch: menteeOwnerRefetch,
+    });
+    render(
+      <ProfilePageContainer
+        pageUserId={PAGE_USER_ID}
+        initialDto={staleMenteeInitialDto}
+        initialCatalogs={emptyCatalogs}
+      />
+    );
+    expect(mockUseUserData).toHaveBeenCalledWith(
+      123,
+      'zh_TW',
+      staleMenteeInitialDto,
+      emptyCatalogs
+    );
+    expect(menteeOwnerRefetch).not.toHaveBeenCalled();
+  });
 });

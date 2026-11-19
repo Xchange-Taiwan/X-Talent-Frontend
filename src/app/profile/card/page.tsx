@@ -28,7 +28,9 @@ export default async function Page() {
   // useUserData/useTagCatalog actually gets a chance to run, instead of the
   // cache being primed with a value that looks like a successful empty fetch.
   const [initialDto, initialCatalogs] = await Promise.all([
-    fetchUserByIdServer(loginUserId, 'zh_TW').catch(() => null),
+    fetchUserByIdServer(loginUserId, 'zh_TW', { bypassCache: true }).catch(
+      () => null
+    ),
     fetchTagCatalogServer('zh_TW').catch(() => null),
   ]);
 

@@ -338,7 +338,7 @@ export async function commitProfileMutation(
   // revalidation causes `useUserProfileDto` to emit `USER_NOT_FOUND` and
   // briefly flash "載入失敗，請稍後再試。" before navigation completes.
   async function step3RevalidateServerPaths() {
-    mentorPoolReadModel.clear();
+    mentorPoolReadModel.invalidateAfterMutation();
 
     if (resolvedPageUserId) {
       await revalidateProfilePath(resolvedPageUserId).catch((e) => {
@@ -646,7 +646,7 @@ export async function commitProfileMutation(
           cardFields,
           isMentorRelevant,
           async () => {
-            mentorPoolReadModel.clear();
+            mentorPoolReadModel.invalidateAfterMutation();
             if (resolvedPageUserId) {
               await revalidateProfilePath(resolvedPageUserId).catch(
                 (e: unknown) => {
