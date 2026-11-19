@@ -14,7 +14,7 @@ import { trackEvent, trackFormValidationFailed } from '@/lib/analytics';
 import {
   clampOnboardingName,
   sanitizePrefillAvatarUrl,
-} from '@/lib/auth/oauthOutcome';
+} from '@/lib/auth/sessionLifecycle';
 import {
   DEFAULT_PRESET_AVATAR_CODE,
   isGooglePrefillAvatarUrl,

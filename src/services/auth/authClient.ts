@@ -1,4 +1,5 @@
 import { apiClient, ApiError } from '@/lib/apiClient';
+import { isAccountDeletionEnabled } from '@/lib/featureFlags';
 import type { components } from '@/types/api';
 
 export type DeleteAccountDTO = components['schemas']['DeleteAccountDTO'];
@@ -104,7 +105,7 @@ export function createAuthClient(
     },
 
     async deleteAccount(payload) {
-      if (process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT !== 'true') {
+      if (!isAccountDeletionEnabled()) {
         return { status: 'error', message: '此環境不支援帳號刪除' };
       }
 

@@ -23,11 +23,8 @@ vi.mock('@/components/ui/use-toast', async () => {
   return useToastMockFactory();
 });
 
-vi.mock('@/lib/actions/googleCallback', () => ({
-  googleCallback: mockGoogleCallback,
-}));
-
 vi.mock('@/actions/auth', () => ({
+  googleCallback: mockGoogleCallback,
   revalidateProfilePathAfterDelete: mockRevalidateAfterDelete,
 }));
 

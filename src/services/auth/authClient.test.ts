@@ -350,7 +350,7 @@ describe('authClient behavioral seam (#895)', () => {
   });
 
   describe('deleteAccount', () => {
-    it('blocks deletion when NEXT_PUBLIC_CAN_DELETE_ACCOUNT is not "true"', async () => {
+    it('delegates to isAccountDeletionEnabled() (fail-closed when unset/false, allows trimmed case-insensitive " TRUE ")', async () => {
       process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT = 'false';
 
       const result = await authClient.deleteAccount(
@@ -362,6 +362,36 @@ describe('authClient behavioral seam (#895)', () => {
         message: '此環境不支援帳號刪除',
       });
       expect(mockFetch).not.toHaveBeenCalled();
+
+      delete process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT;
+      const unsetResult = await authClient.deleteAccount(
+        fromPartial({ email: 'user@example.com', password: 'Password1!' })
+      );
+      expect(unsetResult).toEqual({
+        status: 'error',
+        message: '此環境不支援帳號刪除',
+      });
+      expect(mockFetch).not.toHaveBeenCalled();
+
+      process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT = ' TRUE ';
+      mockFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: '409',
+            msg: '尚有進行中預約',
+            data: null,
+          }),
+          { status: 200 }
+        )
+      );
+
+      const allowedBlockedResult = await authClient.deleteAccount(
+        fromPartial({ email: 'user@example.com', password: 'Password1!' })
+      );
+      expect(allowedBlockedResult).toEqual({
+        status: 'blocked_reservations',
+      });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
     it('enforces unwrapped envelope check so HTTP-200 non-zero responses do not falsely report success', async () => {

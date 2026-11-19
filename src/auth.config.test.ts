@@ -1,7 +1,7 @@
 import { fromPartial } from '@total-typescript/shoehorn';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { googleCallback } from '@/lib/actions/googleCallback';
+import { googleCallback } from '@/actions/auth';
 import {
   type MentorExperience,
   resolveMentorExperienceLinks,

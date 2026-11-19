@@ -2,15 +2,17 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { getSession, signIn, signOut } from 'next-auth/react';
 import { useEffect, useRef, useState } from 'react';
 
-import { revalidateProfilePathAfterDelete } from '@/actions/auth';
-import { useToast } from '@/components/ui/use-toast';
-import { googleCallback } from '@/lib/actions/googleCallback';
 import {
+  googleCallback,
+  revalidateProfilePathAfterDelete,
+} from '@/actions/auth';
+import { useToast } from '@/components/ui/use-toast';
+import {
+  executeGoogleOAuthCallback,
   type PreExchangedGoogleOAuthResult,
   signInWithGoogleToken,
   synthesizePreExchangedSession,
-} from '@/lib/auth/oauthOutcome';
-import { executeGoogleOAuthCallback } from '@/lib/auth/sessionLifecycle';
+} from '@/lib/auth/sessionLifecycle';
 
 export function useGoogleOAuthCallback(
   initialPreExchanged?: PreExchangedGoogleOAuthResult | null
