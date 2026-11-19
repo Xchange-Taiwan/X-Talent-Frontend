@@ -7,17 +7,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { FOCUS_WITHIN_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
+import type { Category, CategoryOption } from '@/types/category';
 
-export interface CategoryOption {
-  value: string;
-  label: string;
-}
-
-export interface Category {
-  key: string;
-  label: string;
-  options: CategoryOption[];
-}
+export type { Category, CategoryOption } from '@/types/category';
 
 export interface CategoryMultiSelectProps {
   categories: Category[];

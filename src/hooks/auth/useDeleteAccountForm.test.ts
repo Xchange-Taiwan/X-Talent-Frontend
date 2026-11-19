@@ -53,9 +53,9 @@ import {
 } from '@/lib/auth/sessionHint';
 import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
 import { captureFlowFailure } from '@/lib/monitoring';
+import { notificationStoreManager } from '@/lib/notifications';
 import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
 import { authClient } from '@/services/auth/authClient';
-import { notificationStoreManager } from '@/stores/notificationStore';
 import { mockRouter } from '@/test/mocks/navigation';
 import {
   mockSession,

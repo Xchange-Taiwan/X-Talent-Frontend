@@ -4,19 +4,17 @@ import { SessionContext, type SessionContextValue } from 'next-auth/react';
 import * as React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  type NotificationItem,
-  useNotificationCenter,
-} from '@/hooks/useNotificationCenter';
+import { useNotificationCenter } from '@/hooks/useNotificationCenter';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   createInMemoryNotificationSource,
+  type NotificationItem,
   type NotificationSource,
-} from '@/services/notifications/notificationSource';
-import {
   notificationStoreManager,
+  type ProjectedNotificationItem,
+  projectNotificationItem,
   resetNotificationStore,
-} from '@/stores/notificationStore';
+} from '@/lib/notifications';
 import { mockToast } from '@/test/mocks/useToast';
 
 const mockUsePathname = vi.fn<() => string | null>(() => '/');
@@ -56,26 +54,28 @@ function createDeferred<T>(): Deferred<T> {
   return { promise, resolve, reject };
 }
 
-const mockNotifications: NotificationItem[] = [
-  {
-    id: 'n1',
-    type: 'reservation_requested',
-    createdAt: new Date().toISOString(),
-    unread: true,
-  },
-  {
-    id: 'n2',
-    type: 'reservation_success',
-    createdAt: new Date().toISOString(),
-    unread: true,
-  },
-  {
-    id: 'n3',
-    type: 'reservation_failed',
-    createdAt: new Date().toISOString(),
-    unread: false,
-  },
-];
+const mockNotifications: ProjectedNotificationItem[] = (
+  [
+    {
+      id: 'n1',
+      type: 'reservation_requested',
+      createdAt: new Date().toISOString(),
+      unread: true,
+    },
+    {
+      id: 'n2',
+      type: 'reservation_success',
+      createdAt: new Date().toISOString(),
+      unread: true,
+    },
+    {
+      id: 'n3',
+      type: 'reservation_failed',
+      createdAt: new Date().toISOString(),
+      unread: false,
+    },
+  ] satisfies NotificationItem[]
+).map(projectNotificationItem);
 
 describe('useNotificationCenter', () => {
   beforeEach(() => {

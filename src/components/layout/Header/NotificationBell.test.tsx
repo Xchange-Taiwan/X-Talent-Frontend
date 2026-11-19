@@ -10,20 +10,19 @@ import * as React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as useNotificationCenterModule from '@/hooks/useNotificationCenter';
-import { type NotificationItem } from '@/hooks/useNotificationCenter';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   createInMemoryNotificationSource,
+  getNotificationContent,
+  getNotificationHref,
+  type NotificationItem,
   type NotificationSource,
-} from '@/services/notifications/notificationSource';
-import { resetNotificationStore } from '@/stores/notificationStore';
+  projectNotificationItem,
+  resetNotificationStore,
+} from '@/lib/notifications';
 import { mockToast } from '@/test/mocks/useToast';
 
 import { NotificationBell } from './NotificationBell';
-import {
-  getNotificationContent,
-  getNotificationHref,
-} from './notificationUtils';
 
 vi.mock('@/components/ui/use-toast', async () => {
   const { useToastMockFactory } = await import('@/test/mocks/useToast');
@@ -333,18 +332,18 @@ describe('NotificationBell', () => {
             open: true,
             status: 'success',
             items: [
-              {
+              projectNotificationItem({
                 id: '1',
                 type: 'reservation_requested',
                 createdAt: new Date().toISOString(),
                 unread: true,
-              },
-              {
+              }),
+              projectNotificationItem({
                 id: '2',
                 type: 'reservation_success',
                 createdAt: new Date().toISOString(),
                 unread: false,
-              },
+              }),
             ],
             badgeCount: 1,
             showBadge: false,
@@ -443,7 +442,7 @@ describe('NotificationBell', () => {
           fromPartial({
             open: true,
             status: 'success',
-            items: MOCK_MIXED_NOTIFICATIONS,
+            items: MOCK_MIXED_NOTIFICATIONS.map(projectNotificationItem),
             badgeCount: 8,
             showBadge: false,
             formattedCount: '8',
@@ -475,7 +474,7 @@ describe('NotificationBell', () => {
           fromPartial({
             open: true,
             status: 'success',
-            items: MOCK_MIXED_NOTIFICATIONS,
+            items: MOCK_MIXED_NOTIFICATIONS.map(projectNotificationItem),
             badgeCount: 150,
             showBadge: false,
             formattedCount: '99+',
@@ -507,7 +506,7 @@ describe('NotificationBell', () => {
           fromPartial({
             open: true,
             status: 'success',
-            items: MOCK_MIXED_NOTIFICATIONS,
+            items: MOCK_MIXED_NOTIFICATIONS.map(projectNotificationItem),
             badgeCount: 8,
             showBadge: false,
             formattedCount: '8',

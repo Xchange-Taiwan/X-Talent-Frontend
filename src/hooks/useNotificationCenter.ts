@@ -4,17 +4,15 @@ import * as React from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
 import { useIsomorphicLayoutEffect } from '@/hooks/useIsomorphicLayoutEffect';
-import { ONBOARDING_HREF } from '@/lib/routes';
-import {
-  createFixtureNotificationSource,
-  type NotificationSource,
-} from '@/services/notifications/notificationSource';
-import type { NotificationItem } from '@/services/notifications/types';
 import {
   createInitialState,
+  type NotificationItem,
+  notificationReadModel,
+  type NotificationSource,
   type NotificationStatus,
-  notificationStoreManager,
-} from '@/stores/notificationStore';
+  projectNotificationCenterView,
+  resolveNotificationUserId,
+} from '@/lib/notifications';
 
 export type { NotificationItem };
 
@@ -43,31 +41,18 @@ export function useNotificationCenter({
   }
   const instanceId = instanceIdRef.current;
 
-  const explicitSource = React.useMemo(() => {
-    if (notificationSource !== undefined) {
-      return notificationSource;
-    }
-    if (initialNotifications !== undefined) {
-      return createFixtureNotificationSource(initialNotifications);
-    }
-    return undefined;
-  }, [notificationSource, initialNotifications]);
-
   const sessionContext = React.useContext(SessionContext);
   const pathname = usePathname();
-  const isIncompleteOnboarding =
-    sessionContext?.status === 'authenticated' &&
-    sessionContext.data?.user?.onBoarding === false;
-  const isOnboardingRoute = Boolean(
-    pathname &&
-    (pathname === ONBOARDING_HREF || pathname.startsWith(`${ONBOARDING_HREF}/`))
-  );
-  const effectiveUserId =
-    !enabled ||
-    (explicitSource === undefined &&
-      (isIncompleteOnboarding || isOnboardingRoute))
-      ? undefined
-      : userId;
+  const effectiveUserId = resolveNotificationUserId({
+    userId,
+    enabled,
+    pathname,
+    isIncompleteOnboarding:
+      sessionContext?.status === 'authenticated' &&
+      sessionContext.data?.user?.onBoarding === false,
+    hasExplicitSource:
+      notificationSource !== undefined || initialNotifications !== undefined,
+  });
 
   const serverSnapshot = React.useMemo(
     () =>
@@ -78,12 +63,12 @@ export function useNotificationCenter({
   const storeState = React.useSyncExternalStore(
     React.useCallback(
       (callback) => {
-        const unsubscribe = notificationStoreManager.subscribe(
+        const unsubscribe = notificationReadModel.subscribe(
           effectiveUserId,
           callback
         );
         return () => {
-          notificationStoreManager.closePanel(effectiveUserId, instanceId);
+          notificationReadModel.closePanel(effectiveUserId, instanceId);
           unsubscribe();
         };
       },
@@ -91,7 +76,7 @@ export function useNotificationCenter({
     ),
     React.useCallback(
       () =>
-        notificationStoreManager.getOrCreateState(
+        notificationReadModel.getOrCreateState(
           effectiveUserId,
           initialNotifications,
           initialStatus
@@ -102,30 +87,25 @@ export function useNotificationCenter({
   );
 
   useIsomorphicLayoutEffect(() => {
-    notificationStoreManager.configure(effectiveUserId, {
-      source: explicitSource,
+    notificationReadModel.configure(effectiveUserId, {
+      source: notificationSource,
       initialNotifications,
       initialStatus,
     });
-  }, [effectiveUserId, explicitSource, initialNotifications, initialStatus]);
+  }, [
+    effectiveUserId,
+    notificationSource,
+    initialNotifications,
+    initialStatus,
+  ]);
 
   React.useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  const loadedUnreadCount = React.useMemo(() => {
-    return storeState.notifications.filter((item) => item.unread).length;
-  }, [storeState.notifications]);
-
-  const badgeCount = storeState.unreadCountState;
-  const hasMore = storeState.nextCursor !== null;
-  const olderUnreadCount = hasMore
-    ? Math.max(badgeCount - loadedUnreadCount, 0)
-    : 0;
-
   const loadMore = React.useCallback(
     async (isRetry = false) => {
-      const result = await notificationStoreManager.loadMore(
+      const result = await notificationReadModel.loadMore(
         effectiveUserId,
         isRetry
       );
@@ -143,7 +123,7 @@ export function useNotificationCenter({
 
   const openCenter = React.useCallback(() => {
     setOpen(true);
-    void notificationStoreManager
+    void notificationReadModel
       .openPanel(effectiveUserId, instanceId)
       .then((result) => {
         if (result.status === 'failed' && result.hadCachedNotifications) {
@@ -158,7 +138,7 @@ export function useNotificationCenter({
 
   const closeCenter = React.useCallback(() => {
     setOpen(false);
-    notificationStoreManager.closePanel(effectiveUserId, instanceId);
+    notificationReadModel.closePanel(effectiveUserId, instanceId);
   }, [effectiveUserId, instanceId]);
 
   const onOpenChange = React.useCallback(
@@ -174,10 +154,7 @@ export function useNotificationCenter({
 
   const markRead = React.useCallback(
     async (id: string) => {
-      const result = await notificationStoreManager.markRead(
-        effectiveUserId,
-        id
-      );
+      const result = await notificationReadModel.markRead(effectiveUserId, id);
       if (result.status === 'failed') {
         toast({
           variant: 'destructive',
@@ -189,8 +166,8 @@ export function useNotificationCenter({
     [effectiveUserId, toast]
   );
 
-  const markAllReadAction = React.useCallback(async () => {
-    const result = await notificationStoreManager.markAllRead(effectiveUserId);
+  const markAllRead = React.useCallback(async () => {
+    const result = await notificationReadModel.markAllRead(effectiveUserId);
     if (result.status === 'failed') {
       toast({
         variant: 'destructive',
@@ -201,31 +178,24 @@ export function useNotificationCenter({
   }, [effectiveUserId, toast]);
 
   const handleRetry = React.useCallback(() => {
-    void notificationStoreManager.retry(effectiveUserId);
+    void notificationReadModel.retry(effectiveUserId);
   }, [effectiveUserId]);
 
-  const showBadge = isMounted && badgeCount > storeState.seenUnreadCount;
-  const formattedCount = badgeCount > 99 ? '99+' : String(badgeCount);
-  const hasUnread = badgeCount > 0;
+  const view = projectNotificationCenterView(storeState, isMounted);
 
   return {
     open,
     status: storeState.status,
     items: storeState.notifications,
-    badgeCount,
-    showBadge,
-    formattedCount,
-    hasUnread,
+    ...view,
     openCenter,
     closeCenter,
     onOpenChange,
     markRead,
-    markAllRead: markAllReadAction,
+    markAllRead,
     handleRetry,
     isLoadingMore: storeState.isLoadingMore,
-    hasMore,
     loadMore,
     hasLoadMoreError: storeState.hasLoadMoreError,
-    olderUnreadCount,
   };
 }

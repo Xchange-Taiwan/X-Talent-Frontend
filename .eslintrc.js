@@ -131,7 +131,11 @@ module.exports = {
       },
     },
     {
-      files: ['src/lib/**/*.{ts,tsx}', 'src/services/**/*.{ts,tsx}'],
+      files: [
+        'src/lib/**/*.{ts,tsx}',
+        'src/services/**/*.{ts,tsx}',
+        'src/schemas/**/*.{ts,tsx}',
+      ],
       excludedFiles: [
         '**/*.test.{ts,tsx}',
         '**/*.spec.{ts,tsx}',
@@ -145,24 +149,39 @@ module.exports = {
               {
                 name: 'react',
                 message:
-                  'src/lib and src/services are deep modules and must not import react.',
+                  'src/lib, src/services, and src/schemas are deep modules and must not import react.',
               },
               {
                 name: 'next/navigation',
                 message:
-                  'src/lib and src/services are deep modules and must not import next/navigation.',
+                  'src/lib, src/services, and src/schemas are deep modules and must not import next/navigation.',
               },
               {
                 name: 'next-auth/react',
                 message:
-                  'src/lib and src/services are deep modules and must not import next-auth/react.',
+                  'src/lib, src/services, and src/schemas are deep modules and must not import next-auth/react.',
               },
             ],
             patterns: [
               {
-                group: ['@/hooks/**'],
+                group: ['@/hooks', '@/hooks/**'],
                 message:
-                  'src/lib and src/services are deep modules and must not import from the hooks layer.',
+                  'src/lib, src/services, and src/schemas are deep modules and must not import from the hooks layer.',
+              },
+              {
+                group: ['@/components', '@/components/**'],
+                message:
+                  'src/lib, src/services, and src/schemas are deep modules and must not import from the components layer.',
+              },
+              {
+                group: ['@/stores', '@/stores/**'],
+                message:
+                  'src/lib, src/services, and src/schemas are deep modules and must not import from @/stores (consolidate state into src/lib).',
+              },
+              {
+                group: ['@/app', '@/app/**'],
+                message:
+                  'src/lib, src/services, and src/schemas are deep modules and must not import from the app router layer.',
               },
             ],
           },

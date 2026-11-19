@@ -11,23 +11,20 @@ import {
 } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useIntersectionObserver } from '@/hooks/useIntersectionObserver';
-import {
-  type NotificationItem,
-  useNotificationCenter,
-} from '@/hooks/useNotificationCenter';
+import { useNotificationCenter } from '@/hooks/useNotificationCenter';
 import { useScrollThumb } from '@/hooks/useScrollThumb';
 import { formatRelativeTime } from '@/lib/dateUtils';
+import type {
+  NotificationItem,
+  NotificationSource,
+  NotificationStatus,
+  ProjectedNotificationItem,
+} from '@/lib/notifications';
 import {
   FOCUS_RING_CLASSES,
   FOCUS_RING_NO_OFFSET_CLASSES,
 } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
-import type { NotificationSource } from '@/services/notifications/notificationSource';
-
-import {
-  getNotificationContent,
-  getNotificationHref,
-} from './notificationUtils';
 
 export type NotificationBellProps = {
   /**
@@ -42,7 +39,7 @@ export type NotificationBellProps = {
    * Initial display status of the notification center dropdown.
    * @default 'success'
    */
-  initialStatus?: 'loading' | 'error' | 'empty' | 'success';
+  initialStatus?: NotificationStatus;
   /**
    * Preloaded initial list of notifications for static fixtures/stories.
    */
@@ -54,7 +51,7 @@ export type NotificationBellProps = {
 };
 
 type NotificationListProps = {
-  notifications: NotificationItem[];
+  notifications: ProjectedNotificationItem[];
   scrollRefCallback: React.RefCallback<HTMLDivElement>;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
@@ -69,9 +66,8 @@ type NotificationListProps = {
 
 /**
  * Memoized so scroll-driven thumb position updates in the parent don't
- * force this list (and its per-item `getNotificationContent` /
- * `getNotificationHref` calls) to re-render on every frame.
- * Uses custom useIntersectionObserver hook with a sentinel element for performance.
+ * force this list to re-render on every frame. Notification `title`, `body`,
+ * and `targetHref` are pre-projected in `notificationReadModel`.
  */
 const NotificationList = React.memo(function NotificationList({
   notifications,
@@ -112,51 +108,47 @@ const NotificationList = React.memo(function NotificationList({
         data-clarity-mask="true"
         className="divide-background-border flex flex-col divide-y"
       >
-        {notifications.map((item) => {
-          const { title, body } = getNotificationContent(item);
-          const href = getNotificationHref(item);
-          return (
-            <Link
-              key={item.id}
-              href={href}
-              onClick={() => {
-                onItemClick(item.id);
-                onNavigate();
-              }}
-              className={cn(
-                '[@media(hover:hover)]:hover:bg-background-hover flex items-start gap-2.5 px-5 py-3 transition-colors hover:no-underline',
-                FOCUS_RING_NO_OFFSET_CLASSES
+        {notifications.map((item) => (
+          <Link
+            key={item.id}
+            href={item.targetHref || '/'}
+            onClick={() => {
+              onItemClick(item.id);
+              onNavigate();
+            }}
+            className={cn(
+              '[@media(hover:hover)]:hover:bg-background-hover flex items-start gap-2.5 px-5 py-3 transition-colors hover:no-underline',
+              FOCUS_RING_NO_OFFSET_CLASSES
+            )}
+          >
+            <span className="mt-1.5 flex size-4 shrink-0 items-center justify-center">
+              {item.unread && (
+                <span
+                  className="bg-brand-500 size-2 rounded-full"
+                  aria-hidden="true"
+                />
               )}
-            >
-              <span className="mt-1.5 flex size-4 shrink-0 items-center justify-center">
-                {item.unread && (
-                  <span
-                    className="bg-brand-500 size-2 rounded-full"
-                    aria-hidden="true"
-                  />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p
+                className={cn(
+                  'mb-1 text-sm leading-tight break-words',
+                  item.unread
+                    ? 'text-text-primary font-bold'
+                    : 'text-text-secondary font-normal'
                 )}
+              >
+                {item.title}
+              </p>
+              <p className="text-text-secondary mb-1.5 text-xs leading-normal break-words">
+                {item.body}
+              </p>
+              <span className="text-11 text-text-tertiary leading-none">
+                {formatRelativeTime(item.createdAt)}
               </span>
-              <div className="min-w-0 flex-1">
-                <p
-                  className={cn(
-                    'mb-1 text-sm leading-tight break-words',
-                    item.unread
-                      ? 'text-text-primary font-bold'
-                      : 'text-text-secondary font-normal'
-                  )}
-                >
-                  {title}
-                </p>
-                <p className="text-text-secondary mb-1.5 text-xs leading-normal break-words">
-                  {body}
-                </p>
-                <span className="text-11 text-text-tertiary leading-none">
-                  {formatRelativeTime(item.createdAt)}
-                </span>
-              </div>
-            </Link>
-          );
-        })}
+            </div>
+          </Link>
+        ))}
 
         {!!olderUnreadCount && olderUnreadCount > 0 && (
           <div className="flex items-center justify-center py-2.5 text-center">

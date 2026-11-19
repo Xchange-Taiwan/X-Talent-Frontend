@@ -2,6 +2,10 @@ import type { Meta, StoryObj } from '@storybook/nextjs';
 import React from 'react';
 
 import { encodeSessionHint } from '@/lib/auth/sessionHint';
+import {
+  createInMemoryNotificationSource,
+  notificationReadModel,
+} from '@/lib/notifications';
 
 import { Header } from './Header';
 
@@ -21,11 +25,28 @@ const meta: Meta<typeof Header> = {
     },
   },
   decorators: [
-    (Story) => (
-      <div className="bg-background-bottom min-h-[120px]">
-        <Story />
-      </div>
-    ),
+    (Story) => {
+      const storyNotificationSource = createInMemoryNotificationSource(
+        [
+          {
+            id: 'header-story-1',
+            type: 'reservation_requested',
+            menteeName: '林學員 (Mentee)',
+            role: 'mentor',
+            createdAt: new Date().toISOString(),
+            unread: true,
+          },
+        ],
+        { requiresAuth: false }
+      );
+      notificationReadModel.setSource('mentor-123', storyNotificationSource);
+      notificationReadModel.setSource('mentee-456', storyNotificationSource);
+      return (
+        <div className="bg-background-bottom min-h-[120px]">
+          <Story />
+        </div>
+      );
+    },
   ],
 };
 

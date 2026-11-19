@@ -30,6 +30,7 @@ const DOM_DEPENDENT_LIB_TESTS = [
   'src/lib/auth/sessionLifecycle.test.ts',
   'src/lib/cache/userProfileDtoCache.test.ts',
   'src/lib/favorites/pendingFavoriteStorage.test.ts',
+  'src/lib/notifications/notificationReadModel.test.ts',
   'src/lib/profile/saveProfile.test.ts',
   'src/lib/profile/searchSchools.test.ts',
   'src/lib/reservation/pendingFeedbackGuard.test.ts',
