@@ -606,17 +606,36 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
   test('Mentor 造訪 /profile/card → 顯示 D-2 Mentor 資料已建立完成翻面小卡，點擊「前往導師頁」導向 /profile/:id', async ({
     page,
   }) => {
-    await seedProfileUser(page, true);
+    const seededMentorId = '7482008160728084';
+    await seedMockAuthSession(page, {
+      id: seededMentorId,
+      name: 'Mentee',
+      avatar: '',
+      isMentor: true,
+      onBoarding: true,
+      jobTitle: 'Frontend Engineer',
+      company: 'XChange',
+    });
 
     await mockApiRoute(
       page,
-      new RegExp(`/v1/mentors/${USER_ID}/zh_TW/profile`),
+      new RegExp(`/v1/mentors/${seededMentorId}/zh_TW/profile`),
       {
-        body: makeProfile({
-          name: 'Test Mentor',
-          isMentor: true,
-          about: '資深前端導師',
-        }),
+        body: {
+          ...makeProfile({
+            name: 'Mentee',
+            isMentor: true,
+            about: '資深前端導師',
+          }),
+          data: {
+            ...makeProfile({
+              name: 'Mentee',
+              isMentor: true,
+              about: '資深前端導師',
+            }).data,
+            user_id: Number(seededMentorId),
+          },
+        },
       }
     );
 
@@ -627,16 +646,40 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
     ).toBeVisible({
       timeout: 15_000,
     });
-    await expect(
-      page.getByRole('heading', { name: 'Test Mentor' })
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Mentee' })).toBeVisible();
     await expect(
       page.getByRole('button', { name: '成為導師' })
     ).not.toBeVisible();
 
     const flipCard = page.getByTestId('mentor-welcome-flip-card');
+    await expect(flipCard).toHaveAttribute('aria-pressed', 'false');
     await flipCard.click();
+    await expect(flipCard).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('mentor-card-front')).toHaveAttribute(
+      'aria-hidden',
+      'true'
+    );
+    await expect(page.getByTestId('mentor-card-back')).toHaveAttribute(
+      'aria-hidden',
+      'false'
+    );
     await expect(page.getByText('WELCOME TO X-TALENT')).toBeVisible();
+
+    // Verify native <button> keyboard Space and Enter flip without double-toggle (#961)
+    await flipCard.focus();
+    await page.keyboard.press('Space');
+    await expect(flipCard).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.getByTestId('mentor-card-front')).toHaveAttribute(
+      'aria-hidden',
+      'false'
+    );
+
+    await page.keyboard.press('Enter');
+    await expect(flipCard).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('mentor-card-back')).toHaveAttribute(
+      'aria-hidden',
+      'false'
+    );
 
     const setupScheduleBtn = page.getByRole('button', {
       name: '設定時段',
@@ -645,7 +688,7 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
     await setupScheduleBtn.click();
 
     await expect(page).toHaveURL(
-      new RegExp(`/profile/${USER_ID}(?:\\?open-schedule=true)?$`),
+      new RegExp(`/profile/${seededMentorId}(?:\\?open-schedule=true)?$`),
       { timeout: 15_000 }
     );
     await expect(page.getByRole('dialog')).toBeVisible({ timeout: 15_000 });
@@ -658,7 +701,9 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
     await expect(backToProfileBtn).toBeVisible({ timeout: 15_000 });
     await backToProfileBtn.click();
 
-    await expect(page).toHaveURL(`/profile/${USER_ID}`, { timeout: 15_000 });
+    await expect(page).toHaveURL(`/profile/${seededMentorId}`, {
+      timeout: 15_000,
+    });
   });
 
   test('Mentee 進入 ?mentor-onboarding=true → 透過 UI 補齊所有 Mentor 必填欄位後以 is_mentor=true 送出，並可於 /mentor-pool 搜尋', async ({
@@ -819,6 +864,9 @@ test.describe('Profile Avatar Upload, Card Page & Become Mentor E2E (#790)', () 
     expect(submittedPayload).not.toBeNull();
     expect(submittedPayload?.['is_mentor']).toBe(true);
     expect(submittedPayload?.['about']).toBe('我擁有豐富的前端與職涯輔導經驗');
+    expect(submittedPayload?.['want_position']).toEqual(['TEST_POS']);
+    expect(submittedPayload?.['want_skill']).toEqual(['TEST_SKILL']);
+    expect(submittedPayload?.['want_topic']).toEqual(['TEST_TOPIC']);
     expect(
       Array.isArray(submittedPayload?.['have_topic']) &&
         (submittedPayload?.['have_topic'] as unknown[]).length > 0

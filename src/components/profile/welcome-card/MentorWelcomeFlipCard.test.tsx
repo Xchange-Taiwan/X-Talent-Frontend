@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { fromPartial } from '@total-typescript/shoehorn';
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -32,7 +33,8 @@ describe('MentorWelcomeFlipCard (#961)', () => {
     have_skill: [{ subject_group: 'ux', subject: 'UX Research' }],
   });
 
-  it('renders front face without L1 badge and flips to welcome back face on click with 3D CSS transition', () => {
+  it('renders front face without L1 badge and flips to welcome back face on click and keyboard Enter/Space without double-toggling', async () => {
+    const user = userEvent.setup();
     render(<MentorWelcomeFlipCard userData={mentorData} />);
 
     const frontFace = screen.getByTestId('mentor-card-front');
@@ -49,19 +51,24 @@ describe('MentorWelcomeFlipCard (#961)', () => {
     expect(screen.getByText('UX Research')).toBeInTheDocument();
     expect(screen.getByText('臺灣 · 5–10 年經驗')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('mentor-welcome-flip-card'));
+    const flipSurface = screen.getByTestId('mentor-welcome-flip-card');
+    await user.click(flipSurface);
 
+    expect(flipSurface).toHaveAttribute('aria-pressed', 'true');
     expect(frontFace).toHaveAttribute('aria-hidden', 'true');
     expect(backFace).toHaveAttribute('aria-hidden', 'false');
     expect(screen.getByText('WELCOME TO X-TALENT')).toBeInTheDocument();
     expect(screen.getByText(/很高興/)).toBeInTheDocument();
     expect(screen.getByText(/讓經驗成為連結/)).toBeInTheDocument();
 
-    // Keyboard Enter and Space flip back and forth accessibly (#961)
-    const flipSurface = screen.getByTestId('mentor-welcome-flip-card');
-    fireEvent.keyDown(flipSurface, { key: 'Enter' });
+    // Native <button> keyboard Enter and Space via userEvent (synthesizing real click events)
+    flipSurface.focus();
+    await user.keyboard('{Enter}');
+    expect(flipSurface).toHaveAttribute('aria-pressed', 'false');
     expect(frontFace).toHaveAttribute('aria-hidden', 'false');
-    fireEvent.keyDown(flipSurface, { key: ' ' });
+
+    await user.keyboard(' ');
+    expect(flipSurface).toHaveAttribute('aria-pressed', 'true');
     expect(backFace).toHaveAttribute('aria-hidden', 'false');
   });
 

@@ -72,13 +72,6 @@ export function MentorWelcomeFlipCard({
       ? `${userData.job_title}\nat ${userData.company}`
       : userData.job_title || userData.company || '';
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      setIsFlipped((prev) => !prev);
-    }
-  };
-
   return (
     <div
       className={cn(
@@ -98,7 +91,6 @@ export function MentorWelcomeFlipCard({
           aria-pressed={isFlipped}
           aria-label={isFlipped ? '翻回導師小卡正面' : '翻轉導師小卡查看歡迎語'}
           onClick={() => setIsFlipped((prev) => !prev)}
-          onKeyDown={handleKeyDown}
           className={cn(
             FOCUS_RING_NO_OFFSET_CLASSES,
             'absolute inset-0 z-10 cursor-pointer rounded-3xl bg-transparent'
