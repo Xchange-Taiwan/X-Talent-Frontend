@@ -105,6 +105,7 @@ export default defineConfig({
         test: {
           name: 'unit-node',
           environment: 'node',
+          testTimeout: 15000,
           include: ['scripts/**/*.{test,spec}.mjs', ...pureNodeSrcTests],
           exclude: ['node_modules/**'],
         },

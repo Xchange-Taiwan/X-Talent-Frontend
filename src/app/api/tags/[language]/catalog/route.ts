@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
 
 import {
-  fetchTagCatalogServer,
   isOnboardingCatalogComplete,
-} from '@/services/profile/tagCatalog.server';
-
-const SAFE_LANGUAGE_RE = /^[A-Za-z]{2,3}(?:[_-][A-Za-z0-9]{2,8})?$/;
+  isValidCatalogLanguage,
+} from '@/services/profile/tagCatalog';
+import { fetchTagCatalogServer } from '@/services/profile/tagCatalog.server';
 
 export async function GET(
   _request: Request,
@@ -14,7 +13,7 @@ export async function GET(
   const { language } = await context.params;
   const trimmed = typeof language === 'string' ? language.trim() : '';
 
-  if (!SAFE_LANGUAGE_RE.test(trimmed)) {
+  if (!isValidCatalogLanguage(trimmed)) {
     return NextResponse.json(
       { error: 'Invalid language parameter' },
       { status: 400, headers: { 'Cache-Control': 'no-store' } }

@@ -4,28 +4,19 @@ import { apiClient, ApiError, BASE_URL } from '@/lib/apiClient';
 import type { components } from '@/types/api';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 
-import { EMPTY_TAG_CATALOGS, splitCatalogsByBucket } from './tagCatalog';
+import {
+  EMPTY_TAG_CATALOGS,
+  isOnboardingCatalogComplete,
+  splitCatalogsByBucket,
+} from './tagCatalog';
+
+export { isOnboardingCatalogComplete };
 
 const REVALIDATE_SECONDS = 86400;
 const DEFAULT_RETRY_DELAYS_MS = [300, 800] as const;
 
 export interface FetchTagCatalogServerOptions {
   retryDelaysMs?: readonly number[];
-}
-
-/**
- * Requires all three mandatory onboarding tag buckets (`want_position`,
- * `want_skill`, `want_topic`) to be non-empty before caching so partial
- * upstream degradation never bricks Step 3 ("有興趣多了解的職位") for 24h.
- */
-export function isOnboardingCatalogComplete(
-  catalog: TagCatalogsByBucket
-): boolean {
-  return (
-    catalog.want_position.length > 0 &&
-    catalog.want_skill.length > 0 &&
-    catalog.want_topic.length > 0
-  );
 }
 
 function isNonRetryableClientError(error: unknown): boolean {
