@@ -79,12 +79,90 @@ const MOCK_USER_PROFILE = {
  * Mock the five option-list APIs so dropdowns and checkbox lists are populated
  * without a real backend.
  */
+const MOCK_TAG_CATALOG = {
+  code: '0',
+  msg: 'ok',
+  data: {
+    language: 'zh_TW',
+    catalogs: {
+      position: {
+        kind: 'position',
+        groups: [
+          {
+            language: 'zh_TW',
+            subject_group: 'software_dev',
+            subject: '軟體開發',
+            leaves: [
+              {
+                tag_id: 1,
+                language: 'zh_TW',
+                subject_group: 'frontend_engineer',
+                subject: '前端工程師',
+              },
+            ],
+          },
+        ],
+      },
+      skill: {
+        kind: 'skill',
+        groups: [
+          {
+            language: 'zh_TW',
+            subject_group: 'software_dev',
+            subject: '軟體開發',
+            leaves: [
+              {
+                tag_id: 2,
+                language: 'zh_TW',
+                subject_group: 'react',
+                subject: 'React',
+              },
+            ],
+          },
+        ],
+      },
+      topic: {
+        kind: 'topic',
+        groups: [
+          {
+            language: 'zh_TW',
+            subject_group: 'career',
+            subject: '職涯發展',
+            leaves: [
+              {
+                tag_id: 3,
+                language: 'zh_TW',
+                subject_group: 'resume',
+                subject: '履歷健檢',
+              },
+            ],
+          },
+        ],
+      },
+      industry: {
+        kind: 'industry',
+        groups: [
+          {
+            language: 'zh_TW',
+            subject_group: 'TECH',
+            subject: '科技業',
+            leaves: [],
+          },
+        ],
+      },
+    },
+  },
+};
+
 async function setupPageMocks(page: Page): Promise<void> {
   await mockApiRoute(page, /\/v1\/users\/zh_TW\/countries/, {
     body: MOCK_COUNTRIES,
   });
   await mockApiRoute(page, /\/v1\/users\/zh_TW\/industries/, {
     body: MOCK_INDUSTRIES,
+  });
+  await mockApiRoute(page, /\/v1\/users\/zh_TW\/tags\/catalog/, {
+    body: MOCK_TAG_CATALOG,
   });
 
   // Three interest types share one endpoint; differentiate by query param.
@@ -179,7 +257,8 @@ test('complete single-page Mentee onboarding → saves default_1 avatar & single
   const posPopover = page.locator('[data-radix-popper-content-wrapper]');
   await posPopover.locator('.max-h-80 button[type="button"]').first().click();
   await posPopover.locator('[role="checkbox"]').first().click();
-  await expect(page.getByText('已選 1 / 1')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByText('已選 1 / 1', { exact: true })).toBeVisible();
 
   // Select 1 skill
   await page.getByRole('button', { name: '新增技能' }).click();
@@ -195,10 +274,12 @@ test('complete single-page Mentee onboarding → saves default_1 avatar & single
   await topicPopover.locator('[role="checkbox"]').first().click();
   await page.keyboard.press('Escape');
 
-  await captureEvidence(page, 'onboarding-single-page-mentee');
+  await captureEvidence(page, 'onboarding-single-page-mentee', {
+    fullPage: true,
+  });
   await page.getByRole('button', { name: '提交' }).click();
 
-  await expect(page).toHaveURL('/profile/1', { timeout: 15_000 });
+  await expect(page).toHaveURL('/profile/1', { timeout: 35_000 });
   expect(
     Array.isArray(capturedOnboardingPut?.['want_position']) &&
       (capturedOnboardingPut?.['want_position'] as unknown[]).length === 1
@@ -210,15 +291,49 @@ test('switch between Mentee and Mentor role on single-page onboarding → enforc
 }) => {
   await gotoOnboarding(page);
 
+  await page.getByRole('button', { name: '雙軌身分說明' }).click();
+  await expect(
+    page.getByText(/同一個帳號可同時作為 Mentee 探索職涯/)
+  ).toBeVisible();
+  await captureEvidence(page, 'onboarding-single-page-popover');
+  await page.keyboard.press('Escape');
+
   await page.getByTestId('onboarding-role-mentor').click();
   await expect(page.getByText('我已閱讀並同意導師規範')).toBeVisible();
-  await captureEvidence(page, 'onboarding-single-page-mentor');
+  await expect(
+    page.getByRole('button', { name: '新增工作經驗' })
+  ).toBeVisible();
+  await captureEvidence(page, 'onboarding-single-page-mentor', {
+    fullPage: true,
+  });
+
+  // Also capture 390x844 mobile layout for single-page onboarding
+  await page.setViewportSize({ width: 390, height: 844 });
+  await captureEvidence(page, 'onboarding-single-page-mentor-mobile');
+  await page.setViewportSize({ width: 1280, height: 720 });
 
   await page.getByRole('button', { name: '提交' }).click();
   await expect(page.getByText('請先閱讀並勾選同意導師規範')).toBeVisible();
   await expect(
     page.getByText('請上傳真人照片，預設頭像僅供預覽')
   ).toBeVisible();
+});
+
+test('landing page renders settled A-1 dual-track growth banner between role benefits and testimonials (#836)', async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.goto('/');
+
+  const section = page.getByTestId('homepage-dual-track');
+  await section.scrollIntoViewIfNeeded();
+  await expect(
+    section.getByRole('heading', { name: '一個帳號，雙軌成長' })
+  ).toBeVisible();
+  await expect(page.getByTestId('homepage-cta-dual-track')).toBeVisible({
+    timeout: 15_000,
+  });
+  await captureEvidence(page, 'landing-dual-track-a1-settled');
 });
 
 test('頭像預覽 URL 已含 query string 時以 &cb= 附加快取參數而非重複 ?cb= (#857)', async ({

@@ -4,30 +4,57 @@ import { ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
 import React from 'react';
 
+import { Skeleton } from '@/components/ui/skeleton';
 import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
+import type { ResolvedIdentity } from '@/lib/auth/sessionHint';
 import {
   FIND_MENTOR_HREF,
-  getMentorOnboardingUrl,
+  getBecomeMentorHref,
   SIGNUP_HREF,
 } from '@/lib/routes';
 import { FOCUS_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 
+export interface ResolvedDualTrackCta {
+  label: string;
+  href: string;
+  disabled: boolean;
+}
+
+export function resolveDualTrackCta(
+  identity: ResolvedIdentity
+): ResolvedDualTrackCta {
+  const isMember =
+    identity.state === 'confirmed-member' || identity.state === 'hint-only';
+
+  if (!isMember) {
+    return {
+      label: '加入 X-Talent',
+      href: SIGNUP_HREF,
+      disabled: false,
+    };
+  }
+
+  if (identity.isMentor) {
+    return {
+      label: '探索導師池',
+      href: FIND_MENTOR_HREF,
+      disabled: false,
+    };
+  }
+
+  const disabled = identity.state === 'hint-only' || !identity.userId;
+  return {
+    label: '成為導師',
+    href: getBecomeMentorHref(identity.userId),
+    disabled,
+  };
+}
+
 export function DualTrackSection(): React.ReactElement {
   const identity = useResolvedIdentity();
-
-  const isMember =
-    identity.state === 'confirmed-member' && Boolean(identity.userId);
-  const href = !isMember
-    ? SIGNUP_HREF
-    : identity.isMentor
-      ? FIND_MENTOR_HREF
-      : getMentorOnboardingUrl(identity.userId!);
-  const ctaLabel = !isMember
-    ? '加入 X-Talent'
-    : identity.isMentor
-      ? '探索導師池'
-      : '成為導師';
+  const isUnknown = identity.state === 'unknown';
+  const resolved = isUnknown ? null : resolveDualTrackCta(identity);
 
   return (
     <div className="px-5 py-4 sm:px-6">
@@ -50,20 +77,35 @@ export function DualTrackSection(): React.ReactElement {
           </p>
         </div>
 
-        <Link
-          href={href}
-          data-testid="homepage-cta-dual-track"
-          data-analytics-click="landing_dual_track_cta"
-          data-analytics-feature="landing"
-          data-analytics-location="dual_track_banner"
-          className={cn(
-            FOCUS_RING_NO_OFFSET_CLASSES,
-            'bg-brand-500 text-text-primary hover:bg-brand-600 inline-flex shrink-0 items-center gap-1.5 rounded-lg px-5 py-3 text-sm font-medium whitespace-nowrap transition-colors'
-          )}
-        >
-          <span>{ctaLabel}</span>
-          <ArrowUpRight className="size-4" aria-hidden="true" />
-        </Link>
+        {isUnknown || !resolved ? (
+          <Skeleton
+            data-testid="homepage-cta-dual-track-skeleton"
+            className="h-11 w-[140px] shrink-0 rounded-lg"
+          />
+        ) : (
+          <Link
+            href={resolved.disabled ? '#' : resolved.href}
+            aria-disabled={resolved.disabled}
+            tabIndex={resolved.disabled ? -1 : undefined}
+            onClick={(e) => {
+              if (resolved.disabled) {
+                e.preventDefault();
+              }
+            }}
+            data-testid="homepage-cta-dual-track"
+            data-analytics-click="landing_dual_track_cta"
+            data-analytics-feature="landing"
+            data-analytics-location="dual_track_banner"
+            className={cn(
+              FOCUS_RING_NO_OFFSET_CLASSES,
+              'bg-brand-500 text-text-primary hover:bg-brand-600 inline-flex shrink-0 items-center gap-1.5 rounded-lg px-5 py-3 text-sm font-medium whitespace-nowrap transition-colors',
+              resolved.disabled && 'pointer-events-none opacity-50'
+            )}
+          >
+            <span>{resolved.label}</span>
+            <ArrowUpRight className="size-4" aria-hidden="true" />
+          </Link>
+        )}
       </section>
     </div>
   );

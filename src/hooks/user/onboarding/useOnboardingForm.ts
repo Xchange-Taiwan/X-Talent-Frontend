@@ -418,14 +418,14 @@ export function useOnboardingForm({
           industry: values.industry ?? '',
           statement: '',
           about: values.about ?? '',
-          have_topic: values.have_topic,
-          have_skill: values.have_skill,
+          have_topic: values.have_topic ?? [],
+          have_skill: values.have_skill ?? [],
           want_position: [],
           want_skill: [],
           want_topic: [],
-          work_experiences: values.work_experiences,
-          educations: values.educations,
-          links: values.links,
+          work_experiences: values.work_experiences ?? [],
+          educations: values.educations ?? [],
+          links: values.links ?? onboardingDefaultValues.links!,
         };
 
         await commitProfileMutation(

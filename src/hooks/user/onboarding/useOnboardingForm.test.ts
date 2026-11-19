@@ -12,6 +12,7 @@ import {
   getPendingFavoriteMentorId,
   savePendingFavoriteMentor,
 } from '@/lib/favorites';
+import { readStoredMenteeDirectionMap } from '@/lib/profile/menteeDirectionPreference';
 import type { ProfileSavePort } from '@/lib/profile/saveProfile';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
@@ -280,6 +281,9 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
     );
 
     act(() => {
+      result.current.setDirectionMap({
+        pos1: { skills: ['skill1'], topics: ['topic1'] },
+      });
       result.current.form.reset({
         ...result.current.form.getValues(),
         role: 'mentee',
@@ -301,6 +305,9 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
     });
 
     expect(mockConsume).toHaveBeenCalledWith(file);
+    expect(readStoredMenteeDirectionMap('1')).toEqual({
+      pos1: { skills: ['skill1'], topics: ['topic1'] },
+    });
     expect(mockWriteProfile).toHaveBeenCalledWith('1', {
       name: 'John Doe',
       avatar: 'https://s3.amazonaws.com/new-avatar.png?v=100',

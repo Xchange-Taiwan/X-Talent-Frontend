@@ -17,15 +17,30 @@ import OnboardingUI from './ui';
 
 const SAMPLE_GROUPS: TagCatalogGroupVO[] = [
   {
-    key: 'software',
+    language: 'zh_TW',
     subject_group: 'software',
     subject: '軟體開發',
-    children: [
-      { subject_group: 'fe', subject: '前端工程師' },
-      { subject_group: 'react', subject: 'React' },
-      { subject_group: 'resume', subject: '履歷健檢' },
+    leaves: [
+      {
+        tag_id: 1,
+        language: 'zh_TW',
+        subject_group: 'fe',
+        subject: '前端工程師',
+      },
+      {
+        tag_id: 2,
+        language: 'zh_TW',
+        subject_group: 'react',
+        subject: 'React',
+      },
+      {
+        tag_id: 3,
+        language: 'zh_TW',
+        subject_group: 'resume',
+        subject: '履歷健檢',
+      },
     ],
-  } as unknown as TagCatalogGroupVO,
+  },
 ];
 
 function OnboardingStoryDemo({ initialRole }: { initialRole: OnboardingRole }) {

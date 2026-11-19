@@ -24,13 +24,23 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import type { OnboardingFormContext } from '@/hooks/user/onboarding/useOnboardingForm';
 import { ProfileFormContext } from '@/hooks/user/profile/useProfileEditorSession';
 import {
   useRepeatablePeriodSection,
   YEAR_OPTIONS,
 } from '@/hooks/user/profile/useRepeatablePeriodSection';
+import type { OnboardingFormValues } from '@/schemas/onboarding';
+import type { ProfileFormValues } from '@/schemas/profileSchema';
 
 import { Section } from './Section';
+
+type VerifyWorkExperienceContract =
+  NonNullable<
+    OnboardingFormValues['work_experiences']
+  > extends ProfileFormValues['work_experiences']
+    ? ProfileFormContext | OnboardingFormContext
+    : never;
 
 interface Props {
   industries: {
@@ -41,16 +51,17 @@ interface Props {
     value: string;
     text: string;
   }[];
-  form: ProfileFormContext;
+  form: VerifyWorkExperienceContract;
   isMentor: boolean;
 }
 
 export const JobExperienceSection = ({
   industries,
   locations,
-  form,
+  form: rawForm,
   isMentor,
 }: Props) => {
+  const form = rawForm as ProfileFormContext;
   const {
     control,
     getValues,

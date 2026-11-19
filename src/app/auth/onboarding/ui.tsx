@@ -21,7 +21,6 @@ import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
 import { totalWorkSpanOptions } from '@/constant/seniority';
 import type { OnboardingFormContext } from '@/hooks/user/onboarding/useOnboardingForm';
-import type { ProfileFormContext } from '@/hooks/user/profile/useProfileEditorSession';
 import { tagGroupsToCategories } from '@/lib/profile/categoryGrouping';
 import type { MenteeDirectionMap } from '@/lib/profile/menteeDirectionPreference';
 import type { OnboardingRole } from '@/schemas/onboarding';
@@ -68,11 +67,100 @@ const LinksSection = dynamic(
   }
 );
 
-function OnboardingNameCounter({ form }: { form: OnboardingFormContext }) {
+function OnboardingIdentitySection({
+  form,
+  isMentor,
+  onAvatarFileChange,
+  onSelectPresetAvatar,
+}: {
+  form: OnboardingFormContext;
+  isMentor: boolean;
+  onAvatarFileChange: (file: File) => void;
+  onSelectPresetAvatar: (presetUrlOrCode: string) => void;
+}) {
   const watchedName = useWatch({ control: form.control, name: 'name' });
-  const len = typeof watchedName === 'string' ? watchedName.length : 0;
+  const watchedAvatar = useWatch({ control: form.control, name: 'avatar' });
+  const watchedAvatarFile = useWatch({
+    control: form.control,
+    name: 'avatarFile',
+  });
+
+  const nameLen = typeof watchedName === 'string' ? watchedName.length : 0;
+  const hasGooglePrefillAvatar =
+    typeof watchedAvatar === 'string' &&
+    watchedAvatar.startsWith('https://lh3.googleusercontent.com/') &&
+    !watchedAvatarFile;
+
   return (
-    <span className="text-text-tertiary text-xs tabular-nums">{len}/20</span>
+    <section className="flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-6">
+      <div className="flex flex-col items-start gap-1.5">
+        <AvatarSection
+          id="avatarFile"
+          variant="compact"
+          control={form.control}
+          name="avatarFile"
+          isMentor={isMentor}
+          userName={watchedName || undefined}
+          onFileChange={onAvatarFileChange}
+          onSelectPresetAvatar={isMentor ? undefined : onSelectPresetAvatar}
+        />
+        {isMentor && hasGooglePrefillAvatar && (
+          <p className="text-text-tertiary max-w-[200px] text-xs">
+            請確認預填頭像為本人真實照片，或點擊更換照片。
+          </p>
+        )}
+      </div>
+
+      <Section
+        id="name"
+        variant="inline"
+        className="max-w-md flex-1"
+        title="姓名"
+        required
+        headerAction={
+          <span className="text-text-tertiary text-xs tabular-nums">
+            {nameLen}/20
+          </span>
+        }
+      >
+        <TextField
+          control={form.control}
+          name="name"
+          maxLength={20}
+          autoComplete="name"
+          placeholder="請填入您的姓名"
+        />
+      </Section>
+    </section>
+  );
+}
+
+function OnboardingGuidelinesField({ form }: { form: OnboardingFormContext }) {
+  const watchedAgreed = useWatch({
+    control: form.control,
+    name: 'agreed_guidelines',
+  });
+  const { errors } = useFormState({
+    control: form.control,
+    name: 'agreed_guidelines',
+  });
+
+  return (
+    <MentorGuidelinesCard
+      id="agreed_guidelines"
+      checked={Boolean(watchedAgreed)}
+      errorMessage={
+        typeof errors.agreed_guidelines?.message === 'string'
+          ? errors.agreed_guidelines.message
+          : undefined
+      }
+      onCheckedChange={(next) =>
+        form.setValue('agreed_guidelines', next, {
+          shouldDirty: true,
+          shouldValidate: true,
+        })
+      }
+    />
   );
 }
 
@@ -117,23 +205,6 @@ export default function OnboardingUI({
 }: OnboardingUIProps) {
   const isMentor = role === 'mentor';
 
-  const watchedName = useWatch({ control: form.control, name: 'name' });
-  const watchedAvatar = useWatch({ control: form.control, name: 'avatar' });
-  const watchedAvatarFile = useWatch({
-    control: form.control,
-    name: 'avatarFile',
-  });
-  const watchedAgreed = useWatch({
-    control: form.control,
-    name: 'agreed_guidelines',
-  });
-  const { errors } = useFormState({ control: form.control });
-
-  const hasGooglePrefillAvatar =
-    typeof watchedAvatar === 'string' &&
-    watchedAvatar.startsWith('https://lh3.googleusercontent.com/') &&
-    !watchedAvatarFile;
-
   const locationOptions = useMemo(
     () => locations.map((loc) => ({ value: loc.value, label: loc.text })),
     [locations]
@@ -165,10 +236,8 @@ export default function OnboardingUI({
     void onSubmit();
   };
 
-  const profileCompatibleForm = form as unknown as ProfileFormContext;
-
   return (
-    <main className="mx-auto w-11/12 max-w-[960px] pt-12 pb-24">
+    <div className="mx-auto w-11/12 max-w-[960px] pt-12 pb-24">
       <div className="mb-8">
         <span className="text-brand-700 text-xs font-semibold tracking-wide">
           歡迎加入 X-Talent
@@ -185,45 +254,12 @@ export default function OnboardingUI({
           onSubmit={handleFormSubmit}
           className="space-y-10"
         >
-          {/* Identity section: Avatar + Name */}
-          <section className="flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-6">
-            <div className="flex flex-col items-start gap-1.5">
-              <AvatarSection
-                id="avatarFile"
-                variant="compact"
-                control={form.control}
-                name="avatarFile"
-                isMentor={isMentor}
-                userName={watchedName || undefined}
-                onFileChange={onAvatarFileChange}
-                onSelectPresetAvatar={
-                  isMentor ? undefined : onSelectPresetAvatar
-                }
-              />
-              {isMentor && hasGooglePrefillAvatar && (
-                <p className="text-text-tertiary max-w-[200px] text-xs">
-                  請確認預填頭像為本人真實照片，或點擊更換照片。
-                </p>
-              )}
-            </div>
-
-            <Section
-              id="name"
-              variant="inline"
-              className="max-w-md flex-1"
-              title="姓名"
-              required
-              headerAction={<OnboardingNameCounter form={form} />}
-            >
-              <TextField
-                control={form.control}
-                name="name"
-                maxLength={20}
-                autoComplete="name"
-                placeholder="請填入您的姓名"
-              />
-            </Section>
-          </section>
+          <OnboardingIdentitySection
+            form={form}
+            isMentor={isMentor}
+            onAvatarFileChange={onAvatarFileChange}
+            onSelectPresetAvatar={onSelectPresetAvatar}
+          />
 
           {/* Dual-track starting role selector */}
           <RoleSelectorCards
@@ -233,23 +269,7 @@ export default function OnboardingUI({
           />
 
           {/* Mentor Guidelines (shown immediately under RoleSelectorCards when Mentor) */}
-          {isMentor && (
-            <MentorGuidelinesCard
-              id="agreed_guidelines"
-              checked={Boolean(watchedAgreed)}
-              errorMessage={
-                typeof errors.agreed_guidelines?.message === 'string'
-                  ? errors.agreed_guidelines.message
-                  : undefined
-              }
-              onCheckedChange={(next) =>
-                form.setValue('agreed_guidelines', next, {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                })
-              }
-            />
-          )}
+          {isMentor && <OnboardingGuidelinesField form={form} />}
 
           {/* Basic Info */}
           <section
@@ -362,23 +382,23 @@ export default function OnboardingUI({
                 <JobExperienceSection
                   industries={industries}
                   locations={locations}
-                  form={profileCompatibleForm}
+                  form={form}
                   isMentor
                 />
               </div>
 
               <div id="educations">
-                <EducationSection form={profileCompatibleForm} isMentor />
+                <EducationSection form={form} isMentor />
               </div>
 
               <div>
-                <LinksSection id="links" form={profileCompatibleForm} />
+                <LinksSection id="links" form={form} />
               </div>
             </>
           ) : (
             <div id="preferences">
               <MenteeDirectionPreferenceSection
-                form={profileCompatibleForm}
+                form={form}
                 wantPositionCategories={wantPositionCategories}
                 wantSkillCategories={wantSkillCategories}
                 wantTopicCategories={wantTopicCategories}
@@ -412,6 +432,6 @@ export default function OnboardingUI({
           </div>
         </form>
       </Form>
-    </main>
+    </div>
   );
 }
