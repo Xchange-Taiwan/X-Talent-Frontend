@@ -1355,6 +1355,35 @@ describe('mentorPoolReadModel', () => {
         model.getSnapshot(UNFILTERED_MENTOR_POOL_QUERY).mentors[0].user_id
       ).toBe(77);
       unsub3();
+
+      // Calling invalidateAfterMutation() while a filtered subscriber is mounted
+      // still preserves pendingPostMutationRefresh for subsequent unfiltered mount
+      const filteredQuery = { search_pattern: 'pm' };
+      const unsubFiltered = model.subscribeSnapshot(filteredQuery, () => {});
+      await new Promise((r) => setTimeout(r, 15));
+      expect(callCount).toBe(3);
+
+      model.invalidateAfterMutation();
+      await new Promise((r) => setTimeout(r, 15));
+      expect(callCount).toBe(4); // active filtered subscriber refreshed
+      unsubFiltered();
+
+      const unsubUnfilteredAfterFiltered = model.subscribeSnapshot(
+        UNFILTERED_MENTOR_POOL_QUERY,
+        () => {},
+        {
+          ssrSeed: {
+            initialMentors: [makeMentor(1)],
+            initialMentorCount: 1,
+          },
+        }
+      );
+      await new Promise((r) => setTimeout(r, 15));
+      expect(callCount).toBe(5);
+      expect(
+        model.getSnapshot(UNFILTERED_MENTOR_POOL_QUERY).mentors[0].user_id
+      ).toBe(905);
+      unsubUnfilteredAfterFiltered();
     });
   });
 });

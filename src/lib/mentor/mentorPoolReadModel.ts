@@ -1352,13 +1352,8 @@ export function createMentorPoolReadModel(
     buildInitialUnfilteredState: buildUnfilteredState,
 
     invalidateAfterMutation() {
-      const hadActiveSubscribers = Array.from(slots.values()).some(
-        (slot) => slot.subscribers.size > 0
-      );
       this.clear();
-      if (!hadActiveSubscribers) {
-        pendingPostMutationRefresh = true;
-      }
+      pendingPostMutationRefresh = true;
     },
 
     clear() {
