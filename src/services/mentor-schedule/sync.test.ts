@@ -12,6 +12,7 @@ import {
 
 import { ApiError } from '@/lib/apiClient';
 import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
+import type { ScheduleUpsertSlot } from '@/lib/profile/bookingAvailability/types';
 import type { RawMentorTimeslot } from '@/lib/profile/scheduleHelpers';
 
 import {
@@ -19,7 +20,6 @@ import {
   fetchMentorSchedule,
   saveMentorSchedule,
   type ScheduleData,
-  type TimeSlotDTO,
 } from './schedule';
 import {
   loadMonthSchedule,
@@ -67,13 +67,15 @@ function segment(dtstart: number, id: number): ScheduleData['segments'] {
  * test below - a factory keeps each test focused on what it's actually
  * asserting instead of restating this boilerplate.
  */
-function createMockUpsertPayload(dtstart: number = MAY_2026): TimeSlotDTO[] {
+function createMockUpsertPayload(
+  dtstart: number = MAY_2026
+): ScheduleUpsertSlot[] {
   return [
-    fromPartial<TimeSlotDTO>({
-      dt_type: 'ALLOW',
+    {
       dtstart,
       dtend: dtstart + 1800,
-    }),
+      exdate: [],
+    },
   ];
 }
 

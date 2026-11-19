@@ -2,31 +2,37 @@ import dayjs from 'dayjs';
 
 import { ApiError } from '@/lib/apiClient';
 import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
-import { RawMentorTimeslot, segmentToRaw } from '@/lib/profile/scheduleHelpers';
+import type {
+  MonthSyncRequest,
+  MonthSyncResult,
+  ScheduleMonthRef,
+  ScheduleUpsertSlot,
+  SyncFailureReason,
+  SyncOutcome,
+  SyncResult,
+} from '@/lib/profile/bookingAvailability/types';
+import {
+  endOfMonthUnix,
+  monthKeyFromYearMonth,
+  RawMentorTimeslot,
+  segmentToRaw,
+} from '@/lib/profile/scheduleHelpers';
 
 import {
   deleteMentorSchedule,
   fetchMentorSchedule,
   saveMentorSchedule,
-  TimeSlotDTO,
 } from './schedule';
 
-export interface ScheduleMonthRef {
-  userId: string;
-  year: number;
-  month: number; // 1-12
-}
-
-type SyncFailureReason = 'conflict' | 'unknown';
-
-/** Internal — syncMonthSchedule passes raws back to the hook on success. */
-export type SyncOutcome =
-  | { ok: true; raws: RawMentorTimeslot[] }
-  | { ok: false; reason: SyncFailureReason; message: string };
-
-/** Public — surfaced to UI; success has no payload. */
-export type SyncResult =
-  { ok: true } | { ok: false; reason: SyncFailureReason; message: string };
+export type {
+  MonthSyncRequest,
+  MonthSyncResult,
+  ScheduleMonthRef,
+  ScheduleUpsertSlot,
+  SyncFailureReason,
+  SyncOutcome,
+  SyncResult,
+};
 
 /**
  * Fetch + filter to slots whose dtstart falls in the requested local month.
@@ -74,28 +80,17 @@ export function prefetchMonthSchedule(ref: ScheduleMonthRef): void {
  * to user-friendly UI copy. PUT failure aborts before DELETE so we don't
  * partially mutate the schedule.
  */
-export async function syncMonthSchedule(params: {
-  ref: ScheduleMonthRef;
-  upsertPayload: TimeSlotDTO[];
-  deleteIds: number[];
-}): Promise<SyncOutcome> {
+export async function syncMonthSchedule(
+  params: MonthSyncRequest
+): Promise<SyncOutcome> {
   const { ref, upsertPayload, deleteIds } = params;
-
-  const endOfMonthUnix = dayjs(
-    `${ref.year}-${String(ref.month).padStart(2, '0')}-01`
-  )
-    .endOf('month')
-    .hour(23)
-    .minute(59)
-    .second(59)
-    .millisecond(0)
-    .unix();
+  const until = endOfMonthUnix(ref.year, ref.month);
 
   try {
     if (upsertPayload.length > 0) {
       await saveMentorSchedule({
         userId: ref.userId,
-        until: endOfMonthUnix,
+        until,
         timeslots: upsertPayload,
       });
     }
@@ -127,18 +122,6 @@ export async function syncMonthSchedule(params: {
   }
 }
 
-export interface MonthSyncRequest {
-  ref: ScheduleMonthRef;
-  upsertPayload: TimeSlotDTO[];
-  deleteIds: number[];
-}
-
-export interface MonthSyncResult {
-  /** 'YYYY-MM' for the corresponding request's ref. */
-  monthKey: string;
-  outcome: SyncOutcome;
-}
-
 /**
  * Sequentially commit one or more months. Each month is independent —
  * earlier success is NOT rolled back if a later month fails. Callers use the
@@ -151,7 +134,7 @@ export async function syncMonths(
 ): Promise<MonthSyncResult[]> {
   const results: MonthSyncResult[] = [];
   for (const req of requests) {
-    const monthKey = `${req.ref.year}-${String(req.ref.month).padStart(2, '0')}`;
+    const monthKey = monthKeyFromYearMonth(req.ref.year, req.ref.month);
     const outcome = await syncMonthSchedule(req);
     results.push({ monthKey, outcome });
   }

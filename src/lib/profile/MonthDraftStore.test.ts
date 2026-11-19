@@ -1,5 +1,8 @@
 process.env.TZ = 'UTC';
 
+import fs from 'node:fs';
+import path from 'node:path';
+
 import dayjs from 'dayjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -66,9 +69,8 @@ describe('MonthDraftStore Unit Tests', () => {
       selectedDate: dateStr,
     });
 
-    expect(res.success).toBe(true);
-    expect(res.added).toBe(1);
-    expect(res.skipped).toBe(0);
+    expect(res).toEqual({ success: true, added: 1 });
+    expect('skipped' in res).toBe(false);
 
     const snap = store.snapshot();
     const draft = snap.draftByMonth.get('2026-07') ?? [];
@@ -95,9 +97,8 @@ describe('MonthDraftStore Unit Tests', () => {
       selectedDate: '2026-07-26',
     });
 
-    expect(res.success).toBe(false);
-    expect(res.reason).toBe('OVERLAP');
-    expect(res.skipped).toBe(1);
+    expect(res).toEqual({ success: false, reason: 'OVERLAP' });
+    expect('skipped' in res).toBe(false);
   });
 
   it('correctly detaches a single occurrence of a recurring slot on update', () => {
@@ -672,9 +673,10 @@ describe('MonthDraftStore Unit Tests', () => {
       selectedDate: '2026-07-05', // July 5, Sunday
     });
 
-    expect(res.success).toBe(false);
-    expect(res.reason).toBe('OVERLAP');
-    expect(res.skipped).toBe(4); // 4 Sundays in July 2026
+    expect(res).toEqual({ success: false, reason: 'OVERLAP' });
+    expect('skipped' in res).toBe(false);
+    expect(store.snapshot().draftByMonth.get('2026-07')).toEqual(mockRaws);
+    expect(store.snapshot().dirtyMonths.size).toBe(0);
   });
 
   it('correctly handles editing and moving a slot to a different day/month', () => {
@@ -816,13 +818,21 @@ describe('MonthDraftStore Unit Tests', () => {
   });
 
   describe('getSyncRequests', () => {
+    it('keeps MonthDraftStore free of any @/services/** imports (pure domain layer)', () => {
+      const storeSource = fs.readFileSync(
+        path.resolve(__dirname, 'MonthDraftStore.ts'),
+        'utf-8'
+      );
+      expect(storeSource).not.toMatch(/from\s+['"]@\/services\//);
+    });
+
     it('returns no requests when nothing is dirty', () => {
       const store = new MonthDraftStore();
       store.ensureMonthLoaded('2026-07', defaultMockRaws);
       expect(store.getSyncRequests('user-123')).toEqual([]);
     });
 
-    it('builds one request per dirty month, carrying pending deletes and only ALLOW upserts', () => {
+    it('builds pure domain sync plans per dirty month without DTO transport fields', () => {
       const store = new MonthDraftStore();
       store.ensureMonthLoaded('2026-07', defaultMockRaws);
       store.add({
@@ -838,9 +848,15 @@ describe('MonthDraftStore Unit Tests', () => {
       expect(req.ref).toEqual({ userId: 'user-123', year: 2026, month: 7 });
       // The deleted persisted slot must be queued for deletion, not upsert.
       expect(req.deleteIds).toContain(101);
-      // Only the newly-added ALLOW row (negative temp id) should be upserted.
+      // Only the newly-added ALLOW row (negative temp id) should be upserted,
+      // shaped as a pure domain slot with zero transport DTO fields.
       expect(req.upsertPayload).toHaveLength(1);
       expect(req.upsertPayload[0].id).toBeUndefined();
+      expect(req.upsertPayload[0]).not.toHaveProperty('user_id');
+      expect(req.upsertPayload[0]).not.toHaveProperty('dt_type');
+      expect(req.upsertPayload[0]).not.toHaveProperty('dt_year');
+      expect(req.upsertPayload[0]).not.toHaveProperty('dt_month');
+      expect(req.upsertPayload[0]).not.toHaveProperty('timezone');
     });
 
     it('marks a persisted slot id on the upsert payload only once it has been saved', () => {
@@ -1255,8 +1271,7 @@ describe('MonthDraftStore Unit Tests', () => {
         selectedDate: dateStr,
       });
 
-      expect(res.success).toBe(true);
-      expect(res.added).toBe(1);
+      expect(res).toEqual({ success: true, added: 1 });
 
       const snap = store.snapshot();
       const augDraft = snap.draftByMonth.get('2026-08') ?? [];
@@ -1269,44 +1284,44 @@ describe('MonthDraftStore Unit Tests', () => {
   });
 
   describe('add() rejects invalid candidate-occurrence inputs', () => {
-    it('fails when selectedDate is missing', () => {
+    it('fails with NO_DATE_SELECTED when selectedDate is missing', () => {
       const store = new MonthDraftStore();
       const res = store.add({
         startTime: '13:00',
         durationMinutes: 30,
         selectedDate: '',
       });
-      expect(res).toEqual({ success: false, added: 0, skipped: 0 });
+      expect(res).toEqual({ success: false, reason: 'NO_DATE_SELECTED' });
     });
 
-    it('fails when startTime is missing', () => {
+    it('fails with INVALID_INPUT when startTime is missing', () => {
       const store = new MonthDraftStore();
       const res = store.add({
         startTime: '',
         durationMinutes: 30,
         selectedDate: '2026-07-26',
       });
-      expect(res).toEqual({ success: false, added: 0, skipped: 0 });
+      expect(res).toEqual({ success: false, reason: 'INVALID_INPUT' });
     });
 
-    it('fails when durationMinutes is missing', () => {
+    it('fails with INVALID_INPUT when durationMinutes is missing', () => {
       const store = new MonthDraftStore();
       const res = store.add({
         startTime: '13:00',
         durationMinutes: 0 as unknown as SlotDurationMinutes,
         selectedDate: '2026-07-26',
       });
-      expect(res).toEqual({ success: false, added: 0, skipped: 0 });
+      expect(res).toEqual({ success: false, reason: 'INVALID_INPUT' });
     });
 
-    it('fails when selectedDate is not a parseable date', () => {
+    it('fails with INVALID_INPUT when selectedDate is not a parseable date', () => {
       const store = new MonthDraftStore();
       const res = store.add({
         startTime: '13:00',
         durationMinutes: 30,
         selectedDate: 'not-a-real-date',
       });
-      expect(res).toEqual({ success: false, added: 0, skipped: 0 });
+      expect(res).toEqual({ success: false, reason: 'INVALID_INPUT' });
     });
   });
 
@@ -1418,10 +1433,56 @@ describe('MonthDraftStore Unit Tests', () => {
       ]);
 
       const result = await savePromise;
-      expect(result).toEqual({ ok: true });
+      expect(result).toEqual({
+        ok: true,
+        committedMonthKeys: ['2026-07'],
+      });
       // Store must remain empty — stale pre-clearAll save must not commit!
       expect(store.snapshot().savedByMonth.size).toBe(0);
       expect(store.snapshot().draftByMonth.size).toBe(0);
+    });
+
+    it('commitChanges() preserves failedMonthKey and committedMonthKeys when a multi-month sync partially fails', async () => {
+      const store = new MonthDraftStore();
+      store.ensureMonthLoaded('2026-07', defaultMockRaws);
+      store.ensureMonthLoaded('2026-08', []);
+
+      store.add({
+        startTime: '15:00',
+        durationMinutes: 30,
+        selectedDate: '2026-07-26',
+      });
+      store.add({
+        startTime: '10:00',
+        durationMinutes: 30,
+        selectedDate: '2026-08-02',
+      });
+
+      const syncFn = vi.fn().mockResolvedValue([
+        {
+          monthKey: '2026-07',
+          outcome: { ok: true, raws: defaultMockRaws },
+        },
+        {
+          monthKey: '2026-08',
+          outcome: {
+            ok: false,
+            reason: 'conflict',
+            message: 'There is 1 conflict in 2026/8',
+          },
+        },
+      ]);
+
+      const result = await store.commitChanges('userA', syncFn);
+      expect(result).toEqual({
+        ok: false,
+        reason: 'conflict',
+        message: 'There is 1 conflict in 2026/8',
+        failedMonthKey: '2026-08',
+        committedMonthKeys: ['2026-07'],
+      });
+      expect(store.snapshot().dirtyMonths.has('2026-07')).toBe(false);
+      expect(store.snapshot().dirtyMonths.has('2026-08')).toBe(true);
     });
   });
 });

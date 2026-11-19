@@ -63,3 +63,14 @@ export const AfterExistingSlots: Story = {
   },
   render: (args) => <ModalDemo {...args} />,
 };
+
+export const EarlyMonthWeeklyPreview: Story = {
+  args: {
+    selectedDate: targetDay
+      .add(1, 'month')
+      .startOf('month')
+      .format('YYYY-MM-DD'),
+    existingSlots: [],
+  },
+  render: (args) => <ModalDemo {...args} />,
+};

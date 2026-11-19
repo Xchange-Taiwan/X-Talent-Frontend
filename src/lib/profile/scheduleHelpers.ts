@@ -1,16 +1,19 @@
 import dayjs from 'dayjs';
-import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 import { RRule } from 'rrule';
 
-import { SegmentVO } from '@/services/mentor-schedule/schedule';
+import type { components } from '@/types/api';
 import type { Reservation } from '@/types/reservation';
 
-import type { BookingSlot, DtType } from './bookingAvailability/types';
+import type {
+  BookingSlot,
+  DtType,
+  MonthKey,
+  RawMentorTimeslot,
+} from './bookingAvailability/types';
 
-dayjs.extend(isSameOrBefore);
+export type { MonthKey, RawMentorTimeslot };
 
-/** 'YYYY-MM' — used to bucket per-month draft state in useMentorSchedule. */
-export type MonthKey = string;
+type SegmentRecord = components['schemas']['TimeSlotDTO'];
 
 export function monthKeyFromUnix(unix: number): MonthKey {
   return dayjs(unix * 1000).format('YYYY-MM');
@@ -29,17 +32,64 @@ export function parseMonthKey(key: MonthKey): { year: number; month: number } {
   return { year: Number(y), month: Number(m) };
 }
 
-// id: negative values are temporary local ids for new slots (-1, -2, ...)
-// type: narrowed from SegmentVO.dt_type
-// exdate: nulls excluded from SegmentVO.exdate
-export type RawMentorTimeslot = Pick<
-  SegmentVO,
-  'dtstart' | 'dtend' | 'rrule'
-> & {
-  id: number;
-  type: DtType;
-  exdate: number[];
-};
+/**
+ * Safari-safe end-of-month unix timestamp (`23:59:59` local time on the last
+ * day of `month`, where `month` is 1-12). Uses numeric `new Date(year, monthIndex, 1)`
+ * rather than string `Date.parse`, avoiding Safari Invalid Date on unpadded strings.
+ * Returns `0` when `year` or `month` is invalid or out of range.
+ */
+export function endOfMonthUnix(year: number, month: number): number {
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    year <= 0 ||
+    month < 1 ||
+    month > 12
+  ) {
+    return 0;
+  }
+  return dayjs(new Date(year, month - 1, 1))
+    .endOf('month')
+    .unix();
+}
+
+const DATE_KEY_PATTERN = /^(\d{4})-(\d{1,2})-(\d{1,2})$/;
+
+/**
+ * Returns all canonical `YYYY-MM-DD` date keys starting at `dateKey` and
+ * stepping every +7 calendar days within the same `(year, month)`.
+ * Uses numeric `Date` calendar arithmetic (Safari-safe, DST-safe) and rejects
+ * calendar-rollover invalid dates (e.g. `2026-02-30`) by returning `[]`.
+ */
+export function listWeeklyDatesInMonth(dateKey: string): string[] {
+  const match = DATE_KEY_PATTERN.exec(dateKey);
+  if (!match) return [];
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (year <= 0 || month < 1 || month > 12 || day < 1 || day > 31) {
+    return [];
+  }
+
+  const cursor = new Date(year, month - 1, day);
+  if (
+    cursor.getFullYear() !== year ||
+    cursor.getMonth() !== month - 1 ||
+    cursor.getDate() !== day
+  ) {
+    return [];
+  }
+
+  const dates: string[] = [];
+  while (cursor.getFullYear() === year && cursor.getMonth() === month - 1) {
+    const monthPadded = String(cursor.getMonth() + 1).padStart(2, '0');
+    const dayPadded = String(cursor.getDate()).padStart(2, '0');
+    dates.push(`${cursor.getFullYear()}-${monthPadded}-${dayPadded}`);
+    cursor.setDate(cursor.getDate() + 7);
+  }
+  return dates;
+}
 
 /**
  * Shared predicate to check if a booking slot is taken (booked or pending).
@@ -72,7 +122,7 @@ export function activeOccurrences(r: RawMentorTimeslot): number[] {
   return expandRrule(r.dtstart, r.rrule).filter((o) => !r.exdate.includes(o));
 }
 
-export function segmentToRaw(t: SegmentVO): RawMentorTimeslot {
+export function segmentToRaw(t: SegmentRecord): RawMentorTimeslot {
   return {
     id: t.id ?? Math.floor(Math.random() * 1e9),
     type: t.dt_type as RawMentorTimeslot['type'],

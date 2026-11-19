@@ -1,7 +1,78 @@
-import { SyncResult } from '@/services/mentor-schedule/sync';
+import type { components } from '@/types/api';
 import type { Reservation } from '@/types/reservation';
 
+/** 'YYYY-MM' — used to bucket per-month draft state in MonthDraftStore & useMentorSchedule. */
+export type MonthKey = string;
+
 export type DtType = 'ALLOW' | 'FORBIDDEN' | 'BOOKED' | 'PENDING';
+
+type SegmentRecord = components['schemas']['TimeSlotDTO'];
+
+// id: negative values are temporary local ids for new slots (-1, -2, ...)
+// type: narrowed from SegmentVO.dt_type
+// exdate: nulls excluded from SegmentVO.exdate
+export type RawMentorTimeslot = Pick<
+  SegmentRecord,
+  'dtstart' | 'dtend' | 'rrule'
+> & {
+  id: number;
+  type: DtType;
+  exdate: number[];
+};
+
+export interface ScheduleMonthRef {
+  userId: string;
+  year: number;
+  month: number; // 1-12
+}
+
+/**
+ * Pure domain representation of an ALLOW timeslot to be upserted for a dirty
+ * month. Contains zero transport DTO fields (`user_id`, `dt_type`, `dt_year`,
+ * `dt_month`, `timezone`); serialization to `TimeSlotDTO` happens in one place
+ * inside `saveMentorSchedule`.
+ */
+export interface ScheduleUpsertSlot {
+  /** Present only when updating an already-persisted backend schedule row. */
+  id?: number;
+  dtstart: number;
+  dtend: number;
+  rrule?: string;
+  exdate: number[];
+}
+
+export interface MonthSyncRequest {
+  ref: ScheduleMonthRef;
+  upsertPayload: ScheduleUpsertSlot[];
+  deleteIds: number[];
+}
+
+export type SyncFailureReason = 'conflict' | 'unknown';
+
+/** Internal — syncMonthSchedule passes raws back to the store/hook on success. */
+export type SyncOutcome =
+  | { ok: true; raws: RawMentorTimeslot[] }
+  | { ok: false; reason: SyncFailureReason; message: string };
+
+export interface MonthSyncResult {
+  /** 'YYYY-MM' for the corresponding request's ref. */
+  monthKey: MonthKey;
+  outcome: SyncOutcome;
+}
+
+/** Public — surfaced to UI with per-month commit/failure context preserved. */
+export type SyncResult =
+  | {
+      ok: true;
+      committedMonthKeys: MonthKey[];
+    }
+  | {
+      ok: false;
+      reason: SyncFailureReason;
+      message: string;
+      failedMonthKey: MonthKey;
+      committedMonthKeys: MonthKey[];
+    };
 
 /**
  * Represents a SINGLE occurrence of an ALLOW/BOOKED/PENDING entry. A non-rrule
@@ -64,10 +135,31 @@ export interface EditorSlotWithMeta {
   matchedReservation?: Reservation;
 }
 
-export type UpdateDraftSlotResult = {
-  success: boolean;
-  reason?: 'OVERLAP' | 'TARGET_MONTH_NOT_LOADED' | 'READ_ONLY';
-};
+export type AddDraftSlotFailureReason =
+  'OVERLAP' | 'NO_DATE_SELECTED' | 'INVALID_INPUT';
+
+export type AddDraftSlotResult =
+  | {
+      success: true;
+      added: number;
+    }
+  | {
+      success: false;
+      reason: AddDraftSlotFailureReason;
+    };
+
+export type UpdateDraftSlotFailureReason =
+  'OVERLAP' | 'TARGET_MONTH_NOT_LOADED' | 'READ_ONLY';
+
+export type UpdateDraftSlotResult =
+  | {
+      success: true;
+      reason?: undefined;
+    }
+  | {
+      success: false;
+      reason?: UpdateDraftSlotFailureReason;
+    };
 
 /**
  * The mentor's own draft-mutation surface. Deliberately narrow: everything a
@@ -90,14 +182,15 @@ export type MentorScheduleEditor = {
    * Add one ALLOW entry at `startTime` for `durationMinutes`. If
    * `weeklyWithinMonth` is true, the entry is a single row with a weekly
    * `FREQ=WEEKLY;COUNT=N` rrule covering every same-weekday date remaining in
-   * the selected date's month; otherwise it's a non-recurring row. Returns
-   * counts of created occurrences so callers can show "added N, skipped M".
+   * the selected date's month; otherwise it's a non-recurring row. Atomic:
+   * if any occurrence overlaps an existing ALLOW slot, the entire batch is
+   * rejected with `{ success: false, reason: 'OVERLAP' }`.
    */
   addSlotForSelectedDate: (opts: {
     startTime: string; // HH:mm
     durationMinutes: SlotDurationMinutes;
     weeklyWithinMonth?: boolean;
-  }) => { added: number; skipped: number };
+  }) => AddDraftSlotResult;
   /**
    * Edit a single occurrence. For non-recurring rows this updates the row
    * directly. For recurring rows the targeted occurrence is detached: it is

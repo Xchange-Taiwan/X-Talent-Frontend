@@ -54,6 +54,58 @@ describe('saveMentorSchedule', () => {
     ).rejects.toThrowError('Some other error');
   });
 
+  it('serializes pure domain ScheduleUpsertSlot items into TimeSlotDTO payload in a single place', async () => {
+    await saveMentorSchedule({
+      userId: '42',
+      until: 1769903999,
+      timeslots: [
+        {
+          id: 77,
+          dtstart: 1767226200, // 2026-01-01T00:10:00Z
+          dtend: 1767229800,
+          rrule: 'FREQ=WEEKLY;COUNT=2',
+          exdate: [1767831000],
+        },
+        {
+          dtstart: 1767312600,
+          dtend: 1767314400,
+          exdate: [],
+        },
+      ],
+    });
+
+    expect(apiClient.putUnwrapped).toHaveBeenCalledWith(
+      '/v1/mentors/42/schedule',
+      {
+        until: 1769903999,
+        timeslots: [
+          {
+            id: 77,
+            user_id: 42,
+            dt_type: 'ALLOW',
+            dt_year: 2026,
+            dt_month: 1,
+            dtstart: 1767226200,
+            dtend: 1767229800,
+            rrule: 'FREQ=WEEKLY;COUNT=2',
+            timezone: 'UTC',
+            exdate: [1767831000],
+          },
+          {
+            user_id: 42,
+            dt_type: 'ALLOW',
+            dt_year: 2026,
+            dt_month: 1,
+            dtstart: 1767312600,
+            dtend: 1767314400,
+            timezone: 'UTC',
+            exdate: [],
+          },
+        ],
+      }
+    );
+  });
+
   it('derives the API-required UTC year and month from dtstart', async () => {
     await saveMentorSchedule({
       userId: '42',

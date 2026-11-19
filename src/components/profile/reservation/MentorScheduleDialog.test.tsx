@@ -117,10 +117,14 @@ function createMockSchedule(
     draftForSelectedDate: draft,
     slotsWithMeta: projected.slotsWithMeta,
     futureSlots: projected.futureSlots,
-    addSlotForSelectedDate: vi.fn().mockReturnValue({ added: 1, skipped: 0 }),
+    addSlotForSelectedDate: vi
+      .fn()
+      .mockReturnValue({ success: true, added: 1 }),
     updateDraftSlot: vi.fn().mockReturnValue({ success: true }),
     deleteDraftSlot: vi.fn(),
-    confirmChanges: vi.fn().mockResolvedValue({ ok: true }),
+    confirmChanges: vi
+      .fn()
+      .mockResolvedValue({ ok: true, committedMonthKeys: ['2026-07'] }),
     resetChanges: vi.fn(),
     reservations,
     ...overrides,
@@ -615,7 +619,7 @@ describe('MentorScheduleDialog', () => {
       selectedDate: '2026-07-17',
       setSelectedDate,
     };
-    const addSlotSpy = vi.fn().mockReturnValue({ added: 3, skipped: 0 });
+    const addSlotSpy = vi.fn().mockReturnValue({ success: true, added: 3 });
     const scheduleForAdd = createMockSchedule({
       draftForSelectedDate: [],
       addSlotForSelectedDate: addSlotSpy,
@@ -724,7 +728,9 @@ describe('MentorScheduleDialog', () => {
   it('tracks reservation_schedule_saved with available slot_count (excluding past and booked) only on save success', async () => {
     const mockOnOpenChange = vi.fn();
     const okSchedule = createMockSchedule({
-      confirmChanges: vi.fn().mockResolvedValue({ ok: true }),
+      confirmChanges: vi
+        .fn()
+        .mockResolvedValue({ ok: true, committedMonthKeys: ['2026-07'] }),
     });
     const expectedAvailableCount = okSchedule.slotsWithMeta.filter(
       (item) => !item.isPast && !item.reservationBlock
@@ -755,9 +761,13 @@ describe('MentorScheduleDialog', () => {
     const { upgradeClaritySession } = await import('@/lib/analytics');
     vi.mocked(upgradeClaritySession).mockClear();
     const conflictSchedule = createMockSchedule({
-      confirmChanges: vi
-        .fn()
-        .mockResolvedValue({ ok: false, reason: 'conflict' }),
+      confirmChanges: vi.fn().mockResolvedValue({
+        ok: false,
+        reason: 'conflict',
+        message: 'Conflict',
+        failedMonthKey: '2026-07',
+        committedMonthKeys: [],
+      }),
     });
     render(
       <MentorScheduleDialog
@@ -773,5 +783,56 @@ describe('MentorScheduleDialog', () => {
     });
     expect(trackEvent).not.toHaveBeenCalled();
     expect(upgradeClaritySession).toHaveBeenCalledWith('schedule_save_failed');
+    expect(mockToast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      description: '此時段與既有預約衝突,請新增新時段後再試',
+    });
+  });
+
+  it('surfaces OVERLAP toast when addSlotForSelectedDate rejects atomically and surfaces partial multi-month sync toast on confirmChanges failure', async () => {
+    const addOverlapSchedule = createMockSchedule({
+      addSlotForSelectedDate: vi.fn().mockReturnValue({
+        success: false,
+        reason: 'OVERLAP',
+      }),
+      confirmChanges: vi.fn().mockResolvedValue({
+        ok: false,
+        reason: 'conflict',
+        message: 'Conflict in August',
+        failedMonthKey: '2026-08',
+        committedMonthKeys: ['2026-07'],
+      }),
+    });
+
+    render(
+      <MentorScheduleDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        reader={mockReader}
+        schedule={addOverlapSchedule}
+      />
+    );
+
+    const plusIcon = document.querySelector('.lucide-plus');
+    fireEvent.click(plusIcon!.closest('button')!);
+
+    const addDialog = screen.getByRole('dialog', { name: '新增可預約時段' });
+    fireEvent.click(within(addDialog).getByRole('button', { name: '建立' }));
+
+    expect(mockToast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      description: '此時段與其他時段重疊',
+    });
+
+    mockToast.mockClear();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '儲存' }));
+    });
+
+    expect(mockToast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      description:
+        '已儲存 7 月，但 8 月此時段與既有預約衝突,請新增新時段後再試',
+    });
   });
 });

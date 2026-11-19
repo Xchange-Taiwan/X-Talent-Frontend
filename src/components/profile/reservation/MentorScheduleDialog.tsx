@@ -23,6 +23,10 @@ import {
   resolveScheduleDraftErrorMessage,
 } from '@/lib/profile/bookingAvailability';
 import { fmtTime, toDateKey } from '@/lib/profile/scheduleFormatters';
+import {
+  monthKeyFromDateStr,
+  monthKeyFromYearMonth,
+} from '@/lib/profile/scheduleHelpers';
 import { FOCUS_RING_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 import type { Reservation } from '@/types/reservation';
@@ -107,6 +111,13 @@ export default function MentorScheduleDialog({
     }
   }, [open]);
 
+  const viewedMonthKey =
+    reader.year && reader.month
+      ? monthKeyFromYearMonth(reader.year, reader.month)
+      : selectedDate
+        ? monthKeyFromDateStr(selectedDate)
+        : undefined;
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
@@ -115,10 +126,11 @@ export default function MentorScheduleDialog({
         upgradeClaritySession('schedule_save_failed');
         toast({
           variant: 'destructive',
-          description:
-            result.reason === 'conflict'
-              ? '此時段與既有預約衝突,請新增新時段後再試'
-              : '儲存失敗,請稍後再試',
+          description: resolveScheduleDraftErrorMessage({
+            kind: 'sync',
+            result,
+            viewedMonthKey,
+          }),
         });
         return;
       }
@@ -136,7 +148,7 @@ export default function MentorScheduleDialog({
       upgradeClaritySession('schedule_save_failed');
       toast({
         variant: 'destructive',
-        description: '儲存失敗,請稍後再試',
+        description: resolveScheduleDraftErrorMessage({ kind: 'sync' }),
       });
     } finally {
       setIsSaving(false);
@@ -319,16 +331,13 @@ export default function MentorScheduleDialog({
             weeklyWithinMonth: weekly,
           });
           setActiveDialog(null);
-          if (result.added === 0) {
+          if (!result.success) {
             toast({
               variant: 'destructive',
-              description: '無可用時段(可能與既有時段重疊)',
-            });
-            return;
-          }
-          if (result.skipped > 0) {
-            toast({
-              description: `已新增 ${result.added} 個時段(略過 ${result.skipped} 個重疊時段)`,
+              description: resolveScheduleDraftErrorMessage({
+                kind: 'add',
+                reason: result.reason,
+              }),
             });
           }
         }}
@@ -351,7 +360,10 @@ export default function MentorScheduleDialog({
           if (!result.success) {
             toast({
               variant: 'destructive',
-              description: resolveScheduleDraftErrorMessage(result.reason),
+              description: resolveScheduleDraftErrorMessage({
+                kind: 'edit',
+                reason: result.reason,
+              }),
             });
             return;
           }
