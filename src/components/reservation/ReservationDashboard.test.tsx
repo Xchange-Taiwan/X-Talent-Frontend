@@ -1,11 +1,15 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { fromPartial } from '@total-typescript/shoehorn';
 import * as React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ReservationList } from '@/components/reservation/ReservationList';
-import { useReservationData } from '@/hooks/user/reservation/useReservationData';
+import {
+  type ReservationTabSlice,
+  useReservationDashboard,
+  type UseReservationDashboardReturn,
+} from '@/hooks/user/reservation/useReservationData';
 import { trackEvent } from '@/lib/analytics';
+import type { Reservation } from '@/types/reservation';
 
 import { ReservationDashboard } from './ReservationDashboard';
 
@@ -13,7 +17,6 @@ vi.mock('@/lib/analytics', () => ({
   trackEvent: vi.fn(),
 }));
 
-// Mock next/navigation
 const mockReplace = vi.fn();
 const mockGet = vi.fn().mockReturnValue(null);
 const mockToString = vi.fn().mockReturnValue('');
@@ -30,12 +33,10 @@ vi.mock('next/navigation', () => ({
   usePathname: () => mockPathname(),
 }));
 
-// Mock the hook
 vi.mock('@/hooks/user/reservation/useReservationData', () => ({
-  useReservationData: vi.fn(),
+  useReservationDashboard: vi.fn(),
 }));
 
-// Mock ReservationList to isolate the dashboard test
 vi.mock('@/components/reservation/ReservationList', () => ({
   ReservationList: vi.fn(({ items, variant, sourceRole, onLoadMore }) => (
     <div data-testid={`reservation-list-${variant}-${sourceRole}`}>
@@ -47,12 +48,10 @@ vi.mock('@/components/reservation/ReservationList', () => ({
   )),
 }));
 
-// Mock the Skeleton to make it easily assertable
 vi.mock('@/app/reservation/skeleton', () => ({
   ReservationListSkeleton: () => <div data-testid="reservation-skeleton" />,
 }));
 
-// Mock @/components/ui/tabs to bypass Radix UI primitive JSDOM event issues
 const TabsContext = React.createContext<{
   onValueChange?: (value: string) => void;
 }>({});
@@ -106,36 +105,49 @@ vi.mock('@/components/ui/tabs', () => {
   };
 });
 
-describe('ReservationDashboard', () => {
-  const mockLoadMore = vi.fn();
-  const mockLoadHistory = vi.fn();
-  const mockOnMutationSuccess = vi.fn();
-
-  const baseHookReturnValue = {
-    data: {
-      upcoming: [{ id: '1', dtstart: 1000, dtend: 2000, status: 'upcoming' }],
-      pending: [{ id: '2', dtstart: 3000, dtend: 4000, status: 'pending' }],
-      history: [{ id: '3', dtstart: 5000, dtend: 6000, status: 'history' }],
-      nextTokens: { upcoming: 0, pending: 0, history: 0 },
-    },
-    initialState: {
-      upcoming: 'ready' as const,
-      pending: 'ready' as const,
-      history: 'ready' as const,
-    },
-    loadingMoreStates: {
-      upcoming: false,
-      pending: false,
-      history: false,
-    },
-    isLoading: false,
-    isLoadingHistory: false,
-    isHistoryLoaded: true,
-    myUserId: 'user-123',
-    loadMore: mockLoadMore,
-    loadHistory: mockLoadHistory,
-    onMutationSuccess: mockOnMutationSuccess,
+function makeSlice(
+  items: Partial<Reservation>[],
+  overrides: Partial<ReservationTabSlice> = {}
+): ReservationTabSlice {
+  return {
+    items: items as Reservation[],
+    badgeCount: items.length,
+    showBadge: true,
+    isInitialLoading: false,
+    isFetching: false,
+    isLoadingMore: false,
+    isLoaded: true,
+    hasMore: false,
+    loadMore: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
   };
+}
+
+describe('ReservationDashboard', () => {
+  const mockLoadMorePending = vi.fn().mockResolvedValue(undefined);
+  const mockLoadMoreUpcoming = vi.fn().mockResolvedValue(undefined);
+  const mockLoadMoreHistory = vi.fn().mockResolvedValue(undefined);
+  const mockLoadHistory = vi.fn().mockResolvedValue(undefined);
+
+  const buildDashboardState = (
+    overrides: Partial<UseReservationDashboardReturn> = {}
+  ): UseReservationDashboardReturn => ({
+    activeTab: 'pending',
+    myUserId: 'user-123',
+    loadHistory: mockLoadHistory,
+    tabs: {
+      pending: makeSlice([{ id: '2', dtstart: 3000, dtend: 4000 }], {
+        loadMore: mockLoadMorePending,
+      }),
+      upcoming: makeSlice([{ id: '1', dtstart: 1000, dtend: 2000 }], {
+        loadMore: mockLoadMoreUpcoming,
+      }),
+      history: makeSlice([{ id: '3', dtstart: 5000, dtend: 6000 }], {
+        loadMore: mockLoadMoreHistory,
+      }),
+    },
+    ...overrides,
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -144,286 +156,140 @@ describe('ReservationDashboard', () => {
     mockPathname.mockReturnValue('/reservation/mentor');
   });
 
-  it('renders correctly for role "mentee"', () => {
-    vi.mocked(useReservationData).mockReturnValue(
-      fromPartial(baseHookReturnValue)
-    );
+  it('renders Mentee dashboard using canonical Radix tab values ("pending" | "upcoming" | "history") without role suffixes (#939)', () => {
+    vi.mocked(useReservationDashboard).mockReturnValue(buildDashboardState());
 
     render(<ReservationDashboard userRole="mentee" />);
 
-    // Check heading
     expect(screen.getByText('預約導師')).toBeInTheDocument();
-
-    // Pending tab is selected by default when URL has no ?tab= param
     expect(screen.getByTestId('tabs')).toHaveAttribute(
       'data-default-value',
-      'pending-mentee'
+      'pending'
     );
-
-    // Check tabs are rendered with correct counts
     expect(screen.getByText(/即將到來/)).toBeInTheDocument();
     expect(screen.getByText(/等待回覆/)).toBeInTheDocument();
     expect(screen.getByText(/歷史紀錄/)).toBeInTheDocument();
 
-    // Check correct count badges
-    const badgeElements = screen.getAllByText('1');
-    expect(badgeElements.length).toBeGreaterThanOrEqual(2);
+    const triggers = Array.from(
+      screen.getByTestId('tabs-list').querySelectorAll('button')
+    ).map((btn) => btn.getAttribute('data-testid'));
+    expect(triggers).toEqual([
+      'trigger-pending',
+      'trigger-upcoming',
+      'trigger-history',
+    ]);
 
-    // Check upcoming list is rendered for mentee
     const upcomingList = screen.getByTestId('reservation-list-upcoming-mentee');
-    expect(upcomingList).toBeInTheDocument();
     expect(upcomingList).toHaveTextContent('Mock List: 1 items');
   });
 
-  it('renders correctly for role "mentor"', () => {
-    vi.mocked(useReservationData).mockReturnValue(
-      fromPartial(baseHookReturnValue)
-    );
+  it('renders Mentor dashboard with "擔任導師" heading and "待您回覆" pending label', () => {
+    vi.mocked(useReservationDashboard).mockReturnValue(buildDashboardState());
 
     render(<ReservationDashboard userRole="mentor" />);
 
-    // Check heading
     expect(screen.getByText('擔任導師')).toBeInTheDocument();
-
-    // Pending tab is selected by default when URL has no ?tab= param
     expect(screen.getByTestId('tabs')).toHaveAttribute(
       'data-default-value',
-      'pending-mentor'
+      'pending'
     );
+    expect(screen.getByText(/待您回覆/)).toBeInTheDocument();
 
-    // Check tabs are rendered with correct counts
-    expect(screen.getByText(/即將到來/)).toBeInTheDocument();
-    expect(screen.getByText(/待您回覆/)).toBeInTheDocument(); // Mentor specific label
-    expect(screen.getByText(/歷史紀錄/)).toBeInTheDocument();
-
-    // Check upcoming list is rendered for mentor
     const upcomingList = screen.getByTestId('reservation-list-upcoming-mentor');
-    expect(upcomingList).toBeInTheDocument();
     expect(upcomingList).toHaveTextContent('Mock List: 1 items');
   });
 
-  it('shows loading skeletons when lists are in loading state', () => {
-    const loadingHookReturnValue = {
-      ...baseHookReturnValue,
-      initialState: {
-        upcoming: 'loading' as const,
-        pending: 'loading' as const,
-        history: 'idle' as const,
+  it('renders Skeleton on Render 1 for ?tab=history when tabs.history.isInitialLoading is true (no empty-state flash, #939)', () => {
+    mockGet.mockImplementation((key: string) =>
+      key === 'tab' ? 'history' : null
+    );
+    const state = buildDashboardState({
+      activeTab: 'history',
+      tabs: {
+        pending: makeSlice([], { isInitialLoading: true }),
+        upcoming: makeSlice([], { isInitialLoading: true }),
+        history: makeSlice([], {
+          isInitialLoading: true,
+          isFetching: true,
+          isLoaded: false,
+          showBadge: false,
+        }),
       },
-      isHistoryLoaded: false,
-    };
-    vi.mocked(useReservationData).mockReturnValue(
-      fromPartial(loadingHookReturnValue)
-    );
+    });
+    vi.mocked(useReservationDashboard).mockReturnValue(state);
 
     render(<ReservationDashboard userRole="mentee" />);
 
-    // The active tab is pending by default, so it should render the skeleton
-    expect(
-      screen.getAllByTestId('reservation-skeleton')[0]
-    ).toBeInTheDocument();
-  });
-
-  it('triggers loadHistory when clicking the history tab if history is not loaded', () => {
-    const notLoadedHistoryReturnValue = {
-      ...baseHookReturnValue,
-      isHistoryLoaded: false,
-      isLoadingHistory: false,
-    };
-    vi.mocked(useReservationData).mockReturnValue(
-      fromPartial(notLoadedHistoryReturnValue)
-    );
-
-    render(<ReservationDashboard userRole="mentee" />);
-
-    // Find the history tab trigger and click it
-    const historyTrigger = screen.getByTestId('trigger-history');
-    fireEvent.click(historyTrigger);
-
-    // Should call loadHistory
-    expect(mockLoadHistory).toHaveBeenCalledTimes(1);
-  });
-
-  it('correctly maps and triggers onLoadMore params for role "mentee"', () => {
-    vi.mocked(useReservationData).mockReturnValue(
-      fromPartial(baseHookReturnValue)
-    );
-
-    render(<ReservationDashboard userRole="mentee" />);
-
-    // --- Tab 1: Upcoming ---
-    const upcomingLoadMore = screen.getByTestId('load-more-upcoming');
-    fireEvent.click(upcomingLoadMore);
-    expect(mockLoadMore).toHaveBeenCalledWith('upcoming');
-
-    // --- Tab 2: Pending ---
-    const pendingTrigger = screen.getByTestId('trigger-pending-mentee');
-    fireEvent.click(pendingTrigger);
-    const pendingLoadMore = screen.getByTestId('load-more-pending-mentee');
-    fireEvent.click(pendingLoadMore);
-    expect(mockLoadMore).toHaveBeenCalledWith('pending');
-
-    // --- Tab 3: History ---
-    const historyTrigger = screen.getByTestId('trigger-history');
-    fireEvent.click(historyTrigger);
-    const historyLoadMore = screen.getByTestId('load-more-history');
-    fireEvent.click(historyLoadMore);
-    expect(mockLoadMore).toHaveBeenCalledWith('history');
-  });
-
-  it('correctly maps and triggers onLoadMore params for role "mentor"', () => {
-    vi.mocked(useReservationData).mockReturnValue(
-      fromPartial(baseHookReturnValue)
-    );
-
-    render(<ReservationDashboard userRole="mentor" />);
-
-    // --- Tab 1: Upcoming ---
-    const upcomingLoadMore = screen.getByTestId('load-more-upcoming');
-    fireEvent.click(upcomingLoadMore);
-    expect(mockLoadMore).toHaveBeenCalledWith('upcoming');
-
-    // --- Tab 2: Pending ---
-    const pendingTrigger = screen.getByTestId('trigger-pending-mentor');
-    fireEvent.click(pendingTrigger);
-    const pendingLoadMore = screen.getByTestId('load-more-pending-mentor');
-    fireEvent.click(pendingLoadMore);
-    expect(mockLoadMore).toHaveBeenCalledWith('pending');
-
-    // --- Tab 3: History ---
-    const historyTrigger = screen.getByTestId('trigger-history');
-    fireEvent.click(historyTrigger);
-    const historyLoadMore = screen.getByTestId('load-more-history');
-    fireEvent.click(historyLoadMore);
-    expect(mockLoadMore).toHaveBeenCalledWith('history');
-  });
-
-  it('initializes the active tab based on "tab" search parameter and triggers loadHistory if history is selected and not loaded', () => {
-    vi.mocked(useReservationData).mockReturnValue(
-      fromPartial({
-        ...baseHookReturnValue,
-        isHistoryLoaded: false,
-      })
-    );
-
-    // Test with tab=upcoming
-    mockGet.mockReturnValue('upcoming');
-    const { rerender } = render(<ReservationDashboard userRole="mentor" />);
-    expect(screen.getByTestId('tabs')).toHaveAttribute(
-      'data-default-value',
-      'upcoming-mentor'
-    );
-
-    // Test with tab=pending
-    mockGet.mockReturnValue('pending');
-    rerender(<ReservationDashboard userRole="mentor" />);
-    expect(screen.getByTestId('tabs')).toHaveAttribute(
-      'data-default-value',
-      'pending-mentor'
-    );
-
-    // Test with tab=history (which should also trigger loadHistory since isHistoryLoaded is false)
-    mockGet.mockReturnValue('history');
-    rerender(<ReservationDashboard userRole="mentor" />);
     expect(screen.getByTestId('tabs')).toHaveAttribute(
       'data-default-value',
       'history'
     );
-    expect(mockLoadHistory).toHaveBeenCalled();
+    const historyContent = screen.getByTestId('content-history');
+    expect(
+      historyContent.querySelector('[data-testid="reservation-skeleton"]')
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId('reservation-list-history-mentee')
+    ).not.toBeInTheDocument();
   });
 
-  it('updates the URL search parameter "tab" when switching tabs', () => {
-    vi.mocked(useReservationData).mockReturnValue(
-      fromPartial(baseHookReturnValue)
-    );
-    mockGet.mockReturnValue('upcoming');
+  it('triggers loadHistory when clicking History tab while not loaded and updates URL / analytics', () => {
+    const state = buildDashboardState();
+    state.tabs.history = makeSlice([], {
+      isLoaded: false,
+      isFetching: false,
+      showBadge: false,
+    });
+    vi.mocked(useReservationDashboard).mockReturnValue(state);
 
-    render(<ReservationDashboard userRole="mentor" />);
+    render(<ReservationDashboard userRole="mentee" />);
 
-    // Switch to Pending tab
-    const pendingTrigger = screen.getByTestId('trigger-pending-mentor');
-    fireEvent.click(pendingTrigger);
+    fireEvent.click(screen.getByTestId('trigger-history'));
 
-    // It should replace the URL with tab=pending and track reservation_tab_changed
+    expect(mockLoadHistory).toHaveBeenCalledTimes(1);
     expect(mockReplace).toHaveBeenCalledWith(
-      expect.stringContaining('tab=pending')
+      expect.stringContaining('tab=history')
     );
     expect(trackEvent).toHaveBeenCalledWith({
       name: 'reservation_tab_changed',
       feature: 'reservation',
-      metadata: { role: 'mentor', tab: 'pending' },
+      metadata: { role: 'mentee', tab: 'history' },
     });
   });
 
-  it('preserves existing badge counts for upcoming and pending tabs while history is loading (#860)', () => {
-    vi.mocked(useReservationData).mockReturnValue(
-      fromPartial({
-        ...baseHookReturnValue,
-        isHistoryLoaded: false,
-        isLoadingHistory: false,
-      })
-    );
+  it('forwards per-tab loadMore callbacks directly from tabs slices', () => {
+    vi.mocked(useReservationDashboard).mockReturnValue(buildDashboardState());
 
-    const { rerender } = render(<ReservationDashboard userRole="mentee" />);
+    render(<ReservationDashboard userRole="mentee" />);
 
-    expect(screen.getByTestId('trigger-upcoming-mentee')).toHaveTextContent(
-      '即將到來1'
-    );
-    expect(screen.getByTestId('trigger-pending-mentee')).toHaveTextContent(
-      '等待回覆1'
-    );
+    fireEvent.click(screen.getByTestId('load-more-upcoming'));
+    expect(mockLoadMoreUpcoming).toHaveBeenCalledTimes(1);
 
-    // Simulate transient empty data while history is loading after clicking History tab
-    vi.mocked(useReservationData).mockReturnValue(
-      fromPartial({
-        ...baseHookReturnValue,
-        data: null,
-        isHistoryLoaded: false,
-        isLoadingHistory: true,
-      })
-    );
+    fireEvent.click(screen.getByTestId('load-more-pending-mentee'));
+    expect(mockLoadMorePending).toHaveBeenCalledTimes(1);
 
-    rerender(<ReservationDashboard userRole="mentee" />);
-
-    expect(screen.getByTestId('trigger-upcoming-mentee')).toHaveTextContent(
-      '即將到來1'
-    );
-    expect(screen.getByTestId('trigger-pending-mentee')).toHaveTextContent(
-      '等待回覆1'
-    );
+    fireEvent.click(screen.getByTestId('load-more-history'));
+    expect(mockLoadMoreHistory).toHaveBeenCalledTimes(1);
   });
 
-  it('places Pending tab before Upcoming tab for both mentee and mentor views (#730 1.h)', () => {
-    vi.mocked(useReservationData).mockReturnValue(
-      fromPartial(baseHookReturnValue)
-    );
+  it('renders badgeCount and showBadge directly from hook-computed tab slices (#860 / #939)', () => {
+    const state = buildDashboardState();
+    state.tabs.upcoming = makeSlice([], { badgeCount: 3 });
+    state.tabs.pending = makeSlice([], { badgeCount: 2 });
+    state.tabs.history = makeSlice([], { badgeCount: 0, showBadge: false });
+    vi.mocked(useReservationDashboard).mockReturnValue(state);
 
-    const { unmount } = render(<ReservationDashboard userRole="mentee" />);
-    const menteeTabsList = screen.getByTestId('tabs-list');
-    const menteeTriggers = Array.from(
-      menteeTabsList.querySelectorAll('button')
-    );
-    expect(
-      menteeTriggers.map((btn) => btn.getAttribute('data-testid'))
-    ).toEqual([
-      'trigger-pending-mentee',
-      'trigger-upcoming-mentee',
-      'trigger-history',
-    ]);
-    unmount();
+    render(<ReservationDashboard userRole="mentee" />);
 
-    render(<ReservationDashboard userRole="mentor" />);
-    const mentorTabsList = screen.getByTestId('tabs-list');
-    const mentorTriggers = Array.from(
-      mentorTabsList.querySelectorAll('button')
+    expect(screen.getByTestId('trigger-upcoming')).toHaveTextContent(
+      '即將到來3'
     );
-    expect(
-      mentorTriggers.map((btn) => btn.getAttribute('data-testid'))
-    ).toEqual([
-      'trigger-pending-mentor',
-      'trigger-upcoming-mentor',
-      'trigger-history',
-    ]);
+    expect(screen.getByTestId('trigger-pending')).toHaveTextContent(
+      '等待回覆2'
+    );
+    expect(screen.getByTestId('trigger-history')).toHaveTextContent(
+      /^歷史紀錄$/
+    );
   });
 
   it('clears stale feedback=queue query parameter once mentee history finishes loading with 0 pending feedback items', () => {
@@ -435,38 +301,36 @@ describe('ReservationDashboard', () => {
     });
     mockToString.mockReturnValue('tab=upcoming&feedback=queue');
 
-    // 1. While history is still loading, must NOT prematurely strip feedback=queue
-    vi.mocked(useReservationData).mockReturnValue(
-      fromPartial({
-        ...baseHookReturnValue,
-        data: {
-          upcoming: [],
-          pending: [],
-          history: [],
-          nextTokens: { upcoming: 0, pending: 0, history: 0 },
-        },
-        isHistoryLoaded: false,
-        isLoadingHistory: true,
-      })
-    );
+    const loadingState = buildDashboardState({
+      activeTab: 'history',
+      tabs: {
+        pending: makeSlice([]),
+        upcoming: makeSlice([]),
+        history: makeSlice([], {
+          isInitialLoading: true,
+          isFetching: true,
+          isLoaded: false,
+        }),
+      },
+    });
+    vi.mocked(useReservationDashboard).mockReturnValue(loadingState);
 
     const { rerender } = render(<ReservationDashboard userRole="mentee" />);
     expect(mockReplace).not.toHaveBeenCalled();
 
-    // 2. Once history is loaded with empty list (0 pending feedback items), strips feedback=queue
-    vi.mocked(useReservationData).mockReturnValue(
-      fromPartial({
-        ...baseHookReturnValue,
-        data: {
-          upcoming: [],
-          pending: [],
-          history: [],
-          nextTokens: { upcoming: 0, pending: 0, history: 0 },
-        },
-        isHistoryLoaded: true,
-        isLoadingHistory: false,
-      })
-    );
+    const settledEmptyState = buildDashboardState({
+      activeTab: 'history',
+      tabs: {
+        pending: makeSlice([]),
+        upcoming: makeSlice([]),
+        history: makeSlice([], {
+          isInitialLoading: false,
+          isFetching: false,
+          isLoaded: true,
+        }),
+      },
+    });
+    vi.mocked(useReservationDashboard).mockReturnValue(settledEmptyState);
 
     rerender(<ReservationDashboard userRole="mentee" />);
     expect(mockReplace).toHaveBeenCalledWith(
@@ -481,30 +345,26 @@ describe('ReservationDashboard', () => {
     );
     mockToString.mockReturnValue('feedback=queue');
 
-    vi.mocked(useReservationData).mockReturnValue(
-      fromPartial({
-        ...baseHookReturnValue,
-        data: {
-          upcoming: [],
-          pending: [],
-          history: [
-            {
-              id: 'hist-pending-answer',
-              dtstart: 5000,
-              dtend: 6000,
-              feedback: {
-                meetingHappened: null,
-                rating: null,
-                nextStep: 'ANSWER',
-              },
+    const state = buildDashboardState({
+      activeTab: 'history',
+      tabs: {
+        pending: makeSlice([]),
+        upcoming: makeSlice([]),
+        history: makeSlice([
+          {
+            id: 'hist-pending-answer',
+            dtstart: 5000,
+            dtend: 6000,
+            feedback: {
+              meetingHappened: null,
+              rating: null,
+              nextStep: 'ANSWER',
             },
-          ],
-          nextTokens: { upcoming: 0, pending: 0, history: 0 },
-        },
-        isHistoryLoaded: true,
-        isLoadingHistory: false,
-      })
-    );
+          },
+        ]),
+      },
+    });
+    vi.mocked(useReservationDashboard).mockReturnValue(state);
 
     render(<ReservationDashboard userRole="mentee" />);
     expect(mockReplace).not.toHaveBeenCalled();
@@ -516,125 +376,7 @@ describe('ReservationDashboard', () => {
     ]);
   });
 
-  it('activates History tab and forwards deepLinkDialogReservation & highlightedReservationId when reservationId deep link is present (#733)', () => {
-    mockPathname.mockReturnValue('/reservation/mentee');
-    mockGet.mockImplementation((key: string) => {
-      if (key === 'reservationId') return '101';
-      return null;
-    });
-    mockToString.mockReturnValue('reservationId=101');
-
-    vi.mocked(useReservationData).mockReturnValue(
-      fromPartial({
-        ...baseHookReturnValue,
-        data: {
-          upcoming: [],
-          pending: [],
-          history: [
-            {
-              id: '101',
-              dtstart: 5000,
-              dtend: 6000,
-              feedback: {
-                meetingHappened: null,
-                rating: null,
-                nextStep: 'ANSWER',
-              },
-            },
-          ],
-          nextTokens: { upcoming: 0, pending: 0, history: 0 },
-        },
-        isHistoryLoaded: true,
-        isLoadingHistory: false,
-      })
-    );
-
-    render(<ReservationDashboard userRole="mentee" />);
-    expect(screen.getByTestId('tabs')).toHaveAttribute(
-      'data-default-value',
-      'history'
-    );
-    const historyCalls = vi
-      .mocked(ReservationList)
-      .mock.calls.filter(([props]) => props.variant === 'history');
-    const latestHistoryCall = historyCalls[historyCalls.length - 1];
-    expect(latestHistoryCall?.[0].deepLinkDialogReservation).toEqual(
-      expect.objectContaining({ id: '101' })
-    );
-    expect(latestHistoryCall?.[0].highlightedReservationId).toBe('101');
-  });
-
-  it.each(['reservationId', 'reservation_id', 'feedbackReservationId'])(
-    'triggers initial loadHistory on mount when deep link has %s without tab=history and resolves target once loaded (#733)',
-    (paramKey) => {
-      mockPathname.mockReturnValue('/reservation/mentee');
-      mockGet.mockImplementation((key: string) => {
-        if (key === paramKey) return '101';
-        return null;
-      });
-      mockToString.mockReturnValue(`${paramKey}=101`);
-
-      // 1. Initial mount before history is loaded: must switch to history tab AND call loadHistory()
-      vi.mocked(useReservationData).mockReturnValue(
-        fromPartial({
-          ...baseHookReturnValue,
-          data: {
-            upcoming: [],
-            pending: [],
-            history: [],
-            nextTokens: { upcoming: 0, pending: 0, history: 0 },
-          },
-          isHistoryLoaded: false,
-          isLoadingHistory: false,
-        })
-      );
-
-      const { rerender } = render(<ReservationDashboard userRole="mentee" />);
-      expect(screen.getByTestId('tabs')).toHaveAttribute(
-        'data-default-value',
-        'history'
-      );
-      expect(mockLoadHistory).toHaveBeenCalledTimes(1);
-
-      // 2. Once history finishes loading, deepLinkDialogReservation and highlightedReservationId resolve
-      vi.mocked(useReservationData).mockReturnValue(
-        fromPartial({
-          ...baseHookReturnValue,
-          data: {
-            upcoming: [],
-            pending: [],
-            history: [
-              {
-                id: '101',
-                dtstart: 5000,
-                dtend: 6000,
-                feedback: {
-                  meetingHappened: null,
-                  rating: null,
-                  nextStep: 'ANSWER',
-                },
-              },
-            ],
-            nextTokens: { upcoming: 0, pending: 0, history: 0 },
-          },
-          isHistoryLoaded: true,
-          isLoadingHistory: false,
-        })
-      );
-
-      rerender(<ReservationDashboard userRole="mentee" />);
-      const historyCalls = vi
-        .mocked(ReservationList)
-        .mock.calls.filter(([props]) => props.variant === 'history');
-      const latestHistoryCall = historyCalls[historyCalls.length - 1];
-      expect(latestHistoryCall?.[0].deepLinkDialogReservation).toEqual(
-        expect.objectContaining({ id: '101' })
-      );
-      expect(latestHistoryCall?.[0].highlightedReservationId).toBe('101');
-    }
-  );
-
-  it('suppresses feedbackQueueItems to null and prioritizes deepLinkDialogReservation when ?tab=history&feedback=queue&reservationId=101 coexist (#733)', () => {
+  it('activates History tab, suppresses queue, and forwards deepLinkDialogReservation when reservationId deep link is present (#733)', () => {
     mockPathname.mockReturnValue('/reservation/mentee');
     mockGet.mockImplementation((key: string) => {
       if (key === 'tab') return 'history';
@@ -646,40 +388,36 @@ describe('ReservationDashboard', () => {
       'tab=history&feedback=queue&reservationId=101'
     );
 
-    vi.mocked(useReservationData).mockReturnValue(
-      fromPartial({
-        ...baseHookReturnValue,
-        data: {
-          upcoming: [],
-          pending: [],
-          history: [
-            {
-              id: '101',
-              dtstart: 5000,
-              dtend: 6000,
-              feedback: {
-                meetingHappened: null,
-                rating: null,
-                nextStep: 'ANSWER',
-              },
+    const state = buildDashboardState({
+      activeTab: 'history',
+      tabs: {
+        pending: makeSlice([]),
+        upcoming: makeSlice([]),
+        history: makeSlice([
+          {
+            id: '101',
+            dtstart: 5000,
+            dtend: 6000,
+            feedback: {
+              meetingHappened: null,
+              rating: null,
+              nextStep: 'ANSWER',
             },
-            {
-              id: '102',
-              dtstart: 7000,
-              dtend: 8000,
-              feedback: {
-                meetingHappened: null,
-                rating: null,
-                nextStep: 'ANSWER',
-              },
+          },
+          {
+            id: '102',
+            dtstart: 7000,
+            dtend: 8000,
+            feedback: {
+              meetingHappened: null,
+              rating: null,
+              nextStep: 'ANSWER',
             },
-          ],
-          nextTokens: { upcoming: 0, pending: 0, history: 0 },
-        },
-        isHistoryLoaded: true,
-        isLoadingHistory: false,
-      })
-    );
+          },
+        ]),
+      },
+    });
+    vi.mocked(useReservationDashboard).mockReturnValue(state);
 
     render(<ReservationDashboard userRole="mentee" />);
     const historyCalls = vi
@@ -701,37 +439,33 @@ describe('ReservationDashboard', () => {
     });
     mockToString.mockReturnValue('tab=history&reservationId=102');
 
-    vi.mocked(useReservationData).mockReturnValue(
-      fromPartial({
-        ...baseHookReturnValue,
-        data: {
-          upcoming: [],
-          pending: [],
-          history: [
-            {
-              id: '102',
-              dtstart: 5000,
-              dtend: 6000,
-              feedback: {
-                meetingHappened: true,
-                rating: {
-                  rating: 10,
-                  content: '既有回饋',
-                  createdAt: 1760000000,
-                  updatedAt: 1760000000,
-                  authorName: 'T***',
-                  isPublic: true,
-                },
-                nextStep: null,
+    const state = buildDashboardState({
+      activeTab: 'history',
+      tabs: {
+        pending: makeSlice([]),
+        upcoming: makeSlice([]),
+        history: makeSlice([
+          {
+            id: '102',
+            dtstart: 5000,
+            dtend: 6000,
+            feedback: {
+              meetingHappened: true,
+              rating: {
+                rating: 10,
+                content: '既有回饋',
+                createdAt: 1760000000,
+                updatedAt: 1760000000,
+                authorName: 'T***',
+                isPublic: true,
               },
+              nextStep: null,
             },
-          ],
-          nextTokens: { upcoming: 0, pending: 0, history: 0 },
-        },
-        isHistoryLoaded: true,
-        isLoadingHistory: false,
-      })
-    );
+          },
+        ]),
+      },
+    });
+    vi.mocked(useReservationDashboard).mockReturnValue(state);
 
     render(<ReservationDashboard userRole="mentee" />);
 
@@ -743,13 +477,12 @@ describe('ReservationDashboard', () => {
     expect(initialHistoryProps?.highlightedReservationId).toBe('102');
     expect(initialHistoryProps?.autoExpandedReservationId).toBe('102');
 
-    // Simulate URL having cleaned reservationId, then user switches to Upcoming tab
     mockGet.mockImplementation((key: string) =>
       key === 'tab' ? 'history' : null
     );
     mockToString.mockReturnValue('tab=history');
 
-    fireEvent.click(screen.getByTestId('trigger-upcoming-mentee'));
+    fireEvent.click(screen.getByTestId('trigger-upcoming'));
 
     const afterSwitchHistoryCalls = vi
       .mocked(ReservationList)
