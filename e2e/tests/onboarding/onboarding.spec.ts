@@ -223,13 +223,22 @@ test('submit single-page onboarding with empty name → inline validation error 
   await expect(page.getByText('請輸入姓名')).toBeVisible();
 });
 
-test('complete single-page Mentee onboarding → saves default_1 avatar & single position and redirects to /profile/1 (#836)', async ({
+test('complete single-page Mentee onboarding → saves default_1 avatar & single position and redirects to /profile/card completion screen (#973)', async ({
   page,
 }) => {
   await gotoOnboarding(page);
 
   await mockApiRoute(page, /\/v1\/mentors\/[^/]+\/zh_TW\/profile/, {
-    body: MOCK_USER_PROFILE,
+    body: {
+      ...MOCK_USER_PROFILE,
+      data: {
+        ...MOCK_USER_PROFILE.data,
+        avatar: 'default_1',
+        want_position: ['frontend_engineer'],
+        want_skill: ['react'],
+        want_topic: ['resume'],
+      },
+    },
   });
 
   let capturedOnboardingPut: Record<string, unknown> | null = null;
@@ -279,7 +288,24 @@ test('complete single-page Mentee onboarding → saves default_1 avatar & single
   });
   await page.getByRole('button', { name: '提交' }).click();
 
-  await expect(page).toHaveURL('/profile/1', { timeout: 35_000 });
+  await expect(page).toHaveURL('/profile/card', { timeout: 35_000 });
+  await expect(page.getByText('恭喜你完成個人頁面的建立！')).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByRole('button', { name: '成為導師' })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: '開始探索 X-Talent' })
+  ).toBeVisible();
+
+  await captureEvidence(page, 'mentee-onboarding-completed-card', {
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await captureEvidence(page, 'mentee-onboarding-completed-card-mobile', {
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 1280, height: 720 });
+
   expect(
     Array.isArray(capturedOnboardingPut?.['want_position']) &&
       (capturedOnboardingPut?.['want_position'] as unknown[]).length === 1

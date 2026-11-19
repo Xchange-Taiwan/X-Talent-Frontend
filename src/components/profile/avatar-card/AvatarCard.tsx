@@ -5,6 +5,7 @@ import type { FC } from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import { resolveDisplaySocialLinks } from '@/components/profile/social-links/platformLabelMap';
+import { shouldUnoptimizeAvatarSrc } from '@/lib/avatar/avatarUrl';
 import type { PersonalLink } from '@/lib/profile/socialLinks';
 import { cn } from '@/lib/utils';
 
@@ -26,6 +27,8 @@ export const AvatarCard: FC<Props> = ({
   companyName,
 }) => {
   const safePersonalLinks = resolveDisplaySocialLinks(personalLinks);
+  const trimmedJob = jobTitle?.trim() ?? '';
+  const trimmedCompany = companyName?.trim() ?? '';
 
   return (
     <div
@@ -38,7 +41,8 @@ export const AvatarCard: FC<Props> = ({
           alt={'Avatar of ' + name}
           fill
           sizes="120px"
-          className="object-contain"
+          unoptimized={shouldUnoptimizeAvatarSrc(avatarImgUrl)}
+          className="object-cover"
         />
       </div>
 
@@ -65,16 +69,17 @@ export const AvatarCard: FC<Props> = ({
           )}
         </div>
 
-        <p className="text-sm">
-          {jobTitle}
-
-          {!!companyName && (
-            <>
-              {' '}
-              <span className="text-text-tertiary">at</span> {companyName}
-            </>
-          )}
-        </p>
+        {(trimmedJob || trimmedCompany) && (
+          <p className="text-sm">
+            {trimmedJob}
+            {Boolean(trimmedCompany) && (
+              <>
+                {trimmedJob ? ' ' : ''}
+                <span className="text-text-tertiary">at</span> {trimmedCompany}
+              </>
+            )}
+          </p>
+        )}
       </div>
     </div>
   );

@@ -77,6 +77,24 @@ export const MenteeCompletedView: Story = {
   },
 };
 
+export const FreshMenteePresetAvatarCompletedView: Story = {
+  name: '新註冊學員完成引導（預設插畫 default_1 + 無工作經驗, #973）',
+  args: {
+    userData: {
+      ...mockMenteeUserData,
+      avatar: 'default_1',
+      job_title: '',
+      company: '',
+      want_position: [{ subject_group: 'want-fe', subject: '前端工程師' }],
+    },
+    isMentor: false,
+    personalLinks: [],
+    onBecomeMentor: () => {},
+    onGoToMentorPool: () => {},
+    onBackToProfile: () => {},
+  },
+};
+
 export const MentorCompletedView: Story = {
   args: {
     userData: mockMentorUserData,
