@@ -18,6 +18,7 @@ import { useObjectUrl } from '@/hooks/useObjectUrl';
 import {
   resolveAvatarDisplayUrl,
   shouldUnoptimizeAvatarSrc,
+  withAvatarVersion,
 } from '@/lib/avatar/avatarUrl';
 import { FOCUS_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
@@ -102,11 +103,14 @@ export const AvatarSection = <T extends FieldValues>({
   const isAvatarDirty = Boolean(
     (dirtyFields as Record<string, unknown>)[String(resolvedAvatarField)]
   );
-  const avatarUrl =
+  const rawAvatarUrl =
     typeof watchedAvatar === 'string' &&
     (watchedAvatar.length > 0 || isAvatarDirty)
       ? resolveAvatarDisplayUrl(watchedAvatar)
       : resolveAvatarDisplayUrl(session?.user?.avatar ?? '');
+  const avatarUrl = rawAvatarUrl
+    ? withAvatarVersion(rawAvatarUrl, session?.user?.avatarUpdatedAt, 'cb')
+    : '';
 
   const currentFile =
     typeof File !== 'undefined' && (watchedFile as unknown) instanceof File

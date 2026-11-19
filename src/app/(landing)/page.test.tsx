@@ -105,6 +105,12 @@ describe('LandingPage', () => {
       expect(
         screen.getByRole('heading', {
           level: 2,
+          name: '一個帳號，雙軌成長',
+        })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', {
+          level: 2,
           name: /你的下一步，.*從一次交流開始。/,
         })
       ).toBeInTheDocument();

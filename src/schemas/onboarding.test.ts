@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   formSchema,
+  onboardingDefaultValues,
   step1Schema,
   step2Schema,
   step3Schema,
@@ -93,13 +94,15 @@ describe('onboarding schemas', () => {
       }
     });
 
-    it('fails if positions list exceeds 10 items', () => {
+    it('fails if positions list exceeds 1 item (single-select lock #966)', () => {
       const result = step3Schema.safeParse({
-        want_position: Array(11).fill('position'),
+        want_position: ['position1', 'position2'],
       });
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.errors[0].message).toBe('最多選 10 個');
+        expect(result.error.errors[0].message).toBe(
+          '目前僅開放選擇 1 個職位方向'
+        );
       }
     });
   });
@@ -157,8 +160,10 @@ describe('onboarding schemas', () => {
   });
 
   describe('formSchema', () => {
-    it('aggregates all step schemas successfully', () => {
+    it('aggregates Mentee single-page fields successfully (#836)', () => {
       const result = formSchema.safeParse({
+        ...onboardingDefaultValues,
+        role: 'mentee',
         name: 'John Doe',
         language: 'zh_TW',
         location: 'TWN',
@@ -169,6 +174,79 @@ describe('onboarding schemas', () => {
         want_topic: ['topic1'],
       });
       expect(result.success).toBe(true);
+    });
+
+    it('accepts valid Mentor single-page payload with real avatar, guidelines, expertise, work experience, and education (#836)', () => {
+      const mentorPass = formSchema.safeParse({
+        ...onboardingDefaultValues,
+        role: 'mentor',
+        name: '林導師',
+        avatar: 'https://s3.amazonaws.com/real-mentor.png',
+        agreed_guidelines: true,
+        location: 'TWN',
+        years_of_experience: '3_5',
+        industry: 'TECH',
+        about: '十年資深後端架構師，專注分散式系統與職涯轉職指導。',
+        have_topic: ['career'],
+        have_skill: ['backend'],
+        work_experiences: [
+          {
+            id: -1,
+            job: 'Senior Staff Engineer',
+            company: 'Acme Cloud',
+            is_primary: true,
+            job_period_start: '2020',
+            job_period_end: 'Present',
+            industry: 'TECH',
+            job_location: 'TWN',
+            description: '主導核心架構設計與工程團隊指導',
+          },
+        ],
+        educations: [
+          {
+            id: -1,
+            school: '國立臺灣大學',
+            subject: '資訊工程學系',
+            education_period_start: '2012',
+            education_period_end: '2016',
+          },
+        ],
+      });
+      expect(mentorPass.success).toBe(true);
+    });
+
+    it('reports granular Mentor superRefine errors for missing guidelines, preset/empty avatar, industry, about, expertise, work, and education (#836)', () => {
+      const mentorBlocked = formSchema.safeParse({
+        ...onboardingDefaultValues,
+        role: 'mentor',
+        name: '林導師',
+        avatar: 'default_1',
+        agreed_guidelines: false,
+        location: 'TWN',
+        years_of_experience: '3_5',
+        industry: '',
+        about: '   ',
+        have_topic: [],
+        have_skill: [],
+        work_experiences: [],
+        educations: [],
+      });
+      expect(mentorBlocked.success).toBe(false);
+      if (!mentorBlocked.success) {
+        const paths = mentorBlocked.error.issues.map((i) => i.path.join('.'));
+        expect(paths).toEqual(
+          expect.arrayContaining([
+            'agreed_guidelines',
+            'avatarFile',
+            'industry',
+            'about',
+            'have_topic',
+            'have_skill',
+            'work_experiences',
+            'educations',
+          ])
+        );
+      }
     });
   });
 });

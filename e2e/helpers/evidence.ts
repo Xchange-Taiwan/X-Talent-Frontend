@@ -117,6 +117,10 @@ export async function captureEvidence(
   if (options.locator) {
     await options.locator.screenshot({ path: filePath });
   } else {
+    if (options.fullPage) {
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.waitForTimeout(100);
+    }
     await page.screenshot({
       path: filePath,
       fullPage: Boolean(options.fullPage),

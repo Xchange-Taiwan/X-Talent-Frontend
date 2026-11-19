@@ -28,7 +28,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ProfileFormContext } from '@/hooks/user/profile/useProfileEditorSession';
 import {
   useRepeatablePeriodSection,
   YEAR_OPTIONS,
@@ -37,6 +36,10 @@ import { hasExactMatch, searchSchools } from '@/lib/profile/searchSchools';
 import { cn } from '@/lib/utils';
 
 import { Section } from '../Section';
+import {
+  asProfileFormContext,
+  type SharedProfileEditorForm,
+} from '../sharedEditorForm';
 import { taiwanSchools } from './schoolData';
 
 export function SchoolComboboxField({
@@ -121,11 +124,12 @@ export function SchoolComboboxField({
 }
 
 interface Props {
-  form: ProfileFormContext;
+  form: SharedProfileEditorForm;
   isMentor: boolean;
 }
 
-export const EducationSection = ({ form, isMentor }: Props) => {
+export const EducationSection = ({ form: rawForm, isMentor }: Props) => {
+  const form = asProfileFormContext(rawForm);
   const {
     control,
     formState: { errors },

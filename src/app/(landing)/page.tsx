@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 
+import { DualTrackSection } from '@/components/landing/DualTrackSection';
 import { FeatureItem } from '@/components/landing/FeatureItem';
 import { HomePageCtaButton } from '@/components/landing/HomePageCtaButton';
 import { HomePageHero } from '@/components/landing/HomePageHero';
@@ -281,6 +282,8 @@ export default function Page() {
           </div>
         </div>
       </section>
+
+      <DualTrackSection />
 
       <section className="bg-background-bottom-secondary flex items-center justify-center">
         <div className="w-full max-w-[600px] py-10 lg:max-w-6xl">

@@ -7,16 +7,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useToast } from '@/components/ui/use-toast';
 import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
-import { trackEvent, trackFormValidationFailed } from '@/lib/analytics';
+import { trackFormValidationFailed } from '@/lib/analytics';
 import {
   getPendingFavoriteMentorId,
   savePendingFavoriteMentor,
 } from '@/lib/favorites';
+import { readStoredMenteeDirectionMap } from '@/lib/profile/menteeDirectionPreference';
 import type { ProfileSavePort } from '@/lib/profile/saveProfile';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
 
-import { STEP_FIELDS, useOnboardingForm } from './useOnboardingForm';
+import { useOnboardingForm } from './useOnboardingForm';
 
 vi.mock('next/navigation', () => ({
   useRouter: vi.fn(),
@@ -42,7 +43,6 @@ vi.mock('@/lib/analytics', () => ({
 const mockUseRouter = vi.mocked(useRouter);
 const mockUseSession = vi.mocked(useSession);
 const mockUseBackgroundAvatarUpload = vi.mocked(useBackgroundAvatarUpload);
-const mockTrackEvent = vi.mocked(trackEvent);
 const mockTrackFormValidationFailed = vi.mocked(trackFormValidationFailed);
 const mockUseToast = vi.mocked(useToast);
 
@@ -113,120 +113,163 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
     });
   });
 
-  it('validates STEP_FIELDS per step on a single useForm<OnboardingFormValues> and advances/rewinds cleanly', async () => {
-    expect(Object.keys(STEP_FIELDS)).toEqual(['1', '2', '3', '4', '5']);
-
-    const { result } = renderHook(() =>
-      useOnboardingForm({ industries: mockIndustries, port: buildPort() })
-    );
+  it('validates Mentee single-page fields, switches to Mentor role, and submits Mentor onboarding to /profile/card (#836)', async () => {
+    const { result } = renderHook(() => {
+      const s = useOnboardingForm({
+        industries: mockIndustries,
+        port: buildPort(),
+      });
+      void s.form.formState.errors;
+      return s;
+    });
 
     expect(mockUseBackgroundAvatarUpload).toHaveBeenCalledWith(1);
-    expect(result.current.currentStep).toBe(1);
+    expect(result.current.role).toBe('mentee');
 
-    // Step 1 valid (hydrated from session name 'John Doe') -> advances to Step 2
-    let step1Ok = false;
+    // Submitting Mentee while years_of_experience and want_* are empty -> blocks and tracks validation failure without PII
     await act(async () => {
-      step1Ok = await result.current.advanceStep();
+      await result.current.submitOnboarding();
     });
-    expect(step1Ok).toBe(true);
-    expect(result.current.currentStep).toBe(2);
-    expect(mockTrackEvent).toHaveBeenCalledWith({
-      name: 'onboarding_step_1_completed',
-      feature: 'onboarding',
-    });
-
-    // Step 2 invalid when years_of_experience is empty -> stays on Step 2 and reports exact invalid field (not valid 'location')
-    let step2Invalid = true;
-    await act(async () => {
-      step2Invalid = await result.current.advanceStep();
-    });
-    expect(step2Invalid).toBe(false);
-    expect(result.current.currentStep).toBe(2);
-    expect(mockTrackFormValidationFailed).toHaveBeenCalledWith({
-      feature: 'onboarding',
-      formId: 'mentee_onboarding',
-      invalidKeys: ['years_of_experience'],
-      step: 2,
-    });
+    expect(mockWriteProfile).not.toHaveBeenCalled();
+    expect(mockTrackFormValidationFailed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        feature: 'onboarding',
+        formId: 'mentee_onboarding',
+        invalidKeys: expect.arrayContaining([
+          'years_of_experience',
+          'want_position',
+        ]),
+      })
+    );
     expect(
       JSON.stringify(mockTrackFormValidationFailed.mock.calls)
     ).not.toContain('John Doe');
 
-    // Fill Step 2 -> advances to Step 3
+    // Switch to Mentor role -> blocks when guidelines & Mentor fields are missing
     act(() => {
-      result.current.form.setValue('years_of_experience', '1_3');
-      result.current.form.setValue('industry', 'TECH');
+      result.current.setRole('mentor');
     });
-    await act(async () => {
-      await result.current.advanceStep();
-    });
-    expect(result.current.currentStep).toBe(3);
+    expect(result.current.role).toBe('mentor');
 
-    // Fill Step 3 & Step 4 -> advances to Step 5, then rewind to Step 4 preserving single-form state
-    act(() => {
-      result.current.form.setValue('want_position', ['pos1']);
-    });
     await act(async () => {
-      await result.current.advanceStep();
+      await result.current.submitOnboarding();
     });
-    act(() => {
-      result.current.form.setValue('want_skill', ['skill1']);
-    });
-    await act(async () => {
-      await result.current.advanceStep();
-    });
-    expect(result.current.currentStep).toBe(5);
+    expect(mockWriteProfile).not.toHaveBeenCalled();
+    expect(mockTrackFormValidationFailed).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        feature: 'onboarding',
+        formId: 'mentor_onboarding',
+        invalidKeys: expect.arrayContaining([
+          'agreed_guidelines',
+          'avatarFile',
+          'industry',
+          'about',
+        ]),
+      })
+    );
 
+    // Fill valid Mentor fields and submit -> writes is_mentor=true and navigates to /profile/card
     act(() => {
-      result.current.handleGoToPrev();
+      result.current.form.reset({
+        role: 'mentor',
+        name: 'John Doe',
+        avatar:
+          'https://x-career-multimedia.s3.amazonaws.com/dev/files/1/avatar',
+        avatarFile: undefined,
+        language: 'zh_TW',
+        agreed_guidelines: true,
+        location: 'TWN',
+        years_of_experience: 'FIVE_TO_TEN',
+        industry: 'TECH',
+        about: '資深前端工程師',
+        have_topic: ['resume'],
+        have_skill: ['react'],
+        want_position: [],
+        want_skill: [],
+        want_topic: [],
+        work_experiences: [
+          {
+            id: -1,
+            job: 'Senior Engineer',
+            company: 'XChange',
+            job_period_start: '2020',
+            job_period_end: 'now',
+            industry: 'TECH',
+            job_location: 'TWN',
+            description: '前端架構',
+            is_primary: true,
+          },
+        ],
+        educations: [
+          {
+            id: -1,
+            school: '國立臺灣大學',
+            subject: '資訊工程學系',
+            education_period_start: '2016',
+            education_period_end: '2020',
+          },
+        ],
+        links: {
+          linkedin: '',
+          facebook: '',
+          instagram: '',
+          twitter: '',
+          youtube: '',
+          github: 'https://github.com/johndoe',
+          website: '',
+        },
+      });
     });
-    expect(result.current.currentStep).toBe(4);
-    expect(result.current.form.getValues('want_position')).toEqual(['pos1']);
+
+    await act(async () => {
+      await result.current.submitOnboarding();
+    });
+
+    expect(mockWriteProfile).toHaveBeenCalledWith(
+      '1',
+      expect.objectContaining({
+        is_mentor: true,
+        onboarding: true,
+        about: '資深前端工程師',
+        have_topic: ['resume'],
+        have_skill: ['react'],
+      })
+    );
+    expect(mockPush).toHaveBeenCalledWith('/profile/card');
   });
 
-  it('kicks off background avatar upload on Step 1 when avatarFile is present, or aborts when absent', async () => {
+  it('kicks off background avatar upload on handleAvatarFileChange (omitting Google URL from S3 snapshot) and rolls back on preset selection', () => {
     const { result } = renderHook(() =>
       useOnboardingForm({ industries: mockIndustries, port: buildPort() })
     );
 
-    await act(async () => {
-      await result.current.advanceStep();
-    });
-    expect(mockAbort).toHaveBeenCalled();
-    expect(mockKickOff).not.toHaveBeenCalled();
-
-    act(() => {
-      result.current.handleGoToPrev();
-    });
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
     act(() => {
-      result.current.form.setValue('avatarFile', file);
       result.current.form.setValue(
         'avatar',
         'https://lh3.googleusercontent.com/a/ACg8ocGoogle=s512-c'
       );
+      result.current.handleAvatarFileChange(file);
     });
-    await act(async () => {
-      await result.current.advanceStep();
-    });
-    // Google URLs are omitted from S3 rollback snapshot to avoid cross-origin CSP fetches
     expect(mockKickOff).toHaveBeenCalledWith(file, '');
 
-    act(() => {
-      result.current.handleGoToPrev();
-    });
     const s3Url =
       'https://x-career-multimedia.s3.ap-northeast-1.amazonaws.com/avatars/1/prev.png';
+    const file2 = new File(['avatar2'], 'avatar2.png', { type: 'image/png' });
     act(() => {
       result.current.form.setValue('avatar', s3Url);
+      result.current.handleAvatarFileChange(file2);
     });
-    await act(async () => {
-      await result.current.advanceStep();
+    expect(mockKickOff).toHaveBeenLastCalledWith(file2, s3Url);
+
+    act(() => {
+      result.current.handleSelectPresetAvatar('/avatars/default_4.webp');
     });
-    expect(mockKickOff).toHaveBeenLastCalledWith(file, s3Url);
+    expect(mockRollback).toHaveBeenCalled();
+    expect(result.current.form.getValues('avatar')).toBe('default_4');
   });
 
-  it('commits mentee-onboarding via commitProfileMutation on Step 5, consuming avatar once and redirecting to pendingFavoriteMentor when present', async () => {
+  it('commits mentee-onboarding via commitProfileMutation, consuming avatar once and redirecting to pendingFavoriteMentor (or /profile/:id when absent)', async () => {
     savePendingFavoriteMentor(7482008160728084);
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
     mockConsume.mockResolvedValue(
@@ -238,7 +281,12 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
     );
 
     act(() => {
+      result.current.setDirectionMap({
+        pos1: { skills: ['skill1'], topics: ['topic1'] },
+      });
       result.current.form.reset({
+        ...result.current.form.getValues(),
+        role: 'mentee',
         name: 'John Doe',
         avatar: '',
         avatarFile: file,
@@ -257,6 +305,9 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
     });
 
     expect(mockConsume).toHaveBeenCalledWith(file);
+    expect(readStoredMenteeDirectionMap('1')).toEqual({
+      pos1: { skills: ['skill1'], topics: ['topic1'] },
+    });
     expect(mockWriteProfile).toHaveBeenCalledWith('1', {
       name: 'John Doe',
       avatar: 'https://s3.amazonaws.com/new-avatar.png?v=100',
@@ -277,7 +328,7 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
     expect(getPendingFavoriteMentorId()).toBe(7482008160728084);
   });
 
-  it('handles avatar upload failure on Step 5 by setting avatarFile error and returning to Step 1, and avoids re-consuming on write retry', async () => {
+  it('handles avatar upload failure by setting avatarFile error, and avoids re-consuming on write retry', async () => {
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
     mockConsume.mockRejectedValueOnce(new Error('S3 error'));
 
@@ -292,6 +343,8 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
 
     act(() => {
       result.current.form.reset({
+        ...result.current.form.getValues(),
+        role: 'mentee',
         name: 'John Doe',
         avatar: '',
         avatarFile: file,
@@ -309,7 +362,6 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
       await result.current.submitOnboarding();
     });
 
-    expect(result.current.currentStep).toBe(1);
     expect(result.current.form.formState.errors.avatarFile?.message).toBe(
       '頭像上傳失敗，請重新選擇。'
     );
@@ -342,19 +394,15 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
     expect(mockWriteProfile).toHaveBeenCalledTimes(2);
   });
 
-  it('enforces full formSchema validation on submitOnboarding and rewinds to the earliest failing step if an earlier step field is invalid', async () => {
-    const { result } = renderHook(() => {
-      const s = useOnboardingForm({
-        industries: mockIndustries,
-        port: buildPort(),
-      });
-      void s.form.formState.errors;
-      return s;
-    });
+  it('defaults Mentee empty avatar to default_1 and navigates to /profile/:id when no pending favorite exists (#836)', async () => {
+    const { result } = renderHook(() =>
+      useOnboardingForm({ industries: mockIndustries, port: buildPort() })
+    );
 
-    // Advance cleanly to Step 5, then corrupt Step 1's `name` directly before submitOnboarding
     act(() => {
       result.current.form.reset({
+        ...result.current.form.getValues(),
+        role: 'mentee',
         name: 'Valid User',
         avatar: '',
         avatarFile: undefined,
@@ -368,29 +416,18 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
       });
     });
 
-    for (let i = 0; i < 4; i += 1) {
-      await act(async () => {
-        await result.current.advanceStep();
-      });
-    }
-    expect(result.current.currentStep).toBe(5);
-
-    act(() => {
-      result.current.form.setValue('name', '');
-    });
-
     await act(async () => {
       await result.current.submitOnboarding();
     });
 
-    expect(mockWriteProfile).not.toHaveBeenCalled();
-    expect(result.current.currentStep).toBe(1);
-    expect(mockTrackFormValidationFailed).toHaveBeenCalledWith({
-      feature: 'onboarding',
-      formId: 'mentee_onboarding',
-      invalidKeys: expect.arrayContaining(['name']),
-      step: 1,
-    });
+    expect(mockWriteProfile).toHaveBeenCalledWith(
+      '1',
+      expect.objectContaining({
+        avatar: 'default_1',
+        is_mentor: false,
+      })
+    );
+    expect(mockPush).toHaveBeenCalledWith('/profile/1');
   });
 
   it('hydrates Google name and =s512-c avatar across unauthenticated -> authenticated session transition without clobbering dirty user edits (#951)', async () => {
@@ -510,6 +547,8 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
 
     act(() => {
       result.current.form.reset({
+        ...result.current.form.getValues(),
+        role: 'mentee',
         name: '王大明',
         avatar: '',
         avatarFile: undefined,

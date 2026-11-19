@@ -24,13 +24,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { ProfileFormContext } from '@/hooks/user/profile/useProfileEditorSession';
 import {
   useRepeatablePeriodSection,
   YEAR_OPTIONS,
 } from '@/hooks/user/profile/useRepeatablePeriodSection';
 
 import { Section } from './Section';
+import {
+  asProfileFormContext,
+  type SharedProfileEditorForm,
+} from './sharedEditorForm';
 
 interface Props {
   industries: {
@@ -41,16 +44,17 @@ interface Props {
     value: string;
     text: string;
   }[];
-  form: ProfileFormContext;
+  form: SharedProfileEditorForm;
   isMentor: boolean;
 }
 
 export const JobExperienceSection = ({
   industries,
   locations,
-  form,
+  form: rawForm,
   isMentor,
 }: Props) => {
+  const form = asProfileFormContext(rawForm);
   const {
     control,
     getValues,
