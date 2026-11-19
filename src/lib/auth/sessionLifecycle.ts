@@ -50,6 +50,7 @@ import {
   FIND_MENTOR_HREF,
   hasCompletedOnboarding,
   HOME_HREF,
+  isMentorOnboardingCallbackUrl,
   ONBOARDING_HREF,
   PASSWORD_FORGOT_SUCCESS_HREF,
   PASSWORD_RESET_SUCCESS_HREF,
@@ -315,12 +316,14 @@ export async function terminateClientSession(
 export interface ResolvePostAuthRedirectOptions {
   explicitCallbackUrl: string | null;
   isOnboarded: boolean;
+  userId?: string | null;
   now?: number;
 }
 
 export function resolvePostAuthRedirect({
   explicitCallbackUrl,
   isOnboarded,
+  userId,
   now = Date.now(),
 }: ResolvePostAuthRedirectOptions): string {
   const pendingFavoritePath = getPendingFavoriteProfilePath(now);
@@ -329,7 +332,10 @@ export function resolvePostAuthRedirect({
     clearPendingFavoriteMentor();
   }
 
-  if (!isOnboarded) {
+  if (
+    !isOnboarded &&
+    !isMentorOnboardingCallbackUrl(explicitCallbackUrl, userId)
+  ) {
     return ONBOARDING_HREF;
   }
 
@@ -409,6 +415,7 @@ async function completePostLoginChoreography({
     resolvePostAuthRedirect({
       explicitCallbackUrl: safeCallbackUrl,
       isOnboarded: hasCompletedOnboarding(session.user),
+      userId: resolvedUserId,
     })
   );
 }

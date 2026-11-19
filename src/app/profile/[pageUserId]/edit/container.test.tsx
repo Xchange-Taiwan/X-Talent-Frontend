@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { fireEvent, render } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -73,7 +73,12 @@ vi.mock('@/hooks/user/tags/useTagCatalog', () => ({
 
 // Mock the child sections so the form renders with zero issues
 vi.mock('@/components/profile/edit/EditPageHeader', () => ({
-  EditPageHeader: () => <div data-testid="edit-header" />,
+  EditPageHeader: ({ submitDisabled }: { submitDisabled?: boolean }) => (
+    <div
+      data-testid="edit-header"
+      data-submit-disabled={String(Boolean(submitDisabled))}
+    />
+  ),
 }));
 vi.mock('@/components/profile/edit/AvatarSection', () => ({
   AvatarSection: ({ id, isMentor }: { id?: string; isMentor?: boolean }) => (
@@ -656,4 +661,55 @@ describe('EditProfileContainer isMentorRole logic', () => {
       }
     }
   );
+
+  it('renders mentor guidelines, preset-avatar real-photo guidance, and Google prefill photo confirmation hint in mentor-onboarding mode (#969)', () => {
+    mockSearchParamsGet.mockImplementation((key) =>
+      key === MENTOR_ONBOARDING_KEY ? 'true' : null
+    );
+    mockUseUserProfileDto.mockReturnValue({
+      userDto: {
+        user_id: 1,
+        name: 'Mentee Applicant',
+        avatar: 'default_1',
+        is_mentor: false,
+      } as unknown as MentorProfileVO,
+      error: null,
+    });
+
+    const { getByRole, getByText, unmount } = render(
+      <EditProfileContainer
+        pageUserId="1"
+        initialTagCatalog={{} as unknown as TagCatalogsByBucket}
+      />
+    );
+
+    expect(
+      getByText('成為導師需使用本人真實照片，請點擊相機圖示上傳照片。')
+    ).toBeInTheDocument();
+
+    const checkbox = getByRole('checkbox', { name: /我已閱讀並同意導師規範/ });
+    expect(checkbox).toHaveAttribute('aria-checked', 'false');
+    fireEvent.click(checkbox);
+    expect(checkbox).toHaveAttribute('aria-checked', 'true');
+    unmount();
+
+    mockUseUserProfileDto.mockReturnValue({
+      userDto: {
+        user_id: 1,
+        name: 'Google Applicant',
+        avatar: 'https://lh3.googleusercontent.com/a/ACg8oc=s512-c',
+        is_mentor: false,
+      } as unknown as MentorProfileVO,
+      error: null,
+    });
+    const { getByText: getByText2 } = render(
+      <EditProfileContainer
+        pageUserId="1"
+        initialTagCatalog={{} as unknown as TagCatalogsByBucket}
+      />
+    );
+    expect(
+      getByText2('請確認預填頭像為本人真實照片，或點擊更換照片。')
+    ).toBeInTheDocument();
+  });
 });

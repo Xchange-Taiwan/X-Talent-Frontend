@@ -198,6 +198,10 @@ describe('Header', () => {
 
     const aboutLink = screen.getByRole('link', { name: '關於 X-Talent' });
     expect(aboutLink).toHaveAttribute('aria-current', 'page');
+    expect(aboutLink.className).toContain('aria-[current=page]:text-brand-700');
+    expect(aboutLink.className).toContain(
+      'aria-[current=page]:after:scale-x-100'
+    );
     expect(screen.getByRole('link', { name: '尋找導師' })).not.toHaveAttribute(
       'aria-current'
     );

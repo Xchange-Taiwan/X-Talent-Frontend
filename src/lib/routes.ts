@@ -158,6 +158,7 @@ export interface AuthSurfaceUser {
 
 export interface MiddlewareSessionState {
   isAuthenticated: boolean;
+  userId?: string;
   onBoarding?: boolean;
   isMentor?: boolean;
 }
@@ -210,6 +211,64 @@ export function getMentorOnboardingUrl(userId: string | number): string {
 
 export function getBecomeMentorHref(userId: string | undefined): string {
   return userId ? getMentorOnboardingUrl(userId) : SIGNUP_HREF;
+}
+
+const PROFILE_EDIT_PATH_REGEX = /^\/profile\/([^/]+)\/edit\/?$/;
+
+/**
+ * Returns true when `(pathname, search)` targets the authenticated owner's
+ * Become-Mentor profile setup route (`/profile/:pageUserId/edit?mentor-onboarding=true`).
+ *
+ * Requires a non-empty `ownerUserId` matching `:pageUserId` so non-owner IDs
+ * never bypass incomplete-onboarding gating (#969).
+ */
+export function isMentorOnboardingTarget(
+  pathname: string,
+  search = '',
+  ownerUserId?: string | null
+): boolean {
+  if (!ownerUserId) return false;
+  const match = PROFILE_EDIT_PATH_REGEX.exec(pathname);
+  if (!match) return false;
+
+  let decodedPageUserId = match[1];
+  try {
+    decodedPageUserId = decodeURIComponent(match[1]);
+  } catch {
+    return false;
+  }
+
+  if (decodedPageUserId !== String(ownerUserId)) {
+    return false;
+  }
+
+  const normalizedSearch = search.startsWith('?') ? search.slice(1) : search;
+  const params = new URLSearchParams(normalizedSearch);
+  return (
+    params.get(MENTOR_ONBOARDING_KEY) === 'true' ||
+    params.get('onboarding') === 'true'
+  );
+}
+
+/**
+ * Checks whether a sanitized internal `callbackUrl` (e.g. `/profile/78/edit?mentor-onboarding=true`)
+ * targets the authenticated owner's Become-Mentor setup screen (#969).
+ */
+export function isMentorOnboardingCallbackUrl(
+  callbackUrl: string | null | undefined,
+  ownerUserId?: string | null
+): boolean {
+  if (!callbackUrl || !ownerUserId) return false;
+  try {
+    const parsed = new URL(callbackUrl, 'http://localhost');
+    return isMentorOnboardingTarget(
+      parsed.pathname,
+      parsed.search,
+      ownerUserId
+    );
+  } catch {
+    return false;
+  }
 }
 
 export function getMentorScheduleManagementUrl(
@@ -656,7 +715,17 @@ export function evaluateMiddlewareGate({
     };
   }
 
-  if (!completedOnboarding && classification.requiresCompletedOnboarding) {
+  const allowBecomeMentorEdit = isMentorOnboardingTarget(
+    pathname,
+    search,
+    session?.userId
+  );
+
+  if (
+    !completedOnboarding &&
+    classification.requiresCompletedOnboarding &&
+    !allowBecomeMentorEdit
+  ) {
     return {
       action: 'redirect',
       destination: ONBOARDING_HREF,
