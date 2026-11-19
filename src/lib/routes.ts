@@ -656,24 +656,7 @@ export function evaluateMiddlewareGate({
     };
   }
 
-  const isMentorOnboardingEditRequest =
-    Boolean(matchProfileEditRoute(pathname)) &&
-    (() => {
-      if (!search) return false;
-      const params = new URLSearchParams(
-        search.startsWith('?') ? search.slice(1) : search
-      );
-      return (
-        params.get(MENTOR_ONBOARDING_KEY) === 'true' ||
-        params.get('onboarding') === 'true'
-      );
-    })();
-
-  if (
-    !completedOnboarding &&
-    classification.requiresCompletedOnboarding &&
-    !isMentorOnboardingEditRequest
-  ) {
+  if (!completedOnboarding && classification.requiresCompletedOnboarding) {
     return {
       action: 'redirect',
       destination: ONBOARDING_HREF,

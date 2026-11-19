@@ -5,7 +5,10 @@ import { useRef, useState } from 'react';
 import { Control, FieldValues, Path, useController } from 'react-hook-form';
 
 import { useObjectUrl } from '@/hooks/useObjectUrl';
-import { shouldUnoptimizeAvatarSrc } from '@/lib/avatar/avatarUrl';
+import {
+  createCroppedAvatarFile,
+  shouldUnoptimizeAvatarSrc,
+} from '@/lib/avatar/avatarUrl';
 import {
   FOCUS_RING_CLASSES,
   FOCUS_RING_NO_OFFSET_CLASSES,
@@ -59,11 +62,7 @@ const AvatarUpload = <T extends FieldValues>({
 
   const handleSaveImage = (croppedImageBlob: Blob) => {
     if (croppedImageBlob) {
-      const mimeType = croppedImageBlob.type || 'image/png';
-      const ext = mimeType === 'image/jpeg' ? 'jpg' : 'png';
-      const croppedFile = new File([croppedImageBlob], `croppedAvatar.${ext}`, {
-        type: mimeType,
-      });
+      const croppedFile = createCroppedAvatarFile(croppedImageBlob);
       field.onChange(croppedFile);
       setSelectedImage(croppedFile);
       onFileChange?.(croppedFile);

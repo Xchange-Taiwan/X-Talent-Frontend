@@ -442,13 +442,13 @@ export default function ProfilePageUI({
                             <ProfileBadgeSection
                               title="我能提供的服務"
                               items={userData.have_topic}
-                              tone="service"
+                              tone="brand"
                               subheading
                             />
                             <ProfileBadgeSection
                               title="專業能力"
                               items={userData.have_skill}
-                              tone="skill"
+                              tone="subtle"
                               subheading
                             />
                           </div>

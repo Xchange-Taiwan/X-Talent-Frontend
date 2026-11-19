@@ -27,10 +27,12 @@ export function EditPageHeader({
   const submitLabel = isMentorOnboarding ? '儲存並建立' : '儲存變更';
 
   return (
-    <header className="border-background-border bg-background-white mb-8 border-b">
-      <div className="mx-auto flex w-11/12 max-w-[1160px] items-center justify-between gap-4 py-6">
+    <header className="border-background-border bg-background-white sticky top-[70px] z-20 mb-8 border-b">
+      <div className="mx-auto flex w-11/12 max-w-[1160px] items-center justify-between gap-4 py-5">
         <div className="min-w-0">
-          <span className="sr-only">{roleSubtitle}</span>
+          <p className="text-text-tertiary mb-0.5 text-xs font-medium">
+            {roleSubtitle}
+          </p>
           <h1 className="text-text-primary truncate text-2xl font-semibold">
             {pageTitle}
           </h1>

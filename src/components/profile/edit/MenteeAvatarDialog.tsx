@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { useObjectUrl } from '@/hooks/useObjectUrl';
 import {
+  createCroppedAvatarFile,
   isPresetAvatarUrl,
   PRESET_AVATAR_URLS,
   resolveAvatarDisplayUrl,
@@ -111,11 +112,7 @@ export function MenteeAvatarDialog({
   };
 
   const handleCropSave = (croppedBlob: Blob) => {
-    const mimeType = croppedBlob.type || 'image/png';
-    const ext = mimeType === 'image/jpeg' ? 'jpg' : 'png';
-    const croppedFile = new File([croppedBlob], `croppedAvatar.${ext}`, {
-      type: mimeType,
-    });
+    const croppedFile = createCroppedAvatarFile(croppedBlob);
     const err = validateAvatarFile(croppedFile);
     if (err) {
       setFileError(err);

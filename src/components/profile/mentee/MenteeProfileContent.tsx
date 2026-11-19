@@ -25,11 +25,11 @@ export interface MenteeProfileContentProps {
 function PreferenceTagGroup({
   title,
   items,
-  tone,
+  variant,
 }: {
   title: string;
   items: ReadonlyArray<TagDisplay>;
-  tone: 'skill' | 'topic';
+  variant: 'brand' | 'subtle';
 }) {
   if (items.length === 0) return null;
   return (
@@ -43,7 +43,7 @@ function PreferenceTagGroup({
             key={item.subject_group}
             className={cn(
               'inline-flex items-center rounded-full px-4 py-2 text-sm font-medium',
-              tone === 'skill'
+              variant === 'brand'
                 ? 'bg-brand-100 text-brand-700'
                 : 'border-background-border bg-background-bottom-secondary/70 text-text-primary border'
             )}
@@ -188,12 +188,12 @@ export function MenteeProfileContent({
                     <PreferenceTagGroup
                       title="想加強的技能"
                       items={resolvedActiveGroup.skills}
-                      tone="skill"
+                      variant="brand"
                     />
                     <PreferenceTagGroup
                       title="想了解的主題"
                       items={resolvedActiveGroup.topics}
-                      tone="topic"
+                      variant="subtle"
                     />
                   </>
                 )}
@@ -204,12 +204,12 @@ export function MenteeProfileContent({
               <PreferenceTagGroup
                 title="想加強的技能"
                 items={userData.want_skill}
-                tone="skill"
+                variant="brand"
               />
               <PreferenceTagGroup
                 title="想了解的主題"
                 items={userData.want_topic}
-                tone="topic"
+                variant="subtle"
               />
             </div>
           )}

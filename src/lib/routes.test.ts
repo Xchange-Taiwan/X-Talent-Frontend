@@ -795,7 +795,7 @@ describe('src/lib/routes', () => {
       });
     });
 
-    it('exempts /profile/[pageUserId]/edit?mentor-onboarding=true for incomplete-onboarding users and bypasses /avatars/* (#830, #961)', () => {
+    it('enforces onboarding gate on /profile/[pageUserId]/edit for un-onboarded non-mentors, allows onboarded mentees & mentors, and bypasses /avatars/* (#830, #961)', () => {
       expect(
         evaluateMiddlewareGate({
           pathname: '/profile/42/edit',
@@ -807,24 +807,24 @@ describe('src/lib/routes', () => {
           },
         })
       ).toEqual({
-        action: 'next',
-        syncSessionHint: true,
+        action: 'redirect',
+        destination: '/auth/onboarding',
+        syncSessionHint: false,
       });
 
       expect(
         evaluateMiddlewareGate({
           pathname: '/profile/42/edit',
-          search: '',
+          search: '?mentor-onboarding=true',
           session: {
             isAuthenticated: true,
-            onBoarding: false,
+            onBoarding: true,
             isMentor: false,
           },
         })
       ).toEqual({
-        action: 'redirect',
-        destination: '/auth/onboarding',
-        syncSessionHint: false,
+        action: 'next',
+        syncSessionHint: true,
       });
 
       expect(
