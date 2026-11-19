@@ -2,13 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
+  updateTag: vi.fn(),
 }));
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 
 import { revalidateProfilePath } from './actions';
 
 const mockRevalidatePath = vi.mocked(revalidatePath);
+const mockUpdateTag = vi.mocked(updateTag);
 
 describe('revalidateProfilePath', () => {
   beforeEach(() => {
@@ -18,13 +20,16 @@ describe('revalidateProfilePath', () => {
   it('no-ops for an empty userId', async () => {
     await revalidateProfilePath('');
 
+    expect(mockUpdateTag).not.toHaveBeenCalled();
     expect(mockRevalidatePath).not.toHaveBeenCalled();
   });
 
-  it('revalidates both the profile page and mentor-pool', async () => {
+  it('immediately expires profile-{id} fetch tag via updateTag and revalidates profile, card, and mentor-pool (#974)', async () => {
     await revalidateProfilePath('42');
 
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/profile/42', 'page');
+    expect(mockUpdateTag).toHaveBeenCalledWith('profile-42');
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/profile/42');
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/profile/card');
     expect(mockRevalidatePath).toHaveBeenCalledWith('/mentor-pool');
   });
 

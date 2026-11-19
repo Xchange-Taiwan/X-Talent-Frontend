@@ -88,7 +88,9 @@ export function useProfileEditorSession({
   );
   const [hasAvatarEdited, setHasAvatarEdited] = useState(false);
   const hydratedScopeRef = useRef<string | null>(null);
+  const hydratedFromStaleMenteeDtoRef = useRef(false);
   const hasAvatarEditedRef = useRef(false);
+  const refetchedStaleMentorDtoRef = useRef<string | null>(null);
   const hydrationScopeKey = `${pageUserId}:${isMentorOnboarding ? 'mentor-onboarding' : 'edit'}`;
 
   if (pageUserId !== prevPageUserId) {
@@ -98,10 +100,11 @@ export function useProfileEditorSession({
     setIsHydrating(true);
   }
 
-  const { userDto, error: dtoError } = useUserProfileDto(
-    numericPageUserId,
-    'zh_TW'
-  );
+  const {
+    userDto,
+    error: dtoError,
+    refetch: refetchUserDto,
+  } = useUserProfileDto(numericPageUserId, 'zh_TW');
 
   if (
     userDto &&
@@ -112,14 +115,31 @@ export function useProfileEditorSession({
   }
   const effectiveUserDto = userDto ?? cachedUserDto;
 
+  const sessionIsOwnerMentor =
+    Boolean(session?.user?.id) &&
+    String(session?.user?.id) === String(pageUserId) &&
+    Boolean(session?.user?.isMentor);
+
   useEffect(() => {
     if (!dtoError) return;
     console.error('Failed to fetch user data:', getSafeErrorMessage(dtoError));
   }, [dtoError]);
 
-  const isMentor = effectiveUserDto
-    ? Boolean(effectiveUserDto.is_mentor)
-    : false;
+  useEffect(() => {
+    if (
+      sessionIsOwnerMentor &&
+      userDto &&
+      !userDto.is_mentor &&
+      refetchedStaleMentorDtoRef.current !== pageUserId
+    ) {
+      refetchedStaleMentorDtoRef.current = pageUserId;
+      refetchUserDto?.();
+    }
+  }, [pageUserId, refetchUserDto, sessionIsOwnerMentor, userDto]);
+
+  const isMentor =
+    (effectiveUserDto ? Boolean(effectiveUserDto.is_mentor) : false) ||
+    sessionIsOwnerMentor;
   const isError = Boolean(dtoError) && !effectiveUserDto;
   const isMentorRole = isMentor || isMentorOnboarding;
 
@@ -153,12 +173,26 @@ export function useProfileEditorSession({
     ) {
       return;
     }
-    if (hydratedScopeRef.current === hydrationScopeKey && !isHydrating) {
+    const shouldRefreshAfterStaleMenteeDto =
+      hydratedFromStaleMenteeDtoRef.current &&
+      Boolean(userDto.is_mentor) &&
+      !form.formState.isDirty;
+
+    if (
+      hydratedScopeRef.current === hydrationScopeKey &&
+      !isHydrating &&
+      !shouldRefreshAfterStaleMenteeDto
+    ) {
       return;
     }
 
-    const formValues = mapVoToFormValues(userDto, isMentorOnboarding);
+    const formValues = mapVoToFormValues(
+      userDto,
+      isMentorOnboarding || sessionIsOwnerMentor
+    );
     form.reset(formValues);
+    hydratedFromStaleMenteeDtoRef.current =
+      sessionIsOwnerMentor && !userDto.is_mentor;
     hasAvatarEditedRef.current = false;
     setHasAvatarEdited(false);
     hydratedScopeRef.current = hydrationScopeKey;
@@ -167,6 +201,7 @@ export function useProfileEditorSession({
     userDto,
     isAuthorized,
     isMentorOnboarding,
+    sessionIsOwnerMentor,
     hydrationScopeKey,
     pageUserId,
     form,

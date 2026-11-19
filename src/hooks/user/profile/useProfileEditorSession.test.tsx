@@ -63,6 +63,7 @@ vi.mock('@/services/profile/getAvatarSnapshot', () => ({
 import { getAvatarSnapshot } from '@/services/profile/getAvatarSnapshot';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 import { mockUserDTO } from '@/test/fixtures/profile';
+import { mockSession, mockUseSession } from '@/test/mocks/nextAuth';
 
 import { useProfileEditorSession } from './useProfileEditorSession';
 
@@ -544,5 +545,50 @@ describe('useProfileEditorSession (#787 / #905)', () => {
     expect(result.current.form.getValues('want_position')).toEqual([
       'frontend_engineer',
     ]);
+  });
+
+  it('preserves isMentorRole=true and triggers refetch when owner session is Mentor but cached userDto is stale is_mentor=false (#974)', () => {
+    const refetchMock = vi.fn();
+    mockUseSession.mockReturnValue({
+      data: {
+        ...mockSession,
+        user: {
+          ...mockSession.user,
+          id: '1',
+          isMentor: true,
+        },
+      },
+      status: 'authenticated',
+      update: vi.fn(),
+    });
+    mockUseUserProfileDto.mockReturnValue({
+      userDto: {
+        ...mockUserDTO,
+        user_id: 1,
+        name: 'Stale Mentee Cache',
+        is_mentor: false,
+      },
+      isLoading: false,
+      error: null,
+      refetch: refetchMock,
+    });
+
+    const { result } = renderHook(() =>
+      useProfileEditorSession({
+        pageUserId: '1',
+        isAuthorized: true,
+        isMentorOnboarding: false,
+      })
+    );
+
+    expect(result.current.isMentorRole).toBe(true);
+    expect(result.current.form.getValues('is_mentor')).toBe(true);
+    expect(refetchMock).toHaveBeenCalled();
+
+    mockUseSession.mockReturnValue({
+      data: mockSession,
+      status: 'authenticated',
+      update: vi.fn(),
+    });
   });
 });

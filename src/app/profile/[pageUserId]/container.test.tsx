@@ -494,4 +494,39 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
       screen.queryByText(FAVORITE_SELF_BLOCKED_TOAST_MESSAGE)
     ).not.toBeInTheDocument();
   });
+
+  it('discards stale Mentee SSR initialDto and triggers fresh refetch when owner session is already Mentor (#974)', () => {
+    const refetchMock = vi.fn();
+    mockUseResolvedIdentity.mockReturnValue({
+      state: 'confirmed-member',
+      userId: PAGE_USER_ID,
+      isMentor: true,
+      avatar: undefined,
+    });
+    mockUseUserData.mockReturnValue({
+      userData: { user_id: 123, name: 'Stale Mentee', is_mentor: false },
+      isLoading: false,
+      error: null,
+      refetch: refetchMock,
+    });
+
+    render(
+      <ProfilePageContainer
+        pageUserId={PAGE_USER_ID}
+        initialDto={fromPartial<MentorProfileVO>({
+          user_id: 123,
+          is_mentor: false,
+        })}
+        initialCatalogs={emptyCatalogs}
+      />
+    );
+
+    expect(mockUseUserData).toHaveBeenCalledWith(
+      123,
+      'zh_TW',
+      null,
+      emptyCatalogs
+    );
+    expect(refetchMock).toHaveBeenCalled();
+  });
 });
