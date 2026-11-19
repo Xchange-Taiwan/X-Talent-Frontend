@@ -97,7 +97,7 @@ By construction, callers can only interact with reservation caching through thes
 ## Consumers
 
 - `useReservationData` (`src/hooks/user/reservation/useReservationData.ts`) subscribes once per tab (`upcoming` / `pending` / lazily-loaded `history`) and drives every mutation-triggered cache write through this model, using the default unscoped, permanent slot.
-- `useMentorSchedule` (`src/hooks/useMentorSchedule.ts`, X-Tracker #650) reads the mentor-schedule calendar's `MENTOR_UPCOMING` / `MENTOR_PENDING` reservations through this same model, scoped per viewed month via `endOfMonthUnix` and bounded by `MENTOR_SCHEDULE_RESERVATIONS_TTL_MS`. This replaced a separate, differently-shaped hand-rolled cache (`src/services/mentor-schedule/reservationsCache.ts`, now deleted) that duplicated this model's cache-first/TTL/full-wipe mechanics on its own. Since X-Tracker #669 it binds through `useAsyncRead` (one subscription per state) rather than a mount effect writing into local state, so the hook holds no fetch-generation counter of its own.
+- `MentorScheduleSession` (`src/lib/mentor-schedule/mentorScheduleSession.ts`, X-Tracker #937) and its thin `useSyncExternalStore` adapter `useMentorSchedule` (`src/hooks/useMentorSchedule.ts`, X-Tracker #650) read the mentor-schedule calendar's `MENTOR_UPCOMING` / `MENTOR_PENDING` reservations through this same model, scoped per viewed month via `endOfMonthUnix` and bounded by `MENTOR_SCHEDULE_RESERVATIONS_TTL_MS`. This replaced a separate, differently-shaped hand-rolled cache (`src/services/mentor-schedule/reservationsCache.ts`, now deleted) that duplicated this model's cache-first/TTL/full-wipe mechanics on its own.
 
 ---
 
@@ -140,7 +140,7 @@ The fetcher is passed in rather than owned by the model, so `src/services/mentor
 
 ## Consumers
 
-- `useMentorSchedule` (`src/hooks/useMentorSchedule.ts`) binds the viewed month through `useAsyncRead` and mirrors what the model publishes into `MonthDraftStore`. `MonthDraftStore` itself takes `get` as an injected `getCachedMonthScheduleFn` so it stays a pure, non-React unit under test.
+- `MentorScheduleSession` (`src/lib/mentor-schedule/mentorScheduleSession.ts`, X-Tracker #937) subscribes to the viewed month directly and mirrors what the model publishes into `MonthDraftStore` synchronously inside the subscription callback, exposed to React through `useMentorSchedule` (`src/hooks/useMentorSchedule.ts`) via `useSyncExternalStore`. `MonthDraftStore` itself takes `get` as an injected `GetCachedMonthScheduleFn` so it stays a pure, non-React unit under test.
 - `src/services/mentor-schedule/sync.ts` publishes through the model from `loadMonthScheduleFresh` (save / discard) and `prefetchMonthSchedule` (next-month warm-up); `loadMonthSchedule` is the raw network read and touches no cache at all.
 
 ---

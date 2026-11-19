@@ -519,18 +519,29 @@ describe('#919 Search zero-results, Email verification, OAuth failures, and sche
     });
   });
 
-  it('preserves slotsSnapshot.monthLoaded while exposing reader.isMonthSynced once MonthDraftStore mirrors scheduleRead', async () => {
-    scheduleReadModel.set({ userId: '777', year: 2026, month: 11 }, []);
+  it('synchronously mirrors scheduleRead into MonthDraftStore when slotsSnapshot.monthLoaded becomes true without exposing reader.isMonthSynced', () => {
+    const futureStart = Math.floor(
+      new Date('2099-11-15T10:00:00Z').getTime() / 1000
+    );
+    scheduleReadModel.set({ userId: '777', year: 2099, month: 11 }, [
+      {
+        id: 7771,
+        type: 'ALLOW',
+        dtstart: futureStart,
+        dtend: futureStart + 1800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ]);
 
     const { result } = renderHook(() =>
       useMentorSchedule({
-        backend: { userId: '777', year: 2026, month: 11 },
+        backend: { userId: '777', year: 2099, month: 11 },
       })
     );
 
     expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true);
-    await waitFor(() => {
-      expect(result.current.reader.isMonthSynced).toBe(true);
-    });
+    expect(result.current.reader.allowedDates).toContain('2099-11-15');
+    expect('isMonthSynced' in result.current.reader).toBe(false);
   });
 });
