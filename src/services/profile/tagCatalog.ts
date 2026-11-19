@@ -1,10 +1,31 @@
 import { apiClient } from '@/lib/apiClient';
+import { isAbortError } from '@/lib/errorUtils';
 import {
   IndustryOption,
   TagCatalogsByBucket,
   TagCatalogsVO,
   TagCatalogVO,
 } from '@/types/tagCatalog';
+
+const SAFE_LANGUAGE_RE = /^[A-Za-z]{2,3}(?:[_-][A-Za-z0-9]{2,8})?$/;
+
+function isValidCatalogBucketPayload(
+  candidate: unknown
+): candidate is TagCatalogsByBucket {
+  if (!candidate || typeof candidate !== 'object') return false;
+  const rec = candidate as Record<string, unknown>;
+  return (
+    Array.isArray(rec.want_position) &&
+    Array.isArray(rec.want_skill) &&
+    Array.isArray(rec.want_topic) &&
+    Array.isArray(rec.have_skill) &&
+    Array.isArray(rec.have_topic) &&
+    Array.isArray(rec.industry) &&
+    rec.want_position.length > 0 &&
+    rec.want_skill.length > 0 &&
+    rec.want_topic.length > 0
+  );
+}
 
 export const EMPTY_TAG_CATALOGS: TagCatalogsByBucket = {
   want_position: [],
@@ -52,11 +73,50 @@ export function splitCatalogsByBucket(
 
 export async function fetchTagCatalog(
   language: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  localFetch?: typeof fetch | null
 ): Promise<TagCatalogsByBucket> {
-  const data = await apiClient.getUnwrapped<TagCatalogsVO>(
-    `/v1/users/${language}/tags/catalog`,
-    { auth: false, signal }
-  );
-  return splitCatalogsByBucket(data);
+  try {
+    const data = await apiClient.getUnwrapped<TagCatalogsVO>(
+      `/v1/users/${language}/tags/catalog`,
+      {
+        auth: false,
+        ...(signal !== undefined ? { signal } : {}),
+      }
+    );
+    return splitCatalogsByBucket(data);
+  } catch (err) {
+    if (isAbortError(err, signal)) {
+      throw err;
+    }
+
+    const effectiveLocalFetch =
+      localFetch !== undefined
+        ? localFetch
+        : typeof window !== 'undefined' && typeof window.fetch === 'function'
+          ? window.fetch.bind(window)
+          : null;
+
+    const trimmedLanguage = language.trim();
+    if (effectiveLocalFetch && SAFE_LANGUAGE_RE.test(trimmedLanguage)) {
+      try {
+        const res = await effectiveLocalFetch(
+          `/api/tags/${encodeURIComponent(trimmedLanguage)}/catalog`,
+          { signal }
+        );
+        if (res.ok) {
+          const parsed: unknown = await res.json();
+          if (isValidCatalogBucketPayload(parsed)) {
+            return parsed;
+          }
+        }
+      } catch (fallbackErr) {
+        if (isAbortError(fallbackErr, signal)) {
+          throw fallbackErr;
+        }
+      }
+    }
+
+    throw err;
+  }
 }

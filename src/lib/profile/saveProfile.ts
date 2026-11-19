@@ -471,17 +471,11 @@ export async function commitProfileMutation(
       is_mentor: identitySnapshot.isMentor ?? null,
       language: resolvedLanguage,
       industry: optimisticIndustry,
-      want_position: intent.values.want_position ?? [],
-      want_skill: intent.values.want_skill ?? [],
-      want_topic: intent.values.want_topic ?? [],
-      have_skill:
-        intent.mode === 'mentee-onboarding'
-          ? []
-          : (intent.values.have_skill ?? []),
-      have_topic:
-        intent.mode === 'mentee-onboarding'
-          ? []
-          : (intent.values.have_topic ?? []),
+      want_position: payload.want_position ?? [],
+      want_skill: payload.want_skill ?? [],
+      want_topic: payload.want_topic ?? [],
+      have_skill: payload.have_skill ?? [],
+      have_topic: payload.have_topic ?? [],
       experiences: resolvedExperiences,
     };
 
