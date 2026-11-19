@@ -249,26 +249,27 @@ export const MenteeDirectionPreferenceSection = React.memo(
           className="space-y-6"
         >
           {selectedPositions.length === 0 ? (
-            skillError || topicError ? (
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-8">
-                <div className="hidden lg:block lg:w-48 lg:shrink-0" />
-                <div className="min-w-0 flex-1 space-y-2">
-                  {skillError && (
-                    <p className="text-status-error-default text-sm font-medium">
-                      {String(skillError)}
-                    </p>
-                  )}
-                  {topicError && (
-                    <p
-                      id="want_topic"
-                      className="text-status-error-default text-sm font-medium"
-                    >
-                      {String(topicError)}
-                    </p>
-                  )}
-                </div>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-8">
+              <div className="hidden lg:block lg:w-48 lg:shrink-0" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <p className="text-text-tertiary py-1 text-sm">
+                  請先在上方選擇 1 個職位方向，再挑選想加強的技能與主題。
+                </p>
+                {skillError && (
+                  <p className="text-status-error-default text-sm font-medium">
+                    {String(skillError)}
+                  </p>
+                )}
+                {topicError && (
+                  <p
+                    id="want_topic"
+                    className="text-status-error-default text-sm font-medium"
+                  >
+                    {String(topicError)}
+                  </p>
+                )}
               </div>
-            ) : null
+            </div>
           ) : (
             <>
               <div className="flex flex-col lg:flex-row lg:items-start lg:gap-8">

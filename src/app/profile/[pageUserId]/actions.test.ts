@@ -25,7 +25,7 @@ describe('revalidateProfilePath', () => {
     await revalidateProfilePath('42');
 
     expect(mockRevalidatePath).toHaveBeenCalledWith('/profile/42', 'page');
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/mentor-pool', 'page');
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/mentor-pool');
   });
 
   // A Server Action is just a POST endpoint under the hood — reachable

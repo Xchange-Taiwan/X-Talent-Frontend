@@ -60,12 +60,6 @@ export function PersonalLinksGrid({
               data-analytics-omit-destination="true"
               data-analytics-param-platform={platform}
               data-analytics-param-role={isMentor ? 'mentor' : 'mentee'}
-              data-analytics-param-user-id={
-                userId !== undefined ? String(userId) : undefined
-              }
-              data-analytics-param-mentor-id={
-                isMentor && userId !== undefined ? String(userId) : undefined
-              }
               className={cn(
                 FOCUS_RING_NO_OFFSET_CLASSES,
                 'text-brand-700 hover:bg-brand-50 inline-flex min-h-[44px] items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-normal transition-colors'

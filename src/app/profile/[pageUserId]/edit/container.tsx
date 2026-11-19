@@ -394,8 +394,8 @@ export default function EditProfileContainer({
                 <EducationSection form={form} isMentor={isMentorRole} />
               </div>
 
-              <div id="links" className="scroll-mt-28">
-                <LinksSection form={form} />
+              <div className="scroll-mt-28">
+                <LinksSection id="links" form={form} />
               </div>
             </form>
           </Form>

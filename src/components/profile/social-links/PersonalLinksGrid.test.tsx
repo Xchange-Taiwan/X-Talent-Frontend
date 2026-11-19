@@ -26,7 +26,7 @@ describe('PersonalLinksGrid', () => {
       'linkedin'
     );
     expect(linkedinLink).toHaveAttribute('data-analytics-param-role', 'mentee');
-    expect(linkedinLink).toHaveAttribute('data-analytics-param-user-id', '42');
+    expect(linkedinLink).not.toHaveAttribute('data-analytics-param-user-id');
     expect(linkedinLink).not.toHaveAttribute('data-analytics-param-mentor-id');
 
     const xLink = screen.getByRole('link', { name: 'X (formerly Twitter)' });
@@ -39,7 +39,7 @@ describe('PersonalLinksGrid', () => {
     expect(githubDisabled).toHaveAttribute('aria-disabled', 'true');
   });
 
-  it('includes data-analytics-param-mentor-id only when isMentor is true', () => {
+  it('sets data-analytics-param-role to mentor without exposing raw user IDs when isMentor is true', () => {
     const links = resolveDisplaySocialLinks([
       { platform: 'github', url: 'https://github.com/mentor' },
     ]);
@@ -47,7 +47,7 @@ describe('PersonalLinksGrid', () => {
     render(<PersonalLinksGrid links={links} userId="88" isMentor />);
     const ghLink = screen.getByRole('link', { name: 'GitHub' });
     expect(ghLink).toHaveAttribute('data-analytics-param-role', 'mentor');
-    expect(ghLink).toHaveAttribute('data-analytics-param-user-id', '88');
-    expect(ghLink).toHaveAttribute('data-analytics-param-mentor-id', '88');
+    expect(ghLink).not.toHaveAttribute('data-analytics-param-user-id');
+    expect(ghLink).not.toHaveAttribute('data-analytics-param-mentor-id');
   });
 });

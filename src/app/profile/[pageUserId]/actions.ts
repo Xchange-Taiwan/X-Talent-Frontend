@@ -18,5 +18,5 @@ import { isValidUserId } from '@/lib/auth/userGuard';
 export async function revalidateProfilePath(userId: string): Promise<void> {
   if (!isValidUserId(userId)) return;
   revalidatePath(`/profile/${userId}`, 'page');
-  revalidatePath('/mentor-pool', 'page');
+  revalidatePath('/mentor-pool');
 }
