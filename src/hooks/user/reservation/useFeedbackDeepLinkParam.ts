@@ -1,31 +1,22 @@
 'use client';
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
 import { isFeedbackEnabled } from '@/lib/featureFlags';
 import {
-  type FeedbackDeepLinkResolution,
-  resolveDeepLinkOutcome,
-} from '@/lib/reservation/feedbackDeepLink';
-import {
   type FeedbackSessionCoordinator,
   feedbackSessionCoordinator,
+  type FeedbackSessionLookupPort,
+  type HistoryRouteCommands,
+  type ReconcileHistoryRouteStep,
 } from '@/lib/reservation/feedbackSessionCoordinator';
 import {
-  buildCleanedDeepLinkHref,
-  buildReservationTabHref,
   extractDeepLinkReservationId,
   type ReservationRouteRole,
 } from '@/lib/reservation/reservationRoutes';
-import {
-  fetchSingleReservationFeedback,
-  type ReservationFeedbackLookupResult,
-} from '@/services/reservations';
 import type { Reservation } from '@/types/reservation';
-
-const MAX_DEEP_LINK_LOAD_MORE_PAGES = 3;
 
 export interface UseFeedbackDeepLinkParamOptions {
   userRole: ReservationRouteRole;
@@ -37,12 +28,7 @@ export interface UseFeedbackDeepLinkParamOptions {
   hasMoreHistory?: boolean;
   onLoadMoreHistory?: () => void;
   coordinator?: FeedbackSessionCoordinator;
-  lookupSingleFeedback?: (opts: {
-    userId: string;
-    reservationId: string;
-    fallbackRole: ReservationRouteRole;
-    signal?: AbortSignal;
-  }) => Promise<ReservationFeedbackLookupResult | null>;
+  lookupSingleFeedback?: FeedbackSessionLookupPort['fetchSingleReservationFeedback'];
 }
 
 export interface UseFeedbackDeepLinkParamResult {
@@ -65,7 +51,7 @@ export function useFeedbackDeepLinkParam({
   hasMoreHistory = false,
   onLoadMoreHistory,
   coordinator = feedbackSessionCoordinator,
-  lookupSingleFeedback = fetchSingleReservationFeedback,
+  lookupSingleFeedback,
 }: UseFeedbackDeepLinkParamOptions): UseFeedbackDeepLinkParamResult {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -73,363 +59,161 @@ export function useFeedbackDeepLinkParam({
   const { toast } = useToast();
 
   const feedbackEnabled = isFeedbackEnabled();
+  const rawSearch = searchParams.toString();
   const targetReservationId = feedbackEnabled
     ? extractDeepLinkReservationId(searchParams)
     : null;
-  const hasDeepLinkTarget = targetReservationId !== null;
+  const canLoadMoreHistory = Boolean(onLoadMoreHistory);
 
-  const [latchedDialogReservation, setLatchedDialogReservation] =
-    useState<Reservation | null>(null);
-  const [highlightedReservationId, setHighlightedReservationId] = useState<
-    string | null
-  >(null);
-  const [autoExpandedReservationId, setAutoExpandedReservationId] = useState<
-    string | null
-  >(null);
-  const [deepLinkTriggerSeq, setDeepLinkTriggerSeq] = useState(0);
+  const latestRef = useRef({
+    router,
+    toast,
+    onLoadMoreHistory,
+    lookupSingleFeedback,
+    searchParams,
+    pathname,
+    myUserId,
+    feedbackEnabled,
+  });
+  latestRef.current = {
+    router,
+    toast,
+    onLoadMoreHistory,
+    lookupSingleFeedback,
+    searchParams,
+    pathname,
+    myUserId,
+    feedbackEnabled,
+  };
 
-  const prevRoleRef = useRef(userRole);
-  const activeTargetKeyRef = useRef<string | null>(null);
-  const handledKeyRef = useRef<string | null>(null);
-  const singleLookupKeyRef = useRef<string | null>(null);
-  const lookupAbortRef = useRef<AbortController | null>(null);
-  const isMountedRef = useRef(true);
-  const autoLoadCountRef = useRef(0);
-  const lastAutoLoadHistoryLengthRef = useRef(-1);
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-      lookupAbortRef.current?.abort();
-      lookupAbortRef.current = null;
-      singleLookupKeyRef.current = null;
-    };
-  }, []);
-
-  const clearDeepLinkFocus = useCallback(() => {
-    setLatchedDialogReservation(null);
-    setHighlightedReservationId(null);
-    setAutoExpandedReservationId(null);
-  }, []);
-
-  const clearDeepLinkParams = useCallback(() => {
-    if (!feedbackEnabled) return;
-    const nextHref = buildCleanedDeepLinkHref(
-      pathname,
-      searchParams.toString()
-    );
-    if (!nextHref) return;
-    router.replace(nextHref, { scroll: false });
-  }, [feedbackEnabled, pathname, router, searchParams]);
-
-  const dismissDeepLinkDialog = useCallback(() => {
-    setLatchedDialogReservation(null);
-    clearDeepLinkParams();
-  }, [clearDeepLinkParams]);
-
-  const applyResolvedOutcome = useCallback(
-    (
-      targetKey: string,
-      outcome: Exclude<FeedbackDeepLinkResolution, { kind: 'not-found' }>
-    ) => {
-      handledKeyRef.current = targetKey;
-      setHighlightedReservationId(outcome.reservation.id);
-      setDeepLinkTriggerSeq((prev) => prev + 1);
-
-      if (
-        outcome.kind === 'mentee-open-dialog' ||
-        outcome.kind === 'mentor-open-dialog'
-      ) {
-        setAutoExpandedReservationId(null);
-        setLatchedDialogReservation(outcome.reservation);
-        return;
-      }
-
-      if (outcome.kind === 'mentee-already-rated') {
-        setAutoExpandedReservationId(outcome.reservation.id);
-        toast({
-          title: '您已填寫過此場會談回饋',
-          description: '已為您展開先前的回饋紀錄。',
-        });
-        clearDeepLinkParams();
-        return;
-      }
-
-      if (outcome.kind === 'mentee-already-resolved') {
-        setAutoExpandedReservationId(null);
-        if (outcome.reason === 'cancelled') {
-          toast({
-            title: '此預約已取消',
-            description: '已取消的預約無須填寫會談回饋。',
-          });
-        } else {
-          toast({
-            title: '您已完成此場會談紀錄',
-            description: '此場會談無須重複填寫回饋。',
-          });
-        }
-        clearDeepLinkParams();
-        return;
-      }
-
-      setAutoExpandedReservationId(
-        outcome.shouldExpandFeedback ? outcome.reservation.id : null
-      );
-      clearDeepLinkParams();
-    },
-    [clearDeepLinkParams, toast]
+  const mountAbortRef = useRef<AbortController | null>(null);
+  const attachedLookupRef = useRef<Promise<ReconcileHistoryRouteStep> | null>(
+    null
   );
 
-  const applyNotFoundOutcome = useCallback(
-    (targetKey: string) => {
-      handledKeyRef.current = targetKey;
-      setHighlightedReservationId(null);
-      setAutoExpandedReservationId(null);
-      toast({
-        title: '找不到指定的會談紀錄',
-        description: '請確認您登入的帳號是否正確，或於歷史紀錄列表查看。',
+  const routeState = useSyncExternalStore(
+    coordinator.subscribe,
+    () => coordinator.getHistoryRouteState({ feedbackEnabled }),
+    () => coordinator.getHistoryRouteState({ feedbackEnabled: false })
+  );
+
+  const executeCommands = useCallback((commands: HistoryRouteCommands) => {
+    if (commands.toast) {
+      latestRef.current.toast({
+        title: commands.toast.title,
+        description: commands.toast.description,
       });
-      clearDeepLinkParams();
-    },
-    [clearDeepLinkParams, toast]
-  );
+    }
+    if (commands.replaceHref) {
+      latestRef.current.router.replace(commands.replaceHref, { scroll: false });
+    }
+    if (commands.shouldLoadMoreHistory) {
+      latestRef.current.onLoadMoreHistory?.();
+    }
+  }, []);
 
   useEffect(() => {
-    if (!feedbackEnabled) {
-      lookupAbortRef.current?.abort();
-      lookupAbortRef.current = null;
-      activeTargetKeyRef.current = null;
-      handledKeyRef.current = null;
-      singleLookupKeyRef.current = null;
-      autoLoadCountRef.current = 0;
-      lastAutoLoadHistoryLengthRef.current = -1;
-      if (latchedDialogReservation !== null) {
-        setLatchedDialogReservation(null);
-      }
-      if (highlightedReservationId !== null) {
-        setHighlightedReservationId(null);
-      }
-      if (autoExpandedReservationId !== null) {
-        setAutoExpandedReservationId(null);
-      }
-      return;
-    }
+    const controller = new AbortController();
+    mountAbortRef.current = controller;
+    return () => {
+      controller.abort();
+      mountAbortRef.current = null;
+      attachedLookupRef.current = null;
+      coordinator.resetHistoryRouteSession();
+    };
+  }, [coordinator]);
 
-    if (prevRoleRef.current !== userRole) {
-      prevRoleRef.current = userRole;
-      lookupAbortRef.current?.abort();
-      lookupAbortRef.current = null;
-      activeTargetKeyRef.current = null;
-      handledKeyRef.current = null;
-      singleLookupKeyRef.current = null;
-      autoLoadCountRef.current = 0;
-      lastAutoLoadHistoryLengthRef.current = -1;
-      setLatchedDialogReservation(null);
-      setHighlightedReservationId(null);
-      setAutoExpandedReservationId(null);
-    }
-
-    if (!targetReservationId) {
-      lookupAbortRef.current?.abort();
-      lookupAbortRef.current = null;
-      activeTargetKeyRef.current = null;
-      handledKeyRef.current = null;
-      singleLookupKeyRef.current = null;
-      autoLoadCountRef.current = 0;
-      lastAutoLoadHistoryLengthRef.current = -1;
-      if (latchedDialogReservation !== null) {
-        setLatchedDialogReservation(null);
-      }
-      return;
-    }
-
-    const targetKey = `${userRole}:${targetReservationId}`;
-    if (activeTargetKeyRef.current !== targetKey) {
-      lookupAbortRef.current?.abort();
-      lookupAbortRef.current = null;
-      activeTargetKeyRef.current = targetKey;
-      singleLookupKeyRef.current = null;
-      autoLoadCountRef.current = 0;
-      lastAutoLoadHistoryLengthRef.current = -1;
-      if (latchedDialogReservation !== null) {
-        setLatchedDialogReservation(null);
-      }
-    }
-
-    if (handledKeyRef.current === targetKey) {
-      return;
-    }
-
-    if (!isHistoryLoaded || isLoadingHistory || isLoadingMoreHistory) {
-      return;
-    }
-
-    const outcome = resolveDeepLinkOutcome({
+  useEffect(() => {
+    const signal = mountAbortRef.current?.signal;
+    const step = coordinator.reconcileHistoryRoute({
+      mode: 'deep-link',
       role: userRole,
-      targetReservationId,
+      userId: myUserId,
+      pathname,
+      rawSearch,
+      searchParams: latestRef.current.searchParams,
       history,
+      isHistoryLoaded,
+      isLoadingHistory,
+      isLoadingMoreHistory,
+      hasMoreHistory,
+      canLoadMoreHistory,
+      feedbackEnabled,
+      signal,
+      lookupSingleFeedback: latestRef.current.lookupSingleFeedback,
     });
 
-    if (outcome.kind === 'not-found') {
-      const cleanUserId = myUserId?.trim() ?? '';
+    executeCommands(step.commands);
 
-      if (cleanUserId) {
-        const seeded = coordinator.consumeSeededLookup({
-          userId: cleanUserId,
-          reservationId: targetReservationId,
-        });
-        if (seeded.hit) {
-          if (!seeded.result) {
-            applyNotFoundOutcome(targetKey);
-            return;
-          }
-          if (seeded.result.viewerRole !== userRole) {
-            handledKeyRef.current = targetKey;
-            coordinator.seedLookupResult({
-              userId: cleanUserId,
-              reservationId: targetReservationId,
-              result: seeded.result,
-            });
-            router.replace(
-              buildReservationTabHref(seeded.result.viewerRole, 'history', {
-                reservationId: targetReservationId,
-                reservationIdParam: 'reservation_id',
-              }),
-              { scroll: false }
-            );
-            return;
-          }
-          const seededOutcome = resolveDeepLinkOutcome({
-            role: userRole,
-            targetReservationId,
-            history: [seeded.result.reservation],
-          });
-          if (seededOutcome.kind === 'not-found') {
-            applyNotFoundOutcome(targetKey);
-            return;
-          }
-          applyResolvedOutcome(targetKey, seededOutcome);
+    if (
+      step.pendingLookup &&
+      attachedLookupRef.current !== step.pendingLookup
+    ) {
+      const pending = step.pendingLookup;
+      attachedLookupRef.current = pending;
+      void pending.then((settled) => {
+        if (attachedLookupRef.current === pending) {
+          attachedLookupRef.current = null;
+        }
+        if (settled.aborted || signal?.aborted) {
           return;
         }
-      }
-
-      const canTryNextPage =
-        hasMoreHistory &&
-        Boolean(onLoadMoreHistory) &&
-        autoLoadCountRef.current < MAX_DEEP_LINK_LOAD_MORE_PAGES &&
-        lastAutoLoadHistoryLengthRef.current !== history.length;
-
-      if (canTryNextPage) {
-        autoLoadCountRef.current += 1;
-        lastAutoLoadHistoryLengthRef.current = history.length;
-        onLoadMoreHistory?.();
-        return;
-      }
-
-      if (!cleanUserId) {
-        applyNotFoundOutcome(targetKey);
-        return;
-      }
-
-      if (singleLookupKeyRef.current === targetKey) {
-        return;
-      }
-      singleLookupKeyRef.current = targetKey;
-      const controller = new AbortController();
-      lookupAbortRef.current = controller;
-
-      void lookupSingleFeedback({
-        userId: cleanUserId,
-        reservationId: targetReservationId,
-        fallbackRole: userRole,
-        signal: controller.signal,
-      })
-        .then((lookupResult) => {
-          if (
-            !isMountedRef.current ||
-            controller.signal.aborted ||
-            activeTargetKeyRef.current !== targetKey
-          ) {
-            return;
-          }
-          if (!lookupResult) {
-            applyNotFoundOutcome(targetKey);
-            return;
-          }
-          if (lookupResult.viewerRole !== userRole) {
-            handledKeyRef.current = targetKey;
-            coordinator.seedLookupResult({
-              userId: cleanUserId,
-              reservationId: targetReservationId,
-              result: lookupResult,
-            });
-            router.replace(
-              buildReservationTabHref(lookupResult.viewerRole, 'history', {
-                reservationId: targetReservationId,
-                reservationIdParam: 'reservation_id',
-              }),
-              { scroll: false }
-            );
-            return;
-          }
-          const singleOutcome = resolveDeepLinkOutcome({
-            role: userRole,
-            targetReservationId,
-            history: [lookupResult.reservation],
-          });
-          if (singleOutcome.kind === 'not-found') {
-            applyNotFoundOutcome(targetKey);
-            return;
-          }
-          applyResolvedOutcome(targetKey, singleOutcome);
-        })
-        .catch(() => {
-          if (
-            !isMountedRef.current ||
-            controller.signal.aborted ||
-            activeTargetKeyRef.current !== targetKey
-          ) {
-            return;
-          }
-          applyNotFoundOutcome(targetKey);
-        });
-      return;
+        executeCommands(settled.commands);
+      });
     }
-
-    applyResolvedOutcome(targetKey, outcome);
   }, [
-    applyNotFoundOutcome,
-    applyResolvedOutcome,
-    autoExpandedReservationId,
-    clearDeepLinkParams,
+    canLoadMoreHistory,
     coordinator,
+    executeCommands,
     feedbackEnabled,
     hasMoreHistory,
-    highlightedReservationId,
     history,
     isHistoryLoaded,
     isLoadingHistory,
     isLoadingMoreHistory,
-    latchedDialogReservation,
-    lookupSingleFeedback,
     myUserId,
-    onLoadMoreHistory,
-    router,
+    pathname,
+    rawSearch,
     targetReservationId,
     userRole,
   ]);
 
+  const dismissDeepLinkDialog = useCallback(() => {
+    const {
+      feedbackEnabled: enabled,
+      myUserId: uid,
+      pathname: currentPath,
+      router: currentRouter,
+      searchParams: currentParams,
+    } = latestRef.current;
+    if (!enabled) return;
+
+    const { replaceHref } = coordinator.recordFeedbackOutcome({
+      action: 'close',
+      source: 'deep-link',
+      userId: uid,
+      pathname: currentPath,
+      rawSearch: currentParams.toString(),
+      feedbackEnabled: enabled,
+    });
+    if (replaceHref) {
+      currentRouter.replace(replaceHref, { scroll: false });
+    }
+  }, [coordinator]);
+
+  const clearDeepLinkFocus = useCallback(() => {
+    coordinator.recordFeedbackOutcome({
+      action: 'clear-focus',
+      feedbackEnabled: latestRef.current.feedbackEnabled,
+    });
+  }, [coordinator]);
+
   return {
-    hasDeepLinkTarget,
-    deepLinkDialogReservation: feedbackEnabled
-      ? latchedDialogReservation
-      : null,
-    highlightedReservationId: feedbackEnabled ? highlightedReservationId : null,
-    autoExpandedReservationId: feedbackEnabled
-      ? autoExpandedReservationId
-      : null,
-    deepLinkTriggerSeq: feedbackEnabled ? deepLinkTriggerSeq : 0,
+    hasDeepLinkTarget: targetReservationId !== null,
+    deepLinkDialogReservation: routeState.deepLinkDialogReservation,
+    highlightedReservationId: routeState.highlightedReservationId,
+    autoExpandedReservationId: routeState.autoExpandedReservationId,
+    deepLinkTriggerSeq: routeState.deepLinkTriggerSeq,
     dismissDeepLinkDialog,
     clearDeepLinkFocus,
   };

@@ -1,4 +1,4 @@
-import { render, renderHook, screen } from '@testing-library/react';
+import { render, renderHook, screen, waitFor } from '@testing-library/react';
 import { fromPartial } from '@total-typescript/shoehorn';
 import { SessionContext, type SessionContextValue } from 'next-auth/react';
 import React from 'react';
@@ -315,10 +315,12 @@ describe('Feature flags disabled-mode safeguards (#913)', () => {
 
     const wrapper = createAuthWrapper('42');
     renderHook(() => useReservationHistoryRedirect(coordinator), { wrapper });
-    expect(mockReplace).toHaveBeenCalledWith(
-      '/reservation/mentee?tab=history&utm_source=email',
-      { scroll: false }
-    );
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith(
+        '/reservation/mentee?tab=history&utm_source=email',
+        { scroll: false }
+      );
+    });
   });
 
   it('degrades resolveHistoryFeedbackState, ReservationList, and MentorSummaryBar cleanly when feedback is disabled', () => {

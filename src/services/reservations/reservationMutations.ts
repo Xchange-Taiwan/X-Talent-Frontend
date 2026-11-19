@@ -11,12 +11,12 @@ import {
 } from '@/lib/mentor-schedule/scheduleReadModel';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { profileReadModel } from '@/lib/profile/profileReadModel';
+import { feedbackSessionCoordinator } from '@/lib/reservation/feedbackSessionCoordinator';
 import {
   extractBackendIsPublic,
   extractBackendMeetingHappened,
   extractBackendMyMeetingHappened,
 } from '@/lib/reservation/mapReservationFeedbackDto';
-import { markSessionReservationSubmitted } from '@/lib/reservation/pendingFeedbackGuard';
 import {
   RESERVATION_CONFLICT_MESSAGE,
   ReservationVersionConflictError,
@@ -549,7 +549,12 @@ async function executeReservationTransition<TResponse>({
   });
 
   if (policy.markFeedbackSubmitted) {
-    markSessionReservationSubmitted(String(myUserId), reservation.id);
+    feedbackSessionCoordinator.recordFeedbackOutcome({
+      action: 'submit',
+      source: 'card',
+      userId: String(myUserId),
+      reservationId: reservation.id,
+    });
   }
 
   if (policy.refreshBothPartiesPhases.length > 0) {
@@ -731,7 +736,7 @@ export interface SubmitFeedbackParams {
 /**
  * Submit post-meeting feedback / rating for a completed reservation (#730 / #888).
  * Atomically updates/invalidates all affected client stores (`reservationReadModel`,
- * `pendingFeedbackGuard`, `mentorPoolReadModel`, `mentorFeedbackReadModel`, and
+ * `feedbackSessionCoordinator`, `mentorPoolReadModel`, `mentorFeedbackReadModel`, and
  * `profileReadModel` across all tracked locales).
  */
 export async function submitReservationFeedback({

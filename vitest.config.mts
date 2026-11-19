@@ -33,7 +33,6 @@ const DOM_DEPENDENT_LIB_TESTS = [
   'src/lib/notifications/notificationReadModel.test.ts',
   'src/lib/profile/saveProfile.test.ts',
   'src/lib/profile/searchSchools.test.ts',
-  'src/lib/reservation/pendingFeedbackGuard.test.ts',
   'src/lib/url/isSafeUrl.test.ts',
   'src/services/auth/authClient.test.ts',
   'src/services/favorites/favoriteMentors.contract.test.ts',

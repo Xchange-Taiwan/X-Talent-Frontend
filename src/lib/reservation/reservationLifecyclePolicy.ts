@@ -393,7 +393,7 @@ export function isPublicRatingVisibleToMentor(
  * Whether a settled (non-pending) Mentor history card has an expandable
  * `查看紀錄` panel (either Mentor confirmed `happened` or a public Mentee
  * rating is visible). Used by both `resolveHistoryFeedbackState` and
- * `feedbackDeepLink` so deep-link auto-expand never drifts from card rendering.
+ * `feedbackSessionCoordinator` so deep-link auto-expand never drifts from card rendering.
  */
 export function hasExpandableMentorFeedback(
   reservation: Pick<Reservation, 'cancelledBy' | 'feedback'> | null | undefined

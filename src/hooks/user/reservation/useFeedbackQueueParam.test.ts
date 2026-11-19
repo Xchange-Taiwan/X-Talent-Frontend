@@ -1,59 +1,35 @@
 import { act, renderHook } from '@testing-library/react';
-import { fromPartial } from '@total-typescript/shoehorn';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Reservation } from '@/types/reservation';
+vi.mock('next/navigation', async () => {
+  const { feedbackNavigationMockFactory } =
+    await import('@/test/mocks/reservationFeedbackHarness');
+  return feedbackNavigationMockFactory();
+});
+
+import {
+  feedbackRouteMock,
+  makeFeedbackTestReservation,
+  resetFeedbackHookTestState,
+  setMockFeedbackRoute,
+} from '@/test/mocks/reservationFeedbackHarness';
 
 import {
   useFeedbackQueueParam,
   type UseFeedbackQueueParamOptions,
 } from './useFeedbackQueueParam';
 
-const mockReplace = vi.fn();
-const mockGet = vi.fn<(key: string) => string | null>();
-const mockToString = vi.fn<() => string>();
-const mockPathname = vi.fn<() => string>();
-
-vi.mock('next/navigation', () => ({
-  useSearchParams: () => ({
-    get: (key: string) => mockGet(key),
-    toString: () => mockToString(),
-  }),
-  useRouter: () => ({
-    replace: (url: string, opts?: { scroll?: boolean }) =>
-      mockReplace(url, opts),
-  }),
-  usePathname: () => mockPathname(),
-}));
-
-function makePendingAnswerReservation(
-  id: string,
-  dtend = 1760000000
-): Reservation {
-  return fromPartial<Reservation>({
-    id,
-    dtstart: dtend - 1800,
-    dtend,
-    cancelledBy: undefined,
-    feedback: {
-      meetingHappened: null,
-      rating: null,
-      nextStep: 'ANSWER',
-    },
-  });
-}
-
 describe('useFeedbackQueueParam', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    mockPathname.mockReturnValue('/reservation/mentee');
-    mockGet.mockImplementation((key) => (key === 'feedback' ? 'queue' : null));
-    mockToString.mockReturnValue('feedback=queue');
+    resetFeedbackHookTestState({
+      pathname: '/reservation/mentee',
+      query: 'feedback=queue',
+    });
   });
 
   it('latches pending ANSWER items once history loads and preserves snapshot when background refetch empties history', () => {
-    const item1 = makePendingAnswerReservation('res-1');
-    const item2 = makePendingAnswerReservation('res-2');
+    const item1 = makeFeedbackTestReservation('res-1');
+    const item2 = makeFeedbackTestReservation('res-2');
 
     const initialProps: UseFeedbackQueueParamOptions = {
       isMentee: true,
@@ -71,9 +47,8 @@ describe('useFeedbackQueueParam', () => {
 
     expect(result.current.isFeedbackQueueRequested).toBe(true);
     expect(result.current.feedbackQueueItems).toBeNull();
-    expect(mockReplace).not.toHaveBeenCalled();
+    expect(feedbackRouteMock.replace).not.toHaveBeenCalled();
 
-    // History finishes loading with 2 pending ANSWER items -> latches snapshot
     rerender({
       ...initialProps,
       history: [item1, item2],
@@ -82,9 +57,9 @@ describe('useFeedbackQueueParam', () => {
     });
 
     expect(result.current.feedbackQueueItems).toEqual([item1, item2]);
-    expect(mockReplace).not.toHaveBeenCalled();
+    expect(feedbackRouteMock.replace).not.toHaveBeenCalled();
 
-    // Background refetch after submitting final item shrinks history to 0 pending items -> must NOT prematurely clear URL or unmount queue before dismissFeedbackQueue
+    // Background refetch emptying history keeps latched queue intact until explicit dismiss
     rerender({
       ...initialProps,
       history: [],
@@ -93,26 +68,21 @@ describe('useFeedbackQueueParam', () => {
     });
 
     expect(result.current.feedbackQueueItems).toEqual([item1, item2]);
-    expect(mockReplace).not.toHaveBeenCalled();
+    expect(feedbackRouteMock.replace).not.toHaveBeenCalled();
 
-    // Explicit dismiss clears queue and removes feedback=queue query param
     act(() => {
       result.current.dismissFeedbackQueue();
     });
 
     expect(result.current.feedbackQueueItems).toBeNull();
-    expect(mockReplace).toHaveBeenCalledWith('/reservation/mentee', {
-      scroll: false,
-    });
+    expect(feedbackRouteMock.replace).toHaveBeenCalledWith(
+      '/reservation/mentee',
+      { scroll: false }
+    );
   });
 
   it('strips feedback=queue preserving other query params when mentee history finishes loading with 0 pending items', () => {
-    mockGet.mockImplementation((key) => {
-      if (key === 'feedback') return 'queue';
-      if (key === 'tab') return 'upcoming';
-      return null;
-    });
-    mockToString.mockReturnValue('tab=upcoming&feedback=queue');
+    setMockFeedbackRoute('/reservation/mentee', 'tab=upcoming&feedback=queue');
 
     const { rerender } = renderHook(
       (props: UseFeedbackQueueParamOptions) => useFeedbackQueueParam(props),
@@ -128,7 +98,7 @@ describe('useFeedbackQueueParam', () => {
       }
     );
 
-    expect(mockReplace).not.toHaveBeenCalled();
+    expect(feedbackRouteMock.replace).not.toHaveBeenCalled();
 
     rerender({
       isMentee: true,
@@ -139,18 +109,21 @@ describe('useFeedbackQueueParam', () => {
       isLoadingPending: false,
     });
 
-    expect(mockReplace).toHaveBeenCalledWith(
+    expect(feedbackRouteMock.replace).toHaveBeenCalledWith(
       '/reservation/mentee?tab=upcoming',
       { scroll: false }
     );
   });
 
   it('supports bilateral mentor ?feedback=queue ordered oldest-first and persists skipped sessions via coordinator (#906)', () => {
-    window.sessionStorage.clear();
-    mockPathname.mockReturnValue('/reservation/mentor');
+    setMockFeedbackRoute('/reservation/mentor', 'feedback=queue');
 
-    const newer = makePendingAnswerReservation('mentor-res-2', 1762000000);
-    const older = makePendingAnswerReservation('mentor-res-1', 1760000000);
+    const newer = makeFeedbackTestReservation('mentor-res-2', {
+      dtend: 1762000000,
+    });
+    const older = makeFeedbackTestReservation('mentor-res-1', {
+      dtend: 1760000000,
+    });
 
     const { result, unmount } = renderHook(() =>
       useFeedbackQueueParam({
@@ -170,14 +143,13 @@ describe('useFeedbackQueueParam', () => {
       'mentor-res-1',
       'mentor-res-2',
     ]);
-    expect(mockReplace).not.toHaveBeenCalled();
+    expect(feedbackRouteMock.replace).not.toHaveBeenCalled();
 
     act(() => {
       result.current.skipFeedbackQueueItem(older);
     });
     unmount();
 
-    // Subsequent ?feedback=queue mount excludes the skipped session
     const { result: secondMount } = renderHook(() =>
       useFeedbackQueueParam({
         role: 'mentor',

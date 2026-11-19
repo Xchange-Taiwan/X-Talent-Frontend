@@ -55,7 +55,7 @@ import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { profileReadModel } from '@/lib/profile/profileReadModel';
 import type { RawMentorTimeslot } from '@/lib/profile/scheduleHelpers';
-import { getSessionPendingFeedbackState } from '@/lib/reservation/pendingFeedbackGuard';
+import { feedbackSessionCoordinator } from '@/lib/reservation/feedbackSessionCoordinator';
 import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import { loadMonthSchedule } from '@/services/mentor-schedule/sync';
@@ -107,6 +107,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockGet.mockReturnValue(new Promise(() => {}));
   reservationReadModel.clear();
+  feedbackSessionCoordinator.clearAllSessionState();
 });
 
 describe('getReservationErrorMessage', () => {
@@ -1460,10 +1461,10 @@ describe('5-store atomic invalidation & in-memory transport adapter (#888)', () 
       profileReadModel.peek({ userId: OTHER_MENTOR_ID, language: 'zh_TW' })
     ).toBeDefined();
 
-    // 5. pendingFeedbackGuard marked submitted
-    expect(getSessionPendingFeedbackState('10').submittedIds).toContain(
-      'res-888-submit'
-    );
+    // 5. feedbackSessionCoordinator marked submitted
+    expect(
+      feedbackSessionCoordinator.getSessionState('10').submittedIds
+    ).toContain('res-888-submit');
   });
 
   it('preserves myMeetingHappened during #731 edits (both public and mutual-non-denial unpublicized) and invalidates all 5 stores on public edit', async () => {
@@ -1548,9 +1549,9 @@ describe('5-store atomic invalidation & in-memory transport adapter (#888)', () 
       expect(
         profileReadModel.peek({ userId: TARGET_MENTOR_ID, language: 'ja_JP' })
       ).toBeUndefined();
-      expect(getSessionPendingFeedbackState('10').submittedIds).toContain(
-        'res-888-edit-public'
-      );
+      expect(
+        feedbackSessionCoordinator.getSessionState('10').submittedIds
+      ).toContain('res-888-edit-public');
     } finally {
       unsubPublic();
     }
@@ -1676,7 +1677,8 @@ describe('5-store atomic invalidation & in-memory transport adapter (#888)', () 
       profileReadModel.peek({ userId: TARGET_MENTOR_ID, language: 'ja_JP' })
     ).toBeUndefined();
     expect(
-      getSessionPendingFeedbackState(String(TARGET_MENTOR_ID)).submittedIds
+      feedbackSessionCoordinator.getSessionState(String(TARGET_MENTOR_ID))
+        .submittedIds
     ).toContain('res-888-mentor-absent');
 
     // Scenario 2: Mentee reports COUNTERPART_ABSENT after Mentor had already confirmed meetingHappened=true
@@ -1732,9 +1734,9 @@ describe('5-store atomic invalidation & in-memory transport adapter (#888)', () 
     expect(
       profileReadModel.peek({ userId: TARGET_MENTOR_ID, language: 'ja_JP' })
     ).toBeUndefined();
-    expect(getSessionPendingFeedbackState('10').submittedIds).toContain(
-      'res-888-mentee-absent-override'
-    );
+    expect(
+      feedbackSessionCoordinator.getSessionState('10').submittedIds
+    ).toContain('res-888-mentee-absent-override');
   });
 
   it('invalidates all 5 stores on #731 edit even when pre-write reservation prop has stale isPublic=false or when backend transitions a public review to unpublicized', async () => {
