@@ -138,9 +138,9 @@ const INITIAL_MENTEE_DTO: MentorProfileVO = {
   seniority_level: null,
   language: 'zh_TW',
   experiences: [],
-  want_position: [],
-  want_skill: [],
-  want_topic: [],
+  want_position: ['ad_creative'],
+  want_skill: ['copywriting'],
+  want_topic: ['career'],
   have_skill: [],
   have_topic: [],
 };

@@ -23,6 +23,7 @@ import {
   toPresetAvatarCode,
 } from '@/lib/avatar/avatarUrl';
 import { getSafeErrorMessage } from '@/lib/errorUtils';
+import { isDualTrackV2Enabled } from '@/lib/featureFlags';
 import {
   mapVoToFormValues,
   type ProfileDirtyFields,
@@ -122,12 +123,15 @@ export function useProfileEditorSession({
   const isError = Boolean(dtoError) && !effectiveUserDto;
   const isMentorRole = isMentor || isMentorOnboarding;
 
+  const requireMenteePosition = !isDualTrackV2Enabled();
   const resolver = useMemo(
     () =>
       zodResolver<ProfileFormInput, unknown, ProfileFormValues>(
-        createProfileFormSchema(isMentorRole, isMentorOnboarding)
+        createProfileFormSchema(isMentorRole, isMentorOnboarding, {
+          requireMenteePosition,
+        })
       ),
-    [isMentorOnboarding, isMentorRole]
+    [isMentorOnboarding, isMentorRole, requireMenteePosition]
   );
 
   const form = useForm<ProfileFormInput, unknown, ProfileFormValues>({

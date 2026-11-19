@@ -27,7 +27,8 @@ export const DefaultCollapsed: Story = {
   },
 };
 
-export const ExpandedAndChecked: Story = {
+export const ExpandedWithGrowthPlanPreview: Story = {
+  name: '展開含第 4 條 L1–L5 成長計畫預覽 (#971)',
   render: () => {
     const [checked, setChecked] = useState(true);
     return (
@@ -36,6 +37,7 @@ export const ExpandedAndChecked: Story = {
           checked={checked}
           onCheckedChange={setChecked}
           defaultExpanded={true}
+          showGrowthPlanRule={true}
         />
       </div>
     );

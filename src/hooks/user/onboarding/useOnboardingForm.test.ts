@@ -3,7 +3,7 @@ import { fromPartial } from '@total-typescript/shoehorn';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useToast } from '@/components/ui/use-toast';
 import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
@@ -113,7 +113,27 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
     });
   });
 
-  it('validates Mentee single-page fields, switches to Mentor role, and submits Mentor onboarding to /profile/card (#836)', async () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('locks onboarding role to mentee by default when NEXT_PUBLIC_ENABLE_DUAL_TRACK_V2 is disabled (#970)', () => {
+    const { result } = renderHook(() =>
+      useOnboardingForm({
+        industries: mockIndustries,
+        port: buildPort(),
+      })
+    );
+
+    expect(result.current.role).toBe('mentee');
+    act(() => {
+      result.current.setRole('mentor');
+    });
+    expect(result.current.role).toBe('mentee');
+  });
+
+  it('validates Mentee single-page fields, switches to Mentor role, and submits Mentor onboarding to /profile/card when NEXT_PUBLIC_ENABLE_DUAL_TRACK_V2=true (#836)', async () => {
+    vi.stubEnv('NEXT_PUBLIC_ENABLE_DUAL_TRACK_V2', 'true');
     const { result } = renderHook(() => {
       const s = useOnboardingForm({
         industries: mockIndustries,

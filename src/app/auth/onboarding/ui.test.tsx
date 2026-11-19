@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next-auth/react', () => ({
   useSession: () => ({
@@ -109,8 +109,28 @@ function Harness({
   );
 }
 
-describe('OnboardingUI single-page dual-role (#836 A-4)', () => {
-  it('switches immediately between Mentee fields and Mentor dynamic sub-sections on a single page', async () => {
+describe('OnboardingUI single-page dual-role (#836 A-4 & #970 release gate)', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('hides RoleSelectorCards and locks single-page onboarding to Mentee mode by default (#970)', () => {
+    render(<Harness initialRole="mentor" />);
+
+    expect(
+      screen.queryByTestId('onboarding-role-mentor')
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '雙軌身分說明' })
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('有興趣多了解的職位')).toBeInTheDocument();
+    expect(
+      screen.queryByText('我已閱讀並同意導師規範')
+    ).not.toBeInTheDocument();
+  });
+
+  it('switches immediately between Mentee fields and Mentor dynamic sub-sections on a single page when NEXT_PUBLIC_ENABLE_DUAL_TRACK_V2=true', async () => {
+    vi.stubEnv('NEXT_PUBLIC_ENABLE_DUAL_TRACK_V2', 'true');
     render(<Harness />);
 
     expect(
@@ -158,6 +178,7 @@ describe('OnboardingUI single-page dual-role (#836 A-4)', () => {
   });
 
   it('shows Google OAuth prefill photo confirmation hint only in Mentor mode and clears role validation errors when switching roles', async () => {
+    vi.stubEnv('NEXT_PUBLIC_ENABLE_DUAL_TRACK_V2', 'true');
     render(
       <Harness
         initialRole="mentee"

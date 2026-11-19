@@ -43,7 +43,13 @@ const SAMPLE_GROUPS: TagCatalogGroupVO[] = [
   },
 ];
 
-function OnboardingStoryDemo({ initialRole }: { initialRole: OnboardingRole }) {
+function OnboardingStoryDemo({
+  initialRole,
+  enableDualTrackRoleSelect = false,
+}: {
+  initialRole: OnboardingRole;
+  enableDualTrackRoleSelect?: boolean;
+}) {
   const form = useForm<OnboardingFormInput, unknown, OnboardingFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -59,6 +65,7 @@ function OnboardingStoryDemo({ initialRole }: { initialRole: OnboardingRole }) {
     <OnboardingUI
       role={role}
       onRoleChange={(next) => form.setValue('role', next)}
+      enableDualTrackRoleSelect={enableDualTrackRoleSelect}
       form={form}
       locations={[{ value: 'TWN', text: '台灣' }]}
       industries={[{ subject_group: 'TECH', subject: '科技與軟體' }]}
@@ -87,9 +94,21 @@ export default meta;
 type Story = StoryObj<typeof OnboardingUI>;
 
 export const MenteeMode: Story = {
-  render: () => <OnboardingStoryDemo initialRole="mentee" />,
+  name: '發版預設 Mentee 單頁引導 (#970)',
+  render: () => (
+    <OnboardingStoryDemo
+      initialRole="mentee"
+      enableDualTrackRoleSelect={false}
+    />
+  ),
 };
 
-export const MentorMode: Story = {
-  render: () => <OnboardingStoryDemo initialRole="mentor" />,
+export const DualTrackMentorModePreview: Story = {
+  name: '雙軌預覽 Mentor 模式 (#971)',
+  render: () => (
+    <OnboardingStoryDemo
+      initialRole="mentor"
+      enableDualTrackRoleSelect={true}
+    />
+  ),
 };

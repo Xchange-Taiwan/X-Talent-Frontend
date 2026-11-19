@@ -11,4 +11,16 @@ const meta: Meta<typeof DualTrackSection> = {
 export default meta;
 type Story = StoryObj<typeof DualTrackSection>;
 
-export const Default: Story = {};
+export const Default: Story = {
+  name: '預覽雙軌橫幅 (forceVisible)',
+  args: {
+    forceVisible: true,
+  },
+};
+
+export const ReleaseDefaultHidden: Story = {
+  name: '發版預設隱藏狀態 (#970)',
+  args: {
+    forceVisible: false,
+  },
+};

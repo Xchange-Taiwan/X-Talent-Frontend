@@ -286,56 +286,44 @@ test('complete single-page Mentee onboarding → saves default_1 avatar & single
   ).toBe(true);
 });
 
-test('switch between Mentee and Mentor role on single-page onboarding → enforces Mentor required fields (#836)', async ({
+test('hides dual-track role selector on single-page onboarding by default and locks to Mentee mode (#970)', async ({
   page,
 }) => {
   await gotoOnboarding(page);
 
-  await page.getByRole('button', { name: '雙軌身分說明' }).click();
-  await expect(
-    page.getByText(/同一個帳號可同時作為 Mentee 探索職涯/)
-  ).toBeVisible();
-  await captureEvidence(page, 'onboarding-single-page-popover');
-  await page.keyboard.press('Escape');
-
-  await page.getByTestId('onboarding-role-mentor').click();
-  await expect(page.getByText('我已閱讀並同意導師規範')).toBeVisible();
-  await expect(
-    page.getByRole('button', { name: '新增工作經驗' })
-  ).toBeVisible();
-  await captureEvidence(page, 'onboarding-single-page-mentor', {
+  await expect(page.getByTestId('onboarding-role-mentor')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '雙軌身分說明' })).toHaveCount(
+    0
+  );
+  await expect(page.getByText('有興趣多了解的職位')).toBeVisible();
+  await captureEvidence(page, 'onboarding-mentee-only-release-mode', {
     fullPage: true,
   });
 
-  // Also capture 390x844 mobile layout for single-page onboarding
   await page.setViewportSize({ width: 390, height: 844 });
-  await captureEvidence(page, 'onboarding-single-page-mentor-mobile', {
+  await captureEvidence(page, 'onboarding-mentee-only-release-mode-mobile', {
     fullPage: true,
   });
-  await page.setViewportSize({ width: 1280, height: 720 });
-
-  await page.getByRole('button', { name: '提交' }).click();
-  await expect(page.getByText('請先閱讀並勾選同意導師規範')).toBeVisible();
-  await expect(
-    page.getByText('請上傳真人照片，預設頭像僅供預覽')
-  ).toBeVisible();
 });
 
-test('landing page renders settled A-1 dual-track growth banner between role benefits and testimonials (#836)', async ({
+test('hides premature A-1 dual-track & L1 banner on landing page by default before #964 / #745 / #890 (#970)', async ({
   page,
 }) => {
   await page.emulateMedia({ colorScheme: 'light' });
   await page.goto('/');
 
-  const section = page.getByTestId('homepage-dual-track');
-  await section.scrollIntoViewIfNeeded();
   await expect(
-    section.getByRole('heading', { name: '一個帳號，雙軌成長' })
+    page.getByText('成為 Mentor 或 Mentee，展開你的下一段交流。')
   ).toBeVisible();
-  await expect(page.getByTestId('homepage-cta-dual-track')).toBeVisible({
-    timeout: 15_000,
-  });
-  await captureEvidence(page, 'landing-dual-track-a1-settled');
+  await expect(page.getByTestId('homepage-dual-track')).toHaveCount(0);
+  await expect(
+    page.getByRole('heading', { name: '一個帳號，雙軌成長' })
+  ).toHaveCount(0);
+
+  await page
+    .getByText('成為 Mentor 或 Mentee，展開你的下一段交流。')
+    .scrollIntoViewIfNeeded();
+  await captureEvidence(page, 'landing-dual-track-hidden-release-mode');
 });
 
 test('頭像預覽 URL 已含 query string 時以 &cb= 附加快取參數而非重複 ?cb= (#857)', async ({

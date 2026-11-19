@@ -21,6 +21,7 @@ import {
   toPresetAvatarCode,
 } from '@/lib/avatar/avatarUrl';
 import { getPendingFavoriteProfilePath } from '@/lib/favorites';
+import { isDualTrackV2Enabled } from '@/lib/featureFlags';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   type MenteeDirectionMap,
@@ -124,12 +125,18 @@ export function useOnboardingForm({
 
   void form.formState.dirtyFields;
 
-  const watchedRole = form.watch('role') ?? 'mentee';
+  const rawWatchedRole = form.watch('role') ?? 'mentee';
+  const watchedRole: OnboardingRole = isDualTrackV2Enabled()
+    ? rawWatchedRole
+    : 'mentee';
 
   const setRole = useCallback(
     (next: OnboardingRole) => {
-      if (form.getValues('role') === next) return;
-      form.setValue('role', next, {
+      const resolvedNext: OnboardingRole = isDualTrackV2Enabled()
+        ? next
+        : 'mentee';
+      if (form.getValues('role') === resolvedNext) return;
+      form.setValue('role', resolvedNext, {
         shouldDirty: true,
         shouldValidate: false,
       });
@@ -336,7 +343,12 @@ export function useOnboardingForm({
 
     try {
       const isValid = await form.trigger();
-      const rawValues = form.getValues();
+      const rawValues = {
+        ...form.getValues(),
+        role: isDualTrackV2Enabled()
+          ? (form.getValues('role') ?? 'mentee')
+          : ('mentee' as const),
+      };
       const parsed = formSchema.safeParse(rawValues);
 
       if (!isValid || !parsed.success) {

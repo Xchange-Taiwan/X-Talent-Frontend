@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockUseResolvedIdentity = vi.fn();
 vi.mock('@/hooks/user/auth/useResolvedIdentity', () => ({
@@ -15,9 +15,23 @@ import {
 
 import { DualTrackSection } from './DualTrackSection';
 
-describe('DualTrackSection (#836 A-1)', () => {
+describe('DualTrackSection (#836 A-1 & #970 release gate)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv('NEXT_PUBLIC_ENABLE_DUAL_TRACK_V2', 'true');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('renders nothing when NEXT_PUBLIC_ENABLE_DUAL_TRACK_V2 is disabled by default (#970)', () => {
+    vi.stubEnv('NEXT_PUBLIC_ENABLE_DUAL_TRACK_V2', '');
+    mockUseResolvedIdentity.mockReturnValue(GUEST_IDENTITY);
+    const { container } = render(<DualTrackSection />);
+
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByText('一個帳號，雙軌成長')).not.toBeInTheDocument();
   });
 
   it('renders skeleton instead of guest CTA while identity is unknown (preventing role flash)', () => {

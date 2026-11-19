@@ -23,6 +23,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { totalWorkSpanOptions } from '@/constant/seniority';
 import type { OnboardingFormContext } from '@/hooks/user/onboarding/useOnboardingForm';
 import { isGooglePrefillAvatarUrl } from '@/lib/avatar/avatarUrl';
+import { isDualTrackV2Enabled } from '@/lib/featureFlags';
 import { tagGroupsToCategories } from '@/lib/profile/categoryGrouping';
 import type { MenteeDirectionMap } from '@/lib/profile/menteeDirectionPreference';
 import { FOCUS_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
@@ -163,6 +164,7 @@ function OnboardingGuidelinesField({ form }: { form: OnboardingFormContext }) {
 export interface OnboardingUIProps {
   role: OnboardingRole;
   onRoleChange: (next: OnboardingRole) => void;
+  enableDualTrackRoleSelect?: boolean;
   form: OnboardingFormContext;
   formRef?: React.RefObject<HTMLFormElement>;
   locations: LocationType[];
@@ -183,6 +185,7 @@ export interface OnboardingUIProps {
 export default function OnboardingUI({
   role,
   onRoleChange,
+  enableDualTrackRoleSelect,
   form,
   formRef,
   locations,
@@ -199,7 +202,9 @@ export default function OnboardingUI({
   isSubmitting,
   onSubmit,
 }: OnboardingUIProps) {
-  const isMentor = role === 'mentor';
+  const showRoleSelector = enableDualTrackRoleSelect ?? isDualTrackV2Enabled();
+  const effectiveRole: OnboardingRole = showRoleSelector ? role : 'mentee';
+  const isMentor = effectiveRole === 'mentor';
 
   const locationOptions = useMemo(
     () => locations.map((loc) => ({ value: loc.value, label: loc.text })),
@@ -257,12 +262,14 @@ export default function OnboardingUI({
             onSelectPresetAvatar={onSelectPresetAvatar}
           />
 
-          {/* Dual-track starting role selector */}
-          <RoleSelectorCards
-            value={role}
-            onChange={onRoleChange}
-            disabled={isSubmitting}
-          />
+          {/* Dual-track starting role selector (gated until #964 / #745 / #890 land, #970) */}
+          {showRoleSelector && (
+            <RoleSelectorCards
+              value={effectiveRole}
+              onChange={onRoleChange}
+              disabled={isSubmitting}
+            />
+          )}
 
           {/* Mentor Guidelines (shown immediately under RoleSelectorCards when Mentor) */}
           {isMentor && <OnboardingGuidelinesField form={form} />}
