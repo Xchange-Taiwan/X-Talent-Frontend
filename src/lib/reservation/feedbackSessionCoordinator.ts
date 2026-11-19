@@ -541,6 +541,15 @@ interface StoredLookupSeedEntry {
   seededAt: number;
 }
 
+interface InFlightLoginFetch {
+  key: string;
+  controller: AbortController;
+  subscribers: Set<symbol>;
+  failed: boolean;
+  errorReported: boolean;
+  promise: Promise<Reservation[] | null>;
+}
+
 export function createFeedbackSessionCoordinator(
   options: CreateFeedbackSessionCoordinatorOptions = {}
 ) {
@@ -548,19 +557,51 @@ export function createFeedbackSessionCoordinator(
   const defaultLookup = options.lookup;
   const now = options.now ?? (() => Date.now());
   const seedTtlMs = options.seedTtlMs ?? DEFAULT_LOOKUP_SEED_TTL_MS;
-  const reportError =
-    options.onError ??
-    ((
-      error: unknown,
-      context: { step: 'load_login_queue'; userId: string }
-    ) => {
-      void captureFlowFailure({
-        flow: 'pending_feedback_queue',
-        step: context.step,
-        message: error instanceof Error ? error.message : String(error),
-        level: 'warning',
+
+  const captureCoordinatorFlowFailure = (
+    error: unknown,
+    step: 'load_login_queue'
+  ): void => {
+    try {
+      void Promise.resolve(
+        captureFlowFailure({
+          flow: 'pending_feedback_queue',
+          step,
+          message: error instanceof Error ? error.message : String(error),
+          level: 'warning',
+        })
+      ).catch(() => {
+        // Prevent telemetry dispatch failures from surfacing as unhandled rejections.
       });
-    });
+    } catch {
+      // Never allow error reporting to throw synchronously.
+    }
+  };
+
+  const reportError = (
+    error: unknown,
+    context: { step: 'load_login_queue'; userId: string }
+  ): void => {
+    if (options.onError) {
+      try {
+        const maybePromise: unknown = options.onError(error, context);
+        if (
+          typeof maybePromise === 'object' &&
+          maybePromise !== null &&
+          'catch' in maybePromise &&
+          typeof (maybePromise as { catch?: unknown }).catch === 'function'
+        ) {
+          void (maybePromise as Promise<unknown>).catch(() => {
+            captureCoordinatorFlowFailure(error, context.step);
+          });
+        }
+      } catch {
+        captureCoordinatorFlowFailure(error, context.step);
+      }
+      return;
+    }
+    captureCoordinatorFlowFailure(error, context.step);
+  };
 
   const stateListeners = new Set<() => void>();
   const submittedListeners = new Set<
@@ -578,19 +619,17 @@ export function createFeedbackSessionCoordinator(
     activeIds: [] as string[],
     shownTelemetryUserId: null as string | null,
     dismissedTelemetryUserId: null as string | null,
-    inFlightFetch: null as {
-      key: string;
-      controller: AbortController;
-      promise: Promise<Reservation[] | null>;
-    } | null,
+    inFlightFetch: null as InFlightLoginFetch | null,
   };
 
   function cancelInFlightLoginFetch(): void {
     if (!loginRuntime.inFlightFetch) {
       return;
     }
-    loginRuntime.inFlightFetch.controller.abort();
+    const activeFetch = loginRuntime.inFlightFetch;
     loginRuntime.inFlightFetch = null;
+    activeFetch.subscribers.clear();
+    activeFetch.controller.abort();
   }
 
   const historyRuntime = {
@@ -1009,13 +1048,14 @@ export function createFeedbackSessionCoordinator(
     return true;
   }
 
-  async function loadLoginQueue(opts: {
+  async function loadLoginQueueInternal(opts: {
     userId: string;
     isMentor: boolean;
     signal?: AbortSignal;
     fetchPending?: FeedbackSessionLookupPort['fetchPendingFeedbackReservations'];
+    onNonAbortError?: () => void;
   }): Promise<Reservation[] | null> {
-    const { userId, isMentor, signal } = opts;
+    const { userId, isMentor, signal, onNonAbortError } = opts;
     if (!shouldFetchLoginQueue(userId)) {
       return loginRuntime.presentedItems;
     }
@@ -1060,15 +1100,29 @@ export function createFeedbackSessionCoordinator(
       return loginRuntime.presentedItems;
     } catch (error) {
       if (!signal?.aborted) {
+        onNonAbortError?.();
         loginRuntime.trackedUserId = userId;
         loginRuntime.fetchedUserId = userId;
         loginRuntime.activeIds = [];
         loginRuntime.presentedItems = null;
-        notifyStateChange();
+        try {
+          notifyStateChange();
+        } catch {
+          // Ensure listener errors during error recovery never block error reporting.
+        }
         reportError(error, { step: 'load_login_queue', userId });
       }
       return null;
     }
+  }
+
+  async function loadLoginQueue(opts: {
+    userId: string;
+    isMentor: boolean;
+    signal?: AbortSignal;
+    fetchPending?: FeedbackSessionLookupPort['fetchPendingFeedbackReservations'];
+  }): Promise<Reservation[] | null> {
+    return loadLoginQueueInternal(opts);
   }
 
   async function reconcileLoginSession(
@@ -1160,35 +1214,83 @@ export function createFeedbackSessionCoordinator(
       ) {
         cancelInFlightLoginFetch();
         const controller = new AbortController();
-        const onExternalAbort = () => controller.abort();
-        opts.signal?.addEventListener('abort', onExternalAbort, { once: true });
+        const subscribers = new Set<symbol>();
+        const createdFetch: InFlightLoginFetch = {
+          key: fetchKey,
+          controller,
+          subscribers,
+          failed: false,
+          errorReported: false,
+          promise: Promise.resolve<Reservation[] | null>(null),
+        };
 
-        const promise = loadLoginQueue({
+        createdFetch.promise = loadLoginQueueInternal({
           userId: cleanUserId,
           isMentor: isMentorSession,
           signal: controller.signal,
           fetchPending: opts.fetchPending,
+          onNonAbortError: () => {
+            createdFetch.failed = true;
+            createdFetch.errorReported = true;
+          },
         }).finally(() => {
-          opts.signal?.removeEventListener('abort', onExternalAbort);
-          if (loginRuntime.inFlightFetch?.controller === controller) {
+          if (loginRuntime.inFlightFetch === createdFetch) {
             loginRuntime.inFlightFetch = null;
           }
         });
 
-        activeFetch = { key: fetchKey, controller, promise };
-        loginRuntime.inFlightFetch = activeFetch;
-      } else if (opts.signal) {
-        const sharedController = activeFetch.controller;
-        opts.signal.addEventListener('abort', () => sharedController.abort(), {
-          once: true,
-        });
+        activeFetch = createdFetch;
+        loginRuntime.inFlightFetch = createdFetch;
       }
 
-      await activeFetch.promise;
+      const targetFetch = activeFetch;
+      const subscriberToken = Symbol('login-fetch-subscriber');
+      targetFetch.subscribers.add(subscriberToken);
+
+      const callerSignal = opts.signal;
+      const onCallerAbort = () => {
+        targetFetch.subscribers.delete(subscriberToken);
+        if (targetFetch.subscribers.size === 0) {
+          if (loginRuntime.inFlightFetch === targetFetch) {
+            loginRuntime.inFlightFetch = null;
+          }
+          targetFetch.controller.abort();
+        }
+      };
+
+      if (callerSignal?.aborted) {
+        onCallerAbort();
+      } else {
+        callerSignal?.addEventListener('abort', onCallerAbort, { once: true });
+      }
+
+      try {
+        await targetFetch.promise;
+      } catch (error) {
+        targetFetch.failed = true;
+        if (
+          !targetFetch.errorReported &&
+          !callerSignal?.aborted &&
+          !targetFetch.controller.signal.aborted
+        ) {
+          targetFetch.errorReported = true;
+          reportError(error, { step: 'load_login_queue', userId: cleanUserId });
+        }
+        return {
+          queueItems: null,
+          canPresent: false,
+          isSuppressed: !loginRuntime.isPresenting,
+          promptShownCount: null,
+        };
+      } finally {
+        callerSignal?.removeEventListener('abort', onCallerAbort);
+        targetFetch.subscribers.delete(subscriberToken);
+      }
 
       if (
-        activeFetch.controller.signal.aborted ||
-        opts.signal?.aborted ||
+        targetFetch.failed ||
+        targetFetch.controller.signal.aborted ||
+        callerSignal?.aborted ||
         loginRuntime.trackedUserId !== cleanUserId ||
         !loginRuntime.isPresenting
       ) {
@@ -1459,6 +1561,273 @@ export function createFeedbackSessionCoordinator(
     };
   }
 
+  function applySingleLookupResultToRuntime(opts: {
+    targetKey: string;
+    role: ReservationRouteRole;
+    userId: string;
+    targetReservationId: string;
+    pathname: string;
+    normalizedRawSearch: string;
+    result: SeededReservationLookup | null;
+  }): HistoryRouteCommands {
+    const {
+      targetKey,
+      role,
+      userId,
+      targetReservationId,
+      pathname,
+      normalizedRawSearch,
+      result,
+    } = opts;
+
+    if (!result) {
+      return applyNotFoundDeepLinkToRuntime(
+        targetKey,
+        pathname,
+        normalizedRawSearch
+      );
+    }
+
+    if (result.viewerRole !== role) {
+      return applyCrossRoleSeedTransfer({
+        targetKey,
+        userId,
+        reservationId: targetReservationId,
+        lookupResult: result,
+      });
+    }
+
+    const singleOutcome = resolveDeepLinkOutcome({
+      role,
+      targetReservationId,
+      history: [result.reservation],
+    });
+
+    return singleOutcome.kind === 'not-found'
+      ? applyNotFoundDeepLinkToRuntime(targetKey, pathname, normalizedRawSearch)
+      : applyResolvedDeepLinkToRuntime(
+          targetKey,
+          singleOutcome,
+          pathname,
+          normalizedRawSearch
+        );
+  }
+
+  function startSingleReservationLookup(opts: {
+    targetKey: string;
+    role: ReservationRouteRole;
+    userId: string;
+    targetReservationId: string;
+    pathname: string;
+    normalizedRawSearch: string;
+    signal?: AbortSignal;
+    lookupFn: NonNullable<
+      FeedbackSessionLookupPort['fetchSingleReservationFeedback']
+    >;
+  }): Promise<ReconcileHistoryRouteStep> {
+    const {
+      targetKey,
+      role,
+      userId,
+      targetReservationId,
+      pathname,
+      normalizedRawSearch,
+      signal,
+      lookupFn,
+    } = opts;
+
+    const controller = new AbortController();
+    const onExternalAbort = () => controller.abort();
+    signal?.addEventListener('abort', onExternalAbort, { once: true });
+
+    historyRuntime.singleLookupKey = targetKey;
+    historyRuntime.lookupController = controller;
+
+    const lookupPromise = (async (): Promise<ReconcileHistoryRouteStep> => {
+      let lookupResult: SeededReservationLookup | null = null;
+      try {
+        lookupResult = await lookupFn({
+          userId,
+          reservationId: targetReservationId,
+          fallbackRole: role,
+          signal: controller.signal,
+        });
+      } catch {
+        lookupResult = null;
+      } finally {
+        signal?.removeEventListener('abort', onExternalAbort);
+        if (historyRuntime.lookupController === controller) {
+          historyRuntime.lookupController = null;
+          historyRuntime.pendingLookupPromise = null;
+        }
+      }
+
+      if (
+        controller.signal.aborted ||
+        historyRuntime.activeTargetKey !== targetKey
+      ) {
+        const abortedState = buildHistoryRouteSnapshot(true);
+        notifyStateChange();
+        return {
+          state: abortedState,
+          commands: EMPTY_HISTORY_ROUTE_COMMANDS,
+          aborted: true,
+        };
+      }
+
+      const asyncCommands = applySingleLookupResultToRuntime({
+        targetKey,
+        role,
+        userId,
+        targetReservationId,
+        pathname,
+        normalizedRawSearch,
+        result: lookupResult,
+      });
+      const settledState = buildHistoryRouteSnapshot(true);
+      notifyStateChange();
+      return {
+        state: settledState,
+        commands: asyncCommands,
+      };
+    })();
+
+    historyRuntime.pendingLookupPromise = lookupPromise;
+    return lookupPromise;
+  }
+
+  function resolveMissingHistoryDeepLink(opts: {
+    targetKey: string;
+    role: ReservationRouteRole;
+    cleanUserId: string;
+    targetReservationId: string;
+    pathname: string;
+    normalizedRawSearch: string;
+    historyLength: number;
+    hasMoreHistory?: boolean;
+    canLoadMoreHistory?: boolean;
+    signal?: AbortSignal;
+    lookupSingleFeedback?: FeedbackSessionLookupPort['fetchSingleReservationFeedback'];
+  }): {
+    commands: HistoryRouteCommands;
+    pendingLookup: Promise<ReconcileHistoryRouteStep> | null;
+  } {
+    const {
+      targetKey,
+      role,
+      cleanUserId,
+      targetReservationId,
+      pathname,
+      normalizedRawSearch,
+      historyLength,
+      hasMoreHistory,
+      canLoadMoreHistory,
+      signal,
+      lookupSingleFeedback,
+    } = opts;
+
+    if (cleanUserId) {
+      const seeded = consumeSeededLookup({
+        userId: cleanUserId,
+        reservationId: targetReservationId,
+      });
+      if (seeded.hit) {
+        return {
+          commands: applySingleLookupResultToRuntime({
+            targetKey,
+            role,
+            userId: cleanUserId,
+            targetReservationId,
+            pathname,
+            normalizedRawSearch,
+            result: seeded.result,
+          }),
+          pendingLookup: null,
+        };
+      }
+    }
+
+    const canLoadMore = canLoadMoreHistory ?? Boolean(hasMoreHistory);
+    const canTryNextPage =
+      Boolean(hasMoreHistory) &&
+      canLoadMore &&
+      historyRuntime.autoLoadCount < MAX_DEEP_LINK_LOAD_MORE_PAGES &&
+      historyRuntime.lastAutoLoadHistoryLength !== historyLength;
+
+    if (canTryNextPage) {
+      historyRuntime.autoLoadCount += 1;
+      historyRuntime.lastAutoLoadHistoryLength = historyLength;
+      return {
+        commands: {
+          replaceHref: null,
+          toast: null,
+          shouldLoadMoreHistory: true,
+        },
+        pendingLookup: null,
+      };
+    }
+
+    if (!cleanUserId) {
+      return {
+        commands: applyNotFoundDeepLinkToRuntime(
+          targetKey,
+          pathname,
+          normalizedRawSearch
+        ),
+        pendingLookup: null,
+      };
+    }
+
+    if (
+      historyRuntime.singleLookupKey === targetKey &&
+      historyRuntime.pendingLookupPromise
+    ) {
+      return {
+        commands: EMPTY_HISTORY_ROUTE_COMMANDS,
+        pendingLookup: historyRuntime.pendingLookupPromise,
+      };
+    }
+
+    const lookupFn =
+      lookupSingleFeedback ?? defaultLookup?.fetchSingleReservationFeedback;
+
+    if (!lookupFn) {
+      return {
+        commands: applyNotFoundDeepLinkToRuntime(
+          targetKey,
+          pathname,
+          normalizedRawSearch
+        ),
+        pendingLookup: null,
+      };
+    }
+
+    if (signal?.aborted) {
+      return {
+        commands: EMPTY_HISTORY_ROUTE_COMMANDS,
+        pendingLookup: Promise.resolve({
+          state: buildHistoryRouteSnapshot(true),
+          commands: EMPTY_HISTORY_ROUTE_COMMANDS,
+          aborted: true,
+        }),
+      };
+    }
+
+    return {
+      commands: EMPTY_HISTORY_ROUTE_COMMANDS,
+      pendingLookup: startSingleReservationLookup({
+        targetKey,
+        role,
+        userId: cleanUserId,
+        targetReservationId,
+        pathname,
+        normalizedRawSearch,
+        signal,
+        lookupFn,
+      }),
+    };
+  }
+
   function normalizeRawSearchString(
     rawSearch?: string,
     searchParams?: SearchParamReadable | null
@@ -1573,213 +1942,21 @@ export function createFeedbackSessionCoordinator(
               normalizedRawSearch
             );
           } else {
-            let handledViaSeed = false;
-            if (cleanUserId) {
-              const seeded = consumeSeededLookup({
-                userId: cleanUserId,
-                reservationId: targetReservationId,
-              });
-              if (seeded.hit) {
-                handledViaSeed = true;
-                if (!seeded.result) {
-                  commands = applyNotFoundDeepLinkToRuntime(
-                    targetKey,
-                    opts.pathname,
-                    normalizedRawSearch
-                  );
-                } else if (seeded.result.viewerRole !== opts.role) {
-                  commands = applyCrossRoleSeedTransfer({
-                    targetKey,
-                    userId: cleanUserId,
-                    reservationId: targetReservationId,
-                    lookupResult: seeded.result,
-                  });
-                } else {
-                  const seededOutcome = resolveDeepLinkOutcome({
-                    role: opts.role,
-                    targetReservationId,
-                    history: [seeded.result.reservation],
-                  });
-                  commands =
-                    seededOutcome.kind === 'not-found'
-                      ? applyNotFoundDeepLinkToRuntime(
-                          targetKey,
-                          opts.pathname,
-                          normalizedRawSearch
-                        )
-                      : applyResolvedDeepLinkToRuntime(
-                          targetKey,
-                          seededOutcome,
-                          opts.pathname,
-                          normalizedRawSearch
-                        );
-                }
-              }
-            }
-
-            if (!handledViaSeed) {
-              const canLoadMore =
-                opts.canLoadMoreHistory ?? Boolean(opts.hasMoreHistory);
-              const canTryNextPage =
-                Boolean(opts.hasMoreHistory) &&
-                canLoadMore &&
-                historyRuntime.autoLoadCount < MAX_DEEP_LINK_LOAD_MORE_PAGES &&
-                historyRuntime.lastAutoLoadHistoryLength !==
-                  opts.history.length;
-
-              if (canTryNextPage) {
-                historyRuntime.autoLoadCount += 1;
-                historyRuntime.lastAutoLoadHistoryLength = opts.history.length;
-                commands = {
-                  replaceHref: null,
-                  toast: null,
-                  shouldLoadMoreHistory: true,
-                };
-              } else if (!cleanUserId) {
-                commands = applyNotFoundDeepLinkToRuntime(
-                  targetKey,
-                  opts.pathname,
-                  normalizedRawSearch
-                );
-              } else if (
-                historyRuntime.singleLookupKey === targetKey &&
-                historyRuntime.pendingLookupPromise
-              ) {
-                pendingLookup = historyRuntime.pendingLookupPromise;
-              } else {
-                const lookupFn =
-                  opts.lookupSingleFeedback ??
-                  defaultLookup?.fetchSingleReservationFeedback;
-
-                if (!lookupFn) {
-                  commands = applyNotFoundDeepLinkToRuntime(
-                    targetKey,
-                    opts.pathname,
-                    normalizedRawSearch
-                  );
-                } else if (opts.signal?.aborted) {
-                  pendingLookup = Promise.resolve({
-                    state: buildHistoryRouteSnapshot(true),
-                    commands: EMPTY_HISTORY_ROUTE_COMMANDS,
-                    aborted: true,
-                  });
-                } else {
-                  const controller = new AbortController();
-                  const onExternalAbort = () => controller.abort();
-                  opts.signal?.addEventListener('abort', onExternalAbort, {
-                    once: true,
-                  });
-                  historyRuntime.singleLookupKey = targetKey;
-                  historyRuntime.lookupController = controller;
-
-                  const lookupPromise: Promise<ReconcileHistoryRouteStep> =
-                    lookupFn({
-                      userId: cleanUserId,
-                      reservationId: targetReservationId,
-                      fallbackRole: opts.role,
-                      signal: controller.signal,
-                    })
-                      .then((lookupResult): ReconcileHistoryRouteStep => {
-                        if (historyRuntime.lookupController === controller) {
-                          historyRuntime.lookupController = null;
-                          historyRuntime.pendingLookupPromise = null;
-                        }
-                        if (
-                          controller.signal.aborted ||
-                          historyRuntime.activeTargetKey !== targetKey
-                        ) {
-                          const abortedState = buildHistoryRouteSnapshot(true);
-                          notifyStateChange();
-                          return {
-                            state: abortedState,
-                            commands: EMPTY_HISTORY_ROUTE_COMMANDS,
-                            aborted: true,
-                          };
-                        }
-
-                        let asyncCommands: HistoryRouteCommands;
-                        if (!lookupResult) {
-                          asyncCommands = applyNotFoundDeepLinkToRuntime(
-                            targetKey,
-                            opts.pathname,
-                            normalizedRawSearch
-                          );
-                        } else if (lookupResult.viewerRole !== opts.role) {
-                          asyncCommands = applyCrossRoleSeedTransfer({
-                            targetKey,
-                            userId: cleanUserId,
-                            reservationId: targetReservationId,
-                            lookupResult,
-                          });
-                        } else {
-                          const singleOutcome = resolveDeepLinkOutcome({
-                            role: opts.role,
-                            targetReservationId,
-                            history: [lookupResult.reservation],
-                          });
-                          asyncCommands =
-                            singleOutcome.kind === 'not-found'
-                              ? applyNotFoundDeepLinkToRuntime(
-                                  targetKey,
-                                  opts.pathname,
-                                  normalizedRawSearch
-                                )
-                              : applyResolvedDeepLinkToRuntime(
-                                  targetKey,
-                                  singleOutcome,
-                                  opts.pathname,
-                                  normalizedRawSearch
-                                );
-                        }
-
-                        const settledState = buildHistoryRouteSnapshot(true);
-                        notifyStateChange();
-                        return {
-                          state: settledState,
-                          commands: asyncCommands,
-                        };
-                      })
-                      .catch((): ReconcileHistoryRouteStep => {
-                        if (historyRuntime.lookupController === controller) {
-                          historyRuntime.lookupController = null;
-                          historyRuntime.pendingLookupPromise = null;
-                        }
-                        if (
-                          controller.signal.aborted ||
-                          historyRuntime.activeTargetKey !== targetKey
-                        ) {
-                          const abortedState = buildHistoryRouteSnapshot(true);
-                          notifyStateChange();
-                          return {
-                            state: abortedState,
-                            commands: EMPTY_HISTORY_ROUTE_COMMANDS,
-                            aborted: true,
-                          };
-                        }
-                        const errCommands = applyNotFoundDeepLinkToRuntime(
-                          targetKey,
-                          opts.pathname,
-                          normalizedRawSearch
-                        );
-                        const settledState = buildHistoryRouteSnapshot(true);
-                        notifyStateChange();
-                        return {
-                          state: settledState,
-                          commands: errCommands,
-                        };
-                      })
-                      .finally(() => {
-                        opts.signal?.removeEventListener(
-                          'abort',
-                          onExternalAbort
-                        );
-                      });
-
-                  historyRuntime.pendingLookupPromise = lookupPromise;
-                  pendingLookup = lookupPromise;
-                }
-              }
-            }
+            const fallbackOutcome = resolveMissingHistoryDeepLink({
+              targetKey,
+              role: opts.role,
+              cleanUserId,
+              targetReservationId,
+              pathname: opts.pathname,
+              normalizedRawSearch,
+              historyLength: opts.history.length,
+              hasMoreHistory: opts.hasMoreHistory,
+              canLoadMoreHistory: opts.canLoadMoreHistory,
+              signal: opts.signal,
+              lookupSingleFeedback: opts.lookupSingleFeedback,
+            });
+            commands = fallbackOutcome.commands;
+            pendingLookup = fallbackOutcome.pendingLookup;
           }
         }
       }
