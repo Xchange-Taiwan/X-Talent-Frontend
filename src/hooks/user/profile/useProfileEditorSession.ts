@@ -176,7 +176,8 @@ export function useProfileEditorSession({
     const shouldRefreshAfterStaleMenteeDto =
       hydratedFromStaleMenteeDtoRef.current &&
       Boolean(userDto.is_mentor) &&
-      !form.formState.isDirty;
+      !form.formState.isDirty &&
+      !hasAvatarEditedRef.current;
 
     if (
       hydratedScopeRef.current === hydrationScopeKey &&
@@ -186,10 +187,10 @@ export function useProfileEditorSession({
       return;
     }
 
-    const formValues = mapVoToFormValues(
-      userDto,
-      isMentorOnboarding || sessionIsOwnerMentor
-    );
+    const formValues = mapVoToFormValues(userDto, isMentorOnboarding);
+    if (sessionIsOwnerMentor) {
+      formValues.is_mentor = true;
+    }
     form.reset(formValues);
     hydratedFromStaleMenteeDtoRef.current =
       sessionIsOwnerMentor && !userDto.is_mentor;

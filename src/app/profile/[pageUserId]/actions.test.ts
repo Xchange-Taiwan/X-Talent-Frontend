@@ -46,6 +46,7 @@ describe('revalidateProfilePath', () => {
     async (_label, userId) => {
       await revalidateProfilePath(userId);
 
+      expect(mockUpdateTag).not.toHaveBeenCalled();
       expect(mockRevalidatePath).not.toHaveBeenCalled();
     }
   );

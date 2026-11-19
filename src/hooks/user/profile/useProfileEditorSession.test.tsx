@@ -73,6 +73,11 @@ const mockGetAvatarSnapshot = vi.mocked(getAvatarSnapshot);
 describe('useProfileEditorSession (#787 / #905)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseSession.mockReturnValue({
+      data: mockSession,
+      status: 'authenticated',
+      update: vi.fn(),
+    });
     mockCommitProfileMutation.mockResolvedValue({});
     mockUseUserProfileDto.mockReturnValue({
       userDto: {
@@ -547,7 +552,69 @@ describe('useProfileEditorSession (#787 / #905)', () => {
     ]);
   });
 
-  it('preserves isMentorRole=true and triggers refetch when owner session is Mentor but cached userDto is stale is_mentor=false (#974)', () => {
+  it('preserves isMentorRole=true without injecting preset avatar, triggers refetch once, and updates clean form when fresh Mentor DTO arrives (#974)', () => {
+    const refetchMock = vi.fn();
+    mockUseSession.mockReturnValue({
+      data: {
+        ...mockSession,
+        user: {
+          ...mockSession.user,
+          id: '1',
+          isMentor: true,
+        },
+      },
+      status: 'authenticated',
+      update: vi.fn(),
+    });
+    mockUseUserProfileDto.mockReturnValue({
+      userDto: {
+        ...mockUserDTO,
+        user_id: 1,
+        name: 'Stale Mentee Cache',
+        avatar: '',
+        is_mentor: false,
+      },
+      isLoading: false,
+      error: null,
+      refetch: refetchMock,
+    });
+
+    const { result, rerender } = renderHook(() =>
+      useProfileEditorSession({
+        pageUserId: '1',
+        isAuthorized: true,
+        isMentorOnboarding: false,
+      })
+    );
+
+    expect(result.current.isMentorRole).toBe(true);
+    expect(result.current.form.getValues('is_mentor')).toBe(true);
+    expect(result.current.form.getValues('avatar')).toBe('');
+    expect(refetchMock).toHaveBeenCalledTimes(1);
+
+    // Re-rendering while DTO is still stale must NOT loop refetch
+    rerender();
+    expect(refetchMock).toHaveBeenCalledTimes(1);
+
+    // Once fresh Mentor DTO arrives on a clean form, it hydrates the Mentor fields
+    mockUseUserProfileDto.mockReturnValue({
+      userDto: {
+        ...mockUserDTO,
+        user_id: 1,
+        name: 'Fresh Mentor Profile',
+        personal_statement: 'Mentor bio',
+        is_mentor: true,
+      },
+      isLoading: false,
+      error: null,
+      refetch: refetchMock,
+    });
+    rerender();
+    expect(result.current.form.getValues('name')).toBe('Fresh Mentor Profile');
+    expect(result.current.form.getValues('statement')).toBe('Mentor bio');
+  });
+
+  it('does not clobber dirty edits if user edits before fresh Mentor DTO resolves (#974)', () => {
     const refetchMock = vi.fn();
     mockUseSession.mockReturnValue({
       data: {
@@ -573,7 +640,7 @@ describe('useProfileEditorSession (#787 / #905)', () => {
       refetch: refetchMock,
     });
 
-    const { result } = renderHook(() =>
+    const { result, rerender } = renderHook(() =>
       useProfileEditorSession({
         pageUserId: '1',
         isAuthorized: true,
@@ -581,14 +648,27 @@ describe('useProfileEditorSession (#787 / #905)', () => {
       })
     );
 
-    expect(result.current.isMentorRole).toBe(true);
-    expect(result.current.form.getValues('is_mentor')).toBe(true);
-    expect(refetchMock).toHaveBeenCalled();
-
-    mockUseSession.mockReturnValue({
-      data: mockSession,
-      status: 'authenticated',
-      update: vi.fn(),
+    act(() => {
+      result.current.form.setValue('name', 'User Typed Mentor Name', {
+        shouldDirty: true,
+      });
     });
+
+    mockUseUserProfileDto.mockReturnValue({
+      userDto: {
+        ...mockUserDTO,
+        user_id: 1,
+        name: 'Fresh Mentor Profile',
+        is_mentor: true,
+      },
+      isLoading: false,
+      error: null,
+      refetch: refetchMock,
+    });
+    rerender();
+
+    expect(result.current.form.getValues('name')).toBe(
+      'User Typed Mentor Name'
+    );
   });
 });
