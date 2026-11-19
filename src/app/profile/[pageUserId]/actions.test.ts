@@ -24,10 +24,12 @@ describe('revalidateProfilePath', () => {
     expect(mockRevalidatePath).not.toHaveBeenCalled();
   });
 
-  it('immediately expires profile-{id} fetch tag via updateTag and revalidates profile, card, and mentor-pool (#974)', async () => {
+  it('immediately expires profile-{id} and mentor-pool fetch tags via updateTag and revalidates profile, card, and mentor-pool (#974)', async () => {
     await revalidateProfilePath('42');
 
-    expect(mockUpdateTag).toHaveBeenCalledWith('profile-42');
+    expect(mockUpdateTag).toHaveBeenCalledTimes(2);
+    expect(mockUpdateTag).toHaveBeenNthCalledWith(1, 'profile-42');
+    expect(mockUpdateTag).toHaveBeenNthCalledWith(2, 'mentor-pool');
     expect(mockRevalidatePath).toHaveBeenCalledWith('/profile/42');
     expect(mockRevalidatePath).toHaveBeenCalledWith('/profile/card');
     expect(mockRevalidatePath).toHaveBeenCalledWith('/mentor-pool');

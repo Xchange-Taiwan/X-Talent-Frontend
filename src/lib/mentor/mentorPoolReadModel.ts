@@ -323,6 +323,7 @@ export interface MentorPoolReadModel {
   buildInitialUnfilteredState(
     opts: BuildInitialUnfilteredStateOptions
   ): MentorPoolPageState;
+  invalidateAfterMutation(): void;
   clear(): void;
 }
 
@@ -420,6 +421,7 @@ export function createMentorPoolReadModel(
   let transientUnfilteredSnapshot: Readonly<MentorPoolSnapshot> | null = null;
   let hasClientActivity = false;
   let isClearing = false;
+  let pendingPostMutationRefresh = false;
 
   function isSlotFresh(slot: QuerySlot | undefined): boolean {
     if (!slot || slot.cachedState === undefined) return false;
@@ -1196,6 +1198,10 @@ export function createMentorPoolReadModel(
     subscribeSnapshot(query, onStoreChange, options) {
       const normalizedQuery = normalizeMentorPoolQuery(query);
       const queryKey = serializeMentorPoolQuery(normalizedQuery);
+      const shouldRefreshAfterMutation = pendingPostMutationRefresh;
+      if (shouldRefreshAfterMutation) {
+        pendingPostMutationRefresh = false;
+      }
 
       if (options?.ssrSeed) {
         primeUnfilteredFromSSR(options.ssrSeed);
@@ -1212,7 +1218,11 @@ export function createMentorPoolReadModel(
           limit
         );
 
-      if (options?.force) {
+      const effectiveForce = Boolean(
+        options?.force || shouldRefreshAfterMutation
+      );
+
+      if (effectiveForce) {
         hasClientActivity = true;
         if (queryKey === UNFILTERED_QUERY_KEY) {
           clearTransientUnfilteredError();
@@ -1223,7 +1233,7 @@ export function createMentorPoolReadModel(
       if (
         queryKey === UNFILTERED_QUERY_KEY &&
         transientUnfilteredError !== null &&
-        !options?.force
+        !effectiveForce
       ) {
         const sub: SlotSubscriber = {
           onStoreChange,
@@ -1250,9 +1260,9 @@ export function createMentorPoolReadModel(
       };
       slot.subscribers.add(sub);
 
-      if (!isSlotFresh(slot) || options?.force) {
+      if (!isSlotFresh(slot) || effectiveForce) {
         void launchPageOne(queryKey, slot, pageOneFetcher, {
-          force: options?.force,
+          force: effectiveForce,
         });
       } else {
         syncSlotSnapshot(queryKey, slot);
@@ -1333,7 +1343,18 @@ export function createMentorPoolReadModel(
 
     buildInitialUnfilteredState: buildUnfilteredState,
 
+    invalidateAfterMutation() {
+      const hadActiveSubscribers = Array.from(slots.values()).some(
+        (slot) => slot.subscribers.size > 0
+      );
+      this.clear();
+      if (!hadActiveSubscribers) {
+        pendingPostMutationRefresh = true;
+      }
+    },
+
     clear() {
+      pendingPostMutationRefresh = false;
       transientUnfilteredError = null;
       transientUnfilteredSnapshot = null;
       hasClientActivity = false;

@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { after } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 
@@ -11,6 +11,8 @@ import {
 } from '@/lib/auth/bffSession.server';
 import { hasUserProperties, isValidUserId } from '@/lib/auth/userGuard';
 import { confirmDeletionSynced } from '@/lib/profile/pollUntilSynced';
+import { getProfileCacheTag } from '@/services/profile/user.server';
+import { MENTOR_POOL_CACHE_TAG } from '@/services/search-mentor/mentors';
 
 export async function googleCallback(
   code: string,
@@ -68,6 +70,8 @@ export async function revalidateProfilePathAfterDelete(): Promise<void> {
 
   after(async () => {
     await confirmDeletionSynced(numericUserId, name, [
+      () => revalidateTag(getProfileCacheTag(userId), 'max'),
+      () => revalidateTag(MENTOR_POOL_CACHE_TAG, 'max'),
       () => revalidatePath(`/profile/${userId}`),
       () => revalidatePath('/mentor-pool'),
     ]);

@@ -5,7 +5,11 @@ import { apiClient } from '@/lib/apiClient';
 import type { components } from '@/types/api';
 import type { MentorListWireResponse, MentorRequest } from '@/types/mentor';
 
-import { fetchMentors, fetchMentorsServer } from './mentors';
+import {
+  fetchMentors,
+  fetchMentorsServer,
+  MENTOR_POOL_CACHE_TAG,
+} from './mentors';
 
 const { mockBaseUrl } = vi.hoisted(() => ({
   mockBaseUrl: { value: 'https://api.example.com' },
@@ -191,10 +195,11 @@ describe('fetchMentorsServer', () => {
       });
       await fetchMentorsServer(params);
 
+      expect(MENTOR_POOL_CACHE_TAG).toBe('mentor-pool');
       expect(mockGetUnwrapped).toHaveBeenCalledWith(
         '/v1/mentors',
         expect.objectContaining({
-          next: { revalidate: 86400 },
+          next: { revalidate: 86400, tags: ['mentor-pool'] },
         })
       );
       expect(mockGetUnwrapped).toHaveBeenCalledWith(

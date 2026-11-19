@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { fromPartial } from '@total-typescript/shoehorn';
 import type { ReadonlyURLSearchParams } from 'next/navigation';
 import React from 'react';
@@ -1682,6 +1682,46 @@ describe('useMentorPool', () => {
       'SSR V2 Mentor',
       'Client Page 2 Mentor',
     ]);
+  });
+
+  it('refetches live /v1/mentors on mount after mentorPoolReadModel.invalidateAfterMutation() even when initialMentors ssrSeed is stale (#974)', async () => {
+    mockSearchParams.toString.mockReturnValue('');
+    mockSearchParams.get.mockReturnValue(null);
+
+    const staleMentor = {
+      ...mockInitialMentors[0],
+      user_id: 700,
+      name: 'Existing Mentor',
+    };
+    const newlyOnboardedMentor = {
+      ...mockInitialMentors[0],
+      user_id: 701,
+      name: 'Newly Promoted Mentor',
+    };
+
+    mockFetchMentors.mockResolvedValueOnce({
+      mentors: [newlyOnboardedMentor, staleMentor],
+      nextCursor: null,
+    });
+
+    mentorPoolReadModel.invalidateAfterMutation();
+
+    const { result } = renderHook(() =>
+      useMentorPool({
+        initialMentors: [staleMentor],
+        initialNextCursor: null,
+        initialMentorCount: 1,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
+      })
+    );
+
+    await waitFor(() => {
+      expect(mockFetchMentors).toHaveBeenCalledTimes(1);
+      expect(result.current.mentors.map((m) => m.name)).toEqual([
+        'Newly Promoted Mentor',
+        'Existing Mentor',
+      ]);
+    });
   });
 });
 

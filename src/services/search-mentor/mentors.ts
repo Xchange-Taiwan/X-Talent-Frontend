@@ -12,6 +12,7 @@ import type {
 import { mapMentorPage } from './mapMentor';
 
 const REVALIDATE_SECONDS = 60 * 60 * 24;
+export const MENTOR_POOL_CACHE_TAG = 'mentor-pool';
 
 function buildMentorRequestOptions(
   param: MentorRequest,
@@ -72,7 +73,12 @@ export async function fetchMentorsServer(
 
   const isUnfiltered = isUnfilteredMentorPoolQuery(param) && !param.cursor;
   const fetchOptions: Omit<RequestOptions, 'auth' | 'params'> = isUnfiltered
-    ? { next: { revalidate: REVALIDATE_SECONDS } }
+    ? {
+        next: {
+          revalidate: REVALIDATE_SECONDS,
+          tags: [MENTOR_POOL_CACHE_TAG],
+        },
+      }
     : { cache: 'no-store' };
 
   const data = await apiClient.getUnwrapped<MentorListWireResponse>(

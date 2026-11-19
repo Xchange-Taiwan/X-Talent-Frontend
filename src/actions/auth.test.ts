@@ -16,6 +16,7 @@ vi.mock('next/server', () => ({
 
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
+  revalidateTag: vi.fn(),
 }));
 
 vi.mock('@/lib/profile/pollUntilSynced', () => ({
@@ -26,7 +27,7 @@ vi.mock('@/lib/auth/bffSession.server', () => ({
   exchangeGoogleOAuthCodeWithBridge: vi.fn(),
 }));
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { after } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 
@@ -41,6 +42,7 @@ import { googleCallback, revalidateProfilePathAfterDelete } from './auth';
 const mockGetServerSession = vi.mocked(getServerSession);
 const mockAfter = vi.mocked(after);
 const mockRevalidatePath = vi.mocked(revalidatePath);
+const mockRevalidateTag = vi.mocked(revalidateTag);
 const mockConfirmDeletionSynced = vi.mocked(confirmDeletionSynced);
 const mockExchangeGoogleOAuthCode = vi.mocked(
   exchangeGoogleOAuthCodeWithBridge
@@ -169,11 +171,12 @@ describe('revalidateProfilePathAfterDelete', () => {
     }
 
     const revalidatePaths = mockConfirmDeletionSynced.mock.calls[0][2];
-    expect(revalidatePaths).toHaveLength(2);
+    expect(revalidatePaths).toHaveLength(4);
 
-    revalidatePaths[0]();
-    revalidatePaths[1]();
+    revalidatePaths.forEach((cb) => cb());
 
+    expect(mockRevalidateTag).toHaveBeenCalledWith('profile-42', 'max');
+    expect(mockRevalidateTag).toHaveBeenCalledWith('mentor-pool', 'max');
     expect(mockRevalidatePath).toHaveBeenCalledWith('/profile/42');
     expect(mockRevalidatePath).toHaveBeenCalledWith('/mentor-pool');
   });
