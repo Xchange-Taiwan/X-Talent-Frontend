@@ -1,4 +1,4 @@
-import type { Category } from '@/components/ui/category-multi-select';
+import type { Category } from '@/types/category';
 import type { TagCatalogGroupVO } from '@/types/tagCatalog';
 
 /**

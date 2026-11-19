@@ -44,6 +44,7 @@ import {
 import { mentorFeedbackReadModel } from '@/lib/feedback/mentorFeedbackReadModel';
 import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
 import { captureFlowFailure as defaultCaptureFlowFailure } from '@/lib/monitoring';
+import { notificationReadModel } from '@/lib/notifications';
 import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
 import {
   EMAIL_VERIFY_HREF,
@@ -68,7 +69,6 @@ import {
   type ResetPasswordWithTokenInput,
   type SignUpInput,
 } from '@/services/auth/authClient';
-import { notificationStoreManager } from '@/stores/notificationStore';
 
 const defaultSignUp = (input: SignUpInput): Promise<void> =>
   authClient.signUp(input);
@@ -237,7 +237,7 @@ async function executeTerminateClientSession(
     revalidateAfterDelete,
     clearSessionHint = defaultClearSessionHint,
     clearAnalyticsUser = defaultClearAnalyticsUser,
-    clearNotifications = () => notificationStoreManager.clear(),
+    clearNotifications = () => notificationReadModel.clear(),
     clearReservations = () => reservationReadModel.clear(),
     clearSchedules = () => scheduleReadModel.clear(),
     clearFavorites = () => favoriteMentorsReadModel.clear(),
@@ -297,7 +297,7 @@ async function executeTerminateClientSession(
  * 1. `sessionHint` cookie & DOM attributes (ADR-0001)
  * 2. GA4 / Clarity user context
  * 3. Pending auth `sessionStorage` keys (`authFlowStorage`) & pending favorite `localStorage` (`clearPendingFavoriteMentor`)
- * 4. User-scoped in-memory stores (`notificationStoreManager`, `reservationReadModel`, `scheduleReadModel`)
+ * 4. User-scoped in-memory stores (`notificationReadModel`, `reservationReadModel`, `scheduleReadModel`)
  * 5. Reason-specific best-effort server cleanup (`postBackendLogout` or `revalidateAfterDelete`)
  * 6. NextAuth `signOut`
  */

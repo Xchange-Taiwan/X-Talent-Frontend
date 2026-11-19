@@ -11,7 +11,70 @@ createNavigation({});
 // Storage implementation. Install a standard in-memory Storage polyfill when
 // `localStorage.clear` is unavailable so tests behave identically across Node
 // 22, 24, and 26.
+const memoryStores = new WeakMap<Storage, Map<string, string>>();
+
+function getBackingMap(instance: Storage): Map<string, string> {
+  let map = memoryStores.get(instance);
+  if (!map) {
+    map = new Map<string, string>();
+    memoryStores.set(instance, map);
+  }
+  return map;
+}
+
 function createMemoryStorage(): Storage {
+  if (typeof Storage !== 'undefined' && Storage.prototype) {
+    Object.defineProperties(Storage.prototype, {
+      length: {
+        configurable: true,
+        get(this: Storage) {
+          return getBackingMap(this).size;
+        },
+      },
+      clear: {
+        configurable: true,
+        writable: true,
+        value(this: Storage) {
+          getBackingMap(this).clear();
+        },
+      },
+      getItem: {
+        configurable: true,
+        writable: true,
+        value(this: Storage, key: string) {
+          const store = getBackingMap(this);
+          return store.has(String(key))
+            ? (store.get(String(key)) ?? null)
+            : null;
+        },
+      },
+      key: {
+        configurable: true,
+        writable: true,
+        value(this: Storage, index: number) {
+          return Array.from(getBackingMap(this).keys())[index] ?? null;
+        },
+      },
+      removeItem: {
+        configurable: true,
+        writable: true,
+        value(this: Storage, key: string) {
+          getBackingMap(this).delete(String(key));
+        },
+      },
+      setItem: {
+        configurable: true,
+        writable: true,
+        value(this: Storage, key: string, value: string) {
+          getBackingMap(this).set(String(key), String(value));
+        },
+      },
+    });
+    const instance = Object.create(Storage.prototype) as Storage;
+    getBackingMap(instance);
+    return instance;
+  }
+
   const store = new Map<string, string>();
   return {
     get length() {

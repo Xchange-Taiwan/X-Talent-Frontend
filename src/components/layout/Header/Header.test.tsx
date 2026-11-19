@@ -63,11 +63,11 @@ import {
   clearSessionHint,
   type ResolvedIdentity,
 } from '@/lib/auth/sessionHint';
-import { createInMemoryNotificationSource } from '@/services/notifications/notificationSource';
 import {
+  createInMemoryNotificationSource,
   notificationStoreManager,
   resetNotificationStore,
-} from '@/stores/notificationStore';
+} from '@/lib/notifications';
 import {
   authenticatedIdentity,
   buildResolvedIdentity,

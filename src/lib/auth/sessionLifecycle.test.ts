@@ -67,8 +67,8 @@ import {
 } from '@/lib/favorites';
 import { mentorFeedbackReadModel } from '@/lib/feedback/mentorFeedbackReadModel';
 import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
+import { notificationStoreManager } from '@/lib/notifications';
 import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
-import { notificationStoreManager } from '@/stores/notificationStore';
 import type { components } from '@/types/api';
 import type { Reservation } from '@/types/reservation';
 

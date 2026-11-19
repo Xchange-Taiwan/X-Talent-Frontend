@@ -2,13 +2,13 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useNotificationCenter } from '@/hooks/useNotificationCenter';
-import { mapNotificationVOToItem } from '@/services/notifications/notificationMapper';
 import {
   createInMemoryNotificationSource,
+  mapNotificationVOToItem,
+  type NotificationItem,
   type NotificationSource,
-} from '@/services/notifications/notificationSource';
-import type { NotificationItem } from '@/services/notifications/types';
-import { resetNotificationStore } from '@/stores/notificationStore';
+  resetNotificationStore,
+} from '@/lib/notifications';
 import type { components } from '@/types/api';
 
 const mockToastFn = vi.fn();

@@ -11,8 +11,8 @@ import {
   SESSION_HINT_COOKIE,
 } from '@/lib/auth/sessionHint';
 import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
+import { notificationStoreManager } from '@/lib/notifications';
 import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
-import { notificationStoreManager } from '@/stores/notificationStore';
 
 import SessionErrorWatcher from './SessionErrorWatcher';
 
