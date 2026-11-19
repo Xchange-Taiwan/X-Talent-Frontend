@@ -114,7 +114,6 @@ function baseProps(
     onScheduleMonthChange: noop,
     onReservation: noop,
     onEditProfile: noop,
-    onBecomeMentor: noop,
     selectedSlot: null,
     setSelectedSlot: noop,
     isSubmitting: false,

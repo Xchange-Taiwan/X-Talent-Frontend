@@ -1,11 +1,7 @@
+import { resolveAvatarDisplayUrl } from '@/lib/avatar/avatarUrl';
 import type { TagDisplay, UserType } from '@/types/user';
 
-import {
-  DEFAULT_MENTEE_AVATAR_URL,
-  normalizePresetAvatarSrc,
-} from './presetAvatar';
-
-export { DEFAULT_MENTEE_AVATAR_URL } from './presetAvatar';
+export const DEFAULT_MENTEE_AVATAR_URL = '/avatars/default_1.webp';
 
 export interface StoredDirectionBucket {
   skills: string[];
@@ -191,7 +187,7 @@ export function buildMenteeDirectionReadGroups({
 export function resolveMenteeAvatarSrc(
   avatar: string | null | undefined
 ): string {
-  return normalizePresetAvatarSrc(avatar, DEFAULT_MENTEE_AVATAR_URL);
+  return resolveAvatarDisplayUrl(avatar, true);
 }
 
 function parsePeriodEndRank(
@@ -212,12 +208,17 @@ export function resolveMenteeLatestRole(
   const list = userData?.workExperiences;
   if (!list?.length) return null;
 
-  let best = list[0];
+  const validList = list.filter((item) =>
+    Boolean(item.job?.trim() || item.company?.trim())
+  );
+  if (!validList.length) return null;
+
+  let best = validList[0];
   let bestEnd = parsePeriodEndRank(best.job_period_end, currentYear);
   let bestStart = Number(best.job_period_start) || 0;
 
-  for (let i = 1; i < list.length; i += 1) {
-    const candidate = list[i];
+  for (let i = 1; i < validList.length; i += 1) {
+    const candidate = validList[i];
     const endRank = parsePeriodEndRank(candidate.job_period_end, currentYear);
     const startRank = Number(candidate.job_period_start) || 0;
     if (endRank > bestEnd || (endRank === bestEnd && startRank > bestStart)) {
@@ -229,7 +230,6 @@ export function resolveMenteeLatestRole(
 
   const jobTitle = best.job?.trim() ?? '';
   const company = best.company?.trim() ?? '';
-  if (!jobTitle && !company) return null;
   return { jobTitle, company };
 }
 

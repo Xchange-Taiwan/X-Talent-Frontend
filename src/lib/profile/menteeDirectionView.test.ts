@@ -301,5 +301,39 @@ describe('menteeDirectionView', () => {
       jobTitle: 'Senior Product Designer',
       company: 'Newer Ongoing Co',
     });
+
+    // Blank draft entry with newer end date must NOT hide valid historical experience
+    expect(
+      resolveMenteeLatestRole(
+        {
+          workExperiences: [
+            {
+              job: 'Product Designer',
+              company: 'XChange',
+              job_period_start: '2023',
+              job_period_end: '2025',
+              industry: 'DESIGN',
+              job_location: 'TWN',
+              description: '',
+              is_primary: true,
+            },
+            {
+              job: '   ',
+              company: '',
+              job_period_start: '2026',
+              job_period_end: '至今',
+              industry: 'DESIGN',
+              job_location: 'TWN',
+              description: '',
+              is_primary: false,
+            },
+          ],
+        },
+        2026
+      )
+    ).toEqual({
+      jobTitle: 'Product Designer',
+      company: 'XChange',
+    });
   });
 });

@@ -1,10 +1,10 @@
 import { FEEDBACK_FORM_URL } from '@/constant/externalLinks';
 import type { ResolvedIdentity } from '@/lib/auth/sessionHint';
+import { resolveAvatarDisplayUrl } from '@/lib/avatar/avatarUrl';
 import {
   isAccountDeletionEnabled,
   isFavoritesEnabled,
 } from '@/lib/featureFlags';
-import { normalizePresetAvatarSrc } from '@/lib/profile/presetAvatar';
 import {
   ABOUT_HREF,
   FAVORITES_HREF,
@@ -428,7 +428,7 @@ export function buildHeaderNavigationModel({
 
   const name = identity.name ?? user?.name ?? '';
   const displayName = name || '我的個人頁面';
-  const avatarSrc = normalizePresetAvatarSrc(
+  const avatarSrc = resolveAvatarDisplayUrl(
     identity.avatar ?? user?.avatar ?? ''
   );
   const jobTitle = identity.jobTitle ?? user?.jobTitle ?? '';
