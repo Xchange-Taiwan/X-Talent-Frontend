@@ -414,7 +414,7 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
     expect(mockWriteProfile).toHaveBeenCalledTimes(2);
   });
 
-  it('defaults Mentee empty avatar to default_1 and navigates to /profile/:id when no pending favorite exists (#836)', async () => {
+  it('defaults Mentee empty avatar to default_1 and navigates to /profile/card completion page when no pending favorite exists (#973)', async () => {
     const { result } = renderHook(() =>
       useOnboardingForm({ industries: mockIndustries, port: buildPort() })
     );
@@ -447,7 +447,7 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
         is_mentor: false,
       })
     );
-    expect(mockPush).toHaveBeenCalledWith('/profile/1');
+    expect(mockPush).toHaveBeenCalledWith('/profile/card');
   });
 
   it('hydrates Google name and =s512-c avatar across unauthenticated -> authenticated session transition without clobbering dirty user edits (#951)', async () => {

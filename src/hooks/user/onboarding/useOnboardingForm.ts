@@ -31,6 +31,7 @@ import {
   commitProfileMutation,
   type ProfileSavePort,
 } from '@/lib/profile/saveProfile';
+import { PROFILE_CARD_HREF } from '@/lib/routes';
 import {
   formSchema,
   onboardingDefaultValues,
@@ -459,11 +460,7 @@ export function useOnboardingForm({
         ? (toPresetAvatarCode(values.avatar) ?? values.avatar)
         : DEFAULT_PRESET_AVATAR_CODE;
 
-      const menteeTarget =
-        getPendingFavoriteProfilePath() ??
-        (resolvedPageUserId
-          ? `/profile/${resolvedPageUserId}`
-          : '/profile/card');
+      const menteeTarget = getPendingFavoriteProfilePath() ?? PROFILE_CARD_HREF;
 
       await commitProfileMutation(
         {

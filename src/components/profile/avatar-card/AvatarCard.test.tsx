@@ -101,4 +101,18 @@ describe('AvatarCard (#898, #862)', () => {
     expect(img.closest('[data-clarity-mask="true"]')).not.toBeNull();
     expect(link.closest('[data-clarity-mask="true"]')).not.toBeNull();
   });
+
+  it('omits empty jobTitle/companyName paragraph when fresh Mentee has no work experience (#973)', () => {
+    const { container } = render(
+      <AvatarCard
+        name="Fresh Mentee"
+        avatarImgUrl="/avatars/default_1.webp"
+        jobTitle="   "
+        companyName=""
+      />
+    );
+
+    expect(container.querySelector('p')).toBeNull();
+    expect(screen.queryByText('at')).not.toBeInTheDocument();
+  });
 });
