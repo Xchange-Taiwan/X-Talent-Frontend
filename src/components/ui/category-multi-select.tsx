@@ -180,7 +180,7 @@ export function CategoryMultiSelect({
             onChange={(e) => setQuery(e.target.value)}
             disabled={disabled}
             placeholder={searchPlaceholder}
-            className="border-0 pl-9 shadow-none focus:outline-none focus-visible:ring-0 focus-visible:outline-none"
+            className="border-0 pl-9 shadow-none focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none"
           />
         </div>
       </div>

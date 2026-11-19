@@ -114,7 +114,10 @@ function ProfileIntroSections({
       {!!userData.workExperiences?.length && (
         <div className="border-background-border mt-8 border-t pt-8">
           <p className="mb-4 text-xl font-bold">工作經驗</p>
-          <WorkExperienceSection workExperiences={userData.workExperiences} />
+          <WorkExperienceSection
+            workExperiences={userData.workExperiences}
+            industries={userData.industries}
+          />
         </div>
       )}
 

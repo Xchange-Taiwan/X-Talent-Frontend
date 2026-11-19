@@ -93,13 +93,23 @@ export const ExperienceSection = ({ items }: ExperienceSectionProps) => {
 
 export type WorkExperienceSectionProps = {
   workExperiences?: WorkExperienceMetadata[];
+  industries?: ReadonlyArray<{ subject_group: string; subject: string }>;
   industryLabelByCode?: ReadonlyMap<string, string>;
 };
 
 export const WorkExperienceSection = ({
   workExperiences,
+  industries,
   industryLabelByCode,
 }: WorkExperienceSectionProps) => {
+  const resolvedIndustryMap = React.useMemo(() => {
+    if (industryLabelByCode) return industryLabelByCode;
+    if (!industries?.length) return undefined;
+    return new Map(
+      industries.map((item) => [item.subject_group, item.subject])
+    );
+  }, [industries, industryLabelByCode]);
+
   const workExperienceItems: ExperienceItem[] = (workExperiences ?? []).map(
     (experience) => {
       const locLabel = experience.job_location
@@ -107,7 +117,7 @@ export const WorkExperienceSection = ({
         : '';
       const rawIndustry = experience.industry?.trim() ?? '';
       const industryLabel = rawIndustry
-        ? (industryLabelByCode?.get(rawIndustry) ?? rawIndustry)
+        ? (resolvedIndustryMap?.get(rawIndustry) ?? rawIndustry)
         : '';
       const metaParts = [experience.company, locLabel, industryLabel]
         .map((s) => s?.trim())

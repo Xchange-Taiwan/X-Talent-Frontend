@@ -143,9 +143,11 @@ export const MenteeDirectionPreferenceSection = React.memo(
       onDirectionMapChange(updated.directionMap);
       form.setValue('want_skill', updated.flatItems, {
         shouldDirty: true,
-        shouldValidate: isSubmitted,
+        shouldValidate: false,
       });
-      if (updated.flatItems.length > 0) {
+      if (isSubmitted) {
+        void form.trigger(['want_skill', 'want_topic']);
+      } else if (updated.flatItems.length > 0) {
         form.clearErrors('want_skill');
       }
     };
@@ -163,9 +165,11 @@ export const MenteeDirectionPreferenceSection = React.memo(
       onDirectionMapChange(updated.directionMap);
       form.setValue('want_topic', updated.flatItems, {
         shouldDirty: true,
-        shouldValidate: isSubmitted,
+        shouldValidate: false,
       });
-      if (updated.flatItems.length > 0) {
+      if (isSubmitted) {
+        void form.trigger(['want_skill', 'want_topic']);
+      } else if (updated.flatItems.length > 0) {
         form.clearErrors(['want_skill', 'want_topic']);
       }
     };

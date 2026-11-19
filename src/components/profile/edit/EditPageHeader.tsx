@@ -1,4 +1,4 @@
-import { Loader2 } from 'lucide-react';
+import { ChevronLeft, Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 
@@ -29,13 +29,20 @@ export function EditPageHeader({
   return (
     <header className="border-background-border bg-background-white sticky top-[70px] z-20 mb-8 border-b">
       <div className="mx-auto flex w-11/12 max-w-[1160px] items-center justify-between gap-4 py-5">
-        <div className="min-w-0">
-          <p className="text-text-tertiary mb-0.5 text-xs font-medium">
-            {roleSubtitle}
-          </p>
-          <h1 className="text-text-primary truncate text-2xl font-semibold">
-            {pageTitle}
-          </h1>
+        <div className="flex min-w-0 items-center gap-3">
+          <ChevronLeft
+            aria-hidden="true"
+            className={`shrink-0 sm:hidden ${isSaving ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}
+            onClick={isSaving ? undefined : onBack}
+          />
+          <div className="min-w-0">
+            <p className="text-text-tertiary mb-0.5 text-xs font-medium">
+              {roleSubtitle}
+            </p>
+            <h1 className="text-text-primary truncate text-2xl font-semibold">
+              {pageTitle}
+            </h1>
+          </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-3">

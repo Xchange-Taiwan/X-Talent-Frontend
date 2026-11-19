@@ -6,7 +6,7 @@ export type ProfilePillVariant = 'default' | 'brand' | 'subtle';
 
 interface Props {
   title: string;
-  items: TagDisplay[];
+  items: ReadonlyArray<TagDisplay>;
   tone?: ProfilePillVariant;
   subheading?: boolean;
 }

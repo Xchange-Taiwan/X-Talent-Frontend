@@ -282,8 +282,12 @@ export function useProfileEditorSession({
           savePort
         )
       );
-      if (saved && !isMentorRole) {
-        persistDirectionMap();
+      if (saved) {
+        hasAvatarEditedRef.current = false;
+        setHasAvatarEdited(false);
+        if (!isMentorRole) {
+          persistDirectionMap();
+        }
       }
       return saved;
     },

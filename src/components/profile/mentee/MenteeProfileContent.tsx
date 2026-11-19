@@ -8,7 +8,8 @@ import {
 } from '@/components/profile/experience-section/ExperienceSection';
 import { PersonalLinksGrid } from '@/components/profile/social-links/PersonalLinksGrid';
 import type { ResolvedDisplaySocialLink } from '@/components/profile/social-links/platformLabelMap';
-import type { TagDisplay, UserType } from '@/hooks/user/user-data/useUserData';
+import { ProfileBadgeSection } from '@/components/profile/view/ProfileBadgeSection';
+import type { UserType } from '@/hooks/user/user-data/useUserData';
 import type { MenteeDirectionReadGroup } from '@/lib/profile/menteeDirectionView';
 import { cn } from '@/lib/utils';
 
@@ -20,40 +21,6 @@ export interface MenteeProfileContentProps {
   activeDirection: string | null;
   onSelectDirection: (directionKey: string) => void;
   personalLinks: ReadonlyArray<ResolvedDisplaySocialLink>;
-}
-
-function PreferenceTagGroup({
-  title,
-  items,
-  variant,
-}: {
-  title: string;
-  items: ReadonlyArray<TagDisplay>;
-  variant: 'brand' | 'subtle';
-}) {
-  if (items.length === 0) return null;
-  return (
-    <div>
-      <h3 className="text-text-secondary mb-3 text-sm font-semibold">
-        {title}
-      </h3>
-      <div className="flex flex-wrap gap-2.5">
-        {items.map((item) => (
-          <span
-            key={item.subject_group}
-            className={cn(
-              'inline-flex items-center rounded-full px-4 py-2 text-sm font-medium',
-              variant === 'brand'
-                ? 'bg-brand-100 text-brand-700'
-                : 'border-background-border bg-background-bottom-secondary/70 text-text-primary border'
-            )}
-          >
-            {item.subject}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 export function MenteeProfileContent({
@@ -185,15 +152,17 @@ export function MenteeProfileContent({
                   </p>
                 ) : (
                   <>
-                    <PreferenceTagGroup
+                    <ProfileBadgeSection
                       title="想加強的技能"
                       items={resolvedActiveGroup.skills}
-                      variant="brand"
+                      tone="brand"
+                      subheading
                     />
-                    <PreferenceTagGroup
+                    <ProfileBadgeSection
                       title="想了解的主題"
                       items={resolvedActiveGroup.topics}
-                      variant="subtle"
+                      tone="subtle"
+                      subheading
                     />
                   </>
                 )}
@@ -201,15 +170,17 @@ export function MenteeProfileContent({
             </div>
           ) : (
             <div className="flex flex-col gap-6">
-              <PreferenceTagGroup
+              <ProfileBadgeSection
                 title="想加強的技能"
                 items={userData.want_skill}
-                variant="brand"
+                tone="brand"
+                subheading
               />
-              <PreferenceTagGroup
+              <ProfileBadgeSection
                 title="想了解的主題"
                 items={userData.want_topic}
-                variant="subtle"
+                tone="subtle"
+                subheading
               />
             </div>
           )}
@@ -221,6 +192,7 @@ export function MenteeProfileContent({
           <h2 className="mb-4 text-xl font-bold">工作經驗</h2>
           <WorkExperienceSection
             workExperiences={userData.workExperiences ?? []}
+            industries={userData.industries}
           />
         </section>
       )}

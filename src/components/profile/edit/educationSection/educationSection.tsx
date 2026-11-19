@@ -80,7 +80,7 @@ export function SchoolComboboxField({
               variant="outline"
               role="combobox"
               aria-expanded={open}
-              className="w-full justify-between font-normal"
+              className="w-full justify-between font-normal focus-visible:ring-offset-0"
             >
               <span className={cn(!field.value && 'text-text-tertiary')}>
                 {field.value || '請選擇學校'}
@@ -188,7 +188,11 @@ export const EducationSection = ({ form, isMentor }: Props) => {
                   <FormItem className="mb-4 grow md:mb-0">
                     <FormLabel>主修</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="例如：資訊工程學系" />
+                      <Input
+                        {...field}
+                        placeholder="例如：資訊工程學系"
+                        className="focus-visible:ring-offset-0"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -213,7 +217,7 @@ export const EducationSection = ({ form, isMentor }: Props) => {
                       defaultValue={field.value}
                     >
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger className="focus-visible:ring-offset-0">
                           <SelectValue placeholder="請選擇年份" />
                         </SelectTrigger>
                       </FormControl>
@@ -240,7 +244,7 @@ export const EducationSection = ({ form, isMentor }: Props) => {
                       defaultValue={field.value}
                     >
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger className="focus-visible:ring-offset-0">
                           <SelectValue placeholder="請選擇年份" />
                         </SelectTrigger>
                       </FormControl>
@@ -265,7 +269,11 @@ export const EducationSection = ({ form, isMentor }: Props) => {
                 description="您確定要移除這個區塊嗎？"
                 onConfirm={() => remove(index)}
                 trigger={
-                  <Button type="button" variant="destructive">
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    className="focus-visible:ring-offset-0"
+                  >
                     <TrashIcon className="mr-2 size-5" />
                     移除
                   </Button>
@@ -279,7 +287,7 @@ export const EducationSection = ({ form, isMentor }: Props) => {
       <Button
         type="button"
         variant="ghost"
-        className="text-brand-500 rounded-full px-4 py-3"
+        className="text-brand-500 rounded-full px-4 py-3 focus-visible:ring-offset-0"
         onClick={addEducation}
       >
         <PlusIcon className="mr-2 size-5" />

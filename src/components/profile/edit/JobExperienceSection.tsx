@@ -142,7 +142,11 @@ export const JobExperienceSection = ({
                   <FormItem className="mb-4 grow md:mb-0">
                     <FormLabel>職稱</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="例如：前端工程師" />
+                      <Input
+                        {...field}
+                        placeholder="例如：前端工程師"
+                        className="focus-visible:ring-offset-0"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -155,7 +159,11 @@ export const JobExperienceSection = ({
                   <FormItem className="grow">
                     <FormLabel>公司名稱</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="例如：Startup Studio" />
+                      <Input
+                        {...field}
+                        placeholder="例如：Startup Studio"
+                        className="focus-visible:ring-offset-0"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -176,7 +184,7 @@ export const JobExperienceSection = ({
                       defaultValue={field.value}
                     >
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger className="focus-visible:ring-offset-0">
                           <SelectValue placeholder="請選擇年份" />
                         </SelectTrigger>
                       </FormControl>
@@ -203,7 +211,7 @@ export const JobExperienceSection = ({
                       defaultValue={field.value}
                     >
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger className="focus-visible:ring-offset-0">
                           <SelectValue placeholder="至今" />
                         </SelectTrigger>
                       </FormControl>
@@ -262,7 +270,7 @@ export const JobExperienceSection = ({
                     <Textarea
                       {...field}
                       placeholder="例如：負責產品前端介面，與產品及設計團隊協作。"
-                      className="h-24"
+                      className="h-24 focus-visible:ring-offset-0"
                     />
                   </FormControl>
                   <FormMessage />
@@ -279,6 +287,7 @@ export const JobExperienceSection = ({
                   <FormControl>
                     <Checkbox
                       checked={field.value ?? false}
+                      className="focus-visible:ring-offset-0"
                       onCheckedChange={(checked) => {
                         if (checked) setPrimary(index);
                         else field.onChange(false);
@@ -298,7 +307,11 @@ export const JobExperienceSection = ({
                 description="您確定要移除這個區塊嗎？"
                 onConfirm={() => removeAndReassignPrimary(index)}
                 trigger={
-                  <Button type="button" variant="destructive">
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    className="focus-visible:ring-offset-0"
+                  >
                     <TrashIcon className="mr-2 size-5" />
                     移除
                   </Button>
@@ -312,7 +325,7 @@ export const JobExperienceSection = ({
       <Button
         type="button"
         variant="ghost"
-        className="text-brand-500 rounded-full px-4 py-3"
+        className="text-brand-500 rounded-full px-4 py-3 focus-visible:ring-offset-0"
         onClick={addJob}
       >
         <PlusIcon className="mr-2 size-5" />

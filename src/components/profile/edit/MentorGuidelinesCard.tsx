@@ -65,6 +65,7 @@ export function MentorGuidelinesCard({
             id={checkboxId}
             checked={checked}
             onCheckedChange={(val) => onCheckedChange(val === true)}
+            className="focus-visible:ring-offset-0"
           />
           <label
             htmlFor={checkboxId}
