@@ -154,6 +154,24 @@ interface ResolvedPorts {
   nowMs: () => number;
 }
 
+interface ActiveSyncBatch {
+  monthKeys: Set<string>;
+  accountGen: number;
+  draftResetGen: number;
+}
+
+function defaultSelectedDateForMonth(
+  nowMs: number,
+  year: number,
+  month: number
+): string {
+  const today = new Date(nowMs);
+  today.setHours(0, 0, 0, 0);
+  const monthStart = new Date(year, month - 1, 1);
+  const anchor = monthStart < today ? today : monthStart;
+  return toDateKey(anchor);
+}
+
 function isSameScheduleKey(
   a: ScheduleReadKey | null,
   b: ScheduleReadKey | null
@@ -193,14 +211,16 @@ class MentorScheduleSessionImpl implements MentorScheduleSession {
   private selectedDate: string | null;
   private selectedSlot: BookingSlot | null = null;
   private hasAutoSelected = false;
-  private isReloadingSchedule = false;
+  private activeReloadCount = 0;
 
   private isConfigured = false;
   private isDisposed = false;
   private batchDepth = 0;
   private suppressStoreListener = false;
   private accountSwitchGen = 0;
+  private draftResetGen = 0;
   private lifecycleGen = 0;
+  private readonly activeSyncBatches = new Set<ActiveSyncBatch>();
 
   private currentScheduleKey: ScheduleReadKey | null = null;
   private unsubSchedule: (() => void) | null = null;
@@ -334,10 +354,28 @@ class MentorScheduleSessionImpl implements MentorScheduleSession {
     );
   }
 
+  private isMonthActivelySyncing(monthKey: string): boolean {
+    let syncing = false;
+    this.activeSyncBatches.forEach((batch) => {
+      if (
+        !syncing &&
+        batch.accountGen === this.accountSwitchGen &&
+        batch.draftResetGen === this.draftResetGen &&
+        batch.monthKeys.has(monthKey)
+      ) {
+        syncing = true;
+      }
+    });
+    return syncing;
+  }
+
   private mirrorMonthIntoStore(
     monthKey: string,
     raws: RawMentorTimeslot[]
   ): void {
+    if (this.isMonthActivelySyncing(monthKey)) {
+      return;
+    }
     if (this.store.snapshot().savedByMonth.get(monthKey) === raws) {
       return;
     }
@@ -355,14 +393,14 @@ class MentorScheduleSessionImpl implements MentorScheduleSession {
    */
   private seedPassiveInitialState(config: MentorScheduleSessionConfig): void {
     this.prevUserId = config.backend.userId;
-    const activeYear = this.getActiveYear();
-    const activeMonth = this.getActiveMonth();
+    const initialYear = this.getActiveYear();
+    const initialMonth = this.getActiveMonth();
 
-    if (config.backend.userId && activeYear && activeMonth) {
+    if (config.backend.userId && initialYear && initialMonth) {
       const scheduleKey: ScheduleReadKey = {
         userId: config.backend.userId,
-        year: activeYear,
-        month: activeMonth,
+        year: initialYear,
+        month: initialMonth,
       };
       this.currentScheduleKey = scheduleKey;
       const cachedRaws = this.ports.scheduleReadModel.get(scheduleKey);
@@ -373,11 +411,45 @@ class MentorScheduleSessionImpl implements MentorScheduleSession {
           error: null,
         };
         this.mirrorMonthIntoStore(
-          monthKeyFromYearMonth(activeYear, activeMonth),
+          monthKeyFromYearMonth(initialYear, initialMonth),
           cachedRaws
         );
         this.loaded = true;
         this.maybeAutoSelectEarliestDate();
+
+        const jumpedYear = this.getActiveYear();
+        const jumpedMonth = this.getActiveMonth();
+        if (
+          jumpedYear &&
+          jumpedMonth &&
+          (jumpedYear !== initialYear || jumpedMonth !== initialMonth)
+        ) {
+          const jumpedScheduleKey: ScheduleReadKey = {
+            userId: config.backend.userId,
+            year: jumpedYear,
+            month: jumpedMonth,
+          };
+          this.currentScheduleKey = jumpedScheduleKey;
+          const jumpedCachedRaws =
+            this.ports.scheduleReadModel.get(jumpedScheduleKey);
+          if (jumpedCachedRaws !== undefined) {
+            this.scheduleReadState = {
+              data: jumpedCachedRaws,
+              isLoading: false,
+              error: null,
+            };
+            this.mirrorMonthIntoStore(
+              monthKeyFromYearMonth(jumpedYear, jumpedMonth),
+              jumpedCachedRaws
+            );
+          } else {
+            this.scheduleReadState = {
+              data: null,
+              isLoading: true,
+              error: null,
+            };
+          }
+        }
       } else {
         this.scheduleReadState = {
           data: null,
@@ -387,6 +459,8 @@ class MentorScheduleSessionImpl implements MentorScheduleSession {
       }
     }
 
+    const activeYear = this.getActiveYear();
+    const activeMonth = this.getActiveMonth();
     if (this.getIsOwner() && config.loginUserId && activeYear && activeMonth) {
       const monthEnd = endOfMonthUnix(activeYear, activeMonth);
       const upcomingKey: ReservationReadKey = {
@@ -430,6 +504,7 @@ class MentorScheduleSessionImpl implements MentorScheduleSession {
         this.teardownSubscriptions();
         this.clearPrefetchTimer();
         this.accountSwitchGen += 1;
+        this.draftResetGen += 1;
         this.ports.scheduleReadModel.clear();
         this.ports.reservationReadModel.clear();
         this.suppressStoreListener = true;
@@ -438,9 +513,20 @@ class MentorScheduleSessionImpl implements MentorScheduleSession {
         } finally {
           this.suppressStoreListener = false;
         }
+        const switchNowMs = this.ports.nowMs();
+        const switchDate = new Date(switchNowMs);
         this.loaded = false;
-        this.isReloadingSchedule = false;
-        this.nowSec = Math.floor(this.ports.nowMs() / 1000);
+        this.activeReloadCount = 0;
+        this.nowSec = Math.floor(switchNowMs / 1000);
+        this.cursorYear = nextConfig.backend.year ?? switchDate.getFullYear();
+        this.cursorMonth =
+          nextConfig.backend.month ?? switchDate.getMonth() + 1;
+        this.selectedDate = defaultSelectedDateForMonth(
+          switchNowMs,
+          this.cursorYear,
+          this.cursorMonth
+        );
+        this.selectedSlot = null;
         this.hasAutoSelected = false;
         this.scheduleReadState = IDLE_SCHEDULE_READ;
         this.upcomingReadState = IDLE_RESERVATION_READ;
@@ -453,12 +539,14 @@ class MentorScheduleSessionImpl implements MentorScheduleSession {
         nextConfig.backend.year !== this.prevBackendYear
       ) {
         this.cursorYear = nextConfig.backend.year;
+        this.selectedSlot = null;
       }
       if (
         nextConfig.backend.month !== undefined &&
         nextConfig.backend.month !== this.prevBackendMonth
       ) {
         this.cursorMonth = nextConfig.backend.month;
+        this.selectedSlot = null;
       }
       this.prevBackendYear = nextConfig.backend.year;
       this.prevBackendMonth = nextConfig.backend.month;
@@ -494,6 +582,7 @@ class MentorScheduleSessionImpl implements MentorScheduleSession {
     if (this.isDisposed) return;
     this.isDisposed = true;
     this.lifecycleGen += 1;
+    this.activeReloadCount = 0;
     this.teardownSubscriptions();
     this.clearPrefetchTimer();
   }
@@ -848,17 +937,21 @@ class MentorScheduleSessionImpl implements MentorScheduleSession {
   > = (date, options) => {
     if (this.isDisposed) return;
     this.runInBatch(() => {
+      const prevYear = this.getActiveYear();
+      const prevMonth = this.getActiveMonth();
       const newYear = date.getFullYear();
       const newMonth = date.getMonth() + 1;
       this.cursorYear = newYear;
       this.cursorMonth = newMonth;
 
       if (!options?.preserveSelectedDate) {
-        const today = new Date(this.ports.nowMs());
-        today.setHours(0, 0, 0, 0);
-        const monthStart = new Date(newYear, newMonth - 1, 1);
-        const anchor = monthStart < today ? today : monthStart;
-        this.selectedDate = toDateKey(anchor);
+        this.selectedDate = defaultSelectedDateForMonth(
+          this.ports.nowMs(),
+          newYear,
+          newMonth
+        );
+        this.selectedSlot = null;
+      } else if (newYear !== prevYear || newMonth !== prevMonth) {
         this.selectedSlot = null;
       }
 
@@ -932,14 +1025,97 @@ class MentorScheduleSessionImpl implements MentorScheduleSession {
   };
 
   private readonly confirmChanges: MentorScheduleEditor['confirmChanges'] =
-    (): Promise<SyncResult> => {
-      return this.store.commitChanges(
-        this.config.backend.userId,
-        this.ports.syncMonths
-      );
+    async (): Promise<SyncResult> => {
+      const userId = this.config.backend.userId;
+      const accountGenAtStart = this.accountSwitchGen;
+      const draftResetGenAtStart = this.draftResetGen;
+
+      const refByMonthKey = new Map<string, ScheduleMonthRef>();
+      let capturedResults: MonthSyncResult[] = [];
+
+      const reconcileCachedMonths = () => {
+        if (
+          this.isDisposed ||
+          this.accountSwitchGen !== accountGenAtStart ||
+          this.draftResetGen !== draftResetGenAtStart
+        ) {
+          return;
+        }
+        this.runInBatch(() => {
+          const handledMonthKeys = new Set<string>();
+          for (const res of capturedResults) {
+            handledMonthKeys.add(res.monthKey);
+            const ref = refByMonthKey.get(res.monthKey);
+            if (!ref) continue;
+            if (res.outcome.ok) {
+              if (this.ports.scheduleReadModel.get(ref) !== res.outcome.raws) {
+                this.ports.scheduleReadModel.set(ref, res.outcome.raws);
+              }
+              if (
+                this.store.snapshot().savedByMonth.get(res.monthKey) !==
+                res.outcome.raws
+              ) {
+                this.mirrorMonthIntoStore(res.monthKey, res.outcome.raws);
+              }
+            } else {
+              const cached = this.ports.scheduleReadModel.get(ref);
+              if (
+                cached !== undefined &&
+                this.store.snapshot().savedByMonth.get(res.monthKey) !== cached
+              ) {
+                this.mirrorMonthIntoStore(res.monthKey, cached);
+              }
+            }
+          }
+          refByMonthKey.forEach((ref, mk) => {
+            if (handledMonthKeys.has(mk)) return;
+            const cached = this.ports.scheduleReadModel.get(ref);
+            if (
+              cached !== undefined &&
+              this.store.snapshot().savedByMonth.get(mk) !== cached
+            ) {
+              this.mirrorMonthIntoStore(mk, cached);
+            }
+          });
+        });
+      };
+
+      try {
+        const syncResult = await this.store.commitChanges(
+          userId,
+          async (requests) => {
+            for (const req of requests) {
+              refByMonthKey.set(
+                monthKeyFromYearMonth(req.ref.year, req.ref.month),
+                req.ref
+              );
+            }
+            const batch: ActiveSyncBatch = {
+              monthKeys: new Set(refByMonthKey.keys()),
+              accountGen: accountGenAtStart,
+              draftResetGen: draftResetGenAtStart,
+            };
+            this.activeSyncBatches.add(batch);
+            try {
+              const results = await this.ports.syncMonths(requests);
+              capturedResults = results;
+              return results;
+            } finally {
+              this.activeSyncBatches.delete(batch);
+            }
+          }
+        );
+
+        reconcileCachedMonths();
+        return syncResult;
+      } catch (err) {
+        reconcileCachedMonths();
+        throw err;
+      }
     };
 
   private readonly resetChanges: MentorScheduleEditor['resetChanges'] = () => {
+    this.draftResetGen += 1;
     this.store.discardChanges();
   };
 
@@ -1001,7 +1177,7 @@ class MentorScheduleSessionImpl implements MentorScheduleSession {
     const accountGenAtStart = this.accountSwitchGen;
     const lifecycleGenAtStart = this.lifecycleGen;
 
-    this.isReloadingSchedule = true;
+    this.activeReloadCount += 1;
     this.commitStateChange();
 
     try {
@@ -1033,7 +1209,7 @@ class MentorScheduleSessionImpl implements MentorScheduleSession {
         this.accountSwitchGen === accountGenAtStart &&
         this.lifecycleGen === lifecycleGenAtStart
       ) {
-        this.isReloadingSchedule = false;
+        this.activeReloadCount = Math.max(0, this.activeReloadCount - 1);
         this.commitStateChange();
       }
     }
@@ -1079,14 +1255,14 @@ class MentorScheduleSessionImpl implements MentorScheduleSession {
     const activeMonth = this.getActiveMonth();
     const isOwner = this.getIsOwner();
 
+    const isReloadingSchedule = this.activeReloadCount > 0;
     const monthLoaded =
       this.currentScheduleKey !== null &&
       !this.scheduleReadState.isLoading &&
-      !this.isReloadingSchedule;
-    const isFetching =
-      this.scheduleReadState.isLoading || this.isReloadingSchedule;
+      !isReloadingSchedule;
+    const isFetching = this.scheduleReadState.isLoading || isReloadingSchedule;
     const hasError =
-      !this.isReloadingSchedule && this.scheduleReadState.error !== null;
+      !isReloadingSchedule && this.scheduleReadState.error !== null;
 
     const reservationsLoaded =
       this.currentUpcomingKey === null || this.currentPendingKey === null
@@ -1122,6 +1298,23 @@ class MentorScheduleSessionImpl implements MentorScheduleSession {
       this.memoSlotsMonthLoaded = monthLoaded;
       this.memoSlotsReservationsLoaded = reservationsLoaded;
       this.memoSlotsSnapshot = slotsSnapshot;
+    }
+
+    if (this.selectedSlot !== null) {
+      if (!this.selectedDate) {
+        this.selectedSlot = null;
+      } else if (monthLoaded) {
+        const selStart = this.selectedSlot.start.getTime();
+        const selEnd = this.selectedSlot.end.getTime();
+        const matchingSlot = slotsSnapshot.slots.find(
+          (s) =>
+            s.start.getTime() === selStart &&
+            s.end.getTime() === selEnd &&
+            !s.isBooked &&
+            s.status === null
+        );
+        this.selectedSlot = matchingSlot ?? null;
+      }
     }
 
     let reader = this.memoReader;

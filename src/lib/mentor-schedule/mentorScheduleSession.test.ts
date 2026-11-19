@@ -6,11 +6,13 @@ import path from 'node:path';
 import { RRule } from 'rrule';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AsyncReadManager } from '@/lib/asyncReadManager';
 import {
   createMentorScheduleSession,
   type MentorScheduleSessionPorts,
 } from '@/lib/mentor-schedule/mentorScheduleSession';
 import {
+  type MentorScheduleReadModel,
   type ScheduleReadKey,
   scheduleReadModel,
 } from '@/lib/mentor-schedule/scheduleReadModel';
@@ -668,6 +670,503 @@ describe('MentorScheduleSession', () => {
         message: 'schedule reload 500',
         level: 'warning',
       });
+
+      session.dispose();
+    });
+  });
+
+  describe('confirmChanges() synchronous read-model notifications & DI port consistency', () => {
+    it('prevents duplicate -1 + persisted occurrences when syncMonths synchronously updates scheduleReadModel mid-flight across multi-month saves (both full success and partial failure)', async () => {
+      scheduleReadModel.set({ userId: '123', year: 2026, month: 7 }, []);
+      scheduleReadModel.set({ userId: '123', year: 2026, month: 8 }, []);
+
+      const augustStep = deferred<void>();
+      let failAugust = false;
+
+      const persistedJuly999: RawMentorTimeslot = {
+        id: 999,
+        type: 'ALLOW',
+        dtstart: Math.floor(new Date('2026-07-15T10:00:00Z').getTime() / 1000),
+        dtend: Math.floor(new Date('2026-07-15T10:30:00Z').getTime() / 1000),
+        rrule: undefined,
+        exdate: [],
+      };
+      const persistedAug1000: RawMentorTimeslot = {
+        id: 1000,
+        type: 'ALLOW',
+        dtstart: Math.floor(new Date('2026-08-20T14:00:00Z').getTime() / 1000),
+        dtend: Math.floor(new Date('2026-08-20T14:30:00Z').getTime() / 1000),
+        rrule: undefined,
+        exdate: [],
+      };
+
+      const { ports } = makePorts({
+        syncMonths: vi.fn(async (requests) => {
+          const results = [];
+          for (const req of requests) {
+            const monthKey = `${req.ref.year}-${String(req.ref.month).padStart(2, '0')}`;
+            if (req.ref.month === 7) {
+              // Mirrors production syncMonthSchedule -> loadMonthScheduleFresh calling scheduleReadModel.set synchronously before syncMonths resolves
+              scheduleReadModel.set(req.ref, [persistedJuly999]);
+              results.push({
+                monthKey,
+                outcome: { ok: true as const, raws: [persistedJuly999] },
+              });
+            } else {
+              await augustStep.promise;
+              if (failAugust) {
+                results.push({
+                  monthKey,
+                  outcome: {
+                    ok: false as const,
+                    reason: 'conflict' as const,
+                    message: 'There is 1 conflict in 2026/8',
+                  },
+                });
+              } else {
+                scheduleReadModel.set(req.ref, [persistedAug1000]);
+                results.push({
+                  monthKey,
+                  outcome: { ok: true as const, raws: [persistedAug1000] },
+                });
+              }
+            }
+          }
+          return results;
+        }),
+      });
+
+      const session = createMentorScheduleSession(
+        {
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: '123',
+        },
+        ports
+      );
+
+      // Add a new draft slot in July (id = -1)
+      session.getSnapshot().reader.setSelectedDate('2026-07-15');
+      expect(
+        session.getSnapshot().editor!.addSlotForSelectedDate({
+          startTime: '10:00',
+          durationMinutes: 30,
+        })
+      ).toEqual({ success: true, added: 1 });
+
+      // Switch to August and add a new draft slot (id = -2)
+      session.configure({
+        backend: { userId: '123', year: 2026, month: 8 },
+        loginUserId: '123',
+      });
+      session.getSnapshot().reader.setSelectedDate('2026-08-20');
+      expect(
+        session.getSnapshot().editor!.addSlotForSelectedDate({
+          startTime: '14:00',
+          durationMinutes: 30,
+        })
+      ).toEqual({ success: true, added: 1 });
+
+      // View July so scheduleReadModel subscription for 2026-07 is actively listening
+      session.configure({
+        backend: { userId: '123', year: 2026, month: 7 },
+        loginUserId: '123',
+      });
+      session.getSnapshot().reader.setSelectedDate('2026-07-15');
+
+      const observedDuplicateFrames: string[][] = [];
+      const unsub = session.subscribe(() => {
+        const occs = session.getSnapshot().editor?.draftOccurrences ?? [];
+        const julyOccs = occs.filter((o) => o.dateKey === '2026-07-15');
+        if (julyOccs.length > 1) {
+          observedDuplicateFrames.push(julyOccs.map((o) => o.occurrenceId));
+        }
+      });
+
+      // 1. Start multi-month confirmChanges where Month 1 succeeds and Month 2 is still in flight
+      const savePromise1 = session.getSnapshot().editor!.confirmChanges();
+      await Promise.resolve();
+
+      const midFlightJulyOccs = session
+        .getSnapshot()
+        .editor!.draftOccurrences!.filter((o) => o.dateKey === '2026-07-15');
+      expect(midFlightJulyOccs).toHaveLength(1);
+      expect(observedDuplicateFrames).toEqual([]);
+
+      // Let Month 2 fail first to verify partial commit consistency
+      failAugust = true;
+      augustStep.resolve();
+      const partialResult = await savePromise1;
+
+      expect(partialResult).toEqual({
+        ok: false,
+        reason: 'conflict',
+        message: 'There is 1 conflict in 2026/8',
+        failedMonthKey: '2026-08',
+        committedMonthKeys: ['2026-07'],
+      });
+      expect(observedDuplicateFrames).toEqual([]);
+
+      // July committed cleanly with id=999 (zero negative IDs), while August kept its unsaved id < 0 draft
+      const afterPartialOccs = session.getSnapshot().editor!.draftOccurrences!;
+      const julyAfterPartial = afterPartialOccs.filter(
+        (o) => o.dateKey === '2026-07-15'
+      );
+      const augAfterPartial = afterPartialOccs.filter(
+        (o) => o.dateKey === '2026-08-20'
+      );
+      expect(julyAfterPartial.map((o) => o.id)).toEqual([999]);
+      expect(augAfterPartial).toHaveLength(1);
+      expect(augAfterPartial[0]!.id).toBeLessThan(0);
+
+      // 2. Retry confirmChanges with August succeeding
+      failAugust = false;
+      const retryResult = await session.getSnapshot().editor!.confirmChanges();
+      expect(retryResult).toEqual({
+        ok: true,
+        committedMonthKeys: ['2026-08'],
+      });
+
+      const finalOccs = session.getSnapshot().editor!.draftOccurrences!;
+      expect(finalOccs.map((o) => o.id)).toEqual([999, 1000]);
+      expect(observedDuplicateFrames).toEqual([]);
+
+      unsub();
+      session.dispose();
+    });
+
+    it('reconciles custom injected ports.scheduleReadModel on confirmChanges when custom ports.syncMonths does not write to the read model directly', async () => {
+      const customManager = new AsyncReadManager<string, RawMentorTimeslot[]>();
+      const toKey = (k: ScheduleReadKey) =>
+        `${k.userId}_${k.year}_${String(k.month).padStart(2, '0')}`;
+      const customScheduleReadModel: MentorScheduleReadModel = {
+        get: (k) => customManager.get(toKey(k)),
+        set: (k, v) => customManager.set(toKey(k), v),
+        subscribe: (k, f, cb, opts) =>
+          customManager.subscribe(toKey(k), f, cb, opts),
+        refresh: (k, f) => customManager.refresh(toKey(k), f),
+        invalidate: (k) => customManager.invalidate(toKey(k)),
+        invalidateOrRefresh: (k, f) =>
+          customManager.getListenerCount(toKey(k)) > 0
+            ? customManager.refresh(toKey(k), f)
+            : (customManager.invalidate(toKey(k)), Promise.resolve(null)),
+        prefetch: (k, f) => void customManager.prefetch(toKey(k), f),
+        clear: () => customManager.clear(),
+      };
+
+      const julyKey: ScheduleReadKey = { userId: '123', year: 2026, month: 7 };
+      customScheduleReadModel.set(julyKey, []);
+      customScheduleReadModel.set({ userId: '123', year: 2026, month: 8 }, []);
+
+      const persistedJuly999: RawMentorTimeslot = {
+        id: 999,
+        type: 'ALLOW',
+        dtstart: Math.floor(new Date('2026-07-22T09:00:00Z').getTime() / 1000),
+        dtend: Math.floor(new Date('2026-07-22T09:30:00Z').getTime() / 1000),
+        rrule: undefined,
+        exdate: [],
+      };
+
+      const { ports } = makePorts({
+        scheduleReadModel: customScheduleReadModel,
+        // Custom syncMonths returns persisted raws without calling customScheduleReadModel.set
+        syncMonths: vi.fn(async () => [
+          {
+            monthKey: '2026-07',
+            outcome: { ok: true as const, raws: [persistedJuly999] },
+          },
+        ]),
+      });
+
+      const session = createMentorScheduleSession(
+        {
+          backend: { userId: '123' },
+          loginUserId: '123',
+        },
+        ports
+      );
+
+      session.getSnapshot().reader.setSelectedDate('2026-07-22');
+      session.getSnapshot().editor!.addSlotForSelectedDate({
+        startTime: '09:00',
+        durationMinutes: 30,
+      });
+
+      const res = await session.getSnapshot().editor!.confirmChanges();
+      expect(res).toEqual({ ok: true, committedMonthKeys: ['2026-07'] });
+
+      // Injected scheduleReadModel port must be updated to [persistedJuly999]
+      expect(customScheduleReadModel.get(julyKey)).toEqual([persistedJuly999]);
+
+      // Navigating away to August and back to July must NOT clobber July with stale []
+      session.getSnapshot().reader.onMonthChange!(
+        new Date('2026-08-01T00:00:00Z')
+      );
+      session.getSnapshot().reader.onMonthChange!(
+        new Date('2026-07-01T00:00:00Z')
+      );
+      expect(
+        session.getSnapshot().editor!.draftOccurrences!.map((o) => o.id)
+      ).toEqual([999]);
+
+      session.dispose();
+    });
+  });
+
+  describe('selectedSlot & cursor reset across user switches and slot invalidation', () => {
+    it('resets selectedSlot, selectedDate, and swiped cursorYear/cursorMonth when switching from Mentor A to an empty Mentor B', async () => {
+      const { ports } = makePorts({
+        nowMsValue: new Date('2026-07-05T00:00:00Z').getTime(),
+        loadMonthSchedule: vi.fn(async (ref) => {
+          if (ref.userId === 'mentor-a' && ref.month === 8) {
+            return [augustAllowSlot];
+          }
+          return [];
+        }),
+      });
+
+      const session = createMentorScheduleSession(
+        {
+          backend: { userId: 'mentor-a' },
+          loginUserId: 'mentee-1',
+        },
+        ports
+      );
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // Mentee swipes to August on Mentor A and selects a slot
+      session.getSnapshot().reader.onMonthChange!(
+        new Date('2026-08-01T00:00:00Z')
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+
+      session.getSnapshot().reader.setSelectedDate('2026-08-12');
+      const mentorASlot =
+        session.getSnapshot().reader.slotsSnapshot.slots[0] ?? null;
+      expect(mentorASlot).not.toBeNull();
+      session.getSnapshot().reader.setSelectedSlot!(mentorASlot);
+      expect(session.getSnapshot().reader.selectedSlot).toBe(mentorASlot);
+      expect(session.getSnapshot().reader.year).toBe(2026);
+      expect(session.getSnapshot().reader.month).toBe(8);
+
+      // Switch to Mentor B who has 0 available slots (year/month omitted)
+      session.configure({
+        backend: { userId: 'mentor-b' },
+        loginUserId: 'mentee-1',
+      });
+
+      // Immediately clean before Mentor B's fetch resolves
+      expect(session.getSnapshot().reader.selectedSlot).toBeNull();
+      expect(session.getSnapshot().reader.year).toBe(2026);
+      expect(session.getSnapshot().reader.month).toBe(7);
+      expect(session.getSnapshot().reader.selectedDate).toBe('2026-07-05');
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // Stays clean after Mentor B resolves with []
+      expect(session.getSnapshot().loaded).toBe(true);
+      expect(session.getSnapshot().reader.selectedSlot).toBeNull();
+      expect(session.getSnapshot().reader.year).toBe(2026);
+      expect(session.getSnapshot().reader.month).toBe(7);
+      expect(session.getSnapshot().reader.selectedDate).toBe('2026-07-05');
+
+      session.dispose();
+    });
+
+    it('clears selectedSlot when month changes or when active date slots no longer contain it as an available slot', async () => {
+      let currentRaws: RawMentorTimeslot[] = [julyAllowSlot];
+      const { ports } = makePorts({
+        nowMsValue: new Date('2026-07-01T00:00:00Z').getTime(),
+        loadMonthSchedule: vi.fn(async () => currentRaws),
+      });
+
+      const session = createMentorScheduleSession(
+        {
+          backend: { userId: 'mentor-a', year: 2026, month: 7 },
+          loginUserId: 'mentee-1',
+        },
+        ports
+      );
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      const slot0 = session.getSnapshot().reader.slotsSnapshot.slots[0]!;
+      session.getSnapshot().reader.setSelectedSlot!(slot0);
+      expect(session.getSnapshot().reader.selectedSlot).toBe(slot0);
+
+      // Reloading when the slot became BOOKED on backend clears selectedSlot
+      currentRaws = [
+        julyAllowSlot,
+        { ...julyAllowSlot, id: 901, type: 'BOOKED' },
+      ];
+      await session.getSnapshot().reader.reload!();
+      expect(session.getSnapshot().reader.selectedSlot).toBeNull();
+
+      // Restore free slot, select it, then change controlled month -> clears selectedSlot
+      currentRaws = [julyAllowSlot];
+      await session.getSnapshot().reader.reload!();
+      const restoredSlot = session.getSnapshot().reader.slotsSnapshot.slots[0]!;
+      session.getSnapshot().reader.setSelectedSlot!(restoredSlot);
+      expect(session.getSnapshot().reader.selectedSlot).toBe(restoredSlot);
+
+      session.configure({
+        backend: { userId: 'mentor-a', year: 2026, month: 8 },
+        loginUserId: 'mentee-1',
+      });
+      expect(session.getSnapshot().reader.selectedSlot).toBeNull();
+
+      session.dispose();
+    });
+  });
+
+  describe('dispose() mid-reload recovery & passive cross-month auto-select', () => {
+    it('resets isReloadingSchedule on dispose() so configure() re-activation mid-reload does not wedge monthLoaded/isFetching', async () => {
+      const reloadDeferred = deferred<RawMentorTimeslot[]>();
+      const uncachedReloadDeferred = deferred<RawMentorTimeslot[]>();
+      let callCount = 0;
+
+      const { ports } = makePorts({
+        loadMonthSchedule: vi.fn(() => {
+          callCount += 1;
+          if (callCount === 1) {
+            return Promise.resolve([julyAllowSlot]);
+          }
+          if (callCount === 2) {
+            return reloadDeferred.promise;
+          }
+          return uncachedReloadDeferred.promise;
+        }),
+      });
+
+      const session = createMentorScheduleSession(
+        {
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: '123',
+        },
+        ports
+      );
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(session.getSnapshot().reader.slotsSnapshot.monthLoaded).toBe(true);
+      expect(session.getSnapshot().reader.isFetching).toBe(false);
+
+      // Start an explicit reload, then dispose() and re-activate via configure() mid-reload
+      const reloadPromise = session.getSnapshot().reader.reload!();
+      expect(session.getSnapshot().reader.isFetching).toBe(true);
+      expect(session.getSnapshot().reader.slotsSnapshot.monthLoaded).toBe(
+        false
+      );
+
+      session.dispose();
+      session.configure({
+        backend: { userId: '123', year: 2026, month: 7 },
+        loginUserId: '123',
+      });
+
+      // Cached July rows are immediately ready without isReloadingSchedule wedged at true
+      expect(session.getSnapshot().reader.isFetching).toBe(false);
+      expect(session.getSnapshot().reader.slotsSnapshot.monthLoaded).toBe(true);
+
+      // Completing the in-flight refresh updates cleanly and leaves flags unwedged
+      reloadDeferred.resolve([julyAllowSlot]);
+      await reloadPromise;
+
+      expect(session.getSnapshot().reader.isFetching).toBe(false);
+      expect(session.getSnapshot().reader.slotsSnapshot.monthLoaded).toBe(true);
+
+      // Also verify uncached mid-reload dispose -> configure recovery
+      scheduleReadModel.invalidate({ userId: '123', year: 2026, month: 7 });
+      const reloadPromise2 = session.getSnapshot().reader.reload!();
+      expect(session.getSnapshot().reader.isFetching).toBe(true);
+
+      session.dispose();
+      session.configure({
+        backend: { userId: '123', year: 2026, month: 7 },
+        loginUserId: '123',
+      });
+      expect(session.getSnapshot().reader.isFetching).toBe(true);
+
+      uncachedReloadDeferred.resolve([julyAllowSlot]);
+      await reloadPromise2;
+
+      expect(session.getSnapshot().reader.isFetching).toBe(false);
+      expect(session.getSnapshot().reader.slotsSnapshot.monthLoaded).toBe(true);
+
+      session.dispose();
+    });
+
+    it('aligns currentScheduleKey and reservation keys to the jumped month when seedPassiveInitialState auto-selects across a month boundary', () => {
+      const july28Start = Math.floor(
+        new Date('2026-07-28T10:00:00Z').getTime() / 1000
+      );
+      const crossMonthWeeklySlot: RawMentorTimeslot = {
+        id: 701,
+        type: 'ALLOW',
+        dtstart: july28Start,
+        dtend: july28Start + 1800,
+        rrule: 'FREQ=WEEKLY;COUNT=2', // 2026-07-28 (past) and 2026-08-04 (future)
+        exdate: [],
+      };
+
+      // Cache July in scheduleReadModel, leave August uncached, and cache August's reservations
+      scheduleReadModel.set({ userId: '123', year: 2026, month: 7 }, [
+        crossMonthWeeklySlot,
+      ]);
+
+      const augEndUnix = endOfMonthUnix(2026, 8);
+      const augReservation: Reservation = {
+        id: 'res-aug-1',
+        name: 'Aug Mentee',
+        roleLine: 'Designer',
+        date: '2026-08-04',
+        time: '10:00 - 10:30',
+        messages: [],
+        scheduleId: 701,
+        dtstart: july28Start + 7 * 86400,
+        dtend: july28Start + 7 * 86400 + 1800,
+        senderUserId: 'mentee-2',
+        participantUserId: '123',
+        version: 1,
+      };
+      reservationReadModel.set(
+        { userId: '123', state: 'MENTOR_UPCOMING', endOfMonthUnix: augEndUnix },
+        { items: [augReservation], next_dtend: 0 },
+        MENTOR_SCHEDULE_RESERVATIONS_TTL_MS
+      );
+      reservationReadModel.set(
+        { userId: '123', state: 'MENTOR_PENDING', endOfMonthUnix: augEndUnix },
+        { items: [], next_dtend: 0 },
+        MENTOR_SCHEDULE_RESERVATIONS_TTL_MS
+      );
+
+      const { ports } = makePorts({
+        nowMsValue: new Date('2026-07-29T00:00:00Z').getTime(),
+      });
+
+      const session = createMentorScheduleSession(undefined, ports, {
+        initialConfig: {
+          backend: { userId: '123' },
+          loginUserId: '123',
+        },
+      });
+
+      const snap = session.getSnapshot();
+      // Auto-selected 2026-08-04 -> cursor jumped from July to August
+      expect(snap.reader.year).toBe(2026);
+      expect(snap.reader.month).toBe(8);
+      expect(snap.reader.selectedDate).toBe('2026-08-04');
+      // August is NOT cached in scheduleReadModel yet, so monthLoaded must reflect August (false / isFetching=true), NOT July!
+      expect(snap.reader.slotsSnapshot.monthLoaded).toBe(false);
+      expect(snap.reader.isFetching).toBe(true);
+      // Reservations were looked up using August's endOfMonthUnix, not July's!
+      expect(snap.reader.slotsSnapshot.reservationsLoaded).toBe(true);
+      expect(snap.editor!.reservations).toEqual([augReservation]);
 
       session.dispose();
     });
