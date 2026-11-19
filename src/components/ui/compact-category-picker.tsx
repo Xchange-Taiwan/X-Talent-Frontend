@@ -63,8 +63,9 @@ export function CompactCategoryPicker({
   };
 
   const handleSelectChange = (next: string[]) => {
+    const prevLen = value.length;
     onChange(next);
-    if (singleSelect && next.length === 1) {
+    if (singleSelect && next.length === 1 && prevLen <= 1) {
       setOpen(false);
     }
   };

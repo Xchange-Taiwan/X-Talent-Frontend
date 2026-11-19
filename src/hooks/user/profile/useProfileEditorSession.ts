@@ -137,6 +137,10 @@ export function useProfileEditorSession({
 
   const { formRef, onError } = useFormErrorScroll<ProfileFormValues>();
 
+  useEffect(() => {
+    hasAvatarEditedRef.current = false;
+  }, [hydrationScopeKey]);
+
   useIsomorphicLayoutEffect(() => {
     if (!isAuthorized || !userDto) return;
     if (

@@ -99,11 +99,11 @@ export const MenteeDirectionPreferenceSection = React.memo(
       selectedPositions.length > MENTEE_MAX_WANT_POSITIONS;
 
     const handlePositionsChange = (rawNextPositions: string[]) => {
-      const nextPositions = isSinglePositionMode
-        ? rawNextPositions.length > selectedPositions.length
+      const nextPositions = hasLegacyMultiplePositions
+        ? rawNextPositions
+        : isSinglePositionMode
           ? rawNextPositions.slice(-1)
-          : rawNextPositions
-        : rawNextPositions.slice(0, MENTEE_MAX_WANT_POSITIONS);
+          : rawNextPositions.slice(0, MENTEE_MAX_WANT_POSITIONS);
       const synced = syncMenteePositions(directionMap, nextPositions, 10);
       onDirectionMapChange(synced.directionMap);
       form.setValue('want_position', nextPositions, {
@@ -218,7 +218,7 @@ export const MenteeDirectionPreferenceSection = React.memo(
               value={selectedPositions}
               onChange={handlePositionsChange}
               maxSelected={MENTEE_MAX_WANT_POSITIONS}
-              singleSelect={isSinglePositionMode}
+              singleSelect={isSinglePositionMode && !hasLegacyMultiplePositions}
               addLabel="新增職位"
               searchPlaceholder="搜尋職位"
               countText={`已選 ${selectedPositions.length} / ${MENTEE_MAX_WANT_POSITIONS}`}
