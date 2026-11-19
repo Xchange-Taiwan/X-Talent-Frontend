@@ -1,6 +1,10 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 import { fromPartial } from '@total-typescript/shoehorn';
 import { describe, expect, it } from 'vitest';
 
+import { resolveDeepLinkOutcome as coordinatorResolveDeepLinkOutcome } from '@/lib/reservation/feedbackSessionCoordinator';
 import type { Reservation } from '@/types/reservation';
 
 import {
@@ -8,6 +12,20 @@ import {
   resolveDeepLinkOutcome,
   stripDeepLinkQueryParams,
 } from './feedbackDeepLink';
+
+describe('feedbackDeepLink compatibility re-export (#944)', () => {
+  it('re-exports resolveDeepLinkOutcome directly from feedbackSessionCoordinator with zero duplicate logic', () => {
+    expect(resolveDeepLinkOutcome).toBe(coordinatorResolveDeepLinkOutcome);
+    const source = fs.readFileSync(
+      path.resolve(process.cwd(), 'src/lib/reservation/feedbackDeepLink.ts'),
+      'utf8'
+    );
+    expect(source).toMatch(
+      /from\s+['"]@\/lib\/reservation\/feedbackSessionCoordinator['"]/
+    );
+    expect(source).not.toMatch(/export\s+function\s+resolveDeepLinkOutcome/);
+  });
+});
 
 describe('feedbackDeepLink helpers (#733)', () => {
   describe('extractDeepLinkReservationId', () => {

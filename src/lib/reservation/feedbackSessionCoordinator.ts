@@ -1,12 +1,23 @@
 import { isFeedbackEnabled } from '@/lib/featureFlags';
 import { captureFlowFailure } from '@/lib/monitoring';
-import { isEligibleForPendingFeedbackQueue } from '@/lib/reservation/reservationLifecyclePolicy';
+import {
+  canEditReservationFeedback,
+  canSubmitReservationFeedback,
+  hasExpandableMentorFeedback,
+  isEligibleForPendingFeedbackQueue,
+  isMenteeSessionMarkedNotHappened,
+  isReservationCancelled,
+} from '@/lib/reservation/reservationLifecyclePolicy';
 import {
   normalizeReservationViewerRole,
   sortPendingFeedbackOldestFirst,
 } from '@/lib/reservation/reservationProjection';
 import {
+  buildCleanedDeepLinkHref,
+  buildCleanedFeedbackQueueHref,
   buildReservationHistoryRedirectHref,
+  buildReservationHistorySignInCallbackHref,
+  buildReservationTabHref,
   extractDeepLinkReservationId,
   isFeedbackQueueQueryRequested,
   type ReservationRouteRole,
@@ -16,6 +27,7 @@ import type { Reservation } from '@/types/reservation';
 
 export const PENDING_FEEDBACK_SESSION_PREFIX = 'xtalent:pending-feedback:';
 export const DEFAULT_LOOKUP_SEED_TTL_MS = 60_000;
+export const MAX_DEEP_LINK_LOAD_MORE_PAGES = 3;
 
 export interface SearchParamReadable {
   get(name: string): string | null;
@@ -60,6 +72,67 @@ export interface FeedbackSessionLookupPort {
   }) => Promise<SeededReservationLookup | null>;
 }
 
+export interface InMemoryFeedbackSessionLookupCalls {
+  fetchPendingFeedbackReservations: Array<{
+    userId: string;
+    fallbackViewerRole: 'MENTOR' | 'MENTEE';
+    signal?: AbortSignal;
+  }>;
+  fetchSingleReservationFeedback: Array<{
+    userId: string;
+    reservationId: string;
+    fallbackRole: ReservationRouteRole;
+    signal?: AbortSignal;
+  }>;
+}
+
+export interface InMemoryFeedbackSessionLookupOptions {
+  pendingReservations?:
+    | readonly Reservation[]
+    | ((opts: {
+        userId: string;
+        fallbackViewerRole: 'MENTOR' | 'MENTEE';
+        signal?: AbortSignal;
+      }) => Promise<Reservation[]> | Reservation[]);
+  singleReservations?:
+    | Record<string, SeededReservationLookup | null>
+    | ((opts: {
+        userId: string;
+        reservationId: string;
+        fallbackRole: ReservationRouteRole;
+        signal?: AbortSignal;
+      }) =>
+        | Promise<SeededReservationLookup | null>
+        | SeededReservationLookup
+        | null);
+}
+
+export interface InMemoryFeedbackSessionLookupPort extends FeedbackSessionLookupPort {
+  readonly calls: InMemoryFeedbackSessionLookupCalls;
+}
+
+export type FeedbackAuthStatus =
+  'loading' | 'authenticated' | 'unauthenticated';
+
+export interface ReconcileLoginSessionOptions {
+  authStatus: FeedbackAuthStatus;
+  userId?: string | null;
+  isMentor?: boolean | null;
+  isOnboardingComplete?: boolean | null;
+  hasSessionError?: boolean;
+  route: PendingFeedbackRouteContext;
+  feedbackEnabled?: boolean;
+  signal?: AbortSignal;
+  fetchPending?: FeedbackSessionLookupPort['fetchPendingFeedbackReservations'];
+}
+
+export interface ReconcileLoginSessionResult {
+  queueItems: Reservation[] | null;
+  canPresent: boolean;
+  isSuppressed: boolean;
+  promptShownCount: number | null;
+}
+
 export interface CreateFeedbackSessionCoordinatorOptions {
   storage?: FeedbackSessionStoragePort;
   lookup?: FeedbackSessionLookupPort;
@@ -78,6 +151,196 @@ export interface ResolvedHistoryRedirect {
   redirectHref: string;
   resolvedRole: ReservationRouteRole;
   seeded: SeededReservationLookup | null;
+}
+
+export type FeedbackDeepLinkResolution =
+  | { kind: 'not-found' }
+  | { kind: 'mentee-open-dialog'; reservation: Reservation }
+  | { kind: 'mentor-open-dialog'; reservation: Reservation }
+  | { kind: 'mentee-already-rated'; reservation: Reservation }
+  | {
+      kind: 'mentee-already-resolved';
+      reservation: Reservation;
+      reason: 'cancelled' | 'not-happened' | 'completed';
+    }
+  | {
+      kind: 'mentor-locate-card';
+      reservation: Reservation;
+      shouldExpandFeedback: boolean;
+    };
+
+export type HistoryRouteToastKind =
+  'already-rated' | 'cancelled' | 'already-resolved' | 'not-found';
+
+export interface HistoryRouteToastCommand {
+  kind: HistoryRouteToastKind;
+  title: string;
+  description: string;
+}
+
+export interface HistoryRouteCommands {
+  replaceHref: string | null;
+  toast: HistoryRouteToastCommand | null;
+  shouldLoadMoreHistory: boolean;
+}
+
+export interface HistoryRouteState {
+  readonly hasDeepLinkTarget: boolean;
+  readonly isFeedbackQueueRequested: boolean;
+  readonly deepLinkDialogReservation: Reservation | null;
+  readonly feedbackQueueItems: Reservation[] | null;
+  readonly highlightedReservationId: string | null;
+  readonly autoExpandedReservationId: string | null;
+  readonly deepLinkTriggerSeq: number;
+  readonly isLookingUpSingleReservation: boolean;
+}
+
+export interface ReconcileHistoryRouteOptions {
+  role: ReservationRouteRole;
+  userId?: string | null;
+  pathname: string;
+  rawSearch?: string;
+  searchParams?: SearchParamReadable | null;
+  history: readonly Reservation[];
+  isHistoryLoaded: boolean;
+  isLoadingHistory: boolean;
+  isLoadingMoreHistory?: boolean;
+  hasMoreHistory?: boolean;
+  canLoadMoreHistory?: boolean;
+  isLoadingUpcoming?: boolean;
+  isLoadingPending?: boolean;
+  mode?: 'all' | 'deep-link' | 'queue';
+  feedbackEnabled?: boolean;
+  signal?: AbortSignal;
+  lookupSingleFeedback?: FeedbackSessionLookupPort['fetchSingleReservationFeedback'];
+}
+
+export interface ReconcileHistoryRouteStep {
+  state: HistoryRouteState;
+  commands: HistoryRouteCommands;
+  aborted?: boolean;
+}
+
+export interface ReconcileHistoryRouteResult extends ReconcileHistoryRouteStep {
+  pendingLookup: Promise<ReconcileHistoryRouteStep> | null;
+}
+
+export type FeedbackOutcomeSource =
+  'login-queue' | 'explicit-queue' | 'deep-link' | 'card';
+
+export type RecordFeedbackOutcomeInput =
+  | {
+      action: 'submit';
+      userId: string;
+      reservationId: string;
+      source?: FeedbackOutcomeSource;
+      isQueueNowEmpty?: boolean;
+      feedbackEnabled?: boolean;
+    }
+  | {
+      action: 'skip';
+      userId: string;
+      reservationId: string;
+      source?: 'login-queue' | 'explicit-queue';
+      feedbackEnabled?: boolean;
+    }
+  | {
+      action: 'dismiss' | 'defer' | 'close';
+      source: 'login-queue' | 'explicit-queue' | 'deep-link';
+      userId?: string;
+      pathname?: string;
+      rawSearch?: string;
+      feedbackEnabled?: boolean;
+    }
+  | {
+      action: 'clear-focus';
+      feedbackEnabled?: boolean;
+    };
+
+export interface RecordFeedbackOutcomeResult {
+  dismissedSkippedCount: number;
+  replaceHref: string | null;
+}
+
+const DISABLED_HISTORY_ROUTE_STATE: HistoryRouteState = Object.freeze({
+  hasDeepLinkTarget: false,
+  isFeedbackQueueRequested: false,
+  deepLinkDialogReservation: null,
+  feedbackQueueItems: null,
+  highlightedReservationId: null,
+  autoExpandedReservationId: null,
+  deepLinkTriggerSeq: 0,
+  isLookingUpSingleReservation: false,
+});
+
+const EMPTY_HISTORY_ROUTE_COMMANDS: HistoryRouteCommands = Object.freeze({
+  replaceHref: null,
+  toast: null,
+  shouldLoadMoreHistory: false,
+});
+
+export function resolveDeepLinkOutcome(opts: {
+  role: ReservationRouteRole;
+  targetReservationId: string;
+  history: readonly Reservation[];
+}): FeedbackDeepLinkResolution {
+  const { role, targetReservationId, history } = opts;
+  const target = history.find((item) => item.id === targetReservationId);
+
+  if (!target) {
+    return { kind: 'not-found' };
+  }
+
+  if (role === 'mentor') {
+    if (canSubmitReservationFeedback(target, 'mentor')) {
+      return {
+        kind: 'mentor-open-dialog',
+        reservation: target,
+      };
+    }
+
+    return {
+      kind: 'mentor-locate-card',
+      reservation: target,
+      shouldExpandFeedback: hasExpandableMentorFeedback(target),
+    };
+  }
+
+  if (isReservationCancelled(target)) {
+    return {
+      kind: 'mentee-already-resolved',
+      reservation: target,
+      reason: 'cancelled',
+    };
+  }
+
+  if (canSubmitReservationFeedback(target, 'mentee')) {
+    return {
+      kind: 'mentee-open-dialog',
+      reservation: target,
+    };
+  }
+
+  if (canEditReservationFeedback(target, 'mentee')) {
+    return {
+      kind: 'mentee-already-rated',
+      reservation: target,
+    };
+  }
+
+  if (isMenteeSessionMarkedNotHappened(target)) {
+    return {
+      kind: 'mentee-already-resolved',
+      reservation: target,
+      reason: 'not-happened',
+    };
+  }
+
+  return {
+    kind: 'mentee-already-resolved',
+    reservation: target,
+    reason: 'completed',
+  };
 }
 
 const DEFAULT_SESSION_STATE: SessionPendingFeedbackState = {
@@ -223,6 +486,54 @@ export function createInMemoryFeedbackSessionStoragePort(
   };
 }
 
+export function createInMemoryFeedbackSessionLookupPort(
+  options: InMemoryFeedbackSessionLookupOptions = {}
+): InMemoryFeedbackSessionLookupPort {
+  const calls: InMemoryFeedbackSessionLookupCalls = {
+    fetchPendingFeedbackReservations: [],
+    fetchSingleReservationFeedback: [],
+  };
+
+  return {
+    calls,
+    async fetchPendingFeedbackReservations(opts) {
+      calls.fetchPendingFeedbackReservations.push(opts);
+      if (opts.signal?.aborted) {
+        return [];
+      }
+      if (typeof options.pendingReservations === 'function') {
+        return options.pendingReservations(opts);
+      }
+      return options.pendingReservations
+        ? [...options.pendingReservations]
+        : [];
+    },
+    async fetchSingleReservationFeedback(opts) {
+      calls.fetchSingleReservationFeedback.push(opts);
+      if (opts.signal?.aborted) {
+        return null;
+      }
+      if (typeof options.singleReservations === 'function') {
+        return options.singleReservations(opts);
+      }
+      return options.singleReservations?.[opts.reservationId] ?? null;
+    },
+  };
+}
+
+export const defaultFeedbackSessionLookupPort: FeedbackSessionLookupPort = {
+  async fetchPendingFeedbackReservations(opts) {
+    const { fetchPendingFeedbackReservations } =
+      await import('@/services/reservations');
+    return fetchPendingFeedbackReservations(opts);
+  },
+  async fetchSingleReservationFeedback(opts) {
+    const { fetchSingleReservationFeedback } =
+      await import('@/services/reservations');
+    return fetchSingleReservationFeedback(opts);
+  },
+};
+
 interface StoredLookupSeedEntry {
   userId: string;
   reservationId: string;
@@ -267,7 +578,138 @@ export function createFeedbackSessionCoordinator(
     activeIds: [] as string[],
     shownTelemetryUserId: null as string | null,
     dismissedTelemetryUserId: null as string | null,
+    inFlightFetch: null as {
+      key: string;
+      controller: AbortController;
+      promise: Promise<Reservation[] | null>;
+    } | null,
   };
+
+  function cancelInFlightLoginFetch(): void {
+    if (!loginRuntime.inFlightFetch) {
+      return;
+    }
+    loginRuntime.inFlightFetch.controller.abort();
+    loginRuntime.inFlightFetch = null;
+  }
+
+  const historyRuntime = {
+    trackedRole: null as ReservationRouteRole | null,
+    trackedQueueKey: null as string | null,
+    hasDeepLinkTarget: false,
+    isFeedbackQueueRequested: false,
+    activeTargetKey: null as string | null,
+    handledKey: null as string | null,
+    singleLookupKey: null as string | null,
+    lookupController: null as AbortController | null,
+    pendingLookupPromise: null as Promise<ReconcileHistoryRouteStep> | null,
+    autoLoadCount: 0,
+    lastAutoLoadHistoryLength: -1,
+    deepLinkDialogReservation: null as Reservation | null,
+    highlightedReservationId: null as string | null,
+    autoExpandedReservationId: null as string | null,
+    deepLinkTriggerSeq: 0,
+    latchedQueue: null as Reservation[] | null,
+    queueDismissed: false,
+    cachedSnapshot: DISABLED_HISTORY_ROUTE_STATE as HistoryRouteState,
+  };
+
+  function cancelHistoryLookup(): void {
+    if (historyRuntime.lookupController) {
+      historyRuntime.lookupController.abort();
+      historyRuntime.lookupController = null;
+    }
+    historyRuntime.pendingLookupPromise = null;
+    historyRuntime.singleLookupKey = null;
+  }
+
+  function buildHistoryRouteSnapshot(
+    feedbackEnabled = true
+  ): HistoryRouteState {
+    if (!feedbackEnabled) {
+      return DISABLED_HISTORY_ROUTE_STATE;
+    }
+
+    const isQueueSuppressedByDeepLink =
+      historyRuntime.hasDeepLinkTarget ||
+      historyRuntime.deepLinkDialogReservation !== null;
+    const feedbackQueueItems =
+      !isQueueSuppressedByDeepLink &&
+      historyRuntime.isFeedbackQueueRequested &&
+      !historyRuntime.queueDismissed &&
+      historyRuntime.latchedQueue &&
+      historyRuntime.latchedQueue.length > 0
+        ? historyRuntime.latchedQueue
+        : null;
+    const isLookingUpSingleReservation =
+      historyRuntime.lookupController !== null &&
+      !historyRuntime.lookupController.signal.aborted;
+
+    const prev = historyRuntime.cachedSnapshot;
+    if (
+      prev.hasDeepLinkTarget === historyRuntime.hasDeepLinkTarget &&
+      prev.isFeedbackQueueRequested ===
+        historyRuntime.isFeedbackQueueRequested &&
+      prev.deepLinkDialogReservation ===
+        historyRuntime.deepLinkDialogReservation &&
+      prev.feedbackQueueItems === feedbackQueueItems &&
+      prev.highlightedReservationId ===
+        historyRuntime.highlightedReservationId &&
+      prev.autoExpandedReservationId ===
+        historyRuntime.autoExpandedReservationId &&
+      prev.deepLinkTriggerSeq === historyRuntime.deepLinkTriggerSeq &&
+      prev.isLookingUpSingleReservation === isLookingUpSingleReservation
+    ) {
+      return prev;
+    }
+
+    const nextSnapshot: HistoryRouteState = Object.freeze({
+      hasDeepLinkTarget: historyRuntime.hasDeepLinkTarget,
+      isFeedbackQueueRequested: historyRuntime.isFeedbackQueueRequested,
+      deepLinkDialogReservation: historyRuntime.deepLinkDialogReservation,
+      feedbackQueueItems,
+      highlightedReservationId: historyRuntime.highlightedReservationId,
+      autoExpandedReservationId: historyRuntime.autoExpandedReservationId,
+      deepLinkTriggerSeq: historyRuntime.deepLinkTriggerSeq,
+      isLookingUpSingleReservation,
+    });
+    historyRuntime.cachedSnapshot = nextSnapshot;
+    return nextSnapshot;
+  }
+
+  function getHistoryRouteState(opts?: {
+    feedbackEnabled?: boolean;
+  }): HistoryRouteState {
+    const feedbackEnabled = opts?.feedbackEnabled ?? isFeedbackEnabled();
+    return buildHistoryRouteSnapshot(feedbackEnabled);
+  }
+
+  function resetHistoryRouteFields(): void {
+    cancelHistoryLookup();
+    historyRuntime.trackedRole = null;
+    historyRuntime.trackedQueueKey = null;
+    historyRuntime.hasDeepLinkTarget = false;
+    historyRuntime.isFeedbackQueueRequested = false;
+    historyRuntime.activeTargetKey = null;
+    historyRuntime.handledKey = null;
+    historyRuntime.autoLoadCount = 0;
+    historyRuntime.lastAutoLoadHistoryLength = -1;
+    historyRuntime.deepLinkDialogReservation = null;
+    historyRuntime.highlightedReservationId = null;
+    historyRuntime.autoExpandedReservationId = null;
+    historyRuntime.deepLinkTriggerSeq = 0;
+    historyRuntime.latchedQueue = null;
+    historyRuntime.queueDismissed = false;
+  }
+
+  function resetHistoryRouteSession(): void {
+    const prev = historyRuntime.cachedSnapshot;
+    resetHistoryRouteFields();
+    const next = buildHistoryRouteSnapshot(true);
+    if (next !== prev) {
+      notifyStateChange();
+    }
+  }
 
   function notifyStateChange(): void {
     Array.from(stateListeners).forEach((listener) => {
@@ -459,6 +901,9 @@ export function createFeedbackSessionCoordinator(
   }
 
   function clearAllSessionState(): void {
+    cancelInFlightLoginFetch();
+    resetHistoryRouteFields();
+    buildHistoryRouteSnapshot(true);
     const keysToRemove = storage
       .keys()
       .filter((key) => key.startsWith(PENDING_FEEDBACK_SESSION_PREFIX));
@@ -478,6 +923,7 @@ export function createFeedbackSessionCoordinator(
   }
 
   function resetRuntimeLoginSession(): void {
+    cancelInFlightLoginFetch();
     loginRuntime.fetchedUserId = null;
     loginRuntime.isPresenting = false;
     loginRuntime.presentedItems = null;
@@ -513,17 +959,23 @@ export function createFeedbackSessionCoordinator(
     canPresent: boolean;
   }): Reservation[] | null {
     if (!opts.userId) {
+      cancelInFlightLoginFetch();
       loginRuntime.isPresenting = false;
       return null;
     }
     loginRuntime.trackedUserId = opts.userId;
+    const wasPresenting = loginRuntime.isPresenting;
     loginRuntime.isPresenting = opts.canPresent;
     if (!opts.canPresent) {
+      cancelInFlightLoginFetch();
       const changed = pruneLoginQueueForUser(opts.userId, true);
-      if (changed) {
+      if (changed || wasPresenting) {
         notifyStateChange();
       }
       return null;
+    }
+    if (!wasPresenting && loginRuntime.presentedItems) {
+      notifyStateChange();
     }
     return loginRuntime.presentedItems;
   }
@@ -617,6 +1069,153 @@ export function createFeedbackSessionCoordinator(
       }
       return null;
     }
+  }
+
+  async function reconcileLoginSession(
+    opts: ReconcileLoginSessionOptions
+  ): Promise<ReconcileLoginSessionResult> {
+    const feedbackEnabled = opts.feedbackEnabled ?? isFeedbackEnabled();
+    if (!feedbackEnabled) {
+      return {
+        queueItems: null,
+        canPresent: false,
+        isSuppressed: true,
+        promptShownCount: null,
+      };
+    }
+
+    const isSuppressed = shouldSuppressPendingFeedbackPopup(opts.route);
+    const isResetRoute = isAuthResetRoute(opts.route.pathname);
+
+    if (opts.authStatus === 'loading' && !isResetRoute) {
+      return {
+        queueItems: null,
+        canPresent: false,
+        isSuppressed,
+        promptShownCount: null,
+      };
+    }
+
+    const cleanUserId = opts.userId?.trim() ?? '';
+    const isResetOrUnauth =
+      opts.authStatus === 'unauthenticated' || isResetRoute;
+
+    syncAuthSession({
+      isResetRouteOrUnauthenticated: isResetOrUnauth,
+      userId: opts.authStatus === 'authenticated' ? cleanUserId : '',
+    });
+
+    if (
+      isResetOrUnauth ||
+      opts.authStatus !== 'authenticated' ||
+      !cleanUserId
+    ) {
+      return {
+        queueItems: null,
+        canPresent: false,
+        isSuppressed,
+        promptShownCount: null,
+      };
+    }
+
+    const isRoleResolved = typeof opts.isMentor === 'boolean';
+    const isMentorSession = opts.isMentor === true;
+    const canPresent =
+      opts.isOnboardingComplete === true &&
+      isRoleResolved &&
+      !opts.hasSessionError &&
+      !isSuppressed;
+
+    syncLoginQueuePresentation({
+      userId: cleanUserId,
+      canPresent,
+    });
+
+    if (!canPresent) {
+      return {
+        queueItems: null,
+        canPresent: false,
+        isSuppressed,
+        promptShownCount: null,
+      };
+    }
+
+    if (opts.signal?.aborted) {
+      return {
+        queueItems: null,
+        canPresent: false,
+        isSuppressed,
+        promptShownCount: null,
+      };
+    }
+
+    if (shouldFetchLoginQueue(cleanUserId)) {
+      const fetchKey = `${cleanUserId}:${isMentorSession ? 'MENTOR' : 'MENTEE'}`;
+      let activeFetch = loginRuntime.inFlightFetch;
+
+      if (
+        !activeFetch ||
+        activeFetch.key !== fetchKey ||
+        activeFetch.controller.signal.aborted
+      ) {
+        cancelInFlightLoginFetch();
+        const controller = new AbortController();
+        const onExternalAbort = () => controller.abort();
+        opts.signal?.addEventListener('abort', onExternalAbort, { once: true });
+
+        const promise = loadLoginQueue({
+          userId: cleanUserId,
+          isMentor: isMentorSession,
+          signal: controller.signal,
+          fetchPending: opts.fetchPending,
+        }).finally(() => {
+          opts.signal?.removeEventListener('abort', onExternalAbort);
+          if (loginRuntime.inFlightFetch?.controller === controller) {
+            loginRuntime.inFlightFetch = null;
+          }
+        });
+
+        activeFetch = { key: fetchKey, controller, promise };
+        loginRuntime.inFlightFetch = activeFetch;
+      } else if (opts.signal) {
+        const sharedController = activeFetch.controller;
+        opts.signal.addEventListener('abort', () => sharedController.abort(), {
+          once: true,
+        });
+      }
+
+      await activeFetch.promise;
+
+      if (
+        activeFetch.controller.signal.aborted ||
+        opts.signal?.aborted ||
+        loginRuntime.trackedUserId !== cleanUserId ||
+        !loginRuntime.isPresenting
+      ) {
+        return {
+          queueItems: null,
+          canPresent: false,
+          isSuppressed: !loginRuntime.isPresenting,
+          promptShownCount: null,
+        };
+      }
+    }
+
+    const queueItems = getPresentedLoginQueue({
+      userId: cleanUserId,
+      canPresent: loginRuntime.isPresenting,
+    });
+    const promptShownCount = consumeLoginPromptShown({
+      userId: cleanUserId,
+      canPresent: loginRuntime.isPresenting,
+    });
+
+    return {
+      queueItems,
+      canPresent: loginRuntime.isPresenting,
+      isSuppressed: false,
+      promptShownCount,
+    };
   }
 
   function consumeLoginPromptShown(opts: {
@@ -744,7 +1343,613 @@ export function createFeedbackSessionCoordinator(
     });
   }
 
+  function applyResolvedDeepLinkToRuntime(
+    targetKey: string,
+    outcome: Exclude<FeedbackDeepLinkResolution, { kind: 'not-found' }>,
+    pathname: string,
+    normalizedRawSearch: string
+  ): HistoryRouteCommands {
+    historyRuntime.handledKey = targetKey;
+    historyRuntime.highlightedReservationId = outcome.reservation.id;
+    historyRuntime.deepLinkTriggerSeq += 1;
+
+    if (
+      outcome.kind === 'mentee-open-dialog' ||
+      outcome.kind === 'mentor-open-dialog'
+    ) {
+      historyRuntime.autoExpandedReservationId = null;
+      historyRuntime.deepLinkDialogReservation = outcome.reservation;
+      return {
+        replaceHref: null,
+        toast: null,
+        shouldLoadMoreHistory: false,
+      };
+    }
+
+    historyRuntime.deepLinkDialogReservation = null;
+
+    if (outcome.kind === 'mentee-already-rated') {
+      historyRuntime.autoExpandedReservationId = outcome.reservation.id;
+      return {
+        replaceHref: buildCleanedDeepLinkHref(pathname, normalizedRawSearch),
+        toast: {
+          kind: 'already-rated',
+          title: '您已填寫過此場會談回饋',
+          description: '已為您展開先前的回饋紀錄。',
+        },
+        shouldLoadMoreHistory: false,
+      };
+    }
+
+    if (outcome.kind === 'mentee-already-resolved') {
+      historyRuntime.autoExpandedReservationId = null;
+      const toast: HistoryRouteToastCommand =
+        outcome.reason === 'cancelled'
+          ? {
+              kind: 'cancelled',
+              title: '此預約已取消',
+              description: '已取消的預約無須填寫會談回饋。',
+            }
+          : {
+              kind: 'already-resolved',
+              title: '您已完成此場會談紀錄',
+              description: '此場會談無須重複填寫回饋。',
+            };
+      return {
+        replaceHref: buildCleanedDeepLinkHref(pathname, normalizedRawSearch),
+        toast,
+        shouldLoadMoreHistory: false,
+      };
+    }
+
+    historyRuntime.autoExpandedReservationId = outcome.shouldExpandFeedback
+      ? outcome.reservation.id
+      : null;
+    return {
+      replaceHref: buildCleanedDeepLinkHref(pathname, normalizedRawSearch),
+      toast: null,
+      shouldLoadMoreHistory: false,
+    };
+  }
+
+  function applyNotFoundDeepLinkToRuntime(
+    targetKey: string,
+    pathname: string,
+    normalizedRawSearch: string
+  ): HistoryRouteCommands {
+    historyRuntime.handledKey = targetKey;
+    historyRuntime.deepLinkDialogReservation = null;
+    historyRuntime.highlightedReservationId = null;
+    historyRuntime.autoExpandedReservationId = null;
+    return {
+      replaceHref: buildCleanedDeepLinkHref(pathname, normalizedRawSearch),
+      toast: {
+        kind: 'not-found',
+        title: '找不到指定的會談紀錄',
+        description: '請確認您登入的帳號是否正確，或於歷史紀錄列表查看。',
+      },
+      shouldLoadMoreHistory: false,
+    };
+  }
+
+  function applyCrossRoleSeedTransfer(opts: {
+    targetKey: string;
+    userId: string;
+    reservationId: string;
+    lookupResult: SeededReservationLookup;
+  }): HistoryRouteCommands {
+    historyRuntime.handledKey = opts.targetKey;
+    historyRuntime.deepLinkDialogReservation = null;
+    seedLookupResult({
+      userId: opts.userId,
+      reservationId: opts.reservationId,
+      result: opts.lookupResult,
+    });
+    return {
+      replaceHref: buildReservationTabHref(
+        opts.lookupResult.viewerRole,
+        'history',
+        {
+          reservationId: opts.reservationId,
+          reservationIdParam: 'reservation_id',
+        }
+      ),
+      toast: null,
+      shouldLoadMoreHistory: false,
+    };
+  }
+
+  function normalizeRawSearchString(
+    rawSearch?: string,
+    searchParams?: SearchParamReadable | null
+  ): string {
+    if (typeof rawSearch === 'string') {
+      return rawSearch.startsWith('?') ? rawSearch.slice(1) : rawSearch;
+    }
+    if (searchParams && typeof searchParams.toString === 'function') {
+      const serialized = searchParams.toString();
+      if (serialized !== '[object Object]') {
+        return serialized.startsWith('?') ? serialized.slice(1) : serialized;
+      }
+    }
+    return '';
+  }
+
+  function reconcileHistoryRoute(
+    opts: ReconcileHistoryRouteOptions
+  ): ReconcileHistoryRouteResult {
+    const feedbackEnabled = opts.feedbackEnabled ?? isFeedbackEnabled();
+    const prevSnapshot = historyRuntime.cachedSnapshot;
+
+    if (!feedbackEnabled) {
+      resetHistoryRouteFields();
+      const disabledState = buildHistoryRouteSnapshot(false);
+      if (disabledState !== prevSnapshot) {
+        notifyStateChange();
+      }
+      return {
+        state: disabledState,
+        commands: EMPTY_HISTORY_ROUTE_COMMANDS,
+        pendingLookup: null,
+      };
+    }
+
+    const normalizedRawSearch = normalizeRawSearchString(
+      opts.rawSearch,
+      opts.searchParams
+    );
+    const searchReader: SearchParamReadable =
+      opts.searchParams ?? new URLSearchParams(normalizedRawSearch);
+    const mode = opts.mode ?? 'all';
+    const runDeepLink = mode === 'all' || mode === 'deep-link';
+    const runQueue = mode === 'all' || mode === 'queue';
+    const cleanUserId = opts.userId?.trim() ?? '';
+
+    const targetReservationId = extractDeepLinkReservationId(searchReader);
+    const isQueueRequested = isFeedbackQueueQueryRequested(searchReader);
+
+    if (
+      historyRuntime.trackedRole !== null &&
+      historyRuntime.trackedRole !== opts.role
+    ) {
+      cancelHistoryLookup();
+      historyRuntime.activeTargetKey = null;
+      historyRuntime.handledKey = null;
+      historyRuntime.autoLoadCount = 0;
+      historyRuntime.lastAutoLoadHistoryLength = -1;
+      historyRuntime.deepLinkDialogReservation = null;
+      historyRuntime.highlightedReservationId = null;
+      historyRuntime.autoExpandedReservationId = null;
+      historyRuntime.latchedQueue = null;
+      historyRuntime.queueDismissed = false;
+    }
+    historyRuntime.trackedRole = opts.role;
+    historyRuntime.hasDeepLinkTarget = targetReservationId !== null;
+    historyRuntime.isFeedbackQueueRequested = isQueueRequested;
+
+    let commands: HistoryRouteCommands = {
+      replaceHref: null,
+      toast: null,
+      shouldLoadMoreHistory: false,
+    };
+    let pendingLookup: Promise<ReconcileHistoryRouteStep> | null = null;
+
+    if (runDeepLink) {
+      if (!targetReservationId) {
+        cancelHistoryLookup();
+        historyRuntime.activeTargetKey = null;
+        historyRuntime.handledKey = null;
+        historyRuntime.autoLoadCount = 0;
+        historyRuntime.lastAutoLoadHistoryLength = -1;
+        historyRuntime.deepLinkDialogReservation = null;
+      } else {
+        const targetKey = `${opts.role}:${targetReservationId}`;
+        if (historyRuntime.activeTargetKey !== targetKey) {
+          cancelHistoryLookup();
+          historyRuntime.activeTargetKey = targetKey;
+          historyRuntime.autoLoadCount = 0;
+          historyRuntime.lastAutoLoadHistoryLength = -1;
+          historyRuntime.deepLinkDialogReservation = null;
+        }
+
+        if (historyRuntime.handledKey === targetKey) {
+          pendingLookup = historyRuntime.pendingLookupPromise;
+        } else if (
+          opts.isHistoryLoaded &&
+          !opts.isLoadingHistory &&
+          !opts.isLoadingMoreHistory
+        ) {
+          const outcome = resolveDeepLinkOutcome({
+            role: opts.role,
+            targetReservationId,
+            history: opts.history,
+          });
+
+          if (outcome.kind !== 'not-found') {
+            commands = applyResolvedDeepLinkToRuntime(
+              targetKey,
+              outcome,
+              opts.pathname,
+              normalizedRawSearch
+            );
+          } else {
+            let handledViaSeed = false;
+            if (cleanUserId) {
+              const seeded = consumeSeededLookup({
+                userId: cleanUserId,
+                reservationId: targetReservationId,
+              });
+              if (seeded.hit) {
+                handledViaSeed = true;
+                if (!seeded.result) {
+                  commands = applyNotFoundDeepLinkToRuntime(
+                    targetKey,
+                    opts.pathname,
+                    normalizedRawSearch
+                  );
+                } else if (seeded.result.viewerRole !== opts.role) {
+                  commands = applyCrossRoleSeedTransfer({
+                    targetKey,
+                    userId: cleanUserId,
+                    reservationId: targetReservationId,
+                    lookupResult: seeded.result,
+                  });
+                } else {
+                  const seededOutcome = resolveDeepLinkOutcome({
+                    role: opts.role,
+                    targetReservationId,
+                    history: [seeded.result.reservation],
+                  });
+                  commands =
+                    seededOutcome.kind === 'not-found'
+                      ? applyNotFoundDeepLinkToRuntime(
+                          targetKey,
+                          opts.pathname,
+                          normalizedRawSearch
+                        )
+                      : applyResolvedDeepLinkToRuntime(
+                          targetKey,
+                          seededOutcome,
+                          opts.pathname,
+                          normalizedRawSearch
+                        );
+                }
+              }
+            }
+
+            if (!handledViaSeed) {
+              const canLoadMore =
+                opts.canLoadMoreHistory ?? Boolean(opts.hasMoreHistory);
+              const canTryNextPage =
+                Boolean(opts.hasMoreHistory) &&
+                canLoadMore &&
+                historyRuntime.autoLoadCount < MAX_DEEP_LINK_LOAD_MORE_PAGES &&
+                historyRuntime.lastAutoLoadHistoryLength !==
+                  opts.history.length;
+
+              if (canTryNextPage) {
+                historyRuntime.autoLoadCount += 1;
+                historyRuntime.lastAutoLoadHistoryLength = opts.history.length;
+                commands = {
+                  replaceHref: null,
+                  toast: null,
+                  shouldLoadMoreHistory: true,
+                };
+              } else if (!cleanUserId) {
+                commands = applyNotFoundDeepLinkToRuntime(
+                  targetKey,
+                  opts.pathname,
+                  normalizedRawSearch
+                );
+              } else if (
+                historyRuntime.singleLookupKey === targetKey &&
+                historyRuntime.pendingLookupPromise
+              ) {
+                pendingLookup = historyRuntime.pendingLookupPromise;
+              } else {
+                const lookupFn =
+                  opts.lookupSingleFeedback ??
+                  defaultLookup?.fetchSingleReservationFeedback;
+
+                if (!lookupFn) {
+                  commands = applyNotFoundDeepLinkToRuntime(
+                    targetKey,
+                    opts.pathname,
+                    normalizedRawSearch
+                  );
+                } else if (opts.signal?.aborted) {
+                  pendingLookup = Promise.resolve({
+                    state: buildHistoryRouteSnapshot(true),
+                    commands: EMPTY_HISTORY_ROUTE_COMMANDS,
+                    aborted: true,
+                  });
+                } else {
+                  const controller = new AbortController();
+                  const onExternalAbort = () => controller.abort();
+                  opts.signal?.addEventListener('abort', onExternalAbort, {
+                    once: true,
+                  });
+                  historyRuntime.singleLookupKey = targetKey;
+                  historyRuntime.lookupController = controller;
+
+                  const lookupPromise: Promise<ReconcileHistoryRouteStep> =
+                    lookupFn({
+                      userId: cleanUserId,
+                      reservationId: targetReservationId,
+                      fallbackRole: opts.role,
+                      signal: controller.signal,
+                    })
+                      .then((lookupResult): ReconcileHistoryRouteStep => {
+                        if (historyRuntime.lookupController === controller) {
+                          historyRuntime.lookupController = null;
+                          historyRuntime.pendingLookupPromise = null;
+                        }
+                        if (
+                          controller.signal.aborted ||
+                          historyRuntime.activeTargetKey !== targetKey
+                        ) {
+                          const abortedState = buildHistoryRouteSnapshot(true);
+                          notifyStateChange();
+                          return {
+                            state: abortedState,
+                            commands: EMPTY_HISTORY_ROUTE_COMMANDS,
+                            aborted: true,
+                          };
+                        }
+
+                        let asyncCommands: HistoryRouteCommands;
+                        if (!lookupResult) {
+                          asyncCommands = applyNotFoundDeepLinkToRuntime(
+                            targetKey,
+                            opts.pathname,
+                            normalizedRawSearch
+                          );
+                        } else if (lookupResult.viewerRole !== opts.role) {
+                          asyncCommands = applyCrossRoleSeedTransfer({
+                            targetKey,
+                            userId: cleanUserId,
+                            reservationId: targetReservationId,
+                            lookupResult,
+                          });
+                        } else {
+                          const singleOutcome = resolveDeepLinkOutcome({
+                            role: opts.role,
+                            targetReservationId,
+                            history: [lookupResult.reservation],
+                          });
+                          asyncCommands =
+                            singleOutcome.kind === 'not-found'
+                              ? applyNotFoundDeepLinkToRuntime(
+                                  targetKey,
+                                  opts.pathname,
+                                  normalizedRawSearch
+                                )
+                              : applyResolvedDeepLinkToRuntime(
+                                  targetKey,
+                                  singleOutcome,
+                                  opts.pathname,
+                                  normalizedRawSearch
+                                );
+                        }
+
+                        const settledState = buildHistoryRouteSnapshot(true);
+                        notifyStateChange();
+                        return {
+                          state: settledState,
+                          commands: asyncCommands,
+                        };
+                      })
+                      .catch((): ReconcileHistoryRouteStep => {
+                        if (historyRuntime.lookupController === controller) {
+                          historyRuntime.lookupController = null;
+                          historyRuntime.pendingLookupPromise = null;
+                        }
+                        if (
+                          controller.signal.aborted ||
+                          historyRuntime.activeTargetKey !== targetKey
+                        ) {
+                          const abortedState = buildHistoryRouteSnapshot(true);
+                          notifyStateChange();
+                          return {
+                            state: abortedState,
+                            commands: EMPTY_HISTORY_ROUTE_COMMANDS,
+                            aborted: true,
+                          };
+                        }
+                        const errCommands = applyNotFoundDeepLinkToRuntime(
+                          targetKey,
+                          opts.pathname,
+                          normalizedRawSearch
+                        );
+                        const settledState = buildHistoryRouteSnapshot(true);
+                        notifyStateChange();
+                        return {
+                          state: settledState,
+                          commands: errCommands,
+                        };
+                      })
+                      .finally(() => {
+                        opts.signal?.removeEventListener(
+                          'abort',
+                          onExternalAbort
+                        );
+                      });
+
+                  historyRuntime.pendingLookupPromise = lookupPromise;
+                  pendingLookup = lookupPromise;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (runQueue) {
+      const queueKey = `${opts.role}:${cleanUserId}`;
+      if (!isQueueRequested) {
+        historyRuntime.latchedQueue = null;
+        historyRuntime.queueDismissed = false;
+        historyRuntime.trackedQueueKey = queueKey;
+      } else {
+        if (
+          historyRuntime.trackedQueueKey !== null &&
+          historyRuntime.trackedQueueKey !== queueKey
+        ) {
+          historyRuntime.latchedQueue = null;
+          historyRuntime.queueDismissed = false;
+        }
+        historyRuntime.trackedQueueKey = queueKey;
+
+        const isSuppressedByDeepLink =
+          targetReservationId !== null ||
+          historyRuntime.deepLinkDialogReservation !== null;
+
+        if (!isSuppressedByDeepLink) {
+          const pendingItems = resolveExplicitQueueItems({
+            userId: cleanUserId,
+            role: opts.role,
+            history: opts.history,
+          });
+
+          if (
+            !historyRuntime.queueDismissed &&
+            historyRuntime.latchedQueue === null &&
+            pendingItems.length > 0
+          ) {
+            historyRuntime.latchedQueue = pendingItems;
+          } else if (
+            pendingItems.length === 0 &&
+            historyRuntime.latchedQueue === null &&
+            !historyRuntime.queueDismissed
+          ) {
+            const isHistoryReadyForQueueCheck =
+              opts.isHistoryLoaded &&
+              !opts.isLoadingHistory &&
+              !(
+                Boolean(opts.isLoadingUpcoming) &&
+                Boolean(opts.isLoadingPending)
+              );
+            if (isHistoryReadyForQueueCheck) {
+              historyRuntime.queueDismissed = true;
+              commands = {
+                ...commands,
+                replaceHref:
+                  commands.replaceHref ??
+                  buildCleanedFeedbackQueueHref(
+                    opts.pathname,
+                    normalizedRawSearch
+                  ),
+              };
+            }
+          }
+        }
+      }
+    }
+
+    const nextState = buildHistoryRouteSnapshot(true);
+    if (nextState !== prevSnapshot) {
+      notifyStateChange();
+    }
+
+    return {
+      state: nextState,
+      commands,
+      pendingLookup,
+    };
+  }
+
+  function recordFeedbackOutcome(
+    input: RecordFeedbackOutcomeInput
+  ): RecordFeedbackOutcomeResult {
+    const feedbackEnabled = input.feedbackEnabled ?? isFeedbackEnabled();
+    if (!feedbackEnabled) {
+      return {
+        dismissedSkippedCount: 0,
+        replaceHref: null,
+      };
+    }
+
+    if (input.action === 'submit') {
+      markReservationSubmitted(
+        input.userId.trim(),
+        input.reservationId.trim(),
+        input.isQueueNowEmpty ?? false
+      );
+      return {
+        dismissedSkippedCount: 0,
+        replaceHref: null,
+      };
+    }
+
+    if (input.action === 'skip') {
+      markReservationSkipped(input.userId.trim(), input.reservationId.trim());
+      return {
+        dismissedSkippedCount: 0,
+        replaceHref: null,
+      };
+    }
+
+    if (input.action === 'clear-focus') {
+      const prev = historyRuntime.cachedSnapshot;
+      historyRuntime.deepLinkDialogReservation = null;
+      historyRuntime.highlightedReservationId = null;
+      historyRuntime.autoExpandedReservationId = null;
+      const next = buildHistoryRouteSnapshot(true);
+      if (next !== prev) {
+        notifyStateChange();
+      }
+      return {
+        dismissedSkippedCount: 0,
+        replaceHref: null,
+      };
+    }
+
+    // action === 'dismiss' | 'defer' | 'close'
+    if (input.source === 'login-queue') {
+      const { dismissedSkippedCount } = dismissLoginQueue(
+        input.userId?.trim() ?? ''
+      );
+      return {
+        dismissedSkippedCount,
+        replaceHref: null,
+      };
+    }
+
+    const normalizedSearch = normalizeRawSearchString(input.rawSearch);
+    if (input.source === 'explicit-queue') {
+      const prev = historyRuntime.cachedSnapshot;
+      historyRuntime.queueDismissed = true;
+      historyRuntime.latchedQueue = null;
+      const next = buildHistoryRouteSnapshot(true);
+      if (next !== prev) {
+        notifyStateChange();
+      }
+      return {
+        dismissedSkippedCount: 0,
+        replaceHref: input.pathname
+          ? buildCleanedFeedbackQueueHref(input.pathname, normalizedSearch)
+          : null,
+      };
+    }
+
+    // source === 'deep-link'
+    const prev = historyRuntime.cachedSnapshot;
+    historyRuntime.deepLinkDialogReservation = null;
+    const next = buildHistoryRouteSnapshot(true);
+    if (next !== prev) {
+      notifyStateChange();
+    }
+    return {
+      dismissedSkippedCount: 0,
+      replaceHref: input.pathname
+        ? buildCleanedDeepLinkHref(input.pathname, normalizedSearch)
+        : null,
+    };
+  }
+
   async function resolveHistoryRedirect(opts: {
+    authStatus?: 'authenticated' | 'unauthenticated';
     userId: string;
     fallbackRole: ReservationRouteRole;
     rawSearch: string;
@@ -752,8 +1957,24 @@ export function createFeedbackSessionCoordinator(
     signal?: AbortSignal;
     lookupSingleFeedback?: FeedbackSessionLookupPort['fetchSingleReservationFeedback'];
   }): Promise<ResolvedHistoryRedirect> {
-    const { fallbackRole, rawSearch, signal } = opts;
+    const {
+      authStatus = 'authenticated',
+      fallbackRole,
+      rawSearch,
+      signal,
+    } = opts;
     const feedbackEnabled = opts.feedbackEnabled ?? isFeedbackEnabled();
+
+    if (authStatus === 'unauthenticated') {
+      return {
+        redirectHref: buildReservationHistorySignInCallbackHref(rawSearch, {
+          feedbackEnabled,
+        }),
+        resolvedRole: fallbackRole,
+        seeded: null,
+      };
+    }
+
     if (!feedbackEnabled) {
       return {
         redirectHref: buildReservationHistoryRedirectHref(
@@ -861,17 +2082,22 @@ export function createFeedbackSessionCoordinator(
     markReservationSkipped,
     clearAllSessionState,
     resetRuntimeLoginSession,
+    resetHistoryRouteSession,
     syncAuthSession,
     syncLoginQueuePresentation,
     getPresentedLoginQueue,
     shouldFetchLoginQueue,
     loadLoginQueue,
     consumeLoginPromptShown,
+    reconcileLoginSession,
     dismissLoginQueue,
     resolveExplicitQueueItems,
     seedLookupResult,
     consumeSeededLookup,
     clearSeededLookup,
+    getHistoryRouteState,
+    reconcileHistoryRoute,
+    recordFeedbackOutcome,
     resolveHistoryRedirect,
     subscribe,
     subscribeReservationSubmitted,
@@ -882,4 +2108,6 @@ export type FeedbackSessionCoordinator = ReturnType<
   typeof createFeedbackSessionCoordinator
 >;
 
-export const feedbackSessionCoordinator = createFeedbackSessionCoordinator();
+export const feedbackSessionCoordinator = createFeedbackSessionCoordinator({
+  lookup: defaultFeedbackSessionLookupPort,
+});

@@ -9,6 +9,7 @@ import {
   extractBackendMyMeetingHappened,
   mapReservationFeedbackDto,
   normalizeCancelledByDto,
+  normalizeFeedbackCandidateDto,
   normalizeFeedbackCounterpartDto,
   resolveFeedbackPartyIds,
 } from './mapReservationFeedbackDto';
@@ -161,6 +162,69 @@ describe('mapReservationFeedbackDto (#888)', () => {
     expect(normalizeCancelledByDto('SYSTEM')).toBe('SYSTEM');
     expect(normalizeCancelledByDto('INVALID')).toBeUndefined();
     expect(normalizeCancelledByDto(null)).toBeUndefined();
+  });
+
+  it('normalizes feedback candidate DTOs consistently across pending-queue and single-lookup shapes (#944)', () => {
+    expect(normalizeFeedbackCandidateDto(null, '10')).toBeNull();
+    expect(
+      normalizeFeedbackCandidateDto(
+        { id: '   ', dtstart: 100, dtend: 200 },
+        '10'
+      )
+    ).toBeNull();
+
+    const singleCandidate = normalizeFeedbackCandidateDto(
+      {
+        reservation_id: 205,
+        id: 999,
+        role: 'mentor',
+        dtstart: 1760958000,
+        dtend: Number.NaN,
+        schedule_id: 44,
+        version: 3,
+        cancelled_by: 'SYSTEM',
+        counterpart: {
+          user_id: 88,
+          name: '  林學員  ',
+          avatar: '   ',
+          job_title: '前端工程師',
+          company: 'AppWorks',
+        },
+        feedback: {
+          next_step: 'ANSWER',
+          meeting_happened: null,
+          rating: null,
+        },
+      },
+      '2',
+      {
+        fallbackViewerRole: 'MENTEE',
+        preferReservationId: true,
+        preferRoleField: true,
+      }
+    );
+
+    expect(singleCandidate).toEqual({
+      id: '205',
+      name: '林學員',
+      avatar: undefined,
+      roleLine: '前端工程師, AppWorks',
+      counterpartyUserId: 88,
+      senderUserId: 88,
+      participantUserId: 2,
+      dtstart: 1760958000,
+      dtend: 1760958000,
+      scheduleId: 44,
+      version: 3,
+      viewerRole: 'MENTOR',
+      cancelledBy: 'SYSTEM',
+      feedback: {
+        nextStep: 'ANSWER',
+        meetingHappened: null,
+        myMeetingHappened: null,
+        rating: null,
+      },
+    });
   });
 
   it('extracts backend mutation flags from flat and nested feedback envelopes', () => {

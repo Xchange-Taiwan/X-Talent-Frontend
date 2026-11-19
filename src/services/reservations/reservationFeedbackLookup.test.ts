@@ -1,6 +1,10 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { apiClient, ApiError } from '@/lib/apiClient';
+import { isReservationViewerProjected } from '@/lib/reservation/reservationProjection';
 
 import {
   fetchSingleReservationFeedback,
@@ -57,12 +61,17 @@ describe('reservationFeedbackLookup (#875 / #760 §3.2)', () => {
       avatar: undefined,
       roleLine: '前端工程師, AppWorks',
       viewerRole: 'MENTOR',
+      normalizedViewerRole: 'mentor',
+      targetMentorId: '2',
       feedback: {
         nextStep: 'ANSWER',
         meetingHappened: null,
         rating: null,
       },
     });
+    expect(isReservationViewerProjected(mentorLookup!.reservation, '2')).toBe(
+      true
+    );
 
     const menteeLookup = mapSingleReservationFeedbackLookup(
       {
@@ -101,7 +110,23 @@ describe('reservationFeedbackLookup (#875 / #760 §3.2)', () => {
       avatar: 'https://cdn.example.com/emily.png',
       roleLine: 'Senior UX Designer, Google Taiwan',
       viewerRole: 'MENTEE',
+      normalizedViewerRole: 'mentee',
     });
+    expect(isReservationViewerProjected(menteeLookup!.reservation, '1')).toBe(
+      true
+    );
+  });
+
+  it('imports date formatting and projection from reservationProjection without depending on reservationService (#944)', () => {
+    const sourcePath = path.resolve(
+      process.cwd(),
+      'src/services/reservations/reservationFeedbackLookup.ts'
+    );
+    const source = fs.readFileSync(sourcePath, 'utf8');
+    expect(source).toMatch(
+      /from\s+['"]@\/lib\/reservation\/reservationProjection['"]/
+    );
+    expect(source).not.toMatch(/from\s+['"]\.\/reservationService['"]/);
   });
 
   it('calls GET /v1/users/:userId/reservations/:reservationId/feedback and returns null on 404', async () => {
