@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import { PageLoading } from '@/components/ui/loading-spinner';
 import useUserData from '@/hooks/user/user-data/useUserData';
-import { getMentorOnboardingUrl } from '@/lib/routes';
+import { getMentorOnboardingUrl, OPEN_SCHEDULE_DIALOG_KEY } from '@/lib/routes';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
 
@@ -55,6 +55,10 @@ export default function ProfileCardContainer({
       onBecomeMentor={() => router.push(getMentorOnboardingUrl(loginUserId))}
       onGoToMentorPool={() => router.push('/mentor-pool')}
       onBackToProfile={() => router.push(`/profile/${loginUserId}`)}
+      onSetupSchedule={() =>
+        router.push(`/profile/${loginUserId}?${OPEN_SCHEDULE_DIALOG_KEY}=true`)
+      }
+      onEditProfile={() => router.push(`/profile/${loginUserId}/edit`)}
     />
   );
 }

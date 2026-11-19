@@ -15,6 +15,7 @@ import {
   TextField,
 } from '@/components/profile/edit/Fields';
 import { MenteeDirectionPreferenceSection } from '@/components/profile/edit/MenteeDirectionPreferenceSection';
+import { MentorGuidelinesCard } from '@/components/profile/edit/MentorGuidelinesCard';
 import { ProfileEditChapterNav } from '@/components/profile/edit/ProfileEditChapterNav';
 import { Section } from '@/components/profile/edit/Section';
 import { Button } from '@/components/ui/button';
@@ -144,6 +145,13 @@ export default function EditProfileContainer({
     industryCatalog: industries,
   });
 
+  const watchedAgreedGuidelines = useWatch({
+    control: form.control,
+    name: 'agreed_guidelines',
+  });
+  const agreedGuidelines = Boolean(watchedAgreedGuidelines);
+  const guidelinesError = form.formState.errors.agreed_guidelines?.message;
+
   const haveTopicCategories = tagGroupsToCategories(tagCatalog.have_topic);
   const haveSkillCategories = tagGroupsToCategories(tagCatalog.have_skill);
   const wantPositionCategories = tagGroupsToCategories(
@@ -227,6 +235,24 @@ export default function EditProfileContainer({
                     />
                   </Section>
                 </div>
+
+                {isMentorOnboarding && (
+                  <MentorGuidelinesCard
+                    id="agreed_guidelines"
+                    checked={agreedGuidelines}
+                    errorMessage={
+                      typeof guidelinesError === 'string'
+                        ? guidelinesError
+                        : undefined
+                    }
+                    onCheckedChange={(next) =>
+                      form.setValue('agreed_guidelines', next, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
+                    }
+                  />
+                )}
 
                 <div className="grid grid-cols-1 gap-5 pt-1 md:grid-cols-3">
                   <Section

@@ -369,3 +369,28 @@ describe('createProfileFormSchema Option A Mentor vs Mentee rules (#959)', () =>
     expect(result.success).toBe(true);
   });
 });
+
+it('enforces agreed_guidelines === true during mentor onboarding (D-1, #961)', () => {
+  const blocked = createProfileFormSchema(true, true).safeParse({
+    ...baseData,
+    ...mentorRequiredFields,
+    avatar: 'https://example.com/real-photo.jpg',
+    agreed_guidelines: false,
+  });
+  expect(blocked.success).toBe(false);
+  expect(
+    blocked.error?.issues.some(
+      (i) =>
+        i.path[0] === 'agreed_guidelines' &&
+        i.message === '請先閱讀並勾選同意導師規範'
+    )
+  ).toBe(true);
+
+  const passed = createProfileFormSchema(true, true).safeParse({
+    ...baseData,
+    ...mentorRequiredFields,
+    avatar: 'https://example.com/real-photo.jpg',
+    agreed_guidelines: true,
+  });
+  expect(passed.success).toBe(true);
+});

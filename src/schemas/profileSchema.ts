@@ -167,10 +167,14 @@ export function validateAvatarFile(
   return null;
 }
 
-export const createProfileFormSchema = (isMentor: boolean) =>
+export const createProfileFormSchema = (
+  isMentor: boolean,
+  isMentorOnboarding = false
+) =>
   z
     .object({
       avatar: z.string().optional(),
+      agreed_guidelines: z.boolean().optional(),
       avatarFile: z
         .union([z.instanceof(File), z.undefined()])
         .optional()
@@ -225,6 +229,13 @@ export const createProfileFormSchema = (isMentor: boolean) =>
       want_topic: z.array(z.string()).max(10, '最多選 10 個'),
     })
     .superRefine((data, ctx) => {
+      if (isMentorOnboarding && data.agreed_guidelines !== true) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['agreed_guidelines'],
+          message: '請先閱讀並勾選同意導師規範',
+        });
+      }
       if (isMentor && !data.avatarFile) {
         if (!data.avatar || isPresetAvatarUrl(data.avatar)) {
           ctx.addIssue({
@@ -242,6 +253,7 @@ export type ProfileFormValues = z.infer<ProfileFormSchema>;
 
 export const defaultValues: ProfileFormValues = {
   avatar: '',
+  agreed_guidelines: false,
   avatarFile: undefined,
   name: '',
   location: '',

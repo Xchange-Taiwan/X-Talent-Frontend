@@ -107,9 +107,9 @@ export function useProfileEditorSession({
   const resolver = useMemo(
     () =>
       zodResolver<ProfileFormInput, unknown, ProfileFormValues>(
-        createProfileFormSchema(isMentorRole)
+        createProfileFormSchema(isMentorRole, isMentorOnboarding)
       ),
-    [isMentorRole]
+    [isMentorOnboarding, isMentorRole]
   );
 
   const form = useForm<ProfileFormInput, unknown, ProfileFormValues>({

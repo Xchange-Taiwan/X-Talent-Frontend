@@ -297,7 +297,7 @@ describe('useHeaderNavigation', () => {
       });
     });
 
-    it('exposes mentor account items with 導師預約管理 and 我的導師頁面', () => {
+    it('exposes mentor account items with 導師管理後台 and 我的導師頁面 (#961)', () => {
       const { result } = renderHook(() =>
         useHeaderNavigation({
           identity: authenticatedIdentity('mentor-9', { isMentor: true }),
@@ -313,10 +313,58 @@ describe('useHeaderNavigation', () => {
 
       expect(result.current.desktopAccountMenu.navItems[0]).toMatchObject({
         id: 'mentor-reservations',
-        label: '導師預約管理',
+        label: '導師管理後台',
         href: '/reservation/mentor',
         disabled: false,
       });
+    });
+
+    it('marks 成為導師 as isCurrent when Mentee is filling /profile/[id]/edit?mentor-onboarding=true and reacts to same-pathname query changes (#961)', async () => {
+      const originalHref = window.location.href;
+      window.history.replaceState({}, '', '/profile/mentee-5/edit');
+      mockUsePathname.mockReturnValue('/profile/mentee-5/edit');
+
+      try {
+        const { result } = renderHook(() =>
+          useHeaderNavigation({
+            identity: authenticatedIdentity('mentee-5', { isMentor: false }),
+          })
+        );
+
+        expect(result.current.desktopNav.resolvedRoleItem.isCurrent).toBe(
+          false
+        );
+
+        await act(async () => {
+          window.history.pushState(
+            {},
+            '',
+            '/profile/mentee-5/edit?mentor-onboarding=true'
+          );
+          await Promise.resolve();
+        });
+
+        expect(result.current.desktopNav.resolvedRoleItem).toMatchObject({
+          id: 'become-mentor',
+          label: '成為導師',
+          isCurrent: true,
+        });
+        expect(result.current.desktopAccountMenu.navItems[0]).toMatchObject({
+          id: 'become-mentor',
+          label: '成為導師',
+          isCurrent: true,
+        });
+
+        await act(async () => {
+          window.history.replaceState({}, '', '/profile/mentee-5/edit');
+          await Promise.resolve();
+        });
+        expect(result.current.desktopNav.resolvedRoleItem.isCurrent).toBe(
+          false
+        );
+      } finally {
+        window.history.replaceState({}, '', originalHref);
+      }
     });
 
     it.each([

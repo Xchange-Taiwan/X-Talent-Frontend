@@ -164,7 +164,7 @@ test.describe('帳號選單「我的收藏」入口 E2E (#754)', () => {
     await expect(desktopTrigger).toBeVisible({ timeout: 15_000 });
     await desktopTrigger.click();
 
-    const mentorResItem = page.getByRole('menuitem', { name: '導師預約管理' });
+    const mentorResItem = page.getByRole('menuitem', { name: '導師管理後台' });
     const myFavoritesItem = page.getByRole('menuitem', { name: '我的收藏' });
     await expect(mentorResItem).toBeVisible();
     await expect(myFavoritesItem).toBeVisible();
@@ -180,7 +180,7 @@ test.describe('帳號選單「我的收藏」入口 E2E (#754)', () => {
 
     const userSheet = page.getByRole('dialog', { name: '用戶選單' });
     const mentorResLink = userSheet.getByRole('link', {
-      name: '導師預約管理',
+      name: '導師管理後台',
     });
     const mobileFavLink = userSheet.getByRole('link', { name: '我的收藏' });
     await expect(mentorResLink).toBeVisible();
