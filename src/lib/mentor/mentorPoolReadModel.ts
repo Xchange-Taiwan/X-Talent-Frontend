@@ -754,6 +754,9 @@ export function createMentorPoolReadModel(
     }
 
     const existingSlot = slots.get(UNFILTERED_QUERY_KEY);
+    if (pendingPostMutationRefresh && existingSlot?.inflightPageOne) {
+      return;
+    }
     if (isSlotFresh(existingSlot)) {
       if (!existingSlot?.isSeededFromSSR) {
         return;
@@ -834,6 +837,9 @@ export function createMentorPoolReadModel(
             notifyStoreSubscribers(slot);
           }
           return null;
+        }
+        if (queryKey === UNFILTERED_QUERY_KEY) {
+          pendingPostMutationRefresh = false;
         }
         if (!options?.shouldCache || options.shouldCache(pageState)) {
           slot.cachedState = pageState;
@@ -1090,6 +1096,9 @@ export function createMentorPoolReadModel(
     set(query, value, ttlMs) {
       const queryKey = serializeMentorPoolQuery(query);
       hasClientActivity = true;
+      if (queryKey === UNFILTERED_QUERY_KEY) {
+        pendingPostMutationRefresh = false;
+      }
       clearTransientUnfilteredError();
       writeSlotState(queryKey, value, ttlMs);
     },
@@ -1103,6 +1112,7 @@ export function createMentorPoolReadModel(
         return;
       }
       if (queryKey === UNFILTERED_QUERY_KEY) {
+        pendingPostMutationRefresh = false;
         clearTransientUnfilteredError();
       }
       writeSlotState(queryKey, value, options?.ttlMs);
@@ -1198,10 +1208,8 @@ export function createMentorPoolReadModel(
     subscribeSnapshot(query, onStoreChange, options) {
       const normalizedQuery = normalizeMentorPoolQuery(query);
       const queryKey = serializeMentorPoolQuery(normalizedQuery);
-      const shouldRefreshAfterMutation = pendingPostMutationRefresh;
-      if (shouldRefreshAfterMutation) {
-        pendingPostMutationRefresh = false;
-      }
+      const shouldRefreshUnfilteredAfterMutation =
+        queryKey === UNFILTERED_QUERY_KEY && pendingPostMutationRefresh;
 
       if (options?.ssrSeed) {
         primeUnfilteredFromSSR(options.ssrSeed);
@@ -1219,7 +1227,7 @@ export function createMentorPoolReadModel(
         );
 
       const effectiveForce = Boolean(
-        options?.force || shouldRefreshAfterMutation
+        options?.force || shouldRefreshUnfilteredAfterMutation
       );
 
       if (effectiveForce) {

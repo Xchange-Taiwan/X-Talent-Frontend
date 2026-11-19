@@ -3,6 +3,7 @@
 import { revalidatePath, updateTag } from 'next/cache';
 
 import { isValidUserId } from '@/lib/auth/userGuard';
+import { normalizePositiveUserId } from '@/lib/profile/userId';
 import { getProfileCacheTag } from '@/services/profile/user.server';
 import { MENTOR_POOL_CACHE_TAG } from '@/services/search-mentor/mentors';
 
@@ -17,9 +18,11 @@ import { MENTOR_POOL_CACHE_TAG } from '@/services/search-mentor/mentors';
  */
 export async function revalidateProfilePath(userId: string): Promise<void> {
   if (!isValidUserId(userId)) return;
-  updateTag(getProfileCacheTag(userId));
+  const normalizedUserId = normalizePositiveUserId(userId);
+  if (!normalizedUserId) return;
+  updateTag(getProfileCacheTag(normalizedUserId));
   updateTag(MENTOR_POOL_CACHE_TAG);
-  revalidatePath(`/profile/${userId}`);
+  revalidatePath(`/profile/${normalizedUserId}`);
   revalidatePath('/profile/card');
   revalidatePath('/mentor-pool');
 }

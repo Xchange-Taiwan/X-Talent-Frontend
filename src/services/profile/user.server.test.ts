@@ -20,9 +20,11 @@ describe('fetchUserByIdServer (#953 & #974)', () => {
     mockGetUnwrapped.mockReset();
   });
 
-  it('uses a 600-second ISR revalidation window', () => {
+  it('uses a 600-second ISR revalidation window and normalizes profile cache tags', () => {
     expect(REVALIDATE_SECONDS).toBe(600);
     expect(getProfileCacheTag('42')).toBe('profile-42');
+    expect(getProfileCacheTag('  42  ')).toBe('profile-42');
+    expect(getProfileCacheTag(42)).toBe('profile-42');
   });
 
   it('interpolates 64-bit string user IDs above Number.MAX_SAFE_INTEGER without rounding and attaches profile-{id} cache tag (#974)', async () => {

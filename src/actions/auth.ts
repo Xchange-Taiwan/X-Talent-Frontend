@@ -11,6 +11,7 @@ import {
 } from '@/lib/auth/bffSession.server';
 import { hasUserProperties, isValidUserId } from '@/lib/auth/userGuard';
 import { confirmDeletionSynced } from '@/lib/profile/pollUntilSynced';
+import { normalizePositiveUserId } from '@/lib/profile/userId';
 import { getProfileCacheTag } from '@/services/profile/user.server';
 import { MENTOR_POOL_CACHE_TAG } from '@/services/search-mentor/mentors';
 
@@ -64,15 +65,18 @@ export async function revalidateProfilePathAfterDelete(): Promise<void> {
     return;
   }
 
-  const userId = sessionUser.id;
+  const normalizedUserId = normalizePositiveUserId(sessionUser.id);
+  if (!normalizedUserId) {
+    return;
+  }
   const name = sessionUser.name ?? undefined;
-  const numericUserId = Number(userId);
+  const numericUserId = Number(normalizedUserId);
 
   after(async () => {
     await confirmDeletionSynced(numericUserId, name, [
-      () => revalidateTag(getProfileCacheTag(userId), 'max'),
+      () => revalidateTag(getProfileCacheTag(normalizedUserId), 'max'),
       () => revalidateTag(MENTOR_POOL_CACHE_TAG, 'max'),
-      () => revalidatePath(`/profile/${userId}`),
+      () => revalidatePath(`/profile/${normalizedUserId}`),
       () => revalidatePath('/mentor-pool'),
     ]);
   });

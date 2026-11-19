@@ -6,7 +6,8 @@ import type { MentorProfileVO } from '@/types/user';
 export const REVALIDATE_SECONDS = 600;
 
 export function getProfileCacheTag(userId: number | string): string {
-  return `profile-${userId}`;
+  const normalized = normalizePositiveUserId(userId) ?? String(userId).trim();
+  return `profile-${normalized}`;
 }
 
 export interface FetchUserByIdServerOptions {

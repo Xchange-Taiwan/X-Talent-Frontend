@@ -1075,9 +1075,14 @@ describe('commitProfileMutation & saveProfile (Deep Module with ProfileSavePort)
     expect(mentorPoolReadModel.get(UNFILTERED_MENTOR_POOL_QUERY)).toBeDefined();
     expect(mentorPoolReadModel.get(filteredQuery)).toBeDefined();
 
+    const invalidateSpy = vi.spyOn(
+      mentorPoolReadModel,
+      'invalidateAfterMutation'
+    );
     const { port, spies } = createInMemoryProfileSavePort();
     await saveProfile(baseValues, makeContext(), port);
 
+    expect(invalidateSpy).toHaveBeenCalled();
     expect(
       mentorPoolReadModel.get(UNFILTERED_MENTOR_POOL_QUERY)
     ).toBeUndefined();
@@ -1085,7 +1090,9 @@ describe('commitProfileMutation & saveProfile (Deep Module with ProfileSavePort)
 
     await vi.waitFor(() => {
       expect(spies.revalidateProfilePath).toHaveBeenCalledTimes(2);
+      expect(invalidateSpy).toHaveBeenCalledTimes(2);
     });
+    invalidateSpy.mockRestore();
   });
 
   it('polls searchMentors until have_skill catches up, then re-clears mentorPoolReadModel and revalidates path', async () => {
