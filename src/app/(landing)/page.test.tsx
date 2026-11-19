@@ -102,12 +102,13 @@ describe('LandingPage', () => {
       expect(
         screen.getByText('成為 Mentor 或 Mentee，展開你的下一段交流。')
       ).toBeInTheDocument();
+      // #970: Dual-track / L1 announcement banner is hidden by default until #964/#745/#890 land
       expect(
-        screen.getByRole('heading', {
+        screen.queryByRole('heading', {
           level: 2,
           name: '一個帳號，雙軌成長',
         })
-      ).toBeInTheDocument();
+      ).not.toBeInTheDocument();
       expect(
         screen.getByRole('heading', {
           level: 2,

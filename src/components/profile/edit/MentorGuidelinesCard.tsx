@@ -4,12 +4,14 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import React, { useId, useState } from 'react';
 
 import { Checkbox } from '@/components/ui/checkbox';
+import { isDualTrackV2Enabled } from '@/lib/featureFlags';
 import { FOCUS_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 
 export interface MentorGuidelineItem {
   title: string;
   description: string;
+  requiresDualTrackV2?: boolean;
 }
 
 export const MENTOR_GUIDELINE_ITEMS: ReadonlyArray<MentorGuidelineItem> = [
@@ -28,6 +30,7 @@ export const MENTOR_GUIDELINE_ITEMS: ReadonlyArray<MentorGuidelineItem> = [
   {
     title: '成長計畫',
     description: '成為導師即為 L1，累積服務時數可升級至 L5。',
+    requiresDualTrackV2: true,
   },
 ];
 
@@ -37,6 +40,7 @@ export interface MentorGuidelinesCardProps {
   onCheckedChange: (checked: boolean) => void;
   errorMessage?: string;
   defaultExpanded?: boolean;
+  showGrowthPlanRule?: boolean;
   className?: string;
 }
 
@@ -46,11 +50,16 @@ export function MentorGuidelinesCard({
   onCheckedChange,
   errorMessage,
   defaultExpanded = false,
+  showGrowthPlanRule,
   className,
 }: MentorGuidelinesCardProps) {
   const [expanded, setExpanded] = useState<boolean>(defaultExpanded);
   const checkboxId = useId();
   const detailsId = useId();
+  const includeGrowthPlan = showGrowthPlanRule ?? isDualTrackV2Enabled();
+  const visibleItems = includeGrowthPlan
+    ? MENTOR_GUIDELINE_ITEMS
+    : MENTOR_GUIDELINE_ITEMS.filter((item) => !item.requiresDualTrackV2);
 
   return (
     <section
@@ -110,7 +119,7 @@ export function MentorGuidelinesCard({
           className="border-background-border/80 mt-3.5 border-t pt-3.5"
         >
           <ul className="space-y-2">
-            {MENTOR_GUIDELINE_ITEMS.map((item) => (
+            {visibleItems.map((item) => (
               <li
                 key={item.title}
                 className="flex flex-col gap-0.5 text-xs sm:flex-row sm:items-baseline sm:gap-4"

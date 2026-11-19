@@ -168,9 +168,14 @@ export function validateAvatarFile(
   return null;
 }
 
+export interface CreateProfileFormSchemaOptions {
+  requireMenteePosition?: boolean;
+}
+
 export const createProfileFormSchema = (
   isMentor: boolean,
-  isMentorOnboarding = false
+  isMentorOnboarding = false,
+  options?: CreateProfileFormSchemaOptions
 ) =>
   z
     .object({
@@ -249,6 +254,17 @@ export const createProfileFormSchema = (
             message: '請上傳真人照片，預設頭像僅供預覽',
           });
         }
+      }
+      if (
+        !isMentor &&
+        options?.requireMenteePosition &&
+        data.want_position.length < 1
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['want_position'],
+          message: '請至少選擇一個職位',
+        });
       }
       if (
         !isMentor &&

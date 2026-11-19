@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   isAccountDeletionEnabled,
+  isDualTrackV2Enabled,
   isFavoritesEnabled,
   isFeedbackEnabled,
   resolveFeatureFlag,
@@ -235,5 +236,41 @@ describe('isAccountDeletionEnabled', () => {
 
     vi.stubEnv('NEXT_PUBLIC_CAN_DELETE_ACCOUNT', 'false');
     expect(isAccountDeletionEnabled()).toBe(false);
+  });
+});
+
+describe('isDualTrackV2Enabled (#970)', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('defaults strictly to false across development, test, staging, preview, and production until explicitly enabled', () => {
+    for (const env of [
+      fromPartial<NodeJS.ProcessEnv>({ NODE_ENV: 'development' }),
+      fromPartial<NodeJS.ProcessEnv>({ NODE_ENV: 'test' }),
+      fromPartial<NodeJS.ProcessEnv>({
+        NODE_ENV: 'production',
+        NEXT_PUBLIC_SENTRY_ENV: 'staging',
+      }),
+      fromPartial<NodeJS.ProcessEnv>({
+        NODE_ENV: 'production',
+        NEXT_PUBLIC_ENABLE_DUAL_TRACK_V2: 'false',
+      }),
+    ]) {
+      expect(isDualTrackV2Enabled(env)).toBe(false);
+    }
+
+    expect(
+      isDualTrackV2Enabled(
+        fromPartial<NodeJS.ProcessEnv>({
+          NEXT_PUBLIC_ENABLE_DUAL_TRACK_V2: ' true ',
+        })
+      )
+    ).toBe(true);
+
+    vi.stubEnv('NEXT_PUBLIC_ENABLE_DUAL_TRACK_V2', '');
+    expect(isDualTrackV2Enabled()).toBe(false);
+    vi.stubEnv('NEXT_PUBLIC_ENABLE_DUAL_TRACK_V2', 'true');
+    expect(isDualTrackV2Enabled()).toBe(true);
   });
 });

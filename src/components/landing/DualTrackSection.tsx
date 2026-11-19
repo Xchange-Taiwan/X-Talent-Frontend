@@ -7,6 +7,7 @@ import React from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
 import type { ResolvedIdentity } from '@/lib/auth/sessionHint';
+import { isDualTrackV2Enabled } from '@/lib/featureFlags';
 import {
   FIND_MENTOR_HREF,
   getBecomeMentorHref,
@@ -51,8 +52,17 @@ export function resolveDualTrackCta(
   };
 }
 
-export function DualTrackSection(): React.ReactElement {
+export interface DualTrackSectionProps {
+  forceVisible?: boolean;
+}
+
+export function DualTrackSection({
+  forceVisible = false,
+}: DualTrackSectionProps = {}): React.ReactElement | null {
   const identity = useResolvedIdentity();
+  if (!forceVisible && !isDualTrackV2Enabled()) {
+    return null;
+  }
   const isUnknown = identity.state === 'unknown';
   const resolved = isUnknown ? null : resolveDualTrackCta(identity);
 

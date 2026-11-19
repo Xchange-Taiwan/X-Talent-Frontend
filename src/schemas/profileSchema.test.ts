@@ -387,6 +387,25 @@ describe('createProfileFormSchema Option A Mentor vs Mentee rules (#959)', () =>
     ).toBe(true);
   });
 
+  it('blocks mentee save when requireMenteePosition is true (#970 release guard before #964) and want_position is empty', () => {
+    const blocked = createProfileFormSchema(false, false, {
+      requireMenteePosition: true,
+    }).safeParse({
+      ...defaultValues,
+      name: '陳小華',
+      want_position: [],
+      want_skill: [],
+      want_topic: [],
+    });
+    expect(blocked.success).toBe(false);
+    expect(
+      blocked.error?.issues.some(
+        (i) =>
+          i.path[0] === 'want_position' && i.message === '請至少選擇一個職位'
+      )
+    ).toBe(true);
+  });
+
   it('blocks mentee save when a position direction is selected (e.g. 廣告創意) without any skill or topic', () => {
     const blocked = createProfileFormSchema(false).safeParse({
       ...defaultValues,

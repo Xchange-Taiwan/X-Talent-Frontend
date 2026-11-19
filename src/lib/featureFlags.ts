@@ -96,3 +96,17 @@ export function isAccountDeletionEnabled(env?: NodeJS.ProcessEnv): boolean {
     : process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT;
   return rawValue?.trim().toLowerCase() === 'true';
 }
+
+/**
+ * Strictly fail-closed gate for Dual-Track v2 & L1–L5 announcements (`NEXT_PUBLIC_ENABLE_DUAL_TRACK_V2`).
+ *
+ * Defaults to `false` across all environments until Backend #964 (independent
+ * `onboarding` flag + `want_direction_map`), Backend #745 (`L1–L5` hours), and
+ * #890 (Header role switch) are ready (tracked for re-enablement in #971).
+ */
+export function isDualTrackV2Enabled(env?: NodeJS.ProcessEnv): boolean {
+  const rawValue = env
+    ? env.NEXT_PUBLIC_ENABLE_DUAL_TRACK_V2
+    : process.env.NEXT_PUBLIC_ENABLE_DUAL_TRACK_V2;
+  return rawValue?.trim().toLowerCase() === 'true';
+}

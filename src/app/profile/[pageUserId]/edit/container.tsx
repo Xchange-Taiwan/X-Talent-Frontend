@@ -41,6 +41,7 @@ import {
   isGooglePrefillAvatarUrl,
   isPresetAvatarUrl,
 } from '@/lib/avatar/avatarUrl';
+import { isDualTrackV2Enabled } from '@/lib/featureFlags';
 import { tagGroupsToCategories } from '@/lib/profile/categoryGrouping';
 import { MENTOR_ONBOARDING_KEY } from '@/lib/routes';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
@@ -423,6 +424,7 @@ export default function EditProfileContainer({
                     wantTopicCategories={wantTopicCategories}
                     directionMap={directionMap}
                     onDirectionMapChange={setDirectionMap}
+                    required={!isDualTrackV2Enabled()}
                   />
                 </div>
               )}
