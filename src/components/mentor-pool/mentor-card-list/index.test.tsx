@@ -120,8 +120,8 @@ describe('buildMentorCardTags (#886)', () => {
   });
 });
 
-describe('MentorCardList (#886, #896)', () => {
-  it('prioritizes active skill/topic filter badges by code and renders localized labels while ignoring industry badges', () => {
+describe('MentorCardList (#886, #896, #976)', () => {
+  it('consumes pre-projected prioritizedCardTagCodes directly and renders localized labels', () => {
     const mentor = makeMentor(1, {
       have_topic: ['topic_career'],
       have_skill: ['skill_figma', 'skill_typescript'],
@@ -132,20 +132,7 @@ describe('MentorCardList (#886, #896)', () => {
         mentors={[mentor]}
         onScrollToBottom={vi.fn(async () => {})}
         labelMap={labelMap}
-        activeFilterBadges={[
-          {
-            key: 'filter_industries',
-            name: '產業',
-            value: 'topic_career',
-            label: '職涯諮詢',
-          },
-          {
-            key: 'filter_skills',
-            name: '技能',
-            value: 'skill_typescript',
-            label: 'TypeScript',
-          },
-        ]}
+        prioritizedCardTagCodes={new Set(['skill_typescript'])}
       />
     );
 
@@ -161,20 +148,13 @@ describe('MentorCardList (#886, #896)', () => {
     const mentor2 = makeMentor(2);
     const mentor3 = makeMentor(3);
     const onScrollToBottom = vi.fn(async () => {});
-    const badges = [
-      {
-        key: 'filter_skills',
-        name: '技能',
-        value: 'skill_typescript',
-        label: 'TypeScript',
-      },
-    ];
+    const prioritized = new Set(['skill_typescript']);
 
     const { rerender } = render(
       <MentorCardList
         mentors={[mentor1, mentor2]}
         onScrollToBottom={onScrollToBottom}
-        activeFilterBadges={badges}
+        prioritizedCardTagCodes={prioritized}
         labelMap={labelMap}
       />
     );
@@ -185,7 +165,7 @@ describe('MentorCardList (#886, #896)', () => {
       <MentorCardList
         mentors={[mentor1, mentor2, mentor3]}
         onScrollToBottom={onScrollToBottom}
-        activeFilterBadges={badges}
+        prioritizedCardTagCodes={prioritized}
         labelMap={labelMap}
       />
     );
@@ -195,7 +175,7 @@ describe('MentorCardList (#886, #896)', () => {
     expect(articlesAfter[0]).toBe(firstCardBefore);
   });
 
-  it('supports comma-separated filter badge values and keeps prioritizedCodes Set reference stable across fresh activeFilterBadges array instances', () => {
+  it('keeps prioritizedCodes Set reference stable across fresh prioritizedCardTagCodes Set/Array instances with equivalent codes', () => {
     const mentor = makeMentor(1, {
       have_topic: ['topic_career'],
       have_skill: ['skill_figma', 'skill_typescript'],
@@ -206,18 +186,12 @@ describe('MentorCardList (#886, #896)', () => {
       <MentorCardList
         mentors={[mentor]}
         onScrollToBottom={onScrollToBottom}
-        activeFilterBadges={[
-          {
-            key: 'filter_skills',
-            name: '技能',
-            value: 'skill_typescript, skill_figma',
-            label: 'TypeScript, Figma',
-          },
-        ]}
+        prioritizedCardTagCodes={new Set(['skill_typescript', 'skill_figma'])}
         labelMap={labelMap}
       />
     );
 
+    const firstCardBefore = screen.getByRole('article');
     const displayContainer = screen.getByTestId('display-container');
     expect(
       Array.from(displayContainer.children).map((el) => el.textContent)
@@ -227,18 +201,12 @@ describe('MentorCardList (#886, #896)', () => {
       <MentorCardList
         mentors={[mentor]}
         onScrollToBottom={onScrollToBottom}
-        activeFilterBadges={[
-          {
-            key: 'filter_skills',
-            name: '技能',
-            value: 'skill_figma,skill_typescript',
-            label: 'Figma, TypeScript',
-          },
-        ]}
+        prioritizedCardTagCodes={['skill_figma', 'skill_typescript']}
         labelMap={labelMap}
       />
     );
 
+    expect(screen.getByRole('article')).toBe(firstCardBefore);
     expect(
       Array.from(screen.getByTestId('display-container').children).map(
         (el) => el.textContent

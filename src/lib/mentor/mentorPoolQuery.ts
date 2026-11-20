@@ -58,20 +58,119 @@ export interface ActiveFilterBadge {
   label: string;
 }
 
-export const DEFAULT_MENTOR_FILTER_OPTIONS: FilterOptions = {
-  filter_skills: {
-    name: '技能',
-    options: [],
-  },
-  filter_topics: {
-    name: '主題',
-    options: [],
-  },
-  filter_industries: {
-    name: '產業',
-    options: [],
-  },
-};
+export type MentorFilterOptionSource =
+  | {
+      readonly kind: 'catalog_leaves';
+      readonly bucket: 'have_skill' | 'have_topic';
+    }
+  | {
+      readonly kind: 'catalog_flat';
+      readonly bucket: 'industry';
+    }
+  | {
+      readonly kind: 'static';
+      readonly options: ReadonlyArray<FilterOption>;
+    };
+
+export interface MentorPoolFilterDimension {
+  readonly key: MentorPoolFilterKey;
+  readonly name: string;
+  readonly optionSource: MentorFilterOptionSource;
+  readonly prioritizeCardTags: boolean;
+}
+
+/**
+ * Single declarative registry of mentor-pool filter dimensions.
+ * Preserves canonical UI combobox order (`filter_skills`, `filter_topics`,
+ * `filter_industries`), option source bindings, and card-tag prioritization.
+ */
+export const MENTOR_POOL_FILTER_DIMENSIONS: ReadonlyArray<MentorPoolFilterDimension> =
+  Object.freeze([
+    {
+      key: 'filter_skills',
+      name: '技能',
+      optionSource: { kind: 'catalog_leaves', bucket: 'have_skill' },
+      prioritizeCardTags: true,
+    },
+    {
+      key: 'filter_topics',
+      name: '主題',
+      optionSource: { kind: 'catalog_leaves', bucket: 'have_topic' },
+      prioritizeCardTags: true,
+    },
+    {
+      key: 'filter_industries',
+      name: '產業',
+      optionSource: { kind: 'catalog_flat', bucket: 'industry' },
+      prioritizeCardTags: false,
+    },
+  ]);
+
+export const DEFAULT_MENTOR_FILTER_OPTIONS: FilterOptions = Object.fromEntries(
+  MENTOR_POOL_FILTER_DIMENSIONS.map((dim) => [
+    dim.key,
+    {
+      name: dim.name,
+      options:
+        dim.optionSource.kind === 'static' ? [...dim.optionSource.options] : [],
+    },
+  ])
+);
+
+export const EMPTY_PRIORITIZED_CARD_TAG_CODES: ReadonlySet<string> = new Set();
+
+export type FilterDraft = Readonly<Record<string, readonly string[]>>;
+
+export const EMPTY_FILTER_DRAFT: FilterDraft = Object.freeze({});
+
+export type MentorFilterCatalogInput = Partial<
+  Pick<TagCatalogsByBucket, 'have_skill' | 'have_topic' | 'industry'>
+>;
+
+export interface ProjectMentorPoolDiscoveryOptions {
+  filterOptions?: FilterOptions;
+  dimensions?: ReadonlyArray<MentorPoolFilterDimension>;
+}
+
+export interface MentorPoolDiscoveryProjection {
+  query: Readonly<MentorPoolQuery>;
+  queryKey: string;
+  searchQuery: string;
+  selectedTokensByKey: Readonly<Record<MentorPoolFilterKey, readonly string[]>>;
+  selectedFilters: SelectFilters;
+  filterOptions: FilterOptions;
+  activeBadges: ActiveFilterBadge[];
+  prioritizedCardTagCodes: ReadonlySet<string>;
+  hasConditions: boolean;
+}
+
+export interface FilterApplyAnalyticsAttrs {
+  'data-analytics-click': 'mentor_pool_filter_apply';
+  'data-analytics-event': 'mentor_pool_filter_apply';
+  'data-analytics-feature': 'mentor_pool';
+  'data-analytics-location': 'filter_dropdown';
+  'data-analytics-param-filter-type': string;
+  'data-analytics-param-filter-value': string;
+}
+
+const CANONICAL_QUERIES = new WeakSet<MentorPoolQuery>([
+  UNFILTERED_MENTOR_POOL_QUERY,
+]);
+
+function markCanonicalQuery(query: MentorPoolQuery): Readonly<MentorPoolQuery> {
+  const frozen = Object.freeze(query);
+  CANONICAL_QUERIES.add(frozen);
+  return frozen;
+}
+
+function isSearchParamReader(value: unknown): value is SearchParamReader {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'get' in value &&
+    typeof (value as SearchParamReader).get === 'function'
+  );
+}
 
 function toParamReader(
   params: SearchParamReader | string | null | undefined
@@ -106,6 +205,18 @@ export function parseFilterTokens(value: string | null | undefined): string[] {
   return tokens;
 }
 
+function normalizeSortBy(
+  rawSortBy: string | null | undefined
+): MentorPoolSortBy | undefined {
+  const trimmed = rawSortBy?.trim();
+  return trimmed === 'recent' || trimmed === 'popularity' ? trimmed : undefined;
+}
+
+function canonicalizeTokens(tokens: readonly string[]): string | undefined {
+  if (tokens.length === 0) return undefined;
+  return tokens.length === 1 ? tokens[0] : [...tokens].sort().join(',');
+}
+
 /**
  * Canonicalizes a filter parameter value by trimming, dropping empty tokens,
  * deduplicating, and sorting tokens so equivalent multi-select combinations
@@ -114,9 +225,7 @@ export function parseFilterTokens(value: string | null | undefined): string[] {
 export function normalizeFilterValue(
   value: string | null | undefined
 ): string | undefined {
-  const tokens = parseFilterTokens(value);
-  if (tokens.length === 0) return undefined;
-  return tokens.length === 1 ? tokens[0] : [...tokens].sort().join(',');
+  return canonicalizeTokens(parseFilterTokens(value));
 }
 
 export function normalizeMentorPoolQuery(
@@ -125,43 +234,34 @@ export function normalizeMentorPoolQuery(
   if (!query) {
     return UNFILTERED_MENTOR_POOL_QUERY;
   }
+  if (CANONICAL_QUERIES.has(query)) {
+    return query;
+  }
 
   const searchPattern = query.search_pattern?.trim() || undefined;
-  const filterIndustries = normalizeFilterValue(query.filter_industries);
-  const filterSkills = normalizeFilterValue(query.filter_skills);
-  const filterTopics = normalizeFilterValue(query.filter_topics);
-  const sortBy =
-    query.sort_by === 'recent' || query.sort_by === 'popularity'
-      ? query.sort_by
-      : undefined;
+  const sortBy = normalizeSortBy(query.sort_by);
+  const normalized: MentorPoolQuery = {};
+  let hasAnyFilter = false;
 
-  if (
-    !searchPattern &&
-    !filterIndustries &&
-    !filterSkills &&
-    !filterTopics &&
-    !sortBy
-  ) {
+  for (const dim of MENTOR_POOL_FILTER_DIMENSIONS) {
+    const canonicalVal = normalizeFilterValue(query[dim.key]);
+    if (canonicalVal) {
+      normalized[dim.key] = canonicalVal;
+      hasAnyFilter = true;
+    }
+  }
+
+  if (!searchPattern && !hasAnyFilter && !sortBy) {
     return UNFILTERED_MENTOR_POOL_QUERY;
   }
 
-  const normalized: MentorPoolQuery = {};
-  if (filterIndustries) {
-    normalized.filter_industries = filterIndustries;
-  }
-  if (filterSkills) {
-    normalized.filter_skills = filterSkills;
-  }
-  if (filterTopics) {
-    normalized.filter_topics = filterTopics;
-  }
   if (searchPattern) {
     normalized.search_pattern = searchPattern;
   }
   if (sortBy) {
     normalized.sort_by = sortBy;
   }
-  return Object.freeze(normalized);
+  return markCanonicalQuery(normalized);
 }
 
 export function parseMentorPoolQuery(
@@ -171,25 +271,43 @@ export function parseMentorPoolQuery(
   if (!reader) {
     return UNFILTERED_MENTOR_POOL_QUERY;
   }
-  const rawSortBy = reader.get(SORT_BY_PARAM_KEY)?.trim();
-  const sortBy =
-    rawSortBy === 'recent' || rawSortBy === 'popularity'
-      ? rawSortBy
-      : undefined;
 
-  return normalizeMentorPoolQuery({
+  const rawQuery: MentorPoolQuery = {
     search_pattern: reader.get(SEARCH_PARAM_KEY) ?? undefined,
-    filter_skills: reader.get('filter_skills') ?? undefined,
-    filter_topics: reader.get('filter_topics') ?? undefined,
-    filter_industries: reader.get('filter_industries') ?? undefined,
-    sort_by: sortBy,
-  });
+    sort_by: normalizeSortBy(reader.get(SORT_BY_PARAM_KEY)),
+  };
+  for (const dim of MENTOR_POOL_FILTER_DIMENSIONS) {
+    rawQuery[dim.key] = reader.get(dim.key) ?? undefined;
+  }
+  return normalizeMentorPoolQuery(rawQuery);
 }
 
 export function isUnfilteredMentorPoolQuery(
   query?: MentorPoolQuery | null
 ): boolean {
   return normalizeMentorPoolQuery(query) === UNFILTERED_MENTOR_POOL_QUERY;
+}
+
+function serializeCanonicalQueryEntries(
+  normalized: Readonly<MentorPoolQuery>
+): string {
+  if (normalized === UNFILTERED_MENTOR_POOL_QUERY) {
+    return '';
+  }
+
+  const entries: Array<[string, string]> = [];
+  for (const [key, value] of Object.entries(normalized)) {
+    if (typeof value === 'string' && value) {
+      entries.push([key, value]);
+    }
+  }
+  entries.sort(([keyA], [keyB]) => (keyA < keyB ? -1 : keyA > keyB ? 1 : 0));
+
+  const canonicalParams = new URLSearchParams();
+  for (const [key, value] of entries) {
+    canonicalParams.set(key, value);
+  }
+  return canonicalParams.toString();
 }
 
 /**
@@ -202,28 +320,7 @@ export function serializeMentorPoolQuery(
   query?: MentorPoolQuery | null
 ): string {
   const normalized = normalizeMentorPoolQuery(query);
-  if (normalized === UNFILTERED_MENTOR_POOL_QUERY) {
-    return '';
-  }
-
-  const canonicalParams = new URLSearchParams();
-  if (normalized.filter_industries) {
-    canonicalParams.set('filter_industries', normalized.filter_industries);
-  }
-  if (normalized.filter_skills) {
-    canonicalParams.set('filter_skills', normalized.filter_skills);
-  }
-  if (normalized.filter_topics) {
-    canonicalParams.set('filter_topics', normalized.filter_topics);
-  }
-  if (normalized.search_pattern) {
-    canonicalParams.set('search_pattern', normalized.search_pattern);
-  }
-  if (normalized.sort_by) {
-    canonicalParams.set('sort_by', normalized.sort_by);
-  }
-
-  return canonicalParams.toString();
+  return serializeCanonicalQueryEntries(normalized);
 }
 
 /**
@@ -239,34 +336,29 @@ export function deserializeMentorPoolQuery(
   }
 
   const params = new URLSearchParams(serialized);
-  const rawSortBy = params.get('sort_by')?.trim();
-  const sortBy =
-    rawSortBy === 'recent' || rawSortBy === 'popularity'
-      ? rawSortBy
-      : undefined;
-
-  return normalizeMentorPoolQuery({
+  const rawQuery: MentorPoolQuery = {
     search_pattern: params.get('search_pattern') ?? undefined,
-    filter_skills: params.get('filter_skills') ?? undefined,
-    filter_topics: params.get('filter_topics') ?? undefined,
-    filter_industries: params.get('filter_industries') ?? undefined,
-    sort_by: sortBy,
-  });
+    sort_by: normalizeSortBy(params.get('sort_by')),
+  };
+  for (const dim of MENTOR_POOL_FILTER_DIMENSIONS) {
+    rawQuery[dim.key] = params.get(dim.key) ?? undefined;
+  }
+  return normalizeMentorPoolQuery(rawQuery);
 }
 
 /**
- * Counts deduplicated non-empty filter tokens across `filter_skills`,
- * `filter_topics`, and `filter_industries`.
+ * Counts deduplicated non-empty filter tokens across all declared
+ * `MENTOR_POOL_FILTER_DIMENSIONS`.
  */
 export function countActiveMentorPoolFilters(
   query?: MentorPoolQuery | null
 ): number {
   if (!query) return 0;
-  return (
-    parseFilterTokens(query.filter_skills).length +
-    parseFilterTokens(query.filter_topics).length +
-    parseFilterTokens(query.filter_industries).length
-  );
+  let total = 0;
+  for (const dim of MENTOR_POOL_FILTER_DIMENSIONS) {
+    total += parseFilterTokens(query[dim.key]).length;
+  }
+  return total;
 }
 
 export function toMentorRequest(
@@ -278,14 +370,11 @@ export function toMentorRequest(
     search_pattern: normalized.search_pattern ?? '',
     limit: options.limit ?? DEFAULT_MENTOR_PAGE_LIMIT,
   };
-  if (normalized.filter_industries) {
-    request.filter_industries = normalized.filter_industries;
-  }
-  if (normalized.filter_skills) {
-    request.filter_skills = normalized.filter_skills;
-  }
-  if (normalized.filter_topics) {
-    request.filter_topics = normalized.filter_topics;
+  for (const dim of MENTOR_POOL_FILTER_DIMENSIONS) {
+    const value = normalized[dim.key];
+    if (value) {
+      request[dim.key] = value;
+    }
   }
   if (normalized.sort_by) {
     request.sort_by = normalized.sort_by;
@@ -336,9 +425,130 @@ export function setSearchPattern(
   return next;
 }
 
-export function setSelectedFiltersOnParams(
+function sanitizeTokenList(tokens: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const cleaned: string[] = [];
+  for (const raw of tokens) {
+    const trimmed = raw.trim();
+    if (trimmed && !seen.has(trimmed)) {
+      seen.add(trimmed);
+      cleaned.push(trimmed);
+    }
+  }
+  return cleaned;
+}
+
+export function createFilterDraft(
+  source?:
+    SelectFilters | FilterDraft | SearchParamReader | string | null | undefined
+): FilterDraft {
+  if (!source) {
+    return EMPTY_FILTER_DRAFT;
+  }
+
+  if (typeof source === 'string' || isSearchParamReader(source)) {
+    const reader = toParamReader(source);
+    if (!reader) return EMPTY_FILTER_DRAFT;
+    const draft: Record<string, readonly string[]> = {};
+    for (const dim of MENTOR_POOL_FILTER_DIMENSIONS) {
+      const tokens = parseFilterTokens(reader.get(dim.key));
+      if (tokens.length > 0) {
+        draft[dim.key] = Object.freeze(tokens);
+      }
+    }
+    return Object.keys(draft).length > 0
+      ? Object.freeze(draft)
+      : EMPTY_FILTER_DRAFT;
+  }
+
+  const draft: Record<string, readonly string[]> = {};
+  for (const [key, entry] of Object.entries(source)) {
+    if (!entry) continue;
+    const tokens = Array.isArray(entry)
+      ? sanitizeTokenList(entry)
+      : parseFilterTokens((entry as { value?: string }).value);
+    if (tokens.length > 0) {
+      draft[key] = Object.freeze(tokens);
+    }
+  }
+  return Object.keys(draft).length > 0
+    ? Object.freeze(draft)
+    : EMPTY_FILTER_DRAFT;
+}
+
+export function setFilterDraftValue(
+  draft: FilterDraft,
+  key: string,
+  value: string | readonly string[] | null | undefined
+): FilterDraft {
+  const tokens = Array.isArray(value)
+    ? sanitizeTokenList(value)
+    : parseFilterTokens(value as string | null | undefined);
+
+  if (tokens.length === 0) {
+    if (!(key in draft)) return draft;
+    const next: Record<string, readonly string[]> = {};
+    for (const [k, existing] of Object.entries(draft)) {
+      if (k !== key) {
+        next[k] = existing;
+      }
+    }
+    return Object.keys(next).length > 0
+      ? Object.freeze(next)
+      : EMPTY_FILTER_DRAFT;
+  }
+
+  return Object.freeze({
+    ...draft,
+    [key]: Object.freeze(tokens),
+  });
+}
+
+export function toggleFilterToken(
+  draft: FilterDraft,
+  key: string,
+  token: string
+): FilterDraft {
+  const trimmed = token.trim();
+  if (!trimmed) return draft;
+
+  const current = draft[key] ?? [];
+  const exists = current.includes(trimmed);
+  const nextTokens = exists
+    ? current.filter((item) => item !== trimmed)
+    : [...current, trimmed];
+
+  return setFilterDraftValue(draft, key, nextTokens);
+}
+
+export function clearFilterDraft(): FilterDraft {
+  return EMPTY_FILTER_DRAFT;
+}
+
+export function draftToSelectFilters(
+  draft: FilterDraft,
+  filterOptions: FilterOptions = DEFAULT_MENTOR_FILTER_OPTIONS
+): SelectFilters {
+  const result: SelectFilters = {};
+  for (const [key, tokens] of Object.entries(draft)) {
+    const cleaned = sanitizeTokenList(tokens);
+    if (cleaned.length > 0) {
+      const name =
+        filterOptions[key]?.name ??
+        DEFAULT_MENTOR_FILTER_OPTIONS[key]?.name ??
+        key;
+      result[key] = {
+        name,
+        value: cleaned.join(','),
+      };
+    }
+  }
+  return result;
+}
+
+export function applyFilterDraftToParams(
   base: SearchParamInput | null | undefined,
-  filters: SelectFilters
+  draftOrFilters: FilterDraft | SelectFilters
 ): URLSearchParams {
   const next = toURLSearchParams(base);
   Array.from(next.keys()).forEach((existingKey) => {
@@ -346,13 +556,47 @@ export function setSelectedFiltersOnParams(
       next.delete(existingKey);
     }
   });
-  Object.entries(filters).forEach(([key, entry]) => {
-    const tokens = parseFilterTokens(entry?.value);
+
+  const normalizedDraft = createFilterDraft(draftOrFilters);
+  for (const [key, tokens] of Object.entries(normalizedDraft)) {
     if (tokens.length > 0) {
       next.set(key, tokens.join(','));
     }
-  });
+  }
   return next;
+}
+
+export function buildFilterApplyAnalyticsAttrs(
+  draftOrFilters: FilterDraft | SelectFilters | null | undefined
+): FilterApplyAnalyticsAttrs {
+  const normalizedDraft = createFilterDraft(draftOrFilters);
+  const activeEntries = Object.entries(normalizedDraft).filter(
+    ([, tokens]) => tokens.length > 0
+  );
+  const activeFilterTypes =
+    activeEntries.length > 0
+      ? activeEntries.map(([key]) => key).join(',')
+      : 'none';
+  const activeFilterValues =
+    activeEntries.length > 0
+      ? activeEntries.map(([, tokens]) => tokens.join(',')).join(',')
+      : 'cleared';
+
+  return {
+    'data-analytics-click': 'mentor_pool_filter_apply',
+    'data-analytics-event': 'mentor_pool_filter_apply',
+    'data-analytics-feature': 'mentor_pool',
+    'data-analytics-location': 'filter_dropdown',
+    'data-analytics-param-filter-type': activeFilterTypes,
+    'data-analytics-param-filter-value': activeFilterValues,
+  };
+}
+
+export function setSelectedFiltersOnParams(
+  base: SearchParamInput | null | undefined,
+  filters: SelectFilters
+): URLSearchParams {
+  return applyFilterDraftToParams(base, filters);
 }
 
 export function removeFilterFromParams(
@@ -426,30 +670,171 @@ export function flattenLeaves(
   );
 }
 
+function resolveDimensionOptions(
+  dimension: MentorPoolFilterDimension,
+  tagCatalog?: MentorFilterCatalogInput | null
+): FilterOption[] {
+  const source = dimension.optionSource;
+  if (source.kind === 'static') {
+    return [...source.options];
+  }
+  if (!tagCatalog) {
+    return [];
+  }
+  if (source.kind === 'catalog_leaves') {
+    const groups = tagCatalog[source.bucket];
+    return groups ? subjectsToOptions(flattenLeaves(groups)) : [];
+  }
+  const flatItems = tagCatalog[source.bucket];
+  return flatItems ? subjectsToOptions(flatItems) : [];
+}
+
 export function buildMentorFilterOptions(
-  tagCatalog: Pick<
-    TagCatalogsByBucket,
-    'have_skill' | 'have_topic' | 'industry'
-  >,
-  baseOptions: FilterOptions = DEFAULT_MENTOR_FILTER_OPTIONS
+  tagCatalog: MentorFilterCatalogInput,
+  baseOptions: FilterOptions = DEFAULT_MENTOR_FILTER_OPTIONS,
+  dimensions: ReadonlyArray<MentorPoolFilterDimension> = MENTOR_POOL_FILTER_DIMENSIONS
 ): FilterOptions {
+  const next: FilterOptions = { ...baseOptions };
+  for (const dim of dimensions) {
+    const baseMeta = baseOptions[dim.key] ?? { name: dim.name, options: [] };
+    next[dim.key] = {
+      ...baseMeta,
+      options: resolveDimensionOptions(dim, tagCatalog),
+    };
+  }
+  return next;
+}
+
+export function resolvePrioritizedCardTagCodes(
+  selectedFilters: SelectFilters | null | undefined,
+  dimensions: ReadonlyArray<MentorPoolFilterDimension> = MENTOR_POOL_FILTER_DIMENSIONS
+): ReadonlySet<string> {
+  if (!selectedFilters) {
+    return EMPTY_PRIORITIZED_CARD_TAG_CODES;
+  }
+  const codes = new Set<string>();
+  for (const dim of dimensions) {
+    if (!dim.prioritizeCardTags) continue;
+    const entry = selectedFilters[dim.key];
+    if (!entry?.value) continue;
+    for (const token of parseFilterTokens(entry.value)) {
+      codes.add(token);
+    }
+  }
+  return codes.size > 0 ? codes : EMPTY_PRIORITIZED_CARD_TAG_CODES;
+}
+
+/**
+ * Single-pass pure discovery projection from URL search params and tag catalog
+ * across `MENTOR_POOL_FILTER_DIMENSIONS`. Computes canonical `query`,
+ * `queryKey`, `selectedTokensByKey`, `selectedFilters`, `filterOptions`,
+ * `activeBadges`, `prioritizedCardTagCodes`, and `hasConditions` without
+ * re-parsing URL parameters or splitting localized badge strings.
+ */
+export function projectMentorPoolDiscoveryState(
+  params: SearchParamReader | string | null | undefined,
+  tagCatalog?: MentorFilterCatalogInput | null,
+  options?: ProjectMentorPoolDiscoveryOptions
+): MentorPoolDiscoveryProjection {
+  const dimensions = options?.dimensions ?? MENTOR_POOL_FILTER_DIMENSIONS;
+  const providedFilterOptions = options?.filterOptions;
+  const reader = toParamReader(params);
+
+  const searchQuery = reader?.get(SEARCH_PARAM_KEY)?.trim() ?? '';
+  const sortBy = normalizeSortBy(reader?.get(SORT_BY_PARAM_KEY));
+
+  const filterOptions: FilterOptions = providedFilterOptions
+    ? { ...providedFilterOptions }
+    : {};
+  const selectedTokensRecord: Record<string, readonly string[]> = {};
+  const selectedFilters: SelectFilters = {};
+  const activeBadges: ActiveFilterBadge[] = [];
+  const prioritizedSet = new Set<string>();
+  const normalizedQueryDraft: MentorPoolQuery = {};
+  let hasAnyCanonicalFilter = false;
+
+  for (const dim of dimensions) {
+    let dimMeta = providedFilterOptions?.[dim.key];
+    if (!dimMeta) {
+      dimMeta = {
+        name: dim.name,
+        options: resolveDimensionOptions(dim, tagCatalog),
+      };
+      filterOptions[dim.key] = dimMeta;
+    } else if (tagCatalog) {
+      dimMeta = {
+        ...dimMeta,
+        options: resolveDimensionOptions(dim, tagCatalog),
+      };
+      filterOptions[dim.key] = dimMeta;
+    }
+
+    const tokens = Object.freeze(parseFilterTokens(reader?.get(dim.key)));
+    selectedTokensRecord[dim.key] = tokens;
+
+    if (tokens.length === 0) {
+      continue;
+    }
+
+    const canonicalVal = canonicalizeTokens(tokens);
+    if (canonicalVal) {
+      (normalizedQueryDraft as Record<string, string>)[dim.key] = canonicalVal;
+      hasAnyCanonicalFilter = true;
+    }
+
+    selectedFilters[dim.key] = {
+      name: dimMeta.name,
+      value: tokens.join(','),
+    };
+
+    const labelByValue = new Map<string, string>();
+    for (const opt of dimMeta.options) {
+      labelByValue.set(opt.value, opt.label);
+    }
+
+    for (const token of tokens) {
+      activeBadges.push({
+        key: dim.key,
+        name: dimMeta.name,
+        value: token,
+        label: labelByValue.get(token) ?? token,
+      });
+      if (dim.prioritizeCardTags) {
+        prioritizedSet.add(token);
+      }
+    }
+  }
+
+  let query: Readonly<MentorPoolQuery>;
+  if (!searchQuery && !hasAnyCanonicalFilter && !sortBy) {
+    query = UNFILTERED_MENTOR_POOL_QUERY;
+  } else {
+    if (searchQuery) {
+      normalizedQueryDraft.search_pattern = searchQuery;
+    }
+    if (sortBy) {
+      normalizedQueryDraft.sort_by = sortBy;
+    }
+    query = markCanonicalQuery(normalizedQueryDraft);
+  }
+
+  const queryKey = serializeCanonicalQueryEntries(query);
+
   return {
-    ...baseOptions,
-    filter_skills: {
-      ...(baseOptions.filter_skills ??
-        DEFAULT_MENTOR_FILTER_OPTIONS.filter_skills),
-      options: subjectsToOptions(flattenLeaves(tagCatalog.have_skill)),
-    },
-    filter_topics: {
-      ...(baseOptions.filter_topics ??
-        DEFAULT_MENTOR_FILTER_OPTIONS.filter_topics),
-      options: subjectsToOptions(flattenLeaves(tagCatalog.have_topic)),
-    },
-    filter_industries: {
-      ...(baseOptions.filter_industries ??
-        DEFAULT_MENTOR_FILTER_OPTIONS.filter_industries),
-      options: subjectsToOptions(tagCatalog.industry),
-    },
+    query,
+    queryKey,
+    searchQuery,
+    selectedTokensByKey: Object.freeze(selectedTokensRecord) as Readonly<
+      Record<MentorPoolFilterKey, readonly string[]>
+    >,
+    selectedFilters,
+    filterOptions,
+    activeBadges,
+    prioritizedCardTagCodes:
+      prioritizedSet.size > 0
+        ? prioritizedSet
+        : EMPTY_PRIORITIZED_CARD_TAG_CODES,
+    hasConditions: query !== UNFILTERED_MENTOR_POOL_QUERY,
   };
 }
 

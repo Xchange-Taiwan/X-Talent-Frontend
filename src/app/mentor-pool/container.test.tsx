@@ -47,6 +47,7 @@ interface UIProps {
     };
   };
   selectedFilters: SelectFilters;
+  prioritizedCardTagCodes?: ReadonlySet<string> | ReadonlyArray<string>;
   labelMap?: ReadonlyMap<string, string>;
   isReplacing: boolean;
   onFilterChange: (filters: SelectFilters) => void;
@@ -191,20 +192,32 @@ describe('MentorPoolContainer - initial state wiring', () => {
     });
   });
 
-  it('passes useMentorPool raw params and initial page data without labelMap, and forwards labelMap to MentorPoolUI', () => {
-    currentSearchParams = new URLSearchParams('filter_skills=skill_fe');
+  it('shares pre-projected canonical query and queryKey with useMentorPool and forwards prioritizedCardTagCodes and labelMap to MentorPoolUI (#976)', () => {
+    currentSearchParams = new URLSearchParams(
+      'filter_skills=skill_fe&filter_industries=industry_tech'
+    );
     renderContainer({
       have_skill: [
         leafGroup('前端', [{ subject_group: 'skill_fe', subject: '前端工程' }]),
       ],
+      industry: [{ subject_group: 'industry_tech', subject: '科技業' }],
     });
 
     const call = mockUseMentorPool.mock.calls.at(-1)?.[0];
-    expect(call.params).toBe(currentSearchParams);
+    expect(call.query).toEqual({
+      filter_skills: 'skill_fe',
+      filter_industries: 'industry_tech',
+    });
+    expect(call.queryKey).toBe(
+      'filter_industries=industry_tech&filter_skills=skill_fe'
+    );
     expect(call.initialMentors).toEqual([]);
     expect(call.initialMentorCount).toBe(0);
     expect(call.initialError).toBeUndefined();
     expect('labelMap' in call).toBe(false);
+    expect(Array.from(latestUIProps().prioritizedCardTagCodes ?? [])).toEqual([
+      'skill_fe',
+    ]);
     expect(latestUIProps().labelMap).toBeInstanceOf(Map);
     expect(latestUIProps().labelMap?.get('skill_fe')).toBe('前端工程');
   });

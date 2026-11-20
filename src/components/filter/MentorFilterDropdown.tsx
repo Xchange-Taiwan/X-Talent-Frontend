@@ -1,12 +1,26 @@
 import * as Popover from '@radix-ui/react-popover';
 import { ChevronDown, ChevronUp, ListFilter } from 'lucide-react';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useId, useState } from 'react';
 
-import FilterSelect from '@/components/filter/FilterSelect';
 import { Button } from '@/components/ui/button';
-import type {
-  FilterOptions,
-  SelectFilters,
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  buildFilterApplyAnalyticsAttrs,
+  clearFilterDraft,
+  createFilterDraft,
+  draftToSelectFilters,
+  type FilterDraft,
+  type FilterOptions,
+  type SelectFilters,
+  setFilterDraftValue,
 } from '@/lib/mentor/mentorPoolQuery';
 
 export type { FilterOptions, SelectFilters };
@@ -22,44 +36,37 @@ const MentorFilterDropdown = ({
   filterOptions,
   selectOptions,
 }: MentorFilterDropdownProps): JSX.Element => {
+  const baseId = useId();
   const [open, setOpen] = useState(false);
-  const [pendingFilters, setPendingFilters] =
-    useState<SelectFilters>(selectOptions);
+  const [pendingDraft, setPendingDraft] = useState<FilterDraft>(() =>
+    createFilterDraft(selectOptions)
+  );
 
-  const handleChange = (field: string, name: string, value: string) => {
-    setPendingFilters((prev) => ({
-      ...prev,
-      [field]: { name, value },
-    }));
-  };
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      setPendingDraft(createFilterDraft(selectOptions));
+      setOpen(nextOpen);
+    },
+    [selectOptions]
+  );
+
+  const handleChange = useCallback((field: string, value: string) => {
+    setPendingDraft((prev) => setFilterDraftValue(prev, field, value));
+  }, []);
 
   const applyFilters = useCallback(() => {
-    onChange(pendingFilters || {});
+    onChange(draftToSelectFilters(pendingDraft, filterOptions));
     setOpen(false);
-  }, [pendingFilters, onChange]);
+  }, [pendingDraft, filterOptions, onChange]);
 
-  const clearFilters = () => {
-    setPendingFilters({});
-  };
+  const clearFilters = useCallback(() => {
+    setPendingDraft(clearFilterDraft());
+  }, []);
 
-  useEffect(() => {
-    setPendingFilters(selectOptions);
-  }, [selectOptions]);
-
-  const activeEntries = Object.entries(pendingFilters || {}).filter(
-    ([, item]) => Boolean(item?.value)
-  );
-  const activeFilterTypes =
-    activeEntries.length > 0
-      ? activeEntries.map(([key]) => key).join(',')
-      : 'none';
-  const activeFilterValues =
-    activeEntries.length > 0
-      ? activeEntries.map(([, item]) => item.value).join(',')
-      : 'cleared';
+  const applyAnalyticsAttrs = buildFilterApplyAnalyticsAttrs(pendingDraft);
 
   return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
+    <Popover.Root open={open} onOpenChange={handleOpenChange}>
       <Popover.Trigger asChild>
         <Button
           variant="outline"
@@ -87,26 +94,49 @@ const MentorFilterDropdown = ({
           collisionPadding={8}
         >
           <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-2">
-            {Object.entries(filterOptions).map(([key, { name, options }]) => (
-              <FilterSelect
-                key={key}
-                name={name}
-                value={pendingFilters[key]?.value || ''}
-                options={options}
-                onChange={(val) => handleChange(key, name, val)}
-              />
-            ))}
+            {Object.entries(filterOptions).map(([key, { name, options }]) => {
+              const triggerId = `${baseId}-${key}`;
+              const selectedValue = pendingDraft[key]?.join(',') ?? '';
+              return (
+                <div key={key} className="flex flex-col gap-2">
+                  <label
+                    htmlFor={triggerId}
+                    className="text-text-primary text-sm font-medium capitalize"
+                  >
+                    {name}
+                  </label>
+                  <Select
+                    value={selectedValue}
+                    onValueChange={(val) => handleChange(key, val)}
+                  >
+                    <SelectTrigger id={triggerId}>
+                      <SelectValue placeholder={`請選擇${name}`} />
+                    </SelectTrigger>
+
+                    <SelectContent
+                      position="popper"
+                      side="bottom"
+                      className="z-[60] max-h-60"
+                    >
+                      <SelectGroup>
+                        <SelectLabel>{name}</SelectLabel>
+                        {options.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+              );
+            })}
           </div>
           <div className="border-background-border flex gap-2 border-t p-4 pt-3">
             <Button
               className="w-full"
               onClick={applyFilters}
-              data-analytics-click="mentor_pool_filter_apply"
-              data-analytics-event="mentor_pool_filter_apply"
-              data-analytics-feature="mentor_pool"
-              data-analytics-location="filter_dropdown"
-              data-analytics-param-filter-type={activeFilterTypes}
-              data-analytics-param-filter-value={activeFilterValues}
+              {...applyAnalyticsAttrs}
             >
               套用
             </Button>

@@ -125,7 +125,11 @@ describe('useMentorPoolFilters & useMentorPoolSearchQuery (#786, #897)', () => {
     );
   });
 
-  it('does not run parseFiltersFromParams or resolveActiveFilterBadges when rendering MentorPoolSearchBar or PopularPositionChips (#897)', () => {
+  it('does not run projectMentorPoolDiscoveryState, parseFiltersFromParams, or resolveActiveFilterBadges when rendering MentorPoolSearchBar or PopularPositionChips (#897, #976)', () => {
+    const spyProjectState = vi.spyOn(
+      mentorPoolQuery,
+      'projectMentorPoolDiscoveryState'
+    );
     const spyParseFilters = vi.spyOn(mentorPoolQuery, 'parseFiltersFromParams');
     const spyResolveBadges = vi.spyOn(
       mentorPoolQuery,
@@ -147,10 +151,84 @@ describe('useMentorPoolFilters & useMentorPoolSearchQuery (#786, #897)', () => {
     render(React.createElement(MentorPoolSearchBar));
     render(React.createElement(PopularPositionChips));
 
+    expect(spyProjectState).not.toHaveBeenCalled();
     expect(spyParseFilters).not.toHaveBeenCalled();
     expect(spyResolveBadges).not.toHaveBeenCalled();
 
+    spyProjectState.mockRestore();
     spyParseFilters.mockRestore();
     spyResolveBadges.mockRestore();
+  });
+
+  it('projects canonical query, queryKey, filterOptions, activeFilterBadges, and prioritizedCardTagCodes in one pass and stabilizes query across utm_* changes (#976)', () => {
+    mockSearchParams.toString.mockReturnValue(
+      'utm_source=discord&q=frontend&filter_skills=skill_ts&filter_industries=tech'
+    );
+    mockSearchParams.get.mockImplementation((key) => {
+      if (key === 'utm_source') return 'discord';
+      if (key === 'q') return 'frontend';
+      if (key === 'filter_skills') return 'skill_ts';
+      if (key === 'filter_industries') return 'tech';
+      return null;
+    });
+
+    const tagCatalog = {
+      have_skill: [
+        {
+          subject_group: 'fe',
+          subject: '前端',
+          language: 'zh_TW',
+          leaves: [
+            {
+              tag_id: 1,
+              subject_group: 'skill_ts',
+              subject: 'TypeScript',
+              language: 'zh_TW',
+            },
+          ],
+        },
+      ],
+      have_topic: [],
+      industry: [{ subject_group: 'tech', subject: '科技業' }],
+    };
+
+    const { result, rerender } = renderHook(() =>
+      useMentorPoolFilters({ tagCatalog })
+    );
+
+    const initialQueryRef = result.current.query;
+    expect(initialQueryRef).toEqual({
+      search_pattern: 'frontend',
+      filter_skills: 'skill_ts',
+      filter_industries: 'tech',
+    });
+    expect(result.current.queryKey).toBe(
+      mentorPoolQuery.serializeMentorPoolQuery(initialQueryRef)
+    );
+    expect(Array.from(result.current.prioritizedCardTagCodes)).toEqual([
+      'skill_ts',
+    ]);
+    expect(result.current.activeFilterBadges).toEqual([
+      {
+        key: 'filter_skills',
+        name: '技能',
+        value: 'skill_ts',
+        label: 'TypeScript',
+      },
+      {
+        key: 'filter_industries',
+        name: '產業',
+        value: 'tech',
+        label: '科技業',
+      },
+    ]);
+
+    // Simulate utm_source changing while search/filter conditions remain identical
+    mockSearchParams.toString.mockReturnValue(
+      'utm_source=newsletter&q=frontend&filter_skills=skill_ts&filter_industries=tech'
+    );
+    rerender();
+
+    expect(result.current.query).toBe(initialQueryRef);
   });
 });

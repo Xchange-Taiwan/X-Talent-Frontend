@@ -2,26 +2,36 @@ import { fromAny } from '@total-typescript/shoehorn';
 import { describe, expect, it } from 'vitest';
 
 import {
+  applyFilterDraftToParams,
+  buildFilterApplyAnalyticsAttrs,
   buildHref,
   buildMentorFilterOptions,
   buildMentorPoolHref,
   clearAllConditions,
+  clearFilterDraft,
   countActiveMentorPoolFilters,
+  createFilterDraft,
   DEFAULT_MENTOR_FILTER_OPTIONS,
   deserializeMentorPoolQuery,
+  draftToSelectFilters,
   getSearchPatternFromParams,
   hasAnyCondition,
   isUnfilteredMentorPoolQuery,
+  MENTOR_POOL_FILTER_DIMENSIONS,
+  type MentorPoolFilterDimension,
   normalizeFilterValue,
   normalizeMentorPoolQuery,
   parseFiltersFromParams,
   parseFilterTokens,
   parseMentorPoolQuery,
+  projectMentorPoolDiscoveryState,
   removeFilterFromParams,
   resolveActiveFilterBadges,
   serializeMentorPoolQuery,
+  setFilterDraftValue,
   setSearchPattern,
   setSelectedFiltersOnParams,
+  toggleFilterToken,
   toMentorRequest,
   UNFILTERED_MENTOR_POOL_QUERY,
 } from './mentorPoolQuery';
@@ -402,6 +412,316 @@ describe('mentorPoolQuery (#897)', () => {
       expect(buildHref(new URLSearchParams('q=hello'))).toBe(
         '/mentor-pool?q=hello'
       );
+    });
+  });
+
+  describe('MENTOR_POOL_FILTER_DIMENSIONS & projectMentorPoolDiscoveryState (#976)', () => {
+    const sampleCatalog = {
+      have_skill: [
+        {
+          subject_group: 'group_fe',
+          subject: '前端群組',
+          language: 'zh_TW',
+          leaves: [
+            {
+              tag_id: 1,
+              subject_group: 'skill_ts',
+              subject: 'TypeScript',
+              language: 'zh_TW',
+            },
+            {
+              tag_id: 2,
+              subject_group: 'skill_react',
+              subject: 'React',
+              language: 'zh_TW',
+            },
+          ],
+        },
+      ],
+      have_topic: [
+        {
+          subject_group: 'group_career',
+          subject: '職涯群組',
+          language: 'zh_TW',
+          leaves: [
+            {
+              tag_id: 3,
+              subject_group: 'topic_resume',
+              subject: '履歷健檢',
+              language: 'zh_TW',
+            },
+          ],
+        },
+      ],
+      industry: [{ subject_group: 'software_internet', subject: '軟體網路' }],
+    };
+
+    it('declares filter_skills, filter_topics, and filter_industries in canonical UI order with prioritization flags', () => {
+      expect(MENTOR_POOL_FILTER_DIMENSIONS.map((d) => d.key)).toEqual([
+        'filter_skills',
+        'filter_topics',
+        'filter_industries',
+      ]);
+      expect(
+        MENTOR_POOL_FILTER_DIMENSIONS.map((d) => ({
+          key: d.key,
+          name: d.name,
+          prioritizeCardTags: d.prioritizeCardTags,
+          sourceKind: d.optionSource.kind,
+        }))
+      ).toEqual([
+        {
+          key: 'filter_skills',
+          name: '技能',
+          prioritizeCardTags: true,
+          sourceKind: 'catalog_leaves',
+        },
+        {
+          key: 'filter_topics',
+          name: '主題',
+          prioritizeCardTags: true,
+          sourceKind: 'catalog_leaves',
+        },
+        {
+          key: 'filter_industries',
+          name: '產業',
+          prioritizeCardTags: false,
+          sourceKind: 'catalog_flat',
+        },
+      ]);
+    });
+
+    it('projects unfiltered state in one pass when params are null or contain only utm_* tracking keys', () => {
+      const state = projectMentorPoolDiscoveryState(
+        '?utm_source=discord&fbclid=abc',
+        sampleCatalog
+      );
+
+      expect(state.query).toBe(UNFILTERED_MENTOR_POOL_QUERY);
+      expect(state.queryKey).toBe('');
+      expect(state.searchQuery).toBe('');
+      expect(state.hasConditions).toBe(false);
+      expect(state.selectedFilters).toEqual({});
+      expect(state.selectedTokensByKey).toEqual({
+        filter_skills: [],
+        filter_topics: [],
+        filter_industries: [],
+      });
+      expect(state.activeBadges).toEqual([]);
+      expect(state.prioritizedCardTagCodes.size).toBe(0);
+      expect(state.filterOptions.filter_skills.options).toEqual([
+        { label: 'TypeScript', value: 'skill_ts' },
+        { label: 'React', value: 'skill_react' },
+      ]);
+    });
+
+    it('projects canonical query, queryKey, selectedTokensByKey, activeBadges, and prioritizedCardTagCodes in one pass', () => {
+      const state = projectMentorPoolDiscoveryState(
+        '?utm_source=line&q=%20Frontend%20&filter_skills=skill_ts,%20skill_react,%20skill_ts&filter_topics=topic_resume,%20unknown_topic&filter_industries=software_internet&sort_by=popularity',
+        sampleCatalog
+      );
+
+      expect(state.searchQuery).toBe('Frontend');
+      expect(state.hasConditions).toBe(true);
+      expect(state.query).toEqual({
+        search_pattern: 'Frontend',
+        filter_skills: 'skill_react,skill_ts',
+        filter_topics: 'topic_resume,unknown_topic',
+        filter_industries: 'software_internet',
+        sort_by: 'popularity',
+      });
+      expect(state.queryKey).toBe(serializeMentorPoolQuery(state.query));
+      expect(state.selectedTokensByKey).toEqual({
+        filter_skills: ['skill_ts', 'skill_react'],
+        filter_topics: ['topic_resume', 'unknown_topic'],
+        filter_industries: ['software_internet'],
+      });
+      expect(state.selectedFilters).toEqual({
+        filter_skills: { name: '技能', value: 'skill_ts,skill_react' },
+        filter_topics: { name: '主題', value: 'topic_resume,unknown_topic' },
+        filter_industries: { name: '產業', value: 'software_internet' },
+      });
+      expect(state.activeBadges).toEqual([
+        {
+          key: 'filter_skills',
+          name: '技能',
+          value: 'skill_ts',
+          label: 'TypeScript',
+        },
+        {
+          key: 'filter_skills',
+          name: '技能',
+          value: 'skill_react',
+          label: 'React',
+        },
+        {
+          key: 'filter_topics',
+          name: '主題',
+          value: 'topic_resume',
+          label: '履歷健檢',
+        },
+        {
+          key: 'filter_topics',
+          name: '主題',
+          value: 'unknown_topic',
+          label: 'unknown_topic',
+        },
+        {
+          key: 'filter_industries',
+          name: '產業',
+          value: 'software_internet',
+          label: '軟體網路',
+        },
+      ]);
+      // Only skills and topics have prioritizeCardTags: true; industry is excluded
+      expect(Array.from(state.prioritizedCardTagCodes).sort()).toEqual([
+        'skill_react',
+        'skill_ts',
+        'topic_resume',
+        'unknown_topic',
+      ]);
+    });
+
+    it('supports declarative static option sources for future dimensions (#839)', () => {
+      const customDimensions: readonly MentorPoolFilterDimension[] = [
+        ...MENTOR_POOL_FILTER_DIMENSIONS,
+        {
+          key: fromAny('filter_seniority'),
+          name: '職級',
+          optionSource: {
+            kind: 'static',
+            options: [
+              { label: '資深 (Senior)', value: 'SENIOR' },
+              { label: '專家 (Staff)', value: 'STAFF' },
+            ],
+          },
+          prioritizeCardTags: false,
+        },
+      ];
+
+      const state = projectMentorPoolDiscoveryState(
+        '?filter_seniority=SENIOR',
+        sampleCatalog,
+        { dimensions: customDimensions }
+      );
+
+      expect(state.filterOptions.filter_seniority).toEqual({
+        name: '職級',
+        options: [
+          { label: '資深 (Senior)', value: 'SENIOR' },
+          { label: '專家 (Staff)', value: 'STAFF' },
+        ],
+      });
+      expect(state.activeBadges).toEqual([
+        {
+          key: 'filter_seniority',
+          name: '職級',
+          value: 'SENIOR',
+          label: '資深 (Senior)',
+        },
+      ]);
+      expect(state.prioritizedCardTagCodes.size).toBe(0);
+    });
+  });
+
+  describe('pure filter draft state transitions (#976)', () => {
+    it('creates, updates, toggles, clears, converts, and applies filter drafts immutably', () => {
+      const initial = createFilterDraft({
+        filter_skills: { name: '技能', value: 'skill_ts, skill_react' },
+        filter_topics: { name: '主題', value: '   ' },
+      });
+      expect(initial).toEqual({
+        filter_skills: ['skill_ts', 'skill_react'],
+      });
+
+      const fromParams = createFilterDraft('?filter_industries=tech&q=fe');
+      expect(fromParams).toEqual({
+        filter_industries: ['tech'],
+      });
+
+      // Toggle off an existing token and toggle on a new token without mutating previous draft
+      const toggled1 = toggleFilterToken(initial, 'filter_skills', 'skill_ts');
+      expect(initial).toEqual({ filter_skills: ['skill_ts', 'skill_react'] });
+      expect(toggled1).toEqual({ filter_skills: ['skill_react'] });
+
+      const toggled2 = toggleFilterToken(
+        toggled1,
+        'filter_skills',
+        'skill_react'
+      );
+      expect(toggled2).toEqual({});
+
+      const toggled3 = toggleFilterToken(
+        toggled2,
+        'filter_topics',
+        '  topic_career  '
+      );
+      expect(toggled3).toEqual({ filter_topics: ['topic_career'] });
+      expect(toggleFilterToken(toggled3, 'filter_topics', '   ')).toBe(
+        toggled3
+      );
+
+      // setFilterDraftValue replaces value or deletes empty entries
+      const updated = setFilterDraftValue(
+        toggled3,
+        'filter_industries',
+        'software_internet'
+      );
+      expect(updated).toEqual({
+        filter_topics: ['topic_career'],
+        filter_industries: ['software_internet'],
+      });
+      const clearedSingle = setFilterDraftValue(
+        updated,
+        'filter_topics',
+        '   '
+      );
+      expect(clearedSingle).toEqual({
+        filter_industries: ['software_internet'],
+      });
+
+      // Convert back to SelectFilters and apply to URLSearchParams preserving q, sort_by, and utm_*
+      expect(draftToSelectFilters(updated)).toEqual({
+        filter_topics: { name: '主題', value: 'topic_career' },
+        filter_industries: { name: '產業', value: 'software_internet' },
+      });
+
+      const nextParams = applyFilterDraftToParams(
+        'utm_source=discord&q=react&filter_skills=old_skill&sort_by=recent',
+        updated
+      );
+      expect(nextParams.toString()).toBe(
+        'utm_source=discord&q=react&sort_by=recent&filter_topics=topic_career&filter_industries=software_internet'
+      );
+
+      expect(clearFilterDraft()).toEqual({});
+    });
+
+    it('builds declarative GA4 analytics attributes for populated and cleared drafts', () => {
+      expect(buildFilterApplyAnalyticsAttrs(clearFilterDraft())).toEqual({
+        'data-analytics-click': 'mentor_pool_filter_apply',
+        'data-analytics-event': 'mentor_pool_filter_apply',
+        'data-analytics-feature': 'mentor_pool',
+        'data-analytics-location': 'filter_dropdown',
+        'data-analytics-param-filter-type': 'none',
+        'data-analytics-param-filter-value': 'cleared',
+      });
+
+      const draft = setFilterDraftValue(
+        createFilterDraft({
+          filter_skills: { name: '技能', value: 'frontend' },
+        }),
+        'filter_topics',
+        'career,resume'
+      );
+      expect(buildFilterApplyAnalyticsAttrs(draft)).toEqual({
+        'data-analytics-click': 'mentor_pool_filter_apply',
+        'data-analytics-event': 'mentor_pool_filter_apply',
+        'data-analytics-feature': 'mentor_pool',
+        'data-analytics-location': 'filter_dropdown',
+        'data-analytics-param-filter-type': 'filter_skills,filter_topics',
+        'data-analytics-param-filter-value': 'frontend,career,resume',
+      });
     });
   });
 });
