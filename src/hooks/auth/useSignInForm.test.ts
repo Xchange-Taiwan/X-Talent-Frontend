@@ -71,7 +71,7 @@ describe('useSignInForm (#940)', () => {
     expect(authLifecycle.signInWithCredentials).not.toHaveBeenCalled();
   });
 
-  it('delegates signInWithCredentials with NextAuth adapters, guards concurrent submits, and resets isSubmitting', async () => {
+  it('delegates signInWithCredentials with NextAuth adapters, guards concurrent submits, and keeps isSubmitting=true while redirect is in flight', async () => {
     let resolveLogin!: (val: { error: string | null }) => void;
     mockSignIn.mockReturnValueOnce(
       new Promise((resolve) => {
@@ -96,9 +96,15 @@ describe('useSignInForm (#940)', () => {
       await Promise.all([p1, p2]);
     });
 
-    expect(result.current.isSubmitting).toBe(false);
+    expect(result.current.isSubmitting).toBe(true);
     expect(mockRouter.push).toHaveBeenCalledWith('/reservation/mentee');
     expect(mockToast).not.toHaveBeenCalled();
+
+    // Programmatic double-submit during route transition stays locked
+    await act(async () => {
+      await result.current.onSubmit(validValues);
+    });
+    expect(authLifecycle.signInWithCredentials).toHaveBeenCalledTimes(1);
   });
 
   it('forwards toast adapter so authLifecycle surfaces invalid credentials without redirecting', async () => {

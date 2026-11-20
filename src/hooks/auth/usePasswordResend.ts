@@ -1,13 +1,14 @@
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
 import { authLifecycle } from '@/lib/auth/sessionLifecycle';
 import { PASSWORD_FORGOT_HREF } from '@/lib/routes';
 
+import { useAuthPendingAction } from './useAuthPendingAction';
+
 export default function usePasswordResend() {
-  const [isResending, setIsResending] = useState(false);
-  const inFlightRef = useRef(false);
+  const { isPending: isResending, runPending } = useAuthPendingAction();
   const [email, setEmail] = useState('');
   const router = useRouter();
   const { toast } = useToast();
@@ -20,15 +21,7 @@ export default function usePasswordResend() {
   }, []);
 
   const handleResend = async () => {
-    if (inFlightRef.current) return;
-    inFlightRef.current = true;
-    setIsResending(true);
-    try {
-      await authLifecycle.resendPasswordReset(email, { toast });
-    } finally {
-      inFlightRef.current = false;
-      setIsResending(false);
-    }
+    await runPending(() => authLifecycle.resendPasswordReset(email, { toast }));
   };
 
   const handleChangeEmail = () => {

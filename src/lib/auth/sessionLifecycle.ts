@@ -1600,10 +1600,38 @@ function createAuthLifecycleInternal(
               user as unknown as Record<string, unknown>
             );
 
-            const result = await resolved.authClient.deleteAccount({
-              email: outcome.email,
-              id_token,
-            });
+            let result: DeleteAccountResult;
+            try {
+              result = await resolved.authClient.deleteAccount({
+                email: outcome.email,
+                id_token,
+              });
+            } catch (err) {
+              const message =
+                err instanceof Error ? err.message : '系統錯誤，請稍後再試';
+              const errorCode =
+                err instanceof ApiError ? String(err.status) : undefined;
+
+              void resolved.captureFailure({
+                flow: 'delete_account',
+                step: 'google_reauth_submit',
+                level: 'info',
+                message: sanitizeAuthErrorMessage(message, [
+                  outcome.email,
+                  auth.email,
+                  id_token,
+                  auth.token,
+                ]),
+                errorCode,
+              });
+              resolved.toast({
+                variant: 'destructive',
+                title: '刪除帳號失敗',
+                description: message,
+              });
+              resolved.navigate(SIGNIN_HREF);
+              return;
+            }
 
             if (result.status === 'success') {
               await terminateSessionInternal(
@@ -1624,10 +1652,22 @@ function createAuthLifecycleInternal(
               return;
             }
 
+            const message = result.message || '系統錯誤，請稍後再試';
+            void resolved.captureFailure({
+              flow: 'delete_account',
+              step: 'google_reauth_submit',
+              level: 'info',
+              message: sanitizeAuthErrorMessage(message, [
+                outcome.email,
+                auth.email,
+                id_token,
+                auth.token,
+              ]),
+            });
             resolved.toast({
               variant: 'destructive',
               title: '刪除帳號失敗',
-              description: result.message || '系統錯誤，請稍後再試',
+              description: message,
             });
             resolved.navigate(SIGNIN_HREF);
             return;

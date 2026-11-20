@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -9,11 +9,12 @@ import { useToast } from '@/components/ui/use-toast';
 import { authLifecycle } from '@/lib/auth/sessionLifecycle';
 import { SignUpSchema } from '@/schemas/auth';
 
+import { useAuthPendingAction } from './useAuthPendingAction';
+
 type SignUpValues = z.infer<typeof SignUpSchema>;
 
 export default function useSignUpForm(): AuthFormProps<SignUpValues> {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const inFlightRef = useRef(false);
+  const { isPending: isSubmitting, runPending } = useAuthPendingAction();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -32,22 +33,14 @@ export default function useSignUpForm(): AuthFormProps<SignUpValues> {
   });
 
   const onSubmit = async (values: SignUpValues) => {
-    if (inFlightRef.current) return;
-    inFlightRef.current = true;
-    setIsSubmitting(true);
-    let redirected = false;
-    try {
-      const result = await authLifecycle.signUpWithCredentials(values, {
-        navigate: (href) => router.push(href),
-        toast,
-      });
-      redirected = result.ok;
-    } finally {
-      inFlightRef.current = false;
-      if (!redirected) {
-        setIsSubmitting(false);
-      }
-    }
+    await runPending(
+      () =>
+        authLifecycle.signUpWithCredentials(values, {
+          navigate: (href) => router.push(href),
+          toast,
+        }),
+      { keepPendingWhen: (result) => result.ok }
+    );
   };
 
   return { form, isSubmitting, onSubmit };

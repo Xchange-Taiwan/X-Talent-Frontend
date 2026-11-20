@@ -1,6 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
-import { useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -8,11 +7,12 @@ import { useToast } from '@/components/ui/use-toast';
 import { authLifecycle } from '@/lib/auth/sessionLifecycle';
 import { PasswordForgotSchema } from '@/schemas/auth';
 
+import { useAuthPendingAction } from './useAuthPendingAction';
+
 type PasswordForgotValues = z.infer<typeof PasswordForgotSchema>;
 
 export default function usePasswordForgotForm() {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const inFlightRef = useRef(false);
+  const { isPending: isSubmitting, runPending } = useAuthPendingAction();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -24,22 +24,14 @@ export default function usePasswordForgotForm() {
   });
 
   const onSubmit = async (values: PasswordForgotValues) => {
-    if (inFlightRef.current) return;
-    inFlightRef.current = true;
-    setIsSubmitting(true);
-    let redirected = false;
-    try {
-      const result = await authLifecycle.requestPasswordReset(values.email, {
-        navigate: (href) => router.push(href),
-        toast,
-      });
-      redirected = result.ok;
-    } finally {
-      inFlightRef.current = false;
-      if (!redirected) {
-        setIsSubmitting(false);
-      }
-    }
+    await runPending(
+      () =>
+        authLifecycle.requestPasswordReset(values.email, {
+          navigate: (href) => router.push(href),
+          toast,
+        }),
+      { keepPendingWhen: (result) => result.ok }
+    );
   };
 
   return { form, isSubmitting, onSubmit };

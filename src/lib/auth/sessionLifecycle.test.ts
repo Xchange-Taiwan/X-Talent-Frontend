@@ -126,12 +126,13 @@ describe('auth deep modules boundary (#885 / #935 / #940)', () => {
 
   it('ensures all 10 src/hooks/auth/*.ts production hooks delegate to authLifecycle with zero direct authFlowStorage, LifecycleError, or useAsyncAction dependencies (#940)', () => {
     const hooksDir = path.resolve(__dirname, '../../hooks/auth');
-    const hookFiles = fs
+    const allFiles = fs
       .readdirSync(hooksDir)
       .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
       .sort();
 
-    expect(hookFiles).toEqual([
+    expect(allFiles).toEqual([
+      'useAuthPendingAction.ts',
       'useConfirmRegister.ts',
       'useDeleteAccountForm.ts',
       'useEmailVerify.ts',
@@ -144,6 +145,15 @@ describe('auth deep modules boundary (#885 / #935 / #940)', () => {
       'useSignUpForm.ts',
     ]);
 
+    const helperSource = fs.readFileSync(
+      path.join(hooksDir, 'useAuthPendingAction.ts'),
+      'utf8'
+    );
+    expect(helperSource).not.toMatch(
+      /authFlowStorage|LifecycleError|useAsyncAction/
+    );
+
+    const hookFiles = allFiles.filter((f) => f !== 'useAuthPendingAction.ts');
     for (const fileName of hookFiles) {
       const source = fs.readFileSync(path.join(hooksDir, fileName), 'utf8');
       expect(source, `${fileName} must import authLifecycle`).toMatch(
@@ -159,6 +169,10 @@ describe('auth deep modules boundary (#885 / #935 / #940)', () => {
       expect(source, `${fileName} must not import useAsyncAction`).not.toMatch(
         /useAsyncAction/
       );
+      expect(
+        source,
+        `${fileName} must delegate pending locks to useAuthPendingAction instead of manual inFlightRef`
+      ).not.toMatch(/\binFlightRef\b/);
     }
   });
 });
@@ -794,6 +808,7 @@ describe('sessionLifecycle (#885 / #935 / #940)', () => {
       });
       const errNavigate = vi.fn();
       const errToast = vi.fn();
+      const errCapture = vi.fn();
       await createAuthLifecycle({
         exchangeGoogleCode: exchangeDeleteCode,
         signIn: vi.fn().mockResolvedValue({ ok: true }),
@@ -801,19 +816,87 @@ describe('sessionLifecycle (#885 / #935 / #940)', () => {
         getSession: vi.fn(),
         navigate: errNavigate,
         toast: errToast,
+        captureFailure: errCapture,
         storage: errStorage,
         authClient: {
-          deleteAccount: vi
-            .fn()
-            .mockResolvedValue({ status: 'error', message: 'Boom' }),
+          deleteAccount: vi.fn().mockResolvedValue({
+            status: 'error',
+            message:
+              'Delete failed for del@example.com idToken=google_id_token access=tok_del userId=99',
+          }),
         },
       }).handleGoogleOAuthCallback({ code: 'c', state: 's' });
+      expect(errCapture).toHaveBeenCalledWith({
+        flow: 'delete_account',
+        step: 'google_reauth_submit',
+        level: 'info',
+        message:
+          'Delete failed for [REDACTED] idToken=[REDACTED] access=[REDACTED] userId=[REDACTED]',
+      });
+      expect(JSON.stringify(errCapture.mock.calls)).not.toContain(
+        'google_id_token'
+      );
+      expect(JSON.stringify(errCapture.mock.calls)).not.toContain('tok_del');
+      expect(JSON.stringify(errCapture.mock.calls)).not.toContain(
+        'del@example.com'
+      );
       expect(errToast).toHaveBeenCalledWith({
         variant: 'destructive',
         title: '刪除帳號失敗',
-        description: 'Boom',
+        description:
+          'Delete failed for del@example.com idToken=google_id_token access=tok_del userId=99',
       });
       expect(errNavigate).toHaveBeenCalledWith('/auth/signin');
+
+      const thrownStorage = createInMemorySessionStorage({
+        [PENDING_DELETE_ACCOUNT_EMAIL_KEY]: 'del@example.com',
+      });
+      const thrownNavigate = vi.fn();
+      const thrownToast = vi.fn();
+      const thrownCapture = vi.fn();
+      await createAuthLifecycle({
+        exchangeGoogleCode: exchangeDeleteCode,
+        signIn: vi.fn().mockResolvedValue({ ok: true }),
+        signOut: vi.fn(),
+        getSession: vi.fn(),
+        navigate: thrownNavigate,
+        toast: thrownToast,
+        captureFailure: thrownCapture,
+        storage: thrownStorage,
+        authClient: {
+          deleteAccount: vi
+            .fn()
+            .mockRejectedValue(
+              new ApiError(
+                502,
+                'Upstream rejected google_id_token for del@example.com (tok_del, {"user_id":99})'
+              )
+            ),
+        },
+      }).handleGoogleOAuthCallback({ code: 'c', state: 's' });
+      expect(thrownCapture).toHaveBeenCalledWith({
+        flow: 'delete_account',
+        step: 'google_reauth_submit',
+        level: 'info',
+        errorCode: '502',
+        message:
+          'Upstream rejected [REDACTED] for [REDACTED] ([REDACTED], {"user_id":"[REDACTED]"})',
+      });
+      expect(JSON.stringify(thrownCapture.mock.calls)).not.toContain(
+        'google_id_token'
+      );
+      expect(JSON.stringify(thrownCapture.mock.calls)).not.toContain('tok_del');
+      expect(JSON.stringify(thrownCapture.mock.calls)).not.toContain(
+        'del@example.com'
+      );
+      expect(JSON.stringify(thrownCapture.mock.calls)).not.toContain('99');
+      expect(thrownToast).toHaveBeenCalledWith({
+        variant: 'destructive',
+        title: '刪除帳號失敗',
+        description:
+          'Upstream rejected google_id_token for del@example.com (tok_del, {"user_id":99})',
+      });
+      expect(thrownNavigate).toHaveBeenCalledWith('/auth/signin');
     });
 
     it('covers deleteAccountXC revalidate warning, signUp ApiError status codes (422/406/429/503), and confirmSignUp missing_token', async () => {

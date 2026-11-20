@@ -58,7 +58,7 @@ describe('useGoogleAuth (#940)', () => {
         state: 's-signup',
       });
 
-    const { result } = renderHook(() => useGoogleAuth());
+    const { result, unmount } = renderHook(() => useGoogleAuth());
 
     await act(async () => {
       await result.current.handleGoogleAuth(true);
@@ -73,8 +73,16 @@ describe('useGoogleAuth (#940)', () => {
     );
     expect(result.current.isPending).toBe(true);
 
+    // Programmatic double-click during OAuth redirect remains blocked
     await act(async () => {
-      await result.current.handleGoogleAuth(false);
+      await result.current.handleGoogleAuth(true);
+    });
+    expect(getGoogleAuthorizeUrl).toHaveBeenCalledTimes(1);
+    unmount();
+
+    const signupHook = renderHook(() => useGoogleAuth());
+    await act(async () => {
+      await signupHook.result.current.handleGoogleAuth(false);
     });
 
     expect(getGoogleAuthorizeUrl).toHaveBeenCalledWith('signup');
@@ -82,6 +90,7 @@ describe('useGoogleAuth (#940)', () => {
     expect(mockRouter.push).toHaveBeenCalledWith(
       'https://google.com/auth/signup'
     );
+    expect(signupHook.result.current.isPending).toBe(true);
     expect(trackEvent).toHaveBeenCalledWith({
       name: 'auth_oauth_started',
       feature: 'auth',

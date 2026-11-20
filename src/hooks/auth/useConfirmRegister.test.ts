@@ -99,6 +99,39 @@ describe('useConfirmRegister (#940)', () => {
     expect(mockToast).not.toHaveBeenCalled();
   });
 
+  it('transitions loading -> failure asynchronously when a non-empty token fails verification', async () => {
+    mockSearchParams.get.mockReturnValue('expired-signup-token');
+
+    let rejectApi!: (error: Error) => void;
+    confirmSignUpFn.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectApi = reject;
+        })
+    );
+
+    const { result } = renderHook(() => useConfirmRegister());
+    expect(result.current.status).toBe('loading');
+    expect(confirmSignUpFn).toHaveBeenCalledWith('expired-signup-token');
+
+    await act(async () => {
+      rejectApi(new Error('驗證連結已過期'));
+    });
+
+    expect(result.current.status).toBe('failure');
+    expect(authLifecycle.confirmSignUp).toHaveReturnedWith(expect.any(Promise));
+    await expect(
+      vi.mocked(authLifecycle.confirmSignUp).mock.results[0].value
+    ).resolves.toEqual({ ok: false, status: 'failure' });
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'destructive',
+        title: '註冊失敗',
+        description: '驗證連結已過期',
+      })
+    );
+  });
+
   it('ignores stale responses across dynamic token changes and after unmount via isCurrent', async () => {
     mockSearchParams.get.mockReturnValue('token-1');
 

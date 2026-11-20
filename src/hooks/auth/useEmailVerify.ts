@@ -1,15 +1,16 @@
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
 import { authLifecycle } from '@/lib/auth/sessionLifecycle';
 import { HOME_HREF } from '@/lib/routes';
 
+import { useAuthPendingAction } from './useAuthPendingAction';
+
 export function useEmailVerify() {
   const router = useRouter();
   const { toast } = useToast();
-  const [isResending, setIsResending] = useState(false);
-  const inFlightRef = useRef(false);
+  const { isPending: isResending, runPending } = useAuthPendingAction();
   const [email, setEmail] = useState<string | null>(null);
 
   useEffect(() => {
@@ -22,15 +23,10 @@ export function useEmailVerify() {
   }, [router]);
 
   const handleResendEmail = async () => {
-    if (!email || inFlightRef.current) return;
-    inFlightRef.current = true;
-    setIsResending(true);
-    try {
-      await authLifecycle.resendVerificationEmail(email, { toast });
-    } finally {
-      inFlightRef.current = false;
-      setIsResending(false);
-    }
+    if (!email) return;
+    await runPending(() =>
+      authLifecycle.resendVerificationEmail(email, { toast })
+    );
   };
 
   const handleNavigateHome = () => {

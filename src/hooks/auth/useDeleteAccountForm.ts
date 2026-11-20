@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -10,6 +10,8 @@ import { useToast } from '@/components/ui/use-toast';
 import { authLifecycle } from '@/lib/auth/sessionLifecycle';
 import { isAccountDeletionEnabled } from '@/lib/featureFlags';
 import { DeleteAccountXCSchema } from '@/schemas/auth';
+
+import { useAuthPendingAction } from './useAuthPendingAction';
 
 type XCValues = z.infer<typeof DeleteAccountXCSchema>;
 
@@ -28,8 +30,11 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
   const { data: session } = useSession();
   const { toast } = useToast();
   const router = useRouter();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const inFlightRef = useRef(false);
+  const {
+    isPending: isSubmitting,
+    isInFlight,
+    runPending,
+  } = useAuthPendingAction();
   const [blockedByReservations, setBlockedByReservations] = useState(false);
 
   const mode: DeleteAccountMode =
@@ -41,16 +46,14 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
   });
 
   const onSubmitXC = async (values: XCValues): Promise<void> => {
-    if (inFlightRef.current) return;
+    if (isInFlight()) return;
     if (!isAccountDeletionEnabled()) {
       await authLifecycle.deleteAccountXC(values, { toast });
       return;
     }
 
-    inFlightRef.current = true;
-    setIsSubmitting(true);
-    setBlockedByReservations(false);
-    try {
+    await runPending(async () => {
+      setBlockedByReservations(false);
       const result = await authLifecycle.deleteAccountXC(
         {
           email: values.email,
@@ -65,14 +68,12 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
       if (result.status === 'blocked_reservations') {
         setBlockedByReservations(true);
       }
-    } finally {
-      inFlightRef.current = false;
-      setIsSubmitting(false);
-    }
+      return result;
+    });
   };
 
   const initiateGoogleReauth = async (): Promise<void> => {
-    if (inFlightRef.current) return;
+    if (isInFlight()) return;
     if (!isAccountDeletionEnabled()) {
       await authLifecycle.startDeleteAccountGoogleReauth(
         session?.user?.email ?? '',
@@ -81,24 +82,17 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
       return;
     }
 
-    inFlightRef.current = true;
-    setIsSubmitting(true);
-    let redirected = false;
-    try {
-      const result = await authLifecycle.startDeleteAccountGoogleReauth(
-        session?.user?.email ?? '',
-        {
-          navigate: (url) => router.push(url),
-          toast,
-        }
-      );
-      redirected = result.ok;
-    } finally {
-      inFlightRef.current = false;
-      if (!redirected) {
-        setIsSubmitting(false);
-      }
-    }
+    await runPending(
+      () =>
+        authLifecycle.startDeleteAccountGoogleReauth(
+          session?.user?.email ?? '',
+          {
+            navigate: (url) => router.push(url),
+            toast,
+          }
+        ),
+      { keepPendingWhen: (result) => result.ok }
+    );
   };
 
   return {
