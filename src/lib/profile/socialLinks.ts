@@ -64,6 +64,11 @@ export interface PersonalLink {
   url: string;
 }
 
+export interface NormalizedPersonalLink {
+  platform: SocialPlatformKey;
+  url: string;
+}
+
 export type PlatformUrlValidationResult =
   { valid: true; normalizedUrl: string } | { valid: false; message: string };
 
@@ -202,3 +207,64 @@ export function createPlatformUrlSchema(platform: SocialPlatformKey) {
 export const socialLinksFormSchema = z.object(
   buildPlatformRecord((platform) => createPlatformUrlSchema(platform))
 );
+
+/**
+ * Deterministic personal-link normalization and deduplication shared across
+ * client profile views (`useUserData`, `ProfilePageUI`, `ProfileCardUI`,
+ * `resolveDisplaySocialLinks`) and SSR SEO JSON-LD (`sanitizePublicProfile`).
+ *
+ * Rules:
+ * 1. Platform keys trim + lowercase and must match a registered `SocialPlatformKey`.
+ * 2. URLs pass `validatePlatformUrl` + `isSafeUrl` (enforcing HTTPS, non-empty,
+ *    and per-platform allowed hostnames; invalid/lookalike URLs are dropped
+ *    before marking a platform as seen).
+ * 3. First-seen valid link wins per platform.
+ * 4. Returned array follows canonical `SOCIAL_PLATFORM_KEYS` order.
+ */
+export function normalizePersonalLinks(
+  links: ReadonlyArray<PersonalLink | null | undefined> | null | undefined
+): NormalizedPersonalLink[] {
+  if (!links?.length) {
+    return [];
+  }
+
+  const firstValidByPlatform = new Map<
+    SocialPlatformKey,
+    NormalizedPersonalLink
+  >();
+
+  for (const link of links) {
+    if (!link || typeof link.url !== 'string') {
+      continue;
+    }
+    const normalizedPlatform =
+      typeof link.platform === 'string'
+        ? link.platform.trim().toLowerCase()
+        : '';
+    if (
+      !isSocialPlatformKey(normalizedPlatform) ||
+      firstValidByPlatform.has(normalizedPlatform)
+    ) {
+      continue;
+    }
+
+    const validation = validatePlatformUrl(normalizedPlatform, link.url);
+    if (
+      !validation.valid ||
+      !validation.normalizedUrl ||
+      !isSafeUrl(validation.normalizedUrl)
+    ) {
+      continue;
+    }
+
+    firstValidByPlatform.set(normalizedPlatform, {
+      platform: normalizedPlatform,
+      url: validation.normalizedUrl,
+    });
+  }
+
+  return SOCIAL_PLATFORM_KEYS.flatMap((platform) => {
+    const item = firstValidByPlatform.get(platform);
+    return item ? [item] : [];
+  });
+}

@@ -261,10 +261,11 @@ describe('profileProjection (#945)', () => {
 
       const zhProjected = projectUserProfile(dto, { language: 'zh_TW' });
       expect(zhProjected.location).toBe('日本');
-      expect(zhProjected.location_code).toBeNull();
+      expect(zhProjected.location_code).toBe('JPN');
 
       const enProjected = projectUserProfile(dto, { language: 'en_US' });
       expect(enProjected.location).toBe('Japan');
+      expect(enProjected.location_code).toBe('JPN');
     });
 
     it('deduplicates work experience industries against primary industry and normalizes personalLinks identically for client and SEO', () => {

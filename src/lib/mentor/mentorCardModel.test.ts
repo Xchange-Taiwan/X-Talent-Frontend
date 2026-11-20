@@ -11,6 +11,7 @@ import {
   resolveMentorAvatar,
 } from '@/lib/mentor/mentorCardModel';
 import { projectUserProfile } from '@/lib/profile/profileProjection';
+import { ExperienceType } from '@/services/profile/experienceType';
 import { mapMentor, type RawMentor } from '@/services/search-mentor/mapMentor';
 import type { MentorType } from '@/types/mentor';
 import type { MentorProfileVO, UserType } from '@/types/user';
@@ -200,6 +201,46 @@ describe('mentorCardModel (#896)', () => {
       );
 
       expect(normalized.industry).toBeNull();
+    });
+
+    it('preserves primary work experience job_location code (e.g. JPN) when top-level location is empty (#945)', () => {
+      const projected = projectUserProfile(
+        fromPartial<MentorProfileVO>({
+          user_id: 777,
+          name: 'Zahra Mirzakhani',
+          avatar: 'https://cdn.example.com/mentors/777/avatar.jpg',
+          is_mentor: true,
+          location: '',
+          experiences: fromAny([
+            {
+              category: ExperienceType.WORK,
+              order: 1,
+              mentor_experiences_metadata: {
+                data: [
+                  {
+                    job: 'Product Designer',
+                    company: 'Tokyo Studio',
+                    job_location: 'JPN',
+                    is_primary: true,
+                  },
+                ],
+              },
+            },
+          ]),
+        }),
+        { language: 'zh_TW' }
+      );
+
+      expect(projected.location).toBe('日本');
+      expect(projected.location_code).toBe('JPN');
+
+      const normalized = normalizeMentorFromProfile(projected);
+      expect(normalized.location).toBe('JPN');
+
+      const card = projectMentorCard(normalized, {
+        labelMap: CATALOG_LABEL_MAP,
+      });
+      expect(card.mentorSnapshot.location).toBe('JPN');
     });
 
     it('falls back safely when legacy callers pass hand-crafted display strings without raw *_code fields (#945)', () => {
