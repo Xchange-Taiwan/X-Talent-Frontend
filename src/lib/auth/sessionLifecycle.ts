@@ -656,9 +656,13 @@ interface SignUpFailureDescriptor {
   errorCode?: string;
 }
 
-function mapSignUpFailure(error: unknown): SignUpFailureDescriptor {
-  const logMessage =
+function mapSignUpFailure(
+  error: unknown,
+  secretsToRedact: ReadonlyArray<string | null | undefined> = []
+): SignUpFailureDescriptor {
+  const rawLogMessage =
     error instanceof Error ? error.message : 'Unexpected sign-up error';
+  const logMessage = sanitizeAuthErrorMessage(rawLogMessage, secretsToRedact);
 
   if (error instanceof ApiError) {
     const errorCode = String(error.status);
@@ -1016,10 +1020,20 @@ function createAuthLifecycleInternal(
         overrides?.clearAnalyticsUser ??
         basePort.clearAnalyticsUser ??
         fallbackClearAnalyticsUser,
-      captureFailure:
-        overrides?.captureFailure ??
-        basePort.captureFailure ??
-        fallbackCaptureFailure,
+      captureFailure: (payload) => {
+        const targetCapture =
+          overrides?.captureFailure ??
+          basePort.captureFailure ??
+          fallbackCaptureFailure;
+        return targetCapture({
+          ...payload,
+          message: sanitizeAuthErrorMessage(payload.message),
+          errorCode:
+            typeof payload.errorCode === 'string'
+              ? sanitizeAuthErrorMessage(payload.errorCode)
+              : payload.errorCode,
+        });
+      },
       getSearch: overrides?.getSearch ?? basePort.getSearch ?? defaultGetSearch,
       getOrigin:
         overrides?.getOrigin ??
@@ -1370,10 +1384,15 @@ function createAuthLifecycleInternal(
 
     async signUpWithCredentials(values, overrides) {
       const resolved = resolvePort(overrides);
+      const signUpSecrets = [
+        values.email,
+        values.password,
+        values.confirm_password,
+      ];
       try {
         await resolved.authClient.signUp(values);
       } catch (err) {
-        const mapped = mapSignUpFailure(err);
+        const mapped = mapSignUpFailure(err, signUpSecrets);
         const errorType =
           mapped.errorCode !== undefined
             ? String(mapped.errorCode)
@@ -1391,11 +1410,7 @@ function createAuthLifecycleInternal(
           flow: 'sign_up',
           step: 'submit',
           level: mapped.level,
-          message: sanitizeAuthErrorMessage(mapped.logMessage, [
-            values.email,
-            values.password,
-            values.confirm_password,
-          ]),
+          message: sanitizeAuthErrorMessage(mapped.logMessage, signUpSecrets),
           errorCode: mapped.errorCode,
         });
         resolved.toast({

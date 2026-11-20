@@ -2265,4 +2265,35 @@ describe('createAuthLifecycle(port) unified port & atomic teardown (#935)', () =
     await Promise.all([flightA, flightB]);
     expect(sharedSignOut).toHaveBeenCalledTimes(1);
   });
+
+  it('scrubs email, password, and user_id PII inside mapSignUpFailure and captureFailure when signUpWithCredentials fails', async () => {
+    const captureFailure = vi.fn();
+    const { port } = createFakePort({
+      captureFailure,
+      authClient: {
+        signUp: vi
+          .fn()
+          .mockRejectedValue(
+            new ApiError(
+              406,
+              'Account (user@example.com, user_id=778899, SecretPass99!) already exists'
+            )
+          ),
+      } as unknown as AuthLifecyclePort['authClient'],
+    });
+    const lifecycle = createAuthLifecycle(port);
+
+    const result = await lifecycle.signUpWithCredentials({
+      email: 'user@example.com',
+      password: 'SecretPass99!',
+      confirm_password: 'SecretPass99!',
+    });
+
+    expect(result).toEqual({ ok: false, errorType: '406' });
+    expect(captureFailure).toHaveBeenCalledTimes(1);
+    const logged = JSON.stringify(captureFailure.mock.calls[0]?.[0]);
+    expect(logged).not.toContain('user@example.com');
+    expect(logged).not.toContain('778899');
+    expect(logged).not.toContain('SecretPass99!');
+  });
 });
