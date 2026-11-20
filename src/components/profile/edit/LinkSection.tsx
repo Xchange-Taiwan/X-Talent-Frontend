@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import type { UseFormReturn } from 'react-hook-form';
 
 import {
   FormControl,
@@ -11,13 +12,10 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { SOCIAL_PLATFORM_KEYS } from '@/lib/profile/socialLinks';
+import type { ProfileFormValues } from '@/schemas/profileSchema';
 
 import { platformLabelMap } from '../social-links/platformLabelMap';
 import { Section } from './Section';
-import {
-  asProfileFormContext,
-  type SharedProfileEditorForm,
-} from './sharedEditorForm';
 
 const SOCIAL_LINKS = SOCIAL_PLATFORM_KEYS.map((platform) => ({
   platform,
@@ -28,11 +26,10 @@ const SOCIAL_LINKS = SOCIAL_PLATFORM_KEYS.map((platform) => ({
 
 interface Props {
   id?: string;
-  form: SharedProfileEditorForm;
+  form: UseFormReturn<ProfileFormValues>;
 }
 
-export const LinksSection = ({ id = 'links', form: rawForm }: Props) => {
-  const form = asProfileFormContext(rawForm);
+export const LinksSection = ({ id = 'links', form }: Props) => {
   return (
     <Section id={id} title="個人連結" optional variant="option-a">
       <div className="grid grid-cols-1 gap-5">

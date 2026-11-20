@@ -1,4 +1,5 @@
 import { TotalWorkSpanEnum } from '@/constant/seniority';
+import { resolveAvatarDisplayUrl } from '@/lib/avatar/avatarUrl';
 import { isFavoritesEnabled, isFeedbackEnabled } from '@/lib/featureFlags';
 import { normalizeMentorStats } from '@/lib/mentor/mentorStats';
 import {
@@ -57,6 +58,8 @@ export interface DeriveProfilePageViewModelInput {
   favoritesEnabled?: boolean;
   feedbackEnabled?: boolean;
   enableBecomeMentorCta?: boolean;
+  safePersonalLinksCount?: number;
+  resolvedLocation?: string;
 }
 
 export interface ProfilePageViewModel {
@@ -75,6 +78,10 @@ export interface ProfilePageViewModel {
   effectiveRatingAverage: number | null;
   effectiveCompletedMeetings: number;
   mentorIndustryHashtag: string | null;
+  menteeIndustryHashtag: string | null;
+  menteeEmpty: boolean;
+  menteeLatestRole: { jobTitle: string; company: string } | null;
+  menteeExperienceDisplay: string | undefined;
 }
 
 function toTagDisplay(
@@ -233,16 +240,131 @@ export function projectUserProfile(
   };
 }
 
-function resolveMentorIndustryHashtag(
-  userData: UserType | null
+export const DEFAULT_MENTEE_AVATAR_URL = '/avatars/default_1.webp';
+
+export function resolveMenteeAvatarSrc(
+  avatar: string | null | undefined
+): string {
+  return resolveAvatarDisplayUrl(avatar, true);
+}
+
+function parsePeriodEndRank(
+  end: string | undefined,
+  currentYear: number
+): number {
+  if (!end) return 0;
+  const trimmed = end.trim().toLowerCase();
+  if (trimmed === 'now' || trimmed === '至今') return currentYear + 1;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function resolveMenteeLatestRole(
+  userData: Pick<UserType, 'workExperiences'> | null | undefined,
+  currentYear = new Date().getFullYear()
+): { jobTitle: string; company: string } | null {
+  const list = userData?.workExperiences;
+  if (!list?.length) return null;
+
+  const validList = list.filter((item) =>
+    Boolean(item.job?.trim() || item.company?.trim())
+  );
+  if (!validList.length) return null;
+
+  let best = validList[0];
+  let bestEnd = parsePeriodEndRank(best.job_period_end, currentYear);
+  let bestStart = Number(best.job_period_start) || 0;
+
+  for (let i = 1; i < validList.length; i += 1) {
+    const candidate = validList[i];
+    const endRank = parsePeriodEndRank(candidate.job_period_end, currentYear);
+    const startRank = Number(candidate.job_period_start) || 0;
+    if (endRank > bestEnd || (endRank === bestEnd && startRank > bestStart)) {
+      best = candidate;
+      bestEnd = endRank;
+      bestStart = startRank;
+    }
+  }
+
+  const jobTitle = best.job?.trim() ?? '';
+  const company = best.company?.trim() ?? '';
+  return { jobTitle, company };
+}
+
+export function resolveMenteeExperienceSummary(
+  userData:
+    | Pick<UserType, 'workExperiences' | 'years_of_experience'>
+    | null
+    | undefined,
+  currentYear = new Date().getFullYear()
+): string | undefined {
+  const list = userData?.workExperiences;
+  if (!list?.length) {
+    return userData?.years_of_experience;
+  }
+
+  let totalYears = 0;
+  let countedAny = false;
+  for (const exp of list) {
+    const startYear = Number(exp.job_period_start);
+    if (!Number.isFinite(startYear) || startYear <= 0) continue;
+    const rawEnd = exp.job_period_end?.trim().toLowerCase();
+    const endYear =
+      !rawEnd || rawEnd === 'now' || rawEnd === '至今'
+        ? currentYear
+        : Number(rawEnd);
+    if (!Number.isFinite(endYear) || endYear < startYear) continue;
+    countedAny = true;
+    totalYears += Math.max(1, endYear - startYear);
+  }
+
+  if (!countedAny) {
+    return userData?.years_of_experience;
+  }
+  return `${totalYears} 年`;
+}
+
+export function resolveProfileIndustryHashtag(
+  userData: Pick<UserType, 'industry' | 'industries'> | null | undefined
 ): string | null {
-  if (!userData?.is_mentor) return null;
+  if (!userData) return null;
   const rawIndustry =
     userData.industry?.trim() ||
     userData.industries?.[0]?.subject?.trim() ||
     '';
   const normalized = rawIndustry.replace(/^#+/, '').trim();
   return normalized ? `#${normalized}` : null;
+}
+
+export function isMenteeProfileEmpty(
+  userData: UserType | null | undefined,
+  safePersonalLinksCount: number,
+  resolvedLocation?: string
+): boolean {
+  if (!userData) return true;
+  const hasAbout = Boolean(userData.about?.trim());
+  const hasIndustry = Boolean(resolveProfileIndustryHashtag(userData));
+  const hasExperienceYears = Boolean(userData.years_of_experience?.trim());
+  const hasLocation = Boolean(resolvedLocation?.trim());
+  const hasPreferences = Boolean(
+    userData.want_position?.length ||
+    userData.want_skill?.length ||
+    userData.want_topic?.length
+  );
+  const hasWork = Boolean(userData.workExperiences?.length);
+  const hasEducation = Boolean(userData.educations?.length);
+  const hasLinks = safePersonalLinksCount > 0;
+
+  return !(
+    hasAbout ||
+    hasIndustry ||
+    hasExperienceYears ||
+    hasLocation ||
+    hasPreferences ||
+    hasWork ||
+    hasEducation ||
+    hasLinks
+  );
 }
 
 /**
@@ -253,6 +375,8 @@ function resolveMentorIndustryHashtag(
  *   on `/profile/[pageUserId]` per #960)
  * - Favorite bookmark button visibility
  * - Feedback vs SSR stats priority derivation (including 404 fallback-empty preservation)
+ * - Unified Mentor & Mentee profile display derivations (#industry hashtag, empty check,
+ *   latest work role, and summed experience summary)
  */
 export function deriveProfilePageViewModel({
   userData,
@@ -263,6 +387,8 @@ export function deriveProfilePageViewModel({
   favoritesEnabled: favoritesEnabledInput,
   feedbackEnabled: feedbackEnabledInput,
   enableBecomeMentorCta = false,
+  safePersonalLinksCount = 0,
+  resolvedLocation,
 }: DeriveProfilePageViewModelInput): ProfilePageViewModel {
   const favoritesEnabled = favoritesEnabledInput ?? isFavoritesEnabled();
   const feedbackEnabled = feedbackEnabledInput ?? isFeedbackEnabled();
@@ -312,6 +438,11 @@ export function deriveProfilePageViewModel({
       feedback?.completedMeetingCount ??
       0);
 
+  const isMentee = Boolean(userData && !userData.is_mentor);
+  const industryHashtag = resolveProfileIndustryHashtag(userData);
+  const effectiveLocation =
+    resolvedLocation ?? (userData?.location || undefined);
+
   return {
     showScheduleRegion,
     isOwnMentorProfile,
@@ -327,6 +458,18 @@ export function deriveProfilePageViewModel({
     effectiveRatingCount,
     effectiveRatingAverage,
     effectiveCompletedMeetings,
-    mentorIndustryHashtag: resolveMentorIndustryHashtag(userData),
+    mentorIndustryHashtag: userData?.is_mentor ? industryHashtag : null,
+    menteeIndustryHashtag: isMentee ? industryHashtag : null,
+    menteeEmpty: isMentee
+      ? isMenteeProfileEmpty(
+          userData,
+          safePersonalLinksCount,
+          effectiveLocation
+        )
+      : false,
+    menteeLatestRole: isMentee ? resolveMenteeLatestRole(userData) : null,
+    menteeExperienceDisplay: isMentee
+      ? resolveMenteeExperienceSummary(userData)
+      : undefined,
   };
 }

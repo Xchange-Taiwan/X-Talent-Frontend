@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import React, { useState } from 'react';
 
-import type { OnboardingRole } from '@/schemas/onboarding';
+import type { OnboardingRole } from '@/schemas/profileSchema';
 
 import { RoleSelectorCards } from './RoleSelectorCards';
 

@@ -34,8 +34,11 @@ import type { MentorFeedbackState } from '@/hooks/user/feedback/useMentorFeedbac
 import { UserType } from '@/hooks/user/user-data/useUserData';
 import { normalizeMentorFromProfile } from '@/lib/mentor/mentorCardModel';
 import { BookingCalendarReader } from '@/lib/profile/bookingAvailability';
-import type { StoredMenteeDirectionMap } from '@/lib/profile/menteeDirectionView';
-import { deriveProfilePageViewModel } from '@/lib/profile/profileProjection';
+import type { StoredMenteeDirectionMap } from '@/lib/profile/menteeDirectionPreference';
+import {
+  deriveProfilePageViewModel,
+  resolveMenteeAvatarSrc,
+} from '@/lib/profile/profileProjection';
 import {
   formatSelectedDate,
   toDateKey,
@@ -175,6 +178,13 @@ export default function ProfilePageUI({
 }: Props) {
   const { selectedDate, setSelectedDate, getDayBookingStatus } = schedule;
 
+  const locationLabel = userData?.location || undefined;
+
+  const safePersonalLinks = useMemo(
+    () => resolveDisplaySocialLinks(userData?.personalLinks),
+    [userData?.personalLinks]
+  );
+
   const viewModel = useMemo(
     () =>
       deriveProfilePageViewModel({
@@ -185,6 +195,8 @@ export default function ProfilePageUI({
         feedback,
         favoritesEnabled: showBookmark,
         feedbackEnabled: feedbackEnabledProp,
+        safePersonalLinksCount: safePersonalLinks.length,
+        resolvedLocation: locationLabel,
       }),
     [
       userData,
@@ -194,6 +206,8 @@ export default function ProfilePageUI({
       feedback,
       showBookmark,
       feedbackEnabledProp,
+      safePersonalLinks.length,
+      locationLabel,
     ]
   );
 
@@ -208,6 +222,10 @@ export default function ProfilePageUI({
     effectiveRatingAverage,
     effectiveCompletedMeetings,
     mentorIndustryHashtag,
+    menteeIndustryHashtag,
+    menteeEmpty,
+    menteeLatestRole,
+    menteeExperienceDisplay,
   } = viewModel;
 
   // Only mentors viewing their own profile see booking status dots.
@@ -217,33 +235,23 @@ export default function ProfilePageUI({
     [isOwnMentorProfile, getDayBookingStatus]
   );
 
-  const locationLabel = userData?.location || undefined;
-
   const mentorSnapshot = useMemo(
     () =>
       userData?.is_mentor ? normalizeMentorFromProfile(userData) : undefined,
     [userData]
   );
 
-  const safePersonalLinks = useMemo(
-    () => resolveDisplaySocialLinks(userData?.personalLinks),
-    [userData?.personalLinks]
-  );
+  const effectiveAvatarSrc =
+    userData && !userData.is_mentor
+      ? resolveMenteeAvatarSrc(userData.avatar)
+      : avatarSrc;
 
   const {
-    menteeIndustryHashtag,
     menteeDirectionGroups,
     activeMenteeDirection,
     setActiveMenteeDirection,
-    menteeEmpty,
-    effectiveAvatarSrc,
-    menteeLatestRole,
-    menteeExperienceDisplay,
   } = useMenteeProfileView({
     userData,
-    avatarSrc,
-    resolvedLocation: locationLabel,
-    safePersonalLinksCount: safePersonalLinks.length,
     storedDirectionMap,
   });
 

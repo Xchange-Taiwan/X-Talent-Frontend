@@ -5,6 +5,7 @@ import {
   defaultValues,
   educationSchema,
   jobSchema,
+  onboardingDefaultValues,
 } from '@/schemas/profileSchema';
 
 const mentorRequiredFields = {
@@ -467,4 +468,155 @@ it('enforces agreed_guidelines === true during mentor onboarding (D-1, #961)', (
     agreed_guidelines: true,
   });
   expect(passed.success).toBe(true);
+});
+
+describe('createProfileFormSchema onboarding mode (#836 / #970 / #980)', () => {
+  const onboardingSchema = createProfileFormSchema(false, false, {
+    mode: 'onboarding',
+  });
+
+  it('validates Mentee single-page onboarding required fields (name, location, years_of_experience, want_position, want_skill, want_topic)', () => {
+    const validMentee = onboardingSchema.safeParse({
+      ...onboardingDefaultValues,
+      role: 'mentee',
+      name: 'John Doe',
+      language: 'zh_TW',
+      location: 'TWN',
+      years_of_experience: '1_3',
+      industry: 'TECH',
+      want_position: ['pos1'],
+      want_skill: ['skill1'],
+      want_topic: ['topic1'],
+    });
+    expect(validMentee.success).toBe(true);
+
+    const missingFields = onboardingSchema.safeParse({
+      ...onboardingDefaultValues,
+      role: 'mentee',
+      name: '',
+      location: '',
+      years_of_experience: '',
+      want_position: [],
+      want_skill: [],
+      want_topic: [],
+    });
+    expect(missingFields.success).toBe(false);
+    if (!missingFields.success) {
+      const byPath = new Map(
+        missingFields.error.issues.map((i) => [i.path.join('.'), i.message])
+      );
+      expect(byPath.get('name')).toBe('請輸入姓名');
+      expect(byPath.get('location')).toBe('請選擇地區');
+      expect(byPath.get('years_of_experience')).toBe('請選擇您的年資區間');
+      expect(byPath.get('want_position')).toBe('請至少選擇一個職位');
+      expect(byPath.get('want_skill')).toBe('請至少選擇一個技能');
+      expect(byPath.get('want_topic')).toBe('請至少選擇一個主題');
+    }
+  });
+
+  it('enforces Mentee onboarding single-position lock (#966) and max 10 skills/topics', () => {
+    const overPosition = onboardingSchema.safeParse({
+      ...onboardingDefaultValues,
+      role: 'mentee',
+      name: 'John Doe',
+      location: 'TWN',
+      years_of_experience: '1_3',
+      want_position: ['pos1', 'pos2'],
+      want_skill: ['skill1'],
+      want_topic: ['topic1'],
+    });
+    expect(overPosition.success).toBe(false);
+    expect(
+      overPosition.error?.issues.some(
+        (i) =>
+          i.path[0] === 'want_position' &&
+          i.message === '目前僅開放選擇 1 個職位方向'
+      )
+    ).toBe(true);
+
+    const overSkillsAndTopics = onboardingSchema.safeParse({
+      ...onboardingDefaultValues,
+      role: 'mentee',
+      name: 'John Doe',
+      location: 'TWN',
+      years_of_experience: '1_3',
+      want_position: ['pos1'],
+      want_skill: Array(11).fill('skill'),
+      want_topic: Array(11).fill('topic'),
+    });
+    expect(overSkillsAndTopics.success).toBe(false);
+    const paths = overSkillsAndTopics.error?.issues.map((i) => i.path[0]) ?? [];
+    expect(paths).toEqual(expect.arrayContaining(['want_skill', 'want_topic']));
+  });
+
+  it('accepts valid Mentor single-page onboarding payload and reports granular errors for missing Mentor requirements (#836)', () => {
+    const mentorPass = onboardingSchema.safeParse({
+      ...onboardingDefaultValues,
+      role: 'mentor',
+      name: '林導師',
+      avatar: 'https://s3.amazonaws.com/real-mentor.png',
+      agreed_guidelines: true,
+      location: 'TWN',
+      years_of_experience: '3_5',
+      industry: 'TECH',
+      about: '十年資深後端架構師，專注分散式系統與職涯轉職指導。',
+      have_topic: ['career'],
+      have_skill: ['backend'],
+      work_experiences: [
+        {
+          id: -1,
+          job: 'Senior Staff Engineer',
+          company: 'Acme Cloud',
+          is_primary: true,
+          job_period_start: '2020',
+          job_period_end: 'Present',
+          industry: 'TECH',
+          job_location: 'TWN',
+          description: '主導核心架構設計與工程團隊指導',
+        },
+      ],
+      educations: [
+        {
+          id: -1,
+          school: '國立臺灣大學',
+          subject: '資訊工程學系',
+          education_period_start: '2012',
+          education_period_end: '2016',
+        },
+      ],
+    });
+    expect(mentorPass.success).toBe(true);
+
+    const mentorBlocked = onboardingSchema.safeParse({
+      ...onboardingDefaultValues,
+      role: 'mentor',
+      name: '林導師',
+      avatar: 'default_1',
+      agreed_guidelines: false,
+      location: 'TWN',
+      years_of_experience: '3_5',
+      industry: '',
+      about: '   ',
+      have_topic: [],
+      have_skill: [],
+      work_experiences: [],
+      educations: [],
+    });
+    expect(mentorBlocked.success).toBe(false);
+    if (!mentorBlocked.success) {
+      const paths = mentorBlocked.error.issues.map((i) => i.path.join('.'));
+      expect(paths).toEqual(
+        expect.arrayContaining([
+          'agreed_guidelines',
+          'avatarFile',
+          'industry',
+          'about',
+          'have_topic',
+          'have_skill',
+          'work_experiences',
+          'educations',
+        ])
+      );
+    }
+  });
 });

@@ -36,7 +36,6 @@ import {
 import {
   createProfileFormSchema,
   defaultValues,
-  type ProfileFormInput,
   type ProfileFormValues,
   validateAvatarFile,
 } from '@/schemas/profileSchema';
@@ -48,11 +47,7 @@ import { useFormErrorScroll } from './useFormErrorScroll';
 import { useMenteeDirectionPreference } from './useMenteeDirectionPreference';
 import { usePresetAwareAvatarSession } from './usePresetAwareAvatarSession';
 
-export type ProfileFormContext = UseFormReturn<
-  ProfileFormInput,
-  unknown,
-  ProfileFormValues
->;
+export type ProfileFormContext = UseFormReturn<ProfileFormValues>;
 
 export type { ProfileDirtyFields };
 
@@ -147,7 +142,7 @@ export function useProfileEditorSession({
   const requireMenteePosition = !isDualTrackV2Enabled();
   const resolver = useMemo(
     () =>
-      zodResolver<ProfileFormInput, unknown, ProfileFormValues>(
+      zodResolver(
         createProfileFormSchema(isMentorRole, isMentorOnboarding, {
           requireMenteePosition,
         })
@@ -155,7 +150,7 @@ export function useProfileEditorSession({
     [isMentorOnboarding, isMentorRole, requireMenteePosition]
   );
 
-  const form = useForm<ProfileFormInput, unknown, ProfileFormValues>({
+  const form = useForm<ProfileFormValues>({
     resolver,
     defaultValues,
   });

@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/popover';
 import { FOCUS_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
-import type { OnboardingRole } from '@/schemas/onboarding';
+import type { OnboardingRole } from '@/schemas/profileSchema';
 
 export interface RoleSelectorCardsProps {
   value: OnboardingRole;

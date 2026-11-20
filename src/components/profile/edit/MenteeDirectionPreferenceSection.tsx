@@ -1,11 +1,10 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { useFormState, useWatch } from 'react-hook-form';
+import { type UseFormReturn, useFormState, useWatch } from 'react-hook-form';
 
 import type { Category } from '@/components/ui/category-multi-select';
 import { CompactCategoryPicker } from '@/components/ui/compact-category-picker';
-import type { ProfileFormContext } from '@/hooks/user/profile/useProfileEditorSession';
 import {
   computeDirectionSelectLimit,
   type MenteeDirectionMap,
@@ -14,17 +13,16 @@ import {
 } from '@/lib/profile/menteeDirectionPreference';
 import { FOCUS_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
-import { MENTEE_MAX_WANT_POSITIONS } from '@/schemas/profileSchema';
+import {
+  MENTEE_MAX_WANT_POSITIONS,
+  type ProfileFormValues,
+} from '@/schemas/profileSchema';
 
 import { RequiredIndicator } from './RequiredIndicator';
 import { Section } from './Section';
-import {
-  asProfileFormContext,
-  type SharedProfileEditorForm,
-} from './sharedEditorForm';
 
 export interface MenteeDirectionPreferenceSectionProps {
-  form: SharedProfileEditorForm;
+  form: UseFormReturn<ProfileFormValues>;
   wantPositionCategories: Category[];
   wantSkillCategories: Category[];
   wantTopicCategories: Category[];
@@ -51,15 +49,7 @@ function MenteeDirectionPreferenceSectionInner({
   directionMap,
   onDirectionMapChange,
   required = false,
-}: {
-  form: ProfileFormContext;
-  wantPositionCategories: Category[];
-  wantSkillCategories: Category[];
-  wantTopicCategories: Category[];
-  directionMap: MenteeDirectionMap;
-  onDirectionMapChange: (next: MenteeDirectionMap) => void;
-  required?: boolean;
-}) {
+}: MenteeDirectionPreferenceSectionProps) {
   const watchedPositions = useWatch({
     control: form.control,
     name: 'want_position',
@@ -409,18 +399,6 @@ function MenteeDirectionPreferenceSectionInner({
   );
 }
 
-const MemoizedMenteeDirectionPreferenceSection = React.memo(
+export const MenteeDirectionPreferenceSection = React.memo(
   MenteeDirectionPreferenceSectionInner
 );
-
-export function MenteeDirectionPreferenceSection({
-  form,
-  ...rest
-}: MenteeDirectionPreferenceSectionProps) {
-  return (
-    <MemoizedMenteeDirectionPreferenceSection
-      form={asProfileFormContext(form)}
-      {...rest}
-    />
-  );
-}

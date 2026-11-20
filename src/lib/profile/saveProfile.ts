@@ -18,7 +18,6 @@ import {
   type SearchMentorsFn,
 } from '@/lib/profile/convergence';
 import {
-  type MenteeOnboardingIntentValues,
   planProfileMutation,
   type PlanProfileMutationContext,
   type ProfileMutationIntent,
@@ -38,7 +37,6 @@ import type { IndustryOption } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
 
 export {
-  type MenteeOnboardingIntentValues,
   planProfileMutation,
   type PlanProfileMutationContext,
   type ProfileMutationIntent,

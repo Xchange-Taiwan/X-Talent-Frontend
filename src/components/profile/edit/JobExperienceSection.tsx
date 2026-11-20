@@ -2,6 +2,7 @@
 
 import { PlusIcon, TrashIcon } from '@radix-ui/react-icons';
 import React from 'react';
+import type { UseFormReturn } from 'react-hook-form';
 
 import { ConfirmDialog } from '@/components/profile/edit/ConfirmDialog';
 import { ExperienceReorderHeader } from '@/components/profile/edit/ExperienceReorderHeader';
@@ -28,12 +29,9 @@ import {
   useRepeatablePeriodSection,
   YEAR_OPTIONS,
 } from '@/hooks/user/profile/useRepeatablePeriodSection';
+import type { ProfileFormValues } from '@/schemas/profileSchema';
 
 import { Section } from './Section';
-import {
-  asProfileFormContext,
-  type SharedProfileEditorForm,
-} from './sharedEditorForm';
 
 interface Props {
   industries: {
@@ -44,17 +42,16 @@ interface Props {
     value: string;
     text: string;
   }[];
-  form: SharedProfileEditorForm;
+  form: UseFormReturn<ProfileFormValues>;
   isMentor: boolean;
 }
 
 export const JobExperienceSection = ({
   industries,
   locations,
-  form: rawForm,
+  form,
   isMentor,
 }: Props) => {
-  const form = asProfileFormContext(rawForm);
   const {
     control,
     getValues,
