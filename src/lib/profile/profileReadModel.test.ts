@@ -1,11 +1,6 @@
 import { fromPartial } from '@total-typescript/shoehorn';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  clearUserProfileDtoCache,
-  getUserProfileDtoFromCache,
-  primeUserProfileDtoCache,
-} from '@/lib/cache/userProfileDtoCache';
 import { encode, toWireExperiences } from '@/lib/profile/experienceCodec';
 import {
   normalizePositiveUserId,
@@ -343,22 +338,48 @@ describe('profileReadModel', () => {
     unsubOther();
   });
 
-  it('shares 100% underlying state between singleton profileReadModel and userProfileDtoCache wrappers', () => {
-    const dto = makeDto(88, { name: 'Shared Singleton DTO' });
+  it('evaluates shouldCache, notifies transition & key observers, and evicts on forced refresh errors', async () => {
+    const model = createProfileReadModel();
+    const key = { userId: 88, language: 'zh_TW' };
+    const dto = makeDto(88, { name: 'Cached DTO' });
+    const updatedDto = makeDto(88, { name: 'Updated DTO' });
 
-    primeUserProfileDtoCache(88, 'zh_TW', dto);
-    expect(profileReadModel.get({ userId: 88, language: 'zh_TW' })).toBe(dto);
-    expect(profileReadModel.isOptimisticTransitionActive()).toBe(true);
+    const keyObserver = vi.fn();
+    const transitionObserver = vi.fn();
+    const unsubKey = model.observe(key, keyObserver);
+    const unsubTransition = model.subscribeTransition(transitionObserver);
 
-    profileReadModel.invalidateUser(88);
-    expect(getUserProfileDtoFromCache(88, 'zh_TW')).toBeNull();
-    expect(profileReadModel.isOptimisticTransitionActive()).toBe(false);
+    vi.setSystemTime(1750000000000);
+    model.prime(key, dto);
+    expect(model.getLastPrimedTime()).toBe(1750000000000);
+    expect(model.isOptimisticTransitionActive()).toBe(true);
+    expect(keyObserver).toHaveBeenCalledTimes(1);
+    expect(transitionObserver).toHaveBeenCalledTimes(1);
 
-    profileReadModel.prime({ userId: 88, language: 'en_US' }, dto);
-    expect(getUserProfileDtoFromCache(88, 'en_US')).toBe(dto);
+    expect(model.shouldCache(key, dto)).toBe(false);
+    expect(model.shouldCache(key, updatedDto)).toBe(true);
+    expect(model.shouldCache(key, null)).toBe(false);
+    expect(model.shouldCache(null, null)).toBe(false);
 
-    clearUserProfileDtoCache(88);
-    expect(getUserProfileDtoFromCache(88, 'en_US')).toBeNull();
+    vi.advanceTimersByTime(PROFILE_READ_MODEL_TTL_MS + 1);
+    expect(model.shouldCache(key, dto)).toBe(true);
+
+    await expect(
+      model.refresh(key, async () => {
+        throw new Error('Forced refresh failed');
+      })
+    ).resolves.toEqual({
+      data: null,
+      isLoading: false,
+      error: 'Forced refresh failed',
+    });
+    expect(model.peek(key)).toBeUndefined();
+
+    model.invalidate(key);
+    expect(model.isOptimisticTransitionActive()).toBe(false);
+
+    unsubKey();
+    unsubTransition();
   });
 
   it('isolates 64-bit string user IDs above Number.MAX_SAFE_INTEGER across cache, optimistic identity, invalidation, and key parsing (#953)', () => {

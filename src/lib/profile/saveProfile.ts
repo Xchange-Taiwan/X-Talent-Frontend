@@ -4,7 +4,6 @@ import { trackEvent } from '@/lib/analytics';
 import { getPendingFavoriteProfilePath } from '@/lib/favorites';
 import {
   applyIdentityPatch,
-  deriveOptimisticIdentityPatch,
   type IdentitySnapshot,
   reconcileIdentityWithBackend,
 } from '@/lib/identity/identityProjection';
@@ -14,31 +13,22 @@ import {
   CONVERGENCE_BUDGET,
   FAST_CONVERGENCE_BUDGET,
   type FetchProfileRecordFn,
-  type MentorCardFields,
   ProfileRecordAdapter,
   runConvergence,
-  SearchIndexSyncAdapter,
   type SearchMentorsFn,
 } from '@/lib/profile/convergence';
 import {
-  decode,
-  fromWireExperiences,
-  type MentorExperiencePayload,
-  toWireExperiences,
-} from '@/lib/profile/experienceCodec';
+  type MenteeOnboardingIntentValues,
+  planProfileMutation,
+  type PlanProfileMutationContext,
+  type ProfileMutationIntent,
+  type ProfileMutationPlan,
+} from '@/lib/profile/planProfileMutation';
 import { confirmProfileSynced } from '@/lib/profile/pollUntilSynced';
 import { profileReadModel } from '@/lib/profile/profileReadModel';
-import {
-  computeDirtyStates,
-  extractValidLinks,
-  hasDirtyValue,
-  mapFormValuesToPayload,
-  type ProfileDirtyFields,
-  resolveOptimisticIndustry,
-} from '@/lib/profile/profileSaveAdapter';
-import type { OnboardingFormValues } from '@/schemas/onboarding';
+import type { ProfileDirtyFields } from '@/lib/profile/profileSaveAdapter';
 import type { ProfileFormValues } from '@/schemas/profileSchema';
-import { ExperienceType } from '@/services/profile/experienceType';
+import type { AvatarUploadSession } from '@/services/profile/avatarUploadSession';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 import {
   type MentorProfileWritePayload,
@@ -47,17 +37,34 @@ import {
 import type { IndustryOption } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
 
+export {
+  type MenteeOnboardingIntentValues,
+  planProfileMutation,
+  type PlanProfileMutationContext,
+  type ProfileMutationIntent,
+  type ProfileMutationPlan,
+};
+
 const DEFAULT_FAST_FETCH_TIMEOUT_MS = 800;
+
+export type ProfileMutationFailureStep = 'avatar_upload' | 'profile_write';
 
 /**
  * Custom error subclass marking errors that have already been explicitly logged
  * via `captureFlowFailure` inside `commitProfileMutation`, preventing
- * double-reporting by outer hooks.
+ * double-reporting by outer hooks and surfacing the named failure `step`.
  */
 export class LoggedError extends Error {
-  constructor(message?: string, options?: { cause?: unknown }) {
+  readonly step?: ProfileMutationFailureStep;
+
+  constructor(
+    message?: string,
+    options?: { cause?: unknown; step?: ProfileMutationFailureStep }
+  ) {
     super(message, options);
     this.name = 'LoggedError';
+    this.step = options?.step;
+    Object.setPrototypeOf(this, LoggedError.prototype);
   }
 }
 
@@ -68,32 +75,6 @@ export interface SaveProfileConvergenceBudget {
   searchIndexMaxRetries?: number;
   searchIndexIntervalMs?: number;
 }
-
-export type MenteeOnboardingIntentValues = Pick<
-  OnboardingFormValues,
-  | 'name'
-  | 'avatar'
-  | 'avatarFile'
-  | 'language'
-  | 'location'
-  | 'years_of_experience'
-  | 'industry'
-  | 'want_position'
-  | 'want_skill'
-  | 'want_topic'
->;
-
-export type ProfileMutationIntent =
-  | {
-      mode: 'edit' | 'mentor-onboarding';
-      values: ProfileFormValues;
-      dirtyFields?: ProfileDirtyFields;
-      currentDto?: MentorProfileVO | null;
-    }
-  | {
-      mode: 'mentee-onboarding';
-      values: MenteeOnboardingIntentValues;
-    };
 
 export interface CommitProfileContext {
   pageUserId?: string;
@@ -113,7 +94,14 @@ export interface SaveProfileContext {
   convergenceBudget?: SaveProfileConvergenceBudget;
 }
 
+export type AvatarMutationSession = Pick<
+  AvatarUploadSession,
+  'resolve' | 'markCommitted'
+> &
+  Partial<Pick<AvatarUploadSession, 'abort' | 'rollback'>>;
+
 export interface ProfileSavePort {
+  avatarSession?: AvatarMutationSession;
   uploadAvatar?: (
     file: File,
     userId: number | undefined
@@ -169,34 +157,14 @@ async function fastSyncProfileRecord(
   }
 }
 
-function buildMenteeOnboardingWritePayload(
-  values: MenteeOnboardingIntentValues,
-  avatar: string
-): MentorProfileWritePayload {
-  return {
-    name: values.name,
-    avatar,
-    location: values.location ?? '',
-    years_of_experience: values.years_of_experience ?? '',
-    industry: values.industry ?? '',
-    language: values.language || 'zh_TW',
-    is_mentor: false,
-    onboarding: true,
-    about: '',
-    personal_statement: '',
-    want_position: values.want_position ?? [],
-    want_skill: values.want_skill ?? [],
-    want_topic: values.want_topic ?? [],
-  };
-}
-
 /**
  * Shared profile write pipeline across `edit`, `mentor-onboarding`, and
  * `mentee-onboarding` modes:
- * 1. Uploads any pending `avatarFile` via S3 presigned POST (`uploadAvatar`)
- * 2. Encodes canonical `MentorProfileWritePayload` (`about` normalized to `string`,
- *    zero UI-only RHF keys leaked) and writes to `PUT /v1/mentors/{id}/profile`
- * 3. Invalidates `profileReadModel` + `mentorPoolReadModel` and triggers ISR revalidation
+ * 1. Resolves any pending `avatarFile` via two-phase `AvatarUploadSession` (retaining
+ *    prior S3 avatar snapshot until Step 2 commits) or `uploadAvatar` fallback
+ * 2. Plans the mutation in a single pass via `planProfileMutation`, writes
+ *    `PUT /v1/mentors/{id}/profile`, and commits the avatar session only on success
+ * 3. Invalidates `mentorPoolReadModel` and triggers ISR + `updateTag` revalidation
  * 4. Applies synchronous optimistic `MentorProfileVO` priming + NextAuth session patch
  * 5. Navigates immediately to target route
  * 6. Runs background full-field convergence (`ProfileRecordAdapter` + mentor search index)
@@ -213,6 +181,7 @@ export async function commitProfileMutation(
     navigationTarget,
   } = context;
   const {
+    avatarSession,
     uploadAvatar: uploadAvatarPort,
     writeProfile: writeProfilePort,
     fetchProfile: fetchProfilePort,
@@ -233,12 +202,6 @@ export async function commitProfileMutation(
   const hasValidResolvedUserId =
     Boolean(resolvedUserId) && !Number.isNaN(resolvedUserId);
 
-  const isMentorOnboarding = intent.mode === 'mentor-onboarding';
-  const currentDto =
-    intent.mode === 'mentee-onboarding' ? null : (intent.currentDto ?? null);
-  const dirtyFields =
-    intent.mode === 'mentee-onboarding' ? undefined : intent.dirtyFields;
-
   const fastFetchTimeoutMs =
     convergenceBudget?.fastFetchTimeoutMs ?? DEFAULT_FAST_FETCH_TIMEOUT_MS;
   const profileMaxRetries =
@@ -252,71 +215,49 @@ export async function commitProfileMutation(
     convergenceBudget?.searchIndexIntervalMs ??
     FAST_CONVERGENCE_BUDGET.intervalMs;
 
-  // Step 1: Upload Avatar
-  async function step1UploadAvatar(): Promise<string | undefined> {
-    let avatarUrl = intent.values.avatar;
-    if (intent.values.avatarFile) {
-      try {
-        const uploadTargetUserId =
-          validSessionUserId ??
-          (hasValidResolvedUserId ? resolvedUserId : undefined);
-        const uploader = uploadAvatarPort
-          ? uploadAvatarPort(intent.values.avatarFile, uploadTargetUserId)
-          : updateAvatar(intent.values.avatarFile, uploadTargetUserId);
-        const newUrl = await uploader;
-        avatarUrl = newUrl ?? avatarUrl;
-      } catch (err) {
-        captureFlowFailure({
-          flow: 'profile_update',
-          step: 'avatar_upload',
-          message: err instanceof Error ? err.message : 'Avatar upload failed',
-          level: 'warning',
-        });
-        throw new LoggedError(
-          err instanceof Error ? err.message : 'Avatar upload failed',
-          { cause: err }
-        );
-      }
-    }
-    return avatarUrl;
-  }
-
-  // Step 2: Write Profile & Experiences
-  async function step2WriteProfile(avatarUrl: string | undefined): Promise<{
-    payload: MentorProfileWritePayload;
-    experiencesDirty: boolean;
-  }> {
-    let payload: MentorProfileWritePayload;
-    let profileDirty = true;
-    let experiencesDirty = false;
-
-    if (intent.mode === 'mentee-onboarding') {
-      payload = buildMenteeOnboardingWritePayload(
-        intent.values,
-        avatarUrl ?? ''
-      );
-    } else {
-      const dirtyState = computeDirtyStates(
-        intent.values,
-        dirtyFields,
-        isMentorOnboarding
-      );
-      experiencesDirty = dirtyState.experiencesDirty;
-      profileDirty = dirtyState.profileDirty;
-      payload = mapFormValuesToPayload(
-        intent.values,
-        avatarUrl ?? '',
-        experiencesDirty,
-        currentDto,
-        isMentorOnboarding
-      );
+  // Step 1: Resolve Avatar (Phase 1 — retains pre-edit S3 snapshot until Step 2 succeeds)
+  async function step1ResolveAvatar(): Promise<string | undefined> {
+    if (!intent.values.avatarFile) {
+      return undefined;
     }
 
     try {
-      if (profileDirty) {
-        const writeFn = writeProfilePort ?? updateProfile;
-        await writeFn(resolvedPageUserId, payload);
+      const uploadTargetUserId =
+        validSessionUserId ??
+        (hasValidResolvedUserId ? resolvedUserId : undefined);
+      if (avatarSession) {
+        return await avatarSession.resolve(intent.values.avatarFile);
       }
+      if (uploadAvatarPort) {
+        return await uploadAvatarPort(
+          intent.values.avatarFile,
+          uploadTargetUserId
+        );
+      }
+      return await updateAvatar(intent.values.avatarFile, uploadTargetUserId);
+    } catch (err) {
+      avatarSession?.abort?.();
+      captureFlowFailure({
+        flow: 'profile_update',
+        step: 'avatar_upload',
+        message: err instanceof Error ? err.message : 'Avatar upload failed',
+        level: 'warning',
+      });
+      throw new LoggedError(
+        err instanceof Error ? err.message : 'Avatar upload failed',
+        { cause: err, step: 'avatar_upload' }
+      );
+    }
+  }
+
+  // Step 2: Write Profile & Commit Two-Phase Avatar Session
+  async function step2WriteProfile(plan: ProfileMutationPlan): Promise<void> {
+    try {
+      if (plan.shouldWriteProfile) {
+        const writeFn = writeProfilePort ?? updateProfile;
+        await writeFn(plan.resolvedPageUserId, plan.wirePayload);
+      }
+      avatarSession?.markCommitted();
     } catch (err) {
       captureFlowFailure({
         flow: 'profile_update',
@@ -325,10 +266,9 @@ export async function commitProfileMutation(
       });
       throw new LoggedError(
         err instanceof Error ? err.message : 'Profile write failed',
-        { cause: err }
+        { cause: err, step: 'profile_write' }
       );
     }
-    return { payload, experiencesDirty };
   }
 
   // Step 3: Cache Invalidation & Server Path Revalidation
@@ -337,34 +277,14 @@ export async function commitProfileMutation(
   // while `EditProfileContainer` is still mounted and awaiting async server
   // revalidation causes `useUserProfileDto` to emit `USER_NOT_FOUND` and
   // briefly flash "載入失敗，請稍後再試。" before navigation completes.
-  async function step3RevalidateServerPaths() {
+  async function step3RevalidateServerPaths(targetPageUserId: string) {
     mentorPoolReadModel.invalidateAfterMutation();
 
-    if (resolvedPageUserId) {
-      await revalidateProfilePath(resolvedPageUserId).catch((e) => {
+    if (targetPageUserId) {
+      await revalidateProfilePath(targetPageUserId).catch((e) => {
         console.error('revalidateProfilePath failed:', e);
       });
     }
-  }
-
-  // Step 4: Apply the optimistic identity snapshot & prime profileReadModel
-  const hasExplicitDirtyFields = dirtyFields !== undefined;
-  const workDirty = hasExplicitDirtyFields
-    ? hasDirtyValue(dirtyFields.work_experiences)
-    : false;
-
-  function resolveCleanWorkField(
-    dtoValue: string | null | undefined,
-    sessionValue: string | null | undefined,
-    payloadValue: string | undefined
-  ): string | undefined {
-    if (dtoValue !== undefined) {
-      return dtoValue || undefined;
-    }
-    if (sessionValue !== undefined) {
-      return sessionValue || undefined;
-    }
-    return payloadValue || undefined;
   }
 
   function buildSessionIdentityUpdater(): (
@@ -387,148 +307,50 @@ export async function commitProfileMutation(
       });
   }
 
+  // Step 4: Apply the optimistic identity snapshot & prime profileReadModel
   async function step4ApplyOptimisticIdentity(
-    identitySnapshot: IdentitySnapshot,
+    plan: ProfileMutationPlan,
     updateSessionIdentity: (
       snapshot: IdentitySnapshot
-    ) => Promise<Session | null>,
-    payload: MentorProfileWritePayload,
-    experiencesPayload: MentorExperiencePayload[] | undefined
+    ) => Promise<Session | null>
   ): Promise<MentorProfileVO> {
-    const industryDirty =
-      intent.mode === 'mentee-onboarding'
-        ? true
-        : Boolean(dirtyFields && hasDirtyValue(dirtyFields.industry));
-    const aboutDirty =
-      intent.mode !== 'mentee-onboarding' &&
-      Boolean(dirtyFields && hasDirtyValue(dirtyFields.about));
-    const statementDirty =
-      intent.mode !== 'mentee-onboarding' &&
-      Boolean(dirtyFields && hasDirtyValue(dirtyFields.statement));
-    const locationDirty =
-      intent.mode !== 'mentee-onboarding' &&
-      Boolean(dirtyFields && hasDirtyValue(dirtyFields.location));
-    const yearsDirty =
-      intent.mode !== 'mentee-onboarding' &&
-      Boolean(dirtyFields && hasDirtyValue(dirtyFields.years_of_experience));
-
-    const optimisticIndustry = resolveOptimisticIndustry(
-      intent.values.industry,
-      industryCatalog,
-      currentDto?.industry,
-      industryDirty
-    );
-
-    const resolvedExperiences =
-      experiencesPayload !== undefined
-        ? toWireExperiences(experiencesPayload)
-        : currentDto?.experiences !== undefined &&
-            currentDto.experiences !== null
-          ? currentDto.experiences
-          : intent.mode === 'mentee-onboarding'
-            ? []
-            : identitySnapshot.personalLinks.length > 0
-              ? toWireExperiences([
-                  {
-                    category: ExperienceType.LINK,
-                    order: 3,
-                    mentor_experiences_metadata: {
-                      data: identitySnapshot.personalLinks.map((link) => ({
-                        platform: link.platform,
-                        url: link.url,
-                      })),
-                    },
-                  },
-                ])
-              : null;
-
-    const resolvedLanguage =
-      intent.mode === 'mentee-onboarding'
-        ? intent.values.language || 'zh_TW'
-        : 'zh_TW';
-
-    const optimisticDto: MentorProfileVO = {
-      ...(currentDto ?? {}),
-      user_id: resolvedUserId,
-      name: identitySnapshot.name,
-      avatar: identitySnapshot.avatar,
-      job_title: identitySnapshot.jobTitle ?? null,
-      company: identitySnapshot.company ?? null,
-      years_of_experience:
-        intent.mode === 'mentee-onboarding'
-          ? intent.values.years_of_experience || null
-          : yearsDirty
-            ? payload.years_of_experience || null
-            : payload.years_of_experience ||
-              currentDto?.years_of_experience ||
-              null,
-      location:
-        intent.mode === 'mentee-onboarding'
-          ? intent.values.location || null
-          : locationDirty
-            ? payload.location || null
-            : payload.location || currentDto?.location || null,
-      personal_statement:
-        intent.mode === 'mentee-onboarding'
-          ? null
-          : statementDirty
-            ? payload.personal_statement || null
-            : payload.personal_statement ||
-              currentDto?.personal_statement ||
-              null,
-      about:
-        intent.mode === 'mentee-onboarding'
-          ? null
-          : aboutDirty
-            ? payload.about || null
-            : payload.about || currentDto?.about || null,
-      seniority_level: currentDto?.seniority_level ?? null,
-      onboarding: identitySnapshot.onBoarding ?? null,
-      is_mentor: identitySnapshot.isMentor ?? null,
-      language: resolvedLanguage,
-      industry: optimisticIndustry,
-      want_position: payload.want_position ?? [],
-      want_skill: payload.want_skill ?? [],
-      want_topic: payload.want_topic ?? [],
-      have_skill: payload.have_skill ?? [],
-      have_topic: payload.have_topic ?? [],
-      experiences: resolvedExperiences,
-    };
-
-    if (hasValidResolvedUserId) {
+    if (plan.hasValidResolvedUserId) {
       // Evict alternate language cache entries while immediately priming the
       // active language synchronously so active subscribers never observe a
       // null DTO gap during revalidation / session sync.
       for (const altLang of ['zh_TW', 'en_US']) {
-        if (altLang !== resolvedLanguage) {
-          profileReadModel.evict({ userId: resolvedUserId, language: altLang });
+        if (altLang !== plan.resolvedLanguage) {
+          profileReadModel.evict({
+            userId: plan.resolvedUserId,
+            language: altLang,
+          });
         }
       }
       profileReadModel.prime(
-        { userId: resolvedUserId, language: resolvedLanguage },
-        optimisticDto
+        { userId: plan.resolvedUserId, language: plan.resolvedLanguage },
+        plan.optimisticDto
       );
     }
 
-    await step3RevalidateServerPaths();
+    await step3RevalidateServerPaths(plan.resolvedPageUserId);
 
-    await applyIdentityPatch(identitySnapshot, {
+    await applyIdentityPatch(plan.identitySnapshot, {
       primeProfileDto: () => {
-        if (hasValidResolvedUserId) {
+        if (plan.hasValidResolvedUserId) {
           profileReadModel.prime(
-            { userId: resolvedUserId, language: resolvedLanguage },
-            optimisticDto
+            { userId: plan.resolvedUserId, language: plan.resolvedLanguage },
+            plan.optimisticDto
           );
         }
       },
       updateSession: updateSessionIdentity,
     });
 
-    return optimisticDto;
+    return plan.optimisticDto;
   }
 
   // Step 5: Immediate Navigation
-  function step5ImmediateNavigation() {
+  function step5ImmediateNavigation(plan: ProfileMutationPlan) {
     if (intent.mode === 'mentee-onboarding') {
       trackEvent({ name: 'onboarding_completed', feature: 'onboarding' });
       const target =
@@ -540,70 +362,47 @@ export async function commitProfileMutation(
     trackEvent({ name: 'profile_update_submitted', feature: 'profile' });
     if (navigationTarget) {
       navigate(navigationTarget);
-    } else if (isMentorOnboarding) {
+    } else if (plan.isMentorOnboarding) {
       navigate('/profile/card');
     } else {
-      navigate(`/profile/${resolvedPageUserId}`);
+      navigate(`/profile/${plan.resolvedPageUserId}`);
     }
   }
 
   // Step 6: Background Prime & Reconcile
   function step6BackgroundReconcile(
-    avatarUrl: string | undefined,
-    payload: MentorProfileWritePayload,
-    experiencesDirty: boolean,
-    optimisticDto: MentorProfileVO,
-    identitySnapshot: IdentitySnapshot,
+    plan: ProfileMutationPlan,
     updateSessionIdentity: (
       snapshot: IdentitySnapshot
     ) => Promise<Session | null>
   ) {
-    const expectedRecordDto: Partial<MentorProfileVO> = {
-      name: optimisticDto.name,
-      avatar: avatarExplicitlyCleared ? null : avatarUrl || undefined,
-      location: optimisticDto.location,
-      years_of_experience: optimisticDto.years_of_experience,
-      personal_statement: optimisticDto.personal_statement,
-      about: optimisticDto.about,
-      industry: optimisticDto.industry,
-      want_position: optimisticDto.want_position,
-      want_skill: optimisticDto.want_skill,
-      want_topic: optimisticDto.want_topic,
-      have_skill: optimisticDto.have_skill,
-      have_topic: optimisticDto.have_topic,
-      job_title: experiencesDirty ? optimisticDto.job_title : undefined,
-      company: experiencesDirty ? optimisticDto.company : undefined,
-      experiences: experiencesDirty ? optimisticDto.experiences : undefined,
-      is_mentor: intent.mode === 'edit' ? null : optimisticDto.is_mentor,
-      onboarding: intent.mode === 'edit' ? null : optimisticDto.onboarding,
-    };
-
-    const resolvedLanguage = optimisticDto.language || 'zh_TW';
-
     void (async () => {
       try {
         let latest: MentorProfileVO | null = null;
-        if (validSessionUserId) {
+        if (plan.validSessionUserId) {
           latest = await fastSyncProfileRecord(
-            validSessionUserId,
-            expectedRecordDto,
+            plan.validSessionUserId,
+            plan.expectedRecordDto,
             fastFetchTimeoutMs,
             fetchProfilePort,
-            resolvedLanguage
+            plan.resolvedLanguage
           );
           if (latest) {
             profileReadModel.prime(
-              { userId: validSessionUserId, language: resolvedLanguage },
+              {
+                userId: plan.validSessionUserId,
+                language: plan.resolvedLanguage,
+              },
               latest
             );
           }
         }
-        if (!latest && hasValidResolvedUserId) {
+        if (!latest && plan.hasValidResolvedUserId) {
           const recordAdapter = new ProfileRecordAdapter(
-            resolvedUserId,
-            expectedRecordDto,
+            plan.resolvedUserId,
+            plan.expectedRecordDto,
             fetchProfilePort,
-            resolvedLanguage
+            plan.resolvedLanguage
           );
           const { confirmed, latest: polled } = await runConvergence(
             recordAdapter,
@@ -613,42 +412,31 @@ export async function commitProfileMutation(
           latest = polled;
           if (confirmed && polled) {
             profileReadModel.prime(
-              { userId: resolvedUserId, language: resolvedLanguage },
+              { userId: plan.resolvedUserId, language: plan.resolvedLanguage },
               polled
             );
           }
         }
 
-        await reconcileIdentityWithBackend(identitySnapshot, latest, {
+        await reconcileIdentityWithBackend(plan.identitySnapshot, latest, {
           updateSession: updateSessionIdentity,
         });
 
         const isMentorRelevant =
           intent.mode === 'mentee-onboarding'
             ? false
-            : isMentorOnboarding ||
+            : plan.isMentorOnboarding ||
               Boolean(sessionUser?.isMentor) ||
               Boolean(latest?.is_mentor);
 
-        const cardFields: MentorCardFields = {
-          name: payload.name,
-          jobTitle: payload.job_title ?? '',
-          company: payload.company ?? '',
-          about: payload.about,
-          yearsOfExperience: payload.years_of_experience,
-          haveTopic: payload.have_topic ?? [],
-          haveSkill: payload.have_skill ?? [],
-          avatar: avatarUrl ?? '',
-        };
-
         await confirmProfileSynced(
-          resolvedUserId,
-          cardFields,
+          plan.resolvedUserId,
+          plan.cardFields,
           isMentorRelevant,
           async () => {
             mentorPoolReadModel.invalidateAfterMutation();
-            if (resolvedPageUserId) {
-              await revalidateProfilePath(resolvedPageUserId).catch(
+            if (plan.resolvedPageUserId) {
+              await revalidateProfilePath(plan.resolvedPageUserId).catch(
                 (e: unknown) => {
                   captureFlowFailure({
                     flow: 'profile_update',
@@ -660,19 +448,10 @@ export async function commitProfileMutation(
               );
             }
           },
-          async (id, fields) => {
-            if (!id || Number.isNaN(id)) return true;
-            const searchAdapter = new SearchIndexSyncAdapter(
-              id,
-              fields,
-              searchMentorsPort
-            );
-            const { confirmed } = await runConvergence(
-              searchAdapter,
-              searchIndexMaxRetries,
-              searchIndexIntervalMs
-            );
-            return confirmed;
+          {
+            maxRetries: searchIndexMaxRetries,
+            intervalMs: searchIndexIntervalMs,
+            searchMentors: searchMentorsPort,
           }
         );
       } catch (e) {
@@ -686,137 +465,22 @@ export async function commitProfileMutation(
   }
 
   // Enforce the execution order of the six steps structurally
-  const avatarUrl = await step1UploadAvatar();
-  const { payload, experiencesDirty } = await step2WriteProfile(avatarUrl);
-
-  const avatarExplicitlyCleared =
-    intent.mode !== 'mentee-onboarding' &&
-    Boolean(dirtyFields && hasDirtyValue(dirtyFields.avatar)) &&
-    !avatarUrl &&
-    !intent.values.avatarFile;
-
-  const fallbackAvatar = avatarExplicitlyCleared
-    ? null
-    : sessionUser?.avatar ||
-      currentDto?.avatar ||
-      (intent.values.avatar ? intent.values.avatar : null);
-
-  const previousAvatar = sessionUser?.avatar || currentDto?.avatar || '';
-  const resolvedAvatar = avatarUrl || '';
-  const didAvatarChange =
-    avatarExplicitlyCleared ||
-    Boolean(intent.values.avatarFile) ||
-    (Boolean(resolvedAvatar) && resolvedAvatar !== previousAvatar);
-
-  const nextAvatarUpdatedAt = didAvatarChange
-    ? Date.now()
-    : sessionUser?.avatarUpdatedAt;
-
-  const optimisticJobTitle =
-    intent.mode === 'mentee-onboarding'
-      ? undefined
-      : hasExplicitDirtyFields
-        ? workDirty
-          ? payload.job_title || undefined
-          : resolveCleanWorkField(
-              currentDto?.job_title,
-              sessionUser?.jobTitle,
-              payload.job_title
-            )
-        : payload.job_title ||
-          currentDto?.job_title ||
-          sessionUser?.jobTitle ||
-          undefined;
-
-  const optimisticCompany =
-    intent.mode === 'mentee-onboarding'
-      ? undefined
-      : hasExplicitDirtyFields
-        ? workDirty
-          ? payload.company || undefined
-          : resolveCleanWorkField(
-              currentDto?.company,
-              sessionUser?.company,
-              payload.company
-            )
-        : payload.company ||
-          currentDto?.company ||
-          sessionUser?.company ||
-          undefined;
-
-  const formPersonalLinks =
-    intent.mode === 'mentee-onboarding'
-      ? []
-      : extractValidLinks(intent.values).map((link) => ({
-          platform: link.platform,
-          url: link.url,
-        }));
-
-  const sessionPersonalLinks =
-    sessionUser?.personalLinks && sessionUser.personalLinks.length > 0
-      ? decode([
-          {
-            category: ExperienceType.LINK,
-            order: 3,
-            mentor_experiences_metadata: {
-              data: sessionUser.personalLinks,
-            },
-          },
-        ]).personalLinks
-      : [];
-
-  const optimisticPersonalLinks =
-    intent.mode === 'mentee-onboarding'
-      ? []
-      : experiencesDirty
-        ? formPersonalLinks
-        : currentDto?.experiences !== undefined &&
-            currentDto.experiences !== null
-          ? decode(fromWireExperiences(currentDto.experiences)).personalLinks
-          : sessionPersonalLinks;
-
-  const identitySnapshot = deriveOptimisticIdentityPatch({
-    name: intent.values.name,
-    avatarUrl: avatarUrl ? avatarUrl : undefined,
-    avatarUpdatedAt: nextAvatarUpdatedAt,
-    isMentorOnboarding,
-    fallbackAvatar,
-    fallbackIsMentor:
-      intent.mode === 'mentee-onboarding'
-        ? false
-        : (sessionUser?.isMentor ??
-          currentDto?.is_mentor ??
-          intent.values.is_mentor ??
-          false),
-    fallbackOnBoarding:
-      intent.mode === 'mentee-onboarding'
-        ? true
-        : (sessionUser?.onBoarding ??
-          currentDto?.onboarding ??
-          intent.values.onboarding ??
-          false),
-    jobTitle: optimisticJobTitle,
-    company: optimisticCompany,
-    personalLinks: optimisticPersonalLinks,
+  const uploadedAvatarUrl = await step1ResolveAvatar();
+  const plan = planProfileMutation(intent, {
+    pageUserId: context.pageUserId,
+    session,
+    industryCatalog,
+    uploadedAvatarUrl,
   });
+  await step2WriteProfile(plan);
 
   const updateSessionIdentity = buildSessionIdentityUpdater();
-
   const optimisticDto = await step4ApplyOptimisticIdentity(
-    identitySnapshot,
-    updateSessionIdentity,
-    payload,
-    payload.experiences
-  );
-  step5ImmediateNavigation();
-  step6BackgroundReconcile(
-    avatarUrl,
-    payload,
-    experiencesDirty,
-    optimisticDto,
-    identitySnapshot,
+    plan,
     updateSessionIdentity
   );
+  step5ImmediateNavigation(plan);
+  step6BackgroundReconcile(plan, updateSessionIdentity);
 
   return optimisticDto;
 }

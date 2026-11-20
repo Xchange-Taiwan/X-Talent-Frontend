@@ -1,6 +1,5 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
 import { useCallback, useEffect, useRef } from 'react';
 
 import {
@@ -13,7 +12,6 @@ export interface UseBackgroundAvatarUpload {
   kickOff: (file: File, currentAvatarUrl: string | null | undefined) => void;
   resolve: (file: File | undefined) => Promise<string | undefined>;
   markCommitted: () => void;
-  consume: (file: File | undefined) => Promise<string | undefined>;
   rollback: () => Promise<void>;
   abort: () => void;
   prefetch: (targetUserId?: number) => void;
@@ -29,21 +27,13 @@ function normalizeNumericUserId(
 
 /**
  * Thin React adapter over `AvatarUploadSession` binding a per-component
- * upload session instance, user identity resolution, and automatic unmount
+ * upload session instance, explicit user identity, and automatic unmount
  * rollback cleanup.
- *
- * Retains compatibility `consume` and optional `explicitUserId` signature
- * until callers adopt two-phase `resolve` + `markCommitted` in #943.
  */
 export function useBackgroundAvatarUpload(
-  explicitUserId?: number | string | null
+  userId: number | string | null | undefined
 ): UseBackgroundAvatarUpload {
-  const { data: sessionData } = useSession();
-
-  const resolvedUserId =
-    explicitUserId !== undefined
-      ? normalizeNumericUserId(explicitUserId)
-      : normalizeNumericUserId(sessionData?.user?.id);
+  const resolvedUserId = normalizeNumericUserId(userId);
 
   const userIdRef = useRef<number | undefined>(resolvedUserId);
   const sessionRef = useRef<AvatarUploadSession | null>(null);
@@ -83,16 +73,6 @@ export function useBackgroundAvatarUpload(
     sessionRef.current?.markCommitted();
   }, []);
 
-  const consume = useCallback(
-    async (file: File | undefined): Promise<string | undefined> => {
-      if (!file || !sessionRef.current) return undefined;
-      const uploadedUrl = await sessionRef.current.resolve(file);
-      sessionRef.current.markCommitted();
-      return uploadedUrl;
-    },
-    []
-  );
-
   const rollback = useCallback(async (): Promise<void> => {
     await sessionRef.current?.rollback();
   }, []);
@@ -113,7 +93,6 @@ export function useBackgroundAvatarUpload(
     kickOff: stage,
     resolve,
     markCommitted,
-    consume,
     rollback,
     abort,
     prefetch,

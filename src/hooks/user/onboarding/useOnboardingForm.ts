@@ -10,6 +10,7 @@ import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
 import { useToast } from '@/components/ui/use-toast';
 import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
 import { useFormErrorScroll } from '@/hooks/user/profile/useFormErrorScroll';
+import { usePresetAwareAvatarSession } from '@/hooks/user/profile/usePresetAwareAvatarSession';
 import { trackEvent, trackFormValidationFailed } from '@/lib/analytics';
 import {
   clampOnboardingName,
@@ -22,13 +23,13 @@ import {
 } from '@/lib/avatar/avatarUrl';
 import { getPendingFavoriteProfilePath } from '@/lib/favorites';
 import { isDualTrackV2Enabled } from '@/lib/featureFlags';
-import { captureFlowFailure } from '@/lib/monitoring';
 import {
   type MenteeDirectionMap,
   writeStoredMenteeDirectionMap,
 } from '@/lib/profile/menteeDirectionPreference';
 import {
   commitProfileMutation,
+  LoggedError,
   type ProfileSavePort,
 } from '@/lib/profile/saveProfile';
 import { PROFILE_CARD_HREF } from '@/lib/routes';
@@ -325,14 +326,20 @@ export function useOnboardingForm({
     [avatarUpload, form]
   );
 
+  const avatarSession = usePresetAwareAvatarSession(
+    avatarUpload,
+    presetSelectedRef
+  );
+
   const savePort = useMemo<ProfileSavePort>(
     () => ({
       updateSession: (data: unknown) => latestUpdateSessionRef.current(data),
       navigate: (href: string) => router.push(href),
       revalidateProfilePath,
+      avatarSession: portOverrides?.uploadAvatar ? undefined : avatarSession,
       ...portOverrides,
     }),
-    [portOverrides, router]
+    [avatarSession, portOverrides, router]
   );
 
   const submitOnboarding = useCallback(async (): Promise<void> => {
@@ -388,34 +395,13 @@ export function useOnboardingForm({
         });
       }
 
-      if (values.avatarFile && !presetSelectedRef.current) {
-        try {
-          const uploadedUrl = await avatarUpload.consume(values.avatarFile);
-          values.avatar = uploadedUrl ?? values.avatar;
-          values.avatarFile = undefined;
-          form.setValue('avatar', values.avatar);
-          form.setValue('avatarFile', undefined);
-        } catch (err) {
-          captureFlowFailure({
-            flow: 'onboarding_submit',
-            step: 'avatar_upload',
-            message:
-              err instanceof Error ? err.message : 'Avatar upload failed',
-            level: 'warning',
-          });
-          avatarUpload.abort();
-          form.setError('avatarFile', {
-            type: 'custom',
-            message: '頭像上傳失敗，請重新選擇。',
-          });
-          return;
-        }
-      }
-
       const activeSession = latestSessionRef.current;
       const resolvedPageUserId = activeSession?.user?.id
         ? String(activeSession.user.id)
         : undefined;
+      const effectiveAvatarFile = presetSelectedRef.current
+        ? undefined
+        : values.avatarFile;
 
       if (values.role === 'mentor') {
         const mentorValues: ProfileFormValues = {
@@ -423,7 +409,7 @@ export function useOnboardingForm({
           onboarding: true,
           agreed_guidelines: true,
           avatar: values.avatar ?? '',
-          avatarFile: undefined,
+          avatarFile: effectiveAvatarFile,
           name: values.name,
           location: values.location,
           years_of_experience: values.years_of_experience,
@@ -468,6 +454,7 @@ export function useOnboardingForm({
           values: {
             ...values,
             avatar: resolvedMenteeAvatar,
+            avatarFile: effectiveAvatarFile,
           },
         },
         {
@@ -482,7 +469,24 @@ export function useOnboardingForm({
       if (resolvedPageUserId) {
         writeStoredMenteeDirectionMap(resolvedPageUserId, directionMap);
       }
-    } catch {
+    } catch (err) {
+      if (err instanceof LoggedError && err.step === 'avatar_upload') {
+        const avatarError = {
+          type: 'custom',
+          message: '頭像上傳失敗，請重新選擇。',
+        } as const;
+        form.setError('avatarFile', avatarError);
+        (
+          onError as (
+            errs: typeof form.formState.errors,
+            ev?: React.BaseSyntheticEvent
+          ) => void
+        )({
+          ...form.formState.errors,
+          avatarFile: avatarError,
+        });
+        return;
+      }
       toast({
         variant: 'destructive',
         description: '儲存失敗，請稍後再試。',
@@ -492,7 +496,7 @@ export function useOnboardingForm({
       isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
-  }, [avatarUpload, directionMap, form, industries, onError, savePort, toast]);
+  }, [directionMap, form, industries, onError, savePort, toast]);
 
   return {
     isSubmitting,

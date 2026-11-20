@@ -2,9 +2,9 @@ import {
   DEFAULT_PRESET_AVATAR_CODE,
   toPresetAvatarCode,
 } from '@/lib/avatar/avatarUrl';
-import { hasProfileDtoConverged } from '@/lib/profile/convergence';
 import {
   encode,
+  type EncodeResult,
   fromWireExperiences,
   type PersonalLinkMetadata,
   toFormValues,
@@ -81,25 +81,48 @@ export function mapVoToFormValues(
   };
 }
 
+export interface ProfileDirtyEvaluation {
+  hasExplicitDirtyFields: boolean;
+  avatar: boolean;
+  name: boolean;
+  about: boolean;
+  location: boolean;
+  industry: boolean;
+  yearsOfExperience: boolean;
+  statement: boolean;
+  haveSkill: boolean;
+  haveTopic: boolean;
+  wantPosition: boolean;
+  wantSkill: boolean;
+  wantTopic: boolean;
+  work: boolean;
+  education: boolean;
+  links: boolean;
+  experiencesDirty: boolean;
+  profileDirty: boolean;
+}
+
 /**
- * Computes dirty states for profile fields based on React Hook Form's dirtyFields,
- * deriving personal-link dirtiness directly from `SOCIAL_PLATFORM_SPECS`.
+ * Evaluates every profile form field's dirty flag in a single pass, deriving
+ * personal-link dirtiness directly from `SOCIAL_PLATFORM_KEYS`.
  */
-export function computeDirtyStates(
+export function evaluateProfileDirtyState(
   values: ProfileFormValues,
   dirtyFields: ProfileDirtyFields | undefined,
-  isMentorOnboarding: boolean
-): { experiencesDirty: boolean; profileDirty: boolean } {
+  isMentorOnboarding: boolean,
+  hasUploadedAvatar = false
+): ProfileDirtyEvaluation {
+  const hasExplicitDirtyFields = dirtyFields !== undefined;
   const isDirty = (key: keyof ProfileFormValues): boolean => {
     if (!dirtyFields) return true;
     return hasDirtyValue(dirtyFields[key]);
   };
 
-  const workDirty = isDirty('work_experiences');
-  const educationDirty = isDirty('educations');
+  const work = isDirty('work_experiences');
+  const education = isDirty('educations');
 
   const rawLinksDirty = dirtyFields?.links;
-  const linksDirty = !dirtyFields
+  const links = !dirtyFields
     ? true
     : typeof rawLinksDirty === 'boolean'
       ? rawLinksDirty
@@ -109,25 +132,74 @@ export function computeDirtyStates(
           )
         : false;
 
-  const experiencesDirty = workDirty || educationDirty || linksDirty;
+  const experiencesDirty = work || education || links;
+  const avatar = isDirty('avatar');
+  const name = isDirty('name');
+  const about = isDirty('about');
+  const location = isDirty('location');
+  const industry = isDirty('industry');
+  const yearsOfExperience = isDirty('years_of_experience');
+  const statement = isDirty('statement');
+  const haveSkill = isDirty('have_skill');
+  const haveTopic = isDirty('have_topic');
+  const wantPosition = isDirty('want_position');
+  const wantSkill = isDirty('want_skill');
+  const wantTopic = isDirty('want_topic');
 
   const profileDirty =
     isMentorOnboarding ||
+    hasUploadedAvatar ||
     Boolean(values.avatarFile) ||
-    isDirty('avatar') ||
-    isDirty('name') ||
-    isDirty('about') ||
-    isDirty('location') ||
-    isDirty('industry') ||
-    isDirty('years_of_experience') ||
-    isDirty('statement') ||
-    isDirty('have_skill') ||
-    isDirty('have_topic') ||
-    isDirty('want_position') ||
-    isDirty('want_skill') ||
-    isDirty('want_topic') ||
+    avatar ||
+    name ||
+    about ||
+    location ||
+    industry ||
+    yearsOfExperience ||
+    statement ||
+    haveSkill ||
+    haveTopic ||
+    wantPosition ||
+    wantSkill ||
+    wantTopic ||
     experiencesDirty;
 
+  return {
+    hasExplicitDirtyFields,
+    avatar,
+    name,
+    about,
+    location,
+    industry,
+    yearsOfExperience,
+    statement,
+    haveSkill,
+    haveTopic,
+    wantPosition,
+    wantSkill,
+    wantTopic,
+    work,
+    education,
+    links,
+    experiencesDirty,
+    profileDirty,
+  };
+}
+
+/**
+ * Computes dirty states for profile fields based on React Hook Form's dirtyFields,
+ * deriving personal-link dirtiness directly from `SOCIAL_PLATFORM_SPECS`.
+ */
+export function computeDirtyStates(
+  values: ProfileFormValues,
+  dirtyFields: ProfileDirtyFields | undefined,
+  isMentorOnboarding: boolean
+): { experiencesDirty: boolean; profileDirty: boolean } {
+  const { experiencesDirty, profileDirty } = evaluateProfileDirtyState(
+    values,
+    dirtyFields,
+    isMentorOnboarding
+  );
   return { experiencesDirty, profileDirty };
 }
 
@@ -146,31 +218,19 @@ export function extractValidLinks(
   });
 }
 
-/**
- * Maps `ProfileFormValues` into a canonical `MentorProfileWritePayload` for
- * `PUT /v1/mentors/{id}/profile`, ensuring `about` is normalized to `string`,
- * zero UI-only RHF keys (`work_experiences`, `educations`, `links`, `statement`,
- * `avatarFile`) leak onto the wire, and `personal_statement` conversion is
- * isolated on a single compatibility line.
- */
-export function mapFormValuesToPayload(
+export function composeProfileWritePayload(
   values: ProfileFormValues,
+  encodedExperiences: EncodeResult,
   avatar: string | undefined,
   experiencesDirty: boolean,
   currentDto?: MentorProfileVO | null,
   isMentorOnboarding = false
 ): MentorProfileWritePayload {
-  const links = extractValidLinks(values);
-
   const {
     experiences,
     job_title,
     company: companyFromPrimary,
-  } = encode({
-    workExperiences: values.work_experiences ?? [],
-    educations: values.educations ?? [],
-    personalLinks: links,
-  });
+  } = encodedExperiences;
 
   // Single compatibility line for backend #891 removal of personal_statement
   const personalStatement =
@@ -231,6 +291,37 @@ export function mapFormValuesToPayload(
 }
 
 /**
+ * Maps `ProfileFormValues` into a canonical `MentorProfileWritePayload` for
+ * `PUT /v1/mentors/{id}/profile`, ensuring `about` is normalized to `string`,
+ * zero UI-only RHF keys (`work_experiences`, `educations`, `links`, `statement`,
+ * `avatarFile`) leak onto the wire, and `personal_statement` conversion is
+ * isolated on a single compatibility line.
+ */
+export function mapFormValuesToPayload(
+  values: ProfileFormValues,
+  avatar: string | undefined,
+  experiencesDirty: boolean,
+  currentDto?: MentorProfileVO | null,
+  isMentorOnboarding = false
+): MentorProfileWritePayload {
+  const links = extractValidLinks(values);
+  const encoded = encode({
+    workExperiences: values.work_experiences ?? [],
+    educations: values.educations ?? [],
+    personalLinks: links,
+  });
+
+  return composeProfileWritePayload(
+    values,
+    encoded,
+    avatar,
+    experiencesDirty,
+    currentDto,
+    isMentorOnboarding
+  );
+}
+
+/**
  * Resolves the optimistic `MentorProfileVO['industry']` object from the selected
  * `subject_group` code and localized industry catalog so navigating immediately
  * to `/profile/[id]` renders the newly selected localized industry name instead
@@ -267,29 +358,4 @@ export function resolveOptimisticIndustry(
     subject_group: normalizedCode,
     subject: resolvedSubject,
   };
-}
-
-/**
- * Compatibility wrapper verifying whether a backend `MentorProfileVO` matches
- * submitted form scalar fields via canonical `hasProfileDtoConverged`.
- */
-export function isProfileSynced(
-  values: ProfileFormValues,
-  latest: MentorProfileVO,
-  avatar: string
-): boolean {
-  return hasProfileDtoConverged(
-    {
-      name: values.name,
-      avatar: avatar || undefined,
-      location: values.location ?? '',
-      personal_statement: values.statement ?? '',
-      about: values.about ?? '',
-      years_of_experience: values.years_of_experience ?? '',
-      industry: values.industry
-        ? { subject_group: values.industry, subject: '' }
-        : null,
-    },
-    latest
-  );
 }

@@ -16,14 +16,21 @@ vi.mock('@/hooks/user/user-data/useUserProfileDto', () => ({
   useUserProfileDto: (...args: unknown[]) => mockUseUserProfileDto(...args),
 }));
 
-const mockCommitProfileMutation = vi.fn().mockResolvedValue({});
+const saveProfileMocks = vi.hoisted(() => ({
+  realCommitProfileMutation: undefined as
+    | typeof import('@/lib/profile/saveProfile').commitProfileMutation
+    | undefined,
+  mockCommitProfileMutation: vi.fn().mockResolvedValue({}),
+}));
+const mockCommitProfileMutation = saveProfileMocks.mockCommitProfileMutation;
 vi.mock('@/lib/profile/saveProfile', async (importOriginal) => {
   const actual =
     await importOriginal<typeof import('@/lib/profile/saveProfile')>();
+  saveProfileMocks.realCommitProfileMutation = actual.commitProfileMutation;
   return {
     ...actual,
     commitProfileMutation: (...args: unknown[]) =>
-      mockCommitProfileMutation(...args),
+      saveProfileMocks.mockCommitProfileMutation(...args),
   };
 });
 
@@ -677,6 +684,76 @@ describe('useProfileEditorSession (#787 / #905)', () => {
 
     expect(result.current.form.getValues('name')).toBe(
       'User Typed Mentor Name'
+    );
+  });
+
+  it('restores original S3 avatar on leave/unmount when PUT /profile fails after resolve(), and skips rollback once PUT /profile commits (#943)', async () => {
+    mockCommitProfileMutation.mockImplementation(
+      (
+        ...args: Parameters<
+          NonNullable<typeof saveProfileMocks.realCommitProfileMutation>
+        >
+      ) => saveProfileMocks.realCommitProfileMutation!(...args)
+    );
+
+    mockUseUserProfileDto.mockReturnValue({
+      userDto: {
+        ...mockUserDTO,
+        user_id: 1,
+        name: 'Initial Name',
+        is_mentor: false,
+        want_position: ['frontend'],
+        want_skill: ['react'],
+      },
+      error: null,
+    });
+    mockGetExternalBlob.mockResolvedValue(
+      new Blob(['original-s3-bytes'], { type: 'image/jpeg' })
+    );
+    mockUpdateAvatar
+      .mockResolvedValueOnce('https://s3.amazonaws.com/bucket/new-v1.jpg')
+      .mockResolvedValueOnce('https://s3.amazonaws.com/bucket/restored.jpg');
+
+    const writeProfileMock = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('500 Profile Write Failed'));
+
+    const { result, unmount } = renderHook(() =>
+      useProfileEditorSession({
+        pageUserId: '1',
+        isAuthorized: true,
+        isMentorOnboarding: false,
+        port: {
+          writeProfile: writeProfileMock,
+          revalidateProfilePath: vi.fn().mockResolvedValue(undefined),
+        },
+      })
+    );
+
+    const file = new File(['cropped-bytes'], 'cropped.jpg', {
+      type: 'image/jpeg',
+    });
+    await act(async () => {
+      result.current.handleAvatarFileChange(file);
+      await Promise.resolve();
+    });
+    expect(mockUpdateAvatar).toHaveBeenCalledTimes(1);
+
+    // Attempt save -> Step 1 resolve() succeeds, Step 2 writeProfile() fails
+    await act(async () => {
+      await result.current.handleFormSubmit();
+    });
+    expect(writeProfileMock).toHaveBeenCalledTimes(1);
+    expect(mockUpdateAvatar).toHaveBeenCalledTimes(1);
+
+    // User cancels / unmounts after failed PUT -> original S3 bytes MUST be restored!
+    unmount();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mockUpdateAvatar).toHaveBeenCalledTimes(2);
+    await expect(mockUpdateAvatar.mock.calls[1]![0].text()).resolves.toBe(
+      'original-s3-bytes'
     );
   });
 });

@@ -53,7 +53,8 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
   const mockFetchProfile = vi.fn().mockResolvedValue(null);
   const mockRevalidate = vi.fn().mockResolvedValue(undefined);
   const mockKickOff = vi.fn();
-  const mockConsume = vi.fn();
+  const mockResolve = vi.fn();
+  const mockMarkCommitted = vi.fn();
   const mockRollback = vi.fn();
   const mockAbort = vi.fn();
   const mockPrefetch = vi.fn();
@@ -101,9 +102,8 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
     mockUseBackgroundAvatarUpload.mockReturnValue({
       stage: mockKickOff,
       kickOff: mockKickOff,
-      resolve: mockConsume,
-      markCommitted: vi.fn(),
-      consume: mockConsume,
+      resolve: mockResolve,
+      markCommitted: mockMarkCommitted,
       rollback: mockRollback,
       abort: mockAbort,
       prefetch: mockPrefetch,
@@ -292,10 +292,10 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
     expect(result.current.form.getValues('avatar')).toBe('default_4');
   });
 
-  it('commits mentee-onboarding via commitProfileMutation, consuming avatar once and redirecting to pendingFavoriteMentor (or /profile/:id when absent)', async () => {
+  it('commits mentee-onboarding via two-phase commitProfileMutation (resolve -> writeProfile -> markCommitted) and redirects to pendingFavoriteMentor (#943)', async () => {
     savePendingFavoriteMentor(7482008160728084);
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
-    mockConsume.mockResolvedValue(
+    mockResolve.mockResolvedValue(
       'https://s3.amazonaws.com/new-avatar.png?v=100'
     );
 
@@ -327,7 +327,11 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
       await result.current.submitOnboarding();
     });
 
-    expect(mockConsume).toHaveBeenCalledWith(file);
+    expect(mockResolve).toHaveBeenCalledWith(file);
+    expect(mockMarkCommitted).toHaveBeenCalledTimes(1);
+    expect(mockWriteProfile.mock.invocationCallOrder[0]).toBeLessThan(
+      mockMarkCommitted.mock.invocationCallOrder[0]
+    );
     expect(readStoredMenteeDirectionMap('1')).toEqual({
       pos1: { skills: ['skill1'], topics: ['topic1'] },
     });
@@ -351,9 +355,9 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
     expect(getPendingFavoriteMentorId()).toBe(7482008160728084);
   });
 
-  it('handles avatar upload failure by setting avatarFile error, and avoids re-consuming on write retry', async () => {
+  it('routes step="avatar_upload" failure to avatarFile error without toast, and retains uncommitted S3 snapshot when PUT /profile fails (#943)', async () => {
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
-    mockConsume.mockRejectedValueOnce(new Error('S3 error'));
+    mockResolve.mockRejectedValueOnce(new Error('S3 error'));
 
     const { result } = renderHook(() => {
       const s = useOnboardingForm({
@@ -388,13 +392,16 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
     expect(result.current.form.formState.errors.avatarFile?.message).toBe(
       '頭像上傳失敗，請重新選擇。'
     );
+    expect(mockAbort).toHaveBeenCalledTimes(1);
+    expect(mockToast).not.toHaveBeenCalled();
     expect(mockWriteProfile).not.toHaveBeenCalled();
+    expect(mockMarkCommitted).not.toHaveBeenCalled();
 
-    // Retry path where consume succeeds once and writeProfile fails once, then retry succeeds without re-consuming
+    // Retry path: Step 1 resolve succeeds, Step 2 writeProfile fails -> markCommitted MUST NOT be called!
     act(() => {
       result.current.form.setValue('avatarFile', file);
     });
-    mockConsume.mockResolvedValueOnce('https://s3.amazonaws.com/ok.png?v=2');
+    mockResolve.mockResolvedValue('https://s3.amazonaws.com/ok.png?v=2');
     mockWriteProfile.mockRejectedValueOnce(new Error('500 Write Error'));
 
     await act(async () => {
@@ -405,16 +412,15 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
       description: '儲存失敗，請稍後再試。',
       duration: 5000,
     });
-    expect(mockConsume).toHaveBeenCalledTimes(2);
+    expect(mockMarkCommitted).not.toHaveBeenCalled();
 
-    mockConsume.mockClear();
+    // Subsequent retry: writeProfile succeeds -> markCommitted IS now called!
     mockWriteProfile.mockResolvedValueOnce(undefined);
-
     await act(async () => {
       await result.current.submitOnboarding();
     });
-    expect(mockConsume).not.toHaveBeenCalled();
     expect(mockWriteProfile).toHaveBeenCalledTimes(2);
+    expect(mockMarkCommitted).toHaveBeenCalledTimes(1);
   });
 
   it('defaults Mentee empty avatar to default_1 and navigates to /profile/card completion page when no pending favorite exists (#973)', async () => {

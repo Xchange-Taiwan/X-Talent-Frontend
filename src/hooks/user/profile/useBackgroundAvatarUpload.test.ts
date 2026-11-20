@@ -1,5 +1,4 @@
 import { act, renderHook } from '@testing-library/react';
-import { useSession } from 'next-auth/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { apiClient } from '@/lib/apiClient';
@@ -40,13 +39,8 @@ vi.mock('@/lib/analytics', async (importOriginal) => {
   };
 });
 
-vi.mock('next-auth/react', () => ({
-  useSession: vi.fn(),
-}));
-
 const mockUpdateAvatar = vi.mocked(updateAvatar);
 const mockGetExternalBlob = vi.mocked(apiClient.getExternalBlob);
-const mockUseSession = vi.mocked(useSession);
 
 const TEST_USER_ID = 42;
 
@@ -54,10 +48,6 @@ describe('useBackgroundAvatarUpload', () => {
   beforeEach(() => {
     mockGetExternalBlob.mockReset();
     mockUpdateAvatar.mockReset();
-    mockUseSession.mockReturnValue({
-      data: { user: { id: TEST_USER_ID } },
-      status: 'authenticated',
-    } as never);
   });
 
   it('should start S3 upload when kickOff is called with a file', async () => {
@@ -67,7 +57,9 @@ describe('useBackgroundAvatarUpload', () => {
     const mockUrl = 'https://s3.amazonaws.com/bucket/avatar.png?v=123';
     mockUpdateAvatar.mockResolvedValue(mockUrl);
 
-    const { result } = renderHook(() => useBackgroundAvatarUpload());
+    const { result } = renderHook(() =>
+      useBackgroundAvatarUpload(TEST_USER_ID)
+    );
 
     await act(async () => {
       result.current.kickOff(file, 'https://old-avatar.com/old.png');
@@ -105,7 +97,9 @@ describe('useBackgroundAvatarUpload', () => {
       });
     });
 
-    const { result } = renderHook(() => useBackgroundAvatarUpload());
+    const { result } = renderHook(() =>
+      useBackgroundAvatarUpload(TEST_USER_ID)
+    );
 
     await act(async () => {
       result.current.kickOff(file1, 'https://old-avatar.com/old.png');
@@ -141,7 +135,9 @@ describe('useBackgroundAvatarUpload', () => {
       });
     });
 
-    const { result } = renderHook(() => useBackgroundAvatarUpload());
+    const { result } = renderHook(() =>
+      useBackgroundAvatarUpload(TEST_USER_ID)
+    );
 
     await act(async () => {
       result.current.kickOff(file, 'https://old-avatar.com/old.png');
@@ -157,14 +153,16 @@ describe('useBackgroundAvatarUpload', () => {
     expect(signals[0].aborted).toBe(true);
   });
 
-  it('should consume the in-flight upload when consume is called with the matching file', async () => {
+  it('should resolve the in-flight upload when resolve is called with the matching file, and commit via markCommitted', async () => {
     const file = new File(['avatar-bytes'], 'avatar.png', {
       type: 'image/png',
     });
     const mockUrl = 'https://s3.amazonaws.com/bucket/avatar.png?v=123';
     mockUpdateAvatar.mockResolvedValue(mockUrl);
 
-    const { result } = renderHook(() => useBackgroundAvatarUpload());
+    const { result } = renderHook(() =>
+      useBackgroundAvatarUpload(TEST_USER_ID)
+    );
 
     await act(async () => {
       result.current.kickOff(file, 'https://old-avatar.com/old.png');
@@ -172,25 +170,28 @@ describe('useBackgroundAvatarUpload', () => {
 
     let returnedUrl: string | undefined;
     await act(async () => {
-      returnedUrl = await result.current.consume(file);
+      returnedUrl = await result.current.resolve(file);
+      result.current.markCommitted();
     });
 
     expect(returnedUrl).toBe(mockUrl);
     expect(mockUpdateAvatar).toHaveBeenCalledTimes(1);
   });
 
-  it('should upload synchronously as fallback if consume is called with a non-matching file', async () => {
+  it('should upload synchronously as fallback if resolve is called with a non-matching file', async () => {
     const file = new File(['avatar-bytes'], 'avatar.png', {
       type: 'image/png',
     });
     const mockUrl = 'https://s3.amazonaws.com/bucket/fallback.png?v=456';
     mockUpdateAvatar.mockResolvedValue(mockUrl);
 
-    const { result } = renderHook(() => useBackgroundAvatarUpload());
+    const { result } = renderHook(() =>
+      useBackgroundAvatarUpload(TEST_USER_ID)
+    );
 
     let returnedUrl: string | undefined;
     await act(async () => {
-      returnedUrl = await result.current.consume(file);
+      returnedUrl = await result.current.resolve(file);
     });
 
     expect(returnedUrl).toBe(mockUrl);
@@ -223,7 +224,9 @@ describe('useBackgroundAvatarUpload', () => {
       });
     });
 
-    const { result } = renderHook(() => useBackgroundAvatarUpload());
+    const { result } = renderHook(() =>
+      useBackgroundAvatarUpload(TEST_USER_ID)
+    );
 
     await act(async () => {
       result.current.kickOff(file, 'https://old-avatar.com/old.png');
@@ -251,7 +254,9 @@ describe('useBackgroundAvatarUpload', () => {
     const mockOldBlob = new Blob(['old-avatar-bytes'], { type: 'image/jpeg' });
     mockGetExternalBlob.mockResolvedValue(mockOldBlob);
 
-    const { result } = renderHook(() => useBackgroundAvatarUpload());
+    const { result } = renderHook(() =>
+      useBackgroundAvatarUpload(TEST_USER_ID)
+    );
 
     await act(async () => {
       result.current.kickOff(file, 'https://old-avatar.com/old.png');
@@ -286,7 +291,9 @@ describe('useBackgroundAvatarUpload', () => {
     // Force snapshot fetch to fail
     mockGetExternalBlob.mockRejectedValue(new Error('Network error'));
 
-    const { result } = renderHook(() => useBackgroundAvatarUpload());
+    const { result } = renderHook(() =>
+      useBackgroundAvatarUpload(TEST_USER_ID)
+    );
 
     await act(async () => {
       result.current.kickOff(file, 'https://old-avatar.com/old.png');
@@ -316,7 +323,9 @@ describe('useBackgroundAvatarUpload', () => {
     const mockUrl = 'https://s3.amazonaws.com/bucket/avatar.png?v=123';
     mockUpdateAvatar.mockResolvedValueOnce(mockUrl);
 
-    const { result } = renderHook(() => useBackgroundAvatarUpload());
+    const { result } = renderHook(() =>
+      useBackgroundAvatarUpload(TEST_USER_ID)
+    );
 
     await act(async () => {
       result.current.kickOff(file, null);
@@ -356,7 +365,9 @@ describe('useBackgroundAvatarUpload', () => {
       });
     });
 
-    const { result, unmount } = renderHook(() => useBackgroundAvatarUpload());
+    const { result, unmount } = renderHook(() =>
+      useBackgroundAvatarUpload(TEST_USER_ID)
+    );
 
     await act(async () => {
       result.current.kickOff(file, 'https://old-avatar.com/old.png');
@@ -384,7 +395,9 @@ describe('useBackgroundAvatarUpload', () => {
       });
     });
 
-    const { result } = renderHook(() => useBackgroundAvatarUpload());
+    const { result } = renderHook(() =>
+      useBackgroundAvatarUpload(TEST_USER_ID)
+    );
 
     await act(async () => {
       result.current.kickOff(file, 'https://old-avatar.com/old.png');
@@ -401,12 +414,7 @@ describe('useBackgroundAvatarUpload', () => {
     });
   });
 
-  it('should pass undefined userId to updateAvatar when session has no user yet, and surface the resulting failure without crashing', async () => {
-    mockUseSession.mockReturnValue({
-      data: null,
-      status: 'unauthenticated',
-    } as never);
-
+  it('should pass undefined userId to updateAvatar when explicit userId is undefined/null, and surface the resulting failure without crashing', async () => {
     const file = new File(['avatar-bytes'], 'avatar.png', {
       type: 'image/png',
     });
@@ -419,7 +427,7 @@ describe('useBackgroundAvatarUpload', () => {
       });
     });
 
-    const { result } = renderHook(() => useBackgroundAvatarUpload());
+    const { result } = renderHook(() => useBackgroundAvatarUpload(undefined));
 
     await act(async () => {
       result.current.kickOff(file, 'https://old-avatar.com/old.png');
@@ -431,23 +439,20 @@ describe('useBackgroundAvatarUpload', () => {
       expect.any(AbortSignal),
       expect.objectContaining({
         prefetch: expect.any(Function),
-        consume: expect.any(Function),
       })
     );
 
-    // Attach the consumer before rejecting so the rejection is never
-    // observed as unhandled between kickOff and consume.
-    const consumePromise = result.current.consume(file);
+    const resolvePromise = result.current.resolve(file);
 
     await act(async () => {
       rejectPromise?.(authError);
-      await expect(consumePromise).rejects.toThrow(
+      await expect(resolvePromise).rejects.toThrow(
         '未獲取到有效的身份驗證信息，請重新登入。'
       );
     });
   });
 
-  it('should bubble up general upload errors on consume', async () => {
+  it('should bubble up general upload errors on resolve', async () => {
     const file = new File(['avatar-bytes'], 'avatar.png', {
       type: 'image/png',
     });
@@ -460,22 +465,23 @@ describe('useBackgroundAvatarUpload', () => {
       });
     });
 
-    const { result } = renderHook(() => useBackgroundAvatarUpload());
+    const { result } = renderHook(() =>
+      useBackgroundAvatarUpload(TEST_USER_ID)
+    );
 
     await act(async () => {
       result.current.kickOff(file, 'https://old-avatar.com/old.png');
     });
 
-    // Now call consume (which returns the pending promise), and THEN reject the promise
-    const consumePromise = result.current.consume(file);
+    const resolvePromise = result.current.resolve(file);
 
     await act(async () => {
       rejectPromise?.(mockError);
-      await expect(consumePromise).rejects.toThrow('S3 Network Error');
+      await expect(resolvePromise).rejects.toThrow('S3 Network Error');
     });
   });
 
-  it('automatically rolls back a completed, unconsumed S3 upload when the hook unmounts (browser back / navigation leak protection, #787)', async () => {
+  it('automatically rolls back a completed, uncommitted S3 upload when the hook unmounts (browser back / navigation leak protection, #787)', async () => {
     const file = new File(['new-avatar-bytes'], 'avatar.png', {
       type: 'image/png',
     });
@@ -487,7 +493,9 @@ describe('useBackgroundAvatarUpload', () => {
     });
     mockGetExternalBlob.mockResolvedValue(mockOldBlob);
 
-    const { result, unmount } = renderHook(() => useBackgroundAvatarUpload());
+    const { result, unmount } = renderHook(() =>
+      useBackgroundAvatarUpload(TEST_USER_ID)
+    );
 
     await act(async () => {
       result.current.kickOff(file, 'https://old-avatar.com/old.jpg');
@@ -496,7 +504,7 @@ describe('useBackgroundAvatarUpload', () => {
 
     expect(mockUpdateAvatar).toHaveBeenCalledTimes(1);
 
-    // Unmount without calling consume()
+    // Unmount without calling markCommitted()
     unmount();
 
     await act(async () => {
@@ -563,7 +571,7 @@ describe('useBackgroundAvatarUpload', () => {
     );
     expect(mockTrackEvent).not.toHaveBeenCalled();
 
-    // Direct consume() fallback failure also upgrades Clarity without PII
+    // Direct resolve() fallback failure also upgrades Clarity without PII
     mockUpgradeClaritySession.mockClear();
     mockUpdateAvatar.mockRejectedValueOnce(
       new Error('Direct upload failed for 王小明_2.jpg')
@@ -571,7 +579,7 @@ describe('useBackgroundAvatarUpload', () => {
     const directFile = new File(['bytes2'], '王小明_2.jpg', {
       type: 'image/jpeg',
     });
-    await expect(result.current.consume(directFile)).rejects.toThrow();
+    await expect(result.current.resolve(directFile)).rejects.toThrow();
     expect(mockUpgradeClaritySession).toHaveBeenCalledWith(
       'avatar_upload_failed'
     );

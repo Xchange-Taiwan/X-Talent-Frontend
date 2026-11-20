@@ -41,9 +41,13 @@ vi.mock('@/hooks/user/auth/useProfileAuth', () => ({
 
 vi.mock('@/hooks/user/profile/useBackgroundAvatarUpload', () => ({
   useBackgroundAvatarUpload: () => ({
+    stage: vi.fn(),
     kickOff: vi.fn(),
+    resolve: vi.fn(),
+    markCommitted: vi.fn(),
     rollback: vi.fn(),
-    consume: vi.fn(),
+    abort: vi.fn(),
+    prefetch: vi.fn(),
   }),
 }));
 

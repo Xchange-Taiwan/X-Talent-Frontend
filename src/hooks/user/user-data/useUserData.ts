@@ -9,19 +9,23 @@ import {
   type MentorExperiencePayload,
   type WorkExperienceMetadata,
 } from '@/lib/profile/experienceCodec';
+import { profileReadModel } from '@/lib/profile/profileReadModel';
 import { readIndustryTag } from '@/lib/profile/readIndustryTag';
 import { buildTagLabelMap } from '@/lib/profile/tagLabelMap';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import type { MentorProfileVO, TagDisplay, UserType } from '@/types/user';
 
-import {
-  primeUserProfileDtoCache,
-  useUserProfileDto,
-} from './useUserProfileDto';
+import { useUserProfileDto } from './useUserProfileDto';
 
 export type { TagDisplay, UserType };
 
-export const primeUserDataCache = primeUserProfileDtoCache;
+export function primeUserDataCache(
+  userId: number | string,
+  language: string,
+  data: MentorProfileVO
+): void {
+  profileReadModel.prime({ userId, language }, data);
+}
 
 // Subject_group codes shipped by the BFF round-trip directly back to writes,
 // so resolve them to display labels via the localized catalog. Catalog miss

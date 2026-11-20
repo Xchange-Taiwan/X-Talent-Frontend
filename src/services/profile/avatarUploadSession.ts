@@ -193,6 +193,12 @@ export function createAvatarUploadSession(
       );
       if (url !== undefined) {
         hasOverwrittenS3 = true;
+        activeJob = {
+          file,
+          controller: new AbortController(),
+          promise: Promise.resolve(url),
+          status: 'completed',
+        };
       }
       return url;
     } catch (err) {

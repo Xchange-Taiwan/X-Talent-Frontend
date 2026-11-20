@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { captureFlowFailure } from '@/lib/monitoring';
 import { encode, toWireExperiences } from '@/lib/profile/experienceCodec';
-import { defaultValues } from '@/schemas/profileSchema';
 import { fetchUserById } from '@/services/profile/user';
 import { fetchMentors } from '@/services/search-mentor/mentors';
 import type { MentorType } from '@/types/mentor';
@@ -165,16 +164,6 @@ const makeSyncedDto = (
   };
 };
 
-const baseValues = {
-  ...defaultValues,
-  name: 'Sync Test',
-  location: 'Taiwan',
-  about: 'about-me',
-  statement: 'statement',
-  years_of_experience: '1_3',
-  industry: 'tech',
-};
-
 describe('hasProfileDtoConverged', () => {
   it('returns true when all scalar, role, industry, avatar, experience, have_*, and want_* fields match (order-insensitive tags and &cb= cache-buster)', () => {
     const expected = makeSyncedDto();
@@ -292,6 +281,121 @@ describe('hasProfileDtoConverged', () => {
       true
     );
   });
+
+  it('distinguishes undefined vs null sentinels on avatar, is_mentor, and onboarding in isolation (#943)', () => {
+    const incomingWithAvatar = makeSyncedDto({
+      avatar: 'https://s3.amazonaws.com/bucket/files/1/avatar?v=1754000000000',
+      is_mentor: true,
+      onboarding: true,
+    });
+
+    // avatar === null explicitly requires backend avatar to be empty/null/whitespace
+    expect(hasProfileDtoConverged({ avatar: null }, incomingWithAvatar)).toBe(
+      false
+    );
+    expect(
+      hasProfileDtoConverged({ avatar: null }, makeSyncedDto({ avatar: null }))
+    ).toBe(true);
+    expect(
+      hasProfileDtoConverged({ avatar: null }, makeSyncedDto({ avatar: '' }))
+    ).toBe(true);
+    expect(
+      hasProfileDtoConverged({ avatar: null }, makeSyncedDto({ avatar: '   ' }))
+    ).toBe(true);
+
+    // avatar === undefined imposes zero constraint even when incoming has a non-empty URL
+    expect(
+      hasProfileDtoConverged({ avatar: undefined }, incomingWithAvatar)
+    ).toBe(true);
+
+    // is_mentor sentinel matrix: undefined (unconstrained) vs true / false / null
+    expect(
+      hasProfileDtoConverged(
+        { is_mentor: undefined },
+        makeSyncedDto({ is_mentor: true })
+      )
+    ).toBe(true);
+    expect(
+      hasProfileDtoConverged(
+        { is_mentor: undefined },
+        makeSyncedDto({ is_mentor: false })
+      )
+    ).toBe(true);
+    expect(
+      hasProfileDtoConverged(
+        { is_mentor: false },
+        makeSyncedDto({ is_mentor: false })
+      )
+    ).toBe(true);
+    expect(
+      hasProfileDtoConverged(
+        { is_mentor: false },
+        makeSyncedDto({ is_mentor: null })
+      )
+    ).toBe(true);
+    expect(
+      hasProfileDtoConverged(
+        { is_mentor: false },
+        makeSyncedDto({ is_mentor: true })
+      )
+    ).toBe(false);
+    expect(
+      hasProfileDtoConverged(
+        { is_mentor: null },
+        makeSyncedDto({ is_mentor: null })
+      )
+    ).toBe(true);
+    expect(
+      hasProfileDtoConverged(
+        { is_mentor: null },
+        makeSyncedDto({ is_mentor: false })
+      )
+    ).toBe(true);
+    expect(
+      hasProfileDtoConverged(
+        { is_mentor: null },
+        makeSyncedDto({ is_mentor: true })
+      )
+    ).toBe(false);
+
+    // onboarding sentinel matrix: undefined (unconstrained) vs true / false / null
+    expect(
+      hasProfileDtoConverged(
+        { onboarding: undefined },
+        makeSyncedDto({ onboarding: false })
+      )
+    ).toBe(true);
+    expect(
+      hasProfileDtoConverged(
+        { onboarding: true },
+        makeSyncedDto({ onboarding: true })
+      )
+    ).toBe(true);
+    expect(
+      hasProfileDtoConverged(
+        { onboarding: true },
+        makeSyncedDto({ onboarding: false })
+      )
+    ).toBe(false);
+    expect(
+      hasProfileDtoConverged(
+        { onboarding: false },
+        makeSyncedDto({ onboarding: null })
+      )
+    ).toBe(true);
+    expect(
+      hasProfileDtoConverged(
+        { onboarding: null },
+        makeSyncedDto({ onboarding: false })
+      )
+    ).toBe(true);
+    expect(
+      hasProfileDtoConverged(
+        { onboarding: null },
+        makeSyncedDto({ onboarding: true })
+      )
+    ).toBe(false);
+  });
 });
 
 describe('runConvergence with Mock Adapter', () => {
@@ -402,17 +506,37 @@ describe('ProfileRecordAdapter', () => {
     expect(result).toBeNull();
   });
 
-  it('supports backward-compatible (userId, values, avatar) overload', () => {
-    const adapter = new ProfileRecordAdapter(1, baseValues, '');
-    const dto = makeSyncedDto({ avatar: '' });
-
-    expect(adapter.isCaughtUp(dto)).toBe(true);
-
-    const staleDto = makeSyncedDto({
-      avatar: '',
-      name: 'Stale Name',
+  it('treats undefined role/experience/avatar fields as unconstrained while treating null as explicitly empty/false (#943)', () => {
+    const incoming = makeSyncedDto({
+      is_mentor: true,
+      onboarding: true,
+      avatar: 'https://s3.amazonaws.com/bucket/files/1/avatar?v=1754000000000',
     });
-    expect(adapter.isCaughtUp(staleDto)).toBe(false);
+
+    expect(
+      hasProfileDtoConverged(
+        {
+          name: 'Sync Test',
+          is_mentor: undefined,
+          onboarding: undefined,
+          avatar: undefined,
+          job_title: undefined,
+          company: undefined,
+          experiences: undefined,
+        },
+        incoming
+      )
+    ).toBe(true);
+
+    expect(
+      hasProfileDtoConverged({ name: 'Sync Test', is_mentor: null }, incoming)
+    ).toBe(false);
+    expect(
+      hasProfileDtoConverged({ name: 'Sync Test', onboarding: null }, incoming)
+    ).toBe(false);
+    expect(
+      hasProfileDtoConverged({ name: 'Sync Test', avatar: null }, incoming)
+    ).toBe(false);
   });
 
   it('defines correct exhaustion metadata', () => {

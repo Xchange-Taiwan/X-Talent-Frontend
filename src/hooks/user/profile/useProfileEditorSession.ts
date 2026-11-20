@@ -46,6 +46,7 @@ import type { MentorProfileVO } from '@/types/user';
 import { useBackgroundAvatarUpload } from './useBackgroundAvatarUpload';
 import { useFormErrorScroll } from './useFormErrorScroll';
 import { useMenteeDirectionPreference } from './useMenteeDirectionPreference';
+import { usePresetAwareAvatarSession } from './usePresetAwareAvatarSession';
 
 export type ProfileFormContext = UseFormReturn<
   ProfileFormInput,
@@ -270,18 +271,20 @@ export function useProfileEditorSession({
     isMentorRole ? null : effectiveUserDto
   );
 
+  const avatarSession = usePresetAwareAvatarSession(
+    avatarUpload,
+    presetSelectedRef
+  );
+
   const savePort = useMemo<ProfileSavePort>(
     () => ({
       updateSession,
       navigate: (href: string) => router.push(href),
       revalidateProfilePath,
-      uploadAvatar: (file: File) =>
-        presetSelectedRef.current
-          ? Promise.resolve(undefined)
-          : avatarUpload.consume(file),
+      avatarSession: portOverrides?.uploadAvatar ? undefined : avatarSession,
       ...portOverrides,
     }),
-    [avatarUpload, portOverrides, router, updateSession]
+    [avatarSession, portOverrides, router, updateSession]
   );
 
   const { run, isPending: isSaving } = useAsyncAction({
