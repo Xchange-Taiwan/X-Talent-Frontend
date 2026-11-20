@@ -7,17 +7,15 @@ import {
   WebsiteColor,
   YoutubeColor,
 } from '@/components/icon';
+import { normalizePersonalLinks } from '@/lib/profile/profileProjection';
 import {
   isSocialPlatformKey,
   type PersonalLink,
-  SOCIAL_PLATFORM_KEYS,
   SOCIAL_PLATFORM_PLACEHOLDERS,
   SOCIAL_PLATFORM_SHORT_LABELS,
   SOCIAL_PLATFORM_SPECS,
   type SocialPlatformKey,
-  validatePlatformUrl,
 } from '@/lib/profile/socialLinks';
-import { isSafeUrl } from '@/lib/url/isSafeUrl';
 
 export interface PlatformLabelEntry {
   label: string;
@@ -95,44 +93,14 @@ export function getPlatformLabelEntry(
 export function resolveDisplaySocialLinks(
   personalLinks: readonly PersonalLink[] | null | undefined
 ): ResolvedDisplaySocialLink[] {
-  if (!personalLinks?.length) return [];
-
-  const resolvedByPlatform = new Map<
-    SocialPlatformKey,
-    ResolvedDisplaySocialLink
-  >();
-
-  for (const link of personalLinks) {
-    if (!link || typeof link.url !== 'string') {
-      continue;
-    }
-    const normalizedPlatform =
-      typeof link.platform === 'string'
-        ? link.platform.trim().toLowerCase()
-        : '';
-    if (!isSocialPlatformKey(normalizedPlatform)) {
-      continue;
-    }
-    const validation = validatePlatformUrl(normalizedPlatform, link.url);
-    if (
-      !validation.valid ||
-      !validation.normalizedUrl ||
-      !isSafeUrl(validation.normalizedUrl)
-    ) {
-      continue;
-    }
-    const entry = exhaustivePlatformLabelMap[normalizedPlatform];
-    resolvedByPlatform.set(normalizedPlatform, {
-      platform: normalizedPlatform,
-      url: validation.normalizedUrl,
+  return normalizePersonalLinks(personalLinks).map(({ platform, url }) => {
+    const entry = exhaustivePlatformLabelMap[platform];
+    return {
+      platform,
+      url,
       label: entry.label,
       shortLabel: entry.shortLabel,
       icon: entry.icon,
-    });
-  }
-
-  return SOCIAL_PLATFORM_KEYS.flatMap((platform) => {
-    const item = resolvedByPlatform.get(platform);
-    return item ? [item] : [];
+    };
   });
 }

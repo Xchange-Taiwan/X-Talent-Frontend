@@ -9,10 +9,8 @@ import LogoImgUrl from '@/assets/logo.svg';
 import { TotalWorkSpanEnum } from '@/constant/seniority';
 import type { UserType } from '@/hooks/user/user-data/useUserData';
 import { resolveAvatarDisplayUrl } from '@/lib/avatar/avatarUrl';
-import {
-  resolveLocationLabel,
-  splitExperienceDisplay,
-} from '@/lib/mentor/mentorStats';
+import { splitExperienceDisplay } from '@/lib/mentor/mentorStats';
+import { resolveLocationLabel } from '@/lib/profile/locations';
 import { FOCUS_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
 

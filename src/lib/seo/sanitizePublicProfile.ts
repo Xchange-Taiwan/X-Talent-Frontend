@@ -1,17 +1,8 @@
-import type { MentorExperiencePayload } from '@/lib/profile/experienceCodec';
-import { decode } from '@/lib/profile/experienceCodec';
-import { readIndustryTag } from '@/lib/profile/readIndustryTag';
 import {
-  isSocialPlatformKey,
-  type SocialPlatformKey,
-  validatePlatformUrl,
-} from '@/lib/profile/socialLinks';
+  type NormalizedPersonalLink,
+  projectUserProfile,
+} from '@/lib/profile/profileProjection';
 import type { MentorProfileVO } from '@/types/user';
-
-interface PublicPersonalLink {
-  platform: SocialPlatformKey;
-  url: string;
-}
 
 export interface PublicMentorProfile {
   userId: number;
@@ -24,119 +15,37 @@ export interface PublicMentorProfile {
   expertises: string[];
   topics: string[];
   isMentor: boolean;
-  personalLinks: PublicPersonalLink[];
-}
-
-function mapExperiences(
-  experiences: MentorProfileVO['experiences'] | null | undefined
-): MentorExperiencePayload[] | undefined {
-  if (!experiences) return undefined;
-  return experiences.map((exp) => ({
-    category: exp.category ?? '',
-    mentor_experiences_metadata: (exp.mentor_experiences_metadata ??
-      {}) as Record<string, unknown>,
-    order: exp.order ?? 0,
-  }));
-}
-
-function pickCurrentJob(
-  profile: MentorProfileVO,
-  workExperiences: ReturnType<typeof decode>['workExperiences']
-): {
-  jobTitle: string;
-  company: string;
-} {
-  if (workExperiences.length === 0) {
-    return {
-      jobTitle: profile.job_title ?? '',
-      company: profile.company ?? '',
-    };
-  }
-
-  const current =
-    workExperiences.find((entry) => entry.is_primary) ?? workExperiences[0];
-
-  return {
-    jobTitle: current.job ?? profile.job_title ?? '',
-    company: current.company ?? profile.company ?? '',
-  };
-}
-
-function pickPublicLinks(
-  decodedLinks: ReturnType<typeof decode>['personalLinks']
-): PublicPersonalLink[] {
-  const seen = new Set<SocialPlatformKey>();
-  const result: PublicPersonalLink[] = [];
-
-  for (const link of decodedLinks) {
-    const platform = link.platform;
-    const url = link.url;
-    if (
-      !platform ||
-      !isSocialPlatformKey(platform) ||
-      !url ||
-      seen.has(platform)
-    ) {
-      continue;
-    }
-
-    const validation = validatePlatformUrl(platform, url);
-    if (validation.valid && validation.normalizedUrl) {
-      seen.add(platform);
-      result.push({ platform, url: validation.normalizedUrl });
-    }
-  }
-
-  return result;
-}
-
-function resolveLabels(
-  codes: ReadonlyArray<string> | null | undefined,
-  labelMap?: Map<string, string>
-): string[] {
-  if (!codes) return [];
-  return codes
-    .filter((c): c is string => Boolean(c))
-    .map((code) => labelMap?.get(code) ?? code);
+  personalLinks: NormalizedPersonalLink[];
 }
 
 /**
- * Build a sanitized public projection of the mentor profile for SEO/JSON-LD.
+ * Build a sanitized public projection of the mentor profile for SEO/JSON-LD
+ * directly on top of the shared `projectUserProfile` core so client views and
+ * SSR metadata/JSON-LD never diverge on primary role, industry, tag labels, or
+ * personal-link deduplication.
+ *
  * Pass `labelMap` to translate raw subject_group codes (the wire format for
- * have_skill/have_topic) into localized labels; without it the codes pass
- * through, which still works for crawlers but degrades zh_TW relevance.
+ * have_skill/have_topic and industry) into localized labels; without it the
+ * codes pass through, which still works for crawlers but degrades zh_TW
+ * relevance.
  */
 export function sanitizePublicProfile(
   profile: MentorProfileVO,
-  labelMap?: Map<string, string>
+  labelMap?: ReadonlyMap<string, string>
 ): PublicMentorProfile {
-  const decoded = decode(mapExperiences(profile.experiences));
-
-  const { jobTitle, company } = pickCurrentJob(
-    profile,
-    decoded.workExperiences
-  );
-
-  const expertises = resolveLabels(profile.have_skill, labelMap);
-  const topics = resolveLabels(profile.have_topic, labelMap);
-
-  // BFF emits industry as an enriched TagVO-shaped object even though the
-  // OpenAPI generator types it as `Record<string, never>`. Fall back to the
-  // raw subject_group key when the localized subject is missing.
-  const industryTag = readIndustryTag(profile.industry);
-  const industry = industryTag?.subject ?? industryTag?.subject_group ?? null;
+  const projected = projectUserProfile(profile, { labelMap });
 
   return {
-    userId: profile.user_id,
-    name: profile.name ?? '',
-    avatar: profile.avatar || null,
-    jobTitle,
-    company,
-    about: profile.about ?? '',
-    industry,
-    expertises,
-    topics,
-    isMentor: Boolean(profile.is_mentor),
-    personalLinks: pickPublicLinks(decoded.personalLinks),
+    userId: projected.user_id,
+    name: projected.name,
+    avatar: projected.avatar || null,
+    jobTitle: projected.job_title,
+    company: projected.company,
+    about: projected.about ?? '',
+    industry: projected.industry ?? null,
+    expertises: projected.have_skill.map((tag) => tag.subject),
+    topics: projected.have_topic.map((tag) => tag.subject),
+    isMentor: projected.is_mentor,
+    personalLinks: projected.personalLinks,
   };
 }

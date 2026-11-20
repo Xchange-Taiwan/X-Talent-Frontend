@@ -23,12 +23,13 @@ describe('platformLabelMap & resolveDisplaySocialLinks (#862)', () => {
     expect(path).toHaveAttribute('fill', '#181717');
   });
 
-  it('normalizes, deduplicates (last-writer-wins), filters mismatched/unsafe URLs, and sorts display links in canonical 7-platform order', () => {
+  it('normalizes, deduplicates (first-seen valid link wins), filters mismatched/unsafe URLs, and sorts display links in canonical 7-platform order (#862 / #945)', () => {
     const resolved = resolveDisplaySocialLinks([
       { platform: 'website', url: 'example.com' },
-      { platform: 'GitHub', url: 'https://github.com/legacy-handle' },
+      { platform: 'website', url: 'https://duplicate-site.example.com' },
+      { platform: 'GitHub', url: 'https://gitlab.com/imposter' },
       { platform: 'GitHub', url: 'github.com/octocat' },
-      { platform: 'github', url: 'https://gitlab.com/imposter' },
+      { platform: 'GitHub', url: 'https://github.com/later-duplicate' },
       { platform: 'github', url: 'http://github.com/insecure' },
       { platform: 'facebook', url: 'https://www.facebook.com/octocat' },
       { platform: 'linkedin', url: 'https://www.linkedin.com/in/octocat' },

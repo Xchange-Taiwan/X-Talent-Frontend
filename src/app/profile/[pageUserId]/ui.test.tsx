@@ -50,10 +50,18 @@ vi.mock('@/components/profile/reservation/BookingForm', () => ({
   },
 }));
 const scheduleCalendarMock = vi.hoisted(() => ({
-  lastProps: null as { getDateStatus?: (date: Date) => unknown } | null,
+  lastProps: null as {
+    allowedDates?: string[];
+    onMonthChange?: (date: Date) => void;
+    getDateStatus?: (date: Date) => unknown;
+  } | null,
 }));
 vi.mock('@/components/profile/reservation/ScheduleCalendar', () => ({
-  ScheduleCalendar: (props: { getDateStatus?: (date: Date) => unknown }) => {
+  ScheduleCalendar: (props: {
+    allowedDates?: string[];
+    onMonthChange?: (date: Date) => void;
+    getDateStatus?: (date: Date) => unknown;
+  }) => {
     scheduleCalendarMock.lastProps = props;
     return <div data-testid="schedule-calendar" />;
   },
@@ -124,12 +132,8 @@ function baseProps(
     isIdentityResolved: false,
     canShowOwnerControls: false,
     avatarSrc: 'https://example.com/avatar.png',
-    allowedDates: [],
-    onScheduleMonthChange: noop,
     onReservation: noop,
     onEditProfile: noop,
-    selectedSlot: null,
-    setSelectedSlot: noop,
     ...overrides,
   };
 }
@@ -1397,5 +1401,42 @@ describe('ProfilePageUI feature flags disabled behavior (#913)', () => {
     expect(screen.getByText('資深產品設計經驗分享')).toBeInTheDocument();
     expect(screen.getByText('18')).toBeInTheDocument();
     expect(screen.getByText('台灣')).toBeInTheDocument();
+  });
+
+  it('relies solely on canShowOwnerControls without re-comparing loginUserId and reads schedule state directly from BookingCalendarReader (#945)', () => {
+    const onMonthChange = vi.fn();
+    const schedule: BookingCalendarReader = {
+      ...buildSchedule(),
+      allowedDates: ['2026-08-25'],
+      onMonthChange,
+    };
+
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            user_id: 123,
+            name: 'Single Source Mentor',
+            is_mentor: true,
+          }),
+          schedule,
+          loginUserId: '123',
+          isIdentityResolved: true,
+          canShowOwnerControls: false,
+        })}
+      />
+    );
+
+    // Even if loginUserId happens to equal user_id, canShowOwnerControls=false is authoritative
+    expect(
+      screen.getByRole('button', { name: '收藏 Single Source Mentor' })
+    ).toBeInTheDocument();
+    expect(scheduleCalendarMock.lastProps?.allowedDates).toEqual([
+      '2026-08-25',
+    ]);
+
+    const nextMonth = new Date(2026, 8, 1);
+    scheduleCalendarMock.lastProps?.onMonthChange?.(nextMonth);
+    expect(onMonthChange).toHaveBeenCalledWith(nextMonth);
   });
 });

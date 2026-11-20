@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
+import * as mentorStatsModule from './mentorStats';
 import {
   formatAuthorMaskedName,
   formatFeedbackDate,
   formatRatingScoreValue,
   getAuthorInitial,
   normalizeMentorStats,
-  resolveLocationLabel,
   splitExperienceDisplay,
 } from './mentorStats';
 
@@ -101,17 +101,9 @@ describe('mentorStats domain helpers (#736)', () => {
     });
   });
 
-  describe('resolveLocationLabel', () => {
-    it('maps ISO3 country codes to localized country names', () => {
-      expect(resolveLocationLabel('TWN', 'zh_TW')).toBe('台灣');
-      expect(resolveLocationLabel('USA', 'zh_TW')).toBe('美國');
-      expect(resolveLocationLabel('TWN', 'en_US')).toBe('Taiwan');
-    });
-
-    it('passes through already-localized location strings and handles empty values', () => {
-      expect(resolveLocationLabel('臺灣', 'zh_TW')).toBe('臺灣');
-      expect(resolveLocationLabel('  ', 'zh_TW')).toBeUndefined();
-      expect(resolveLocationLabel(null, 'zh_TW')).toBeUndefined();
+  describe('country dictionary decoupling (#945)', () => {
+    it('does not export resolveLocationLabel from mentorStats so /mentor-pool and /favorites do not bundle country JSON tables', () => {
+      expect('resolveLocationLabel' in mentorStatsModule).toBe(false);
     });
   });
 

@@ -1,7 +1,5 @@
 import dayjs from 'dayjs';
 
-import countriesEnUs from '@/data/countries.en_US.json';
-import countriesZhTw from '@/data/countries.zh_TW.json';
 import type { MentorStats, RawMentorStats } from '@/types/mentor';
 
 export interface MentorStatsSource {
@@ -110,21 +108,6 @@ export function splitExperienceDisplay(
   }
 
   return { primary: normalizedRange };
-}
-
-export function resolveLocationLabel(
-  rawLocation: string | null | undefined,
-  language = 'zh_TW'
-): string | undefined {
-  const trimmed = rawLocation?.trim();
-  if (!trimmed) {
-    return undefined;
-  }
-
-  const table: Record<string, string> =
-    language === 'en_US' ? countriesEnUs : countriesZhTw;
-  const upper = trimmed.toUpperCase();
-  return table[upper] ?? trimmed;
 }
 
 export function getAuthorInitial(

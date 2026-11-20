@@ -10,9 +10,10 @@ import {
   projectMentorCard,
   resolveMentorAvatar,
 } from '@/lib/mentor/mentorCardModel';
+import { projectUserProfile } from '@/lib/profile/profileProjection';
 import { mapMentor, type RawMentor } from '@/services/search-mentor/mapMentor';
 import type { MentorType } from '@/types/mentor';
-import type { UserType } from '@/types/user';
+import type { MentorProfileVO, UserType } from '@/types/user';
 
 const CATALOG_LABEL_MAP = new Map<string, string>([
   ['topic_career', '職涯諮詢'],
@@ -52,39 +53,50 @@ function buildRawWireMentor(overrides: Partial<RawMentor> = {}): RawMentor {
 }
 
 function buildProfileUserData(overrides: Partial<UserType> = {}): UserType {
+  const projected = projectUserProfile(
+    fromPartial<MentorProfileVO>({
+      user_id: 777,
+      name: 'Zahra Mirzakhani',
+      avatar: 'https://cdn.example.com/mentors/777/avatar.jpg',
+      job_title: 'Senior UX Designer',
+      company: 'CreativeUX Design Studio',
+      is_mentor: true,
+      about: '超過七年數位產品設計與跨產品設計系統經驗。',
+      personal_statement: '歡迎帶著作品集來交流。',
+      years_of_experience: 'FIVE_TO_TEN',
+      seniority_level: 'SENIOR',
+      location: 'TWN',
+      industry: fromAny({
+        subject_group: 'DESIGN',
+        subject: '設計及創意相關業',
+      }),
+      updated_at: '2026-11-15T08:00:00Z',
+      stats: {
+        completed_meeting_count: 18,
+        rating_count: 12,
+        rating_average: 9.76,
+      },
+      want_position: ['product_designer'],
+      want_skill: ['skill_typescript'],
+      want_topic: ['topic_career'],
+      have_skill: ['skill_figma', 'skill_typescript'],
+      have_topic: ['topic_portfolio', 'topic_career'],
+    }),
+    {
+      labelMap: new Map([
+        ['DESIGN', '設計及創意相關業'],
+        ['product_designer', '產品設計師'],
+        ['skill_typescript', 'TypeScript'],
+        ['topic_career', '職涯諮詢'],
+        ['skill_figma', 'Figma'],
+        ['topic_portfolio', '作品集健檢'],
+      ]),
+      language: 'zh_TW',
+    }
+  );
+
   return {
-    user_id: 777,
-    name: 'Zahra Mirzakhani',
-    avatar: 'https://cdn.example.com/mentors/777/avatar.jpg',
-    job_title: 'Senior UX Designer',
-    company: 'CreativeUX Design Studio',
-    is_mentor: true,
-    about: '超過七年數位產品設計與跨產品設計系統經驗。',
-    personal_statement: '歡迎帶著作品集來交流。',
-    years_of_experience: '5~10 年',
-    seniority_level: 'SENIOR',
-    location: 'TWN',
-    industry: '設計及創意相關業',
-    industries: [{ subject_group: 'DESIGN', subject: '設計及創意相關業' }],
-    updated_at: '2026-11-15T08:00:00Z',
-    stats: {
-      completed_meeting_count: 18,
-      rating_count: 12,
-      rating_average: 9.76,
-    },
-    want_position: [
-      { subject_group: 'product_designer', subject: '產品設計師' },
-    ],
-    want_skill: [{ subject_group: 'skill_typescript', subject: 'TypeScript' }],
-    want_topic: [{ subject_group: 'topic_career', subject: '職涯諮詢' }],
-    have_skill: [
-      { subject_group: 'skill_figma', subject: 'Figma' },
-      { subject_group: 'skill_typescript', subject: 'TypeScript' },
-    ],
-    have_topic: [
-      { subject_group: 'topic_portfolio', subject: '作品集健檢' },
-      { subject_group: 'topic_career', subject: '職涯諮詢' },
-    ],
+    ...projected,
     ...overrides,
   };
 }
@@ -188,6 +200,36 @@ describe('mentorCardModel (#896)', () => {
       );
 
       expect(normalized.industry).toBeNull();
+    });
+
+    it('falls back safely when legacy callers pass hand-crafted display strings without raw *_code fields (#945)', () => {
+      const legacyUser: UserType = {
+        user_id: 888,
+        name: 'Legacy Fixture Mentor',
+        avatar: '',
+        job_title: 'Principal Engineer',
+        company: 'Acme',
+        is_mentor: true,
+        years_of_experience: '5~10 年',
+        location: '台灣',
+        industry: '設計及創意相關業',
+        want_position: [],
+        want_skill: [],
+        want_topic: [],
+        have_skill: [{ subject_group: 'skill_typescript', subject: 'TS' }],
+        have_topic: [{ subject_group: 'topic_career', subject: 'Career' }],
+      };
+
+      const normalized = normalizeMentorFromProfile(legacyUser);
+      expect(normalized.years_of_experience).toBe('5~10 年');
+      expect(normalized.location).toBe('台灣');
+      expect(normalized.industry).toBe('設計及創意相關業');
+
+      const card = projectMentorCard(normalized, {
+        labelMap: CATALOG_LABEL_MAP,
+      });
+      expect(card.yearsOfExperienceLabel).toBe('5~10 年');
+      expect(card.tags).toEqual(['職涯諮詢', 'TypeScript']);
     });
   });
 

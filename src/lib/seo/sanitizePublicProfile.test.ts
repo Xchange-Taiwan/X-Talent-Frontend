@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { projectUserProfile } from '@/lib/profile/profileProjection';
 import { ExperienceType } from '@/services/profile/experienceType';
 import type { MentorProfileVO } from '@/types/user';
 
@@ -244,5 +245,64 @@ describe('sanitizePublicProfile', () => {
     const sanitized = sanitizePublicProfile(profile, labelMap);
     expect(sanitized.expertises).toEqual(['TypeScript', 'skill_2']);
     expect(sanitized.topics).toEqual(['Career growth']);
+  });
+
+  it('maintains 100% parity with projectUserProfile for jobTitle, company, industry, tags, and personalLinks (#945)', () => {
+    const labelMap = new Map<string, string>([
+      ['DESIGN', '設計及創意相關業'],
+      ['skill_figma', 'Figma'],
+      ['topic_portfolio', '作品集健檢'],
+    ]);
+
+    const profile: MentorProfileVO = {
+      ...baseProfile,
+      job_title: 'Stale Outer Title',
+      company: 'Stale Outer Co',
+      industry: { subject_group: 'DESIGN' },
+      have_skill: ['skill_figma'],
+      have_topic: ['topic_portfolio'],
+      experiences: [
+        {
+          category: ExperienceType.WORK,
+          order: 1,
+          mentor_experiences_metadata: {
+            data: [
+              { job: 'Junior UX', company: 'Old Co', is_primary: false },
+              {
+                job: 'Principal Designer',
+                company: 'Current Studio',
+                is_primary: true,
+              },
+            ],
+          },
+        },
+        {
+          category: ExperienceType.LINK,
+          order: 3,
+          mentor_experiences_metadata: {
+            data: [
+              { platform: 'website', url: 'portfolio.example.com' },
+              { platform: 'GitHub', url: 'https://github.com/first-handle' },
+              { platform: 'github', url: 'https://github.com/second-handle' },
+              { platform: 'linkedin', url: 'https://linkedin.com/in/designer' },
+            ],
+          },
+        },
+      ] as unknown as MentorProfileVO['experiences'],
+    };
+
+    const sanitized = sanitizePublicProfile(profile, labelMap);
+    const projected = projectUserProfile(profile, { labelMap });
+
+    expect(sanitized.jobTitle).toBe(projected.job_title);
+    expect(sanitized.company).toBe(projected.company);
+    expect(sanitized.industry).toBe(projected.industry);
+    expect(sanitized.expertises).toEqual(
+      projected.have_skill.map((t) => t.subject)
+    );
+    expect(sanitized.topics).toEqual(
+      projected.have_topic.map((t) => t.subject)
+    );
+    expect(sanitized.personalLinks).toEqual(projected.personalLinks);
   });
 });

@@ -138,6 +138,7 @@ const mockMenteeUserData: UserType = {
   about:
     '目前擔任前端工程師，專注於 React 與 TypeScript 開發，希望能向資深工程師請教大型系統架構設計與跨國團隊協作經驗。',
   years_of_experience: '1~3 年',
+  location: '台灣',
   industry: '網際網路 / 軟體',
   want_position: [
     { subject_group: 'frontend_engineer', subject: '前端工程師' },
@@ -216,11 +217,8 @@ export const MentorOwnerView: Story = {
     isIdentityResolved: true,
     canShowOwnerControls: true,
     avatarSrc: defaultAvatar,
-    allowedDates: [tomorrowStr, nextWeekStr],
     onReservation: () => {},
     onEditProfile: () => {},
-    selectedSlot: null,
-    setSelectedSlot: () => {},
   },
 };
 
@@ -230,6 +228,8 @@ export const MentorVisitorView: Story = {
     userLoading: false,
     schedule: {
       ...baseScheduleReader,
+      selectedSlot: mockBookingSlots[0],
+      setSelectedSlot: () => {},
       slotsSnapshot: {
         slots: mockBookingSlots.filter((s) => !s.isBooked && s.status === null),
         monthLoaded: true,
@@ -248,11 +248,8 @@ export const MentorVisitorView: Story = {
     isIdentityResolved: true,
     canShowOwnerControls: false,
     avatarSrc: defaultAvatar,
-    allowedDates: [tomorrowStr, nextWeekStr],
     onReservation: () => {},
     onEditProfile: () => {},
-    selectedSlot: mockBookingSlots[0],
-    setSelectedSlot: () => {},
   },
 };
 
@@ -322,11 +319,8 @@ export const MenteeProfileView: Story = {
     isIdentityResolved: true,
     canShowOwnerControls: true,
     avatarSrc: defaultAvatar,
-    allowedDates: [],
     onReservation: () => {},
     onEditProfile: () => {},
-    selectedSlot: null,
-    setSelectedSlot: () => {},
   },
 };
 
@@ -336,6 +330,7 @@ export const LoadingSkeleton: Story = {
     userLoading: true,
     schedule: {
       ...baseScheduleReader,
+      allowedDates: [],
       slotsSnapshot: {
         slots: [],
         monthLoaded: false,
@@ -347,11 +342,8 @@ export const LoadingSkeleton: Story = {
     isIdentityResolved: false,
     canShowOwnerControls: false,
     avatarSrc: defaultAvatar,
-    allowedDates: [],
     onReservation: () => {},
     onEditProfile: () => {},
-    selectedSlot: null,
-    setSelectedSlot: () => {},
   },
 };
 
@@ -404,16 +396,16 @@ export const MenteeEmptyOwnerView: Story = {
       personalLinks: [],
     },
     userLoading: false,
-    schedule: baseScheduleReader,
+    schedule: {
+      ...baseScheduleReader,
+      allowedDates: [],
+    },
     scheduleLoaded: true,
     loginUserId: '203',
     isIdentityResolved: true,
     canShowOwnerControls: true,
     avatarSrc: defaultAvatar,
-    allowedDates: [],
     onReservation: () => {},
     onEditProfile: () => {},
-    selectedSlot: null,
-    setSelectedSlot: () => {},
   },
 };

@@ -38,6 +38,11 @@ const mockMenteeUserData: UserType = {
   ],
   have_skill: [],
   have_topic: [],
+  personalLinks: [
+    { platform: 'linkedin', url: 'https://www.linkedin.com/in/alex-chen' },
+    { platform: 'github', url: 'https://github.com/alex-chen' },
+    { platform: 'website', url: 'https://alexchen.dev' },
+  ],
 };
 
 const mockMentorUserData: UserType = {
@@ -60,17 +65,19 @@ const mockMentorUserData: UserType = {
     { subject_group: 'offer-mock', subject: '模擬面試' },
     { subject_group: 'offer-career', subject: '職涯發展諮詢' },
   ],
+  personalLinks: [
+    { platform: 'linkedin', url: 'https://www.linkedin.com/in/hana-lin' },
+    { platform: 'twitter', url: 'https://x.com/hanalin' },
+    { platform: 'youtube', url: 'https://www.youtube.com/@hanalin' },
+    { platform: 'github', url: 'https://github.com/hanalin' },
+    { platform: 'website', url: 'https://hanalin.dev' },
+  ],
 };
 
 export const MenteeCompletedView: Story = {
   args: {
     userData: mockMenteeUserData,
     isMentor: false,
-    personalLinks: [
-      { platform: 'linkedin', url: 'https://www.linkedin.com/in/alex-chen' },
-      { platform: 'github', url: 'https://github.com/alex-chen' },
-      { platform: 'website', url: 'https://alexchen.dev' },
-    ],
     onBecomeMentor: () => {},
     onGoToMentorPool: () => {},
     onBackToProfile: () => {},
@@ -86,9 +93,9 @@ export const FreshMenteePresetAvatarCompletedView: Story = {
       job_title: '',
       company: '',
       want_position: [{ subject_group: 'want-fe', subject: '前端工程師' }],
+      personalLinks: [],
     },
     isMentor: false,
-    personalLinks: [],
     onBecomeMentor: () => {},
     onGoToMentorPool: () => {},
     onBackToProfile: () => {},
@@ -99,13 +106,6 @@ export const MentorCompletedView: Story = {
   args: {
     userData: mockMentorUserData,
     isMentor: true,
-    personalLinks: [
-      { platform: 'linkedin', url: 'https://www.linkedin.com/in/hana-lin' },
-      { platform: 'twitter', url: 'https://x.com/hanalin' },
-      { platform: 'youtube', url: 'https://www.youtube.com/@hanalin' },
-      { platform: 'github', url: 'https://github.com/hanalin' },
-      { platform: 'website', url: 'https://hanalin.dev' },
-    ],
     onBecomeMentor: () => {},
     onGoToMentorPool: () => {},
     onBackToProfile: () => {},
