@@ -9,7 +9,6 @@ import {
   computeDirtyStates,
   extractValidLinks,
   hasDirtyValue,
-  isProfileSynced,
   mapFormValuesToPayload,
   mapVoToFormValues,
   resolveOptimisticIndustry,
@@ -469,127 +468,6 @@ describe('profileSaveAdapter', () => {
       expect(
         resolveOptimisticIndustry('', catalog, undefined, false)
       ).toBeNull();
-    });
-  });
-
-  describe('isProfileSynced', () => {
-    const mockValues: ProfileFormValues = {
-      ...defaultValues,
-      name: 'Bob',
-      location: 'Taipei',
-      statement: 'Hi',
-      about: 'About',
-      industry: 'tech',
-      years_of_experience: '3_5',
-    };
-
-    const mockVo = fromPartial<MentorProfileVO>({
-      user_id: 1,
-      name: 'Bob',
-      avatar: 'https://avatar.com/bob?v=1754000000000',
-      job_title: null,
-      company: null,
-      location: 'Taipei',
-      personal_statement: 'Hi',
-      about: 'About',
-      years_of_experience: '3_5',
-      industry: {
-        id: 1,
-        kind: 'industry',
-        subject_group: 'tech',
-        subject: 'Software',
-        language: 'zh_TW',
-      },
-      experiences: [],
-      onboarding: true,
-      is_mentor: true,
-      language: 'zh_TW',
-      seniority_level: null,
-      want_position: null,
-      want_skill: null,
-      want_topic: null,
-      have_skill: null,
-      have_topic: null,
-    });
-
-    it('returns true if all checked fields match (including ?v= + &cb= avatar convergence)', () => {
-      expect(
-        isProfileSynced(
-          mockValues,
-          mockVo,
-          'https://avatar.com/bob?v=1754000000000'
-        )
-      ).toBe(true);
-      expect(
-        isProfileSynced(
-          mockValues,
-          {
-            ...mockVo,
-            avatar:
-              'https://avatar.com/bob?v=1754000000000&cb=2026-11-14T00%3A00%3A00Z',
-          },
-          'https://avatar.com/bob?v=1754000000000'
-        )
-      ).toBe(true);
-    });
-
-    it('returns false if name differs', () => {
-      const differentVo = { ...mockVo, name: 'Alice' };
-      expect(
-        isProfileSynced(
-          mockValues,
-          differentVo,
-          'https://avatar.com/bob?v=1754000000000'
-        )
-      ).toBe(false);
-    });
-
-    it('returns false if location differs', () => {
-      const differentVo = { ...mockVo, location: 'Hsinchu' };
-      expect(
-        isProfileSynced(
-          mockValues,
-          differentVo,
-          'https://avatar.com/bob?v=1754000000000'
-        )
-      ).toBe(false);
-    });
-
-    it('returns false if avatar version or asset differs', () => {
-      expect(
-        isProfileSynced(
-          mockValues,
-          mockVo,
-          'https://avatar.com/bob?v=1754000099999'
-        )
-      ).toBe(false);
-      expect(
-        isProfileSynced(mockValues, mockVo, 'https://avatar.com/new-bob')
-      ).toBe(false);
-    });
-
-    it('returns true if avatar expectation is empty', () => {
-      expect(isProfileSynced(mockValues, mockVo, '')).toBe(true);
-    });
-
-    it('returns false if industry differs', () => {
-      const differentVo: MentorProfileVO = {
-        ...mockVo,
-        industry: {
-          id: 1,
-          kind: 'industry',
-          subject_group: 'finance',
-          subject: 'Banking',
-          language: 'zh_TW',
-        },
-      };
-      expect(
-        isProfileSynced(
-          mockValues,
-          differentVo,
-          'https://avatar.com/bob?v=1754000000000'
-        )
-      ).toBe(false);
     });
   });
 });

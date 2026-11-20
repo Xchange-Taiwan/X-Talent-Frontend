@@ -6,17 +6,24 @@ import {
   runConvergence,
   SearchIndexDeleteAdapter,
   SearchIndexSyncAdapter,
+  type SearchMentorsFn,
 } from './convergence';
 
 export type { MentorCardFields };
 
-/**
- * Polls the mentor-pool search query until this user no longer appears in
- * it. Called before `revalidatePath('/mentor-pool')` on account deletion
- * so the fresh SSR fetch that revalidation triggers doesn't re-cache a
- * stale result.
- */
-export async function pollUntilUserDeleted(
+export type PollMentorPoolSyncedFn = (
+  userId: number,
+  fields: MentorCardFields
+) => Promise<boolean>;
+
+export interface ConfirmProfileSyncOptions {
+  maxRetries?: number;
+  intervalMs?: number;
+  searchMentors?: SearchMentorsFn;
+  poll?: PollMentorPoolSyncedFn;
+}
+
+async function pollMentorPoolUntilDeleted(
   userId: number,
   name?: string,
   maxRetries = FAST_CONVERGENCE_BUDGET.maxRetries,
@@ -29,23 +36,16 @@ export async function pollUntilUserDeleted(
   return confirmed;
 }
 
-/**
- * Polls the mentor-pool search query (scoped to `fields.name` via
- * `search_pattern`, so it isn't limited to the unfiltered listing's first
- * page) until this user's card reflects every just-saved, card-visible
- * field (or, for a user newly becoming a mentor, until the card appears
- * at all). Only meaningful for mentors — callers should skip this for
- * mentee saves, since those never appear in the listing.
- */
-export async function pollUntilMentorPoolSynced(
+async function pollMentorPoolUntilSynced(
   userId: number,
   fields: MentorCardFields,
   maxRetries = FAST_CONVERGENCE_BUDGET.maxRetries,
-  intervalMs = FAST_CONVERGENCE_BUDGET.intervalMs
+  intervalMs = FAST_CONVERGENCE_BUDGET.intervalMs,
+  searchMentors?: SearchMentorsFn
 ): Promise<boolean> {
   if (!userId || Number.isNaN(userId)) return true;
 
-  const adapter = new SearchIndexSyncAdapter(userId, fields);
+  const adapter = new SearchIndexSyncAdapter(userId, fields, searchMentors);
   const { confirmed } = await runConvergence(adapter, maxRetries, intervalMs);
   return confirmed;
 }
@@ -64,12 +64,22 @@ export async function confirmProfileSynced(
   fields: MentorCardFields,
   isMentorRelevant: boolean,
   revalidate: () => Promise<void>,
-  poll: (
-    userId: number,
-    fields: MentorCardFields
-  ) => Promise<boolean> = pollUntilMentorPoolSynced
+  optionsOrPoll?: ConfirmProfileSyncOptions | PollMentorPoolSyncedFn
 ): Promise<void> {
   if (!isMentorRelevant) return;
+  const poll: PollMentorPoolSyncedFn =
+    typeof optionsOrPoll === 'function'
+      ? optionsOrPoll
+      : (optionsOrPoll?.poll ??
+        ((id, cardFields) =>
+          pollMentorPoolUntilSynced(
+            id,
+            cardFields,
+            optionsOrPoll?.maxRetries,
+            optionsOrPoll?.intervalMs,
+            optionsOrPoll?.searchMentors
+          )));
+
   try {
     await poll(userId, fields);
   } catch (e) {
@@ -98,7 +108,7 @@ export async function confirmDeletionSynced(
   poll: (
     userId: number,
     name?: string
-  ) => Promise<boolean> = pollUntilUserDeleted
+  ) => Promise<boolean> = pollMentorPoolUntilDeleted
 ): Promise<void> {
   try {
     await poll(userId, name);

@@ -1,16 +1,11 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { getLastPrimedTime } from '@/lib/cache/userProfileDtoCache';
+import { profileReadModel } from '@/lib/profile/profileReadModel';
 import { fetchUserById } from '@/services/profile/user';
 import { mockUserDTO } from '@/test/fixtures/profile';
 
-import {
-  clearUserProfileDtoCache,
-  hasDtoConverged,
-  primeUserProfileDtoCache,
-  useUserProfileDto,
-} from './useUserProfileDto';
+import { hasDtoConverged, useUserProfileDto } from './useUserProfileDto';
 
 vi.mock('@/services/profile/user', () => ({
   fetchUserById: vi.fn(),
@@ -20,9 +15,11 @@ describe('useUserProfileDto', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.clearAllMocks();
+    profileReadModel.clear();
   });
 
   afterEach(() => {
+    profileReadModel.clear();
     vi.useRealTimers();
   });
 
@@ -52,7 +49,7 @@ describe('useUserProfileDto', () => {
     vi.mocked(fetchUserById).mockResolvedValue(mockUserDTO);
 
     // Prime cache first
-    primeUserProfileDtoCache(1, 'zh-TW', mockUserDTO);
+    profileReadModel.prime({ userId: 1, language: 'zh-TW' }, mockUserDTO);
 
     const { result } = renderHook(() => useUserProfileDto(1, 'zh-TW'));
 
@@ -79,8 +76,8 @@ describe('useUserProfileDto', () => {
   it('allows clearing the cache and forcing refetch', async () => {
     vi.mocked(fetchUserById).mockResolvedValue(mockUserDTO);
 
-    primeUserProfileDtoCache(1, 'zh-TW', mockUserDTO);
-    clearUserProfileDtoCache(1, 'zh-TW');
+    profileReadModel.prime({ userId: 1, language: 'zh-TW' }, mockUserDTO);
+    profileReadModel.invalidate({ userId: 1, language: 'zh-TW' });
 
     const { result } = renderHook(() => useUserProfileDto(1, 'zh-TW'));
 
@@ -262,7 +259,7 @@ describe('useUserProfileDto', () => {
       const oldSsrDto = { ...mockUserDTO, name: 'Old SSR' };
 
       // Prime the client-side cache (e.g. from a successful saveProfile)
-      primeUserProfileDtoCache(8, 'zh-TW', cachedDto);
+      profileReadModel.prime({ userId: 8, language: 'zh-TW' }, cachedDto);
 
       // Now a component mounts receiving a stale oldSsrDto from SSR (e.g. during navigation hydration)
       const { result } = renderHook(() =>
@@ -279,7 +276,7 @@ describe('useUserProfileDto', () => {
   describe('options.enabled', () => {
     it('does not fetch or set loading to true when enabled: false, reading only from cache if present', async () => {
       const cachedDto = { ...mockUserDTO, name: 'Cached DTO' };
-      primeUserProfileDtoCache(9, 'zh-TW', cachedDto);
+      profileReadModel.prime({ userId: 9, language: 'zh-TW' }, cachedDto);
 
       // Mount with enabled: false and a valid cache entry
       const { result } = renderHook(() =>
@@ -307,9 +304,9 @@ describe('useUserProfileDto', () => {
       const mockTime = 1234567890000;
       vi.setSystemTime(mockTime);
 
-      primeUserProfileDtoCache(99, 'zh-TW', mockUserDTO);
+      profileReadModel.prime({ userId: 99, language: 'zh-TW' }, mockUserDTO);
 
-      expect(getLastPrimedTime()).toBe(mockTime);
+      expect(profileReadModel.getLastPrimedTime()).toBe(mockTime);
     });
   });
 
@@ -456,7 +453,7 @@ describe('useUserProfileDto', () => {
 
     // 3. Prime optimistic DTO while background revalidation is in flight (enters 10s transition window)
     act(() => {
-      primeUserProfileDtoCache(30, 'zh-TW', primedDto);
+      profileReadModel.prime({ userId: 30, language: 'zh-TW' }, primedDto);
     });
 
     // 4. Resolve the in-flight background revalidation with the non-converged staleBackendDto
@@ -465,7 +462,7 @@ describe('useUserProfileDto', () => {
       await backgroundFetchPromise;
     });
 
-    // Wait for the background fetch resolution to propagate through resolveUserProfileDtoFetch:
+    // Wait for the background fetch resolution to propagate through profileReadModel.resolveFetch:
     // because staleBackendDto has not converged with primedDto, userDto becomes primedDto (not staleBackendDto)
     await vi.waitFor(() => {
       expect(revalResult.current.userDto).toEqual(primedDto);
@@ -511,7 +508,7 @@ describe('useUserProfileDto', () => {
     // Also verify manual force refetch bypasses optimistic convergence protection
     vi.mocked(fetchUserById).mockReset();
     vi.mocked(fetchUserById).mockResolvedValue(staleWithOldAvatar);
-    primeUserProfileDtoCache(31, 'zh-TW', primedWithAvatar);
+    profileReadModel.prime({ userId: 31, language: 'zh-TW' }, primedWithAvatar);
 
     const { result } = renderHook(() => useUserProfileDto(31, 'zh-TW'));
     act(() => {

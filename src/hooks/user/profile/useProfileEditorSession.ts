@@ -29,6 +29,7 @@ import {
   type ProfileDirtyFields,
 } from '@/lib/profile/profileSaveAdapter';
 import {
+  type AvatarMutationSession,
   commitProfileMutation,
   LoggedError,
   type ProfileSavePort,
@@ -270,18 +271,32 @@ export function useProfileEditorSession({
     isMentorRole ? null : effectiveUserDto
   );
 
+  const avatarSession = useMemo<AvatarMutationSession>(
+    () => ({
+      resolve: (file: File | undefined) =>
+        presetSelectedRef.current
+          ? Promise.resolve(undefined)
+          : avatarUpload.resolve(file),
+      markCommitted: () => {
+        avatarUpload.markCommitted();
+      },
+      abort: () => {
+        avatarUpload.abort();
+      },
+      rollback: () => avatarUpload.rollback(),
+    }),
+    [avatarUpload]
+  );
+
   const savePort = useMemo<ProfileSavePort>(
     () => ({
       updateSession,
       navigate: (href: string) => router.push(href),
       revalidateProfilePath,
-      uploadAvatar: (file: File) =>
-        presetSelectedRef.current
-          ? Promise.resolve(undefined)
-          : avatarUpload.consume(file),
+      avatarSession: portOverrides?.uploadAvatar ? undefined : avatarSession,
       ...portOverrides,
     }),
-    [avatarUpload, portOverrides, router, updateSession]
+    [avatarSession, portOverrides, router, updateSession]
   );
 
   const { run, isPending: isSaving } = useAsyncAction({

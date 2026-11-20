@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { captureFlowFailure } from '@/lib/monitoring';
 import { encode, toWireExperiences } from '@/lib/profile/experienceCodec';
-import { defaultValues } from '@/schemas/profileSchema';
 import { fetchUserById } from '@/services/profile/user';
 import { fetchMentors } from '@/services/search-mentor/mentors';
 import type { MentorType } from '@/types/mentor';
@@ -163,16 +162,6 @@ const makeSyncedDto = (
         ? overrides.want_topic
         : ['leadership'],
   };
-};
-
-const baseValues = {
-  ...defaultValues,
-  name: 'Sync Test',
-  location: 'Taiwan',
-  about: 'about-me',
-  statement: 'statement',
-  years_of_experience: '1_3',
-  industry: 'tech',
 };
 
 describe('hasProfileDtoConverged', () => {
@@ -402,17 +391,37 @@ describe('ProfileRecordAdapter', () => {
     expect(result).toBeNull();
   });
 
-  it('supports backward-compatible (userId, values, avatar) overload', () => {
-    const adapter = new ProfileRecordAdapter(1, baseValues, '');
-    const dto = makeSyncedDto({ avatar: '' });
-
-    expect(adapter.isCaughtUp(dto)).toBe(true);
-
-    const staleDto = makeSyncedDto({
-      avatar: '',
-      name: 'Stale Name',
+  it('treats undefined role/experience/avatar fields as unconstrained while treating null as explicitly empty/false (#943)', () => {
+    const incoming = makeSyncedDto({
+      is_mentor: true,
+      onboarding: true,
+      avatar: 'https://s3.amazonaws.com/bucket/files/1/avatar?v=1754000000000',
     });
-    expect(adapter.isCaughtUp(staleDto)).toBe(false);
+
+    expect(
+      hasProfileDtoConverged(
+        {
+          name: 'Sync Test',
+          is_mentor: undefined,
+          onboarding: undefined,
+          avatar: undefined,
+          job_title: undefined,
+          company: undefined,
+          experiences: undefined,
+        },
+        incoming
+      )
+    ).toBe(true);
+
+    expect(
+      hasProfileDtoConverged({ name: 'Sync Test', is_mentor: null }, incoming)
+    ).toBe(false);
+    expect(
+      hasProfileDtoConverged({ name: 'Sync Test', onboarding: null }, incoming)
+    ).toBe(false);
+    expect(
+      hasProfileDtoConverged({ name: 'Sync Test', avatar: null }, incoming)
+    ).toBe(false);
   });
 
   it('defines correct exhaustion metadata', () => {

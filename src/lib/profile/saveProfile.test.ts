@@ -21,6 +21,7 @@ import { encode, toWireExperiences } from '@/lib/profile/experienceCodec';
 import { profileReadModel } from '@/lib/profile/profileReadModel';
 import { readIndustryTag } from '@/lib/profile/readIndustryTag';
 import type { OnboardingFormValues } from '@/schemas/onboarding';
+import { createAvatarUploadSession } from '@/services/profile/avatarUploadSession';
 import { ExperienceType } from '@/services/profile/experienceType';
 import type { MentorProfileWritePayload } from '@/services/profile/updateProfile';
 import { baseValues, mockSession, mockUserDTO } from '@/test/fixtures/profile';
@@ -31,6 +32,7 @@ import type { MentorIndustryVO, MentorProfileVO } from '@/types/user';
 import {
   type CommitProfileContext,
   commitProfileMutation,
+  LoggedError,
   type ProfileSavePort,
   saveProfile,
   type SaveProfileContext,
@@ -807,6 +809,110 @@ describe('commitProfileMutation & saveProfile (Deep Module with ProfileSavePort)
         message: 'Profile update failed',
       })
     );
+  });
+
+  it('wires two-phase AvatarUploadSession: retains S3 rollback snapshot when PUT /profile fails (step="profile_write"), commits only on PUT success, and tags step="avatar_upload" on upload failure (#943)', async () => {
+    const upload = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('S3 presigned failure'))
+      .mockResolvedValueOnce('https://cdn.example.com/u/1/avatar?v=200')
+      .mockResolvedValueOnce('https://cdn.example.com/u/1/avatar?v=201')
+      .mockResolvedValueOnce('https://cdn.example.com/u/1/avatar?v=300');
+    const fetchSnapshot = vi
+      .fn()
+      .mockResolvedValue(new Blob(['prior-s3-bytes'], { type: 'image/png' }));
+
+    const avatarSession = createAvatarUploadSession({
+      userId: 1,
+      fetchSnapshot,
+      upload,
+      onUploadFailed: vi.fn(),
+    });
+
+    const file1 = new File(['crop1'], 'crop1.png', { type: 'image/png' });
+    const { port: failUploadPort, spies: failUploadSpies } =
+      createInMemoryProfileSavePort();
+    failUploadPort.avatarSession = avatarSession;
+
+    // 1. Step 1 failure surfaces LoggedError with step === 'avatar_upload' and never calls writeProfile
+    let caughtUploadErr: unknown;
+    try {
+      await commitProfileMutation(
+        { mode: 'edit', values: { ...baseValues, avatarFile: file1 } },
+        makeCommitContext(),
+        failUploadPort
+      );
+    } catch (e) {
+      caughtUploadErr = e;
+    }
+    expect(caughtUploadErr).toBeInstanceOf(LoggedError);
+    expect((caughtUploadErr as LoggedError).step).toBe('avatar_upload');
+    expect(failUploadSpies.writeProfile).not.toHaveBeenCalled();
+
+    // 2. Stage crop2 -> Step 1 resolve() succeeds, Step 2 writeProfile() rejects with step === 'profile_write'
+    const file2 = new File(['crop2'], 'crop2.png', { type: 'image/png' });
+    avatarSession.stage(file2, 'https://cdn.example.com/u/1/avatar?v=1');
+
+    const { port: failWritePort } = createInMemoryProfileSavePort({
+      writeProfile: vi.fn<WriteProfileFn>(async () => {
+        throw new Error('DB timeout');
+      }),
+    });
+    failWritePort.avatarSession = avatarSession;
+
+    let caughtWriteErr: unknown;
+    try {
+      await commitProfileMutation(
+        { mode: 'edit', values: { ...baseValues, avatarFile: file2 } },
+        makeCommitContext(),
+        failWritePort
+      );
+    } catch (e) {
+      caughtWriteErr = e;
+    }
+    expect(caughtWriteErr).toBeInstanceOf(LoggedError);
+    expect((caughtWriteErr as LoggedError).step).toBe('profile_write');
+
+    // Because markCommitted() was NOT called, rollback() restores prior-s3-bytes!
+    await avatarSession.rollback();
+    expect(upload).toHaveBeenCalledTimes(3);
+    await expect(upload.mock.calls[2]![0].text()).resolves.toBe(
+      'prior-s3-bytes'
+    );
+
+    // 3. Happy path: stage crop3 -> Step 1 resolve() + Step 2 writeProfile() succeed -> markCommitted() clears snapshot
+    const file3 = new File(['crop3'], 'crop3.png', { type: 'image/png' });
+    avatarSession.stage(file3, 'https://cdn.example.com/u/1/avatar?v=1');
+
+    const { port: okPort, spies: okSpies } = createInMemoryProfileSavePort({
+      fetchProfile: vi.fn<FetchProfileFn>(async () =>
+        makeSyncedDtoFromValues({
+          avatar: 'https://cdn.example.com/u/1/avatar?v=300',
+        })
+      ),
+      searchMentors: vi.fn<SearchMentorsPortFn>(async () => [
+        makeSyncedMentorCard({
+          avatar: 'https://cdn.example.com/u/1/avatar?v=300',
+        }),
+      ]),
+    });
+    okPort.avatarSession = avatarSession;
+
+    await commitProfileMutation(
+      { mode: 'edit', values: { ...baseValues, avatarFile: file3 } },
+      makeCommitContext(),
+      okPort
+    );
+    expect(okSpies.writeProfile).toHaveBeenCalledWith(
+      '1',
+      expect.objectContaining({
+        avatar: 'https://cdn.example.com/u/1/avatar?v=300',
+      })
+    );
+
+    // Subsequent rollback after commit is a complete no-op
+    await avatarSession.rollback();
+    expect(upload).toHaveBeenCalledTimes(4);
   });
 
   // ── Optimistic industryCatalog resolution & is_primary mirroring ───────────

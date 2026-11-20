@@ -2,7 +2,6 @@ import { hasAvatarVersionConverged } from '@/lib/avatar/avatarUrl';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { decode, fromWireExperiences } from '@/lib/profile/experienceCodec';
 import { readIndustryTag } from '@/lib/profile/readIndustryTag';
-import type { ProfileFormValues } from '@/schemas/profileSchema';
 import { fetchUserById } from '@/services/profile/user';
 import { fetchMentors } from '@/services/search-mentor/mentors';
 import type { MentorRequest, MentorType } from '@/types/mentor';
@@ -103,7 +102,6 @@ export function hasProfileDtoConverged(
 
   if (
     expected.is_mentor !== undefined &&
-    expected.is_mentor !== null &&
     Boolean(incoming.is_mentor) !== Boolean(expected.is_mentor)
   ) {
     return false;
@@ -111,7 +109,6 @@ export function hasProfileDtoConverged(
 
   if (
     expected.onboarding !== undefined &&
-    expected.onboarding !== null &&
     Boolean(incoming.onboarding) !== Boolean(expected.onboarding)
   ) {
     return false;
@@ -146,11 +143,7 @@ export function hasProfileDtoConverged(
     return false;
   }
 
-  if (expected.avatar === null) {
-    if (incoming.avatar) {
-      return false;
-    }
-  } else if (!hasAvatarVersionConverged(expected.avatar, incoming.avatar)) {
+  if (!hasAvatarVersionConverged(expected.avatar, incoming.avatar)) {
     return false;
   }
 
@@ -213,71 +206,20 @@ export interface ConvergenceAdapter<T> {
   };
 }
 
-function isLegacyFormValuesInput(
-  expectedOrValues: Partial<MentorProfileVO> | ProfileFormValues,
-  avatarOrFetch: string | FetchProfileRecordFn | undefined
-): expectedOrValues is ProfileFormValues {
-  return typeof avatarOrFetch === 'string';
-}
-
 /**
  * Adapter for the DB-backed profile record (queries fetchUserById by default).
  * Evaluates full-field convergence via `hasProfileDtoConverged`.
  */
 export class ProfileRecordAdapter implements ConvergenceAdapter<MentorProfileVO> {
-  private readonly expectedDto: Partial<MentorProfileVO>;
-  private readonly fetchProfileFn: FetchProfileRecordFn;
   private readonly language: string;
 
   constructor(
-    userId: number,
-    expectedDto: Partial<MentorProfileVO>,
-    fetchProfileFn?: FetchProfileRecordFn,
-    language?: string
-  );
-  constructor(
-    userId: number,
-    values: ProfileFormValues,
-    avatar: string,
-    fetchProfileFn?: FetchProfileRecordFn,
-    language?: string
-  );
-  constructor(
     private userId: number,
-    expectedOrValues: Partial<MentorProfileVO> | ProfileFormValues,
-    avatarOrFetch?: string | FetchProfileRecordFn,
-    legacyFetchOrLanguage?: FetchProfileRecordFn | string,
-    legacyLanguage?: string
+    private readonly expectedDto: Partial<MentorProfileVO>,
+    private readonly fetchProfileFn: FetchProfileRecordFn = defaultFetchProfileRecord,
+    language?: string
   ) {
-    if (isLegacyFormValuesInput(expectedOrValues, avatarOrFetch)) {
-      const avatar = typeof avatarOrFetch === 'string' ? avatarOrFetch : '';
-      this.expectedDto = {
-        name: expectedOrValues.name,
-        avatar: avatar || undefined,
-        location: expectedOrValues.location ?? '',
-        personal_statement: expectedOrValues.statement ?? '',
-        about: expectedOrValues.about ?? '',
-        years_of_experience: expectedOrValues.years_of_experience ?? '',
-        industry: expectedOrValues.industry
-          ? { subject_group: expectedOrValues.industry, subject: '' }
-          : null,
-      };
-      this.fetchProfileFn =
-        typeof legacyFetchOrLanguage === 'function'
-          ? legacyFetchOrLanguage
-          : defaultFetchProfileRecord;
-      this.language = legacyLanguage || 'zh_TW';
-    } else {
-      this.expectedDto = expectedOrValues;
-      this.fetchProfileFn =
-        typeof avatarOrFetch === 'function'
-          ? avatarOrFetch
-          : defaultFetchProfileRecord;
-      this.language =
-        typeof legacyFetchOrLanguage === 'string' && legacyFetchOrLanguage
-          ? legacyFetchOrLanguage
-          : expectedOrValues.language || 'zh_TW';
-    }
+    this.language = language || expectedDto.language || 'zh_TW';
   }
 
   async fetch(): Promise<MentorProfileVO | null> {
