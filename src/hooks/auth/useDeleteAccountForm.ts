@@ -48,7 +48,11 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
   const onSubmitXC = async (values: XCValues): Promise<void> => {
     if (isInFlight()) return;
     if (!isAccountDeletionEnabled()) {
-      await authLifecycle.deleteAccountXC(values, { toast });
+      toast({
+        variant: 'destructive',
+        description: '此環境不支援帳號刪除',
+        duration: 3000,
+      });
       return;
     }
 
@@ -75,10 +79,11 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
   const initiateGoogleReauth = async (): Promise<void> => {
     if (isInFlight()) return;
     if (!isAccountDeletionEnabled()) {
-      await authLifecycle.startDeleteAccountGoogleReauth(
-        session?.user?.email ?? '',
-        { toast }
-      );
+      toast({
+        variant: 'destructive',
+        description: '此環境不支援帳號刪除',
+        duration: 3000,
+      });
       return;
     }
 

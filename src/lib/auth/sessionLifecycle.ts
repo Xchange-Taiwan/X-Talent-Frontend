@@ -1516,8 +1516,8 @@ function createAuthLifecycleInternal(
         );
 
         const rawOutcome = await resolveOAuthOutcome(
-          params.code,
-          params.state,
+          params.code?.trim() || null,
+          params.state?.trim() || null,
           {
             exchangeCode,
             pendingDeleteAccountEmail,

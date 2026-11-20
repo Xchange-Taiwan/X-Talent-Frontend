@@ -29,8 +29,8 @@ export function useGoogleOAuthCallback(
       try {
         await authLifecycle.handleGoogleOAuthCallback(
           {
-            code: searchParams.get('code'),
-            state: searchParams.get('state'),
+            code: searchParams.get('code')?.trim() || null,
+            state: searchParams.get('state')?.trim() || null,
             initialPreExchanged,
           },
           {
