@@ -1510,17 +1510,22 @@ function createAuthLifecycleInternal(
             (resolved.getSession ? await resolved.getSession() : null)
         : resolved.getSession;
 
-      const pendingDeleteAccountEmail = flowStore.getDeleteAccountEmail(
-        resolved.storage
-      );
-
-      const outcome = await resolveOAuthOutcome(params.code, params.state, {
-        exchangeCode,
-        pendingDeleteAccountEmail,
-        preExchanged: effectivePreExchanged,
-      });
-
       try {
+        const pendingDeleteAccountEmail = flowStore.getDeleteAccountEmail(
+          resolved.storage
+        );
+
+        const rawOutcome = await resolveOAuthOutcome(
+          params.code,
+          params.state,
+          {
+            exchangeCode,
+            pendingDeleteAccountEmail,
+            preExchanged: effectivePreExchanged,
+          }
+        );
+        const outcome = normalizeOAuthOutcome(rawOutcome);
+
         switch (outcome.type) {
           case 'INVALID': {
             flowStore.clearDeleteAccountEmail(resolved.storage);
