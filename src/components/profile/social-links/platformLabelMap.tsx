@@ -7,9 +7,9 @@ import {
   WebsiteColor,
   YoutubeColor,
 } from '@/components/icon';
-import { normalizePersonalLinks } from '@/lib/profile/profileProjection';
 import {
   isSocialPlatformKey,
+  normalizePersonalLinks,
   type PersonalLink,
   SOCIAL_PLATFORM_PLACEHOLDERS,
   SOCIAL_PLATFORM_SHORT_LABELS,

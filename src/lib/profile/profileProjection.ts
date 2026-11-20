@@ -10,24 +10,18 @@ import {
 import { resolveLocationLabel } from '@/lib/profile/locations';
 import { readIndustryTag } from '@/lib/profile/readIndustryTag';
 import {
-  isSocialPlatformKey,
-  type PersonalLink,
-  SOCIAL_PLATFORM_KEYS,
-  type SocialPlatformKey,
-  validatePlatformUrl,
+  type NormalizedPersonalLink,
+  normalizePersonalLinks,
 } from '@/lib/profile/socialLinks';
 import { buildTagLabelMap } from '@/lib/profile/tagLabelMap';
-import { isSafeUrl } from '@/lib/url/isSafeUrl';
 import type { MentorStats } from '@/types/mentor';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import type { MentorProfileVO, TagDisplay, UserType } from '@/types/user';
 
-const EMPTY_LABEL_MAP: ReadonlyMap<string, string> = new Map();
+export { normalizePersonalLinks };
+export type { NormalizedPersonalLink };
 
-export interface NormalizedPersonalLink {
-  platform: SocialPlatformKey;
-  url: string;
-}
+const EMPTY_LABEL_MAP: ReadonlyMap<string, string> = new Map();
 
 export interface ProjectUserProfileOptions {
   catalogs?: TagCatalogsByBucket | null;
@@ -82,67 +76,6 @@ export interface ProfilePageViewModel {
   effectiveRatingAverage: number | null;
   effectiveCompletedMeetings: number;
   mentorIndustryHashtag: string | null;
-}
-
-/**
- * Deterministic personal-link normalization and deduplication shared across
- * client profile views (`useUserData`, `ProfilePageUI`, `ProfileCardUI`,
- * `resolveDisplaySocialLinks`) and SSR SEO JSON-LD (`sanitizePublicProfile`).
- *
- * Rules:
- * 1. Platform keys trim + lowercase and must match a registered `SocialPlatformKey`.
- * 2. URLs pass `validatePlatformUrl` + `isSafeUrl` (enforcing HTTPS, non-empty,
- *    and per-platform allowed hostnames; invalid/lookalike URLs are dropped
- *    before marking a platform as seen).
- * 3. First-seen valid link wins per platform.
- * 4. Returned array follows canonical `SOCIAL_PLATFORM_KEYS` order.
- */
-export function normalizePersonalLinks(
-  links: ReadonlyArray<PersonalLink | null | undefined> | null | undefined
-): NormalizedPersonalLink[] {
-  if (!links?.length) {
-    return [];
-  }
-
-  const firstValidByPlatform = new Map<
-    SocialPlatformKey,
-    NormalizedPersonalLink
-  >();
-
-  for (const link of links) {
-    if (!link || typeof link.url !== 'string') {
-      continue;
-    }
-    const normalizedPlatform =
-      typeof link.platform === 'string'
-        ? link.platform.trim().toLowerCase()
-        : '';
-    if (
-      !isSocialPlatformKey(normalizedPlatform) ||
-      firstValidByPlatform.has(normalizedPlatform)
-    ) {
-      continue;
-    }
-
-    const validation = validatePlatformUrl(normalizedPlatform, link.url);
-    if (
-      !validation.valid ||
-      !validation.normalizedUrl ||
-      !isSafeUrl(validation.normalizedUrl)
-    ) {
-      continue;
-    }
-
-    firstValidByPlatform.set(normalizedPlatform, {
-      platform: normalizedPlatform,
-      url: validation.normalizedUrl,
-    });
-  }
-
-  return SOCIAL_PLATFORM_KEYS.flatMap((platform) => {
-    const item = firstValidByPlatform.get(platform);
-    return item ? [item] : [];
-  });
 }
 
 function toTagDisplay(

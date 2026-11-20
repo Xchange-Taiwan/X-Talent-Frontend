@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -146,11 +146,15 @@ describe('OnboardingUI single-page dual-role (#836 A-4 & #970 release gate)', ()
     expect(screen.getByText('我已閱讀並同意導師規範')).toBeInTheDocument();
     expect(screen.getByText('關於我')).toBeInTheDocument();
     expect(screen.getByText('服務與專長')).toBeInTheDocument();
-    await waitFor(() => {
-      expect(screen.getByText('工作經驗')).toBeInTheDocument();
-      expect(screen.getByText('教育經歷')).toBeInTheDocument();
-      expect(screen.getByText('個人連結')).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText('工作經驗', {}, { timeout: 5000 })
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText('教育經歷', {}, { timeout: 5000 })
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText('個人連結', {}, { timeout: 5000 })
+    ).toBeInTheDocument();
     expect(screen.queryByText('有興趣多了解的職位')).not.toBeInTheDocument();
   });
 
