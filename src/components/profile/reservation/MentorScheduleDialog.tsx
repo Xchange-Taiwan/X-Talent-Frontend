@@ -79,8 +79,21 @@ export default function MentorScheduleDialog({
 
   const router = useRouter();
   const { toast } = useToast();
-  const [isSaving, setIsSaving] = useState(false);
+  const isSaving = Boolean(schedule.isSaving);
   const [activeDialog, setActiveDialog] = useState<ActiveDialog>(null);
+
+  const handleDialogOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) {
+      onOpenChange(true);
+      return;
+    }
+    if (isSaving || !open) {
+      return;
+    }
+    setActiveDialog(null);
+    resetChanges();
+    onOpenChange(false);
+  };
 
   const showPrompt = (
     prompt: BookingStatus,
@@ -90,6 +103,7 @@ export default function MentorScheduleDialog({
   };
 
   const handleSlotAction = (item: EditorSlotWithMeta) => {
+    if (isSaving) return;
     if (item.reservationBlock) {
       showPrompt(item.reservationBlock, item.matchedReservation);
       return;
@@ -119,7 +133,7 @@ export default function MentorScheduleDialog({
         : undefined;
 
   const handleSave = async () => {
-    setIsSaving(true);
+    if (isSaving) return;
     try {
       const result = await confirmChanges();
       if (!result.ok) {
@@ -143,6 +157,7 @@ export default function MentorScheduleDialog({
           ).length,
         },
       });
+      setActiveDialog(null);
       onOpenChange(false);
     } catch {
       upgradeClaritySession('schedule_save_failed');
@@ -150,8 +165,6 @@ export default function MentorScheduleDialog({
         variant: 'destructive',
         description: resolveScheduleDraftErrorMessage({ kind: 'sync' }),
       });
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -166,9 +179,19 @@ export default function MentorScheduleDialog({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={handleDialogOpenChange}>
         <DialogContent
           aria-describedby={undefined}
+          onEscapeKeyDown={(e) => {
+            if (isSaving) {
+              e.preventDefault();
+            }
+          }}
+          onInteractOutside={(e) => {
+            if (isSaving) {
+              e.preventDefault();
+            }
+          }}
           className="max-h-[85dvh] w-[calc(100vw-1rem)] overflow-y-auto sm:max-w-[440px] lg:max-w-[560px]"
         >
           <DialogHeader>
@@ -266,8 +289,10 @@ export default function MentorScheduleDialog({
                                 variant="ghost"
                                 size="icon"
                                 className="size-8 lg:size-10"
+                                disabled={isSaving}
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  if (isSaving) return;
                                   if (reservationBlock) {
                                     showPrompt(
                                       reservationBlock,
@@ -290,7 +315,7 @@ export default function MentorScheduleDialog({
                       variant="ghost"
                       onClick={() => setActiveDialog({ kind: 'add' })}
                       className="h-10 w-full lg:h-11 lg:text-base"
-                      disabled={!selectedDate}
+                      disabled={!selectedDate || isSaving}
                     >
                       <Plus className="size-4 lg:size-5" />
                     </Button>
@@ -303,10 +328,8 @@ export default function MentorScheduleDialog({
           <DialogFooter className="justify-center gap-3 sm:gap-4 sm:space-x-0">
             <Button
               variant="outline"
-              onClick={() => {
-                resetChanges();
-                onOpenChange(false);
-              }}
+              disabled={isSaving}
+              onClick={() => handleDialogOpenChange(false)}
             >
               {!reader.hasError ? '取消' : '關閉'}
             </Button>
@@ -385,8 +408,8 @@ export default function MentorScheduleDialog({
             : undefined
         }
         onNavigateToReservations={() => {
-          setActiveDialog(null);
-          onOpenChange(false);
+          if (isSaving) return;
+          handleDialogOpenChange(false);
           router.push('/reservation/mentor');
         }}
       />

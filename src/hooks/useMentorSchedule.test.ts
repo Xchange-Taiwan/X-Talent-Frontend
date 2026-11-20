@@ -11,7 +11,6 @@ import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 // contract instead of its internal call order.
 vi.mock('@/services/mentor-schedule/sync', () => ({
   loadMonthSchedule: vi.fn(),
-  loadMonthScheduleFresh: vi.fn(),
   prefetchMonthSchedule: vi.fn(),
   syncMonths: vi.fn(),
 }));
@@ -38,18 +37,13 @@ import {
   type ReservationReadKey,
   reservationReadModel,
 } from '@/lib/reservation/reservationReadModel';
-import {
-  loadMonthSchedule,
-  loadMonthScheduleFresh,
-  syncMonths,
-} from '@/services/mentor-schedule/sync';
+import { loadMonthSchedule, syncMonths } from '@/services/mentor-schedule/sync';
 import { fetchAllReservationsForState } from '@/services/reservations';
 
 const mockLoadMonthSchedule = vi.mocked(loadMonthSchedule);
 const mockFetchAllReservationsForState = vi.mocked(
   fetchAllReservationsForState
 );
-const mockLoadMonthScheduleFresh = vi.mocked(loadMonthScheduleFresh);
 const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 
 function scheduleKey(
@@ -959,7 +953,6 @@ describe('useMentorSchedule', () => {
       1785070000
     );
     expect(result.current.editor!.draftOccurrences!).toHaveLength(1);
-    expect(vi.mocked(loadMonthScheduleFresh)).not.toHaveBeenCalled();
     expect(mockLoadMonthSchedule.mock.calls.length).toBe(loadCallsBeforeEdit);
   });
 
@@ -1194,7 +1187,6 @@ describe('useMentorSchedule', () => {
     });
 
     it('clears error and retries successfully when reload is called', async () => {
-      mockLoadMonthScheduleFresh.mockReset();
       // First attempt fails.
       mockLoadMonthSchedule.mockRejectedValueOnce(new Error('Network error'));
 
@@ -1925,13 +1917,12 @@ describe('useMentorSchedule', () => {
     });
 
     it('swallows errors from a failed reload instead of throwing or leaving state stuck', async () => {
-      // fetchAllReservationsForState/loadMonthScheduleFresh are vi.fn()
+      // fetchAllReservationsForState/loadMonthSchedule are vi.fn()
       // mocks from a vi.mock() factory, not vi.spyOn() spies, so the outer
       // beforeEach's vi.restoreAllMocks() does not reset the implementation
       // a prior test left behind. Reset explicitly so this test's initial
       // mount fetch isn't polluted by the previous test's resolved data.
       mockFetchAllReservationsForState.mockReset().mockResolvedValue([]);
-      mockLoadMonthScheduleFresh.mockReset();
       mockLoadMonthSchedule.mockReset().mockResolvedValue(defaultMockRaws);
 
       const { result } = renderHook(() =>
@@ -1967,7 +1958,6 @@ describe('useMentorSchedule', () => {
 
     it('does not apply reloaded schedule or reservations if the active user changes mid-flight', async () => {
       mockFetchAllReservationsForState.mockReset().mockResolvedValue([]);
-      mockLoadMonthScheduleFresh.mockReset();
       mockLoadMonthSchedule.mockReset();
 
       // Prepare fresh reload values
@@ -2033,7 +2023,6 @@ describe('useMentorSchedule', () => {
 
     it('does not discard unsaved draft edits when reloading schedule', async () => {
       mockFetchAllReservationsForState.mockReset().mockResolvedValue([]);
-      mockLoadMonthScheduleFresh.mockReset();
       mockLoadMonthSchedule.mockReset().mockResolvedValue(defaultMockRaws);
 
       // What the reload reads back from the backend.
@@ -2082,7 +2071,6 @@ describe('useMentorSchedule', () => {
 
     it('does not apply state update or trigger errors if the component unmounts mid-flight of reload', async () => {
       mockFetchAllReservationsForState.mockReset();
-      mockLoadMonthScheduleFresh.mockReset();
 
       // We need a slow promise for reservations and schedule reload
       let resolveReservations: (
@@ -2133,7 +2121,6 @@ describe('useMentorSchedule', () => {
 
     it('does not capture flow failure if reload schedule fails after account has already switched or component unmounted', async () => {
       mockFetchAllReservationsForState.mockReset().mockResolvedValue([]);
-      mockLoadMonthScheduleFresh.mockReset();
       mockCaptureFlowFailure.mockReset();
 
       // The reload's request for the OLD user fails, but only after the
@@ -2180,7 +2167,6 @@ describe('useMentorSchedule', () => {
 
     it('does not apply reloaded reservations if the calendar month changes mid-flight', async () => {
       mockFetchAllReservationsForState.mockReset().mockResolvedValue([]);
-      mockLoadMonthScheduleFresh.mockReset().mockResolvedValue([]);
 
       mockLoadMonthSchedule.mockResolvedValue(defaultMockRaws);
 
@@ -2252,7 +2238,6 @@ describe('useMentorSchedule', () => {
 
     it('a month request still in flight when the calendar moves on never lands on the month now on screen', async () => {
       mockFetchAllReservationsForState.mockReset().mockResolvedValue([]);
-      mockLoadMonthScheduleFresh.mockReset();
       mockLoadMonthSchedule.mockReset().mockResolvedValue(defaultMockRaws);
 
       const { result, rerender } = renderHook(
@@ -2588,15 +2573,9 @@ describe('useMentorSchedule', () => {
     });
 
     it('resetChanges makes no observable store change when there are no dirty months', async () => {
-      // Array.from(dirtyMonths).map(...) over an empty Set already produces
-      // an empty request list on its own, so `loadMonthScheduleFresh` not
-      // being called doesn't actually depend on the guard - it would still
-      // be uncalled with the guard deleted. What the guard alone prevents is
-      // the trailing `store.reset([])` call, which - even with an empty
-      // list - still creates fresh Map/Set instances and calls
-      // `emitChange()`, producing a new `parsedDraft` array reference on
-      // every subscriber. Asserting reference stability is what actually
-      // depends on the guard being there.
+      // Asserting draftOccurrences reference stability verifies the clean-state
+      // guard prevents creating fresh Map/Set instances or emitting spurious
+      // subscriber notifications when nothing is dirty.
       const { result } = setupSchedule();
 
       await waitFor(() => expect(result.current.loaded).toBe(true));
@@ -2791,7 +2770,6 @@ describe('useMentorSchedule', () => {
       expect(result.current.editor!.draftOccurrences![0]?.occurrenceUnix).toBe(
         1785070000
       );
-      expect(vi.mocked(loadMonthScheduleFresh)).not.toHaveBeenCalled();
       expect(mockLoadMonthSchedule.mock.calls.length).toBe(
         loadCountBeforeReset
       );
@@ -2805,10 +2783,11 @@ describe('useMentorSchedule', () => {
       expect(result.current.editor!.draftOccurrences!).toHaveLength(0);
     });
 
-    it('resetChanges cancels an in-flight confirmChanges commit via generation bump with zero network calls', async () => {
+    it('blocks resetChanges while confirmChanges is in flight (isSaving === true) so in-flight commits settle consistently across readModel and draft (#975)', async () => {
       const { result } = setupSchedule();
 
       await waitFor(() => expect(result.current.loaded).toBe(true));
+      expect(result.current.editor!.isSaving).toBe(false);
 
       act(() => {
         result.current.editor!.updateDraftSlot(101, 1785070000, {
@@ -2816,6 +2795,9 @@ describe('useMentorSchedule', () => {
           durationMinutes: 45,
         });
       });
+
+      const inFlightUnix =
+        result.current.editor!.draftOccurrences![0]!.occurrenceUnix;
 
       let resolveSync!: (val: Awaited<ReturnType<typeof syncMonths>>) => void;
       vi.mocked(syncMonths).mockImplementation(
@@ -2830,21 +2812,23 @@ describe('useMentorSchedule', () => {
         savePromise = result.current.editor!.confirmChanges();
       });
 
-      // Discard synchronously while confirmChanges is in flight
+      expect(result.current.editor!.isSaving).toBe(true);
+
+      // Attempt resetChanges while confirmChanges is in flight -> ignored!
       act(() => {
         result.current.editor!.resetChanges();
       });
 
-      expect(vi.mocked(loadMonthScheduleFresh)).not.toHaveBeenCalled();
+      expect(result.current.editor!.isSaving).toBe(true);
       expect(result.current.editor!.draftOccurrences![0]?.occurrenceUnix).toBe(
-        1785070000
+        inFlightUnix
       );
 
       const editedSavedRaw: RawMentorTimeslot = {
         id: 101,
         type: 'ALLOW',
-        dtstart: 1785070800,
-        dtend: 1785073500,
+        dtstart: inFlightUnix,
+        dtend: inFlightUnix + 2700,
         rrule: undefined,
         exdate: [],
       };
@@ -2858,10 +2842,11 @@ describe('useMentorSchedule', () => {
         await savePromise;
       });
 
-      // Generation bump on discardChanges prevented the late commit from overwriting the restored baseline
+      expect(result.current.editor!.isSaving).toBe(false);
       expect(result.current.editor!.draftOccurrences![0]?.occurrenceUnix).toBe(
-        1785070000
+        inFlightUnix
       );
+      expect(scheduleReadModel.get(scheduleKey(7))).toEqual([editedSavedRaw]);
     });
   });
 

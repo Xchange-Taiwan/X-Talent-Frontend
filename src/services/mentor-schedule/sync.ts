@@ -51,19 +51,6 @@ export async function loadMonthSchedule(
 }
 
 /**
- * Force a network fetch and publish the result through the read model,
- * bypassing any cache hit. The write cancels whatever fetch was in flight
- * for that month, so a slower response can never clobber these rows.
- */
-export async function loadMonthScheduleFresh(
-  ref: ScheduleMonthRef
-): Promise<RawMentorTimeslot[]> {
-  const raws = await loadMonthSchedule(ref);
-  scheduleReadModel.set(ref, raws);
-  return raws;
-}
-
-/**
  * Fire-and-forget background fetch that populates the read model for a
  * month. No-op when the month is already cached or a request is in flight.
  * Failures are silenced — prefetch must never disrupt the user.
@@ -73,9 +60,12 @@ export function prefetchMonthSchedule(ref: ScheduleMonthRef): void {
 }
 
 /**
- * PUT all upsert slots, DELETE all removed ids, then reload the month.
+ * Pure transport adapter: PUT all upsert slots, DELETE all removed ids, then
+ * reload the month's raw rows without mutating `scheduleReadModel` directly
+ * (`MentorScheduleSession` owns publishing settled writes into its injected
+ * read model).
  *
- * Returns SyncResult — on failure the caller can surface `message` (raw
+ * Returns SyncOutcome — on failure the caller can surface `message` (raw
  * backend `msg`, e.g. "There is 1 conflict in 2026/5") and `reason` to map
  * to user-friendly UI copy. PUT failure aborts before DELETE so we don't
  * partially mutate the schedule.
@@ -106,7 +96,7 @@ export async function syncMonthSchedule(
       );
     }
 
-    const raws = await loadMonthScheduleFresh(ref);
+    const raws = await loadMonthSchedule(ref);
     return { ok: true, raws };
   } catch (e) {
     const message =
