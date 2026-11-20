@@ -13,6 +13,7 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import {
   type ActiveFilterBadge,
   resolveActiveFilterBadges,
+  resolvePrioritizedCardTagCodes,
 } from '@/lib/mentor/mentorPoolQuery';
 import type { MentorType } from '@/types/mentor';
 
@@ -26,6 +27,7 @@ interface Props {
   listStatus: 'loading' | 'error' | 'empty' | 'success';
   selectedFilters: SelectFilters;
   activeFilterBadges?: ActiveFilterBadge[];
+  prioritizedCardTagCodes?: ReadonlySet<string> | ReadonlyArray<string>;
   filterOptions: FilterOptions;
   labelMap?: ReadonlyMap<string, string>;
   onFilterChange: (opts: SelectFilters) => void;
@@ -43,6 +45,7 @@ export default function MentorPoolUI({
   listStatus,
   selectedFilters,
   activeFilterBadges,
+  prioritizedCardTagCodes,
   filterOptions,
   labelMap,
   onFilterChange,
@@ -54,6 +57,8 @@ export default function MentorPoolUI({
   const badges =
     activeFilterBadges ??
     resolveActiveFilterBadges(selectedFilters, filterOptions);
+  const resolvedPrioritizedCodes =
+    prioritizedCardTagCodes ?? resolvePrioritizedCardTagCodes(selectedFilters);
   const hasMentors = listStatus === 'success';
   const showOverlay = hasMentors && isReplacing;
   const showFullSpinner = listStatus === 'loading';
@@ -114,7 +119,7 @@ export default function MentorPoolUI({
             <MentorCardList
               mentors={mentors}
               onScrollToBottom={onScrollToBottom}
-              activeFilterBadges={badges}
+              prioritizedCardTagCodes={resolvedPrioritizedCodes}
               labelMap={labelMap}
             />
             {showOverlay && (

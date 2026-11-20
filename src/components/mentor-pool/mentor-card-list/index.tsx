@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useRef } from 'react';
 
-import type { ActiveFilterBadge } from '@/lib/mentor/mentorPoolQuery';
+import { EMPTY_PRIORITIZED_CARD_TAG_CODES } from '@/lib/mentor/mentorPoolQuery';
 import type { MentorType } from '@/types/mentor';
 
 import { MentorCard } from '../mentor-card';
@@ -8,16 +8,14 @@ import { MentorCard } from '../mentor-card';
 interface MentorCardListProps {
   mentors: MentorType[];
   onScrollToBottom: () => Promise<void>;
-  activeFilterBadges?: ActiveFilterBadge[];
+  prioritizedCardTagCodes?: ReadonlySet<string> | ReadonlyArray<string>;
   labelMap?: ReadonlyMap<string, string>;
 }
-
-const EMPTY_PRIORITIZED_CODES: ReadonlySet<string> = new Set();
 
 const MentorCardListBase = ({
   mentors,
   onScrollToBottom,
-  activeFilterBadges,
+  prioritizedCardTagCodes,
   labelMap,
 }: MentorCardListProps) => {
   const observer = useRef<IntersectionObserver | null>(null);
@@ -25,26 +23,17 @@ const MentorCardListBase = ({
   const onScrollToBottomRef = useRef(onScrollToBottom);
   onScrollToBottomRef.current = onScrollToBottom;
 
-  const prioritizedCodesKey = (activeFilterBadges ?? [])
-    .filter(
-      (badge) =>
-        (badge.key === 'filter_topics' || badge.key === 'filter_skills') &&
-        Boolean(badge.value)
-    )
-    .flatMap((badge) =>
-      badge.value
-        .split(',')
-        .map((token) => token.trim())
-        .filter(Boolean)
-    )
-    .sort()
-    .join(',');
+  const prioritizedCodesKey = useMemo(() => {
+    if (!prioritizedCardTagCodes) return '';
+    const codes = Array.from(prioritizedCardTagCodes).filter(Boolean);
+    return codes.length > 0 ? codes.sort().join('\0') : '';
+  }, [prioritizedCardTagCodes]);
 
   const prioritizedCodes = useMemo<ReadonlySet<string>>(
     () =>
       prioritizedCodesKey
-        ? new Set(prioritizedCodesKey.split(','))
-        : EMPTY_PRIORITIZED_CODES,
+        ? new Set(prioritizedCodesKey.split('\0'))
+        : EMPTY_PRIORITIZED_CARD_TAG_CODES,
     [prioritizedCodesKey]
   );
 
