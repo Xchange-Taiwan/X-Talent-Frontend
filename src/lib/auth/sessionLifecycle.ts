@@ -54,10 +54,7 @@ import { SignInSchema } from '@/schemas/auth';
 import {
   type AuthClient,
   authClient as defaultAuthClient,
-  type DeleteAccountDTO,
   type DeleteAccountResult,
-  type GoogleAuthorizeVO,
-  type ResetPasswordWithTokenInput,
   type SignUpInput,
 } from '@/services/auth/authClient';
 import type { components } from '@/types/api';
@@ -588,81 +585,6 @@ export async function resolveOAuthOutcome(
   }
 }
 
-export type SignInLifecycleStep =
-  'validate_credentials' | 'authenticate' | 'get_session';
-
-export class SignInLifecycleError extends Error {
-  constructor(
-    message: string,
-    public readonly step: SignInLifecycleStep,
-    public readonly logMessage: string,
-    public readonly level: 'info' | 'warning' | 'error' = 'info',
-    public readonly errorCode?: string
-  ) {
-    super(message);
-    this.name = 'SignInLifecycleError';
-  }
-}
-
-export class SignUpLifecycleError extends Error {
-  public readonly title: string;
-  public readonly logMessage: string;
-  public readonly level: 'info' | 'warning' | 'error';
-  public readonly errorCode?: string;
-
-  constructor(options: {
-    title: string;
-    description: string;
-    logMessage: string;
-    level?: 'info' | 'warning' | 'error';
-    errorCode?: string;
-  }) {
-    super(options.description);
-    this.name = 'SignUpLifecycleError';
-    this.title = options.title;
-    this.logMessage = options.logMessage;
-    this.level = options.level ?? 'info';
-    this.errorCode = options.errorCode;
-  }
-}
-
-export type ConfirmSignUpLifecycleStep = 'missing_token' | 'confirm_token';
-
-export class ConfirmSignUpLifecycleError extends Error {
-  constructor(
-    message: string,
-    public readonly title: string,
-    public readonly step: ConfirmSignUpLifecycleStep,
-    public readonly logMessage: string,
-    public readonly level: 'info' | 'warning' | 'error' = 'info',
-    public readonly errorCode?: string
-  ) {
-    super(message);
-    this.name = 'ConfirmSignUpLifecycleError';
-  }
-}
-
-export type PasswordResetLifecycleStep =
-  | 'missing_email'
-  | 'missing_token'
-  | 'request_email'
-  | 'resend_email'
-  | 'submit_new_password';
-
-export class PasswordResetLifecycleError extends Error {
-  constructor(
-    message: string,
-    public readonly title: string,
-    public readonly step: PasswordResetLifecycleStep,
-    public readonly logMessage: string,
-    public readonly level: 'info' | 'warning' | 'error' = 'info',
-    public readonly errorCode?: string
-  ) {
-    super(message);
-    this.name = 'PasswordResetLifecycleError';
-  }
-}
-
 export type SessionTeardownReason =
   | 'logout'
   | 'refresh_token_error'
@@ -726,51 +648,68 @@ function resolveDefaultTeardownCallbackUrl(
   }
 }
 
-function buildSignUpLifecycleError(error: unknown): SignUpLifecycleError {
-  const logMessage =
+interface SignUpFailureDescriptor {
+  title: string;
+  description: string;
+  logMessage: string;
+  level: 'info' | 'warning' | 'error';
+  errorCode?: string;
+}
+
+function mapSignUpFailure(
+  error: unknown,
+  secretsToRedact: ReadonlyArray<string | null | undefined> = []
+): SignUpFailureDescriptor {
+  const rawLogMessage =
     error instanceof Error ? error.message : 'Unexpected sign-up error';
+  const logMessage = sanitizeAuthErrorMessage(rawLogMessage, secretsToRedact);
 
   if (error instanceof ApiError) {
     const errorCode = String(error.status);
     if (error.status === 422) {
-      return new SignUpLifecycleError({
+      return {
         title: '驗證失敗',
         description: error.message || '驗證錯誤。請確保所有欄位均正確填寫。',
         logMessage,
+        level: 'info',
         errorCode,
-      });
+      };
     }
     if (error.status === 406) {
-      return new SignUpLifecycleError({
+      return {
         title: '註冊失敗',
         description:
           error.message || '此電子郵件已被註冊。請使用其他電子郵件或登錄。',
         logMessage,
+        level: 'info',
         errorCode,
-      });
+      };
     }
     if (error.status === 429) {
-      return new SignUpLifecycleError({
+      return {
         title: '請求過於頻繁',
         description: error.message || '您已超出最大註冊嘗試次數。請稍後再試。',
         logMessage,
+        level: 'info',
         errorCode,
-      });
+      };
     }
-    return new SignUpLifecycleError({
+    return {
       title: '註冊失敗',
       description: `${error.message || '發生錯誤。'} - HTTP狀態碼: ${error.status}。`,
       logMessage,
+      level: 'info',
       errorCode,
-    });
+    };
   }
 
-  return new SignUpLifecycleError({
+  return {
     title: '註冊失敗',
     description:
       error instanceof Error ? error.message : '系統錯誤，請稍後再試',
     logMessage,
-  });
+    level: 'info',
+  };
 }
 
 function buildInvalidOAuthToast(errorType: string): AuthToastPayload {
@@ -866,6 +805,15 @@ export interface CompletePasswordResetInput {
 
 export interface TerminateSessionOptions extends Partial<AuthLifecyclePort> {
   callbackUrl?: string;
+  revokeBackendSession?: () => Promise<unknown>;
+  clearSessionHint?: () => void;
+}
+
+export interface TerminateClientSessionOptions extends Omit<
+  TerminateSessionOptions,
+  'signOut'
+> {
+  signOut: ClientSignOutFn;
 }
 
 export interface ConfirmSignUpOptions extends Partial<AuthLifecyclePort> {
@@ -966,8 +914,8 @@ function defaultGetSearch(): string {
   return typeof window !== 'undefined' ? window.location.search : '';
 }
 
-function defaultGetOrigin(): string | undefined {
-  return typeof window !== 'undefined' ? window.location.origin : undefined;
+function defaultGetOrigin(): string {
+  return typeof window !== 'undefined' ? window.location.origin : '';
 }
 
 function noopToast(): void {}
@@ -982,82 +930,26 @@ const fallbackClearAnalyticsUser: typeof defaultClearAnalyticsUser = () =>
 const fallbackCaptureFailure: typeof defaultCaptureFlowFailure = (...args) =>
   defaultCaptureFlowFailure(...args);
 
-interface InternalTerminateExtra {
-  callbackUrl?: string;
-  revokeBackendSession?: () => Promise<unknown>;
-  clearSessionHint?: () => void;
-}
-
-interface InternalOAuthExtra {
-  resolveOutcomeFn?: typeof resolveOAuthOutcome;
-  signInWithGoogleTokenFn?: typeof signInWithGoogleToken;
-  clearSessionHint?: () => void;
-  currentOrigin?: string;
-}
-
-interface InternalAuthLifecycle extends AuthLifecycle {
-  signInWithCredentialsRaw(
-    values: unknown,
-    overrides: Partial<AuthLifecyclePort> & {
+type InternalGoogleAuthIntentParams =
+  | {
+      intent: 'login';
       search?: string;
       currentOrigin?: string;
     }
-  ): Promise<void>;
-  signUpWithCredentialsRaw(
-    values: SignUpInput,
-    overrides: Partial<AuthLifecyclePort>
-  ): Promise<void>;
-  initiateGoogleAuthRaw(
-    params: InitiateGoogleAuthParams,
-    overrides: Partial<AuthLifecyclePort>
-  ): Promise<void>;
-  confirmSignUpTokenRaw(
-    token: string | null,
-    overrides: Partial<AuthLifecyclePort>,
-    shouldCommit?: () => boolean
-  ): Promise<void>;
-  resendVerificationEmailRaw(
-    email: string | null | undefined,
-    overrides: Partial<AuthLifecyclePort>
-  ): Promise<void>;
-  requestPasswordResetRaw(
-    email: string,
-    overrides: Partial<AuthLifecyclePort>
-  ): Promise<void>;
-  resendPasswordResetRaw(
-    email: string | null | undefined,
-    overrides: Partial<AuthLifecyclePort>
-  ): Promise<void>;
-  completePasswordResetRaw(
-    input: CompletePasswordResetInput,
-    overrides: Partial<AuthLifecyclePort>
-  ): Promise<void>;
-  executeDeleteAccountXCRaw(
-    credentials: { email: string; password: string },
-    overrides: Partial<AuthLifecyclePort> & InternalTerminateExtra
-  ): Promise<DeleteAccountResult>;
-  handleGoogleOAuthCallbackInternal(
-    params: HandleGoogleOAuthCallbackInput,
-    overrides?: Partial<AuthLifecyclePort>,
-    extra?: InternalOAuthExtra
-  ): Promise<void>;
-  terminateSessionInternal(
-    reason: SessionTeardownReason,
-    options?: TerminateSessionOptions,
-    extra?: InternalTerminateExtra
-  ): Promise<void>;
-}
+  | {
+      intent: 'signup';
+    }
+  | {
+      intent: 'delete_account_reauth';
+      email: string;
+    };
 
 type RefreshTeardownFlightMap = Map<'refresh_token_error', Promise<void>>;
-
-function isStaticPasswordResetStep(step: PasswordResetLifecycleStep): boolean {
-  return step === 'missing_email' || step === 'missing_token';
-}
 
 function createAuthLifecycleInternal(
   basePort: AuthLifecyclePort = {},
   sharedInflightRefreshTeardown?: RefreshTeardownFlightMap
-): InternalAuthLifecycle {
+): AuthLifecycle {
   const inflightRefreshTeardown: RefreshTeardownFlightMap =
     sharedInflightRefreshTeardown ?? new Map();
   const flowStore = createAuthFlowStore(basePort.storage);
@@ -1128,12 +1020,25 @@ function createAuthLifecycleInternal(
         overrides?.clearAnalyticsUser ??
         basePort.clearAnalyticsUser ??
         fallbackClearAnalyticsUser,
-      captureFailure:
-        overrides?.captureFailure ??
-        basePort.captureFailure ??
-        fallbackCaptureFailure,
+      captureFailure: (payload) => {
+        const targetCapture =
+          overrides?.captureFailure ??
+          basePort.captureFailure ??
+          fallbackCaptureFailure;
+        return targetCapture({
+          ...payload,
+          message: sanitizeAuthErrorMessage(payload.message),
+          errorCode:
+            typeof payload.errorCode === 'string'
+              ? sanitizeAuthErrorMessage(payload.errorCode)
+              : payload.errorCode,
+        });
+      },
       getSearch: overrides?.getSearch ?? basePort.getSearch ?? defaultGetSearch,
-      getOrigin: overrides?.getOrigin ?? basePort.getOrigin ?? defaultGetOrigin,
+      getOrigin:
+        overrides?.getOrigin ??
+        basePort.getOrigin ??
+        (() => defaultGetOrigin() || undefined),
       now: overrides?.now ?? basePort.now ?? Date.now,
     };
   };
@@ -1149,7 +1054,7 @@ function createAuthLifecycleInternal(
     };
     resolved: ResolvedAuthPort;
     getSessionOverride?: GetSessionFn;
-  }): Promise<void> => {
+  }): Promise<boolean> => {
     const {
       method,
       callbackUrlSource,
@@ -1167,12 +1072,7 @@ function createAuthLifecycleInternal(
 
     const session = await getSessionFn();
     if (!session?.accessToken) {
-      throw new SignInLifecycleError(
-        'Login failed',
-        'get_session',
-        'No access token after login',
-        'error'
-      );
+      return false;
     }
 
     const resolvedUserId = session.user?.id ?? fallbackIdentity?.userId ?? null;
@@ -1198,6 +1098,7 @@ function createAuthLifecycleInternal(
 
     const origin = currentOrigin ?? resolved.getOrigin();
     let safeCallbackUrl: string | null = null;
+
     if (callbackUrlSource === 'search') {
       flowStore.clearCallbackUrl(resolved.storage);
       const effectiveSearch = search ?? resolved.getSearch();
@@ -1217,12 +1118,12 @@ function createAuthLifecycleInternal(
         now: resolved.now(),
       })
     );
+    return true;
   };
 
   const executeTerminate = async (
     reason: SessionTeardownReason,
-    options?: TerminateSessionOptions,
-    extra?: InternalTerminateExtra
+    options?: TerminateSessionOptions
   ): Promise<void> => {
     const resolved = resolvePort(options);
     if (!resolved.signOut) {
@@ -1231,9 +1132,9 @@ function createAuthLifecycleInternal(
       );
     }
 
-    const clearHint = extra?.clearSessionHint ?? defaultClearSessionHint;
+    const clearHint = options?.clearSessionHint ?? defaultClearSessionHint;
     const revokeBackend =
-      extra?.revokeBackendSession ??
+      options?.revokeBackendSession ??
       (() => resolved.authClient.postBackendLogout());
 
     clearHint();
@@ -1264,10 +1165,9 @@ function createAuthLifecycleInternal(
       }
     }
 
-    const explicitCallbackUrl = extra?.callbackUrl ?? options?.callbackUrl;
     const resolvedCallbackUrl =
-      explicitCallbackUrl !== undefined
-        ? explicitCallbackUrl
+      options?.callbackUrl !== undefined
+        ? options.callbackUrl
         : resolveDefaultTeardownCallbackUrl(reason);
 
     if (resolvedCallbackUrl !== undefined) {
@@ -1279,93 +1179,20 @@ function createAuthLifecycleInternal(
 
   const terminateSessionInternal = async (
     reason: SessionTeardownReason,
-    options?: TerminateSessionOptions,
-    extra?: InternalTerminateExtra
+    options?: TerminateSessionOptions
   ): Promise<void> => {
     if (reason === 'refresh_token_error') {
       return singleFlight(inflightRefreshTeardown, 'refresh_token_error', () =>
-        executeTerminate(reason, options, extra)
+        executeTerminate(reason, options)
       );
     }
-    return executeTerminate(reason, options, extra);
+    return executeTerminate(reason, options);
   };
 
-  const signInWithCredentialsRaw = async (
-    values: unknown,
-    overrides: Partial<AuthLifecyclePort> & {
-      search?: string;
-      currentOrigin?: string;
-    } = {}
+  const initiateGoogleAuthInternal = async (
+    params: InternalGoogleAuthIntentParams,
+    resolved: ResolvedAuthPort
   ): Promise<void> => {
-    const resolved = resolvePort(overrides);
-    const parsed = SignInSchema.safeParse(values);
-    if (!parsed.success) {
-      throw new SignInLifecycleError(
-        'Invalid fields!',
-        'validate_credentials',
-        'Invalid fields!',
-        'info'
-      );
-    }
-
-    if (!resolved.signIn) {
-      throw new Error('AuthLifecyclePort.signIn is required for sign-in.');
-    }
-
-    const login = await resolved.signIn('credentials', {
-      email: parsed.data.email,
-      password: parsed.data.password,
-      redirect: false,
-    });
-
-    if (login?.error || login?.ok === false) {
-      throw new SignInLifecycleError(
-        'Invalid credentials!',
-        'authenticate',
-        'Invalid credentials',
-        'info',
-        login.error ?? undefined
-      );
-    }
-
-    await completePostLoginChoreography({
-      method: 'Email',
-      callbackUrlSource: 'search',
-      search: overrides.search,
-      currentOrigin: overrides.currentOrigin,
-      resolved,
-    });
-  };
-
-  const signUpWithCredentialsRaw = async (
-    values: SignUpInput,
-    overrides: Partial<AuthLifecyclePort> = {}
-  ): Promise<void> => {
-    const resolved = resolvePort(overrides);
-    try {
-      await resolved.authClient.signUp(values);
-    } catch (error) {
-      throw buildSignUpLifecycleError(error);
-    }
-
-    resolved.trackEvent({
-      name: 'sign_up',
-      feature: 'auth',
-      metadata: {
-        method: 'Email',
-        user_role: 'guest',
-      },
-    });
-    flowStore.setVerificationEmail(values.email, resolved.storage);
-    resolved.navigate(EMAIL_VERIFY_HREF);
-  };
-
-  const initiateGoogleAuthRaw = async (
-    params: InitiateGoogleAuthParams,
-    overrides: Partial<AuthLifecyclePort> = {}
-  ): Promise<void> => {
-    const resolved = resolvePort(overrides);
-
     if (params.intent === 'delete_account_reauth') {
       flowStore.clearCallbackUrl(resolved.storage);
       flowStore.setDeleteAccountEmail(params.email, resolved.storage);
@@ -1410,359 +1237,6 @@ function createAuthLifecycleInternal(
     }
   };
 
-  const confirmSignUpTokenRaw = async (
-    token: string | null,
-    overrides: Partial<AuthLifecyclePort> = {},
-    shouldCommit: () => boolean = () => true
-  ): Promise<void> => {
-    const resolved = resolvePort(overrides);
-
-    if (!token) {
-      throw new ConfirmSignUpLifecycleError(
-        '缺少驗證 Token，請重新申請驗證信。',
-        '驗證失敗',
-        'missing_token',
-        'Missing signup confirmation token',
-        'info'
-      );
-    }
-
-    try {
-      await resolved.authClient.confirmSignUp(token);
-    } catch (error) {
-      throw new ConfirmSignUpLifecycleError(
-        error instanceof Error ? error.message : '註冊失敗，請稍後再試。',
-        '註冊失敗',
-        'confirm_token',
-        error instanceof Error
-          ? error.message
-          : 'Failed to confirm signup token',
-        'info',
-        error instanceof ApiError ? String(error.status) : undefined
-      );
-    }
-
-    if (shouldCommit()) {
-      flowStore.clearVerificationEmail(resolved.storage);
-    }
-  };
-
-  const resendVerificationEmailRaw = async (
-    email: string | null | undefined,
-    overrides: Partial<AuthLifecyclePort> = {}
-  ): Promise<void> => {
-    const resolved = resolvePort(overrides);
-    const targetEmail =
-      email || flowStore.getVerificationEmail(resolved.storage);
-    if (!targetEmail) {
-      throw new Error('找不到待驗證的電子郵件地址，請重新註冊。');
-    }
-
-    await resolved.authClient.resendVerificationEmail(targetEmail);
-  };
-
-  const requestPasswordResetRaw = async (
-    email: string,
-    overrides: Partial<AuthLifecyclePort> = {}
-  ): Promise<void> => {
-    const resolved = resolvePort(overrides);
-
-    try {
-      await resolved.authClient.requestPasswordResetEmail(email);
-    } catch (error) {
-      const message = getErrorMessage(error);
-      throw new PasswordResetLifecycleError(
-        message,
-        '信件寄送失敗',
-        'request_email',
-        error instanceof Error
-          ? error.message
-          : 'Failed to request password reset email',
-        'info',
-        error instanceof ApiError ? String(error.status) : undefined
-      );
-    }
-
-    flowStore.setPasswordResetEmail(email, resolved.storage);
-    resolved.navigate(PASSWORD_FORGOT_SUCCESS_HREF);
-  };
-
-  const resendPasswordResetRaw = async (
-    email: string | null | undefined,
-    overrides: Partial<AuthLifecyclePort> = {}
-  ): Promise<void> => {
-    const resolved = resolvePort(overrides);
-    const targetEmail =
-      email || flowStore.getPasswordResetEmail(resolved.storage);
-    if (!targetEmail) {
-      throw new PasswordResetLifecycleError(
-        '找不到您的電子郵件地址，請嘗試重新操作。',
-        '發送失敗',
-        'missing_email',
-        'Missing pending password reset email',
-        'info'
-      );
-    }
-
-    try {
-      await resolved.authClient.requestPasswordResetEmail(targetEmail);
-    } catch (error) {
-      const message = getErrorMessage(error);
-      throw new PasswordResetLifecycleError(
-        message,
-        '信件寄送失敗',
-        'resend_email',
-        error instanceof Error
-          ? error.message
-          : 'Failed to resend password reset email',
-        'info',
-        error instanceof ApiError ? String(error.status) : undefined
-      );
-    }
-  };
-
-  const completePasswordResetRaw = async (
-    input: CompletePasswordResetInput,
-    overrides: Partial<AuthLifecyclePort> = {}
-  ): Promise<void> => {
-    const resolved = resolvePort(overrides);
-
-    if (!input.verifyToken) {
-      throw new PasswordResetLifecycleError(
-        '缺少驗證 Token，請重新申請密碼重設。',
-        '驗證失敗',
-        'missing_token',
-        'Missing password reset verification token',
-        'info'
-      );
-    }
-
-    try {
-      await resolved.authClient.resetPasswordWithToken({
-        verifyToken: input.verifyToken,
-        password: input.password,
-        confirmPassword: input.confirmPassword,
-      });
-    } catch (error) {
-      const message = getErrorMessage(error);
-      throw new PasswordResetLifecycleError(
-        message,
-        '密碼重設失敗',
-        'submit_new_password',
-        message,
-        'info',
-        error instanceof ApiError ? String(error.status) : undefined
-      );
-    }
-
-    flowStore.clearPasswordResetEmail(resolved.storage);
-    resolved.navigate(PASSWORD_RESET_SUCCESS_HREF);
-  };
-
-  const executeDeleteAccountXCRaw = async (
-    credentials: { email: string; password: string },
-    overrides: Partial<AuthLifecyclePort> & InternalTerminateExtra = {}
-  ): Promise<DeleteAccountResult> => {
-    const resolved = resolvePort(overrides);
-    const result = await resolved.authClient.deleteAccount({
-      email: credentials.email,
-      password: credentials.password,
-    });
-
-    if (result.status === 'success') {
-      await terminateSessionInternal('delete_account_xc', overrides, {
-        clearSessionHint: overrides.clearSessionHint,
-      });
-    }
-
-    return result;
-  };
-
-  const handleGoogleOAuthCallbackInternal = async (
-    params: HandleGoogleOAuthCallbackInput,
-    overrides?: Partial<AuthLifecyclePort>,
-    extra?: InternalOAuthExtra
-  ): Promise<void> => {
-    const resolved = resolvePort(overrides);
-    const hasServerPreExchange =
-      params.initialPreExchanged !== undefined &&
-      params.initialPreExchanged !== null;
-    const effectivePreExchanged = hasServerPreExchange
-      ? params.initialPreExchanged!.response
-      : params.preExchanged;
-
-    const exchangeCode: GoogleOAuthCodeExchanger = hasServerPreExchange
-      ? async () => params.initialPreExchanged!.response
-      : (resolved.exchangeGoogleCode ??
-        (async () => {
-          throw new Error(
-            'AuthLifecyclePort.exchangeGoogleCode is required for Google OAuth callbacks.'
-          );
-        }));
-
-    const resolveOutcome = extra?.resolveOutcomeFn ?? resolveOAuthOutcome;
-    const signInWithToken =
-      extra?.signInWithGoogleTokenFn ??
-      ((clientSignIn, token, email, user) =>
-        signInWithGoogleToken(
-          clientSignIn,
-          token,
-          email,
-          user,
-          hasServerPreExchange
-            ? params.initialPreExchanged!.refreshBridgeToken
-            : undefined
-        ));
-
-    const effectiveGetSession: GetSessionFn | undefined = hasServerPreExchange
-      ? async () =>
-          synthesizePreExchangedSession(params.initialPreExchanged!) ??
-          (resolved.getSession ? await resolved.getSession() : null)
-      : resolved.getSession;
-
-    const pendingDeleteAccountEmail = flowStore.getDeleteAccountEmail(
-      resolved.storage
-    );
-
-    const rawOutcome = await resolveOutcome(params.code, params.state, {
-      exchangeCode,
-      pendingDeleteAccountEmail,
-      preExchanged: effectivePreExchanged,
-    });
-    const outcome = normalizeOAuthOutcome(rawOutcome);
-
-    try {
-      switch (outcome.type) {
-        case 'INVALID': {
-          flowStore.clearDeleteAccountEmail(resolved.storage);
-          flowStore.clearCallbackUrl(resolved.storage);
-          resolved.trackEvent({
-            name: 'auth_flow_failed',
-            feature: 'auth',
-            metadata: {
-              flow: 'oauth_google',
-              error_type: outcome.errorType,
-            },
-          });
-          resolved.toast(buildInvalidOAuthToast(outcome.errorType));
-          resolved.navigate(SIGNIN_HREF);
-          return;
-        }
-
-        case 'SIGNUP': {
-          flowStore.clearCallbackUrl(resolved.storage);
-          resolved.trackEvent({
-            name: 'sign_up',
-            feature: 'auth',
-            metadata: {
-              method: 'Google',
-              user_role: 'guest',
-            },
-          });
-          flowStore.setVerificationEmail(
-            outcome.data.auth.email ?? '',
-            resolved.storage
-          );
-          resolved.navigate(EMAIL_VERIFY_HREF);
-          return;
-        }
-
-        case 'LOGIN': {
-          if (!resolved.signIn) {
-            throw new Error(
-              'AuthLifecyclePort.signIn is required for Google OAuth login.'
-            );
-          }
-
-          const enrichedUser = enrichGoogleLoginUserWithIdTokenFallback(
-            outcome.data.user as unknown as Record<string, unknown>,
-            outcome.data.id_token
-          );
-
-          await signInWithToken(
-            resolved.signIn,
-            outcome.data.auth.token,
-            outcome.data.auth.email ?? '',
-            enrichedUser
-          );
-
-          await completePostLoginChoreography({
-            method: 'Google',
-            callbackUrlSource: 'storage',
-            currentOrigin: extra?.currentOrigin,
-            fallbackIdentity: {
-              userId:
-                outcome.data.user.user_id !== undefined
-                  ? String(outcome.data.user.user_id)
-                  : null,
-              isMentor: Boolean(outcome.data.user.is_mentor),
-            },
-            resolved,
-            getSessionOverride: effectiveGetSession,
-          });
-          return;
-        }
-
-        case 'RESUME_DELETE_ACCOUNT': {
-          flowStore.clearDeleteAccountEmail(resolved.storage);
-          flowStore.clearCallbackUrl(resolved.storage);
-
-          if (!resolved.signIn) {
-            throw new Error(
-              'AuthLifecyclePort.signIn is required for Google OAuth reauth.'
-            );
-          }
-
-          const { id_token, auth, user } = outcome.data;
-          await signInWithToken(
-            resolved.signIn,
-            auth.token,
-            auth.email ?? '',
-            user as unknown as Record<string, unknown>
-          );
-
-          const result = await resolved.authClient.deleteAccount({
-            email: outcome.email,
-            id_token,
-          });
-
-          if (result.status === 'success') {
-            await terminateSessionInternal('delete_account_google', overrides, {
-              clearSessionHint: extra?.clearSessionHint,
-            });
-            return;
-          }
-
-          if (result.status === 'blocked_reservations') {
-            resolved.toast({
-              variant: 'destructive',
-              title: '無法刪除帳號',
-              description: '您目前有未完成或未來的預約，請先處理後再刪除帳號。',
-            });
-            resolved.navigate(RESERVATION_MENTEE_HREF);
-            return;
-          }
-
-          resolved.toast({
-            variant: 'destructive',
-            title: '刪除帳號失敗',
-            description: result.message || '系統錯誤，請稍後再試',
-          });
-          resolved.navigate(SIGNIN_HREF);
-          return;
-        }
-      }
-    } catch {
-      flowStore.clearCallbackUrl(resolved.storage);
-      resolved.toast({
-        variant: 'destructive',
-        title: 'Login failed',
-        description: 'Something went wrong during login.',
-      });
-      resolved.navigate(SIGNIN_HREF);
-    }
-  };
-
   return {
     withPort(overrides) {
       return createAuthLifecycleInternal(
@@ -1780,61 +1254,126 @@ function createAuthLifecycleInternal(
 
     async signInWithCredentials(values, overrides) {
       const resolved = resolvePort(overrides);
-      const candidateSecrets: (string | undefined)[] = [];
-      if (values && typeof values === 'object') {
-        const record = values as Record<string, unknown>;
-        if (typeof record.email === 'string') {
-          candidateSecrets.push(record.email);
-        }
-        if (typeof record.password === 'string') {
-          candidateSecrets.push(record.password);
-        }
-      }
-
-      try {
-        await signInWithCredentialsRaw(values, overrides);
-        return { ok: true };
-      } catch (err) {
-        const isLifecycle = err instanceof SignInLifecycleError;
-        const step = isLifecycle ? err.step : 'unexpected';
-        const level = isLifecycle ? err.level : 'error';
-        const rawLogMessage = isLifecycle
-          ? err.logMessage
-          : err instanceof Error
-            ? err.message
-            : 'Unexpected sign-in error';
-        const isStaticStep =
-          isLifecycle &&
-          (err.step === 'validate_credentials' ||
-            err.step === 'authenticate' ||
-            err.step === 'get_session');
-        const errorCode = isLifecycle ? err.errorCode : undefined;
-        const userMessage = isLifecycle ? err.message : 'Something went wrong!';
-        const duration = isLifecycle ? 1000 : 5000;
-
+      const parsed = SignInSchema.safeParse(values);
+      if (!parsed.success) {
         resolved.trackEvent({
           name: 'auth_flow_failed',
           feature: 'auth',
           metadata: {
             flow: 'login',
-            error_type: step,
+            error_type: 'validate_credentials',
           },
         });
         void resolved.captureFailure({
           flow: 'sign_in',
-          step,
-          level,
-          message: isStaticStep
-            ? sanitizeAuthErrorMessage(rawLogMessage)
-            : sanitizeAuthErrorMessage(rawLogMessage, candidateSecrets),
-          errorCode,
+          step: 'validate_credentials',
+          level: 'info',
+          message: 'Invalid fields!',
+          errorCode: undefined,
         });
         resolved.toast({
           variant: 'destructive',
-          description: userMessage,
-          duration,
+          description: 'Invalid fields!',
+          duration: 1000,
         });
-        return { ok: false, errorType: step };
+        return { ok: false, errorType: 'validate_credentials' };
+      }
+
+      try {
+        if (!resolved.signIn) {
+          throw new Error('AuthLifecyclePort.signIn is required for sign-in.');
+        }
+
+        const login = await resolved.signIn('credentials', {
+          email: parsed.data.email,
+          password: parsed.data.password,
+          redirect: false,
+        });
+
+        if (login?.error || login?.ok === false) {
+          resolved.trackEvent({
+            name: 'auth_flow_failed',
+            feature: 'auth',
+            metadata: {
+              flow: 'login',
+              error_type: 'authenticate',
+            },
+          });
+          void resolved.captureFailure({
+            flow: 'sign_in',
+            step: 'authenticate',
+            level: 'info',
+            message: 'Invalid credentials',
+            errorCode: login.error ?? undefined,
+          });
+          resolved.toast({
+            variant: 'destructive',
+            description: 'Invalid credentials!',
+            duration: 1000,
+          });
+          return { ok: false, errorType: 'authenticate' };
+        }
+
+        const completed = await completePostLoginChoreography({
+          method: 'Email',
+          callbackUrlSource: 'search',
+          search: overrides?.search,
+          currentOrigin: overrides?.currentOrigin,
+          resolved,
+        });
+
+        if (!completed) {
+          resolved.trackEvent({
+            name: 'auth_flow_failed',
+            feature: 'auth',
+            metadata: {
+              flow: 'login',
+              error_type: 'get_session',
+            },
+          });
+          void resolved.captureFailure({
+            flow: 'sign_in',
+            step: 'get_session',
+            level: 'error',
+            message: 'No access token after login',
+            errorCode: undefined,
+          });
+          resolved.toast({
+            variant: 'destructive',
+            description: 'Login failed',
+            duration: 1000,
+          });
+          return { ok: false, errorType: 'get_session' };
+        }
+
+        return { ok: true };
+      } catch (err) {
+        const rawLogMessage =
+          err instanceof Error ? err.message : 'Unexpected sign-in error';
+        resolved.trackEvent({
+          name: 'auth_flow_failed',
+          feature: 'auth',
+          metadata: {
+            flow: 'login',
+            error_type: 'unexpected',
+          },
+        });
+        void resolved.captureFailure({
+          flow: 'sign_in',
+          step: 'unexpected',
+          level: 'error',
+          message: sanitizeAuthErrorMessage(rawLogMessage, [
+            parsed.data.email,
+            parsed.data.password,
+          ]),
+          errorCode: undefined,
+        });
+        resolved.toast({
+          variant: 'destructive',
+          description: 'Something went wrong!',
+          duration: 5000,
+        });
+        return { ok: false, errorType: 'unexpected' };
       }
     },
 
@@ -1845,14 +1384,15 @@ function createAuthLifecycleInternal(
 
     async signUpWithCredentials(values, overrides) {
       const resolved = resolvePort(overrides);
+      const signUpSecrets = [
+        values.email,
+        values.password,
+        values.confirm_password,
+      ];
       try {
-        await signUpWithCredentialsRaw(values, overrides);
-        return { ok: true };
+        await resolved.authClient.signUp(values);
       } catch (err) {
-        const mapped =
-          err instanceof SignUpLifecycleError
-            ? err
-            : buildSignUpLifecycleError(err);
+        const mapped = mapSignUpFailure(err, signUpSecrets);
         const errorType =
           mapped.errorCode !== undefined
             ? String(mapped.errorCode)
@@ -1870,21 +1410,29 @@ function createAuthLifecycleInternal(
           flow: 'sign_up',
           step: 'submit',
           level: mapped.level,
-          message: sanitizeAuthErrorMessage(mapped.logMessage, [
-            values.email,
-            values.password,
-            values.confirm_password,
-          ]),
+          message: sanitizeAuthErrorMessage(mapped.logMessage, signUpSecrets),
           errorCode: mapped.errorCode,
         });
         resolved.toast({
           variant: 'destructive',
           title: mapped.title,
-          description: mapped.message,
+          description: mapped.description,
           duration: 5000,
         });
         return { ok: false, errorType };
       }
+
+      resolved.trackEvent({
+        name: 'sign_up',
+        feature: 'auth',
+        metadata: {
+          method: 'Email',
+          user_role: 'guest',
+        },
+      });
+      flowStore.setVerificationEmail(values.email, resolved.storage);
+      resolved.navigate(EMAIL_VERIFY_HREF);
+      return { ok: true };
     },
 
     async startGoogleAuth(input, overrides) {
@@ -1902,7 +1450,7 @@ function createAuthLifecycleInternal(
       });
 
       try {
-        await initiateGoogleAuthRaw(
+        await initiateGoogleAuthInternal(
           isSignIn
             ? {
                 intent: 'login',
@@ -1910,7 +1458,7 @@ function createAuthLifecycleInternal(
                 currentOrigin: input.currentOrigin,
               }
             : { intent: 'signup' },
-          overrides
+          resolved
         );
         return { ok: true };
       } catch (err) {
@@ -1939,64 +1487,300 @@ function createAuthLifecycleInternal(
     },
 
     async handleGoogleOAuthCallback(params, overrides) {
-      await handleGoogleOAuthCallbackInternal(params, overrides);
+      const resolved = resolvePort(overrides);
+      const hasServerPreExchange =
+        params.initialPreExchanged !== undefined &&
+        params.initialPreExchanged !== null;
+      const effectivePreExchanged = hasServerPreExchange
+        ? params.initialPreExchanged!.response
+        : params.preExchanged;
+
+      const exchangeCode: GoogleOAuthCodeExchanger = hasServerPreExchange
+        ? async () => params.initialPreExchanged!.response
+        : (resolved.exchangeGoogleCode ??
+          (async () => {
+            throw new Error(
+              'AuthLifecyclePort.exchangeGoogleCode is required for Google OAuth callbacks.'
+            );
+          }));
+
+      const effectiveGetSession: GetSessionFn | undefined = hasServerPreExchange
+        ? async () =>
+            synthesizePreExchangedSession(params.initialPreExchanged!) ??
+            (resolved.getSession ? await resolved.getSession() : null)
+        : resolved.getSession;
+
+      try {
+        const pendingDeleteAccountEmail = flowStore.getDeleteAccountEmail(
+          resolved.storage
+        );
+
+        const rawOutcome = await resolveOAuthOutcome(
+          params.code?.trim() || null,
+          params.state?.trim() || null,
+          {
+            exchangeCode,
+            pendingDeleteAccountEmail,
+            preExchanged: effectivePreExchanged,
+          }
+        );
+        const outcome = normalizeOAuthOutcome(rawOutcome);
+
+        switch (outcome.type) {
+          case 'INVALID': {
+            flowStore.clearDeleteAccountEmail(resolved.storage);
+            flowStore.clearCallbackUrl(resolved.storage);
+            resolved.trackEvent({
+              name: 'auth_flow_failed',
+              feature: 'auth',
+              metadata: {
+                flow: 'oauth_google',
+                error_type: outcome.errorType,
+              },
+            });
+            resolved.toast(buildInvalidOAuthToast(outcome.errorType));
+            resolved.navigate(SIGNIN_HREF);
+            return;
+          }
+
+          case 'SIGNUP': {
+            flowStore.clearCallbackUrl(resolved.storage);
+            resolved.trackEvent({
+              name: 'sign_up',
+              feature: 'auth',
+              metadata: {
+                method: 'Google',
+                user_role: 'guest',
+              },
+            });
+            flowStore.setVerificationEmail(
+              outcome.data.auth.email ?? '',
+              resolved.storage
+            );
+            resolved.navigate(EMAIL_VERIFY_HREF);
+            return;
+          }
+
+          case 'LOGIN': {
+            if (!resolved.signIn) {
+              throw new Error(
+                'AuthLifecyclePort.signIn is required for Google OAuth login.'
+              );
+            }
+
+            const enrichedUser = enrichGoogleLoginUserWithIdTokenFallback(
+              outcome.data.user as unknown as Record<string, unknown>,
+              outcome.data.id_token
+            );
+
+            await signInWithGoogleToken(
+              resolved.signIn,
+              outcome.data.auth.token,
+              outcome.data.auth.email ?? '',
+              enrichedUser,
+              hasServerPreExchange
+                ? params.initialPreExchanged!.refreshBridgeToken
+                : undefined
+            );
+
+            const completed = await completePostLoginChoreography({
+              method: 'Google',
+              callbackUrlSource: 'storage',
+              fallbackIdentity: {
+                userId:
+                  outcome.data.user.user_id !== undefined
+                    ? String(outcome.data.user.user_id)
+                    : null,
+                isMentor: Boolean(outcome.data.user.is_mentor),
+              },
+              resolved,
+              getSessionOverride: effectiveGetSession,
+            });
+            if (!completed) {
+              throw new Error('No access token after login');
+            }
+            return;
+          }
+
+          case 'RESUME_DELETE_ACCOUNT': {
+            flowStore.clearDeleteAccountEmail(resolved.storage);
+            flowStore.clearCallbackUrl(resolved.storage);
+
+            if (!resolved.signIn) {
+              throw new Error(
+                'AuthLifecyclePort.signIn is required for Google OAuth reauth.'
+              );
+            }
+
+            const { id_token, auth, user } = outcome.data;
+            await signInWithGoogleToken(
+              resolved.signIn,
+              auth.token,
+              auth.email ?? '',
+              user as unknown as Record<string, unknown>
+            );
+
+            let result: DeleteAccountResult;
+            try {
+              result = await resolved.authClient.deleteAccount({
+                email: outcome.email,
+                id_token,
+              });
+            } catch (err) {
+              const message =
+                err instanceof Error ? err.message : '系統錯誤，請稍後再試';
+              const errorCode =
+                err instanceof ApiError ? String(err.status) : undefined;
+
+              void resolved.captureFailure({
+                flow: 'delete_account',
+                step: 'google_reauth_submit',
+                level: 'info',
+                message: sanitizeAuthErrorMessage(message, [
+                  outcome.email,
+                  auth.email,
+                  id_token,
+                  auth.token,
+                ]),
+                errorCode,
+              });
+              resolved.toast({
+                variant: 'destructive',
+                title: '刪除帳號失敗',
+                description: message,
+              });
+              resolved.navigate(SIGNIN_HREF);
+              return;
+            }
+
+            if (result.status === 'success') {
+              await terminateSessionInternal(
+                'delete_account_google',
+                overrides
+              );
+              return;
+            }
+
+            if (result.status === 'blocked_reservations') {
+              resolved.toast({
+                variant: 'destructive',
+                title: '無法刪除帳號',
+                description:
+                  '您目前有未完成或未來的預約，請先處理後再刪除帳號。',
+              });
+              resolved.navigate(RESERVATION_MENTEE_HREF);
+              return;
+            }
+
+            const message = result.message || '系統錯誤，請稍後再試';
+            void resolved.captureFailure({
+              flow: 'delete_account',
+              step: 'google_reauth_submit',
+              level: 'info',
+              message: sanitizeAuthErrorMessage(message, [
+                outcome.email,
+                auth.email,
+                id_token,
+                auth.token,
+              ]),
+            });
+            resolved.toast({
+              variant: 'destructive',
+              title: '刪除帳號失敗',
+              description: message,
+            });
+            resolved.navigate(SIGNIN_HREF);
+            return;
+          }
+        }
+      } catch {
+        flowStore.clearCallbackUrl(resolved.storage);
+        resolved.toast({
+          variant: 'destructive',
+          title: 'Login failed',
+          description: 'Something went wrong during login.',
+        });
+        resolved.navigate(SIGNIN_HREF);
+      }
     },
 
     async confirmSignUp(token, options) {
       const resolved = resolvePort(options);
       const isCurrent = options?.isCurrent ?? (() => true);
 
-      try {
-        await confirmSignUpTokenRaw(token, options, isCurrent);
+      if (!token) {
         if (!isCurrent()) {
           return { ok: false, status: 'stale' };
         }
         resolved.trackEvent({
-          name: 'email_verified',
+          name: 'auth_flow_failed',
           feature: 'auth',
+          metadata: {
+            flow: 'email_verify',
+            error_type: 'missing_token',
+          },
         });
-        return { ok: true, status: 'success' };
+        void resolved.captureFailure({
+          flow: 'email_verification',
+          step: 'missing_token',
+          level: 'info',
+          message: 'Missing signup confirmation token',
+          errorCode: undefined,
+        });
+        resolved.toast({
+          variant: 'destructive',
+          title: '驗證失敗',
+          description: '缺少驗證 Token，請重新申請驗證信。',
+        });
+        return { ok: false, status: 'failure' };
+      }
+
+      try {
+        await resolved.authClient.confirmSignUp(token);
       } catch (error) {
         if (!isCurrent()) {
           return { ok: false, status: 'stale' };
         }
-        const isLifecycle = error instanceof ConfirmSignUpLifecycleError;
-        const step = isLifecycle ? error.step : 'confirm_token';
-        const level = isLifecycle ? error.level : 'info';
-        const rawMsg = isLifecycle
-          ? error.logMessage
-          : error instanceof Error
+        const rawMsg =
+          error instanceof Error
             ? error.message
             : 'Failed to confirm signup token';
-        const errorCode = isLifecycle ? error.errorCode : undefined;
-
-        const isStaticStep = isLifecycle && error.step === 'missing_token';
+        const errorCode =
+          error instanceof ApiError ? String(error.status) : undefined;
 
         resolved.trackEvent({
           name: 'auth_flow_failed',
           feature: 'auth',
           metadata: {
             flow: 'email_verify',
-            error_type: step,
+            error_type: 'confirm_token',
           },
         });
         void resolved.captureFailure({
           flow: 'email_verification',
-          step,
-          level,
-          message: isStaticStep
-            ? sanitizeAuthErrorMessage(rawMsg)
-            : sanitizeAuthErrorMessage(rawMsg, [token]),
+          step: 'confirm_token',
+          level: 'info',
+          message: sanitizeAuthErrorMessage(rawMsg, [token]),
           errorCode,
         });
         resolved.toast({
           variant: 'destructive',
-          title: isLifecycle ? error.title : '註冊失敗',
+          title: '註冊失敗',
           description:
             error instanceof Error ? error.message : '註冊失敗，請稍後再試。',
         });
         return { ok: false, status: 'failure' };
       }
+
+      if (!isCurrent()) {
+        return { ok: false, status: 'stale' };
+      }
+      flowStore.clearVerificationEmail(resolved.storage);
+      resolved.trackEvent({
+        name: 'email_verified',
+        feature: 'auth',
+      });
+      return { ok: true, status: 'success' };
     },
 
     getPendingVerificationEmail(overrides) {
@@ -2010,7 +1794,10 @@ function createAuthLifecycleInternal(
         email || flowStore.getVerificationEmail(resolved.storage);
 
       try {
-        await resendVerificationEmailRaw(email, overrides);
+        if (!targetEmail) {
+          throw new Error('找不到待驗證的電子郵件地址，請重新註冊。');
+        }
+        await resolved.authClient.resendVerificationEmail(targetEmail);
         resolved.toast({
           variant: 'default',
           title: '已重新寄送',
@@ -2046,34 +1833,35 @@ function createAuthLifecycleInternal(
     async requestPasswordReset(email, overrides) {
       const resolved = resolvePort(overrides);
       try {
-        await requestPasswordResetRaw(email, overrides);
-        return { ok: true };
+        await resolved.authClient.requestPasswordResetEmail(email);
       } catch (err) {
-        const isLifecycle = err instanceof PasswordResetLifecycleError;
-        const step = isLifecycle ? err.step : 'request_email';
-        const level = isLifecycle ? err.level : 'info';
-        const rawMsg = isLifecycle ? err.logMessage : getErrorMessage(err);
-        const errorCode = isLifecycle ? err.errorCode : undefined;
-
-        const isStaticStep = isLifecycle && isStaticPasswordResetStep(err.step);
+        const userMessage = getErrorMessage(err);
+        const rawMsg =
+          err instanceof Error
+            ? err.message
+            : 'Failed to request password reset email';
+        const errorCode =
+          err instanceof ApiError ? String(err.status) : undefined;
 
         void resolved.captureFailure({
           flow: 'password_reset',
-          step,
-          level,
-          message: isStaticStep
-            ? sanitizeAuthErrorMessage(rawMsg)
-            : sanitizeAuthErrorMessage(rawMsg, [email]),
+          step: 'request_email',
+          level: 'info',
+          message: sanitizeAuthErrorMessage(rawMsg, [email]),
           errorCode,
         });
         resolved.toast({
           variant: 'destructive',
-          title: isLifecycle ? err.title : '信件寄送失敗',
-          description: isLifecycle ? err.message : getErrorMessage(err),
+          title: '信件寄送失敗',
+          description: userMessage,
           duration: 5000,
         });
-        return { ok: false, errorType: step };
+        return { ok: false, errorType: 'request_email' };
       }
+
+      flowStore.setPasswordResetEmail(email, resolved.storage);
+      resolved.navigate(PASSWORD_FORGOT_SUCCESS_HREF);
+      return { ok: true };
     },
 
     getPendingPasswordResetEmail(overrides) {
@@ -2086,76 +1874,111 @@ function createAuthLifecycleInternal(
       const targetEmail =
         email || flowStore.getPasswordResetEmail(resolved.storage);
 
-      try {
-        await resendPasswordResetRaw(email, overrides);
-        resolved.toast({
-          title: '已成功重新發送',
-          description: '請至您的電子郵箱查看。',
+      if (!targetEmail) {
+        void resolved.captureFailure({
+          flow: 'password_reset',
+          step: 'missing_email',
+          level: 'info',
+          message: 'Missing pending password reset email',
+          errorCode: undefined,
         });
-        return { ok: true };
-      } catch (err) {
-        const isLifecycle = err instanceof PasswordResetLifecycleError;
-        const step = isLifecycle ? err.step : 'resend_email';
-        const level = isLifecycle ? err.level : 'info';
-        const rawMsg = isLifecycle ? err.logMessage : getErrorMessage(err);
-        const errorCode = isLifecycle ? err.errorCode : undefined;
+        resolved.toast({
+          variant: 'destructive',
+          title: '發送失敗',
+          description: '找不到您的電子郵件地址，請嘗試重新操作。',
+          duration: 5000,
+        });
+        return { ok: false, errorType: 'missing_email' };
+      }
 
-        const isStaticStep = isLifecycle && isStaticPasswordResetStep(err.step);
+      try {
+        await resolved.authClient.requestPasswordResetEmail(targetEmail);
+      } catch (err) {
+        const userMessage = getErrorMessage(err);
+        const rawMsg =
+          err instanceof Error
+            ? err.message
+            : 'Failed to resend password reset email';
+        const errorCode =
+          err instanceof ApiError ? String(err.status) : undefined;
 
         void resolved.captureFailure({
           flow: 'password_reset',
-          step,
-          level,
-          message: isStaticStep
-            ? sanitizeAuthErrorMessage(rawMsg)
-            : sanitizeAuthErrorMessage(rawMsg, [targetEmail, email]),
+          step: 'resend_email',
+          level: 'info',
+          message: sanitizeAuthErrorMessage(rawMsg, [targetEmail, email]),
           errorCode,
         });
         resolved.toast({
           variant: 'destructive',
-          title: isLifecycle ? err.title : '信件寄送失敗',
-          description: isLifecycle ? err.message : getErrorMessage(err),
+          title: '信件寄送失敗',
+          description: userMessage,
           duration: 5000,
         });
-        return { ok: false, errorType: step };
+        return { ok: false, errorType: 'resend_email' };
       }
+
+      resolved.toast({
+        title: '已成功重新發送',
+        description: '請至您的電子郵箱查看。',
+      });
+      return { ok: true };
     },
 
     async completePasswordReset(input, overrides) {
       const resolved = resolvePort(overrides);
-      try {
-        await completePasswordResetRaw(input, overrides);
-        return { ok: true };
-      } catch (err) {
-        const isLifecycle = err instanceof PasswordResetLifecycleError;
-        const step = isLifecycle ? err.step : 'submit_new_password';
-        const level = isLifecycle ? err.level : 'info';
-        const rawMsg = isLifecycle ? err.logMessage : getErrorMessage(err);
-        const errorCode = isLifecycle ? err.errorCode : undefined;
 
-        const isStaticStep = isLifecycle && isStaticPasswordResetStep(err.step);
+      if (!input.verifyToken) {
+        void resolved.captureFailure({
+          flow: 'password_reset',
+          step: 'missing_token',
+          level: 'info',
+          message: 'Missing password reset verification token',
+          errorCode: undefined,
+        });
+        resolved.toast({
+          variant: 'destructive',
+          title: '驗證失敗',
+          description: '缺少驗證 Token，請重新申請密碼重設。',
+          duration: 5000,
+        });
+        return { ok: false, errorType: 'missing_token' };
+      }
+
+      try {
+        await resolved.authClient.resetPasswordWithToken({
+          verifyToken: input.verifyToken,
+          password: input.password,
+          confirmPassword: input.confirmPassword,
+        });
+      } catch (err) {
+        const message = getErrorMessage(err);
+        const errorCode =
+          err instanceof ApiError ? String(err.status) : undefined;
 
         void resolved.captureFailure({
           flow: 'password_reset',
-          step,
-          level,
-          message: isStaticStep
-            ? sanitizeAuthErrorMessage(rawMsg)
-            : sanitizeAuthErrorMessage(rawMsg, [
-                input.verifyToken,
-                input.password,
-                input.confirmPassword,
-              ]),
+          step: 'submit_new_password',
+          level: 'info',
+          message: sanitizeAuthErrorMessage(message, [
+            input.verifyToken,
+            input.password,
+            input.confirmPassword,
+          ]),
           errorCode,
         });
         resolved.toast({
           variant: 'destructive',
-          title: isLifecycle ? err.title : '密碼重設失敗',
-          description: isLifecycle ? err.message : getErrorMessage(err),
+          title: '密碼重設失敗',
+          description: message,
           duration: 5000,
         });
-        return { ok: false, errorType: step };
+        return { ok: false, errorType: 'submit_new_password' };
       }
+
+      flowStore.clearPasswordResetEmail(resolved.storage);
+      resolved.navigate(PASSWORD_RESET_SUCCESS_HREF);
+      return { ok: true };
     },
 
     async deleteAccountXC(credentials, overrides) {
@@ -2170,11 +1993,17 @@ function createAuthLifecycleInternal(
       }
 
       try {
-        const result = await executeDeleteAccountXCRaw(credentials, overrides);
-        if (
-          result.status === 'success' ||
-          result.status === 'blocked_reservations'
-        ) {
+        const result = await resolved.authClient.deleteAccount({
+          email: credentials.email,
+          password: credentials.password,
+        });
+
+        if (result.status === 'success') {
+          await terminateSessionInternal('delete_account_xc', overrides);
+          return result;
+        }
+
+        if (result.status === 'blocked_reservations') {
           return result;
         }
 
@@ -2227,9 +2056,9 @@ function createAuthLifecycleInternal(
       }
 
       try {
-        await initiateGoogleAuthRaw(
+        await initiateGoogleAuthInternal(
           { intent: 'delete_account_reauth', email },
-          overrides
+          resolved
         );
         return { ok: true };
       } catch (err) {
@@ -2262,18 +2091,6 @@ function createAuthLifecycleInternal(
     async terminateSession(reason, options) {
       return terminateSessionInternal(reason, options);
     },
-
-    signInWithCredentialsRaw,
-    signUpWithCredentialsRaw,
-    initiateGoogleAuthRaw,
-    confirmSignUpTokenRaw,
-    resendVerificationEmailRaw,
-    requestPasswordResetRaw,
-    resendPasswordResetRaw,
-    completePasswordResetRaw,
-    executeDeleteAccountXCRaw,
-    handleGoogleOAuthCallbackInternal,
-    terminateSessionInternal,
   };
 }
 
@@ -2283,22 +2100,7 @@ export function createAuthLifecycle(
   return createAuthLifecycleInternal(port);
 }
 
-const defaultLifecycle = createAuthLifecycleInternal();
-
-export const authLifecycle: AuthLifecycle = defaultLifecycle;
-
-// ─── Expand-Phase Transitional Top-Level Exports (removed in #940) ───────────
-
-export interface TerminateClientSessionAdapters {
-  signOut: ClientSignOutFn;
-  callbackUrl?: string;
-  storage?: SessionStorageLike | null;
-  revokeBackendSession?: () => Promise<unknown>;
-  revalidateAfterDelete?: () => Promise<unknown>;
-  clearSessionHint?: () => void;
-  clearAnalyticsUser?: () => void;
-  captureFailure?: typeof defaultCaptureFlowFailure;
-}
+export const authLifecycle: AuthLifecycle = createAuthLifecycleInternal();
 
 /**
  * Atomically tears down all client-side session artifacts across every sign-out
@@ -2312,279 +2114,7 @@ export interface TerminateClientSessionAdapters {
  */
 export async function terminateClientSession(
   reason: SessionTeardownReason,
-  adapters: TerminateClientSessionAdapters
+  options: TerminateClientSessionOptions
 ): Promise<void> {
-  return defaultLifecycle.terminateSessionInternal(
-    reason,
-    {
-      signOut: adapters.signOut,
-      callbackUrl: adapters.callbackUrl,
-      storage: adapters.storage,
-      revalidateAfterDelete: adapters.revalidateAfterDelete,
-      clearAnalyticsUser: adapters.clearAnalyticsUser,
-      captureFailure: adapters.captureFailure,
-    },
-    {
-      callbackUrl: adapters.callbackUrl,
-      revokeBackendSession: adapters.revokeBackendSession,
-      clearSessionHint: adapters.clearSessionHint,
-    }
-  );
-}
-
-export interface SignInWithCredentialsAdapters {
-  signIn: ClientSignInFn;
-  getSession: GetSessionFn;
-  navigate: (href: string) => void;
-  search?: string;
-  currentOrigin?: string;
-  storage?: SessionStorageLike | null;
-  setAnalyticsUserContext?: typeof defaultSetAnalyticsUserContext;
-  trackEvent?: typeof defaultTrackEvent;
-}
-
-export async function signInWithCredentials(
-  values: unknown,
-  adapters: SignInWithCredentialsAdapters
-): Promise<void> {
-  return defaultLifecycle.signInWithCredentialsRaw(values, {
-    signIn: adapters.signIn,
-    getSession: adapters.getSession,
-    navigate: adapters.navigate,
-    search: adapters.search,
-    currentOrigin: adapters.currentOrigin,
-    storage: adapters.storage,
-    setAnalyticsUserContext: adapters.setAnalyticsUserContext,
-    trackEvent: adapters.trackEvent,
-  });
-}
-
-export interface SignUpWithCredentialsAdapters {
-  navigate: (href: string) => void;
-  signUpFn?: (input: SignUpInput) => Promise<void>;
-  storage?: SessionStorageLike | null;
-  trackEvent?: typeof defaultTrackEvent;
-}
-
-export async function signUpWithCredentials(
-  values: SignUpInput,
-  adapters: SignUpWithCredentialsAdapters
-): Promise<void> {
-  return defaultLifecycle.signUpWithCredentialsRaw(values, {
-    navigate: adapters.navigate,
-    authClient: adapters.signUpFn ? { signUp: adapters.signUpFn } : undefined,
-    storage: adapters.storage,
-    trackEvent: adapters.trackEvent,
-  });
-}
-
-export type GoogleAuthIntent = 'login' | 'signup' | 'delete_account_reauth';
-
-export type InitiateGoogleAuthParams =
-  | {
-      intent: 'login';
-      search?: string;
-      currentOrigin?: string;
-    }
-  | {
-      intent: 'signup';
-    }
-  | {
-      intent: 'delete_account_reauth';
-      email: string;
-    };
-
-export interface InitiateGoogleAuthAdapters {
-  navigate: (url: string) => void;
-  storage?: SessionStorageLike | null;
-  getAuthorizeUrl?: (intent: 'login' | 'signup') => Promise<GoogleAuthorizeVO>;
-}
-
-export async function initiateGoogleAuth(
-  params: InitiateGoogleAuthParams,
-  adapters: InitiateGoogleAuthAdapters
-): Promise<void> {
-  return defaultLifecycle.initiateGoogleAuthRaw(params, {
-    navigate: adapters.navigate,
-    storage: adapters.storage,
-    authClient: adapters.getAuthorizeUrl
-      ? { getGoogleAuthorizeUrl: adapters.getAuthorizeUrl }
-      : undefined,
-  });
-}
-
-export interface ConfirmSignUpTokenAdapters {
-  confirmSignUpFn?: (token: string) => Promise<void>;
-  storage?: SessionStorageLike | null;
-}
-
-export async function confirmSignUpToken(
-  token: string | null,
-  adapters: ConfirmSignUpTokenAdapters = {}
-): Promise<void> {
-  return defaultLifecycle.confirmSignUpTokenRaw(token, {
-    storage: adapters.storage,
-    authClient: adapters.confirmSignUpFn
-      ? { confirmSignUp: adapters.confirmSignUpFn }
-      : undefined,
-  });
-}
-
-export interface ResendVerificationEmailAdapters {
-  email?: string | null;
-  resendVerificationEmailFn?: (email: string) => Promise<void>;
-  storage?: SessionStorageLike | null;
-}
-
-export async function resendVerificationEmailForPendingUser(
-  adapters: ResendVerificationEmailAdapters = {}
-): Promise<void> {
-  return defaultLifecycle.resendVerificationEmailRaw(adapters.email, {
-    storage: adapters.storage,
-    authClient: adapters.resendVerificationEmailFn
-      ? { resendVerificationEmail: adapters.resendVerificationEmailFn }
-      : undefined,
-  });
-}
-
-export interface RequestPasswordResetAdapters {
-  navigate: (href: string) => void;
-  requestPasswordResetEmailFn?: (email: string) => Promise<void>;
-  storage?: SessionStorageLike | null;
-}
-
-export async function requestPasswordReset(
-  email: string,
-  adapters: RequestPasswordResetAdapters
-): Promise<void> {
-  return defaultLifecycle.requestPasswordResetRaw(email, {
-    navigate: adapters.navigate,
-    storage: adapters.storage,
-    authClient: adapters.requestPasswordResetEmailFn
-      ? { requestPasswordResetEmail: adapters.requestPasswordResetEmailFn }
-      : undefined,
-  });
-}
-
-export interface ResendPasswordResetAdapters {
-  email?: string | null;
-  requestPasswordResetEmailFn?: (email: string) => Promise<void>;
-  storage?: SessionStorageLike | null;
-}
-
-export async function resendPasswordReset(
-  adapters: ResendPasswordResetAdapters = {}
-): Promise<void> {
-  return defaultLifecycle.resendPasswordResetRaw(adapters.email, {
-    storage: adapters.storage,
-    authClient: adapters.requestPasswordResetEmailFn
-      ? { requestPasswordResetEmail: adapters.requestPasswordResetEmailFn }
-      : undefined,
-  });
-}
-
-export interface CompletePasswordResetAdapters {
-  navigate: (href: string) => void;
-  resetPasswordWithTokenFn?: (
-    input: ResetPasswordWithTokenInput
-  ) => Promise<void>;
-  storage?: SessionStorageLike | null;
-}
-
-export async function completePasswordReset(
-  input: CompletePasswordResetInput,
-  adapters: CompletePasswordResetAdapters
-): Promise<void> {
-  return defaultLifecycle.completePasswordResetRaw(input, {
-    navigate: adapters.navigate,
-    storage: adapters.storage,
-    authClient: adapters.resetPasswordWithTokenFn
-      ? { resetPasswordWithToken: adapters.resetPasswordWithTokenFn }
-      : undefined,
-  });
-}
-
-export interface ExecuteDeleteAccountXCAdapters {
-  signOut: ClientSignOutFn;
-  revalidateAfterDelete?: () => Promise<unknown>;
-  deleteAccountFn?: (payload: DeleteAccountDTO) => Promise<DeleteAccountResult>;
-  storage?: SessionStorageLike | null;
-  trackEvent?: typeof defaultTrackEvent;
-  clearSessionHint?: () => void;
-  clearAnalyticsUser?: () => void;
-  captureFailure?: typeof defaultCaptureFlowFailure;
-}
-
-export async function executeDeleteAccountXC(
-  credentials: { email: string; password: string },
-  adapters: ExecuteDeleteAccountXCAdapters
-): Promise<DeleteAccountResult> {
-  return defaultLifecycle.executeDeleteAccountXCRaw(credentials, {
-    signOut: adapters.signOut,
-    revalidateAfterDelete: adapters.revalidateAfterDelete,
-    authClient: adapters.deleteAccountFn
-      ? { deleteAccount: adapters.deleteAccountFn }
-      : undefined,
-    storage: adapters.storage,
-    trackEvent: adapters.trackEvent,
-    clearSessionHint: adapters.clearSessionHint,
-    clearAnalyticsUser: adapters.clearAnalyticsUser,
-    captureFailure: adapters.captureFailure,
-  });
-}
-
-export interface ExecuteGoogleOAuthCallbackAdapters {
-  exchangeCode: GoogleOAuthCodeExchanger;
-  signIn: ClientSignInFn;
-  signOut: ClientSignOutFn;
-  getSession: GetSessionFn;
-  navigate: (href: string) => void;
-  onToast: (payload: AuthToastPayload) => void;
-  revalidateAfterDelete?: () => Promise<unknown>;
-  currentOrigin?: string;
-  storage?: SessionStorageLike | null;
-  deleteAccountFn?: (payload: DeleteAccountDTO) => Promise<DeleteAccountResult>;
-  resolveOutcomeFn?: typeof resolveOAuthOutcome;
-  signInWithGoogleTokenFn?: typeof signInWithGoogleToken;
-  setAnalyticsUserContext?: typeof defaultSetAnalyticsUserContext;
-  trackEvent?: typeof defaultTrackEvent;
-  clearSessionHint?: () => void;
-  clearAnalyticsUser?: () => void;
-  captureFailure?: typeof defaultCaptureFlowFailure;
-}
-
-export async function executeGoogleOAuthCallback(
-  params: {
-    code: string | null;
-    state: string | null;
-    preExchanged?: OAuthCallbackResponse | null;
-  },
-  adapters: ExecuteGoogleOAuthCallbackAdapters
-): Promise<void> {
-  return defaultLifecycle.handleGoogleOAuthCallbackInternal(
-    params,
-    {
-      exchangeGoogleCode: adapters.exchangeCode,
-      signIn: adapters.signIn,
-      signOut: adapters.signOut,
-      getSession: adapters.getSession,
-      navigate: adapters.navigate,
-      toast: adapters.onToast,
-      revalidateAfterDelete: adapters.revalidateAfterDelete,
-      storage: adapters.storage,
-      authClient: adapters.deleteAccountFn
-        ? { deleteAccount: adapters.deleteAccountFn }
-        : undefined,
-      setAnalyticsUserContext: adapters.setAnalyticsUserContext,
-      trackEvent: adapters.trackEvent,
-      clearAnalyticsUser: adapters.clearAnalyticsUser,
-      captureFailure: adapters.captureFailure,
-    },
-    {
-      resolveOutcomeFn: adapters.resolveOutcomeFn,
-      signInWithGoogleTokenFn: adapters.signInWithGoogleTokenFn,
-      clearSessionHint: adapters.clearSessionHint,
-      currentOrigin: adapters.currentOrigin,
-    }
-  );
+  return authLifecycle.terminateSession(reason, options);
 }

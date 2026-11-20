@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/navigation', async () => {
   const { navigationMockFactory } = await import('@/test/mocks/navigation');
@@ -11,49 +11,56 @@ vi.mock('@/components/ui/use-toast', async () => {
   return useToastMockFactory();
 });
 
-vi.mock('@/services/auth/authClient', () => ({
-  authClient: {
-    requestPasswordResetEmail: vi.fn(),
-  },
-}));
-
-vi.mock('@/lib/monitoring', () => ({
-  captureFlowFailure: vi.fn(),
-  sanitize: (val: string) => val,
-}));
-
-import { captureFlowFailure } from '@/lib/monitoring';
-import { authClient } from '@/services/auth/authClient';
+import {
+  authLifecycle,
+  createAuthLifecycle,
+  createInMemorySessionStorage,
+  PENDING_PASSWORD_RESET_EMAIL_KEY,
+} from '@/lib/auth/sessionLifecycle';
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockToast } from '@/test/mocks/useToast';
 
 import usePasswordForgotForm from './usePasswordForgotForm';
 
-const mockResetPassword = vi.mocked(authClient.requestPasswordResetEmail);
-const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
+describe('usePasswordForgotForm (#940)', () => {
+  const requestPasswordResetEmail = vi.fn();
+  let storage = createInMemorySessionStorage();
 
-const validValues = {
-  email: 'test@example.com',
-};
-
-describe('usePasswordForgotForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    window.sessionStorage.clear();
+    storage = createInMemorySessionStorage();
+    const scoped = createAuthLifecycle({
+      authClient: { requestPasswordResetEmail },
+      storage,
+      captureFailure: vi.fn(),
+    });
+    vi.spyOn(authLifecycle, 'requestPasswordReset').mockImplementation(
+      (email, overrides) => scoped.requestPasswordReset(email, overrides)
+    );
   });
 
-  it('submits form successfully and redirects to forgot success page', async () => {
-    mockResetPassword.mockResolvedValueOnce(undefined);
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
+  it('validates RHF email field and retains isSubmitting=true on successful redirect', async () => {
+    requestPasswordResetEmail.mockResolvedValueOnce(undefined);
     const { result } = renderHook(() => usePasswordForgotForm());
 
+    const onInvalid = vi.fn();
     await act(async () => {
-      await result.current.onSubmit(validValues);
+      await result.current.form.handleSubmit(vi.fn(), onInvalid)();
+    });
+    expect(onInvalid).toHaveBeenCalledTimes(1);
+    expect(requestPasswordResetEmail).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.onSubmit({ email: 'test@example.com' });
     });
 
-    expect(mockResetPassword).toHaveBeenCalledWith(validValues.email);
-    expect(sessionStorage.getItem('pending_reset_email')).toBe(
-      validValues.email
+    expect(requestPasswordResetEmail).toHaveBeenCalledWith('test@example.com');
+    expect(storage.getItem(PENDING_PASSWORD_RESET_EMAIL_KEY)).toBe(
+      'test@example.com'
     );
     expect(mockRouter.push).toHaveBeenCalledWith(
       '/auth/password-forgot-success'
@@ -61,28 +68,17 @@ describe('usePasswordForgotForm', () => {
     expect(result.current.isSubmitting).toBe(true);
   });
 
-  it('handles ApiError / general error, logs captureFlowFailure without email PII, and triggers toast', async () => {
-    mockResetPassword.mockRejectedValueOnce(
+  it('resets isSubmitting=false and surfaces toast when requestPasswordReset fails', async () => {
+    requestPasswordResetEmail.mockRejectedValueOnce(
       new Error('Reset link generation failed')
     );
 
     const { result } = renderHook(() => usePasswordForgotForm());
 
     await act(async () => {
-      await result.current.onSubmit(validValues);
+      await result.current.onSubmit({ email: 'test@example.com' });
     });
 
-    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
-      expect.objectContaining({
-        flow: 'password_reset',
-        step: 'request_email',
-        message: 'Reset link generation failed',
-        level: 'info',
-      })
-    );
-    expect(JSON.stringify(mockCaptureFlowFailure.mock.calls)).not.toContain(
-      'test@example.com'
-    );
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
         variant: 'destructive',

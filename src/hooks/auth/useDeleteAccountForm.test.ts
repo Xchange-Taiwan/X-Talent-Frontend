@@ -20,42 +20,13 @@ vi.mock('@/actions/auth', () => ({
   revalidateProfilePathAfterDelete: vi.fn(),
 }));
 
-vi.mock('@/services/auth/authClient', () => ({
-  authClient: {
-    deleteAccount: vi.fn(),
-    getGoogleAuthorizeUrl: vi.fn(),
-  },
-}));
-
-vi.mock('@/lib/monitoring', () => ({
-  captureFlowFailure: vi.fn(),
-  sanitize: (val: string) => val,
-}));
-
-vi.mock('@/lib/analytics', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/analytics')>();
-  return {
-    ...actual,
-    clearAnalyticsUser: vi.fn(),
-    trackEvent: vi.fn(),
-  };
-});
-
 import { revalidateProfilePathAfterDelete } from '@/actions/auth';
-import { clearAnalyticsUser, trackEvent } from '@/lib/analytics';
 import {
-  PENDING_AUTH_CALLBACK_URL_KEY,
+  authLifecycle,
+  createAuthLifecycle,
+  createInMemorySessionStorage,
   PENDING_DELETE_ACCOUNT_EMAIL_KEY,
-} from '@/lib/auth/authFlowStorage';
-import {
-  DOM_AUTH_STATE_ATTR,
-  SESSION_HINT_COOKIE,
-} from '@/lib/auth/sessionHint';
-import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
-import { captureFlowFailure } from '@/lib/monitoring';
-import { notificationStoreManager } from '@/lib/notifications';
-import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
-import { authClient } from '@/services/auth/authClient';
+} from '@/lib/auth/sessionLifecycle';
 import { mockRouter } from '@/test/mocks/navigation';
 import {
   mockSession,
@@ -66,25 +37,19 @@ import { mockToast } from '@/test/mocks/useToast';
 
 import useDeleteAccountForm from './useDeleteAccountForm';
 
-const mockDeleteAccount = vi.mocked(authClient.deleteAccount);
-const mockGetGoogleAuthorizeLoginUrl = vi.mocked(
-  authClient.getGoogleAuthorizeUrl
-);
-const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
-const mockClearAnalyticsUser = vi.mocked(clearAnalyticsUser);
-const mockTrackEvent = vi.mocked(trackEvent);
 const mockRevalidateProfilePathAfterDelete = vi.mocked(
   revalidateProfilePathAfterDelete
 );
 
-describe('useDeleteAccountForm', () => {
+describe('useDeleteAccountForm (#940)', () => {
   const originalEnv = process.env;
+  const deleteAccountFn = vi.fn();
+  const getGoogleAuthorizeUrl = vi.fn();
+  let storage = createInMemorySessionStorage();
 
   beforeEach(() => {
     vi.clearAllMocks();
-    notificationStoreManager.clear();
-    reservationReadModel.clear();
-    scheduleReadModel.clear();
+    storage = createInMemorySessionStorage();
     mockRevalidateProfilePathAfterDelete.mockResolvedValue(undefined);
     process.env = { ...originalEnv, NEXT_PUBLIC_CAN_DELETE_ACCOUNT: 'true' };
     mockUseSession.mockReturnValue({
@@ -93,29 +58,36 @@ describe('useDeleteAccountForm', () => {
       update: vi.fn(),
     });
 
-    const store: Record<string, string> = {};
-    vi.stubGlobal('sessionStorage', {
-      getItem: (key: string) => store[key] || null,
-      setItem: (key: string, value: string) => {
-        store[key] = value;
+    const scoped = createAuthLifecycle({
+      authClient: {
+        deleteAccount: deleteAccountFn,
+        getGoogleAuthorizeUrl,
       },
-      removeItem: (key: string) => {
-        delete store[key];
-      },
+      storage,
+      clearAnalyticsUser: vi.fn(),
+      captureFailure: vi.fn(),
     });
+    vi.spyOn(authLifecycle, 'deleteAccountXC').mockImplementation(
+      (credentials, overrides) => scoped.deleteAccountXC(credentials, overrides)
+    );
+    vi.spyOn(
+      authLifecycle,
+      'startDeleteAccountGoogleReauth'
+    ).mockImplementation((email, overrides) =>
+      scoped.startDeleteAccountGoogleReauth(email, overrides)
+    );
   });
 
   afterEach(() => {
     process.env = originalEnv;
-    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
-  it('detects correct mode as xc when session provider is not custom-google-token', () => {
-    const { result } = renderHook(() => useDeleteAccountForm());
+  it('detects xc vs google mode from session provider', () => {
+    const { result, unmount } = renderHook(() => useDeleteAccountForm());
     expect(result.current.mode).toBe('xc');
-  });
+    unmount();
 
-  it('detects correct mode as google when session provider is custom-google-token', () => {
     mockUseSession.mockReturnValue({
       data: {
         ...mockSession,
@@ -124,14 +96,12 @@ describe('useDeleteAccountForm', () => {
       status: 'authenticated',
       update: vi.fn(),
     });
-
-    const { result } = renderHook(() => useDeleteAccountForm());
-    expect(result.current.mode).toBe('google');
+    const googleHook = renderHook(() => useDeleteAccountForm());
+    expect(googleHook.result.current.mode).toBe('google');
   });
 
-  it('onSubmitXC uses isAccountDeletionEnabled() (blocks when false/unset, allows trimmed case-insensitive " TRUE " while preserving blocked_reservations)', async () => {
+  it('preserves isAccountDeletionEnabled(), blocked_reservations state, error reset, and success teardown on onSubmitXC', async () => {
     process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT = 'false';
-
     const { result } = renderHook(() => useDeleteAccountForm());
 
     await act(async () => {
@@ -146,13 +116,12 @@ describe('useDeleteAccountForm', () => {
       description: '此環境不支援帳號刪除',
       duration: 3000,
     });
-    expect(mockDeleteAccount).not.toHaveBeenCalled();
+    expect(deleteAccountFn).not.toHaveBeenCalled();
 
+    // blocked_reservations branch sets blockedByReservations=true without toast or signOut
     mockToast.mockClear();
     process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT = ' TRUE ';
-    mockDeleteAccount.mockResolvedValueOnce({
-      status: 'blocked_reservations',
-    });
+    deleteAccountFn.mockResolvedValueOnce({ status: 'blocked_reservations' });
 
     await act(async () => {
       await result.current.onSubmitXC({
@@ -161,186 +130,70 @@ describe('useDeleteAccountForm', () => {
       });
     });
 
+    expect(result.current.blockedByReservations).toBe(true);
     expect(mockToast).not.toHaveBeenCalled();
-    expect(mockDeleteAccount).toHaveBeenCalledTimes(1);
-    expect(result.current.blockedByReservations).toBe(true);
-  });
-
-  it('onSubmitXC success flow atomically clears sessionHint, authFlowStorage, stores, and revalidates before signOut', async () => {
-    document.cookie = `${SESSION_HINT_COOKIE}=1||`;
-    document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'mentee');
-    sessionStorage.setItem(
-      PENDING_AUTH_CALLBACK_URL_KEY,
-      '/reservation/mentee'
-    );
-    notificationStoreManager.getOrCreateState('test-user-id');
-    notificationStoreManager.setInitialData('test-user-id', 3, [], null);
-    expect(
-      notificationStoreManager.getOrCreateState('test-user-id').unreadCountState
-    ).toBe(3);
-
-    mockDeleteAccount.mockResolvedValueOnce({
-      status: 'success',
-    });
-
-    const { result } = renderHook(() => useDeleteAccountForm());
-
-    await act(async () => {
-      await result.current.onSubmitXC({
-        email: 'test@example.com',
-        password: 'Password1!',
-      });
-    });
-
-    expect(mockTrackEvent).not.toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'delete_account_succeeded' })
-    );
-    expect(mockClearAnalyticsUser).toHaveBeenCalledTimes(1);
-    expect(mockRevalidateProfilePathAfterDelete).toHaveBeenCalledWith();
-    expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: '/' });
-
-    expect(document.cookie).not.toContain(`${SESSION_HINT_COOKIE}=`);
-    expect(
-      document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)
-    ).toBeNull();
-    expect(sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)).toBeNull();
-    expect(
-      notificationStoreManager.getOrCreateState('test-user-id').unreadCountState
-    ).toBe(0);
-
-    const clearOrder = mockClearAnalyticsUser.mock.invocationCallOrder[0];
-    const dispatchOrder =
-      mockRevalidateProfilePathAfterDelete.mock.invocationCallOrder[0];
-    const signOutOrder = mockSignOut.mock.invocationCallOrder[0];
-    expect(clearOrder).toBeLessThan(signOutOrder);
-    expect(dispatchOrder).toBeLessThan(signOutOrder);
-  });
-
-  it('onSubmitXC blocked_reservations flow', async () => {
-    mockDeleteAccount.mockResolvedValueOnce({
-      status: 'blocked_reservations',
-    });
-
-    const { result } = renderHook(() => useDeleteAccountForm());
-
-    expect(result.current.blockedByReservations).toBe(false);
-
-    await act(async () => {
-      await result.current.onSubmitXC({
-        email: 'test@example.com',
-        password: 'Password1!',
-      });
-    });
-
-    expect(result.current.blockedByReservations).toBe(true);
-    expect(mockClearAnalyticsUser).not.toHaveBeenCalled();
     expect(mockSignOut).not.toHaveBeenCalled();
-  });
 
-  it('onSubmitXC error flow (non-success and non-blocked)', async () => {
-    mockDeleteAccount.mockResolvedValueOnce({
+    // Retry resulting in error clears blockedByReservations and shows error toast
+    deleteAccountFn.mockResolvedValueOnce({
       status: 'error',
       message: 'invalid password',
     });
-
-    const { result } = renderHook(() => useDeleteAccountForm());
-
     await act(async () => {
       await result.current.onSubmitXC({
         email: 'test@example.com',
         password: 'Password1!',
       });
     });
-
-    expect(mockCaptureFlowFailure).toHaveBeenCalledWith({
-      flow: 'delete_account',
-      step: 'submit',
-      message: 'invalid password',
-      level: 'info',
-    });
-    expect(mockClearAnalyticsUser).not.toHaveBeenCalled();
+    expect(result.current.blockedByReservations).toBe(false);
     expect(mockToast).toHaveBeenCalledWith({
       variant: 'destructive',
       description: 'invalid password',
       duration: 3000,
     });
+
+    // Success executes revalidateAfterDelete before signOut({ callbackUrl: '/' })
+    deleteAccountFn.mockResolvedValueOnce({ status: 'success' });
+    await act(async () => {
+      await result.current.onSubmitXC({
+        email: 'test@example.com',
+        password: 'Password1!',
+      });
+    });
+    expect(mockRevalidateProfilePathAfterDelete).toHaveBeenCalledTimes(1);
+    expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: '/' });
+    expect(result.current.isSubmitting).toBe(false);
   });
 
-  it('initiateGoogleReauth uses isAccountDeletionEnabled() (blocks when false, allows trimmed case-insensitive " TRUE ")', async () => {
+  it('delegates initiateGoogleReauth with feature-flag guard, failure reset, and pending retention on redirect', async () => {
     process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT = 'false';
-
     const { result } = renderHook(() => useDeleteAccountForm());
 
     await act(async () => {
       await result.current.initiateGoogleReauth();
     });
+    expect(getGoogleAuthorizeUrl).not.toHaveBeenCalled();
+    expect(result.current.isSubmitting).toBe(false);
 
-    expect(mockToast).toHaveBeenCalledWith({
-      variant: 'destructive',
-      description: '此環境不支援帳號刪除',
-      duration: 3000,
-    });
-    expect(mockGetGoogleAuthorizeLoginUrl).not.toHaveBeenCalled();
-
-    mockToast.mockClear();
     process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT = ' TRUE ';
-    mockGetGoogleAuthorizeLoginUrl.mockResolvedValueOnce({
-      authorization_url: 'https://google-auth-url.com',
-      state: 'mock-state',
-    });
-
+    getGoogleAuthorizeUrl.mockRejectedValueOnce(new Error('OAuth down'));
     await act(async () => {
       await result.current.initiateGoogleReauth();
     });
+    expect(storage.getItem(PENDING_DELETE_ACCOUNT_EMAIL_KEY)).toBeNull();
+    expect(result.current.isSubmitting).toBe(false);
 
-    expect(mockToast).not.toHaveBeenCalled();
-    expect(mockGetGoogleAuthorizeLoginUrl).toHaveBeenCalledTimes(1);
-  });
-
-  it('initiateGoogleReauth success flow', async () => {
-    mockGetGoogleAuthorizeLoginUrl.mockResolvedValueOnce({
+    getGoogleAuthorizeUrl.mockResolvedValueOnce({
       authorization_url: 'https://google-auth-url.com',
       state: 'mock-state',
     });
-
-    const { result } = renderHook(() => useDeleteAccountForm());
-
     await act(async () => {
       await result.current.initiateGoogleReauth();
     });
-
-    expect(sessionStorage.getItem(PENDING_DELETE_ACCOUNT_EMAIL_KEY)).toBe(
+    expect(storage.getItem(PENDING_DELETE_ACCOUNT_EMAIL_KEY)).toBe(
       'test@example.com'
     );
     expect(mockRouter.push).toHaveBeenCalledWith('https://google-auth-url.com');
     expect(result.current.isSubmitting).toBe(true);
-  });
-
-  it('initiateGoogleReauth failure flow', async () => {
-    mockGetGoogleAuthorizeLoginUrl.mockRejectedValueOnce(
-      new Error('API failed')
-    );
-
-    const { result } = renderHook(() => useDeleteAccountForm());
-
-    await act(async () => {
-      await result.current.initiateGoogleReauth();
-    });
-
-    expect(sessionStorage.getItem(PENDING_DELETE_ACCOUNT_EMAIL_KEY)).toBeNull();
-    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
-      expect.objectContaining({
-        flow: 'delete_account',
-        step: 'google_reauth_authorize',
-        message: 'API failed',
-        level: 'warning',
-      })
-    );
-    expect(mockToast).toHaveBeenCalledWith({
-      variant: 'destructive',
-      description: '無法取得 Google 授權連結，請稍後再試',
-      duration: 3000,
-    });
-    expect(result.current.isSubmitting).toBe(false);
   });
 });

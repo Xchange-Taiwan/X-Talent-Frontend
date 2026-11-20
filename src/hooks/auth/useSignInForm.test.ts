@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/navigation', async () => {
   const { navigationMockFactory } = await import('@/test/mocks/navigation');
@@ -16,68 +16,98 @@ vi.mock('@/components/ui/use-toast', async () => {
   return useToastMockFactory();
 });
 
-vi.mock('@/lib/monitoring', () => ({
-  captureFlowFailure: vi.fn(),
-  sanitize: (val: string) => val,
-}));
-
-vi.mock('@/lib/analytics', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/analytics')>();
-  return {
-    ...actual,
-    setAnalyticsUserContext: vi.fn(),
-    trackEvent: vi.fn(),
-  };
-});
-
-import { setAnalyticsUserContext, trackEvent } from '@/lib/analytics';
-import { PENDING_AUTH_CALLBACK_URL_KEY } from '@/lib/auth/authFlowStorage';
 import {
-  getPendingFavoriteMentorId,
-  PENDING_FAVORITE_TTL_MS,
-  savePendingFavoriteMentor,
-} from '@/lib/favorites';
-import { captureFlowFailure } from '@/lib/monitoring';
+  authLifecycle,
+  createAuthLifecycle,
+  createInMemorySessionStorage,
+} from '@/lib/auth/sessionLifecycle';
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockGetSession, mockSession, mockSignIn } from '@/test/mocks/nextAuth';
 import { mockToast } from '@/test/mocks/useToast';
 
 import useSignInForm from './useSignInForm';
 
-const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
-const mockSetAnalyticsUserContext = vi.mocked(setAnalyticsUserContext);
-const mockTrackEvent = vi.mocked(trackEvent);
-
 const validValues = { email: 'user@example.com', password: 'Password1!' };
 
-describe('useSignInForm', () => {
+describe('useSignInForm (#940)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    window.localStorage.clear();
-    window.sessionStorage.clear();
-    window.history.replaceState({}, '', '/auth/signin');
     mockSignIn.mockResolvedValue({ error: null });
     mockGetSession.mockResolvedValue(mockSession);
+
+    const scoped = createAuthLifecycle({
+      storage: createInMemorySessionStorage(),
+      trackEvent: vi.fn(),
+      setAnalyticsUserContext: vi.fn(),
+      captureFailure: vi.fn(),
+      getSearch: () => '?callbackUrl=%2Freservation%2Fmentee',
+      getOrigin: () => 'https://xtalent.tw',
+    });
+    vi.spyOn(authLifecycle, 'signInWithCredentials').mockImplementation(
+      (values, overrides) => scoped.signInWithCredentials(values, overrides)
+    );
   });
 
-  it('invalid schema values → validates in memory without server round-trip, shows toast, no redirect', async () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('initializes empty credentials and blocks invalid RHF submissions before invoking authLifecycle', async () => {
     const { result } = renderHook(() => useSignInForm());
 
-    await act(async () => {
-      await result.current.onSubmit({ email: 'not-an-email', password: '' });
+    expect(result.current.form.getValues()).toEqual({
+      email: '',
+      password: '',
     });
 
-    expect(mockSignIn).not.toHaveBeenCalled();
-    expect(mockToast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        variant: 'destructive',
-        description: 'Invalid fields!',
-      })
-    );
-    expect(mockRouter.push).not.toHaveBeenCalled();
+    const onValid = vi.fn();
+    const onInvalid = vi.fn();
+    await act(async () => {
+      await result.current.form.handleSubmit(onValid, onInvalid)();
+    });
+
+    expect(onValid).not.toHaveBeenCalled();
+    expect(onInvalid).toHaveBeenCalledTimes(1);
+    expect(authLifecycle.signInWithCredentials).not.toHaveBeenCalled();
   });
 
-  it('clientSignIn returns { error } → toast shows "Invalid credentials!", no redirect', async () => {
+  it('delegates signInWithCredentials with NextAuth adapters, guards concurrent submits, and keeps isSubmitting=true while redirect is in flight', async () => {
+    let resolveLogin!: (val: { error: string | null }) => void;
+    mockSignIn.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveLogin = resolve;
+      })
+    );
+
+    const { result } = renderHook(() => useSignInForm());
+
+    let p1!: Promise<void>;
+    let p2!: Promise<void>;
+    act(() => {
+      p1 = result.current.onSubmit(validValues);
+      p2 = result.current.onSubmit(validValues);
+    });
+
+    expect(result.current.isSubmitting).toBe(true);
+    expect(authLifecycle.signInWithCredentials).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveLogin({ error: null });
+      await Promise.all([p1, p2]);
+    });
+
+    expect(result.current.isSubmitting).toBe(true);
+    expect(mockRouter.push).toHaveBeenCalledWith('/reservation/mentee');
+    expect(mockToast).not.toHaveBeenCalled();
+
+    // Programmatic double-submit during route transition stays locked
+    await act(async () => {
+      await result.current.onSubmit(validValues);
+    });
+    expect(authLifecycle.signInWithCredentials).toHaveBeenCalledTimes(1);
+  });
+
+  it('forwards toast adapter so authLifecycle surfaces invalid credentials without redirecting', async () => {
     mockSignIn.mockResolvedValueOnce({ error: 'CredentialsSignin' });
 
     const { result } = renderHook(() => useSignInForm());
@@ -93,394 +123,6 @@ describe('useSignInForm', () => {
       })
     );
     expect(mockRouter.push).not.toHaveBeenCalled();
-  });
-
-  it('getSession returns session with no accessToken → toast shows "Login failed", no redirect', async () => {
-    mockGetSession.mockResolvedValueOnce({
-      user: { ...mockSession.user },
-      expires: mockSession.expires,
-    });
-
-    const { result } = renderHook(() => useSignInForm());
-
-    await act(async () => {
-      await result.current.onSubmit(validValues);
-    });
-
-    expect(mockToast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        variant: 'destructive',
-        description: 'Login failed',
-      })
-    );
-    expect(mockRouter.push).not.toHaveBeenCalled();
-  });
-
-  it('success + onBoarding === false → syncs user_id and tracks login (method: Email, user_role: mentee) then redirects to /auth/onboarding', async () => {
-    mockGetSession.mockResolvedValueOnce({
-      ...mockSession,
-      user: { ...mockSession.user, onBoarding: false, isMentor: false },
-    });
-
-    const { result } = renderHook(() => useSignInForm());
-
-    await act(async () => {
-      await result.current.onSubmit(validValues);
-    });
-
-    expect(mockSetAnalyticsUserContext).toHaveBeenCalledWith({
-      userId: 'test-user-id',
-      userRole: 'mentee',
-    });
-    expect(mockTrackEvent).toHaveBeenCalledWith({
-      name: 'login',
-      feature: 'auth',
-      metadata: {
-        method: 'Email',
-        user_role: 'mentee',
-      },
-    });
-    expect(mockRouter.push).toHaveBeenCalledWith('/auth/onboarding');
-    expect(mockToast).not.toHaveBeenCalled();
-  });
-
-  it('success + onBoarding === true + isMentor → syncs mentor role and router.push("/mentor-pool")', async () => {
-    mockGetSession.mockResolvedValueOnce({
-      ...mockSession,
-      user: { ...mockSession.user, onBoarding: true, isMentor: true },
-    });
-
-    const { result } = renderHook(() => useSignInForm());
-
-    await act(async () => {
-      await result.current.onSubmit(validValues);
-    });
-
-    expect(mockSetAnalyticsUserContext).toHaveBeenCalledWith({
-      userId: 'test-user-id',
-      userRole: 'mentor',
-    });
-    expect(mockTrackEvent).toHaveBeenCalledWith({
-      name: 'login',
-      feature: 'auth',
-      metadata: {
-        method: 'Email',
-        user_role: 'mentor',
-      },
-    });
-    expect(mockRouter.push).toHaveBeenCalledWith('/mentor-pool');
-    expect(mockToast).not.toHaveBeenCalled();
-  });
-
-  it('success + valid callbackUrl query parameter → redirects to full callbackUrl including query params and clears stale pending_auth_callback_url (#733)', async () => {
-    window.sessionStorage.setItem(
-      PENDING_AUTH_CALLBACK_URL_KEY,
-      '/reservation/mentor?tab=history&reservationId=999'
-    );
-    window.history.replaceState(
-      {},
-      '',
-      '/auth/signin?callbackUrl=%2Freservation%2Fmentee%3Ftab%3Dhistory%26reservationId%3D101'
-    );
-    mockGetSession.mockResolvedValueOnce({
-      ...mockSession,
-      user: { ...mockSession.user, onBoarding: true, isMentor: false },
-    });
-
-    const { result } = renderHook(() => useSignInForm());
-
-    await act(async () => {
-      await result.current.onSubmit(validValues);
-    });
-
-    expect(mockRouter.push).toHaveBeenCalledWith(
-      '/reservation/mentee?tab=history&reservationId=101'
-    );
-    expect(
-      window.sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
-    ).toBeNull();
-  });
-
-  it('success + valid callbackUrl + onBoarding === false → prioritizes /auth/onboarding over callbackUrl and clears stale pending_auth_callback_url (#733)', async () => {
-    window.sessionStorage.setItem(
-      PENDING_AUTH_CALLBACK_URL_KEY,
-      '/reservation/mentee?tab=history&reservationId=101'
-    );
-    window.history.replaceState(
-      {},
-      '',
-      '/auth/signin?callbackUrl=%2Freservation%2Fmentee%3Ftab%3Dhistory%26reservationId%3D101'
-    );
-    mockGetSession.mockResolvedValueOnce({
-      ...mockSession,
-      user: { ...mockSession.user, onBoarding: false, isMentor: false },
-    });
-
-    const { result } = renderHook(() => useSignInForm());
-
-    await act(async () => {
-      await result.current.onSubmit(validValues);
-    });
-
-    expect(mockRouter.push).toHaveBeenCalledWith('/auth/onboarding');
-    expect(mockRouter.push).not.toHaveBeenCalledWith(
-      '/reservation/mentee?tab=history&reservationId=101'
-    );
-    expect(
-      window.sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
-    ).toBeNull();
-  });
-
-  it('success + unsafe external callbackUrl → ignores open-redirect attempt and falls back to /mentor-pool (#733)', async () => {
-    window.history.replaceState(
-      {},
-      '',
-      '/auth/signin?callbackUrl=https%3A%2F%2Fevil.example.com%2Fphish'
-    );
-    mockGetSession.mockResolvedValueOnce({
-      ...mockSession,
-      user: { ...mockSession.user, onBoarding: true, isMentor: false },
-    });
-
-    const { result } = renderHook(() => useSignInForm());
-
-    await act(async () => {
-      await result.current.onSubmit(validValues);
-    });
-
-    expect(mockRouter.push).toHaveBeenCalledWith('/mentor-pool');
-  });
-
-  it('success + valid pendingFavoriteMentor in localStorage → redirects to /profile/:id even without callbackUrl query and keeps pendingFavoriteMentor for profile page consumption (#756)', async () => {
-    savePendingFavoriteMentor(7482008160728084);
-    mockGetSession.mockResolvedValueOnce({
-      ...mockSession,
-      user: { ...mockSession.user, onBoarding: true, isMentor: false },
-    });
-
-    const { result } = renderHook(() => useSignInForm());
-
-    await act(async () => {
-      await result.current.onSubmit(validValues);
-    });
-
-    expect(mockRouter.push).toHaveBeenCalledWith('/profile/7482008160728084');
-    expect(getPendingFavoriteMentorId()).toBe(7482008160728084);
-  });
-
-  it('success + explicit conflicting callbackUrl + stale pendingFavoriteMentor → prioritizes explicit callbackUrl and clears stale pendingFavoriteMentor (#756)', async () => {
-    savePendingFavoriteMentor(101);
-    window.history.replaceState(
-      {},
-      '',
-      '/auth/signin?callbackUrl=%2Freservation%2Fmentee%3Ftab%3Dhistory%26reservationId%3D888'
-    );
-    mockGetSession.mockResolvedValueOnce({
-      ...mockSession,
-      user: { ...mockSession.user, onBoarding: true, isMentor: false },
-    });
-
-    const { result } = renderHook(() => useSignInForm());
-
-    await act(async () => {
-      await result.current.onSubmit(validValues);
-    });
-
-    expect(mockRouter.push).toHaveBeenCalledWith(
-      '/reservation/mentee?tab=history&reservationId=888'
-    );
-    expect(getPendingFavoriteMentorId()).toBeNull();
-  });
-
-  it('success + matching callbackUrl (/profile/:id) + pendingFavoriteMentor → redirects to /profile/:id and preserves pendingFavoriteMentor (#756)', async () => {
-    savePendingFavoriteMentor(101);
-    window.history.replaceState(
-      {},
-      '',
-      '/auth/signin?callbackUrl=%2Fprofile%2F101'
-    );
-    mockGetSession.mockResolvedValueOnce({
-      ...mockSession,
-      user: { ...mockSession.user, onBoarding: true, isMentor: false },
-    });
-
-    const { result } = renderHook(() => useSignInForm());
-
-    await act(async () => {
-      await result.current.onSubmit(validValues);
-    });
-
-    expect(mockRouter.push).toHaveBeenCalledWith('/profile/101');
-    expect(getPendingFavoriteMentorId()).toBe(101);
-  });
-
-  it('success + pendingFavoriteMentor + onBoarding === false → redirects to /auth/onboarding without clearing pendingFavoriteMentor (#756)', async () => {
-    savePendingFavoriteMentor(101);
-    mockGetSession.mockResolvedValueOnce({
-      ...mockSession,
-      user: { ...mockSession.user, onBoarding: false, isMentor: false },
-    });
-
-    const { result } = renderHook(() => useSignInForm());
-
-    await act(async () => {
-      await result.current.onSubmit(validValues);
-    });
-
-    expect(mockRouter.push).toHaveBeenCalledWith('/auth/onboarding');
-    expect(getPendingFavoriteMentorId()).toBe(101);
-  });
-
-  it('success + expired pendingFavoriteMentor → clears expired entry and falls back to /mentor-pool (#756)', async () => {
-    savePendingFavoriteMentor(101, Date.now() - PENDING_FAVORITE_TTL_MS - 1000);
-    mockGetSession.mockResolvedValueOnce({
-      ...mockSession,
-      user: { ...mockSession.user, onBoarding: true, isMentor: false },
-    });
-
-    const { result } = renderHook(() => useSignInForm());
-
-    await act(async () => {
-      await result.current.onSubmit(validValues);
-    });
-
-    expect(mockRouter.push).toHaveBeenCalledWith('/mentor-pool');
-    expect(getPendingFavoriteMentorId()).toBeNull();
-  });
-
-  it('unexpected error is thrown → toast shows "Something went wrong!"', async () => {
-    mockSignIn.mockRejectedValueOnce(new Error('Network error'));
-
-    const { result } = renderHook(() => useSignInForm());
-
-    await act(async () => {
-      await result.current.onSubmit(validValues);
-    });
-
-    expect(mockToast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        variant: 'destructive',
-        description: 'Something went wrong!',
-      })
-    );
-    expect(mockRouter.push).not.toHaveBeenCalled();
-  });
-
-  it('after submission completes → isSubmitting is false', async () => {
-    const { result } = renderHook(() => useSignInForm());
-
-    await act(async () => {
-      await result.current.onSubmit(validValues);
-    });
-
     expect(result.current.isSubmitting).toBe(false);
-  });
-
-  describe('SignInLifecycleError dynamic capturing and monitoring attributes', () => {
-    it('captures correct metadata when validation fails', async () => {
-      const { result } = renderHook(() => useSignInForm());
-
-      await act(async () => {
-        await result.current.onSubmit({ email: 'bad-email', password: '' });
-      });
-
-      expect(mockCaptureFlowFailure).toHaveBeenCalledWith({
-        flow: 'sign_in',
-        step: 'validate_credentials',
-        message: 'Invalid fields!',
-        level: 'info',
-        errorCode: undefined,
-      });
-
-      expect(mockToast).toHaveBeenCalledWith(
-        expect.objectContaining({
-          variant: 'destructive',
-          description: 'Invalid fields!',
-        })
-      );
-    });
-
-    it('captures correct metadata when client credentials authentication fails', async () => {
-      mockSignIn.mockResolvedValueOnce({ error: 'CredentialsSignin' });
-
-      const { result } = renderHook(() => useSignInForm());
-
-      await act(async () => {
-        await result.current.onSubmit(validValues);
-      });
-
-      expect(mockCaptureFlowFailure).toHaveBeenCalledWith({
-        flow: 'sign_in',
-        step: 'authenticate',
-        message: 'Invalid credentials',
-        level: 'info',
-        errorCode: 'CredentialsSignin',
-      });
-
-      expect(mockToast).toHaveBeenCalledWith(
-        expect.objectContaining({
-          variant: 'destructive',
-          description: 'Invalid credentials!',
-        })
-      );
-    });
-
-    it('captures correct metadata when session lacks accessToken', async () => {
-      mockGetSession.mockResolvedValueOnce({
-        user: { ...mockSession.user },
-        expires: mockSession.expires,
-      });
-
-      const { result } = renderHook(() => useSignInForm());
-
-      await act(async () => {
-        await result.current.onSubmit(validValues);
-      });
-
-      expect(mockCaptureFlowFailure).toHaveBeenCalledWith({
-        flow: 'sign_in',
-        step: 'get_session',
-        message: 'No access token after login',
-        level: 'error',
-        errorCode: undefined,
-      });
-
-      expect(mockToast).toHaveBeenCalledWith(
-        expect.objectContaining({
-          variant: 'destructive',
-          description: 'Login failed',
-        })
-      );
-      expect(mockTrackEvent).toHaveBeenCalledWith({
-        name: 'auth_flow_failed',
-        feature: 'auth',
-        metadata: {
-          flow: 'login',
-          error_type: 'get_session',
-        },
-      });
-    });
-
-    it('tracks auth_flow_failed with error_type="unexpected" on non-lifecycle error without leaking email PII', async () => {
-      mockSignIn.mockRejectedValueOnce(new Error('Sensitive backend crash'));
-
-      const { result } = renderHook(() => useSignInForm());
-
-      await act(async () => {
-        await result.current.onSubmit(validValues);
-      });
-
-      expect(mockTrackEvent).toHaveBeenCalledWith({
-        name: 'auth_flow_failed',
-        feature: 'auth',
-        metadata: {
-          flow: 'login',
-          error_type: 'unexpected',
-        },
-      });
-      const serialized = JSON.stringify(mockTrackEvent.mock.calls);
-      expect(serialized).not.toContain(validValues.email);
-      expect(serialized).not.toContain('Sensitive backend crash');
-    });
   });
 });

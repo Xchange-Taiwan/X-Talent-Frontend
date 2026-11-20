@@ -3,20 +3,19 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
-import useAsyncAction from '@/hooks/useAsyncAction';
-import {
-  completePasswordReset,
-  PasswordResetLifecycleError,
-} from '@/lib/auth/sessionLifecycle';
-import { getErrorMessage } from '@/lib/errorUtils';
+import { useToast } from '@/components/ui/use-toast';
+import { authLifecycle } from '@/lib/auth/sessionLifecycle';
 import { PasswordResetSchema } from '@/schemas/auth';
+
+import { useAuthPendingAction } from './useAuthPendingAction';
 
 type PasswordResetValues = z.infer<typeof PasswordResetSchema>;
 
 export default function usePasswordResetForm() {
-  const { run, isPending: isSubmitting } = useAsyncAction();
+  const { isPending: isSubmitting, runPending } = useAuthPendingAction();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { toast } = useToast();
 
   const form = useForm<PasswordResetValues>({
     resolver: zodResolver(PasswordResetSchema),
@@ -27,52 +26,20 @@ export default function usePasswordResetForm() {
   });
 
   const onSubmit = async (values: PasswordResetValues) => {
-    const verifyToken = searchParams.get('token');
-
-    await run(
-      async () => {
-        await completePasswordReset(
+    await runPending(
+      () =>
+        authLifecycle.completePasswordReset(
           {
-            verifyToken,
+            verifyToken: searchParams.get('token'),
             password: values.password,
             confirmPassword: values.confirm_password,
           },
           {
             navigate: (href) => router.push(href),
+            toast,
           }
-        );
-      },
-      {
-        throwError: false,
-        resetPendingOnSuccess: false,
-        captureFailure: {
-          flow: 'password_reset',
-          step: (err) =>
-            err instanceof PasswordResetLifecycleError
-              ? err.step
-              : 'submit_new_password',
-          level: (err) =>
-            err instanceof PasswordResetLifecycleError ? err.level : 'info',
-          message: (err) =>
-            err instanceof PasswordResetLifecycleError
-              ? err.logMessage
-              : getErrorMessage(err),
-          errorCode: (err) =>
-            err instanceof PasswordResetLifecycleError
-              ? err.errorCode
-              : undefined,
-        },
-        toastOnError: {
-          title: (err) =>
-            err instanceof PasswordResetLifecycleError
-              ? err.title
-              : '密碼重設失敗',
-          description: (err) =>
-            err instanceof PasswordResetLifecycleError
-              ? err.message
-              : getErrorMessage(err),
-        },
-      }
+        ),
+      { keepPendingWhen: (result) => result.ok }
     );
   };
 

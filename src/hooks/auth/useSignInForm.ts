@@ -5,19 +5,18 @@ import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
 import { AuthFormProps } from '@/components/auth/types';
-import useAsyncAction from '@/hooks/useAsyncAction';
-import { trackEvent } from '@/lib/analytics';
-import {
-  SignInLifecycleError,
-  signInWithCredentials,
-} from '@/lib/auth/sessionLifecycle';
+import { useToast } from '@/components/ui/use-toast';
+import { authLifecycle } from '@/lib/auth/sessionLifecycle';
 import { SignInSchema } from '@/schemas/auth';
+
+import { useAuthPendingAction } from './useAuthPendingAction';
 
 type SignInValues = z.infer<typeof SignInSchema>;
 
 export default function useSignInForm(): AuthFormProps<SignInValues> {
-  const { run, isPending: isSubmitting } = useAsyncAction();
+  const { isPending: isSubmitting, runPending } = useAuthPendingAction();
   const router = useRouter();
+  const { toast } = useToast();
 
   const form = useForm<SignInValues>({
     resolver: zodResolver(SignInSchema),
@@ -28,54 +27,15 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
   });
 
   const onSubmit = async (values: SignInValues) => {
-    await run(
-      async () => {
-        await signInWithCredentials(values, {
+    await runPending(
+      () =>
+        authLifecycle.signInWithCredentials(values, {
           signIn: clientSignIn,
           getSession,
           navigate: (href) => router.push(href),
-          search: typeof window !== 'undefined' ? window.location.search : '',
-          currentOrigin:
-            typeof window !== 'undefined' ? window.location.origin : undefined,
-        });
-      },
-      {
-        throwError: false,
-        onError: (err) => {
-          trackEvent({
-            name: 'auth_flow_failed',
-            feature: 'auth',
-            metadata: {
-              flow: 'login',
-              error_type:
-                err instanceof SignInLifecycleError ? err.step : 'unexpected',
-            },
-          });
-        },
-        captureFailure: {
-          flow: 'sign_in',
-          step: (err) =>
-            err instanceof SignInLifecycleError ? err.step : 'unexpected',
-          level: (err) =>
-            err instanceof SignInLifecycleError ? err.level : 'error',
-          message: (err) =>
-            err instanceof SignInLifecycleError
-              ? err.logMessage
-              : err instanceof Error
-                ? err.message
-                : 'Unexpected sign-in error',
-          errorCode: (err) =>
-            err instanceof SignInLifecycleError ? err.errorCode : undefined,
-        },
-        toastOnError: {
-          description: (err) =>
-            err instanceof SignInLifecycleError
-              ? err.message
-              : 'Something went wrong!',
-          duration: (err) =>
-            err instanceof SignInLifecycleError ? 1000 : undefined,
-        },
-      }
+          toast,
+        }),
+      { keepPendingWhen: (result) => result.ok }
     );
   };
 
