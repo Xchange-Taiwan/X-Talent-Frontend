@@ -3,7 +3,7 @@
 import { ArrowRight, Loader2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import React, { type FormEvent, useMemo } from 'react';
-import { useFormState, useWatch } from 'react-hook-form';
+import { type UseFormReturn, useFormState, useWatch } from 'react-hook-form';
 
 import { RoleSelectorCards } from '@/components/onboarding/RoleSelectorCards';
 import { AvatarSection } from '@/components/profile/edit/AvatarSection';
@@ -21,14 +21,16 @@ import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
 import { Skeleton } from '@/components/ui/skeleton';
 import { totalWorkSpanOptions } from '@/constant/seniority';
-import type { OnboardingFormContext } from '@/hooks/user/onboarding/useOnboardingForm';
 import { isGooglePrefillAvatarUrl } from '@/lib/avatar/avatarUrl';
 import { isDualTrackV2Enabled } from '@/lib/featureFlags';
 import { tagGroupsToCategories } from '@/lib/profile/categoryGrouping';
 import type { MenteeDirectionMap } from '@/lib/profile/menteeDirectionPreference';
 import { FOCUS_RING_NO_OFFSET_CLASSES } from '@/lib/ui/focusRing';
 import { cn } from '@/lib/utils';
-import type { OnboardingRole } from '@/schemas/onboarding';
+import type {
+  OnboardingRole,
+  ProfileFormValues,
+} from '@/schemas/profileSchema';
 import type { LocationType } from '@/types/location';
 import type { IndustryOption, TagCatalogGroupVO } from '@/types/tagCatalog';
 
@@ -72,7 +74,7 @@ function OnboardingIdentitySection({
   onAvatarFileChange,
   onSelectPresetAvatar,
 }: {
-  form: OnboardingFormContext;
+  form: UseFormReturn<ProfileFormValues>;
   isMentor: boolean;
   onAvatarFileChange: (file: File) => void;
   onSelectPresetAvatar: (presetUrlOrCode: string) => void;
@@ -132,7 +134,11 @@ function OnboardingIdentitySection({
   );
 }
 
-function OnboardingGuidelinesField({ form }: { form: OnboardingFormContext }) {
+function OnboardingGuidelinesField({
+  form,
+}: {
+  form: UseFormReturn<ProfileFormValues>;
+}) {
   const watchedAgreed = useWatch({
     control: form.control,
     name: 'agreed_guidelines',
@@ -165,7 +171,7 @@ export interface OnboardingUIProps {
   role: OnboardingRole;
   onRoleChange: (next: OnboardingRole) => void;
   enableDualTrackRoleSelect?: boolean;
-  form: OnboardingFormContext;
+  form: UseFormReturn<ProfileFormValues>;
   formRef?: React.RefObject<HTMLFormElement>;
   locations: LocationType[];
   industries: IndustryOption[];

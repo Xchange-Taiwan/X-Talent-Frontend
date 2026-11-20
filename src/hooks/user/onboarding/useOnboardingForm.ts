@@ -34,24 +34,16 @@ import {
 } from '@/lib/profile/saveProfile';
 import { PROFILE_CARD_HREF } from '@/lib/routes';
 import {
-  formSchema,
   onboardingDefaultValues,
-  type OnboardingFormInput,
-  type OnboardingFormValues,
+  onboardingFormSchema,
   type OnboardingRole,
-} from '@/schemas/onboarding';
-import {
   type ProfileFormValues,
   validateAvatarFile,
 } from '@/schemas/profileSchema';
 import { fetchUserById } from '@/services/profile/user';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 
-export type OnboardingFormContext = UseFormReturn<
-  OnboardingFormInput,
-  unknown,
-  OnboardingFormValues
->;
+export type OnboardingFormContext = UseFormReturn<ProfileFormValues>;
 
 interface Options {
   industries: TagCatalogsByBucket['industry'];
@@ -118,12 +110,12 @@ export function useOnboardingForm({
 
   const avatarUpload = useBackgroundAvatarUpload(sessionUserId);
 
-  const form = useForm<OnboardingFormInput, unknown, OnboardingFormValues>({
-    resolver: zodResolver(formSchema),
+  const form = useForm<ProfileFormValues>({
+    resolver: zodResolver(onboardingFormSchema),
     defaultValues: onboardingDefaultValues,
   });
 
-  const { formRef, onError } = useFormErrorScroll<OnboardingFormValues>();
+  const { formRef, onError } = useFormErrorScroll<ProfileFormValues>();
 
   void form.formState.dirtyFields;
 
@@ -357,7 +349,7 @@ export function useOnboardingForm({
           ? (form.getValues('role') ?? 'mentee')
           : ('mentee' as const),
       };
-      const parsed = formSchema.safeParse(rawValues);
+      const parsed = onboardingFormSchema.safeParse(rawValues);
 
       if (!isValid || !parsed.success) {
         const errorFieldNames = new Set<string>([
@@ -385,7 +377,7 @@ export function useOnboardingForm({
         return;
       }
 
-      const values: OnboardingFormValues = { ...parsed.data };
+      const values: ProfileFormValues = { ...parsed.data };
       setIsSubmitting(true);
 
       if (backfillUpdatePromiseRef.current) {
@@ -404,32 +396,21 @@ export function useOnboardingForm({
         : values.avatarFile;
 
       if (values.role === 'mentor') {
-        const mentorValues: ProfileFormValues = {
-          is_mentor: true,
-          onboarding: true,
-          agreed_guidelines: true,
-          avatar: values.avatar ?? '',
-          avatarFile: effectiveAvatarFile,
-          name: values.name,
-          location: values.location,
-          years_of_experience: values.years_of_experience,
-          industry: values.industry ?? '',
-          statement: '',
-          about: values.about ?? '',
-          have_topic: values.have_topic ?? [],
-          have_skill: values.have_skill ?? [],
-          want_position: [],
-          want_skill: [],
-          want_topic: [],
-          work_experiences: values.work_experiences ?? [],
-          educations: values.educations ?? [],
-          links: values.links ?? onboardingDefaultValues.links!,
-        };
-
         await commitProfileMutation(
           {
             mode: 'mentor-onboarding',
-            values: mentorValues,
+            values: {
+              ...values,
+              is_mentor: true,
+              onboarding: true,
+              agreed_guidelines: true,
+              avatar: values.avatar ?? '',
+              avatarFile: effectiveAvatarFile,
+              statement: '',
+              want_position: [],
+              want_skill: [],
+              want_topic: [],
+            },
           },
           {
             pageUserId: resolvedPageUserId,

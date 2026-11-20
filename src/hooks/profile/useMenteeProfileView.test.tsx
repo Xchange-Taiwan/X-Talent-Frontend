@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { UserType } from '@/hooks/user/user-data/useUserData';
+import { writeStoredMenteeDirectionMap } from '@/lib/profile/menteeDirectionPreference';
 
 import { useMenteeProfileView } from './useMenteeProfileView';
 
@@ -49,8 +50,6 @@ describe('useMenteeProfileView (#960)', () => {
     function SsrProbe() {
       const view = useMenteeProfileView({
         userData: menteeUserA,
-        avatarSrc: '',
-        safePersonalLinksCount: 0,
       });
       return <span data-active={view.activeMenteeDirection ?? 'none'} />;
     }
@@ -59,19 +58,20 @@ describe('useMenteeProfileView (#960)', () => {
     expect(html).toContain('data-active="frontend_engineer"');
   });
 
-  it('switches directions and resets activeMenteeDirection immediately when switching Mentee profiles', () => {
+  it('hydrates stored direction map from localStorage, switches directions, and resets activeMenteeDirection immediately when switching Mentee profiles', () => {
+    writeStoredMenteeDirectionMap(201, {
+      frontend_engineer: { skills: [], topics: [] },
+      product_manager: { skills: ['react'], topics: ['career'] },
+    });
+
     const { result, rerender } = renderHook(
       ({ userData }: { userData: UserType | null }) =>
-        useMenteeProfileView({
-          userData,
-          avatarSrc: '',
-          safePersonalLinksCount: 0,
-        }),
+        useMenteeProfileView({ userData }),
       { initialProps: { userData: menteeUserA as UserType | null } }
     );
 
     expect(result.current.activeMenteeDirection).toBe('frontend_engineer');
-    expect(result.current.effectiveAvatarSrc).toBe('/avatars/default_1.webp');
+    expect(result.current.menteeDirectionGroups[1].totalCount).toBe(2);
 
     act(() => {
       result.current.setActiveMenteeDirection('product_manager');
@@ -81,6 +81,5 @@ describe('useMenteeProfileView (#960)', () => {
     // Switch to Mentee B who ALSO has 'product_manager' as 2nd position; must reset to Mentee B's 1st position ('uiux_designer')
     rerender({ userData: menteeUserB });
     expect(result.current.activeMenteeDirection).toBe('uiux_designer');
-    expect(result.current.effectiveAvatarSrc).toBe('/avatars/default_3.webp');
   });
 });

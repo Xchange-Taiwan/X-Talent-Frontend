@@ -3,6 +3,7 @@
 import { PlusIcon, TrashIcon } from '@radix-ui/react-icons';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import React, { useState } from 'react';
+import type { UseFormReturn } from 'react-hook-form';
 
 import { ConfirmDialog } from '@/components/profile/edit/ConfirmDialog';
 import { ExperienceReorderHeader } from '@/components/profile/edit/ExperienceReorderHeader';
@@ -34,12 +35,9 @@ import {
 } from '@/hooks/user/profile/useRepeatablePeriodSection';
 import { hasExactMatch, searchSchools } from '@/lib/profile/searchSchools';
 import { cn } from '@/lib/utils';
+import type { ProfileFormValues } from '@/schemas/profileSchema';
 
 import { Section } from '../Section';
-import {
-  asProfileFormContext,
-  type SharedProfileEditorForm,
-} from '../sharedEditorForm';
 import { taiwanSchools } from './schoolData';
 
 export function SchoolComboboxField({
@@ -124,12 +122,11 @@ export function SchoolComboboxField({
 }
 
 interface Props {
-  form: SharedProfileEditorForm;
+  form: UseFormReturn<ProfileFormValues>;
   isMentor: boolean;
 }
 
-export const EducationSection = ({ form: rawForm, isMentor }: Props) => {
-  const form = asProfileFormContext(rawForm);
+export const EducationSection = ({ form, isMentor }: Props) => {
   const {
     control,
     formState: { errors },
