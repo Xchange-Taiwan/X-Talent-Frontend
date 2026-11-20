@@ -44,14 +44,9 @@ export default function ProfileCardContainer({
   if (isLoading) return <PageLoading />;
   if (!userData) return null;
 
-  const isMentor = userData.is_mentor;
-  const personalLinks = userData.personalLinks ?? [];
-
   return (
     <ProfileCardUI
       userData={userData}
-      isMentor={isMentor}
-      personalLinks={personalLinks}
       onBecomeMentor={() => router.push(getMentorOnboardingUrl(loginUserId))}
       onGoToMentorPool={() => router.push('/mentor-pool')}
       onBackToProfile={() => router.push(`/profile/${loginUserId}`)}

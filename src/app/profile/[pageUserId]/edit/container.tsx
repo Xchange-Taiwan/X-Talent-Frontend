@@ -193,13 +193,26 @@ export default function EditProfileContainer({
   const agreedGuidelines = Boolean(watchedAgreedGuidelines);
   const guidelinesError = form.formState.errors.agreed_guidelines?.message;
 
-  const haveTopicCategories = tagGroupsToCategories(tagCatalog.have_topic);
-  const haveSkillCategories = tagGroupsToCategories(tagCatalog.have_skill);
-  const wantPositionCategories = tagGroupsToCategories(
-    tagCatalog.want_position
+  const haveTopicCategories = useMemo(
+    () => tagGroupsToCategories(tagCatalog.have_topic),
+    [tagCatalog.have_topic]
   );
-  const wantSkillCategories = tagGroupsToCategories(tagCatalog.want_skill);
-  const wantTopicCategories = tagGroupsToCategories(tagCatalog.want_topic);
+  const haveSkillCategories = useMemo(
+    () => tagGroupsToCategories(tagCatalog.have_skill),
+    [tagCatalog.have_skill]
+  );
+  const wantPositionCategories = useMemo(
+    () => tagGroupsToCategories(tagCatalog.want_position),
+    [tagCatalog.want_position]
+  );
+  const wantSkillCategories = useMemo(
+    () => tagGroupsToCategories(tagCatalog.want_skill),
+    [tagCatalog.want_skill]
+  );
+  const wantTopicCategories = useMemo(
+    () => tagGroupsToCategories(tagCatalog.want_topic),
+    [tagCatalog.want_topic]
+  );
 
   if (isResolving) return <PageLoading />;
 

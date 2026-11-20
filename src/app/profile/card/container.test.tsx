@@ -142,12 +142,12 @@ describe('ProfileCardContainer', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('wires onSetupSchedule to /profile/:id?open-schedule=true, onBackToProfile to /profile/:id, and onEditProfile to /profile/:id/edit (#961)', () => {
+  it('wires onSetupSchedule to /profile/:id?open-schedule=true, onBackToProfile to /profile/:id, and onEditProfile to /profile/:id/edit without passing redundant isMentor or personalLinks props (#961 / #945)', () => {
     capturedCardProps = {};
     mockUseUserData.mockReturnValue({
       userData: {
         is_mentor: true,
-        personalLinks: [],
+        personalLinks: [{ platform: 'github', url: 'https://github.com/ada' }],
       },
       isLoading: false,
     });
@@ -159,6 +159,9 @@ describe('ProfileCardContainer', () => {
         initialCatalogs={emptyCatalogs}
       />
     );
+
+    expect(capturedCardProps).not.toHaveProperty('isMentor');
+    expect(capturedCardProps).not.toHaveProperty('personalLinks');
 
     const onSetupSchedule = capturedCardProps['onSetupSchedule'] as () => void;
     const onBackToProfile = capturedCardProps['onBackToProfile'] as () => void;

@@ -1,12 +1,32 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { fromPartial } from '@total-typescript/shoehorn';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { BookingCalendarReader } from '@/lib/profile/bookingAvailability';
+
 const mockPush = vi.fn();
 const mockReplace = vi.fn();
 const mockClampSelectedDateToToday = vi.fn();
+const mockReaderOnMonthChange = vi.fn();
 let currentSearchParams = new URLSearchParams();
+
+interface CapturedProfilePageUiProps {
+  editorDialog?: React.ReactNode;
+  schedule?: BookingCalendarReader;
+  onReservation?: () => void;
+}
+
+interface CapturedMentorScheduleDialogProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  reader?: BookingCalendarReader;
+  onMonthChange?: BookingCalendarReader['onMonthChange'];
+}
+
+let latestProfilePageUiProps: CapturedProfilePageUiProps | null = null;
+let latestMentorScheduleDialogProps: CapturedMentorScheduleDialogProps | null =
+  null;
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush, replace: mockReplace }),
@@ -14,21 +34,25 @@ vi.mock('next/navigation', () => ({
 }));
 
 // ProfilePageUI is loaded via next/dynamic; swap it for a shim that renders
-// nothing but the injected editorDialog, so these tests assert exactly one
-// thing: whether the container decided to hand the editor down at all.
+// nothing but the injected editorDialog while capturing forwarded props for
+// container wiring assertions.
 vi.mock('next/dynamic', () => ({
-  default: () => (props: { editorDialog?: React.ReactNode }) => (
-    <div data-testid="profile-page-ui">{props.editorDialog}</div>
-  ),
+  default: () => (props: CapturedProfilePageUiProps) => {
+    latestProfilePageUiProps = props;
+    return <div data-testid="profile-page-ui">{props.editorDialog}</div>;
+  },
 }));
 
 vi.mock('@/components/profile/reservation/MentorScheduleDialog', () => ({
-  default: ({ open }: { open?: boolean }) => (
-    <div
-      data-testid="mentor-schedule-dialog"
-      data-open={open ? 'true' : 'false'}
-    />
-  ),
+  default: (props: CapturedMentorScheduleDialogProps) => {
+    latestMentorScheduleDialogProps = props;
+    return (
+      <div
+        data-testid="mentor-schedule-dialog"
+        data-open={props.open ? 'true' : 'false'}
+      />
+    );
+  },
 }));
 
 const mockUseResolvedIdentity = vi.fn();
@@ -56,7 +80,7 @@ vi.mock('@/hooks/useMentorSchedule', () => ({
       setSelectedDate: vi.fn(),
       selectedSlot: null,
       setSelectedSlot: vi.fn(),
-      onMonthChange: vi.fn(),
+      onMonthChange: mockReaderOnMonthChange,
       clampSelectedDateToToday: mockClampSelectedDateToToday,
       allowedDates: [],
       reload: vi.fn(),
@@ -133,6 +157,8 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
     clearToasts();
     resetFavoriteMentorsReadModel();
     currentSearchParams = new URLSearchParams();
+    latestProfilePageUiProps = null;
+    latestMentorScheduleDialogProps = null;
     mockUseUserData.mockReturnValue({
       userData: {
         user_id: 123,
@@ -591,5 +617,107 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
       emptyCatalogs
     );
     expect(menteeOwnerRefetch).not.toHaveBeenCalled();
+  });
+
+  describe('scheduleReader.onMonthChange forwarding (#945)', () => {
+    const nextMonth = new Date(2026, 8, 1);
+
+    it('forwards { preserveSelectedDate: false } when MentorScheduleDialog is closed', () => {
+      mockUseResolvedIdentity.mockReturnValue(
+        identity({
+          sessionSettled: true,
+          hasFullUser: true,
+          userId: PAGE_USER_ID,
+        })
+      );
+
+      renderContainer();
+
+      expect(screen.getByTestId('mentor-schedule-dialog')).toHaveAttribute(
+        'data-open',
+        'false'
+      );
+
+      latestProfilePageUiProps?.schedule?.onMonthChange?.(nextMonth);
+      expect(mockReaderOnMonthChange).toHaveBeenCalledTimes(1);
+      expect(mockReaderOnMonthChange).toHaveBeenLastCalledWith(nextMonth, {
+        preserveSelectedDate: false,
+      });
+    });
+
+    it('forwards { preserveSelectedDate: true } when MentorScheduleDialog is open', () => {
+      mockUseResolvedIdentity.mockReturnValue(
+        identity({
+          sessionSettled: true,
+          hasFullUser: true,
+          userId: PAGE_USER_ID,
+        })
+      );
+
+      renderContainer();
+
+      act(() => {
+        latestProfilePageUiProps?.onReservation?.();
+      });
+
+      expect(screen.getByTestId('mentor-schedule-dialog')).toHaveAttribute(
+        'data-open',
+        'true'
+      );
+
+      latestProfilePageUiProps?.schedule?.onMonthChange?.(nextMonth);
+      expect(mockReaderOnMonthChange).toHaveBeenLastCalledWith(nextMonth, {
+        preserveSelectedDate: true,
+      });
+
+      mockReaderOnMonthChange.mockClear();
+      latestMentorScheduleDialogProps?.onMonthChange?.(nextMonth);
+      expect(mockReaderOnMonthChange).toHaveBeenLastCalledWith(nextMonth, {
+        preserveSelectedDate: true,
+      });
+    });
+
+    it('respects explicit options overrides regardless of whether MentorScheduleDialog is closed or open', () => {
+      mockUseResolvedIdentity.mockReturnValue(
+        identity({
+          sessionSettled: true,
+          hasFullUser: true,
+          userId: PAGE_USER_ID,
+        })
+      );
+
+      renderContainer();
+
+      // Explicit { preserveSelectedDate: true } while dialog is closed
+      latestProfilePageUiProps?.schedule?.onMonthChange?.(nextMonth, {
+        preserveSelectedDate: true,
+      });
+      expect(mockReaderOnMonthChange).toHaveBeenLastCalledWith(nextMonth, {
+        preserveSelectedDate: true,
+      });
+
+      // Open dialog, then pass explicit { preserveSelectedDate: false }
+      act(() => {
+        latestProfilePageUiProps?.onReservation?.();
+      });
+      expect(screen.getByTestId('mentor-schedule-dialog')).toHaveAttribute(
+        'data-open',
+        'true'
+      );
+
+      latestProfilePageUiProps?.schedule?.onMonthChange?.(nextMonth, {
+        preserveSelectedDate: false,
+      });
+      expect(mockReaderOnMonthChange).toHaveBeenLastCalledWith(nextMonth, {
+        preserveSelectedDate: false,
+      });
+
+      latestMentorScheduleDialogProps?.onMonthChange?.(nextMonth, {
+        preserveSelectedDate: false,
+      });
+      expect(mockReaderOnMonthChange).toHaveBeenLastCalledWith(nextMonth, {
+        preserveSelectedDate: false,
+      });
+    });
   });
 });

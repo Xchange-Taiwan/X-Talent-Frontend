@@ -11,7 +11,7 @@ import type { PersonalLink } from '@/lib/profile/socialLinks';
 
 interface Props {
   userData: UserType;
-  isMentor: boolean;
+  isMentor?: boolean;
   personalLinks?: PersonalLink[];
   onBecomeMentor: () => void;
   onGoToMentorPool: () => void;
@@ -30,9 +30,10 @@ export default function ProfileCardUI({
   onSetupSchedule,
   onEditProfile,
 }: Props) {
+  const resolvedIsMentor = isMentor ?? userData.is_mentor;
   const resolvedPersonalLinks = personalLinks ?? userData.personalLinks;
 
-  if (isMentor) {
+  if (resolvedIsMentor) {
     return (
       <div className="mx-auto w-11/12 max-w-[800px] pt-10 pb-20">
         <div className="flex items-center justify-center gap-3 text-center">

@@ -2,7 +2,14 @@
 
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import MentorScheduleDialog from '@/components/profile/reservation/MentorScheduleDialog';
@@ -14,6 +21,7 @@ import { useMentorFeedback } from '@/hooks/user/feedback/useMentorFeedback';
 import useUserData from '@/hooks/user/user-data/useUserData';
 import { useTrackMentorNoAvailableSlots } from '@/hooks/useTrackMentorNoAvailableSlots';
 import { isFeedbackEnabled } from '@/lib/featureFlags';
+import type { BookingCalendarReader } from '@/lib/profile/bookingAvailability';
 import {
   normalizePositiveUserId,
   resolveProfileUserId,
@@ -159,12 +167,21 @@ export default function ProfilePageContainer({
   const avatarSrc = userData?.avatar || DefaultAvatarImgUrl;
 
   const handleScheduleMonthChange = useCallback(
-    (date: Date) => {
-      reader.onMonthChange?.(date, {
-        preserveSelectedDate: openReservationDialog,
-      });
+    (date: Date, options?: { preserveSelectedDate?: boolean }) => {
+      reader.onMonthChange?.(
+        date,
+        options ?? { preserveSelectedDate: openReservationDialog }
+      );
     },
     [reader, openReservationDialog]
+  );
+
+  const scheduleReader = useMemo<BookingCalendarReader>(
+    () => ({
+      ...reader,
+      onMonthChange: handleScheduleMonthChange,
+    }),
+    [reader, handleScheduleMonthChange]
   );
 
   const canAutoOpenSchedule = Boolean(
@@ -219,7 +236,7 @@ export default function ProfilePageContainer({
     <ProfilePageUI
       userData={userData}
       userLoading={userLoading}
-      schedule={reader}
+      schedule={scheduleReader}
       scheduleLoaded={loaded}
       feedback={feedback}
       loginUserId={loginUserId}
@@ -227,7 +244,6 @@ export default function ProfilePageContainer({
       canShowOwnerControls={canShowOwnerControls}
       avatarSrc={avatarSrc}
       onReservation={reservationHandler}
-      onScheduleMonthChange={handleScheduleMonthChange}
       onEditProfile={() => router.push(`/profile/${pageUserId}/edit`)}
       editorDialog={
         // canShowOwnerControls and the hook's own editor gating are both
@@ -244,7 +260,7 @@ export default function ProfilePageContainer({
             <MentorScheduleDialog
               open={openReservationDialog}
               onOpenChange={setOpenReservationDialog}
-              reader={reader}
+              reader={scheduleReader}
               schedule={editor}
               onMonthChange={handleScheduleMonthChange}
             />

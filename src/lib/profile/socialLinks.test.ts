@@ -7,6 +7,7 @@ import { defaultValues } from '@/schemas/profileSchema';
 import {
   createEmptySocialLinks,
   getPlatformUrlErrorMessage,
+  normalizePersonalLinks,
   SOCIAL_PLATFORM_KEYS,
   SOCIAL_PLATFORM_SPECS,
   socialLinksFormSchema,
@@ -166,5 +167,23 @@ describe('socialLinks registry & URL validation (#898, #862)', () => {
 
     const rehydrated = toFormValues(experiences);
     expect(rehydrated.links).toEqual(parsedLinks);
+  });
+
+  it('normalizes personalLinks with HTTPS coercion, host allowlists, first-valid deduplication, and canonical platform order (#945)', () => {
+    expect(
+      normalizePersonalLinks([
+        { platform: 'website', url: 'example.com' },
+        { platform: 'website', url: 'https://second.example.com' },
+        { platform: 'linkedin', url: 'https://evil-linkedin.com/in/attacker' },
+        { platform: ' LinkedIn ', url: 'linkedin.com/in/first-valid' },
+        { platform: 'linkedin', url: 'https://linkedin.com/in/duplicate' },
+        { platform: 'unknown', url: 'https://example.com' },
+      ])
+    ).toEqual([
+      { platform: 'linkedin', url: 'https://linkedin.com/in/first-valid' },
+      { platform: 'website', url: 'https://example.com' },
+    ]);
+    expect(normalizePersonalLinks(null)).toEqual([]);
+    expect(normalizePersonalLinks(undefined)).toEqual([]);
   });
 });

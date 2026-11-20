@@ -32,10 +32,6 @@ export interface MentorCardViewModel {
   mentorSnapshot: MentorType;
 }
 
-const WORK_SPAN_CODE_BY_LABEL = new Map<string, string>(
-  Object.entries(TotalWorkSpanEnum).map(([code, label]) => [label, code])
-);
-
 const DEFAULT_AVATAR_SRC =
   typeof avatarImage === 'string' ? avatarImage : avatarImage.src;
 
@@ -51,14 +47,19 @@ function isDefaultAvatar(
   );
 }
 
-function normalizeYearsOfExperienceCode(
-  value: string | null | undefined
-): string {
-  const trimmed = value?.trim() ?? '';
-  if (!trimmed) {
-    return '';
+function resolveYearsOfExperienceCode(userData: UserType): string {
+  const explicitCode = userData.years_of_experience_code?.trim();
+  if (explicitCode) {
+    return explicitCode;
   }
-  return WORK_SPAN_CODE_BY_LABEL.get(trimmed) ?? trimmed;
+  return userData.years_of_experience?.trim() ?? '';
+}
+
+function resolveLocationCode(userData: UserType): string {
+  if (userData.location_code !== undefined) {
+    return userData.location_code?.trim() ?? '';
+  }
+  return userData.location?.trim() ?? '';
 }
 
 function readTagCodes(
@@ -77,11 +78,8 @@ function resolvePrimaryIndustryCode(userData: UserType): string | null {
   if (!rawIndustry) {
     return null;
   }
-  const primaryEntry = userData.industries?.[0];
-  if (primaryEntry && primaryEntry.subject === rawIndustry) {
-    return primaryEntry.subject_group || rawIndustry;
-  }
-  return rawIndustry;
+  const explicitCode = userData.industry_code?.trim();
+  return explicitCode || rawIndustry;
 }
 
 // Cache-busts the avatar URL by updated_at so a re-uploaded photo isn't
@@ -125,10 +123,8 @@ export function normalizeMentorFromProfile(userData: UserType): MentorType {
     avatar: userData.avatar ?? '',
     job_title: userData.job_title ?? '',
     company: userData.company ?? '',
-    years_of_experience: normalizeYearsOfExperienceCode(
-      userData.years_of_experience
-    ),
-    location: userData.location ?? '',
+    years_of_experience: resolveYearsOfExperienceCode(userData),
+    location: resolveLocationCode(userData),
     personal_statement: userData.personal_statement ?? '',
     about: userData.about ?? '',
     seniority_level: userData.seniority_level ?? '',

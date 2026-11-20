@@ -119,4 +119,27 @@ describe('ProfileCardUI (#804, #898)', () => {
     fireEvent.click(screen.getByRole('button', { name: '前往導師頁' }));
     expect(onBackToProfile).toHaveBeenCalledTimes(1);
   });
+
+  it('derives is_mentor and personalLinks directly from userData when redundant props are omitted (#945 / #973)', () => {
+    const onBecomeMentor = vi.fn();
+    const onGoToMentorPool = vi.fn();
+    const onBackToProfile = vi.fn();
+
+    render(
+      <ProfileCardUI
+        userData={mockUserData}
+        onBecomeMentor={onBecomeMentor}
+        onGoToMentorPool={onGoToMentorPool}
+        onBackToProfile={onBackToProfile}
+      />
+    );
+
+    expect(screen.getByText('恭喜你完成個人頁面的建立！')).toBeInTheDocument();
+    expect(mockProfileCard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Alice Chen',
+        personalLinks: mockUserData.personalLinks,
+      })
+    );
+  });
 });

@@ -3,11 +3,11 @@ import { Briefcase, GraduationCap } from 'lucide-react';
 import React from 'react';
 
 import Divider from '@/components/auth/Divider';
-import { resolveLocationLabel } from '@/lib/mentor/mentorStats';
 import {
   EducationExperienceMetadata,
   WorkExperienceMetadata,
 } from '@/lib/profile/experienceCodec';
+import { resolveLocationLabel } from '@/lib/profile/locations';
 
 type ExperienceItem = {
   title: string;

@@ -37,9 +37,12 @@ export interface UserType {
   about?: string;
   personal_statement?: string;
   years_of_experience?: string;
+  years_of_experience_code?: string;
   seniority_level?: string;
   location?: string;
+  location_code?: string | null;
   industry?: string;
+  industry_code?: string | null;
   industries?: TagDisplay[];
   updated_at?: string | null;
   stats?: MentorStats | null;

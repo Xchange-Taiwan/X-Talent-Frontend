@@ -1,17 +1,8 @@
-import { TotalWorkSpanEnum } from '@/constant/seniority';
+import { useMemo } from 'react';
+
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
-import {
-  normalizeMentorStats,
-  resolveLocationLabel,
-} from '@/lib/mentor/mentorStats';
-import {
-  decode,
-  type MentorExperiencePayload,
-  type WorkExperienceMetadata,
-} from '@/lib/profile/experienceCodec';
+import { projectUserProfile } from '@/lib/profile/profileProjection';
 import { profileReadModel } from '@/lib/profile/profileReadModel';
-import { readIndustryTag } from '@/lib/profile/readIndustryTag';
-import { buildTagLabelMap } from '@/lib/profile/tagLabelMap';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import type { MentorProfileVO, TagDisplay, UserType } from '@/types/user';
 
@@ -25,125 +16,6 @@ export function primeUserDataCache(
   data: MentorProfileVO
 ): void {
   profileReadModel.prime({ userId, language }, data);
-}
-
-// Subject_group codes shipped by the BFF round-trip directly back to writes,
-// so resolve them to display labels via the localized catalog. Catalog miss
-// (legacy or unpublished tag) falls back to the raw code rather than dropping
-// the chip silently.
-function toTagDisplay(
-  codes: ReadonlyArray<string> | null | undefined,
-  labelMap: Map<string, string>
-): TagDisplay[] {
-  if (!codes) return [];
-  return codes
-    .filter((c): c is string => Boolean(c))
-    .map((subject_group) => ({
-      subject_group,
-      subject: labelMap.get(subject_group) ?? subject_group,
-    }));
-}
-
-function collectIndustries(
-  primaryIndustrySubject: string | undefined,
-  primaryIndustryCode: string | null | undefined,
-  workExperiences: WorkExperienceMetadata[],
-  labelMap: Map<string, string>
-): TagDisplay[] {
-  const seenSubjects = new Set<string>();
-  const result: TagDisplay[] = [];
-
-  if (primaryIndustrySubject) {
-    seenSubjects.add(primaryIndustrySubject);
-    result.push({
-      subject_group: primaryIndustryCode || primaryIndustrySubject,
-      subject: primaryIndustrySubject,
-    });
-  }
-
-  for (const exp of workExperiences) {
-    const rawCode = exp.industry?.trim();
-    if (!rawCode) continue;
-    const resolved = labelMap.get(rawCode) ?? rawCode;
-    if (seenSubjects.has(resolved)) continue;
-    seenSubjects.add(resolved);
-    result.push({
-      subject_group: rawCode,
-      subject: resolved,
-    });
-  }
-
-  return result;
-}
-
-function parseUserDtoToUserType(
-  userDto: MentorProfileVO,
-  catalogs: TagCatalogsByBucket,
-  language: string
-): UserType {
-  const labelMap = buildTagLabelMap(catalogs);
-
-  const { workExperiences, educations, personalLinks } = decode(
-    userDto.experiences as unknown as MentorExperiencePayload[]
-  );
-
-  // BFF emits industry enriched (TagVO-shaped); OpenAPI types it as
-  // `Record<string, never>`. Pull subject through the local TagVO type.
-  const industryTag = readIndustryTag(userDto.industry);
-  const industrySubject =
-    industryTag?.subject ||
-    (industryTag?.subject_group
-      ? (labelMap.get(industryTag.subject_group) ?? industryTag.subject_group)
-      : undefined);
-
-  const primaryWorkLocation =
-    workExperiences.find((exp) => exp.is_primary)?.job_location ||
-    workExperiences[0]?.job_location;
-  const location = resolveLocationLabel(
-    userDto.location || primaryWorkLocation,
-    language
-  );
-  const industries = collectIndustries(
-    industrySubject,
-    industryTag?.subject_group,
-    workExperiences,
-    labelMap
-  );
-  const rawUpdatedAt = userDto.updated_at;
-  const updatedAt =
-    rawUpdatedAt === null || rawUpdatedAt === undefined || rawUpdatedAt === ''
-      ? null
-      : String(rawUpdatedAt);
-
-  return {
-    user_id: userDto.user_id,
-    name: userDto.name ?? '',
-    avatar: userDto.avatar ?? '',
-    job_title: userDto.job_title ?? '',
-    company: userDto.company ?? '',
-    is_mentor: userDto.is_mentor ?? false,
-    about: userDto.about ?? '',
-    personal_statement: userDto.personal_statement ?? '',
-    years_of_experience: userDto.years_of_experience
-      ? (TotalWorkSpanEnum[
-          userDto.years_of_experience as keyof typeof TotalWorkSpanEnum
-        ] ?? userDto.years_of_experience)
-      : undefined,
-    seniority_level: userDto.seniority_level ?? '',
-    location,
-    industry: industrySubject,
-    industries,
-    updated_at: updatedAt,
-    stats: normalizeMentorStats(userDto),
-    want_position: toTagDisplay(userDto.want_position, labelMap),
-    want_skill: toTagDisplay(userDto.want_skill, labelMap),
-    want_topic: toTagDisplay(userDto.want_topic, labelMap),
-    have_skill: toTagDisplay(userDto.have_skill, labelMap),
-    have_topic: toTagDisplay(userDto.have_topic, labelMap),
-    workExperiences,
-    educations,
-    personalLinks,
-  };
 }
 
 function useUserData(
@@ -170,9 +42,13 @@ function useUserData(
   // the user dto and is cached app-wide via tagCatalogReadManager.
   const tagCatalog = useTagCatalog(language, initialCatalogs);
 
-  const userData: UserType | null = userDto
-    ? parseUserDtoToUserType(userDto, tagCatalog, language)
-    : null;
+  const userData: UserType | null = useMemo(
+    () =>
+      userDto
+        ? projectUserProfile(userDto, { catalogs: tagCatalog, language })
+        : null,
+    [userDto, tagCatalog, language]
+  );
 
   return { userData, isLoading: dtoLoading, error, refetch };
 }

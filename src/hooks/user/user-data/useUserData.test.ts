@@ -559,4 +559,66 @@ describe('useUserData caching', () => {
     expect(result.current.userData?.updated_at).toBe('2026-11-15T08:00:00Z');
     unmount();
   });
+
+  it('memoizes projected userData across unrelated re-renders and preserves raw codes + primary work experience role (#945)', () => {
+    const userId = 9008;
+    const initialCatalogs: TagCatalogsByBucket = {
+      ...EMPTY_TAG_CATALOGS,
+      industry: [{ subject_group: 'DESIGN', subject: '設計及創意相關業' }],
+    };
+    const ssrDto = fromPartial<MentorProfileVO>({
+      user_id: userId,
+      name: 'Memoized Mentor',
+      job_title: 'Stale Top Title',
+      company: 'Stale Top Co',
+      years_of_experience: 'FIVE_TO_TEN',
+      location: 'TWN',
+      industry: fromAny({
+        id: 1,
+        subject_group: 'DESIGN',
+        subject: '設計及創意相關業',
+      }),
+      is_mentor: true,
+      experiences: fromAny([
+        {
+          category: 'WORK',
+          order: 1,
+          mentor_experiences_metadata: {
+            data: [
+              {
+                job: 'Staff Product Designer',
+                company: 'XChange',
+                job_location: 'TWN',
+                industry: 'DESIGN',
+                is_primary: true,
+              },
+            ],
+          },
+        },
+      ]),
+    });
+
+    const { result, rerender, unmount } = renderHook(
+      ({ tick }: { tick: number }) => {
+        void tick;
+        return useUserData(userId, 'zh_TW', ssrDto, initialCatalogs);
+      },
+      { initialProps: { tick: 0 } }
+    );
+
+    const firstProjected = result.current.userData;
+    expect(firstProjected).not.toBeNull();
+    expect(firstProjected?.job_title).toBe('Staff Product Designer');
+    expect(firstProjected?.company).toBe('XChange');
+    expect(firstProjected?.years_of_experience).toBe('5~10 年');
+    expect(firstProjected?.years_of_experience_code).toBe('FIVE_TO_TEN');
+    expect(firstProjected?.location).toBe('台灣');
+    expect(firstProjected?.location_code).toBe('TWN');
+    expect(firstProjected?.industry).toBe('設計及創意相關業');
+    expect(firstProjected?.industry_code).toBe('DESIGN');
+
+    rerender({ tick: 1 });
+    expect(result.current.userData).toBe(firstProjected);
+    unmount();
+  });
 });

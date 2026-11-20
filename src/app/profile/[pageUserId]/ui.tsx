@@ -32,14 +32,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useMenteeProfileView } from '@/hooks/profile/useMenteeProfileView';
 import type { MentorFeedbackState } from '@/hooks/user/feedback/useMentorFeedback';
 import { UserType } from '@/hooks/user/user-data/useUserData';
-import { isFavoritesEnabled, isFeedbackEnabled } from '@/lib/featureFlags';
 import { normalizeMentorFromProfile } from '@/lib/mentor/mentorCardModel';
-import { resolveLocationLabel } from '@/lib/mentor/mentorStats';
-import {
-  BookingCalendarReader,
-  BookingSlot,
-} from '@/lib/profile/bookingAvailability';
+import { BookingCalendarReader } from '@/lib/profile/bookingAvailability';
 import type { StoredMenteeDirectionMap } from '@/lib/profile/menteeDirectionView';
+import { deriveProfilePageViewModel } from '@/lib/profile/profileProjection';
 import {
   formatSelectedDate,
   toDateKey,
@@ -151,12 +147,8 @@ interface Props {
   isIdentityResolved: boolean;
   canShowOwnerControls: boolean;
   avatarSrc: string | StaticImageData;
-  allowedDates?: string[];
-  onScheduleMonthChange?: (date: Date) => void;
   onReservation: () => void;
   onEditProfile: () => void;
-  selectedSlot?: BookingSlot | null;
-  setSelectedSlot?: (slot: BookingSlot | null) => void;
   editorDialog?: React.ReactNode;
   showBookmark?: boolean;
   feedbackEnabled?: boolean;
@@ -174,47 +166,49 @@ export default function ProfilePageUI({
   isIdentityResolved,
   canShowOwnerControls,
   avatarSrc,
-  allowedDates,
-  onScheduleMonthChange,
   onReservation,
   onEditProfile,
-  selectedSlot,
-  setSelectedSlot,
   editorDialog,
   showBookmark,
   feedbackEnabled: feedbackEnabledProp,
   storedDirectionMap,
 }: Props) {
   const { selectedDate, setSelectedDate, getDayBookingStatus } = schedule;
-  const resolvedAllowedDates = allowedDates ?? schedule.allowedDates;
-  const resolvedOnMonthChange =
-    onScheduleMonthChange ?? ((d: Date) => schedule.onMonthChange?.(d));
 
-  // Render the schedule region while user data loads (most profile views are
-  // mentors) so the calendar can appear before user data resolves; collapse
-  // it once the user is confirmed as a non-mentor.
-  const showScheduleRegion = userLoading || userData?.is_mentor;
-  // Derived from canShowOwnerControls (the single ownership source of
-  // truth) rather than re-comparing loginUserId against userData.user_id -
-  // keeps this in lockstep with the owner-only UI gating above instead of
-  // being a second, independently-computed ownership check that could
-  // silently diverge from it.
-  const favoritesEnabled = showBookmark ?? isFavoritesEnabled();
-  const feedbackEnabled = feedbackEnabledProp ?? isFeedbackEnabled();
-
-  const isOwnMentorProfile =
-    !!userData && userData.is_mentor && canShowOwnerControls;
-  const isOwnProfileByLoginId =
-    Boolean(loginUserId) &&
-    userData !== null &&
-    String(loginUserId) === String(userData.user_id);
-  const canShowMentorBookmark = Boolean(
-    favoritesEnabled &&
-    isIdentityResolved &&
-    userData?.is_mentor &&
-    !canShowOwnerControls &&
-    !isOwnProfileByLoginId
+  const viewModel = useMemo(
+    () =>
+      deriveProfilePageViewModel({
+        userData,
+        userLoading,
+        isIdentityResolved,
+        canShowOwnerControls,
+        feedback,
+        favoritesEnabled: showBookmark,
+        feedbackEnabled: feedbackEnabledProp,
+      }),
+    [
+      userData,
+      userLoading,
+      isIdentityResolved,
+      canShowOwnerControls,
+      feedback,
+      showBookmark,
+      feedbackEnabledProp,
+    ]
   );
+
+  const {
+    showScheduleRegion,
+    isOwnMentorProfile,
+    canShowMentorOwnerControls,
+    canShowMenteeOwnerControls,
+    canShowMentorBookmark,
+    feedbackEnabled,
+    effectiveRatingCount,
+    effectiveRatingAverage,
+    effectiveCompletedMeetings,
+    mentorIndustryHashtag,
+  } = viewModel;
 
   // Only mentors viewing their own profile see booking status dots.
   const getDateStatus = useCallback(
@@ -223,49 +217,7 @@ export default function ProfilePageUI({
     [isOwnMentorProfile, getDayBookingStatus]
   );
 
-  const hasFreshFeedback = Boolean(
-    feedbackEnabled && feedback?.hasLoaded && !feedback.isFallbackEmpty
-  );
-
-  const effectiveRatingCount = feedbackEnabled
-    ? hasFreshFeedback
-      ? (feedback?.totalRatingCount ?? userData?.stats?.rating_count ?? 0)
-      : (userData?.stats?.rating_count ?? feedback?.totalRatingCount ?? 0)
-    : 0;
-
-  const effectiveRatingAverage =
-    feedbackEnabled && effectiveRatingCount > 0
-      ? hasFreshFeedback
-        ? (feedback?.ratingAverage ?? userData?.stats?.rating_average ?? null)
-        : (userData?.stats?.rating_average ?? feedback?.ratingAverage ?? null)
-      : null;
-
-  const effectiveCompletedMeetings = hasFreshFeedback
-    ? (feedback?.completedMeetingCount ??
-      userData?.stats?.completed_meeting_count ??
-      0)
-    : (userData?.stats?.completed_meeting_count ??
-      feedback?.completedMeetingCount ??
-      0);
-
-  const resolvedLocation = useMemo(() => {
-    if (!userData) return undefined;
-    if (userData.location) return userData.location;
-    const fallbackJobLocation =
-      userData.workExperiences?.find((exp) => exp.is_primary)?.job_location ||
-      userData.workExperiences?.[0]?.job_location;
-    return resolveLocationLabel(fallbackJobLocation, 'zh_TW');
-  }, [userData]);
-
-  const mentorIndustryHashtag = useMemo<string | null>(() => {
-    if (!userData?.is_mentor) return null;
-    const rawIndustry =
-      userData.industry?.trim() ||
-      userData.industries?.[0]?.subject?.trim() ||
-      '';
-    const normalized = rawIndustry.replace(/^#+/, '').trim();
-    return normalized ? `#${normalized}` : null;
-  }, [userData]);
+  const locationLabel = userData?.location || undefined;
 
   const mentorSnapshot = useMemo(
     () =>
@@ -290,7 +242,7 @@ export default function ProfilePageUI({
   } = useMenteeProfileView({
     userData,
     avatarSrc,
-    resolvedLocation,
+    resolvedLocation: locationLabel,
     safePersonalLinksCount: safePersonalLinks.length,
     storedDirectionMap,
   });
@@ -361,7 +313,7 @@ export default function ProfilePageUI({
                         tooltipAlign="end"
                       />
                     )}
-                    {canShowOwnerControls && !userData.is_mentor && (
+                    {canShowMenteeOwnerControls && (
                       <Button
                         variant="outline"
                         className="focus-visible:border-ring rounded-lg px-4 py-2.5 focus-visible:ring-offset-0"
@@ -376,7 +328,7 @@ export default function ProfilePageUI({
                     )}
                   </div>
                 </div>
-                {canShowOwnerControls && userData.is_mentor && (
+                {canShowMentorOwnerControls && (
                   <div className="mt-4 flex items-center justify-center gap-4 sm:justify-start">
                     {/* canShowOwnerControls gates owner actions: until useSession() settles,
                         withhold buttons rather than flash a guest view before correcting. */}
@@ -402,13 +354,13 @@ export default function ProfilePageUI({
                 ratingCount={effectiveRatingCount}
                 completedMeetingCount={effectiveCompletedMeetings}
                 yearsOfExperience={userData.years_of_experience}
-                location={resolvedLocation}
+                location={locationLabel}
                 includeRating={feedbackEnabled}
               />
             ) : !menteeEmpty ? (
               <MenteeSummaryBar
                 yearsOfExperience={menteeExperienceDisplay}
-                location={resolvedLocation}
+                location={locationLabel}
                 directionCount={menteeDirectionGroups.length}
               />
             ) : null}
@@ -562,8 +514,8 @@ export default function ProfilePageUI({
                           : undefined
                       }
                       onSelect={(d) => setSelectedDate(d ? toDateKey(d) : null)}
-                      onMonthChange={resolvedOnMonthChange}
-                      allowedDates={resolvedAllowedDates}
+                      onMonthChange={(d) => schedule.onMonthChange?.(d)}
+                      allowedDates={schedule.allowedDates}
                       showTodayStyle={false}
                       disableEmptyDates={true}
                       isMonthLoading={!schedule.slotsSnapshot.monthLoaded}
@@ -580,8 +532,6 @@ export default function ProfilePageUI({
                       isIdentityResolved={isIdentityResolved}
                       mentorId={userData?.user_id}
                       reader={schedule}
-                      selectedSlot={selectedSlot}
-                      setSelectedSlot={setSelectedSlot}
                       onReservation={onReservation}
                       myUserId={loginUserId}
                     />
