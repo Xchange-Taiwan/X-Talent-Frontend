@@ -272,13 +272,6 @@ export function planProfileMutation(
     Boolean(uploadedAvatarUrl)
   );
   const { hasExplicitDirtyFields, experiencesDirty } = dirty;
-  const explicitWorkDirty = hasExplicitDirtyFields && dirty.work;
-  const explicitAvatarDirty = hasExplicitDirtyFields && dirty.avatar;
-  const explicitIndustryDirty = hasExplicitDirtyFields && dirty.industry;
-  const explicitAboutDirty = hasExplicitDirtyFields && dirty.about;
-  const explicitStatementDirty = hasExplicitDirtyFields && dirty.statement;
-  const explicitLocationDirty = hasExplicitDirtyFields && dirty.location;
-  const explicitYearsDirty = hasExplicitDirtyFields && dirty.yearsOfExperience;
 
   const validLinks = extractValidLinks(intent.values);
   const encodedExperiences = encode({
@@ -296,8 +289,11 @@ export function planProfileMutation(
     isMentorOnboarding
   );
 
+  const avatarClearIntent = hasExplicitDirtyFields
+    ? dirty.avatar
+    : Boolean(previousAvatar);
   const avatarExplicitlyCleared =
-    explicitAvatarDirty &&
+    avatarClearIntent &&
     !wireAvatar &&
     !intent.values.avatarFile &&
     !uploadedAvatarUrl;
@@ -314,31 +310,21 @@ export function planProfileMutation(
     Boolean(uploadedAvatarUrl) ||
     (Boolean(wireAvatar) && wireAvatar !== previousAvatar);
 
-  const optimisticJobTitle = hasExplicitDirtyFields
-    ? explicitWorkDirty
-      ? wirePayload.job_title || undefined
-      : resolveCleanWorkField(
-          currentDto?.job_title,
-          sessionUser?.jobTitle,
-          wirePayload.job_title
-        )
-    : wirePayload.job_title ||
-      currentDto?.job_title ||
-      sessionUser?.jobTitle ||
-      undefined;
+  const optimisticJobTitle = dirty.work
+    ? wirePayload.job_title || undefined
+    : resolveCleanWorkField(
+        currentDto?.job_title,
+        sessionUser?.jobTitle,
+        wirePayload.job_title
+      );
 
-  const optimisticCompany = hasExplicitDirtyFields
-    ? explicitWorkDirty
-      ? wirePayload.company || undefined
-      : resolveCleanWorkField(
-          currentDto?.company,
-          sessionUser?.company,
-          wirePayload.company
-        )
-    : wirePayload.company ||
-      currentDto?.company ||
-      sessionUser?.company ||
-      undefined;
+  const optimisticCompany = dirty.work
+    ? wirePayload.company || undefined
+    : resolveCleanWorkField(
+        currentDto?.company,
+        sessionUser?.company,
+        wirePayload.company
+      );
 
   const optimisticPersonalLinks = experiencesDirty
     ? validLinks.map((link) => ({
@@ -384,7 +370,7 @@ export function planProfileMutation(
     intent.values.industry,
     industryCatalog,
     currentDto?.industry,
-    explicitIndustryDirty
+    dirty.industry
   );
 
   const resolvedExperiences =
@@ -416,20 +402,21 @@ export function planProfileMutation(
     avatar: identitySnapshot.avatar,
     job_title: identitySnapshot.jobTitle ?? null,
     company: identitySnapshot.company ?? null,
-    years_of_experience: explicitYearsDirty
+    years_of_experience: dirty.yearsOfExperience
       ? wirePayload.years_of_experience || null
       : wirePayload.years_of_experience ||
         currentDto?.years_of_experience ||
         null,
-    location: explicitLocationDirty
+    location: dirty.location
       ? wirePayload.location || null
       : wirePayload.location || currentDto?.location || null,
-    personal_statement: explicitStatementDirty
-      ? wirePayload.personal_statement || null
-      : wirePayload.personal_statement ||
-        currentDto?.personal_statement ||
-        null,
-    about: explicitAboutDirty
+    personal_statement:
+      dirty.statement && intent.values.statement !== undefined
+        ? wirePayload.personal_statement || null
+        : wirePayload.personal_statement ||
+          currentDto?.personal_statement ||
+          null,
+    about: dirty.about
       ? wirePayload.about || null
       : wirePayload.about || currentDto?.about || null,
     seniority_level: currentDto?.seniority_level ?? null,

@@ -143,7 +143,14 @@ export function hasProfileDtoConverged(
     return false;
   }
 
-  if (!hasAvatarVersionConverged(expected.avatar, incoming.avatar)) {
+  if (expected.avatar === null) {
+    if (typeof incoming.avatar === 'string' && incoming.avatar.trim() !== '') {
+      return false;
+    }
+  } else if (
+    expected.avatar !== undefined &&
+    !hasAvatarVersionConverged(expected.avatar, incoming.avatar)
+  ) {
     return false;
   }
 

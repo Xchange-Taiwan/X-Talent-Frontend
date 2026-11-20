@@ -402,6 +402,224 @@ describe('planProfileMutation (single-pass pure mutation planner #943)', () => {
     expect(mentorOnboardingPlan.expectedRecordDto.onboarding).toBe(true);
   });
 
+  it('aligns wirePayload, identitySnapshot, optimisticDto, and expectedRecordDto 100% when dirtyFields is undefined and fields are cleared while preserving omitted statement', () => {
+    const { experiences: populatedExperiences } = encode({
+      workExperiences: [
+        {
+          job: 'Principal Architect',
+          company: 'Legacy Corp',
+          job_period_start: '2019',
+          job_period_end: 'now',
+          industry: 'tech',
+          job_location: 'TWN',
+          description: 'Architecture',
+          is_primary: true,
+        },
+      ],
+      educations: [
+        {
+          school: '國立臺灣大學',
+          subject: '資訊工程學系',
+          education_period_start: '2015',
+          education_period_end: '2019',
+        },
+      ],
+      personalLinks: [
+        { platform: 'github', url: 'https://github.com/legacy-user' },
+      ],
+    });
+
+    const populatedDto = fromPartial<MentorProfileVO>({
+      ...mockUserDTO,
+      user_id: 1,
+      name: 'Legacy Name',
+      avatar: 'https://s3.amazonaws.com/bucket/files/1/avatar?v=100',
+      job_title: 'Principal Architect',
+      company: 'Legacy Corp',
+      about: 'Populated bio',
+      personal_statement: 'Preserved legacy statement',
+      location: 'TWN',
+      years_of_experience: '5_10',
+      industry: { subject_group: 'tech', subject: '軟體與科技' },
+      experiences: toWireExperiences(populatedExperiences),
+      have_skill: ['system_design'],
+      have_topic: ['architecture'],
+      want_position: ['staff_engineer'],
+      want_skill: ['leadership'],
+      want_topic: ['career'],
+    });
+
+    const populatedSession: Session = {
+      ...mockSession,
+      user: {
+        ...mockSession.user!,
+        id: '1',
+        name: 'Legacy Name',
+        avatar: 'https://s3.amazonaws.com/bucket/files/1/avatar?v=100',
+        avatarUpdatedAt: 1700000000000,
+        jobTitle: 'Session Architect',
+        company: 'Session Corp',
+        personalLinks: [
+          { platform: 'linkedin', url: 'https://linkedin.com/in/session-user' },
+        ],
+      },
+    };
+
+    // Subcase A: dirtyFields is undefined, fields are cleared (`''` / `[]`), and `statement: undefined` is omitted
+    const planWithOmittedStatement = planProfileMutation(
+      {
+        mode: 'edit',
+        values: {
+          ...defaultValues,
+          is_mentor: true,
+          name: 'Cleared Mentor',
+          avatar: '',
+          avatarFile: undefined,
+          about: '',
+          location: '',
+          years_of_experience: '',
+          industry: '',
+          statement: undefined,
+          work_experiences: [],
+          educations: [],
+          have_skill: [],
+          have_topic: [],
+          want_position: [],
+          want_skill: [],
+          want_topic: [],
+        },
+        dirtyFields: undefined,
+        currentDto: populatedDto,
+      },
+      {
+        pageUserId: '1',
+        session: populatedSession,
+        industryCatalog: INDUSTRY_CATALOG,
+        now: () => 1760000000000,
+      }
+    );
+
+    expect(planWithOmittedStatement.shouldWriteProfile).toBe(true);
+    expect(planWithOmittedStatement.experiencesDirty).toBe(true);
+    expect(planWithOmittedStatement.wirePayload).toMatchObject({
+      name: 'Cleared Mentor',
+      avatar: '',
+      about: '',
+      location: '',
+      years_of_experience: '',
+      industry: '',
+      job_title: '',
+      company: '',
+      personal_statement: 'Preserved legacy statement',
+    });
+
+    expect(planWithOmittedStatement.identitySnapshot).toEqual({
+      name: 'Cleared Mentor',
+      avatar: null,
+      avatarUpdatedAt: 1760000000000,
+      isMentor: true,
+      onBoarding: true,
+      jobTitle: undefined,
+      company: undefined,
+      personalLinks: [],
+    });
+
+    expect(planWithOmittedStatement.optimisticDto).toMatchObject({
+      name: 'Cleared Mentor',
+      avatar: null,
+      job_title: null,
+      company: null,
+      about: null,
+      location: null,
+      years_of_experience: null,
+      industry: null,
+      personal_statement: 'Preserved legacy statement',
+    });
+
+    expect(planWithOmittedStatement.expectedRecordDto).toMatchObject({
+      name: 'Cleared Mentor',
+      avatar: null,
+      job_title: null,
+      company: null,
+      about: null,
+      location: null,
+      years_of_experience: null,
+      industry: null,
+      personal_statement: 'Preserved legacy statement',
+    });
+
+    // Stale pre-write DTO must NOT falsely converge
+    expect(
+      hasProfileDtoConverged(
+        planWithOmittedStatement.expectedRecordDto,
+        populatedDto
+      )
+    ).toBe(false);
+
+    // Backend DTO reflecting `wirePayload` converges immediately on first poll!
+    const postWriteBackendDto = fromPartial<MentorProfileVO>({
+      ...populatedDto,
+      name: 'Cleared Mentor',
+      avatar: null,
+      job_title: '',
+      company: '',
+      about: '',
+      location: '',
+      years_of_experience: '',
+      industry: null,
+      personal_statement: 'Preserved legacy statement',
+      experiences: [],
+      have_skill: [],
+      have_topic: [],
+    });
+    expect(
+      hasProfileDtoConverged(
+        planWithOmittedStatement.expectedRecordDto,
+        postWriteBackendDto
+      )
+    ).toBe(true);
+
+    // Subcase B: dirtyFields is undefined and `statement: ''` is explicitly cleared (and no prior avatar exists)
+    const planWithClearedStatementNoPriorAvatar = planProfileMutation(
+      {
+        mode: 'edit',
+        values: {
+          ...defaultValues,
+          is_mentor: true,
+          name: 'Cleared Statement Mentor',
+          avatar: '',
+          statement: '',
+        },
+        dirtyFields: undefined,
+        currentDto: { ...populatedDto, avatar: null },
+      },
+      {
+        pageUserId: '1',
+        session: {
+          ...populatedSession,
+          user: { ...populatedSession.user!, avatar: undefined },
+        },
+        now: () => 1760000000000,
+      }
+    );
+
+    expect(
+      planWithClearedStatementNoPriorAvatar.wirePayload.personal_statement
+    ).toBe('');
+    expect(
+      planWithClearedStatementNoPriorAvatar.optimisticDto.personal_statement
+    ).toBeNull();
+    expect(
+      planWithClearedStatementNoPriorAvatar.expectedRecordDto.personal_statement
+    ).toBeNull();
+    expect(
+      planWithClearedStatementNoPriorAvatar.expectedRecordDto.avatar
+    ).toBeUndefined();
+    expect(
+      planWithClearedStatementNoPriorAvatar.identitySnapshot.avatarUpdatedAt
+    ).toBe(1700000000000);
+  });
+
   it('contains zero React, Next.js, next-auth/react, hook, component, store, or app imports', () => {
     const source = fs.readFileSync(
       path.resolve(__dirname, 'planProfileMutation.ts'),

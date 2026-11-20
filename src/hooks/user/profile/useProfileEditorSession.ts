@@ -29,7 +29,6 @@ import {
   type ProfileDirtyFields,
 } from '@/lib/profile/profileSaveAdapter';
 import {
-  type AvatarMutationSession,
   commitProfileMutation,
   LoggedError,
   type ProfileSavePort,
@@ -47,6 +46,7 @@ import type { MentorProfileVO } from '@/types/user';
 import { useBackgroundAvatarUpload } from './useBackgroundAvatarUpload';
 import { useFormErrorScroll } from './useFormErrorScroll';
 import { useMenteeDirectionPreference } from './useMenteeDirectionPreference';
+import { usePresetAwareAvatarSession } from './usePresetAwareAvatarSession';
 
 export type ProfileFormContext = UseFormReturn<
   ProfileFormInput,
@@ -271,21 +271,9 @@ export function useProfileEditorSession({
     isMentorRole ? null : effectiveUserDto
   );
 
-  const avatarSession = useMemo<AvatarMutationSession>(
-    () => ({
-      resolve: (file: File | undefined) =>
-        presetSelectedRef.current
-          ? Promise.resolve(undefined)
-          : avatarUpload.resolve(file),
-      markCommitted: () => {
-        avatarUpload.markCommitted();
-      },
-      abort: () => {
-        avatarUpload.abort();
-      },
-      rollback: () => avatarUpload.rollback(),
-    }),
-    [avatarUpload]
+  const avatarSession = usePresetAwareAvatarSession(
+    avatarUpload,
+    presetSelectedRef
   );
 
   const savePort = useMemo<ProfileSavePort>(

@@ -342,12 +342,17 @@ describe('AvatarUploadSession (framework-free 2-phase upload & rollback)', () =>
     await expect(session.rollback()).resolves.toBeUndefined();
     expect(onRollbackFailed).toHaveBeenCalledTimes(1);
 
-    // 5. Unstaged direct resolve(file) uploads directly via storagePort.upload
+    // 5. Unstaged direct resolve(file) uploads directly via storagePort.upload and caches activeJob='completed' for retry reuse
     const directFile = makeFile('direct.png');
     upload.mockResolvedValueOnce('https://cdn.example.com/u/55/direct?v=3');
     await expect(session.resolve(directFile)).resolves.toBe(
       'https://cdn.example.com/u/55/direct?v=3'
     );
+    const callCountAfterDirectResolve = upload.mock.calls.length;
+    await expect(session.resolve(directFile)).resolves.toBe(
+      'https://cdn.example.com/u/55/direct?v=3'
+    );
+    expect(upload).toHaveBeenCalledTimes(callCountAfterDirectResolve);
   });
 
   it('encapsulates per-session presigned URL prefetching and cache consumption', async () => {

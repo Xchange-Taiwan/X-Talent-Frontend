@@ -1,12 +1,15 @@
 import { fromAny, fromPartial } from '@total-typescript/shoehorn';
 import { describe, expect, it, vi } from 'vitest';
 
+import { encode } from '@/lib/profile/experienceCodec';
 import { defaultValues, type ProfileFormValues } from '@/schemas/profileSchema';
 import type { IndustryOption } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
 
 import {
+  composeProfileWritePayload,
   computeDirtyStates,
+  evaluateProfileDirtyState,
   extractValidLinks,
   hasDirtyValue,
   mapFormValuesToPayload,
@@ -279,6 +282,162 @@ describe('profileSaveAdapter', () => {
         experiencesDirty: true,
         profileDirty: true,
       });
+    });
+  });
+
+  describe('evaluateProfileDirtyState & composeProfileWritePayload', () => {
+    it('evaluates full per-field dirty flags when dirtyFields is undefined vs explicit dirty map and hasUploadedAvatar', () => {
+      const values: ProfileFormValues = {
+        ...defaultValues,
+        name: 'Alice',
+        avatarFile: undefined,
+      };
+
+      const omittedDirty = evaluateProfileDirtyState(values, undefined, false);
+      expect(omittedDirty).toEqual({
+        hasExplicitDirtyFields: false,
+        avatar: true,
+        name: true,
+        about: true,
+        location: true,
+        industry: true,
+        yearsOfExperience: true,
+        statement: true,
+        haveSkill: true,
+        haveTopic: true,
+        wantPosition: true,
+        wantSkill: true,
+        wantTopic: true,
+        work: true,
+        education: true,
+        links: true,
+        experiencesDirty: true,
+        profileDirty: true,
+      });
+
+      const cleanExplicit = evaluateProfileDirtyState(values, {}, false, false);
+      expect(cleanExplicit.hasExplicitDirtyFields).toBe(true);
+      expect(cleanExplicit.profileDirty).toBe(false);
+      expect(cleanExplicit.experiencesDirty).toBe(false);
+
+      const uploadedAvatarOnly = evaluateProfileDirtyState(
+        values,
+        {},
+        false,
+        true
+      );
+      expect(uploadedAvatarOnly.hasExplicitDirtyFields).toBe(true);
+      expect(uploadedAvatarOnly.avatar).toBe(false);
+      expect(uploadedAvatarOnly.profileDirty).toBe(true);
+
+      const selectiveDirty = evaluateProfileDirtyState(
+        values,
+        {
+          about: true,
+          educations: [{ school: true }],
+          links: { github: false, linkedin: true },
+        },
+        false,
+        false
+      );
+      expect(selectiveDirty.hasExplicitDirtyFields).toBe(true);
+      expect(selectiveDirty.about).toBe(true);
+      expect(selectiveDirty.location).toBe(false);
+      expect(selectiveDirty.work).toBe(false);
+      expect(selectiveDirty.education).toBe(true);
+      expect(selectiveDirty.links).toBe(true);
+      expect(selectiveDirty.experiencesDirty).toBe(true);
+      expect(selectiveDirty.profileDirty).toBe(true);
+    });
+
+    it('composes MentorProfileWritePayload directly from pre-encoded experiences, normalizing preset avatars, onboarding flag, and statement fallback', () => {
+      const encoded = encode({
+        workExperiences: [
+          {
+            job: 'Staff Engineer',
+            company: 'XChange',
+            job_period_start: '2022',
+            job_period_end: 'now',
+            industry: 'tech',
+            job_location: 'TWN',
+            description: 'Platform',
+            is_primary: true,
+          },
+        ],
+        educations: [],
+        personalLinks: [{ platform: 'github', url: 'https://github.com/xc' }],
+      });
+
+      const currentDto = fromPartial<MentorProfileVO>({
+        personal_statement: 'Prior statement',
+        want_position: ['pm'],
+        want_skill: ['roadmap'],
+        want_topic: ['career'],
+      });
+
+      const dirtyPayload = composeProfileWritePayload(
+        {
+          ...defaultValues,
+          is_mentor: true,
+          onboarding: false,
+          name: 'Mentor Lin',
+          location: 'TWN',
+          years_of_experience: '5_10',
+          industry: 'tech',
+          about: 'Bio',
+          statement: undefined,
+          have_skill: ['ts'],
+          have_topic: ['arch'],
+        },
+        encoded,
+        '/avatars/default_2.webp',
+        true,
+        currentDto,
+        false
+      );
+
+      expect(dirtyPayload).toEqual({
+        name: 'Mentor Lin',
+        avatar: 'default_2',
+        location: 'TWN',
+        years_of_experience: '5_10',
+        industry: 'tech',
+        language: 'zh_TW',
+        is_mentor: true,
+        onboarding: false,
+        about: 'Bio',
+        personal_statement: 'Prior statement',
+        job_title: 'Staff Engineer',
+        company: 'XChange',
+        want_position: ['pm'],
+        want_skill: ['roadmap'],
+        want_topic: ['career'],
+        have_skill: ['ts'],
+        have_topic: ['arch'],
+        experiences: encoded.experiences,
+      });
+
+      const cleanStatementClearedPayload = composeProfileWritePayload(
+        {
+          ...defaultValues,
+          is_mentor: false,
+          onboarding: undefined,
+          name: 'Mentee Lin',
+          statement: '',
+          want_position: ['fe'],
+        },
+        encoded,
+        undefined,
+        false,
+        currentDto,
+        false
+      );
+
+      expect(cleanStatementClearedPayload).not.toHaveProperty('avatar');
+      expect(cleanStatementClearedPayload).not.toHaveProperty('onboarding');
+      expect(cleanStatementClearedPayload).not.toHaveProperty('experiences');
+      expect(cleanStatementClearedPayload.personal_statement).toBe('');
+      expect(cleanStatementClearedPayload.is_mentor).toBe(false);
     });
   });
 

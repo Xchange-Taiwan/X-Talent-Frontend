@@ -10,6 +10,7 @@ import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
 import { useToast } from '@/components/ui/use-toast';
 import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
 import { useFormErrorScroll } from '@/hooks/user/profile/useFormErrorScroll';
+import { usePresetAwareAvatarSession } from '@/hooks/user/profile/usePresetAwareAvatarSession';
 import { trackEvent, trackFormValidationFailed } from '@/lib/analytics';
 import {
   clampOnboardingName,
@@ -27,7 +28,6 @@ import {
   writeStoredMenteeDirectionMap,
 } from '@/lib/profile/menteeDirectionPreference';
 import {
-  type AvatarMutationSession,
   commitProfileMutation,
   LoggedError,
   type ProfileSavePort,
@@ -326,21 +326,9 @@ export function useOnboardingForm({
     [avatarUpload, form]
   );
 
-  const avatarSession = useMemo<AvatarMutationSession>(
-    () => ({
-      resolve: (file: File | undefined) =>
-        presetSelectedRef.current
-          ? Promise.resolve(undefined)
-          : avatarUpload.resolve(file),
-      markCommitted: () => {
-        avatarUpload.markCommitted();
-      },
-      abort: () => {
-        avatarUpload.abort();
-      },
-      rollback: () => avatarUpload.rollback(),
-    }),
-    [avatarUpload]
+  const avatarSession = usePresetAwareAvatarSession(
+    avatarUpload,
+    presetSelectedRef
   );
 
   const savePort = useMemo<ProfileSavePort>(
