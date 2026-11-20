@@ -25,12 +25,11 @@ import { useConfirmRegister } from '@/hooks/auth/useConfirmRegister';
 import { useMentorPool } from '@/hooks/useMentorPool';
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import { trackEvent } from '@/lib/analytics';
-import {
-  confirmSignUpToken,
-  executeGoogleOAuthCallback,
-} from '@/lib/auth/sessionLifecycle';
+import { createAuthLifecycle } from '@/lib/auth/sessionLifecycle';
 import { mentorPoolReadModel } from '@/lib/mentor/mentorPoolReadModel';
 import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
+import { authClient } from '@/services/auth/authClient';
+import type { components } from '@/types/api';
 
 vi.mock('@/lib/analytics', async (importActual) => {
   const actual = await importActual<typeof import('@/lib/analytics')>();
@@ -55,12 +54,15 @@ vi.mock('next/navigation', () => ({
   }),
 }));
 
-vi.mock('@/lib/auth/sessionLifecycle', async (importActual) => {
+vi.mock('@/services/auth/authClient', async (importActual) => {
   const actual =
-    await importActual<typeof import('@/lib/auth/sessionLifecycle')>();
+    await importActual<typeof import('@/services/auth/authClient')>();
   return {
     ...actual,
-    confirmSignUpToken: vi.fn(),
+    authClient: {
+      ...actual.authClient,
+      confirmSignUp: vi.fn(),
+    },
   };
 });
 
@@ -430,9 +432,9 @@ describe('#919 Search zero-results, Email verification, OAuth failures, and sche
     expect(trackEvent).not.toHaveBeenCalled();
   });
 
-  it('tracks email_verified on confirmSignUpToken success and auth_flow_failed on error', async () => {
+  it('tracks email_verified on authLifecycle.confirmSignUp success and auth_flow_failed on error', async () => {
     mockTokenParam = 'tok-1';
-    vi.mocked(confirmSignUpToken).mockResolvedValueOnce(undefined);
+    vi.mocked(authClient.confirmSignUp).mockResolvedValueOnce(undefined);
     const { unmount } = renderHook(() => useConfirmRegister());
 
     await waitFor(() => {
@@ -444,7 +446,7 @@ describe('#919 Search zero-results, Email verification, OAuth failures, and sche
     unmount();
 
     mockTokenParam = 'tok-expired';
-    vi.mocked(confirmSignUpToken).mockRejectedValueOnce(
+    vi.mocked(authClient.confirmSignUp).mockRejectedValueOnce(
       new Error('Token expired')
     );
     renderHook(() => useConfirmRegister());
@@ -462,52 +464,40 @@ describe('#919 Search zero-results, Email verification, OAuth failures, and sche
   });
 
   it('tracks auth_flow_failed on Google OAuth INVALID and LOGIN missing_login_data outcomes', async () => {
+    type OAuthCallbackResponse =
+      components['schemas']['ApiResponse_GoogleCallbackVO_'];
     const customTrack = vi.fn();
-    await executeGoogleOAuthCallback(
-      { code: null, state: null },
-      {
-        exchangeCode: vi.fn(),
-        signIn: vi.fn(),
-        signOut: vi.fn(),
-        getSession: vi.fn(),
-        navigate: vi.fn(),
-        onToast: vi.fn(),
-        revalidateAfterDelete: vi.fn(),
-        resolveOutcomeFn: vi.fn().mockResolvedValue({
-          type: 'INVALID',
-          errorType: 'missing_params',
-        }),
-        trackEvent: customTrack,
-      }
-    );
+    const exchangeGoogleCode = vi.fn();
+    const lifecycle = createAuthLifecycle({
+      exchangeGoogleCode,
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+      getSession: vi.fn(),
+      navigate: vi.fn(),
+      toast: vi.fn(),
+      revalidateAfterDelete: vi.fn(),
+      trackEvent: customTrack,
+    });
+
+    await lifecycle.handleGoogleOAuthCallback({ code: null, state: null });
 
     expect(customTrack).toHaveBeenCalledWith({
       name: 'auth_flow_failed',
       feature: 'auth',
       metadata: {
         flow: 'oauth_google',
-        error_type: 'missing_params',
+        error_type: 'MISSING_PARAMS',
       },
     });
 
     customTrack.mockClear();
-    await executeGoogleOAuthCallback(
-      { code: 'c1', state: 's1' },
-      {
-        exchangeCode: vi.fn(),
-        signIn: vi.fn(),
-        signOut: vi.fn(),
-        getSession: vi.fn(),
-        navigate: vi.fn(),
-        onToast: vi.fn(),
-        revalidateAfterDelete: vi.fn(),
-        resolveOutcomeFn: vi.fn().mockResolvedValue({
-          type: 'LOGIN',
-          data: { auth: { token: '' }, user: null },
-        }),
-        trackEvent: customTrack,
-      }
-    );
+    exchangeGoogleCode.mockResolvedValueOnce({
+      code: '0',
+      msg: 'ok',
+      data: { auth_type: 'LOGIN', auth: { token: '' }, user: null },
+    } as unknown as OAuthCallbackResponse);
+
+    await lifecycle.handleGoogleOAuthCallback({ code: 'c1', state: 's1' });
 
     expect(customTrack).toHaveBeenCalledWith({
       name: 'auth_flow_failed',

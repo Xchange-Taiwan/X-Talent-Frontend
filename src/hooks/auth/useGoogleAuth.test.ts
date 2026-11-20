@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/navigation', async () => {
   const { navigationMockFactory } = await import('@/test/mocks/navigation');
@@ -11,230 +11,50 @@ vi.mock('@/components/ui/use-toast', async () => {
   return useToastMockFactory();
 });
 
-vi.mock('@/services/auth/authClient', () => ({
-  authClient: {
-    getGoogleAuthorizeUrl: vi.fn(),
-  },
-}));
-
-const mockTrackEvent = vi.fn();
-vi.mock('@/lib/analytics', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/analytics')>();
-  return {
-    ...actual,
-    trackEvent: (...args: unknown[]) => mockTrackEvent(...args),
-  };
-});
-
-vi.mock('@/lib/monitoring', () => ({
-  captureFlowFailure: vi.fn(),
-  sanitize: (val: string) => val,
-}));
-
-import { PENDING_AUTH_CALLBACK_URL_KEY } from '@/lib/auth/authFlowStorage';
-import { captureFlowFailure } from '@/lib/monitoring';
-import { authClient } from '@/services/auth/authClient';
+import {
+  authLifecycle,
+  createAuthLifecycle,
+  createInMemorySessionStorage,
+  PENDING_AUTH_CALLBACK_URL_KEY,
+} from '@/lib/auth/sessionLifecycle';
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockToast } from '@/test/mocks/useToast';
 
 import { useGoogleAuth } from './useGoogleAuth';
 
-const mockGetGoogleAuthorizeUrl = vi.mocked(authClient.getGoogleAuthorizeUrl);
-const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
+describe('useGoogleAuth (#940)', () => {
+  const getGoogleAuthorizeUrl = vi.fn();
+  const trackEvent = vi.fn();
+  let storage = createInMemorySessionStorage();
 
-describe('useGoogleAuth', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    window.sessionStorage.clear();
+    storage = createInMemorySessionStorage();
+    const scoped = createAuthLifecycle({
+      authClient: { getGoogleAuthorizeUrl },
+      storage,
+      trackEvent,
+      captureFailure: vi.fn(),
+      getSearch: () => '?callbackUrl=%2Freservation%2Fmentee',
+      getOrigin: () => 'https://xtalent.tw',
+    });
+    vi.spyOn(authLifecycle, 'startGoogleAuth').mockImplementation(
+      (input, overrides) => scoped.startGoogleAuth(input, overrides)
+    );
   });
 
-  it('should redirect to login authorize URL on success when isSignIn is true', async () => {
-    mockGetGoogleAuthorizeUrl.mockResolvedValueOnce({
-      authorization_url: 'https://google.com/auth/login',
-      state: 'mock-state',
-    });
-
-    const { result } = renderHook(() => useGoogleAuth());
-
-    await act(async () => {
-      await result.current.handleGoogleAuth(true);
-    });
-
-    expect(mockGetGoogleAuthorizeUrl).toHaveBeenCalledTimes(1);
-    expect(mockGetGoogleAuthorizeUrl).toHaveBeenCalledWith('login');
-    expect(mockRouter.push).toHaveBeenCalledWith(
-      'https://google.com/auth/login'
-    );
-    expect(mockToast).not.toHaveBeenCalled();
-    expect(result.current.isPending).toBe(true);
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
-  it('should redirect to signup authorize URL on success when isSignIn is false', async () => {
-    mockGetGoogleAuthorizeUrl.mockResolvedValueOnce({
-      authorization_url: 'https://google.com/auth/signup',
-      state: 'mock-state',
-    });
-
-    const { result } = renderHook(() => useGoogleAuth());
-
-    await act(async () => {
-      await result.current.handleGoogleAuth(false);
-    });
-
-    expect(mockGetGoogleAuthorizeUrl).toHaveBeenCalledTimes(1);
-    expect(mockGetGoogleAuthorizeUrl).toHaveBeenCalledWith('signup');
-    expect(mockRouter.push).toHaveBeenCalledWith(
-      'https://google.com/auth/signup'
-    );
-    expect(mockToast).not.toHaveBeenCalled();
-    expect(result.current.isPending).toBe(true);
-  });
-
-  it('should trigger destructive toast and captureFlowFailure when login request fails', async () => {
-    mockGetGoogleAuthorizeUrl.mockRejectedValueOnce(new Error('API error'));
-
-    const { result } = renderHook(() => useGoogleAuth());
-
-    await act(async () => {
-      await result.current.handleGoogleAuth(true);
-    });
-
-    expect(mockGetGoogleAuthorizeUrl).toHaveBeenCalledWith('login');
-    expect(mockRouter.push).not.toHaveBeenCalled();
-    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
-      expect.objectContaining({
-        flow: 'google_oauth',
-        step: 'authorize_login',
-        level: 'warning',
-      })
-    );
-    expect(mockToast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        variant: 'destructive',
-        title: '登入失敗',
-        description: '無法完成 Google 登入，請稍後再試。',
-      })
-    );
-    expect(result.current.isPending).toBe(false);
-  });
-
-  it('should trigger destructive toast and captureFlowFailure when signup request fails', async () => {
-    mockGetGoogleAuthorizeUrl.mockRejectedValueOnce(new Error('API error'));
-
-    const { result } = renderHook(() => useGoogleAuth());
-
-    await act(async () => {
-      await result.current.handleGoogleAuth(false);
-    });
-
-    expect(mockGetGoogleAuthorizeUrl).toHaveBeenCalledWith('signup');
-    expect(mockRouter.push).not.toHaveBeenCalled();
-    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
-      expect.objectContaining({
-        flow: 'google_oauth',
-        step: 'authorize_signup',
-        level: 'warning',
-      })
-    );
-    expect(mockToast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        variant: 'destructive',
-        title: '註冊失敗',
-        description: '無法完成 Google 註冊，請稍後再試。',
-      })
-    );
-    expect(result.current.isPending).toBe(false);
-  });
-
-  it('persists sanitized callbackUrl to sessionStorage before Google sign-in redirect (#733)', async () => {
-    window.sessionStorage.clear();
-    const originalUrl = window.location.href;
-    window.history.replaceState(
-      {},
-      '',
-      '/auth/signin?callbackUrl=%2Freservation%2Fmentee%3Ftab%3Dhistory%26reservationId%3D101'
-    );
-
-    mockGetGoogleAuthorizeUrl.mockResolvedValueOnce({
-      authorization_url: 'https://google.com/auth/login',
-      state: 'mock-state',
-    });
-
-    const { result } = renderHook(() => useGoogleAuth());
-
-    await act(async () => {
-      await result.current.handleGoogleAuth(true);
-    });
-
-    expect(window.sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)).toBe(
-      '/reservation/mentee?tab=history&reservationId=101'
-    );
-
-    window.history.replaceState({}, '', originalUrl);
-  });
-
-  it('clears residual pending_auth_callback_url from sessionStorage when initiating Google sign-up via handleGoogleAuth(false) (#733)', async () => {
-    const originalUrl = window.location.href;
-    window.sessionStorage.setItem(
-      PENDING_AUTH_CALLBACK_URL_KEY,
-      '/reservation/mentee?tab=history&reservationId=101'
-    );
-    window.history.replaceState(
-      {},
-      '',
-      '/auth/signup?callbackUrl=%2Freservation%2Fmentee%3Ftab%3Dhistory%26reservationId%3D101'
-    );
-
-    mockGetGoogleAuthorizeUrl.mockResolvedValueOnce({
-      authorization_url: 'https://google.com/auth/signup',
-      state: 'mock-state',
-    });
-
-    const { result } = renderHook(() => useGoogleAuth());
-
-    await act(async () => {
-      await result.current.handleGoogleAuth(false);
-    });
-
-    expect(
-      window.sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
-    ).toBeNull();
-    expect(mockRouter.push).toHaveBeenCalledWith(
-      'https://google.com/auth/signup'
-    );
-
-    window.history.replaceState({}, '', originalUrl);
-  });
-
-  it('clears residual pending_auth_callback_url from sessionStorage when Google authorize request fails (#733)', async () => {
-    window.sessionStorage.setItem(
-      PENDING_AUTH_CALLBACK_URL_KEY,
-      '/reservation/mentee?tab=history&reservationId=101'
-    );
-    mockGetGoogleAuthorizeUrl.mockRejectedValueOnce(new Error('API error'));
-
-    const { result } = renderHook(() => useGoogleAuth());
-
-    await act(async () => {
-      await result.current.handleGoogleAuth(true);
-    });
-
-    expect(
-      window.sessionStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
-    ).toBeNull();
-    expect(result.current.isPending).toBe(false);
-  });
-
-  it('emits auth_oauth_started prior to Google redirect for both login and sign_up (#950)', async () => {
-    mockGetGoogleAuthorizeUrl
+  it('delegates login & signup intents through authLifecycle.startGoogleAuth and retains isPending=true on redirect (#733 / #950)', async () => {
+    getGoogleAuthorizeUrl
       .mockResolvedValueOnce({
-        authorization_url:
-          'https://accounts.google.com/o/oauth2/v2/auth?login=1',
+        authorization_url: 'https://google.com/auth/login',
         state: 's-login',
       })
       .mockResolvedValueOnce({
-        authorization_url:
-          'https://accounts.google.com/o/oauth2/v2/auth?signup=1',
+        authorization_url: 'https://google.com/auth/signup',
         state: 's-signup',
       });
 
@@ -243,19 +63,54 @@ describe('useGoogleAuth', () => {
     await act(async () => {
       await result.current.handleGoogleAuth(true);
     });
+
+    expect(getGoogleAuthorizeUrl).toHaveBeenCalledWith('login');
+    expect(storage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)).toBe(
+      '/reservation/mentee'
+    );
+    expect(mockRouter.push).toHaveBeenCalledWith(
+      'https://google.com/auth/login'
+    );
+    expect(result.current.isPending).toBe(true);
+
     await act(async () => {
       await result.current.handleGoogleAuth(false);
     });
 
-    expect(mockTrackEvent).toHaveBeenCalledWith({
+    expect(getGoogleAuthorizeUrl).toHaveBeenCalledWith('signup');
+    expect(storage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)).toBeNull();
+    expect(mockRouter.push).toHaveBeenCalledWith(
+      'https://google.com/auth/signup'
+    );
+    expect(trackEvent).toHaveBeenCalledWith({
       name: 'auth_oauth_started',
       feature: 'auth',
       metadata: { method: 'Google', flow: 'login' },
     });
-    expect(mockTrackEvent).toHaveBeenCalledWith({
+    expect(trackEvent).toHaveBeenCalledWith({
       name: 'auth_oauth_started',
       feature: 'auth',
       metadata: { method: 'Google', flow: 'sign_up' },
     });
+  });
+
+  it('resets isPending=false and shows destructive toast when startGoogleAuth fails', async () => {
+    getGoogleAuthorizeUrl.mockRejectedValueOnce(new Error('OAuth down'));
+
+    const { result } = renderHook(() => useGoogleAuth());
+
+    await act(async () => {
+      await result.current.handleGoogleAuth(true);
+    });
+
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'destructive',
+        title: '登入失敗',
+        description: '無法完成 Google 登入，請稍後再試。',
+      })
+    );
+    expect(mockRouter.push).not.toHaveBeenCalled();
+    expect(result.current.isPending).toBe(false);
   });
 });

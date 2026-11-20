@@ -2,7 +2,7 @@ import { fromAny, fromPartial } from '@total-typescript/shoehorn';
 import fs from 'fs';
 import type { Session } from 'next-auth';
 import path from 'path';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from '@/lib/apiClient';
 import {
@@ -36,36 +36,23 @@ import {
   DOM_AUTH_STATE_ATTR,
   SESSION_HINT_COOKIE,
 } from '@/lib/auth/sessionHint';
+import * as sessionLifecycleModule from '@/lib/auth/sessionLifecycle';
 import {
   authLifecycle,
   type AuthLifecyclePort,
   clampOnboardingName,
   type ClientSignInFn,
-  completePasswordReset,
-  ConfirmSignUpLifecycleError,
-  confirmSignUpToken,
   createAuthLifecycle,
   enrichGoogleLoginUserWithIdTokenFallback,
-  executeDeleteAccountXC,
-  executeGoogleOAuthCallback,
   extractGoogleIdTokenProfileFallback,
   type GoogleOAuthCodeExchanger,
-  initiateGoogleAuth,
   normalizeGoogleAvatarUrl,
-  PasswordResetLifecycleError,
-  requestPasswordReset,
-  resendPasswordReset,
-  resendVerificationEmailForPendingUser,
   resolveOAuthOutcome,
   resolvePostAuthRedirect,
   sanitizeAuthErrorMessage,
   sanitizePrefillAvatarUrl,
   type SessionTeardownReason,
-  SignInLifecycleError,
-  signInWithCredentials,
   signInWithGoogleToken,
-  SignUpLifecycleError,
-  signUpWithCredentials,
   synthesizePreExchangedSession,
   terminateClientSession,
 } from '@/lib/auth/sessionLifecycle';
@@ -88,7 +75,7 @@ type OAuthCallbackResponse =
   components['schemas']['ApiResponse_GoogleCallbackVO_'];
 type ProfileVO = components['schemas']['ProfileVO'];
 
-describe('auth deep modules boundary (#885 / #935)', () => {
+describe('auth deep modules boundary (#885 / #935 / #940)', () => {
   it.each(['authFlowStorage.ts', 'bffAuth.ts', 'sessionLifecycle.ts'])(
     '%s contains zero react, next/*, next-auth/react, or @/hooks/** imports',
     (fileName) => {
@@ -100,6 +87,80 @@ describe('auth deep modules boundary (#885 / #935)', () => {
       expect(source).not.toMatch(/from\s+['"]@\/hooks\//);
     }
   );
+
+  it('retires all 4 *LifecycleError classes, legacy *Adapters interfaces, and transitional wrapper functions while preserving terminateClientSession (#940)', () => {
+    const source = fs.readFileSync(
+      path.resolve(__dirname, 'sessionLifecycle.ts'),
+      'utf8'
+    );
+
+    expect(source).not.toMatch(/LifecycleError\b/);
+    expect(source).not.toMatch(/\binterface\s+\w*Adapters\b/);
+
+    const retiredExports = [
+      'SignInLifecycleError',
+      'SignUpLifecycleError',
+      'ConfirmSignUpLifecycleError',
+      'PasswordResetLifecycleError',
+      'signInWithCredentials',
+      'signUpWithCredentials',
+      'initiateGoogleAuth',
+      'confirmSignUpToken',
+      'resendVerificationEmailForPendingUser',
+      'requestPasswordReset',
+      'resendPasswordReset',
+      'completePasswordReset',
+      'executeDeleteAccountXC',
+      'executeGoogleOAuthCallback',
+    ];
+    for (const symbol of retiredExports) {
+      expect(symbol in sessionLifecycleModule).toBe(false);
+    }
+
+    expect(typeof sessionLifecycleModule.createAuthLifecycle).toBe('function');
+    expect(typeof sessionLifecycleModule.terminateClientSession).toBe(
+      'function'
+    );
+    expect(sessionLifecycleModule.authLifecycle).toBeDefined();
+  });
+
+  it('ensures all 10 src/hooks/auth/*.ts production hooks delegate to authLifecycle with zero direct authFlowStorage, LifecycleError, or useAsyncAction dependencies (#940)', () => {
+    const hooksDir = path.resolve(__dirname, '../../hooks/auth');
+    const hookFiles = fs
+      .readdirSync(hooksDir)
+      .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
+      .sort();
+
+    expect(hookFiles).toEqual([
+      'useConfirmRegister.ts',
+      'useDeleteAccountForm.ts',
+      'useEmailVerify.ts',
+      'useGoogleAuth.ts',
+      'useGoogleOAuthCallback.ts',
+      'usePasswordForgotForm.ts',
+      'usePasswordResend.ts',
+      'usePasswordResetForm.ts',
+      'useSignInForm.ts',
+      'useSignUpForm.ts',
+    ]);
+
+    for (const fileName of hookFiles) {
+      const source = fs.readFileSync(path.join(hooksDir, fileName), 'utf8');
+      expect(source, `${fileName} must import authLifecycle`).toMatch(
+        /\bauthLifecycle\b/
+      );
+      expect(source, `${fileName} must not import authFlowStorage`).not.toMatch(
+        /authFlowStorage/
+      );
+      expect(
+        source,
+        `${fileName} must not reference LifecycleError`
+      ).not.toMatch(/LifecycleError/);
+      expect(source, `${fileName} must not import useAsyncAction`).not.toMatch(
+        /useAsyncAction/
+      );
+    }
+  });
 });
 
 describe('authFlowStorage (#885)', () => {
@@ -225,7 +286,9 @@ describe('bffAuth (#885)', () => {
   });
 });
 
-describe('sessionLifecycle (#885 / #935)', () => {
+describe('sessionLifecycle (#885 / #935 / #940)', () => {
+  const originalCanDelete = process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT;
+
   beforeEach(() => {
     window.localStorage.clear();
     notificationReadModel.clear();
@@ -238,91 +301,87 @@ describe('sessionLifecycle (#885 / #935)', () => {
     document.documentElement.removeAttribute(DOM_AUTH_STATE_ATTR);
     document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
     document.documentElement.style.removeProperty('--auth-avatar');
+    process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT = 'true';
   });
 
-  describe('signInWithCredentials', () => {
+  afterEach(() => {
+    process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT = originalCanDelete;
+  });
+
+  describe('signInWithCredentials via createAuthLifecycle', () => {
     const validCredentials = {
       email: 'mentee@example.com',
       password: 'Password1!',
     };
 
-    it('rejects invalid schema inputs in memory without invoking NextAuth signIn', async () => {
-      const signIn = vi.fn();
-      const getSession = vi.fn();
-      const navigate = vi.fn();
-
-      await expect(
-        signInWithCredentials(
-          { email: 'not-an-email', password: '' },
-          { signIn, getSession, navigate }
-        )
-      ).rejects.toMatchObject({
-        name: 'SignInLifecycleError',
-        message: 'Invalid fields!',
-        step: 'validate_credentials',
-        level: 'info',
-      });
-
-      expect(signIn).not.toHaveBeenCalled();
-      expect(getSession).not.toHaveBeenCalled();
-      expect(navigate).not.toHaveBeenCalled();
-    });
-
-    it('throws SignInLifecycleError(authenticate) when NextAuth signIn returns an error', async () => {
+    it('distinguishes validate_credentials, authenticate, and get_session failures without leaking PII', async () => {
       const signIn = vi
         .fn()
-        .mockResolvedValue({ error: 'CredentialsSignin', ok: false });
-      const getSession = vi.fn();
-      const navigate = vi.fn();
-
-      await expect(
-        signInWithCredentials(validCredentials, {
-          signIn,
-          getSession,
-          navigate,
-        })
-      ).rejects.toMatchObject({
-        message: 'Invalid credentials!',
-        step: 'authenticate',
-        logMessage: 'Invalid credentials',
-        errorCode: 'CredentialsSignin',
-      });
-
-      expect(getSession).not.toHaveBeenCalled();
-      expect(navigate).not.toHaveBeenCalled();
-    });
-
-    it('throws SignInLifecycleError(get_session) when getSession lacks accessToken', async () => {
-      const signIn = vi.fn().mockResolvedValue({ error: null, ok: true });
+        .mockResolvedValueOnce({ error: 'CredentialsSignin', ok: false })
+        .mockResolvedValueOnce({ error: null, ok: true });
       const getSession = vi
         .fn()
-        .mockResolvedValue(
+        .mockResolvedValueOnce(
           fromPartial<Session>({ user: { id: '10', onBoarding: true } })
         );
       const navigate = vi.fn();
+      const toast = vi.fn();
+      const captureFailure = vi.fn();
+      const trackEvent = vi.fn();
+      const lifecycle = createAuthLifecycle({
+        signIn,
+        getSession,
+        navigate,
+        toast,
+        captureFailure,
+        trackEvent,
+      });
 
-      let caught: unknown;
-      try {
-        await signInWithCredentials(validCredentials, {
-          signIn,
-          getSession,
-          navigate,
-        });
-      } catch (err) {
-        caught = err;
-      }
+      const invalidRes = await lifecycle.signInWithCredentials({
+        email: 'not-an-email',
+        password: '',
+      });
+      expect(invalidRes).toEqual({
+        ok: false,
+        errorType: 'validate_credentials',
+      });
+      expect(signIn).not.toHaveBeenCalled();
 
-      expect(caught).toBeInstanceOf(SignInLifecycleError);
-      expect(caught).toMatchObject({
-        message: 'Login failed',
+      const authRes = await lifecycle.signInWithCredentials(validCredentials);
+      expect(authRes).toEqual({ ok: false, errorType: 'authenticate' });
+      expect(toast).toHaveBeenLastCalledWith({
+        variant: 'destructive',
+        description: 'Invalid credentials!',
+        duration: 1000,
+      });
+      expect(captureFailure).toHaveBeenLastCalledWith({
+        flow: 'sign_in',
+        step: 'authenticate',
+        message: 'Invalid credentials',
+        level: 'info',
+        errorCode: 'CredentialsSignin',
+      });
+      expect(getSession).not.toHaveBeenCalled();
+
+      const sessionRes =
+        await lifecycle.signInWithCredentials(validCredentials);
+      expect(sessionRes).toEqual({ ok: false, errorType: 'get_session' });
+      expect(toast).toHaveBeenLastCalledWith({
+        variant: 'destructive',
+        description: 'Login failed',
+        duration: 1000,
+      });
+      expect(captureFailure).toHaveBeenLastCalledWith({
+        flow: 'sign_in',
         step: 'get_session',
-        logMessage: 'No access token after login',
+        message: 'No access token after login',
         level: 'error',
+        errorCode: undefined,
       });
       expect(navigate).not.toHaveBeenCalled();
     });
 
-    it('syncs analytics, clears stale pending callbackUrl, and routes to sanitized callbackUrl or /auth/onboarding', async () => {
+    it('syncs analytics, clears stale pending callbackUrl, and routes across onboarding, mentor-onboarding (#969), and pendingFavoriteMentor (#733 / #756)', async () => {
       const storage = createInMemorySessionStorage({
         [PENDING_AUTH_CALLBACK_URL_KEY]: '/reservation/mentor',
       });
@@ -330,24 +389,25 @@ describe('sessionLifecycle (#885 / #935)', () => {
       const setAnalyticsUserContext = vi.fn();
       const trackEvent = vi.fn();
       const navigate = vi.fn();
-
-      // Case 1: onBoarding === true -> sanitized search callbackUrl wins
-      await signInWithCredentials(validCredentials, {
+      const lifecycle = createAuthLifecycle({
         signIn,
+        navigate,
+        storage,
+        setAnalyticsUserContext,
+        trackEvent,
+        getOrigin: () => 'https://xtalent.tw',
+      });
+
+      // 1. onBoarding === true -> sanitized search callbackUrl wins
+      await lifecycle.signInWithCredentials(validCredentials, {
         getSession: vi.fn().mockResolvedValue(
           fromPartial<Session>({
             accessToken: 'jwt_1',
             user: { id: '77', onBoarding: true, isMentor: true },
           })
         ),
-        navigate,
         search: '?callbackUrl=%2Freservation%2Fmentee%3Ftab%3Dhistory',
-        currentOrigin: 'https://xtalent.tw',
-        storage,
-        setAnalyticsUserContext,
-        trackEvent,
       });
-
       expect(setAnalyticsUserContext).toHaveBeenCalledWith({
         userId: '77',
         userRole: 'mentor',
@@ -360,565 +420,325 @@ describe('sessionLifecycle (#885 / #935)', () => {
       expect(storage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)).toBeNull();
       expect(navigate).toHaveBeenCalledWith('/reservation/mentee?tab=history');
 
-      // Case 2: onBoarding === false -> /auth/onboarding takes priority over callbackUrl
+      // 2. onBoarding === false -> /auth/onboarding priority, EXCEPT own mentor-onboarding=true (#969)
       navigate.mockClear();
-      await signInWithCredentials(validCredentials, {
-        signIn,
+      await lifecycle.signInWithCredentials(validCredentials, {
         getSession: vi.fn().mockResolvedValue(
           fromPartial<Session>({
             accessToken: 'jwt_2',
             user: { id: '78', onBoarding: false, isMentor: false },
           })
         ),
-        navigate,
         search: '?callbackUrl=%2Freservation%2Fmentee',
-        currentOrigin: 'https://xtalent.tw',
-        storage,
-        setAnalyticsUserContext,
-        trackEvent,
       });
-
       expect(navigate).toHaveBeenCalledWith('/auth/onboarding');
 
-      // Case 2c (#969): onBoarding === false WITH own /profile/78/edit?mentor-onboarding=true callbackUrl -> honors Become Mentor edit screen!
       navigate.mockClear();
-      await signInWithCredentials(validCredentials, {
-        signIn,
+      await lifecycle.signInWithCredentials(validCredentials, {
         getSession: vi.fn().mockResolvedValue(
           fromPartial<Session>({
             accessToken: 'jwt_2c',
             user: { id: '78', onBoarding: false, isMentor: false },
           })
         ),
-        navigate,
         search:
           '?callbackUrl=%2Fprofile%2F78%2Fedit%3Fmentor-onboarding%3Dtrue',
-        currentOrigin: 'https://xtalent.tw',
-        storage,
-        setAnalyticsUserContext,
-        trackEvent,
       });
-
       expect(navigate).toHaveBeenCalledWith(
         '/profile/78/edit?mentor-onboarding=true'
       );
 
-      // Case 2d (#969 negative boundaries): non-owner ID, plain /edit without mentor-onboarding, and cross-origin URLs MUST still redirect to /auth/onboarding!
       for (const rejectedCallback of [
         '?callbackUrl=%2Fprofile%2F999%2Fedit%3Fmentor-onboarding%3Dtrue',
         '?callbackUrl=%2Fprofile%2F78%2Fedit',
         '?callbackUrl=https%3A%2F%2Fevil.example%2Fprofile%2F78%2Fedit%3Fmentor-onboarding%3Dtrue',
       ]) {
         navigate.mockClear();
-        await signInWithCredentials(validCredentials, {
-          signIn,
+        await lifecycle.signInWithCredentials(validCredentials, {
           getSession: vi.fn().mockResolvedValue(
             fromPartial<Session>({
               accessToken: 'jwt_2d',
               user: { id: '78', onBoarding: false, isMentor: false },
             })
           ),
-          navigate,
           search: rejectedCallback,
-          currentOrigin: 'https://xtalent.tw',
-          storage,
-          setAnalyticsUserContext,
-          trackEvent,
         });
         expect(navigate).toHaveBeenCalledWith('/auth/onboarding');
       }
-      expect(
-        resolvePostAuthRedirect({
-          explicitCallbackUrl:
-            'https://evil.example/profile/78/edit?mentor-onboarding=true',
-          isOnboarded: false,
-          userId: '78',
-        })
-      ).toBe('/auth/onboarding');
 
-      // Case 2b: isMentor === true with backend onBoarding === false (empty want_tags) -> treated as onboarded, skips /auth/onboarding
+      // isMentor === true with onBoarding === false treated as onboarded
       navigate.mockClear();
-      await signInWithCredentials(validCredentials, {
-        signIn,
+      await lifecycle.signInWithCredentials(validCredentials, {
         getSession: vi.fn().mockResolvedValue(
           fromPartial<Session>({
             accessToken: 'jwt_2b',
             user: { id: '780', onBoarding: false, isMentor: true },
           })
         ),
-        navigate,
         search: '?callbackUrl=%2Freservation%2Fmentor',
-        currentOrigin: 'https://xtalent.tw',
-        storage,
-        setAnalyticsUserContext,
-        trackEvent,
       });
-
       expect(navigate).toHaveBeenCalledWith('/reservation/mentor');
 
-      // Case 3: pendingFavoriteMentor without explicit callbackUrl -> routes to /profile/:id and retains pending favorite
+      // 3. pendingFavoriteMentor redirect, onboarding preservation, conflict clearing, and TTL expiry (#756)
       navigate.mockClear();
       savePendingFavoriteMentor(101);
-      await signInWithCredentials(validCredentials, {
-        signIn,
+      await lifecycle.signInWithCredentials(validCredentials, {
         getSession: vi.fn().mockResolvedValue(
           fromPartial<Session>({
             accessToken: 'jwt_3',
             user: { id: '79', onBoarding: true, isMentor: false },
           })
         ),
-        navigate,
-        currentOrigin: 'https://xtalent.tw',
-        storage,
-        setAnalyticsUserContext,
-        trackEvent,
-      });
-
-      expect(navigate).toHaveBeenCalledWith('/profile/101');
-      expect(getPendingFavoriteMentorId()).toBe(101);
-    });
-
-    it('resolves pendingFavoriteMentor redirect, preserves intent during onboarding, and clears stale intent on conflicting callbackUrl (#756)', async () => {
-      const signIn = vi.fn().mockResolvedValue({ error: null, ok: true });
-      const navigate = vi.fn();
-
-      // 1. Valid pendingFavoriteMentor without search callbackUrl -> /profile/:id & preserved
-      savePendingFavoriteMentor(101);
-      await signInWithCredentials(validCredentials, {
-        signIn,
-        getSession: vi.fn().mockResolvedValue(
-          fromPartial<Session>({
-            accessToken: 'jwt_fav_1',
-            user: { id: '77', onBoarding: true, isMentor: false },
-          })
-        ),
-        navigate,
-        currentOrigin: 'https://xtalent.tw',
-        setAnalyticsUserContext: vi.fn(),
-        trackEvent: vi.fn(),
       });
       expect(navigate).toHaveBeenCalledWith('/profile/101');
       expect(getPendingFavoriteMentorId()).toBe(101);
 
-      // 2. onBoarding === false -> /auth/onboarding while preserving pendingFavoriteMentor
       navigate.mockClear();
-      await signInWithCredentials(validCredentials, {
-        signIn,
+      await lifecycle.signInWithCredentials(validCredentials, {
         getSession: vi.fn().mockResolvedValue(
           fromPartial<Session>({
             accessToken: 'jwt_fav_2',
-            user: { id: '78', onBoarding: false, isMentor: false },
+            user: { id: '79', onBoarding: false, isMentor: false },
           })
         ),
-        navigate,
-        search: '?callbackUrl=%2Fprofile%2F101',
-        currentOrigin: 'https://xtalent.tw',
-        setAnalyticsUserContext: vi.fn(),
-        trackEvent: vi.fn(),
       });
       expect(navigate).toHaveBeenCalledWith('/auth/onboarding');
       expect(getPendingFavoriteMentorId()).toBe(101);
 
-      // 3. Conflicting explicit callbackUrl -> clears stale pendingFavoriteMentor and routes to explicit callbackUrl
       navigate.mockClear();
-      await signInWithCredentials(validCredentials, {
-        signIn,
+      await lifecycle.signInWithCredentials(validCredentials, {
         getSession: vi.fn().mockResolvedValue(
           fromPartial<Session>({
             accessToken: 'jwt_fav_3',
-            user: { id: '77', onBoarding: true, isMentor: false },
+            user: { id: '79', onBoarding: true, isMentor: false },
           })
         ),
-        navigate,
         search: '?callbackUrl=%2Freservation%2Fmentee',
-        currentOrigin: 'https://xtalent.tw',
-        setAnalyticsUserContext: vi.fn(),
-        trackEvent: vi.fn(),
       });
       expect(navigate).toHaveBeenCalledWith('/reservation/mentee');
       expect(getPendingFavoriteMentorId()).toBeNull();
 
-      // 4. Expired pendingFavoriteMentor -> cleared and falls back to /mentor-pool
-      navigate.mockClear();
       savePendingFavoriteMentor(
         101,
         Date.now() - PENDING_FAVORITE_TTL_MS - 1_000
       );
-      await signInWithCredentials(validCredentials, {
-        signIn,
+      navigate.mockClear();
+      await lifecycle.signInWithCredentials(validCredentials, {
         getSession: vi.fn().mockResolvedValue(
           fromPartial<Session>({
             accessToken: 'jwt_fav_4',
-            user: { id: '77', onBoarding: true, isMentor: false },
+            user: { id: '79', onBoarding: true, isMentor: false },
           })
         ),
-        navigate,
-        currentOrigin: 'https://xtalent.tw',
-        setAnalyticsUserContext: vi.fn(),
-        trackEvent: vi.fn(),
       });
       expect(navigate).toHaveBeenCalledWith('/mentor-pool');
       expect(getPendingFavoriteMentorId()).toBeNull();
     });
   });
 
-  describe('executeGoogleOAuthCallback', () => {
-    it('handles INVALID outcomes by clearing pending storage keys, showing toast, and routing to /auth/signin', async () => {
-      const storage = createInMemorySessionStorage({
+  describe('handleGoogleOAuthCallback & delete/signUp status mappings via createAuthLifecycle', () => {
+    it('handles INVALID, SIGNUP, missing accessToken, LOGIN callbackUrl/pendingFavorite/id_token fallback (#756 / #951), and RESUME_DELETE_ACCOUNT outcomes', async () => {
+      const invalidStorage = createInMemorySessionStorage({
         [PENDING_DELETE_ACCOUNT_EMAIL_KEY]: 'del@example.com',
         [PENDING_AUTH_CALLBACK_URL_KEY]: '/reservation/mentee',
       });
-      const navigate = vi.fn();
-      const onToast = vi.fn();
+      const invalidNavigate = vi.fn();
+      const invalidToast = vi.fn();
 
-      await executeGoogleOAuthCallback(
-        { code: null, state: 'st' },
-        {
-          exchangeCode: vi.fn(),
-          signIn: vi.fn(),
-          signOut: vi.fn(),
-          getSession: vi.fn(),
-          navigate,
-          onToast,
-          storage,
-        }
-      );
+      await createAuthLifecycle({
+        exchangeGoogleCode: vi.fn(),
+        signIn: vi.fn(),
+        signOut: vi.fn(),
+        getSession: vi.fn(),
+        navigate: invalidNavigate,
+        toast: invalidToast,
+        storage: invalidStorage,
+      }).handleGoogleOAuthCallback({ code: null, state: 'st' });
 
-      expect(storage.dump()).toEqual({});
-      expect(onToast).toHaveBeenCalledWith({
+      expect(invalidStorage.dump()).toEqual({});
+      expect(invalidToast).toHaveBeenCalledWith({
         variant: 'destructive',
         title: 'Missing Google OAuth parameters',
         description: 'Authorization failed. Please try again.',
       });
-      expect(navigate).toHaveBeenCalledWith('/auth/signin');
-    });
+      expect(invalidNavigate).toHaveBeenCalledWith('/auth/signin');
 
-    it('handles SIGNUP outcome by storing verification email, clearing callbackUrl, tracking sign_up, and routing to /auth/email-verify', async () => {
-      const storage = createInMemorySessionStorage({
-        [PENDING_AUTH_CALLBACK_URL_KEY]: '/reservation/mentee',
-      });
-      const navigate = vi.fn();
-      const trackEvent = vi.fn();
-
-      await executeGoogleOAuthCallback(
-        { code: 'c1', state: 's1' },
-        {
-          exchangeCode: vi.fn().mockResolvedValue(
-            fromPartial<OAuthCallbackResponse>({
-              data: {
-                auth_type: 'SIGNUP',
-                auth: { token: 't1', email: 'new@example.com' },
-                user: null,
-              },
-            })
-          ),
-          signIn: vi.fn(),
-          signOut: vi.fn(),
-          getSession: vi.fn(),
-          navigate,
-          onToast: vi.fn(),
-          storage,
-          trackEvent,
-        }
-      );
-
-      expect(getPendingVerificationEmail(storage)).toBe('new@example.com');
-      expect(storage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)).toBeNull();
-      expect(trackEvent).toHaveBeenCalledWith({
-        name: 'sign_up',
-        feature: 'auth',
-        metadata: { method: 'Google', user_role: 'guest' },
-      });
-      expect(navigate).toHaveBeenCalledWith('/auth/email-verify');
-    });
-
-    it('guards against missing session accessToken on Google LOGIN just like credentials login', async () => {
-      const storage = createInMemorySessionStorage({
-        [PENDING_AUTH_CALLBACK_URL_KEY]: '/reservation/mentee',
-      });
-      const navigate = vi.fn();
-      const onToast = vi.fn();
-      const setAnalyticsUserContext = vi.fn();
-
-      await executeGoogleOAuthCallback(
-        { code: 'c2', state: 's2' },
-        {
-          exchangeCode: vi.fn().mockResolvedValue(
-            fromPartial<OAuthCallbackResponse>({
-              data: {
-                auth_type: 'LOGIN',
-                auth: { token: 'tok_g', email: 'u@example.com' },
-                user: fromPartial<ProfileVO>({ user_id: 88, is_mentor: false }),
-              },
-            })
-          ),
-          signIn: vi.fn().mockResolvedValue({ error: null, ok: true }),
-          signOut: vi.fn(),
-          getSession: vi
-            .fn()
-            .mockResolvedValue(
-              fromPartial<Session>({ user: { id: '88', onBoarding: true } })
-            ),
-          navigate,
-          onToast,
-          storage,
-          setAnalyticsUserContext,
-        }
-      );
-
-      expect(setAnalyticsUserContext).not.toHaveBeenCalled();
-      expect(storage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)).toBeNull();
-      expect(onToast).toHaveBeenCalledWith({
-        variant: 'destructive',
-        title: 'Login failed',
-        description: 'Something went wrong during login.',
-      });
-      expect(navigate).toHaveBeenCalledWith('/auth/signin');
-    });
-
-    it('completes Google LOGIN choreography and consumes stored callbackUrl when onBoarding is true', async () => {
-      const storage = createInMemorySessionStorage({
-        [PENDING_AUTH_CALLBACK_URL_KEY]: '/reservation/mentee?tab=history',
-      });
-      const navigate = vi.fn();
-      const setAnalyticsUserContext = vi.fn();
-      const trackEvent = vi.fn();
-
-      await executeGoogleOAuthCallback(
-        { code: 'c3', state: 's3' },
-        {
-          exchangeCode: vi.fn().mockResolvedValue(
-            fromPartial<OAuthCallbackResponse>({
-              data: {
-                auth_type: 'LOGIN',
-                auth: { token: 'tok_g', email: 'u@example.com' },
-                user: fromPartial<ProfileVO>({ user_id: 88, is_mentor: true }),
-              },
-            })
-          ),
-          signIn: vi.fn().mockResolvedValue({ error: null, ok: true }),
-          signOut: vi.fn(),
-          getSession: vi.fn().mockResolvedValue(
-            fromPartial<Session>({
-              accessToken: 'tok_g',
-              user: { id: '88', onBoarding: true, isMentor: true },
-            })
-          ),
-          navigate,
-          onToast: vi.fn(),
-          currentOrigin: 'https://xtalent.tw',
-          storage,
-          setAnalyticsUserContext,
-          trackEvent,
-        }
-      );
-
-      expect(setAnalyticsUserContext).toHaveBeenCalledWith({
-        userId: '88',
-        userRole: 'mentor',
-      });
-      expect(trackEvent).toHaveBeenCalledWith({
-        name: 'login',
-        feature: 'auth',
-        metadata: { method: 'Google', user_role: 'mentor' },
-      });
-      expect(storage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)).toBeNull();
-      expect(navigate).toHaveBeenCalledWith('/reservation/mentee?tab=history');
-    });
-
-    it('resolves pendingFavoriteMentor across Google LOGIN, onboarding, conflicting callbackUrl, and SIGNUP (#756)', async () => {
-      const navigate = vi.fn();
-
-      // 1. Google SIGNUP preserves pendingFavoriteMentor while clearing sessionStorage callbackUrl
+      // SIGNUP preserves pendingFavoriteMentor while storing verification email & clearing callbackUrl
       savePendingFavoriteMentor(303);
       const signupStorage = createInMemorySessionStorage({
         [PENDING_AUTH_CALLBACK_URL_KEY]: '/profile/303',
       });
-      await executeGoogleOAuthCallback(
-        { code: 'c_sup', state: 's_sup' },
-        {
-          exchangeCode: vi.fn().mockResolvedValue(
-            fromPartial<OAuthCallbackResponse>({
-              data: {
-                auth_type: 'SIGNUP',
-                auth: { token: 't_sup', email: 'new@example.com' },
-                user: null,
-              },
-            })
-          ),
-          signIn: vi.fn(),
-          signOut: vi.fn(),
-          getSession: vi.fn(),
-          navigate,
-          onToast: vi.fn(),
-          storage: signupStorage,
-          trackEvent: vi.fn(),
-        }
+      const signupNavigate = vi.fn();
+      const signupTrack = vi.fn();
+      await createAuthLifecycle({
+        exchangeGoogleCode: vi.fn().mockResolvedValue(
+          fromPartial<OAuthCallbackResponse>({
+            data: {
+              auth_type: 'SIGNUP',
+              auth: { token: 't1', email: 'new@example.com' },
+              user: null,
+            },
+          })
+        ),
+        signIn: vi.fn(),
+        signOut: vi.fn(),
+        getSession: vi.fn(),
+        navigate: signupNavigate,
+        toast: vi.fn(),
+        storage: signupStorage,
+        trackEvent: signupTrack,
+      }).handleGoogleOAuthCallback({ code: 'c1', state: 's1' });
+
+      expect(getPendingVerificationEmail(signupStorage)).toBe(
+        'new@example.com'
       );
-      expect(navigate).toHaveBeenCalledWith('/auth/email-verify');
+      expect(signupStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)).toBeNull();
+      expect(signupTrack).toHaveBeenCalledWith({
+        name: 'sign_up',
+        feature: 'auth',
+        metadata: { method: 'Google', user_role: 'guest' },
+      });
+      expect(signupNavigate).toHaveBeenCalledWith('/auth/email-verify');
       expect(getPendingFavoriteMentorId()).toBe(303);
 
-      // 2. Google LOGIN with valid pendingFavoriteMentor (even after sessionStorage was cleared) -> /profile/303
-      navigate.mockClear();
-      await executeGoogleOAuthCallback(
-        { code: 'c_login_fav', state: 's_login_fav' },
-        {
-          exchangeCode: vi.fn().mockResolvedValue(
-            fromPartial<OAuthCallbackResponse>({
-              data: {
-                auth_type: 'LOGIN',
-                auth: { token: 'tok_g', email: 'u@example.com' },
-                user: fromPartial<ProfileVO>({ user_id: 88, is_mentor: false }),
-              },
-            })
+      // Missing accessToken on Google LOGIN
+      const missingTokStorage = createInMemorySessionStorage({
+        [PENDING_AUTH_CALLBACK_URL_KEY]: '/reservation/mentee',
+      });
+      const missingTokToast = vi.fn();
+      const missingTokNavigate = vi.fn();
+      await createAuthLifecycle({
+        exchangeGoogleCode: vi.fn().mockResolvedValue(
+          fromPartial<OAuthCallbackResponse>({
+            data: {
+              auth_type: 'LOGIN',
+              auth: { token: 'tok_g', email: 'u@example.com' },
+              user: fromPartial<ProfileVO>({ user_id: 88, is_mentor: false }),
+            },
+          })
+        ),
+        signIn: vi.fn().mockResolvedValue({ error: null, ok: true }),
+        signOut: vi.fn(),
+        getSession: vi
+          .fn()
+          .mockResolvedValue(
+            fromPartial<Session>({ user: { id: '88', onBoarding: true } })
           ),
-          signIn: vi.fn().mockResolvedValue({ error: null, ok: true }),
-          signOut: vi.fn(),
-          getSession: vi.fn().mockResolvedValue(
-            fromPartial<Session>({
-              accessToken: 'tok_g',
-              user: { id: '88', onBoarding: true, isMentor: false },
-            })
-          ),
-          navigate,
-          onToast: vi.fn(),
-          currentOrigin: 'https://xtalent.tw',
-          storage: createInMemorySessionStorage(),
-          setAnalyticsUserContext: vi.fn(),
-          trackEvent: vi.fn(),
-        }
-      );
-      expect(navigate).toHaveBeenCalledWith('/profile/303');
+        navigate: missingTokNavigate,
+        toast: missingTokToast,
+        storage: missingTokStorage,
+      }).handleGoogleOAuthCallback({ code: 'c2', state: 's2' });
+      expect(
+        missingTokStorage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)
+      ).toBeNull();
+      expect(missingTokToast).toHaveBeenCalledWith({
+        variant: 'destructive',
+        title: 'Login failed',
+        description: 'Something went wrong during login.',
+      });
+      expect(missingTokNavigate).toHaveBeenCalledWith('/auth/signin');
+
+      // Google LOGIN pendingFavoriteMentor, conflicting callbackUrl, and #951 id_token =s512-c fallback
+      const loginNavigate = vi.fn();
+      await createAuthLifecycle({
+        exchangeGoogleCode: vi.fn().mockResolvedValue(
+          fromPartial<OAuthCallbackResponse>({
+            data: {
+              auth_type: 'LOGIN',
+              auth: { token: 'tok_g', email: 'u@example.com' },
+              user: fromPartial<ProfileVO>({ user_id: 88, is_mentor: false }),
+            },
+          })
+        ),
+        signIn: vi.fn().mockResolvedValue({ error: null, ok: true }),
+        signOut: vi.fn(),
+        getSession: vi.fn().mockResolvedValue(
+          fromPartial<Session>({
+            accessToken: 'tok_g',
+            user: { id: '88', onBoarding: true, isMentor: false },
+          })
+        ),
+        navigate: loginNavigate,
+        storage: createInMemorySessionStorage(),
+        getOrigin: () => 'https://xtalent.tw',
+        setAnalyticsUserContext: vi.fn(),
+        trackEvent: vi.fn(),
+      }).handleGoogleOAuthCallback({ code: 'c_fav', state: 's_fav' });
+      expect(loginNavigate).toHaveBeenCalledWith('/profile/303');
       expect(getPendingFavoriteMentorId()).toBe(303);
 
-      // 3. Google LOGIN with onBoarding === false -> /auth/onboarding while preserving pendingFavoriteMentor
-      navigate.mockClear();
-      await executeGoogleOAuthCallback(
-        { code: 'c_onb', state: 's_onb' },
-        {
-          exchangeCode: vi.fn().mockResolvedValue(
-            fromPartial<OAuthCallbackResponse>({
-              data: {
-                auth_type: 'LOGIN',
-                auth: { token: 'tok_g', email: 'u@example.com' },
-                user: fromPartial<ProfileVO>({ user_id: 89, is_mentor: false }),
-              },
-            })
-          ),
-          signIn: vi.fn().mockResolvedValue({ error: null, ok: true }),
-          signOut: vi.fn(),
-          getSession: vi.fn().mockResolvedValue(
-            fromPartial<Session>({
-              accessToken: 'tok_g',
-              user: { id: '89', onBoarding: false, isMentor: false },
-            })
-          ),
-          navigate,
-          onToast: vi.fn(),
-          currentOrigin: 'https://xtalent.tw',
-          storage: createInMemorySessionStorage({
-            [PENDING_AUTH_CALLBACK_URL_KEY]: '/profile/303',
-          }),
-          setAnalyticsUserContext: vi.fn(),
-          trackEvent: vi.fn(),
-        }
+      loginNavigate.mockClear();
+      await createAuthLifecycle({
+        exchangeGoogleCode: vi.fn().mockResolvedValue(
+          fromPartial<OAuthCallbackResponse>({
+            data: {
+              auth_type: 'LOGIN',
+              auth: { token: 'tok_g', email: 'u@example.com' },
+              user: fromPartial<ProfileVO>({ user_id: 88, is_mentor: true }),
+            },
+          })
+        ),
+        signIn: vi.fn().mockResolvedValue({ error: null, ok: true }),
+        signOut: vi.fn(),
+        getSession: vi.fn().mockResolvedValue(
+          fromPartial<Session>({
+            accessToken: 'tok_g',
+            user: { id: '88', onBoarding: true, isMentor: true },
+          })
+        ),
+        navigate: loginNavigate,
+        storage: createInMemorySessionStorage({
+          [PENDING_AUTH_CALLBACK_URL_KEY]: '/reservation/mentee?tab=history',
+        }),
+        getOrigin: () => 'https://xtalent.tw',
+        setAnalyticsUserContext: vi.fn(),
+        trackEvent: vi.fn(),
+      }).handleGoogleOAuthCallback({ code: 'c_conflict', state: 's_conflict' });
+      expect(loginNavigate).toHaveBeenCalledWith(
+        '/reservation/mentee?tab=history'
       );
-      expect(navigate).toHaveBeenCalledWith('/auth/onboarding');
-      expect(getPendingFavoriteMentorId()).toBe(303);
-
-      // 4. Google LOGIN with conflicting stored callbackUrl -> clears stale pendingFavoriteMentor
-      navigate.mockClear();
-      await executeGoogleOAuthCallback(
-        { code: 'c_conflict', state: 's_conflict' },
-        {
-          exchangeCode: vi.fn().mockResolvedValue(
-            fromPartial<OAuthCallbackResponse>({
-              data: {
-                auth_type: 'LOGIN',
-                auth: { token: 'tok_g', email: 'u@example.com' },
-                user: fromPartial<ProfileVO>({ user_id: 88, is_mentor: false }),
-              },
-            })
-          ),
-          signIn: vi.fn().mockResolvedValue({ error: null, ok: true }),
-          signOut: vi.fn(),
-          getSession: vi.fn().mockResolvedValue(
-            fromPartial<Session>({
-              accessToken: 'tok_g',
-              user: { id: '88', onBoarding: true, isMentor: false },
-            })
-          ),
-          navigate,
-          onToast: vi.fn(),
-          currentOrigin: 'https://xtalent.tw',
-          storage: createInMemorySessionStorage({
-            [PENDING_AUTH_CALLBACK_URL_KEY]: '/reservation/mentee',
-          }),
-          setAnalyticsUserContext: vi.fn(),
-          trackEvent: vi.fn(),
-        }
-      );
-      expect(navigate).toHaveBeenCalledWith('/reservation/mentee');
       expect(getPendingFavoriteMentorId()).toBeNull();
 
-      // 5. Google LOGIN right after email verification (pre-SQS outbox: onboarding === false, empty name/avatar) enriches signIn payload from id_token with =s512-c (#951)
-      const idTokenPayload = Buffer.from(
-        JSON.stringify({
-          name: '李杰克',
-          picture: 'https://lh3.googleusercontent.com/a/ACg8ocJack=s96-c',
-        }),
-        'utf8'
-      )
-        .toString('base64')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/g, '');
-      const idTokenHeader = Buffer.from(
-        JSON.stringify({ alg: 'RS256' }),
-        'utf8'
-      ).toString('base64url');
-      const mockGoogleIdToken = `${idTokenHeader}.${idTokenPayload}.sig`;
+      const mockGoogleIdToken = buildTestJwt({
+        name: '李杰克',
+        picture: 'https://lh3.googleusercontent.com/a/ACg8ocJack=s96-c',
+      });
       const signInSpy = vi.fn().mockResolvedValue({ error: null, ok: true });
-      navigate.mockClear();
-
-      await executeGoogleOAuthCallback(
-        { code: 'c_fresh', state: 's_fresh' },
-        {
-          exchangeCode: vi.fn().mockResolvedValue(
-            fromPartial<OAuthCallbackResponse>({
-              data: {
-                auth_type: 'LOGIN',
-                id_token: mockGoogleIdToken,
-                auth: { token: 'tok_fresh', email: 'fresh@example.com' },
-                user: fromPartial<ProfileVO>({
-                  user_id: 951,
-                  onboarding: false,
-                }),
-              },
-            })
-          ),
-          signIn: signInSpy,
-          signOut: vi.fn(),
-          getSession: vi.fn().mockResolvedValue(
-            fromPartial<Session>({
-              accessToken: 'tok_fresh',
-              user: {
-                id: '951',
-                name: '李杰克',
-                avatar: 'https://lh3.googleusercontent.com/a/ACg8ocJack=s512-c',
-                onBoarding: false,
-                isMentor: false,
-              },
-            })
-          ),
-          navigate,
-          onToast: vi.fn(),
-          currentOrigin: 'https://xtalent.tw',
-          storage: createInMemorySessionStorage(),
-          setAnalyticsUserContext: vi.fn(),
-          trackEvent: vi.fn(),
-        }
-      );
+      loginNavigate.mockClear();
+      await createAuthLifecycle({
+        exchangeGoogleCode: vi.fn().mockResolvedValue(
+          fromPartial<OAuthCallbackResponse>({
+            data: {
+              auth_type: 'LOGIN',
+              id_token: mockGoogleIdToken,
+              auth: { token: 'tok_fresh', email: 'fresh@example.com' },
+              user: fromPartial<ProfileVO>({
+                user_id: 951,
+                onboarding: false,
+              }),
+            },
+          })
+        ),
+        signIn: signInSpy,
+        signOut: vi.fn(),
+        getSession: vi.fn().mockResolvedValue(
+          fromPartial<Session>({
+            accessToken: 'tok_fresh',
+            user: {
+              id: '951',
+              name: '李杰克',
+              avatar: 'https://lh3.googleusercontent.com/a/ACg8ocJack=s512-c',
+              onBoarding: false,
+              isMentor: false,
+            },
+          })
+        ),
+        navigate: loginNavigate,
+        storage: createInMemorySessionStorage(),
+        getOrigin: () => 'https://xtalent.tw',
+        setAnalyticsUserContext: vi.fn(),
+        trackEvent: vi.fn(),
+      }).handleGoogleOAuthCallback({ code: 'c_fresh', state: 's_fresh' });
 
       expect(signInSpy).toHaveBeenCalledWith('custom-google-token', {
         redirect: false,
@@ -931,11 +751,10 @@ describe('sessionLifecycle (#885 / #935)', () => {
           avatar: 'https://lh3.googleusercontent.com/a/ACg8ocJack=s512-c',
         }),
       });
-      expect(navigate).toHaveBeenCalledWith('/auth/onboarding');
-    });
+      expect(loginNavigate).toHaveBeenCalledWith('/auth/onboarding');
 
-    it('handles RESUME_DELETE_ACCOUNT across success, blocked_reservations, and error outcomes', async () => {
-      const exchangeCode = vi.fn().mockResolvedValue(
+      // RESUME_DELETE_ACCOUNT blocked_reservations & error
+      const exchangeDeleteCode = vi.fn().mockResolvedValue(
         fromPartial<OAuthCallbackResponse>({
           data: {
             auth_type: 'LOGIN',
@@ -945,167 +764,81 @@ describe('sessionLifecycle (#885 / #935)', () => {
           },
         })
       );
-
-      // 1. blocked_reservations -> routes to /reservation/mentee without signOut
       const blockedStorage = createInMemorySessionStorage({
         [PENDING_DELETE_ACCOUNT_EMAIL_KEY]: 'del@example.com',
       });
       const blockedNavigate = vi.fn();
-      const blockedToast = vi.fn();
       const blockedSignOut = vi.fn();
-
-      await executeGoogleOAuthCallback(
-        { code: 'c', state: 's' },
-        {
-          exchangeCode,
-          signIn: vi.fn().mockResolvedValue({ ok: true }),
-          signOut: blockedSignOut,
-          getSession: vi.fn(),
-          navigate: blockedNavigate,
-          onToast: blockedToast,
-          storage: blockedStorage,
-          deleteAccountFn: vi
+      await createAuthLifecycle({
+        exchangeGoogleCode: exchangeDeleteCode,
+        signIn: vi.fn().mockResolvedValue({ ok: true }),
+        signOut: blockedSignOut,
+        getSession: vi.fn(),
+        navigate: blockedNavigate,
+        toast: vi.fn(),
+        storage: blockedStorage,
+        authClient: {
+          deleteAccount: vi
             .fn()
             .mockResolvedValue({ status: 'blocked_reservations' }),
-        }
-      );
-
+        },
+      }).handleGoogleOAuthCallback({ code: 'c', state: 's' });
       expect(
         blockedStorage.getItem(PENDING_DELETE_ACCOUNT_EMAIL_KEY)
       ).toBeNull();
       expect(blockedSignOut).not.toHaveBeenCalled();
       expect(blockedNavigate).toHaveBeenCalledWith('/reservation/mentee');
 
-      // 2. error -> routes to /auth/signin without signOut
       const errStorage = createInMemorySessionStorage({
         [PENDING_DELETE_ACCOUNT_EMAIL_KEY]: 'del@example.com',
       });
       const errNavigate = vi.fn();
       const errToast = vi.fn();
-      const errSignOut = vi.fn();
-
-      await executeGoogleOAuthCallback(
-        { code: 'c', state: 's' },
-        {
-          exchangeCode,
-          signIn: vi.fn().mockResolvedValue({ ok: true }),
-          signOut: errSignOut,
-          getSession: vi.fn(),
-          navigate: errNavigate,
-          onToast: errToast,
-          storage: errStorage,
-          deleteAccountFn: vi
+      await createAuthLifecycle({
+        exchangeGoogleCode: exchangeDeleteCode,
+        signIn: vi.fn().mockResolvedValue({ ok: true }),
+        signOut: vi.fn(),
+        getSession: vi.fn(),
+        navigate: errNavigate,
+        toast: errToast,
+        storage: errStorage,
+        authClient: {
+          deleteAccount: vi
             .fn()
             .mockResolvedValue({ status: 'error', message: 'Boom' }),
-        }
-      );
-
-      expect(errSignOut).not.toHaveBeenCalled();
+        },
+      }).handleGoogleOAuthCallback({ code: 'c', state: 's' });
       expect(errToast).toHaveBeenCalledWith({
         variant: 'destructive',
         title: '刪除帳號失敗',
         description: 'Boom',
       });
       expect(errNavigate).toHaveBeenCalledWith('/auth/signin');
-
-      // 3. success -> clears analytics user without redundant delete_account_succeeded event, runs revalidateAfterDelete, signs out to '/'
-      const okStorage = createInMemorySessionStorage({
-        [PENDING_DELETE_ACCOUNT_EMAIL_KEY]: 'del@example.com',
-        [PENDING_PASSWORD_RESET_EMAIL_KEY]: 'stale@example.com',
-      });
-      const callOrder: string[] = [];
-      const okSignOut = vi.fn(async () => {
-        callOrder.push('signOut');
-      });
-      const revalidateAfterDelete = vi.fn(async () => {
-        callOrder.push('revalidate');
-      });
-
-      await executeGoogleOAuthCallback(
-        { code: 'c', state: 's' },
-        {
-          exchangeCode,
-          signIn: vi.fn().mockResolvedValue({ ok: true }),
-          signOut: okSignOut,
-          getSession: vi.fn(),
-          navigate: vi.fn(),
-          onToast: vi.fn(),
-          storage: okStorage,
-          revalidateAfterDelete,
-          deleteAccountFn: vi.fn().mockResolvedValue({ status: 'success' }),
-          trackEvent: vi.fn(() => {
-            callOrder.push('trackEvent');
-          }),
-          clearAnalyticsUser: vi.fn(() => {
-            callOrder.push('clearAnalyticsUser');
-          }),
-          clearSessionHint: vi.fn(() => {
-            callOrder.push('clearSessionHint');
-          }),
-        }
-      );
-
-      expect(okStorage.dump()).toEqual({});
-      expect(okSignOut).toHaveBeenCalledWith({ callbackUrl: '/' });
-      expect(callOrder).toEqual([
-        'clearSessionHint',
-        'clearAnalyticsUser',
-        'revalidate',
-        'signOut',
-      ]);
     });
-  });
 
-  describe('executeDeleteAccountXC & initiateGoogleDeleteAccountReauth', () => {
-    it('covers success (including best-effort revalidate failure), blocked_reservations, and error', async () => {
-      const blockedSignOut = vi.fn();
-      const blockedRes = await executeDeleteAccountXC(
-        { email: 'a@example.com', password: 'Password1!' },
-        {
-          signOut: blockedSignOut,
-          deleteAccountFn: vi
-            .fn()
-            .mockResolvedValue({ status: 'blocked_reservations' }),
-        }
-      );
-      expect(blockedRes).toEqual({ status: 'blocked_reservations' });
-      expect(blockedSignOut).not.toHaveBeenCalled();
-
-      const errRes = await executeDeleteAccountXC(
-        { email: 'a@example.com', password: 'Password1!' },
-        {
-          signOut: blockedSignOut,
-          deleteAccountFn: vi
-            .fn()
-            .mockResolvedValue({ status: 'error', message: 'Wrong password' }),
-        }
-      );
-      expect(errRes).toEqual({ status: 'error', message: 'Wrong password' });
-      expect(blockedSignOut).not.toHaveBeenCalled();
-
+    it('covers deleteAccountXC revalidate warning, signUp ApiError status codes (422/406/429/503), and confirmSignUp missing_token', async () => {
       const captureFailure = vi.fn();
-      const okSignOut = vi.fn().mockResolvedValue(undefined);
+      const toast = vi.fn();
+      const signOut = vi.fn().mockResolvedValue(undefined);
       const storage = createInMemorySessionStorage({
         [PENDING_VERIFICATION_EMAIL_KEY]: 'stale@example.com',
       });
 
-      const okRes = await executeDeleteAccountXC(
-        { email: 'a@example.com', password: 'Password1!' },
-        {
-          signOut: okSignOut,
-          storage,
-          deleteAccountFn: vi.fn().mockResolvedValue({ status: 'success' }),
-          revalidateAfterDelete: vi
-            .fn()
-            .mockRejectedValue(new Error('revalidate offline')),
-          captureFailure,
-          trackEvent: vi.fn(),
-          clearAnalyticsUser: vi.fn(),
-          clearSessionHint: vi.fn(),
-        }
-      );
+      const okDel = await createAuthLifecycle({
+        signOut,
+        storage,
+        toast,
+        captureFailure,
+        revalidateAfterDelete: vi
+          .fn()
+          .mockRejectedValue(new Error('revalidate offline')),
+        authClient: {
+          deleteAccount: vi.fn().mockResolvedValue({ status: 'success' }),
+        },
+        clearAnalyticsUser: vi.fn(),
+      }).deleteAccountXC({ email: 'a@example.com', password: 'Password1!' });
 
-      expect(okRes).toEqual({ status: 'success' });
+      expect(okDel).toEqual({ status: 'success' });
       expect(storage.dump()).toEqual({});
       expect(captureFailure).toHaveBeenCalledWith({
         flow: 'delete_account',
@@ -1113,402 +846,68 @@ describe('sessionLifecycle (#885 / #935)', () => {
         message: 'revalidate offline',
         level: 'warning',
       });
-      expect(okSignOut).toHaveBeenCalledWith({ callbackUrl: '/' });
-    });
+      expect(signOut).toHaveBeenCalledWith({ callbackUrl: '/' });
 
-    it('unifies Google OAuth initiation across login, signup, and delete_account_reauth intents with failure rollback (#904)', async () => {
-      const storage = createInMemorySessionStorage({
-        [PENDING_DELETE_ACCOUNT_EMAIL_KEY]: 'stale-delete@example.com',
-      });
-      const navigate = vi.fn();
-
-      // 1. intent: 'login' persists sanitized callbackUrl and clears stale delete_account_email
-      await initiateGoogleAuth(
+      for (const c of [
         {
-          intent: 'login',
-          search:
-            '?callbackUrl=%2Freservation%2Fmentee%3Ftab%3Dhistory%26reservationId%3D101',
-          currentOrigin: 'https://xtalent.tw',
+          error: new ApiError(422, '欄位格式錯誤'),
+          title: '驗證失敗',
+          description: '欄位格式錯誤',
+          code: '422',
         },
         {
-          navigate,
-          storage,
-          getAuthorizeUrl: vi.fn().mockResolvedValue({
-            authorization_url: 'https://accounts.google.com/o/oauth2/login',
-            state: 'st-login',
-          }),
-        }
-      );
-
-      expect(getPendingDeleteAccountEmail(storage)).toBeNull();
-      expect(storage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)).toBe(
-        '/reservation/mentee?tab=history&reservationId=101'
-      );
-      expect(navigate).toHaveBeenCalledWith(
-        'https://accounts.google.com/o/oauth2/login'
-      );
-
-      // Failed login initiation clears stale pendingCallbackUrl
-      await expect(
-        initiateGoogleAuth(
-          { intent: 'login', search: '?callbackUrl=%2Fmentor-pool' },
-          {
-            navigate,
-            storage,
-            getAuthorizeUrl: vi.fn().mockRejectedValue(new Error('login-down')),
-          }
-        )
-      ).rejects.toThrow('login-down');
-      expect(storage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)).toBeNull();
-
-      // 2. intent: 'signup' clears residual pendingCallbackUrl and redirects
-      storage.setItem(PENDING_AUTH_CALLBACK_URL_KEY, '/mentor-pool');
-      await initiateGoogleAuth(
-        { intent: 'signup' },
+          error: new ApiError(406, ''),
+          title: '註冊失敗',
+          description: '此電子郵件已被註冊。請使用其他電子郵件或登錄。',
+          code: '406',
+        },
         {
-          navigate,
-          storage,
-          getAuthorizeUrl: vi.fn().mockResolvedValue({
-            authorization_url: 'https://accounts.google.com/o/oauth2/signup',
-            state: 'st-signup',
-          }),
-        }
-      );
-      expect(storage.getItem(PENDING_AUTH_CALLBACK_URL_KEY)).toBeNull();
-      expect(navigate).toHaveBeenCalledWith(
-        'https://accounts.google.com/o/oauth2/signup'
-      );
-
-      // 3. intent: 'delete_account_reauth' persists delete_account_email and rolls back on error
-      await initiateGoogleAuth(
-        { intent: 'delete_account_reauth', email: 'g@example.com' },
+          error: new ApiError(429, ''),
+          title: '請求過於頻繁',
+          description: '您已超出最大註冊嘗試次數。請稍後再試。',
+          code: '429',
+        },
         {
-          navigate,
-          storage,
-          getAuthorizeUrl: vi.fn().mockResolvedValue({
-            authorization_url: 'https://accounts.google.com/o/oauth2/auth',
-            state: 'st',
-          }),
-        }
-      );
-
-      expect(getPendingDeleteAccountEmail(storage)).toBe('g@example.com');
-      expect(navigate).toHaveBeenCalledWith(
-        'https://accounts.google.com/o/oauth2/auth'
-      );
-
-      await expect(
-        initiateGoogleAuth(
-          { intent: 'delete_account_reauth', email: 'g@example.com' },
-          {
-            navigate,
-            storage,
-            getAuthorizeUrl: vi.fn().mockRejectedValue(new Error('down')),
-          }
-        )
-      ).rejects.toThrow('down');
-
-      expect(getPendingDeleteAccountEmail(storage)).toBeNull();
-    });
-  });
-
-  describe('signUp, email verification, and password reset lifecycles (#904)', () => {
-    it('signUpWithCredentials tracks sign_up, writes pendingVerificationEmail, navigates to EMAIL_VERIFY_HREF, and maps ApiError codes', async () => {
-      const storage = createInMemorySessionStorage();
-      const navigate = vi.fn();
-      const trackEvent = vi.fn();
-      const signUpFn = vi.fn().mockResolvedValue(undefined);
-
-      await signUpWithCredentials(
-        {
-          email: 'new-user@example.com',
+          error: new ApiError(503, 'Down'),
+          title: '註冊失敗',
+          description: 'Down - HTTP狀態碼: 503。',
+          code: '503',
+        },
+      ]) {
+        toast.mockClear();
+        const res = await createAuthLifecycle({
+          toast,
+          captureFailure,
+          trackEvent: vi.fn(),
+          authClient: { signUp: vi.fn().mockRejectedValue(c.error) },
+        }).signUpWithCredentials({
+          email: 'a@example.com',
           password: 'Password1!',
           confirm_password: 'Password1!',
-        },
-        {
-          navigate,
-          signUpFn,
-          storage,
-          trackEvent,
-        }
-      );
+        });
+        expect(res).toEqual({ ok: false, errorType: c.code });
+        expect(toast).toHaveBeenCalledWith({
+          variant: 'destructive',
+          title: c.title,
+          description: c.description,
+          duration: 5000,
+        });
+      }
 
-      expect(signUpFn).toHaveBeenCalledWith({
-        email: 'new-user@example.com',
-        password: 'Password1!',
-        confirm_password: 'Password1!',
-      });
-      expect(trackEvent).toHaveBeenCalledWith({
-        name: 'sign_up',
-        feature: 'auth',
-        metadata: {
-          method: 'Email',
-          user_role: 'guest',
-        },
-      });
-      expect(getPendingVerificationEmail(storage)).toBe('new-user@example.com');
-      expect(navigate).toHaveBeenCalledWith('/auth/email-verify');
-
-      // Status-specific SignUpLifecycleError mapping
-      await expect(
-        signUpWithCredentials(
-          {
-            email: 'a@example.com',
-            password: 'Password1!',
-            confirm_password: 'Password1!',
-          },
-          {
-            navigate,
-            storage,
-            trackEvent,
-            signUpFn: vi
-              .fn()
-              .mockRejectedValue(new ApiError(422, '欄位格式錯誤')),
-          }
-        )
-      ).rejects.toMatchObject({
-        name: 'SignUpLifecycleError',
-        title: '驗證失敗',
-        message: '欄位格式錯誤',
-        errorCode: '422',
-      });
-
-      await expect(
-        signUpWithCredentials(
-          {
-            email: 'a@example.com',
-            password: 'Password1!',
-            confirm_password: 'Password1!',
-          },
-          {
-            navigate,
-            storage,
-            trackEvent,
-            signUpFn: vi.fn().mockRejectedValue(new ApiError(406, '')),
-          }
-        )
-      ).rejects.toMatchObject({
-        title: '註冊失敗',
-        message: '此電子郵件已被註冊。請使用其他電子郵件或登錄。',
-        errorCode: '406',
-      });
-
-      await expect(
-        signUpWithCredentials(
-          {
-            email: 'a@example.com',
-            password: 'Password1!',
-            confirm_password: 'Password1!',
-          },
-          {
-            navigate,
-            storage,
-            trackEvent,
-            signUpFn: vi.fn().mockRejectedValue(new ApiError(429, '')),
-          }
-        )
-      ).rejects.toMatchObject({
-        title: '請求過於頻繁',
-        errorCode: '429',
-      });
-
-      await expect(
-        signUpWithCredentials(
-          {
-            email: 'a@example.com',
-            password: 'Password1!',
-            confirm_password: 'Password1!',
-          },
-          {
-            navigate,
-            storage,
-            trackEvent,
-            signUpFn: vi.fn().mockRejectedValue(new ApiError(503, 'Down')),
-          }
-        )
-      ).rejects.toBeInstanceOf(SignUpLifecycleError);
-    });
-
-    it('confirmSignUpToken clears pendingVerificationEmail PII on success and preserves/guards on missing or invalid token', async () => {
-      const storage = createInMemorySessionStorage({
+      const verifyStorage = createInMemorySessionStorage({
         [PENDING_VERIFICATION_EMAIL_KEY]: 'pending-pii@example.com',
       });
-
-      await expect(
-        confirmSignUpToken(null, { storage })
-      ).rejects.toBeInstanceOf(ConfirmSignUpLifecycleError);
-      expect(getPendingVerificationEmail(storage)).toBe(
+      toast.mockClear();
+      const missingConfirm = await createAuthLifecycle({
+        storage: verifyStorage,
+        toast,
+        captureFailure,
+        trackEvent: vi.fn(),
+      }).confirmSignUp(null);
+      expect(missingConfirm).toEqual({ ok: false, status: 'failure' });
+      expect(getPendingVerificationEmail(verifyStorage)).toBe(
         'pending-pii@example.com'
       );
-
-      await expect(
-        confirmSignUpToken('expired-tok', {
-          storage,
-          confirmSignUpFn: vi
-            .fn()
-            .mockRejectedValue(new ApiError(400, '驗證連結已失效')),
-        })
-      ).rejects.toMatchObject({
-        title: '註冊失敗',
-        step: 'confirm_token',
-        errorCode: '400',
-      });
-      // Still preserved when confirmation fails
-      expect(getPendingVerificationEmail(storage)).toBe(
-        'pending-pii@example.com'
-      );
-
-      const confirmSignUpFn = vi.fn().mockResolvedValue(undefined);
-      await confirmSignUpToken('valid-tok', {
-        storage,
-        confirmSignUpFn,
-      });
-
-      expect(confirmSignUpFn).toHaveBeenCalledWith('valid-tok');
-      expect(getPendingVerificationEmail(storage)).toBeNull();
-    });
-
-    it('resendVerificationEmailForPendingUser reads from storage or explicit email and throws when absent', async () => {
-      const emptyStorage = createInMemorySessionStorage();
-      await expect(
-        resendVerificationEmailForPendingUser({ storage: emptyStorage })
-      ).rejects.toThrow('找不到待驗證的電子郵件地址');
-
-      const storage = createInMemorySessionStorage({
-        [PENDING_VERIFICATION_EMAIL_KEY]: 'stored@example.com',
-      });
-      const resendFn = vi.fn().mockResolvedValue(undefined);
-
-      await resendVerificationEmailForPendingUser({
-        storage,
-        resendVerificationEmailFn: resendFn,
-      });
-      expect(resendFn).toHaveBeenCalledWith('stored@example.com');
-    });
-
-    it('requestPasswordReset, resendPasswordReset, and completePasswordReset manage pendingPasswordResetEmail and clear PII after completion', async () => {
-      const storage = createInMemorySessionStorage();
-      const navigate = vi.fn();
-      const requestEmailFn = vi.fn().mockResolvedValue(undefined);
-
-      // Missing email on resend throws PasswordResetLifecycleError
-      await expect(
-        resendPasswordReset({
-          storage,
-          requestPasswordResetEmailFn: requestEmailFn,
-        })
-      ).rejects.toBeInstanceOf(PasswordResetLifecycleError);
-
-      await expect(
-        requestPasswordReset('reset-pii@example.com', {
-          navigate,
-          storage,
-          requestPasswordResetEmailFn: vi
-            .fn()
-            .mockRejectedValue(new ApiError(429, '請稍後再試')),
-        })
-      ).rejects.toMatchObject({
-        name: 'PasswordResetLifecycleError',
-        title: '信件寄送失敗',
-        step: 'request_email',
-        errorCode: '429',
-      });
-
-      // 1. Request password reset stores email and navigates to success page
-      await requestPasswordReset('reset-pii@example.com', {
-        navigate,
-        storage,
-        requestPasswordResetEmailFn: requestEmailFn,
-      });
-      expect(requestEmailFn).toHaveBeenCalledWith('reset-pii@example.com');
-      expect(getPendingPasswordResetEmail(storage)).toBe(
-        'reset-pii@example.com'
-      );
-      expect(navigate).toHaveBeenCalledWith('/auth/password-forgot-success');
-
-      // 2. Resend reads stored email and calls requestPasswordResetEmailFn (wrapping ApiError on failure)
-      await expect(
-        resendPasswordReset({
-          storage,
-          requestPasswordResetEmailFn: vi
-            .fn()
-            .mockRejectedValue(new ApiError(500, '寄信服務異常')),
-        })
-      ).rejects.toMatchObject({
-        name: 'PasswordResetLifecycleError',
-        title: '信件寄送失敗',
-        step: 'resend_email',
-        errorCode: '500',
-      });
-
-      await resendPasswordReset({
-        storage,
-        requestPasswordResetEmailFn: requestEmailFn,
-      });
-      expect(requestEmailFn).toHaveBeenCalledTimes(2);
-
-      // 3. Missing or invalid token on completePasswordReset throws without clearing PII
-      await expect(
-        completePasswordReset(
-          {
-            verifyToken: null,
-            password: 'NewPassword123',
-            confirmPassword: 'NewPassword123',
-          },
-          { navigate, storage }
-        )
-      ).rejects.toMatchObject({
-        title: '驗證失敗',
-        step: 'missing_token',
-      });
-
-      await expect(
-        completePasswordReset(
-          {
-            verifyToken: 'expired-reset-tok',
-            password: 'NewPassword123',
-            confirmPassword: 'NewPassword123',
-          },
-          {
-            navigate,
-            storage,
-            resetPasswordWithTokenFn: vi
-              .fn()
-              .mockRejectedValue(new ApiError(400, '重設連結已失效')),
-          }
-        )
-      ).rejects.toMatchObject({
-        name: 'PasswordResetLifecycleError',
-        title: '密碼重設失敗',
-        step: 'submit_new_password',
-        errorCode: '400',
-      });
-      expect(getPendingPasswordResetEmail(storage)).toBe(
-        'reset-pii@example.com'
-      );
-
-      // 4. Valid completePasswordReset clears pendingPasswordResetEmail PII and navigates to PASSWORD_RESET_SUCCESS_HREF
-      const resetPasswordWithTokenFn = vi.fn().mockResolvedValue(undefined);
-      await completePasswordReset(
-        {
-          verifyToken: 'reset-tok-1',
-          password: 'NewPassword123',
-          confirmPassword: 'NewPassword123',
-        },
-        {
-          navigate,
-          storage,
-          resetPasswordWithTokenFn,
-        }
-      );
-
-      expect(resetPasswordWithTokenFn).toHaveBeenCalledWith({
-        verifyToken: 'reset-tok-1',
-        password: 'NewPassword123',
-        confirmPassword: 'NewPassword123',
-      });
-      expect(getPendingPasswordResetEmail(storage)).toBeNull();
-      expect(navigate).toHaveBeenCalledWith('/auth/password-reset-success');
     });
   });
 
@@ -1734,22 +1133,22 @@ describe('sessionLifecycle (#885 / #935)', () => {
       expect(getPendingFavoriteMentorId()).toBeNull();
 
       const navigate = vi.fn();
-      await signInWithCredentials(
-        { email: 'user-b@example.com', password: 'Password1!' },
-        {
-          signIn: vi.fn().mockResolvedValue({ error: null, ok: true }),
-          getSession: vi.fn().mockResolvedValue(
-            fromPartial<Session>({
-              accessToken: 'jwt_user_b',
-              user: { id: '88', onBoarding: true, isMentor: false },
-            })
-          ),
-          navigate,
-          currentOrigin: 'https://xtalent.tw',
-          setAnalyticsUserContext: vi.fn(),
-          trackEvent: vi.fn(),
-        }
-      );
+      await createAuthLifecycle({
+        signIn: vi.fn().mockResolvedValue({ error: null, ok: true }),
+        getSession: vi.fn().mockResolvedValue(
+          fromPartial<Session>({
+            accessToken: 'jwt_user_b',
+            user: { id: '88', onBoarding: true, isMentor: false },
+          })
+        ),
+        navigate,
+        getOrigin: () => 'https://xtalent.tw',
+        setAnalyticsUserContext: vi.fn(),
+        trackEvent: vi.fn(),
+      }).signInWithCredentials({
+        email: 'user-b@example.com',
+        password: 'Password1!',
+      });
 
       expect(navigate).toHaveBeenCalledWith('/mentor-pool');
     });

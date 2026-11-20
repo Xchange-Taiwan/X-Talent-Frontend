@@ -1,18 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
 import { revalidateProfilePathAfterDelete } from '@/actions/auth';
 import { useToast } from '@/components/ui/use-toast';
-import useAsyncAction from '@/hooks/useAsyncAction';
-import { ApiError } from '@/lib/apiClient';
-import {
-  executeDeleteAccountXC,
-  initiateGoogleAuth,
-} from '@/lib/auth/sessionLifecycle';
+import { authLifecycle } from '@/lib/auth/sessionLifecycle';
 import { isAccountDeletionEnabled } from '@/lib/featureFlags';
 import { DeleteAccountXCSchema } from '@/schemas/auth';
 
@@ -33,7 +28,8 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
   const { data: session } = useSession();
   const { toast } = useToast();
   const router = useRouter();
-  const { run, isPending: isSubmitting } = useAsyncAction();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const inFlightRef = useRef(false);
   const [blockedByReservations, setBlockedByReservations] = useState(false);
 
   const mode: DeleteAccountMode =
@@ -45,94 +41,64 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
   });
 
   const onSubmitXC = async (values: XCValues): Promise<void> => {
+    if (inFlightRef.current) return;
     if (!isAccountDeletionEnabled()) {
-      toast({
-        variant: 'destructive',
-        description: '此環境不支援帳號刪除',
-        duration: 3000,
-      });
+      await authLifecycle.deleteAccountXC(values, { toast });
       return;
     }
 
+    inFlightRef.current = true;
+    setIsSubmitting(true);
     setBlockedByReservations(false);
-    await run(
-      async () => {
-        const result = await executeDeleteAccountXC(
-          {
-            email: values.email,
-            password: values.password,
-          },
-          {
-            signOut,
-            revalidateAfterDelete: revalidateProfilePathAfterDelete,
-          }
-        );
-
-        if (result.status === 'success') {
-          return;
-        }
-
-        if (result.status === 'blocked_reservations') {
-          setBlockedByReservations(true);
-          return;
-        }
-
-        throw new Error(result.message || '刪除帳號失敗，請稍後再試');
-      },
-      {
-        throwError: false,
-        captureFailure: {
-          flow: 'delete_account',
-          step: 'submit',
-          level: 'info',
+    try {
+      const result = await authLifecycle.deleteAccountXC(
+        {
+          email: values.email,
+          password: values.password,
         },
-        toastOnError: {
-          description: (err) =>
-            err instanceof Error ? err.message : '刪除帳號失敗，請稍後再試',
-          duration: 3000,
-        },
+        {
+          signOut,
+          revalidateAfterDelete: revalidateProfilePathAfterDelete,
+          toast,
+        }
+      );
+      if (result.status === 'blocked_reservations') {
+        setBlockedByReservations(true);
       }
-    );
+    } finally {
+      inFlightRef.current = false;
+      setIsSubmitting(false);
+    }
   };
 
   const initiateGoogleReauth = async (): Promise<void> => {
+    if (inFlightRef.current) return;
     if (!isAccountDeletionEnabled()) {
-      toast({
-        variant: 'destructive',
-        description: '此環境不支援帳號刪除',
-        duration: 3000,
-      });
+      await authLifecycle.startDeleteAccountGoogleReauth(
+        session?.user?.email ?? '',
+        { toast }
+      );
       return;
     }
 
-    await run(
-      async () => {
-        await initiateGoogleAuth(
-          {
-            intent: 'delete_account_reauth',
-            email: session?.user?.email ?? '',
-          },
-          {
-            navigate: (url) => router.push(url),
-          }
-        );
-      },
-      {
-        throwError: false,
-        resetPendingOnSuccess: false,
-        captureFailure: {
-          flow: 'delete_account',
-          step: 'google_reauth_authorize',
-          level: 'warning',
-          errorCode: (err) =>
-            err instanceof ApiError ? String(err.status) : undefined,
-        },
-        toastOnError: {
-          description: '無法取得 Google 授權連結，請稍後再試',
-          duration: 3000,
-        },
+    inFlightRef.current = true;
+    setIsSubmitting(true);
+    let redirected = false;
+    try {
+      const result = await authLifecycle.startDeleteAccountGoogleReauth(
+        session?.user?.email ?? '',
+        {
+          navigate: (url) => router.push(url),
+          toast,
+        }
+      );
+      redirected = result.ok;
+    } finally {
+      inFlightRef.current = false;
+      if (!redirected) {
+        setIsSubmitting(false);
       }
-    );
+    }
   };
 
   return {

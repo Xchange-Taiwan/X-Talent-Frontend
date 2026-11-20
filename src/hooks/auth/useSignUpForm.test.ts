@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/navigation', async () => {
   const { navigationMockFactory } = await import('@/test/mocks/navigation');
@@ -11,34 +11,17 @@ vi.mock('@/components/ui/use-toast', async () => {
   return useToastMockFactory();
 });
 
-vi.mock('@/services/auth/authClient', () => ({
-  authClient: {
-    signUp: vi.fn(),
-  },
-}));
-
-vi.mock('@/lib/monitoring', () => ({
-  captureFlowFailure: vi.fn(),
-  sanitize: (val: string) => val,
-}));
-
-vi.mock('@/lib/analytics', () => ({
-  trackEvent: vi.fn(),
-}));
-
-import { trackEvent } from '@/lib/analytics';
 import { ApiError } from '@/lib/apiClient';
-import { captureFlowFailure } from '@/lib/monitoring';
+import {
+  authLifecycle,
+  createAuthLifecycle,
+  createInMemorySessionStorage,
+} from '@/lib/auth/sessionLifecycle';
 import { SignUpSchema } from '@/schemas/auth';
-import { authClient } from '@/services/auth/authClient';
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockToast } from '@/test/mocks/useToast';
 
 import useSignUpForm from './useSignUpForm';
-
-const mockSignUp = vi.mocked(authClient.signUp);
-const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
-const mockTrackEvent = vi.mocked(trackEvent);
 
 const validValues = {
   email: 'test@example.com',
@@ -47,61 +30,53 @@ const validValues = {
   hasReadTermsOfService: true,
 };
 
-describe('useSignUpForm', () => {
+describe('useSignUpForm (#940)', () => {
+  const signUpFn = vi.fn();
+  const trackEvent = vi.fn();
+  let storage = createInMemorySessionStorage();
+
   beforeEach(() => {
     vi.clearAllMocks();
-    const store: Record<string, string> = {};
-    const mockStorage = {
-      getItem: (key: string) => store[key] || null,
-      setItem: (key: string, value: string) => {
-        store[key] = value;
-      },
-      removeItem: (key: string) => {
-        delete store[key];
-      },
-      clear: () => {
-        Object.keys(store).forEach((key) => delete store[key]);
-      },
-    };
-    Object.defineProperty(window, 'sessionStorage', {
-      value: mockStorage,
-      writable: true,
+    storage = createInMemorySessionStorage();
+    const scoped = createAuthLifecycle({
+      authClient: { signUp: signUpFn },
+      storage,
+      trackEvent,
+      captureFailure: vi.fn(),
     });
+    vi.spyOn(authLifecycle, 'trackSignUpStarted').mockImplementation(
+      (overrides) => scoped.trackSignUpStarted(overrides)
+    );
+    vi.spyOn(authLifecycle, 'signUpWithCredentials').mockImplementation(
+      (values, overrides) => scoped.signUpWithCredentials(values, overrides)
+    );
   });
 
-  it('tracks sign_up_started on mount', () => {
-    renderHook(() => useSignUpForm());
-    expect(mockTrackEvent).toHaveBeenCalledWith({
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('tracks sign_up_started on mount and keeps isSubmitting=true on successful redirect', async () => {
+    signUpFn.mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useSignUpForm());
+    expect(trackEvent).toHaveBeenCalledWith({
       name: 'sign_up_started',
       feature: 'auth',
     });
-  });
-
-  it('submits form successfully', async () => {
-    mockSignUp.mockResolvedValueOnce(undefined);
-
-    const { result } = renderHook(() => useSignUpForm());
 
     await act(async () => {
       await result.current.onSubmit(validValues);
     });
 
-    expect(mockSignUp).toHaveBeenCalledWith(validValues);
-    expect(mockTrackEvent).toHaveBeenCalledWith({
-      name: 'sign_up',
-      feature: 'auth',
-      metadata: {
-        method: 'Email',
-        user_role: 'guest',
-      },
-    });
-    expect(sessionStorage.getItem('email')).toBe(validValues.email);
+    expect(signUpFn).toHaveBeenCalledWith(validValues);
+    expect(storage.getItem('email')).toBe(validValues.email);
     expect(mockRouter.push).toHaveBeenCalledWith('/auth/email-verify');
     expect(result.current.isSubmitting).toBe(true);
   });
 
-  it('handles general non-ApiError during submission', async () => {
-    mockSignUp.mockRejectedValueOnce(new Error('Unexpected network error'));
+  it('resets isSubmitting=false and surfaces destructive toast when signUpWithCredentials fails', async () => {
+    signUpFn.mockRejectedValueOnce(new ApiError(406, '電子郵件已被佔用'));
 
     const { result } = renderHook(() => useSignUpForm());
 
@@ -109,74 +84,6 @@ describe('useSignUpForm', () => {
       await result.current.onSubmit(validValues);
     });
 
-    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
-      expect.objectContaining({
-        flow: 'sign_up',
-        step: 'submit',
-        message: 'Unexpected network error',
-        errorCode: undefined,
-        level: 'info',
-      })
-    );
-    expect(mockToast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        variant: 'destructive',
-        title: '註冊失敗',
-        description: 'Unexpected network error',
-      })
-    );
-    expect(mockRouter.push).not.toHaveBeenCalled();
-    expect(result.current.isSubmitting).toBe(false);
-  });
-
-  it('handles ApiError 422 (validation error)', async () => {
-    const apiError = new ApiError(422, '輸入欄位驗證錯誤');
-    mockSignUp.mockRejectedValueOnce(apiError);
-
-    const { result } = renderHook(() => useSignUpForm());
-
-    await act(async () => {
-      await result.current.onSubmit(validValues);
-    });
-
-    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
-      expect.objectContaining({
-        flow: 'sign_up',
-        step: 'submit',
-        message: '輸入欄位驗證錯誤',
-        errorCode: '422',
-        level: 'info',
-      })
-    );
-    expect(mockToast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        variant: 'destructive',
-        title: '驗證失敗',
-        description: '輸入欄位驗證錯誤',
-      })
-    );
-    expect(mockRouter.push).not.toHaveBeenCalled();
-  });
-
-  it('handles ApiError 406 (email already registered)', async () => {
-    const apiError = new ApiError(406, '電子郵件已被佔用');
-    mockSignUp.mockRejectedValueOnce(apiError);
-
-    const { result } = renderHook(() => useSignUpForm());
-
-    await act(async () => {
-      await result.current.onSubmit(validValues);
-    });
-
-    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
-      expect.objectContaining({
-        flow: 'sign_up',
-        step: 'submit',
-        message: '電子郵件已被佔用',
-        errorCode: '406',
-        level: 'info',
-      })
-    );
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
         variant: 'destructive',
@@ -185,89 +92,7 @@ describe('useSignUpForm', () => {
       })
     );
     expect(mockRouter.push).not.toHaveBeenCalled();
-  });
-
-  it('handles ApiError 429 (rate limit exceeded)', async () => {
-    const apiError = new ApiError(429, 'Too many requests');
-    mockSignUp.mockRejectedValueOnce(apiError);
-
-    const { result } = renderHook(() => useSignUpForm());
-
-    await act(async () => {
-      await result.current.onSubmit(validValues);
-    });
-
-    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
-      expect.objectContaining({
-        flow: 'sign_up',
-        step: 'submit',
-        message: 'Too many requests',
-        errorCode: '429',
-        level: 'info',
-      })
-    );
-    expect(mockToast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        variant: 'destructive',
-        title: '請求過於頻繁',
-        description: 'Too many requests',
-      })
-    );
-    expect(mockRouter.push).not.toHaveBeenCalled();
-  });
-
-  it('handles other ApiErrors (e.g. 500)', async () => {
-    const apiError = new ApiError(500, 'Internal DB crash');
-    mockSignUp.mockRejectedValueOnce(apiError);
-
-    const { result } = renderHook(() => useSignUpForm());
-
-    await act(async () => {
-      await result.current.onSubmit(validValues);
-    });
-
-    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
-      expect.objectContaining({
-        flow: 'sign_up',
-        step: 'submit',
-        message: 'Internal DB crash',
-        errorCode: '500',
-        level: 'info',
-      })
-    );
-    expect(mockToast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        variant: 'destructive',
-        title: '註冊失敗',
-        description: 'Internal DB crash - HTTP狀態碼: 500。',
-      })
-    );
-    expect(mockTrackEvent).toHaveBeenCalledWith({
-      name: 'auth_flow_failed',
-      feature: 'auth',
-      metadata: {
-        flow: 'sign_up',
-        error_type: '500',
-      },
-    });
-    expect(mockRouter.push).not.toHaveBeenCalled();
-
-    mockTrackEvent.mockClear();
-    mockSignUp.mockRejectedValueOnce(new Error('Raw secret error'));
-    await act(async () => {
-      await result.current.onSubmit(validValues);
-    });
-    expect(mockTrackEvent).toHaveBeenCalledWith({
-      name: 'auth_flow_failed',
-      feature: 'auth',
-      metadata: {
-        flow: 'sign_up',
-        error_type: 'submit_failed',
-      },
-    });
-    const serialized = JSON.stringify(mockTrackEvent.mock.calls);
-    expect(serialized).not.toContain(validValues.email);
-    expect(serialized).not.toContain('Raw secret error');
+    expect(result.current.isSubmitting).toBe(false);
   });
 
   it('initializes confirm_password in defaultValues and produces Traditional Chinese validation errors instead of "Required" (#804)', async () => {
