@@ -178,6 +178,8 @@ export type MentorScheduleEditor = {
   slotsWithMeta: EditorSlotWithMeta[];
   /** Future-only ALLOW occurrences on the selected date for AddSlotModal defaults. */
   futureSlots: ParsedMentorTimeslot[];
+  /** Authoritative saving flag: true while `confirmChanges()` is actively committing dirty months. */
+  isSaving: boolean;
   /**
    * Add one ALLOW entry at `startTime` for `durationMinutes`. If
    * `weeklyWithinMonth` is true, the entry is a single row with a weekly
