@@ -2,11 +2,9 @@
 
 import { getSession, SessionProvider, signOut } from 'next-auth/react';
 
-import AnalyticsUserSync from '@/components/AnalyticsUserSync';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import PageViewTracker from '@/components/PageViewTracker';
 import PendingFeedbackQueueLauncher from '@/components/reservation/PendingFeedbackQueueLauncher';
-import SentryUserSync from '@/components/SentryUserSync';
 import SessionErrorWatcher from '@/components/SessionErrorWatcher';
 import WebVitalsReporter from '@/components/WebVitalsReporter';
 import { setOnRefreshTokenError, setSessionGetter } from '@/lib/apiClient';
@@ -21,8 +19,7 @@ setOnRefreshTokenError(() =>
 export function NextAuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
-      <AnalyticsUserSync />
-      <SentryUserSync />
+      {/* Single telemetry adapter: GA4 / Clarity / Sentry identity + page_view (#979) */}
       <PageViewTracker />
       <WebVitalsReporter />
       <SessionErrorWatcher />

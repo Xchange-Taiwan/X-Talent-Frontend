@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs';
 import { act, fireEvent, render } from '@testing-library/react';
 import { fromPartial } from '@total-typescript/shoehorn';
 import Link from 'next/link';
@@ -6,9 +7,12 @@ import { type SessionContextValue, useSession } from 'next-auth/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { resetAnalyticsUserState } from '@/lib/analytics';
+import {
+  getAnalyticsUserContext,
+  resetAnalyticsUserState,
+  trackEvent,
+} from '@/lib/analytics';
 
-import AnalyticsUserSync from './AnalyticsUserSync';
 import PageViewTracker, {
   INITIAL_SESSION_RESOLVE_TIMEOUT_MS,
 } from './PageViewTracker';
@@ -21,12 +25,23 @@ vi.mock('next-auth/react', () => ({
   useSession: vi.fn(),
 }));
 
+vi.mock('@sentry/nextjs', () => ({
+  setUser: vi.fn(),
+  setTag: vi.fn(),
+}));
+
 const mockUseSession = vi.mocked(useSession);
 
 describe('PageViewTracker', () => {
   let mockGtag: ReturnType<typeof vi.fn<(...args: unknown[]) => void>>;
   let rafCallbacks: Map<number, FrameRequestCallback>;
   let nextRafId: number;
+
+  function pageViewCalls() {
+    return mockGtag.mock.calls.filter(
+      ([command, eventName]) => command === 'event' && eventName === 'page_view'
+    );
+  }
 
   function flushAnimationFrames() {
     const queued = Array.from(rafCallbacks.entries());
@@ -107,17 +122,12 @@ describe('PageViewTracker', () => {
       })
     );
 
-    const { rerender } = render(
-      <>
-        <AnalyticsUserSync gaId="G-TEST866001" />
-        <PageViewTracker />
-      </>
-    );
+    const { rerender } = render(<PageViewTracker gaId="G-TEST866001" />);
 
     // Neither guest config nor premature page_view should fire while NextAuth resolves /api/auth/session
     expect(mockGtag).not.toHaveBeenCalled();
 
-    // Session resolves to authenticated mentor -> AnalyticsUserSync runs first, then PageViewTracker
+    // Session resolves to authenticated mentor -> coordinator binds identity before releasing page_view
     mockUseSession.mockReturnValue(
       fromPartial<SessionContextValue>({
         data: {
@@ -133,12 +143,7 @@ describe('PageViewTracker', () => {
       })
     );
 
-    rerender(
-      <>
-        <AnalyticsUserSync gaId="G-TEST866001" />
-        <PageViewTracker />
-      </>
-    );
+    rerender(<PageViewTracker gaId="G-TEST866001" />);
 
     expect(mockGtag).toHaveBeenCalledTimes(2);
     expect(mockGtag).toHaveBeenNthCalledWith(1, 'config', 'G-TEST866001', {
@@ -200,7 +205,7 @@ describe('PageViewTracker', () => {
       })
     );
     rerender(<PageViewTracker />);
-    expect(mockGtag).toHaveBeenCalledTimes(1);
+    expect(pageViewCalls()).toHaveLength(1);
   });
 
   it('tracks initial page_view once even under React.StrictMode and tracks SPA route changes', () => {
@@ -210,7 +215,8 @@ describe('PageViewTracker', () => {
       </React.StrictMode>
     );
 
-    expect(mockGtag).toHaveBeenCalledTimes(1);
+    // The adapter also syncs guest identity (gtag set); count page_view events only
+    expect(pageViewCalls()).toHaveLength(1);
     expect(mockGtag).toHaveBeenLastCalledWith(
       'event',
       'page_view',
@@ -226,7 +232,7 @@ describe('PageViewTracker', () => {
         <PageViewTracker />
       </React.StrictMode>
     );
-    expect(mockGtag).toHaveBeenCalledTimes(1);
+    expect(pageViewCalls()).toHaveLength(1);
 
     // SPA route change to /mentor-pool emits a new page_view
     window.history.replaceState({}, '', '/mentor-pool');
@@ -238,7 +244,7 @@ describe('PageViewTracker', () => {
       </React.StrictMode>
     );
 
-    expect(mockGtag).toHaveBeenCalledTimes(2);
+    expect(pageViewCalls()).toHaveLength(2);
     expect(mockGtag).toHaveBeenLastCalledWith(
       'event',
       'page_view',
@@ -569,5 +575,190 @@ describe('PageViewTracker', () => {
       page_title: 'X-Talent',
     });
     expect(JSON.stringify(params)).not.toContain('陳小華');
+  });
+
+  describe('session identity sync (TelemetrySessionCoordinator adapter, #979)', () => {
+    beforeEach(() => {
+      vi.mocked(Sentry.setUser).mockClear();
+      vi.mocked(Sentry.setTag).mockClear();
+      window.history.replaceState({}, '', '/mentor-pool');
+      document.title = '尋找導師 | XChange Talent Pool';
+      vi.mocked(usePathname).mockReturnValue('/mentor-pool');
+    });
+
+    it('does not touch GA4 or Sentry identity while session is loading', () => {
+      mockUseSession.mockReturnValue(
+        fromPartial<SessionContextValue>({ data: null, status: 'loading' })
+      );
+
+      render(<PageViewTracker gaId="G-TEST866001" />);
+
+      expect(mockGtag).not.toHaveBeenCalled();
+      expect(Sentry.setUser).not.toHaveBeenCalled();
+      expect(Sentry.setTag).not.toHaveBeenCalled();
+      expect(getAnalyticsUserContext()).toEqual({
+        userId: null,
+        userRole: null,
+      });
+    });
+
+    it('binds the same internal id to GA4 and Sentry under StrictMode without PII, then clears both on logout', () => {
+      mockUseSession.mockReturnValue(
+        fromPartial<SessionContextValue>({
+          data: {
+            accessToken:
+              'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI5OTk5OTgifQ.secretSig',
+            user: {
+              id: '999998',
+              email: 'private.mentor@example.com',
+              name: 'Alice Chen',
+              isMentor: true,
+            },
+          },
+          status: 'authenticated',
+        })
+      );
+
+      const { rerender } = render(
+        <React.StrictMode>
+          <PageViewTracker gaId="G-TEST866001" />
+        </React.StrictMode>
+      );
+
+      const configCalls = mockGtag.mock.calls.filter(
+        ([command]) => command === 'config'
+      );
+      expect(configCalls).toEqual([
+        [
+          'config',
+          'G-TEST866001',
+          { send_page_view: false, user_id: '999998', user_role: 'mentor' },
+        ],
+      ]);
+      expect(Sentry.setUser).toHaveBeenCalledTimes(1);
+      expect(Sentry.setUser).toHaveBeenCalledWith({ id: '999998' });
+      expect(Sentry.setTag).toHaveBeenCalledWith('user_role', 'mentor');
+
+      trackEvent({
+        name: 'mentor_card_click',
+        feature: 'mentor_pool',
+        metadata: { mentor_id: '7482008160728084' },
+      });
+      expect(mockGtag).toHaveBeenLastCalledWith(
+        'event',
+        'mentor_card_click',
+        expect.objectContaining({ user_id: '999998', user_role: 'mentor' })
+      );
+
+      const serialized = JSON.stringify([
+        mockGtag.mock.calls,
+        vi.mocked(Sentry.setUser).mock.calls,
+        vi.mocked(Sentry.setTag).mock.calls,
+      ]);
+      expect(serialized).not.toContain('private.mentor@example.com');
+      expect(serialized).not.toContain('Alice Chen');
+      expect(serialized).not.toContain('secretSig');
+
+      mockGtag.mockClear();
+      mockUseSession.mockReturnValue(
+        fromPartial<SessionContextValue>({
+          data: null,
+          status: 'unauthenticated',
+        })
+      );
+      rerender(
+        <React.StrictMode>
+          <PageViewTracker gaId="G-TEST866001" />
+        </React.StrictMode>
+      );
+
+      expect(mockGtag).toHaveBeenCalledTimes(1);
+      expect(mockGtag).toHaveBeenCalledWith('config', 'G-TEST866001', {
+        send_page_view: false,
+        user_id: null,
+        user_role: 'guest',
+      });
+      expect(Sentry.setUser).toHaveBeenLastCalledWith(null);
+      expect(Sentry.setTag).toHaveBeenLastCalledWith('user_role', 'guest');
+    });
+
+    it.each(['null', 'undefined', '0', 'guest', 'person@example.com'])(
+      'rejects sentinel / PII id %j for both GA4 and Sentry',
+      (unsafeId) => {
+        mockUseSession.mockReturnValue(
+          fromPartial<SessionContextValue>({
+            data: { user: { id: unsafeId, isMentor: true } },
+            status: 'authenticated',
+          })
+        );
+
+        render(<PageViewTracker gaId="G-TEST866001" />);
+
+        expect(getAnalyticsUserContext()).toEqual({
+          userId: null,
+          userRole: 'guest',
+        });
+        expect(Sentry.setUser).toHaveBeenCalledWith(null);
+        expect(Sentry.setUser).not.toHaveBeenCalledWith({ id: unsafeId });
+        expect(Sentry.setTag).toHaveBeenCalledWith('user_role', 'guest');
+        const configCalls = mockGtag.mock.calls.filter(
+          ([command]) => command === 'config'
+        );
+        expect(configCalls).toEqual([
+          [
+            'config',
+            'G-TEST866001',
+            { send_page_view: false, user_id: null, user_role: 'guest' },
+          ],
+        ]);
+      }
+    );
+
+    it('clears GA4 and Sentry identity on RefreshTokenError even with a stale user.id', () => {
+      mockUseSession.mockReturnValue(
+        fromPartial<SessionContextValue>({
+          data: {
+            error: 'RefreshTokenError',
+            user: { id: '999998', isMentor: true },
+          },
+          status: 'authenticated',
+        })
+      );
+
+      render(<PageViewTracker gaId="G-TEST866001" />);
+
+      expect(mockGtag).toHaveBeenNthCalledWith(1, 'config', 'G-TEST866001', {
+        send_page_view: false,
+        user_id: null,
+        user_role: 'guest',
+      });
+      expect(Sentry.setUser).toHaveBeenCalledWith(null);
+      expect(Sentry.setTag).toHaveBeenCalledWith('user_role', 'guest');
+    });
+
+    it('re-syncs user_role when isMentor flips on the same session', () => {
+      mockUseSession.mockReturnValue(
+        fromPartial<SessionContextValue>({
+          data: { user: { id: '777001', isMentor: false } },
+          status: 'authenticated',
+        })
+      );
+      const { rerender } = render(<PageViewTracker gaId="G-TEST866001" />);
+
+      mockUseSession.mockReturnValue(
+        fromPartial<SessionContextValue>({
+          data: { user: { id: '777001', isMentor: true } },
+          status: 'authenticated',
+        })
+      );
+      rerender(<PageViewTracker gaId="G-TEST866001" />);
+
+      expect(mockGtag).toHaveBeenLastCalledWith('config', 'G-TEST866001', {
+        send_page_view: false,
+        user_id: '777001',
+        user_role: 'mentor',
+      });
+      expect(Sentry.setTag).toHaveBeenLastCalledWith('user_role', 'mentor');
+    });
   });
 });

@@ -26,14 +26,8 @@ vi.mock('next-auth/react', () => ({
   ),
 }));
 
-vi.mock('@/components/AnalyticsUserSync', () => ({
-  default: () => null,
-}));
-vi.mock('@/components/SentryUserSync', () => ({
-  default: () => <div data-testid="sentry-user-sync" />,
-}));
 vi.mock('@/components/PageViewTracker', () => ({
-  default: () => null,
+  default: () => <div data-testid="page-view-tracker" />,
 }));
 vi.mock('@/components/WebVitalsReporter', () => ({
   default: () => null,
@@ -79,7 +73,7 @@ describe('NextAuthProvider', () => {
     );
 
     expect(screen.getByText('app-child')).toBeInTheDocument();
-    expect(screen.getByTestId('sentry-user-sync')).toBeInTheDocument();
+    expect(screen.getAllByTestId('page-view-tracker')).toHaveLength(1);
     expect(screen.getByTestId('session-error-watcher')).toBeInTheDocument();
     expect(screen.getByTestId('session-provider')).toHaveAttribute(
       'data-refetch-on-window-focus',

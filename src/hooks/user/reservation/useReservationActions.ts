@@ -1,11 +1,14 @@
 import { useCallback } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
-import { useAsyncAction } from '@/hooks/useAsyncAction';
+import { ConcurrentActionError, useAsyncAction } from '@/hooks/useAsyncAction';
 import { trackEvent } from '@/lib/analytics';
 import {
-  acceptReservation,
-  rejectOrCancelReservation,
+  executeReservationDecision,
+  type ReservationDecisionKind,
+  type ReservationDecisionResult,
+} from '@/lib/reservation/executeReservationDecision';
+import {
   submitReservationFeedback,
   updateReservationFeedback,
 } from '@/services/reservations';
@@ -18,6 +21,14 @@ import type {
 export type Variant =
   'upcoming' | 'pending-mentee' | 'pending-mentor' | 'history';
 
+/**
+ * What a decision call resolves to: the pure module's named result, or
+ * `in_flight` when the adapter's re-entry guard dropped a second click.
+ * Decision calls never reject - every outcome is already toasted here.
+ */
+export type ReservationDecisionAttempt =
+  ReservationDecisionResult | { ok: false; reason: 'in_flight' };
+
 interface UseReservationActionsProps {
   myUserId: string | undefined;
   variant?: Variant;
@@ -29,12 +40,15 @@ interface UseReservationActionsProps {
 }
 
 interface UseReservationActionsReturn {
-  accept: (reservation: Reservation, message: string) => Promise<void>;
+  accept: (
+    reservation: Reservation,
+    message: string
+  ) => Promise<ReservationDecisionAttempt>;
   rejectOrCancel: (
     reservation: Reservation,
     text: string,
     action: 'reject' | 'cancel'
-  ) => Promise<void>;
+  ) => Promise<ReservationDecisionAttempt>;
   submitFeedback: (
     reservation: Reservation,
     payload: SubmitReservationFeedbackRequest
@@ -46,59 +60,79 @@ interface UseReservationActionsReturn {
   isMutating: boolean;
 }
 
+/**
+ * Single React adapter over `executeReservationDecision` (#977): owns the
+ * re-entry guard, the success / failure toast, and the post-success
+ * callback for accept / reject / cancel. Callers never need an extra
+ * wrapper to turn a 409 into a toast.
+ *
+ * Feedback mutations keep rethrowing - `useMeetingFeedbackForm` owns their
+ * conflict and business-rule classification.
+ */
 export function useReservationActions({
   myUserId,
   myRole,
   onMutationSuccess,
 }: UseReservationActionsProps): UseReservationActionsReturn {
   const { toast } = useToast();
-  // No errorMessage/errorTitle here: the caller (a reservation confirm
-  // dialog via useConfirmActionDialog) already owns the sole user-facing
-  // error toast for this action, keyed off the same rethrown error. Adding
-  // one here too would show two toasts back-to-back for every failure.
   const { run, isPending: isMutating } = useAsyncAction({
     throwError: true,
   });
 
-  const accept = useCallback(
-    async (reservation: Reservation, message: string) => {
-      await run(async () => {
-        await acceptReservation({
-          message,
-          reservation,
-          myUserId,
-          myRole,
+  const decide = useCallback(
+    async (
+      kind: ReservationDecisionKind,
+      reservation: Reservation,
+      text: string
+    ): Promise<ReservationDecisionAttempt> => {
+      try {
+        return await run(async () => {
+          const result = await executeReservationDecision({
+            kind,
+            reservation,
+            myUserId,
+            myRole,
+            text,
+          });
+
+          if (!result.ok) {
+            toast({ variant: 'destructive', description: result.message });
+            return result;
+          }
+
+          toast({ ...result.notice });
+          try {
+            await onMutationSuccess?.(reservation.id);
+          } catch (callbackError) {
+            // The write itself succeeded and was already confirmed to the
+            // user; a failing follow-up refresh must not flip that result.
+            console.error(
+              '[useReservationActions] onMutationSuccess failed:',
+              callbackError instanceof Error ? callbackError.name : 'unknown'
+            );
+          }
+          return result;
         });
-        toast({
-          title: '已接受預約',
-          description: '會議連結將於數分鐘內寄至雙方信箱',
-        });
-        await onMutationSuccess?.(reservation.id);
-      });
+      } catch (error) {
+        if (error instanceof ConcurrentActionError) {
+          return { ok: false, reason: 'in_flight' };
+        }
+        throw error;
+      }
     },
     [run, myUserId, myRole, toast, onMutationSuccess]
   );
 
+  const accept = useCallback(
+    (reservation: Reservation, message: string) =>
+      decide('accept', reservation, message),
+    [decide]
+  );
+
   const rejectOrCancel = useCallback(
-    async (
-      reservation: Reservation,
-      text: string,
-      action: 'reject' | 'cancel'
-    ) => {
-      await run(async () => {
-        await rejectOrCancelReservation({
-          text,
-          reservation,
-          myUserId,
-          myRole,
-        });
-        const successMessage =
-          action === 'reject' ? '已拒絕預約' : '已取消預約';
-        toast({ description: successMessage });
-        await onMutationSuccess?.(reservation.id);
-      });
-    },
-    [run, myUserId, myRole, toast, onMutationSuccess]
+    (reservation: Reservation, text: string, action: 'reject' | 'cancel') =>
+      decide(action, reservation, text),
+    [decide]
   );
 
   const submitFeedback = useCallback(

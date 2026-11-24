@@ -1,18 +1,22 @@
 import type { ErrorEvent, EventHint } from '@sentry/nextjs';
 
+import { sanitizeAnalyticsUserId } from '@/lib/analytics';
 import { sanitize } from '@/lib/monitoring';
 
 const SENSITIVE_KEY_PATTERN =
   /(?:^|[_-])(?:authorization|cookie|set-cookie|x-api-key|x-auth-token|password|passwd|pwd|secret|token|access_token|refresh_token|id_token|api_key|apikey|email|ip_address)(?:$|[_-])/i;
 
-const SAFE_SENTRY_USER_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 const MAX_SCRUB_DEPTH = 8;
 
+/**
+ * Validates an internal opaque User ID for the Sentry user context under the
+ * exact same strict rule as GA4 `user_id` (`sanitizeAnalyticsUserId`): rejects
+ * sentinel strings (`'null'`, `'undefined'`, `'0'`, `'guest'`, ...), emails,
+ * JWTs, token-like values, real names, and empty values so no PII reaches Sentry.
+ */
 export function sanitizeSentryUserId(raw: unknown): string | null {
   if (typeof raw !== 'string' && typeof raw !== 'number') return null;
-  const trimmed = String(raw).trim();
-  if (!trimmed || trimmed.includes('@')) return null;
-  return SAFE_SENTRY_USER_ID_RE.test(trimmed) ? trimmed : null;
+  return sanitizeAnalyticsUserId(raw);
 }
 
 function scrubUnknownValue(

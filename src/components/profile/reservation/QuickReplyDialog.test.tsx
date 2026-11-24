@@ -4,10 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { trackEvent } from '@/lib/analytics';
-import {
-  RESERVATION_CONFLICT_MESSAGE,
-  ReservationVersionConflictError,
-} from '@/services/reservations';
+import { RESERVATION_CONFLICT_MESSAGE } from '@/services/reservations';
 import { mockToast } from '@/test/mocks/useToast';
 import type { Reservation } from '@/types/reservation';
 
@@ -289,12 +286,17 @@ describe('QuickReplyDialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it('keeps the dialog open when accept fails (onMutationSuccess is never invoked)', async () => {
+  it('keeps the dialog open when accept resolves a named failure, leaving the toast to useReservationActions (#977)', async () => {
     const onMutationSuccess = vi.fn();
     const onOpenChange = vi.fn();
 
     vi.mocked(useReservationActions).mockReturnValue({
-      accept: vi.fn().mockRejectedValue(new Error('accept failed')),
+      accept: vi.fn().mockResolvedValue({
+        ok: false,
+        kind: 'accept',
+        reason: 'api_error',
+        message: '接受預約失敗,請稍後再試',
+      }),
       rejectOrCancel: mockRejectOrCancel,
       submitFeedback: mockSubmitFeedback,
       updateFeedback: mockUpdateFeedback,
@@ -317,24 +319,25 @@ describe('QuickReplyDialog', () => {
 
     expect(onMutationSuccess).not.toHaveBeenCalled();
     expect(onOpenChange).not.toHaveBeenCalled();
-    expect(mockToast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        variant: 'destructive',
-        description: '接受預約失敗,請稍後再試',
-      })
-    );
+    expect(mockToast).not.toHaveBeenCalled();
   });
 
-  it('displays the version conflict toast when accept fails with ReservationVersionConflictError (409)', async () => {
+  it('does not wrap accept with its own 409 toast: a version_conflict result keeps the dialog open and the adapter owns the toast (#977)', async () => {
+    const onOpenChange = vi.fn();
     vi.mocked(useReservationActions).mockReturnValue({
-      accept: vi.fn().mockRejectedValue(new ReservationVersionConflictError()),
+      accept: vi.fn().mockResolvedValue({
+        ok: false,
+        kind: 'accept',
+        reason: 'version_conflict',
+        message: RESERVATION_CONFLICT_MESSAGE,
+      }),
       rejectOrCancel: mockRejectOrCancel,
       submitFeedback: mockSubmitFeedback,
       updateFeedback: mockUpdateFeedback,
       isMutating: false,
     });
 
-    render(<QuickReplyDialog {...defaultProps} />);
+    render(<QuickReplyDialog {...defaultProps} onOpenChange={onOpenChange} />);
 
     const acceptBtn = screen.getByRole('button', { name: '接受' });
     await act(async () => {
@@ -342,12 +345,31 @@ describe('QuickReplyDialog', () => {
       await Promise.resolve();
     });
 
-    expect(mockToast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        variant: 'destructive',
-        description: RESERVATION_CONFLICT_MESSAGE,
-      })
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it('tracks feature_opened with dialog=quick_reply when opened, and again when reused for another reservation (#977)', () => {
+    const { rerender } = render(<QuickReplyDialog {...defaultProps} />);
+
+    expect(trackEvent).toHaveBeenCalledWith({
+      name: 'feature_opened',
+      feature: 'reservation',
+      metadata: { dialog: 'quick_reply' },
+    });
+    expect(trackEvent).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <QuickReplyDialog
+        {...defaultProps}
+        reservation={{ ...mockReservation, id: 'res-104' }}
+      />
     );
+    expect(trackEvent).toHaveBeenCalledTimes(2);
+
+    vi.mocked(trackEvent).mockClear();
+    rerender(<QuickReplyDialog {...defaultProps} open={false} />);
+    expect(trackEvent).not.toHaveBeenCalled();
   });
 
   it('clears the reply draft when the shared dialog is reused for a different reservation', () => {
@@ -461,7 +483,7 @@ describe('QuickReplyDialog', () => {
   // Counterparty resolution and the profile link's click-invalidation
   // conditions (mutation in flight, modifier-key / non-left click) are owned
   // and tested by resolveReservationViewer
-  // (src/lib/reservation/reservationViewerModel.test.ts). This is a single
+  // (src/lib/reservation/reservationProjection.test.ts). This is a single
   // thin rendering-level check that the dialog is actually wired to it.
   it('calls onOpenChange(false) when clicking the profile link under non-mutating state', () => {
     const mockOnOpenChange = vi.fn();

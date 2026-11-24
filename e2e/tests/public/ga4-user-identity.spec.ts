@@ -270,7 +270,7 @@ test.describe('GA4 會員身分識別 user_id、user_role 與 login/sign_up 認�
       page.locator('a[data-analytics-click="mentor_card"]').first()
     ).toBeVisible({ timeout: 15_000 });
 
-    // 1. 驗證 AnalyticsUserSync 已將內部 user_id 與 user_role='mentor' 同步至 GA4 config / set，且首筆進站 page_view 已附帶 user_id 與 user_role
+    // 1. 驗證 TelemetrySessionCoordinator（PageViewTracker 轉接器）已將內部 user_id 與 user_role='mentor' 同步至 GA4 config / set，且首筆進站 page_view 已附帶 user_id 與 user_role
     await expect
       .poll(async () => {
         const { userSyncs } = await readPageDataLayer(page);

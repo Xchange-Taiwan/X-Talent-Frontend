@@ -1,6 +1,57 @@
 import { describe, expect, it } from 'vitest';
 
-import { sanitizeSentryEvent } from './sentrySanitize';
+import { sanitizeAnalyticsUserId } from '@/lib/analytics';
+
+import { sanitizeSentryEvent, sanitizeSentryUserId } from './sentrySanitize';
+
+describe('sanitizeSentryUserId (#979 strict opaque ID rule)', () => {
+  it.each([
+    'null',
+    'NULL',
+    'undefined',
+    '0',
+    '000',
+    'guest',
+    'Guest',
+    'anonymous',
+    'NaN',
+    'person@example.com',
+    'person%40example.com',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.sig',
+    'eyJhbGciOiJIUzI1NiJ9',
+    'mock-access-token',
+    'Alice Chen',
+    '王小明',
+    '',
+    '   ',
+  ])('rejects %j', (unsafeId) => {
+    expect(sanitizeSentryUserId(unsafeId)).toBeNull();
+  });
+
+  it.each([null, undefined, 0, -1, 1.5, {}, ['user_42'], true])(
+    'rejects non-opaque value %j',
+    (unsafeValue) => {
+      expect(sanitizeSentryUserId(unsafeValue)).toBeNull();
+    }
+  );
+
+  it('accepts internal opaque IDs and matches the GA4 user_id rule exactly', () => {
+    for (const id of ['user_42', '999998', '7482008160728084', 'a-b_C9']) {
+      expect(sanitizeSentryUserId(id)).toBe(id);
+      expect(sanitizeSentryUserId(id)).toBe(sanitizeAnalyticsUserId(id));
+    }
+    expect(sanitizeSentryUserId('  user_42  ')).toBe('user_42');
+    expect(sanitizeSentryUserId(999998)).toBe('999998');
+  });
+
+  it('drops sentinel user ids from outgoing Sentry events', () => {
+    for (const id of ['null', '0', 'guest', 'undefined']) {
+      expect(
+        sanitizeSentryEvent({ user: { id } } as never).user
+      ).toBeUndefined();
+    }
+  });
+});
 
 describe('sanitizeSentryEvent', () => {
   it('scrubs sensitive tokens and passwords from message, exception values, request URLs, and breadcrumbs', () => {

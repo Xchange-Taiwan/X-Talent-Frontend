@@ -11,7 +11,7 @@ import {
   feedbackSessionCoordinator,
   shouldSuppressPendingFeedbackPopup,
 } from '@/lib/reservation/feedbackSessionCoordinator';
-import { resolveFeedbackViewerRole } from '@/lib/reservation/resolveCounterparty';
+import { resolveFeedbackViewerRole } from '@/lib/reservation/reservationProjection';
 import type { Reservation } from '@/types/reservation';
 import type { SubmitReservationFeedbackRequest } from '@/types/reservationFeedback';
 
