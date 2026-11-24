@@ -52,3 +52,16 @@ export const Disabled: Story = {
     disabled: true,
   },
 };
+
+// 4. Decision failed: a named `{ ok: false }` result (e.g. 409 version conflict) keeps the dialog open (#977).
+export const DecisionFailedStaysOpen: Story = {
+  args: {
+    reservation: mockReservation,
+    onReject: async () => ({
+      ok: false,
+      kind: 'reject',
+      reason: 'version_conflict',
+      message: '資料已被更新，請重新確認後再試一次',
+    }),
+  },
+};

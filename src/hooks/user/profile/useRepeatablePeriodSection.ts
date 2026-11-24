@@ -1,8 +1,7 @@
-import { useFieldArray } from 'react-hook-form';
+import { useFieldArray, type UseFormReturn } from 'react-hook-form';
 
 import { useToast } from '@/components/ui/use-toast';
-import { ProfileFormContext } from '@/hooks/user/profile/useProfileEditorSession';
-import { ProfileFormInput, ProfileFormValues } from '@/schemas/profileSchema';
+import { type ProfileFormValues } from '@/schemas/profileSchema';
 
 export type RepeatableArrayPath = 'work_experiences' | 'educations';
 
@@ -34,13 +33,13 @@ function getPeriodEndPath(
 }
 
 export function useRepeatablePeriodSection<K extends RepeatableArrayPath>(
-  form: ProfileFormContext,
+  form: UseFormReturn<ProfileFormValues>,
   config: RepeatablePeriodConfig<K>
 ) {
   const { control } = form;
   const { toast } = useToast();
 
-  const { fields, append, remove, move } = useFieldArray<ProfileFormInput, K>({
+  const { fields, append, remove, move } = useFieldArray<ProfileFormValues, K>({
     control,
     name: config.arrayName,
   });

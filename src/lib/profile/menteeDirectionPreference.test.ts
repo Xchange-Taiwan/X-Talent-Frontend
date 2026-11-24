@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildMenteeDirectionReadGroups,
   computeDirectionSelectLimit,
   flattenDirectionBucket,
   hydrateMenteeDirectionMap,
@@ -181,5 +182,97 @@ describe('menteeDirectionPreference (#828 / #959)', () => {
     writeStoredMenteeDirectionMap(42, sample, writeRaw);
     expect(readStoredMenteeDirectionMap(42, readRaw)).toEqual(sample);
     expect(readStoredMenteeDirectionMap(999, readRaw)).toBeNull();
+    expect(readStoredMenteeDirectionMap(null, readRaw)).toBeNull();
+  });
+
+  it('isolates Object.prototype keys (__proto__, constructor, prototype, toString) without polluting or throwing (#980)', () => {
+    const mockStore: Record<string, string> = {
+      'xtalent:mentee-direction-map:v1:202':
+        '{"__proto__":{"skills":["hacked"],"topics":[]},"constructor":{"skills":["bad"],"topics":[]},"prototype":{"skills":["bad2"],"topics":[]},"uiux":{"skills":["ux_research"],"topics":["portfolio"]}}',
+      'xtalent:mentee-direction-map:v1:999': '{malformed-json',
+    };
+    const reader = (key: string) => mockStore[key] ?? null;
+
+    const parsed = readStoredMenteeDirectionMap(202, reader);
+    expect(parsed).toEqual({
+      uiux: {
+        skills: ['ux_research'],
+        topics: ['portfolio'],
+      },
+    });
+    expect(parsed ? Object.hasOwn(parsed, '__proto__') : false).toBe(false);
+    expect(parsed ? Object.hasOwn(parsed, 'constructor') : false).toBe(false);
+    expect(parsed ? Object.hasOwn(parsed, 'prototype') : false).toBe(false);
+    expect(readStoredMenteeDirectionMap(999, reader)).toBeNull();
+
+    const safeGroups = buildMenteeDirectionReadGroups({
+      positions: [
+        { subject_group: 'constructor', subject: 'Constructor Role' },
+        { subject_group: 'toString', subject: 'ToString Role' },
+      ],
+      skills: [],
+      topics: [],
+      storedMap: {},
+    });
+    expect(safeGroups).toHaveLength(2);
+    expect(safeGroups[0].totalCount).toBe(0);
+    expect(safeGroups[1].totalCount).toBe(0);
+  });
+
+  it('builds MenteeDirectionReadGroups and reconciles unassigned TagDisplay items onto primary position (#960 / #980)', () => {
+    expect(
+      buildMenteeDirectionReadGroups({
+        positions: [],
+        skills: [{ subject_group: 'ux', subject: 'UX Research' }],
+        topics: [{ subject_group: 'portfolio', subject: '作品集檢視' }],
+      })
+    ).toEqual([]);
+
+    const groups = buildMenteeDirectionReadGroups({
+      positions: [
+        { subject_group: 'uiux', subject: '產品設計／UIUX' },
+        { subject_group: 'fe', subject: '前端工程' },
+      ],
+      skills: [
+        { subject_group: 'ux_research', subject: 'UX Research' },
+        { subject_group: 'design_system', subject: '設計系統' },
+        { subject_group: 'react', subject: 'React' },
+        { subject_group: 'legacy_skill', subject: 'Figma' },
+      ],
+      topics: [
+        { subject_group: 'portfolio', subject: '作品集檢視' },
+        { subject_group: 'career', subject: '職涯規劃' },
+      ],
+      storedMap: {
+        uiux: {
+          skills: ['ux_research', 'design_system', 'stale_removed'],
+          topics: ['portfolio'],
+        },
+        fe: {
+          skills: ['react'],
+          topics: ['career'],
+        },
+      },
+    });
+
+    expect(groups).toHaveLength(2);
+    expect(groups[0]).toEqual({
+      key: 'uiux',
+      label: '產品設計／UIUX',
+      skills: [
+        { subject_group: 'ux_research', subject: 'UX Research' },
+        { subject_group: 'design_system', subject: '設計系統' },
+        { subject_group: 'legacy_skill', subject: 'Figma' },
+      ],
+      topics: [{ subject_group: 'portfolio', subject: '作品集檢視' }],
+      totalCount: 4,
+    });
+    expect(groups[1]).toEqual({
+      key: 'fe',
+      label: '前端工程',
+      skills: [{ subject_group: 'react', subject: 'React' }],
+      topics: [{ subject_group: 'career', subject: '職涯規劃' }],
+      totalCount: 2,
+    });
   });
 });

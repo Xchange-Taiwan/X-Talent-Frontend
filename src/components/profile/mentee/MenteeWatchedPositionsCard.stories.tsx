@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import { useState } from 'react';
 
-import type { MenteeDirectionReadGroup } from '@/lib/profile/menteeDirectionView';
+import type { MenteeDirectionReadGroup } from '@/lib/profile/menteeDirectionPreference';
 
 import { MenteeWatchedPositionsCard } from './MenteeWatchedPositionsCard';
 

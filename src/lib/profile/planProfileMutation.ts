@@ -19,38 +19,18 @@ import {
   type ProfileDirtyFields,
   resolveOptimisticIndustry,
 } from '@/lib/profile/profileSaveAdapter';
-import type { OnboardingFormValues } from '@/schemas/onboarding';
 import type { ProfileFormValues } from '@/schemas/profileSchema';
 import { ExperienceType } from '@/services/profile/experienceType';
 import type { MentorProfileWritePayload } from '@/services/profile/updateProfile';
 import type { IndustryOption } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
 
-export type MenteeOnboardingIntentValues = Pick<
-  OnboardingFormValues,
-  | 'name'
-  | 'avatar'
-  | 'avatarFile'
-  | 'language'
-  | 'location'
-  | 'years_of_experience'
-  | 'industry'
-  | 'want_position'
-  | 'want_skill'
-  | 'want_topic'
->;
-
-export type ProfileMutationIntent =
-  | {
-      mode: 'edit' | 'mentor-onboarding';
-      values: ProfileFormValues;
-      dirtyFields?: ProfileDirtyFields;
-      currentDto?: MentorProfileVO | null;
-    }
-  | {
-      mode: 'mentee-onboarding';
-      values: MenteeOnboardingIntentValues;
-    };
+export interface ProfileMutationIntent {
+  mode: 'edit' | 'mentor-onboarding' | 'mentee-onboarding';
+  values: ProfileFormValues;
+  dirtyFields?: ProfileDirtyFields;
+  currentDto?: MentorProfileVO | null;
+}
 
 export interface PlanProfileMutationContext {
   pageUserId?: string;
@@ -91,7 +71,7 @@ function resolveCleanWorkField(
 }
 
 function buildMenteeOnboardingWritePayload(
-  values: MenteeOnboardingIntentValues,
+  values: ProfileFormValues,
   wireAvatar: string,
   language: string
 ): MentorProfileWritePayload {
@@ -159,140 +139,52 @@ export function planProfileMutation(
   const previousAvatar = previousAvatarRaw
     ? (toPresetAvatarCode(previousAvatarRaw) ?? previousAvatarRaw)
     : '';
+  const resolvedLanguage = isMenteeOnboarding
+    ? intent.values.language || 'zh_TW'
+    : 'zh_TW';
 
-  if (isMenteeOnboarding) {
-    const resolvedLanguage = intent.values.language || 'zh_TW';
-    const wirePayload = buildMenteeOnboardingWritePayload(
-      intent.values,
-      wireAvatar,
-      resolvedLanguage
-    );
+  const dirty = isMenteeOnboarding
+    ? null
+    : evaluateProfileDirtyState(
+        intent.values,
+        intent.dirtyFields,
+        isMentorOnboarding,
+        Boolean(uploadedAvatarUrl)
+      );
+  const experiencesDirty = dirty?.experiencesDirty ?? false;
+  const shouldWriteProfile = dirty ? dirty.profileDirty : true;
 
-    const fallbackAvatar =
-      sessionUser?.avatar || (wireAvatar ? wireAvatar : null);
-    const didAvatarChange =
-      Boolean(intent.values.avatarFile) ||
-      Boolean(uploadedAvatarUrl) ||
-      (Boolean(wireAvatar) && wireAvatar !== previousAvatar);
+  const validLinks = isMenteeOnboarding ? [] : extractValidLinks(intent.values);
+  const encodedExperiences = isMenteeOnboarding
+    ? null
+    : encode({
+        workExperiences: intent.values.work_experiences ?? [],
+        educations: intent.values.educations ?? [],
+        personalLinks: validLinks,
+      });
 
-    const identitySnapshot = deriveOptimisticIdentitySnapshot({
-      name: intent.values.name,
-      avatarUrl: wireAvatar ? wireAvatar : undefined,
-      avatarUpdatedAt: didAvatarChange ? now() : sessionUser?.avatarUpdatedAt,
-      isMentorOnboarding: false,
-      fallbackAvatar,
-      fallbackIsMentor: false,
-      fallbackOnBoarding: true,
-      jobTitle: undefined,
-      company: undefined,
-      personalLinks: [],
-    });
+  const wirePayload = isMenteeOnboarding
+    ? buildMenteeOnboardingWritePayload(
+        intent.values,
+        wireAvatar,
+        resolvedLanguage
+      )
+    : composeProfileWritePayload(
+        intent.values,
+        encodedExperiences!,
+        wireAvatar,
+        experiencesDirty,
+        currentDto,
+        isMentorOnboarding
+      );
 
-    const optimisticIndustry = resolveOptimisticIndustry(
-      intent.values.industry,
-      industryCatalog,
-      undefined,
-      true
-    );
-
-    const optimisticDto: MentorProfileVO = {
-      user_id: resolvedUserId,
-      name: identitySnapshot.name,
-      avatar: identitySnapshot.avatar,
-      job_title: null,
-      company: null,
-      years_of_experience: intent.values.years_of_experience || null,
-      location: intent.values.location || null,
-      personal_statement: null,
-      about: null,
-      seniority_level: null,
-      onboarding: true,
-      is_mentor: false,
-      language: resolvedLanguage,
-      industry: optimisticIndustry,
-      want_position: wirePayload.want_position ?? [],
-      want_skill: wirePayload.want_skill ?? [],
-      want_topic: wirePayload.want_topic ?? [],
-      have_skill: [],
-      have_topic: [],
-      experiences: [],
-    };
-
-    const expectedRecordDto: Partial<MentorProfileVO> = {
-      name: optimisticDto.name,
-      avatar: wireAvatar ? wireAvatar : undefined,
-      location: optimisticDto.location,
-      years_of_experience: optimisticDto.years_of_experience,
-      personal_statement: optimisticDto.personal_statement,
-      about: optimisticDto.about,
-      industry: optimisticDto.industry,
-      want_position: optimisticDto.want_position,
-      want_skill: optimisticDto.want_skill,
-      want_topic: optimisticDto.want_topic,
-      have_skill: optimisticDto.have_skill,
-      have_topic: optimisticDto.have_topic,
-      job_title: undefined,
-      company: undefined,
-      experiences: undefined,
-      is_mentor: false,
-      onboarding: true,
-    };
-
-    return {
-      shouldWriteProfile: true,
-      experiencesDirty: false,
-      wirePayload,
-      identitySnapshot,
-      optimisticDto,
-      expectedRecordDto,
-      cardFields: {
-        name: wirePayload.name,
-        jobTitle: '',
-        company: '',
-        about: wirePayload.about,
-        yearsOfExperience: wirePayload.years_of_experience,
-        haveTopic: [],
-        haveSkill: [],
-        avatar: wireAvatar,
-      },
-      resolvedPageUserId,
-      validSessionUserId,
-      resolvedUserId,
-      hasValidResolvedUserId,
-      resolvedLanguage,
-      isMentorOnboarding: false,
-    };
-  }
-
-  // Single-pass dirty evaluation + experience/link encoding for edit & mentor-onboarding
-  const dirty = evaluateProfileDirtyState(
-    intent.values,
-    intent.dirtyFields,
-    isMentorOnboarding,
-    Boolean(uploadedAvatarUrl)
-  );
-  const { hasExplicitDirtyFields, experiencesDirty } = dirty;
-
-  const validLinks = extractValidLinks(intent.values);
-  const encodedExperiences = encode({
-    workExperiences: intent.values.work_experiences ?? [],
-    educations: intent.values.educations ?? [],
-    personalLinks: validLinks,
-  });
-
-  const wirePayload = composeProfileWritePayload(
-    intent.values,
-    encodedExperiences,
-    wireAvatar,
-    experiencesDirty,
-    currentDto,
-    isMentorOnboarding
-  );
-
-  const avatarClearIntent = hasExplicitDirtyFields
-    ? dirty.avatar
-    : Boolean(previousAvatar);
+  const avatarClearIntent = dirty
+    ? dirty.hasExplicitDirtyFields
+      ? dirty.avatar
+      : Boolean(previousAvatar)
+    : false;
   const avatarExplicitlyCleared =
+    !isMenteeOnboarding &&
     avatarClearIntent &&
     !wireAvatar &&
     !intent.values.avatarFile &&
@@ -310,40 +202,46 @@ export function planProfileMutation(
     Boolean(uploadedAvatarUrl) ||
     (Boolean(wireAvatar) && wireAvatar !== previousAvatar);
 
-  const optimisticJobTitle = dirty.work
-    ? wirePayload.job_title || undefined
-    : resolveCleanWorkField(
-        currentDto?.job_title,
-        sessionUser?.jobTitle,
-        wirePayload.job_title
-      );
+  const optimisticJobTitle = isMenteeOnboarding
+    ? undefined
+    : dirty?.work
+      ? wirePayload.job_title || undefined
+      : resolveCleanWorkField(
+          currentDto?.job_title,
+          sessionUser?.jobTitle,
+          wirePayload.job_title
+        );
 
-  const optimisticCompany = dirty.work
-    ? wirePayload.company || undefined
-    : resolveCleanWorkField(
-        currentDto?.company,
-        sessionUser?.company,
-        wirePayload.company
-      );
+  const optimisticCompany = isMenteeOnboarding
+    ? undefined
+    : dirty?.work
+      ? wirePayload.company || undefined
+      : resolveCleanWorkField(
+          currentDto?.company,
+          sessionUser?.company,
+          wirePayload.company
+        );
 
-  const optimisticPersonalLinks = experiencesDirty
-    ? validLinks.map((link) => ({
-        platform: link.platform,
-        url: link.url,
-      }))
-    : currentDto?.experiences !== undefined && currentDto.experiences !== null
-      ? decode(fromWireExperiences(currentDto.experiences)).personalLinks
-      : sessionUser?.personalLinks && sessionUser.personalLinks.length > 0
-        ? decode([
-            {
-              category: ExperienceType.LINK,
-              order: 3,
-              mentor_experiences_metadata: {
-                data: sessionUser.personalLinks,
+  const optimisticPersonalLinks = isMenteeOnboarding
+    ? []
+    : experiencesDirty
+      ? validLinks.map((link) => ({
+          platform: link.platform,
+          url: link.url,
+        }))
+      : currentDto?.experiences !== undefined && currentDto.experiences !== null
+        ? decode(fromWireExperiences(currentDto.experiences)).personalLinks
+        : sessionUser?.personalLinks && sessionUser.personalLinks.length > 0
+          ? decode([
+              {
+                category: ExperienceType.LINK,
+                order: 3,
+                mentor_experiences_metadata: {
+                  data: sessionUser.personalLinks,
+                },
               },
-            },
-          ]).personalLinks
-        : [];
+            ]).personalLinks
+          : [];
 
   const identitySnapshot = deriveOptimisticIdentitySnapshot({
     name: intent.values.name,
@@ -351,16 +249,18 @@ export function planProfileMutation(
     avatarUpdatedAt: didAvatarChange ? now() : sessionUser?.avatarUpdatedAt,
     isMentorOnboarding,
     fallbackAvatar,
-    fallbackIsMentor:
-      sessionUser?.isMentor ??
-      currentDto?.is_mentor ??
-      intent.values.is_mentor ??
-      false,
-    fallbackOnBoarding:
-      sessionUser?.onBoarding ??
-      currentDto?.onboarding ??
-      intent.values.onboarding ??
-      false,
+    fallbackIsMentor: isMenteeOnboarding
+      ? false
+      : (sessionUser?.isMentor ??
+        currentDto?.is_mentor ??
+        intent.values.is_mentor ??
+        false),
+    fallbackOnBoarding: isMenteeOnboarding
+      ? true
+      : (sessionUser?.onBoarding ??
+        currentDto?.onboarding ??
+        intent.values.onboarding ??
+        false),
     jobTitle: optimisticJobTitle,
     company: optimisticCompany,
     personalLinks: optimisticPersonalLinks,
@@ -370,11 +270,12 @@ export function planProfileMutation(
     intent.values.industry,
     industryCatalog,
     currentDto?.industry,
-    dirty.industry
+    dirty ? dirty.industry : true
   );
 
-  const resolvedExperiences =
-    wirePayload.experiences !== undefined
+  const resolvedExperiences = isMenteeOnboarding
+    ? []
+    : wirePayload.experiences !== undefined
       ? toWireExperiences(wirePayload.experiences)
       : currentDto?.experiences !== undefined && currentDto.experiences !== null
         ? currentDto.experiences
@@ -393,8 +294,6 @@ export function planProfileMutation(
             ])
           : null;
 
-  const resolvedLanguage = 'zh_TW';
-
   const optimisticDto: MentorProfileVO = {
     ...(currentDto ?? {}),
     user_id: resolvedUserId,
@@ -402,23 +301,28 @@ export function planProfileMutation(
     avatar: identitySnapshot.avatar,
     job_title: identitySnapshot.jobTitle ?? null,
     company: identitySnapshot.company ?? null,
-    years_of_experience: dirty.yearsOfExperience
-      ? wirePayload.years_of_experience || null
-      : wirePayload.years_of_experience ||
-        currentDto?.years_of_experience ||
-        null,
-    location: dirty.location
-      ? wirePayload.location || null
-      : wirePayload.location || currentDto?.location || null,
-    personal_statement:
-      dirty.statement && intent.values.statement !== undefined
+    years_of_experience:
+      !dirty || dirty.yearsOfExperience
+        ? wirePayload.years_of_experience || null
+        : wirePayload.years_of_experience ||
+          currentDto?.years_of_experience ||
+          null,
+    location:
+      !dirty || dirty.location
+        ? wirePayload.location || null
+        : wirePayload.location || currentDto?.location || null,
+    personal_statement: isMenteeOnboarding
+      ? null
+      : dirty?.statement && intent.values.statement !== undefined
         ? wirePayload.personal_statement || null
         : wirePayload.personal_statement ||
           currentDto?.personal_statement ||
           null,
-    about: dirty.about
-      ? wirePayload.about || null
-      : wirePayload.about || currentDto?.about || null,
+    about: isMenteeOnboarding
+      ? null
+      : !dirty || dirty.about
+        ? wirePayload.about || null
+        : wirePayload.about || currentDto?.about || null,
     seniority_level: currentDto?.seniority_level ?? null,
     onboarding: identitySnapshot.onBoarding,
     is_mentor: identitySnapshot.isMentor,
@@ -453,7 +357,7 @@ export function planProfileMutation(
   };
 
   return {
-    shouldWriteProfile: dirty.profileDirty,
+    shouldWriteProfile,
     experiencesDirty,
     wirePayload,
     identitySnapshot,

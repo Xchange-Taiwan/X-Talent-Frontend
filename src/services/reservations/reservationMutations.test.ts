@@ -56,8 +56,8 @@ import { captureFlowFailure } from '@/lib/monitoring';
 import { profileReadModel } from '@/lib/profile/profileReadModel';
 import type { RawMentorTimeslot } from '@/lib/profile/scheduleHelpers';
 import { feedbackSessionCoordinator } from '@/lib/reservation/feedbackSessionCoordinator';
+import { resolveCounterpartyId } from '@/lib/reservation/reservationProjection';
 import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
-import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import { loadMonthSchedule } from '@/services/mentor-schedule/sync';
 import * as reservationsBarrel from '@/services/reservations';
 import {
@@ -582,7 +582,7 @@ describe('submitReservationFeedback (#730)', () => {
     mentorPoolReadModel.clear();
     mentorFeedbackReadModel.clear();
     profileReadModel.clear();
-    clearPoolSpy = vi.spyOn(mentorPoolReadModel, 'clear');
+    clearPoolSpy = vi.spyOn(mentorPoolReadModel, 'invalidateAfterMutation');
   });
 
   afterEach(() => {
@@ -932,7 +932,7 @@ describe('updateReservationFeedback (#731)', () => {
     mentorFeedbackReadModel.clear();
     profileReadModel.clear();
     clearPoolSpy = vi
-      .spyOn(mentorPoolReadModel, 'clear')
+      .spyOn(mentorPoolReadModel, 'invalidateAfterMutation')
       .mockImplementation(() => {});
     invalidateFeedbackSpy = vi.spyOn(
       mentorFeedbackReadModel,
@@ -1203,7 +1203,10 @@ describe('updateReservationFeedback (#731)', () => {
   });
 
   it('supports Mentor Option A { meeting_happened: true } without payload.feedback and { meeting_happened: false } unpublishing (#740)', async () => {
-    const localClearPoolSpy = vi.spyOn(mentorPoolReadModel, 'clear');
+    const localClearPoolSpy = vi.spyOn(
+      mentorPoolReadModel,
+      'invalidateAfterMutation'
+    );
     const localInvalidateFeedbackSpy = vi.spyOn(
       mentorFeedbackReadModel,
       'invalidateMentor'

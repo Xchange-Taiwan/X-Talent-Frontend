@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   formatExperience,
   resolveCounterpartyProfile,
-} from '@/lib/reservation/resolveCounterparty';
+} from '@/lib/reservation/reservationProjection';
 import { formatDateTime, mapToReservation } from '@/services/reservations';
 import { components } from '@/types/api';
 

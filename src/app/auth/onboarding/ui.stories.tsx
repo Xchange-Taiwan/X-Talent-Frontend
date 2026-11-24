@@ -5,12 +5,11 @@ import { useForm } from 'react-hook-form';
 
 import type { MenteeDirectionMap } from '@/lib/profile/menteeDirectionPreference';
 import {
-  formSchema,
   onboardingDefaultValues,
-  type OnboardingFormInput,
-  type OnboardingFormValues,
+  onboardingFormSchema,
   type OnboardingRole,
-} from '@/schemas/onboarding';
+  type ProfileFormValues,
+} from '@/schemas/profileSchema';
 import type { TagCatalogGroupVO } from '@/types/tagCatalog';
 
 import OnboardingUI from './ui';
@@ -50,8 +49,8 @@ function OnboardingStoryDemo({
   initialRole: OnboardingRole;
   enableDualTrackRoleSelect?: boolean;
 }) {
-  const form = useForm<OnboardingFormInput, unknown, OnboardingFormValues>({
-    resolver: zodResolver(formSchema),
+  const form = useForm<ProfileFormValues>({
+    resolver: zodResolver(onboardingFormSchema),
     defaultValues: {
       ...onboardingDefaultValues,
       role: initialRole,
