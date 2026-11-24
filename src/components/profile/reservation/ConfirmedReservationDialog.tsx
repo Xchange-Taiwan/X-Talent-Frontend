@@ -12,7 +12,7 @@ import {
 import { useProfileLinkClick } from '@/hooks/reservation/useProfileLinkClick';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { useReservationMeetLink } from '@/hooks/user/reservation/useReservationMeetLink';
-import { resolveReservationViewer } from '@/lib/reservation/reservationViewerModel';
+import { resolveReservationViewer } from '@/lib/reservation/reservationProjection';
 import type { Reservation } from '@/types/reservation';
 
 interface ConfirmedReservationDialogProps {

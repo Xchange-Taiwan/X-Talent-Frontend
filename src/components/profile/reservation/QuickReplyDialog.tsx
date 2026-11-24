@@ -14,11 +14,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useConfirmActionDialog } from '@/hooks/reservation/useConfirmActionDialog';
 import { useProfileLinkClick } from '@/hooks/reservation/useProfileLinkClick';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
-import { resolveReservationViewer } from '@/lib/reservation/reservationViewerModel';
-import { quickReplyFormSchema } from '@/schemas/quickReplySchema';
+import { trackEvent } from '@/lib/analytics';
+import { validateReservationDecisionText } from '@/lib/reservation/executeReservationDecision';
+import { resolveReservationViewer } from '@/lib/reservation/reservationProjection';
 import type { Reservation } from '@/types/reservation';
 
 interface QuickReplyDialogProps {
@@ -53,25 +53,21 @@ export function QuickReplyDialog({
     },
   });
 
-  const { execute: executeAccept } = useConfirmActionDialog({
-    errorMessage: '接受預約失敗,請稍後再試',
-    open,
-    onOpenChange,
-    closeOnSuccess: false,
-  });
-
   const [replyOpen, setReplyOpen] = React.useState(false);
   const [reply, setReply] = React.useState('');
 
-  const parsedReply = quickReplyFormSchema.safeParse({ reply });
-  const replyError = parsedReply.success
-    ? undefined
-    : parsedReply.error.issues[0]?.message;
+  const replyValidation = validateReservationDecisionText('accept', reply);
+  const replyError = replyValidation.ok ? undefined : replyValidation.message;
 
   React.useEffect(() => {
-    if (!open) return;
+    if (!open || !reservation?.id) return;
     setReplyOpen(false);
     setReply('');
+    trackEvent({
+      name: 'feature_opened',
+      feature: 'reservation',
+      metadata: { dialog: 'quick_reply' },
+    });
   }, [open, reservation?.id]);
 
   const handleProfileLinkClick = useProfileLinkClick({
@@ -81,14 +77,12 @@ export function QuickReplyDialog({
 
   if (!reservation) return null;
 
+  // Toasts, 409 classification, and re-entry are owned by
+  // useReservationActions; success closes via onMutationSuccess above, and a
+  // named failure leaves the dialog (and the draft) open.
   const handleAccept = () => {
-    const validated = quickReplyFormSchema.safeParse({ reply });
-    if (!validated.success) return;
-    const trimmedReply = (validated.data.reply ?? '').trim();
-
-    void executeAccept(async () => {
-      await accept(reservation, trimmedReply);
-    });
+    if (!replyValidation.ok) return;
+    void accept(reservation, replyValidation.value);
   };
 
   // Block outside-click/Esc dismissal while a mutation is in flight: this
@@ -116,6 +110,7 @@ export function QuickReplyDialog({
             profileHref={profileHref}
             onProfileLinkClick={handleProfileLinkClick}
             disabled={isMutating}
+            variant="dialog"
             sourceRole="mentor"
           />
 

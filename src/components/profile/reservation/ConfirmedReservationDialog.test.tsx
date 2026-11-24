@@ -284,7 +284,7 @@ describe('ConfirmedReservationDialog', () => {
   // Counterparty resolution and the profile link's click-invalidation
   // conditions (mutation in flight, modifier-key / non-left click) are owned
   // and tested by resolveReservationViewer
-  // (src/lib/reservation/reservationViewerModel.test.ts). This is a single
+  // (src/lib/reservation/reservationProjection.test.ts). This is a single
   // thin rendering-level check that the dialog is actually wired to it.
   it('calls onOpenChange(false) when clicking the profile link under non-mutating state', () => {
     const mockOnOpenChange = vi.fn();

@@ -179,3 +179,11 @@ Every surface that shows a reservation to a mentor - `ConfirmedReservationDialog
 - `ConfirmedReservationDialog` and `QuickReplyDialog` (`src/components/profile/reservation/`) use `ReservationIdentity` with the `'dialog'` variant.
 - `AcceptReservationDialog` (`src/components/reservation/AcceptReservationDialog.tsx`) uses `ReservationIdentity` with the `'accept'` variant.
 - `ReservationCard` (`src/components/reservation/ReservationCard.tsx`) uses `ReservationIdentityHeader` directly (the `'card'` header variant), since its date/time and message layout diverges too far from the dialogs to share the outer `ReservationIdentity` wrapper.
+
+# Context: ReservationDecision
+
+**`executeReservationDecision`** (`src/lib/reservation/executeReservationDecision.ts`, X-Tracker #977) is the framework-free workflow for the three review decisions on an existing reservation: `accept`, `reject`, and `cancel`.
+
+- **Owns**: decision-text validation (`validateReservationDecisionText` - optional quick reply capped by `quickReplyFormSchema` for `accept`, required non-blank reason for `reject` / `cancel`), the write through an injectable **`ReservationDecisionPort`** (default adapter: `acceptReservation` / `rejectOrCancelReservation`), 409 version-conflict classification, and zero-PII telemetry (info-level Sentry event for conflicts, `upgradeClaritySession('reservation_decision_failed')` for any failure, no GA4 decision events per #950).
+- **Returns**: a named `ReservationDecisionResult` (`ok: true` with the success notice, or `invalid_input` / `version_conflict` / `api_error` with user-facing copy). It never throws.
+- **Single React adapter**: `useReservationActions` wraps it with the re-entry guard (`{ ok: false, reason: 'in_flight' }`), the success / failure toast, and `onMutationSuccess`. Dialogs (`AcceptReservationDialog`, `QuickReplyDialog`, and `ReservationReasonDialog` behind `RejectReservationDialog` / `CancelReservationDialog`) only keep themselves open when the callback resolves `{ ok: false }`; they never toast decision errors themselves.

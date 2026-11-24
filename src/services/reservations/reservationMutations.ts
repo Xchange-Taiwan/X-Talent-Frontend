@@ -22,13 +22,13 @@ import {
   ReservationVersionConflictError,
 } from '@/lib/reservation/reservationConflictError';
 import {
+  resolveCounterpartyId,
+  resolveTargetMentorId,
+} from '@/lib/reservation/reservationProjection';
+import {
   type ReservationReadKey,
   reservationReadModel,
 } from '@/lib/reservation/reservationReadModel';
-import {
-  resolveCounterpartyId,
-  resolveTargetMentorId,
-} from '@/lib/reservation/resolveCounterparty';
 import { loadMonthSchedule } from '@/services/mentor-schedule/sync';
 import type { components } from '@/types/api';
 import type { Reservation } from '@/types/reservation';
@@ -340,7 +340,7 @@ async function refreshMentorScheduleForReservation(
 function invalidateMentorPublicCaches(
   targetMentorId: number | undefined
 ): void {
-  mentorPoolReadModel.clear();
+  mentorPoolReadModel.invalidateAfterMutation();
   mentorFeedbackReadModel.invalidateMentor(targetMentorId);
   if (targetMentorId !== undefined) {
     profileReadModel.invalidateUser(targetMentorId);

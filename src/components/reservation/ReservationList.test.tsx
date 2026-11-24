@@ -346,7 +346,7 @@ describe('ReservationList', () => {
 
   // Counterparty resolution, the self-guard, and profile-link invalidation
   // conditions are all owned and tested by resolveReservationViewer
-  // (src/lib/reservation/reservationViewerModel.test.ts) - this is a single
+  // (src/lib/reservation/reservationProjection.test.ts) - this is a single
   // thin rendering-level check that ReservationList actually forwards
   // whatever the model resolves.
   it('forwards the resolved profileHref from resolveReservationViewer to the card', () => {
