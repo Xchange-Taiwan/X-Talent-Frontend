@@ -222,6 +222,27 @@ describe('Storybook stories coverage and state verification (#850)', () => {
     expect(
       MentorScheduleDialogStories.PartialMultiMonthSyncConflictError
     ).toBeDefined();
+    expect(MentorScheduleDialogStories.Saving.args?.schedule?.isSaving).toBe(
+      true
+    );
+
+    const savingOnOpenChange = vi.fn();
+    render(
+      <MentorScheduleDialog
+        open={true}
+        onOpenChange={savingOnOpenChange}
+        reader={MentorScheduleDialogStories.Saving.args!.reader!}
+        schedule={MentorScheduleDialogStories.Saving.args!.schedule!}
+      />
+    );
+    expect(screen.getByRole('button', { name: '儲存中...' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '取消' })).toBeDisabled();
+    fireEvent.keyDown(screen.getByRole('dialog', { name: '設定可預約時段' }), {
+      key: 'Escape',
+      code: 'Escape',
+    });
+    expect(savingOnOpenChange).not.toHaveBeenCalled();
+
     expect(AddSlotModalStories.DefaultEmptyDay).toBeDefined();
     expect(AddSlotModalStories.AfterExistingSlots).toBeDefined();
     expect(AddSlotModalStories.EarlyMonthWeeklyPreview).toBeDefined();

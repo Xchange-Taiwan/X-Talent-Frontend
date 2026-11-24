@@ -1,4 +1,3 @@
-import { fromPartial } from '@total-typescript/shoehorn';
 import dayjs from 'dayjs';
 import {
   afterAll,
@@ -13,7 +12,6 @@ import {
 import { ApiError } from '@/lib/apiClient';
 import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
 import type { ScheduleUpsertSlot } from '@/lib/profile/bookingAvailability/types';
-import type { RawMentorTimeslot } from '@/lib/profile/scheduleHelpers';
 
 import {
   deleteMentorSchedule,
@@ -21,9 +19,9 @@ import {
   saveMentorSchedule,
   type ScheduleData,
 } from './schedule';
+import * as syncModule from './sync';
 import {
   loadMonthSchedule,
-  loadMonthScheduleFresh,
   prefetchMonthSchedule,
   type ScheduleMonthRef,
   syncMonths,
@@ -139,81 +137,9 @@ describe('mentor-schedule sync', () => {
     });
   });
 
-  describe('loadMonthScheduleFresh', () => {
-    it('publishes the freshly fetched rows into the read model', async () => {
-      vi.mocked(fetchMentorSchedule).mockResolvedValue({
-        segments: segment(MAY_2026, 1),
-      });
-
-      const raws = await loadMonthScheduleFresh(ref);
-
-      expect(scheduleReadModel.get(ref)).toEqual(raws);
-      expect(raws.map((r) => r.id)).toEqual([1]);
-    });
-
-    it('bypasses a cache hit and overwrites it', async () => {
-      scheduleReadModel.set(ref, []);
-      vi.mocked(fetchMentorSchedule).mockResolvedValue({
-        segments: segment(MAY_2026, 1),
-      });
-
-      await loadMonthScheduleFresh(ref);
-
-      expect(fetchMentorSchedule).toHaveBeenCalledOnce();
-      expect(scheduleReadModel.get(ref)?.map((r) => r.id)).toEqual([1]);
-    });
-
-    it('notifies a live reader of the month it just rewrote', async () => {
-      const seen: (number[] | null)[] = [];
-      const leave = scheduleReadModel.subscribe(
-        ref,
-        () => Promise.resolve([]),
-        (result) => seen.push(result.data?.map((r) => r.id) ?? null)
-      );
-      await vi.waitFor(() => expect(scheduleReadModel.get(ref)).toBeDefined());
-      seen.length = 0;
-
-      vi.mocked(fetchMentorSchedule).mockResolvedValue({
-        segments: segment(MAY_2026, 1),
-      });
-      await loadMonthScheduleFresh(ref);
-
-      expect(seen).toEqual([[1]]);
-
-      leave();
-    });
-
-    it('is not overwritten by a slower, already in-flight fetch for the same month', async () => {
-      let resolveStaleFetch!: (raws: RawMentorTimeslot[]) => void;
-      const staleFetch = new Promise<RawMentorTimeslot[]>((resolve) => {
-        resolveStaleFetch = resolve;
-      });
-
-      // A component is already subscribed with a slow fetch in flight for
-      // this month (e.g. the calendar's own background load) when the sync
-      // below force-writes fresher rows.
-      const leave = scheduleReadModel.subscribe(
-        ref,
-        () => staleFetch,
-        () => {}
-      );
-
-      vi.mocked(fetchMentorSchedule).mockResolvedValue({
-        segments: segment(MAY_2026, 99),
-      });
-      await loadMonthScheduleFresh(ref);
-
-      expect(scheduleReadModel.get(ref)?.map((r) => r.id)).toEqual([99]);
-
-      // The stale fetch finally resolves with older rows - it must not
-      // clobber what the sync already published.
-      resolveStaleFetch([fromPartial<RawMentorTimeslot>({ id: 1 })]);
-      await Promise.resolve();
-      await Promise.resolve();
-
-      expect(scheduleReadModel.get(ref)?.map((r) => r.id)).toEqual([99]);
-
-      leave();
+  describe('pure transport boundary', () => {
+    it('does not expose loadMonthScheduleFresh bypass helper', () => {
+      expect('loadMonthScheduleFresh' in syncModule).toBe(false);
     });
   });
 
@@ -273,6 +199,8 @@ describe('mentor-schedule sync', () => {
       if (outcome.ok) {
         expect(outcome.raws.map((r) => r.id)).toEqual([10]);
       }
+      // Pure transport contract: syncMonthSchedule returns raws without mutating global scheduleReadModel
+      expect(scheduleReadModel.get(ref)).toBeUndefined();
 
       // Check the end of month unix derivation (2026-05-31T23:59:59.000Z)
       const expectedUntil = dayjs('2026-05-01')
@@ -452,6 +380,14 @@ describe('mentor-schedule sync', () => {
       if (results[1].outcome.ok) {
         expect(results[1].outcome.raws.map((r) => r.id)).toEqual([2]);
       }
+
+      // Pure transport contract: syncMonths does not write directly to global scheduleReadModel
+      expect(
+        scheduleReadModel.get({ userId: 'mentor_1', year: 2026, month: 5 })
+      ).toBeUndefined();
+      expect(
+        scheduleReadModel.get({ userId: 'mentor_1', year: 2026, month: 6 })
+      ).toBeUndefined();
     });
 
     it('should ensure earlier successes are NOT rolled back or aborted if a later month fails', async () => {
