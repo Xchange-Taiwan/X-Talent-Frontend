@@ -1,29 +1,43 @@
 'use client';
 
-// Coordinates GA4 / Clarity behavioral tracking across the application via
-// three focused internal hooks:
-//   1. `usePageViewTracking` — initial load + SPA route-change `page_view`
-//      with sync + async `/profile/[id]` title observation so user names never leak
-//   2. `useScrollDepthTracking` — rAF-throttled `scroll_depth` milestones
+// Single thin React / DOM adapter for site-wide telemetry (X-Tracker #979).
+//
+// All session identity transitions (GA4 / Clarity / Sentry) and the
+// `/profile/[id]` `document.title` masking state machine live in the
+// framework-free `telemetrySessionCoordinator`. This component only:
+//   1. feeds `useSession()` / `usePathname()` into the coordinator and wires
+//      the `<title>` `MutationObserver` + DOM read ports
+//   2. `useScrollDepthTracking` - rAF-throttled `scroll_depth` milestones
 //      (25/50/75/100) that emit every crossed threshold in ascending order
 //      and detach once 100% is reached
-//   3. `useAnalyticsClickDelegation` — capture-phase `[data-analytics-click]`
+//   3. `useAnalyticsClickDelegation` - capture-phase `[data-analytics-click]`
 //      delegation across the document
 
+import * as Sentry from '@sentry/nextjs';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
   getAnalyticsClickPayloadFromElement,
-  isUserProfilePath,
   SCROLL_DEPTH_THRESHOLDS,
+  setAnalyticsUserContext,
   trackButtonClick,
   trackPageView,
   trackScrollDepth,
 } from '@/lib/analytics';
+import {
+  createTelemetrySessionCoordinator,
+  type TelemetrySessionCoordinator,
+  type TelemetrySinkFailure,
+} from '@/lib/telemetrySessionCoordinator';
 
-export const INITIAL_SESSION_RESOLVE_TIMEOUT_MS = 1500;
+export { INITIAL_SESSION_RESOLVE_TIMEOUT_MS } from '@/lib/telemetrySessionCoordinator';
+
+export interface PageViewTrackerProps {
+  /** Optional GA4 Measurement ID override (defaults to active AnalyticsBootstrap ID or NEXT_PUBLIC_GA_ID). */
+  gaId?: string;
+}
 
 const MAX_SCROLL_THRESHOLD =
   SCROLL_DEPTH_THRESHOLDS[SCROLL_DEPTH_THRESHOLDS.length - 1];
@@ -41,128 +55,45 @@ function computeScrollPercent(): number | null {
   return Math.min(100, Math.round((scrollTop / scrollableHeight) * 100));
 }
 
-function usePageViewTracking(
-  pathname: string | null,
-  isSessionReady: boolean
-): void {
-  const lastTrackedPathRef = useRef<string | null>(null);
-  const lastProfileDocTitleRef = useRef<string | null>(null);
-  const lastNonProfileDocTitleRef = useRef<string | null>(null);
+function reportSinkFailure({ sink, operation }: TelemetrySinkFailure): void {
+  // Only the sink + operation names are logged: never the session payload.
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn(`[telemetry] ${sink}.${operation} sink failed`);
+  }
+}
 
-  // Track both synchronous and asynchronous `<title>` updates across profile and
-  // non-profile routes so SPA transitions away from `/profile/[id]` (including
-  // prefetched/cached routes and profile-to-profile hops) never leak real names.
-  useEffect(() => {
-    if (!pathname || typeof document === 'undefined') {
-      return;
-    }
-
-    const onProfileRoute = isUserProfilePath(pathname);
-
-    const syncDocTitle = () => {
-      const livePathname =
+function createBrowserTelemetryCoordinator(
+  gaId: string | undefined
+): TelemetrySessionCoordinator {
+  const gaOptions = gaId ? { gaId } : undefined;
+  return createTelemetrySessionCoordinator({
+    analytics: {
+      setUserContext: (identity) =>
+        setAnalyticsUserContext(identity, gaOptions),
+      trackPageView: (path, options) => trackPageView(path, options),
+    },
+    sentry: {
+      setUser: (user) => Sentry.setUser(user),
+      setUserRoleTag: (userRole) => Sentry.setTag('user_role', userRole),
+    },
+    document: {
+      readTitle: () => (typeof document !== 'undefined' ? document.title : ''),
+      readLivePathname: () =>
         typeof window !== 'undefined' && window.location?.pathname
           ? window.location.pathname
-          : pathname;
-      const liveIsProfile = isUserProfilePath(livePathname);
-      const nextTitle = document.title;
-      if (!nextTitle) return;
-
-      if (liveIsProfile) {
-        if (nextTitle !== lastNonProfileDocTitleRef.current) {
-          lastProfileDocTitleRef.current = nextTitle;
-        }
-      } else if (nextTitle !== lastProfileDocTitleRef.current) {
-        lastNonProfileDocTitleRef.current = nextTitle;
-      }
-    };
-
-    syncDocTitle();
-
-    const observer =
-      typeof MutationObserver !== 'undefined' && document.head
-        ? new MutationObserver(syncDocTitle)
-        : null;
-
-    observer?.observe(document.head, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-    });
-
-    return () => {
-      observer?.disconnect();
-      if (
-        onProfileRoute &&
-        document.title &&
-        document.title !== lastNonProfileDocTitleRef.current
-      ) {
-        lastProfileDocTitleRef.current = document.title;
-      }
-    };
-  }, [pathname]);
-
-  useEffect(() => {
-    if (
-      !pathname ||
-      !isSessionReady ||
-      lastTrackedPathRef.current === pathname
-    ) {
-      return;
-    }
-
-    const previousPath = lastTrackedPathRef.current;
-    lastTrackedPathRef.current = pathname;
-
-    const currentDocTitle =
-      typeof document !== 'undefined' ? document.title : '';
-    const isNowProfile = isUserProfilePath(pathname);
-    const wasPrevProfile = previousPath
-      ? isUserProfilePath(previousPath)
-      : false;
-
-    if (isNowProfile) {
-      if (
-        previousPath === null ||
-        (currentDocTitle &&
-          currentDocTitle !== lastNonProfileDocTitleRef.current)
-      ) {
-        lastProfileDocTitleRef.current =
-          currentDocTitle || lastProfileDocTitleRef.current;
-      } else if (!wasPrevProfile) {
-        lastProfileDocTitleRef.current = null;
-      }
-    }
-
-    const hasStaleProfileTitle =
-      !isNowProfile &&
-      wasPrevProfile &&
-      Boolean(currentDocTitle) &&
-      currentDocTitle === lastProfileDocTitleRef.current;
-
-    if (!isNowProfile) {
-      if (!hasStaleProfileTitle && currentDocTitle) {
-        lastNonProfileDocTitleRef.current = currentDocTitle;
-      }
-      lastProfileDocTitleRef.current = null;
-    }
-
-    const rawSearch =
-      typeof window !== 'undefined' ? window.location.search : '';
-    trackPageView(
-      `${pathname}${rawSearch}`,
-      hasStaleProfileTitle ? { title: '' } : undefined
-    );
-  }, [isSessionReady, pathname]);
+          : null,
+      readSearch: () =>
+        typeof window !== 'undefined' ? window.location.search : '',
+    },
+    onSinkFailure: reportSinkFailure,
+  });
 }
 
 function useScrollDepthTracking(pathname: string | null): void {
-  const reachedThresholdsRef = useRef<Set<number>>(new Set());
-
   useEffect(() => {
     if (!pathname || typeof window === 'undefined') return;
 
-    reachedThresholdsRef.current = new Set();
+    const reachedThresholds = new Set<number>();
     let rafId: number | null = null;
     let isDetached = false;
 
@@ -181,16 +112,13 @@ function useScrollDepthTracking(pathname: string | null): void {
       if (percent === null) return;
 
       for (const threshold of SCROLL_DEPTH_THRESHOLDS) {
-        if (
-          percent >= threshold &&
-          !reachedThresholdsRef.current.has(threshold)
-        ) {
-          reachedThresholdsRef.current.add(threshold);
+        if (percent >= threshold && !reachedThresholds.has(threshold)) {
+          reachedThresholds.add(threshold);
           trackScrollDepth(threshold, pathname);
         }
       }
 
-      if (reachedThresholdsRef.current.has(MAX_SCROLL_THRESHOLD)) {
+      if (reachedThresholds.has(MAX_SCROLL_THRESHOLD)) {
         detachScrollListener();
       }
     };
@@ -238,32 +166,52 @@ function useAnalyticsClickDelegation(): void {
   }, []);
 }
 
-export default function PageViewTracker(): null {
+export default function PageViewTracker({
+  gaId,
+}: PageViewTrackerProps = {}): null {
   const pathname = usePathname();
-  const { status: sessionStatus } = useSession();
-  const [sessionTimedOut, setSessionTimedOut] = useState(false);
+  const { data: session, status } = useSession();
+  const [coordinator] = useState(() => createBrowserTelemetryCoordinator(gaId));
+
+  const rawUserId = session?.user?.id;
+  const isMentor = session?.user?.isMentor;
+  const sessionError = session?.error;
+
+  // Session identity first: the coordinator binds GA4 / Sentry identity before
+  // releasing any deferred page_view, independent of effect ordering.
+  useEffect(() => {
+    coordinator.updateSession({
+      status,
+      userId: rawUserId,
+      isMentor,
+      error: sessionError,
+    });
+    return () => {
+      coordinator.dispose();
+    };
+  }, [coordinator, isMentor, rawUserId, sessionError, status]);
 
   useEffect(() => {
-    if (
-      sessionStatus !== 'loading' ||
-      sessionTimedOut ||
-      typeof window === 'undefined'
-    ) {
-      return;
-    }
+    if (!pathname || typeof document === 'undefined') return;
 
-    const timerId = window.setTimeout(() => {
-      setSessionTimedOut(true);
-    }, INITIAL_SESSION_RESOLVE_TIMEOUT_MS);
+    coordinator.enterRoute(pathname);
+
+    const observer =
+      typeof MutationObserver !== 'undefined' && document.head
+        ? new MutationObserver(() => coordinator.observeTitle())
+        : null;
+    observer?.observe(document.head, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
 
     return () => {
-      window.clearTimeout(timerId);
+      observer?.disconnect();
+      coordinator.leaveRoute(pathname);
     };
-  }, [sessionStatus, sessionTimedOut]);
+  }, [coordinator, pathname]);
 
-  const isSessionReady = sessionStatus !== 'loading' || sessionTimedOut;
-
-  usePageViewTracking(pathname, isSessionReady);
   useScrollDepthTracking(pathname);
   useAnalyticsClickDelegation();
 
