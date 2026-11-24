@@ -2,7 +2,10 @@ import type { Meta, StoryObj } from '@storybook/nextjs';
 import React, { useState } from 'react';
 
 import { REAL_FILTER_OPTIONS } from './__mocks__/filterMockData';
-import MentorFilterDropdown, { SelectFilters } from './MentorFilterDropdown';
+import MentorFilterDropdown, {
+  type FilterOptions,
+  type SelectFilters,
+} from './MentorFilterDropdown';
 
 const meta: Meta<typeof MentorFilterDropdown> = {
   title: '業務模組元件/篩選器(Filter)/MentorFilterDropdown',
@@ -12,7 +15,7 @@ const meta: Meta<typeof MentorFilterDropdown> = {
     docs: {
       description: {
         component:
-          '導師池進階篩選下拉選單，開啟選單、套用篩選（`mentor_pool_filter_apply`，動態附帶 `filter_type` 與 `filter_value`）與清除全部皆具備宣告式 GA4 埋點。',
+          '導師池進階篩選下拉選單，內建各維度單選控制項（技能、主題、產業），於開啟/關閉轉移時自動重置未套用草稿，且開啟選單、套用篩選（`mentor_pool_filter_apply`，動態附帶 `filter_type` 與 `filter_value`）與清除全部皆具備宣告式 GA4 埋點。',
       },
     },
   },
@@ -21,10 +24,30 @@ const meta: Meta<typeof MentorFilterDropdown> = {
 export default meta;
 type Story = StoryObj<typeof MentorFilterDropdown>;
 
+const LONG_SCROLLABLE_FILTER_OPTIONS: FilterOptions = {
+  ...REAL_FILTER_OPTIONS,
+  filter_skills: {
+    name: '技能',
+    options: [
+      ...REAL_FILTER_OPTIONS.filter_skills.options,
+      { label: 'Go / 微服務架構', value: 'golang_microservices' },
+      { label: 'Java / Spring Boot', value: 'java_spring' },
+      { label: 'Kubernetes / 雲端原生', value: 'k8s_cloud_native' },
+      { label: 'AWS / 雲端基礎架構', value: 'aws_infra' },
+      { label: 'iOS / Swift 開發', value: 'ios_swift' },
+      { label: 'Android / Kotlin 開發', value: 'android_kotlin' },
+      { label: '資料工程 / Data Pipeline', value: 'data_engineering' },
+      { label: '機器學習系統 (MLOps)', value: 'mlops' },
+    ],
+  },
+};
+
 const MentorFilterDropdownDemo = ({
   initialFilters = {},
+  customFilterOptions = REAL_FILTER_OPTIONS,
 }: {
   initialFilters?: SelectFilters;
+  customFilterOptions?: FilterOptions;
 }) => {
   const [selectedFilters, setSelectedFilters] =
     useState<SelectFilters>(initialFilters);
@@ -36,7 +59,7 @@ const MentorFilterDropdownDemo = ({
           導師篩選下拉選單
         </h4>
         <MentorFilterDropdown
-          filterOptions={REAL_FILTER_OPTIONS}
+          filterOptions={customFilterOptions}
           selectOptions={selectedFilters}
           onChange={setSelectedFilters}
         />
@@ -75,6 +98,29 @@ export const PreSelected: Story = {
       initialFilters={{
         filter_skills: { name: '技能', value: 'react_nextjs' },
         filter_industries: { name: '產業', value: 'software_internet' },
+      }}
+    />
+  ),
+};
+
+export const AllDimensionsSelected: Story = {
+  render: () => (
+    <MentorFilterDropdownDemo
+      initialFilters={{
+        filter_skills: { name: '技能', value: 'typescript' },
+        filter_topics: { name: '主題', value: 'career_planning' },
+        filter_industries: { name: '產業', value: 'fintech' },
+      }}
+    />
+  ),
+};
+
+export const LongOptionsScrollable: Story = {
+  render: () => (
+    <MentorFilterDropdownDemo
+      customFilterOptions={LONG_SCROLLABLE_FILTER_OPTIONS}
+      initialFilters={{
+        filter_skills: { name: '技能', value: 'react_nextjs' },
       }}
     />
   ),

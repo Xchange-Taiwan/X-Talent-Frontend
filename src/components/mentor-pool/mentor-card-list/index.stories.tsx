@@ -43,20 +43,7 @@ export const ShortList: Story = {
 export const FilteredSkillPrioritized: Story = {
   args: {
     mentors: mockMentors.slice(0, 3),
-    activeFilterBadges: [
-      {
-        key: 'filter_skills',
-        name: '技能',
-        value: 'Figma',
-        label: 'Figma',
-      },
-      {
-        key: 'filter_skills',
-        name: '技能',
-        value: 'Next.js',
-        label: 'Next.js',
-      },
-    ],
+    prioritizedCardTagCodes: ['Figma', 'Next.js'],
   },
 };
 
@@ -74,14 +61,7 @@ export const CodeMappedSkillAndTopicPrioritized: Story = {
         have_skill: ['typescript', 'react_nextjs'],
       },
     ],
-    activeFilterBadges: [
-      {
-        key: 'filter_skills',
-        name: '技能',
-        value: 'react_nextjs',
-        label: 'React / Next.js',
-      },
-    ],
+    prioritizedCardTagCodes: ['react_nextjs'],
     labelMap: new Map([
       ['career_planning', '職涯規劃與轉職諮詢'],
       ['resume_review', '履歷健檢與優化'],

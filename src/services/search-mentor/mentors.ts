@@ -23,29 +23,9 @@ function buildMentorRequestOptions(
     cursor: param.cursor,
   });
 
-  const params: NonNullable<RequestOptions['params']> = {
-    search_pattern: canonical.search_pattern,
-    limit: canonical.limit,
-  };
-  if (canonical.filter_industries) {
-    params.filter_industries = canonical.filter_industries;
-  }
-  if (canonical.filter_skills) {
-    params.filter_skills = canonical.filter_skills;
-  }
-  if (canonical.filter_topics) {
-    params.filter_topics = canonical.filter_topics;
-  }
-  if (canonical.sort_by) {
-    params.sort_by = canonical.sort_by;
-  }
-  if (canonical.cursor) {
-    params.cursor = canonical.cursor;
-  }
-
   return {
     auth: false,
-    params,
+    params: { ...canonical },
     ...extraOptions,
   };
 }

@@ -6,13 +6,14 @@ import { useCallback, useMemo, useTransition } from 'react';
 import { trackEvent } from '@/lib/analytics';
 import {
   type ActiveFilterBadge,
+  buildMentorFilterOptions,
   buildMentorPoolHref,
   clearAllConditions,
   DEFAULT_MENTOR_FILTER_OPTIONS,
   type FilterOptions,
   getSearchPatternFromParams,
-  hasAnyCondition,
-  parseFiltersFromParams,
+  type MentorFilterCatalogInput,
+  projectMentorPoolDiscoveryState,
   removeFilterFromParams,
   resolveActiveFilterBadges,
   type SelectFilters,
@@ -23,6 +24,7 @@ import {
 export { type ActiveFilterBadge, resolveActiveFilterBadges };
 
 export interface UseMentorPoolFiltersOptions {
+  tagCatalog?: MentorFilterCatalogInput;
   filterOptions?: FilterOptions;
 }
 
@@ -61,23 +63,42 @@ export function useMentorPoolFilters(options?: UseMentorPoolFiltersOptions) {
   const params = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
-  const resolvedFilterOptions =
-    options?.filterOptions ?? DEFAULT_MENTOR_FILTER_OPTIONS;
-  const searchQuery = getSearchPatternFromParams(params);
-  const selectedFilters = useMemo(
-    () => parseFiltersFromParams(params, resolvedFilterOptions),
-    [params, resolvedFilterOptions]
-  );
-  const hasConditions = hasAnyCondition(params);
+  const haveSkill = options?.tagCatalog?.have_skill;
+  const haveTopic = options?.tagCatalog?.have_topic;
+  const industry = options?.tagCatalog?.industry;
+  const explicitFilterOptions = options?.filterOptions;
 
-  const activeFilterBadges = useMemo<ActiveFilterBadge[]>(
-    () => resolveActiveFilterBadges(selectedFilters, resolvedFilterOptions),
-    [selectedFilters, resolvedFilterOptions]
+  const resolvedFilterOptions = useMemo<FilterOptions>(() => {
+    if (haveSkill || haveTopic || industry) {
+      return buildMentorFilterOptions(
+        {
+          have_skill: haveSkill,
+          have_topic: haveTopic,
+          industry,
+        },
+        explicitFilterOptions ?? DEFAULT_MENTOR_FILTER_OPTIONS
+      );
+    }
+    return explicitFilterOptions ?? DEFAULT_MENTOR_FILTER_OPTIONS;
+  }, [explicitFilterOptions, haveSkill, haveTopic, industry]);
+
+  const paramsSnapshotKey = params?.toString() ?? '';
+  const projection = useMemo(
+    () =>
+      projectMentorPoolDiscoveryState(params, undefined, {
+        filterOptions: resolvedFilterOptions,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- paramsSnapshotKey tracks in-place SearchParams mock mutations in tests
+    [params, paramsSnapshotKey, resolvedFilterOptions]
   );
+
+  const queryKey = projection.queryKey;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- queryKey canonically determines normalized query
+  const query = useMemo(() => projection.query, [queryKey]);
 
   const setSearchQuery = useCallback(
-    (query: string) => {
-      const next = setSearchPattern(params, query);
+    (nextQuery: string) => {
+      const next = setSearchPattern(params, nextQuery);
       startTransition(() => {
         router.push(buildMentorPoolHref(next));
       });
@@ -115,10 +136,15 @@ export function useMentorPoolFilters(options?: UseMentorPoolFiltersOptions) {
 
   return {
     params,
-    searchQuery,
-    selectedFilters,
-    hasConditions,
-    activeFilterBadges,
+    query,
+    queryKey,
+    searchQuery: projection.searchQuery,
+    selectedTokensByKey: projection.selectedTokensByKey,
+    selectedFilters: projection.selectedFilters,
+    filterOptions: projection.filterOptions,
+    hasConditions: projection.hasConditions,
+    activeFilterBadges: projection.activeBadges,
+    prioritizedCardTagCodes: projection.prioritizedCardTagCodes,
     isReplacing: isPending,
     setSearchQuery,
     setFilters,
