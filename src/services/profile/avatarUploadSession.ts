@@ -43,6 +43,12 @@ export interface AvatarUploadSession {
   rollback: () => Promise<void>;
   abort: () => void;
   prefetch: (targetUserId?: number) => void;
+  /**
+   * The user switched to a preset (illustration) avatar: cancel any staged
+   * upload, restore the pre-edit S3 bytes if they were already overwritten,
+   * and short-circuit `resolve()` to `undefined` until the next `stage()`.
+   */
+  clearStaged: () => Promise<void>;
 }
 
 async function capturePriorSnapshot(
@@ -95,6 +101,7 @@ export function createAvatarUploadSession(
   let hasCapturedInitialSnapshot = false;
   let oldBytesPromise: Promise<Blob | null> | null = null;
   let hasOverwrittenS3 = false;
+  let presetSelected = false;
 
   function resolveUserId(): number | undefined {
     const raw =
@@ -114,6 +121,7 @@ export function createAvatarUploadSession(
   }
 
   function stage(file: File, priorAvatarUrl: string | null | undefined): void {
+    presetSelected = false;
     if (activeJob?.file === file) return;
 
     if (!hasCapturedInitialSnapshot) {
@@ -167,7 +175,7 @@ export function createAvatarUploadSession(
   }
 
   async function resolve(file: File | undefined): Promise<string | undefined> {
-    if (!file) return undefined;
+    if (!file || presetSelected) return undefined;
 
     if (activeJob?.file === file && activeJob.status !== 'aborted') {
       const matchedJob = activeJob;
@@ -267,6 +275,11 @@ export function createAvatarUploadSession(
     }
   }
 
+  function clearStaged(): Promise<void> {
+    presetSelected = true;
+    return rollback();
+  }
+
   return {
     stage,
     resolve,
@@ -274,5 +287,6 @@ export function createAvatarUploadSession(
     rollback,
     abort,
     prefetch,
+    clearStaged,
   };
 }

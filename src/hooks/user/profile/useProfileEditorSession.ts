@@ -24,6 +24,7 @@ import {
 } from '@/lib/avatar/avatarUrl';
 import { getSafeErrorMessage } from '@/lib/errorUtils';
 import { isDualTrackV2Enabled } from '@/lib/featureFlags';
+import { isStaleMentorDto } from '@/lib/profile/profileReadModel';
 import {
   mapVoToFormValues,
   type ProfileDirtyFields,
@@ -42,10 +43,13 @@ import {
 import type { IndustryOption } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
 
+import {
+  isAvatarUploadFailure,
+  reportAvatarUploadFailure,
+} from './avatarUploadFailure';
 import { useBackgroundAvatarUpload } from './useBackgroundAvatarUpload';
 import { useFormErrorScroll } from './useFormErrorScroll';
 import { useMenteeDirectionPreference } from './useMenteeDirectionPreference';
-import { usePresetAwareAvatarSession } from './usePresetAwareAvatarSession';
 
 export type ProfileFormContext = UseFormReturn<ProfileFormValues>;
 
@@ -83,10 +87,15 @@ export function useProfileEditorSession({
     null
   );
   const [hasAvatarEdited, setHasAvatarEdited] = useState(false);
-  const hydratedScopeRef = useRef<string | null>(null);
-  const hydratedFromStaleMenteeDtoRef = useRef(false);
+  // Which scope the form was last hydrated for, and whether that hydration
+  // came from a DTO that ProfileReadModel flags as a stale Mentee snapshot of
+  // an owner who is already a Mentor (so the fresh Mentor DTO landed by the
+  // read model's forced refetch may re-hydrate a still-clean form).
+  const hydrationRef = useRef<{
+    scope: string;
+    fromStaleMentorDto: boolean;
+  } | null>(null);
   const hasAvatarEditedRef = useRef(false);
-  const refetchedStaleMentorDtoRef = useRef<string | null>(null);
   const hydrationScopeKey = `${pageUserId}:${isMentorOnboarding ? 'mentor-onboarding' : 'edit'}`;
 
   if (pageUserId !== prevPageUserId) {
@@ -96,11 +105,17 @@ export function useProfileEditorSession({
     setIsHydrating(true);
   }
 
-  const {
-    userDto,
-    error: dtoError,
-    refetch: refetchUserDto,
-  } = useUserProfileDto(numericPageUserId, 'zh_TW');
+  const sessionIsOwnerMentor =
+    Boolean(session?.user?.id) &&
+    String(session?.user?.id) === String(pageUserId) &&
+    Boolean(session?.user?.isMentor);
+
+  const { userDto, error: dtoError } = useUserProfileDto(
+    numericPageUserId,
+    'zh_TW',
+    undefined,
+    { expectedIsMentor: sessionIsOwnerMentor }
+  );
 
   if (
     userDto &&
@@ -111,27 +126,10 @@ export function useProfileEditorSession({
   }
   const effectiveUserDto = userDto ?? cachedUserDto;
 
-  const sessionIsOwnerMentor =
-    Boolean(session?.user?.id) &&
-    String(session?.user?.id) === String(pageUserId) &&
-    Boolean(session?.user?.isMentor);
-
   useEffect(() => {
     if (!dtoError) return;
     console.error('Failed to fetch user data:', getSafeErrorMessage(dtoError));
   }, [dtoError]);
-
-  useEffect(() => {
-    if (
-      sessionIsOwnerMentor &&
-      userDto &&
-      !userDto.is_mentor &&
-      refetchedStaleMentorDtoRef.current !== pageUserId
-    ) {
-      refetchedStaleMentorDtoRef.current = pageUserId;
-      refetchUserDto?.();
-    }
-  }, [pageUserId, refetchUserDto, sessionIsOwnerMentor, userDto]);
 
   const isMentor =
     (effectiveUserDto ? Boolean(effectiveUserDto.is_mentor) : false) ||
@@ -155,7 +153,8 @@ export function useProfileEditorSession({
     defaultValues,
   });
 
-  const { formRef, onError } = useFormErrorScroll<ProfileFormValues>();
+  const { formRef, onError, scrollToField } =
+    useFormErrorScroll<ProfileFormValues>();
 
   useEffect(() => {
     hasAvatarEditedRef.current = false;
@@ -170,13 +169,13 @@ export function useProfileEditorSession({
       return;
     }
     const shouldRefreshAfterStaleMenteeDto =
-      hydratedFromStaleMenteeDtoRef.current &&
+      Boolean(hydrationRef.current?.fromStaleMentorDto) &&
       Boolean(userDto.is_mentor) &&
       !form.formState.isDirty &&
       !hasAvatarEditedRef.current;
 
     if (
-      hydratedScopeRef.current === hydrationScopeKey &&
+      hydrationRef.current?.scope === hydrationScopeKey &&
       !isHydrating &&
       !shouldRefreshAfterStaleMenteeDto
     ) {
@@ -188,11 +187,12 @@ export function useProfileEditorSession({
       formValues.is_mentor = true;
     }
     form.reset(formValues);
-    hydratedFromStaleMenteeDtoRef.current =
-      sessionIsOwnerMentor && !userDto.is_mentor;
+    hydrationRef.current = {
+      scope: hydrationScopeKey,
+      fromStaleMentorDto: isStaleMentorDto(userDto, sessionIsOwnerMentor),
+    };
     hasAvatarEditedRef.current = false;
     setHasAvatarEdited(false);
-    hydratedScopeRef.current = hydrationScopeKey;
     setIsHydrating(false);
   }, [
     userDto,
@@ -213,11 +213,8 @@ export function useProfileEditorSession({
     : undefined;
   const avatarUpload = useBackgroundAvatarUpload(effectiveUploadUserId);
 
-  const presetSelectedRef = useRef(false);
-
   const handleAvatarFileChange = useCallback(
     (file: File) => {
-      presetSelectedRef.current = false;
       hasAvatarEditedRef.current = true;
       setHasAvatarEdited(true);
       if (form.getValues('avatarFile') !== file) {
@@ -236,10 +233,9 @@ export function useProfileEditorSession({
 
   const handleSelectPresetAvatar = useCallback(
     (presetUrlOrCode: string) => {
-      presetSelectedRef.current = true;
       hasAvatarEditedRef.current = true;
       setHasAvatarEdited(true);
-      void avatarUpload.rollback();
+      void avatarUpload.clearStaged();
       const normalizedCode =
         toPresetAvatarCode(presetUrlOrCode) ??
         presetUrlOrCode ??
@@ -266,20 +262,15 @@ export function useProfileEditorSession({
     isMentorRole ? null : effectiveUserDto
   );
 
-  const avatarSession = usePresetAwareAvatarSession(
-    avatarUpload,
-    presetSelectedRef
-  );
-
   const savePort = useMemo<ProfileSavePort>(
     () => ({
       updateSession,
       navigate: (href: string) => router.push(href),
       revalidateProfilePath,
-      avatarSession: portOverrides?.uploadAvatar ? undefined : avatarSession,
+      avatarSession: portOverrides?.uploadAvatar ? undefined : avatarUpload,
       ...portOverrides,
     }),
-    [avatarSession, portOverrides, router, updateSession]
+    [avatarUpload, portOverrides, router, updateSession]
   );
 
   const { run, isPending: isSaving } = useAsyncAction({
@@ -287,8 +278,16 @@ export function useProfileEditorSession({
       flow: 'profile_update',
       step: 'update_profile',
     },
+    // An avatar upload failure is surfaced on the #avatarFile field (same as
+    // onboarding) instead of the generic save-failed toast.
+    onError: (err) => {
+      if (isAvatarUploadFailure(err)) {
+        reportAvatarUploadFailure(form, scrollToField);
+      }
+    },
     toastOnError: {
-      description: '儲存失敗，請稍後再試',
+      description: (err) =>
+        isAvatarUploadFailure(err) ? '' : '儲存失敗，請稍後再試',
     },
     throwError: false,
     resetPendingOnSuccess: false,

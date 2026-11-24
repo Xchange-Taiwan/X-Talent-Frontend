@@ -194,7 +194,8 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
       123,
       'zh_TW',
       initialDto,
-      seededCatalogs
+      seededCatalogs,
+      { expectedIsMentor: false }
     );
     unmount();
 
@@ -203,7 +204,8 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
       123,
       'zh_TW',
       initialDto,
-      undefined
+      undefined,
+      { expectedIsMentor: false }
     );
   });
 
@@ -514,7 +516,7 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('discards stale Mentee SSR initialDto and triggers fresh refetch at most once ONLY when confirmed owner session is already Mentor (#974)', () => {
+  it('delegates the stale Mentee DTO guard to ProfileReadModel via expectedIsMentor ONLY when confirmed owner session is already Mentor, with no container-level refetch loop (#974 / #981)', () => {
     const refetchMock = vi.fn();
     const staleMenteeInitialDto = fromPartial<MentorProfileVO>({
       user_id: 123,
@@ -544,10 +546,11 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
     expect(mockUseUserData).toHaveBeenCalledWith(
       123,
       'zh_TW',
-      null,
-      emptyCatalogs
+      staleMenteeInitialDto,
+      emptyCatalogs,
+      { expectedIsMentor: true }
     );
-    expect(refetchMock).toHaveBeenCalledTimes(1);
+    expect(refetchMock).not.toHaveBeenCalled();
 
     rerender(
       <ProfilePageContainer
@@ -556,7 +559,7 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
         initialCatalogs={emptyCatalogs}
       />
     );
-    expect(refetchMock).toHaveBeenCalledTimes(1);
+    expect(refetchMock).not.toHaveBeenCalled();
 
     // Non-owner Mentor viewing a Mentee profile preserves initialDto without refetch
     vi.clearAllMocks();
@@ -584,7 +587,8 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
       123,
       'zh_TW',
       staleMenteeInitialDto,
-      emptyCatalogs
+      emptyCatalogs,
+      { expectedIsMentor: false }
     );
     expect(nonOwnerRefetch).not.toHaveBeenCalled();
 
@@ -614,7 +618,8 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
       123,
       'zh_TW',
       staleMenteeInitialDto,
-      emptyCatalogs
+      emptyCatalogs,
+      { expectedIsMentor: false }
     );
     expect(menteeOwnerRefetch).not.toHaveBeenCalled();
   });

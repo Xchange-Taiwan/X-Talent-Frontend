@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 
 import { PageLoading } from '@/components/ui/loading-spinner';
+import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
 import useUserData from '@/hooks/user/user-data/useUserData';
 import { getMentorOnboardingUrl, OPEN_SCHEDULE_DIALOG_KEY } from '@/lib/routes';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
@@ -23,6 +24,14 @@ export default function ProfileCardContainer({
   initialCatalogs,
 }: Props) {
   const router = useRouter();
+  const identity = useResolvedIdentity();
+  // A freshly onboarded Mentor lands here (#973) while ISR / cache may still
+  // hold the pre-transition Mentee DTO; ProfileReadModel's expectedIsMentor
+  // guard drops that stale seed and refetches once (#974 / #981).
+  const expectsOwnMentor =
+    identity.state === 'confirmed-member' &&
+    identity.userId === String(loginUserId) &&
+    identity.isMentor;
 
   // initialDto/initialCatalogs come from page.tsx's SSR fetch and are passed
   // straight through as useUserData's initialData params, which seed its
@@ -38,7 +47,8 @@ export default function ProfileCardContainer({
     loginUserId,
     'zh_TW',
     initialDto,
-    initialCatalogs ?? undefined
+    initialCatalogs ?? undefined,
+    { expectedIsMentor: expectsOwnMentor }
   );
 
   if (isLoading) return <PageLoading />;

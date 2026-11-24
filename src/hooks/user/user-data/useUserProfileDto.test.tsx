@@ -575,4 +575,79 @@ describe('useUserProfileDto', () => {
     }
     expect(fetchUserById).not.toHaveBeenCalled();
   });
+  describe('expectedIsMentor monotonic guard (#981)', () => {
+    const staleMentee = { ...mockUserDTO, user_id: 5, is_mentor: false };
+    const freshMentor = { ...mockUserDTO, user_id: 5, is_mentor: true };
+
+    it('discards a stale Mentee SSR seed and loads the fresh Mentor DTO instead of rendering or priming the seed', async () => {
+      vi.mocked(fetchUserById).mockResolvedValue(freshMentor);
+
+      const { result } = renderHook(() =>
+        useUserProfileDto(5, 'zh_TW', staleMentee, { expectedIsMentor: true })
+      );
+
+      expect(result.current.isLoading).toBe(true);
+      expect(result.current.userDto).toBeNull();
+      await vi.waitFor(() => {
+        expect(result.current.userDto).toEqual(freshMentor);
+      });
+      expect(fetchUserById).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the SSR seed untouched when no Mentor is expected (non-owner viewing a Mentee)', () => {
+      const { result } = renderHook(() =>
+        useUserProfileDto(5, 'zh_TW', staleMentee, { expectedIsMentor: false })
+      );
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.userDto).toEqual(staleMentee);
+      expect(fetchUserById).not.toHaveBeenCalled();
+    });
+
+    it('force-refetches a stale cached Mentee DTO exactly once even when the backend keeps lagging, across re-renders', async () => {
+      vi.mocked(fetchUserById).mockResolvedValue({ ...staleMentee });
+      profileReadModel.set({ userId: 5, language: 'zh_TW' }, staleMentee);
+
+      const { result, rerender } = renderHook(() =>
+        useUserProfileDto(5, 'zh_TW', undefined, { expectedIsMentor: true })
+      );
+
+      await vi.waitFor(() => {
+        expect(fetchUserById).toHaveBeenCalledTimes(1);
+      });
+      await vi.waitFor(() => {
+        expect(result.current.userDto).not.toBe(staleMentee);
+      });
+      rerender();
+      rerender();
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(fetchUserById).toHaveBeenCalledTimes(1);
+      expect(result.current.userDto?.is_mentor).toBe(false);
+    });
+
+    it('publishes the fresh Mentor DTO from the forced refetch', async () => {
+      vi.mocked(fetchUserById).mockResolvedValue(freshMentor);
+      profileReadModel.set({ userId: 5, language: 'zh_TW' }, staleMentee);
+
+      const { result } = renderHook(() =>
+        useUserProfileDto(5, 'zh_TW', undefined, { expectedIsMentor: true })
+      );
+
+      expect(result.current.userDto).toEqual(staleMentee);
+      await vi.waitFor(() => {
+        expect(result.current.userDto).toEqual(freshMentor);
+      });
+      expect(fetchUserById).toHaveBeenCalledTimes(1);
+    });
+
+    it('never refetches a cached Mentee DTO when no Mentor is expected', async () => {
+      profileReadModel.set({ userId: 5, language: 'zh_TW' }, staleMentee);
+      renderHook(() => useUserProfileDto(5, 'zh_TW'));
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(fetchUserById).not.toHaveBeenCalled();
+    });
+  });
 });

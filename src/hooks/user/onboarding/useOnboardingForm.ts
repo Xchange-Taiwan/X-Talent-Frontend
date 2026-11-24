@@ -8,9 +8,12 @@ import { useForm, type UseFormReturn } from 'react-hook-form';
 
 import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
 import { useToast } from '@/components/ui/use-toast';
+import {
+  isAvatarUploadFailure,
+  reportAvatarUploadFailure,
+} from '@/hooks/user/profile/avatarUploadFailure';
 import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
 import { useFormErrorScroll } from '@/hooks/user/profile/useFormErrorScroll';
-import { usePresetAwareAvatarSession } from '@/hooks/user/profile/usePresetAwareAvatarSession';
 import { trackEvent, trackFormValidationFailed } from '@/lib/analytics';
 import {
   clampOnboardingName,
@@ -29,7 +32,6 @@ import {
 } from '@/lib/profile/menteeDirectionPreference';
 import {
   commitProfileMutation,
-  LoggedError,
   type ProfileSavePort,
 } from '@/lib/profile/saveProfile';
 import { PROFILE_CARD_HREF } from '@/lib/routes';
@@ -78,7 +80,6 @@ export function useOnboardingForm({
   latestUpdateSessionRef.current = updateSession;
 
   const isSubmittingRef = useRef(false);
-  const presetSelectedRef = useRef(false);
 
   const backfilledProfileUserIdRef = useRef<number | null>(null);
   const backfillControllerRef = useRef<AbortController | null>(null);
@@ -115,7 +116,8 @@ export function useOnboardingForm({
     defaultValues: onboardingDefaultValues,
   });
 
-  const { formRef, onError } = useFormErrorScroll<ProfileFormValues>();
+  const { formRef, onError, scrollToField } =
+    useFormErrorScroll<ProfileFormValues>();
 
   void form.formState.dirtyFields;
 
@@ -281,7 +283,6 @@ export function useOnboardingForm({
 
   const handleAvatarFileChange = useCallback(
     (file: File) => {
-      presetSelectedRef.current = false;
       form.setValue('avatarFile', file, {
         shouldDirty: true,
         shouldValidate: true,
@@ -300,8 +301,7 @@ export function useOnboardingForm({
 
   const handleSelectPresetAvatar = useCallback(
     (presetUrlOrCode: string) => {
-      presetSelectedRef.current = true;
-      void avatarUpload.rollback();
+      void avatarUpload.clearStaged();
       const normalizedCode =
         toPresetAvatarCode(presetUrlOrCode) ??
         presetUrlOrCode ??
@@ -318,20 +318,15 @@ export function useOnboardingForm({
     [avatarUpload, form]
   );
 
-  const avatarSession = usePresetAwareAvatarSession(
-    avatarUpload,
-    presetSelectedRef
-  );
-
   const savePort = useMemo<ProfileSavePort>(
     () => ({
       updateSession: (data: unknown) => latestUpdateSessionRef.current(data),
       navigate: (href: string) => router.push(href),
       revalidateProfilePath,
-      avatarSession: portOverrides?.uploadAvatar ? undefined : avatarSession,
+      avatarSession: portOverrides?.uploadAvatar ? undefined : avatarUpload,
       ...portOverrides,
     }),
-    [avatarSession, portOverrides, router]
+    [avatarUpload, portOverrides, router]
   );
 
   const submitOnboarding = useCallback(async (): Promise<void> => {
@@ -391,9 +386,6 @@ export function useOnboardingForm({
       const resolvedPageUserId = activeSession?.user?.id
         ? String(activeSession.user.id)
         : undefined;
-      const effectiveAvatarFile = presetSelectedRef.current
-        ? undefined
-        : values.avatarFile;
 
       if (values.role === 'mentor') {
         await commitProfileMutation(
@@ -405,7 +397,7 @@ export function useOnboardingForm({
               onboarding: true,
               agreed_guidelines: true,
               avatar: values.avatar ?? '',
-              avatarFile: effectiveAvatarFile,
+              avatarFile: values.avatarFile,
               statement: '',
               want_position: [],
               want_skill: [],
@@ -435,7 +427,7 @@ export function useOnboardingForm({
           values: {
             ...values,
             avatar: resolvedMenteeAvatar,
-            avatarFile: effectiveAvatarFile,
+            avatarFile: values.avatarFile,
           },
         },
         {
@@ -451,23 +443,11 @@ export function useOnboardingForm({
         writeStoredMenteeDirectionMap(resolvedPageUserId, directionMap);
       }
     } catch (err) {
-      if (err instanceof LoggedError && err.step === 'avatar_upload') {
-        const avatarError = {
-          type: 'custom',
-          message: '頭像上傳失敗，請重新選擇。',
-        } as const;
-        form.setError('avatarFile', avatarError);
-        (
-          onError as (
-            errs: typeof form.formState.errors,
-            ev?: React.BaseSyntheticEvent
-          ) => void
-        )({
-          ...form.formState.errors,
-          avatarFile: avatarError,
-        });
+      if (isAvatarUploadFailure(err)) {
+        reportAvatarUploadFailure(form, scrollToField);
         return;
       }
+
       toast({
         variant: 'destructive',
         description: '儲存失敗，請稍後再試。',
@@ -477,7 +457,7 @@ export function useOnboardingForm({
       isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
-  }, [directionMap, form, industries, onError, savePort, toast]);
+  }, [directionMap, form, industries, onError, savePort, scrollToField, toast]);
 
   return {
     isSubmitting,

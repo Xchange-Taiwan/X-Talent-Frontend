@@ -57,6 +57,7 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
   const mockMarkCommitted = vi.fn();
   const mockRollback = vi.fn();
   const mockAbort = vi.fn();
+  const mockClearStaged = vi.fn();
   const mockPrefetch = vi.fn();
   const mockToast = vi.fn();
 
@@ -107,6 +108,7 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
       rollback: mockRollback,
       abort: mockAbort,
       prefetch: mockPrefetch,
+      clearStaged: mockClearStaged,
     });
 
     mockUseToast.mockReturnValue({
@@ -261,7 +263,7 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
     expect(mockPush).toHaveBeenCalledWith('/profile/card');
   });
 
-  it('kicks off background avatar upload on handleAvatarFileChange (omitting Google URL from S3 snapshot) and rolls back on preset selection', () => {
+  it('kicks off background avatar upload on handleAvatarFileChange (omitting Google URL from S3 snapshot) and cancels the staged upload via clearStaged on preset selection (#981)', () => {
     const { result } = renderHook(() =>
       useOnboardingForm({ industries: mockIndustries, port: buildPort() })
     );
@@ -288,7 +290,7 @@ describe('useOnboardingForm (single-form + commitProfileMutation #905)', () => {
     act(() => {
       result.current.handleSelectPresetAvatar('/avatars/default_4.webp');
     });
-    expect(mockRollback).toHaveBeenCalled();
+    expect(mockClearStaged).toHaveBeenCalledTimes(1);
     expect(result.current.form.getValues('avatar')).toBe('default_4');
   });
 
