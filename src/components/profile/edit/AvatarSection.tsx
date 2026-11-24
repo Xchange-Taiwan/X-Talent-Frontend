@@ -152,7 +152,7 @@ export const AvatarSection = <T extends FieldValues>({
         {variant === 'compact' ? (
           <div
             id={id}
-            className="inline-flex shrink-0 flex-col items-center gap-2"
+            className="inline-flex shrink-0 flex-col items-start gap-2"
           >
             <div className="relative inline-block p-0.5">
               <MenteeAvatarTriggerButton
