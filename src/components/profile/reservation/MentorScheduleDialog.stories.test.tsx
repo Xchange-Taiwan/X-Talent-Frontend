@@ -40,9 +40,9 @@ import * as PopularPositionChipsStories from '@/app/mentor-pool/PopularPositionC
 import * as MentorPoolUIStories from '@/app/mentor-pool/ui.stories';
 import * as ProfilePageUIStories from '@/app/profile/[pageUserId]/ui.stories';
 import * as ProfileCardUIStories from '@/app/profile/card/ui.stories';
-import * as AnalyticsUserSyncStories from '@/components/AnalyticsUserSync.stories';
 import * as SignUpFormStories from '@/components/auth/signup/SignUpForm.stories';
 import * as HeaderStories from '@/components/layout/Header/Header.stories';
+import * as PageViewTrackerStories from '@/components/PageViewTracker.stories';
 import { decodeSessionHint } from '@/lib/auth/sessionHint';
 
 import * as AddSlotModalStories from './AddSlotModal.stories';
@@ -177,9 +177,9 @@ describe('Storybook stories coverage and state verification (#850)', () => {
     );
 
     expect(SignUpFormStories.EmptySubmitValidationError).toBeDefined();
-    expect(AnalyticsUserSyncStories.AuthenticatedMentee).toBeDefined();
-    expect(AnalyticsUserSyncStories.AuthenticatedMentor).toBeDefined();
-    expect(AnalyticsUserSyncStories.UnauthenticatedGuest).toBeDefined();
+    expect(PageViewTrackerStories.AuthenticatedMentee).toBeDefined();
+    expect(PageViewTrackerStories.AuthenticatedMentor).toBeDefined();
+    expect(PageViewTrackerStories.UnauthenticatedGuest).toBeDefined();
   });
 
   it('Header.stories uses v2 encoded sessionHint with avatar and isMentor', () => {
