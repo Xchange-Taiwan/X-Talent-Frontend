@@ -3,10 +3,8 @@ import { useState } from 'react';
 
 import { resolveDisplaySocialLinks } from '@/components/profile/social-links/platformLabelMap';
 import type { UserType } from '@/hooks/user/user-data/useUserData';
-import {
-  buildMenteeDirectionReadGroups,
-  resolveMenteeIndustryHashtag,
-} from '@/lib/profile/menteeDirectionView';
+import { buildMenteeDirectionReadGroups } from '@/lib/profile/menteeDirectionPreference';
+import { resolveProfileIndustryHashtag } from '@/lib/profile/profileProjection';
 
 import { MenteeProfileContent } from './MenteeProfileContent';
 
@@ -98,7 +96,7 @@ export const Filled: Story = {
         <MenteeProfileContent
           userData={sampleMentee}
           isEmpty={false}
-          industryHashtag={resolveMenteeIndustryHashtag(sampleMentee)}
+          industryHashtag={resolveProfileIndustryHashtag(sampleMentee)}
           directionGroups={groups}
           activeDirection={activeDirection}
           onSelectDirection={setActiveDirection}

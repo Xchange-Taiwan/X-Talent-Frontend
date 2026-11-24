@@ -10,7 +10,7 @@ import { PersonalLinksGrid } from '@/components/profile/social-links/PersonalLin
 import type { ResolvedDisplaySocialLink } from '@/components/profile/social-links/platformLabelMap';
 import { ProfileBadgeSection } from '@/components/profile/view/ProfileBadgeSection';
 import type { UserType } from '@/hooks/user/user-data/useUserData';
-import type { MenteeDirectionReadGroup } from '@/lib/profile/menteeDirectionView';
+import type { MenteeDirectionReadGroup } from '@/lib/profile/menteeDirectionPreference';
 import { cn } from '@/lib/utils';
 
 export interface MenteeProfileContentProps {

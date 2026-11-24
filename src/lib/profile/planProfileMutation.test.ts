@@ -6,7 +6,11 @@ import { describe, expect, it } from 'vitest';
 
 import { hasProfileDtoConverged } from '@/lib/profile/convergence';
 import { encode, toWireExperiences } from '@/lib/profile/experienceCodec';
-import { defaultValues, type ProfileFormValues } from '@/schemas/profileSchema';
+import {
+  defaultValues,
+  onboardingDefaultValues,
+  type ProfileFormValues,
+} from '@/schemas/profileSchema';
 import { mockSession, mockUserDTO } from '@/test/fixtures/profile';
 import type { IndustryOption } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
@@ -37,6 +41,7 @@ describe('planProfileMutation (single-pass pure mutation planner #943)', () => {
       {
         mode: 'mentee-onboarding',
         values: {
+          ...onboardingDefaultValues,
           name: 'Mentee Lin',
           avatar: '/avatars/default_4.webp',
           avatarFile: undefined,

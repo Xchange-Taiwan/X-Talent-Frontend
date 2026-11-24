@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import React, { useState } from 'react';
 import { describe, expect, it } from 'vitest';
 
-import type { OnboardingRole } from '@/schemas/onboarding';
+import type { OnboardingRole } from '@/schemas/profileSchema';
 
 import { RoleSelectorCards } from './RoleSelectorCards';
 

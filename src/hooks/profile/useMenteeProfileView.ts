@@ -1,45 +1,28 @@
 'use client';
 
-import type { StaticImageData } from 'next/image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { UserType } from '@/hooks/user/user-data/useUserData';
 import {
   buildMenteeDirectionReadGroups,
-  isMenteeProfileEmpty,
+  type MenteeDirectionMap,
   type MenteeDirectionReadGroup,
-  readStoredMenteeDirectionViewMap,
-  resolveMenteeAvatarSrc,
-  resolveMenteeExperienceSummary,
-  resolveMenteeIndustryHashtag,
-  resolveMenteeLatestRole,
-  type StoredMenteeDirectionMap,
-} from '@/lib/profile/menteeDirectionView';
+  readStoredMenteeDirectionMap,
+} from '@/lib/profile/menteeDirectionPreference';
 
 export interface UseMenteeProfileViewInput {
   userData: UserType | null;
-  avatarSrc: string | StaticImageData;
-  resolvedLocation?: string;
-  safePersonalLinksCount: number;
-  storedDirectionMap?: StoredMenteeDirectionMap | null;
+  storedDirectionMap?: MenteeDirectionMap | null;
 }
 
 export interface UseMenteeProfileViewResult {
-  menteeIndustryHashtag: string | null;
   menteeDirectionGroups: MenteeDirectionReadGroup[];
   activeMenteeDirection: string | null;
   setActiveMenteeDirection: (nextKey: string | null) => void;
-  menteeEmpty: boolean;
-  effectiveAvatarSrc: string | StaticImageData;
-  menteeLatestRole: { jobTitle: string; company: string } | null;
-  menteeExperienceDisplay: string | undefined;
 }
 
 export function useMenteeProfileView({
   userData,
-  avatarSrc,
-  resolvedLocation,
-  safePersonalLinksCount,
   storedDirectionMap,
 }: UseMenteeProfileViewInput): UseMenteeProfileViewResult {
   const isMentee = Boolean(userData && !userData.is_mentor);
@@ -50,7 +33,7 @@ export function useMenteeProfileView({
 
   const [storedMapState, setStoredMapState] = useState<{
     userKey: string | null;
-    map: StoredMenteeDirectionMap | null;
+    map: MenteeDirectionMap | null;
   }>(() => ({
     userKey: menteeUserKey,
     map: storedDirectionMap !== undefined ? storedDirectionMap : null,
@@ -67,7 +50,7 @@ export function useMenteeProfileView({
     }
     setStoredMapState({
       userKey: menteeUserKey,
-      map: readStoredMenteeDirectionViewMap(menteeUserKey),
+      map: readStoredMenteeDirectionMap(menteeUserKey),
     });
   }, [menteeUserKey, storedDirectionMap]);
 
@@ -122,43 +105,9 @@ export function useMenteeProfileView({
     return menteeDirectionGroups[0].key;
   }, [menteeDirectionGroups, menteeUserKey, selectedDirectionState]);
 
-  const menteeIndustryHashtag = useMemo<string | null>(() => {
-    if (!userData || userData.is_mentor) return null;
-    return resolveMenteeIndustryHashtag(userData);
-  }, [userData]);
-
-  const menteeEmpty = useMemo<boolean>(() => {
-    if (!userData || userData.is_mentor) return false;
-    return isMenteeProfileEmpty(
-      userData,
-      safePersonalLinksCount,
-      resolvedLocation
-    );
-  }, [userData, safePersonalLinksCount, resolvedLocation]);
-
-  const effectiveAvatarSrc = useMemo<string | StaticImageData>(() => {
-    if (!userData || userData.is_mentor) return avatarSrc;
-    return resolveMenteeAvatarSrc(userData.avatar);
-  }, [avatarSrc, userData]);
-
-  const menteeLatestRole = useMemo(() => {
-    if (!userData || userData.is_mentor) return null;
-    return resolveMenteeLatestRole(userData);
-  }, [userData]);
-
-  const menteeExperienceDisplay = useMemo(() => {
-    if (!userData || userData.is_mentor) return undefined;
-    return resolveMenteeExperienceSummary(userData);
-  }, [userData]);
-
   return {
-    menteeIndustryHashtag,
     menteeDirectionGroups,
     activeMenteeDirection,
     setActiveMenteeDirection,
-    menteeEmpty,
-    effectiveAvatarSrc,
-    menteeLatestRole,
-    menteeExperienceDisplay,
   };
 }

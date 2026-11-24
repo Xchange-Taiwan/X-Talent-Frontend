@@ -2,7 +2,7 @@
 
 import { Compass } from 'lucide-react';
 
-import type { MenteeDirectionReadGroup } from '@/lib/profile/menteeDirectionView';
+import type { MenteeDirectionReadGroup } from '@/lib/profile/menteeDirectionPreference';
 import { cn } from '@/lib/utils';
 
 export interface MenteeWatchedPositionsCardProps {

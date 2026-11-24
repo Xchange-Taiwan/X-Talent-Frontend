@@ -1,4 +1,5 @@
 import { safeGetStorage, safeSetStorage } from '@/lib/storage';
+import type { TagDisplay } from '@/types/user';
 
 export interface DirectionBucketSelection {
   skills: string[];
@@ -6,10 +7,63 @@ export interface DirectionBucketSelection {
 }
 
 export type MenteeDirectionMap = Record<string, DirectionBucketSelection>;
+export type StoredMenteeDirectionMap = MenteeDirectionMap;
 export type DirectionBucketKey = 'skills' | 'topics';
+
+export interface MenteeDirectionReadGroup {
+  key: string;
+  label: string;
+  skills: TagDisplay[];
+  topics: TagDisplay[];
+  totalCount: number;
+}
 
 const STORAGE_KEY_PREFIX = 'xtalent:mentee-direction-map:v1:';
 const DEFAULT_MAX_TOTAL = 10;
+const FORBIDDEN_OBJECT_KEYS = new Set([
+  '__proto__',
+  'constructor',
+  'prototype',
+]);
+
+function getOwnDirectionEntry(
+  map: MenteeDirectionMap | null | undefined,
+  key: string
+): DirectionBucketSelection | undefined {
+  if (!map || !Object.hasOwn(map, key)) return undefined;
+  return map[key];
+}
+
+function setOwnDirectionEntry(
+  map: MenteeDirectionMap,
+  key: string,
+  value: DirectionBucketSelection
+): void {
+  Object.defineProperty(map, key, {
+    value,
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
+}
+
+function dedupeTags(
+  items: ReadonlyArray<TagDisplay> | null | undefined
+): TagDisplay[] {
+  if (!items?.length) return [];
+  const seen = new Set<string>();
+  const out: TagDisplay[] = [];
+  for (const item of items) {
+    const code = item?.subject_group?.trim();
+    if (!code || seen.has(code)) continue;
+    seen.add(code);
+    out.push({
+      subject_group: code,
+      subject: item.subject?.trim() || code,
+    });
+  }
+  return out;
+}
 
 function uniqueStrings(items: ReadonlyArray<string>): string[] {
   const seen = new Set<string>();
@@ -32,7 +86,7 @@ export function flattenDirectionBucket(
 ): string[] {
   const collected: string[] = [];
   for (const pos of positions) {
-    const entry = directionMap[pos];
+    const entry = getOwnDirectionEntry(directionMap, pos);
     if (!entry) continue;
     collected.push(...entry[bucket]);
   }
@@ -76,24 +130,30 @@ export function hydrateMenteeDirectionMap({
   const nextMap: MenteeDirectionMap = {};
 
   for (const pos of cleanPositions) {
-    const storedEntry = storedMap?.[pos];
-    const keptSkills = storedEntry
-      ? uniqueStrings(storedEntry.skills).filter((s) => skillSet.has(s))
-      : [];
-    const keptTopics = storedEntry
-      ? uniqueStrings(storedEntry.topics).filter((t) => topicSet.has(t))
-      : [];
+    const storedEntry = getOwnDirectionEntry(storedMap, pos);
+    const keptSkills =
+      storedEntry && Array.isArray(storedEntry.skills)
+        ? uniqueStrings(storedEntry.skills).filter((s) => skillSet.has(s))
+        : [];
+    const keptTopics =
+      storedEntry && Array.isArray(storedEntry.topics)
+        ? uniqueStrings(storedEntry.topics).filter((t) => topicSet.has(t))
+        : [];
 
     for (const s of keptSkills) coveredSkills.add(s);
     for (const t of keptTopics) coveredTopics.add(t);
 
-    nextMap[pos] = {
+    setOwnDirectionEntry(nextMap, pos, {
       skills: keptSkills,
       topics: keptTopics,
-    };
+    });
   }
 
   const primaryPosition = cleanPositions[0];
+  const primaryEntry = getOwnDirectionEntry(nextMap, primaryPosition) ?? {
+    skills: [],
+    topics: [],
+  };
   const unassignedSkills = authoritativeSkills.filter(
     (s) => !coveredSkills.has(s)
   );
@@ -102,19 +162,75 @@ export function hydrateMenteeDirectionMap({
   );
 
   if (unassignedSkills.length > 0 || unassignedTopics.length > 0) {
-    nextMap[primaryPosition] = {
+    setOwnDirectionEntry(nextMap, primaryPosition, {
       skills: uniqueStrings([
-        ...nextMap[primaryPosition].skills,
+        ...primaryEntry.skills,
         ...unassignedSkills,
       ]).slice(0, maxTotal),
       topics: uniqueStrings([
-        ...nextMap[primaryPosition].topics,
+        ...primaryEntry.topics,
         ...unassignedTopics,
       ]).slice(0, maxTotal),
-    };
+    });
   }
 
   return nextMap;
+}
+
+export interface BuildMenteeDirectionReadGroupsInput {
+  positions: ReadonlyArray<TagDisplay> | null | undefined;
+  skills: ReadonlyArray<TagDisplay> | null | undefined;
+  topics: ReadonlyArray<TagDisplay> | null | undefined;
+  storedMap?: MenteeDirectionMap | null;
+}
+
+/**
+ * Projects per-direction read groups for Mentee B-1 profile display on top of
+ * `hydrateMenteeDirectionMap` so edit hydration and read display share a single
+ * unassigned-tag reconciliation algorithm onto `positions[0]`.
+ */
+export function buildMenteeDirectionReadGroups({
+  positions,
+  skills,
+  topics,
+  storedMap = null,
+}: BuildMenteeDirectionReadGroupsInput): MenteeDirectionReadGroup[] {
+  const cleanPositions = dedupeTags(positions);
+  if (cleanPositions.length === 0) return [];
+
+  const cleanSkills = dedupeTags(skills);
+  const cleanTopics = dedupeTags(topics);
+
+  const skillByCode = new Map(cleanSkills.map((t) => [t.subject_group, t]));
+  const topicByCode = new Map(cleanTopics.map((t) => [t.subject_group, t]));
+
+  const reconciled = hydrateMenteeDirectionMap({
+    positions: cleanPositions.map((p) => p.subject_group),
+    flatSkills: cleanSkills.map((s) => s.subject_group),
+    flatTopics: cleanTopics.map((t) => t.subject_group),
+    storedMap,
+    maxTotal: Number.MAX_SAFE_INTEGER,
+  });
+
+  return cleanPositions.map((pos) => {
+    const entry = getOwnDirectionEntry(reconciled, pos.subject_group);
+    const matchedSkills = (entry?.skills ?? []).flatMap((code) => {
+      const tag = skillByCode.get(code);
+      return tag ? [tag] : [];
+    });
+    const matchedTopics = (entry?.topics ?? []).flatMap((code) => {
+      const tag = topicByCode.get(code);
+      return tag ? [tag] : [];
+    });
+
+    return {
+      key: pos.subject_group,
+      label: pos.subject,
+      skills: matchedSkills,
+      topics: matchedTopics,
+      totalCount: matchedSkills.length + matchedTopics.length,
+    };
+  });
 }
 
 /**
@@ -136,13 +252,17 @@ export function syncMenteePositions(
   const directionMap: MenteeDirectionMap = {};
 
   for (const pos of cleanPositions) {
-    const existing = prevMap[pos];
-    directionMap[pos] = existing
-      ? {
-          skills: uniqueStrings(existing.skills).slice(0, maxTotal),
-          topics: uniqueStrings(existing.topics).slice(0, maxTotal),
-        }
-      : { skills: [], topics: [] };
+    const existing = getOwnDirectionEntry(prevMap, pos);
+    setOwnDirectionEntry(
+      directionMap,
+      pos,
+      existing
+        ? {
+            skills: uniqueStrings(existing.skills).slice(0, maxTotal),
+            topics: uniqueStrings(existing.topics).slice(0, maxTotal),
+          }
+        : { skills: [], topics: [] }
+    );
   }
 
   return {
@@ -174,7 +294,8 @@ export function computeDirectionSelectLimit(
   bucket: DirectionBucketKey,
   maxTotal = DEFAULT_MAX_TOTAL
 ): number {
-  const activeItems = directionMap[activeDirection]?.[bucket] ?? [];
+  const activeItems =
+    getOwnDirectionEntry(directionMap, activeDirection)?.[bucket] ?? [];
   const totalUnique = flattenDirectionBucket(
     directionMap,
     positions,
@@ -204,7 +325,7 @@ export function updateDirectionBucket(
   const otherUnique = new Set<string>();
   for (const pos of cleanPositions) {
     if (pos === direction) continue;
-    const items = prevMap[pos]?.[bucket] ?? [];
+    const items = getOwnDirectionEntry(prevMap, pos)?.[bucket] ?? [];
     for (const item of items) otherUnique.add(item);
   }
 
@@ -222,14 +343,15 @@ export function updateDirectionBucket(
     }
   }
 
-  const prevEntry = prevMap[direction] ?? { skills: [], topics: [] };
-  const directionMap: MenteeDirectionMap = {
-    ...prevMap,
-    [direction]: {
-      ...prevEntry,
-      [bucket]: sanitizedForDirection,
-    },
+  const prevEntry = getOwnDirectionEntry(prevMap, direction) ?? {
+    skills: [],
+    topics: [],
   };
+  const directionMap: MenteeDirectionMap = { ...prevMap };
+  setOwnDirectionEntry(directionMap, direction, {
+    ...prevEntry,
+    [bucket]: sanitizedForDirection,
+  });
 
   return {
     directionMap,
@@ -242,14 +364,16 @@ export function updateDirectionBucket(
   };
 }
 
-function getStorageKey(userId: string | number | undefined): string | null {
+function getStorageKey(
+  userId: string | number | null | undefined
+): string | null {
   if (userId === undefined || userId === null) return null;
   const trimmed = String(userId).trim();
   return trimmed ? `${STORAGE_KEY_PREFIX}${trimmed}` : null;
 }
 
 export function readStoredMenteeDirectionMap(
-  userId: string | number | undefined,
+  userId: string | number | null | undefined,
   readRaw: (key: string) => string | null = safeGetStorage
 ): MenteeDirectionMap | null {
   const key = getStorageKey(userId);
@@ -263,6 +387,7 @@ export function readStoredMenteeDirectionMap(
     }
     const result: MenteeDirectionMap = {};
     for (const [pos, val] of Object.entries(parsed)) {
+      if (FORBIDDEN_OBJECT_KEYS.has(pos)) continue;
       if (!val || typeof val !== 'object' || Array.isArray(val)) continue;
       const record = val as Record<string, unknown>;
       const skills = Array.isArray(record.skills)
@@ -275,7 +400,7 @@ export function readStoredMenteeDirectionMap(
             record.topics.filter((t): t is string => typeof t === 'string')
           )
         : [];
-      result[pos] = { skills, topics };
+      setOwnDirectionEntry(result, pos, { skills, topics });
     }
     return result;
   } catch {
@@ -284,7 +409,7 @@ export function readStoredMenteeDirectionMap(
 }
 
 export function writeStoredMenteeDirectionMap(
-  userId: string | number | undefined,
+  userId: string | number | null | undefined,
   directionMap: MenteeDirectionMap,
   writeRaw: (key: string, value: string) => void = safeSetStorage
 ): void {

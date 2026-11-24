@@ -20,7 +20,10 @@ import { captureFlowFailure } from '@/lib/monitoring';
 import { encode, toWireExperiences } from '@/lib/profile/experienceCodec';
 import { profileReadModel } from '@/lib/profile/profileReadModel';
 import { readIndustryTag } from '@/lib/profile/readIndustryTag';
-import type { OnboardingFormValues } from '@/schemas/onboarding';
+import {
+  onboardingDefaultValues,
+  type ProfileFormValues,
+} from '@/schemas/profileSchema';
 import { createAvatarUploadSession } from '@/services/profile/avatarUploadSession';
 import { ExperienceType } from '@/services/profile/experienceType';
 import type { MentorProfileWritePayload } from '@/services/profile/updateProfile';
@@ -429,7 +432,7 @@ describe('commitProfileMutation & saveProfile (Deep Module with ProfileSavePort)
     });
   });
 
-  it('encodes mentee-onboarding mode from OnboardingFormValues, primes cache with catalog industry, revalidates ISR, avoids avatarUpdatedAt misfire on empty avatar, and honors pending favorite redirect', async () => {
+  it('encodes mentee-onboarding mode from ProfileFormValues, primes cache with catalog industry, revalidates ISR, avoids avatarUpdatedAt misfire on empty avatar, and honors pending favorite redirect', async () => {
     savePendingFavoriteMentor(88);
 
     const freshMenteeSession: Session = {
@@ -445,7 +448,8 @@ describe('commitProfileMutation & saveProfile (Deep Module with ProfileSavePort)
       },
     };
 
-    const onboardingValues: OnboardingFormValues = {
+    const onboardingValues: ProfileFormValues = {
+      ...onboardingDefaultValues,
       name: 'Mentee Lin',
       avatar: '',
       avatarFile: undefined,
@@ -720,6 +724,7 @@ describe('commitProfileMutation & saveProfile (Deep Module with ProfileSavePort)
       {
         mode: 'mentee-onboarding',
         values: {
+          ...onboardingDefaultValues,
           name: 'Mentee Preuploaded',
           avatar: preUploadedUrl,
           avatarFile: undefined,
@@ -1502,6 +1507,7 @@ describe('commitProfileMutation & saveProfile (Deep Module with ProfileSavePort)
       {
         mode: 'mentee-onboarding',
         values: {
+          ...onboardingDefaultValues,
           name: 'Ada English',
           avatar: '',
           avatarFile: undefined,
