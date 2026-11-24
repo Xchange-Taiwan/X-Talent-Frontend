@@ -71,3 +71,19 @@ export const MediumButtonSize: Story = {
     size: 'default',
   },
 };
+
+/**
+ * 決策失敗（如 409 版本衝突）時 `onAccept` 回傳具名 `{ ok: false }` 結果，彈窗與回覆草稿保持開啟；錯誤 Toast 由 `useReservationActions` 負責 (#977)。
+ */
+export const DecisionFailedStaysOpen: Story = {
+  args: {
+    reservation: mockReservation,
+    myUserId: 'mentor-1',
+    onAccept: async () => ({
+      ok: false,
+      kind: 'accept',
+      reason: 'version_conflict',
+      message: '資料已被更新，請重新確認後再試一次',
+    }),
+  },
+};

@@ -52,3 +52,16 @@ export const Disabled: Story = {
     disabled: true,
   },
 };
+
+// 4. Decision failed: a named `{ ok: false }` result (e.g. API error) keeps the dialog open (#977).
+export const DecisionFailedStaysOpen: Story = {
+  args: {
+    reservation: mockReservation,
+    onConfirmCancel: async () => ({
+      ok: false,
+      kind: 'cancel',
+      reason: 'api_error',
+      message: '取消預約失敗,請稍後再試',
+    }),
+  },
+};

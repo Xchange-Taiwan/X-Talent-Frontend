@@ -14,7 +14,7 @@ const meta: Meta<typeof QuickReplyDialog> = {
     docs: {
       description: {
         component:
-          '導師於個人檔案日曆點擊「待回覆」時段時彈出的快速審核對話框，支援透過統一的 `quickReplyFormSchema`（500 字上限）附上選填回覆接受預約或拒絕預約，並由 mutation 層單次同步更新預約與行事曆快取。',
+          '導師於個人檔案日曆點擊「待回覆」時段時彈出的快速審核對話框，支援透過統一的 `quickReplyFormSchema`（500 字上限）附上選填回覆接受預約或拒絕預約，並由 mutation 層單次同步更新預約與行事曆快取。開啟時送出 `feature_opened`（`dialog: quick_reply`），接受／拒絕之成功與失敗 Toast 統一由 `useReservationActions`（`executeReservationDecision`）負責 (#977)。',
       },
     },
   },

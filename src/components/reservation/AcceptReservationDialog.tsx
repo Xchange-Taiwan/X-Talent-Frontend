@@ -15,9 +15,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { useConfirmActionDialog } from '@/hooks/reservation/useConfirmActionDialog';
 import { useProfileLinkClick } from '@/hooks/reservation/useProfileLinkClick';
 import { trackEvent } from '@/lib/analytics';
+import {
+  isFailedReservationDecision,
+  validateReservationDecisionText,
+} from '@/lib/reservation/executeReservationDecision';
 import {
   isReservationMessagesProjected,
   isReservationViewerProjected,
@@ -25,7 +28,6 @@ import {
   resolveReservationViewer,
 } from '@/lib/reservation/reservationProjection';
 import { cn } from '@/lib/utils';
-import { quickReplyFormSchema } from '@/schemas/quickReplySchema';
 import type { Reservation } from '@/types/reservation';
 
 interface Props {
@@ -34,7 +36,11 @@ interface Props {
   className?: string;
   disabled?: boolean;
   size?: ButtonProps['size'];
-  onAccept?: (payload: { id: string; message: string }) => Promise<void> | void;
+  /** Resolve a named `{ ok: false }` result to keep the dialog open. */
+  onAccept?: (payload: {
+    id: string;
+    message: string;
+  }) => Promise<unknown> | unknown;
 }
 
 export default function AcceptReservationDialog({
@@ -48,24 +54,25 @@ export default function AcceptReservationDialog({
   const [replyOpen, setReplyOpen] = useState(false);
   const [reply, setReply] = useState('');
 
-  const parsedReply = quickReplyFormSchema.safeParse({ reply });
-  const replyError = parsedReply.success
-    ? undefined
-    : parsedReply.error.issues[0]?.message;
+  const [open, setOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { open, isSubmitting, onOpenChange, setOpen, execute } =
-    useConfirmActionDialog({
-      errorMessage: '接受預約失敗,請稍後再試',
-      onOpen: () => {
-        setReply('');
-        setReplyOpen(false);
-        trackEvent({
-          name: 'feature_opened',
-          feature: 'reservation',
-          metadata: { dialog: 'accept_reservation' },
-        });
-      },
-    });
+  const replyValidation = validateReservationDecisionText('accept', reply);
+  const replyError = replyValidation.ok ? undefined : replyValidation.message;
+
+  const onOpenChange = (next: boolean) => {
+    if (isSubmitting) return;
+    setOpen(next);
+    if (next) {
+      setReply('');
+      setReplyOpen(false);
+      trackEvent({
+        name: 'feature_opened',
+        feature: 'reservation',
+        metadata: { dialog: 'accept_reservation' },
+      });
+    }
+  };
 
   const profileHref = isReservationViewerProjected(reservation, myUserId)
     ? myUserId
@@ -83,14 +90,26 @@ export default function AcceptReservationDialog({
     onNavigate: () => setOpen(false),
   });
 
-  const handleAccept = () => {
-    const validated = quickReplyFormSchema.safeParse({ reply });
-    if (!validated.success) return;
-    const trimmedReply = (validated.data.reply ?? '').trim();
-
-    execute(async () => {
-      await onAccept?.({ id: reservation.id, message: trimmedReply });
-    });
+  const handleAccept = async () => {
+    if (!replyValidation.ok || isSubmitting) return;
+    setIsSubmitting(true);
+    let keepOpen = false;
+    try {
+      const result = await onAccept?.({
+        id: reservation.id,
+        message: replyValidation.value,
+      });
+      keepOpen = isFailedReservationDecision(result);
+    } catch (error) {
+      keepOpen = true;
+      console.error(
+        '[AcceptReservationDialog] accept failed:',
+        error instanceof Error ? error.name : 'unknown'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+    if (!keepOpen) setOpen(false);
   };
 
   return (
@@ -164,7 +183,7 @@ export default function AcceptReservationDialog({
             <Button
               type="button"
               className="w-full sm:w-auto"
-              onClick={handleAccept}
+              onClick={() => void handleAccept()}
               disabled={isSubmitting || disabled || Boolean(replyError)}
             >
               {isSubmitting && <Loader2 className="mr-2 size-4 animate-spin" />}
