@@ -100,6 +100,28 @@ export const AvatarSection = <T extends FieldValues>({
     control,
     name: resolvedAvatarField,
   });
+  // #981: avatar upload failures surface as a field error on `name`
+  // (see avatarUploadFailure.ts). The Mentor branch renders it through
+  // AvatarUpload; the Mentee branch must render it here, otherwise the
+  // failure is silent now that the generic toast is suppressed.
+  const { errors } = useFormState({ control, name });
+  const fieldErrorMessage = (
+    errors as Record<string, { message?: unknown } | undefined>
+  )[String(name)]?.message;
+  const menteeErrorMessage =
+    typeof fieldErrorMessage === 'string' && fieldErrorMessage.length > 0
+      ? fieldErrorMessage
+      : undefined;
+  const menteeError = menteeErrorMessage ? (
+    <p
+      role="alert"
+      data-testid="mentee-avatar-error"
+      className="text-status-error-default text-sm font-medium"
+    >
+      {menteeErrorMessage}
+    </p>
+  ) : null;
+
   const isAvatarDirty = Boolean(
     (dirtyFields as Record<string, unknown>)[String(resolvedAvatarField)]
   );
@@ -128,23 +150,29 @@ export const AvatarSection = <T extends FieldValues>({
     return (
       <>
         {variant === 'compact' ? (
-          <div id={id} className="relative inline-block shrink-0 p-0.5">
-            <MenteeAvatarTriggerButton
-              src={effectiveDisplayUrl}
-              userName={userName}
-              onClick={openDialog}
-            />
-            <button
-              type="button"
-              aria-label="編輯頭像"
-              onClick={openDialog}
-              className={cn(
-                FOCUS_RING_NO_OFFSET_CLASSES,
-                'border-background-border bg-background-white text-text-secondary hover:text-text-primary absolute right-0.5 bottom-0.5 grid size-8 cursor-pointer place-items-center rounded-full border shadow-xs transition-colors'
-              )}
-            >
-              <Camera className="size-4" aria-hidden="true" />
-            </button>
+          <div
+            id={id}
+            className="inline-flex shrink-0 flex-col items-center gap-2"
+          >
+            <div className="relative inline-block p-0.5">
+              <MenteeAvatarTriggerButton
+                src={effectiveDisplayUrl}
+                userName={userName}
+                onClick={openDialog}
+              />
+              <button
+                type="button"
+                aria-label="編輯頭像"
+                onClick={openDialog}
+                className={cn(
+                  FOCUS_RING_NO_OFFSET_CLASSES,
+                  'border-background-border bg-background-white text-text-secondary hover:text-text-primary absolute right-0.5 bottom-0.5 grid size-8 cursor-pointer place-items-center rounded-full border shadow-xs transition-colors'
+                )}
+              >
+                <Camera className="size-4" aria-hidden="true" />
+              </button>
+            </div>
+            {menteeError}
           </div>
         ) : (
           <Section id={id} title="個人頭像" required={false} variant={variant}>
@@ -167,6 +195,7 @@ export const AvatarSection = <T extends FieldValues>({
                 <p className="text-text-tertiary text-xs">
                   可選擇預設插畫頭像或自行上傳照片
                 </p>
+                {menteeError}
               </div>
             </div>
           </Section>

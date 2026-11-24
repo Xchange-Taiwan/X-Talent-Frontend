@@ -172,3 +172,60 @@ export const CompactMentorUpload: Story = {
     </ProfileStoryWrapper>
   ),
 };
+
+/** Mirrors avatarUploadFailure.ts: marks avatarFile once after mount. */
+function SimulateAvatarUploadFailure({
+  setError,
+}: {
+  setError: (
+    name: 'avatarFile',
+    error: { type: string; message: string }
+  ) => void;
+}) {
+  React.useEffect(() => {
+    setError('avatarFile', {
+      type: 'manual',
+      message: '頭像上傳失敗，請重新選擇。',
+    });
+  }, [setError]);
+  return null;
+}
+
+function MenteeAvatarUploadFailedStory({
+  variant,
+}: {
+  variant: 'default' | 'compact';
+}) {
+  return (
+    <ProfileStoryWrapper defaultValues={{ avatar: '/avatars/default_2.webp' }}>
+      {(form) => {
+        return (
+          <>
+            <SimulateAvatarUploadFailure setError={form.setError} />
+            <AvatarSection
+              variant={variant}
+              control={form.control}
+              name="avatarFile"
+              isMentor={false}
+              onSelectPresetAvatar={(url) =>
+                form.setValue('avatar', url, { shouldDirty: true })
+              }
+            />
+          </>
+        );
+      }}
+    </ProfileStoryWrapper>
+  );
+}
+
+export const MenteeAvatarUploadFailed: Story = {
+  name: '學員頭像上傳失敗欄位錯誤 (#981)',
+  parameters: { nextAuth: { user: { avatar: '' } } },
+  render: () => <MenteeAvatarUploadFailedStory variant="default" />,
+};
+
+export const CompactMenteeAvatarUploadFailed: Story = {
+  name: '方案 A 緊湊頭像（學員頭像上傳失敗 #981）',
+  parameters: { nextAuth: { user: { avatar: '' } } },
+  render: () => <MenteeAvatarUploadFailedStory variant="compact" />,
+};

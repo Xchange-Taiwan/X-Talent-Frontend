@@ -93,3 +93,77 @@ describe('AvatarSection (#905)', () => {
     expect(screen.getByTestId('avatar-upload-url')).toHaveTextContent('');
   });
 });
+
+function MenteeHarness({
+  variant,
+  onReady,
+}: {
+  variant: 'default' | 'compact';
+  onReady?: (methods: ReturnType<typeof useForm<TestFormValues>>) => void;
+}) {
+  const methods = useForm<TestFormValues>({
+    defaultValues: { avatar: '', avatarFile: undefined },
+  });
+  React.useEffect(() => {
+    onReady?.(methods);
+  }, [methods, onReady]);
+
+  return (
+    <FormProvider {...methods}>
+      <AvatarSection
+        control={methods.control}
+        name="avatarFile"
+        isMentor={false}
+        onSelectPresetAvatar={vi.fn()}
+        variant={variant}
+        id="avatarFile"
+      />
+    </FormProvider>
+  );
+}
+
+describe('AvatarSection Mentee avatar upload failure feedback (#981)', () => {
+  beforeEach(() => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: { id: '42', name: 'Mentee User', avatar: '' },
+        expires: '2099-01-01',
+      },
+      status: 'authenticated',
+      update: vi.fn(),
+    });
+  });
+
+  it.each(['default', 'compact'] as const)(
+    'renders the avatarFile field error inline for Mentees (%s variant)',
+    (variant) => {
+      let formMethods: ReturnType<typeof useForm<TestFormValues>> | undefined;
+      render(
+        <MenteeHarness
+          variant={variant}
+          onReady={(m) => {
+            formMethods = m;
+          }}
+        />
+      );
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+      act(() => {
+        formMethods?.setError('avatarFile', {
+          type: 'manual',
+          message: '頭像上傳失敗，請重新選擇。',
+        });
+      });
+
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        '頭像上傳失敗，請重新選擇。'
+      );
+
+      act(() => {
+        formMethods?.clearErrors('avatarFile');
+      });
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    }
+  );
+});
