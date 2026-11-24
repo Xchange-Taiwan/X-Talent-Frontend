@@ -139,4 +139,86 @@ describe('MentorFilterDropdown', () => {
 
     expect(handleChange).toHaveBeenCalledWith({});
   });
+
+  it('resets uncommitted dirty draft when dismissed via Escape and reopened (#976)', () => {
+    const handleChange = vi.fn();
+    render(<MentorFilterDropdown {...defaultProps} onChange={handleChange} />);
+
+    const triggerBtn = screen.getByRole('button', { name: /篩選/i });
+    fireEvent.click(triggerBtn);
+
+    // Select '前端開發' without clicking "套用"
+    const selects = screen.getAllByRole('combobox');
+    fireEvent.click(selects[0]);
+    fireEvent.click(screen.getByText('前端開發'));
+    expect(screen.getAllByRole('combobox')[0]).toHaveTextContent('前端開發');
+
+    // Dismiss popover via Escape without applying
+    fireEvent.keyDown(screen.getAllByRole('combobox')[0], {
+      key: 'Escape',
+      code: 'Escape',
+    });
+    expect(
+      screen.queryByRole('button', { name: '套用' })
+    ).not.toBeInTheDocument();
+    expect(handleChange).not.toHaveBeenCalled();
+
+    // Reopen popover -> uncommitted selection must be discarded back to committed empty state
+    fireEvent.click(triggerBtn);
+    const reopenedSelects = screen.getAllByRole('combobox');
+    expect(reopenedSelects[0]).toHaveTextContent('請選擇專業技能');
+    expect(reopenedSelects[0]).not.toHaveTextContent('前端開發');
+  });
+
+  it('restores committed selectOptions on reopen after uncommitted clear or edit is dismissed, and picks up external selectOptions updates (#976)', () => {
+    const handleChange = vi.fn();
+    const committed: SelectFilters = {
+      filter_skills: { name: '專業技能', value: 'frontend' },
+    };
+    const { rerender } = render(
+      <MentorFilterDropdown
+        {...defaultProps}
+        selectOptions={committed}
+        onChange={handleChange}
+      />
+    );
+
+    const triggerBtn = screen.getByRole('button', { name: /篩選/i });
+    fireEvent.click(triggerBtn);
+    expect(screen.getAllByRole('combobox')[0]).toHaveTextContent('前端開發');
+
+    // Click "清除全部" in draft, then press Escape instead of "套用"
+    fireEvent.click(screen.getByRole('button', { name: '清除全部' }));
+    expect(screen.getAllByRole('combobox')[0]).toHaveTextContent(
+      '請選擇專業技能'
+    );
+
+    fireEvent.keyDown(screen.getByRole('button', { name: '清除全部' }), {
+      key: 'Escape',
+      code: 'Escape',
+    });
+    expect(handleChange).not.toHaveBeenCalled();
+
+    // Reopen -> committed '前端開發' is restored
+    fireEvent.click(triggerBtn);
+    expect(screen.getAllByRole('combobox')[0]).toHaveTextContent('前端開發');
+
+    // Close via Escape, then simulate external badge removal updating selectOptions to {}
+    fireEvent.keyDown(screen.getByRole('button', { name: '套用' }), {
+      key: 'Escape',
+      code: 'Escape',
+    });
+    rerender(
+      <MentorFilterDropdown
+        {...defaultProps}
+        selectOptions={{}}
+        onChange={handleChange}
+      />
+    );
+
+    fireEvent.click(triggerBtn);
+    expect(screen.getAllByRole('combobox')[0]).toHaveTextContent(
+      '請選擇專業技能'
+    );
+  });
 });

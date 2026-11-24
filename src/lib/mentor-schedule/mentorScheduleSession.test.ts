@@ -675,10 +675,21 @@ describe('MentorScheduleSession', () => {
     });
   });
 
-  describe('confirmChanges() synchronous read-model notifications & DI port consistency', () => {
-    it('prevents duplicate -1 + persisted occurrences when syncMonths synchronously updates scheduleReadModel mid-flight across multi-month saves (both full success and partial failure)', async () => {
-      scheduleReadModel.set({ userId: '123', year: 2026, month: 7 }, []);
-      scheduleReadModel.set({ userId: '123', year: 2026, month: 8 }, []);
+  describe('confirmChanges() sole read-model publisher, isSaving & mid-flight invariants (#975)', () => {
+    it('keeps mentorScheduleSession.ts free of activeSyncBatches and isMonthActivelySyncing re-entrancy workarounds', () => {
+      const source = fs.readFileSync(
+        path.resolve(__dirname, './mentorScheduleSession.ts'),
+        'utf8'
+      );
+      expect(source).not.toMatch(/activeSyncBatches/);
+      expect(source).not.toMatch(/isMonthActivelySyncing/);
+    });
+
+    it('acts as sole scheduleReadModel publisher upon commit settlement across multi-month saves without duplicate -1 + persisted frames (both partial failure and retry success)', async () => {
+      const julyKey: ScheduleReadKey = { userId: '123', year: 2026, month: 7 };
+      const augKey: ScheduleReadKey = { userId: '123', year: 2026, month: 8 };
+      scheduleReadModel.set(julyKey, []);
+      scheduleReadModel.set(augKey, []);
 
       const augustStep = deferred<void>();
       let failAugust = false;
@@ -701,13 +712,12 @@ describe('MentorScheduleSession', () => {
       };
 
       const { ports } = makePorts({
+        // Pure transport adapter: returns outcomes without mutating scheduleReadModel directly
         syncMonths: vi.fn(async (requests) => {
           const results = [];
           for (const req of requests) {
             const monthKey = `${req.ref.year}-${String(req.ref.month).padStart(2, '0')}`;
             if (req.ref.month === 7) {
-              // Mirrors production syncMonthSchedule -> loadMonthScheduleFresh calling scheduleReadModel.set synchronously before syncMonths resolves
-              scheduleReadModel.set(req.ref, [persistedJuly999]);
               results.push({
                 monthKey,
                 outcome: { ok: true as const, raws: [persistedJuly999] },
@@ -724,7 +734,6 @@ describe('MentorScheduleSession', () => {
                   },
                 });
               } else {
-                scheduleReadModel.set(req.ref, [persistedAug1000]);
                 results.push({
                   monthKey,
                   outcome: { ok: true as const, raws: [persistedAug1000] },
@@ -784,8 +793,11 @@ describe('MentorScheduleSession', () => {
 
       // 1. Start multi-month confirmChanges where Month 1 succeeds and Month 2 is still in flight
       const savePromise1 = session.getSnapshot().editor!.confirmChanges();
+      expect(session.getSnapshot().editor!.isSaving).toBe(true);
       await Promise.resolve();
 
+      // While Month 2 is still in flight, scheduleReadModel has not been prematurely written
+      expect(scheduleReadModel.get(julyKey)).toEqual([]);
       const midFlightJulyOccs = session
         .getSnapshot()
         .editor!.draftOccurrences!.filter((o) => o.dateKey === '2026-07-15');
@@ -797,6 +809,7 @@ describe('MentorScheduleSession', () => {
       augustStep.resolve();
       const partialResult = await savePromise1;
 
+      expect(session.getSnapshot().editor!.isSaving).toBe(false);
       expect(partialResult).toEqual({
         ok: false,
         reason: 'conflict',
@@ -806,7 +819,9 @@ describe('MentorScheduleSession', () => {
       });
       expect(observedDuplicateFrames).toEqual([]);
 
-      // July committed cleanly with id=999 (zero negative IDs), while August kept its unsaved id < 0 draft
+      // July published to scheduleReadModel and committed with id=999; August kept unsaved draft and [] in read model
+      expect(scheduleReadModel.get(julyKey)).toEqual([persistedJuly999]);
+      expect(scheduleReadModel.get(augKey)).toEqual([]);
       const afterPartialOccs = session.getSnapshot().editor!.draftOccurrences!;
       const julyAfterPartial = afterPartialOccs.filter(
         (o) => o.dateKey === '2026-07-15'
@@ -825,12 +840,229 @@ describe('MentorScheduleSession', () => {
         ok: true,
         committedMonthKeys: ['2026-08'],
       });
+      expect(scheduleReadModel.get(augKey)).toEqual([persistedAug1000]);
 
       const finalOccs = session.getSnapshot().editor!.draftOccurrences!;
       expect(finalOccs.map((o) => o.id)).toEqual([999, 1000]);
       expect(observedDuplicateFrames).toEqual([]);
 
       unsub();
+      session.dispose();
+    });
+
+    it('exposes referentially stable editor.isSaving, blocks resetChanges() while saving, and resets isSaving on rejection', async () => {
+      const julyKey: ScheduleReadKey = { userId: '123', year: 2026, month: 7 };
+      scheduleReadModel.set(julyKey, [julyAllowSlot]);
+
+      const syncGate =
+        deferred<
+          Awaited<
+            ReturnType<NonNullable<MentorScheduleSessionPorts['syncMonths']>>
+          >
+        >();
+      const { ports, spies } = makePorts({
+        syncMonths: vi.fn(() => syncGate.promise),
+      });
+
+      const session = createMentorScheduleSession(
+        {
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: '123',
+        },
+        ports
+      );
+
+      // Idle snapshot: isSaving === false and referentially stable
+      const idleSnap1 = session.getSnapshot();
+      const idleSnap2 = session.getSnapshot();
+      expect(idleSnap1).toBe(idleSnap2);
+      expect(idleSnap1.editor!.isSaving).toBe(false);
+
+      // Make July dirty by adding a new slot
+      session.getSnapshot().reader.setSelectedDate('2026-07-26');
+      session.getSnapshot().editor!.addSlotForSelectedDate({
+        startTime: '15:00',
+        durationMinutes: 30,
+      });
+      expect(session.getSnapshot().editor!.draftOccurrences).toHaveLength(2);
+
+      // Start save -> isSaving transitions to true and remains referentially stable across reads
+      const savePromise = session.getSnapshot().editor!.confirmChanges();
+      const savingSnap1 = session.getSnapshot();
+      const savingSnap2 = session.getSnapshot();
+      expect(savingSnap1).toBe(savingSnap2);
+      expect(savingSnap1.editor!.isSaving).toBe(true);
+
+      // Calling resetChanges() mid-save MUST be blocked so the un-abortable commit cannot half-discard
+      session.getSnapshot().editor!.resetChanges();
+      expect(session.getSnapshot().editor!.draftOccurrences).toHaveLength(2);
+      expect(session.getSnapshot().editor!.isSaving).toBe(true);
+
+      const persistedNewSlot: RawMentorTimeslot = {
+        id: 888,
+        type: 'ALLOW',
+        dtstart: Math.floor(new Date('2026-07-26T15:00:00Z').getTime() / 1000),
+        dtend: Math.floor(new Date('2026-07-26T15:30:00Z').getTime() / 1000),
+        rrule: undefined,
+        exdate: [],
+      };
+      syncGate.resolve([
+        {
+          monthKey: '2026-07',
+          outcome: { ok: true, raws: [julyAllowSlot, persistedNewSlot] },
+        },
+      ]);
+      const res = await savePromise;
+
+      expect(res).toEqual({ ok: true, committedMonthKeys: ['2026-07'] });
+      expect(session.getSnapshot().editor!.isSaving).toBe(false);
+      expect(
+        session.getSnapshot().editor!.draftOccurrences!.map((o) => o.id)
+      ).toEqual([101, 888]);
+      expect(scheduleReadModel.get(julyKey)).toEqual([
+        julyAllowSlot,
+        persistedNewSlot,
+      ]);
+
+      // Verify unexpected rejection also resets isSaving back to false
+      session.getSnapshot().editor!.addSlotForSelectedDate({
+        startTime: '17:00',
+        durationMinutes: 30,
+      });
+      spies.syncMonths.mockRejectedValueOnce(new Error('network boom'));
+      await expect(
+        session.getSnapshot().editor!.confirmChanges()
+      ).rejects.toThrow('network boom');
+      expect(session.getSnapshot().editor!.isSaving).toBe(false);
+
+      session.dispose();
+    });
+
+    it('reconciles scheduleReadModel and MonthDraftStore baseline even if dispose() runs mid-flight (when accountSwitchGen is unchanged) so remount configure() never restores stale pre-save rows', async () => {
+      const julyKey: ScheduleReadKey = { userId: '123', year: 2026, month: 7 };
+      scheduleReadModel.set(julyKey, [julyAllowSlot]);
+
+      const syncGate1 =
+        deferred<
+          Awaited<
+            ReturnType<NonNullable<MentorScheduleSessionPorts['syncMonths']>>
+          >
+        >();
+      const syncGate2 =
+        deferred<
+          Awaited<
+            ReturnType<NonNullable<MentorScheduleSessionPorts['syncMonths']>>
+          >
+        >();
+      let syncCall = 0;
+
+      const { ports } = makePorts({
+        syncMonths: vi.fn(() => {
+          syncCall += 1;
+          return syncCall === 1 ? syncGate1.promise : syncGate2.promise;
+        }),
+      });
+
+      const session = createMentorScheduleSession(
+        {
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: '123',
+        },
+        ports
+      );
+
+      // Case A: dispose() mid-flight -> syncMonths settles while disposed -> configure() remounts later
+      session.getSnapshot().reader.setSelectedDate('2026-07-26');
+      session.getSnapshot().editor!.addSlotForSelectedDate({
+        startTime: '15:00',
+        durationMinutes: 30,
+      });
+      const savePromise1 = session.getSnapshot().editor!.confirmChanges();
+      expect(session.getSnapshot().editor!.isSaving).toBe(true);
+
+      // Unmount / StrictMode cleanup while confirmChanges is in flight
+      session.dispose();
+
+      const committedJulyA: RawMentorTimeslot = {
+        id: 701,
+        type: 'ALLOW',
+        dtstart: Math.floor(new Date('2026-07-26T15:00:00Z').getTime() / 1000),
+        dtend: Math.floor(new Date('2026-07-26T15:30:00Z').getTime() / 1000),
+        rrule: undefined,
+        exdate: [],
+      };
+      syncGate1.resolve([
+        {
+          monthKey: '2026-07',
+          outcome: { ok: true, raws: [julyAllowSlot, committedJulyA] },
+        },
+      ]);
+      await savePromise1;
+
+      // Read model was STILL published despite session being disposed (same accountSwitchGen)
+      expect(scheduleReadModel.get(julyKey)).toEqual([
+        julyAllowSlot,
+        committedJulyA,
+      ]);
+
+      // Remounting via configure() sees the freshly committed rows and unwedged isSaving === false
+      session.configure({
+        backend: { userId: '123', year: 2026, month: 7 },
+        loginUserId: '123',
+      });
+      expect(session.getSnapshot().editor!.isSaving).toBe(false);
+      expect(
+        session.getSnapshot().editor!.draftOccurrences!.map((o) => o.id)
+      ).toEqual([101, 701]);
+
+      // Case B: dispose() -> immediate configure() remount BEFORE syncMonths settles -> syncMonths settles
+      session.getSnapshot().editor!.addSlotForSelectedDate({
+        startTime: '16:30',
+        durationMinutes: 30,
+      });
+      const savePromise2 = session.getSnapshot().editor!.confirmChanges();
+      expect(session.getSnapshot().editor!.isSaving).toBe(true);
+
+      session.dispose();
+      session.configure({
+        backend: { userId: '123', year: 2026, month: 7 },
+        loginUserId: '123',
+      });
+
+      // Still saving while syncGate2 is pending, and mid-save resetChanges() remains blocked
+      expect(session.getSnapshot().editor!.isSaving).toBe(true);
+      session.getSnapshot().editor!.resetChanges();
+      expect(session.getSnapshot().editor!.draftOccurrences).toHaveLength(3);
+
+      const committedJulyB: RawMentorTimeslot = {
+        id: 702,
+        type: 'ALLOW',
+        dtstart: Math.floor(new Date('2026-07-26T16:30:00Z').getTime() / 1000),
+        dtend: Math.floor(new Date('2026-07-26T17:00:00Z').getTime() / 1000),
+        rrule: undefined,
+        exdate: [],
+      };
+      syncGate2.resolve([
+        {
+          monthKey: '2026-07',
+          outcome: {
+            ok: true,
+            raws: [julyAllowSlot, committedJulyA, committedJulyB],
+          },
+        },
+      ]);
+      await savePromise2;
+
+      expect(session.getSnapshot().editor!.isSaving).toBe(false);
+      expect(scheduleReadModel.get(julyKey)).toEqual([
+        julyAllowSlot,
+        committedJulyA,
+        committedJulyB,
+      ]);
+      expect(
+        session.getSnapshot().editor!.draftOccurrences!.map((o) => o.id)
+      ).toEqual([101, 701, 702]);
+
       session.dispose();
     });
 

@@ -20,6 +20,7 @@ vi.mock('@/services/search-mentor/mentors', () => ({
 }));
 
 import avatarImage from '@/assets/default-avatar.png';
+import * as mentorPoolQueryModule from '@/lib/mentor/mentorPoolQuery';
 import { DEFAULT_MENTOR_PAGE_LIMIT as PAGE_LIMIT } from '@/lib/mentor/mentorPoolQuery';
 import {
   mentorPoolReadModel,
@@ -1843,6 +1844,52 @@ describe('useMentorPool', () => {
         'Mounted Stale Mentor',
       ]);
     });
+  });
+
+  it('consumes pre-projected query and queryKey directly without re-parsing URLSearchParams (#976)', async () => {
+    const projected = mentorPoolQueryModule.projectMentorPoolDiscoveryState(
+      '?q=react&filter_skills=skill_ts'
+    );
+    const untouchedParams = {
+      get: vi.fn(() => {
+        throw new Error('params.get should not be called when query is shared');
+      }),
+      toString: vi.fn(() => ''),
+    };
+    const spyParse = vi.spyOn(mentorPoolQueryModule, 'parseMentorPoolQuery');
+    const spyDeserialize = vi.spyOn(
+      mentorPoolQueryModule,
+      'deserializeMentorPoolQuery'
+    );
+
+    mockFetchMentors.mockResolvedValueOnce({
+      mentors: [mockInitialMentors[0]],
+      nextCursor: null,
+    });
+
+    try {
+      const { result } = renderHook(() =>
+        useMentorPool({
+          initialMentors: [],
+          initialNextCursor: null,
+          initialMentorCount: 0,
+          query: projected.query,
+          queryKey: projected.queryKey,
+          params: untouchedParams,
+        })
+      );
+
+      expect(untouchedParams.get).not.toHaveBeenCalled();
+      expect(spyParse).not.toHaveBeenCalled();
+      expect(spyDeserialize).not.toHaveBeenCalled();
+
+      await waitFor(() => {
+        expect(result.current.mentors).toHaveLength(1);
+      });
+    } finally {
+      spyParse.mockRestore();
+      spyDeserialize.mockRestore();
+    }
   });
 });
 

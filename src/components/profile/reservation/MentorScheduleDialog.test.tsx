@@ -117,6 +117,7 @@ function createMockSchedule(
     draftForSelectedDate: draft,
     slotsWithMeta: projected.slotsWithMeta,
     futureSlots: projected.futureSlots,
+    isSaving: false,
     addSlotForSelectedDate: vi
       .fn()
       .mockReturnValue({ success: true, added: 1 }),
@@ -834,5 +835,131 @@ describe('MentorScheduleDialog', () => {
       description:
         '已儲存 7 月，但 8 月此時段與既有預約衝突,請新增新時段後再試',
     });
+  });
+
+  it('calls resetChanges before onOpenChange(false) when dismissed via Escape, header X button, backdrop pointerDown, or footer 取消 button (#975)', () => {
+    const callOrder: string[] = [];
+    const resetSpy = vi.fn(() => {
+      callOrder.push('resetChanges');
+    });
+    const onOpenChangeSpy = vi.fn((nextOpen: boolean) => {
+      callOrder.push(`onOpenChange:${String(nextOpen)}`);
+    });
+    const scheduleForDismiss = createMockSchedule({
+      resetChanges: resetSpy,
+    });
+
+    const { unmount } = render(
+      <MentorScheduleDialog
+        open={true}
+        onOpenChange={onOpenChangeSpy}
+        reader={mockReader}
+        schedule={scheduleForDismiss}
+      />
+    );
+    act(() => {
+      vi.runAllTimers();
+    });
+
+    // 1. Escape key dismissal
+    const dialog = screen.getByRole('dialog', { name: '設定可預約時段' });
+    fireEvent.keyDown(dialog, { key: 'Escape', code: 'Escape' });
+    expect(callOrder).toEqual(['resetChanges', 'onOpenChange:false']);
+
+    // 2. Header X close button dismissal
+    callOrder.length = 0;
+    fireEvent.click(screen.getByRole('button', { name: '關閉' }));
+    expect(callOrder).toEqual(['resetChanges', 'onOpenChange:false']);
+
+    // 3. Backdrop outside pointerDown + click dismissal (Radix Dialog defers button=0 pointerDownOutside until click)
+    callOrder.length = 0;
+    const overlay = document.body.querySelector('.fixed.inset-0');
+    expect(overlay).not.toBeNull();
+    fireEvent.pointerDown(overlay!, { button: 0, ctrlKey: false });
+    fireEvent.click(overlay!);
+    expect(callOrder).toEqual(['resetChanges', 'onOpenChange:false']);
+
+    // 4. Footer 取消 button dismissal
+    callOrder.length = 0;
+    fireEvent.click(screen.getByRole('button', { name: '取消' }));
+    expect(callOrder).toEqual(['resetChanges', 'onOpenChange:false']);
+
+    unmount();
+  });
+
+  it('closes without calling resetChanges after a successful Save (#975)', async () => {
+    const resetSpy = vi.fn();
+    const onOpenChangeSpy = vi.fn();
+    const confirmSpy = vi
+      .fn()
+      .mockResolvedValue({ ok: true, committedMonthKeys: ['2026-07'] });
+    const scheduleForSave = createMockSchedule({
+      confirmChanges: confirmSpy,
+      resetChanges: resetSpy,
+    });
+
+    render(
+      <MentorScheduleDialog
+        open={true}
+        onOpenChange={onOpenChangeSpy}
+        reader={mockReader}
+        schedule={scheduleForSave}
+      />
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '儲存' }));
+    });
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(onOpenChangeSpy).toHaveBeenCalledTimes(1);
+    expect(onOpenChangeSpy).toHaveBeenCalledWith(false);
+    expect(resetSpy).not.toHaveBeenCalled();
+  });
+
+  it('reflects schedule.isSaving and blocks Escape, header X, backdrop, and 取消 dismissal while isSaving === true (#975)', () => {
+    const resetSpy = vi.fn();
+    const onOpenChangeSpy = vi.fn();
+    const savingSchedule = createMockSchedule({
+      isSaving: true,
+      resetChanges: resetSpy,
+    });
+
+    render(
+      <MentorScheduleDialog
+        open={true}
+        onOpenChange={onOpenChangeSpy}
+        reader={mockReader}
+        schedule={savingSchedule}
+      />
+    );
+    act(() => {
+      vi.runAllTimers();
+    });
+
+    const saveBtn = screen.getByRole('button', { name: '儲存中...' });
+    const cancelBtn = screen.getByRole('button', { name: '取消' });
+    const headerCloseBtn = screen.getByRole('button', { name: '關閉' });
+
+    expect(saveBtn).toBeDisabled();
+    expect(cancelBtn).toBeDisabled();
+
+    // Attempt Escape
+    const dialog = screen.getByRole('dialog', { name: '設定可預約時段' });
+    fireEvent.keyDown(dialog, { key: 'Escape', code: 'Escape' });
+
+    // Attempt header X click
+    fireEvent.click(headerCloseBtn);
+
+    // Attempt Cancel click
+    fireEvent.click(cancelBtn);
+
+    // Attempt backdrop click
+    const overlay = document.body.querySelector('.fixed.inset-0');
+    fireEvent.pointerDown(overlay!, { button: 0, ctrlKey: false });
+    fireEvent.click(overlay!);
+
+    expect(resetSpy).not.toHaveBeenCalled();
+    expect(onOpenChangeSpy).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,5 @@
 'use client';
 
-import { useSearchParams } from 'next/navigation';
 import {
   useCallback,
   useEffect,
@@ -14,8 +13,10 @@ import { trackEvent } from '@/lib/analytics';
 import {
   countActiveMentorPoolFilters,
   DEFAULT_MENTOR_PAGE_LIMIT,
-  deserializeMentorPoolQuery,
+  type MentorPoolQuery,
+  normalizeMentorPoolQuery,
   parseMentorPoolQuery,
+  type SearchParamReader,
   serializeMentorPoolQuery,
 } from '@/lib/mentor/mentorPoolQuery';
 import {
@@ -29,11 +30,13 @@ import type { MentorType } from '@/types/mentor';
 
 export { applyMentorPage, type MentorPageAction, type MentorPoolPageState };
 
-interface UseMentorPoolProps {
+export interface UseMentorPoolProps {
   initialMentors: MentorType[];
   initialNextCursor?: string | null;
   initialMentorCount: number;
-  params: ReturnType<typeof useSearchParams>;
+  query?: Readonly<MentorPoolQuery>;
+  queryKey?: string;
+  params?: SearchParamReader | string | null;
   initialError?: boolean;
 }
 
@@ -41,6 +44,8 @@ export function useMentorPool({
   initialMentors,
   initialNextCursor = null,
   initialMentorCount,
+  query: providedQuery,
+  queryKey: providedQueryKey,
   params,
   initialError,
 }: UseMentorPoolProps) {
@@ -55,8 +60,14 @@ export function useMentorPool({
     });
   }, [toast]);
 
-  const queryKey = serializeMentorPoolQuery(parseMentorPoolQuery(params));
-  const query = useMemo(() => deserializeMentorPoolQuery(queryKey), [queryKey]);
+  const rawQuery =
+    providedQuery !== undefined ? providedQuery : parseMentorPoolQuery(params);
+  const queryKey =
+    providedQueryKey !== undefined
+      ? providedQueryKey
+      : serializeMentorPoolQuery(rawQuery);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- queryKey canonically determines normalized query
+  const query = useMemo(() => normalizeMentorPoolQuery(rawQuery), [queryKey]);
   const initialQueryRef = useRef(query);
 
   const ssrSeed = useMemo<MentorPoolSSRSeed>(

@@ -140,8 +140,8 @@ The fetcher is passed in rather than owned by the model, so `src/services/mentor
 
 ## Consumers
 
-- `MentorScheduleSession` (`src/lib/mentor-schedule/mentorScheduleSession.ts`, X-Tracker #937) subscribes to the viewed month directly and mirrors what the model publishes into `MonthDraftStore` synchronously inside the subscription callback, exposed to React through `useMentorSchedule` (`src/hooks/useMentorSchedule.ts`) via `useSyncExternalStore`. `MonthDraftStore` itself takes `get` as an injected `GetCachedMonthScheduleFn` so it stays a pure, non-React unit under test.
-- `src/services/mentor-schedule/sync.ts` publishes through the model from `loadMonthScheduleFresh` (save / discard) and `prefetchMonthSchedule` (next-month warm-up); `loadMonthSchedule` is the raw network read and touches no cache at all.
+- `MentorScheduleSession` (`src/lib/mentor-schedule/mentorScheduleSession.ts`, X-Tracker #937 / #975) subscribes to the viewed month directly, mirrors what the model publishes into `MonthDraftStore` synchronously inside the subscription callback, and acts as the sole publisher to `scheduleReadModel.set` upon commit settlement, exposed to React through `useMentorSchedule` (`src/hooks/useMentorSchedule.ts`) via `useSyncExternalStore`. `MonthDraftStore` itself takes `get` as an injected `GetCachedMonthScheduleFn` so it stays a pure, non-React unit under test.
+- `src/services/mentor-schedule/sync.ts` warms next-month reads through `prefetchMonthSchedule`; `loadMonthSchedule`, `syncMonthSchedule`, and `syncMonths` are pure transport adapters and do not mutate `scheduleReadModel` directly.
 
 ---
 

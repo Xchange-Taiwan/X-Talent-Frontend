@@ -184,6 +184,7 @@ function buildScheduleMock(
     draftForSelectedDate,
     slotsWithMeta,
     futureSlots,
+    isSaving: false,
     addSlotForSelectedDate: () => ({ success: true, added: 1 }),
     updateDraftSlot: () => ({ success: true }),
     deleteDraftSlot: () => {},
@@ -302,6 +303,21 @@ export const Loading: Story = {
       },
     },
     schedule: buildScheduleMock([], mockReservations),
+  },
+};
+
+export const Saving: Story = {
+  render: (args) => (
+    <DialogWrapper reader={args.reader} schedule={args.schedule} />
+  ),
+  args: {
+    open: true,
+    onOpenChange: () => {},
+    reader: defaultReaderMock,
+    schedule: {
+      ...defaultScheduleMock,
+      isSaving: true,
+    },
   },
 };
 
