@@ -23,6 +23,11 @@ vi.mock('@/hooks/user/user-data/useUserData', () => ({
     mockUseUserData(...args),
 }));
 
+const mockUseResolvedIdentity = vi.fn();
+vi.mock('@/hooks/user/auth/useResolvedIdentity', () => ({
+  useResolvedIdentity: () => mockUseResolvedIdentity(),
+}));
+
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
 
@@ -33,6 +38,76 @@ const emptyCatalogs = {} as TagCatalogsByBucket;
 describe('ProfileCardContainer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseResolvedIdentity.mockReturnValue({ state: 'confirmed-guest' });
+  });
+
+  it('protects the /profile/card completion page with the ProfileReadModel expectedIsMentor guard only for the owner whose session is already a Mentor (#981)', () => {
+    mockUseUserData.mockReturnValue({ userData: null, isLoading: true });
+    const staleMenteeDto = { user_id: 42, is_mentor: false } as MentorProfileVO;
+
+    mockUseResolvedIdentity.mockReturnValue({
+      state: 'confirmed-member',
+      userId: '42',
+      isMentor: true,
+    });
+    const { unmount } = render(
+      <ProfileCardContainer
+        loginUserId={42}
+        initialDto={staleMenteeDto}
+        initialCatalogs={emptyCatalogs}
+      />
+    );
+    expect(mockUseUserData).toHaveBeenLastCalledWith(
+      42,
+      'zh_TW',
+      staleMenteeDto,
+      emptyCatalogs,
+      { expectedIsMentor: true }
+    );
+    unmount();
+
+    // Still a Mentee in session -> no guard.
+    mockUseResolvedIdentity.mockReturnValue({
+      state: 'confirmed-member',
+      userId: '42',
+      isMentor: false,
+    });
+    const { unmount: unmount2 } = render(
+      <ProfileCardContainer
+        loginUserId={42}
+        initialDto={staleMenteeDto}
+        initialCatalogs={emptyCatalogs}
+      />
+    );
+    expect(mockUseUserData).toHaveBeenLastCalledWith(
+      42,
+      'zh_TW',
+      staleMenteeDto,
+      emptyCatalogs,
+      { expectedIsMentor: false }
+    );
+    unmount2();
+
+    // Mentor identity for a different account never applies.
+    mockUseResolvedIdentity.mockReturnValue({
+      state: 'confirmed-member',
+      userId: '99',
+      isMentor: true,
+    });
+    render(
+      <ProfileCardContainer
+        loginUserId={42}
+        initialDto={staleMenteeDto}
+        initialCatalogs={emptyCatalogs}
+      />
+    );
+    expect(mockUseUserData).toHaveBeenLastCalledWith(
+      42,
+      'zh_TW',
+      staleMenteeDto,
+      emptyCatalogs,
+      { expectedIsMentor: false }
+    );
   });
 
   it('forwards loginUserId/initialDto/initialCatalogs straight through to useUserData', () => {
@@ -51,7 +126,8 @@ describe('ProfileCardContainer', () => {
       42,
       'zh_TW',
       initialDto,
-      emptyCatalogs
+      emptyCatalogs,
+      { expectedIsMentor: false }
     );
   });
 
@@ -71,7 +147,8 @@ describe('ProfileCardContainer', () => {
       42,
       'zh_TW',
       initialDto,
-      undefined
+      undefined,
+      { expectedIsMentor: false }
     );
   });
 
@@ -90,7 +167,8 @@ describe('ProfileCardContainer', () => {
       42,
       'zh_TW',
       null,
-      emptyCatalogs
+      emptyCatalogs,
+      { expectedIsMentor: false }
     );
   });
 

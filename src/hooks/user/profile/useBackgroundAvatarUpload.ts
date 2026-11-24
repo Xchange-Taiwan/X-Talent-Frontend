@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import {
   type AvatarUploadSession,
@@ -15,6 +15,7 @@ export interface UseBackgroundAvatarUpload {
   rollback: () => Promise<void>;
   abort: () => void;
   prefetch: (targetUserId?: number) => void;
+  clearStaged: () => Promise<void>;
 }
 
 function normalizeNumericUserId(
@@ -28,7 +29,8 @@ function normalizeNumericUserId(
 /**
  * Thin React adapter over `AvatarUploadSession` binding a per-component
  * upload session instance, explicit user identity, and automatic unmount
- * rollback cleanup.
+ * rollback cleanup. The returned object is referentially stable so it can be
+ * handed to ProfileSavePort.avatarSession directly.
  */
 export function useBackgroundAvatarUpload(
   userId: number | string | null | undefined
@@ -81,6 +83,10 @@ export function useBackgroundAvatarUpload(
     sessionRef.current?.abort();
   }, []);
 
+  const clearStaged = useCallback(async (): Promise<void> => {
+    await sessionRef.current?.clearStaged();
+  }, []);
+
   useEffect(() => {
     const session = sessionRef.current;
     return () => {
@@ -88,13 +94,17 @@ export function useBackgroundAvatarUpload(
     };
   }, []);
 
-  return {
-    stage,
-    kickOff: stage,
-    resolve,
-    markCommitted,
-    rollback,
-    abort,
-    prefetch,
-  };
+  return useMemo(
+    () => ({
+      stage,
+      kickOff: stage,
+      resolve,
+      markCommitted,
+      rollback,
+      abort,
+      prefetch,
+      clearStaged,
+    }),
+    [stage, resolve, markCommitted, rollback, abort, prefetch, clearStaged]
+  );
 }

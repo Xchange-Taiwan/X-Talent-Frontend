@@ -10,10 +10,13 @@ import type { MentorProfileVO } from '@/types/user';
 
 import {
   createProfileReadModel,
+  createStaleMentorRefetchBudget,
+  isStaleMentorDto,
   OPTIMISTIC_TRANSITION_WINDOW_MS,
   parseProfileCacheKey,
   PROFILE_READ_MODEL_TTL_MS,
   profileReadModel,
+  resolveMentorAwareSeed,
 } from './profileReadModel';
 
 const makeDto = (
@@ -435,5 +438,137 @@ describe('profileReadModel', () => {
       'Snowflake B'
     );
     expect(model.getOptimisticIdentity(idB)?.name).toBe('Snowflake B');
+  });
+});
+
+describe('ProfileReadModel expectedIsMentor monotonic guard (#981)', () => {
+  const key = { userId: 7, language: 'zh_TW' };
+
+  it('isStaleMentorDto flags only Mentee DTOs when a Mentor is expected', () => {
+    expect(isStaleMentorDto(makeDto(7), true)).toBe(true);
+    expect(isStaleMentorDto(makeDto(7, { is_mentor: true }), true)).toBe(false);
+    expect(isStaleMentorDto(makeDto(7), false)).toBe(false);
+    expect(isStaleMentorDto(makeDto(7), undefined)).toBe(false);
+    expect(isStaleMentorDto(null, true)).toBe(false);
+    expect(isStaleMentorDto(undefined, true)).toBe(false);
+  });
+
+  it('resolveMentorAwareSeed discards a stale Mentee SSR seed only when a Mentor is expected', () => {
+    const stale = makeDto(7);
+    const fresh = makeDto(7, { is_mentor: true });
+    expect(resolveMentorAwareSeed(stale, true)).toBeUndefined();
+    expect(resolveMentorAwareSeed(stale, false)).toBe(stale);
+    expect(resolveMentorAwareSeed(fresh, true)).toBe(fresh);
+    expect(resolveMentorAwareSeed(null, true)).toBeNull();
+    expect(resolveMentorAwareSeed(undefined, true)).toBeUndefined();
+  });
+
+  it('reconcileExpectedMentor force-refetches a stale Mentee DTO at most once per budget and key, then stops (no infinite loop under backend lag)', async () => {
+    const model = createProfileReadModel();
+    const stale = makeDto(7);
+    model.set(key, stale);
+    const fetcher = vi.fn().mockResolvedValue(makeDto(7));
+    const budget = createStaleMentorRefetchBudget();
+
+    const first = model.reconcileExpectedMentor(
+      key,
+      stale,
+      true,
+      fetcher,
+      budget
+    );
+    expect(first).not.toBeNull();
+    await first;
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher.mock.calls[0]![1]).toEqual({ force: true });
+
+    // Backend still lagging: the DTO is still a Mentee but the budget is spent.
+    const stillStale = model.peek(key)!;
+    expect(
+      model.reconcileExpectedMentor(key, stillStale, true, fetcher, budget)
+    ).toBeNull();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('reconcileExpectedMentor is a no-op for fresh Mentor DTOs, missing DTOs, or when no Mentor is expected', () => {
+    const model = createProfileReadModel();
+    const fetcher = vi.fn().mockResolvedValue(null);
+    const budget = createStaleMentorRefetchBudget();
+    expect(
+      model.reconcileExpectedMentor(
+        key,
+        makeDto(7, { is_mentor: true }),
+        true,
+        fetcher,
+        budget
+      )
+    ).toBeNull();
+    expect(
+      model.reconcileExpectedMentor(key, null, true, fetcher, budget)
+    ).toBeNull();
+    expect(
+      model.reconcileExpectedMentor(key, makeDto(7), false, fetcher, budget)
+    ).toBeNull();
+    expect(fetcher).not.toHaveBeenCalled();
+    // Budget was never consumed, so a later stale DTO can still refetch once.
+    expect(
+      model.reconcileExpectedMentor(key, makeDto(7), true, fetcher, budget)
+    ).not.toBeNull();
+  });
+
+  it('dedupes concurrent reconcile requests from separate budgets onto one in-flight forced fetch and publishes the fresh DTO to subscribers', async () => {
+    const model = createProfileReadModel();
+    const stale = makeDto(7);
+    model.set(key, stale);
+    let resolveFetch!: (dto: MentorProfileVO) => void;
+    const fetcher = vi.fn(
+      () =>
+        new Promise<MentorProfileVO>((resolve) => {
+          resolveFetch = resolve;
+        })
+    );
+    const updates: Array<MentorProfileVO | null> = [];
+    const unsubscribe = model.subscribe(
+      key,
+      vi.fn().mockResolvedValue(stale),
+      (result) => {
+        if (!result.isLoading) updates.push(result.data);
+      }
+    );
+
+    const pageA = model.reconcileExpectedMentor(
+      key,
+      stale,
+      true,
+      fetcher,
+      createStaleMentorRefetchBudget()
+    );
+    const pageB = model.reconcileExpectedMentor(
+      key,
+      stale,
+      true,
+      fetcher,
+      createStaleMentorRefetchBudget()
+    );
+    expect(pageA).toBe(pageB);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    const fresh = makeDto(7, { is_mentor: true });
+    resolveFetch(fresh);
+    await pageA;
+    expect(model.peek(key)).toBe(fresh);
+    expect(updates.at(-1)).toBe(fresh);
+    unsubscribe();
+  });
+
+  it('scopes the single-attempt budget per cache key so another user still gets one refetch', async () => {
+    const model = createProfileReadModel();
+    const fetcher = vi.fn().mockResolvedValue(null);
+    const budget = createStaleMentorRefetchBudget();
+    await model.reconcileExpectedMentor(key, makeDto(7), true, fetcher, budget);
+    const otherKey = { userId: 8, language: 'zh_TW' };
+    expect(
+      model.reconcileExpectedMentor(otherKey, makeDto(8), true, fetcher, budget)
+    ).not.toBeNull();
   });
 });

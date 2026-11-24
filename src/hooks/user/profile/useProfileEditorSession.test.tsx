@@ -44,6 +44,11 @@ vi.mock('@/lib/analytics', async (importOriginal) => {
   };
 });
 
+const mockToast = vi.fn();
+vi.mock('@/components/ui/use-toast', () => ({
+  useToast: () => ({ toast: mockToast, toasts: [], dismiss: vi.fn() }),
+}));
+
 const mockOnError = vi.fn();
 const mockScrollToField = vi.fn();
 vi.mock('./useFormErrorScroll', () => ({
@@ -76,6 +81,7 @@ vi.mock('@/services/profile/updateAvatar', async (importOriginal) => {
 });
 
 import { apiClient } from '@/lib/apiClient';
+import { LoggedError } from '@/lib/profile/saveProfile';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 import { mockUserDTO } from '@/test/fixtures/profile';
 import { mockSession, mockUseSession } from '@/test/mocks/nextAuth';
@@ -567,7 +573,7 @@ describe('useProfileEditorSession (#787 / #905)', () => {
     ]);
   });
 
-  it('preserves isMentorRole=true without injecting preset avatar, triggers refetch once, and updates clean form when fresh Mentor DTO arrives (#974)', () => {
+  it('preserves isMentorRole=true without injecting preset avatar, delegates the stale-Mentee refetch to ProfileReadModel via expectedIsMentor, and updates clean form when fresh Mentor DTO arrives (#974 / #981)', () => {
     const refetchMock = vi.fn();
     mockUseSession.mockReturnValue({
       data: {
@@ -605,11 +611,12 @@ describe('useProfileEditorSession (#787 / #905)', () => {
     expect(result.current.isMentorRole).toBe(true);
     expect(result.current.form.getValues('is_mentor')).toBe(true);
     expect(result.current.form.getValues('avatar')).toBe('');
-    expect(refetchMock).toHaveBeenCalledTimes(1);
-
-    // Re-rendering while DTO is still stale must NOT loop refetch
+    // The single-shot forced refetch now lives behind the read boundary.
+    expect(mockUseUserProfileDto).toHaveBeenCalledWith(1, 'zh_TW', undefined, {
+      expectedIsMentor: true,
+    });
     rerender();
-    expect(refetchMock).toHaveBeenCalledTimes(1);
+    expect(refetchMock).not.toHaveBeenCalled();
 
     // Once fresh Mentor DTO arrives on a clean form, it hydrates the Mentor fields
     mockUseUserProfileDto.mockReturnValue({
@@ -755,5 +762,106 @@ describe('useProfileEditorSession (#787 / #905)', () => {
     await expect(mockUpdateAvatar.mock.calls[1]![0].text()).resolves.toBe(
       'original-s3-bytes'
     );
+  });
+  it('routes step="avatar_upload" failures to the avatarFile field error and scrolls to #avatarFile instead of the generic toast, matching onboarding (#981)', async () => {
+    const { result } = renderHook(() => {
+      const s = useProfileEditorSession({
+        pageUserId: '1',
+        isAuthorized: true,
+        isMentorOnboarding: false,
+      });
+      void s.form.formState.errors;
+      return s;
+    });
+
+    act(() => {
+      result.current.form.reset({
+        ...result.current.form.getValues(),
+        name: 'Initial Name',
+        location: 'TWN',
+        years_of_experience: '1_3',
+        want_position: ['frontend'],
+        want_skill: ['react'],
+        want_topic: ['career'],
+      });
+    });
+
+    mockCommitProfileMutation.mockRejectedValueOnce(
+      new LoggedError('upload failed', { step: 'avatar_upload' })
+    );
+    await act(async () => {
+      await result.current.handleFormSubmit();
+    });
+
+    expect(mockCommitProfileMutation).toHaveBeenCalledTimes(1);
+    expect(result.current.form.formState.errors.avatarFile?.message).toBe(
+      '頭像上傳失敗，請重新選擇。'
+    );
+    expect(mockScrollToField).toHaveBeenCalledWith('avatarFile');
+    expect(mockToast).not.toHaveBeenCalled();
+
+    // A profile_write failure keeps the generic toast and leaves avatarFile alone.
+    act(() => {
+      result.current.form.clearErrors('avatarFile');
+    });
+    mockScrollToField.mockClear();
+    mockCommitProfileMutation.mockRejectedValueOnce(
+      new LoggedError('write failed', { step: 'profile_write' })
+    );
+    await act(async () => {
+      await result.current.handleFormSubmit();
+    });
+    expect(result.current.form.formState.errors.avatarFile).toBeUndefined();
+    expect(mockScrollToField).not.toHaveBeenCalled();
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({ description: '儲存失敗，請稍後再試' })
+    );
+  });
+
+  it('cancels the staged upload natively via AvatarUploadSession.clearStaged when a preset avatar is picked, so save never uploads the stale file (#981)', async () => {
+    mockUpdateAvatar.mockResolvedValue('https://cdn.example.com/ok.jpg');
+    const { result } = renderHook(() =>
+      useProfileEditorSession({
+        pageUserId: '1',
+        isAuthorized: true,
+        isMentorOnboarding: false,
+      })
+    );
+    act(() => {
+      result.current.form.reset({
+        ...result.current.form.getValues(),
+        name: 'Initial Name',
+        location: 'TWN',
+        years_of_experience: '1_3',
+        want_position: ['frontend'],
+        want_skill: ['react'],
+        want_topic: ['career'],
+      });
+    });
+
+    const goodFile = new File(['ok'], 'photo.png', { type: 'image/png' });
+    await act(async () => {
+      result.current.handleAvatarFileChange(goodFile);
+      await Promise.resolve();
+    });
+    act(() => {
+      result.current.handleSelectPresetAvatar('/avatars/default_2.webp');
+    });
+
+    const callIndex = mockCommitProfileMutation.mock.calls.length;
+    await act(async () => {
+      await result.current.handleFormSubmit();
+    });
+    const savePort = mockCommitProfileMutation.mock.calls[callIndex]?.[2] as {
+      avatarSession?: { resolve: (f?: File) => Promise<string | undefined> };
+    };
+    await expect(
+      savePort.avatarSession!.resolve(goodFile)
+    ).resolves.toBeUndefined();
+    // clearStaged may restore the pre-edit S3 bytes, but the staged file
+    // itself is never uploaded again by the save.
+    expect(
+      mockUpdateAvatar.mock.calls.filter(([file]) => file === goodFile)
+    ).toHaveLength(1);
   });
 });

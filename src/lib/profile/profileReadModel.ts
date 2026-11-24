@@ -104,6 +104,68 @@ export interface ProfileReadModel extends AsyncReadSource<
     userId: number | string,
     language?: string
   ): OptimisticIdentityProjection | undefined;
+  /**
+   * Monotonic `is_mentor` guard (#974 / #981). When the caller expects a
+   * Mentor but `value` still reports `is_mentor: false` (stale ISR / cache
+   * DTO from before the Mentor transition), force one network refetch for
+   * `key` and publish its result to every live subscriber. Each `budget`
+   * allows a single attempt per cache key so a lagging backend cannot cause
+   * an infinite refetch loop, and concurrent requests for the same key join
+   * the one in-flight forced fetch. Returns `null` when nothing was started.
+   */
+  reconcileExpectedMentor(
+    key: ProfileReadKey,
+    value: MentorProfileVO | null | undefined,
+    expectedIsMentor: boolean | undefined,
+    fetcher: ProfileFetcher,
+    budget: StaleMentorRefetchBudget
+  ): Promise<AsyncReadResult<MentorProfileVO | null> | null> | null;
+}
+
+/**
+ * Per-reader allowance for the stale-Mentor forced refetch: one attempt per
+ * profile cache key. Each page-level reader owns its own budget so one page's
+ * attempt never starves another page's.
+ */
+export interface StaleMentorRefetchBudget {
+  tryClaim(key: ProfileReadKey): boolean;
+}
+
+export function createStaleMentorRefetchBudget(): StaleMentorRefetchBudget {
+  const claimed = new Set<string>();
+  return {
+    tryClaim(key) {
+      const cacheKey = toProfileCacheKey(key);
+      if (claimed.has(cacheKey)) return false;
+      claimed.add(cacheKey);
+      return true;
+    },
+  };
+}
+
+/**
+ * True when the caller already knows the user is a Mentor (e.g. the owner's
+ * session says so) but the DTO still reports `is_mentor: false`. `is_mentor`
+ * only ever moves false -> true, so such a DTO is necessarily stale.
+ */
+export function isStaleMentorDto(
+  dto: MentorProfileVO | null | undefined,
+  expectedIsMentor: boolean | undefined
+): boolean {
+  return Boolean(expectedIsMentor) && Boolean(dto) && !dto?.is_mentor;
+}
+
+/**
+ * Drops an SSR `initialData` seed that is provably stale for an expected
+ * Mentor so it is never rendered nor primed into the shared cache.
+ */
+export function resolveMentorAwareSeed(
+  initialData: MentorProfileVO | null | undefined,
+  expectedIsMentor: boolean | undefined
+): MentorProfileVO | null | undefined {
+  return isStaleMentorDto(initialData, expectedIsMentor)
+    ? undefined
+    : initialData;
 }
 
 export function toProfileCacheKey(key: ProfileReadKey): string {
@@ -148,6 +210,11 @@ export function createProfileReadModel(
   let projectionMemo = new WeakMap<
     MentorProfileVO,
     OptimisticIdentityProjection
+  >();
+
+  const staleMentorRefetches = new Map<
+    string,
+    Promise<AsyncReadResult<MentorProfileVO | null> | null>
   >();
 
   let lastPrimedTime = 0;
@@ -289,6 +356,30 @@ export function createProfileReadModel(
     }
   };
 
+  function refreshKey(
+    key: ProfileReadKey,
+    fetcher: ProfileFetcher,
+    refreshOptions?: Omit<
+      AsyncReadOptions<MentorProfileVO | null>,
+      'force' | 'initialData'
+    >
+  ): Promise<AsyncReadResult<MentorProfileVO | null> | null> {
+    const cacheKey = trackKey(key);
+    const wrappedFetcher: ProfileFetcher = (signal, context) =>
+      resolveFetch(key, (s) => fetcher(s, context), signal, context);
+    return manager
+      .refresh(cacheKey, wrappedFetcher, {
+        ...refreshOptions,
+        shouldCache: (value) =>
+          shouldCache(key, value) &&
+          (!refreshOptions?.shouldCache || refreshOptions.shouldCache(value)),
+      })
+      .then((res) => {
+        notifyIdentityObservers(key.userId);
+        return res;
+      });
+  }
+
   return {
     get(key) {
       return manager.get(toProfileCacheKey(key));
@@ -403,21 +494,21 @@ export function createProfileReadModel(
         });
     },
 
-    refresh(key, fetcher, refreshOptions) {
-      const cacheKey = trackKey(key);
-      const wrappedFetcher: ProfileFetcher = (signal, context) =>
-        resolveFetch(key, (s) => fetcher(s, context), signal, context);
-      return manager
-        .refresh(cacheKey, wrappedFetcher, {
-          ...refreshOptions,
-          shouldCache: (value) =>
-            shouldCache(key, value) &&
-            (!refreshOptions?.shouldCache || refreshOptions.shouldCache(value)),
-        })
-        .then((res) => {
-          notifyIdentityObservers(key.userId);
-          return res;
-        });
+    refresh: refreshKey,
+
+    reconcileExpectedMentor(key, value, expectedIsMentor, fetcher, budget) {
+      if (!isStaleMentorDto(value, expectedIsMentor)) return null;
+      if (!budget.tryClaim(key)) return null;
+      const cacheKey = toProfileCacheKey(key);
+      const inflight = staleMentorRefetches.get(cacheKey);
+      if (inflight) return inflight;
+      const pending = refreshKey(key, fetcher).finally(() => {
+        if (staleMentorRefetches.get(cacheKey) === pending) {
+          staleMentorRefetches.delete(cacheKey);
+        }
+      });
+      staleMentorRefetches.set(cacheKey, pending);
+      return pending;
     },
 
     evict(key) {
@@ -471,6 +562,7 @@ export function createProfileReadModel(
 
     clear() {
       trackedKeysByUser.clear();
+      staleMentorRefetches.clear();
       lastPrimedKeyByUser.clear();
       projectionMemo = new WeakMap<
         MentorProfileVO,

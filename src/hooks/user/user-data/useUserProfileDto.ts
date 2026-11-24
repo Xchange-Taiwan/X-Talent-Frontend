@@ -1,10 +1,13 @@
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useAsyncRead } from '@/hooks/useAsyncRead';
 import {
+  createStaleMentorRefetchBudget,
   hasDtoConverged,
+  type ProfileFetcher,
   type ProfileReadKey,
   profileReadModel,
+  resolveMentorAwareSeed,
   USER_PROFILE_DTO_CACHE_TTL_MS,
 } from '@/lib/profile/profileReadModel';
 import { normalizePositiveUserId } from '@/lib/profile/userId';
@@ -22,16 +25,28 @@ export interface UseUserProfileDtoResult {
   refetch?: () => void;
 }
 
+export interface UseUserProfileDtoOptions {
+  enabled?: boolean;
+  /**
+   * The caller already knows this user is a Mentor (e.g. the owner's session
+   * says so). A Mentee SSR seed is then discarded and a Mentee DTO from the
+   * cache/network triggers one deduped forced refetch via
+   * `profileReadModel.reconcileExpectedMentor` (#974 / #981).
+   */
+  expectedIsMentor?: boolean;
+}
+
 /**
  * Shared cache layer for the mentor profile DTO. Both the read-only profile
- * view (useUserData) and the edit form (useEditProfileData) consume this hook
- * so navigating between them within the cache TTL avoids duplicate API calls.
+ * view (useUserData) and the edit form (useProfileEditorSession) consume this
+ * hook so navigating between them within the cache TTL avoids duplicate API
+ * calls.
  */
 export function useUserProfileDto(
   userId: number | string,
   language: string,
   initialData?: MentorProfileVO | null,
-  options?: { enabled?: boolean }
+  options?: UseUserProfileDtoOptions
 ): UseUserProfileDtoResult {
   const canonicalUserId = normalizePositiveUserId(userId);
   const fetchTargetId: number | string | null = canonicalUserId
@@ -47,24 +62,45 @@ export function useUserProfileDto(
     [canonicalUserId, language]
   );
   const enabled = options?.enabled !== false;
+  const expectedIsMentor = Boolean(options?.expectedIsMentor);
   const activeKey = enabled ? readKey : null;
+
+  const fetchProfile = useCallback<ProfileFetcher>(
+    (signal) =>
+      fetchTargetId !== null
+        ? fetchUserById(fetchTargetId, language, signal)
+        : Promise.resolve(null),
+    [fetchTargetId, language]
+  );
 
   const {
     data: asyncReadData,
     isLoading,
     error,
     refetch,
-  } = useAsyncRead(
-    profileReadModel,
+  } = useAsyncRead(profileReadModel, activeKey, fetchProfile, {
+    initialData: resolveMentorAwareSeed(initialData, expectedIsMentor),
+  });
+
+  const [staleMentorBudget] = useState(createStaleMentorRefetchBudget);
+
+  useEffect(() => {
+    if (!activeKey || isLoading) return;
+    void profileReadModel.reconcileExpectedMentor(
+      activeKey,
+      asyncReadData,
+      expectedIsMentor,
+      fetchProfile,
+      staleMentorBudget
+    );
+  }, [
     activeKey,
-    (signal) =>
-      fetchTargetId !== null
-        ? fetchUserById(fetchTargetId, language, signal)
-        : Promise.resolve(null),
-    {
-      initialData,
-    }
-  );
+    asyncReadData,
+    expectedIsMentor,
+    fetchProfile,
+    isLoading,
+    staleMentorBudget,
+  ]);
 
   const userDto = enabled
     ? asyncReadData

@@ -404,4 +404,93 @@ describe('AvatarUploadSession (framework-free 2-phase upload & rollback)', () =>
     );
     expect(fetchPresigned).toHaveBeenCalledTimes(1);
   });
+  it('clearStaged() cancels an in-flight staged upload and short-circuits resolve(file) to undefined until the next stage() (preset avatar, #981)', async () => {
+    const pending = createDeferred<string | undefined>();
+    const upload = vi
+      .fn<NonNullable<AvatarStoragePort['upload']>>()
+      .mockImplementationOnce((_file, _uid, signal) => {
+        signal?.addEventListener('abort', () =>
+          pending.reject(new DOMException('aborted', 'AbortError'))
+        );
+        return pending.promise;
+      })
+      .mockResolvedValue('https://cdn.example.com/u/42/avatar?v=2');
+    const fetchSnapshot = vi
+      .fn<NonNullable<AvatarStoragePort['fetchSnapshot']>>()
+      .mockResolvedValue(new Blob(['original'], { type: 'image/jpeg' }));
+    const onUploadFailed = vi.fn();
+    const session = createAvatarUploadSession({
+      userId: 42,
+      upload,
+      fetchSnapshot,
+      onUploadFailed,
+    });
+
+    const file = makeFile('crop.png');
+    session.stage(file, 'https://cdn.example.com/u/42/avatar?v=1');
+    expect(upload).toHaveBeenCalledTimes(1);
+
+    await session.clearStaged();
+    expect(upload.mock.calls[0]![2]?.aborted).toBe(true);
+    // Nothing was overwritten, so no S3 restore upload happens.
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(onUploadFailed).not.toHaveBeenCalled();
+
+    // Preset short-circuit: a stale file reference never uploads.
+    await expect(session.resolve(file)).resolves.toBeUndefined();
+    expect(upload).toHaveBeenCalledTimes(1);
+
+    // Picking a new photo re-arms the session.
+    const file2 = makeFile('crop2.png');
+    session.stage(file2, 'https://cdn.example.com/u/42/avatar?v=1');
+    await expect(session.resolve(file2)).resolves.toBe(
+      'https://cdn.example.com/u/42/avatar?v=2'
+    );
+    expect(upload).toHaveBeenCalledTimes(2);
+  });
+
+  it('clearStaged() restores the pre-edit S3 bytes when the staged upload already overwrote S3 (#981)', async () => {
+    const upload = vi
+      .fn<NonNullable<AvatarStoragePort['upload']>>()
+      .mockResolvedValue('https://cdn.example.com/u/42/avatar?v=2');
+    const fetchSnapshot = vi
+      .fn<NonNullable<AvatarStoragePort['fetchSnapshot']>>()
+      .mockResolvedValue(new Blob(['original'], { type: 'image/jpeg' }));
+    const session = createAvatarUploadSession({
+      userId: 42,
+      upload,
+      fetchSnapshot,
+    });
+
+    const file = makeFile('crop.png');
+    session.stage(file, 'https://cdn.example.com/u/42/avatar?v=1');
+    await session.resolve(file);
+    expect(upload).toHaveBeenCalledTimes(1);
+
+    await session.clearStaged();
+    expect(upload).toHaveBeenCalledTimes(2);
+    await expect(upload.mock.calls[1]![0].text()).resolves.toBe('original');
+    await expect(session.resolve(file)).resolves.toBeUndefined();
+    expect(upload).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps markCommitted / abort / rollback semantics intact after a preset switch (#981)', async () => {
+    const upload = vi
+      .fn<NonNullable<AvatarStoragePort['upload']>>()
+      .mockResolvedValue('https://cdn.example.com/u/42/avatar?v=2');
+    const session = createAvatarUploadSession({
+      userId: 42,
+      upload,
+      fetchSnapshot: vi.fn().mockResolvedValue(null),
+    });
+
+    await session.clearStaged();
+    await expect(
+      session.resolve(makeFile('late.png'))
+    ).resolves.toBeUndefined();
+    session.markCommitted();
+    session.abort();
+    await session.rollback();
+    expect(upload).not.toHaveBeenCalled();
+  });
 });

@@ -22,7 +22,8 @@ function useUserData(
   userId: number | string,
   language: string,
   initialDto?: MentorProfileVO | null,
-  initialCatalogs?: TagCatalogsByBucket
+  initialCatalogs?: TagCatalogsByBucket,
+  options?: { expectedIsMentor?: boolean }
 ) {
   // /profile/[pageUserId]/page.tsx handles 404 via notFound() on the server
   // and types initialDto as non-null MentorProfileVO. The only caller that
@@ -31,12 +32,16 @@ function useUserData(
   // useUserData should fall back to the client-side fetch (see
   // app/profile/card/page.tsx). Direct callers of useUserProfileDto that pass
   // null still get synchronous USER_NOT_FOUND without a redundant fetch.
+  // options.expectedIsMentor delegates the #974 stale-Mentee-DTO guard to the
+  // ProfileReadModel boundary (see useUserProfileDto).
   const {
     userDto,
     isLoading: dtoLoading,
     error,
     refetch,
-  } = useUserProfileDto(userId, language, initialDto ?? undefined);
+  } = useUserProfileDto(userId, language, initialDto ?? undefined, {
+    expectedIsMentor: options?.expectedIsMentor,
+  });
   // Catalog supplies localized labels for the raw subject_group arrays
   // (want_*, have_*) and for the enriched industry. Loads in parallel with
   // the user dto and is cached app-wide via tagCatalogReadManager.

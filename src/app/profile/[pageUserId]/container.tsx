@@ -93,14 +93,8 @@ export default function ProfilePageContainer({
 
   const [openReservationDialog, setOpenReservationDialog] = useState(false);
 
-  const isOwnMentorStaleInitialDto = Boolean(
-    isOwnProfile &&
-    identity.state === 'confirmed-member' &&
-    identity.isMentor &&
-    initialDto &&
-    !initialDto.is_mentor
-  );
-  const effectiveInitialDto = isOwnMentorStaleInitialDto ? null : initialDto;
+  const expectsOwnMentor =
+    isOwnProfile && identity.state === 'confirmed-member' && identity.isMentor;
 
   const {
     userData,
@@ -110,25 +104,10 @@ export default function ProfilePageContainer({
   } = useUserData(
     resolvedProfileUserId,
     'zh_TW',
-    effectiveInitialDto,
-    initialCatalogs ?? undefined
+    initialDto,
+    initialCatalogs ?? undefined,
+    { expectedIsMentor: expectsOwnMentor }
   );
-
-  const refetchedStaleMentorRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (
-      isOwnProfile &&
-      identity.state === 'confirmed-member' &&
-      identity.isMentor &&
-      userData &&
-      !userData.is_mentor &&
-      !userLoading &&
-      refetchedStaleMentorRef.current !== pageUserId
-    ) {
-      refetchedStaleMentorRef.current = pageUserId;
-      refetch?.();
-    }
-  }, [identity, isOwnProfile, pageUserId, refetch, userData, userLoading]);
 
   useConsumePendingFavorite({
     pageUserId: canonicalUserId ?? pageUserId,
